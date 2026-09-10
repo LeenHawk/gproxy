@@ -23,6 +23,7 @@ pub struct ChannelDto {
     pub login: Option<ChannelLoginDto>,
     pub provider_fields: Vec<ChannelFieldDto>,
     pub credential_fields: Vec<ChannelFieldDto>,
+    pub quota_fields: Vec<ChannelFieldDto>,
     pub endpoint_kinds: Vec<String>,
     pub traffic_policy: super::TrafficPolicyDto,
 }
@@ -160,6 +161,7 @@ pub fn channel_dto(channel: &dyn gproxy_channel_api::Channel) -> ChannelDto {
             .iter()
             .map(channel_field)
             .collect(),
+        quota_fields: channel.quota_fields().iter().map(channel_field).collect(),
         endpoint_kinds: if descriptor.endpoint_overrides {
             descriptor
                 .supports

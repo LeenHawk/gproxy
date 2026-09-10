@@ -19,7 +19,7 @@ The 28 channel ids, grouped by credential shape:
 
 | Credential shape | Channel ids |
 | --- | --- |
-| API key (`api_key`) | `aistudio`, `azure`, `claudeapi`, `cloudflare-ai-gateway`, `custom`, `dashscope`, `deepseek`, `groq`, `nvidia`, `openai`, `openrouter`, `vercel`, `vertexexpress`, `xai` |
+| API key (`api_key`) | `aistudio`, `azure`, `claudeapi`, `cloudflare-ai-gateway`, `custom`, `dashscope`, `deepseek`, `nvidia`, `openai`, `openrouter`, `vercel`, `vertexexpress`, `xai` |
 | API key or OAuth token | `cline`, `kimi`, `opencode` |
 | OAuth token (`access_token`, `refresh_token`) | `claudecode`, `codex`, `grokbuild`, `kiro`, `workbuddy` |
 | Google OAuth (`access_token`, `refresh_token`, `project_id`) | `antigravity`, `geminicli` |

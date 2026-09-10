@@ -75,6 +75,62 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 };
 
 impl Channel for OpenRouterChannel {
+    fn prepare_quota_source_page(
+        &self,
+        source: &str,
+        secret: &serde_json::Value,
+        settings: &serde_json::Value,
+        cursor: Option<&str>,
+    ) -> Result<Option<http::Request<bytes::Bytes>>, gproxy_channel_api::ChannelError> {
+        crate::shared::quota_api::prepare_page(
+            self.descriptor().id,
+            source,
+            secret,
+            settings,
+            cursor,
+        )
+    }
+
+    fn parse_quota_source_page(
+        &self,
+        source: &str,
+        status: http::StatusCode,
+        _headers: &http::HeaderMap,
+        body: &[u8],
+    ) -> Result<gproxy_channel_api::QuotaSourcePage, gproxy_channel_api::ChannelError> {
+        crate::shared::quota_api::parse_page(self.descriptor().id, source, status, body)
+    }
+
+    fn quota_fields(&self) -> &'static [gproxy_channel_api::ChannelField] {
+        crate::shared::quota_catalog::fields(self.descriptor().id)
+    }
+
+    fn quota_sources(
+        &self,
+        secret: &serde_json::Value,
+        settings: &serde_json::Value,
+    ) -> Vec<gproxy_channel_api::QuotaSource> {
+        crate::shared::quota_catalog::sources(self.descriptor().id, secret, settings)
+    }
+
+    fn prepare_quota_source(
+        &self,
+        source_id: &str,
+        secret: &serde_json::Value,
+        settings: &serde_json::Value,
+    ) -> Result<Option<http::Request<bytes::Bytes>>, gproxy_channel_api::ChannelError> {
+        crate::shared::quota_api::prepare(self.descriptor().id, source_id, secret, settings)
+    }
+    fn parse_quota_source(
+        &self,
+        source_id: &str,
+        status: http::StatusCode,
+        _headers: &http::HeaderMap,
+        body: &[u8],
+    ) -> Result<Vec<gproxy_channel_api::QuotaEntry>, gproxy_channel_api::ChannelError> {
+        crate::shared::quota_api::parse(self.descriptor().id, source_id, status, body)
+    }
+
     fn routing_table(&self) -> &'static [ChannelSupport] {
         routes::ROUTES
     }

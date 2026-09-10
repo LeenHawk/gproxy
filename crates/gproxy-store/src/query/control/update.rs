@@ -1,4 +1,4 @@
-use sea_query::{Alias, Expr, ExprTrait};
+use sea_query::{Alias, Expr, ExprTrait, Query};
 
 use crate::StoreError;
 use crate::backend::Statement;
@@ -44,6 +44,7 @@ pub(crate) fn update_provider(id: i64, input: &ProviderInput) -> Result<Statemen
 pub(crate) fn update_credential(
     id: i64,
     input: &CredentialUpdateInput,
+    expected_version: Option<u64>,
 ) -> Result<Statement, StoreError> {
     let mut columns = vec![
         "provider_id",
@@ -89,7 +90,18 @@ pub(crate) fn update_credential(
             value(envelope.key_nonce.clone()),
         ]);
     }
-    update("credentials", id, &columns, values)
+    let mut query = Query::update();
+    query.table(Alias::new("credentials"));
+    for (column, value) in columns.into_iter().zip(values) {
+        query.value(Alias::new(column), value);
+    }
+    query.and_where(Expr::col(Alias::new("id")).eq(id));
+    if let Some(version) = expected_version {
+        query.and_where(
+            Expr::col(Alias::new("version")).eq(unsigned(version, "credential version")?),
+        );
+    }
+    Statement::query(&query)
 }
 
 pub(crate) fn update_route(id: i64, input: &RouteInput) -> Result<Statement, StoreError> {

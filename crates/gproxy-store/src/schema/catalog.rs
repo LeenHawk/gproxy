@@ -16,10 +16,11 @@ pub enum SchemaVersion {
     OwnedRows = 7,
     ModelPermissions = 8,
     RouteStrategies = 9,
+    QuotaSnapshots = 10,
 }
 
 impl SchemaVersion {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::Initial,
         Self::QuotaObservations,
         Self::ModelMetadata,
@@ -29,8 +30,9 @@ impl SchemaVersion {
         Self::OwnedRows,
         Self::ModelPermissions,
         Self::RouteStrategies,
+        Self::QuotaSnapshots,
     ];
-    pub const LATEST: Self = Self::RouteStrategies;
+    pub const LATEST: Self = Self::QuotaSnapshots;
 
     pub const fn number(self) -> i64 {
         self as i64

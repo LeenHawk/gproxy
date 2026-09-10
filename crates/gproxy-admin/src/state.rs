@@ -81,6 +81,18 @@ pub trait State: MaybeSend + MaybeSync {
     /// Query the channel's dedicated usage endpoint for one credential and
     /// fold the windows into its quota cycles. On demand only — some
     /// upstreams rate-limit their usage endpoints aggressively.
+    fn credential_quota_snapshot(
+        &self,
+        id: i64,
+    ) -> BoxFuture<'_, Result<gproxy_channel_api::QuotaSnapshot, AdminError>> {
+        Box::pin(async move {
+            if self.store().credential(id).await?.is_none() {
+                return Err(AdminError::NotFound);
+            }
+            Ok(self.store().credential_quota_snapshot(id).await?)
+        })
+    }
+
     fn quota_probe<'a>(
         &'a self,
         credential_id: i64,

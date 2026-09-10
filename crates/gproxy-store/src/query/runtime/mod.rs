@@ -3,6 +3,9 @@ mod cycle;
 mod health;
 mod log;
 mod quota;
+pub(crate) mod quota_provider;
+pub(crate) mod quota_response;
+pub(crate) mod quota_snapshot;
 
 pub(crate) use cleanup::{delete_before, delete_oldest_logs, delete_stale_quota_activity};
 

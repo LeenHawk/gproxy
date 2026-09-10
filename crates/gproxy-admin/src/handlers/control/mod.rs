@@ -1,3 +1,4 @@
+mod credential_secret;
 mod inputs;
 pub(super) mod map;
 pub(super) mod validators;

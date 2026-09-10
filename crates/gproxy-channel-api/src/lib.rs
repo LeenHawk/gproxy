@@ -12,6 +12,8 @@
 //! plain method.
 
 pub mod channel;
+mod channel_descriptor;
+mod channel_error;
 pub mod disposition;
 pub mod endpoint;
 mod fallback;
@@ -22,7 +24,9 @@ pub mod oauth;
 mod oauth_redirect;
 pub mod operation;
 mod prepare;
+mod quota_snapshot;
 pub mod registry;
+pub use quota_snapshot::*;
 pub mod resource;
 pub mod session;
 pub mod surface;

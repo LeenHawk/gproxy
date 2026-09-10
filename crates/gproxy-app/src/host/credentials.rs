@@ -49,15 +49,42 @@ impl CredentialStore for AppHost {
             // Whether or not the write wins, the next load must see the row
             // as it is now: a peer may have rotated first.
             self.services.control.forget_credential(id.0);
-            let result = match self.services.cipher.seal(&secret) {
-                Ok(envelope) => self
+            let result = async {
+                let stored = self
                     .services
+                    .store
+                    .credential(id.0)
+                    .await
+                    .map_err(store_error)?
+                    .ok_or_else(unavailable)?;
+                if stored.version != version {
+                    return Err(CoreStoreError("credential version conflict".into()));
+                }
+                let current = self
+                    .services
+                    .cipher
+                    .open(&stored.envelope)
+                    .map_err(|_| encryption_error())?;
+                let mut secret = secret;
+                let object = secret.as_object_mut().ok_or_else(encryption_error)?;
+                if let Some(current) = current.as_object() {
+                    for (key, value) in current.iter().filter(|(key, _)| key.starts_with("quota_"))
+                    {
+                        object.insert(key.clone(), value.clone());
+                    }
+                }
+                let envelope = self
+                    .services
+                    .cipher
+                    .seal(&secret)
+                    .map_err(|_| encryption_error())?;
+                self.services
                     .store
                     .persist_credential_rotation(id.0, &envelope, version)
                     .await
-                    .map_err(store_error),
-                Err(_) => Err(encryption_error()),
-            };
+                    .map_err(store_error)
+            }
+            .await;
             let released = self
                 .services
                 .cache

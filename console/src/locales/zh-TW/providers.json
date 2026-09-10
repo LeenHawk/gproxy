@@ -260,7 +260,7 @@
       "quotaProbe": {
         "action": "重新整理",
         "pending": "查詢中…",
-        "success": "已觀測 {{count}} 個配額視窗。",
+        "success": "已更新 {{count}} 筆額度資料。",
         "error": "配額探測失敗。"
       },
       "quotaReset": {

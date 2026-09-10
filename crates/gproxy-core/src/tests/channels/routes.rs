@@ -74,7 +74,6 @@ fn every_builtin_default_has_an_executable_target_and_transform() {
         &gproxy_channels::CustomChannel,
         &gproxy_channels::DashScopeChannel,
         &gproxy_channels::DeepSeekChannel,
-        &gproxy_channels::GroqChannel,
         &gproxy_channels::GrokBuildChannel,
         &gproxy_channels::KiroChannel,
         &gproxy_channels::KimiChannel,

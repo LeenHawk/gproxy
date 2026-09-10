@@ -288,12 +288,23 @@ pub trait Host: MaybeSend + MaybeSync + 'static {
         Box::pin(async { Ok(()) })
     }
 
+    fn observe_credential_quota_entries<'a>(
+        &'a self,
+        credential: CredentialId,
+        credential_version: u64,
+        entries: Vec<gproxy_channel_api::QuotaEntry>,
+    ) -> BoxFuture<'a, ()> {
+        let _ = (credential, credential_version, entries);
+        Box::pin(async {})
+    }
+
     fn observe_credential_quota<'a>(
         &'a self,
         credential: CredentialId,
+        credential_version: u64,
         observations: Vec<gproxy_channel_api::QuotaObservation>,
     ) -> BoxFuture<'a, ()> {
-        let _ = (credential, observations);
+        let _ = (credential, credential_version, observations);
         Box::pin(async {})
     }
     /// Runtime timer used by bounded service-surface polling. Hosts implement

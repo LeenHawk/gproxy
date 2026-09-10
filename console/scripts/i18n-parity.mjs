@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src/locales")
 const locales = ["en", "zh-CN", "zh-TW"]
-const domains = ["common", "identity", "observability", "portal", "pricing", "providers", "routes", "rules", "settings", "update"]
+const domains = ["common", "identity", "observability", "portal", "pricing", "providers", "routes", "rules", "settings", "update", "upstream-quota"]
 const flatten = (value, prefix = "") =>
   Object.entries(value).flatMap(([key, child]) => {
     const path = prefix ? `${prefix}.${key}` : key

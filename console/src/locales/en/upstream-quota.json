@@ -1,0 +1,160 @@
+{
+  "upstreamQuota": {
+    "used": "Used",
+    "limit": "Limit",
+    "remaining": "Remaining",
+    "unlimited": "Unlimited",
+    "observed": "Last updated: {{time}}",
+    "response": "Updates with requests",
+    "notObserved": "No quota observed yet.",
+    "empty": "The upstream returned no quota data.",
+    "staleError": "Refresh failed; showing the last successful result.",
+    "reportPeriod": "Usage from {{start}} to {{end}}",
+    "kinds": {
+      "balance": "Balance",
+      "budget": "Spending budget",
+      "window": "Subscription window",
+      "rate_limit": "Rate limit",
+      "usage_report": "Historical usage"
+    },
+    "subjects": {
+      "account": "Account",
+      "organization": "Organization",
+      "project": "Project",
+      "key": "API Key",
+      "unknown": "Scope unknown"
+    },
+    "modelScope": {
+      "all": "All models",
+      "unknown": "Model scope unknown"
+    },
+    "availability": {
+      "available": "Available",
+      "unavailable": "Upstream reports insufficient balance",
+      "unknown": "Availability unknown"
+    },
+    "support": {
+      "ready": "Query available",
+      "requires_authorization": "Additional authorization required",
+      "unsupported": "Quota queries are not supported yet."
+    },
+    "components": {
+      "granted": "Granted balance",
+      "topped_up": "Topped-up balance",
+      "cash": "Cash balance",
+      "voucher": "Voucher balance",
+      "credit": "Credit facility",
+      "mybank_credit": "MYbank credit",
+      "signed_credit_balance": "Signed credit ledger"
+    },
+    "action": "Quota",
+    "stale": "Snapshot older than 10 minutes",
+    "manualQuery": "Click Refresh to query this source.",
+    "sources": {
+      "Account balance": "Account balance",
+      "Team balance": "Team balance",
+      "Key budget": "Key budget",
+      "Account credits": "Account credits",
+      "SiliconFlow account balance": "SiliconFlow account balance",
+      "Rate limits from responses": "Rate limits from responses",
+      "Organization usage and costs": "Organization usage and costs",
+      "Alibaba Cloud account balance": "Alibaba Cloud account balance",
+      "Team balance and spending limits": "Team balance and spending limits",
+      "Azure quota and costs": "Azure quota and costs",
+      "Project quota limits": "Project quota limits",
+      "AWS service quotas and costs": "AWS service quotas and costs",
+      "Account usage analytics": "Account usage analytics",
+      "Gemini API quota": "Gemini API quota",
+      "Vertex Express quota": "Vertex Express quota",
+      "NVIDIA quota": "NVIDIA quota",
+      "Workspace balance": "Workspace balance",
+      "Upstream quota": "Upstream quota",
+      "Subscription quota": "Subscription quota",
+      "Cline account credits": "Cline account credits",
+      "Organization daily costs (last 7 complete UTC days)": "Organization daily costs (last 7 complete UTC days)",
+      "Team prepaid ledger (negative means credit)": "Team prepaid ledger (negative means credit)",
+      "Team monthly postpaid budget": "Team monthly postpaid budget",
+      "OpenCode Go user/workspace quota": "OpenCode Go user/workspace quota",
+      "Zen workspace balance": "Zen workspace balance",
+      "Account balance and spend budget": "Account balance and spend budget",
+      "AWS Bedrock applied service quotas": "AWS Bedrock applied service quotas",
+      "Google project service quota limits": "Google project service quota limits",
+      "Azure subscription regional capacity": "Azure subscription regional capacity",
+      "Alibaba Cloud available account amount": "Alibaba Cloud available account amount",
+      "Cloudflare AI Gateway credit balance": "Cloudflare AI Gateway credit balance",
+      "Team spend reports": "Team spend reports",
+      "Kimi Code subscription": "Kimi Code subscription",
+      "Moonshot account balance": "Moonshot account balance",
+      "OpenCode Console wallet and monthly budget": "OpenCode Console wallet and monthly budget"
+    },
+    "recordedHistory": "{{window}} · Recorded quota history ({{count}})",
+    "authorization": {
+      "title": "Quota query authorization",
+      "description": "Optional authorization used only for upstream quota queries. Existing inference credentials are reused when supported.",
+      "revealFailed": "Stored values could not be loaded. Unchanged fields are preserved; you can replace or clear individual query fields.",
+      "optional": "Optional. Leave unchanged to preserve the stored value.",
+      "clear": "Clear",
+      "clearField": "Clear {{field}}",
+      "fields": {
+        "quota_api_key": {
+          "label": "Query API key / access token",
+          "description": "Additional credential for upstream quota queries. Leave empty to reuse the existing credential when supported."
+        },
+        "quota_base_url": {
+          "label": "Management API URL",
+          "description": "The upstream management API origin for quota queries."
+        },
+        "quota_team_id": {
+          "label": "Team ID",
+          "description": "Team whose balance or quota is queried."
+        },
+        "quota_workspace_id": {
+          "label": "Workspace ID",
+          "description": "Workspace whose balance or quota is queried."
+        },
+        "quota_account_id": {
+          "label": "Account ID",
+          "description": "Account scope for quota queries."
+        },
+        "quota_project_id": {
+          "label": "Project ID",
+          "description": "Project scope for quota queries."
+        },
+        "quota_subscription_id": {
+          "label": "Subscription ID",
+          "description": "Cloud subscription scope for quota queries."
+        },
+        "quota_region": {
+          "label": "Query region",
+          "description": "Cloud region used by the quota API."
+        },
+        "quota_access_key_id": {
+          "label": "Query access key ID",
+          "description": "Cloud access key identifier used to sign quota queries."
+        },
+        "quota_access_key_secret": {
+          "label": "Query access key secret",
+          "description": "Secret paired with the query access key ID."
+        },
+        "quota_session_token": {
+          "label": "Query session token",
+          "description": "Session token for temporary cloud credentials, when required."
+        },
+        "quota_quota_code": {
+          "label": "Service quota code",
+          "description": "Optional AWS quota code to query a specific service limit."
+        },
+        "quota_cookie": {
+          "label": "Console Cookie",
+          "description": "OpenCode Console auth cookie, either the auth value or a Cookie header containing auth. Used only for this workspace billing query."
+        }
+      }
+    },
+    "entryLabels": {
+      "Team prepaid balance": "Team prepaid balance",
+      "Effective monthly postpaid spending limit": "Effective monthly postpaid spending limit",
+      "Zen workspace balance": "Zen workspace balance",
+      "Zen workspace monthly spending limit (UTC)": "Zen workspace monthly spending limit (UTC)"
+    }
+  }
+}

@@ -23,6 +23,7 @@ export function CredentialRowActions({ credential, channel, presets, saving, onS
         label: credential.label,
         kind: credential.kind,
         secret: null,
+        quota_secret: null,
         enabled,
         weight: credential.weight,
         rpm_limit: credential.rpm_limit,

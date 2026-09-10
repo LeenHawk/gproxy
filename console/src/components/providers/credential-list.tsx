@@ -36,7 +36,7 @@ export function CredentialList(props: Props) {
     { key: "name", label: t("common.name"), header: t("common.name"), cell: (credential) => credential.label ? <div><p className="font-mono text-xs">{credential.label}</p><p className="font-mono text-xs text-muted-foreground">#{credential.id}</p></div> : <p className="font-mono text-xs">{t("providers.credentials.unnamed", { id: credential.id })}</p> },
     { key: "health", label: t("common.status.label"), header: t("common.status.label"), cell: (credential) => <CredentialHealthBadge credentialId={credential.id} health={credential.health} models={credential.model_health} observedAt={credential.health_observed_at} /> },
     { key: "actions", label: t("common.actions.edit"), header: <span className="sr-only">{t("common.actions.edit")}</span>, cell: (credential) => <CredentialRowActions credential={credential} channel={props.channel} presets={props.presets} saving={props.savingCredentialId === credential.id} onSave={props.onSave} />, className: "text-right" },
-    { key: "budget", label: t("providers.credentials.budget.title"), header: t("providers.credentials.budget.title"), cell: (credential) => <Button variant="outline" size="sm" onClick={() => setExpandedCredentialId((current) => current === credential.id ? null : credential.id)}>{t("providers.credentials.budget.title")}</Button> },
+    { key: "budget", label: t("upstreamQuota.action"), header: t("upstreamQuota.action"), cell: (credential) => <Button variant="outline" size="sm" onClick={() => setExpandedCredentialId((current) => current === credential.id ? null : credential.id)}>{t("upstreamQuota.action")}</Button> },
     { key: "kind", label: t("providers.credentials.kind"), header: t("providers.credentials.kind"), cell: (credential) => <span className="text-xs">{t(`providers.credentials.kinds.${credential.kind}`, { defaultValue: credential.kind })}</span> },
     { key: "weight", label: t("providers.credentials.weight"), header: t("providers.credentials.weight"), cell: (credential) => <span className="font-mono text-xs">{credential.weight}</span> },
   ]
@@ -63,7 +63,7 @@ export function CredentialList(props: Props) {
           rows={props.credentials}
           rowKey={(credential) => credential.id}
           searchText={(credential) => `${credential.label ?? ""} ${credential.kind} ${credential.id} ${credential.health}`}
-          renderCard={(credential) => <div className="flex flex-col gap-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-mono text-xs">{credential.label ?? t("providers.credentials.unnamed", { id: credential.id })}</p><p className="font-mono text-xs text-muted-foreground">{t(`providers.credentials.kinds.${credential.kind}`, { defaultValue: credential.kind })} · #{credential.id}</p></div><CredentialHealthBadge credentialId={credential.id} health={credential.health} models={credential.model_health} observedAt={credential.health_observed_at} /></div><CredentialRowActions credential={credential} channel={props.channel} presets={props.presets} saving={props.savingCredentialId === credential.id} onSave={props.onSave} /><Button variant="outline" size="sm" onClick={() => setExpandedCredentialId((current) => current === credential.id ? null : credential.id)}>{t("providers.credentials.budget.title")}</Button></div>}
+          renderCard={(credential) => <div className="flex flex-col gap-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate font-mono text-xs">{credential.label ?? t("providers.credentials.unnamed", { id: credential.id })}</p><p className="font-mono text-xs text-muted-foreground">{t(`providers.credentials.kinds.${credential.kind}`, { defaultValue: credential.kind })} · #{credential.id}</p></div><CredentialHealthBadge credentialId={credential.id} health={credential.health} models={credential.model_health} observedAt={credential.health_observed_at} /></div><CredentialRowActions credential={credential} channel={props.channel} presets={props.presets} saving={props.savingCredentialId === credential.id} onSave={props.onSave} /><Button variant="outline" size="sm" onClick={() => setExpandedCredentialId((current) => current === credential.id ? null : credential.id)}>{t("upstreamQuota.action")}</Button></div>}
           empty={t("providers.credentials.empty")}
           storageKey="credentials"
           selectable
@@ -72,13 +72,13 @@ export function CredentialList(props: Props) {
           onRowClick={(credential) => { setExpandedCredentialId((current) => current === credential.id ? null : credential.id) }}
           renderExpandedRow={(credential) => (
             <div className="flex flex-col gap-4">
-              <CredentialBudget credentialId={credential.id} />
               <CredentialCard
                 credential={credential}
                 cycles={props.cyclesByCredential.get(credential.id) ?? []}
                 cyclesLoading={props.cyclesLoading}
                 cyclesError={props.cyclesError}
               />
+              <CredentialBudget credentialId={credential.id} />
             </div>
           )}
         />

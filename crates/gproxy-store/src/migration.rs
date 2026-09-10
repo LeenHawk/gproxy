@@ -54,7 +54,7 @@ pub(crate) async fn migrate_to(
         }
         if version == SchemaVersion::OwnedRows {
             // Orphans can own orphans: two passes settle any declared depth.
-            let sweep = crate::query::orphan_sweep()?;
+            let sweep = crate::query::orphan_sweep(version)?;
             statements.extend(sweep.iter().cloned());
             statements.extend(sweep);
         }

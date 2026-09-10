@@ -114,6 +114,14 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 };
 
 impl Channel for NvidiaChannel {
+    fn quota_sources(
+        &self,
+        secret: &serde_json::Value,
+        settings: &serde_json::Value,
+    ) -> Vec<gproxy_channel_api::QuotaSource> {
+        crate::shared::quota_catalog::sources(self.descriptor().id, secret, settings)
+    }
+
     fn routing_table(&self) -> &'static [ChannelSupport] {
         routes::ROUTES
     }

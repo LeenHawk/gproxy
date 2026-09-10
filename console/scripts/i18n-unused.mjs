@@ -7,7 +7,7 @@ import ts from "typescript"
 const consoleRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const localeRoot = path.join(consoleRoot, "src/locales")
 const locales = ["en", "zh-CN", "zh-TW"]
-const domains = ["common", "identity", "observability", "portal", "pricing", "providers", "routes", "rules", "settings", "update"]
+const domains = ["common", "identity", "observability", "portal", "pricing", "providers", "routes", "rules", "settings", "update", "upstream-quota"]
 
 async function sourceFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true })

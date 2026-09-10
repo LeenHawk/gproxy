@@ -73,7 +73,14 @@ impl Store {
         id: i64,
         input: &ProviderInput,
     ) -> Result<bool, StoreError> {
-        self.update(control::update_provider(id, input)?).await
+        let mut statements = crate::query::runtime::quota_provider::invalidate(id, input)?;
+        statements.push(control::update_provider(id, input)?);
+        let results = self.backend().batch(statements).await?;
+        Ok(results
+            .last()
+            .expect("provider update result")
+            .affected_rows
+            == 1)
     }
 
     pub async fn insert_credential(&self, input: &CredentialInput) -> Result<i64, StoreError> {
@@ -85,7 +92,44 @@ impl Store {
         id: i64,
         input: &crate::records::CredentialUpdateInput,
     ) -> Result<bool, StoreError> {
-        self.update(control::update_credential(id, input)?).await
+        let mut statements = crate::query::runtime::quota_snapshot::clear(id)?;
+        statements.push(control::update_credential(id, input, None)?);
+        let results = self.backend().batch(statements).await?;
+        Ok(results
+            .last()
+            .expect("credential update result")
+            .affected_rows
+            == 1)
+    }
+
+    pub async fn update_credential_version(
+        &self,
+        id: i64,
+        input: &crate::records::CredentialUpdateInput,
+        expected_version: u64,
+        preserve_health: bool,
+    ) -> Result<bool, StoreError> {
+        let mut statements =
+            crate::query::runtime::quota_snapshot::clear_version(id, expected_version)?;
+        if preserve_health {
+            statements.push(
+                crate::query::runtime::quota_snapshot::advance_health_version(
+                    id,
+                    expected_version,
+                )?,
+            );
+        }
+        statements.push(control::update_credential(
+            id,
+            input,
+            Some(expected_version),
+        )?);
+        let results = self.backend().batch(statements).await?;
+        Ok(results
+            .last()
+            .expect("credential update result")
+            .affected_rows
+            == 1)
     }
 
     pub async fn insert_route(&self, input: &RouteInput) -> Result<i64, StoreError> {

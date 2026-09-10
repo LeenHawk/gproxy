@@ -3,6 +3,7 @@ use crate::dto::{ChannelSupportDto, RoutingImplementationDto};
 
 fn channel(defaults: Vec<ChannelSupportDto>) -> ChannelDto {
     ChannelDto {
+        quota_fields: Vec::new(),
         id: "test".into(),
         display_name: "Test".into(),
         supports: Vec::new(),

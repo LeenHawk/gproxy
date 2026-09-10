@@ -1,5 +1,6 @@
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
 import { render, screen, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { describe, expect, it } from "vitest"
 import "@/i18n"
 import { CredentialCycleList } from "@/components/providers/credential-cycle-list"
@@ -64,6 +65,33 @@ describe("CredentialCycleList", () => {
 
     expect(screen.getAllByText(/GPT-5.3-Codex-Spark/)).toHaveLength(2)
     expect(screen.queryByText(/Bengalfox/)).toBeNull()
+  })
+
+  it("shows a new snapshot's actual values and nulls without reviving old observations", () => {
+    const observed = { window_key: cycle.window_key, label: null, upstream_used: "25", upstream_limit: "100", used_percent: "25", unit: null, period_end: cycle.period_end }
+    const { rerender } = render(<CredentialCycleList cycles={[cycle]} windows={[observed]} loading={false} error={false} />)
+    expect(screen.getByText("25%")).toBeInTheDocument()
+    expect(screen.queryByText("10%")).not.toBeInTheDocument()
+    expect(screen.getByText("Used this cycle (local)")).toBeInTheDocument()
+
+    rerender(<CredentialCycleList cycles={[cycle]} windows={[{ ...observed, upstream_used: null, upstream_limit: null, used_percent: null }]} loading={false} error={false} />)
+    expect(screen.getByText("—")).toBeInTheDocument()
+    expect(screen.queryByText("10%")).not.toBeInTheDocument()
+    expect(screen.queryByText("10 / 100")).not.toBeInTheDocument()
+  })
+
+  it("keeps unmatched or absent current windows separate from recorded history", async () => {
+    const observed = { window_key: cycle.window_key, label: null, upstream_used: "25", upstream_limit: "100", used_percent: "25", unit: null, period_end: 300 }
+    const { rerender } = render(<CredentialCycleList cycles={[cycle]} windows={[observed]} loading={false} error={false} />)
+    expect(screen.getByText("25%")).toBeInTheDocument()
+    expect(screen.queryByText("Used this cycle (local)")).not.toBeInTheDocument()
+    expect(screen.queryByText("10%")).not.toBeInTheDocument()
+
+    rerender(<CredentialCycleList cycles={[cycle]} windows={[]} loading={false} error={false} />)
+    expect(screen.queryByText("25%")).not.toBeInTheDocument()
+    expect(screen.queryByText("10%")).not.toBeInTheDocument()
+    await userEvent.setup().click(screen.getByRole("button", { name: "five-hour · Recorded quota history (1)" }))
+    expect(screen.getByText("10%")).toBeInTheDocument()
   })
 
   it("accepts only explicit start and end bounds in chronological order", () => {

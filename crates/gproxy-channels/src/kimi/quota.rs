@@ -1,21 +1,32 @@
-//! Kimi Code subscription quota — `GET {base}/usages` with the OAuth bearer
-//! (the coding-plan endpoint; plain API keys have no probe). The top-level
+//! Kimi Code subscription quota — `GET {base}/usages` with the existing bearer.
+//! Moonshot API balances use a separate endpoint. The top-level
 //! `usage` object is the rolling weekly allowance; each `limits[]` entry
 //! carries a `detail` with `used`/`limit` (numbers or numeric strings), an
 //! ISO-8601 `resetTime`, and a declared `window` `{duration, timeUnit}`.
 
 use bytes::Bytes;
 use gproxy_channel_api::{ChannelError, QuotaObservation};
-use rust_decimal::Decimal;
 use serde_json::Value;
 
 const WEEK_SECONDS: i64 = 7 * 24 * 60 * 60;
+
+pub(super) fn is_code(secret: &Value, settings: &Value) -> bool {
+    if super::auth::mode(secret) == super::auth::Mode::Oauth {
+        return true;
+    }
+    super::auth::base_url(settings, secret)
+        .parse::<http::Uri>()
+        .ok()
+        .is_some_and(|uri| {
+            uri.host() == Some("api.kimi.com") && uri.path().trim_end_matches('/') == "/coding/v1"
+        })
+}
 
 pub(super) fn probe_request(
     secret: &Value,
     settings: &Value,
 ) -> Result<Option<http::Request<Bytes>>, ChannelError> {
-    if super::auth::mode(secret) != super::auth::Mode::Oauth {
+    if !is_code(secret, settings) {
         return Ok(None);
     }
     let uri = crate::shared::http::join(super::auth::base_url(settings, secret), "/usages", None)?;
@@ -66,8 +77,19 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
 }
 
 fn window(record: &Value, window_key: String, seconds: Option<i64>) -> Option<QuotaObservation> {
-    let used = record.get("used").and_then(crate::shared::quota::decimal);
     let limit = record.get("limit").and_then(crate::shared::quota::decimal);
+    let used = record
+        .get("used")
+        .and_then(crate::shared::quota::decimal)
+        .or_else(|| {
+            limit
+                .zip(
+                    record
+                        .get("remaining")
+                        .and_then(crate::shared::quota::decimal),
+                )
+                .map(|(limit, remaining)| limit - remaining)
+        });
     if used.is_none() && limit.is_none() {
         return None;
     }
@@ -83,9 +105,9 @@ fn window(record: &Value, window_key: String, seconds: Option<i64>) -> Option<Qu
             .zip(seconds.filter(|seconds| *seconds > 0))
             .map(|(end, seconds)| end - seconds),
         period_end,
-        used_percent: limit.and_then(|limit| {
-            crate::shared::quota::percent_used(used.unwrap_or(Decimal::ZERO), limit)
-        }),
+        used_percent: used
+            .zip(limit)
+            .and_then(|(used, limit)| crate::shared::quota::percent_used(used, limit)),
         upstream_used: used,
         upstream_limit: limit,
     })
@@ -136,5 +158,12 @@ mod tests {
         assert_eq!(observed[1].used_percent, Some("5".parse().unwrap()));
         let end = observed[1].period_end.unwrap();
         assert_eq!(observed[1].period_start, Some(end - 5 * 60 * 60));
+        let remaining = parse_probe(
+            http::StatusCode::OK,
+            br#"{"usage":{"limit":100,"remaining":25},"limits":[{"detail":{"limit":100}}]}"#,
+        );
+        assert_eq!(remaining[0].upstream_used, Some("75".parse().unwrap()));
+        assert_eq!(remaining[0].used_percent, Some("75".parse().unwrap()));
+        assert_eq!(remaining[1].used_percent, None);
     }
 }

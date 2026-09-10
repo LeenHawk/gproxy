@@ -251,12 +251,35 @@ impl Host for AppHost {
         })
     }
 
+    fn observe_credential_quota_entries<'a>(
+        &'a self,
+        credential: gproxy_channel_api::CredentialId,
+        credential_version: u64,
+        entries: Vec<gproxy_channel_api::QuotaEntry>,
+    ) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            if let Err(error) = self
+                .services
+                .store
+                .observe_credential_quota_entries(credential.0, credential_version, &entries)
+                .await
+            {
+                tracing::warn!(credential_id = credential.0, error = %error, "quota response snapshot failed");
+            }
+        })
+    }
+
     fn observe_credential_quota<'a>(
         &'a self,
         credential: gproxy_channel_api::CredentialId,
+        credential_version: u64,
         observations: Vec<gproxy_channel_api::QuotaObservation>,
     ) -> BoxFuture<'a, ()> {
         Box::pin(async move {
+            let current = self.services.store.credential(credential.0).await;
+            if !matches!(current, Ok(Some(ref record)) if record.version == credential_version) {
+                return;
+            }
             let observed_at = admission::unix_now();
             for value in observations {
                 // The channel reported only wire facts: an upstream-declared

@@ -9,13 +9,22 @@ pub(super) async fn read(
     let Some(credential) = services.store.credential(id).await? else {
         return Ok(None);
     };
+    let (_, _, sources) = super::quota_snapshot::sources(app, id).await?;
     let secret = services
         .cipher
         .open(&credential.envelope)
         .map_err(|error| AdminError::Internal(error.to_string()))?;
-    app.inner
+    let reset = app
+        .inner
         .core
         .quota_capabilities(&credential.channel, &secret)
-        .map(|value| value.map(Into::into))
-        .map_err(|error| AdminError::BadRequest(error.to_string()))
+        .map_err(|error| AdminError::BadRequest(error.to_string()))?
+        .is_some_and(|capability| capability.reset);
+    Ok(Some(QuotaCapabilitiesDto {
+        probe: sources.iter().any(|source| {
+            source.mode == gproxy_channel_api::QuotaQueryMode::Probe
+                && source.support == gproxy_channel_api::QuotaSupport::Ready
+        }),
+        reset,
+    }))
 }

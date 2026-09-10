@@ -2,7 +2,7 @@ use sea_query::{Alias, Expr, ExprTrait, Query, SelectStatement, SimpleExpr};
 
 use crate::StoreError;
 use crate::backend::Statement;
-use crate::schema::{Ownership, tables};
+use crate::schema::{Ownership, SchemaVersion, tables};
 
 const SUBJECT_KIND: &str = "subject_kind";
 const SUBJECT_ID: &str = "subject_id";
@@ -74,10 +74,20 @@ pub(crate) fn cascade(
 /// Statements that remove rows whose owner no longer exists, for every
 /// declared ownership. Orphans can own orphans, so a sweep is applied more
 /// than once; each statement is idempotent.
-pub(crate) fn orphan_sweep() -> Result<Vec<Statement>, StoreError> {
+pub(crate) fn orphan_sweep(version: SchemaVersion) -> Result<Vec<Statement>, StoreError> {
     let mut statements = Vec::new();
     for spec in tables() {
         for ownership in spec.owns {
+            let child = match ownership {
+                Ownership::Owns { table, .. }
+                | Ownership::Detaches { table, .. }
+                | Ownership::Scoped { table, .. } => table,
+            };
+            if tables()
+                .any(|table| table.name == *child && table.version.number() > version.number())
+            {
+                continue;
+            }
             let living = ids_of(spec.name, &Expr::val(1).eq(1));
             match *ownership {
                 Ownership::Owns {
