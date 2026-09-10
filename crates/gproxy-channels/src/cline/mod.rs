@@ -4,6 +4,7 @@ mod auth;
 mod login;
 mod model;
 mod prepare;
+mod quota;
 mod refresh;
 mod response;
 mod sse;
@@ -99,6 +100,31 @@ static LOGIN: LoginDescriptor = LoginDescriptor {
 };
 
 impl Channel for ClineChannel {
+    fn quota_sources(
+        &self,
+        secret: &serde_json::Value,
+        _settings: &serde_json::Value,
+    ) -> Vec<gproxy_channel_api::QuotaSource> {
+        quota::sources(secret)
+    }
+    fn prepare_quota_source(
+        &self,
+        source_id: &str,
+        secret: &serde_json::Value,
+        settings: &serde_json::Value,
+    ) -> Result<Option<http::Request<bytes::Bytes>>, gproxy_channel_api::ChannelError> {
+        quota::prepare(source_id, secret, settings)
+    }
+    fn parse_quota_source(
+        &self,
+        source_id: &str,
+        status: http::StatusCode,
+        _headers: &http::HeaderMap,
+        body: &[u8],
+    ) -> Result<Vec<gproxy_channel_api::QuotaEntry>, gproxy_channel_api::ChannelError> {
+        quota::parse(source_id, status, body)
+    }
+
     fn login(&self) -> Option<ChannelLoginRef<'_>> {
         Some(ChannelLoginRef {
             adapter: self,

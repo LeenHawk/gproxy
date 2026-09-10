@@ -12,8 +12,8 @@ import { windowName } from "@/lib/quota-window"
 
 function CycleTile({ cycle, history }: { cycle: QuotaProbeWindowDto; history?: CredentialQuotaCycleDto }) {
   const { t, i18n } = useTranslation()
-  const used = cycle.upstream_used ?? history?.upstream_used
-  const nativeLimit = cycle.upstream_limit ?? history?.upstream_limit
+  const used = cycle.upstream_used
+  const nativeLimit = cycle.upstream_limit
   const limit = Number(nativeLimit)
   const percent = cycle.used_percent != null ? Number(cycle.used_percent)
     : used != null && limit > 0 ? Number(used) / limit * 100 : null
@@ -65,11 +65,17 @@ export function CredentialCycleList({ cycles, windows, loading, error, localErro
       const history = groups.get(key) ?? []
       const observed = windows?.find((window) => window.window_key === key)
       const latest = history[0]
-      const cycle = localError ? observed ?? latest : latest ?? observed
-      if (!cycle) return null
+      const cycle = windows === undefined ? latest : observed
+      const matched = observed
+        ? history.find((past) => past.status === "open" && observed.period_end != null && past.period_end === observed.period_end)
+        : windows === undefined ? latest : undefined
+      const currentHistory = localError ? undefined : matched
+      const previous = history.filter((past) => past.id !== matched?.id)
       return <div key={key} className="grid gap-2">
-        <CycleTile cycle={cycle} history={localError ? undefined : latest} />
-        {history.length > 1 ? <Collapsible><CollapsibleTrigger asChild><Button variant="ghost" size="sm">{t("usage.cycleUsage.history", { count: history.length - 1 })}</Button></CollapsibleTrigger><CollapsibleContent className="grid max-h-96 gap-2 overflow-y-auto pt-2">{history.slice(1).map((past) => <CycleTile key={past.id} cycle={past} history={past} />)}</CollapsibleContent></Collapsible> : null}
+        {cycle ? <CycleTile cycle={cycle} history={currentHistory} /> : null}
+        {previous.length ? <Collapsible><CollapsibleTrigger asChild><Button variant="ghost" size="sm">{cycle
+          ? t("usage.cycleUsage.history", { count: previous.length })
+          : t("upstreamQuota.recordedHistory", { window: windowName(key, t, latest?.label), count: previous.length })}</Button></CollapsibleTrigger><CollapsibleContent className="grid max-h-96 gap-2 overflow-y-auto pt-2">{previous.map((past) => <CycleTile key={past.id} cycle={past} history={past} />)}</CollapsibleContent></Collapsible> : null}
       </div>
     })}
   </div>

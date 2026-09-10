@@ -91,6 +91,32 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 };
 
 impl Channel for DeepSeekChannel {
+    fn quota_sources(
+        &self,
+        secret: &serde_json::Value,
+        settings: &serde_json::Value,
+    ) -> Vec<gproxy_channel_api::QuotaSource> {
+        crate::shared::quota_catalog::sources(self.descriptor().id, secret, settings)
+    }
+
+    fn prepare_quota_source(
+        &self,
+        source_id: &str,
+        secret: &serde_json::Value,
+        settings: &serde_json::Value,
+    ) -> Result<Option<http::Request<bytes::Bytes>>, gproxy_channel_api::ChannelError> {
+        crate::shared::quota_api::prepare(self.descriptor().id, source_id, secret, settings)
+    }
+    fn parse_quota_source(
+        &self,
+        source_id: &str,
+        status: http::StatusCode,
+        _headers: &http::HeaderMap,
+        body: &[u8],
+    ) -> Result<Vec<gproxy_channel_api::QuotaEntry>, gproxy_channel_api::ChannelError> {
+        crate::shared::quota_api::parse(self.descriptor().id, source_id, status, body)
+    }
+
     fn routing_table(&self) -> &'static [ChannelSupport] {
         routes::ROUTES
     }

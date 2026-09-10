@@ -2,9 +2,6 @@
 import type { CredentialQuotaCycleDto } from "./CredentialQuotaCycleDto";
 import type { QuotaProbeWindowDto } from "./QuotaProbeWindowDto";
 import type { QuotaResetCreditsDto } from "./QuotaResetCreditsDto";
+import type { QuotaSnapshot } from "./QuotaSnapshot";
 
-export type QuotaProbeResponse = { windows: Array<QuotaProbeWindowDto>, reset_credits: QuotaResetCreditsDto | null, 
-/**
- * Verbatim usage-endpoint body for operator inspection.
- */
-raw: string, cycles: Array<CredentialQuotaCycleDto>, local_error: boolean, };
+export type QuotaProbeResponse = { snapshot: QuotaSnapshot, windows: Array<QuotaProbeWindowDto>, reset_credits: QuotaResetCreditsDto | null, raw: string, cycles: Array<CredentialQuotaCycleDto>, local_error: boolean, };

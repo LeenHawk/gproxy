@@ -7,6 +7,7 @@ mod portal;
 mod quota_capabilities;
 pub(crate) mod quota_probe;
 mod quota_reset;
+mod quota_snapshot;
 mod tokenizer_auth;
 mod tokenizer_vocab;
 
@@ -219,6 +220,13 @@ impl State for AppHandle {
         request: &'a gproxy_admin::dto::ModelTestRequest,
     ) -> BoxFuture<'a, Result<gproxy_admin::dto::ModelTestResponse, AdminError>> {
         Box::pin(model_test::run(self, actor_user_id, request))
+    }
+
+    fn credential_quota_snapshot(
+        &self,
+        id: i64,
+    ) -> BoxFuture<'_, Result<gproxy_channel_api::QuotaSnapshot, AdminError>> {
+        Box::pin(quota_snapshot::read(self, id))
     }
 
     fn quota_probe<'a>(

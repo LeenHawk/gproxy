@@ -1,6 +1,7 @@
 mod admin;
 mod cycle;
 mod oauth;
+mod quota_snapshot;
 mod seed;
 
 use rust_decimal::Decimal;
@@ -20,6 +21,7 @@ pub(super) struct Outcome {
     window: UsageWindow,
     quota: QuotaWindowRecord,
     cycle: cycle::Outcome,
+    quota_snapshot: gproxy_core::channel_api::QuotaSnapshot,
     binding: BindingPage,
     tokenizer_vocabs: Vec<String>,
     admin: admin::Outcome,
@@ -213,6 +215,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         .await?;
     let trend = store.usage_trend(0, 4_000).await?;
     let cycle = cycle::run(store, credential.id).await?;
+    let quota_snapshot = quota_snapshot::run(store, credential.id).await?;
     let mut binding = seed_binding(store, provider, credential.id).await?;
     binding.items[0].created_at = 0;
     seed_capture(store, provider, credential.id).await?;
@@ -288,6 +291,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
         window,
         quota,
         cycle,
+        quota_snapshot,
         binding,
         tokenizer_vocabs,
         admin,

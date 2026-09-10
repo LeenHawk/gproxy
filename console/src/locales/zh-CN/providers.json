@@ -260,7 +260,7 @@
       "quotaProbe": {
         "action": "刷新",
         "pending": "查询中…",
-        "success": "已观测 {{count}} 个配额窗口。",
+        "success": "已更新 {{count}} 条额度数据。",
         "error": "配额探测失败。"
       },
       "quotaReset": {

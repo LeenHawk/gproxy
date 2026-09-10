@@ -48,6 +48,10 @@ pub(crate) async fn dispatch(
         Route::ConnectivityTest => connectivity::test(state, body).await,
         Route::ModelTest => connectivity::model_test(state, admin.id, body).await,
         Route::ModelDiscover => connectivity::model_discover(state, admin.id, body).await,
+        Route::CredentialQuotaRead(id) => crate::response::json(
+            http::StatusCode::OK,
+            &state.credential_quota_snapshot(id).await?,
+        ),
         Route::CredentialQuotaProbe(id) => connectivity::quota_probe(state, id, parts).await,
         Route::CredentialQuotaReset(id) => connectivity::quota_reset(state, id).await,
         Route::CredentialHealthReset(id) => control::credential_health_reset(state, id).await,

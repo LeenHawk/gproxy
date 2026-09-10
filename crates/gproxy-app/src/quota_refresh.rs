@@ -1,6 +1,5 @@
 use crate::AppHandle;
 use futures_util::{StreamExt, stream};
-use gproxy_admin::State;
 use gproxy_core::{CacheBackend, Host};
 use std::time::Duration;
 
@@ -73,29 +72,8 @@ async fn sweep(app: &AppHandle) -> Result<(), gproxy_admin::AdminError> {
     Ok(())
 }
 
-async fn refresh(app: &AppHandle, id: i64, now: i64) -> Result<(), gproxy_admin::AdminError> {
-    if !app
-        .credential_quota_capabilities(id)
-        .await?
-        .is_some_and(|capability| capability.probe)
-    {
-        return Ok(());
-    }
-    let store = &app.inner.host.services.store;
-    store.repair_credential_quota(id, now).await?;
-    let cycles = store.credential_quota_cycles(Some(id), 0, now + 1).await?;
-    let fresh = cycles
-        .iter()
-        .any(|cycle| cycle.last_observed_at > now - 600);
-    if fresh {
-        return Ok(());
-    }
-    let cache = &app.inner.host.services.cache;
-    let retry_key = format!("quota:retry:{id}");
-    if cache.get(&retry_key).await.map_err(internal)?.is_some() {
-        return Ok(());
-    }
-    if let Err(error) = crate::admin::quota_probe::run(app, id, false).await {
+async fn refresh(app: &AppHandle, id: i64, _now: i64) -> Result<(), gproxy_admin::AdminError> {
+    if let Err(error) = crate::admin::quota_probe::automatic(app, id).await {
         tracing::warn!(credential_id = id, error = %error, "quota refresh unavailable");
     }
     Ok(())
@@ -122,8 +100,4 @@ pub(crate) async fn opportunistic(app: &AppHandle) {
     {
         tracing::warn!(error = %error, "opportunistic quota maintenance failed");
     }
-}
-
-fn internal(error: impl std::fmt::Display) -> gproxy_admin::AdminError {
-    gproxy_admin::AdminError::Internal(error.to_string())
 }

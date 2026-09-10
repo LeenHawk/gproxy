@@ -23,6 +23,7 @@ import type { ApplyDefaultModelPricesResponse } from "@/generated/ApplyDefaultMo
 import type { DefaultModelCatalogDto } from "@/generated/DefaultModelCatalogDto"
 import type { ProviderDto } from "@/generated/ProviderDto"
 import type { QuotaProbeResponse } from "@/generated/QuotaProbeResponse"
+import type { QuotaSnapshot } from "@/generated/QuotaSnapshot"
 import type { QuotaResetResponse } from "@/generated/QuotaResetResponse"
 import type { ProviderWriteRequest } from "@/generated/ProviderWriteRequest"
 import type { TokenizerFetchRequest } from "@/generated/TokenizerFetchRequest"
@@ -59,6 +60,8 @@ import { api, json } from "@/api/client"
 const save = <T, R = unknown>(path: string, value: T, id?: number) =>
   api<R>(id == null ? path : `${path}/${id}`, json(id == null ? "POST" : "PATCH", value))
 
+export const credentialQuota = (id: number) =>
+  api<QuotaSnapshot>(`/admin/api/credentials/${id}/quota`)
 export const probeCredentialQuota = (id: number, force = false) =>
   api<QuotaProbeResponse>(`/admin/api/credentials/${id}/quota-probe${force ? "?force=true" : ""}`, json("POST", {}))
 export const resetCredentialQuota = (id: number) =>

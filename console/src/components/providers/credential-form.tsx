@@ -4,16 +4,17 @@ import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialWriteRequest } from "@/generated/CredentialWriteRequest"
 import type { TlsPresetDto } from "@/generated/TlsPresetDto"
 import { ChevronDownIcon } from "lucide-react"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { revealCredentialSecret } from "@/api/control"
 import { ConnectivityTest } from "@/components/connectivity-test"
 import { proxyProbe } from "@/lib/connectivity-probe"
 import { CUSTOM_FINGERPRINT, DEFAULT_FINGERPRINT, parseFingerprint } from "./fingerprint"
 import { FingerprintField } from "./fingerprint-field"
-import { buildSecret, defaultCredentialKind, fieldsForCredentialKind, isSingleKey } from "@/components/providers/credential-secret"
+import { defaultCredentialKind, fieldsForCredentialKind } from "@/components/providers/credential-secret"
 import { CredentialSecretField } from "@/components/providers/credential-secret-field"
+import { CredentialQuotaAuthorization } from "@/components/providers/credential-quota-authorization"
+import { useCredentialSecret } from "@/components/providers/use-credential-secret"
 import { prettyJson } from "./json"
 import { Button } from "@/components/ui/button"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -43,7 +44,6 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
   const { t } = useTranslation()
   const [label, setLabel] = useState(credential?.label ?? "")
   const [kind, setKind] = useState(credential?.kind ?? defaultCredentialKind(channel.credential_fields))
-  const [secretText, setSecretText] = useState("")
   const [weight, setWeight] = useState(String(credential?.weight ?? 100))
   const [rpm, setRpm] = useState(credential?.rpm_limit?.toString() ?? "")
   const [tpm, setTpm] = useState(credential?.tpm_limit?.toString() ?? "")
@@ -59,32 +59,17 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
     kind,
   ), [channel.credential_fields, credential, kind])
 
-  /* v2 parity: editing prefills the stored secret so the operator sees what
-     the credential holds. A failed reveal leaves the box empty, where blank
-     still means "keep the stored value". */
-  const prefilled = useRef(false)
-  useEffect(() => {
-    if (!credential || prefilled.current) return
-    prefilled.current = true
-    revealCredentialSecret(credential.id)
-      .then((result) => {
-        const secret = result.secret as Record<string, unknown> | null
-        const single = isSingleKey(fields) ? secret?.[fields[0].key] : undefined
-        const text = typeof single === "string" ? single : JSON.stringify(secret, null, 2)
-        setSecretText((current) => (current === "" ? text : current))
-      })
-      .catch(() => {})
-  }, [credential, fields])
+  const secret = useCredentialSecret(credential?.id, fields)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     const tls = parseFingerprint(fingerprint.text)
-    const secretValue = buildSecret(fields, secretText)
+    const secretValue = secret.secretValue()
     if (!credential && secretValue === null) {
       setError(t("providers.credentials.secretRequired"))
       return
     }
-    if (credential && secretText.trim() !== "" && secretValue === null) {
+    if (secret.invalid()) {
       setError(t("providers.credentials.secretInvalid"))
       return
     }
@@ -100,6 +85,7 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
         label: label.trim() || null,
         kind,
         secret: secretValue,
+        quota_secret: secret.quotaSecret,
         enabled,
         weight: Number(weight),
         rpm_limit: rpm.trim() ? Number(rpm) : null,
@@ -133,7 +119,9 @@ export function CredentialForm({ providerId, channel, credential, presets, onSav
           </Select>
           <FieldDescription>{t("providers.credentials.kindHint")}</FieldDescription>
         </Field>
-        <CredentialSecretField fields={fields} value={secretText} onChange={setSecretText} editing={credential !== undefined} />
+        <CredentialSecretField fields={fields} value={secret.secretText} onChange={secret.changeSecret} editing={credential !== undefined} />
+        <CredentialQuotaAuthorization fields={channel.quota_fields} values={secret.quotaValues}
+          onChange={secret.changeQuota} editing={credential !== undefined} revealFailed={secret.revealFailed} />
         <Field>
           <FieldLabel htmlFor="credential-weight">{t("providers.credentials.weight")}</FieldLabel>
           <Input id="credential-weight" type="number" min={1} step={1} required value={weight} onChange={(event) => setWeight(event.target.value)} />

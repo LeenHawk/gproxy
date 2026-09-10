@@ -260,7 +260,7 @@
       "quotaProbe": {
         "action": "Refresh",
         "pending": "Fetching…",
-        "success": "Observed {{count}} quota windows.",
+        "success": "Updated {{count}} quota entries.",
         "error": "Quota probe failed."
       },
       "quotaReset": {

@@ -29,6 +29,7 @@ mod funnel;
 mod login;
 mod orchestration;
 mod quota;
+mod quota_source;
 mod surface;
 
 #[cfg(test)]
@@ -65,4 +66,5 @@ pub use host::{
     Host, SettlementPermit, Spawner, UpstreamTransport, UsageSink,
 };
 pub use quota::QuotaProbeResult;
+pub use quota_source::QuotaSourceProbeResult;
 pub use usage::{Ended, NormalizedUsage, SettledAttempt, Settlement, UsageSource};

@@ -23,18 +23,18 @@ pub(super) fn apply(
         );
         return Ok(());
     }
-    sigv4(request, secret, region, unix_now())
+    apply_service(request, secret, region, "bedrock")
 }
 
-fn sigv4(
+pub(crate) fn apply_service(
     request: &mut http::Request<Bytes>,
     secret: &Value,
     region: &str,
-    now: u64,
+    service: &str,
 ) -> Result<(), ChannelError> {
     let access = required(secret, "access_key_id")?;
     let secret_key = required(secret, "secret_access_key")?;
-    let (date, timestamp) = time::aws(now);
+    let (date, timestamp) = time::aws(unix_now());
     insert(request.headers_mut(), "x-amz-date", &timestamp)?;
     let payload_hash = hex(Sha256::digest(request.body()));
     insert(request.headers_mut(), "x-amz-content-sha256", &payload_hash)?;
@@ -51,14 +51,14 @@ fn sigv4(
         signed_headers,
         payload_hash
     );
-    let scope = format!("{date}/{region}/bedrock/aws4_request");
+    let scope = format!("{date}/{region}/{service}/aws4_request");
     let string_to_sign = format!(
         "AWS4-HMAC-SHA256\n{timestamp}\n{scope}\n{}",
         hex(Sha256::digest(canonical_request.as_bytes()))
     );
     let date_key = hmac(format!("AWS4{secret_key}").as_bytes(), date.as_bytes())?;
     let region_key = hmac(&date_key, region.as_bytes())?;
-    let service_key = hmac(&region_key, b"bedrock")?;
+    let service_key = hmac(&region_key, service.as_bytes())?;
     let signing_key = hmac(&service_key, b"aws4_request")?;
     let signature = hex(hmac(&signing_key, string_to_sign.as_bytes())?);
     insert(

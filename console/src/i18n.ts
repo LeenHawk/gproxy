@@ -11,6 +11,7 @@ import enRoutes from "@/locales/en/routes.json"
 import enRules from "@/locales/en/rules.json"
 import enSettings from "@/locales/en/settings.json"
 import enUpdate from "@/locales/en/update.json"
+import enUpstreamQuota from "@/locales/en/upstream-quota.json"
 import zhCNCommon from "@/locales/zh-CN/common.json"
 import zhCNIdentity from "@/locales/zh-CN/identity.json"
 import zhCNObservability from "@/locales/zh-CN/observability.json"
@@ -21,6 +22,7 @@ import zhCNRoutes from "@/locales/zh-CN/routes.json"
 import zhCNRules from "@/locales/zh-CN/rules.json"
 import zhCNSettings from "@/locales/zh-CN/settings.json"
 import zhCNUpdate from "@/locales/zh-CN/update.json"
+import zhCNUpstreamQuota from "@/locales/zh-CN/upstream-quota.json"
 import zhTWCommon from "@/locales/zh-TW/common.json"
 import zhTWIdentity from "@/locales/zh-TW/identity.json"
 import zhTWObservability from "@/locales/zh-TW/observability.json"
@@ -31,6 +33,7 @@ import zhTWRoutes from "@/locales/zh-TW/routes.json"
 import zhTWRules from "@/locales/zh-TW/rules.json"
 import zhTWSettings from "@/locales/zh-TW/settings.json"
 import zhTWUpdate from "@/locales/zh-TW/update.json"
+import zhTWUpstreamQuota from "@/locales/zh-TW/upstream-quota.json"
 
 export const SUPPORTED_LANGS = [
   "en",
@@ -57,9 +60,9 @@ void i18n.use(initReactI18next).init({
   lng: typeof window === "undefined" ? "en" : storedLanguage(),
   fallbackLng: "en",
   resources: {
-    en: { translation: combine(enCommon, enIdentity, enObservability, enPortal, enPricing, enProviders, enRoutes, enRules, enSettings, enUpdate) },
-    "zh-CN": { translation: combine(zhCNCommon, zhCNIdentity, zhCNObservability, zhCNPortal, zhCNPricing, zhCNProviders, zhCNRoutes, zhCNRules, zhCNSettings, zhCNUpdate) },
-    "zh-TW": { translation: combine(zhTWCommon, zhTWIdentity, zhTWObservability, zhTWPortal, zhTWPricing, zhTWProviders, zhTWRoutes, zhTWRules, zhTWSettings, zhTWUpdate) },
+    en: { translation: combine(enCommon, enIdentity, enObservability, enPortal, enPricing, enProviders, enRoutes, enRules, enSettings, enUpdate, enUpstreamQuota) },
+    "zh-CN": { translation: combine(zhCNCommon, zhCNIdentity, zhCNObservability, zhCNPortal, zhCNPricing, zhCNProviders, zhCNRoutes, zhCNRules, zhCNSettings, zhCNUpdate, zhCNUpstreamQuota) },
+    "zh-TW": { translation: combine(zhTWCommon, zhTWIdentity, zhTWObservability, zhTWPortal, zhTWPricing, zhTWProviders, zhTWRoutes, zhTWRules, zhTWSettings, zhTWUpdate, zhTWUpstreamQuota) },
   },
   interpolation: { escapeValue: false },
 })

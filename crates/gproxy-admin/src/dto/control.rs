@@ -89,6 +89,9 @@ pub struct CredentialWriteRequest {
     pub kind: String,
     #[ts(type = "unknown | null")]
     pub secret: Option<Value>,
+    #[serde(default)]
+    #[ts(type = "unknown | null")]
+    pub quota_secret: Option<Value>,
     pub enabled: bool,
     pub weight: u32,
     pub rpm_limit: Option<u32>,

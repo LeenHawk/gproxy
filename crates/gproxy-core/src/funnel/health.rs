@@ -23,8 +23,24 @@ pub(crate) async fn response(
             received_at_ms,
         });
     }
-    if !observations.is_empty() {
-        host.observe_credential_quota(target.credential, observations)
+    let mut entries = observations
+        .iter()
+        .map(|observation| gproxy_channel_api::QuotaEntry::from_window(observation, received_at_ms))
+        .collect::<Vec<_>>();
+    if !observations.is_empty()
+        && let Some(version) = facts.credential_version
+    {
+        host.observe_credential_quota(target.credential, version, observations)
+            .await;
+    }
+    entries.extend(channel.quota_response_entries(headers, &target.upstream_model));
+    for entry in &mut entries {
+        entry.observed_at_ms = received_at_ms;
+    }
+    if !entries.is_empty()
+        && let Some(version) = facts.credential_version
+    {
+        host.observe_credential_quota_entries(target.credential, version, entries)
             .await;
     }
     let Some(credential_version) = facts.credential_version else {

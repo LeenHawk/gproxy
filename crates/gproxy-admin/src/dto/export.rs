@@ -107,6 +107,7 @@ fn export_console_types() {
         ModelTestRequest,
         ModelTestResponse,
         QuotaProbeResponse,
+        gproxy_channel_api::QuotaSnapshot,
         QuotaProbeWindowDto,
         QuotaResetCreditsDto,
         QuotaResetOutcomeDto,

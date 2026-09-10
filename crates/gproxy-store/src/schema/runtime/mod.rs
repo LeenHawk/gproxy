@@ -1,6 +1,7 @@
 mod binding;
 mod log;
 mod quota;
+mod quota_snapshot;
 mod quota_tracking;
 mod usage;
 
@@ -13,4 +14,5 @@ pub(super) fn tables() -> impl Iterator<Item = &'static TableSpec> {
         .chain(log::TABLES)
         .chain(binding::TABLES)
         .chain(quota_tracking::TABLES)
+        .chain(quota_snapshot::TABLES)
 }

@@ -1,0 +1,160 @@
+{
+  "upstreamQuota": {
+    "used": "已用",
+    "limit": "上限",
+    "remaining": "剩余",
+    "unlimited": "无上限",
+    "observed": "最后更新：{{time}}",
+    "response": "随请求更新",
+    "notObserved": "尚未观测到额度。",
+    "empty": "上游未返回额度数据。",
+    "staleError": "更新失败，当前为上次成功结果。",
+    "reportPeriod": "统计区间：{{start}} 至 {{end}}",
+    "kinds": {
+      "balance": "余额",
+      "budget": "消费限额",
+      "window": "订阅周期",
+      "rate_limit": "速率限制",
+      "usage_report": "历史消费"
+    },
+    "subjects": {
+      "account": "账户级",
+      "organization": "组织级",
+      "project": "项目级",
+      "key": "API Key 级",
+      "unknown": "范围未知"
+    },
+    "modelScope": {
+      "all": "全部模型",
+      "unknown": "模型范围未知"
+    },
+    "availability": {
+      "available": "可用",
+      "unavailable": "上游提示余额不足",
+      "unknown": "可用状态未知"
+    },
+    "support": {
+      "ready": "支持查询",
+      "requires_authorization": "需要额外授权",
+      "unsupported": "暂不支持查询。"
+    },
+    "components": {
+      "granted": "赠送余额",
+      "topped_up": "充值余额",
+      "cash": "现金余额",
+      "voucher": "代金券余额",
+      "credit": "授信额度",
+      "mybank_credit": "网商银行授信额度",
+      "signed_credit_balance": "账本金额（保留正负号）"
+    },
+    "action": "额度",
+    "stale": "快照已超过 10 分钟",
+    "manualQuery": "点击“刷新”查询此项。",
+    "sources": {
+      "Account balance": "账户余额",
+      "Team balance": "团队余额",
+      "Key budget": "Key 消费限额",
+      "Account credits": "账户点数",
+      "SiliconFlow account balance": "SiliconFlow 账户余额",
+      "Rate limits from responses": "响应中的速率限制",
+      "Organization usage and costs": "组织用量与费用",
+      "Alibaba Cloud account balance": "阿里云账户余额",
+      "Team balance and spending limits": "团队余额与消费限额",
+      "Azure quota and costs": "Azure 额度与费用",
+      "Project quota limits": "项目额度上限",
+      "AWS service quotas and costs": "AWS 服务额度与费用",
+      "Account usage analytics": "账户用量分析",
+      "Gemini API quota": "Gemini API 额度",
+      "Vertex Express quota": "Vertex Express 额度",
+      "NVIDIA quota": "NVIDIA 额度",
+      "Workspace balance": "工作区余额",
+      "Upstream quota": "上游额度",
+      "Subscription quota": "订阅额度",
+      "Cline account credits": "Cline 账户点数",
+      "Organization daily costs (last 7 complete UTC days)": "组织每日费用（最近 7 个完整 UTC 日）",
+      "Team prepaid ledger (negative means credit)": "团队预付账本（负数表示账户结余）",
+      "Team monthly postpaid budget": "团队每月后付费限额",
+      "OpenCode Go user/workspace quota": "OpenCode Go 用户／工作区额度",
+      "Zen workspace balance": "Zen 工作区余额",
+      "Account balance and spend budget": "账户余额与消费限额",
+      "AWS Bedrock applied service quotas": "AWS Bedrock 已应用的服务额度",
+      "Google project service quota limits": "Google 项目服务额度上限",
+      "Azure subscription regional capacity": "Azure 订阅区域容量",
+      "Alibaba Cloud available account amount": "阿里云账户可用额度",
+      "Cloudflare AI Gateway credit balance": "Cloudflare AI Gateway 点数余额",
+      "Team spend reports": "团队消费报告",
+      "Kimi Code subscription": "Kimi Code 订阅额度",
+      "Moonshot account balance": "Moonshot 账户余额",
+      "OpenCode Console wallet and monthly budget": "OpenCode Console 钱包与月限额"
+    },
+    "recordedHistory": "{{window}} · 已记录的额度历史（{{count}}）",
+    "authorization": {
+      "title": "额度查询授权",
+      "description": "仅用于上游额度查询的可选授权。支持时优先复用现有推理凭证。",
+      "revealFailed": "无法加载已保存的值。未修改的字段会保留，你仍可替换或清除单个查询字段。",
+      "optional": "可选，不修改则保留已保存的值。",
+      "clear": "清除",
+      "clearField": "清除{{field}}",
+      "fields": {
+        "quota_api_key": {
+          "label": "查询 API Key / Access Token",
+          "description": "用于上游额度查询的额外凭证。支持复用时可留空使用现有凭证。"
+        },
+        "quota_base_url": {
+          "label": "管理 API 地址",
+          "description": "上游额度查询使用的管理 API 地址。"
+        },
+        "quota_team_id": {
+          "label": "团队 ID",
+          "description": "要查询余额或额度的团队。"
+        },
+        "quota_workspace_id": {
+          "label": "工作区 ID",
+          "description": "要查询余额或额度的工作区。"
+        },
+        "quota_account_id": {
+          "label": "账户 ID",
+          "description": "额度查询的账户范围。"
+        },
+        "quota_project_id": {
+          "label": "项目 ID",
+          "description": "额度查询的项目范围。"
+        },
+        "quota_subscription_id": {
+          "label": "订阅 ID",
+          "description": "额度查询的云订阅范围。"
+        },
+        "quota_region": {
+          "label": "查询区域",
+          "description": "额度 API 使用的云区域。"
+        },
+        "quota_access_key_id": {
+          "label": "查询 Access Key ID",
+          "description": "签署云额度查询所用的访问密钥标识。"
+        },
+        "quota_access_key_secret": {
+          "label": "查询 Access Key Secret",
+          "description": "与查询 Access Key ID 配套的密钥。"
+        },
+        "quota_session_token": {
+          "label": "查询会话令牌",
+          "description": "使用临时云凭证时所需的会话令牌。"
+        },
+        "quota_quota_code": {
+          "label": "服务额度代码",
+          "description": "可选的 AWS 额度代码，用于查询指定服务上限。"
+        },
+        "quota_cookie": {
+          "label": "Console Cookie",
+          "description": "OpenCode Console 的 auth Cookie，可填 auth 值或包含 auth 的 Cookie 请求头。仅用于该工作区的账单查询。"
+        }
+      }
+    },
+    "entryLabels": {
+      "Team prepaid balance": "团队预付余额",
+      "Effective monthly postpaid spending limit": "实际每月后付费上限",
+      "Zen workspace balance": "Zen 工作区余额",
+      "Zen workspace monthly spending limit (UTC)": "Zen 工作区月消费限额（UTC）"
+    }
+  }
+}

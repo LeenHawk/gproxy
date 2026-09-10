@@ -114,9 +114,11 @@ pub struct QuotaProbeWindowDto {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 pub struct QuotaProbeResponse {
+    #[serde(default)]
+    pub snapshot: gproxy_channel_api::QuotaSnapshot,
     pub windows: Vec<QuotaProbeWindowDto>,
     pub reset_credits: Option<QuotaResetCreditsDto>,
-    /// Verbatim usage-endpoint body for operator inspection.
+    // Verbatim subscription usage body for operator inspection.
     pub raw: String,
     pub cycles: Vec<super::CredentialQuotaCycleDto>,
     pub local_error: bool,

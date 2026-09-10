@@ -36,6 +36,61 @@ static LOGIN: LoginDescriptor = LoginDescriptor {
 };
 
 impl Channel for KimiChannel {
+    fn quota_sources(
+        &self,
+        secret: &Value,
+        settings: &Value,
+    ) -> Vec<gproxy_channel_api::QuotaSource> {
+        if quota::is_code(secret, settings) {
+            vec![crate::shared::quota_catalog::ready(
+                "subscription",
+                "Kimi Code subscription",
+                gproxy_channel_api::QuotaKind::Window,
+            )]
+        } else {
+            vec![crate::shared::quota_catalog::ready(
+                "balance",
+                "Moonshot account balance",
+                gproxy_channel_api::QuotaKind::Balance,
+            )]
+        }
+    }
+    fn prepare_quota_source(
+        &self,
+        source_id: &str,
+        secret: &Value,
+        settings: &Value,
+    ) -> Result<Option<http::Request<bytes::Bytes>>, gproxy_channel_api::ChannelError> {
+        match source_id {
+            "subscription" => quota::probe_request(secret, settings),
+            "balance" if !quota::is_code(secret, settings) => {
+                crate::shared::quota_api::prepare("kimi", source_id, secret, settings)
+            }
+            _ => Ok(None),
+        }
+    }
+    fn parse_quota_source(
+        &self,
+        source_id: &str,
+        status: http::StatusCode,
+        _headers: &http::HeaderMap,
+        body: &[u8],
+    ) -> Result<Vec<gproxy_channel_api::QuotaEntry>, gproxy_channel_api::ChannelError> {
+        if source_id != "subscription" {
+            return crate::shared::quota_api::parse("kimi", source_id, status, body);
+        }
+        let windows = quota::parse_probe(status, body);
+        if windows.is_empty() {
+            return Err(gproxy_channel_api::ChannelError::Prepare(
+                "Invalid Kimi Code quota response".into(),
+            ));
+        }
+        Ok(windows
+            .iter()
+            .map(|window| gproxy_channel_api::QuotaEntry::from_window(window, 0))
+            .collect())
+    }
+
     fn login(&self) -> Option<ChannelLoginRef<'_>> {
         Some(ChannelLoginRef {
             adapter: self,

@@ -12,7 +12,18 @@ async fn disabled_credentials_keep_quota_metadata_but_cannot_send_requests() {
     use gproxy_core::CredentialStore;
 
     let fixture = setup::fixture().await;
-    for (channel, subscription) in [("openai", false), ("codex", true)] {
+    assert!(
+        !fixture
+            .app
+            .channel_catalogue()
+            .iter()
+            .any(|channel| channel.id == "groq")
+    );
+    for (channel, subscription) in [
+        ("openai", false),
+        ("codex", true),
+        ("removed-channel", false),
+    ] {
         let MutationResult::Id(provider) = fixture
             .app
             .mutate(ControlMutation::Provider(
@@ -50,7 +61,19 @@ async fn disabled_credentials_keep_quota_metadata_but_cannot_send_requests() {
             .credential_quota_capabilities(credential)
             .await
             .unwrap();
-        assert_eq!(capability.is_some(), subscription);
+        assert_eq!(capability.unwrap().probe, subscription);
+        let snapshot = fixture
+            .app
+            .credential_quota_snapshot(credential)
+            .await
+            .unwrap();
+        if channel == "removed-channel" {
+            assert_eq!(
+                snapshot.sources[0].capability.support,
+                gproxy_channel_api::QuotaSupport::Unsupported
+            );
+            assert!(snapshot.entries.is_empty());
+        }
         if subscription {
             assert_reset_credits_need_full_probe(&fixture.app, credential).await;
         }
@@ -88,78 +111,66 @@ async fn disabled_credentials_keep_quota_metadata_but_cannot_send_requests() {
 }
 
 async fn assert_reset_credits_need_full_probe(app: &crate::AppHandle, credential: i64) {
-    use gproxy_admin::{AdminError, State};
+    use gproxy_admin::State;
+    use gproxy_channel_api::{QuotaRefreshError, QuotaResetCredits, QuotaSourceState};
     use gproxy_core::CacheBackend;
-    use gproxy_store::records::{
-        CredentialQuotaObservation, QuotaBoundaryConfidence, QuotaBoundarySource,
-    };
 
-    let now = crate::quota_refresh::now();
+    let snapshot = app.credential_quota_snapshot(credential).await.unwrap();
+    let source = snapshot
+        .sources
+        .into_iter()
+        .find(|source| source.capability.id == "subscription")
+        .unwrap();
+    let version = app
+        .store()
+        .credential(credential)
+        .await
+        .unwrap()
+        .unwrap()
+        .version;
+    let now = crate::quota_refresh::now() * 1000;
+    let mut state = QuotaSourceState {
+        capability: source.capability,
+        attempted_at_ms: Some(now - 1000),
+        observed_at_ms: Some(now - 1000),
+        error: None,
+        reset_credits: Some(QuotaResetCredits {
+            available_count: 2,
+            expires_at: None,
+        }),
+    };
+    app.store()
+        .save_credential_quota_source(credential, version, &state, Some(&[]))
+        .await
+        .unwrap();
+    state.attempted_at_ms = Some(now);
+    state.error = Some(QuotaRefreshError {
+        code: "rate_limited".into(),
+        message: "retry later".into(),
+    });
+    state.reset_credits = None;
+    app.store()
+        .save_credential_quota_source(credential, version, &state, None)
+        .await
+        .unwrap();
     app.inner
         .host
         .services
-        .store
-        .observe_credential_quota_cycle(&CredentialQuotaObservation {
-            credential_id: credential,
-            window_key: "primary".into(),
-            label: None,
-            period_start: Some(now - 60),
-            period_end: Some(now + 3600),
-            observed_at: now,
-            boundary_source: QuotaBoundarySource::Upstream,
-            boundary_confidence: QuotaBoundaryConfidence::Exact,
-            sample: gproxy_core::QuotaSample {
-                source: gproxy_core::QuotaSampleSource::Unknown,
-                started_at_ms: now * 1000,
-                received_at_ms: now * 1000,
-            },
-            scope: gproxy_core::QuotaScope::All,
-            reset_behavior: gproxy_core::QuotaResetBehavior::Periodic,
-            unit: None,
-            upstream_used: None,
-            upstream_limit: None,
-            used_percent: Some(10.into()),
-        })
-        .await
-        .unwrap();
-    let cache = &app.inner.host.services.cache;
-    cache
+        .cache
         .set(
-            &format!("quota:upstream-retry:{credential}"),
+            &format!("quota:source:{credential}:v{version}:subscription:upstream-retry"),
             vec![1],
             Some(std::time::Duration::from_secs(60)),
         )
         .await
         .unwrap();
-    assert!(matches!(app.quota_probe(credential, false).await,
-        Err(AdminError::Conflict(message)) if message == "upstream requested a longer quota retry interval"));
-    let cached = gproxy_admin::dto::QuotaProbeResponse {
-        windows: Vec::new(),
-        cycles: Vec::new(),
-        local_error: false,
-        raw: String::new(),
-        reset_credits: Some(gproxy_admin::dto::QuotaResetCreditsDto {
-            available_count: 2,
-            expires_at: None,
-        }),
-    };
-    cache
-        .set(
-            &format!("quota:probe:{credential}"),
-            serde_json::to_vec(&cached).unwrap(),
-            Some(std::time::Duration::from_secs(60)),
-        )
-        .await
-        .unwrap();
+    let result = app.quota_probe(credential, true).await.unwrap();
+    assert_eq!(result.reset_credits.unwrap().available_count, 2);
     assert_eq!(
-        app.quota_probe(credential, false)
-            .await
-            .unwrap()
-            .reset_credits
-            .unwrap()
-            .available_count,
-        2
+        result.snapshot.sources[0].error.as_ref().unwrap().code,
+        "rate_limited"
     );
+    assert_eq!(result.snapshot.sources[0].attempted_at_ms, Some(now));
 }
 
 #[tokio::test]

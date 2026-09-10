@@ -11,6 +11,8 @@ mod oauth;
 mod permissions;
 mod pressure;
 mod quota;
+mod quota_authorization;
+mod quota_probe;
 mod routing;
 mod runtime_settings;
 mod setup;

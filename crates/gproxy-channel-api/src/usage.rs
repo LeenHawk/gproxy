@@ -18,6 +18,7 @@ impl QuotaCapabilities {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 #[serde(tag = "kind", content = "models", rename_all = "snake_case")]
 pub enum QuotaScope {
     All,
@@ -108,11 +109,11 @@ pub enum QuotaResetBehavior {
     Unknown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "typescript", derive(ts_rs::TS))]
 pub struct QuotaResetCredits {
     pub available_count: i64,
-    /// Soonest expiry among the credits, unix seconds — only the dedicated
-    /// credits endpoint reports per-credit expiry; the usage summary does not.
+    // Only the dedicated credits endpoint reports per-credit expiry (unix seconds).
     pub expires_at: Option<i64>,
 }
 

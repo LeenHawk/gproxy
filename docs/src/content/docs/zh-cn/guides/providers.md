@@ -17,7 +17,7 @@ description: "渠道、Provider、凭证池、登录向导、令牌刷新、健�
 
 | 凭证形态 | 渠道 id |
 | --- | --- |
-| API 密钥（`api_key`） | `aistudio`、`azure`、`claudeapi`、`cloudflare-ai-gateway`、`custom`、`dashscope`、`deepseek`、`groq`、`nvidia`、`openai`、`openrouter`、`vercel`、`vertexexpress`、`xai` |
+| API 密钥（`api_key`） | `aistudio`、`azure`、`claudeapi`、`cloudflare-ai-gateway`、`custom`、`dashscope`、`deepseek`、`nvidia`、`openai`、`openrouter`、`vercel`、`vertexexpress`、`xai` |
 | API 密钥或 OAuth 令牌 | `cline`、`kimi`、`opencode` |
 | OAuth 令牌（`access_token`、`refresh_token`） | `claudecode`、`codex`、`grokbuild`、`kiro`、`workbuddy` |
 | Google OAuth（`access_token`、`refresh_token`、`project_id`） | `antigravity`、`geminicli` |

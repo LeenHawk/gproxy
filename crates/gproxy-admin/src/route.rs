@@ -44,6 +44,7 @@ pub(crate) enum Route {
     ModelTest,
     ModelDiscover,
     CredentialQuotaProbe(i64),
+    CredentialQuotaRead(i64),
     CredentialQuotaReset(i64),
     CredentialHealthReset(i64),
     RevealCredentialSecret(i64),
@@ -98,6 +99,11 @@ pub(crate) fn parse(method: &Method, path: &str) -> Option<Route> {
             Method::DELETE => Some(Route::OAuthClientDelete(id.parse().ok()?)),
             _ => None,
         };
+    }
+    if method == Method::GET
+        && let ["credentials", credential, "quota"] = segments.as_slice()
+    {
+        return Some(Route::CredentialQuotaRead(credential.parse().ok()?));
     }
     if method == Method::POST {
         let login = match segments.as_slice() {
@@ -328,6 +334,7 @@ pub(crate) fn audit(route: &Route, body: &[u8]) -> Option<AuditDescriptor> {
         | Route::UsageSummary
         | Route::UsageTrend
         | Route::QuotaWindows
+        | Route::CredentialQuotaRead(_)
         | Route::CredentialCycles
         | Route::Channels
         | Route::TlsPresets

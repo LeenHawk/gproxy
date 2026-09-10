@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use gproxy_store::records::{CredentialInput, CredentialUpdateInput};
+use gproxy_store::records::CredentialInput;
 use http::Response;
 
 use crate::dto::CredentialWriteRequest;
@@ -28,23 +28,20 @@ pub(super) async fn create(
             let request: CredentialWriteRequest = util::parse(body)?;
             super::validators::provider(state, request.provider_id).await?;
             super::validators::credential_settings(&request)?;
-            let secret = request
-                .secret
-                .as_ref()
-                .ok_or_else(|| AdminError::BadRequest("credential secret is required".into()))?;
+            let secret = super::credential_secret::create(state, &request).await?;
             // Auto-name on create when the caller supplied no label; updates
             // keep the caller's label verbatim (None clears).
             let label = request
                 .label
                 .clone()
-                .or_else(|| crate::default_credential_label(&request.kind, secret));
+                .or_else(|| crate::default_credential_label(&request.kind, &secret));
             state
                 .store()
                 .insert_credential(&CredentialInput {
                     provider_id: request.provider_id,
                     label,
                     kind: request.kind,
-                    envelope: state.seal_credential(secret)?,
+                    envelope: state.seal_credential(&secret)?,
                     enabled: request.enabled,
                     weight: request.weight,
                     rpm_limit: request.rpm_limit,
@@ -94,6 +91,7 @@ pub(super) async fn update(
     id: i64,
     body: &Bytes,
 ) -> Result<Response<Bytes>, AdminError> {
+    let mut clear_health = false;
     let applied = match entity {
         Entity::Providers => {
             let input = super::inputs::provider(state, util::parse(body)?)?;
@@ -103,33 +101,10 @@ pub(super) async fn update(
             let request: CredentialWriteRequest = util::parse(body)?;
             super::validators::provider(state, request.provider_id).await?;
             super::validators::credential_settings(&request)?;
-            let envelope = request
-                .secret
-                .as_ref()
-                .map(|secret| state.seal_credential(secret))
-                .transpose()?;
-            state
-                .store()
-                .update_credential(
-                    id,
-                    &CredentialUpdateInput {
-                        provider_id: request.provider_id,
-                        label: request.label,
-                        kind: request.kind,
-                        envelope,
-                        enabled: request.enabled,
-                        weight: request.weight,
-                        rpm_limit: request.rpm_limit,
-                        tpm_limit: request.tpm_limit,
-                        proxy_url: request.proxy_url,
-                        tls_fingerprint: request
-                            .tls_fingerprint
-                            .map(serde_json::to_value)
-                            .transpose()
-                            .map_err(|error| AdminError::BadRequest(error.to_string()))?,
-                    },
-                )
-                .await?
+            let (applied, reset_health) =
+                super::credential_secret::update(state, id, &request).await?;
+            clear_health = reset_health;
+            applied
         }
         Entity::Routes => {
             state
@@ -158,7 +133,7 @@ pub(super) async fn update(
         }
         _ => return Err(AdminError::NotFound),
     };
-    if applied && matches!(entity, Entity::Credentials) {
+    if applied && clear_health {
         state.store().clear_credential_health(id).await?;
     }
     util::updated(state, applied).await

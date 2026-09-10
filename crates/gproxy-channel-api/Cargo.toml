@@ -6,7 +6,11 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+typescript = ["dep:ts-rs"]
+
 [dependencies]
+ts-rs = { workspace = true, optional = true }
 gproxy-protocol = { workspace = true, features = ["exhaustive"] }
 bytes.workspace = true
 futures-core.workspace = true

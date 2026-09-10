@@ -113,6 +113,14 @@ pub const TABLES: &[TableSpec] = &[
                 column: "credential_id",
             },
             Ownership::Owns {
+                table: "credential_quota_sources",
+                column: "credential_id",
+            },
+            Ownership::Owns {
+                table: "credential_quota_response_entries",
+                column: "credential_id",
+            },
+            Ownership::Owns {
                 table: "surface_bindings",
                 column: "credential_id",
             },

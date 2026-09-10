@@ -1,16 +1,18 @@
 import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation } from "@tanstack/react-query"
 import { ChevronsUpDownIcon, RefreshCwIcon, RotateCcwIcon } from "lucide-react"
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { ApiError } from "@/api/client"
-import { probeCredentialQuota, resetCredentialQuota } from "@/api/control"
+import { resetCredentialQuota } from "@/api/control"
 import { ConfirmDangerous } from "@/components/confirm-dangerous"
 import { CredentialCycleList } from "@/components/providers/credential-cycle-list"
+import { CredentialQuotaSources } from "@/components/providers/credential-quota-sources"
+import { useCredentialQuota } from "@/components/providers/use-credential-quota"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { formatInstant } from "@/lib/format"
 
@@ -22,29 +24,10 @@ type Props = {
 }
 
 export function CredentialCard(props: Props) {
-  if (!props.credential.quota_capabilities) return null
-  return <SubscriptionCredentialCard {...props} />
-}
-
-function SubscriptionCredentialCard(props: Props) {
   const { t, i18n } = useTranslation()
   const credential = props.credential
-  const client = useQueryClient()
   const [resetOpen, setResetOpen] = useState(false)
-  const probe = useQuery({
-    queryKey: ["credential-quota-probe", credential.id, credential.version],
-    queryFn: async () => {
-      const result = await probeCredentialQuota(credential.id)
-      void client.invalidateQueries({ queryKey: ["credential-cycles"] })
-      return result
-    },
-    enabled: credential.quota_capabilities?.probe === true,
-    retry: false,
-    staleTime: 10 * 60 * 1000,
-    gcTime: Infinity,
-  })
-  const quota = probe.data ?? null
-  const manual = useMutation({ mutationFn: () => probeCredentialQuota(credential.id, true) })
+  const { snapshot, quota, canProbe, loading, refreshing, error, refresh: probe } = useCredentialQuota(credential)
   const mergedCycles = useMemo(() => {
     const byId = new Map<number, CredentialQuotaCycleDto>()
     for (const cycle of [...(quota?.cycles ?? []), ...props.cycles]) {
@@ -55,10 +38,9 @@ function SubscriptionCredentialCard(props: Props) {
   }, [quota?.cycles, props.cycles])
   const refresh = async () => {
     try {
-      const result = await manual.mutateAsync()
-      client.setQueryData(["credential-quota-probe", credential.id, credential.version], result)
-      await client.invalidateQueries({ queryKey: ["credential-cycles"] })
-      toast.success(t("providers.credentials.quotaProbe.success", { count: result.windows.length }))
+      const result = await probe()
+      if (result.snapshot.sources.some((source) => source.error)) toast.error(t("providers.credentials.quotaProbe.error"))
+      else toast.success(t("providers.credentials.quotaProbe.success", { count: result.snapshot.entries.length }))
     } catch (error) {
       toast.error(error instanceof ApiError ? error.message : t("providers.credentials.quotaProbe.error"))
     }
@@ -72,7 +54,7 @@ function SubscriptionCredentialCard(props: Props) {
     },
     onError: (error) => toast.error(error instanceof ApiError ? error.message : t("providers.credentials.quotaReset.error")),
   })
-  const resetCredits = quota?.reset_credits
+  const resetCredits = snapshot?.sources.find((source) => source.reset_credits)?.reset_credits ?? quota?.reset_credits
   const raw = useMemo(() => {
     if (!quota?.raw) return null
     try {
@@ -85,16 +67,16 @@ function SubscriptionCredentialCard(props: Props) {
   return (
     <>
       <Card size="sm">
+        <CardHeader>
+          <CardTitle headingLevel={3}>{t("providers.credentials.quota.title")}</CardTitle>
+          {canProbe ? <CardAction><Button variant="outline" size="sm" disabled={refreshing || reset.isPending} onClick={() => void refresh()}>
+            <RefreshCwIcon aria-hidden data-icon="inline-start" className={refreshing ? "animate-spin" : undefined} />
+            {refreshing ? t("providers.credentials.quotaProbe.pending") : t("providers.credentials.quotaProbe.action")}
+          </Button></CardAction> : null}
+        </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">{t("providers.credentials.quota.title")}</p>
-            </div>
-            <Button variant="outline" size="sm" className="shrink-0" disabled={probe.isFetching || manual.isPending || reset.isPending} onClick={() => void refresh()}>
-              <RefreshCwIcon aria-hidden className={probe.isFetching ? "animate-spin" : undefined} />
-              {probe.isFetching ? t("providers.credentials.quotaProbe.pending") : t("providers.credentials.quotaProbe.action")}
-            </Button>
-          </div>
+          {loading ? <p className="text-sm text-muted-foreground">{t("common.loading")}</p> : null}
+          {snapshot ? <CredentialQuotaSources snapshot={snapshot} refreshing={refreshing} /> : null}
           {resetCredits || credential.quota_capabilities?.reset ? (
             <section aria-label={t("providers.credentials.quotaReset.available")} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-3 py-2">
               <p className="min-w-0 text-sm">
@@ -107,27 +89,31 @@ function SubscriptionCredentialCard(props: Props) {
               {credential.quota_capabilities?.reset ? <Button
                 variant="outline"
                 size="sm"
-                disabled={!resetCredits || resetCredits.available_count <= 0 || reset.isPending || probe.isFetching || manual.isPending}
+                disabled={!resetCredits || resetCredits.available_count <= 0 || reset.isPending || refreshing}
                 onClick={() => setResetOpen(true)}
               >
-                <RotateCcwIcon aria-hidden className={reset.isPending ? "animate-spin" : undefined} />
+                <RotateCcwIcon aria-hidden data-icon="inline-start" className={reset.isPending ? "animate-spin" : undefined} />
                 {t("providers.credentials.quotaReset.action")}
               </Button> : null}
             </section>
           ) : null}
-          <CredentialCycleList
+          {mergedCycles.length > 0 || snapshot?.entries.some((entry) => entry.value.kind === "window") ? <CredentialCycleList
             cycles={mergedCycles}
             localError={quota?.local_error}
-            windows={quota?.windows}
-            loading={!quota && (props.cyclesLoading || probe.isFetching)}
-            error={!quota && props.cyclesError}
-          />
-          {probe.isError ? <p role="alert" className="text-sm text-destructive">{probe.error instanceof ApiError ? probe.error.message : t("providers.credentials.quotaProbe.error")}</p> : null}
+            windows={snapshot?.entries.flatMap((entry) => entry.value.kind === "window" ? [{
+              window_key: entry.id, label: entry.label, upstream_used: entry.value.used,
+              upstream_limit: entry.value.limit, unit: entry.value.unit,
+              used_percent: entry.value.used_percent, period_end: entry.value.period_end,
+            }] : []) ?? []}
+            loading={loading && props.cyclesLoading}
+            error={!snapshot && props.cyclesError}
+          /> : null}
+          {error ? <p role="alert" className="text-sm text-destructive">{error instanceof ApiError ? error.message : t("providers.credentials.quotaProbe.error")}</p> : null}
             {raw ? (
               <Collapsible>
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" size="sm" className="self-start text-muted-foreground">
-                    <ChevronsUpDownIcon aria-hidden className="size-3" />
+                    <ChevronsUpDownIcon aria-hidden data-icon="inline-start" />
                     {t("providers.credentials.quota.raw")}
                   </Button>
                 </CollapsibleTrigger>

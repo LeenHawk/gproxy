@@ -26,10 +26,9 @@ impl<H: Host> Core<H> {
         channel: &str,
         secret: &serde_json::Value,
     ) -> Result<Option<gproxy_channel_api::QuotaCapabilities>, CoreError> {
-        let channel = self
-            .channels
-            .get(channel)
-            .ok_or_else(|| CoreError::UnknownProvider("channel is not registered".into()))?;
+        let Some(channel) = self.channels.get(channel) else {
+            return Ok(None);
+        };
         Ok(channel.quota_capabilities(secret))
     }
 
@@ -38,6 +37,17 @@ impl<H: Host> Core<H> {
         channel: &str,
         provider: &ProviderRef,
         credential: CredentialId,
+    ) -> Result<QuotaProbeResult, CoreError> {
+        self.quota_probe_version(channel, provider, credential, None)
+            .await
+    }
+
+    pub(crate) async fn quota_probe_version(
+        &self,
+        channel: &str,
+        provider: &ProviderRef,
+        credential: CredentialId,
+        expected_version: Option<u64>,
     ) -> Result<QuotaProbeResult, CoreError> {
         if provider.channel != channel {
             return Err(CoreError::UnknownProvider(
@@ -49,6 +59,12 @@ impl<H: Host> Core<H> {
             .get(channel)
             .ok_or_else(|| CoreError::UnknownProvider("channel is not registered".into()))?;
         let record = self.host.credentials().load(credential).await?;
+        if expected_version.is_some_and(|version| record.version != version)
+            || record.channel != provider.channel
+        {
+            return Err(CoreError::Unsupported);
+        }
+
         if !channel
             .quota_capabilities(&record.secret)
             .is_some_and(|capability| capability.probe)
@@ -92,7 +108,7 @@ impl<H: Host> Core<H> {
         }
         if !observations.is_empty() {
             self.host
-                .observe_credential_quota(credential, observations.clone())
+                .observe_credential_quota(credential, record.version, observations.clone())
                 .await;
         }
         Ok(QuotaProbeResult {
@@ -139,7 +155,7 @@ impl<H: Host> Core<H> {
         })
     }
 
-    async fn buffered(
+    pub(crate) async fn buffered(
         &self,
         request: http::Request<bytes::Bytes>,
     ) -> Result<(http::StatusCode, BytesMut), CoreError> {
