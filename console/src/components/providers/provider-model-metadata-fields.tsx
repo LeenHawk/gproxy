@@ -1,3 +1,4 @@
+import { useId } from "react"
 import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import type { ModelMetadataDto } from "@/generated/ModelMetadataDto"
@@ -46,11 +47,11 @@ export function ProviderModelMetadataFields({ value, onChange }: {
       <ServiceTiers value={value.service_tiers} onChange={(next) => set("service_tiers", next)} />
       <Field>
         <FieldLabel>{t("providers.models.shellType")}</FieldLabel>
-        <OptionalSelect value={value.shell_type} values={["unified_exec", "disabled"]} onChange={(next) => set("shell_type", next)} />
+        <SuggestedInput value={value.shell_type} values={["unified_exec", "disabled", "default", "local", "shell_command"]} onChange={(next) => set("shell_type", next)} />
       </Field>
       <Field>
         <FieldLabel>{t("providers.models.defaultVerbosity")}</FieldLabel>
-        <OptionalSelect value={value.default_verbosity} values={["low", "medium", "high"]} onChange={(next) => set("default_verbosity", next)} />
+        <SuggestedInput value={value.default_verbosity} values={["low", "medium", "high"]} onChange={(next) => set("default_verbosity", next)} />
       </Field>
       <Field>
         <FieldLabel>{t("providers.models.defaultServiceTier")}</FieldLabel>
@@ -60,21 +61,21 @@ export function ProviderModelMetadataFields({ value, onChange }: {
         <FieldLabel>{t("providers.models.reasoningSummary")}</FieldLabel>
         <div className="grid grid-cols-2 gap-2">
           <OptionalBoolean value={value.supports_reasoning_summary_parameter} onChange={(next) => set("supports_reasoning_summary_parameter", next)} />
-          <OptionalSelect value={value.default_reasoning_summary} values={["none", "auto", "concise", "detailed"]} onChange={(next) => set("default_reasoning_summary", next)} />
+          <SuggestedInput value={value.default_reasoning_summary} values={["none", "auto", "concise", "detailed"]} onChange={(next) => set("default_reasoning_summary", next)} />
         </div>
       </Field>
       <Field>
         <FieldLabel>{t("providers.models.patchTool")}</FieldLabel>
-        <OptionalSelect value={value.apply_patch_tool_type} values={["freeform"]} onChange={(next) => set("apply_patch_tool_type", next)} />
+        <SuggestedInput value={value.apply_patch_tool_type} values={["freeform"]} onChange={(next) => set("apply_patch_tool_type", next)} />
       </Field>
       <Field>
         <FieldLabel>{t("providers.models.webSearchTool")}</FieldLabel>
-        <OptionalSelect value={value.web_search_tool_type} values={["text", "text_and_image"]} onChange={(next) => set("web_search_tool_type", next)} />
+        <SuggestedInput value={value.web_search_tool_type} values={["text", "text_and_image"]} onChange={(next) => set("web_search_tool_type", next)} />
       </Field>
       <Field>
         <FieldLabel>{t("providers.models.truncation")}</FieldLabel>
         <div className="grid grid-cols-2 gap-2">
-          <OptionalSelect value={value.truncation_mode} values={["bytes", "tokens"]} onChange={(next) => set("truncation_mode", next)} />
+          <SuggestedInput value={value.truncation_mode} values={["bytes", "tokens"]} onChange={(next) => set("truncation_mode", next)} />
           <Input type="number" min="1" value={value.truncation_limit ?? ""} onChange={(event) => set("truncation_limit", optionalNumber(event.target.value))} />
         </div>
       </Field>
@@ -136,7 +137,7 @@ function ReasoningLevels({ value, onChange }: { value: Array<ModelReasoningLevel
   return <Field data-field-span="full"><FieldLabel>{t("providers.models.reasoningLevels")}</FieldLabel>
     <Button type="button" size="sm" variant="ghost" onClick={() => onChange(value == null ? [] : [...value, { effort: "medium", description: "" }])}>{value == null ? t("providers.models.markKnown") : t("common.actions.add")}</Button>
     {value?.map((level, index) => <div key={index} className="grid grid-cols-[10rem_1fr_auto] gap-2">
-      <Select value={level.effort} onValueChange={(effort) => onChange(value.map((item, current) => current === index ? { ...item, effort } : item))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"].map((effort) => <SelectItem key={effort} value={effort}>{effort}</SelectItem>)}</SelectGroup></SelectContent></Select>
+      <SuggestedInput value={level.effort} values={["none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"]} onChange={(effort) => onChange(value.map((item, current) => current === index ? { ...item, effort: effort ?? "" } : item))} />
       <Input value={level.description} onChange={(event) => onChange(value.map((item, current) => current === index ? { ...item, description: event.target.value } : item))} />
       <Button type="button" size="icon-sm" variant="ghost" aria-label={t("common.actions.delete")} onClick={() => onChange(value.filter((_, current) => current !== index))}><XIcon data-icon="inline-start" /></Button>
     </div>)}
@@ -154,8 +155,13 @@ function ServiceTiers({ value, onChange }: { value: Array<ModelServiceTierDto> |
   </Field>
 }
 
-function OptionalSelect({ value, values, onChange }: { value: string | null; values: Array<string>; onChange: (value: string | null) => void }) {
-  return <Select value={value ?? "unknown"} onValueChange={(next) => onChange(next === "unknown" ? null : next)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="unknown">unknown</SelectItem>{values.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectGroup></SelectContent></Select>
+function SuggestedInput({ value, values, onChange }: { value: string | null; values: Array<string>; onChange: (value: string | null) => void }) {
+  const id = useId()
+  const { t } = useTranslation()
+  return <>
+    <Input list={id} value={value ?? ""} placeholder={t("common.status.unknown")} onChange={(event) => onChange(event.target.value || null)} />
+    <datalist id={id}>{values.map((item) => <option key={item} value={item} />)}</datalist>
+  </>
 }
 
 function OptionalBoolean({ value, onChange }: { value: boolean | null; onChange: (value: boolean | null) => void }) {

@@ -187,12 +187,9 @@ fn validate_model_metadata(metadata: &crate::dto::ModelMetadataDto) -> Result<()
     }
     if metadata.reasoning_levels.as_deref().is_some_and(|levels| {
         let mut seen = std::collections::BTreeSet::new();
-        levels.iter().any(|level| {
-            !matches!(
-                level.effort.as_str(),
-                "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | "ultra"
-            ) || !seen.insert(&level.effort)
-        })
+        levels
+            .iter()
+            .any(|level| level.effort.trim().is_empty() || !seen.insert(&level.effort))
     }) {
         return Err(AdminError::BadRequest(
             "model reasoning levels are invalid".into(),
@@ -207,32 +204,6 @@ fn validate_model_metadata(metadata: &crate::dto::ModelMetadataDto) -> Result<()
         return Err(AdminError::BadRequest(
             "model service tiers are invalid".into(),
         ));
-    }
-    for (value, allowed) in [
-        (
-            metadata.shell_type.as_deref(),
-            &["unified_exec", "disabled"][..],
-        ),
-        (
-            metadata.default_verbosity.as_deref(),
-            &["low", "medium", "high"],
-        ),
-        (
-            metadata.default_reasoning_summary.as_deref(),
-            &["none", "auto", "concise", "detailed"],
-        ),
-        (metadata.apply_patch_tool_type.as_deref(), &["freeform"]),
-        (
-            metadata.web_search_tool_type.as_deref(),
-            &["text", "text_and_image"],
-        ),
-        (metadata.truncation_mode.as_deref(), &["bytes", "tokens"]),
-    ] {
-        if value.is_some_and(|value| !allowed.contains(&value)) {
-            return Err(AdminError::BadRequest(
-                "model metadata contains an invalid enum value".into(),
-            ));
-        }
     }
     if metadata.truncation_mode.is_some() != metadata.truncation_limit.is_some()
         || metadata.truncation_limit.is_some_and(|value| value <= 0)
