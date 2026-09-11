@@ -11,7 +11,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 
 const credential: CredentialDto = {
   id: 7, provider_id: 3, label: "New credential", kind: "oauth",
-  quota_capabilities: { probe: true, reset: false }, version: 1, enabled: true, weight: 100,
+  quota_capabilities: { probe: true, reset: false, top_up_url: null }, version: 1, enabled: true, weight: 100,
   rpm_limit: null, tpm_limit: null, proxy_url: null, tls_fingerprint: null,
   invalid_tls_fingerprint: null, tls_fingerprint_error: null, health: "unknown",
   health_observed_at: null, health_response_status: null, health_detail: null, model_health: [],
@@ -129,7 +129,7 @@ describe("CredentialCard", () => {
       .mockResolvedValueOnce(response(probed(redeemed)))
     vi.stubGlobal("fetch", fetchMock)
     const user = userEvent.setup()
-    render(view({ ...credential, quota_capabilities: { probe: true, reset: true } }))
+    render(view({ ...credential, quota_capabilities: { probe: true, reset: true, top_up_url: null } }))
     const credits = screen.getByRole("region", { name: "Reset credits" })
     expect(within(credits).getByText("—")).toBeInTheDocument()
     expect(await within(credits).findByText("2")).toBeInTheDocument()

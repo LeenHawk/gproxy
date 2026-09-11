@@ -14,17 +14,19 @@ pub(super) async fn read(
         .cipher
         .open(&credential.envelope)
         .map_err(|error| AdminError::Internal(error.to_string()))?;
-    let reset = app
+    let capability = app
         .inner
         .core
         .quota_capabilities(&credential.channel, &secret)
-        .map_err(|error| AdminError::BadRequest(error.to_string()))?
-        .is_some_and(|capability| capability.reset);
+        .map_err(|error| AdminError::BadRequest(error.to_string()))?;
     Ok(Some(QuotaCapabilitiesDto {
         probe: sources.iter().any(|source| {
             source.mode == gproxy_channel_api::QuotaQueryMode::Probe
                 && source.support == gproxy_channel_api::QuotaSupport::Ready
         }),
-        reset,
+        reset: capability.is_some_and(|capability| capability.reset),
+        top_up_url: capability
+            .and_then(|capability| capability.top_up_url)
+            .map(str::to_owned),
     }))
 }

@@ -8,12 +8,14 @@ use std::collections::BTreeMap;
 pub struct QuotaCapabilities {
     pub probe: bool,
     pub reset: bool,
+    pub top_up_url: Option<&'static str>,
 }
 
 impl QuotaCapabilities {
     pub const SUBSCRIPTION: Self = Self {
         probe: true,
         reset: false,
+        top_up_url: None,
     };
 }
 

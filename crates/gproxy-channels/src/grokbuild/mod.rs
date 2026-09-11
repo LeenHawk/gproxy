@@ -64,7 +64,11 @@ impl Channel for GrokBuildChannel {
         usage::from_body(ctx)
     }
     fn quota_capabilities(&self, _secret: &Value) -> Option<gproxy_channel_api::QuotaCapabilities> {
-        Some(gproxy_channel_api::QuotaCapabilities::SUBSCRIPTION)
+        Some(gproxy_channel_api::QuotaCapabilities {
+            // Official Grok Build's PurchaseCredits action opens its account usage page.
+            top_up_url: Some("https://grok.com?_s=usage"),
+            ..gproxy_channel_api::QuotaCapabilities::SUBSCRIPTION
+        })
     }
 
     fn prepare_quota_probe(

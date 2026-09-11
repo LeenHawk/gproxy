@@ -5,6 +5,7 @@ use ts_rs::TS;
 pub struct QuotaCapabilitiesDto {
     pub probe: bool,
     pub reset: bool,
+    pub top_up_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -41,6 +42,7 @@ impl From<gproxy_channel_api::QuotaCapabilities> for QuotaCapabilitiesDto {
         Self {
             probe: value.probe,
             reset: value.reset,
+            top_up_url: value.top_up_url.map(str::to_owned),
         }
     }
 }

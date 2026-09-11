@@ -263,6 +263,10 @@
         "success": "Updated {{count}} quota entries.",
         "error": "Quota probe failed."
       },
+      "quotaTopUp": {
+        "action": "Top up credits",
+        "description": "Open the provider's official billing page in a new tab. Sign in to the account matching this credential, then return and refresh your quota after topping up."
+      },
       "quotaReset": {
         "available": "Reset credits",
         "expires": "Expires {{time}}",
