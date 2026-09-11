@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend
+    name: Backend (fmt · clippy · test · edge-wasm)
     needs: console
     runs-on: ubuntu-latest
     steps:
@@ -32,7 +32,7 @@ jobs:
       - run: cargo check --workspace --target wasm32-unknown-unknown
 
   console:
-    name: Console
+    name: Console (typecheck · test · build · i18n)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -59,7 +59,7 @@ jobs:
           retention-days: 1
 
   docs:
-    name: Docs
+    name: Docs (build)
     runs-on: ubuntu-latest
     defaults:
       run:
