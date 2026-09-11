@@ -16,12 +16,23 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
             .and_then(|value| value.to_str().ok())
             .map(str::trim)
             .filter(|value| !value.is_empty())
-            .or_else(|| ctx.session_id.map(str::trim).filter(|value| !value.is_empty()))
-            .ok_or_else(|| ChannelError::Prepare(
-                "OpenCode requires x-opencode-session when no conversation identity can be inferred".into(),
-            ))?;
-        let value = HeaderValue::from_str(session)
-            .map_err(|_| ChannelError::Prepare("invalid OpenCode session id".into()))?;
+            .or_else(|| {
+                ctx.session_id
+                    .map(str::trim)
+                    .filter(|value| !value.is_empty())
+            });
+        let value = match session {
+            Some(session) => HeaderValue::from_str(session)
+                .map_err(|_| ChannelError::Prepare("invalid OpenCode session id".into()))?,
+            None => {
+                let mut bytes = [0_u8; 16];
+                getrandom::fill(&mut bytes).map_err(|_| {
+                    ChannelError::Prepare("OpenCode session randomness failed".into())
+                })?;
+                let session: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+                HeaderValue::from_str(&session).expect("hex session id is a valid header")
+            }
+        };
         headers.insert("x-opencode-session", value);
     }
     let body = super::model::body(&ctx)?;

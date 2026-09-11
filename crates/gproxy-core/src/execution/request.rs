@@ -22,6 +22,10 @@ impl Classified {
             .map(|session| session.upstream_id(owner_user_id))
     }
 
+    pub(crate) fn request_session_id(request_id: &str, owner_user_id: Option<i64>) -> String {
+        super::session::SessionSubject::request(request_id).upstream_id(owner_user_id)
+    }
+
     pub(super) fn responses_websocket(model: Option<String>) -> Self {
         Self {
             key: OperationKey::content(

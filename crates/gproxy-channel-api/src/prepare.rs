@@ -10,7 +10,8 @@ use crate::wire::ClientProfile;
 #[derive(Clone, Copy)]
 pub struct PrepareCtx<'a> {
     pub key: OperationKey,
-    /// Caller-scoped conversation identity, stable across turns and retry targets.
+    /// Caller-scoped conversation identity, or a request-scoped fallback when
+    /// required by the channel. Stable across retry targets.
     pub session_id: Option<&'a str>,
     pub stream: bool,
     pub method: &'a http::Method,
