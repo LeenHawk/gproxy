@@ -31,8 +31,7 @@ Signing participants must use multi-factor authentication for GitHub and SignPat
 Once enabled, tagged stable and prerelease builds must obtain trusted,
 timestamped signatures before publication. Failed, rejected, or timed-out
 requests stop the release. Continuous `staging` builds remain unsigned.
-Windows x86_64 release binaries are packed with UPX before signing; Windows
-ARM64 binaries remain unpacked.
+Windows x86_64 and ARM64 release binaries are packed with UPX before signing.
 
 ## Privacy
 

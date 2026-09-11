@@ -13,8 +13,8 @@ enable production signing until the project and certificate are approved.
   their manifests; no commercial dual-licensing is introduced by this integration.
 - Scope: x86_64 and ARM64 Windows EXEs, MSI installers, and bundled launchers.
 - Build: GitHub-hosted Windows runners, public source and release workflow,
-  embedded Console compiled by the same workflow. Windows x86_64 uses UPX
-  before signing; Windows ARM64 remains unpacked.
+  embedded Console compiled by the same workflow. Windows x86_64 and ARM64
+  binaries use UPX before signing.
 
 The policy pages must be deployed before sharing their public URLs with the
 reviewer. Confirm GitHub and SignPath MFA, repository permissions, privacy
