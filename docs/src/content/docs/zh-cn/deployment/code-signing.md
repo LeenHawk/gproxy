@@ -1,6 +1,6 @@
 ---
 title: Code signing policy（代码签名政策）
-description: "GPROXY Windows 签名状态、发布审批、隐私说明与签名验证。"
+description: "GPROXY Windows 签名状态、PR 审查、隐私说明与签名验证。"
 ---
 
 ## 当前状态
@@ -12,15 +12,16 @@ GPROXY 已申请 SignPath Foundation，正在等待审核，尚未启用 Windows
 **Free code signing provided by [SignPath.io](https://signpath.io), certificate
 by [SignPath Foundation](https://signpath.org).**
 
-## 签名范围与审批
+## 签名范围与代码审查
 
 仅签署 [LeenHawk/gproxy](https://github.com/LeenHawk/gproxy) 仓库发布工作流构建的产物，
 覆盖 Windows x86_64 和 ARM64 的便携 ZIP 内 `gproxy.exe`、MSI 安装包及其内的 EXE、
 PowerShell 和 VBScript 启动脚本。
 
-代码提交者、审查者和发布签名批准者均为 [LeenHawk](https://github.com/LeenHawk)。
-外部贡献须经维护者审查；签名参与者须在 GitHub 和 SignPath 开启多因素认证。
-每次签名请求须在 SignPath 由维护者明确批准。
+代码提交者和 PR 审查者为 [LeenHawk](https://github.com/LeenHawk)。
+发布代码通过 GitHub PR 审查后合入受保护的 `main`，从已审查的提交创建发布标签；
+CI 使用自动签名策略提交签名请求、下载结果并验证产物。
+签名参与者须在 GitHub 和 SignPath 开启多因素认证。
 
 启用后，稳定版及预发布版标签构建须取得可信且带时间戳的签名才能发布；
 失败、拒绝和超时均阻止发布。持续构建的 `staging` 版本不签名。

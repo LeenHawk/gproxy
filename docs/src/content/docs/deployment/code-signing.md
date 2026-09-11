@@ -1,6 +1,6 @@
 ---
 title: Code signing policy
-description: "GPROXY Windows signing status, release approval, privacy, and signature verification."
+description: "GPROXY Windows signing status, PR review, privacy, and signature verification."
 ---
 
 ## Status
@@ -13,7 +13,7 @@ After acceptance and activation, Windows tagged releases will use:
 **Free code signing provided by [SignPath.io](https://signpath.io), certificate
 by [SignPath Foundation](https://signpath.org).**
 
-## Scope and approval
+## Scope and review
 
 The project repository is [LeenHawk/gproxy](https://github.com/LeenHawk/gproxy).
 Only artifacts built by its release workflow from this repository may be signed.
@@ -23,10 +23,10 @@ The signing configuration covers both Windows x86_64 and ARM64:
 - The MSI installer, its `gproxy.exe`, and its PowerShell and VBScript launchers.
 
 Committer and reviewer: [LeenHawk](https://github.com/LeenHawk).
-Release signing approver: [LeenHawk](https://github.com/LeenHawk).
-Contributor pull requests require maintainer review. Signing participants must
-use multi-factor authentication for GitHub and SignPath. Each signing request
-requires explicit maintainer approval in SignPath.
+Release changes are reviewed through GitHub pull requests before merging into
+protected `main`. Release tags are cut from reviewed commits; CI automatically
+submits, downloads and verifies signed packages using an automatic signing policy.
+Signing participants must use multi-factor authentication for GitHub and SignPath.
 
 Once enabled, tagged stable and prerelease builds must obtain trusted,
 timestamped signatures before publication. Failed, rejected, or timed-out
