@@ -88,8 +88,9 @@ Users and give it the Manager role. Follow Microsoft's
 [submission API setup](https://learn.microsoft.com/en-us/windows/uwp/monetize/create-and-manage-submissions-using-windows-store-services#how-to-associate-an-azure-ad-application-with-your-partner-center-account).
 Add the secret through GitHub Actions secrets or interactive
 `gh secret set MS_STORE_CLIENT_SECRET`; do not paste it into chat or source.
-The workflow uses it through environment variables and clears CLI credentials
-when the job finishes.
+The workflow uses it through environment variables on a disposable GitHub-hosted
+Windows runner. CLI credential storage is not cached or uploaded. Configure the
+CLI before changing its settings; its interactive reset command is not used in CI.
 
 The job validates both package identities and versions before upload. It skips
 the update with a notice until the first manual submission is published. It also
@@ -103,6 +104,12 @@ certification and public availability remain Microsoft's processing steps.
 If another submission is pending, finish it in Partner Center and rerun the
 failed Store job. The job does not recreate the first submission or rewrite
 store text/screenshots on each release.
+
+To retry an existing release with a newer workflow fix, run **Publish Microsoft
+Store** manually on `main`, supplying its version (without `v`) and the original
+Release workflow run ID. This reuses the MSIX artifacts without rebuilding or
+changing a public release tag. The workflow verifies the source run, public
+release and tag commit before downloading packages.
 
 ## Submission material
 
