@@ -484,6 +484,9 @@ jobs:
     name: Submit Microsoft Store update
     needs: [prepare, publish]
     if: ${{ needs.prepare.outputs.channel == 'releases' && vars.MS_STORE_PUBLISH_ENABLED == 'true' }}
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/store-publish.yml
     with:
       version: ${{ needs.prepare.outputs.version }}
