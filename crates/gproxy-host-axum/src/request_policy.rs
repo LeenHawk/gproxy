@@ -57,9 +57,81 @@ pub(crate) fn apply_cors(mut response: Response, origin: Option<&HeaderValue>) -
     response
 }
 
+pub(crate) fn apply_preflight_cors(
+    response: Response,
+    origin: Option<&HeaderValue>,
+    request_headers: &HeaderMap,
+) -> Response {
+    let mut response = apply_cors(response, origin);
+    if origin.is_none() {
+        return response;
+    }
+    let mut allowed = vec![
+        "authorization".to_owned(),
+        "content-type".into(),
+        "x-api-key".into(),
+    ];
+    for value in request_headers.get_all("access-control-request-headers") {
+        for name in value.to_str().unwrap_or_default().split(',') {
+            let Ok(name) = name.trim().parse::<http::HeaderName>() else {
+                continue;
+            };
+            let name = name.as_str();
+            if name.starts_with("x-stainless-") && !allowed.iter().any(|item| item == name) {
+                allowed.push(name.into());
+            }
+        }
+    }
+    response.headers_mut().insert(
+        "access-control-allow-headers",
+        HeaderValue::from_str(&allowed.join(", ")).expect("validated header names"),
+    );
+    response.headers_mut().append(
+        http::header::VARY,
+        HeaderValue::from_static("Access-Control-Request-Headers"),
+    );
+    response
+}
+
 #[cfg(test)]
 mod tests {
     use std::net::{IpAddr, Ipv4Addr};
+
+    #[test]
+    fn cors_preflight_only_extends_the_sdk_header_namespace_for_allowed_origins() {
+        let mut headers = http::HeaderMap::new();
+        headers.append(
+            "access-control-request-headers",
+            "X-Stainless-Runtime, x-stainless-runtime, x-custom-secret, x-stainless-bad name"
+                .parse()
+                .unwrap(),
+        );
+        headers.append(
+            "access-control-request-headers",
+            "x-stainless-future, x-api-key".parse().unwrap(),
+        );
+        let origin = "https://example.test".parse().unwrap();
+        let response = super::apply_preflight_cors(
+            axum::response::Response::default(),
+            Some(&origin),
+            &headers,
+        );
+        assert_eq!(
+            response.headers()["access-control-allow-headers"],
+            "authorization, content-type, x-api-key, x-stainless-runtime, x-stainless-future"
+        );
+        let response =
+            super::apply_preflight_cors(axum::response::Response::default(), None, &headers);
+        assert!(
+            !response
+                .headers()
+                .contains_key("access-control-allow-headers")
+        );
+        assert!(!super::allowed_origin(
+            &["https://example.test".into()],
+            &"https://other.test".parse().unwrap()
+        ));
+    }
 
     #[test]
     fn client_ip_trusts_forwarding_headers_only_from_a_trusted_peer() {
