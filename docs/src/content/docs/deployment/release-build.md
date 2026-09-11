@@ -103,7 +103,7 @@ type, run `cargo test`, and commit the result. Never edit them by hand.
 
 `.github/workflows/ci.yml` runs on every push and pull request with
 **Backend** (the four cargo gates above), **Console**
-(`pnpm install --frozen-lockfile`, lint, test, build, `i18n:check`), and
+(`pnpm install --frozen-lockfile`, lint, test, build, `i18n:check`),
 **Docs** (`pnpm check`, `pnpm build` in `docs/`), and **Windows packages**
 (x64 and ARM64 builds plus configured Store MSIX validation). Pushes to the default
 branch or `3.0` also run **Deploy docs**, which signs `notifications.json`

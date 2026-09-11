@@ -34,7 +34,7 @@ try {
     Expand-Archive -LiteralPath "dist/release/$Artifact.zip" -DestinationPath $package
     Copy-Item scripts/installers/windows/GPROXY.ps1 $package
     $launcher = Join-Path $package 'gproxy-launcher.exe'
-    & rustc --edition=2024 --target $Target -C opt-level=z -C panic=abort `
+    & rustc --edition=2024 --target $Target -C opt-level=z -C panic=abort -C target-feature=+crt-static `
         --crate-name gproxy_store_launcher scripts/installers/windows/launcher.rs -o $launcher
     if ($LASTEXITCODE -ne 0) { throw "Store launcher build failed: $LASTEXITCODE" }
 

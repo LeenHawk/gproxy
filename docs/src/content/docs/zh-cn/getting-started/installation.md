@@ -166,7 +166,7 @@ Console 不为该安装版写入 Run 启动项。
 | --- | --- |
 | Linux | `~/.config/autostart/gproxy.desktop`（遵循 `XDG_CONFIG_HOME`） |
 | macOS | `~/Library/LaunchAgents/io.github.leenhawk.gproxy.plist` |
-| Windows portable / historical MSI | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`，值名 `GPROXY` |
+| Windows 便携版 / 历史 MSI | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`，值名 `GPROXY` |
 
 启动项记录可执行文件、启动时使用的参数、工作目录，以及在设置了 `GPROXY_MASTER_KEY`
 时复制进去的 `--master-key`，因此要按含密信息对待。关闭开关会删除启动项，但不会停
