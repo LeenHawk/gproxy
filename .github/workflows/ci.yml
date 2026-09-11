@@ -104,6 +104,8 @@ jobs:
       - name: Install release packer
         if: ${{ matrix.upx }}
         shell: bash
+        env:
+          UPX_VERSION: ${{ matrix.upx_version }}
         run: scripts/install-upx.sh
       - name: Pack and verify Windows executable
         if: ${{ matrix.upx }}

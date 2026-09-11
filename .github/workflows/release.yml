@@ -157,6 +157,8 @@ jobs:
         run: codesign --force --sign - "target/${{ matrix.target }}/release/gproxy"
       - name: Install pinned UPX
         if: ${{ matrix.upx }}
+        env:
+          UPX_VERSION: ${{ matrix.upx_version }}
         run: scripts/install-upx.sh
       - name: Compress and verify executable
         if: ${{ matrix.upx }}
