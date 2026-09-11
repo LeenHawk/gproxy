@@ -62,6 +62,47 @@ Existing MSI installs are not silently migrated. Export configuration, stop
 the old process and disable its startup entry before launching Store GPROXY,
 then import into the new instance. Back up the original DB and master key.
 
+## Automatic release updates
+
+Stable tag releases call `.github/workflows/store-publish.yml` after the GitHub
+Release is published. It uses the official
+[`microsoft/microsoft-store-apppublisher@v1.4`](https://github.com/microsoft/microsoft-store-apppublisher)
+Action with Microsoft Store CLI v0.4.2. Windows SDK bundles the x64 and ARM64
+MSIX files into one `.msixbundle`; the official `msstore publish` command uploads
+it and commits the update. Existing listings, screenshots and publishing settings
+are inherited from the Store submission.
+
+Configure once, after the first manual Store submission is published:
+
+| Kind | Name | Value |
+| --- | --- | --- |
+| Actions variable | `MS_STORE_PRODUCT_ID` | `9P2FJRB9RS4Z` (already configured) |
+| Actions variable | `MS_STORE_TENANT_ID` | Microsoft Entra tenant ID |
+| Actions variable | `MS_STORE_SELLER_ID` | Partner Center seller ID, from Account settings / Legal info |
+| Actions variable | `MS_STORE_CLIENT_ID` | Entra application ID with Partner Center Manager role |
+| Actions secret | `MS_STORE_CLIENT_SECRET` | Secret for that Entra application |
+| Actions variable | `MS_STORE_PUBLISH_ENABLED` | `true` once authorization and the first publication are complete |
+
+Associate the Entra application with Partner Center under Account settings /
+Users and give it the Manager role. Follow Microsoft's
+[submission API setup](https://learn.microsoft.com/en-us/windows/uwp/monetize/create-and-manage-submissions-using-windows-store-services#how-to-associate-an-azure-ad-application-with-your-partner-center-account).
+Add the secret through GitHub Actions secrets or interactive
+`gh secret set MS_STORE_CLIENT_SECRET`; do not paste it into chat or source.
+The workflow uses it through environment variables and clears CLI credentials
+when the job finishes.
+
+The job validates both package identities and versions before upload. It skips
+an already published version or an older release, and refuses to replace a
+pending submission because the official CLI otherwise deletes it. This preserves
+manual drafts and ongoing reviews. Store submissions run serially without
+cancelling an active upload. Prerelease and staging builds do not submit to Store.
+
+A successful job means Microsoft accepted the upload and submission commit;
+certification and public availability remain Microsoft's processing steps.
+If another submission is pending, finish it in Partner Center and rerun the
+failed Store job. The job does not recreate the first submission or rewrite
+store text/screenshots on each release.
+
 ## Submission material
 
 Create a submission for the reserved product, upload both architecture MSIX
