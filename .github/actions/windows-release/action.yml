@@ -57,7 +57,7 @@ runs:
           dist/release/${{ inputs.artifact }}.msi
         if-no-files-found: error
         retention-days: 7
-    - name: Request and wait for SignPath approval
+    - name: Sign and download Windows packages
       if: ${{ inputs.sign == 'true' }}
       uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
       with:
@@ -68,7 +68,6 @@ runs:
         artifact-configuration-slug: windows-release
         github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
         wait-for-completion: true
-        wait-for-completion-timeout-in-seconds: 3600
         output-artifact-directory: ${{ runner.temp }}/signed-${{ inputs.artifact }}
         parameters: |
           artifact: ${{ toJSON(inputs.artifact) }}
