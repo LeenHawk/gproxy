@@ -61,8 +61,9 @@ respectively. Request bodies are limited to 100 MiB, as on native.
 ## Prebuilt Bundles
 
 Every release publishes `gproxy-edge-cloudflare.zip`, `gproxy-edge-deno.zip`,
-`gproxy-edge-netlify.zip`, and the raw `gproxy-edge.wasm`, each with a
-`.sha256`, plus `gproxy-edge.provenance.json`. A zip unpacks to
+`gproxy-edge-netlify.zip`, and the raw `gproxy-edge.wasm`. New builds use
+GitHub's asset digests and artifact attestations for checksums and provenance.
+A zip unpacks to
 `<platform>/` with the entry file, its config, `pkg/` (wasm and
 wasm-bindgen glue), and `public/` (the console build). See
 [Downloads](/getting-started/downloads/).

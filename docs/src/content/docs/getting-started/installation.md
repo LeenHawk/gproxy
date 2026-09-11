@@ -33,14 +33,23 @@ run, registers `~/Library/LaunchAgents/io.github.leenhawk.gproxy.plist` so the
 server starts at login and is kept alive, and opens the console. It has no
 Dock icon. The bundle is ad-hoc signed, not notarized, and requires macOS 11.
 
-### Windows `.msi`
+### Windows Microsoft Store (MSIX)
 
-The installer is per-user and needs no administrator rights. It places
-`gproxy.exe` and the launcher scripts in `%LOCALAPPDATA%\Programs\GPROXY`, a
-Start menu shortcut that starts the server if needed and opens the console,
-and a Startup-folder shortcut that starts it hidden at sign-in. The launcher
-works in `%LOCALAPPDATA%\GPROXY` and writes a private `.env` there on first
-run.
+Store publication is being prepared; use the portable ZIP until a public Store
+listing is available. MSI packages remain on historical releases.
+
+The Store package requires Windows 10 version 2004 or later. Its Start menu
+entry opens first-run setup, starts the server in the background and opens
+Console. Windows owns the immutable program files. Database, keys and logs live
+under the package's `LocalState\GPROXY` directory. Enable login startup through
+**Windows Settings → Apps → Startup**; it is initially disabled.
+
+Store handles updates. The Console's Updates page directs you to Store, and
+native EXE replacement/rollback endpoints are disabled for this installation.
+When moving from MSI, export your configuration (including secrets if needed),
+stop the old server and disable its autostart before starting the Store version,
+then import the configuration. Old `%LOCALAPPDATA%\GPROXY` data is not silently
+moved or deleted; back up the database and its master key before migration.
 
 ### Android `.apk`
 
@@ -90,7 +99,7 @@ database. See [Edge Wasm](/deployment/edge/).
 | Portable | `./data` under the working directory | stdout and stderr |
 | `.deb` launcher | `${XDG_DATA_HOME:-~/.local/share}/gproxy` | `${XDG_STATE_HOME:-~/.local/state}/gproxy/gproxy.log` |
 | `.dmg` | `~/Library/Application Support/GPROXY` | `~/Library/Logs/GPROXY/gproxy.log` |
-| `.msi` | `%LOCALAPPDATA%\GPROXY\data` | `%LOCALAPPDATA%\GPROXY\logs\gproxy.log` and `gproxy-error.log` |
+| MSIX | `%LOCALAPPDATA%\Packages\<PackageFamilyName>\LocalState\GPROXY\data` | `LocalState\GPROXY\logs` |
 | `.apk` | app-private storage, `files/data` | the log view in the app |
 | Container | `/var/lib/gproxy` | container stdout |
 
@@ -169,6 +178,9 @@ to install unknown apps.
 The updater uses `GPROXY_UPSTREAM_PROXY_URL` when set. `releases` and `dev`
 compare semantic versions; `staging` compares build hashes.
 
+Microsoft Store installations are updated by Store; use the Store guidance on
+**Updates** instead of the native update and rollback commands above.
+
 ## Automatic Startup
 
 **Settings → Automatic startup** manages a per-user autostart entry written by the
@@ -177,11 +189,14 @@ unless `GPROXY_AUTOSTART=off`; the decision is recorded in
 `.autostart-initialized`. Linux needs a desktop session (`DISPLAY`,
 `WAYLAND_DISPLAY`, or `XDG_CURRENT_DESKTOP`) and is skipped in containers.
 
+Store installations use a package StartupTask instead. Enable or disable it
+in Windows Settings → Apps → Startup; the Console does not write a Run entry.
+
 | Platform | Entry |
 | --- | --- |
 | Linux | `~/.config/autostart/gproxy.desktop` (honours `XDG_CONFIG_HOME`) |
 | macOS | `~/Library/LaunchAgents/io.github.leenhawk.gproxy.plist` |
-| Windows | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, value `GPROXY` |
+| Windows portable / historical MSI | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, value `GPROXY` |
 
 On Android, the APK home screen owns the startup switch and boot receiver.
 In Termux, run `./gproxy` with the usual command-line flags and manage startup
@@ -195,8 +210,8 @@ the Android binary archive.
 The entry records the executable, the flags it was started with, the working
 directory, and `--master-key` copied from `GPROXY_MASTER_KEY` when that
 variable was set, so treat it as secret-bearing. Turning the switch off removes
-the entry and does not stop the running server. The `.deb` autostart file, the
-`.msi` Startup shortcut, and the `.dmg` LaunchAgent belong to the installer's
+the entry and does not stop the running server. The `.deb` autostart file
+and the `.dmg` LaunchAgent belong to the installer's
 launcher and are separate from this switch.
 
 ## Uninstalling
@@ -205,7 +220,8 @@ launcher and are separate from this switch.
   a per-user `~/.config/autostart/gproxy.desktop` remain.
 - `.dmg`: delete `~/Library/LaunchAgents/io.github.leenhawk.gproxy.plist`,
   then move `GPROXY.app` to the Trash. The data and log directories remain.
-- `.msi`: remove GPROXY from Windows Apps settings. `%LOCALAPPDATA%\GPROXY`
+- MSIX: uninstall through Windows Apps settings; Windows removes package-private data.
+  Export configuration and back up keys first. Historical MSI data in `%LOCALAPPDATA%\GPROXY`
   and the `GPROXY` Run value, if enabled, remain.
 - `.apk`: uninstall the app; Android removes its private storage with it.
 - Container: `docker rm gproxy`; the volume persists until you remove it.

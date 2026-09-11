@@ -56,8 +56,8 @@ Cloudflare 的 `wrangler.toml` 设置了 `run_worker_first = true`，因此 Work
 ## 预构建 Bundle
 
 每个 release 发布 `gproxy-edge-cloudflare.zip`、`gproxy-edge-deno.zip`、
-`gproxy-edge-netlify.zip` 和原始的 `gproxy-edge.wasm`，各带 `.sha256`，另有
-`gproxy-edge.provenance.json`。zip 解压为 `<platform>/`，内含入口文件、配置、
+`gproxy-edge-netlify.zip` 和原始的 `gproxy-edge.wasm`。新构建使用 GitHub 附件摘要
+和产物证明提供校验和与构建来源。zip 解压为 `<platform>/`，内含入口文件、配置、
 `pkg/`（wasm 与 wasm-bindgen glue）和 `public/`（控制台构建产物）。见
 [下载](/zh-cn/getting-started/downloads/)。
 

@@ -33,8 +33,8 @@ v2 版本仍保留在各自的 `v2.x.y` tag 上。
 | `gproxy-linux-riscv64-musl` | riscv64gc-unknown-linux-musl | `.zip` | `.deb` |
 | `gproxy-macos-x86_64` | x86_64-apple-darwin | `.zip` | `.dmg` |
 | `gproxy-macos-aarch64` | aarch64-apple-darwin | `.zip` | `.dmg` |
-| `gproxy-windows-x86_64` | x86_64-pc-windows-msvc | `.zip` | `.msi` |
-| `gproxy-windows-aarch64` | aarch64-pc-windows-msvc | `.zip` | `.msi` |
+| `gproxy-windows-x86_64` | x86_64-pc-windows-msvc | `.zip` | MSIX（商店提交） |
+| `gproxy-windows-aarch64` | aarch64-pc-windows-msvc | `.zip` | MSIX（商店提交） |
 | `gproxy-android-x86_64` | x86_64-linux-android | `.zip` | `.apk` |
 | `gproxy-android-aarch64` | aarch64-linux-android | `.zip` | `.apk` |
 
@@ -46,10 +46,13 @@ Linux GNU 版本链接 glibc；`-musl` 版本是静态链接。Windows 版本静
 | --- | --- | --- |
 | `.deb` | Debian 与 Ubuntu 系 | 安装 `/usr/bin/gproxy`、桌面启动器和一个 XDG 自动启动项。 |
 | `.dmg` | macOS 11 或更高 | `GPROXY.app` 应用包，在后台运行服务并打开控制台。 |
-| `.msi` | Windows | 按用户安装到 `%LOCALAPPDATA%\Programs\GPROXY`，附带开始菜单和启动文件夹快捷方式。 |
+| `.msix` | Windows 10 2004 或更高版本 | 由商店管理安装，带开始菜单入口、私有数据目录和 Windows 启动任务；尚未上架商店。 |
 | `.apk` | Android 9（API 28）或更高 | 已签名的应用，包含前台服务、启动器界面和应用内更新。 |
 
 各安装包的行为、数据位置和日志路径见[安装](/zh-cn/getting-started/installation/)。
+
+Windows MSI 打包已改为商店提交用 MSIX。未签名 MSIX 仅保存在 Actions 产物中，
+不作为公开 Release 下载；商店审核完成前请使用 Windows 便携 ZIP。
 
 ## 便携压缩包
 
@@ -70,10 +73,9 @@ chmod +x ./gproxy
 docker pull ghcr.io/leenhawk/gproxy:<tag>
 ```
 
-`<tag>` 是该版本的 Git tag。v3 工作流只推送这个带版本号的 tag，且只有
-`linux/amd64`；`latest` 不是 v3 的 tag，也没有 `-musl` 变体。同一个镜像还以
-`gproxy-container-linux-amd64.tar.gz` 附在 Release 上，可用 `docker load` 导入。
-卷和环境变量见[容器部署](/zh-cn/deployment/docker/)。
+`<tag>` 是该版本的 Git tag。工作流向 GHCR 发布 `linux/amd64`、`linux/arm64` 和
+`linux/riscv64` 的 GNU 与 `-musl` 变体。容器镜像不作为 Release 附件上传。
+离线传输、卷和环境变量见[容器部署](/zh-cn/deployment/docker/)。
 
 ## Edge Bundle
 
@@ -88,15 +90,23 @@ docker pull ghcr.io/leenhawk/gproxy:<tag>
 
 ## 校验值与构建来源
 
-每个产物旁边都有 `sha256sum` 格式的 `.sha256` 文件：
+新构建使用 GitHub Release 附件自带的 `digest`（SHA-256），不再单独上传
+`.sha256` 文件。查询所下载版本的摘要：
 
 ```bash
-sha256sum -c gproxy-linux-x86_64.zip.sha256
+gh api 'repos/LeenHawk/gproxy/releases/tags/v<VERSION>' \
+  --jq '.assets[] | select(.name == "gproxy-linux-x86_64.zip") | .digest'
+sha256sum gproxy-linux-x86_64.zip
 ```
 
-每个产物还附带 `<产物名>.provenance.json`，记录版本、提交、tag、目标三元组、构建器
-（`cargo`、`cross`、`cargo-ndk`、`docker` 或 `wasm-bindgen`）、工具链版本，以及构建
-时实际解析到的基础镜像摘要。
+将本地哈希与 `sha256:` 后的值比较。构建来源通过 GitHub 签名的产物证明验证：
+
+```bash
+gh attestation verify gproxy-linux-x86_64.zip -R LeenHawk/gproxy
+```
+
+工具链版本和实际解析到的基础镜像摘要保存在另一份自定义证明中，见
+[构建溯源](/zh-cn/deployment/release-build/#构建溯源)。历史版本保留原有的校验和与溯源附件。
 
 ## 签名更新清单
 

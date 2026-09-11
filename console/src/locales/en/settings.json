@@ -115,7 +115,8 @@
         "app": "Startup is managed by the GPROXY Android app; use the switch on its home screen.",
         "termux": "Android startup needs a Termux session with the Termux:Boot add-on.",
         "termux-boot": "Runs at boot through the Termux:Boot add-on, which has to be installed and opened once. The saved script includes the active configuration and master key when one was supplied.",
-        "unsupported": "Login startup is unavailable on this installation."
+        "unsupported": "Login startup is unavailable on this installation.",
+        "microsoft-store": "Manage GPROXY in Windows Settings > Apps > Startup on the computer running GPROXY."
       }
     },
     "tokenizers": {

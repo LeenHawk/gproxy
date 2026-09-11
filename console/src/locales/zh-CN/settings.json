@@ -115,7 +115,8 @@
         "app": "启动由 GPROXY 安卓应用管理，请使用应用主界面上的开关。",
         "termux": "安卓上的开机启动需要 Termux 会话和 Termux:Boot 插件。",
         "termux-boot": "通过 Termux:Boot 插件开机启动，该插件需先安装并打开一次。保存的脚本包含当前配置；如提供了主密钥，也会包含主密钥。",
-        "unsupported": "此安装不支持登录启动。"
+        "unsupported": "此安装不支持登录启动。",
+        "microsoft-store": "请在运行 GPROXY 的电脑上，通过 Windows 设置 → 应用 → 启动管理 GPROXY 的自动启动。"
       }
     },
     "tokenizers": {

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import "@/i18n"
 import { applyUpdate, rollbackUpdate, updateStatus } from "@/api/native"
 import { UpdatePanel } from "./update-panel"
+import { UpdatePage } from "@/pages/update"
 
 vi.mock("@/api/native", () => ({
   applyUpdate: vi.fn(),
@@ -23,9 +24,23 @@ function renderPanel() {
 
 describe("native update panel", () => {
   beforeEach(() => {
+    delete window.__GPROXY_BUILD_INFO__
     apply.mockReset()
     rollback.mockReset()
     status.mockReset()
+  })
+
+  it("routes Store installations to Store without native update or rollback controls", () => {
+    window.__GPROXY_BUILD_INFO__ = { version: "3.0.12", channel: "releases", buildHash: "test", installationKind: "microsoft-store" }
+    const client = new QueryClient()
+    render(<QueryClientProvider client={client}><UpdatePage /></QueryClientProvider>)
+    expect(screen.getByRole("link", { name: "Open Microsoft Store" })).toHaveAttribute("href", "ms-windows-store://downloadsandupdates")
+    expect(screen.queryByRole("button", { name: "Check for updates" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Roll back" })).not.toBeInTheDocument()
+    expect(status).not.toHaveBeenCalled()
+    expect(apply).not.toHaveBeenCalled()
+    expect(rollback).not.toHaveBeenCalled()
+    delete window.__GPROXY_BUILD_INFO__
   })
 
   it("offers automatic restart and opens release notes in a dialog", async () => {

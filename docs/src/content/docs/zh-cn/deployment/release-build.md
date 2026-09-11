@@ -15,7 +15,7 @@ GPROXY 以一个原生二进制 `gproxy` 交付，构建自 `crates/gproxy-host-
 | Node.js LTS 与 pnpm 9 | 控制台（`console/`）与文档（`docs/`） |
 | 与 `Cargo.lock` 版本一致的 `wasm-bindgen-cli`，或 `wasm-pack` | 生成 edge glue |
 | 带 buildx 的 Docker | 容器镜像 |
-| `cross`、`cargo-ndk`、WiX 4、`dpkg-deb`、`hdiutil` | 仅 release 打包需要 |
+| `cross`、`cargo-ndk`、Windows SDK MakeAppx、`dpkg-deb`、`hdiutil` | 仅 release 打包需要 |
 
 ## 构建控制台
 
@@ -95,7 +95,7 @@ Cloudflare 使用 `bundler` target；Deno 与 Netlify 使用 `--target web`。
 
 ## CI
 
-`.github/workflows/ci.yml` 在每次 push 和 pull request 时运行三个 job：
+`.github/workflows/ci.yml` 在每次 push 和 pull request 时运行后端、控制台、文档及 Windows 打包检查：
 **Backend**（上述四个 cargo 门禁）、**Console**（`pnpm install --frozen-lockfile`、
 lint、test、build、`i18n:check`）和 **Docs**（在 `docs/` 中执行 `pnpm check`、
 `pnpm build`）。推送到默认分支或 `3.0` 时还会运行 **Deploy docs**：用更新签名
@@ -119,12 +119,10 @@ scripts/release.sh
 
 1. **Release metadata** —— 校验 tag 等于 `v<workspace version>`，推导 channel，
    并从 `scripts/release-targets.json` 载入 target 矩阵。
-2. **Console and container image** —— 通过 `deploy/container/Dockerfile` 的
-   `console-dist` 阶段只构建一次控制台，构建并推送
-   `ghcr.io/leenhawk/gproxy:<tag>`（linux/amd64，带
-   BuildKit provenance 与 SBOM attestation），并把同一镜像保存为
-   `gproxy-container-linux-amd64.tar.gz`。控制台产物作为 workflow artifact 传给
-   后续 job。
+2. **Console bundle** —— 用 pnpm 构建一次控制台，通过 workflow artifact 传给
+   native 和 edge job。容器 job 将原生 Linux 二进制打包为 amd64、arm64、riscv64
+   的 GNU 和 musl 镜像，附带 BuildKit provenance 与 SBOM attestation，再向
+   `ghcr.io/leenhawk/gproxy` 发布多平台 manifest。
 3. **Native `<target>`** —— 矩阵每行一个 job。各自把控制台下载到
    `crates/gproxy-host-axum/assets/web`，检查更新公钥能解码为 32 字节，用
    `cargo`、`cross` 或 `cargo-ndk`（Android API 28）构建 `--bin gproxy`，然后
@@ -139,7 +137,8 @@ scripts/release.sh
    `scripts/package-edge-release.sh`，并对三个平台入口做类型检查（`pnpm check`、
    `deno check`）。
 6. **Publish release** —— 创建或更新 GitHub release `v<version>`（`dev` 构建加
-   `--prerelease`）并上传全部文件。对 `dev` 构建还会把 `dev` tag 强制移到该提交，
+   `--prerelease`）并上传实际包与 `manifest.json`。校验和及构建记录文件仅在 workflow
+   内部传递。对 `dev` 构建还会把 `dev` tag 强制移到该提交，
    并把 `manifest.json` 上传到名为 `dev` 的固定预发布版本，除非已存在更新的 v3
    预发布版本。
 
@@ -155,17 +154,31 @@ scripts/release.sh
 | `gproxy-linux-riscv64-musl` | `riscv64gc-unknown-linux-musl` | cross | `.deb` |
 | `gproxy-macos-x86_64` | `x86_64-apple-darwin` | cargo | `.dmg` |
 | `gproxy-macos-aarch64` | `aarch64-apple-darwin` | cargo | `.dmg` |
-| `gproxy-windows-x86_64` | `x86_64-pc-windows-msvc` | cargo | `.msi` |
-| `gproxy-windows-aarch64` | `aarch64-pc-windows-msvc` | cargo | `.msi` |
+| `gproxy-windows-x86_64` | `x86_64-pc-windows-msvc` | cargo | MSIX (Store) |
+| `gproxy-windows-aarch64` | `aarch64-pc-windows-msvc` | cargo | MSIX (Store) |
 | `gproxy-android-x86_64` | `x86_64-linux-android` | cargo-ndk | `.apk` |
 | `gproxy-android-aarch64` | `aarch64-linux-android` | cargo-ndk | `.apk` |
 
-每个产物都有一个 `.zip`（二进制、`README.md`、`LICENSE`）、表中列出的安装包、每个
-文件旁的 `.sha256`，以及一个 `.provenance.json`。Android zip 中 ELF 名为
-`gproxy.bin`，附带 NDK 的 `libc++_shared.so` 和一个 `gproxy` 启动脚本；APK 封装
-同一份 payload。release 还包含 `manifest.json`、`gproxy-edge.wasm`、
-`gproxy-edge-{cloudflare,deno,netlify}.zip` 和 `gproxy-container-linux-amd64.tar.gz`，
-均带校验和。确切名称见 `scripts/release-targets.json` 与 workflow。
+每个原生 target 都有一个 `.zip`（二进制、`README.md`、`LICENSE`）。Linux、macOS
+和 Android 另行发布表中安装包；Windows MSIX 单独保存用于商店提交。Android zip 中 ELF 名为 `gproxy.bin`，附带 NDK 的 `libc++_shared.so`
+和一个 `gproxy` 启动脚本；APK 封装同一份 payload。release 还包含 `manifest.json`、
+`gproxy-edge.wasm` 和 `gproxy-edge-{cloudflare,deno,netlify}.zip`，按当前矩阵合计
+26 个实际包与 1 个签名清单。GitHub 为每个附件提供 SHA-256 摘要，校验和与溯源记录
+不再作为独立 Release 附件。确切名称见 `scripts/release-targets.json` 与 workflow。
+
+## Microsoft Store 提交
+
+稳定版 Windows job 在便携 ZIP 签名后运行 `scripts/package-windows-msix.ps1`。
+在 Actions 中配置 Partner Center 提供的四个公开身份值：`MS_STORE_IDENTITY_NAME`、`MS_STORE_DISPLAY_NAME`、
+`MS_STORE_IDENTITY_PUBLISHER` 和 `MS_STORE_PUBLISHER_DISPLAY_NAME`。未配置时会明确
+跳过商店打包；只配置一部分会报错。
+
+脚本使用 Windows SDK MakeAppx、已有图标与启动器，包版本为 `<主>.<次>.<修订>.0`。
+x64 和 ARM64 的未签名 MSIX 输出到 `dist/store`，生成 GitHub 证明后保存在
+`microsoft-store-unsigned-gproxy-windows-*` Actions 产物中，保留 30 天。
+这些是提交材料，不是公开可安装的 Release 附件。须通过 Partner Center 审核、由微软
+重新签名后才可通过商店分发。步骤见仓库的
+[商店接入指南](https://github.com/LeenHawk/gproxy/blob/main/.github/microsoft-store/README.md)。
 
 ## 签名
 
@@ -190,10 +203,24 @@ openssl pkey -in update.pem -pubout -outform DER \
 
 ## 构建溯源
 
-`scripts/build-provenance.sh` 为每个产物写一个 `<artifact>.provenance.json`：
-`version`、`commit`、`tag`、`target`、`builder`，实际运行的 `rustc`、`node`、`pnpm`
-版本，以及 `deploy/container/Dockerfile` 中每一行 `FROM` 的镜像引用和构建时解析到
-的 digest。镜像 tag 在固定的版本线内会漂移；这份记录才是日后识别一次构建的依据。
+完成打包与平台签名后，native 和 edge job 使用 `actions/attest` 向 GitHub
+Artifact Attestations 发布标准 SLSA 构建证明。job 需要 `id-token: write` 和
+`attestations: write` 权限。证明按包摘要关联，staging 包后续添加提交前缀不影响关联。
+
+`scripts/build-provenance.sh` 继续记录版本、提交、tag、target、构建器、工具链版本、
+UPX 使用情况及实际解析到的基础镜像摘要。同一批包还会获得包含这份 JSON 的自定义
+证明，predicate type 为 `https://gproxy.leenhawk.com/attestations/build-environment/v1`。
+两类证明均由 GitHub 保存，不再上传为 Release 附件：
+
+```sh
+gh attestation verify gproxy-linux-x86_64.zip -R LeenHawk/gproxy
+gh attestation verify gproxy-linux-x86_64.zip -R LeenHawk/gproxy \
+  --predicate-type https://gproxy.leenhawk.com/attestations/build-environment/v1 \
+  --format json
+```
+
+校验和仍作为 `scripts/build-update-manifest.sh` 的内部输入。更新器继续验证
+`manifest.json` 的 Ed25519 签名及包哈希，不依赖 GitHub 证明 API。
 
 ## 更新 Channel
 

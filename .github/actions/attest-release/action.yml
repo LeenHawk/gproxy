@@ -1,0 +1,29 @@
+name: Attest release packages
+description: Publish build provenance and resolved build environment to GitHub
+inputs:
+  artifact:
+    description: Artifact stem used by build-provenance.sh
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Attest build provenance
+      uses: actions/attest@v4
+      with:
+        subject-path: |
+          dist/release/${{ inputs.artifact }}*.zip
+          dist/release/${{ inputs.artifact }}*.deb
+          dist/release/${{ inputs.artifact }}*.dmg
+          dist/release/${{ inputs.artifact }}*.apk
+          dist/release/${{ inputs.artifact }}*.wasm
+    - name: Attest resolved build environment
+      uses: actions/attest@v4
+      with:
+        subject-path: |
+          dist/release/${{ inputs.artifact }}*.zip
+          dist/release/${{ inputs.artifact }}*.deb
+          dist/release/${{ inputs.artifact }}*.dmg
+          dist/release/${{ inputs.artifact }}*.apk
+          dist/release/${{ inputs.artifact }}*.wasm
+        predicate-type: https://gproxy.leenhawk.com/attestations/build-environment/v1
+        predicate-path: dist/release/${{ inputs.artifact }}.provenance.json

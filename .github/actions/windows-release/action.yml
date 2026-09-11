@@ -1,5 +1,5 @@
 name: Windows release packages
-description: Package Windows binaries and optionally sign tagged releases with SignPath
+description: Package portable Windows binaries and optionally sign tagged releases with SignPath
 inputs:
   target:
     description: Rust target triple
@@ -40,7 +40,7 @@ runs:
         foreach ($name in @('SIGNPATH_API_TOKEN', 'SIGNPATH_ORGANIZATION_ID', 'SIGNPATH_PROJECT_SLUG', 'SIGNPATH_SIGNING_POLICY_SLUG')) {
           if (-not [Environment]::GetEnvironmentVariable($name)) { throw "Missing $name" }
         }
-    - name: Package Windows archive and MSI
+    - name: Package Windows portable archive
       shell: pwsh
       env:
         TARGET_TRIPLE: ${{ inputs.target }}
@@ -52,9 +52,7 @@ runs:
       uses: actions/upload-artifact@v7
       with:
         name: unsigned-${{ inputs.artifact }}
-        path: |
-          dist/release/${{ inputs.artifact }}.zip
-          dist/release/${{ inputs.artifact }}.msi
+        path: dist/release/${{ inputs.artifact }}.zip
         if-no-files-found: error
         retention-days: 7
     - name: Sign and download Windows packages

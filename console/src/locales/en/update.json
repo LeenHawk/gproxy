@@ -68,6 +68,13 @@
       "description": "A signed update is ready on the selected channel.",
       "action": "Review update",
       "dismiss": "Dismiss this update notice"
+    },
+    "store": {
+      "subtitle": "Manage updates for this Microsoft Store installation.",
+      "title": "Microsoft Store updates",
+      "description": "Microsoft Store installs and updates this copy of GPROXY.",
+      "hint": "On the Windows computer running GPROXY, open Microsoft Store and check for updates in Library. This link opens Store on the computer running your browser.",
+      "open": "Open Microsoft Store"
     }
   }
 }

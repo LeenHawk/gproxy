@@ -39,6 +39,9 @@ tracing-subscriber.workspace = true
 wreq.workspace = true
 zip.workspace = true
 
+[target.'cfg(windows)'.dependencies]
+windows-sys.workspace = true
+
 [dev-dependencies]
 gproxy-store.workspace = true
 rust_decimal.workspace = true

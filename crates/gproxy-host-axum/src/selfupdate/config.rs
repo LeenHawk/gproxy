@@ -55,6 +55,8 @@ impl Restart {
 pub(crate) enum Error {
     #[error("self-update configuration is invalid")]
     Configuration,
+    #[error("this installation is managed by Microsoft Store; use Store to update it")]
+    MicrosoftStore,
     #[error("signed update manifest is unavailable or invalid")]
     Manifest,
     #[error("update manifest signature verification failed")]
@@ -82,7 +84,9 @@ pub(crate) enum Error {
 impl Error {
     pub(super) fn status(&self) -> StatusCode {
         match self {
-            Self::Incompatible | Self::Version | Self::Rollback => StatusCode::CONFLICT,
+            Self::Incompatible | Self::Version | Self::Rollback | Self::MicrosoftStore => {
+                StatusCode::CONFLICT
+            }
             Self::Configuration => StatusCode::BAD_REQUEST,
             _ => StatusCode::BAD_GATEWAY,
         }
