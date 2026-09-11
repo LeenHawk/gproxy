@@ -1,6 +1,16 @@
 name: Publish Microsoft Store
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Existing release version without the v prefix
+        required: true
+        type: string
+      run_id:
+        description: Release workflow run containing the MSIX artifacts
+        required: true
+        type: string
   workflow_call:
     inputs:
       version:
@@ -12,6 +22,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: microsoft-store-${{ vars.MS_STORE_PRODUCT_ID }}
@@ -26,12 +37,28 @@ jobs:
       MS_STORE_TENANT_ID: ${{ vars.MS_STORE_TENANT_ID }}
       MS_STORE_SELLER_ID: ${{ vars.MS_STORE_SELLER_ID }}
       MS_STORE_CLIENT_ID: ${{ vars.MS_STORE_CLIENT_ID }}
-      MS_STORE_CLIENT_SECRET: ${{ secrets.client_secret }}
+      MS_STORE_CLIENT_SECRET: ${{ secrets.client_secret || secrets.MS_STORE_CLIENT_SECRET }}
       MS_STORE_IDENTITY_NAME: ${{ vars.MS_STORE_IDENTITY_NAME }}
       MS_STORE_IDENTITY_PUBLISHER: ${{ vars.MS_STORE_IDENTITY_PUBLISHER }}
       VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@v7
+      - name: Validate source release
+        uses: actions/github-script@v8
+        env:
+          SOURCE_RUN_ID: ${{ inputs.run_id || github.run_id }}
+        with:
+          script: |
+            const tag = `v${process.env.VERSION}`;
+            const run = (await github.rest.actions.getWorkflowRun({ ...context.repo, run_id: Number(process.env.SOURCE_RUN_ID) })).data;
+            if (run.path !== '.github/workflows/release.yml' || run.event !== 'push' || run.head_branch !== tag) {
+              throw new Error('MSIX artifacts must come from the selected tagged Release workflow');
+            }
+            const release = (await github.rest.repos.getReleaseByTag({ ...context.repo, tag })).data;
+            if (release.draft || release.prerelease) throw new Error('A public stable release is required');
+            let object = (await github.rest.git.getRef({ ...context.repo, ref: `tags/${tag}` })).data.object;
+            if (object.type === 'tag') object = (await github.rest.git.getTag({ ...context.repo, tag_sha: object.sha })).data.object;
+            if (object.type !== 'commit' || object.sha !== run.head_sha) throw new Error('Release tag and artifact source commit do not match');
       - name: Validate Store configuration
         shell: pwsh
         run: |
@@ -43,6 +70,8 @@ jobs:
           pattern: microsoft-store-unsigned-gproxy-windows-*
           path: dist/store
           merge-multiple: true
+          run-id: ${{ inputs.run_id || github.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Bundle Windows architectures
         shell: pwsh
         run: scripts/bundle-windows-msix.ps1 -Version $env:VERSION
@@ -53,18 +82,10 @@ jobs:
       - name: Authenticate with Partner Center
         shell: pwsh
         run: |
-          msstore settings --enableTelemetry false
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           msstore reconfigure --tenantId $env:MS_STORE_TENANT_ID --sellerId $env:MS_STORE_SELLER_ID --clientId $env:MS_STORE_CLIENT_ID --clientSecret $env:MS_STORE_CLIENT_SECRET
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          msstore settings --enableTelemetry false
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload and submit Store update
         shell: pwsh
         run: scripts/publish-microsoft-store.ps1 -Version $env:VERSION
-      - name: Clear Store credentials
-        if: ${{ always() }}
-        shell: pwsh
-        run: |
-          if (Get-Command msstore -ErrorAction SilentlyContinue) {
-            msstore reconfigure --reset
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
