@@ -1,5 +1,6 @@
 mod admin;
 mod cycle;
+mod legacy_usage;
 mod oauth;
 mod quota_snapshot;
 mod seed;
@@ -281,6 +282,7 @@ async fn run_inner(store: &Store) -> Result<Outcome, StoreError> {
     assert_eq!(log.upstream[0].input.response_status, Some(503));
     assert_eq!(log.upstream[1].input.response_status, Some(200));
 
+    legacy_usage::run(store).await?;
     let oauth = oauth::run(store).await?;
     Ok(Outcome {
         snapshot,
