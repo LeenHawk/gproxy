@@ -2,7 +2,7 @@ use rust_decimal::Decimal;
 use serde_json::{Map, Value};
 
 /// Flat v3 metrics and the dimensions unwrapped from a legacy envelope.
-pub(super) type SplitMetrics = (Map<String, Value>, Map<String, Value>);
+pub type SplitUsageMetrics = (Map<String, Value>, Map<String, Value>);
 
 /// Split a v2 `metrics_json` object into v3 metrics and dimensions.
 ///
@@ -11,16 +11,21 @@ pub(super) type SplitMetrics = (Map<String, Value>, Map<String, Value>);
 /// dimensional-usage path. v3 keeps metrics as a flat map of decimals and
 /// dimensions as a separate map, so the envelope is unwrapped here and every
 /// metric value is checked to be a decimal before it is written.
-pub(super) fn split_legacy(metrics: &Map<String, Value>) -> Result<SplitMetrics, String> {
+pub fn split_legacy_usage_metrics(
+    metrics: &Map<String, Value>,
+) -> Result<SplitUsageMetrics, String> {
     let mut flat = Map::new();
     let mut dimensions = Map::new();
+    if let Some(Value::Object(quantities)) = metrics.get("quantities") {
+        for (name, value) in quantities {
+            flat.insert(name.clone(), decimal(name, value)?);
+        }
+    }
+    // Earlier imports added canonical token columns beside the envelope.
+    // Those flat values take precedence over the nested quantities.
     for (name, value) in metrics {
         match (name.as_str(), value) {
-            ("quantities", Value::Object(quantities)) => {
-                for (name, value) in quantities {
-                    flat.insert(name.clone(), decimal(name, value)?);
-                }
-            }
+            ("quantities", Value::Object(_)) => {}
             ("dimensions", Value::Object(nested)) => {
                 dimensions.extend(nested.iter().map(|(k, v)| (k.clone(), v.clone())));
             }

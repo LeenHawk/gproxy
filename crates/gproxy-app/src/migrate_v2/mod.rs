@@ -1,7 +1,6 @@
 mod apply;
 mod cipher;
 mod compat;
-mod metrics;
 mod model;
 mod plan;
 mod preflight;

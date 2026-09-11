@@ -108,7 +108,7 @@ fn history_row(
     let (mut metrics, legacy_dimensions) = usage
         .metrics
         .as_object()
-        .map(super::super::metrics::split_legacy)
+        .map(gproxy_store::records::split_legacy_usage_metrics)
         .expect("usage metrics were validated")
         .expect("usage metrics were validated");
     metric(

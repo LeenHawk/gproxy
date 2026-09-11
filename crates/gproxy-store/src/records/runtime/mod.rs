@@ -6,6 +6,7 @@ mod health;
 mod log;
 mod quota;
 mod usage;
+mod usage_metrics;
 mod usage_query;
 
 pub use binding::*;
@@ -16,6 +17,7 @@ pub use health::*;
 pub use log::*;
 pub use quota::*;
 pub use usage::*;
+pub use usage_metrics::*;
 pub use usage_query::*;
 
 use serde::{Deserialize, Serialize};

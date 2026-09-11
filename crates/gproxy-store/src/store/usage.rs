@@ -7,6 +7,7 @@ use crate::records::{
 };
 use crate::{Store, StoreError};
 use rust_decimal::prelude::ToPrimitive as _;
+use serde_json::{Map, Value};
 
 impl Store {
     pub async fn usage_count(&self) -> Result<u64, StoreError> {
@@ -226,7 +227,7 @@ fn accumulate(
         }
         _ => AggregateKey::Scalar(group.clone()),
     };
-    let metrics = json(row.text("metrics_json")?, "metrics_json")?;
+    let (metrics, _) = read_metrics(&row)?;
     let value = groups.entry(key).or_insert(UsageAggregateRecord {
         group,
         user_key_id,
@@ -327,6 +328,15 @@ fn checked_add(target: &mut u64, value: u64, field: &'static str) -> Result<(), 
 }
 
 pub(super) fn parse_usage(row: Row) -> Result<UsageRecord, StoreError> {
+    let (metrics, mut legacy_dimensions) = read_metrics(&row)?;
+    let mut dimensions = json(row.text("dimensions_json")?, "dimensions_json")?;
+    if !legacy_dimensions.is_empty() {
+        let current = dimensions
+            .as_object_mut()
+            .ok_or_else(|| invalid("dimensions_json", "usage dimensions must be an object"))?;
+        legacy_dimensions.append(current);
+        *current = legacy_dimensions;
+    }
     Ok(UsageRecord {
         id: row.i64("id")?,
         usage: UsageInput {
@@ -344,8 +354,8 @@ pub(super) fn parse_usage(row: Row) -> Result<UsageRecord, StoreError> {
             input_tokens: unsigned(row.i64("input_tokens")?, "input_tokens")?,
             output_tokens: unsigned(row.i64("output_tokens")?, "output_tokens")?,
             cached_input_tokens: unsigned(row.i64("cached_input_tokens")?, "cached_input_tokens")?,
-            metrics: json(row.text("metrics_json")?, "metrics_json")?,
-            dimensions: json(row.text("dimensions_json")?, "dimensions_json")?,
+            metrics,
+            dimensions,
             cost: decimal(row.text("cost")?, "cost")?,
             usage_source: row.text("usage_source")?.to_owned(),
             ended: row.text("ended")?.to_owned(),
@@ -374,4 +384,22 @@ fn invalid(field: &'static str, error: impl std::fmt::Display) -> StoreError {
         field,
         message: error.to_string(),
     }
+}
+
+fn read_metrics(row: &Row) -> Result<(Value, Map<String, Value>), StoreError> {
+    let metrics = json(row.text("metrics_json")?, "metrics_json")?;
+    if let Some(object) = metrics.as_object()
+        && ["quantities", "dimensions"].iter().any(|key| {
+            object
+                .get(*key)
+                .is_some_and(|value| value.is_object() || value.is_null())
+        })
+    {
+        // Earlier v2 imports persisted the envelope unchanged; normalize at
+        // the read boundary so summaries, statistics and details agree.
+        let (flat, dimensions) = crate::records::split_legacy_usage_metrics(object)
+            .map_err(|error| invalid("metrics_json", error))?;
+        return Ok((Value::Object(flat), dimensions));
+    }
+    Ok((metrics, Map::new()))
 }

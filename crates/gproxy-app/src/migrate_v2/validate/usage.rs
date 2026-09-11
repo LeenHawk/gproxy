@@ -42,7 +42,7 @@ pub(super) fn run(data: &SourceData, issues: &mut Vec<ImportIssue>, refs: Refere
             .metrics
             .as_object()
             .ok_or_else(|| "metrics is not an object".to_owned())
-            .and_then(super::super::metrics::split_legacy);
+            .and_then(gproxy_store::records::split_legacy_usage_metrics);
         if let Err(reason) = metrics {
             issues.push(issue(
                 "usage",
