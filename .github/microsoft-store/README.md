@@ -92,7 +92,8 @@ The workflow uses it through environment variables and clears CLI credentials
 when the job finishes.
 
 The job validates both package identities and versions before upload. It skips
-an already published version or an older release, and refuses to replace a
+the update with a notice until the first manual submission is published. It also
+skips an already published version or an older release, and refuses to replace a
 pending submission because the official CLI otherwise deletes it. This preserves
 manual drafts and ongoing reviews. Store submissions run serially without
 cancelling an active upload. Prerelease and staging builds do not submit to Store.

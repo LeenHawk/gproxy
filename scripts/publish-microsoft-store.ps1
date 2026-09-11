@@ -12,7 +12,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Could not read the Store application' }
 $app = ($response -join "`n") | ConvertFrom-Json
 if ($app.id -ne $product) { throw 'Store application ID mismatch' }
 if (-not $app.lastPublishedApplicationSubmission.id) {
-    throw 'Complete the first Store submission in Partner Center before enabling automatic updates'
+    $message = 'Microsoft Store update skipped: the first submission is not yet published. The existing submission is unchanged.'
+    Write-Output "::notice::$message"
+    $message | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+    exit 0
 }
 # The official publish command replaces pending submissions; preserve manual work and active reviews.
 if ($app.pendingApplicationSubmission.id) {
