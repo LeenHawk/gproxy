@@ -101,6 +101,19 @@ jobs:
           GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
           TARGET: ${{ matrix.target }}
         run: scripts/build-windows-release.ps1 -Target $env:TARGET
+      - name: Install release packer
+        if: ${{ matrix.upx }}
+        shell: bash
+        run: scripts/install-upx.sh
+      - name: Pack and verify Windows executable
+        if: ${{ matrix.upx }}
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          binary="target/$TARGET/release/gproxy.exe"
+          upx --best --lzma "$binary"
+          upx --test "$binary"
       - name: Smoke check Windows executable
         if: ${{ matrix.run_check }}
         shell: pwsh
