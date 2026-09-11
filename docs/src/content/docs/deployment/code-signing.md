@@ -20,7 +20,12 @@ Only artifacts built by its release workflow from this repository may be signed.
 The signing configuration covers both Windows x86_64 and ARM64:
 
 - The `gproxy.exe` inside the portable ZIP.
-- The MSI installer, its `gproxy.exe`, and its PowerShell and VBScript launchers.
+
+Microsoft Store MSIX packages use a separate distribution path: Microsoft
+re-signs them after Partner Center certification. Store onboarding is in
+progress; no public Store availability or Microsoft signature is claimed yet.
+Store signing does not sign the portable EXE or issue this project a reusable
+code-signing certificate.
 
 Committer and reviewer: [LeenHawk](https://github.com/LeenHawk).
 Release changes are reviewed through GitHub pull requests before merging into
@@ -41,7 +46,8 @@ credential refresh contact the corresponding provider. The operator controls
 database storage, usage records, request logging, retention, and access.
 Provider and deployment-service privacy policies also apply to those services.
 
-Update checks and downloads contact GitHub by default. Opening Console can
+Portable update checks and downloads contact GitHub by default. Store-installed
+copies obtain updates through Microsoft Store. Opening Console can
 cause the gateway to retrieve the signed announcement feed from
 `gproxy.leenhawk.com`. These requests expose ordinary connection information,
 such as the source IP and User-Agent, to those endpoints and their hosting
@@ -50,15 +56,15 @@ not attach inference request bodies or upstream credentials. An outbound proxy
 changes which source IP the destination sees. We do not claim that the program
 makes no network connections until the user explicitly requests each one.
 
-Windows setup asks whether to enable autostart. Uninstall the MSI through
-Windows Settings; review and remove retained user data separately if it is no
-longer needed. Portable installations are removed by stopping the process and
+For Store installations, Windows Settings manages automatic startup and
+uninstallation. Uninstalling MSIX removes package-private data; export
+configuration and back up keys first. Historical MSI data remains separate. Portable installations are removed by stopping the process and
 deleting the extracted files; retain or delete the configured data directory
 as appropriate.
 
 ## Verify a download
 
-Extract the portable archive, then inspect the EXE or MSI in PowerShell:
+Extract the portable archive, then inspect the EXE in PowerShell:
 
 ```powershell
 Get-AuthenticodeSignature .\gproxy.exe |

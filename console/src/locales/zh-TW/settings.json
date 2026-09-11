@@ -115,7 +115,8 @@
         "app": "啟動由 GPROXY 安卓應用管理，請使用應用主畫面上的開關。",
         "termux": "安卓上的開機啟動需要 Termux 工作階段與 Termux:Boot 附加元件。",
         "termux-boot": "透過 Termux:Boot 附加元件開機啟動，該附加元件需先安裝並開啟一次。儲存的指令碼包含目前設定；如提供了主密鑰，也會包含主密鑰。",
-        "unsupported": "此安裝不支援登入啟動。"
+        "unsupported": "此安裝不支援登入啟動。",
+        "microsoft-store": "請在執行 GPROXY 的電腦上，透過 Windows 設定 → 應用程式 → 啟動管理 GPROXY 的自動啟動。"
       }
     },
     "tokenizers": {

@@ -68,6 +68,13 @@
       "description": "所選頻道已有簽署更新。",
       "action": "查看更新",
       "dismiss": "關閉此次更新提示"
+    },
+    "store": {
+      "subtitle": "管理此 Microsoft Store 安裝版本的更新。",
+      "title": "Microsoft Store 更新",
+      "description": "此版本的 GPROXY 由 Microsoft Store 安裝和更新。",
+      "hint": "請在執行 GPROXY 的 Windows 電腦上開啟 Microsoft Store，在「媒體櫃」中檢查更新。下方連結會開啟目前瀏覽器所在電腦的商店。",
+      "open": "開啟 Microsoft Store"
     }
   }
 }

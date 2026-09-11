@@ -222,20 +222,24 @@ docker buildx build \
 
 The build needs no prebuilt console; the first stage compiles it.
 `docker buildx build -f deploy/container/Dockerfile --target console-dist --output type=local,dest=dist/console .`
-exports only the console bundle; the release workflow uses it to build the
-console once for every other job.
+exports only the console bundle. The release workflow builds the console with
+pnpm and reuses native Linux binaries when packaging container images.
 
-## Load the Release Archive
+## Transfer an Image Offline
 
-Each release also publishes the pushed image as a file for hosts without
-registry access:
+Container images are published to GHCR with BuildKit provenance and SBOM
+attestations. Release attachments contain native and edge packages; to transfer
+an image to a host without registry access, save it on a connected host:
 
 ```sh
-sha256sum -c gproxy-container-linux-amd64.tar.gz.sha256
-docker load -i gproxy-container-linux-amd64.tar.gz
+docker pull ghcr.io/leenhawk/gproxy:v3.0.12
+docker save ghcr.io/leenhawk/gproxy:v3.0.12 -o gproxy-container.tar
 ```
 
-The loaded image carries its original tag, `ghcr.io/leenhawk/gproxy:<tag>`.
-`gproxy-container-linux-amd64.provenance.json` beside it records the commit
-and the base image digests; see
-[Building & Releases](/deployment/release-build/).
+Transfer the archive to the destination, then run:
+
+```sh
+docker load -i gproxy-container.tar
+```
+
+Replace `v3.0.12` with the version you want to transfer.

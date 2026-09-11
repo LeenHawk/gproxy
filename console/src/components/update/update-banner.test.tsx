@@ -20,6 +20,7 @@ function renderBanner() {
 
 describe("automatic update banner", () => {
   beforeEach(() => {
+    delete window.__GPROXY_BUILD_INFO__
     window.localStorage.clear()
     settings.mockReset()
     status.mockReset()
@@ -30,6 +31,16 @@ describe("automatic update banner", () => {
     renderBanner()
     await waitFor(() => expect(settings).toHaveBeenCalledOnce())
     expect(status).not.toHaveBeenCalled()
+  })
+
+  it("does not check GitHub for a Store installation even with cached automatic settings", () => {
+    window.__GPROXY_BUILD_INFO__ = { version: "3.0.12", channel: "releases", buildHash: "test", installationKind: "microsoft-store" }
+    const client = new QueryClient()
+    client.setQueryData(["instance-settings"], { enable_auto_update_check: true })
+    render(<QueryClientProvider client={client}><UpdateBanner /></QueryClientProvider>)
+    expect(settings).not.toHaveBeenCalled()
+    expect(status).not.toHaveBeenCalled()
+    delete window.__GPROXY_BUILD_INFO__
   })
 
   it("shows an available update returned by the selected channel", async () => {

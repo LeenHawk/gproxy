@@ -68,6 +68,13 @@
       "description": "所选通道已有签名更新。",
       "action": "查看更新",
       "dismiss": "关闭此次更新提示"
+    },
+    "store": {
+      "subtitle": "管理此 Microsoft Store 安装版本的更新。",
+      "title": "Microsoft Store 更新",
+      "description": "此版本的 GPROXY 由 Microsoft Store 安装和更新。",
+      "hint": "请在运行 GPROXY 的 Windows 电脑上打开 Microsoft Store，在“库”中检查更新。下方链接会打开当前浏览器所在电脑的商店。",
+      "open": "打开 Microsoft Store"
     }
   }
 }

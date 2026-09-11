@@ -8,14 +8,16 @@ import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { navigateAdminPath } from "@/lib/admin-route"
 import { dismissUpdate, readDismissedUpdate } from "@/lib/update-banner-dismissal"
+import { buildIdentity } from "@/lib/build-info"
 
 const AUTO_CHECK_STALE_TIME_MS = 15 * 60 * 1000
 
 export function UpdateBanner() {
   const { t } = useTranslation()
   const [dismissed, setDismissed] = useState(readDismissedUpdate)
-  const settings = useQuery({ queryKey: ["instance-settings"], queryFn: instanceSettings })
-  const automatic = settings.data?.enable_auto_update_check === true
+  const store = buildIdentity().kind === "microsoft-store"
+  const settings = useQuery({ queryKey: ["instance-settings"], queryFn: instanceSettings, enabled: !store })
+  const automatic = !store && settings.data?.enable_auto_update_check === true
   const update = useQuery({
     queryKey: ["native-update"],
     queryFn: updateStatus,

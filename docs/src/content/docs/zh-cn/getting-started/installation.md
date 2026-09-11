@@ -30,12 +30,19 @@ sudo apt install ./gproxy-linux-x86_64.deb
 启动并保持存活，然后打开控制台。它没有 Dock 图标。应用包是 ad-hoc 签名，未经
 公证，要求 macOS 11。
 
-### Windows `.msi`
+### Windows Microsoft Store（MSIX）
 
-安装包按用户安装，不需要管理员权限。它把 `gproxy.exe` 和启动脚本放到
-`%LOCALAPPDATA%\Programs\GPROXY`，创建一个按需启动服务并打开控制台的开始菜单快捷
-方式，以及一个在登录时隐藏启动服务的启动文件夹快捷方式。启动器在
-`%LOCALAPPDATA%\GPROXY` 下工作，首次运行时在那里写入私有 `.env`。
+商店上架正在准备中；公开商店页面可用前请使用便携 ZIP。历史版本仍保留 MSI。
+
+商店包要求 Windows 10 2004 或更高版本。开始菜单入口会打开首次设置、后台启动服务
+并打开 Console。程序文件由 Windows 管理，数据库、密钥和日志保存在包的
+`LocalState\GPROXY` 下。自动登录启动默认关闭，可通过 **Windows 设置 → 应用 → 启动**
+启用。
+
+更新由 Store 管理。Console 更新页会引导打开商店，商店版禁用直接替换 EXE 和回滚。
+从 MSI 迁移时，先导出配置（按需包含密钥），停止旧服务并关闭旧版自启动，再启动
+商店版并导入配置。不会自动搬移或删除旧的 `%LOCALAPPDATA%\GPROXY`；迁移前请备份
+数据库及其主密钥。
 
 ### Android `.apk`
 
@@ -81,7 +88,7 @@ Edge Bundle 用各平台自己的工具部署，需要一个 libSQL 数据库。
 | 便携版 | 工作目录下的 `./data` | 标准输出与标准错误 |
 | `.deb` 启动器 | `${XDG_DATA_HOME:-~/.local/share}/gproxy` | `${XDG_STATE_HOME:-~/.local/state}/gproxy/gproxy.log` |
 | `.dmg` | `~/Library/Application Support/GPROXY` | `~/Library/Logs/GPROXY/gproxy.log` |
-| `.msi` | `%LOCALAPPDATA%\GPROXY\data` | `%LOCALAPPDATA%\GPROXY\logs\gproxy.log` 与 `gproxy-error.log` |
+| MSIX | `%LOCALAPPDATA%\Packages\<PackageFamilyName>\LocalState\GPROXY\data` | `LocalState\GPROXY\logs` |
 | `.apk` | 应用私有存储中的 `files/data` | 应用内的日志视图 |
 | 容器 | `/var/lib/gproxy` | 容器标准输出 |
 
@@ -152,15 +159,18 @@ Provider，名称与通道相同，带该通道的路由默认值和一个空的
 `.autostart-initialized` 中。Linux 需要桌面会话（`DISPLAY`、`WAYLAND_DISPLAY` 或
 `XDG_CURRENT_DESKTOP`），容器内跳过。
 
+商店安装版改用包 StartupTask，通过 Windows 设置 → 应用 → 启动启用或禁用；
+Console 不为该安装版写入 Run 启动项。
+
 | 平台 | 启动项 |
 | --- | --- |
 | Linux | `~/.config/autostart/gproxy.desktop`（遵循 `XDG_CONFIG_HOME`） |
 | macOS | `~/Library/LaunchAgents/io.github.leenhawk.gproxy.plist` |
-| Windows | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`，值名 `GPROXY` |
+| Windows portable / historical MSI | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`，值名 `GPROXY` |
 
 启动项记录可执行文件、启动时使用的参数、工作目录，以及在设置了 `GPROXY_MASTER_KEY`
 时复制进去的 `--master-key`，因此要按含密信息对待。关闭开关会删除启动项，但不会停
-止正在运行的服务。`.deb` 的自动启动文件、`.msi` 的启动文件夹快捷方式和 `.dmg` 的
+止正在运行的服务。`.deb` 的自动启动文件、`.dmg` 的
 LaunchAgent 属于安装包的启动器，与此开关相互独立。
 
 ## 卸载
@@ -169,7 +179,8 @@ LaunchAgent 属于安装包的启动器，与此开关相互独立。
   `~/.config/autostart/gproxy.desktop` 会保留。
 - `.dmg`：删除 `~/Library/LaunchAgents/io.github.leenhawk.gproxy.plist`，再把
   `GPROXY.app` 移到废纸篓。数据和日志目录会保留。
-- `.msi`：在 Windows 应用设置中移除 GPROXY。`%LOCALAPPDATA%\GPROXY` 以及已启用时的
+- MSIX：通过 Windows 应用设置卸载；Windows 会删除包私有数据，请先导出配置并备份密钥。
+  历史 MSI 的 `%LOCALAPPDATA%\GPROXY` 以及已启用时的
   `GPROXY` Run 值会保留。
 - `.apk`：卸载应用；Android 会连同私有存储一起删除。
 - 容器：`docker rm gproxy`；卷会保留到你删除它为止。

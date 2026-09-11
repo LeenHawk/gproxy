@@ -15,8 +15,11 @@ by [SignPath Foundation](https://signpath.org).**
 ## 签名范围与代码审查
 
 仅签署 [LeenHawk/gproxy](https://github.com/LeenHawk/gproxy) 仓库发布工作流构建的产物，
-覆盖 Windows x86_64 和 ARM64 的便携 ZIP 内 `gproxy.exe`、MSI 安装包及其内的 EXE、
-PowerShell 和 VBScript 启动脚本。
+SignPath 覆盖 Windows x86_64 和 ARM64 的便携 ZIP 内 `gproxy.exe`。
+
+Microsoft Store MSIX 使用独立分发渠道，由微软在 Partner Center 审核通过后重新签名。
+商店接入正在进行，尚不声称已公开上架或已取得微软签名。商店签名不会签署便携 EXE，
+也不会向本项目授予可复用的代码签名证书。
 
 代码提交者和 PR 审查者为 [LeenHawk](https://github.com/LeenHawk)。
 发布代码通过 GitHub PR 审查后合入受保护的 `main`，从已审查的提交创建发布标签；
@@ -33,18 +36,18 @@ GPROXY 是自托管网关。请求及附带内容会发送到运营者配置的�
 OAuth 授权和凭证刷新会连接相应供应商。数据库、用量记录、请求日志、保留期限和
 访问权限由运营者管理，所使用的供应商和部署服务的隐私政策同样适用。
 
-更新检查和下载默认连接 GitHub。打开 Console 可能触发网关从
+便携版更新检查和下载默认连接 GitHub；商店安装版通过 Microsoft Store 获取更新。打开 Console 可能触发网关从
 `gproxy.leenhawk.com` 获取签名公告。这些连接会向目标及其托管服务暴露普通连接信息，
 包括来源 IP 和 User-Agent；公告请求的 User-Agent 包含 GPROXY 版本。
 公告和更新请求不附带推理请求正文或上游凭证。出站代理会改变目标看到的来源 IP。
 本项目不承诺所有网络连接都必须由用户逐次手动触发。
 
-Windows 首次设置会询问是否启用自启动。MSI 可通过 Windows 设置卸载，保留的用户
-数据按需另行删除。便携版须先停止进程，再删除解压文件，并按需保留或删除数据目录。
+商店版的自启动和卸载由 Windows 设置管理。卸载 MSIX 会删除包私有数据，
+请先导出配置并备份密钥；历史 MSI 数据保持独立。便携版须先停止进程，再删除解压文件，并按需保留或删除数据目录。
 
 ## 验证下载
 
-解压便携版后，在 PowerShell 中检查 EXE；检查 MSI 时替换为安装包路径：
+解压便携版后，在 PowerShell 中检查 EXE：
 
 ```powershell
 Get-AuthenticodeSignature .\gproxy.exe |

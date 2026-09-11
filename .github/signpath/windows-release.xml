@@ -10,18 +10,5 @@
         <authenticode-sign />
       </pe-file>
     </zip-file>
-    <msi-file path="${artifact}.msi" subject="GPROXY" author="GPROXY">
-      <pe-file path="**/gproxy.exe" product-name="GPROXY" product-version="${version}"
-               file-version="${version}" original-filename="gproxy.exe">
-        <authenticode-sign />
-      </pe-file>
-      <powershell-file path="**/GPROXY.ps1">
-        <authenticode-sign />
-      </powershell-file>
-      <windows-script-file path="**/GPROXY.vbs">
-        <authenticode-sign />
-      </windows-script-file>
-      <authenticode-sign />
-    </msi-file>
   </zip-file>
 </artifact-configuration>

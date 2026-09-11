@@ -34,11 +34,17 @@ jobs:
   console:
     name: Console (typecheck · test · build · i18n)
     runs-on: ubuntu-latest
+    outputs:
+      windows_matrix: ${{ steps.windows-matrix.outputs.matrix }}
     defaults:
       run:
         working-directory: console
     steps:
       - uses: actions/checkout@v7
+      - name: Windows build matrix
+        id: windows-matrix
+        run: |
+          echo "matrix=$(jq -c '{include: [.include[] | select(.os == "windows")]}' ../scripts/release-targets.json)" >> "$GITHUB_OUTPUT"
       - uses: pnpm/action-setup@v6
         with:
           package_json_file: console/package.json
@@ -57,6 +63,71 @@ jobs:
           name: console-dist
           path: console/dist
           retention-days: 1
+
+  windows:
+    name: Windows packages (${{ matrix.target }})
+    needs: console
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.console.outputs.windows_matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: console-dist
+          path: crates/gproxy-host-axum/assets/web
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-packages-${{ matrix.target }}
+      - name: Release version
+        id: version
+        shell: bash
+        run: echo "version=$(scripts/release-metadata.sh version)" >> "$GITHUB_OUTPUT"
+      - name: Build Windows executable
+        shell: pwsh
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+          GPROXY_BUILD_VERSION: ${{ steps.version.outputs.version }}
+          GPROXY_BUILD_CHANNEL: development
+          GPROXY_BUILD_HASH: ${{ github.sha }}
+          GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
+          TARGET: ${{ matrix.target }}
+        run: scripts/build-windows-release.ps1 -Target $env:TARGET
+      - name: Smoke check Windows executable
+        if: ${{ matrix.run_check }}
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          & "target/$env:TARGET/release/gproxy.exe" --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "target/$env:TARGET/release/gproxy.exe" --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package portable archive
+        shell: pwsh
+        env:
+          TARGET_TRIPLE: ${{ matrix.target }}
+          ARTIFACT_NAME: ${{ matrix.artifact }}
+        run: scripts/package-native-release.ps1
+      - name: Validate Store submission packaging
+        if: ${{ !contains(steps.version.outputs.version, '-') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        uses: ./.github/actions/windows-store
+        with:
+          target: ${{ matrix.target }}
+          artifact: ${{ matrix.artifact }}
+          version: ${{ steps.version.outputs.version }}
+          identity-name: ${{ vars.MS_STORE_IDENTITY_NAME }}
+          display-name: ${{ vars.MS_STORE_DISPLAY_NAME }}
+          publisher: ${{ vars.MS_STORE_IDENTITY_PUBLISHER }}
+          publisher-display-name: ${{ vars.MS_STORE_PUBLISHER_DISPLAY_NAME }}
 
   docs:
     name: Docs (build)

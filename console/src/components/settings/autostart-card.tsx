@@ -30,7 +30,9 @@ export function AutostartCard() {
     <Section title={t("settings.autostart.title")} description={t("settings.autostart.description")}>
         <div>
         <QueryState loading={query.isLoading} error={query.error ? t("settings.autostart.loadError") : ""}>
-          {query.data ? (
+          {query.data?.detail === "microsoft-store" ? (
+            <p className="text-sm text-muted-foreground">{describe(query.data)}</p>
+          ) : query.data ? (
             <Field orientation="horizontal">
               <FieldContent>
                 <FieldLabel htmlFor="native-autostart">{t("settings.autostart.enable")}</FieldLabel>

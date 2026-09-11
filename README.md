@@ -60,8 +60,11 @@ administrator password and API key and displays them in the terminal **once**
 (default username: `admin`). Save them, then sign in at
 **http://127.0.0.1:8787/admin**. The user portal is at **/portal**.
 
-MSI, DMG, DEB, and APK installations ask you to choose an administrator username
+DMG, DEB, and APK installations ask you to choose an administrator username
 and password before the first server start, with an automatic startup choice.
+Windows MSIX packaging is prepared for Microsoft Store; use the portable ZIP
+until Store certification is complete. Store installations manage updates and
+automatic startup through Microsoft Store and Windows Settings.
 Launchers do not save the plaintext password. Existing installations keep their
 accounts. You can also supply `GPROXY_ADMIN_USER` and `GPROXY_ADMIN_PASSWORD`;
 a configured password resets that administrator on every start, so remove it
