@@ -153,7 +153,8 @@
     "settings": "设置",
     "open": "打开导航",
     "close": "关闭导航",
-    "resize": "调整导航宽度"
+    "resize": "调整导航宽度",
+    "about": "关于"
   },
   "window": {
     "resets": "重置于 {{value}}",
@@ -183,5 +184,25 @@
       "usage_decreased": "上游已用额度倒降"
     },
     "usageUnknown": "此周期的上游用量不可用。"
+  },
+  "about": {
+    "title": "关于 GPROXY",
+    "subtitle": "用一个入口连接你的大模型服务、上游账户和应用。",
+    "description": "GPROXY 是使用 Rust 构建的开源、自托管大模型 API 网关，让你的应用通过统一的 API 入口连接多个服务商。",
+    "version": "版本 {{version}}",
+    "features": {
+      "protocols": "兼容 OpenAI Chat Completions、Responses、Claude Messages 和 Gemini API，支持流式响应与格式间直接转换。",
+      "accounts": "统一管理上游凭证，支持令牌刷新、负载均衡与故障切换。",
+      "control": "通过管理控制台和用户 Portal 管理访问权限、配额、用量与费用。"
+    },
+    "openSource": "由 Leen Hawk 和社区共同维护。网关采用 AGPL-3.0-or-later 许可证，各组件的许可信息见源码仓库。",
+    "source": "源码仓库",
+    "feedback": "问题反馈",
+    "sponsor": {
+      "title": "支持 GPROXY",
+      "description": "通过 GitHub Sponsors 赞助项目，支持 GPROXY 持续发展。",
+      "thanks": "你的支持将帮助项目持续维护、适配上游服务并开发新功能。感谢你使用和支持 GPROXY。",
+      "action": "赞助 LeenHawk"
+    }
   }
 }

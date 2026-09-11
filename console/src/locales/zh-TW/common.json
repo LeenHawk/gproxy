@@ -153,7 +153,8 @@
     "settings": "設定",
     "open": "開啟導覽",
     "close": "關閉導覽",
-    "resize": "調整導覽寬度"
+    "resize": "調整導覽寬度",
+    "about": "關於"
   },
   "window": {
     "resets": "重設於 {{value}}",
@@ -183,5 +184,25 @@
       "usage_decreased": "上游已用額度倒降"
     },
     "usageUnknown": "此週期的上游用量無法取得。"
+  },
+  "about": {
+    "title": "關於 GPROXY",
+    "subtitle": "用一個入口連接你的大型語言模型服務、上游帳戶與應用程式。",
+    "description": "GPROXY 是使用 Rust 建構的開源、自架大型語言模型 API 閘道，讓你的應用程式透過統一的 API 入口連接多個服務商。",
+    "version": "版本 {{version}}",
+    "features": {
+      "protocols": "相容 OpenAI Chat Completions、Responses、Claude Messages 和 Gemini API，支援串流回應與格式間直接轉換。",
+      "accounts": "統一管理上游憑證，支援權杖更新、負載平衡與故障切換。",
+      "control": "透過管理控制台和使用者 Portal 管理存取權限、配額、用量與費用。"
+    },
+    "openSource": "由 Leen Hawk 和社群共同維護。閘道採用 AGPL-3.0-or-later 授權條款，各元件的授權資訊請見原始碼儲存庫。",
+    "source": "原始碼儲存庫",
+    "feedback": "問題回報",
+    "sponsor": {
+      "title": "支持 GPROXY",
+      "description": "透過 GitHub Sponsors 贊助專案，支持 GPROXY 持續發展。",
+      "thanks": "你的支持將幫助專案持續維護、適配上游服務並開發新功能。感謝你使用和支持 GPROXY。",
+      "action": "贊助 LeenHawk"
+    }
   }
 }

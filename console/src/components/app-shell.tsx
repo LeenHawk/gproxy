@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { ActivityIcon, BookOpenIcon, CableIcon, ChartNoAxesCombinedIcon, CircleDollarSignIcon, DownloadCloudIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, RouteIcon, SettingsIcon, TypeIcon, UsersIcon, WorkflowIcon } from "lucide-react"
+import { ActivityIcon, BookOpenIcon, CableIcon, ChartNoAxesCombinedIcon, CircleDollarSignIcon, DownloadCloudIcon, InfoIcon, LogOutIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, RouteIcon, SettingsIcon, TypeIcon, UsersIcon, WorkflowIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { AnnouncementFeed } from "@/components/announcement-feed"
@@ -23,6 +23,7 @@ const items: Array<{ route: AdminRoute; icon: typeof ActivityIcon }> = [
   { route: "tokenizers", icon: TypeIcon },
   { route: "update", icon: DownloadCloudIcon },
   { route: "settings", icon: SettingsIcon },
+  { route: "about", icon: InfoIcon },
 ]
 
 export function AppShell({ route, username, children, onLogout }: { route: AdminRoute; username: string; children: ReactNode; onLogout: () => void }) {
