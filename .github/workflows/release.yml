@@ -488,4 +488,4 @@ jobs:
     with:
       version: ${{ needs.prepare.outputs.version }}
     secrets:
-      client_secret: ${{ secrets.MS_STORE_CLIENT_SECRET }}
+      MS_STORE_CLIENT_SECRET: ${{ secrets.MS_STORE_CLIENT_SECRET }}
