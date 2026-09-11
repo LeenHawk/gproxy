@@ -477,3 +477,13 @@ jobs:
           PUBLISH_CHANNEL: ${{ needs.prepare.outputs.channel }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: scripts/publish-release.sh
+
+  store-publish:
+    name: Submit Microsoft Store update
+    needs: [prepare, publish]
+    if: ${{ needs.prepare.outputs.channel == 'releases' && vars.MS_STORE_PUBLISH_ENABLED == 'true' }}
+    uses: ./.github/workflows/store-publish.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+    secrets:
+      client_secret: ${{ secrets.MS_STORE_CLIENT_SECRET }}
