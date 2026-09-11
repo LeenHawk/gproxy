@@ -263,6 +263,10 @@
         "success": "已更新 {{count}} 条额度数据。",
         "error": "配额探测失败。"
       },
+      "quotaTopUp": {
+        "action": "手动充值",
+        "description": "在新标签页打开上游官方充值页面。请登录此凭证对应的账号，完成充值后返回刷新额度。"
+      },
       "quotaReset": {
         "available": "重置卡",
         "expires": "{{time}} 过期",

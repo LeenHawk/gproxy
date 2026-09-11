@@ -263,6 +263,10 @@
         "success": "已更新 {{count}} 筆額度資料。",
         "error": "配額探測失敗。"
       },
+      "quotaTopUp": {
+        "action": "手動儲值",
+        "description": "在新分頁開啟上游官方儲值頁面。請登入此憑證對應的帳號，完成儲值後返回重新整理額度。"
+      },
       "quotaReset": {
         "available": "重置卡",
         "expires": "{{time}} 過期",

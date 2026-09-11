@@ -85,6 +85,7 @@ impl Channel for CodexChannel {
         Some(gproxy_channel_api::QuotaCapabilities {
             probe: true,
             reset: true,
+            top_up_url: None,
         })
     }
 

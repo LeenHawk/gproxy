@@ -1,7 +1,7 @@
 import type { CredentialDto } from "@/generated/CredentialDto"
 import type { CredentialQuotaCycleDto } from "@/generated/CredentialQuotaCycleDto"
 import { useMutation } from "@tanstack/react-query"
-import { ChevronsUpDownIcon, RefreshCwIcon, RotateCcwIcon } from "lucide-react"
+import { ChevronsUpDownIcon, ExternalLinkIcon, RefreshCwIcon, RotateCcwIcon } from "lucide-react"
 import { useMemo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -26,6 +26,7 @@ type Props = {
 export function CredentialCard(props: Props) {
   const { t, i18n } = useTranslation()
   const credential = props.credential
+  const topUpUrl = credential.quota_capabilities?.top_up_url
   const [resetOpen, setResetOpen] = useState(false)
   const { snapshot, quota, canProbe, loading, refreshing, error, refresh: probe } = useCredentialQuota(credential)
   const mergedCycles = useMemo(() => {
@@ -75,6 +76,15 @@ export function CredentialCard(props: Props) {
           </Button></CardAction> : null}
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
+          {topUpUrl ? <section aria-label={t("providers.credentials.quotaTopUp.action")} className="flex flex-wrap items-center justify-between gap-3">
+            <p className="min-w-0 flex-1 text-sm text-muted-foreground">{t("providers.credentials.quotaTopUp.description")}</p>
+            <Button variant="outline" size="sm" asChild>
+              <a href={topUpUrl} target="_blank" rel="noopener noreferrer">
+                <ExternalLinkIcon aria-hidden data-icon="inline-start" />
+                {t("providers.credentials.quotaTopUp.action")}
+              </a>
+            </Button>
+          </section> : null}
           {loading ? <p className="text-sm text-muted-foreground">{t("common.loading")}</p> : null}
           {snapshot ? <CredentialQuotaSources snapshot={snapshot} refreshing={refreshing} /> : null}
           {resetCredits || credential.quota_capabilities?.reset ? (
