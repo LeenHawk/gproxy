@@ -1,6 +1,6 @@
 # GPROXY
 
-[English](README.md) | [简体中文](README.zh-CN.md) · [文档](https://gproxy.leenhawk.com/zh-cn/) · [下载](https://github.com/LeenHawk/gproxy/releases) · [讨论](https://github.com/LeenHawk/gproxy/discussions)
+[English](README.md) | [简体中文](README.zh-CN.md) · [文档](https://gproxy.leenhawk.com/zh-cn/) · [下载](https://github.com/LeenHawk/gproxy/releases) · [讨论](https://github.com/LeenHawk/gproxy/discussions) · [赞助](https://github.com/sponsors/LeenHawk)
 
 [![CI](https://github.com/LeenHawk/gproxy/actions/workflows/ci.yml/badge.svg)](https://github.com/LeenHawk/gproxy/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/LeenHawk/gproxy)](LICENSE)
