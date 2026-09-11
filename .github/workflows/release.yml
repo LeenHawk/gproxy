@@ -166,7 +166,12 @@ jobs:
         if: ${{ matrix.upx }}
         run: |
           binary="target/${{ matrix.target }}/release/gproxy${{ matrix.os == 'windows' && '.exe' || '' }}"
-          upx --best --lzma "$binary"
+          upx_args=(--best --lzma)
+          case "${{ matrix.target }}" in
+            # UPX 5.2.1's AUIPC filter rejects these RISC-V executables.
+            riscv64gc-unknown-linux-*) upx_args+=(--no-filter) ;;
+          esac
+          upx "${upx_args[@]}" "$binary"
           upx --test "$binary"
       - name: Smoke check release executable
         if: ${{ matrix.run_check }}
