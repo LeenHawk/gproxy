@@ -23,6 +23,8 @@ impl QuotaCapabilities {
 pub enum QuotaScope {
     All,
     Models(Vec<String>),
+    /// Match a model ID prefix at a hyphen boundary, including the exact prefix.
+    ModelPrefixes(Vec<String>),
     #[default]
     Unknown,
 }
@@ -32,6 +34,11 @@ impl QuotaScope {
         match self {
             Self::All => true,
             Self::Models(models) => models.iter().any(|allowed| allowed == model),
+            Self::ModelPrefixes(prefixes) => prefixes.iter().any(|prefix| {
+                model
+                    .strip_prefix(prefix)
+                    .is_some_and(|suffix| suffix.is_empty() || suffix.starts_with('-'))
+            }),
             Self::Unknown => false,
         }
     }
