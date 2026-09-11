@@ -42,20 +42,12 @@ fn prepare(req: Req<'_>) -> http::Request<Bytes> {
 fn descriptor_declares_exact_runtime_routes() {
     let descriptor = GrokBuildChannel.descriptor();
     assert_eq!(descriptor.id, "grokbuild");
-    assert_eq!(descriptor.supports.len(), 21);
-    assert_eq!(
-        descriptor
-            .supports
-            .iter()
-            .filter(|support| support.source == support.target)
-            .count(),
-        15
-    );
+    let supports = gproxy_channel_api::executable_routes(&GrokBuildChannel).collect::<Vec<_>>();
     for source in [
         OperationKey::content(Operation::GenerateContent, Kind::ClaudeMessages),
         OperationKey::content(Operation::GenerateContent, Kind::GeminiGenerateContent),
     ] {
-        assert!(descriptor.supports.iter().any(|support| {
+        assert!(supports.iter().any(|support| {
             support.source == source
                 && support.target
                     == OperationKey::content(
@@ -65,14 +57,24 @@ fn descriptor_declares_exact_runtime_routes() {
         }));
     }
     assert!(
-        !descriptor
-            .supports
+        !supports
             .iter()
             .any(|support| matches!(support.source.operation(), Operation::CreateEmbedding))
     );
-    assert!(descriptor.supports.iter().any(|support| {
-        support.source == openai(Operation::CompactContent) && support.source == support.target
-    }));
+    // Native compact is executable, but only through a routing override: the
+    // declared default for that source stays the Responses transform.
+    let compact = openai(Operation::CompactContent);
+    assert!(
+        supports
+            .iter()
+            .any(|support| support.source == compact && support.source == support.target)
+    );
+    assert_eq!(
+        gproxy_channel_api::default_route(&GrokBuildChannel, compact)
+            .unwrap()
+            .target,
+        OperationKey::content(Operation::GenerateContent, Kind::OpenAiResponses)
+    );
 }
 
 #[test]

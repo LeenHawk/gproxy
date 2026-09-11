@@ -49,7 +49,7 @@ fn declares_exactly_the_verified_native_targets_and_pairs() {
     use Operation as O;
     use WireFamily as W;
 
-    let supports = AzureChannel.descriptor().supports;
+    let supports = gproxy_channel_api::executable_routes(&AzureChannel).collect::<Vec<_>>();
     let native = [
         family(O::ListModels, W::OpenAi),
         family(O::GetModel, W::OpenAi),
@@ -93,7 +93,6 @@ fn declares_exactly_the_verified_native_targets_and_pairs() {
             content(O::StreamGenerateContent, C::OpenAiChat),
         ),
     ];
-    assert_eq!(supports.len(), native.len() + pairs.len());
     assert!(native.iter().all(|key| {
         supports
             .iter()

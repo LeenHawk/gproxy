@@ -15,6 +15,13 @@ pub(super) static ROUTES: &[ChannelSupport] = &[
     route!(pass StreamGenerateContent, openai_responses),
     route!(pass StreamGenerateContent, openai_chat),
     route!(xform StreamGenerateContent, gemini_generate_content => StreamGenerateContent, openai_chat),
+    // Claude Messages resolves by credential shape, not by position: OAuth
+    // credentials reach the native Claude wire, API keys are transformed onto
+    // chat. `select_support` picks the row; both must stay declared.
+    route!(pass GenerateContent, claude_messages),
+    route!(xform GenerateContent, claude_messages => GenerateContent, openai_chat),
+    route!(pass StreamGenerateContent, claude_messages),
+    route!(xform StreamGenerateContent, claude_messages => StreamGenerateContent, openai_chat),
     route!(pass CreateEmbedding, openai),
     route!(xform CreateEmbedding, gemini => CreateEmbedding, openai),
     route!(xform CompactContent, openai => GenerateContent, openai_responses),

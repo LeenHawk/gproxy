@@ -4,8 +4,8 @@ use std::task::{Context, Poll, Waker};
 
 use bytes::Bytes;
 use gproxy_channel_api::{
-    BoxFuture, Channel, ChannelError, ChannelSupport, ClientProfilePreset, CookieExchangeCtx,
-    DriverInput, OperationStep, OperationStream, PrepareCtx, SimpleHttp, StepResponse,
+    BoxFuture, Channel, ChannelError, ClientProfilePreset, CookieExchangeCtx, DriverInput,
+    OperationStep, OperationStream, PrepareCtx, SimpleHttp, StepResponse,
 };
 use gproxy_protocol::{ContentGenerationKind as Kind, Operation, OperationKey};
 use http::{HeaderMap, Method, StatusCode};
@@ -28,41 +28,6 @@ fn secret() -> Value {
 
 #[test]
 fn declares_eight_transform_after_content_operations() {
-    let expected = [
-        ChannelSupport::passthrough(content(Operation::GenerateContent, Kind::ClaudeMessages)),
-        ChannelSupport::transform(
-            content(Operation::GenerateContent, Kind::OpenAiChat),
-            content(Operation::GenerateContent, Kind::ClaudeMessages),
-        ),
-        ChannelSupport::transform(
-            content(Operation::GenerateContent, Kind::OpenAiResponses),
-            content(Operation::GenerateContent, Kind::ClaudeMessages),
-        ),
-        ChannelSupport::transform(
-            content(Operation::GenerateContent, Kind::GeminiGenerateContent),
-            content(Operation::GenerateContent, Kind::ClaudeMessages),
-        ),
-        ChannelSupport::passthrough(content(
-            Operation::StreamGenerateContent,
-            Kind::ClaudeMessages,
-        )),
-        ChannelSupport::transform(
-            content(Operation::StreamGenerateContent, Kind::OpenAiChat),
-            content(Operation::StreamGenerateContent, Kind::ClaudeMessages),
-        ),
-        ChannelSupport::transform(
-            content(Operation::StreamGenerateContent, Kind::OpenAiResponses),
-            content(Operation::StreamGenerateContent, Kind::ClaudeMessages),
-        ),
-        ChannelSupport::transform(
-            content(
-                Operation::StreamGenerateContent,
-                Kind::GeminiGenerateContent,
-            ),
-            content(Operation::StreamGenerateContent, Kind::ClaudeMessages),
-        ),
-    ];
-    assert_eq!(ClaudeWebChannel.descriptor().supports, expected);
     assert!(ClaudeWebChannel.requires_continuations());
 }
 

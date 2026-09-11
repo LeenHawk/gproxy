@@ -164,3 +164,47 @@ fn realtime_queries_use_selected_models_and_native_websocket_endpoints() {
         }
     }
 }
+
+/// The gateway's core promise for a single-wire provider: whatever wire the
+/// client speaks, it reaches the channel, and every route converges on the one
+/// wire that provider actually serves. A channel that quietly drops a client
+/// wire, or points one at a wire it cannot serve, fails here.
+#[test]
+fn every_client_wire_converges_on_the_native_wire() {
+    for (channel, native) in [
+        (
+            &crate::AntigravityChannel as &dyn Channel,
+            ContentGenerationKind::GeminiGenerateContent,
+        ),
+        (&crate::ClineChannel, ContentGenerationKind::OpenAiChat),
+        (&crate::CopilotCliChannel, ContentGenerationKind::OpenAiChat),
+        (
+            &crate::GeminiCliChannel,
+            ContentGenerationKind::GeminiGenerateContent,
+        ),
+        (&crate::NvidiaChannel, ContentGenerationKind::OpenAiChat),
+        (&crate::WorkBuddyChannel, ContentGenerationKind::OpenAiChat),
+    ] {
+        let id = channel.descriptor().id;
+        let routes = gproxy_channel_api::executable_routes(channel).collect::<Vec<_>>();
+        for operation in [Operation::GenerateContent, Operation::StreamGenerateContent] {
+            for kind in [
+                ContentGenerationKind::OpenAiChat,
+                ContentGenerationKind::OpenAiResponses,
+                ContentGenerationKind::ClaudeMessages,
+                ContentGenerationKind::GeminiGenerateContent,
+            ] {
+                let source = OperationKey::content(operation, kind);
+                let route = routes
+                    .iter()
+                    .find(|route| route.source == source)
+                    .unwrap_or_else(|| panic!("{id} drops {source:?}"));
+                assert_eq!(
+                    route.target,
+                    OperationKey::content(operation, native),
+                    "{id} routes {source:?} off its native wire"
+                );
+            }
+        }
+    }
+}

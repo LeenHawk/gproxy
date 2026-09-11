@@ -16,71 +16,13 @@ use gproxy_channel_api::{
     PrepareCtx, PreparedRequest, ResourceCtx, ResourceMutation, ResponseShapeCtx, ResponseView,
     SimpleHttp, StreamCtx, StreamDecoder, UsageCtx,
 };
-use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 use serde_json::Value;
 
 pub struct VertexChannel;
 
-const fn family(operation: Operation, family: WireFamily) -> OperationKey {
-    OperationKey::family(operation, family)
-}
-
-const fn content(operation: Operation, kind: ContentGenerationKind) -> OperationKey {
-    OperationKey::content(operation, kind)
-}
-
-const fn gemini(operation: Operation) -> OperationKey {
-    content(operation, ContentGenerationKind::GeminiGenerateContent)
-}
-
-static SUPPORTS: [ChannelSupport; 17] = [
-    ChannelSupport::passthrough(family(Operation::CreateEmbedding, WireFamily::Gemini)),
-    ChannelSupport::passthrough(family(Operation::BatchCreateEmbedding, WireFamily::Gemini)),
-    ChannelSupport::passthrough(family(Operation::ListModels, WireFamily::Gemini)),
-    ChannelSupport::passthrough(family(Operation::GetModel, WireFamily::Gemini)),
-    ChannelSupport::passthrough(family(Operation::CountTokens, WireFamily::Gemini)),
-    ChannelSupport::passthrough(gemini(Operation::GenerateContent)),
-    ChannelSupport::passthrough(gemini(Operation::StreamGenerateContent)),
-    ChannelSupport::passthrough(family(Operation::CountTokens, WireFamily::Claude)),
-    ChannelSupport::passthrough(content(
-        Operation::GenerateContent,
-        ContentGenerationKind::ClaudeMessages,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::StreamGenerateContent,
-        ContentGenerationKind::ClaudeMessages,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::GenerateContent,
-        ContentGenerationKind::OpenAiChat,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::StreamGenerateContent,
-        ContentGenerationKind::OpenAiChat,
-    )),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-        gemini(Operation::GenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-        gemini(Operation::StreamGenerateContent),
-    ),
-    ChannelSupport::passthrough(family(Operation::CreateImage, WireFamily::Gemini)),
-    ChannelSupport::passthrough(family(Operation::CreateVideo, WireFamily::Gemini)),
-    ChannelSupport::passthrough(family(Operation::RetrieveVideo, WireFamily::Gemini)),
-];
-
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "vertex",
     display_name: "Google Vertex AI",
-    supports: &SUPPORTS,
     provider_fields: crate::metadata::VERTEX,
     credential_fields: crate::metadata::SERVICE_ACCOUNT,
     endpoint_overrides: true,
@@ -173,12 +115,7 @@ impl Channel for VertexChannel {
     }
 
     fn classify(&self, response: ResponseView<'_>) -> Disposition {
-        match response.status.as_u16() {
-            200..=299 => Disposition::Success,
-            401..=403 => Disposition::CredentialDead,
-            429 | 500..=599 => Disposition::Retryable,
-            _ => Disposition::Terminal,
-        }
+        crate::shared::disposition::unauthorized_or_forbidden(response)
     }
 
     fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {

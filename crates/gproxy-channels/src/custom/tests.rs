@@ -15,7 +15,7 @@ fn content(operation: Operation, kind: ContentGenerationKind) -> OperationKey {
 
 #[test]
 fn declares_exactly_the_classified_universal_wire_cells() {
-    let supports = CustomChannel.descriptor().supports;
+    let supports = gproxy_channel_api::executable_routes(&CustomChannel).collect::<Vec<_>>();
     assert_eq!(supports.len(), 37);
     assert!(
         supports

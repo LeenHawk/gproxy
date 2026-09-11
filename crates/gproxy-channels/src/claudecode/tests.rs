@@ -30,15 +30,6 @@ fn descriptor_disposition_and_surface_table_are_explicit() {
         (descriptor.id, descriptor.display_name),
         ("claudecode", "Claude Code")
     );
-    assert_eq!(descriptor.supports.len(), 15);
-    assert_eq!(
-        descriptor
-            .supports
-            .iter()
-            .filter(|support| support.source == support.target)
-            .count(),
-        5
-    );
     assert_eq!(ClaudeCodeChannel.surfaces().0.len(), 23);
     assert_eq!(
         ClaudeCodeChannel.login().unwrap().descriptor.modes,

@@ -15,79 +15,13 @@ use gproxy_channel_api::{
     LoginDescriptor, LoginMode, NormalizedUsage, PrepareCtx, PreparedRequest, ResponseShapeCtx,
     ResponseView, SimpleHttp, StreamCtx, StreamDecoder, UsageCtx,
 };
-use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 use serde_json::Value;
 
 pub struct ClineChannel;
 
-const fn family(operation: Operation, family: WireFamily) -> OperationKey {
-    OperationKey::family(operation, family)
-}
-
-const fn content(operation: Operation, kind: ContentGenerationKind) -> OperationKey {
-    OperationKey::content(operation, kind)
-}
-
-const fn chat(operation: Operation) -> OperationKey {
-    content(operation, ContentGenerationKind::OpenAiChat)
-}
-
-static SUPPORTS: [ChannelSupport; 10] = [
-    ChannelSupport::passthrough(family(Operation::ListModels, WireFamily::OpenAi)),
-    ChannelSupport::transform(
-        family(Operation::ListModels, WireFamily::Claude),
-        family(Operation::ListModels, WireFamily::OpenAi),
-    ),
-    ChannelSupport::passthrough(chat(Operation::GenerateContent)),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-        chat(Operation::GenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::ClaudeMessages,
-        ),
-        chat(Operation::GenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::GeminiGenerateContent,
-        ),
-        chat(Operation::GenerateContent),
-    ),
-    ChannelSupport::passthrough(chat(Operation::StreamGenerateContent)),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-        chat(Operation::StreamGenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::ClaudeMessages,
-        ),
-        chat(Operation::StreamGenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::GeminiGenerateContent,
-        ),
-        chat(Operation::StreamGenerateContent),
-    ),
-];
-
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "cline",
     display_name: "Cline",
-    supports: &SUPPORTS,
     provider_fields: crate::metadata::BASE_URL,
     credential_fields: crate::metadata::API_KEY_OR_OAUTH,
     endpoint_overrides: true,
@@ -147,12 +81,7 @@ impl Channel for ClineChannel {
     }
 
     fn classify(&self, response: ResponseView<'_>) -> Disposition {
-        match response.status.as_u16() {
-            200..=299 => Disposition::Success,
-            401 => Disposition::CredentialDead,
-            429 | 500..=599 => Disposition::Retryable,
-            _ => Disposition::Terminal,
-        }
+        crate::shared::disposition::unauthorized_only(response)
     }
 
     fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {

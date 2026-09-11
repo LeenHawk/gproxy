@@ -10,7 +10,7 @@ const MEMORY: OperationKey = OperationKey::family(Operation::SummarizeMemory, Wi
 
 #[test]
 fn descriptor_prepares_typed_memory_summary_for_estimated_settlement() {
-    let supports = CodexChannel.descriptor().supports;
+    let supports = gproxy_channel_api::executable_routes(&CodexChannel).collect::<Vec<_>>();
     assert!(
         supports
             .iter()

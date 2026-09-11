@@ -42,15 +42,7 @@ fn prepare(req: Req<'_>) -> Result<http::Request<Bytes>, gproxy_channel_api::Cha
 fn descriptor_declares_native_and_current_transform_routes() {
     let descriptor = XaiChannel.descriptor();
     assert_eq!(descriptor.id, "xai");
-    assert_eq!(descriptor.supports.len(), 21);
-    assert_eq!(
-        descriptor
-            .supports
-            .iter()
-            .filter(|support| support.source == support.target)
-            .count(),
-        15
-    );
+    let supports = gproxy_channel_api::executable_routes(&XaiChannel).collect::<Vec<_>>();
     for (source, target) in [
         (
             family(Operation::ListModels, WireFamily::Claude),
@@ -69,8 +61,7 @@ fn descriptor_declares_native_and_current_transform_routes() {
         ),
     ] {
         assert!(
-            descriptor
-                .supports
+            supports
                 .iter()
                 .any(|support| support.source == source && support.target == target)
         );

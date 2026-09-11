@@ -2,6 +2,7 @@ pub(crate) mod aws_eventstream;
 pub(crate) mod cache;
 pub(crate) mod claude;
 pub(crate) mod code_assist;
+pub(crate) mod disposition;
 pub(crate) mod gemini;
 pub(crate) mod google_login;
 pub(crate) mod google_oauth;

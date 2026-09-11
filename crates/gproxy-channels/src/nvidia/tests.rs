@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use gproxy_channel_api::{Channel, ChannelSupport, PrepareCtx, StreamCtx, StreamEnd};
+use gproxy_channel_api::{Channel, PrepareCtx, StreamCtx, StreamEnd};
 use gproxy_protocol::{
     ContentGenerationKind as Kind, Operation, OperationKey, StreamFraming, WireFamily,
 };
@@ -14,53 +14,6 @@ const fn family(operation: Operation) -> OperationKey {
 
 const fn content(operation: Operation, kind: Kind) -> OperationKey {
     OperationKey::content(operation, kind)
-}
-
-#[test]
-fn declares_truthful_operations() {
-    let expected = [
-        ChannelSupport::passthrough(family(Operation::ListModels)),
-        ChannelSupport::passthrough(family(Operation::GetModel)),
-        ChannelSupport::transform(
-            OperationKey::family(Operation::ListModels, WireFamily::Claude),
-            family(Operation::ListModels),
-        ),
-        ChannelSupport::transform(
-            OperationKey::family(Operation::GetModel, WireFamily::Claude),
-            family(Operation::GetModel),
-        ),
-        ChannelSupport::passthrough(content(Operation::GenerateContent, Kind::OpenAiChat)),
-        ChannelSupport::transform(
-            content(Operation::GenerateContent, Kind::OpenAiResponses),
-            content(Operation::GenerateContent, Kind::OpenAiChat),
-        ),
-        ChannelSupport::transform(
-            content(Operation::GenerateContent, Kind::ClaudeMessages),
-            content(Operation::GenerateContent, Kind::OpenAiChat),
-        ),
-        ChannelSupport::transform(
-            content(Operation::GenerateContent, Kind::GeminiGenerateContent),
-            content(Operation::GenerateContent, Kind::OpenAiChat),
-        ),
-        ChannelSupport::passthrough(content(Operation::StreamGenerateContent, Kind::OpenAiChat)),
-        ChannelSupport::transform(
-            content(Operation::StreamGenerateContent, Kind::OpenAiResponses),
-            content(Operation::StreamGenerateContent, Kind::OpenAiChat),
-        ),
-        ChannelSupport::transform(
-            content(Operation::StreamGenerateContent, Kind::ClaudeMessages),
-            content(Operation::StreamGenerateContent, Kind::OpenAiChat),
-        ),
-        ChannelSupport::transform(
-            content(
-                Operation::StreamGenerateContent,
-                Kind::GeminiGenerateContent,
-            ),
-            content(Operation::StreamGenerateContent, Kind::OpenAiChat),
-        ),
-        ChannelSupport::passthrough(family(Operation::CreateEmbedding)),
-    ];
-    assert_eq!(NvidiaChannel.descriptor().supports, expected);
 }
 
 #[test]

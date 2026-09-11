@@ -2,7 +2,6 @@ mod routes;
 
 mod error;
 mod model;
-mod multipart;
 mod prepare;
 mod resource;
 mod shape;
@@ -14,60 +13,12 @@ use gproxy_channel_api::{
     PreparedRequest, ResourceCtx, ResourceMutation, ResponseShapeCtx, ResponseView, StreamCtx,
     StreamDecoder, UsageCtx,
 };
-use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 
 pub struct OpenRouterChannel;
-
-const fn family(operation: Operation) -> OperationKey {
-    OperationKey::family(operation, WireFamily::OpenAi)
-}
-
-const fn content(operation: Operation, kind: ContentGenerationKind) -> OperationKey {
-    OperationKey::content(operation, kind)
-}
-
-static SUPPORTS: [ChannelSupport; 17] = [
-    ChannelSupport::passthrough(family(Operation::ListModels)),
-    ChannelSupport::passthrough(family(Operation::GetModel)),
-    ChannelSupport::passthrough(content(
-        Operation::GenerateContent,
-        ContentGenerationKind::OpenAiChat,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::StreamGenerateContent,
-        ContentGenerationKind::OpenAiChat,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::GenerateContent,
-        ContentGenerationKind::OpenAiResponses,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::StreamGenerateContent,
-        ContentGenerationKind::OpenAiResponses,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::GenerateContent,
-        ContentGenerationKind::ClaudeMessages,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::StreamGenerateContent,
-        ContentGenerationKind::ClaudeMessages,
-    )),
-    ChannelSupport::passthrough(family(Operation::CreateEmbedding)),
-    ChannelSupport::passthrough(family(Operation::Rerank)),
-    ChannelSupport::passthrough(family(Operation::CreateImage)),
-    ChannelSupport::passthrough(family(Operation::EditImage)),
-    ChannelSupport::passthrough(family(Operation::CreateSpeech)),
-    ChannelSupport::passthrough(family(Operation::CreateTranscription)),
-    ChannelSupport::passthrough(family(Operation::CreateVideo)),
-    ChannelSupport::passthrough(family(Operation::RetrieveVideo)),
-    ChannelSupport::passthrough(family(Operation::DownloadVideoContent)),
-];
 
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "openrouter",
     display_name: "OpenRouter",
-    supports: &SUPPORTS,
     provider_fields: crate::metadata::OPENROUTER,
     credential_fields: crate::metadata::API_KEY,
     endpoint_overrides: true,
@@ -159,12 +110,7 @@ impl Channel for OpenRouterChannel {
     }
 
     fn classify(&self, response: ResponseView<'_>) -> Disposition {
-        match response.status.as_u16() {
-            200..=299 => Disposition::Success,
-            401..=403 => Disposition::CredentialDead,
-            429 | 500..=599 => Disposition::Retryable,
-            _ => Disposition::Terminal,
-        }
+        crate::shared::disposition::unauthorized_or_forbidden(response)
     }
 
     fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {

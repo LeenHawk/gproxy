@@ -32,7 +32,13 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     }
     let headers = crate::policy::request_headers(crate::policy::OPENAI_API, &ctx)?;
     let body = openai_cache(&ctx)?;
-    let body = super::model::shape(ctx.key, ctx.stream, ctx.upstream_model, ctx.headers, &body)?;
+    let body = crate::shared::openai::model::shape(
+        ctx.key,
+        ctx.stream,
+        ctx.upstream_model,
+        ctx.headers,
+        &body,
+    )?;
     let mut request = http::Request::builder()
         .method(ctx.method)
         .uri(strip_userinfo(uri)?)

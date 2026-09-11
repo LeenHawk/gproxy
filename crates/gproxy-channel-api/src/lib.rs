@@ -38,7 +38,7 @@ pub use channel::{
     Channel, ChannelDescriptor, ChannelError, ChannelField, ChannelFieldControl,
     ChannelRouteAction, ChannelSupport, ChannelTrafficPolicy, Frame, PrepareCtx, PreparedRequest,
     ResponseShapeCtx, ResponseView, SimpleHttp, StreamCtx, StreamDecoder, StreamEnd, StreamTail,
-    UsageCtx,
+    UsageCtx, default_route, executable_routes,
 };
 pub use disposition::Disposition;
 pub use endpoint::endpoint_override_key;

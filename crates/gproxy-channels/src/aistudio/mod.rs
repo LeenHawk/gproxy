@@ -3,96 +3,18 @@ mod routes;
 mod model;
 mod prepare;
 mod resource;
-mod stream;
-mod usage;
 
 use gproxy_channel_api::{
     Channel, ChannelDescriptor, ChannelSupport, Disposition, NormalizedUsage, PrepareCtx,
     PreparedRequest, ResourceCtx, ResourceMutation, ResponseView, StreamCtx, StreamDecoder,
     UsageCtx,
 };
-use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 
 pub struct AiStudioChannel;
-
-const fn family(operation: Operation) -> OperationKey {
-    OperationKey::family(operation, WireFamily::Gemini)
-}
-
-const fn content(operation: Operation, kind: ContentGenerationKind) -> OperationKey {
-    OperationKey::content(operation, kind)
-}
-
-const fn gemini_content(operation: Operation) -> OperationKey {
-    content(operation, ContentGenerationKind::GeminiGenerateContent)
-}
-
-static SUPPORTS: [ChannelSupport; 23] = [
-    ChannelSupport::passthrough(OperationKey::family(
-        Operation::ListModels,
-        WireFamily::OpenAi,
-    )),
-    ChannelSupport::passthrough(OperationKey::family(
-        Operation::GetModel,
-        WireFamily::OpenAi,
-    )),
-    ChannelSupport::passthrough(family(Operation::ListModels)),
-    ChannelSupport::passthrough(family(Operation::GetModel)),
-    ChannelSupport::passthrough(family(Operation::CountTokens)),
-    ChannelSupport::passthrough(gemini_content(Operation::GenerateContent)),
-    ChannelSupport::passthrough(gemini_content(Operation::StreamGenerateContent)),
-    ChannelSupport::passthrough(family(Operation::CreateEmbedding)),
-    ChannelSupport::passthrough(family(Operation::BatchCreateEmbedding)),
-    ChannelSupport::passthrough(family(Operation::CreateImage)),
-    ChannelSupport::passthrough(family(Operation::CreateVideo)),
-    ChannelSupport::passthrough(family(Operation::RetrieveVideo)),
-    ChannelSupport::passthrough(family(Operation::CreateFile)),
-    ChannelSupport::passthrough(family(Operation::ListFiles)),
-    ChannelSupport::passthrough(family(Operation::RetrieveFile)),
-    ChannelSupport::passthrough(family(Operation::RetrieveFileContent)),
-    ChannelSupport::passthrough(family(Operation::DeleteFile)),
-    ChannelSupport::passthrough(content(
-        Operation::GenerateContent,
-        ContentGenerationKind::OpenAiChat,
-    )),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-        gemini_content(Operation::GenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::ClaudeMessages,
-        ),
-        gemini_content(Operation::GenerateContent),
-    ),
-    ChannelSupport::passthrough(content(
-        Operation::StreamGenerateContent,
-        ContentGenerationKind::OpenAiChat,
-    )),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-        gemini_content(Operation::StreamGenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::ClaudeMessages,
-        ),
-        gemini_content(Operation::StreamGenerateContent),
-    ),
-];
 
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "aistudio",
     display_name: "Google AI Studio",
-    supports: &SUPPORTS,
     provider_fields: crate::metadata::BASE_URL,
     credential_fields: crate::metadata::API_KEY,
     endpoint_overrides: true,
@@ -173,12 +95,7 @@ impl Channel for AiStudioChannel {
     }
 
     fn classify(&self, response: ResponseView<'_>) -> Disposition {
-        match response.status.as_u16() {
-            200..=299 => Disposition::Success,
-            401..=403 => Disposition::CredentialDead,
-            429 | 500..=599 => Disposition::Retryable,
-            _ => Disposition::Terminal,
-        }
+        crate::shared::disposition::unauthorized_or_forbidden(response)
     }
 
     fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
@@ -186,7 +103,7 @@ impl Channel for AiStudioChannel {
             return crate::shared::openai::OpenAiSseDecoder::for_operation(ctx)
                 .map(|decoder| Box::new(decoder) as Box<dyn StreamDecoder>);
         }
-        stream::GeminiStreamDecoder::for_operation(ctx)
+        crate::shared::gemini::stream::GeminiStreamDecoder::for_operation(ctx)
             .map(|decoder| Box::new(decoder) as Box<dyn StreamDecoder>)
     }
 
@@ -194,7 +111,7 @@ impl Channel for AiStudioChannel {
         if model::is_openai(ctx.key) {
             crate::shared::openai::usage_from_body(ctx)
         } else {
-            usage::from_body(ctx)
+            crate::shared::gemini::usage::from_body(ctx)
         }
     }
 

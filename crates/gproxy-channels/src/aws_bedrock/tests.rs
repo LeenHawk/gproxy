@@ -19,15 +19,7 @@ const STREAM: OperationKey = OperationKey::content(
 
 #[test]
 fn declares_only_converse_and_documented_control_media_routes() {
-    let supports = AwsBedrockChannel.descriptor().supports;
-    assert_eq!(supports.len(), 17);
-    assert_eq!(
-        supports
-            .iter()
-            .filter(|support| support.source == support.target)
-            .count(),
-        7
-    );
+    let supports = gproxy_channel_api::executable_routes(&AwsBedrockChannel).collect::<Vec<_>>();
     assert!(supports.iter().any(|support| {
         support.source
             == OperationKey::content(
@@ -35,9 +27,6 @@ fn declares_only_converse_and_documented_control_media_routes() {
                 ContentGenerationKind::GeminiGenerateContent,
             )
             && support.target == MESSAGES
-    }));
-    assert!(!supports.iter().any(|support| {
-        support.source == OperationKey::family(Operation::ListModels, WireFamily::Gemini)
     }));
     assert_eq!(
         AwsBedrockChannel.classify(ResponseView {

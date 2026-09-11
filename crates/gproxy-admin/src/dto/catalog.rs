@@ -104,7 +104,9 @@ pub fn channel_dto(channel: &dyn gproxy_channel_api::Channel) -> ChannelDto {
     ChannelDto {
         id: descriptor.id.into(),
         display_name: descriptor.display_name.into(),
-        supports: descriptor.supports.iter().map(channel_support).collect(),
+        supports: gproxy_channel_api::executable_routes(channel)
+            .map(|support| channel_support(&support))
+            .collect(),
         routing_defaults: channel
             .routing_table()
             .iter()
@@ -163,9 +165,7 @@ pub fn channel_dto(channel: &dyn gproxy_channel_api::Channel) -> ChannelDto {
             .collect(),
         quota_fields: channel.quota_fields().iter().map(channel_field).collect(),
         endpoint_kinds: if descriptor.endpoint_overrides {
-            descriptor
-                .supports
-                .iter()
+            gproxy_channel_api::executable_routes(channel)
                 .filter_map(|support| gproxy_channel_api::endpoint_override_key(support.target))
                 .collect::<std::collections::BTreeSet<_>>()
                 .into_iter()

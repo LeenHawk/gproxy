@@ -23,7 +23,7 @@ pub(crate) fn support<H: Host>(
     key: OperationKey,
 ) -> Result<Option<ChannelSupport>, CoreError> {
     let channel = channel(core, &target.provider.channel)?;
-    let selected = declared_support(channel, key);
+    let selected = gproxy_channel_api::default_route(channel, key);
     Ok(selected.and_then(|support| route_support(target, support)))
 }
 
@@ -33,7 +33,7 @@ pub(crate) fn native_support<H: Host>(
     key: OperationKey,
 ) -> Result<Option<ChannelSupport>, CoreError> {
     let channel = channel(core, &target.provider.channel)?;
-    Ok(declared_support(channel, key).filter(|support| support.target == key))
+    Ok(gproxy_channel_api::default_route(channel, key).filter(|support| support.target == key))
 }
 
 pub(crate) async fn prepare<H: Host>(
@@ -345,9 +345,9 @@ fn align_stream_flag(body: bytes::Bytes, target: OperationKey, stream: bool) -> 
 }
 
 pub(crate) fn executable(channel: &dyn Channel, selected: &ChannelSupport) -> bool {
-    channel.descriptor().supports.contains(selected)
+    gproxy_channel_api::executable_routes(channel).any(|support| support == *selected)
         || (selected.action == ChannelRouteAction::TransformTo
-            && channel.descriptor().supports.iter().any(|support| {
+            && gproxy_channel_api::executable_routes(channel).any(|support| {
                 support.source == selected.target
                     && support.target == selected.target
                     && support.action == ChannelRouteAction::Passthrough
@@ -376,26 +376,6 @@ fn route_support(target: &Target, support: ChannelSupport) -> Option<ChannelSupp
         Some(crate::routing::RoutingDecision::Local)
         | Some(crate::routing::RoutingDecision::Unsupported) => None,
     }
-}
-
-fn declared_support(channel: &dyn Channel, source: OperationKey) -> Option<ChannelSupport> {
-    if let Some(route) = channel
-        .routing_table()
-        .iter()
-        .find(|support| support.source == source)
-    {
-        return matches!(
-            route.action,
-            ChannelRouteAction::Passthrough | ChannelRouteAction::TransformTo
-        )
-        .then_some(*route);
-    }
-    channel
-        .descriptor()
-        .supports
-        .iter()
-        .find(|support| support.source == source)
-        .copied()
 }
 
 fn channel<'a, H: Host>(core: &'a Core<H>, id: &str) -> Result<&'a dyn Channel, CoreError> {

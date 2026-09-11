@@ -5,7 +5,6 @@ mod prepare;
 mod resource;
 mod shape;
 mod sse;
-mod supports;
 mod usage;
 
 use gproxy_channel_api::{
@@ -19,7 +18,6 @@ pub struct CustomChannel;
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "custom",
     display_name: "Custom Compatible",
-    supports: &supports::SUPPORTS,
     provider_fields: crate::metadata::CUSTOM,
     credential_fields: crate::metadata::API_KEY,
     endpoint_overrides: true,
@@ -81,12 +79,7 @@ impl Channel for CustomChannel {
     }
 
     fn classify(&self, response: ResponseView<'_>) -> Disposition {
-        match response.status.as_u16() {
-            200..=299 => Disposition::Success,
-            401 => Disposition::CredentialDead,
-            429 | 500..=599 => Disposition::Retryable,
-            _ => Disposition::Terminal,
-        }
+        crate::shared::disposition::unauthorized_only(response)
     }
 
     fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {

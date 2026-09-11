@@ -109,8 +109,12 @@ pub trait SimpleHttp: MaybeSync {
 pub trait Channel: Send + Sync {
     fn descriptor(&self) -> &'static ChannelDescriptor;
 
-    /// Provider defaults are policy, not a capability inference. Hosts
-    /// materialize this table without changing operator-owned cells.
+    /// Every route this channel declares, in priority order. The first row
+    /// for a source is the provider default; further rows for the same source
+    /// are additional executable paths a routing override or a
+    /// [`Channel::select_support`] override may reach. Provider defaults are
+    /// policy, not a capability inference. Hosts materialize this table
+    /// without changing operator-owned cells.
     fn routing_table(&self) -> &'static [ChannelSupport];
 
     /// Models supplied by a local ListModels implementation for one credential.
@@ -128,28 +132,7 @@ pub trait Channel: Send + Sync {
     /// may choose among duplicate source rows by secret shape.
     fn select_support(&self, source: OperationKey, secret: &Value) -> Option<ChannelSupport> {
         let _ = secret;
-        if let Some(route) = self
-            .routing_table()
-            .iter()
-            .find(|support| support.source == source)
-        {
-            return matches!(
-                route.action,
-                ChannelRouteAction::Passthrough | ChannelRouteAction::TransformTo
-            )
-            .then_some(*route);
-        }
-        self.descriptor()
-            .supports
-            .iter()
-            .find(|support| {
-                support.source == source
-                    && matches!(
-                        support.action,
-                        ChannelRouteAction::Passthrough | ChannelRouteAction::TransformTo
-                    )
-            })
-            .copied()
+        default_route(self, source)
     }
 
     /// Build the upstream request: URL, auth injection, header allow-list,
@@ -430,4 +413,36 @@ pub trait Channel: Send + Sync {
     fn requires_continuations(&self) -> bool {
         false
     }
+}
+
+/// The capability view of [`Channel::routing_table`]: every route the channel
+/// can actually run. `Local` and `Unsupported` rows are operator-facing
+/// policy, so they are never executable paths.
+pub fn executable_routes(
+    channel: &(impl Channel + ?Sized),
+) -> impl Iterator<Item = ChannelSupport> {
+    channel.routing_table().iter().copied().filter(|support| {
+        matches!(
+            support.action,
+            ChannelRouteAction::Passthrough | ChannelRouteAction::TransformTo
+        )
+    })
+}
+
+/// The provider default for one source: the first declared row, honoured only
+/// when it is executable. Answers what the channel does before a credential is
+/// in hand; [`Channel::select_support`] is the secret-aware form.
+pub fn default_route(
+    channel: &(impl Channel + ?Sized),
+    source: OperationKey,
+) -> Option<ChannelSupport> {
+    let route = channel
+        .routing_table()
+        .iter()
+        .find(|support| support.source == source)?;
+    matches!(
+        route.action,
+        ChannelRouteAction::Passthrough | ChannelRouteAction::TransformTo
+    )
+    .then_some(*route)
 }

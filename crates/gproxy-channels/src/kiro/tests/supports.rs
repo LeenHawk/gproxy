@@ -1,4 +1,3 @@
-use gproxy_channel_api::Channel;
 use gproxy_protocol::{ContentGenerationKind as C, Operation as O, OperationKey, WireFamily};
 
 use super::super::KiroChannel;
@@ -25,8 +24,7 @@ fn declares_models_and_forced_stream_responses_for_all_four_sources() {
         content(O::StreamGenerateContent, C::ClaudeMessages),
         content(O::StreamGenerateContent, C::GeminiGenerateContent),
     ];
-    let supports = KiroChannel.descriptor().supports;
-    assert_eq!(supports.len(), expected.len());
+    let supports = gproxy_channel_api::executable_routes(&KiroChannel).collect::<Vec<_>>();
     assert!(
         expected
             .iter()

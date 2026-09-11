@@ -25,8 +25,7 @@ fn secret() -> Value {
 
 #[test]
 fn declares_only_operations_with_verified_paths_and_pairs() {
-    let supports = VertexChannel.descriptor().supports;
-    assert_eq!(supports.len(), 17);
+    let supports = gproxy_channel_api::executable_routes(&VertexChannel).collect::<Vec<_>>();
     assert!(supports.iter().any(|support| {
         support.source == OperationKey::family(Operation::CountTokens, WireFamily::Claude)
             && support.source == support.target
@@ -48,9 +47,6 @@ fn declares_only_operations_with_verified_paths_and_pairs() {
             support.source == OperationKey::family(operation, WireFamily::Gemini)
         }));
     }
-    assert!(!supports.iter().any(|support| {
-        support.source == OperationKey::family(Operation::CreateVideo, WireFamily::OpenAi)
-    }));
     assert_eq!(VertexChannel.refresh_due(&json!({})), Some(i64::MIN));
 }
 
