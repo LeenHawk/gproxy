@@ -29,7 +29,11 @@ pub(crate) async fn handle(
             .contains_key("access-control-request-method")
     {
         let response = StatusCode::NO_CONTENT.into_response();
-        return crate::request_policy::apply_cors(response, origin.as_ref());
+        return crate::request_policy::apply_preflight_cors(
+            response,
+            origin.as_ref(),
+            request.headers(),
+        );
     }
     let response = handle_request(state.clone(), peer, request, &runtime.effective).await;
     state.sync_runtime();

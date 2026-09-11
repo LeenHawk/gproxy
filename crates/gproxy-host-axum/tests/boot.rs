@@ -123,11 +123,13 @@ async fn boots_relays_settles_and_reconciles_quota() {
 async fn cors_changes_apply_without_rebinding_the_listener() {
     let fixture = fixture::Fixture::start().await;
     let client = wreq::Client::builder().no_proxy().build().unwrap();
+    let sdk_headers = "authorization,content-type,x-stainless-arch,x-stainless-lang,x-stainless-os,x-stainless-package-version,x-stainless-retry-count,x-stainless-runtime,x-stainless-runtime-version,x-stainless-timeout";
     let preflight = || {
         client
             .request(http::Method::OPTIONS, fixture.gateway_url())
             .header(http::header::ORIGIN, "https://example.test")
             .header("access-control-request-method", "POST")
+            .header("access-control-request-headers", sdk_headers)
     };
     assert!(
         !preflight()
@@ -152,6 +154,22 @@ async fn cors_changes_apply_without_rebinding_the_listener() {
     assert_eq!(
         response.headers()["access-control-allow-origin"],
         "https://example.test"
+    );
+    let allowed: Vec<_> = response.headers()["access-control-allow-headers"]
+        .to_str()
+        .unwrap()
+        .split(',')
+        .map(str::trim)
+        .collect();
+    for header in sdk_headers.split(',') {
+        assert!(allowed.contains(&header), "missing CORS header: {header}");
+    }
+    assert!(
+        response
+            .headers()
+            .get_all(http::header::VARY)
+            .iter()
+            .any(|value| value == "Access-Control-Request-Headers")
     );
     fixture
         .app
