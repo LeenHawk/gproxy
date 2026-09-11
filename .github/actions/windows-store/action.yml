@@ -1,0 +1,73 @@
+name: Microsoft Store submission
+description: Build unsigned MSIX packages with the Partner Center identity
+inputs:
+  target:
+    description: Rust target triple
+    required: true
+  artifact:
+    description: Portable release artifact basename
+    required: true
+  version:
+    description: Stable release version
+    required: true
+  identity-name:
+    description: Partner Center Package/Identity/Name
+    required: false
+  display-name:
+    description: Reserved Partner Center product name
+    required: false
+  publisher:
+    description: Partner Center Package/Identity/Publisher
+    required: false
+  publisher-display-name:
+    description: Partner Center Package/Properties/PublisherDisplayName
+    required: false
+runs:
+  using: composite
+  steps:
+    - name: Check Store identity
+      id: identity
+      shell: pwsh
+      env:
+        STORE_NAME: ${{ inputs.identity-name }}
+        STORE_DISPLAY: ${{ inputs.display-name }}
+        STORE_PUBLISHER: ${{ inputs.publisher }}
+        STORE_DISPLAY_NAME: ${{ inputs.publisher-display-name }}
+      run: |
+        $values = @($env:STORE_NAME, $env:STORE_DISPLAY, $env:STORE_PUBLISHER, $env:STORE_DISPLAY_NAME)
+        $present = @($values | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }).Count
+        if ($present -eq 0) {
+          "Microsoft Store packaging skipped: Partner Center identity is not configured." >> $env:GITHUB_STEP_SUMMARY
+          "ready=false" >> $env:GITHUB_OUTPUT
+        } elseif ($present -ne 4) {
+          throw "Configure all four MS_STORE identity variables; partial identities cannot be submitted"
+        } else {
+          "ready=true" >> $env:GITHUB_OUTPUT
+        }
+    - name: Package MSIX for Store certification
+      if: ${{ steps.identity.outputs.ready == 'true' }}
+      shell: pwsh
+      env:
+        TARGET: ${{ inputs.target }}
+        ARTIFACT: ${{ inputs.artifact }}
+        VERSION: ${{ inputs.version }}
+        STORE_NAME: ${{ inputs.identity-name }}
+        STORE_DISPLAY: ${{ inputs.display-name }}
+        STORE_PUBLISHER: ${{ inputs.publisher }}
+        STORE_DISPLAY_NAME: ${{ inputs.publisher-display-name }}
+      run: |
+        scripts/package-windows-msix.ps1 -Target $env:TARGET -Artifact $env:ARTIFACT -Version $env:VERSION `
+          -IdentityName $env:STORE_NAME -DisplayName $env:STORE_DISPLAY -Publisher $env:STORE_PUBLISHER -PublisherDisplayName $env:STORE_DISPLAY_NAME
+    - name: Attest Store submission
+      if: ${{ steps.identity.outputs.ready == 'true' }}
+      uses: actions/attest@v4
+      with:
+        subject-path: dist/store/${{ inputs.artifact }}.msix
+    - name: Save unsigned Store submission
+      if: ${{ steps.identity.outputs.ready == 'true' }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: microsoft-store-unsigned-${{ inputs.artifact }}
+        path: dist/store/${{ inputs.artifact }}.msix
+        if-no-files-found: error
+        retention-days: 30

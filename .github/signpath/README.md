@@ -11,7 +11,7 @@ enable production signing until the project and certificate are approved.
 - Maintainer/PR reviewer: https://github.com/LeenHawk
 - License: AGPL-3.0-or-later application, MIT for the crates identified in
   their manifests; no commercial dual-licensing is introduced by this integration.
-- Scope: x86_64 and ARM64 Windows EXEs, MSI installers, and bundled launchers.
+- Scope: x86_64 and ARM64 portable Windows EXEs. Microsoft Store MSIX signing is separate.
 - Build: GitHub-hosted Windows runners, public source and release workflow,
   embedded Console compiled by the same workflow. Windows x86_64 and ARM64
   binaries use UPX before signing.
@@ -31,7 +31,7 @@ because the policy describes them.
 2. Add an artifact configuration with slug **`windows-release`**, using
    [windows-release.xml](windows-release.xml). Have SignPath validate this
    configuration against a real uploaded Windows release artifact, including
-   MSI extraction paths, metadata and the embedded PowerShell/VBScript files.
+   portable ZIP paths and executable metadata.
 3. Configure the production certificate and a signing policy for automatic
    signing, with its approval process disabled. Give the CI submitter the
    required signing-request rights. Review takes place on GitHub pull requests;
@@ -55,8 +55,8 @@ because the policy describes them.
    policy pages when approval and activation actually happen. Confirm the team
    roster remains correct.
 6. On the first tagged release from reviewed code, confirm that both architecture
-   jobs automatically sign and download their packages, then validate the MSI,
-   extracted EXE/scripts and portable EXE before publishing.
+   jobs automatically sign and download their packages, then validate the portable EXE
+   before publishing.
    Do not use a test certificate for public production releases.
 
 ## Pipeline contract
@@ -67,17 +67,18 @@ When `true`, all tag builds (stable and prerelease) require signing. Continuous
 Disabling the variable later permits unsigned tag builds again; protect who
 can edit repository Actions variables.
 
-The composite action packages each architecture's ZIP and MSI, uploads only
-those two files as `unsigned-gproxy-windows-*`, and submits that GitHub artifact.
-The root ZIP in the XML is GitHub's artifact envelope. SignPath signs the EXE
-inside the portable ZIP and deep-signs the MSI contents before signing the MSI.
+The composite action packages each architecture's portable ZIP, uploads it as
+`unsigned-gproxy-windows-*`, and submits that GitHub artifact. The root ZIP in
+the XML is GitHub's artifact envelope. SignPath signs the EXE inside the portable
+ZIP. Store MSIX packages are built separately and Microsoft signs them after
+Partner Center certification; they are not submitted to SignPath.
 The `artifact` and `version` parameters come from release metadata.
 `wait-for-completion: true` waits for signing and downloads the result; it does
 not configure an approval process. The action uses its default completion timeout.
 
 Signed output is downloaded to a separate directory. Windows must validate
-trusted Authenticode signatures and timestamps on all five signed files before
-the unsigned packages are replaced. SHA-256 sidecars are then regenerated.
+the trusted Authenticode signature and timestamp on the portable EXE before
+the unsigned archive is replaced. SHA-256 sidecars are then regenerated.
 Only these final packages proceed to provenance, the update manifest and
 publication. Signing failure has no unsigned fallback when signing is enabled.
 

@@ -6,6 +6,14 @@ const KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
 const VALUE: &str = "GPROXY";
 
 pub(super) fn status(_manager: &Manager) -> Status {
+    if crate::windows_package::is_packaged() {
+        return Status {
+            supported: false,
+            enabled: false,
+            platform: "windows".into(),
+            detail: Some("microsoft-store".into()),
+        };
+    }
     Status {
         supported: true,
         enabled: Command::new("reg.exe")

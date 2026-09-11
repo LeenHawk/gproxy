@@ -1,8 +1,12 @@
-param([switch]$OpenConsole)
+param([switch]$OpenConsole, [switch]$Packaged)
 
 $ErrorActionPreference = "Stop"
-$installDir = Join-Path $env:LOCALAPPDATA "Programs\GPROXY"
-$rootDir = Join-Path $env:LOCALAPPDATA "GPROXY"
+$installDir = $PSScriptRoot
+$rootDir = if ($Packaged) {
+    Join-Path ([Windows.Storage.ApplicationData, Windows.Storage, ContentType=WindowsRuntime]::Current.LocalFolder.Path) "GPROXY"
+} else {
+    Join-Path $env:LOCALAPPDATA "GPROXY"
+}
 $dataDir = Join-Path $rootDir "data"
 $logDir = Join-Path $rootDir "logs"
 $environment = Join-Path $rootDir ".env"
@@ -71,7 +75,11 @@ function Show-SetupDialog {
     $autostartInput.Location = New-Object System.Drawing.Point(20, 147)
     $autostartInput.Size = New-Object System.Drawing.Size(400, 24)
     $autostartInput.Text = "Start GPROXY automatically when I sign in"
-    $autostartInput.Checked = $true
+    $autostartInput.Checked = -not $Packaged
+    if ($Packaged) {
+        $autostartInput.Enabled = $false
+        $autostartInput.Text = "Manage startup in Windows Settings > Apps > Startup"
+    }
 
     $startButton = New-Object System.Windows.Forms.Button
     $startButton.Location = New-Object System.Drawing.Point(312, 192)

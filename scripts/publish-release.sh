@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Checksums feed the signed manifest; build records are hosted as attestations.
+find dist/publish -maxdepth 1 -type f \( -name '*.sha256' -o -name '*.provenance.json' \) -delete
+
 if [ "$PUBLISH_CHANNEL" = staging ]; then
   scripts/publish-staging.sh
   exit 0

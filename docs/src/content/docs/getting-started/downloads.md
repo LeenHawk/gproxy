@@ -36,8 +36,8 @@ these targets:
 | `gproxy-linux-riscv64-musl` | riscv64gc-unknown-linux-musl | `.zip` | `.deb` |
 | `gproxy-macos-x86_64` | x86_64-apple-darwin | `.zip` | `.dmg` |
 | `gproxy-macos-aarch64` | aarch64-apple-darwin | `.zip` | `.dmg` |
-| `gproxy-windows-x86_64` | x86_64-pc-windows-msvc | `.zip` | `.msi` |
-| `gproxy-windows-aarch64` | aarch64-pc-windows-msvc | `.zip` | `.msi` |
+| `gproxy-windows-x86_64` | x86_64-pc-windows-msvc | `.zip` | MSIX (Store submission) |
+| `gproxy-windows-aarch64` | aarch64-pc-windows-msvc | `.zip` | MSIX (Store submission) |
 | `gproxy-android-x86_64` | x86_64-linux-android | `.zip` | `.apk` |
 | `gproxy-android-aarch64` | aarch64-linux-android | `.zip` | `.apk` |
 
@@ -50,11 +50,15 @@ link the C runtime statically.
 | --- | --- | --- |
 | `.deb` | Debian and Ubuntu families | Installs `/usr/bin/gproxy`, a desktop launcher, and an XDG autostart entry. |
 | `.dmg` | macOS 11 or later | A `GPROXY.app` bundle that runs the server in the background and opens the console. |
-| `.msi` | Windows | Per-user install under `%LOCALAPPDATA%\Programs\GPROXY` with Start menu and Startup shortcuts. |
+| `.msix` | Windows 10 version 2004 or later | Store-managed installation, Start menu launcher, private data, and Windows Startup task. Store publication is pending. |
 | `.apk` | Android 9 (API 28) or later | A signed app with a foreground service, a launcher screen, and in-app updates. |
 
 Behaviour, data locations, and log paths for each installer are on the
 [Installation](/getting-started/installation/) page.
+
+Windows MSI packaging has been replaced by Store submission MSIX packages.
+Unsigned MSIX files stay in Actions artifacts; they are not public Release
+downloads. Until Store certification is complete, use the Windows portable ZIP.
 
 ## Portable Archives
 
@@ -75,11 +79,10 @@ chmod +x ./gproxy
 docker pull ghcr.io/leenhawk/gproxy:<tag>
 ```
 
-`<tag>` is the Git tag of the release. The v3 workflow pushes only that
-versioned tag, for `linux/amd64` only; `latest` is not a v3 tag and there is
-no `-musl` variant. The same image is attached to the release as
-`gproxy-container-linux-amd64.tar.gz` for `docker load`. See
-[Container](/deployment/docker/) for volumes and environment.
+`<tag>` is the Git tag of the release. The workflow publishes GNU and `-musl`
+variants for `linux/amd64`, `linux/arm64`, and `linux/riscv64` to GHCR.
+Container images are not Release attachments. See
+[Container](/deployment/docker/) for offline transfer, volumes, and environment.
 
 ## Edge Bundles
 
@@ -95,16 +98,25 @@ Upload a bundle; do not ask the platform to compile Rust. See
 
 ## Checksums and Provenance
 
-Every asset has a `.sha256` sidecar in `sha256sum` format:
+New builds use GitHub's release asset `digest` (SHA-256) instead of separate
+`.sha256` attachments. Read the digest for the exact release you downloaded:
 
 ```bash
-sha256sum -c gproxy-linux-x86_64.zip.sha256
+gh api 'repos/LeenHawk/gproxy/releases/tags/v<VERSION>' \
+  --jq '.assets[] | select(.name == "gproxy-linux-x86_64.zip") | .digest'
+sha256sum gproxy-linux-x86_64.zip
 ```
 
-Every artifact also has a `<stem>.provenance.json` that records the version,
-commit, tag, target triple, builder (`cargo`, `cross`, `cargo-ndk`, `docker`,
-or `wasm-bindgen`), toolchain versions, and the base-image digests the build
-resolved.
+Compare the local hash with the value after `sha256:`. For build provenance,
+verify GitHub's signed artifact attestation:
+
+```bash
+gh attestation verify gproxy-linux-x86_64.zip -R LeenHawk/gproxy
+```
+
+Toolchain versions and resolved base-image digests are preserved in a separate
+custom attestation; see [Build Provenance](/deployment/release-build/#build-provenance).
+Older releases keep their existing checksum and provenance attachments.
 
 ## Signed Update Manifest
 

@@ -90,6 +90,7 @@ wasm-bindgen-futures = "0.4"
 wasm-streams = "0.6"
 web-sys = "0.3"
 web-time = "1"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_Packaging_Appx"] }
 wreq = { version = "0.16", features = ["stream", "ws", "gzip", "brotli", "zstd", "deflate", "socks"] }
 wreq-util = { version = "0.2", features = ["emulation"] }
 zip = { version = "8", default-features = false, features = ["deflate"] }

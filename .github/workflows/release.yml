@@ -81,6 +81,8 @@ jobs:
     permissions:
       contents: read
       actions: read
+      id-token: write
+      attestations: write
     defaults:
       run:
         shell: bash
@@ -112,12 +114,6 @@ jobs:
         uses: android-actions/setup-android@v4
       - if: ${{ matrix.builder == 'cargo-ndk' }}
         run: cargo install cargo-ndk --locked
-      - if: ${{ matrix.os == 'windows' }}
-        shell: pwsh
-        run: |
-          dotnet tool install --global wix --version 4.0.6
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Append
       - name: Build
         env:
           RUSTFLAGS: ${{ matrix.os == 'windows' && '-C target-feature=+crt-static' || '' }}
@@ -202,6 +198,17 @@ jobs:
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+      - name: Prepare Microsoft Store submission
+        if: ${{ matrix.os == 'windows' && needs.prepare.outputs.channel == 'releases' }}
+        uses: ./.github/actions/windows-store
+        with:
+          target: ${{ matrix.target }}
+          artifact: ${{ matrix.artifact }}
+          version: ${{ needs.prepare.outputs.version }}
+          identity-name: ${{ vars.MS_STORE_IDENTITY_NAME }}
+          display-name: ${{ vars.MS_STORE_DISPLAY_NAME }}
+          publisher: ${{ vars.MS_STORE_IDENTITY_PUBLISHER }}
+          publisher-display-name: ${{ vars.MS_STORE_PUBLISHER_DISPLAY_NAME }}
       - name: Record build provenance
         env:
           ARTIFACT_NAME: ${{ matrix.artifact }}
@@ -210,6 +217,10 @@ jobs:
           BUILDER: ${{ matrix.builder }}
           UPX_ENABLED: ${{ matrix.upx }}
         run: scripts/build-provenance.sh
+      - name: Attest release packages
+        uses: ./.github/actions/attest-release
+        with:
+          artifact: ${{ matrix.artifact }}
       - uses: actions/upload-artifact@v7
         with:
           name: native-${{ matrix.target }}
@@ -221,8 +232,6 @@ jobs:
             dist/release/${{ matrix.artifact }}.deb.sha256
             dist/release/${{ matrix.artifact }}.dmg
             dist/release/${{ matrix.artifact }}.dmg.sha256
-            dist/release/${{ matrix.artifact }}.msi
-            dist/release/${{ matrix.artifact }}.msi.sha256
             dist/release/${{ matrix.artifact }}.apk
             dist/release/${{ matrix.artifact }}.apk.sha256
           retention-days: 1
@@ -376,6 +385,10 @@ jobs:
     name: Edge bundles
     needs: [prepare, console]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
@@ -419,6 +432,10 @@ jobs:
           pnpm --dir deploy/netlify install --no-frozen-lockfile
           pnpm --dir deploy/netlify check
           deno check deploy/deno/main.ts
+      - name: Attest release packages
+        uses: ./.github/actions/attest-release
+        with:
+          artifact: gproxy-edge
       - uses: actions/upload-artifact@v7
         with:
           name: edge-bundles

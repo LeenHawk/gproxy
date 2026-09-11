@@ -207,17 +207,24 @@ docker buildx build \
 
 构建不需要预先编译控制台；第一阶段会编译它。
 `docker buildx build -f deploy/container/Dockerfile --target console-dist --output type=local,dest=dist/console .`
-只导出控制台 bundle，release workflow 正是用它为其他所有 job 构建一次控制台。
+只导出控制台 bundle。release workflow 使用 pnpm 构建控制台，打包容器镜像时复用
+原生 Linux 二进制。
 
-## 加载 Release 归档
+## 离线传输镜像
 
-每个 release 还会把推送的镜像发布为文件，供无法访问 registry 的主机使用：
+容器镜像发布到 GHCR，附带 BuildKit provenance 与 SBOM attestation。
+Release 附件提供原生与 edge 包；向无法访问 registry 的主机传输镜像时，先在可联网
+主机上保存镜像：
 
 ```sh
-sha256sum -c gproxy-container-linux-amd64.tar.gz.sha256
-docker load -i gproxy-container-linux-amd64.tar.gz
+docker pull ghcr.io/leenhawk/gproxy:v3.0.12
+docker save ghcr.io/leenhawk/gproxy:v3.0.12 -o gproxy-container.tar
 ```
 
-加载后的镜像保留原有 tag `ghcr.io/leenhawk/gproxy:<tag>`。旁边的
-`gproxy-container-linux-amd64.provenance.json` 记录了提交和基础镜像 digest；见
-[构建与发布](/zh-cn/deployment/release-build/)。
+将归档传输到目标主机，然后运行：
+
+```sh
+docker load -i gproxy-container.tar
+```
+
+将 `v3.0.12` 替换为要传输的版本 tag。

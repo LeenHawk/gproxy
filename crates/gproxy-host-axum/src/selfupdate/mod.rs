@@ -24,6 +24,7 @@ pub(crate) struct Manager {
     manifest_url: Option<String>,
     restart: Restart,
     channel: Option<String>,
+    store_managed: bool,
 }
 
 impl Manager {
@@ -38,6 +39,7 @@ impl Manager {
             manifest_url,
             restart: restart()?,
             channel: channel.map(str::to_owned),
+            store_managed: crate::installation_kind() == "microsoft-store",
         })
     }
 
@@ -120,6 +122,13 @@ impl Manager {
         selected_channel: Option<&str>,
         settings: &gproxy_admin::dto::RuntimeSettingsDto,
     ) -> Response<Bytes> {
+        if self.store_managed {
+            let error = Error::MicrosoftStore;
+            return json(
+                error.status(),
+                serde_json::json!({"error": {"message": error.to_string()}}),
+            );
+        }
         let (result, restart_after) = match (method, path) {
             (&Method::GET | &Method::HEAD, "/admin/api/native/update") => {
                 (self.check(selected_channel, settings).await.and_then(to_value), false)

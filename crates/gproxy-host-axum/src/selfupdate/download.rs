@@ -51,6 +51,31 @@ mod tests {
     use crate::selfupdate::Manager;
 
     #[tokio::test]
+    async fn store_installations_refuse_native_update_operations_before_egress() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut manager = Manager::new(directory.path().into(), None).unwrap();
+        manager.store_managed = true;
+        manager.manifest_url = Some("http://127.0.0.1:1/must-not-be-requested".into());
+        for (method, path) in [
+            (http::Method::GET, "/admin/api/native/update"),
+            (http::Method::HEAD, "/admin/api/native/update"),
+            (http::Method::POST, "/admin/api/native/update/apply"),
+            (http::Method::POST, "/admin/api/native/update/rollback"),
+        ] {
+            let response = manager
+                .dispatch(&method, path, None, &Default::default())
+                .await;
+            assert_eq!(response.status(), StatusCode::CONFLICT);
+            assert!(
+                std::str::from_utf8(response.body())
+                    .unwrap()
+                    .contains("Microsoft Store")
+            );
+        }
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 0);
+    }
+
+    #[tokio::test]
     async fn update_client_follows_release_redirects_without_skipping_verification() {
         let router = Router::new()
             .route(

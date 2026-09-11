@@ -83,7 +83,7 @@ fn build_info(head: bool) -> Response<Bytes> {
         "version": crate::BUILD_VERSION,
         "channel": crate::BUILD_CHANNEL,
         "buildHash": crate::BUILD_HASH,
-        "installationKind": crate::INSTALLATION_KIND,
+        "installationKind": crate::installation_kind(),
     });
     let body = format!("globalThis.__GPROXY_BUILD_INFO__ = {value};\n");
     let mut response = Response::new(if head {

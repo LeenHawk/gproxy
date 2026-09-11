@@ -22,6 +22,8 @@ mod signature;
 mod static_assets;
 #[cfg(not(target_arch = "wasm32"))]
 mod websocket;
+#[cfg(windows)]
+mod windows_package;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use server::{AxumServer, HostConfig, HostError};
@@ -51,12 +53,20 @@ pub const BUILD_HASH: &str = match option_env!("GPROXY_BUILD_HASH") {
     None => "unknown",
 };
 
+pub fn installation_kind() -> &'static str {
+    #[cfg(windows)]
+    if windows_package::is_packaged() {
+        return "microsoft-store";
+    }
+    INSTALLATION_KIND
+}
+
 pub fn version_line() -> String {
     format!(
         "{} (channel {}, build {}, installation {})",
         BUILD_VERSION,
         BUILD_CHANNEL,
         BUILD_HASH.get(..12).unwrap_or(BUILD_HASH),
-        INSTALLATION_KIND
+        installation_kind()
     )
 }

@@ -16,7 +16,7 @@ into the native binary, so a source build always starts with the console.
 | Node.js LTS and pnpm 9 | Console (`console/`) and docs (`docs/`) |
 | `wasm-bindgen-cli` matching `Cargo.lock`, or `wasm-pack` | Edge glue generation |
 | Docker with buildx | Container image |
-| `cross`, `cargo-ndk`, WiX 4, `dpkg-deb`, `hdiutil` | Release packaging only |
+| `cross`, `cargo-ndk`, Windows SDK MakeAppx, `dpkg-deb`, `hdiutil` | Release packaging only |
 
 ## Build the Console
 
@@ -101,10 +101,11 @@ type, run `cargo test`, and commit the result. Never edit them by hand.
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every push and pull request with three
-jobs: **Backend** (the four cargo gates above), **Console**
-(`pnpm install --frozen-lockfile`, lint, test, build, `i18n:check`), and
-**Docs** (`pnpm check`, `pnpm build` in `docs/`). Pushes to the default
+`.github/workflows/ci.yml` runs on every push and pull request with
+**Backend** (the four cargo gates above), **Console**
+(`pnpm install --frozen-lockfile`, lint, test, build, `i18n:check`),
+**Docs** (`pnpm check`, `pnpm build` in `docs/`), and **Windows packages**
+(x64 and ARM64 builds plus configured Store MSIX validation). Pushes to the default
 branch or `3.0` also run **Deploy docs**, which signs `notifications.json`
 with the update signing key (producing `notifications.json.sig`) and
 publishes the site to Cloudflare Pages. The native binary polls that feed
@@ -130,12 +131,11 @@ The tag push runs `.github/workflows/release.yml`. Jobs, in order:
 1. **Release metadata** — verifies the tag equals `v<workspace version>`,
    derives the channel, and loads the target matrix from
    `scripts/release-targets.json`.
-2. **Console and container image** — builds the console once through
-   `deploy/container/Dockerfile`'s `console-dist` stage, builds and pushes
-   `ghcr.io/leenhawk/gproxy:<tag>` (linux/amd64, with BuildKit provenance
-   and SBOM attestations), and saves the same image as
-   `gproxy-container-linux-amd64.tar.gz`. The console output is passed to
-   the later jobs as a workflow artifact.
+2. **Console bundle** — builds the console once with pnpm and passes it to
+   native and edge jobs as a workflow artifact. Container jobs package the
+   native Linux binaries into GNU and musl images for amd64, arm64 and riscv64,
+   with BuildKit provenance and SBOM attestations, then publish multi-platform
+   manifests to `ghcr.io/leenhawk/gproxy`.
 3. **Native `<target>`** — one job per matrix row. Each downloads the
    console into `crates/gproxy-host-axum/assets/web`, checks that the update
    public key decodes to 32 bytes, builds `--bin gproxy` with `cargo`,
@@ -152,7 +152,8 @@ The tag push runs `.github/workflows/release.yml`. Jobs, in order:
    `scripts/package-edge-release.sh`, and type-checks the three platform
    entries (`pnpm check`, `deno check`).
 6. **Publish release** — creates or updates the GitHub release `v<version>`
-   (`--prerelease` for `dev` builds) and uploads every file. For `dev`
+   (`--prerelease` for `dev` builds) and uploads packages plus `manifest.json`.
+   Checksum and build-record files remain internal to the workflow. For `dev`
    builds it also force-moves the `dev` tag to the commit and uploads
    `manifest.json` to the fixed prerelease named `dev`, unless a newer v3
    prerelease already exists.
@@ -169,19 +170,36 @@ The tag push runs `.github/workflows/release.yml`. Jobs, in order:
 | `gproxy-linux-riscv64-musl` | `riscv64gc-unknown-linux-musl` | cross | `.deb` |
 | `gproxy-macos-x86_64` | `x86_64-apple-darwin` | cargo | `.dmg` |
 | `gproxy-macos-aarch64` | `aarch64-apple-darwin` | cargo | `.dmg` |
-| `gproxy-windows-x86_64` | `x86_64-pc-windows-msvc` | cargo | `.msi` |
-| `gproxy-windows-aarch64` | `aarch64-pc-windows-msvc` | cargo | `.msi` |
+| `gproxy-windows-x86_64` | `x86_64-pc-windows-msvc` | cargo | MSIX (Store) |
+| `gproxy-windows-aarch64` | `aarch64-pc-windows-msvc` | cargo | MSIX (Store) |
 | `gproxy-android-x86_64` | `x86_64-linux-android` | cargo-ndk | `.apk` |
 | `gproxy-android-aarch64` | `aarch64-linux-android` | cargo-ndk | `.apk` |
 
-Every artifact has a `.zip` (binary, `README.md`, `LICENSE`), the installer
-listed, a `.sha256` beside each file, and a `.provenance.json`. Android zips
-contain the ELF as `gproxy.bin`, the NDK `libc++_shared.so`, and a `gproxy`
-launcher script; the APK wraps the same payload. The release also carries
-`manifest.json`, `gproxy-edge.wasm`,
-`gproxy-edge-{cloudflare,deno,netlify}.zip`, and
-`gproxy-container-linux-amd64.tar.gz`, each with a checksum. Exact names live
-in `scripts/release-targets.json` and the workflow.
+Every native target has a `.zip` (binary, `README.md`, `LICENSE`). Linux, macOS
+and Android also publish the installers listed above; Windows MSIX packages
+are retained separately for Store submission. Android zips contain the ELF as `gproxy.bin`, the NDK
+`libc++_shared.so`, and a `gproxy` launcher script; the APK wraps the same payload.
+The release also carries `manifest.json`, `gproxy-edge.wasm`, and
+`gproxy-edge-{cloudflare,deno,netlify}.zip`: 26 packages and one signed manifest
+with the current matrix. GitHub provides each attachment's SHA-256 digest;
+checksums and provenance are no longer separate release attachments.
+Exact names live in `scripts/release-targets.json` and the workflow.
+
+## Microsoft Store submissions
+
+Stable Windows jobs run `scripts/package-windows-msix.ps1` after portable ZIP
+signing. Configure the four public Partner Center identity values in Actions:
+`MS_STORE_IDENTITY_NAME`, `MS_STORE_DISPLAY_NAME`, `MS_STORE_IDENTITY_PUBLISHER`, and
+`MS_STORE_PUBLISHER_DISPLAY_NAME`. With no identity configured, the workflow
+explicitly skips Store packaging; a partial configuration fails.
+
+The script uses Windows SDK MakeAppx, the existing application icon and launcher,
+and version `<major>.<minor>.<patch>.0`. It produces x64 and ARM64 unsigned MSIX
+packages in `dist/store`, attests them, and retains them for 30 days in Actions
+artifacts named `microsoft-store-unsigned-gproxy-windows-*`. These are submission
+materials, not publicly installable Release assets. Partner Center must certify
+and re-sign the packages before Store distribution. Follow the repository's
+[Store onboarding guide](https://github.com/LeenHawk/gproxy/blob/main/.github/microsoft-store/README.md).
 
 ## Signing
 
@@ -207,13 +225,28 @@ The docs deploy additionally needs `CLOUDFLARE_API_TOKEN`,
 
 ## Build Provenance
 
-`scripts/build-provenance.sh` writes one `<artifact>.provenance.json` per
-artifact: `version`, `commit`, `tag`, `target`, `builder`, the `rustc`,
-`node`, and `pnpm` versions that ran, and, for every `FROM` line in
-`deploy/container/Dockerfile`, the image reference and the digest it resolved
-to at build time.
-Image tags float inside a pinned line; this record is what identifies a
-build later.
+After packaging and platform signing, native and edge jobs use
+`actions/attest` to publish standard SLSA build provenance to GitHub Artifact
+Attestations. The jobs need `id-token: write` and `attestations: write`.
+Attestations are associated with package digests, including staging packages
+whose filenames later receive a commit prefix.
+
+`scripts/build-provenance.sh` still records version, commit, tag, target,
+builder, toolchain versions, UPX usage, and resolved base-image digests.
+The same packages receive a custom attestation containing this JSON, with
+predicate type `https://gproxy.leenhawk.com/attestations/build-environment/v1`.
+Both proofs are stored by GitHub rather than uploaded as release attachments:
+
+```sh
+gh attestation verify gproxy-linux-x86_64.zip -R LeenHawk/gproxy
+gh attestation verify gproxy-linux-x86_64.zip -R LeenHawk/gproxy \
+  --predicate-type https://gproxy.leenhawk.com/attestations/build-environment/v1 \
+  --format json
+```
+
+Checksums remain internal inputs to `scripts/build-update-manifest.sh`.
+The updater continues to verify the Ed25519 signature and package hashes from
+`manifest.json`; it does not depend on the GitHub attestations API.
 
 ## Update Channels
 
