@@ -78,6 +78,9 @@ jobs:
     name: Native ${{ matrix.target }}
     needs: [prepare, console]
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      actions: read
     defaults:
       run:
         shell: bash
@@ -125,7 +128,13 @@ jobs:
           GPROXY_INSTALLATION_KIND: ${{ matrix.os == 'android' && 'android-apk' || 'standalone' }}
         run: |
           case "${{ matrix.builder }}" in
-            cargo) cargo build --locked --release --bin gproxy --target "${{ matrix.target }}" ;;
+            cargo)
+              if [ "${{ matrix.os }}" = windows ]; then
+                pwsh -NoProfile -File scripts/build-windows-release.ps1 -Target "${{ matrix.target }}"
+              else
+                cargo build --locked --release --bin gproxy --target "${{ matrix.target }}"
+              fi
+              ;;
             cross) cross build --locked --release --bin gproxy --target "${{ matrix.target }}" ;;
             cargo-ndk)
               target="${{ matrix.target }}"
@@ -176,13 +185,18 @@ jobs:
           ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
           ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
         run: scripts/package-native-release.sh
-      - name: Package Windows archive
+      - name: Package and sign Windows release
         if: ${{ matrix.os == 'windows' }}
-        shell: pwsh
-        env:
-          TARGET_TRIPLE: ${{ matrix.target }}
-          ARTIFACT_NAME: ${{ matrix.artifact }}
-        run: scripts/package-native-release.ps1
+        uses: ./.github/actions/windows-release
+        with:
+          target: ${{ matrix.target }}
+          artifact: ${{ matrix.artifact }}
+          version: ${{ needs.prepare.outputs.version }}
+          sign: ${{ vars.SIGNPATH_ENABLED == 'true' && github.ref_type == 'tag' }}
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
       - name: Record build provenance
         env:
           ARTIFACT_NAME: ${{ matrix.artifact }}

@@ -2,6 +2,7 @@
   <Package Name="GPROXY" Manufacturer="GPROXY" Version="__VERSION__"
            UpgradeCode="8DAB511D-4241-4CD8-8A61-F0D6F79185DC"
            Scope="perUser" InstallerVersion="500" Compressed="yes">
+    <SummaryInformation Description="GPROXY" Manufacturer="GPROXY" />
     <MajorUpgrade AllowSameVersionUpgrades="yes"
                   DowngradeErrorMessage="A newer version of GPROXY is already installed." />
     <MediaTemplate EmbedCab="yes" />

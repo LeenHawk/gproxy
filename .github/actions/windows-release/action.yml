@@ -1,0 +1,82 @@
+name: Windows release packages
+description: Package Windows binaries and optionally sign tagged releases with SignPath
+inputs:
+  target:
+    description: Rust target triple
+    required: true
+  artifact:
+    description: Release artifact basename
+    required: true
+  version:
+    description: Workspace release version
+    required: true
+  sign:
+    description: Require trusted production signatures
+    required: true
+  api-token:
+    description: SignPath API token
+    required: false
+  organization-id:
+    description: SignPath organization ID
+    required: false
+  project-slug:
+    description: SignPath project slug
+    required: false
+  signing-policy-slug:
+    description: SignPath production signing policy slug
+    required: false
+runs:
+  using: composite
+  steps:
+    - name: Validate signing configuration
+      if: ${{ inputs.sign == 'true' }}
+      shell: pwsh
+      env:
+        SIGNPATH_API_TOKEN: ${{ inputs.api-token }}
+        SIGNPATH_ORGANIZATION_ID: ${{ inputs.organization-id }}
+        SIGNPATH_PROJECT_SLUG: ${{ inputs.project-slug }}
+        SIGNPATH_SIGNING_POLICY_SLUG: ${{ inputs.signing-policy-slug }}
+      run: |
+        foreach ($name in @('SIGNPATH_API_TOKEN', 'SIGNPATH_ORGANIZATION_ID', 'SIGNPATH_PROJECT_SLUG', 'SIGNPATH_SIGNING_POLICY_SLUG')) {
+          if (-not [Environment]::GetEnvironmentVariable($name)) { throw "Missing $name" }
+        }
+    - name: Package Windows archive and MSI
+      shell: pwsh
+      env:
+        TARGET_TRIPLE: ${{ inputs.target }}
+        ARTIFACT_NAME: ${{ inputs.artifact }}
+      run: scripts/package-native-release.ps1
+    - name: Upload unsigned packages for SignPath
+      if: ${{ inputs.sign == 'true' }}
+      id: unsigned
+      uses: actions/upload-artifact@v7
+      with:
+        name: unsigned-${{ inputs.artifact }}
+        path: |
+          dist/release/${{ inputs.artifact }}.zip
+          dist/release/${{ inputs.artifact }}.msi
+        if-no-files-found: error
+        retention-days: 7
+    - name: Request and wait for SignPath approval
+      if: ${{ inputs.sign == 'true' }}
+      uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
+      with:
+        api-token: ${{ inputs.api-token }}
+        organization-id: ${{ inputs.organization-id }}
+        project-slug: ${{ inputs.project-slug }}
+        signing-policy-slug: ${{ inputs.signing-policy-slug }}
+        artifact-configuration-slug: windows-release
+        github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+        wait-for-completion: true
+        wait-for-completion-timeout-in-seconds: 3600
+        output-artifact-directory: ${{ runner.temp }}/signed-${{ inputs.artifact }}
+        parameters: |
+          artifact: ${{ toJSON(inputs.artifact) }}
+          version: ${{ toJSON(inputs.version) }}
+    - name: Verify signed packages and replace release checksums
+      if: ${{ inputs.sign == 'true' }}
+      shell: pwsh
+      env:
+        SIGNED_DIRECTORY: ${{ runner.temp }}/signed-${{ inputs.artifact }}
+        ARTIFACT_NAME: ${{ inputs.artifact }}
+      run: scripts/verify-windows-signatures.ps1 -Directory $env:SIGNED_DIRECTORY -Artifact $env:ARTIFACT_NAME
