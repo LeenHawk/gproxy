@@ -89,6 +89,14 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
             limit.percent,
             limit.resets_at.as_deref(),
         );
+        if kind == "weekly_scoped"
+            && let Some(model) = limit.scope.as_ref().and_then(|scope| scope.model.as_ref())
+        {
+            observed.scope = crate::shared::claude::quota_scope::model(
+                model.id.as_deref(),
+                model.display_name.as_deref(),
+            );
+        }
         observed.label = limit
             .scope
             .as_ref()
@@ -109,11 +117,7 @@ fn observation(
     QuotaObservation {
         unit: None,
         reset_behavior: gproxy_channel_api::QuotaResetBehavior::Periodic,
-        scope: if matches!(window_key.as_str(), "five_hour" | "seven_day") {
-            gproxy_channel_api::QuotaScope::All
-        } else {
-            gproxy_channel_api::QuotaScope::Unknown
-        },
+        scope: crate::shared::claude::quota_scope::window(&window_key),
         sample: None,
         window_key,
         label: None,

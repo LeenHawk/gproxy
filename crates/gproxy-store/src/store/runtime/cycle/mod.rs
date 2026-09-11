@@ -126,6 +126,13 @@ impl Store {
                 }
                 let expected = open.version;
                 let adjusted = state::adjusted(&open, &input);
+                if open.tracking.scope != input.scope {
+                    open.coverage = if input.scope == gproxy_core::QuotaScope::Unknown {
+                        QuotaCoverage::Unknown
+                    } else {
+                        QuotaCoverage::PartialLowerBound
+                    };
+                }
                 let mut tracking = if adjusted {
                     state::tracking(&input, open.tracking.local_boundary)
                 } else {

@@ -86,7 +86,10 @@ pub(super) fn parse_probe(status: http::StatusCode, body: &[u8]) -> Vec<QuotaObs
         observations.push(QuotaObservation {
             unit: None,
             reset_behavior: gproxy_channel_api::QuotaResetBehavior::Periodic,
-            scope: gproxy_channel_api::QuotaScope::Unknown,
+            scope: match &scope {
+                Scoped::Model { scope, .. } => scope.clone(),
+                Scoped::Surface { .. } => gproxy_channel_api::QuotaScope::Unknown,
+            },
             sample: None,
             window_key: scope.window_key(),
             label: None,
@@ -107,11 +110,7 @@ fn observation(window_key: String, duration: i64, window: &WebWindow) -> QuotaOb
     QuotaObservation {
         unit: None,
         reset_behavior: gproxy_channel_api::QuotaResetBehavior::Periodic,
-        scope: if matches!(window_key.as_str(), "five_hour" | "seven_day") {
-            gproxy_channel_api::QuotaScope::All
-        } else {
-            gproxy_channel_api::QuotaScope::Unknown
-        },
+        scope: crate::shared::claude::quota_scope::window(&window_key),
         sample: None,
         window_key,
         label: None,
@@ -162,8 +161,14 @@ struct WebLimitModel {
 }
 
 enum Scoped {
-    Model { key: String, label: String },
-    Surface { key: String },
+    Model {
+        key: String,
+        label: String,
+        scope: gproxy_channel_api::QuotaScope,
+    },
+    Surface {
+        key: String,
+    },
 }
 
 impl WebLimit {
@@ -174,6 +179,7 @@ impl WebLimit {
             let display = non_empty(model.display_name.as_deref());
             let selector = id.or(display)?;
             return Some(Scoped::Model {
+                scope: crate::shared::claude::quota_scope::model(id, display),
                 key: crate::shared::quota::slug(selector, "scoped"),
                 label: display.unwrap_or(selector).to_owned(),
             });
