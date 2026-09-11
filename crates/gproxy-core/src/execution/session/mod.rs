@@ -22,6 +22,10 @@ const UPSTREAM_DOMAIN: &[u8] = b"gproxy:upstream-session:v1";
 pub(super) struct SessionSubject([u8; 32]);
 
 impl SessionSubject {
+    pub(super) fn request(request_id: &str) -> Self {
+        Self(digest_subject(b"request", request_id.as_bytes()))
+    }
+
     pub(super) fn upstream_id(self, owner_user_id: Option<i64>) -> String {
         let mut hasher = Sha256::new();
         field(&mut hasher, UPSTREAM_DOMAIN);

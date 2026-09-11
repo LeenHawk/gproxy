@@ -207,6 +207,39 @@ fn opencode_session_survives_turns_retry_targets_and_ingress_filtering() -> Resu
         assert_eq!(headers["x-opencode-session"], fixed);
         assert!(!headers.contains_key("x-gproxy-session-id"));
     }
+    drop(state);
+
+    let mut continued = request("", "question", false);
+    let mut body: serde_json::Value = serde_json::from_slice(&continued.body).unwrap();
+    body["previous_response_id"] = json!("resp_prior");
+    continued.body = serde_json::to_vec(&body).unwrap().into();
+    assert_eq!(run(request("", "question", false)), run(continued));
+
+    let mut tools_only = request("", "", false);
+    tools_only.body = serde_json::to_vec(&json!({
+        "model":"alias", "previous_response_id":"resp_prior",
+        "input":[{"type":"function_call_output","call_id":"call_1","output":"result"}]
+    }))
+    .unwrap()
+    .into();
+    host.state.lock().expect("state lock").statuses =
+        [StatusCode::TOO_MANY_REQUESTS, StatusCode::OK].into();
+    let fallback = run(tools_only.clone());
+    assert!(!fallback.is_empty());
+    {
+        let state = host.state.lock().expect("state lock");
+        for (headers, _) in state.upstream_requests.iter().rev().take(2) {
+            assert_eq!(headers["x-opencode-session"], fallback);
+        }
+    }
+    tools_only.request_id = "another-request".into();
+    assert_ne!(fallback, run(tools_only.clone()));
+    tools_only
+        .headers
+        .insert("x-session-id", "tool-session".parse().unwrap());
+    let explicit = run(tools_only.clone());
+    tools_only.request_id = "yet-another-request".into();
+    assert_eq!(explicit, run(tools_only));
     Ok(())
 }
 

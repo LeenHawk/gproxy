@@ -176,7 +176,11 @@ pub(crate) async fn prepare<H: Host>(
         &traffic_policy,
         &target.provider.traffic_blacklist,
     );
-    let session_id = classified.session_id(admission.owner_user_id);
+    let session_id = classified.session_id(admission.owner_user_id).or_else(|| {
+        (channel.descriptor().id == "opencode"
+            && support.target.operation().spec().affinity == gproxy_protocol::Affinity::Session)
+            .then(|| Classified::request_session_id(&ctx.request_id, admission.owner_user_id))
+    });
     let context = PrepareCtx {
         key: support.target,
         session_id: session_id.as_deref(),

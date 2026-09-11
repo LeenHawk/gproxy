@@ -47,14 +47,6 @@ fn chat_segments(body: &Value) -> Option<Vec<Segment<'_>>> {
 }
 
 fn claude_segments(body: &Value) -> Option<Vec<Segment<'_>>> {
-    if non_null(body.get("container"))
-        || non_null(
-            body.get("diagnostics")
-                .and_then(|diagnostics| diagnostics.get("previous_message_id")),
-        )
-    {
-        return None;
-    }
     let mut segments = Vec::new();
     push_system(
         &mut segments,
@@ -62,22 +54,10 @@ fn claude_segments(body: &Value) -> Option<Vec<Segment<'_>>> {
         b"system",
         system_content(body.get("system"))?,
     );
-    let first = body.get("messages")?.as_array()?.first()?.as_object()?;
-    if first.get("role")?.as_str()? != "user" {
-        return None;
-    }
-    segments.push(Segment {
-        role: b"user",
-        source: b"messages",
-        content: user_content(first.get("content"))?,
-    });
-    Some(segments)
+    prefixed_message_array(body.get("messages")?.as_array()?, b"messages", segments)
 }
 
 fn gemini_segments(body: &Value) -> Option<Vec<Segment<'_>>> {
-    if non_null(body.get("cachedContent")) {
-        return None;
-    }
     let mut segments = Vec::new();
     match body.get("systemInstruction") {
         None | Some(Value::Null) => {}
@@ -89,8 +69,8 @@ fn gemini_segments(body: &Value) -> Option<Vec<Segment<'_>>> {
         ),
         Some(_) => return None,
     }
-    for content in body.get("contents")?.as_array()? {
-        let content = content.as_object()?;
+    for value in body.get("contents")?.as_array()? {
+        let content = value.as_object()?;
         match content.get("role") {
             Some(Value::String(role)) if role == "system" => push_system(
                 &mut segments,
@@ -114,16 +94,18 @@ fn gemini_segments(body: &Value) -> Option<Vec<Segment<'_>>> {
                 });
                 return Some(segments);
             }
-            _ => return None,
+            Some(Value::String(_)) => segments.push(Segment {
+                role: b"prefix",
+                source: b"contents",
+                content: value,
+            }),
+            Some(_) => return None,
         }
     }
     None
 }
 
 fn responses_segments(body: &Value) -> Option<Vec<Segment<'_>>> {
-    if non_null(body.get("previous_response_id")) || non_null(body.get("conversation")) {
-        return None;
-    }
     let mut segments = Vec::new();
     push_system(
         &mut segments,
@@ -155,21 +137,21 @@ fn prefixed_message_array<'a>(
     mut segments: Vec<Segment<'a>>,
 ) -> Option<Vec<Segment<'a>>> {
     for message in messages {
-        let message = message.as_object()?;
-        match message.get("role")?.as_str()? {
-            "system" => push_system(
+        message.as_object()?;
+        match message.get("role").and_then(Value::as_str) {
+            Some("system") => push_system(
                 &mut segments,
                 b"system",
                 source,
                 system_content(message.get("content"))?,
             ),
-            "developer" => push_system(
+            Some("developer") => push_system(
                 &mut segments,
                 b"developer",
                 source,
                 system_content(message.get("content"))?,
             ),
-            "user" => {
+            Some("user") => {
                 segments.push(Segment {
                     role: b"user",
                     source,
@@ -177,7 +159,11 @@ fn prefixed_message_array<'a>(
                 });
                 return Some(segments);
             }
-            _ => return None,
+            _ => segments.push(Segment {
+                role: b"prefix",
+                source,
+                content: message,
+            }),
         }
     }
     None
@@ -218,10 +204,6 @@ fn user_content(value: Option<&Value>) -> Option<&Value> {
         }
         _ => None,
     }
-}
-
-fn non_null(value: Option<&Value>) -> bool {
-    value.is_some_and(|value| !value.is_null())
 }
 
 struct CanonicalEncoder(Sha256);
@@ -330,28 +312,60 @@ mod tests {
             let kind = OperationKind::ContentGeneration(kind);
             assert_eq!(digest(kind, &head), digest(kind, &appended));
             assert!(digest(kind, &head).is_some());
+            let (field, prefix) = match kind {
+                OperationKind::ContentGeneration(GeminiGenerateContent) => (
+                    "contents",
+                    json!({"role":"model","parts":[{"text":"preface"}]}),
+                ),
+                OperationKind::ContentGeneration(OpenAiResponses) => (
+                    "input",
+                    json!({"type":"function_call_output","call_id":"call_1","output":"preface"}),
+                ),
+                _ => ("messages", json!({"role":"assistant","content":"preface"})),
+            };
+            let mut prefixed = head.clone();
+            prefixed[field]
+                .as_array_mut()
+                .unwrap()
+                .insert(0, prefix.clone());
+            let mut appended = appended;
+            appended[field].as_array_mut().unwrap().insert(0, prefix);
+            assert!(digest(kind, &prefixed).is_some());
+            assert_ne!(digest(kind, &head), digest(kind, &prefixed));
+            assert_eq!(digest(kind, &prefixed), digest(kind, &appended));
+            prefixed[field][0]["extra"] = json!("changed prefix");
+            assert_ne!(digest(kind, &prefixed), digest(kind, &appended));
         }
     }
 
     #[test]
-    fn native_server_state_refuses_a_guessed_fingerprint() {
-        assert!(
-            digest(
-                OperationKind::ContentGeneration(OpenAiResponses),
-                &json!({"previous_response_id":"resp_1","input":"next"}),
-            )
-            .is_none()
-        );
-        assert!(
-            digest(
-                OperationKind::ContentGeneration(ClaudeMessages),
-                &json!({
-                    "diagnostics":{"previous_message_id":"msg_1"},
-                    "messages":[{"role":"user","content":"next"}]
-                }),
-            )
-            .is_none()
-        );
+    fn native_server_state_keeps_available_conversation_prefix() {
+        for (kind, head, state) in [
+            (
+                OpenAiResponses,
+                json!({"input":"next"}),
+                json!({"previous_response_id":"resp_1","conversation":"conv_1"}),
+            ),
+            (
+                ClaudeMessages,
+                json!({"messages":[{"role":"user","content":"next"}]}),
+                json!({"container":"container_1","diagnostics":{"previous_message_id":"msg_1"}}),
+            ),
+            (
+                GeminiGenerateContent,
+                json!({"contents":[{"role":"user","parts":[{"text":"next"}]}]}),
+                json!({"cachedContent":"cached/1"}),
+            ),
+        ] {
+            let kind = OperationKind::ContentGeneration(kind);
+            let mut continued = head.clone();
+            continued
+                .as_object_mut()
+                .unwrap()
+                .extend(state.as_object().unwrap().clone());
+            assert!(digest(kind, &head).is_some());
+            assert_eq!(digest(kind, &head), digest(kind, &continued));
+        }
         assert!(
             digest(
                 OperationKind::ContentGeneration(GeminiGenerateContent),

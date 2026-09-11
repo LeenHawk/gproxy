@@ -246,7 +246,7 @@ fn session_header_covers_all_inference_formats_and_preserves_client_identity() {
             }
         }
     }
-    let missing = OpenCodeChannel.prepare(PrepareCtx {
+    let context = PrepareCtx {
         key: content(Operation::GenerateContent, Kind::OpenAiResponses),
         session_id: None,
         stream: false,
@@ -258,8 +258,10 @@ fn session_header_covers_all_inference_formats_and_preserves_client_identity() {
         upstream_model: "test",
         provider_settings: &json!({}),
         secret: &secret,
-    });
-    assert!(
-        matches!(missing, Err(gproxy_channel_api::ChannelError::Prepare(message)) if message.contains("x-opencode-session"))
-    );
+    };
+    let first = OpenCodeChannel.prepare(context).unwrap();
+    let second = OpenCodeChannel.prepare(context).unwrap();
+    let first = &first.request.headers()["x-opencode-session"];
+    assert_eq!(first.len(), 32);
+    assert_ne!(first, second.request.headers()["x-opencode-session"]);
 }
