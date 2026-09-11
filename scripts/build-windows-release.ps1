@@ -23,7 +23,7 @@ try {
         Set-Content -Encoding ascii $source
     & $compiler.FullName /nologo /fo $resource $source
     if ($LASTEXITCODE -ne 0) { throw "Windows resource compilation failed: $LASTEXITCODE" }
-    & cargo rustc --locked --release --bin gproxy --target $Target -- -C "link-arg=$resource"
+    & cargo rustc --locked --release -p gproxy-host-axum --bin gproxy --target $Target -- -C "link-arg=$resource"
     if ($LASTEXITCODE -ne 0) { throw "Windows release build failed: $LASTEXITCODE" }
 } finally {
     Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
