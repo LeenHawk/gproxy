@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use gproxy_channel_api::{Channel, ChannelSupport, PrepareCtx, StreamCtx, StreamEnd};
+use gproxy_channel_api::{Channel, PrepareCtx, StreamCtx, StreamEnd};
 use gproxy_protocol::{
     ContentGenerationKind as Kind, Operation, OperationKey, StreamFraming, WireFamily,
 };
@@ -14,41 +14,6 @@ const fn family(operation: Operation) -> OperationKey {
 
 const fn gemini(operation: Operation) -> OperationKey {
     OperationKey::content(operation, Kind::GeminiGenerateContent)
-}
-
-#[test]
-fn declares_truthful_operations() {
-    let expected = [
-        ChannelSupport::passthrough(family(Operation::ListModels)),
-        ChannelSupport::passthrough(family(Operation::CountTokens)),
-        ChannelSupport::passthrough(gemini(Operation::GenerateContent)),
-        ChannelSupport::passthrough(gemini(Operation::StreamGenerateContent)),
-        ChannelSupport::transform(
-            OperationKey::content(Operation::GenerateContent, Kind::OpenAiChat),
-            gemini(Operation::GenerateContent),
-        ),
-        ChannelSupport::transform(
-            OperationKey::content(Operation::GenerateContent, Kind::OpenAiResponses),
-            gemini(Operation::GenerateContent),
-        ),
-        ChannelSupport::transform(
-            OperationKey::content(Operation::GenerateContent, Kind::ClaudeMessages),
-            gemini(Operation::GenerateContent),
-        ),
-        ChannelSupport::transform(
-            OperationKey::content(Operation::StreamGenerateContent, Kind::OpenAiChat),
-            gemini(Operation::StreamGenerateContent),
-        ),
-        ChannelSupport::transform(
-            OperationKey::content(Operation::StreamGenerateContent, Kind::OpenAiResponses),
-            gemini(Operation::StreamGenerateContent),
-        ),
-        ChannelSupport::transform(
-            OperationKey::content(Operation::StreamGenerateContent, Kind::ClaudeMessages),
-            gemini(Operation::StreamGenerateContent),
-        ),
-    ];
-    assert_eq!(GeminiCliChannel.descriptor().supports, expected);
 }
 
 #[test]

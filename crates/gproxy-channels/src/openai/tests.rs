@@ -28,14 +28,7 @@ fn descriptor_and_disposition_are_explicit() {
         (descriptor.id, descriptor.display_name),
         ("openai", "OpenAI")
     );
-    assert_eq!(
-        descriptor
-            .supports
-            .iter()
-            .filter(|support| support.source == support.target)
-            .count(),
-        30
-    );
+    let supports = gproxy_channel_api::executable_routes(&OpenAiChannel).collect::<Vec<_>>();
     for key in [
         OperationKey::family(Operation::ListModels, WireFamily::OpenAi),
         OperationKey::family(Operation::ExtendVideo, WireFamily::OpenAi),
@@ -46,12 +39,7 @@ fn descriptor_and_disposition_are_explicit() {
             ContentGenerationKind::OpenAiResponsesWebSocket,
         ),
     ] {
-        assert!(
-            descriptor
-                .supports
-                .iter()
-                .any(|support| support.source == key)
-        );
+        assert!(supports.iter().any(|support| support.source == key));
     }
     for operation in [
         Operation::CountTokens,
@@ -60,12 +48,7 @@ fn descriptor_and_disposition_are_explicit() {
         Operation::CreateRealtimeCall,
     ] {
         let key = OperationKey::family(operation, WireFamily::OpenAi);
-        assert!(
-            !descriptor
-                .supports
-                .iter()
-                .any(|support| support.source == key)
-        );
+        assert!(!supports.iter().any(|support| support.source == key));
     }
 
     let headers = HeaderMap::new();

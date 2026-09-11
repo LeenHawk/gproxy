@@ -31,6 +31,11 @@ pub(super) static ROUTES: &[ChannelSupport] = &[
     route!(unsupported CreateEmbedding, openai),
     route!(unsupported CreateEmbedding, gemini),
     route!(xform CompactContent, openai => GenerateContent, openai_responses),
+    // Native compact is wired in `prepare` but is not the default: the
+    // transform keeps compaction on the same Responses call the rest of the
+    // channel uses. Second row for this source, so only a routing override
+    // reaches it.
+    route!(pass CompactContent, openai),
     route!(xform GenerateContent, openai_responses_websocket => StreamGenerateContent, openai_responses),
     route!(xform StreamGenerateContent, openai_responses_websocket => StreamGenerateContent, openai_responses),
 ];

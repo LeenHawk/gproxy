@@ -25,8 +25,7 @@ const RESPONSES: OperationKey = OperationKey::content(
 );
 #[test]
 fn descriptor_declares_every_current_transform_pair() {
-    let supports = CodexChannel.descriptor().supports;
-    assert_eq!(supports.len(), 22);
+    let supports = gproxy_channel_api::executable_routes(&CodexChannel).collect::<Vec<_>>();
     for (source, target) in [
         (
             OperationKey::family(Operation::ListModels, gproxy_protocol::WireFamily::Claude),

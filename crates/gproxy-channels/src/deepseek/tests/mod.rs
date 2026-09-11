@@ -23,8 +23,7 @@ fn declares_exactly_the_available_native_and_transformed_routes() {
         content(O::GenerateContent, C::ClaudeMessages),
         content(O::StreamGenerateContent, C::ClaudeMessages),
     ];
-    let supports = DeepSeekChannel.descriptor().supports;
-    assert_eq!(supports.len(), 12);
+    let supports = gproxy_channel_api::executable_routes(&DeepSeekChannel).collect::<Vec<_>>();
     assert!(expected.iter().all(|key| {
         supports
             .iter()

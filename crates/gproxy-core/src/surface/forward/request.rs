@@ -59,11 +59,7 @@ pub(crate) async fn request<H: Host>(
         &target.provider.traffic_blacklist,
     );
     if let Some(key) = request.key
-        && (!channel
-            .descriptor()
-            .supports
-            .iter()
-            .any(|support| support.target == key)
+        && (!gproxy_channel_api::executable_routes(channel).any(|support| support.target == key)
             || matches!(
                 key.operation().spec().settle,
                 SettleMode::OnCompletedStatus | SettleMode::OnSessionEnd

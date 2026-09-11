@@ -13,7 +13,7 @@ const MESSAGES: OperationKey = OperationKey::content(
 
 #[test]
 fn keeps_unsupported_embeddings_and_terminal_error_classification() {
-    let supports = ClaudeApiChannel.descriptor().supports;
+    let supports = gproxy_channel_api::executable_routes(&ClaudeApiChannel).collect::<Vec<_>>();
     assert!(!supports.iter().any(|support| {
         support.source == OperationKey::family(Operation::CreateEmbedding, WireFamily::OpenAi)
     }));

@@ -13,12 +13,7 @@ pub(crate) fn classify(response: ResponseView<'_>) -> Disposition {
     {
         return Disposition::Terminal;
     }
-    match response.status.as_u16() {
-        200..=299 => Disposition::Success,
-        401..=403 => Disposition::CredentialDead,
-        429 | 500..=599 => Disposition::Retryable,
-        _ => Disposition::Terminal,
-    }
+    crate::shared::disposition::unauthorized_or_forbidden(response)
 }
 
 #[cfg(test)]

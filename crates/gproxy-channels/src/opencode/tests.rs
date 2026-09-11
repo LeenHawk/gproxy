@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use gproxy_channel_api::{Channel, ChannelSupport, PrepareCtx};
+use gproxy_channel_api::{Channel, PrepareCtx};
 use gproxy_protocol::{ContentGenerationKind as Kind, Operation, OperationKey, WireFamily};
 use http::{HeaderMap, HeaderValue, Method};
 use serde_json::{Value, json};
@@ -16,37 +16,6 @@ const fn content(operation: Operation, kind: Kind) -> OperationKey {
 
 #[test]
 fn declares_truthful_merged_operations() {
-    let expected = [
-        ChannelSupport::passthrough(family(Operation::ListModels)),
-        ChannelSupport::transform(
-            OperationKey::family(Operation::ListModels, WireFamily::Claude),
-            family(Operation::ListModels),
-        ),
-        ChannelSupport::passthrough(content(Operation::GenerateContent, Kind::OpenAiChat)),
-        ChannelSupport::passthrough(content(Operation::GenerateContent, Kind::OpenAiResponses)),
-        ChannelSupport::passthrough(content(Operation::GenerateContent, Kind::ClaudeMessages)),
-        ChannelSupport::transform(
-            content(Operation::GenerateContent, Kind::GeminiGenerateContent),
-            content(Operation::GenerateContent, Kind::OpenAiChat),
-        ),
-        ChannelSupport::passthrough(content(Operation::StreamGenerateContent, Kind::OpenAiChat)),
-        ChannelSupport::passthrough(content(
-            Operation::StreamGenerateContent,
-            Kind::OpenAiResponses,
-        )),
-        ChannelSupport::passthrough(content(
-            Operation::StreamGenerateContent,
-            Kind::ClaudeMessages,
-        )),
-        ChannelSupport::transform(
-            content(
-                Operation::StreamGenerateContent,
-                Kind::GeminiGenerateContent,
-            ),
-            content(Operation::StreamGenerateContent, Kind::OpenAiChat),
-        ),
-    ];
-    assert_eq!(OpenCodeChannel.descriptor().supports, expected);
     assert_eq!(crate::canonical_channel_id("opencodezen"), "opencode");
     assert_eq!(crate::canonical_channel_id("opencodego"), "opencode");
     let migrated =

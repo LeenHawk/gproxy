@@ -16,105 +16,13 @@ use gproxy_channel_api::{
     ResourceMutation, ResponseShapeCtx, ResponseView, SimpleHttp, StreamCtx, StreamDecoder,
     UsageCtx,
 };
-use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 use serde_json::Value;
 
 pub struct GrokBuildChannel;
 
-const fn family(operation: Operation, family: WireFamily) -> OperationKey {
-    OperationKey::family(operation, family)
-}
-
-const fn content(operation: Operation, kind: ContentGenerationKind) -> OperationKey {
-    OperationKey::content(operation, kind)
-}
-
-const fn openai(operation: Operation) -> OperationKey {
-    family(operation, WireFamily::OpenAi)
-}
-
-static SUPPORTS: [ChannelSupport; 21] = [
-    ChannelSupport::passthrough(openai(Operation::ListModels)),
-    ChannelSupport::passthrough(openai(Operation::GetModel)),
-    ChannelSupport::passthrough(content(
-        Operation::GenerateContent,
-        ContentGenerationKind::OpenAiChat,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::GenerateContent,
-        ContentGenerationKind::OpenAiResponses,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::StreamGenerateContent,
-        ContentGenerationKind::OpenAiChat,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::StreamGenerateContent,
-        ContentGenerationKind::OpenAiResponses,
-    )),
-    ChannelSupport::passthrough(openai(Operation::CompactContent)),
-    ChannelSupport::passthrough(openai(Operation::CreateImage)),
-    ChannelSupport::passthrough(openai(Operation::EditImage)),
-    ChannelSupport::passthrough(openai(Operation::CreateSpeech)),
-    ChannelSupport::passthrough(openai(Operation::CreateTranscription)),
-    ChannelSupport::passthrough(openai(Operation::CreateVideo)),
-    ChannelSupport::passthrough(openai(Operation::RetrieveVideo)),
-    ChannelSupport::passthrough(openai(Operation::EditVideo)),
-    ChannelSupport::passthrough(openai(Operation::ExtendVideo)),
-    ChannelSupport::transform(
-        family(Operation::ListModels, WireFamily::Claude),
-        openai(Operation::ListModels),
-    ),
-    ChannelSupport::transform(
-        family(Operation::GetModel, WireFamily::Claude),
-        openai(Operation::GetModel),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::ClaudeMessages,
-        ),
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::GeminiGenerateContent,
-        ),
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::ClaudeMessages,
-        ),
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::GeminiGenerateContent,
-        ),
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-    ),
-];
-
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "grokbuild",
     display_name: "Grok Build",
-    supports: &SUPPORTS,
     provider_fields: crate::metadata::BASE_URL,
     credential_fields: crate::metadata::OAUTH,
     endpoint_overrides: true,
@@ -147,12 +55,7 @@ impl Channel for GrokBuildChannel {
         prepare::request(ctx)
     }
     fn classify(&self, response: ResponseView<'_>) -> Disposition {
-        match response.status.as_u16() {
-            200..=299 => Disposition::Success,
-            401..=403 => Disposition::CredentialDead,
-            429 | 500..=599 => Disposition::Retryable,
-            _ => Disposition::Terminal,
-        }
+        crate::shared::disposition::unauthorized_or_forbidden(response)
     }
     fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
         sse::decoder(ctx)

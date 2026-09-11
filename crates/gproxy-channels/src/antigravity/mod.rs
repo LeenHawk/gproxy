@@ -16,76 +16,13 @@ use gproxy_channel_api::{
     PreparedRequest, ResponseShapeCtx, ResponseView, SimpleHttp, StreamCtx, StreamDecoder,
     UsageCtx,
 };
-use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 use serde_json::Value;
 
 pub struct AntigravityChannel;
 
-const fn family(operation: Operation) -> OperationKey {
-    OperationKey::family(operation, WireFamily::Gemini)
-}
-
-const fn content(operation: Operation, kind: ContentGenerationKind) -> OperationKey {
-    OperationKey::content(operation, kind)
-}
-
-const fn gemini(operation: Operation) -> OperationKey {
-    content(operation, ContentGenerationKind::GeminiGenerateContent)
-}
-
-static SUPPORTS: [ChannelSupport; 10] = [
-    ChannelSupport::passthrough(family(Operation::ListModels)),
-    ChannelSupport::passthrough(family(Operation::CountTokens)),
-    ChannelSupport::passthrough(gemini(Operation::GenerateContent)),
-    ChannelSupport::passthrough(gemini(Operation::StreamGenerateContent)),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::OpenAiChat,
-        ),
-        gemini(Operation::GenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-        gemini(Operation::GenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::ClaudeMessages,
-        ),
-        gemini(Operation::GenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiChat,
-        ),
-        gemini(Operation::StreamGenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-        gemini(Operation::StreamGenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::ClaudeMessages,
-        ),
-        gemini(Operation::StreamGenerateContent),
-    ),
-];
-
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "antigravity",
     display_name: "Antigravity",
-    supports: &SUPPORTS,
     provider_fields: crate::metadata::VERTEX,
     credential_fields: crate::metadata::GOOGLE_OAUTH,
     endpoint_overrides: true,
@@ -130,12 +67,7 @@ impl Channel for AntigravityChannel {
     }
 
     fn classify(&self, response: ResponseView<'_>) -> Disposition {
-        match response.status.as_u16() {
-            200..=299 => Disposition::Success,
-            401..=403 => Disposition::CredentialDead,
-            429 | 500..=599 => Disposition::Retryable,
-            _ => Disposition::Terminal,
-        }
+        crate::shared::disposition::unauthorized_or_forbidden(response)
     }
 
     fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {

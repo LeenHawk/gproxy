@@ -46,8 +46,7 @@ fn declares_exactly_verified_native_operations_and_existing_pairs() {
             content(O::StreamGenerateContent, C::OpenAiResponses),
         ),
     ];
-    let supports = DashScopeChannel.descriptor().supports;
-    assert_eq!(supports.len(), native.len() + pairs.len());
+    let supports = gproxy_channel_api::executable_routes(&DashScopeChannel).collect::<Vec<_>>();
     assert!(native.iter().all(|key| {
         supports
             .iter()

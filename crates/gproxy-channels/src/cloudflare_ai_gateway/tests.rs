@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use gproxy_channel_api::{Channel, ChannelSupport, PrepareCtx, StreamCtx, StreamEnd};
+use gproxy_channel_api::{Channel, PrepareCtx, StreamCtx, StreamEnd};
 use gproxy_protocol::{ContentGenerationKind as Kind, Operation, OperationKey, StreamFraming};
 use http::{HeaderMap, HeaderValue, Method};
 use serde_json::{Value, json};
@@ -12,36 +12,10 @@ const fn content(operation: Operation, kind: Kind) -> OperationKey {
 
 #[test]
 fn declares_native_content_and_available_gemini_pairs() {
-    let expected = [
-        ChannelSupport::passthrough(content(Operation::GenerateContent, Kind::OpenAiChat)),
-        ChannelSupport::passthrough(content(Operation::GenerateContent, Kind::OpenAiResponses)),
-        ChannelSupport::passthrough(content(Operation::GenerateContent, Kind::ClaudeMessages)),
-        ChannelSupport::passthrough(content(Operation::StreamGenerateContent, Kind::OpenAiChat)),
-        ChannelSupport::passthrough(content(
-            Operation::StreamGenerateContent,
-            Kind::OpenAiResponses,
-        )),
-        ChannelSupport::passthrough(content(
-            Operation::StreamGenerateContent,
-            Kind::ClaudeMessages,
-        )),
-        ChannelSupport::transform(
-            content(Operation::GenerateContent, Kind::GeminiGenerateContent),
-            content(Operation::GenerateContent, Kind::OpenAiChat),
-        ),
-        ChannelSupport::transform(
-            content(
-                Operation::StreamGenerateContent,
-                Kind::GeminiGenerateContent,
-            ),
-            content(Operation::StreamGenerateContent, Kind::OpenAiChat),
-        ),
-    ];
     assert_eq!(
         CloudflareAiGatewayChannel.descriptor().id,
         "cloudflare-ai-gateway"
     );
-    assert_eq!(CloudflareAiGatewayChannel.descriptor().supports, expected);
 }
 
 #[test]

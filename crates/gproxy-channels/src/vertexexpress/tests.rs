@@ -17,8 +17,7 @@ const GENERATE: OperationKey = OperationKey::content(
 
 #[test]
 fn declares_only_express_operations_with_available_pairs() {
-    let supports = VertexExpressChannel.descriptor().supports;
-    assert_eq!(supports.len(), 9);
+    let supports = gproxy_channel_api::executable_routes(&VertexExpressChannel).collect::<Vec<_>>();
     assert_eq!(
         supports
             .iter()

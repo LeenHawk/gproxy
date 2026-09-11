@@ -8,7 +8,7 @@ pub(super) fn request(
     ctx: &PrepareCtx<'_>,
     headers: &mut HeaderMap,
 ) -> Result<Bytes, ChannelError> {
-    let mut object = super::super::multipart::object(ctx.headers, ctx.body)?;
+    let mut object = crate::shared::image_multipart::object(ctx.headers, ctx.body)?;
     crate::shared::image_multipart::json_fields(
         &mut object,
         &["n", "output_compression", "partial_images", "stream"],

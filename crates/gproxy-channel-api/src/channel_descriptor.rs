@@ -73,14 +73,14 @@ impl ChannelSupport {
     }
 }
 
-/// Identity and capability card. `supports` lists executable channel paths;
-/// [`crate::Channel::routing_table`] separately declares provider defaults.
+/// Identity and capability card. Routes are not here: they are declared once
+/// in [`crate::Channel::routing_table`] and read through
+/// [`crate::executable_routes`].
 #[derive(Debug)]
 pub struct ChannelDescriptor {
     /// Stable id: `"openai"`, `"claudecode"`, `"codex"`.
     pub id: &'static str,
     pub display_name: &'static str,
-    pub supports: &'static [ChannelSupport],
     pub provider_fields: &'static [ChannelField],
     pub credential_fields: &'static [ChannelField],
     pub endpoint_overrides: bool,

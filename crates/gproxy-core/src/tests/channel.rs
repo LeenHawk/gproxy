@@ -40,7 +40,7 @@ const CLAUDE_MESSAGES: OperationKey = OperationKey::content(
     Operation::GenerateContent,
     ContentGenerationKind::ClaudeMessages,
 );
-static SUPPORTS: [ChannelSupport; 11] = [
+static ROUTES: [ChannelSupport; 11] = [
     ChannelSupport::passthrough(KEY),
     ChannelSupport::passthrough(STREAM_KEY),
     ChannelSupport::passthrough(CREATE_FILE),
@@ -56,7 +56,6 @@ static SUPPORTS: [ChannelSupport; 11] = [
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "memory",
     display_name: "Memory",
-    supports: &SUPPORTS,
     provider_fields: &[],
     credential_fields: &[],
     endpoint_overrides: false,
@@ -70,11 +69,9 @@ static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 pub(super) struct ForeignSurface;
 pub(super) struct NeedsContinuation;
 
-static FOREIGN_SUPPORTS: [ChannelSupport; 0] = [];
 static FOREIGN_DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "foreign",
     display_name: "Foreign",
-    supports: &FOREIGN_SUPPORTS,
     provider_fields: &[],
     credential_fields: &[],
     endpoint_overrides: false,
@@ -83,7 +80,6 @@ static FOREIGN_DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
 static CONTINUATION_DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "continuation-test",
     display_name: "Continuation Test",
-    supports: &[],
     provider_fields: &[],
     credential_fields: &[],
     endpoint_overrides: false,
@@ -158,7 +154,7 @@ impl Channel for ForeignSurface {
 
 impl Channel for MemoryHost {
     fn routing_table(&self) -> &'static [ChannelSupport] {
-        &SUPPORTS
+        &ROUTES
     }
 
     fn descriptor(&self) -> &'static ChannelDescriptor {

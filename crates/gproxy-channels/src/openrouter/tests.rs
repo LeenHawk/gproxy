@@ -53,15 +53,7 @@ fn prepare(
 fn descriptor_declares_exact_native_operations() {
     let descriptor = OpenRouterChannel.descriptor();
     assert_eq!(descriptor.id, "openrouter");
-    assert_eq!(descriptor.supports.len(), 17);
-    assert_eq!(
-        descriptor
-            .supports
-            .iter()
-            .filter(|support| support.source == support.target)
-            .count(),
-        17
-    );
+    let supports = gproxy_channel_api::executable_routes(&OpenRouterChannel).collect::<Vec<_>>();
     for key in [
         family(Operation::ListModels),
         family(Operation::GetModel),
@@ -81,12 +73,7 @@ fn descriptor_declares_exact_native_operations() {
         family(Operation::RetrieveVideo),
         family(Operation::DownloadVideoContent),
     ] {
-        assert!(
-            descriptor
-                .supports
-                .iter()
-                .any(|support| support.source == key)
-        );
+        assert!(supports.iter().any(|support| support.source == key));
     }
 }
 

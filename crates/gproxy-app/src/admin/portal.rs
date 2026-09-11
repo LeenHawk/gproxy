@@ -11,11 +11,11 @@ pub(super) fn models(handle: &AppHandle, identity: &PortalIdentity) -> Vec<Porta
     let control = &handle.inner.host.services.control;
     let snapshot = control.current();
     let caller = caller(identity);
-    let descriptors = handle
+    let channels = handle
         .inner
         .core
-        .channel_descriptors()
-        .map(|descriptor| (descriptor.id, descriptor))
+        .channels()
+        .map(|channel| (channel.descriptor().id, channel))
         .collect::<BTreeMap<_, _>>();
     let mut names = control
         .exposed_models()
@@ -54,8 +54,8 @@ pub(super) fn models(handle: &AppHandle, identity: &PortalIdentity) -> Vec<Porta
             let permission_model = control.authorization_model(Some(model), &mode);
             let mut capabilities = BTreeMap::new();
             for target in &plan.targets {
-                let descriptor = descriptors.get(target.provider.channel.as_str())?;
-                for support in descriptor.supports {
+                let channel = channels.get(target.provider.channel.as_str())?;
+                for support in gproxy_channel_api::executable_routes(*channel) {
                     if crate::host::provider_permitted(
                         &snapshot,
                         &caller,

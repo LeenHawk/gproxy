@@ -15,13 +15,9 @@ use gproxy_channel_api::{
     PreparedRequest, ResourceCtx, ResourceMutation, ResponseShapeCtx, ResponseView, StreamCtx,
     StreamDecoder, UsageCtx,
 };
-use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
+use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey};
 
 pub struct AwsBedrockChannel;
-
-const fn family(operation: Operation, family: WireFamily) -> OperationKey {
-    OperationKey::family(operation, family)
-}
 
 const fn content(operation: Operation, kind: ContentGenerationKind) -> OperationKey {
     OperationKey::content(operation, kind)
@@ -31,78 +27,9 @@ const fn claude(operation: Operation) -> OperationKey {
     content(operation, ContentGenerationKind::ClaudeMessages)
 }
 
-static SUPPORTS: [ChannelSupport; 17] = [
-    ChannelSupport::passthrough(family(Operation::ListModels, WireFamily::OpenAi)),
-    ChannelSupport::passthrough(family(Operation::GetModel, WireFamily::OpenAi)),
-    ChannelSupport::transform(
-        family(Operation::ListModels, WireFamily::Claude),
-        family(Operation::ListModels, WireFamily::OpenAi),
-    ),
-    ChannelSupport::transform(
-        family(Operation::GetModel, WireFamily::Claude),
-        family(Operation::GetModel, WireFamily::OpenAi),
-    ),
-    ChannelSupport::passthrough(family(Operation::CountTokens, WireFamily::Claude)),
-    ChannelSupport::transform(
-        family(Operation::CountTokens, WireFamily::OpenAi),
-        family(Operation::CountTokens, WireFamily::Claude),
-    ),
-    ChannelSupport::passthrough(claude(Operation::GenerateContent)),
-    ChannelSupport::passthrough(claude(Operation::StreamGenerateContent)),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::OpenAiChat,
-        ),
-        claude(Operation::GenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiChat,
-        ),
-        claude(Operation::StreamGenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-        claude(Operation::GenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-        claude(Operation::StreamGenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::GeminiGenerateContent,
-        ),
-        claude(Operation::GenerateContent),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::GeminiGenerateContent,
-        ),
-        claude(Operation::StreamGenerateContent),
-    ),
-    ChannelSupport::transform(
-        family(Operation::CompactContent, WireFamily::OpenAi),
-        claude(Operation::GenerateContent),
-    ),
-    ChannelSupport::passthrough(family(Operation::CreateVideo, WireFamily::OpenAi)),
-    ChannelSupport::passthrough(family(Operation::RetrieveVideo, WireFamily::OpenAi)),
-];
-
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "aws-bedrock",
     display_name: "AWS Bedrock",
-    supports: &SUPPORTS,
     provider_fields: crate::metadata::BEDROCK,
     credential_fields: crate::metadata::AWS,
     endpoint_overrides: true,
@@ -195,12 +122,7 @@ impl Channel for AwsBedrockChannel {
     }
 
     fn classify(&self, response: ResponseView<'_>) -> Disposition {
-        match response.status.as_u16() {
-            200..=299 => Disposition::Success,
-            401 => Disposition::CredentialDead,
-            429 | 500..=599 => Disposition::Retryable,
-            _ => Disposition::Terminal,
-        }
+        crate::shared::disposition::unauthorized_only(response)
     }
 
     fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {

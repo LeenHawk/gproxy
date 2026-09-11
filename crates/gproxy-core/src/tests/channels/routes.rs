@@ -59,8 +59,7 @@ fn copilot_compact_transforms_both_directions_and_settles_chat_usage() {
     );
 }
 
-#[test]
-fn every_builtin_default_has_an_executable_target_and_transform() {
+fn builtin_channels() -> Vec<&'static dyn Channel> {
     let mut channels = vec![
         &gproxy_channels::OpenAiChannel as &dyn Channel,
         &gproxy_channels::AntigravityChannel,
@@ -91,7 +90,12 @@ fn every_builtin_default_has_an_executable_target_and_transform() {
     ];
     #[cfg(not(target_arch = "wasm32"))]
     channels.push(&gproxy_channels::ClaudeWebChannel);
-    for channel in channels {
+    channels
+}
+
+#[test]
+fn every_builtin_default_has_an_executable_target_and_transform() {
+    for channel in builtin_channels() {
         for route in channel.routing_table() {
             if matches!(
                 route.action,
@@ -105,19 +109,12 @@ fn every_builtin_default_has_an_executable_target_and_transform() {
                     route
                 );
             }
-        }
-        for support in channel
-            .descriptor()
-            .supports
-            .iter()
-            .chain(channel.routing_table())
-        {
-            if support.action == gproxy_channel_api::ChannelRouteAction::TransformTo {
+            if route.action == gproxy_channel_api::ChannelRouteAction::TransformTo {
                 assert!(
-                    gproxy_transform::can_transform(support.source, support.target),
+                    gproxy_transform::can_transform(route.source, route.target),
                     "{} declares an unwired transform: {:?}",
                     channel.descriptor().id,
-                    support
+                    route
                 );
             }
         }

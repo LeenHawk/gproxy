@@ -94,7 +94,7 @@ impl<H: Host> Core<H> {
     pub fn new(host: H, channels: ChannelRegistry) -> Result<Self, InitError> {
         if let Some(channel) = channels.iter().find(|channel| {
             channel.session_preparer().is_none()
-                && channel.descriptor().supports.iter().any(|support| {
+                && gproxy_channel_api::executable_routes(*channel).any(|support| {
                     support.target.operation().spec().settle
                         == gproxy_protocol::SettleMode::OnSessionEnd
                         && support.target.operation() != gproxy_protocol::Operation::ConnectRealtime
@@ -130,7 +130,7 @@ impl<H: Host> Core<H> {
         }
         if host.bindings().is_none()
             && let Some(channel) = channels.iter().find(|channel| {
-                channel.descriptor().supports.iter().any(|support| {
+                gproxy_channel_api::executable_routes(*channel).any(|support| {
                     matches!(
                         support.source.operation().spec().affinity,
                         gproxy_protocol::Affinity::Resource(_)

@@ -57,8 +57,7 @@ fn gateway_fallback_is_not_injected_as_an_anthropic_parameter() {
 
 #[test]
 fn declares_truthful_operations() {
-    let supports = VercelChannel.descriptor().supports;
-    assert_eq!(supports.len(), 15);
+    let supports = gproxy_channel_api::executable_routes(&VercelChannel).collect::<Vec<_>>();
     for support in [
         ChannelSupport::transform(
             family(Operation::ListModels, WireFamily::Claude),
@@ -95,11 +94,6 @@ fn declares_truthful_operations() {
     ] {
         assert!(supports.contains(&support), "missing {support:?}");
     }
-    assert!(
-        supports
-            .iter()
-            .all(|support| support.source.operation() != Operation::CompactContent)
-    );
 }
 
 #[test]

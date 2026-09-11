@@ -30,6 +30,7 @@ pub(super) static ROUTES: &[ChannelSupport] = &[
     route!(unsupported CreateEmbedding, openai),
     route!(unsupported CreateEmbedding, gemini),
     route!(pass CompactContent, openai),
+    route!(pass SummarizeMemory, openai),
     route!(pass CreateRealtimeCall, openai),
     route!(pass ConnectRealtime, openai),
 ];

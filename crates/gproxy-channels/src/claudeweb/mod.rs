@@ -28,81 +28,9 @@ const fn content(operation: Operation, kind: ContentGenerationKind) -> Operation
     OperationKey::content(operation, kind)
 }
 
-static SUPPORTS: [ChannelSupport; 8] = [
-    ChannelSupport::passthrough(content(
-        Operation::GenerateContent,
-        ContentGenerationKind::ClaudeMessages,
-    )),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::OpenAiChat,
-        ),
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::ClaudeMessages,
-        ),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::ClaudeMessages,
-        ),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::GeminiGenerateContent,
-        ),
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::ClaudeMessages,
-        ),
-    ),
-    ChannelSupport::passthrough(content(
-        Operation::StreamGenerateContent,
-        ContentGenerationKind::ClaudeMessages,
-    )),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiChat,
-        ),
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::ClaudeMessages,
-        ),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiResponses,
-        ),
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::ClaudeMessages,
-        ),
-    ),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::GeminiGenerateContent,
-        ),
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::ClaudeMessages,
-        ),
-    ),
-];
-
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "claudeweb",
     display_name: "Claude Web",
-    supports: &SUPPORTS,
     provider_fields: crate::metadata::BASE_URL,
     credential_fields: crate::metadata::CLAUDE_WEB,
     endpoint_overrides: true,
@@ -148,12 +76,7 @@ impl Channel for ClaudeWebChannel {
     }
 
     fn classify(&self, response: ResponseView<'_>) -> Disposition {
-        match response.status.as_u16() {
-            200..=299 => Disposition::Success,
-            401..=403 => Disposition::CredentialDead,
-            429 | 500..=599 => Disposition::Retryable,
-            _ => Disposition::Terminal,
-        }
+        crate::shared::disposition::unauthorized_or_forbidden(response)
     }
 
     fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {

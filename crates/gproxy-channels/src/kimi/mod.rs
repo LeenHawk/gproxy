@@ -6,8 +6,8 @@ mod login;
 mod model;
 mod prepare;
 mod quota;
+mod select;
 mod sse;
-mod supports;
 mod usage;
 
 use gproxy_channel_api::{
@@ -23,7 +23,6 @@ pub struct KimiChannel;
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "kimi",
     display_name: "Kimi",
-    supports: &supports::SUPPORTS,
     provider_fields: crate::metadata::KIMI,
     credential_fields: crate::metadata::KIMI_CREDENTIAL,
     endpoint_overrides: true,
@@ -106,24 +105,7 @@ impl Channel for KimiChannel {
     }
 
     fn select_support(&self, source: OperationKey, secret: &Value) -> Option<ChannelSupport> {
-        let selected = supports::select(source, auth::mode(secret));
-        if supports::SUPPORTS
-            .iter()
-            .any(|support| support.source == source)
-        {
-            return selected;
-        }
-        routes::ROUTES
-            .iter()
-            .find(|support| {
-                support.source == source
-                    && matches!(
-                        support.action,
-                        gproxy_channel_api::ChannelRouteAction::Passthrough
-                            | gproxy_channel_api::ChannelRouteAction::TransformTo
-                    )
-            })
-            .copied()
+        select::support(source, auth::mode(secret))
     }
 
     fn prepare(
@@ -134,12 +116,7 @@ impl Channel for KimiChannel {
     }
 
     fn classify(&self, response: ResponseView<'_>) -> Disposition {
-        match response.status.as_u16() {
-            200..=299 => Disposition::Success,
-            401 => Disposition::CredentialDead,
-            429 | 500..=599 => Disposition::Retryable,
-            _ => Disposition::Terminal,
-        }
+        crate::shared::disposition::unauthorized_only(response)
     }
 
     fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {

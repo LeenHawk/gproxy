@@ -13,75 +13,13 @@ use gproxy_channel_api::{
     LoginDescriptor, LoginMode, NormalizedUsage, PrepareCtx, PreparedRequest, ResponseView,
     SimpleHttp, StreamCtx, StreamDecoder, UsageCtx,
 };
-use gproxy_protocol::{ContentGenerationKind, Operation, OperationKey, WireFamily};
 use serde_json::Value;
 
 pub struct OpenCodeChannel;
 
-const fn family(operation: Operation) -> OperationKey {
-    OperationKey::family(operation, WireFamily::OpenAi)
-}
-
-const fn content(operation: Operation, kind: ContentGenerationKind) -> OperationKey {
-    OperationKey::content(operation, kind)
-}
-
-static SUPPORTS: [ChannelSupport; 10] = [
-    ChannelSupport::passthrough(family(Operation::ListModels)),
-    ChannelSupport::transform(
-        OperationKey::family(Operation::ListModels, WireFamily::Claude),
-        family(Operation::ListModels),
-    ),
-    ChannelSupport::passthrough(content(
-        Operation::GenerateContent,
-        ContentGenerationKind::OpenAiChat,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::GenerateContent,
-        ContentGenerationKind::OpenAiResponses,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::GenerateContent,
-        ContentGenerationKind::ClaudeMessages,
-    )),
-    ChannelSupport::transform(
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::GeminiGenerateContent,
-        ),
-        content(
-            Operation::GenerateContent,
-            ContentGenerationKind::OpenAiChat,
-        ),
-    ),
-    ChannelSupport::passthrough(content(
-        Operation::StreamGenerateContent,
-        ContentGenerationKind::OpenAiChat,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::StreamGenerateContent,
-        ContentGenerationKind::OpenAiResponses,
-    )),
-    ChannelSupport::passthrough(content(
-        Operation::StreamGenerateContent,
-        ContentGenerationKind::ClaudeMessages,
-    )),
-    ChannelSupport::transform(
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::GeminiGenerateContent,
-        ),
-        content(
-            Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiChat,
-        ),
-    ),
-];
-
 static DESCRIPTOR: ChannelDescriptor = ChannelDescriptor {
     id: "opencode",
     display_name: "OpenCode",
-    supports: &SUPPORTS,
     provider_fields: crate::metadata::OPENCODE,
     credential_fields: crate::metadata::API_KEY_OR_OAUTH,
     endpoint_overrides: true,
@@ -173,12 +111,7 @@ impl Channel for OpenCodeChannel {
     }
 
     fn classify(&self, response: ResponseView<'_>) -> Disposition {
-        match response.status.as_u16() {
-            200..=299 => Disposition::Success,
-            401..=403 => Disposition::CredentialDead,
-            429 | 500..=599 => Disposition::Retryable,
-            _ => Disposition::Terminal,
-        }
+        crate::shared::disposition::unauthorized_or_forbidden(response)
     }
 
     fn stream_decoder(&self, ctx: StreamCtx<'_>) -> Option<Box<dyn StreamDecoder>> {
