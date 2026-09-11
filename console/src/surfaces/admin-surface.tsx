@@ -21,6 +21,7 @@ const RulesPage = lazy(() => import("@/pages/rules").then((module) => ({ default
 const TokenizersPage = lazy(() => import("@/pages/tokenizers").then((module) => ({ default: module.TokenizersPage })))
 const UpdatePage = lazy(() => import("@/pages/update").then((module) => ({ default: module.UpdatePage })))
 const SettingsPage = lazy(() => import("@/pages/settings").then((module) => ({ default: module.SettingsPage })))
+const AboutPage = lazy(() => import("@/pages/about").then((module) => ({ default: module.AboutPage })))
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, retry: 1 } } })
 
@@ -61,6 +62,7 @@ function ConsoleApp() {
     tokenizers: <TokenizersPage />,
     update: <UpdatePage />,
     settings: <SettingsPage />,
+    about: <AboutPage />,
   }[route]
   return (
     <AppShell route={route} username={state.user.username} onLogout={() => signOut.mutate()}>

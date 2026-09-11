@@ -153,7 +153,8 @@
     "settings": "Settings",
     "open": "Open navigation",
     "close": "Close navigation",
-    "resize": "Resize navigation"
+    "resize": "Resize navigation",
+    "about": "About"
   },
   "window": {
     "resets": "Resets {{value}}",
@@ -183,5 +184,25 @@
       "usage_decreased": "Upstream usage reset"
     },
     "usageUnknown": "Upstream usage is unavailable for this period."
+  },
+  "about": {
+    "title": "About GPROXY",
+    "subtitle": "One endpoint for your LLM providers, accounts and applications.",
+    "description": "GPROXY is an open-source, self-hosted LLM API gateway built with Rust. Connect your applications to multiple providers through one API endpoint.",
+    "version": "Version {{version}}",
+    "features": {
+      "protocols": "Use OpenAI Chat Completions, Responses, Claude Messages and Gemini APIs, with streaming and direct format conversion.",
+      "accounts": "Pool upstream credentials with token refresh, load balancing and failover.",
+      "control": "Manage access, quotas, usage and costs through the admin console and user portal."
+    },
+    "openSource": "Maintained by Leen Hawk and the community. The gateway is licensed under AGPL-3.0-or-later; see the repository for individual component licenses.",
+    "source": "Source code",
+    "feedback": "Report an issue",
+    "sponsor": {
+      "title": "Support GPROXY",
+      "description": "Help keep GPROXY moving forward through GitHub Sponsors.",
+      "thanks": "Your support helps sustain maintenance, provider compatibility and new features. Thank you for using and supporting GPROXY.",
+      "action": "Sponsor LeenHawk"
+    }
   }
 }
