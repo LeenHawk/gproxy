@@ -7,6 +7,9 @@ Every release is published on the GitHub Releases page under a `v3.x.y` tag:
 
 <https://github.com/LeenHawk/gproxy/releases>
 
+[Code signing policy](/deployment/code-signing/): the SignPath Foundation
+application is awaiting review. Existing downloads are not retroactively signed.
+
 :::note[Stable and prerelease links]
 `releases/latest` and every `releases/latest/download/...` URL resolve to
 the newest stable v3 release. Prereleases are excluded from that link: open

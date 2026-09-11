@@ -7,6 +7,9 @@ description: "GPROXY 的发布产物：原生安装包、便携压缩包、容�
 
 <https://github.com/LeenHawk/gproxy/releases>
 
+[Code signing policy（代码签名政策）](/zh-cn/deployment/code-signing/)：
+SignPath Foundation 申请正在等待审核，已有下载不会自动补签。
+
 :::note[稳定版与预发布版链接]
 `releases/latest` 以及所有 `releases/latest/download/...` URL 都解析到最新的 v3
 稳定版。该链接不包含预发布版本；如需预发布版本，请打开 Release 列表自行选择。

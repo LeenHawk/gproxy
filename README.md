@@ -255,6 +255,12 @@ Report bugs through [Issues](https://github.com/LeenHawk/gproxy/issues);
 report vulnerabilities privately through
 [Security](https://github.com/LeenHawk/gproxy/security).
 
+## Code signing policy
+
+Our SignPath Foundation application is awaiting review; Windows production
+signing is not enabled yet. See the [Code signing policy](https://gproxy.leenhawk.com/deployment/code-signing/)
+for signing scope, team roles, privacy information, and verification instructions.
+
 ## License
 
 The gateway application is **AGPL-3.0-or-later**; see [LICENSE](LICENSE).
