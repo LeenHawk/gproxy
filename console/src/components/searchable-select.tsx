@@ -38,7 +38,7 @@ export function SearchableSelect({
   const [open, setOpen] = useState(false)
   const selected = options.find((option) => option.value === value)
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover modal open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           type="button"
