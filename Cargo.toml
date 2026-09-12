@@ -1,20 +1,6 @@
 [workspace]
 resolver = "3"
-members = [
-    "crates/gproxy-admin",
-    "crates/gproxy-app",
-    "crates/gproxy-channel-api",
-    "crates/gproxy-channels",
-    "crates/gproxy-core",
-    "crates/gproxy-host-axum",
-    "crates/gproxy-host-edge",
-    "crates/gproxy-protocol",
-    "crates/gproxy-protocol-macros",
-    "crates/gproxy-store",
-    "crates/gproxy-tokenize",
-    "crates/gproxy-transform",
-    "crates/gproxy-upstream",
-]
+members = []
 
 [workspace.package]
 version = "3.0.13"
