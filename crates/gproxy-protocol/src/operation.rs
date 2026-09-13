@@ -51,10 +51,12 @@ pub enum Operation {
     RetrieveFile,
     RetrieveFileContent,
     DeleteFile,
-    // video — the async-job core, in OpenRouter's dialect. Sora-only
-    // operations (remix, edit, extend, characters) are deliberately absent:
-    // no other vendor offers them and the standard dialect cannot express
-    // them. Add them back only when a second vendor does.
+    // video — the async-job core. Keyed `Family(OpenAi)`; the request body is
+    // OpenAI's plus documented extensions, because OpenAI's own five fields
+    // cap what the models can be asked for (three fixed durations, four fixed
+    // sizes, one reference asset, no seed). Sora-only operations — remix,
+    // edit, extend, characters — are deliberately absent: no other vendor
+    // offers them. Add them back only when a second vendor does.
     CreateVideo,
     RetrieveVideo,
     ListVideos,
