@@ -10,3 +10,5 @@ pub mod conversation;
 pub mod memory;
 pub mod web_search;
 pub mod guardian;
+pub mod audio;
+pub mod images;
