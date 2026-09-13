@@ -6,9 +6,19 @@ version = 4
 name = "gproxy-protocol"
 version = "4.0.0-dev"
 dependencies = [
+ "gproxy-protocol-macros",
  "serde",
  "serde_json",
  "strum",
+]
+
+[[package]]
+name = "gproxy-protocol-macros"
+version = "4.0.0-dev"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.5",
 ]
 
 [[package]]

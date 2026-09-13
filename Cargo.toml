@@ -2,6 +2,7 @@
 resolver = "3"
 members = [
     "crates/gproxy-protocol",
+    "crates/gproxy-protocol-macros",
 ]
 
 [workspace.package]
@@ -25,7 +26,7 @@ gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "=3.0.13" }
 gproxy-channels = { path = "crates/gproxy-channels", version = "=3.0.13" }
 gproxy-core = { path = "crates/gproxy-core", version = "=3.0.13" }
 gproxy-protocol = { path = "crates/gproxy-protocol", version = "=4.0.0-dev", features = ["exhaustive"] }
-gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=3.0.13" }
+gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=4.0.0-dev" }
 gproxy-store = { path = "crates/gproxy-store", version = "=3.0.13" }
 gproxy-tokenize = { path = "crates/gproxy-tokenize", version = "=3.0.13" }
 gproxy-transform = { path = "crates/gproxy-transform", version = "=3.0.13", features = ["exhaustive"] }
