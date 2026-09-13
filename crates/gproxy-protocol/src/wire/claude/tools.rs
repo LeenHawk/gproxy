@@ -43,6 +43,80 @@ pub struct JsonSchema {
     pub properties: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub required: Option<Vec<String>>,
+    #[serde(
+        rename = "additionalProperties",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub additional_properties: Option<Value>,
+    #[serde(rename = "$defs", skip_serializing_if = "Option::is_none")]
+    pub defs: Option<Value>,
+    #[serde(rename = "definitions", skip_serializing_if = "Option::is_none")]
+    pub definitions: Option<Value>,
+    #[serde(rename = "$schema", skip_serializing_if = "Option::is_none")]
+    pub schema_uri: Option<String>,
+    #[serde(rename = "$id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(rename = "$ref", skip_serializing_if = "Option::is_none")]
+    pub reference: Option<String>,
+    #[serde(rename = "$anchor", skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<String>,
+    #[serde(rename = "$dynamicRef", skip_serializing_if = "Option::is_none")]
+    pub dynamic_reference: Option<String>,
+    #[serde(rename = "$dynamicAnchor", skip_serializing_if = "Option::is_none")]
+    pub dynamic_anchor: Option<String>,
+    #[serde(rename = "$comment", skip_serializing_if = "Option::is_none")]
+    pub comment: Option<String>,
+    #[serde(rename = "title", skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(rename = "description", skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(rename = "default", skip_serializing_if = "Option::is_none")]
+    pub default_value: Option<Value>,
+    #[serde(rename = "examples", skip_serializing_if = "Option::is_none")]
+    pub examples: Option<Vec<Value>>,
+    #[serde(rename = "enum", skip_serializing_if = "Option::is_none")]
+    pub enum_values: Option<Vec<Value>>,
+    #[serde(rename = "const", skip_serializing_if = "Option::is_none")]
+    pub const_value: Option<Value>,
+    #[serde(rename = "allOf", skip_serializing_if = "Option::is_none")]
+    pub all_of: Option<Vec<Value>>,
+    #[serde(rename = "anyOf", skip_serializing_if = "Option::is_none")]
+    pub any_of: Option<Vec<Value>>,
+    #[serde(rename = "oneOf", skip_serializing_if = "Option::is_none")]
+    pub one_of: Option<Vec<Value>>,
+    #[serde(rename = "not", skip_serializing_if = "Option::is_none")]
+    pub not: Option<Value>,
+    #[serde(rename = "if", skip_serializing_if = "Option::is_none")]
+    pub if_schema: Option<Value>,
+    #[serde(rename = "then", skip_serializing_if = "Option::is_none")]
+    pub then_schema: Option<Value>,
+    #[serde(rename = "else", skip_serializing_if = "Option::is_none")]
+    pub else_schema: Option<Value>,
+    #[serde(rename = "patternProperties", skip_serializing_if = "Option::is_none")]
+    pub pattern_properties: Option<Value>,
+    #[serde(rename = "propertyNames", skip_serializing_if = "Option::is_none")]
+    pub property_names: Option<Value>,
+    #[serde(rename = "dependentRequired", skip_serializing_if = "Option::is_none")]
+    pub dependent_required: Option<Value>,
+    #[serde(rename = "dependentSchemas", skip_serializing_if = "Option::is_none")]
+    pub dependent_schemas: Option<Value>,
+    #[serde(rename = "dependencies", skip_serializing_if = "Option::is_none")]
+    pub dependencies: Option<Value>,
+    #[serde(
+        rename = "unevaluatedProperties",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub unevaluated_properties: Option<Value>,
+    #[serde(rename = "minProperties", skip_serializing_if = "Option::is_none")]
+    pub min_properties: Option<u64>,
+    #[serde(rename = "maxProperties", skip_serializing_if = "Option::is_none")]
+    pub max_properties: Option<u64>,
+    #[serde(rename = "readOnly", skip_serializing_if = "Option::is_none")]
+    pub read_only: Option<bool>,
+    #[serde(rename = "writeOnly", skip_serializing_if = "Option::is_none")]
+    pub write_only: Option<bool>,
+    #[serde(rename = "deprecated", skip_serializing_if = "Option::is_none")]
+    pub deprecated: Option<bool>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -79,6 +153,7 @@ pub enum AllowedCaller {
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+#[allow(clippy::large_enum_variant)]
 pub enum ToolUnion {
     Custom(Tool),
     Mcp(McpToolset),
