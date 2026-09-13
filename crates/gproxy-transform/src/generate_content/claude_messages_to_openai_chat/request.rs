@@ -262,6 +262,22 @@ fn tool_result(
                             rest: Default::default(),
                         })),
                     )),
+                    // Chat has no tool-reference block. Keep the discovered tool name
+                    // as text; its callable schema is already present in `tools`.
+                    claude::ToolResultContentBlock::ToolReference(block) => Some(
+                        serde_json::to_string(&block)
+                            .map(|text| {
+                                openai::ChatTextContentPart::Text(crate::wire!(
+                                    openai::ChatTextPart {
+                                        type_: openai::ChatTextPartType::Text,
+                                        text,
+                                        prompt_cache_breakpoint: None,
+                                        rest: Default::default(),
+                                    }
+                                ))
+                            })
+                            .map_err(TransformError::from),
+                    ),
                     claude::ToolResultContentBlock::Raw(_) => None,
                     _ => Some(Err(TransformError::unsupported(
                         "Claude tool result",
