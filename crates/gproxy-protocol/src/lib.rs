@@ -26,6 +26,7 @@
 
 extern crate self as gproxy_protocol;
 
+pub mod adapt;
 pub mod capability;
 pub mod codec;
 pub mod connection;
