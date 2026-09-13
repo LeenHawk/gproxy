@@ -11,6 +11,7 @@ mod error;
 pub mod files;
 pub mod generate;
 pub mod identity;
+pub mod images;
 pub mod memory;
 pub mod models;
 
