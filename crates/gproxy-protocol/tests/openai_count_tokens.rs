@@ -125,7 +125,7 @@ fn implemented_extended_response_input_items_round_trip() {
         {"type":"shell_call","call_id":"s1","action":{"commands":["echo hi"]}},
         {"type":"shell_call_output","call_id":"s1","output":[{"stdout":"","stderr":"","outcome":{"type":"exit","exit_code":0}}],"status":"completed"},
         {"type":"apply_patch_call","call_id":"p1","status":"completed","operation":{"type":"create_file","path":"a","diff":"*** Begin Patch"}},
-        {"type":"apply_patch_call_output","call_id":"p1","status":"completed"},
+        {"type":"apply_patch_call_output","call_id":"p1","status":"completed","output":"ok"},
         {"type":"mcp_approval_request","id":"a1","arguments":"{}","name":"read","server_label":"docs"},
         {"type":"mcp_approval_response","approval_request_id":"a1","approve":true},
         {"type":"mcp_call","id":"m1","arguments":"{}","name":"read","server_label":"docs"},
@@ -143,7 +143,7 @@ fn implemented_tool_envelopes_round_trip() {
     let tools = serde_json::json!([
         {"type":"function","name":"f","parameters":{"type":"object"},"strict":true,"output_schema":{"type":"string"},"defer_loading":true},
         {"type":"file_search","vector_store_ids":["vs"],"ranking_options":{"score_threshold":0.5,"ranker":"auto"}},
-        {"type":"web_search_preview","user_location":{"type":"approximate","city":"Shanghai"}},
+        {"type":"web_search_preview","search_context_size":"medium","search_content_types":["text"],"user_location":{"type":"approximate","city":"Shanghai"}},
         {"type":"computer_use_preview","display_width":100,"display_height":80,"environment":"linux"},
         {"type":"code_interpreter","container":"auto"},
         {"type":"custom","name":"paint","format":{"type":"grammar","definition":"[a-z]+","syntax":"regex"}},
