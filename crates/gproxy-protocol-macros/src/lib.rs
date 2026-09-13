@@ -4,6 +4,23 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, parse_macro_input};
 
+mod declared_fields;
+
+/// Rebuilds the same wire type using declared fields, recursively dropping
+/// extension bags without reading, cloning, or serializing them. Mark a bag
+/// with `#[declared(extension)]`; `#[serde(flatten)] rest` is also recognized.
+/// Formal JSON fields are preserved. This derive does not change serde behavior.
+/// An alternate protocol crate path can be supplied with `#[declared(crate = "path")]`.
+/// `#[declared(bound = "T: path::DeclaredFields")]` replaces inferred formal-field
+/// bounds, for example for mutually recursive generic types. Existing where
+/// clauses and extension-field Default bounds are retained.
+#[proc_macro_derive(DeclaredFields, attributes(declared))]
+pub fn declared_fields(input: TokenStream) -> TokenStream {
+    declared_fields::expand(parse_macro_input!(input as DeriveInput))
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
 /// Generates `Type::builder(required_fields...)` and a `TypeBuilder`.
 ///
 /// Required fields are supplied in declaration order. `Option<T>` fields start

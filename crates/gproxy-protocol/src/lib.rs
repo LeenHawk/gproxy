@@ -24,6 +24,8 @@
 //! Everything here derives from `upstream_docs/`, which is the source of truth
 //! for field names, semantics and examples.
 
+extern crate self as gproxy_protocol;
+
 pub mod capability;
 pub mod codec;
 pub mod connection;
