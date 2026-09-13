@@ -4,6 +4,7 @@ pub mod generate_content;
 pub mod generation;
 pub mod models;
 pub mod stream;
+pub mod video;
 
 pub use content::*;
 pub use count_tokens::*;
