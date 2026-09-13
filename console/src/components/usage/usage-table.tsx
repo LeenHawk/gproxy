@@ -8,6 +8,7 @@ import type { UserDto } from "@/generated/UserDto"
 import type { UserKeyDto } from "@/generated/UserKeyDto"
 import { DataTable, type DataTableColumn } from "@/components/data-table"
 import type { PageSize } from "@/components/data-table-pagination"
+import { UsageDeleteActions } from "@/components/usage/usage-delete-actions"
 import { UsageRecordDetail } from "@/components/usage/usage-record-detail"
 import { formatCost, formatCount, formatInstant, formatTokensPerSecond } from "@/lib/format"
 
@@ -51,6 +52,8 @@ export function UsageTable({ page, providers, credentials, users, keys, pending,
   return <div aria-busy={pending}>
     <DataTable columns={columns} rows={page.items} rowKey={(row) => row.id} searchText={(row) => row.request_id}
       renderCard={(row) => <div className="grid gap-2 text-xs"><div className="flex justify-between gap-3"><span className="break-all font-mono">{row.model}</span><strong className="tabular-nums">{formatCost(row.cost, i18n.language)}</strong></div><p>{t("usage.record.time")}: {formatInstant(row.at, i18n.language)} · {name("providers", row.provider_id)}</p><p className="break-all font-mono">{row.request_id}</p><p>{t("usage.inputTokens")}: {row.input_tokens} · {t("usage.outputTokens")}: {row.output_tokens}</p><p>{t("usage.record.latency")}: {row.latency_ms} ms · <span title={t("usage.record.tpsHint")}>{t("usage.record.tps")}: {formatTokensPerSecond(row.output_tokens, row.latency_ms, i18n.language)}</span></p><p>{t(`usage.record.${row.usage_source}`)} · {t(`usage.record.${row.ended}`)}</p></div>}
+      selectable
+      batchActions={(rows, onApplied) => <UsageDeleteActions rows={rows} disabled={pending} onApplied={() => { onApplied(); setSelected(null); onPage(1) }} />}
       onRowClick={setSelected} empty={t("usage.empty")} storageKey="usage-records"
       pagination={{ page: page.page, pageSize: page.page_size as PageSize, total: page.total, onPage: (next) => { if (!pending) onPage(next) }, onPageSize }} />
     <UsageRecordDetail record={selected} onClose={() => setSelected(null)} providers={providers} />

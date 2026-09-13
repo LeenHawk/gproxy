@@ -108,6 +108,7 @@ async fn delete(
     id: i64,
 ) -> Result<Response<Bytes>, AdminError> {
     match entity {
+        Entity::Usage => observability::records::delete(state, id).await,
         Entity::Providers
         | Entity::Credentials
         | Entity::Routes
@@ -131,6 +132,7 @@ async fn delete(
 
 async fn list(state: &impl State, entity: Entity) -> Result<Response<Bytes>, AdminError> {
     match entity {
+        Entity::Usage => Err(AdminError::NotFound),
         Entity::Providers
         | Entity::Credentials
         | Entity::Routes
@@ -158,6 +160,7 @@ async fn create(
     body: &Bytes,
 ) -> Result<Response<Bytes>, AdminError> {
     match entity {
+        Entity::Usage => Err(AdminError::NotFound),
         Entity::Providers
         | Entity::Credentials
         | Entity::Routes
@@ -186,6 +189,7 @@ async fn update(
     body: &Bytes,
 ) -> Result<Response<Bytes>, AdminError> {
     match entity {
+        Entity::Usage => Err(AdminError::NotFound),
         Entity::Providers
         | Entity::Credentials
         | Entity::Routes

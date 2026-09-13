@@ -212,6 +212,10 @@
       "estimated": "Estimated",
       "complete": "Complete",
       "interrupted": "Interrupted"
+    },
+    "delete": {
+      "title": "Delete {{count}} usage records?",
+      "description": "This permanently removes the selected usage details and updates detail-based statistics. Settled charges, quotas, and historical hourly totals are retained."
     }
   },
   "overview": {

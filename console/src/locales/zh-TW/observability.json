@@ -212,6 +212,10 @@
       "estimated": "本機估算",
       "complete": "完成",
       "interrupted": "中斷"
+    },
+    "delete": {
+      "title": "刪除 {{count}} 筆用量紀錄？",
+      "description": "所選用量明細將永久刪除，基於明細的統計會更新。已結算費用、配額和歷史小時彙總會保留。"
     }
   },
   "overview": {

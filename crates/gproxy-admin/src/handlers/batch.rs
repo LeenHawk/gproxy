@@ -114,7 +114,11 @@ async fn toggle_body(
                 .map_err(|error| AdminError::Internal(error.to_string()))?
         }
         Entity::ProviderRuleSets => find(&snapshot.provider_rule_sets, id)?,
-        Entity::Credentials | Entity::Permissions | Entity::RateLimits | Entity::PriceRates => {
+        Entity::Usage
+        | Entity::Credentials
+        | Entity::Permissions
+        | Entity::RateLimits
+        | Entity::PriceRates => {
             return Err(AdminError::NotFound);
         }
     };
@@ -145,7 +149,7 @@ fn supports(entity: Entity, action: BatchActionDto) -> bool {
         BatchActionDto::Delete => true,
         BatchActionDto::Enable | BatchActionDto::Disable => !matches!(
             entity,
-            Entity::Permissions | Entity::RateLimits | Entity::PriceRates
+            Entity::Usage | Entity::Permissions | Entity::RateLimits | Entity::PriceRates
         ),
     }
 }
