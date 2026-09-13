@@ -5,7 +5,7 @@ use crate::{
 fn text(value: String) -> c::ContentBlock {
     c::ContentBlock::Text(c::TextBlock::builder(c::TextBlockType::Tag, value).build())
 }
-pub(super) fn to_claude(
+pub(crate) fn to_claude(
     input: Option<r::Input>,
     mut context: super::ClaudeRequestContext,
     report: &mut Report,

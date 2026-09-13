@@ -1,6 +1,6 @@
 //! Direct Claude Messages ↔ OpenAI Responses buffered conversion.
 
-mod request;
+pub(crate) mod request;
 mod response;
 
 pub use request::{

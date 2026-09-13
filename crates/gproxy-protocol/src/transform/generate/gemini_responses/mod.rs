@@ -1,13 +1,13 @@
 //! Direct Gemini GenerateContent ↔ OpenAI Responses buffered conversion.
 mod config;
-mod content;
-mod history;
-mod identity;
+pub(crate) mod content;
+pub(crate) mod history;
+pub(crate) mod identity;
 mod logs;
 mod media;
 mod request;
 mod response;
-mod tools;
+pub(crate) mod tools;
 mod usage;
 pub use identity::{GeminiReplayContext, RestoredGeminiPart};
 pub use request::{gemini_to_responses_request, responses_to_gemini_request};

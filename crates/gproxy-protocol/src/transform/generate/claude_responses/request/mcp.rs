@@ -4,7 +4,7 @@ use crate::{
 };
 /// Claude's MCP URL connector executes server calls directly and has no
 /// approval-request/result wire turn; preserve that contract explicitly.
-pub(super) fn to_responses(
+pub(crate) fn to_responses(
     input: c::McpServerUrlDefinition,
 ) -> Result<Option<r::Tool>, TransformError> {
     if input.name.is_empty() || input.url.is_empty() {
@@ -27,7 +27,7 @@ pub(super) fn to_responses(
     out.require_approval = Some(Some(r::McpApproval::Setting(r::McpApprovalSetting::Never)));
     Ok(Some(r::Tool::Mcp(out)))
 }
-pub(super) fn to_claude(
+pub(crate) fn to_claude(
     input: r::McpTool,
     report: &mut Report,
 ) -> Result<c::McpServerUrlDefinition, TransformError> {

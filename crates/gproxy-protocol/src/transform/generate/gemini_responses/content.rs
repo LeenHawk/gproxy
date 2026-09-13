@@ -5,7 +5,7 @@ use crate::{
     },
     wire::{gemini as g, openai::responses::input as r},
 };
-pub(super) fn validate(part: &g::Part) -> Result<(), TransformError> {
+pub(crate) fn validate(part: &g::Part) -> Result<(), TransformError> {
     if part.executable_code.is_some()
         || part.code_execution_result.is_some()
         || part.tool_call.is_some()
@@ -21,7 +21,7 @@ pub(super) fn validate(part: &g::Part) -> Result<(), TransformError> {
     }
     Ok(())
 }
-pub(super) fn to_responses(
+pub(crate) fn to_responses(
     input: Vec<g::Content>,
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,

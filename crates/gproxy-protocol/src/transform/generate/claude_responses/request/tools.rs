@@ -5,7 +5,7 @@ use crate::{
         openai::responses::{input as i, tools as r},
     },
 };
-pub(super) fn to_responses(
+pub(crate) fn to_responses(
     input: Vec<c::ToolUnion>,
     report: &mut Report,
 ) -> Result<Vec<r::Tool>, TransformError> {
@@ -45,7 +45,7 @@ pub(super) fn to_responses(
         })
         .collect()
 }
-pub(super) fn to_claude(input: Vec<r::Tool>) -> Result<Vec<c::ToolUnion>, TransformError> {
+pub(crate) fn to_claude(input: Vec<r::Tool>) -> Result<Vec<c::ToolUnion>, TransformError> {
     input
         .into_iter()
         .map(|tool| {
@@ -77,7 +77,7 @@ pub(super) fn to_claude(input: Vec<r::Tool>) -> Result<Vec<c::ToolUnion>, Transf
         })
         .collect()
 }
-pub(super) fn choice_to_responses(choice: cc::ToolChoice) -> (i::ToolChoice, Option<bool>) {
+pub(crate) fn choice_to_responses(choice: cc::ToolChoice) -> (i::ToolChoice, Option<bool>) {
     match choice {
         cc::ToolChoice::Auto(v) => (
             i::ToolChoice::Mode(i::ToolChoiceMode::Auto),
@@ -100,7 +100,7 @@ pub(super) fn choice_to_responses(choice: cc::ToolChoice) -> (i::ToolChoice, Opt
         ),
     }
 }
-pub(super) fn choice_to_claude(
+pub(crate) fn choice_to_claude(
     choice: i::ToolChoice,
     parallel: Option<bool>,
 ) -> Result<cc::ToolChoice, TransformError> {

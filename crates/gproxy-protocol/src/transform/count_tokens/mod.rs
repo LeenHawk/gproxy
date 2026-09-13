@@ -2,4 +2,6 @@
 //! target model's tokenizer; conversion cannot estimate a different tokenizer.
 
 mod response;
+pub mod request;
 pub use response::*;
+pub use request::*;
