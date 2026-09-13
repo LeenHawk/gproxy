@@ -2,7 +2,7 @@ use crate::{
     transform::TransformError,
     wire::openai::chat::{response as r, stream as s},
 };
-pub(super) fn append(
+pub(crate) fn append(
     old: &mut Option<r::Logprobs>,
     source: s::ChunkLogprobs,
 ) -> Result<(), TransformError> {
@@ -48,7 +48,7 @@ fn validate(logprob: f64, bytes: Option<&Vec<i64>>) -> Result<(), TransformError
     }
     Ok(())
 }
-pub(super) fn synthesize(input: r::Logprobs) -> Result<s::ChunkLogprobs, TransformError> {
+pub(crate) fn synthesize(input: r::Logprobs) -> Result<s::ChunkLogprobs, TransformError> {
     let content = input
         .content
         .map(|v| {

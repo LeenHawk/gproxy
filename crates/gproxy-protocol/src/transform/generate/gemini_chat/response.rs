@@ -38,13 +38,11 @@ pub fn gemini_to_openai_response(
     }
     let mut ids = flow.clone();
     let mut report = Report::default();
-    let usage = super::usage::to_chat(
-        input
-            .usage_metadata
-            .as_ref()
-            .ok_or_else(|| TransformError::missing_metadata("usage_metadata"))?,
-        &mut report,
-    )?;
+    let usage = input
+        .usage_metadata
+        .as_ref()
+        .map(|usage| super::usage::to_chat(usage, &mut report))
+        .transpose()?;
     let candidates = input
         .candidates
         .filter(|candidates| !candidates.is_empty())
@@ -207,7 +205,7 @@ pub fn gemini_to_openai_response(
         c::CompletionObject::ChatCompletion,
     )
     .build();
-    out.usage = Some(usage);
+    out.usage = usage;
     if input.prompt_feedback.is_some() {
         report.omitted("prompt_feedback", "Chat has no prompt-feedback metadata");
     }
@@ -221,13 +219,11 @@ pub fn openai_to_gemini_response(
     input: &c::GenerateContentResponseBody,
 ) -> Result<Converted<g::GenerateContentResponseBody>, TransformError> {
     let mut report = Report::default();
-    let usage = super::usage::to_gemini(
-        input
-            .usage
-            .as_ref()
-            .ok_or_else(|| TransformError::missing_metadata("usage"))?,
-        &mut report,
-    )?;
+    let usage = input
+        .usage
+        .as_ref()
+        .map(|usage| super::usage::to_gemini(usage, &mut report))
+        .transpose()?;
     let mut candidates = Vec::new();
     let mut seen = std::collections::BTreeSet::new();
     if input.choices.is_empty() {
@@ -370,7 +366,7 @@ pub fn openai_to_gemini_response(
     }
     let mut out = g::GenerateContentResponseBody::builder().build();
     out.candidates = Some(candidates);
-    out.usage_metadata = Some(usage);
+    out.usage_metadata = usage;
     out.response_id = Some(input.id.clone());
     out.model_version = Some(input.model.clone());
     Ok(Converted { value: out, report })

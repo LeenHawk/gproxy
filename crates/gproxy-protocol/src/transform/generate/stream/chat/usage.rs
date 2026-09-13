@@ -2,7 +2,7 @@ use crate::{
     transform::{Report, TransformError},
     wire::openai::chat::{response as r, stream as s},
 };
-pub(super) fn validate(v: &s::ChunkUsage) -> Result<(), TransformError> {
+pub(crate) fn validate(v: &s::ChunkUsage) -> Result<(), TransformError> {
     if v.prompt_tokens < 0
         || v.completion_tokens < 0
         || v.prompt_tokens.checked_add(v.completion_tokens) != Some(v.total_tokens)
@@ -75,7 +75,7 @@ pub(super) fn validate(v: &s::ChunkUsage) -> Result<(), TransformError> {
     }
     Ok(())
 }
-pub(super) fn collect(input: s::ChunkUsage, report: &mut Report) -> r::Usage {
+pub(crate) fn collect(input: s::ChunkUsage, report: &mut Report) -> r::Usage {
     let mut out = r::Usage::builder(
         input.prompt_tokens,
         input.completion_tokens,
@@ -111,7 +111,7 @@ pub(super) fn collect(input: s::ChunkUsage, report: &mut Report) -> r::Usage {
     });
     out
 }
-pub(super) fn synthesize(input: r::Usage) -> Result<s::ChunkUsage, TransformError> {
+pub(crate) fn synthesize(input: r::Usage) -> Result<s::ChunkUsage, TransformError> {
     let mut out = s::ChunkUsage::builder(
         input.completion_tokens,
         input.prompt_tokens,

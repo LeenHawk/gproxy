@@ -1,9 +1,9 @@
 //! Bounded native Chat collection and response synthesis. `[DONE]` is framing.
 mod choice;
 mod collector;
-mod logs;
+pub(crate) mod logs;
 mod synthesize;
-mod usage;
+pub(crate) mod usage;
 pub use collector::{ChatStreamCollector, ChatStreamContext, ChatStreamLimits};
 pub use synthesize::synthesize_chat_stream;
 fn limit(field: &str) -> crate::transform::TransformError {
