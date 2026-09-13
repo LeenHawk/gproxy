@@ -237,8 +237,11 @@ impl Dialect {
         value.parse().ok()
     }
 
-    /// Whether this is one of the conversation shapes.
-    pub const fn is_conversation(self) -> bool {
+    /// Whether this is one of the conversation shapes. The other half of the
+    /// [`OperationKey`] pairing invariant, and private for the same reason
+    /// [`Operation::takes_conversation_dialect`] is: the rule is the key's
+    /// business, not the world's.
+    const fn is_conversation(self) -> bool {
         matches!(
             self,
             Self::OpenAiChat
