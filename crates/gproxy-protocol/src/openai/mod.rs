@@ -12,3 +12,4 @@ pub mod web_search;
 pub mod guardian;
 pub mod audio;
 pub mod images;
+pub mod video;
