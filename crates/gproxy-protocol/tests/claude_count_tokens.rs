@@ -1,8 +1,12 @@
 use gproxy_protocol::claude::content::ContentBlock;
-use gproxy_protocol::claude::content::{Message, TextBlock, TextBlockType};
+use gproxy_protocol::claude::content::{
+    CompactionBlock, FallbackBlock, Message, TextBlock, TextBlockType,
+};
 use gproxy_protocol::claude::count_tokens::CountTokensRequestBody;
 use gproxy_protocol::claude::count_tokens::CountTokensResponseBody;
-use gproxy_protocol::claude::tools::{BashTool20250124Type, ToolUnion};
+use gproxy_protocol::claude::tools::{
+    BashTool20250124Type, McpToolset, TextEditorTool20250728, ToolUnion,
+};
 use gproxy_protocol::{WireRequest, WireResponse};
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 
@@ -128,4 +132,82 @@ fn service_content_is_dispatched_by_tag_instead_of_first_generic_variant() {
     let block: ContentBlock = serde_json::from_value(json.clone()).unwrap();
     assert!(matches!(block, ContentBlock::WebFetchToolResult(_)));
     assert_eq!(serde_json::to_value(block).unwrap(), json);
+}
+
+#[test]
+fn mcp_toolset_configs_are_typed_and_preserve_unknown_fields() {
+    let value = serde_json::json!({
+        "mcp_server_name": "weather",
+        "type": "mcp_toolset",
+        "configs": {
+            "forecast": {"defer_loading": true, "enabled": false, "future_config": 1}
+        },
+        "default_config": {"enabled": true, "future_default": "kept"}
+    });
+    let parsed: McpToolset = serde_json::from_value(value.clone()).unwrap();
+    let config = &parsed.configs.as_ref().unwrap()["forecast"];
+    assert_eq!(config.defer_loading, Some(true));
+    assert_eq!(config.enabled, Some(false));
+    assert_eq!(config.rest["future_config"], 1);
+    let default_config = parsed.default_config.as_ref().unwrap();
+    assert_eq!(default_config.enabled, Some(true));
+    assert_eq!(default_config.rest["future_default"], "kept");
+    assert!(parsed.rest.is_empty());
+    assert_eq!(serde_json::to_value(parsed).unwrap(), value);
+}
+
+#[test]
+fn text_editor_20250728_exposes_max_characters() {
+    let value = serde_json::json!({
+        "name": "str_replace_based_edit_tool",
+        "type": "text_editor_20250728",
+        "max_characters": 4000
+    });
+    let parsed: TextEditorTool20250728 = serde_json::from_value(value.clone()).unwrap();
+    assert_eq!(parsed.max_characters, Some(4000));
+    assert!(parsed.rest.is_empty());
+    assert_eq!(serde_json::to_value(parsed).unwrap(), value);
+}
+
+#[test]
+fn fallback_trigger_preserves_missing_null_and_object_states() {
+    for (value, expected) in [
+        (
+            serde_json::json!({"type":"fallback","from":{"model":"a"},"to":{"model":"b"}}),
+            None,
+        ),
+        (
+            serde_json::json!({"type":"fallback","from":{"model":"a"},"to":{"model":"b"},"trigger":null}),
+            Some(serde_json::Value::Null),
+        ),
+        (
+            serde_json::json!({"type":"fallback","from":{"model":"a"},"to":{"model":"b"},"trigger":{"reason":"overloaded"}}),
+            Some(serde_json::json!({"reason":"overloaded"})),
+        ),
+    ] {
+        let parsed: FallbackBlock = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(parsed.trigger, expected);
+        assert!(parsed.rest.is_empty());
+        assert_eq!(serde_json::to_value(parsed).unwrap(), value);
+    }
+}
+
+#[test]
+fn compaction_content_preserves_missing_null_and_string_states() {
+    for (value, expected) in [
+        (serde_json::json!({"type":"compaction"}), None),
+        (
+            serde_json::json!({"type":"compaction","content":null}),
+            Some(None),
+        ),
+        (
+            serde_json::json!({"type":"compaction","content":"summary"}),
+            Some(Some("summary".to_owned())),
+        ),
+    ] {
+        let parsed: CompactionBlock = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(parsed.content, expected);
+        assert!(parsed.rest.is_empty());
+        assert_eq!(serde_json::to_value(parsed).unwrap(), value);
+    }
 }
