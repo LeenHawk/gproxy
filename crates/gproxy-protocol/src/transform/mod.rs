@@ -4,6 +4,7 @@
 //! fields. Unknown `rest` members are neither conversion input nor output.
 //! Conversion state and diagnostics are separate from vendor wire payloads.
 
+pub mod count_tokens;
 pub mod embeddings;
 mod error;
 pub mod generate;
