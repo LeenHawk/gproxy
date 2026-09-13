@@ -5,6 +5,7 @@
 //! Conversion state and diagnostics are separate from vendor wire payloads.
 
 mod error;
+pub mod embeddings;
 pub mod identity;
 pub mod models;
 
