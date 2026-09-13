@@ -6,6 +6,7 @@
 
 mod error;
 pub mod identity;
+pub mod models;
 
 pub use error::{Diagnostic, DiagnosticKind, Report, TransformError, TransformErrorKind};
 
