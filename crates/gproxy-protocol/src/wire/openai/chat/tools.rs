@@ -5,12 +5,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ChatTool {
     Function(FunctionTool),
     Custom(CustomToolDefinition),
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct FunctionTool {
     #[serde(rename = "type")]
     pub type_: FunctionToolType,
@@ -20,12 +22,14 @@ pub struct FunctionTool {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FunctionToolType {
     #[serde(rename = "function")]
     Function,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CustomToolDefinition {
     #[serde(rename = "type")]
     pub type_: CustomToolDefinitionType,
@@ -35,12 +39,14 @@ pub struct CustomToolDefinition {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum CustomToolDefinitionType {
     #[serde(rename = "custom")]
     Custom,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ChatToolType {
     #[serde(rename = "function")]
     Function,
@@ -50,6 +56,7 @@ pub enum ChatToolType {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct FunctionDefinition {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -68,6 +75,7 @@ pub struct FunctionDefinition {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CustomTool {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -80,6 +88,7 @@ pub struct CustomTool {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum CustomToolFormat {
     Text(TextFormat),
     Grammar(GrammarFormat),
@@ -89,6 +98,7 @@ pub enum CustomToolFormat {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct TextFormat {
     #[serde(rename = "type")]
     pub type_: TextFormatType,
@@ -97,6 +107,7 @@ pub struct TextFormat {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum TextFormatType {
     #[serde(rename = "text")]
     Text,
@@ -106,6 +117,7 @@ pub enum TextFormatType {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct GrammarFormat {
     #[serde(rename = "type")]
     pub type_: GrammarFormatType,
@@ -115,6 +127,7 @@ pub struct GrammarFormat {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum GrammarFormatType {
     #[serde(rename = "grammar")]
     Grammar,
@@ -124,6 +137,7 @@ pub enum GrammarFormatType {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct Grammar {
     pub definition: String,
     pub syntax: GrammarSyntax,
@@ -132,6 +146,7 @@ pub struct Grammar {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum GrammarSyntax {
     #[serde(rename = "lark")]
     Lark,
@@ -142,6 +157,7 @@ pub enum GrammarSyntax {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ToolChoice {
     Mode(ToolChoiceMode),
     Function(NamedFunctionChoice),
@@ -150,6 +166,7 @@ pub enum ToolChoice {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ToolChoiceMode {
     #[serde(rename = "none")]
     None,
@@ -163,6 +180,7 @@ pub enum ToolChoiceMode {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NamedFunctionChoice {
     #[serde(rename = "type")]
     pub type_: NamedFunctionChoiceType,
@@ -172,6 +190,7 @@ pub struct NamedFunctionChoice {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum NamedFunctionChoiceType {
     #[serde(rename = "function")]
     Function,
@@ -181,6 +200,7 @@ pub enum NamedFunctionChoiceType {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NamedFunction {
     pub name: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -191,6 +211,7 @@ pub struct NamedFunction {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NamedCustomChoice {
     #[serde(rename = "type")]
     pub type_: NamedCustomChoiceType,
@@ -200,6 +221,7 @@ pub struct NamedCustomChoice {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum NamedCustomChoiceType {
     #[serde(rename = "custom")]
     Custom,
@@ -209,6 +231,7 @@ pub enum NamedCustomChoiceType {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NamedCustom {
     pub name: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -217,6 +240,7 @@ pub struct NamedCustom {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct AllowedToolChoice {
     #[serde(rename = "type")]
     pub type_: AllowedToolChoiceType,
@@ -226,6 +250,7 @@ pub struct AllowedToolChoice {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum AllowedToolChoiceType {
     #[serde(rename = "allowed_tools")]
     AllowedTools,
@@ -233,6 +258,7 @@ pub enum AllowedToolChoiceType {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct AllowedTools {
     pub mode: AllowedToolsMode,
     pub tools: Vec<Rest>,
@@ -241,6 +267,7 @@ pub struct AllowedTools {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum AllowedToolsMode {
     #[serde(rename = "auto")]
     Auto,

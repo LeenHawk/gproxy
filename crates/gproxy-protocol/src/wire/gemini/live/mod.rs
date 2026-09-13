@@ -29,6 +29,7 @@ pub type LiveResponse = WireResponse<()>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum LiveInt64 {
     String(#[serde(deserialize_with = "decimal_i64")] String),
     Number(i64),
@@ -42,6 +43,7 @@ fn decimal_i64<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Erro
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LiveClientMessage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub setup: Option<BidiGenerateContentSetup>,
@@ -61,6 +63,7 @@ pub struct LiveClientMessage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LiveServerMessage {
     #[serde(alias = "setup_complete")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -96,6 +99,7 @@ pub struct LiveServerMessage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct BidiGenerateContentClientContent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub turns: Option<Vec<LiveContent>>,
@@ -109,6 +113,7 @@ pub struct BidiGenerateContentClientContent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct BidiGenerateContentToolResponse {
     #[serde(alias = "function_responses")]
     #[serde(default, skip_serializing_if = "Option::is_none")]

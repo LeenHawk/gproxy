@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ConversationItem {
     RealtimeConversationItemSystemMessage(RealtimeConversationItemSystemMessage),
     RealtimeConversationItemUserMessage(RealtimeConversationItemUserMessage),
@@ -29,6 +30,7 @@ pub enum ConversationItem {
 /// Source: `openai/types/realtime/realtime_conversation_item_system_message.py`, `RealtimeConversationItemSystemMessage`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeConversationItemSystemMessage {
     pub content: Vec<RealtimeConversationItemSystemMessageContent>,
     pub role: RealtimeConversationItemSystemMessageRole,
@@ -59,6 +61,7 @@ pub struct RealtimeConversationItemSystemMessage {
 /// Source: `openai/types/realtime/realtime_conversation_item_user_message.py`, `RealtimeConversationItemUserMessage`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeConversationItemUserMessage {
     pub content: Vec<RealtimeConversationItemUserMessageContent>,
     pub role: RealtimeConversationItemUserMessageRole,
@@ -89,6 +92,7 @@ pub struct RealtimeConversationItemUserMessage {
 /// Source: `openai/types/realtime/realtime_conversation_item_assistant_message.py`, `RealtimeConversationItemAssistantMessage`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeConversationItemAssistantMessage {
     pub content: Vec<RealtimeConversationItemAssistantMessageContent>,
     pub role: RealtimeConversationItemAssistantMessageRole,
@@ -119,6 +123,7 @@ pub struct RealtimeConversationItemAssistantMessage {
 /// Source: `openai/types/realtime/realtime_conversation_item_function_call.py`, `RealtimeConversationItemFunctionCall`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeConversationItemFunctionCall {
     pub arguments: String,
     pub name: String,
@@ -155,6 +160,7 @@ pub struct RealtimeConversationItemFunctionCall {
 /// Source: `openai/types/realtime/realtime_conversation_item_function_call_output.py`, `RealtimeConversationItemFunctionCallOutput`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeConversationItemFunctionCallOutput {
     pub call_id: String,
     pub output: String,
@@ -185,6 +191,7 @@ pub struct RealtimeConversationItemFunctionCallOutput {
 /// Source: `openai/types/realtime/realtime_conversation_item_system_message.py`, `Content`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeConversationItemSystemMessageContent {
     #[serde(
         default,
@@ -206,6 +213,7 @@ pub struct RealtimeConversationItemSystemMessageContent {
 /// Source: `openai/types/realtime/realtime_conversation_item_user_message.py`, `Content`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeConversationItemUserMessageContent {
     #[serde(
         default,
@@ -251,6 +259,7 @@ pub struct RealtimeConversationItemUserMessageContent {
 /// Source: `openai/types/realtime/realtime_conversation_item_assistant_message.py`, `Content`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeConversationItemAssistantMessageContent {
     #[serde(
         default,
@@ -283,6 +292,7 @@ pub struct RealtimeConversationItemAssistantMessageContent {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemSystemMessageRole {
     #[serde(rename = "system")]
     System,
@@ -290,6 +300,7 @@ pub enum RealtimeConversationItemSystemMessageRole {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemSystemMessageType {
     #[serde(rename = "message")]
     Message,
@@ -297,6 +308,7 @@ pub enum RealtimeConversationItemSystemMessageType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemSystemMessageObject {
     #[serde(rename = "realtime.item")]
     RealtimeItem,
@@ -304,6 +316,7 @@ pub enum RealtimeConversationItemSystemMessageObject {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemSystemMessageStatus {
     #[serde(rename = "completed")]
     Completed,
@@ -315,6 +328,7 @@ pub enum RealtimeConversationItemSystemMessageStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemUserMessageRole {
     #[serde(rename = "user")]
     User,
@@ -322,6 +336,7 @@ pub enum RealtimeConversationItemUserMessageRole {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemUserMessageType {
     #[serde(rename = "message")]
     Message,
@@ -329,6 +344,7 @@ pub enum RealtimeConversationItemUserMessageType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemUserMessageObject {
     #[serde(rename = "realtime.item")]
     RealtimeItem,
@@ -336,6 +352,7 @@ pub enum RealtimeConversationItemUserMessageObject {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemUserMessageStatus {
     #[serde(rename = "completed")]
     Completed,
@@ -347,6 +364,7 @@ pub enum RealtimeConversationItemUserMessageStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemAssistantMessageRole {
     #[serde(rename = "assistant")]
     Assistant,
@@ -354,6 +372,7 @@ pub enum RealtimeConversationItemAssistantMessageRole {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemAssistantMessageType {
     #[serde(rename = "message")]
     Message,
@@ -361,6 +380,7 @@ pub enum RealtimeConversationItemAssistantMessageType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemAssistantMessageObject {
     #[serde(rename = "realtime.item")]
     RealtimeItem,
@@ -368,6 +388,7 @@ pub enum RealtimeConversationItemAssistantMessageObject {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemAssistantMessageStatus {
     #[serde(rename = "completed")]
     Completed,
@@ -379,6 +400,7 @@ pub enum RealtimeConversationItemAssistantMessageStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemFunctionCallType {
     #[serde(rename = "function_call")]
     FunctionCall,
@@ -386,6 +408,7 @@ pub enum RealtimeConversationItemFunctionCallType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemFunctionCallObject {
     #[serde(rename = "realtime.item")]
     RealtimeItem,
@@ -393,6 +416,7 @@ pub enum RealtimeConversationItemFunctionCallObject {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemFunctionCallStatus {
     #[serde(rename = "completed")]
     Completed,
@@ -404,6 +428,7 @@ pub enum RealtimeConversationItemFunctionCallStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemFunctionCallOutputType {
     #[serde(rename = "function_call_output")]
     FunctionCallOutput,
@@ -411,6 +436,7 @@ pub enum RealtimeConversationItemFunctionCallOutputType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemFunctionCallOutputObject {
     #[serde(rename = "realtime.item")]
     RealtimeItem,
@@ -418,6 +444,7 @@ pub enum RealtimeConversationItemFunctionCallOutputObject {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemFunctionCallOutputStatus {
     #[serde(rename = "completed")]
     Completed,
@@ -429,6 +456,7 @@ pub enum RealtimeConversationItemFunctionCallOutputStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemSystemMessageContentType {
     #[serde(rename = "input_text")]
     InputText,
@@ -436,6 +464,7 @@ pub enum RealtimeConversationItemSystemMessageContentType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemUserMessageContentDetail {
     #[serde(rename = "auto")]
     Auto,
@@ -447,6 +476,7 @@ pub enum RealtimeConversationItemUserMessageContentDetail {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemUserMessageContentType {
     #[serde(rename = "input_text")]
     InputText,
@@ -458,6 +488,7 @@ pub enum RealtimeConversationItemUserMessageContentType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeConversationItemAssistantMessageContentType {
     #[serde(rename = "output_text")]
     OutputText,

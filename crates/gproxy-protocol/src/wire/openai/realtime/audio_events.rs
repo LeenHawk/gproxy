@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 /// Source: `openai/types/realtime/input_audio_buffer_cleared_event.py`, `InputAudioBufferClearedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct InputAudioBufferClearedEvent {
     pub event_id: String,
     #[serde(rename = "type")]
@@ -20,6 +21,7 @@ pub struct InputAudioBufferClearedEvent {
 /// Source: `openai/types/realtime/input_audio_buffer_committed_event.py`, `InputAudioBufferCommittedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct InputAudioBufferCommittedEvent {
     pub event_id: String,
     pub item_id: String,
@@ -38,6 +40,7 @@ pub struct InputAudioBufferCommittedEvent {
 /// Source: `openai/types/realtime/input_audio_buffer_dtmf_event_received_event.py`, `InputAudioBufferDtmfEventReceivedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct InputAudioBufferDtmfEventReceivedEvent {
     pub event: String,
     pub received_at: i64,
@@ -50,6 +53,7 @@ pub struct InputAudioBufferDtmfEventReceivedEvent {
 /// Source: `openai/types/realtime/input_audio_buffer_speech_started_event.py`, `InputAudioBufferSpeechStartedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct InputAudioBufferSpeechStartedEvent {
     pub audio_start_ms: i64,
     pub event_id: String,
@@ -63,6 +67,7 @@ pub struct InputAudioBufferSpeechStartedEvent {
 /// Source: `openai/types/realtime/input_audio_buffer_speech_stopped_event.py`, `InputAudioBufferSpeechStoppedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct InputAudioBufferSpeechStoppedEvent {
     pub audio_end_ms: i64,
     pub event_id: String,
@@ -76,6 +81,7 @@ pub struct InputAudioBufferSpeechStoppedEvent {
 /// Source: `openai/types/realtime/response_audio_delta_event.py`, `ResponseAudioDeltaEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseAudioDeltaEvent {
     pub content_index: i64,
     pub delta: String,
@@ -92,6 +98,7 @@ pub struct ResponseAudioDeltaEvent {
 /// Source: `openai/types/realtime/response_audio_done_event.py`, `ResponseAudioDoneEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseAudioDoneEvent {
     pub content_index: i64,
     pub event_id: String,
@@ -107,6 +114,7 @@ pub struct ResponseAudioDoneEvent {
 /// Source: `openai/types/realtime/response_audio_transcript_delta_event.py`, `ResponseAudioTranscriptDeltaEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseAudioTranscriptDeltaEvent {
     pub content_index: i64,
     pub delta: String,
@@ -123,6 +131,7 @@ pub struct ResponseAudioTranscriptDeltaEvent {
 /// Source: `openai/types/realtime/response_audio_transcript_done_event.py`, `ResponseAudioTranscriptDoneEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseAudioTranscriptDoneEvent {
     pub content_index: i64,
     pub event_id: String,
@@ -139,6 +148,7 @@ pub struct ResponseAudioTranscriptDoneEvent {
 /// Source: `openai/types/realtime/input_audio_buffer_timeout_triggered.py`, `InputAudioBufferTimeoutTriggered`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct InputAudioBufferTimeoutTriggered {
     pub audio_end_ms: i64,
     pub audio_start_ms: i64,
@@ -152,6 +162,7 @@ pub struct InputAudioBufferTimeoutTriggered {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum InputAudioBufferClearedEventType {
     #[serde(rename = "input_audio_buffer.cleared")]
     InputAudioBufferCleared,
@@ -159,6 +170,7 @@ pub enum InputAudioBufferClearedEventType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum InputAudioBufferCommittedEventType {
     #[serde(rename = "input_audio_buffer.committed")]
     InputAudioBufferCommitted,
@@ -166,6 +178,7 @@ pub enum InputAudioBufferCommittedEventType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum InputAudioBufferDtmfEventReceivedEventType {
     #[serde(rename = "input_audio_buffer.dtmf_event_received")]
     InputAudioBufferDtmfEventReceived,
@@ -173,6 +186,7 @@ pub enum InputAudioBufferDtmfEventReceivedEventType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum InputAudioBufferSpeechStartedEventType {
     #[serde(rename = "input_audio_buffer.speech_started")]
     InputAudioBufferSpeechStarted,
@@ -180,6 +194,7 @@ pub enum InputAudioBufferSpeechStartedEventType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum InputAudioBufferSpeechStoppedEventType {
     #[serde(rename = "input_audio_buffer.speech_stopped")]
     InputAudioBufferSpeechStopped,
@@ -187,6 +202,7 @@ pub enum InputAudioBufferSpeechStoppedEventType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseAudioDeltaEventType {
     #[serde(rename = "response.output_audio.delta")]
     ResponseOutputAudioDelta,
@@ -194,6 +210,7 @@ pub enum ResponseAudioDeltaEventType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseAudioDoneEventType {
     #[serde(rename = "response.output_audio.done")]
     ResponseOutputAudioDone,
@@ -201,6 +218,7 @@ pub enum ResponseAudioDoneEventType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseAudioTranscriptDeltaEventType {
     #[serde(rename = "response.output_audio_transcript.delta")]
     ResponseOutputAudioTranscriptDelta,
@@ -208,6 +226,7 @@ pub enum ResponseAudioTranscriptDeltaEventType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseAudioTranscriptDoneEventType {
     #[serde(rename = "response.output_audio_transcript.done")]
     ResponseOutputAudioTranscriptDone,
@@ -215,6 +234,7 @@ pub enum ResponseAudioTranscriptDoneEventType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum InputAudioBufferTimeoutTriggeredType {
     #[serde(rename = "input_audio_buffer.timeout_triggered")]
     InputAudioBufferTimeoutTriggered,

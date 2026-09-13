@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseToolChoice {
     ToolChoiceOptions(ToolChoiceOptions),
     ToolChoiceFunction(ToolChoiceFunction),
@@ -22,6 +23,7 @@ pub enum RealtimeSessionCreateResponseToolChoice {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseTool {
     RealtimeFunctionTool(RealtimeFunctionTool),
     RealtimeSessionCreateResponseToolMcpTool(RealtimeSessionCreateResponseToolMcpTool),
@@ -30,6 +32,7 @@ pub enum RealtimeSessionCreateResponseTool {
 /// Source: `openai/types/realtime/realtime_session_create_response.py`, `ToolMcpTool`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeSessionCreateResponseToolMcpTool {
     pub server_label: String,
     #[serde(rename = "type")]
@@ -103,6 +106,7 @@ pub struct RealtimeSessionCreateResponseToolMcpTool {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseToolMcpToolAllowedTools {
     Items(Vec<String>),
     RealtimeSessionCreateResponseToolMcpToolAllowedToolsMcpToolFilter(
@@ -115,6 +119,7 @@ pub enum RealtimeSessionCreateResponseToolMcpToolAllowedTools {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseToolMcpToolRequireApproval {
     RealtimeSessionCreateResponseToolMcpToolRequireApprovalMcpToolApprovalFilter(
         RealtimeSessionCreateResponseToolMcpToolRequireApprovalMcpToolApprovalFilter,
@@ -126,6 +131,7 @@ pub enum RealtimeSessionCreateResponseToolMcpToolRequireApproval {
 /// Source: `openai/types/realtime/realtime_session_create_response.py`, `ToolMcpToolAllowedToolsMcpToolFilter`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeSessionCreateResponseToolMcpToolAllowedToolsMcpToolFilter {
     #[serde(
         default,
@@ -146,6 +152,7 @@ pub struct RealtimeSessionCreateResponseToolMcpToolAllowedToolsMcpToolFilter {
 /// Source: `openai/types/realtime/realtime_session_create_response.py`, `ToolMcpToolRequireApprovalMcpToolApprovalFilter`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeSessionCreateResponseToolMcpToolRequireApprovalMcpToolApprovalFilter {
     #[serde(
         default,
@@ -170,6 +177,7 @@ pub struct RealtimeSessionCreateResponseToolMcpToolRequireApprovalMcpToolApprova
 /// Source: `openai/types/realtime/realtime_session_create_response.py`, `ToolMcpToolRequireApprovalMcpToolApprovalFilterAlways`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeSessionCreateResponseToolMcpToolRequireApprovalMcpToolApprovalFilterAlways {
     #[serde(
         default,
@@ -190,6 +198,7 @@ pub struct RealtimeSessionCreateResponseToolMcpToolRequireApprovalMcpToolApprova
 /// Source: `openai/types/realtime/realtime_session_create_response.py`, `ToolMcpToolRequireApprovalMcpToolApprovalFilterNever`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeSessionCreateResponseToolMcpToolRequireApprovalMcpToolApprovalFilterNever {
     #[serde(
         default,
@@ -209,6 +218,7 @@ pub struct RealtimeSessionCreateResponseToolMcpToolRequireApprovalMcpToolApprova
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseToolMcpToolType {
     #[serde(rename = "mcp")]
     Mcp,
@@ -216,6 +226,7 @@ pub enum RealtimeSessionCreateResponseToolMcpToolType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseToolMcpToolAllowedCallersItem {
     #[serde(rename = "direct")]
     Direct,
@@ -225,6 +236,7 @@ pub enum RealtimeSessionCreateResponseToolMcpToolAllowedCallersItem {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseToolMcpToolConnectorId {
     #[serde(rename = "connector_dropbox")]
     ConnectorDropbox,
@@ -246,6 +258,7 @@ pub enum RealtimeSessionCreateResponseToolMcpToolConnectorId {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseToolMcpToolRequireApprovalVariant2 {
     #[serde(rename = "always")]
     Always,

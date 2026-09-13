@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CountTokensRequestBody {
     #[serde(
         default,
@@ -91,6 +92,7 @@ pub struct CountTokensRequestBody {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CountTokensResponseBody {
     pub input_tokens: i64,
     pub object: CountTokensObject,
@@ -101,6 +103,7 @@ pub struct CountTokensResponseBody {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum CountTokensObject {
     #[serde(rename = "response.input_tokens")]
     ResponseInputTokens,
@@ -109,7 +112,16 @@ pub enum CountTokensObject {
 pub type CountTokensRequest = crate::WireRequest<CountTokensRequestBody>;
 pub type CountTokensResponse = crate::WireResponse<CountTokensResponseBody>;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum Truncation {
     #[serde(rename = "auto")]
     Auto,

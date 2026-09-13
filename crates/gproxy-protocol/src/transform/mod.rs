@@ -4,8 +4,8 @@
 //! fields. Unknown `rest` members are neither conversion input nor output.
 //! Conversion state and diagnostics are separate from vendor wire payloads.
 
-mod error;
 pub mod embeddings;
+mod error;
 pub mod identity;
 pub mod models;
 

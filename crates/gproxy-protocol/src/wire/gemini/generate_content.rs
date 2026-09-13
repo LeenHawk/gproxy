@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct GenerateContentRequestBody {
     pub contents: Vec<Content>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -47,6 +48,7 @@ pub type GenerateContentResponse = WireResponse<GenerateContentResponseBody>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct GenerateContentResponseBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub candidates: Option<Vec<Candidate>>,
@@ -72,6 +74,7 @@ pub struct GenerateContentResponseBody {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct PromptFeedback {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "block_reason")]
@@ -85,6 +88,7 @@ pub struct PromptFeedback {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum BlockReason {
     #[serde(rename = "BLOCK_REASON_UNSPECIFIED")]
     Unspecified,
@@ -103,6 +107,7 @@ pub enum BlockReason {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct UsageMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "prompt_token_count")]
@@ -144,6 +149,7 @@ pub struct UsageMetadata {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ModelStatus {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "model_stage")]
@@ -159,6 +165,7 @@ pub struct ModelStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ModelStage {
     #[serde(rename = "MODEL_STAGE_UNSPECIFIED")]
     Unspecified,
@@ -181,6 +188,7 @@ pub enum ModelStage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct Candidate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content: Option<Content>,
@@ -222,6 +230,7 @@ pub struct Candidate {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FinishReason {
     #[serde(rename = "FINISH_REASON_UNSPECIFIED")]
     Unspecified,
@@ -268,6 +277,7 @@ pub enum FinishReason {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct SafetyRating {
     pub category: HarmCategory,
     pub probability: HarmProbability,
@@ -279,6 +289,7 @@ pub struct SafetyRating {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum HarmProbability {
     #[serde(rename = "HARM_PROBABILITY_UNSPECIFIED")]
     Unspecified,
@@ -295,6 +306,7 @@ pub enum HarmProbability {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct GroundingAttribution {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "source_id")]
@@ -307,6 +319,7 @@ pub struct GroundingAttribution {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct AttributionSourceId {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "grounding_passage")]
@@ -322,6 +335,7 @@ pub struct AttributionSourceId {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct GroundingPassageId {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "passage_id")]
@@ -337,6 +351,7 @@ pub struct GroundingPassageId {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct SemanticRetrieverChunk {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
@@ -349,6 +364,7 @@ pub struct SemanticRetrieverChunk {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct GroundingMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "grounding_chunks")]
@@ -379,6 +395,7 @@ pub struct GroundingMetadata {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct SearchEntryPoint {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "rendered_content")]
@@ -392,6 +409,7 @@ pub struct SearchEntryPoint {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct GroundingChunk {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub web: Option<Web>,
@@ -410,6 +428,7 @@ pub struct GroundingChunk {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct Web {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uri: Option<String>,
@@ -423,6 +442,7 @@ pub struct Web {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct Image {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "source_uri")]
@@ -440,6 +460,7 @@ pub struct Image {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RetrievedContext {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "custom_metadata")]
@@ -465,6 +486,7 @@ pub struct RetrievedContext {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CustomMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub key: Option<String>,
@@ -485,6 +507,7 @@ pub struct CustomMetadata {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct StringList {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub values: Option<Vec<String>>,
@@ -494,6 +517,7 @@ pub struct StringList {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct Maps {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uri: Option<String>,
@@ -515,6 +539,7 @@ pub struct Maps {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct PlaceAnswerSources {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "review_snippets")]
@@ -527,6 +552,7 @@ pub struct PlaceAnswerSources {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ReviewSnippet {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "review_id")]
@@ -543,6 +569,7 @@ pub struct ReviewSnippet {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct GroundingSupport {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "grounding_chunk_indices")]
@@ -561,6 +588,7 @@ pub struct GroundingSupport {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct Segment {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "part_index")]
@@ -579,6 +607,7 @@ pub struct Segment {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RetrievalMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "google_search_dynamic_retrieval_score")]
@@ -590,6 +619,7 @@ pub struct RetrievalMetadata {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LogprobsResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "top_candidates")]
@@ -606,6 +636,7 @@ pub struct LogprobsResult {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct TopCandidates {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub candidates: Option<Vec<LogprobCandidate>>,
@@ -615,6 +646,7 @@ pub struct TopCandidates {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LogprobCandidate {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
@@ -632,6 +664,7 @@ pub struct LogprobCandidate {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct UrlContextMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "url_metadata")]
@@ -644,6 +677,7 @@ pub struct UrlContextMetadata {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct UrlMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "retrieved_url")]
@@ -656,6 +690,7 @@ pub struct UrlMetadata {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum UrlRetrievalStatus {
     #[serde(rename = "URL_RETRIEVAL_STATUS_UNSPECIFIED")]
     Unspecified,
@@ -674,6 +709,7 @@ pub enum UrlRetrievalStatus {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CitationMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "citation_sources")]
@@ -686,6 +722,7 @@ pub struct CitationMetadata {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CitationSource {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "start_index")]

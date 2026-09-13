@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ThinkingLevel {
     #[serde(rename = "THINKING_LEVEL_UNSPECIFIED")]
     Unspecified,
@@ -18,6 +19,7 @@ pub enum ThinkingLevel {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum GenerationMediaResolution {
     #[serde(rename = "MEDIA_RESOLUTION_UNSPECIFIED")]
     Unspecified,
@@ -30,6 +32,7 @@ pub enum GenerationMediaResolution {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum TextMimeType {
     #[serde(rename = "MIME_TYPE_UNSPECIFIED")]
     Unspecified,
@@ -40,6 +43,7 @@ pub enum TextMimeType {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum AudioMimeType {
     #[serde(rename = "MIME_TYPE_UNSPECIFIED")]
     Unspecified,
@@ -58,6 +62,7 @@ pub enum AudioMimeType {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum Delivery {
     #[serde(rename = "DELIVERY_UNSPECIFIED")]
     Unspecified,
@@ -68,6 +73,7 @@ pub enum Delivery {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ImageMimeType {
     #[serde(rename = "MIME_TYPE_UNSPECIFIED")]
     Unspecified,
@@ -76,6 +82,7 @@ pub enum ImageMimeType {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum AspectRatio {
     #[serde(rename = "ASPECT_RATIO_UNSPECIFIED")]
     Unspecified,
@@ -110,6 +117,7 @@ pub enum AspectRatio {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ImageSize {
     #[serde(rename = "IMAGE_SIZE_UNSPECIFIED")]
     Unspecified,
@@ -124,6 +132,7 @@ pub enum ImageSize {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ServiceTier {
     #[serde(rename = "unspecified")]
     Unspecified,
@@ -138,6 +147,7 @@ pub enum ServiceTier {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct SpeechConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "voice_config")]
@@ -154,6 +164,7 @@ pub struct SpeechConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct VoiceConfig {
     #[serde(alias = "prebuilt_voice_config")]
     pub prebuilt_voice_config: PrebuiltVoiceConfig,
@@ -165,6 +176,7 @@ pub struct VoiceConfig {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct PrebuiltVoiceConfig {
     #[serde(alias = "voice_name")]
     pub voice_name: String,
@@ -174,6 +186,7 @@ pub struct PrebuiltVoiceConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct MultiSpeakerVoiceConfig {
     #[serde(alias = "speaker_voice_configs")]
     pub speaker_voice_configs: Vec<SpeakerVoiceConfig>,
@@ -183,6 +196,7 @@ pub struct MultiSpeakerVoiceConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct SpeakerVoiceConfig {
     pub speaker: String,
     #[serde(alias = "voice_config")]
@@ -195,6 +209,7 @@ pub struct SpeakerVoiceConfig {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ThinkingConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "thinking_budget")]
@@ -213,6 +228,7 @@ pub struct ThinkingConfig {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ImageConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "aspect_ratio")]
@@ -226,6 +242,7 @@ pub struct ImageConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseFormatConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<TextResponseFormat>,
@@ -239,6 +256,7 @@ pub struct ResponseFormatConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct TextResponseFormat {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "mime_type")]
@@ -253,6 +271,7 @@ pub struct TextResponseFormat {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct AudioResponseFormat {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "mime_type")]
@@ -273,6 +292,7 @@ pub struct AudioResponseFormat {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ImageResponseFormat {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "mime_type")]
@@ -295,6 +315,7 @@ pub struct ImageResponseFormat {
 /// Full `GenerateContentRequest` object accepted inside CountTokens. Its
 /// `model` is part of this embedded Batch API object; standalone REST
 /// generation keeps model in its path.
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct EmbeddedGenerateContentRequest {
     /// Required by the Batch API `GenerateContentRequest` embedded in CountTokens.
     pub model: String,
@@ -328,6 +349,7 @@ pub struct EmbeddedGenerateContentRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct GenerationConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "stop_sequences")]

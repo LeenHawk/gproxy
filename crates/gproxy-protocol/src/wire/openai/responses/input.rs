@@ -48,6 +48,7 @@ where
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseConversationParam {
     pub id: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -57,6 +58,7 @@ pub struct ResponseConversationParam {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ConversationParam {
     Id(String),
     Object(ResponseConversationParam),
@@ -65,6 +67,7 @@ pub enum ConversationParam {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum Input {
     Text(String),
     Items(Vec<InputItem>),
@@ -73,6 +76,7 @@ pub enum Input {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum MessageContent {
     Text(String),
     Parts(Vec<InputContent>),
@@ -81,6 +85,7 @@ pub enum MessageContent {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum InputContent {
     #[serde(rename = "input_text")]
     Text(ResponseInputText),
@@ -95,6 +100,7 @@ pub enum InputContent {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseInputText {
     #[serde(rename = "type")]
     pub type_: ResponseInputTextType,
@@ -114,6 +120,7 @@ pub struct ResponseInputText {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseInputImage {
     #[serde(rename = "type")]
     pub type_: ResponseInputImageType,
@@ -145,6 +152,7 @@ pub struct ResponseInputImage {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseInputFile {
     #[serde(rename = "type")]
     pub type_: ResponseInputFileType,
@@ -193,6 +201,7 @@ pub struct ResponseInputFile {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct PromptCacheBreakpoint {
     pub mode: PromptCacheMode,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -204,6 +213,7 @@ pub struct PromptCacheBreakpoint {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct EasyInputMessage {
     pub content: MessageContent,
     pub role: MessageRole,
@@ -229,6 +239,7 @@ pub struct EasyInputMessage {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct InputMessage {
     pub content: Vec<InputContent>,
     pub role: InputMessageRole,
@@ -252,6 +263,7 @@ pub struct InputMessage {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum InputItem {
     OutputMessage(ResponseOutputMessage),
     Message(InputMessage),
@@ -292,6 +304,7 @@ pub enum InputItem {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseOutputText {
     #[serde(rename = "type")]
     pub type_: ResponseOutputTextType,
@@ -303,33 +316,71 @@ pub struct ResponseOutputText {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum OutputAnnotation {
     File(FileCitation),
     Url(UrlCitation),
     ContainerFile(ContainerFileCitation),
     Path(FilePath),
 }
-macro_rules! citation { ($name:ident { $($field:tt)* }) => { #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)] #[serde(rename_all = "snake_case")] pub struct $name { $($field)* #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")] pub rest: Rest } }; }
+macro_rules! citation { ($name:ident { $($field:tt)* }) => { #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)] #[serde(rename_all = "snake_case")] #[derive(gproxy_protocol_macros::DeclaredFields)]
+pub struct $name { $($field)* #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")] pub rest: Rest } }; }
 citation!(FileCitation { pub file_id: String, pub filename: String, pub index: i64, #[serde(rename = "type")] pub type_: FileCitationType, });
 citation!(UrlCitation { pub end_index: i64, pub start_index: i64, pub title: String, pub url: String, #[serde(rename = "type")] pub type_: UrlCitationType, });
 citation!(ContainerFileCitation { pub container_id: String, pub end_index: i64, pub file_id: String, pub filename: String, pub start_index: i64, #[serde(rename = "type")] pub type_: ContainerFileCitationType, });
 citation!(FilePath { pub file_id: String, pub index: i64, #[serde(rename = "type")] pub type_: FilePathType, });
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum FileCitationType {
     #[serde(rename = "file_citation")]
     FileCitation,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum UrlCitationType {
     #[serde(rename = "url_citation")]
     UrlCitation,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum ContainerFileCitationType {
     #[serde(rename = "container_file_citation")]
     ContainerFileCitation,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum FilePathType {
     #[serde(rename = "file_path")]
     FilePath,
@@ -338,6 +389,7 @@ pub enum FilePathType {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[serde(rename_all = "snake_case")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct OutputLogprob {
     pub token: String,
     pub bytes: Vec<i64>,
@@ -350,6 +402,7 @@ pub struct OutputLogprob {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[serde(rename_all = "snake_case")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct TopLogprob {
     pub token: String,
     pub bytes: Vec<i64>,
@@ -362,6 +415,7 @@ pub struct TopLogprob {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseOutputRefusal {
     #[serde(rename = "type")]
     pub type_: ResponseOutputRefusalType,
@@ -374,6 +428,7 @@ pub struct ResponseOutputRefusal {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct FunctionCall {
     #[serde(rename = "type")]
     pub type_: FunctionCallType,
@@ -412,6 +467,7 @@ pub struct FunctionCall {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct FunctionCallOutput {
     #[serde(rename = "type")]
     pub type_: FunctionCallOutputType,
@@ -453,12 +509,14 @@ pub struct FunctionCallOutput {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FunctionOutput {
     Text(String),
     Content(Vec<FunctionOutputContent>),
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FunctionOutputContent {
     Text(FunctionOutputText),
     Image(FunctionOutputImage),
@@ -468,6 +526,7 @@ pub enum FunctionOutputContent {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[serde(rename_all = "snake_case")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct FunctionOutputImage {
     #[serde(rename = "type")]
     pub type_: ResponseInputImageType,
@@ -502,6 +561,7 @@ pub struct FunctionOutputImage {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[serde(rename_all = "snake_case")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct FunctionOutputFile {
     #[serde(rename = "type")]
     pub type_: ResponseInputFileType,
@@ -550,6 +610,7 @@ pub struct FunctionOutputFile {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ReasoningConfig {
     #[serde(
         default,
@@ -589,6 +650,7 @@ pub struct ReasoningConfig {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ReasoningItem {
     #[serde(rename = "type")]
     pub type_: ReasoningItemType,
@@ -619,6 +681,7 @@ pub struct ReasoningItem {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[serde(rename_all = "snake_case")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ReasoningContent {
     #[serde(rename = "type")]
     pub type_: ReasoningTextType,
@@ -626,12 +689,30 @@ pub struct ReasoningContent {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum ReasoningTextType {
     #[serde(rename = "reasoning_text")]
     ReasoningText,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum ReasoningStatus {
     #[serde(rename = "in_progress")]
     InProgress,
@@ -645,6 +726,7 @@ pub enum ReasoningStatus {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct SummaryText {
     #[serde(rename = "type")]
     pub type_: SummaryTextType,
@@ -657,6 +739,7 @@ pub struct SummaryText {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ItemReference {
     #[serde(
         rename = "type",
@@ -674,6 +757,7 @@ pub struct ItemReference {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct Compaction {
     #[serde(rename = "type")]
     pub type_: CompactionType,
@@ -693,6 +777,7 @@ pub struct Compaction {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct PendingSafetyCheck {
     pub id: String,
     #[serde(
@@ -713,6 +798,7 @@ pub struct PendingSafetyCheck {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum Caller {
     #[serde(rename = "direct")]
     Direct(DirectCaller),
@@ -720,14 +806,28 @@ pub enum Caller {
     Program(ProgramCaller),
 }
 #[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
 )]
 pub struct DirectCaller {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
 #[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
 )]
 pub struct ProgramCaller {
     pub caller_id: String,
@@ -738,6 +838,7 @@ pub struct ProgramCaller {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ComputerAction {
     #[serde(rename = "click")]
     Click(ClickAction),
@@ -758,12 +859,22 @@ pub enum ComputerAction {
     #[serde(rename = "wait")]
     Wait(WaitAction),
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum ComputerScreenshotType {
     #[serde(rename = "computer_screenshot")]
     ComputerScreenshot,
 }
-macro_rules! action_struct { ($name:ident { $($field:tt)* }) => { #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)] #[serde(rename_all = "snake_case")] #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)] pub struct $name { $($field)* #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")] pub rest: Rest } }; }
+macro_rules! action_struct { ($name:ident { $($field:tt)* }) => { #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)] #[serde(rename_all = "snake_case")] #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)] #[derive(gproxy_protocol_macros::DeclaredFields)]
+pub struct $name { $($field)* #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")] pub rest: Rest } }; }
 action_struct!(ClickAction { pub button: ClickButton, pub x: i64, pub y: i64, #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub keys: Option<Option<Vec<String>>>, });
 action_struct!(DoubleClickAction { pub x: i64, pub y: i64, #[wire(required)] #[serde(deserialize_with = "required_nullable")] pub keys: Option<Vec<String>>, });
 action_struct!(DragAction { pub path: Vec<Coordinate>, #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub keys: Option<Option<Vec<String>>>, });
@@ -780,6 +891,7 @@ pub type ComputerToolCallOutput = ComputerScreenshot;
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[serde(rename_all = "snake_case")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ComputerScreenshot {
     #[serde(rename = "type")]
     pub type_: ComputerScreenshotType,
@@ -798,7 +910,16 @@ pub struct ComputerScreenshot {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum ClickButton {
     #[serde(rename = "left")]
     Left,
@@ -814,6 +935,7 @@ pub enum ClickButton {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum WebSearchAction {
     #[serde(rename = "search")]
     Search(WebSearchQuery),
@@ -824,7 +946,16 @@ pub enum WebSearchAction {
 }
 action_struct!(WebSearchQuery { #[serde(default, deserialize_with = "present_optional", skip_serializing_if = "Option::is_none")] pub queries: Option<Vec<String>>, #[serde(default, deserialize_with = "present_optional", skip_serializing_if = "Option::is_none")] pub query: Option<String>, #[serde(default, deserialize_with = "present_optional", skip_serializing_if = "Option::is_none")] pub sources: Option<Vec<WebSearchSource>>, });
 action_struct!(WebSearchSource { #[serde(rename = "type")] pub type_: WebSearchSourceType, pub url: String, });
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum WebSearchSourceType {
     #[serde(rename = "url")]
     Url,
@@ -833,6 +964,7 @@ action_struct!(WebSearchOpenPage { #[serde(default, deserialize_with = "present_
 action_struct!(WebSearchFindInPage { pub pattern: String, pub url: String, });
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum CodeInterpreterOutput {
     #[serde(rename = "logs")]
     Logs(CodeLogs),
@@ -847,6 +979,7 @@ action_struct!(CodeImage { pub url: String, });
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ComputerCall {
     #[serde(rename = "type")]
     pub type_: ComputerCallType,
@@ -874,6 +1007,7 @@ pub struct ComputerCall {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ComputerCallOutput {
     #[serde(rename = "type")]
     pub type_: ComputerCallOutputType,
@@ -905,6 +1039,7 @@ pub struct ComputerCallOutput {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct WebSearchCall {
     #[serde(rename = "type")]
     pub type_: WebSearchCallType,
@@ -919,6 +1054,7 @@ pub struct WebSearchCall {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct FileSearchCall {
     #[serde(rename = "type")]
     pub type_: FileSearchCallType,
@@ -938,6 +1074,7 @@ pub struct FileSearchCall {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[serde(rename_all = "snake_case")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct FileSearchResult {
     #[serde(
         default,
@@ -977,6 +1114,7 @@ pub struct FileSearchResult {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ImageGenerationCall {
     #[serde(rename = "type")]
     pub type_: ImageGenerationCallType,
@@ -993,6 +1131,7 @@ pub struct ImageGenerationCall {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CodeInterpreterCall {
     #[serde(rename = "type")]
     pub type_: CodeInterpreterCallType,
@@ -1013,6 +1152,7 @@ pub struct CodeInterpreterCall {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CustomToolCall {
     #[serde(rename = "type")]
     pub type_: CustomToolCallType,
@@ -1045,6 +1185,7 @@ pub struct CustomToolCall {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CustomToolCallOutput {
     #[serde(rename = "type")]
     pub type_: CustomToolCallOutputType,
@@ -1071,6 +1212,7 @@ pub struct CustomToolCallOutput {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseOutputMessage {
     pub id: String,
     pub content: Vec<OutputContent>,
@@ -1090,6 +1232,7 @@ pub struct ResponseOutputMessage {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum OutputContent {
     Text(ResponseOutputText),
     Refusal(ResponseOutputRefusal),
@@ -1097,12 +1240,14 @@ pub enum OutputContent {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum OutputMessageRole {
     #[serde(rename = "assistant")]
     Assistant,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum OutputMessageStatus {
     #[serde(rename = "in_progress")]
     InProgress,
@@ -1117,7 +1262,8 @@ macro_rules! simple_item {
         #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
         #[serde(rename_all = "snake_case")]
         #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-        pub struct $name { $($field)* #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")] pub rest: Rest }
+        #[derive(gproxy_protocol_macros::DeclaredFields)]
+pub struct $name { $($field)* #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")] pub rest: Rest }
     };
 }
 
@@ -1217,6 +1363,7 @@ simple_item!(ProgramOutput {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct McpToolDefinition {
     pub name: String,
     // Get input token counts.md:3757: unknown schema, not a fixed wire object.
@@ -1243,6 +1390,7 @@ pub struct McpToolDefinition {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LocalShellAction {
     pub command: Vec<String>,
     pub env: std::collections::BTreeMap<String, String>,
@@ -1274,6 +1422,7 @@ pub struct LocalShellAction {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ShellAction {
     pub commands: Vec<String>,
     #[serde(
@@ -1293,6 +1442,7 @@ pub struct ShellAction {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ApplyPatchOperation {
     #[serde(rename = "create_file")]
     Create(ApplyPatchCreate),
@@ -1308,6 +1458,7 @@ action_struct!(ApplyPatchUpdate { pub path: String, pub diff: String, });
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[serde(rename_all = "snake_case")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ShellOutputContent {
     pub stdout: String,
     pub stderr: String,
@@ -1317,6 +1468,7 @@ pub struct ShellOutputContent {
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ShellOutputOutcome {
     #[serde(rename = "timeout")]
     Timeout(ShellTimeout),
@@ -1331,6 +1483,7 @@ action_struct!(ShellExit { pub exit_code: i64, });
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct TextConfig {
     #[serde(
         default,
@@ -1350,6 +1503,7 @@ pub struct TextConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum TextFormat {
     #[serde(rename = "text")]
     Text(TextFormatText),
@@ -1363,6 +1517,7 @@ pub enum TextFormat {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct TextFormatText {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -1372,6 +1527,7 @@ pub struct TextFormatText {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct TextFormatJsonSchema {
     pub name: String,
     // Get input token counts.md:4246: user-provided map[unknown] JSON Schema.
@@ -1396,6 +1552,7 @@ pub struct TextFormatJsonSchema {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct TextFormatJsonObject {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -1404,6 +1561,7 @@ pub struct TextFormatJsonObject {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ToolChoice {
     Mode(ToolChoiceMode),
     Allowed(ToolChoiceAllowed),
@@ -1420,6 +1578,7 @@ pub enum ToolChoice {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[serde(rename_all = "snake_case")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ToolChoiceHosted {
     #[serde(rename = "type")]
     pub type_: ToolChoiceHostedType,
@@ -1427,7 +1586,16 @@ pub struct ToolChoiceHosted {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum ToolChoiceHostedType {
     #[serde(rename = "file_search")]
     FileSearch,
@@ -1451,6 +1619,7 @@ pub enum ToolChoiceHostedType {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ToolChoiceAllowed {
     #[serde(rename = "type")]
     pub type_: ToolChoiceAllowedType,
@@ -1465,6 +1634,7 @@ pub struct ToolChoiceAllowed {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[serde(rename_all = "snake_case")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ToolChoiceFunction {
     #[serde(rename = "type")]
     pub type_: ToolChoiceFunctionType,
@@ -1476,6 +1646,7 @@ pub struct ToolChoiceFunction {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[serde(rename_all = "snake_case")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ToolChoiceMcp {
     #[serde(rename = "type")]
     pub type_: ToolChoiceMcpType,
@@ -1494,6 +1665,7 @@ pub struct ToolChoiceMcp {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ToolChoiceCustom {
     #[serde(rename = "type")]
     pub type_: ToolChoiceCustomType,
@@ -1504,6 +1676,7 @@ pub struct ToolChoiceCustom {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseInputTextType {
     #[serde(rename = "input_text")]
     ResponseInputText,
@@ -1511,6 +1684,7 @@ pub enum ResponseInputTextType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseInputImageType {
     #[serde(rename = "input_image")]
     ResponseInputImage,
@@ -1518,6 +1692,7 @@ pub enum ResponseInputImageType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseInputFileType {
     #[serde(rename = "input_file")]
     ResponseInputFile,
@@ -1525,6 +1700,7 @@ pub enum ResponseInputFileType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FunctionCallType {
     #[serde(rename = "function_call")]
     FunctionCall,
@@ -1532,6 +1708,7 @@ pub enum FunctionCallType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FunctionCallOutputType {
     #[serde(rename = "function_call_output")]
     FunctionCallOutput,
@@ -1539,6 +1716,7 @@ pub enum FunctionCallOutputType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ReasoningItemType {
     #[serde(rename = "reasoning")]
     ReasoningItem,
@@ -1546,6 +1724,7 @@ pub enum ReasoningItemType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ItemReferenceType {
     #[serde(rename = "item_reference")]
     ItemReference,
@@ -1553,6 +1732,7 @@ pub enum ItemReferenceType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum CompactionType {
     #[serde(rename = "compaction")]
     Compaction,
@@ -1560,6 +1740,7 @@ pub enum CompactionType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ComputerCallType {
     #[serde(rename = "computer_call")]
     ComputerCall,
@@ -1567,6 +1748,7 @@ pub enum ComputerCallType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ComputerCallOutputType {
     #[serde(rename = "computer_call_output")]
     ComputerCallOutput,
@@ -1574,6 +1756,7 @@ pub enum ComputerCallOutputType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum WebSearchCallType {
     #[serde(rename = "web_search_call")]
     WebSearchCall,
@@ -1581,6 +1764,7 @@ pub enum WebSearchCallType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FileSearchCallType {
     #[serde(rename = "file_search_call")]
     FileSearchCall,
@@ -1588,6 +1772,7 @@ pub enum FileSearchCallType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ImageGenerationCallType {
     #[serde(rename = "image_generation_call")]
     ImageGenerationCall,
@@ -1595,6 +1780,7 @@ pub enum ImageGenerationCallType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum CodeInterpreterCallType {
     #[serde(rename = "code_interpreter_call")]
     CodeInterpreterCall,
@@ -1602,6 +1788,7 @@ pub enum CodeInterpreterCallType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum CustomToolCallType {
     #[serde(rename = "custom_tool_call")]
     CustomToolCall,
@@ -1609,6 +1796,7 @@ pub enum CustomToolCallType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum CustomToolCallOutputType {
     #[serde(rename = "custom_tool_call_output")]
     CustomToolCallOutput,
@@ -1616,6 +1804,7 @@ pub enum CustomToolCallOutputType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum SummaryTextType {
     #[serde(rename = "summary_text")]
     SummaryText,
@@ -1623,6 +1812,7 @@ pub enum SummaryTextType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseOutputTextType {
     #[serde(rename = "output_text")]
     ResponseOutputText,
@@ -1630,6 +1820,7 @@ pub enum ResponseOutputTextType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseOutputRefusalType {
     #[serde(rename = "refusal")]
     ResponseOutputRefusal,
@@ -1637,6 +1828,7 @@ pub enum ResponseOutputRefusalType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ToolChoiceAllowedType {
     #[serde(rename = "allowed_tools")]
     ToolChoiceAllowed,
@@ -1644,6 +1836,7 @@ pub enum ToolChoiceAllowedType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ToolChoiceFunctionType {
     #[serde(rename = "function")]
     ToolChoiceFunction,
@@ -1651,6 +1844,7 @@ pub enum ToolChoiceFunctionType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ToolChoiceMcpType {
     #[serde(rename = "mcp")]
     ToolChoiceMcp,
@@ -1658,6 +1852,7 @@ pub enum ToolChoiceMcpType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ToolChoiceCustomType {
     #[serde(rename = "custom")]
     ToolChoiceCustom,
@@ -1667,6 +1862,7 @@ macro_rules! item_tag {
     ($name:ident, $variant:ident, $wire:literal) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
         #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+        #[derive(gproxy_protocol_macros::DeclaredFields)]
         pub enum $name {
             #[serde(rename = $wire)]
             $variant,
@@ -1710,14 +1906,32 @@ item_tag!(
 item_tag!(ProgramType, Program, "program");
 item_tag!(ProgramOutputType, ProgramOutput, "program_output");
 item_tag!(LocalShellActionType, Exec, "exec");
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum ProgramOutputStatus {
     #[serde(rename = "completed")]
     Completed,
     #[serde(rename = "incomplete")]
     Incomplete,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum ItemStatus {
     #[serde(rename = "in_progress")]
     InProgress,
@@ -1729,12 +1943,22 @@ pub enum ItemStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum MessageType {
     #[serde(rename = "message")]
     Message,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum MessagePhase {
     #[serde(rename = "commentary")]
     Commentary,
@@ -1744,6 +1968,7 @@ pub enum MessagePhase {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum MessageRole {
     #[serde(rename = "user")]
     User,
@@ -1757,6 +1982,7 @@ pub enum MessageRole {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum InputMessageRole {
     #[serde(rename = "user")]
     User,
@@ -1765,7 +1991,16 @@ pub enum InputMessageRole {
     #[serde(rename = "developer")]
     Developer,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum AdditionalToolsRole {
     #[serde(rename = "developer")]
     Developer,
@@ -1773,6 +2008,7 @@ pub enum AdditionalToolsRole {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ToolChoiceMode {
     #[serde(rename = "none")]
     None,
@@ -1784,6 +2020,7 @@ pub enum ToolChoiceMode {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum AllowedToolChoiceMode {
     #[serde(rename = "auto")]
     Auto,
@@ -1795,6 +2032,7 @@ pub enum AllowedToolChoiceMode {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ToolChoiceProgrammatic {
     #[serde(rename = "type")]
     pub type_: ToolChoiceProgrammaticType,
@@ -1804,6 +2042,7 @@ pub struct ToolChoiceProgrammatic {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ToolChoiceProgrammaticType {
     #[serde(rename = "programmatic_tool_calling")]
     Tag,
@@ -1813,6 +2052,7 @@ pub enum ToolChoiceProgrammaticType {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ToolChoiceApplyPatch {
     #[serde(rename = "type")]
     pub type_: ToolChoiceApplyPatchType,
@@ -1822,6 +2062,7 @@ pub struct ToolChoiceApplyPatch {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ToolChoiceApplyPatchType {
     #[serde(rename = "apply_patch")]
     Tag,
@@ -1831,6 +2072,7 @@ pub enum ToolChoiceApplyPatchType {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ToolChoiceShell {
     #[serde(rename = "type")]
     pub type_: ToolChoiceShellType,
@@ -1840,6 +2082,7 @@ pub struct ToolChoiceShell {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ToolChoiceShellType {
     #[serde(rename = "shell")]
     Tag,
@@ -1848,7 +2091,14 @@ pub enum ToolChoiceShellType {
 // Get input token counts.md:1019-1037 differs from ordinary input text:
 // the function-output cache breakpoint explicitly permits null.
 #[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
 )]
 pub struct FunctionOutputText {
     #[serde(rename = "type")]
@@ -1866,6 +2116,7 @@ pub struct FunctionOutputText {
 // D:3896-3917 uses ordinary input content rather than the function-output variants.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum CustomOutput {
     Text(String),
     Content(Vec<InputContent>),
@@ -1873,6 +2124,7 @@ pub enum CustomOutput {
 // D:3469-3475: input shell calls accept local/reference, never container_auto.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ShellCallEnvironment {
     Local(ShellLocalEnvironment),
     Reference(ShellContainerReference),
@@ -1880,6 +2132,7 @@ pub enum ShellCallEnvironment {
 // D:466-478: file attributes are scalar values, not arbitrary JSON.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FileAttributeValue {
     Text(String),
     Number(serde_json::Number),
@@ -1889,6 +2142,7 @@ pub enum FileAttributeValue {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ImageDetail {
     Low,
     High,
@@ -1899,6 +2153,7 @@ pub enum ImageDetail {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FileDetail {
     Auto,
     Low,
@@ -1908,6 +2163,7 @@ pub enum FileDetail {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum PromptCacheMode {
     Explicit,
 }
@@ -1915,6 +2171,7 @@ pub enum PromptCacheMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum WebSearchStatus {
     InProgress,
     Searching,
@@ -1925,6 +2182,7 @@ pub enum WebSearchStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FileSearchStatus {
     InProgress,
     Searching,
@@ -1936,6 +2194,7 @@ pub enum FileSearchStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ImageGenerationStatus {
     InProgress,
     Completed,
@@ -1946,6 +2205,7 @@ pub enum ImageGenerationStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum CodeInterpreterStatus {
     InProgress,
     Completed,
@@ -1957,6 +2217,7 @@ pub enum CodeInterpreterStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ApplyPatchStatus {
     InProgress,
     Completed,
@@ -1965,6 +2226,7 @@ pub enum ApplyPatchStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ApplyPatchOutputStatus {
     Completed,
     Failed,
@@ -1973,6 +2235,7 @@ pub enum ApplyPatchOutputStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum McpCallStatus {
     InProgress,
     Completed,
@@ -1984,6 +2247,7 @@ pub enum McpCallStatus {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ReasoningEffort {
     None,
     Minimal,
@@ -1997,6 +2261,7 @@ pub enum ReasoningEffort {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ReasoningSummary {
     Auto,
     Concise,
@@ -2006,6 +2271,7 @@ pub enum ReasoningSummary {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ReasoningContext {
     Auto,
     CurrentTurn,
@@ -2015,6 +2281,7 @@ pub enum ReasoningContext {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum TextVerbosity {
     Low,
     Medium,

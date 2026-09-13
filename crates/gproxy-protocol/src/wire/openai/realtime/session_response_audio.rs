@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 /// Source: `openai/types/realtime/realtime_session_create_response.py`, `Audio`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeSessionCreateResponseAudio {
     #[serde(
         default,
@@ -30,6 +31,7 @@ pub struct RealtimeSessionCreateResponseAudio {
 /// Source: `openai/types/realtime/realtime_session_create_response.py`, `AudioInput`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeSessionCreateResponseAudioInput {
     #[serde(
         default,
@@ -62,6 +64,7 @@ pub struct RealtimeSessionCreateResponseAudioInput {
 /// Source: `openai/types/realtime/realtime_session_create_response.py`, `AudioOutput`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeSessionCreateResponseAudioOutput {
     #[serde(
         default,
@@ -88,6 +91,7 @@ pub struct RealtimeSessionCreateResponseAudioOutput {
 /// Source: `openai/types/realtime/realtime_session_create_response.py`, `AudioInputNoiseReduction`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeSessionCreateResponseAudioInputNoiseReduction {
     #[serde(rename = "type")]
     #[serde(
@@ -104,6 +108,7 @@ pub struct RealtimeSessionCreateResponseAudioInputNoiseReduction {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseAudioInputTurnDetection {
     RealtimeSessionCreateResponseAudioInputTurnDetectionServerVad(
         RealtimeSessionCreateResponseAudioInputTurnDetectionServerVad,
@@ -117,6 +122,7 @@ pub enum RealtimeSessionCreateResponseAudioInputTurnDetection {
 /// Source: `openai/types/realtime/realtime_session_create_response.py`, `AudioInputTurnDetectionServerVad`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeSessionCreateResponseAudioInputTurnDetectionServerVad {
     #[serde(rename = "type")]
     pub type_: RealtimeSessionCreateResponseAudioInputTurnDetectionServerVadType,
@@ -163,6 +169,7 @@ pub struct RealtimeSessionCreateResponseAudioInputTurnDetectionServerVad {
 /// Source: `openai/types/realtime/realtime_session_create_response.py`, `AudioInputTurnDetectionSemanticVad`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeSessionCreateResponseAudioInputTurnDetectionSemanticVad {
     #[serde(rename = "type")]
     pub type_: RealtimeSessionCreateResponseAudioInputTurnDetectionSemanticVadType,
@@ -191,6 +198,7 @@ pub struct RealtimeSessionCreateResponseAudioInputTurnDetectionSemanticVad {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseAudioInputTurnDetectionServerVadType {
     #[serde(rename = "server_vad")]
     ServerVad,
@@ -198,6 +206,7 @@ pub enum RealtimeSessionCreateResponseAudioInputTurnDetectionServerVadType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseAudioInputTurnDetectionSemanticVadType {
     #[serde(rename = "semantic_vad")]
     SemanticVad,
@@ -205,6 +214,7 @@ pub enum RealtimeSessionCreateResponseAudioInputTurnDetectionSemanticVadType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseAudioInputTurnDetectionSemanticVadEagerness {
     #[serde(rename = "low")]
     Low,

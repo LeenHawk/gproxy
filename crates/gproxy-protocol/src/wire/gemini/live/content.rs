@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LiveContent {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parts: Option<Vec<LivePart>>,
@@ -21,6 +22,7 @@ pub struct LiveContent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LivePart {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thought: Option<bool>,
@@ -80,6 +82,7 @@ pub struct LivePart {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum LiveMediaProcessing {
     #[serde(rename = "MEDIA_PROCESSING_UNSPECIFIED")]
     Unspecified,

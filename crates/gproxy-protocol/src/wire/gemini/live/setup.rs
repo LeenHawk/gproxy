@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct BidiGenerateContentSetup {
     pub model: String,
     #[serde(alias = "generation_config")]
@@ -51,6 +52,7 @@ pub struct BidiGenerateContentSetup {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct SessionResumptionConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub handle: Option<String>,
@@ -61,6 +63,7 @@ pub struct SessionResumptionConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ContextWindowCompressionConfig {
     #[serde(alias = "sliding_window")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -75,6 +78,7 @@ pub struct ContextWindowCompressionConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct SlidingWindow {
     #[serde(alias = "target_tokens")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -86,6 +90,7 @@ pub struct SlidingWindow {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ProactivityConfig {
     #[serde(alias = "proactive_audio")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -97,6 +102,7 @@ pub struct ProactivityConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct HistoryConfig {
     #[serde(alias = "initial_history_in_client_content")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -108,6 +114,7 @@ pub struct HistoryConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct AvatarConfig {
     #[serde(alias = "avatar_name")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -128,6 +135,7 @@ pub struct AvatarConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CustomizedAvatar {
     #[serde(alias = "image_mime_type")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -142,6 +150,7 @@ pub struct CustomizedAvatar {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct AudioTranscriptionConfig {
     #[serde(alias = "language_codes")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -172,6 +181,7 @@ pub struct AudioTranscriptionConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LanguageAuto {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -180,6 +190,7 @@ pub struct LanguageAuto {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LanguageHints {
     #[serde(alias = "language_codes")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -190,6 +201,7 @@ pub struct LanguageHints {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum AudioTranscriptionMode {
     #[serde(rename = "MODE_UNSPECIFIED")]
     ModeUnspecified,
@@ -202,6 +214,7 @@ pub enum AudioTranscriptionMode {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct BidiGenerateContentSetupComplete {
     #[serde(alias = "session_id")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -216,6 +229,7 @@ pub struct BidiGenerateContentSetupComplete {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct VoiceConsentSignature {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,

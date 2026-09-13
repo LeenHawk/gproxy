@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RerankRequestBody {
     #[serde(
         default,
@@ -26,6 +27,7 @@ pub type RerankRequest = WireRequest<RerankRequestBody>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RerankDocumentInput {
     Text(String),
     Structured(RerankDocument),
@@ -33,6 +35,7 @@ pub enum RerankDocumentInput {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RerankDocument {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
@@ -44,6 +47,7 @@ pub struct RerankDocument {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RerankResponseBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
@@ -59,6 +63,7 @@ pub struct RerankResponseBody {
 pub type RerankResponse = WireResponse<RerankResponseBody>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RerankObject {
     #[serde(rename = "list")]
     List,
@@ -66,6 +71,7 @@ pub enum RerankObject {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RerankResult {
     pub index: i64,
     pub relevance_score: serde_json::Number,
@@ -76,6 +82,7 @@ pub struct RerankResult {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RerankUsage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub search_units: Option<i64>,
@@ -98,6 +105,7 @@ where
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ProviderPreferences {
     #[serde(
         default,
@@ -180,6 +188,7 @@ pub struct ProviderPreferences {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct MaxPrice {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio: Option<String>,
@@ -198,6 +207,7 @@ pub struct MaxPrice {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct PercentileCutoffs {
     #[serde(
         default,
@@ -230,6 +240,7 @@ pub struct PercentileCutoffs {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ProviderSortConfig {
     #[serde(
         default,
@@ -249,6 +260,7 @@ pub struct ProviderSortConfig {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum DataCollection {
     #[serde(rename = "deny")]
     Deny,
@@ -258,6 +270,7 @@ pub enum DataCollection {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum Quantization {
     #[serde(rename = "int4")]
     Int4,
@@ -287,6 +300,7 @@ pub enum Quantization {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ProviderSortBy {
     #[serde(rename = "price")]
     Price,
@@ -300,6 +314,7 @@ pub enum ProviderSortBy {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ProviderPartition {
     #[serde(rename = "model")]
     Model,
@@ -310,6 +325,7 @@ pub enum ProviderPartition {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum PreferredCutoff {
     Number(serde_json::Number),
     Percentiles(PercentileCutoffs),
@@ -318,6 +334,7 @@ pub enum PreferredCutoff {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ProviderSort {
     By(ProviderSortBy),
     Config(ProviderSortConfig),
@@ -326,6 +343,7 @@ pub enum ProviderSort {
 /// DashScope's request accepts text documents and an optional ranking instruction.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct DashscopeRerankRequestBody {
     /// Documented by DashScope under results.document: true returns input text.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -343,6 +361,7 @@ pub struct DashscopeRerankRequestBody {
 pub type DashscopeRerankRequest = WireRequest<DashscopeRerankRequestBody>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct DashscopeRerankResponseBody {
     pub id: String,
     pub object: RerankObject,
@@ -355,6 +374,7 @@ pub struct DashscopeRerankResponseBody {
 pub type DashscopeRerankResponse = WireResponse<DashscopeRerankResponseBody>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct DashscopeRerankResult {
     pub index: i64,
     pub relevance_score: serde_json::Number,
@@ -365,6 +385,7 @@ pub struct DashscopeRerankResult {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct DashscopeRerankDocument {
     pub text: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -372,6 +393,7 @@ pub struct DashscopeRerankDocument {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct DashscopeRerankUsage {
     pub total_tokens: i64,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]

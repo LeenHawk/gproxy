@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CountTokensRequestBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contents: Option<Vec<Content>>,
@@ -25,6 +26,7 @@ pub struct CountTokensRequestBody {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ModalityTokenCount {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub modality: Option<Modality>,
@@ -39,6 +41,7 @@ pub struct ModalityTokenCount {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CountTokensResponseBody {
     #[serde(alias = "total_tokens", skip_serializing_if = "Option::is_none")]
     pub total_tokens: Option<i64>,

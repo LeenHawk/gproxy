@@ -9,6 +9,7 @@ pub type ListModelsRequest = crate::WireRequest<()>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ListObject {
     List,
 }
@@ -16,6 +17,7 @@ pub enum ListObject {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ModelObject {
     Model,
 }
@@ -27,6 +29,7 @@ pub type GetModelRequest = crate::WireRequest<()>;
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ListModelsResponseBody {
     pub data: Vec<Model>,
     pub object: ListObject,
@@ -42,6 +45,7 @@ pub type GetModelResponse = crate::WireResponse<Model>;
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct Model {
     pub id: String,
     pub created: i64,

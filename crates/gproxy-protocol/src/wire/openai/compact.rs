@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CompactRequestBody {
     #[serde(
         default,
@@ -61,6 +62,7 @@ pub type CompactRequest = crate::WireRequest<CompactRequestBody>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ServiceTier {
     Auto,
     Default,
@@ -73,6 +75,7 @@ pub enum ServiceTier {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CompactResponseBody {
     pub usage: super::responses::response::ResponseUsage,
     pub id: String,
@@ -85,6 +88,7 @@ pub struct CompactResponseBody {
 pub type CompactResponse = crate::WireResponse<CompactResponseBody>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum CompactObject {
     #[serde(rename = "response.compaction")]
     ResponseCompaction,

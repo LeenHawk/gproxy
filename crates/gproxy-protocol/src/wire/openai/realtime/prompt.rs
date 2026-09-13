@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 /// Source: `openai/types/responses/response_prompt.py`, `ResponsePrompt`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponsePrompt {
     pub id: String,
     #[serde(
@@ -31,6 +32,7 @@ pub struct ResponsePrompt {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponsePromptVariables {
     Text(String),
     ResponseInputText(ResponseInputText),
@@ -41,6 +43,7 @@ pub enum ResponsePromptVariables {
 /// Source: `openai/types/responses/tool_choice_options.py`, `ToolChoiceOptions`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ToolChoiceOptions {
     #[serde(rename = "none")]
     None,
@@ -53,6 +56,7 @@ pub enum ToolChoiceOptions {
 /// Source: `openai/types/responses/tool_choice_function.py`, `ToolChoiceFunction`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ToolChoiceFunction {
     pub name: String,
     #[serde(rename = "type")]
@@ -64,6 +68,7 @@ pub struct ToolChoiceFunction {
 /// Source: `openai/types/responses/tool_choice_mcp.py`, `ToolChoiceMcp`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ToolChoiceMcp {
     pub server_label: String,
     #[serde(rename = "type")]
@@ -84,6 +89,7 @@ pub type Metadata = std::collections::BTreeMap<String, String>;
 /// Source: `openai/types/responses/response_input_text.py`, `ResponseInputText`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseInputText {
     pub text: String,
     #[serde(rename = "type")]
@@ -101,6 +107,7 @@ pub struct ResponseInputText {
 /// Source: `openai/types/responses/response_input_image.py`, `ResponseInputImage`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseInputImage {
     pub detail: ImageDetail,
     #[serde(rename = "type")]
@@ -130,6 +137,7 @@ pub struct ResponseInputImage {
 /// Source: `openai/types/responses/response_input_file.py`, `ResponseInputFile`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseInputFile {
     #[serde(rename = "type")]
     pub type_: ResponseInputFileType,
@@ -176,6 +184,7 @@ pub struct ResponseInputFile {
 /// Source: `openai/types/responses/response_input_text.py`, `PromptCacheBreakpoint`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseInputTextPromptCacheBreakpoint {
     pub mode: ResponseInputTextPromptCacheBreakpointMode,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -185,6 +194,7 @@ pub struct ResponseInputTextPromptCacheBreakpoint {
 /// Source: `openai/types/responses/image_detail.py`, `ImageDetail`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ImageDetail {
     #[serde(rename = "low")]
     Low,
@@ -199,6 +209,7 @@ pub enum ImageDetail {
 /// Source: `openai/types/responses/response_input_image.py`, `PromptCacheBreakpoint`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseInputImagePromptCacheBreakpoint {
     pub mode: ResponseInputImagePromptCacheBreakpointMode,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -208,6 +219,7 @@ pub struct ResponseInputImagePromptCacheBreakpoint {
 /// Source: `openai/types/responses/response_input_file.py`, `PromptCacheBreakpoint`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseInputFilePromptCacheBreakpoint {
     pub mode: ResponseInputFilePromptCacheBreakpointMode,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -216,6 +228,7 @@ pub struct ResponseInputFilePromptCacheBreakpoint {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ToolChoiceFunctionType {
     #[serde(rename = "function")]
     Function,
@@ -223,6 +236,7 @@ pub enum ToolChoiceFunctionType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ToolChoiceMcpType {
     #[serde(rename = "mcp")]
     Mcp,
@@ -230,6 +244,7 @@ pub enum ToolChoiceMcpType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseInputTextType {
     #[serde(rename = "input_text")]
     InputText,
@@ -237,6 +252,7 @@ pub enum ResponseInputTextType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseInputImageType {
     #[serde(rename = "input_image")]
     InputImage,
@@ -244,6 +260,7 @@ pub enum ResponseInputImageType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseInputFileType {
     #[serde(rename = "input_file")]
     InputFile,
@@ -251,6 +268,7 @@ pub enum ResponseInputFileType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseInputFileDetail {
     #[serde(rename = "auto")]
     Auto,
@@ -262,6 +280,7 @@ pub enum ResponseInputFileDetail {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseInputTextPromptCacheBreakpointMode {
     #[serde(rename = "explicit")]
     Explicit,
@@ -269,6 +288,7 @@ pub enum ResponseInputTextPromptCacheBreakpointMode {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseInputImagePromptCacheBreakpointMode {
     #[serde(rename = "explicit")]
     Explicit,
@@ -276,6 +296,7 @@ pub enum ResponseInputImagePromptCacheBreakpointMode {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseInputFilePromptCacheBreakpointMode {
     #[serde(rename = "explicit")]
     Explicit,

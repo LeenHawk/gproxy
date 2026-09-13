@@ -14,6 +14,7 @@ pub type ResponseInstructions = input::Input;
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct GenerateContentResponseBody {
     pub id: String,
     pub created_at: i64,
@@ -173,6 +174,7 @@ pub struct GenerateContentResponseBody {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseObject {
     #[serde(rename = "response")]
     Response,
@@ -182,6 +184,7 @@ pub enum ResponseObject {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseError {
     pub code: ResponseErrorCode,
     pub message: String,
@@ -191,6 +194,7 @@ pub struct ResponseError {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseErrorCode {
     #[serde(rename = "server_error")]
     ServerError,
@@ -238,6 +242,7 @@ pub enum ResponseErrorCode {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseIncompleteDetails {
     #[serde(
         default,
@@ -251,6 +256,7 @@ pub struct ResponseIncompleteDetails {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseIncompleteReason {
     #[serde(rename = "max_output_tokens")]
     MaxOutputTokens,
@@ -262,6 +268,7 @@ pub enum ResponseIncompleteReason {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponsePromptCacheOptions {
     pub mode: generate::PromptCachingMode,
     pub ttl: generate::PromptCacheTtl,
@@ -271,6 +278,7 @@ pub struct ResponsePromptCacheOptions {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseStatus {
     #[serde(rename = "completed")]
     Completed,
@@ -290,6 +298,7 @@ pub enum ResponseStatus {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseModerationReport {
     pub input: ResponseModerationOutcome,
     pub output: ResponseModerationOutcome,
@@ -300,6 +309,7 @@ pub struct ResponseModerationReport {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseModerationOutcome {
     Result(ResponseModerationResult),
     Error(ResponseModerationError),
@@ -309,6 +319,7 @@ pub enum ResponseModerationOutcome {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseModerationResult {
     pub categories: BTreeMap<String, bool>,
     pub category_applied_input_types: BTreeMap<String, Vec<ResponseModerationInputType>>,
@@ -323,6 +334,7 @@ pub struct ResponseModerationResult {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseModerationInputType {
     #[serde(rename = "text")]
     Text,
@@ -332,6 +344,7 @@ pub enum ResponseModerationInputType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseModerationResultType {
     #[serde(rename = "moderation_result")]
     ModerationResult,
@@ -341,6 +354,7 @@ pub enum ResponseModerationResultType {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseModerationError {
     pub code: String,
     pub message: String,
@@ -352,6 +366,7 @@ pub struct ResponseModerationError {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseModerationErrorType {
     #[serde(rename = "error")]
     Error,
@@ -361,6 +376,7 @@ pub enum ResponseModerationErrorType {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseUsage {
     pub input_tokens: i64,
     pub input_tokens_details: ResponseInputTokensDetails,
@@ -375,6 +391,7 @@ pub struct ResponseUsage {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseInputTokensDetails {
     pub cache_write_tokens: i64,
     pub cached_tokens: i64,
@@ -386,6 +403,7 @@ pub struct ResponseInputTokensDetails {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseOutputTokensDetails {
     pub reasoning_tokens: i64,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -397,6 +415,7 @@ pub struct ResponseOutputTokensDetails {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseOutputItem {
     Message(input::ResponseOutputMessage),
     FileSearchCall(input::FileSearchCall),
@@ -432,6 +451,7 @@ pub enum ResponseOutputItem {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseFunctionCallOutput {
     pub id: String,
     pub call_id: String,
@@ -471,6 +491,7 @@ pub struct ResponseFunctionCallOutput {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseComputerCallOutput {
     pub id: String,
     pub call_id: String,
@@ -496,6 +517,7 @@ pub struct ResponseComputerCallOutput {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseComputerOutputStatus {
     #[serde(rename = "completed")]
     Completed,
@@ -511,6 +533,7 @@ pub enum ResponseComputerOutputStatus {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseToolSearchCall {
     pub id: String,
     // Source line 10675 explicitly permits unknown (arbitrary JSON) arguments.
@@ -536,6 +559,7 @@ pub struct ResponseToolSearchCall {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseToolSearchOutput {
     pub id: String,
     #[wire(required)]
@@ -560,6 +584,7 @@ pub struct ResponseToolSearchOutput {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseAdditionalTools {
     pub id: String,
     pub role: ResponseAdditionalToolsRole,
@@ -572,6 +597,7 @@ pub struct ResponseAdditionalTools {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseAdditionalToolsRole {
     #[serde(rename = "unknown")]
     Unknown,
@@ -595,6 +621,7 @@ pub enum ResponseAdditionalToolsRole {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseCompaction {
     pub id: String,
     pub encrypted_content: String,
@@ -614,6 +641,7 @@ pub struct ResponseCompaction {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseShellCall {
     pub id: String,
     pub action: ResponseShellAction,
@@ -644,6 +672,7 @@ pub struct ResponseShellCall {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseShellAction {
     pub commands: Vec<String>,
     #[wire(required)]
@@ -659,6 +688,7 @@ pub struct ResponseShellAction {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseShellEnvironment {
     Local(ResponseLocalEnvironment),
     Reference(tools::ShellContainerReference),
@@ -668,6 +698,7 @@ pub enum ResponseShellEnvironment {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseLocalEnvironment {
     #[serde(rename = "type")]
     pub type_: tools::ShellLocalType,
@@ -679,6 +710,7 @@ pub struct ResponseLocalEnvironment {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseShellCallOutput {
     pub id: String,
     pub call_id: String,
@@ -709,6 +741,7 @@ pub struct ResponseShellCallOutput {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseShellOutputContent {
     pub outcome: input::ShellOutputOutcome,
     pub stderr: String,
@@ -727,6 +760,7 @@ pub struct ResponseShellOutputContent {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseApplyPatchCall {
     pub id: String,
     pub call_id: String,
@@ -754,6 +788,7 @@ pub struct ResponseApplyPatchCall {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseApplyPatchCallOutput {
     pub id: String,
     pub call_id: String,
@@ -786,6 +821,7 @@ pub struct ResponseApplyPatchCallOutput {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseMcpApprovalResponse {
     pub id: String,
     pub approval_request_id: String,
@@ -806,6 +842,7 @@ pub struct ResponseMcpApprovalResponse {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseCustomToolCallOutput {
     pub id: String,
     pub call_id: String,

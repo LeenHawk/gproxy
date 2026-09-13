@@ -27,6 +27,7 @@ where
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CreateVideoRequestBody {
     pub model: String,
     #[serde(
@@ -103,6 +104,7 @@ pub struct CreateVideoRequestBody {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct VideoGenerationResponseBody {
     pub id: String,
     pub polling_url: String,
@@ -139,6 +141,7 @@ pub struct VideoGenerationResponseBody {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct VideoUsage {
     #[serde(
         default,
@@ -162,6 +165,7 @@ pub struct VideoUsage {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 /// provider.options is explicitly arbitrary per-provider JSON in the OpenRouter schema.
 /// Video provider configuration has no routing preferences; do not import rerank fields.
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct VideoProvider {
     #[serde(
         default,
@@ -177,6 +181,7 @@ pub struct VideoProvider {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ReferenceUrl {
     pub url: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -187,6 +192,7 @@ pub struct ReferenceUrl {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct FrameImage {
     #[serde(rename = "type")]
     pub type_: VideoImageType,
@@ -198,6 +204,7 @@ pub struct FrameImage {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum VideoImageType {
     #[serde(rename = "image_url")]
     ImageUrl,
@@ -205,6 +212,7 @@ pub enum VideoImageType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FrameType {
     #[serde(rename = "first_frame")]
     FirstFrame,
@@ -215,6 +223,7 @@ pub enum FrameType {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum InputReference {
     #[serde(rename = "image_url")]
     Image(InputImageReference),
@@ -228,6 +237,7 @@ pub enum InputReference {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct InputImageReference {
     pub image_url: ReferenceUrl,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -238,6 +248,7 @@ pub struct InputImageReference {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct InputAudioReference {
     pub audio_url: ReferenceUrl,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -248,6 +259,7 @@ pub struct InputAudioReference {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct InputVideoReference {
     pub video_url: ReferenceUrl,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -256,6 +268,7 @@ pub struct InputVideoReference {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum VideoAspectRatio {
     #[serde(rename = "16:9")]
     R16x9,
@@ -279,6 +292,7 @@ pub enum VideoAspectRatio {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum VideoResolution {
     #[serde(rename = "480p")]
     P480,
@@ -298,6 +312,7 @@ pub enum VideoResolution {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum VideoStatus {
     #[serde(rename = "pending")]
     Pending,
@@ -317,6 +332,7 @@ pub enum VideoStatus {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RetrieveVideoPath {
     #[serde(rename = "jobId")]
     pub job_id: String,
@@ -328,6 +344,7 @@ pub struct RetrieveVideoPath {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct DownloadVideoQuery {
     #[serde(
         default,
@@ -350,6 +367,7 @@ pub type DownloadVideoResponse = WireResponse<HttpBody>;
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NativeCreateVideoRequestBody {
     pub prompt: String,
     #[serde(
@@ -382,6 +400,7 @@ pub struct NativeCreateVideoRequestBody {
 
 #[derive(Debug, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NativeCreateVideoMultipartForm {
     pub prompt: String,
     pub input_reference: Option<MultipartPart>,
@@ -393,6 +412,7 @@ pub struct NativeCreateVideoMultipartForm {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum NativeInputReference {
     File(NativeFileReference),
     Url(NativeUrlReference),
@@ -402,6 +422,7 @@ pub enum NativeInputReference {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NativeFileReference {
     pub file_id: String,
     #[serde(
@@ -417,6 +438,7 @@ pub struct NativeFileReference {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NativeUrlReference {
     pub image_url: String,
     #[serde(
@@ -449,6 +471,7 @@ fn url_extensions<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Rest, D::Err
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum NativeVideoSeconds {
     #[serde(rename = "4")]
     Four,
@@ -460,6 +483,7 @@ pub enum NativeVideoSeconds {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum NativeVideoSize {
     #[serde(rename = "720x1280")]
     Portrait720,
@@ -473,6 +497,7 @@ pub enum NativeVideoSize {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum NativeVideoStatus {
     #[serde(rename = "queued")]
     Queued,
@@ -486,6 +511,7 @@ pub enum NativeVideoStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum NativeVideoObject {
     #[serde(rename = "video")]
     Video,
@@ -493,6 +519,7 @@ pub enum NativeVideoObject {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum NativeVideoDeletedObject {
     #[serde(rename = "video.deleted")]
     VideoDeleted,
@@ -500,6 +527,7 @@ pub enum NativeVideoDeletedObject {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum NativeVideoListOrder {
     #[serde(rename = "asc")]
     Asc,
@@ -509,6 +537,7 @@ pub enum NativeVideoListOrder {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum NativeVideoDownloadVariant {
     #[serde(rename = "video")]
     Video,
@@ -522,6 +551,7 @@ pub enum NativeVideoDownloadVariant {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NativeVideo {
     pub id: String,
     pub created_at: i64,
@@ -569,6 +599,7 @@ pub struct NativeVideo {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NativeVideoError {
     pub code: String,
     pub message: String,
@@ -586,6 +617,7 @@ pub struct NativeVideoError {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NativeVideoPath {
     pub video_id: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -596,6 +628,7 @@ pub struct NativeVideoPath {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NativeListVideosQuery {
     #[serde(
         default,
@@ -623,6 +656,7 @@ pub struct NativeListVideosQuery {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NativeListVideosResponseBody {
     pub data: Vec<NativeVideo>,
     #[serde(
@@ -645,6 +679,7 @@ pub struct NativeListVideosResponseBody {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NativeDeleteVideoResponseBody {
     pub id: String,
     pub deleted: bool,
@@ -657,6 +692,7 @@ pub struct NativeDeleteVideoResponseBody {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NativeDownloadVideoQuery {
     #[serde(
         default,
@@ -686,6 +722,7 @@ pub type NativeDownloadVideoResponse = WireResponse<HttpBody>;
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NativeVideoMisalignment {
     #[serde(
         default,
@@ -712,6 +749,7 @@ pub struct NativeVideoMisalignment {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NativeVideoSteer {
     pub message: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]

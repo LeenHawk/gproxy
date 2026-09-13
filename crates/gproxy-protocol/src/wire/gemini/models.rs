@@ -10,6 +10,7 @@ use crate::{Rest, WireRequest, WireResponse};
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ListModelsQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "page_size")]
@@ -27,6 +28,7 @@ pub type GetModelRequest = WireRequest<()>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ListModelsResponseBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub models: Option<Vec<Model>>,
@@ -43,6 +45,7 @@ pub type GetModelResponse = WireResponse<Model>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct Model {
     pub name: String,
     #[serde(alias = "base_model_id")]

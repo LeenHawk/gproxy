@@ -22,6 +22,7 @@ fn decimal_i64<'de, D: serde::Deserializer<'de>>(d: D) -> Result<String, D::Erro
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FileSize {
     String(#[serde(deserialize_with = "decimal_i64")] String),
     Integer(i64),
@@ -32,6 +33,7 @@ pub enum FileSize {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct File {
     #[serde(
         default,
@@ -132,6 +134,7 @@ pub struct File {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FileState {
     #[serde(rename = "STATE_UNSPECIFIED")]
     StateUnspecified,
@@ -145,6 +148,7 @@ pub enum FileState {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FileSource {
     #[serde(rename = "SOURCE_UNSPECIFIED")]
     SourceUnspecified,
@@ -161,6 +165,7 @@ pub enum FileSource {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct VideoFileMetadata {
     #[serde(alias = "video_duration")]
     #[serde(
@@ -178,6 +183,7 @@ pub struct VideoFileMetadata {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct Status {
     #[serde(
         default,
@@ -207,6 +213,7 @@ pub struct Status {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct StatusDetail {
     #[serde(rename = "@type")]
     pub type_url: String,
@@ -219,6 +226,7 @@ pub struct StatusDetail {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ListFilesQuery {
     #[serde(alias = "page_size")]
     #[serde(
@@ -243,6 +251,7 @@ pub struct ListFilesQuery {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ListFilesResponseBody {
     #[serde(
         default,
@@ -266,6 +275,7 @@ pub struct ListFilesResponseBody {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct UploadFileMetadata {
     #[serde(
         default,
@@ -282,6 +292,7 @@ pub struct UploadFileMetadata {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct UploadFileResponseBody {
     #[serde(
         default,
@@ -298,6 +309,7 @@ pub struct UploadFileResponseBody {
 )]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct DeleteFileResponseBody {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -305,6 +317,7 @@ pub struct DeleteFileResponseBody {
 
 #[derive(Debug, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct UploadFileForm {
     pub file: MultipartPart,
     pub metadata: UploadFileMetadata,

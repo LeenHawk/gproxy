@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct MemorySummarizeRequestBody {
     pub model: String,
     pub traces: Vec<RawMemory>,
@@ -21,6 +22,7 @@ pub type MemorySummarizeRequest = crate::WireRequest<MemorySummarizeRequestBody>
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RawMemory {
     pub id: String,
     pub metadata: RawMemoryMetadata,
@@ -32,6 +34,7 @@ pub struct RawMemory {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RawMemoryMetadata {
     pub source_path: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -41,6 +44,7 @@ pub struct RawMemoryMetadata {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct MemorySummarizeOutput {
     #[serde(rename = "trace_summary", alias = "raw_memory")]
     pub raw_memory: String,
@@ -52,6 +56,7 @@ pub struct MemorySummarizeOutput {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct MemorySummarizeResponseBody {
     pub output: Vec<MemorySummarizeOutput>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
