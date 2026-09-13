@@ -2,7 +2,7 @@ use crate::{
     transform::{Report, TransformError},
     wire::{gemini as g, openai::responses::input as r},
 };
-pub(super) fn to_gemini(
+pub(crate) fn to_gemini(
     input: Option<r::Input>,
     model: &str,
     context: &mut super::identity::GeminiReplayContext,

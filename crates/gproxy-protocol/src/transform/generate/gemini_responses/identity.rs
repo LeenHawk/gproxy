@@ -8,7 +8,7 @@ use crate::{
     },
     wire::{DeclaredFields, gemini as g, openai::responses::input as r},
 };
-pub(super) fn id(
+pub(crate) fn id(
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
     role: IdentityRole,
@@ -34,7 +34,7 @@ pub struct GeminiReplayContext {
     pub target: Option<IdentityTarget>,
     pub parts: std::collections::BTreeMap<String, RestoredGeminiPart>,
 }
-pub(super) fn reasoning(
+pub(crate) fn reasoning(
     value: r::ReasoningItem,
     model: &str,
     context: &mut GeminiReplayContext,
@@ -119,7 +119,7 @@ fn validate(
     }
     Ok(part)
 }
-pub(super) fn function(
+pub(crate) fn function(
     call: r::FunctionCall,
     model: &str,
     context: &mut GeminiReplayContext,

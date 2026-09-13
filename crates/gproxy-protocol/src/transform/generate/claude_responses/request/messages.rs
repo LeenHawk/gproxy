@@ -8,7 +8,7 @@ use crate::{
 fn easy(role: r::MessageRole, content: r::MessageContent) -> r::InputItem {
     r::InputItem::Easy(r::EasyInputMessage::builder(content, role).build())
 }
-pub(super) fn to_responses(
+pub(crate) fn to_responses(
     messages: Vec<c::Message>,
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,

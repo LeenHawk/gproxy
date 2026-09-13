@@ -1,10 +1,10 @@
 mod controls;
-mod history;
-mod mcp;
+pub(crate) mod history;
+pub(crate) mod mcp;
 mod media;
-mod messages;
+pub(crate) mod messages;
 mod schema;
-mod tools;
+pub(crate) mod tools;
 use crate::{
     transform::{
         Converted, Report, TransformError,
