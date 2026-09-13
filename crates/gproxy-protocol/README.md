@@ -14,8 +14,8 @@ capability traits describe upstream calls, resource access, and scoped state sup
 
 All declared fields and variants follow the referenced vendor API or official client schemas.
 `rest` preserves unknown extensions; documented arbitrary JSON stays arbitrary only where the
-source contract permits it. Body codecs, network clients, and cross-format conversion are not
-implemented by this crate yet.
+source contract permits it. Bounded body codecs and conversion identity helpers are available;
+network clients and semantic cross-format conversions remain separate implementation stages.
 
 ## Installation
 
@@ -85,6 +85,24 @@ resource is carried in the request path.
   independent incoming and outgoing streams/sinks, carrying text, binary, ping, pong, and close.
   It is not an HTTP body variant. Transport adapters handle connection setup and wire framing.
 
+## Body codecs
+
+`codec` provides bounded JSON, SSE, JSON-array, NDJSON, and multipart encoding/decoding.
+Pass explicit `CodecLimits`; transport chunks may split UTF-8, JSON tokens, MIME headers,
+or boundaries. Decoders reject malformed or truncated input and enforce cumulative body limits.
+
+| Codec | Incremental interface |
+|---|---|
+| JSON array / NDJSON | `push` decoded values as they complete, then `finish` |
+| SSE | `SseDecoder::push` yields data events or `[DONE]`; control-only blocks update ID/retry settings |
+| Multipart | `MultipartDecoder::next_part` returns headers and a real streaming body |
+
+Consume each multipart body to EOF or drop it before requesting the next part. The returned
+body also drives the input stream, including on wasm with non-`Send` input. `MultipartEncoder`
+accepts a `Multipart` part stream, so re-encoding does not require collecting file contents.
+SSE uses strict EOF validation: an unterminated data event is an error, not a completed event.
+These codecs interpret framing and JSON syntax; vendor semantics belong to typed converters.
+
 ## Typed generation payloads
 
 Vendor types live under `wire::{claude, gemini, openai}`. The root `claude`, `gemini`, and
@@ -150,7 +168,7 @@ retains its complete HTTP response body. Cancellation stops local processing and
 promise remote rollback; a publication operation can be queried by its scoped operation ID.
 
 These are contracts for host implementations. This crate does not yet ship capability
-implementations, codecs, converters, or a gateway core. Conversion will use declared wire
+implementations, semantic converters, or a gateway core. Conversion uses declared wire
 fields only: it must neither read source `rest` fields nor populate target `rest` fields.
 
 ## Operations and dialects

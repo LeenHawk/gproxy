@@ -10,7 +10,8 @@
 WebSocket 消息和双向连接分别建模。独立能力 trait 描述宿主提供的上游调用、资源访问和作用域状态。
 
 已声明字段与变体依据对应的厂商 API 或官方客户端结构。`rest` 保留未知扩展；只有来源
-明确允许任意 JSON 的位置才保留任意 JSON 类型。body 编解码器、网络客户端和跨格式转换尚未实现。
+明确允许任意 JSON 的位置才保留任意 JSON 类型。已提供有界 body codec 和转换身份辅助；
+网络客户端和语义转换属于后续实现阶段。
 
 ## 安装
 
@@ -78,6 +79,23 @@ HTTP 方法、路径、查询参数、状态码和头始终在 body 外面。que
 - WebSocket 握手使用 HTTP 请求和响应；已建立的 `WebSocket` 提供独立的接收流和发送端，
   支持文本、二进制、ping、pong、close。它不属于 HTTP body 变体，连接建立与底层帧处理由传输适配器负责。
 
+## Body codec
+
+`codec` 提供有界 JSON、SSE、JSON 数组、NDJSON 和 multipart 编解码。
+调用方显式提供 `CodecLimits`；transport chunk 可以切在 UTF-8、JSON token、MIME header
+或 boundary 中间。解码器拒绝非法／截断输入，并执行累计 body 限额。
+
+| Codec | 增量接口 |
+|---|---|
+| JSON 数组／NDJSON | `push` 返回已完整解析的值，最后调用 `finish` |
+| SSE | `SseDecoder::push` 返回数据事件或 `[DONE]`；仅控制字段的块更新 ID／retry 状态 |
+| Multipart | `MultipartDecoder::next_part` 返回 headers 和真正的流式 body |
+
+请求下一 part 前，应将当前 body 读到 EOF 或丢弃。返回的 body 也会驱动原输入流，兼容
+wasm 的非 `Send` 输入。`MultipartEncoder` 可接收 `Multipart` part 流，无需收集文件内容。
+SSE 严格检查 EOF：未以空行终结的数据事件返回错误，不当作完整事件。
+这些 codec 只解释分帧和 JSON 语法，厂商语义由 typed 转换处理。
+
 ## 内容生成的强类型载荷
 
 厂商类型统一位于 `wire::{claude, gemini, openai}`。根级 `claude`、`gemini`、`openai`
@@ -135,7 +153,7 @@ multipart 表单包含明确的元数据字段和真实的 `MultipartPart` 文�
 原始错误来源。WS 握手拒绝保留完整 HTTP 响应 body。取消只停止本地处理，不保证远端回滚；
 发布可以按作用域内的操作 ID 查询结果。
 
-这里提供的是宿主实现必须遵守的契约，尚未附带能力实现、codec、转换器或网关 core。
+这些 trait 是宿主必须遵守的契约，尚未附带能力实现、语义转换器或网关 core。
 后续转换只使用明确声明的 wire 字段：不读取源 `rest`，也不填充目标 `rest`。
 
 ## 操作与方言
