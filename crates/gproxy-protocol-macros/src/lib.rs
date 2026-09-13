@@ -69,6 +69,7 @@ fn expand(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     Ok(quote! {
         impl #impl_generics #name #type_generics #where_clause {
             /// Start a builder by supplying the required fields in declaration order.
+            #[allow(clippy::too_many_arguments)]
             pub fn builder(#(#arguments),*) -> #builder #type_generics {
                 #builder(Self { #(#initializers),* })
             }

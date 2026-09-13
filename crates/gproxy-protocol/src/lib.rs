@@ -3,8 +3,8 @@
 //! Two jobs, and nothing else:
 //!
 //! 1. **Model the connection.** What a request and a response are on an
-//!    abstract HTTP/WS link — five request elements, three response elements,
-//!    the body shapes a link can carry, and how the link is established.
+//!    HTTP link — five request elements, three response elements, and buffered
+//!    or streaming bodies. An established WebSocket is a separate duplex link.
 //! 2. **Convert between vendor dialects.** Pairwise, in both directions.
 //!
 //! What is deliberately absent:
@@ -21,8 +21,13 @@
 //! Everything here derives from `upstream_docs/`, which is the source of truth
 //! for field names, semantics and examples.
 
+pub mod claude;
+pub mod connection;
+pub mod gemini;
+pub mod openai;
 pub mod operation;
 
+pub use connection::{HttpBody, WebSocket, WireRequest, WireResponse};
 pub use operation::{Dialect, Operation, OperationKey, WireFamily};
 
 /// Unknown fields preserved when a wire object is read and written unchanged.
