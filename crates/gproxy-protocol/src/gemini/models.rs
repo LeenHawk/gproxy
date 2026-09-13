@@ -1,0 +1,69 @@
+use serde::{Deserialize, Serialize};
+
+use crate::{Rest, WireRequest, WireResponse};
+
+/// Request/response shapes for `models.list` and `models.get`.
+/// `page_size` and `page_token` are query parameters; `name` is the
+/// `models/{model}` path resource. Source: `upstream_docs/gemini/docs/Models.md`.
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct ListModelsQuery {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_size: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_token: Option<String>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+pub type ListModelsRequest = WireRequest<()>;
+pub type GetModelRequest = WireRequest<()>;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct ListModelsResponseBody {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub models: Option<Vec<Model>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_page_token: Option<String>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+pub type ListModelsResponse = WireResponse<ListModelsResponseBody>;
+pub type GetModelResponse = WireResponse<Model>;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct Model {
+    pub name: String,
+    pub base_model_id: String,
+    pub version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_token_limit: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_token_limit: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supported_generation_methods: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_temperature: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_p: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<i64>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
