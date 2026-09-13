@@ -23,6 +23,4 @@
 
 pub mod operation;
 
-pub use operation::{
-    ContentGenerationKind, Operation, OperationKey, OperationKeyError, OperationKind, WireFamily,
-};
+pub use operation::{Dialect, Operation, OperationKey, OperationKeyError, WireFamily};

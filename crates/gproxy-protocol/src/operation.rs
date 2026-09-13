@@ -17,8 +17,8 @@
 
 /// What the caller wants done.
 ///
-/// Four of these are content generation and carry a [`ContentGenerationKind`];
-/// the rest carry a [`WireFamily`].
+/// Four of these are content generation and carry a conversation dialect; the
+/// rest carry a plain family dialect. See [`Dialect`].
 #[derive(
     Debug,
     Clone,
@@ -73,12 +73,12 @@ pub enum Operation {
     RetrieveFile,
     RetrieveFileContent,
     DeleteFile,
-    // video — the async-job core. Keyed `Family(OpenAi)`; the request body is
-    // OpenAI's plus documented extensions, because OpenAI's own five fields
-    // cap what the models can be asked for (three fixed durations, four fixed
-    // sizes, one reference asset, no seed). Sora-only operations — remix,
-    // edit, extend, characters — are deliberately absent: no other vendor
-    // offers them. Add them back only when a second vendor does.
+    // video — the async-job core. Keyed with the OpenAI family dialect; the
+    // request body is OpenAI's plus documented extensions, because OpenAI's own
+    // five fields cap what the models can be asked for (three fixed durations,
+    // four fixed sizes, one reference asset, no seed). Sora-only operations —
+    // remix, edit, extend, characters — are deliberately absent: no other
+    // vendor offers them. Add them back only when a second vendor does.
     CreateVideo,
     RetrieveVideo,
     ListVideos,
@@ -106,17 +106,17 @@ impl Operation {
         value.parse().ok()
     }
 
-    /// Which kind variant this operation pairs with. An invariant of
+    /// Whether this operation takes a conversation dialect. An invariant of
     /// [`OperationKey`] construction and nothing more — deliberately private,
     /// because no caller has a reason to ask.
     ///
     /// The rule is **not** "the body is a conversation": `CountTokens` and
-    /// `CompactContent` both carry one and still key on [`WireFamily`]. It is
+    /// `CompactContent` both carry one and still take a family dialect. It is
     /// "the body is a conversation *and* the dialects need converting between
     /// each other", which is why only these four carry the dense 4x3 matrix.
     /// Cross-vendor demand for the other two is sparse enough — two pairs and
     /// one pair respectively — that a family split covers it.
-    const fn is_content_generation(self) -> bool {
+    const fn takes_conversation_dialect(self) -> bool {
         matches!(
             self,
             Self::GenerateContent
@@ -127,10 +127,13 @@ impl Operation {
     }
 }
 
-/// Wire dialect for operations that are not content generation.
+/// Vendor grouping of dialects. Derived from a [`Dialect`], never stored
+/// alongside one.
 ///
-/// Names a dialect, not a configured backend — v2 called this `Provider` and
-/// the two kept getting confused.
+/// Names a dialect family, not a configured backend — v2 called this
+/// `Provider` and the two kept getting confused. Which vendor actually *serves*
+/// a dialect is the channel's business: Anthropic and Google both expose
+/// OpenAI-compatible endpoints, and that shows up as channel support, not here.
 #[derive(
     Debug,
     Clone,
@@ -167,7 +170,17 @@ impl WireFamily {
     }
 }
 
-/// Conversation dialects. These form the dense 4x3 transform matrix.
+/// The wire shape an operation is expressed in.
+///
+/// One flat axis. The first five are conversation shapes and form the dense
+/// 4x3 transform matrix; the last three are the plain family shapes every other
+/// operation uses.
+///
+/// This was two nested enums — a `ContentGeneration(..)` variant beside a
+/// `Family(..)` one — which modelled the two as alternatives when they are the
+/// same axis at different zoom levels. `OpenAiChat` already says "OpenAI", so
+/// the outer wrapper only restated what the inner value carried. Flat removes
+/// that, and [`Dialect::family`] recovers the coarse view by derivation.
 ///
 /// There is no AWS variant: Bedrock Converse has no ingress path, so no client
 /// speaks it to us. It is an upstream shape the `aws_bedrock` channel produces,
@@ -190,25 +203,32 @@ impl WireFamily {
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub enum ContentGenerationKind {
+pub enum Dialect {
+    // conversation shapes
     #[serde(rename = "openai_chat")]
     #[strum(serialize = "openai_chat")]
     OpenAiChat,
     #[serde(rename = "openai_responses")]
     #[strum(serialize = "openai_responses")]
     OpenAiResponses,
-    /// Envelope variant of [`ContentGenerationKind::OpenAiResponses`]: same
-    /// semantics carried over a websocket. It never owns transform pairs of its
-    /// own — the envelope layer unwraps it onto the Responses pairs and wraps
-    /// the result back.
+    /// Envelope variant of [`Dialect::OpenAiResponses`]: same semantics carried
+    /// over a websocket. It never owns transform pairs of its own — the
+    /// envelope layer unwraps it onto the Responses pairs and wraps the result
+    /// back.
     #[serde(rename = "openai_responses_websocket")]
     #[strum(serialize = "openai_responses_websocket")]
     OpenAiResponsesWebSocket,
     ClaudeMessages,
     GeminiGenerateContent,
+    // family shapes, for everything that is not a conversation
+    #[serde(rename = "openai")]
+    #[strum(serialize = "openai")]
+    OpenAi,
+    Claude,
+    Gemini,
 }
 
-impl ContentGenerationKind {
+impl Dialect {
     pub fn id(self) -> &'static str {
         self.into()
     }
@@ -217,9 +237,33 @@ impl ContentGenerationKind {
         value.parse().ok()
     }
 
-    /// The kind that owns the transform pairs for this dialect. Only the
+    /// Whether this is one of the conversation shapes.
+    pub const fn is_conversation(self) -> bool {
+        matches!(
+            self,
+            Self::OpenAiChat
+                | Self::OpenAiResponses
+                | Self::OpenAiResponsesWebSocket
+                | Self::ClaudeMessages
+                | Self::GeminiGenerateContent
+        )
+    }
+
+    /// The vendor family this shape belongs to.
+    pub const fn family(self) -> WireFamily {
+        match self {
+            Self::OpenAiChat
+            | Self::OpenAiResponses
+            | Self::OpenAiResponsesWebSocket
+            | Self::OpenAi => WireFamily::OpenAi,
+            Self::ClaudeMessages | Self::Claude => WireFamily::Claude,
+            Self::GeminiGenerateContent | Self::Gemini => WireFamily::Gemini,
+        }
+    }
+
+    /// The dialect that owns the transform pairs for this one. Only the
     /// websocket envelope variant differs from itself.
-    pub const fn pair_kind(self) -> Self {
+    pub const fn pair_dialect(self) -> Self {
         match self {
             Self::OpenAiResponsesWebSocket => Self::OpenAiResponses,
             other => other,
@@ -227,70 +271,36 @@ impl ContentGenerationKind {
     }
 }
 
-/// Which dialect an operation is expressed in.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub enum OperationKind {
-    ContentGeneration(ContentGenerationKind),
-    Family(WireFamily),
-}
-
-impl OperationKind {
-    pub fn id(self) -> &'static str {
-        match self {
-            Self::ContentGeneration(kind) => kind.id(),
-            Self::Family(family) => family.id(),
-        }
-    }
-}
-
 /// What transform pairs, channel support tables and routing rules key on.
 ///
 /// The pairing is checked: a content-generation operation must carry a
-/// [`ContentGenerationKind`], everything else a [`WireFamily`]. Constructing
+/// conversation dialect, everything else a family dialect. Constructing
 /// `(ListModels, ClaudeMessages)` is a bug, not a state to handle downstream.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct OperationKey {
     operation: Operation,
-    kind: OperationKind,
+    dialect: Dialect,
 }
 
 impl OperationKey {
-    /// Panics if `operation` is not content generation. Use in const contexts
+    /// Panics if the operation and dialect disagree. Use in const contexts
     /// where the pairing is known statically.
-    pub const fn content(operation: Operation, kind: ContentGenerationKind) -> Self {
+    pub const fn new(operation: Operation, dialect: Dialect) -> Self {
         assert!(
-            operation.is_content_generation(),
-            "content kind used with a non-content operation"
+            operation.takes_conversation_dialect() == dialect.is_conversation(),
+            "operation and dialect disagree on whether this is a conversation"
         );
-        Self {
-            operation,
-            kind: OperationKind::ContentGeneration(kind),
-        }
-    }
-
-    /// Panics if `operation` is content generation.
-    pub const fn family(operation: Operation, family: WireFamily) -> Self {
-        assert!(
-            !operation.is_content_generation(),
-            "wire family used with a content operation"
-        );
-        Self {
-            operation,
-            kind: OperationKind::Family(family),
-        }
+        Self { operation, dialect }
     }
 
     pub const fn try_new(
         operation: Operation,
-        kind: OperationKind,
+        dialect: Dialect,
     ) -> Result<Self, OperationKeyError> {
-        let consistent = matches!(kind, OperationKind::ContentGeneration(_))
-            == operation.is_content_generation();
-        if consistent {
-            Ok(Self { operation, kind })
+        if operation.takes_conversation_dialect() == dialect.is_conversation() {
+            Ok(Self { operation, dialect })
         } else {
-            Err(OperationKeyError { operation, kind })
+            Err(OperationKeyError { operation, dialect })
         }
     }
 
@@ -298,19 +308,20 @@ impl OperationKey {
         self.operation
     }
 
-    pub const fn kind(self) -> OperationKind {
-        self.kind
+    pub const fn dialect(self) -> Dialect {
+        self.dialect
+    }
+
+    pub const fn family(self) -> WireFamily {
+        self.dialect.family()
     }
 
     /// The key whose transform pairs serve this one. Differs from `self` only
     /// for the websocket envelope variant.
     pub const fn pair_key(self) -> Self {
-        match self.kind {
-            OperationKind::ContentGeneration(kind) => Self {
-                operation: self.operation,
-                kind: OperationKind::ContentGeneration(kind.pair_kind()),
-            },
-            OperationKind::Family(_) => self,
+        Self {
+            operation: self.operation,
+            dialect: self.dialect.pair_dialect(),
         }
     }
 }
@@ -318,7 +329,7 @@ impl OperationKey {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OperationKeyError {
     pub operation: Operation,
-    pub kind: OperationKind,
+    pub dialect: Dialect,
 }
 
 impl core::fmt::Display for OperationKeyError {
@@ -327,7 +338,7 @@ impl core::fmt::Display for OperationKeyError {
             f,
             "operation `{}` cannot be expressed as `{}`",
             self.operation.id(),
-            self.kind.id()
+            self.dialect.id()
         )
     }
 }
@@ -384,24 +395,28 @@ mod tests {
         );
     }
 
+    /// Flattening must not have changed any stored string: a conversation
+    /// dialect used to serialize through the inner enum and a family dialect
+    /// through the outer one, and both produced exactly these.
     #[test]
     fn dialect_ids_are_pinned() {
-        let families: Vec<&'static str> = WireFamily::iter().map(WireFamily::id).collect();
-        assert_eq!(families, ["openai", "claude", "gemini"]);
-
-        let kinds: Vec<&'static str> = ContentGenerationKind::iter()
-            .map(ContentGenerationKind::id)
-            .collect();
+        let ids: Vec<&'static str> = Dialect::iter().map(Dialect::id).collect();
         assert_eq!(
-            kinds,
+            ids,
             [
                 "openai_chat",
                 "openai_responses",
                 "openai_responses_websocket",
                 "claude_messages",
                 "gemini_generate_content",
+                "openai",
+                "claude",
+                "gemini",
             ]
         );
+
+        let families: Vec<&'static str> = WireFamily::iter().map(WireFamily::id).collect();
+        assert_eq!(families, ["openai", "claude", "gemini"]);
     }
 
     #[test]
@@ -409,11 +424,11 @@ mod tests {
         for operation in Operation::iter() {
             assert_eq!(Operation::from_id(operation.id()), Some(operation));
         }
+        for dialect in Dialect::iter() {
+            assert_eq!(Dialect::from_id(dialect.id()), Some(dialect));
+        }
         for family in WireFamily::iter() {
             assert_eq!(WireFamily::from_id(family.id()), Some(family));
-        }
-        for kind in ContentGenerationKind::iter() {
-            assert_eq!(ContentGenerationKind::from_id(kind.id()), Some(kind));
         }
     }
 
@@ -427,9 +442,11 @@ mod tests {
             let back: Operation = serde_json::from_str(&json).expect("deserializes");
             assert_eq!(back, operation);
         }
-        for kind in ContentGenerationKind::iter() {
-            let json = serde_json::to_string(&kind).expect("serializes");
-            assert_eq!(json, format!("\"{}\"", kind.id()));
+        for dialect in Dialect::iter() {
+            let json = serde_json::to_string(&dialect).expect("serializes");
+            assert_eq!(json, format!("\"{}\"", dialect.id()));
+            let back: Dialect = serde_json::from_str(&json).expect("deserializes");
+            assert_eq!(back, dialect);
         }
         for family in WireFamily::iter() {
             let json = serde_json::to_string(&family).expect("serializes");
@@ -440,56 +457,63 @@ mod tests {
     #[test]
     fn unknown_ids_are_rejected() {
         assert_eq!(Operation::from_id("not_an_operation"), None);
+        assert_eq!(Dialect::from_id("open_ai"), None);
         assert_eq!(WireFamily::from_id("open_ai"), None);
     }
 
+    /// Every dialect belongs to exactly one family, and the family shapes are
+    /// the identity of their own family.
     #[test]
-    fn kind_must_match_the_operation() {
-        assert!(
-            OperationKey::try_new(
-                Operation::GenerateContent,
-                OperationKind::Family(WireFamily::Claude),
-            )
-            .is_err()
+    fn families_are_derivable() {
+        assert_eq!(Dialect::OpenAiChat.family(), WireFamily::OpenAi);
+        assert_eq!(Dialect::OpenAiResponses.family(), WireFamily::OpenAi);
+        assert_eq!(
+            Dialect::OpenAiResponsesWebSocket.family(),
+            WireFamily::OpenAi
         );
-        assert!(
-            OperationKey::try_new(
-                Operation::ListModels,
-                OperationKind::ContentGeneration(ContentGenerationKind::ClaudeMessages),
-            )
-            .is_err()
-        );
-        assert!(
-            OperationKey::try_new(
-                Operation::ListModels,
-                OperationKind::Family(WireFamily::Claude),
-            )
-            .is_ok()
+        assert_eq!(Dialect::OpenAi.family(), WireFamily::OpenAi);
+        assert_eq!(Dialect::ClaudeMessages.family(), WireFamily::Claude);
+        assert_eq!(Dialect::Claude.family(), WireFamily::Claude);
+        assert_eq!(Dialect::GeminiGenerateContent.family(), WireFamily::Gemini);
+        assert_eq!(Dialect::Gemini.family(), WireFamily::Gemini);
+    }
+
+    #[test]
+    fn exactly_five_dialects_are_conversations() {
+        let conversations: Vec<Dialect> = Dialect::iter().filter(|d| d.is_conversation()).collect();
+        assert_eq!(
+            conversations,
+            [
+                Dialect::OpenAiChat,
+                Dialect::OpenAiResponses,
+                Dialect::OpenAiResponsesWebSocket,
+                Dialect::ClaudeMessages,
+                Dialect::GeminiGenerateContent,
+            ]
         );
     }
 
     #[test]
-    fn only_the_websocket_envelope_borrows_another_kinds_pairs() {
-        let ws = OperationKey::content(
+    fn dialect_must_match_the_operation() {
+        assert!(OperationKey::try_new(Operation::GenerateContent, Dialect::Claude).is_err());
+        assert!(OperationKey::try_new(Operation::ListModels, Dialect::ClaudeMessages).is_err());
+        assert!(OperationKey::try_new(Operation::ListModels, Dialect::Claude).is_ok());
+        assert!(OperationKey::try_new(Operation::GenerateContent, Dialect::ClaudeMessages).is_ok());
+    }
+
+    #[test]
+    fn only_the_websocket_envelope_borrows_another_dialects_pairs() {
+        let ws = OperationKey::new(
             Operation::StreamGenerateContent,
-            ContentGenerationKind::OpenAiResponsesWebSocket,
+            Dialect::OpenAiResponsesWebSocket,
         );
         assert_eq!(
             ws.pair_key(),
-            OperationKey::content(
-                Operation::StreamGenerateContent,
-                ContentGenerationKind::OpenAiResponses,
-            )
+            OperationKey::new(Operation::StreamGenerateContent, Dialect::OpenAiResponses)
         );
 
-        for kind in [
-            ContentGenerationKind::OpenAiChat,
-            ContentGenerationKind::OpenAiResponses,
-            ContentGenerationKind::ClaudeMessages,
-            ContentGenerationKind::GeminiGenerateContent,
-        ] {
-            let key = OperationKey::content(Operation::GenerateContent, kind);
-            assert_eq!(key.pair_key(), key);
+        for dialect in Dialect::iter().filter(|d| *d != Dialect::OpenAiResponsesWebSocket) {
+            assert_eq!(dialect.pair_dialect(), dialect);
         }
     }
 }
