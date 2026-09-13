@@ -93,3 +93,56 @@ pub enum CompactObject {
     #[serde(rename = "response.compaction")]
     ResponseCompaction,
 }
+
+/// Codex client compaction request from codex-api CompactionInput. This is
+/// distinct from the public /responses/compact resource schema above.
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct ClientCompactRequestBody {
+    pub model: String,
+    pub input: Vec<super::guardian::ClientResponseItem>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub instructions: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools: Option<serde_json::Value>,
+    pub parallel_tool_calls: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<super::guardian::Reasoning>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub service_tier: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_cache_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<super::guardian::ClientTextControls>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub access_programs: Option<super::guardian::AccessPrograms>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+/// The client consumes this complete replacement array verbatim; no invented
+/// usage, timestamp, response ID or foreign ciphertext is required.
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct ClientCompactResponseBody {
+    pub output: Vec<super::guardian::ClientResponseItem>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+pub type ClientCompactRequest = crate::WireRequest<ClientCompactRequestBody>;
+pub type ClientCompactResponse = crate::WireResponse<ClientCompactResponseBody>;
