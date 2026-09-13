@@ -36,6 +36,7 @@ pub enum Operation {
     BatchCreateEmbedding,
     // retrieval
     Rerank,
+    // alpha search for codex (maybe include by other providers later)
     WebSearch,
     // images
     CreateImage,
@@ -50,17 +51,18 @@ pub enum Operation {
     RetrieveFile,
     RetrieveFileContent,
     DeleteFile,
-    // video
+    // video — the async-job core, in OpenRouter's dialect. Sora-only
+    // operations (remix, edit, extend, characters) are deliberately absent:
+    // no other vendor offers them and the standard dialect cannot express
+    // them. Add them back only when a second vendor does.
     CreateVideo,
     RetrieveVideo,
     ListVideos,
     DeleteVideo,
+    /// Not an upstream call. Every video vendor hands back a time-limited
+    /// signed URL rather than serving bytes, so this operation is synthesized:
+    /// the engine fetches that URL and relays it.
     DownloadVideoContent,
-    RemixVideo,
-    EditVideo,
-    ExtendVideo,
-    CreateVideoCharacter,
-    GetVideoCharacter,
     // realtime
     /// SDP handshake creating a WebRTC realtime call.
     CreateRealtimeCall,
@@ -118,11 +120,6 @@ impl Operation {
             ListVideos => "list_videos",
             DeleteVideo => "delete_video",
             DownloadVideoContent => "download_video_content",
-            RemixVideo => "remix_video",
-            EditVideo => "edit_video",
-            ExtendVideo => "extend_video",
-            CreateVideoCharacter => "create_video_character",
-            GetVideoCharacter => "get_video_character",
             CreateRealtimeCall => "create_realtime_call",
             ConnectRealtime => "connect_realtime",
         }
@@ -160,11 +157,6 @@ impl Operation {
             "list_videos" => ListVideos,
             "delete_video" => DeleteVideo,
             "download_video_content" => DownloadVideoContent,
-            "remix_video" => RemixVideo,
-            "edit_video" => EditVideo,
-            "extend_video" => ExtendVideo,
-            "create_video_character" => CreateVideoCharacter,
-            "get_video_character" => GetVideoCharacter,
             "create_realtime_call" => CreateRealtimeCall,
             "connect_realtime" => ConnectRealtime,
             _ => return None,
@@ -395,18 +387,13 @@ mod tests {
         Operation::ListVideos,
         Operation::DeleteVideo,
         Operation::DownloadVideoContent,
-        Operation::RemixVideo,
-        Operation::EditVideo,
-        Operation::ExtendVideo,
-        Operation::CreateVideoCharacter,
-        Operation::GetVideoCharacter,
         Operation::CreateRealtimeCall,
         Operation::ConnectRealtime,
     ];
 
     #[test]
     fn every_operation_round_trips_through_its_id() {
-        assert_eq!(ALL.len(), 36, "update ALL when adding an operation");
+        assert_eq!(ALL.len(), 31, "update ALL when adding an operation");
         for operation in ALL {
             assert_eq!(Operation::from_id(operation.id()), Some(*operation));
         }
