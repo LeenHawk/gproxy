@@ -5,4 +5,5 @@ pub mod chat_responses;
 pub mod claude_chat;
 pub mod claude_responses;
 pub mod gemini_chat;
+pub mod gemini_responses;
 pub mod gemini_schema;
