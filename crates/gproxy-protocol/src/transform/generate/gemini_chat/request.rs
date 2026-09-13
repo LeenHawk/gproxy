@@ -109,6 +109,18 @@ pub fn openai_to_gemini_request(
     } else {
         super::tools::chat_tools_to_gemini(input.tools.as_ref(), &mut report)?
     };
+    let strict=input.tools.as_ref().is_some_and(|tools|tools.iter().any(|tool|matches!(tool,c::ChatTool::Function(tool) if tool.function.strict.flatten()==Some(true))));
+    if strict {
+        let config = out
+            .tool_config
+            .get_or_insert_with(|| g::ToolConfig::builder().build());
+        let function = config
+            .function_calling_config
+            .get_or_insert_with(|| g::FunctionCallingConfig::builder().build());
+        if function.mode.is_none() || function.mode == Some(g::FunctionCallingMode::Auto) {
+            function.mode = Some(g::FunctionCallingMode::Validated);
+        }
+    }
     let mut system = Vec::new();
     for message in &input.messages {
         let (role, parts) = match message {
