@@ -40,7 +40,7 @@ The body type can be raw `HttpBody`, parsed multipart, or a vendor's JSON body t
 
 ```rust
 use gproxy_protocol::connection::{HeaderMap, Method, StatusCode};
-use gproxy_protocol::openai::models::{GetModelRequest, GetModelResponse, Model};
+use gproxy_protocol::wire::openai::models::{GetModelRequest, GetModelResponse, Model};
 
 let request = GetModelRequest {
     method: Method::GET,
@@ -86,12 +86,15 @@ resource is carried in the request path.
 
 ## Typed generation payloads
 
+Vendor types live under `wire::{claude, gemini, openai}`. The root `claude`, `gemini`, and
+`openai` modules re-export the same types for compatibility.
+
 | API | Request and buffered response | Stream payload |
 |---|---|---|
-| Claude Messages | `claude::generate_content` | `claude::stream::StreamEvent` |
-| Gemini | `gemini::generate_content` | `gemini::stream::StreamChunk` |
-| OpenAI Responses | `openai::responses::{generate, response}` | `openai::responses::stream::StreamEvent` |
-| OpenAI Chat Completions | `openai::chat::{request, response}` | `openai::chat::stream::ChatCompletionChunk` |
+| Claude Messages | `wire::claude::generate_content` | `wire::claude::stream::StreamEvent` |
+| Gemini | `wire::gemini::generate_content` | `wire::gemini::stream::StreamChunk` |
+| OpenAI Responses | `wire::openai::responses::{generate, response}` | `wire::openai::responses::stream::StreamEvent` |
+| OpenAI Chat Completions | `wire::openai::chat::{request, response}` | `wire::openai::chat::stream::ChatCompletionChunk` |
 
 Stream response aliases carry `ByteStream`. A caller decodes SSE or JSON-array framing and
 then deserializes each JSON payload into the corresponding type. These types do not parse
@@ -102,14 +105,14 @@ such as Chat Completions' `[DONE]` remain the caller's framing responsibility.
 
 | Area | Modules |
 |---|---|
-| Context and conversations | `openai::{compact, conversation, memory}` |
-| Codex client endpoints | `openai::{guardian, web_search}` |
-| Embeddings and reranking | `openai::{embeddings, rerank}`, `gemini::embeddings` |
-| File operations | `openai::files`, `claude::files`, `gemini::files` |
-| Image and audio operations | `openai::{images, audio}` |
-| Video | `openai::video` (extended and native formats are distinct) |
-| Responses WebSocket | `openai::responses::websocket` |
-| Realtime / WebRTC | `openai::realtime`, `gemini::live` |
+| Context and conversations | `wire::openai::{compact, conversation, memory}` |
+| Codex client endpoints | `wire::openai::{guardian, web_search}` |
+| Embeddings and reranking | `wire::openai::{embeddings, rerank}`, `wire::gemini::embeddings` |
+| File operations | `wire::openai::files`, `wire::claude::files`, `wire::gemini::files` |
+| Image and audio operations | `wire::openai::{images, audio}` |
+| Video | `wire::openai::video` (extended and native formats are distinct) |
+| Responses WebSocket | `wire::openai::responses::websocket` |
+| Realtime / WebRTC | `wire::openai::realtime`, `wire::gemini::live` |
 
 Multipart forms expose typed metadata and actual `MultipartPart` file streams. Download
 responses retain raw bodies. No model performs uploads, fetches result URLs, or converts

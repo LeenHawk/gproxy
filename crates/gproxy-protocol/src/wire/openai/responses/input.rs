@@ -10,7 +10,9 @@ use crate::Rest;
 use serde::{Deserialize, Serialize};
 
 /// Deserialize a present non-null optional field; a missing field uses serde default.
-pub(in crate::openai) fn present_optional<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+pub(in crate::wire::openai) fn present_optional<'de, D, T>(
+    deserializer: D,
+) -> Result<Option<T>, D::Error>
 where
     D: serde::Deserializer<'de>,
     T: Deserialize<'de>,
@@ -21,7 +23,7 @@ where
 /// A field which is required on the wire but explicitly permits JSON null.
 /// `deserialize_with` preserves the distinction between a missing field
 /// (serde reports an error) and a present null (returns `None`).
-pub(in crate::openai) fn required_nullable<'de, D, T>(
+pub(in crate::wire::openai) fn required_nullable<'de, D, T>(
     deserializer: D,
 ) -> Result<Option<T>, D::Error>
 where
@@ -31,7 +33,7 @@ where
     Option::<T>::deserialize(deserializer)
 }
 
-pub(in crate::openai) fn present_nullable<'de, D, T>(
+pub(in crate::wire::openai) fn present_nullable<'de, D, T>(
     deserializer: D,
 ) -> Result<Option<Option<T>>, D::Error>
 where
