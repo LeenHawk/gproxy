@@ -4,3 +4,4 @@ pub mod generate_content;
 pub mod models;
 pub mod stream;
 pub mod tools;
+pub mod files;
