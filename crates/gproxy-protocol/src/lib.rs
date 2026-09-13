@@ -28,6 +28,7 @@ pub mod capability;
 pub mod connection;
 pub mod operation;
 pub mod spec;
+pub mod transform;
 pub mod wire;
 
 pub use wire::{claude, gemini, openai};
