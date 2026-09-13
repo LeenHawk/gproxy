@@ -8,3 +8,5 @@ pub mod claude_responses;
 pub mod gemini_chat;
 pub mod gemini_responses;
 pub mod gemini_schema;
+
+pub mod stream;
