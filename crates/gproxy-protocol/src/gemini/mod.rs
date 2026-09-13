@@ -11,3 +11,4 @@ pub use generate_content::*;
 pub use generation::*;
 pub use stream::*;
 pub mod embeddings;
+pub mod files;

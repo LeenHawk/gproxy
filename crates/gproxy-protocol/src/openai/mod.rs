@@ -4,3 +4,4 @@ pub mod models;
 pub mod responses;
 pub mod embeddings;
 pub mod rerank;
+pub mod files;
