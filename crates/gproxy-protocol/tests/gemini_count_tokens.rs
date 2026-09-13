@@ -61,3 +61,43 @@ fn count_tokens_optional_fields_omit_when_absent() {
         r#"{"totalTokens":1}"#
     );
 }
+
+#[test]
+fn official_proto_snake_case_aliases_are_typed_and_canonicalized() {
+    let value = serde_json::json!({
+        "contents": [{
+            "parts": [{
+                "inline_data": {"mime_type": "image/jpeg", "data": "AQI="},
+                "file_data": {"file_uri": "gs://bucket/a", "mime_type": "text/plain"}
+            }]
+        }],
+        "generate_content_request": {
+            "model": "models/gemini-2.0-flash",
+            "contents": [{"parts": [{"text": "hello"}]}],
+            "tool_config": {
+                "function_calling_config": {"allowed_function_names": ["lookup"]},
+                "include_server_side_tool_invocations": true
+            },
+            "generation_config": {"stop_sequences": ["END"], "max_output_tokens": 4},
+            "system_instruction": {"parts": [{"text": "system"}]}
+        }
+    });
+    let body: CountTokensRequestBody = serde_json::from_value(value).unwrap();
+    assert!(body.rest.is_empty());
+    let output = serde_json::to_value(&body).unwrap();
+    let embedded = body.generate_content_request.unwrap();
+    assert!(embedded.rest.is_empty());
+    assert!(embedded.tool_config.as_ref().unwrap().rest.is_empty());
+    assert!(embedded.generation_config.as_ref().unwrap().rest.is_empty());
+    assert!(output.get("generateContentRequest").is_some());
+    assert!(
+        output["contents"][0]["parts"][0]
+            .get("inlineData")
+            .is_some()
+    );
+    assert!(
+        output["contents"][0]["parts"][0]
+            .get("inline_data")
+            .is_none()
+    );
+}
