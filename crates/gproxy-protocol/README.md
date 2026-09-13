@@ -2,14 +2,15 @@
 
 English | [简体中文](https://github.com/LeenHawk/gproxy/blob/4.0/crates/gproxy-protocol/README.zh-CN.md)
 
-HTTP and WebSocket types for AI API gateways, SDKs, and protocol adapters in Rust.
+HTTP/WebSocket types and host capability contracts for AI API gateways, SDKs, and protocol adapters in Rust.
 Keep HTTP metadata together with raw or typed bodies, and represent established WebSocket
 connections independently.
 
 This is the v4 development API. It provides native models for model discovery, token counting,
 content generation and streaming, context management, embeddings, reranking, files, images,
 audio, video, and realtime sessions. HTTP metadata stays separate from typed bodies;
-WebSocket messages and their duplex connections are modeled independently.
+WebSocket messages and their duplex connections are modeled independently. Independent
+capability traits describe upstream calls, resource access, and scoped state supplied by a host.
 
 All declared fields and variants follow the referenced vendor API or official client schemas.
 `rest` preserves unknown extensions; documented arbitrary JSON stays arbitrary only where the
@@ -121,6 +122,36 @@ between the native and extended video formats.
 `spec::OPERATION_SPECS` describes the modeled operation/dialect combinations and their wire
 formats. It does not assert that a provider supports an operation or that a conversion exists.
 TLS, ALPN and HTTP/2 client configuration belong to outbound client implementations.
+
+## Host capabilities
+
+`capability` defines three independent traits for hosts that supply protocol adapters with
+upstream calls, resources, or scoped state. An adapter can compose multiple calls without
+depending on a complete gateway core.
+
+| Trait | Operations |
+|---|---|
+| `Upstream` | Send encoded HTTP requests; connect WebSocket with the handshake response |
+| `ResourceAccess` | Resolve/read resources; publish, recover publication status, and release owned publications |
+| `StateStore` | Read scoped state; atomically create, replace, or delete it with compare-and-exchange |
+
+`ResourceReference` distinguishes an upstream ID from a URL. Publishing specifies the required
+form and a future expiry; unsupported forms fail before publication. Released or expired
+publications retain their operation ID as expired, so retries cannot recreate them.
+
+The host supplies destinations, authentication, ownership checks and bound `CapabilityLimits`.
+It must enforce time and byte limits throughout transfer, including after returning a stream.
+`CapabilityFuture` requires `Send` on native targets and permits non-`Send` futures on wasm.
+There is no dependency on a particular async runtime, HTTP client, or database.
+
+A non-success HTTP status remains a `WireResponse`; transport/storage failures use
+`CapabilityError` and preserve the original error source. A rejected WebSocket handshake
+retains its complete HTTP response body. Cancellation stops local processing and does not
+promise remote rollback; a publication operation can be queried by its scoped operation ID.
+
+These are contracts for host implementations. This crate does not yet ship capability
+implementations, codecs, converters, or a gateway core. Conversion will use declared wire
+fields only: it must neither read source `rest` fields nor populate target `rest` fields.
 
 ## Operations and dialects
 
