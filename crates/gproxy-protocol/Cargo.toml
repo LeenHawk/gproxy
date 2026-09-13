@@ -1,0 +1,18 @@
+[package]
+name = "gproxy-protocol"
+description = "GPROXY v4 connection modelling, operation declarations, vendor wire types and pairwise conversion"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+# Turns off `non_exhaustive` on the public enums. Enabled inside the workspace
+# so that adding a variant produces an exhaustive-match checklist; left off for
+# external consumers so that adding one is not a breaking change.
+exhaustive = []
+
+[dependencies]
+
+[dev-dependencies]

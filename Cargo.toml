@@ -1,9 +1,11 @@
 [workspace]
 resolver = "3"
-members = []
+members = [
+    "crates/gproxy-protocol",
+]
 
 [workspace.package]
-version = "3.0.22"
+version = "4.0.0-dev"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/LeenHawk/gproxy"
@@ -17,17 +19,17 @@ base64 = "0.23"
 blake3 = "1"
 clap = { version = "4", features = ["derive", "env"] }
 chacha20poly1305 = "0.11"
-gproxy-app = { path = "crates/gproxy-app", version = "=3.0.22" }
-gproxy-admin = { path = "crates/gproxy-admin", version = "=3.0.22" }
-gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "=3.0.22" }
-gproxy-channels = { path = "crates/gproxy-channels", version = "=3.0.22" }
-gproxy-core = { path = "crates/gproxy-core", version = "=3.0.22" }
-gproxy-protocol = { path = "crates/gproxy-protocol", version = "=3.0.22" }
-gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=3.0.22" }
-gproxy-store = { path = "crates/gproxy-store", version = "=3.0.22" }
-gproxy-tokenize = { path = "crates/gproxy-tokenize", version = "=3.0.22" }
-gproxy-transform = { path = "crates/gproxy-transform", version = "=3.0.22", features = ["exhaustive"] }
-gproxy-upstream = { path = "crates/gproxy-upstream", version = "=3.0.22" }
+gproxy-app = { path = "crates/gproxy-app", version = "=3.0.13" }
+gproxy-admin = { path = "crates/gproxy-admin", version = "=3.0.13" }
+gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "=3.0.13" }
+gproxy-channels = { path = "crates/gproxy-channels", version = "=3.0.13" }
+gproxy-core = { path = "crates/gproxy-core", version = "=3.0.13" }
+gproxy-protocol = { path = "crates/gproxy-protocol", version = "=4.0.0-dev", features = ["exhaustive"] }
+gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=3.0.13" }
+gproxy-store = { path = "crates/gproxy-store", version = "=3.0.13" }
+gproxy-tokenize = { path = "crates/gproxy-tokenize", version = "=3.0.13" }
+gproxy-transform = { path = "crates/gproxy-transform", version = "=3.0.13", features = ["exhaustive"] }
+gproxy-upstream = { path = "crates/gproxy-upstream", version = "=3.0.13" }
 getrandom = { version = "0.4", features = ["wasm_js"] }
 dashmap = { version = "6" }
 getrandom_v02 = { package = "getrandom", version = "0.2", features = ["js"] }
@@ -66,7 +68,6 @@ time = { version = "0.3", features = ["parsing"] }
 tiktoken-rs = "0.12"
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-postgres = "0.7"
-tokio-postgres-rustls = { version = "0.14", features = ["aws-lc-rs", "webpki-roots"] }
 tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
 tokio-rusqlite = { version = "0.7", features = ["bundled"] }
 tracing = "0.1"
