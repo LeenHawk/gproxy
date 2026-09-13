@@ -10,6 +10,7 @@ mod error;
 pub mod files;
 pub mod generate;
 pub mod identity;
+pub mod memory;
 pub mod models;
 
 pub use error::{Diagnostic, DiagnosticKind, Report, TransformError, TransformErrorKind};
