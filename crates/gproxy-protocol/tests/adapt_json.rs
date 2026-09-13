@@ -207,3 +207,44 @@ fn invalid_target_path_fails_before_send_and_invalid_success_json_is_not_retried
     );
     assert_eq!(host.sent.lock().unwrap().len(), 1);
 }
+
+#[test]
+fn empty_invocation_sends_zero_bytes_and_uses_the_same_bounded_decoder() {
+    use gproxy_protocol::adapt::invoke_empty;
+    let mut host = host(
+        StatusCode::OK,
+        HttpBody::Bytes(Bytes::from_static(
+            b"{\"object\":\"response.input_tokens\",\"input_tokens\":3,\"extension\":1}",
+        )),
+    );
+    host.write_limit = 0;
+    let template = request();
+    let request = WireRequest {
+        method: Method::GET,
+        path: "/v1/models".into(),
+        query: Some("pageToken=a%2Fb".into()),
+        headers: template.headers,
+        body: (),
+    };
+    let result: JsonInvocation<CountTokensResponseBody> =
+        ready(invoke_empty(&host, &(), request, limits())).unwrap();
+    let JsonInvocation::Success(response) = result else {
+        panic!()
+    };
+    assert_eq!(response.body.input_tokens, 3);
+    assert!(response.body.rest.is_empty());
+    let sent = host.sent.lock().unwrap();
+    assert_eq!(sent[0].query.as_deref(), Some("pageToken=a%2Fb"));
+    for header in [
+        "content-type",
+        "content-length",
+        "content-encoding",
+        "transfer-encoding",
+    ] {
+        assert!(!sent[0].headers.contains_key(header));
+    }
+    let HttpBody::Bytes(bytes) = &sent[0].body else {
+        panic!()
+    };
+    assert!(bytes.is_empty());
+}

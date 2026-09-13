@@ -40,15 +40,7 @@ where
         mut headers,
         body,
     } = request;
-    if !path.starts_with('/')
-        || path.starts_with("//")
-        || path.contains(['?', '#', '\\', '\r', '\n'])
-    {
-        return Err(TransformError::shape(
-            "request.path",
-            "expected an origin-relative path with a separate query",
-        ));
-    }
+    validate_path(&path)?;
     let host_limits = upstream.limits();
     let write_limits = bound_limits(limits, host_limits.write_bytes);
     let body = codec::encode_json(&body.into_declared(), write_limits)
@@ -77,6 +69,58 @@ where
             },
         )
         .await?;
+    receive_json(response, limits, host_limits.read_bytes).await
+}
+
+/// Send one request with an empty HTTP body and decode its JSON success body.
+/// This is suitable for models/files GET operations; `()` is not encoded as
+/// JSON `null`. Non-2xx bodies are returned untouched, as with [`invoke_json`].
+pub async fn invoke_empty<U, O>(
+    upstream: &U,
+    target: &U::Target,
+    request: WireRequest<()>,
+    limits: CodecLimits,
+) -> Result<JsonInvocation<O>, TransformError>
+where
+    U: Upstream,
+    O: DeserializeOwned + DeclaredFields,
+{
+    validate_path(&request.path)?;
+    let WireRequest {
+        method,
+        path,
+        query,
+        mut headers,
+        body: (),
+    } = request;
+    for name in [
+        http::header::CONTENT_TYPE,
+        http::header::CONTENT_LENGTH,
+        http::header::CONTENT_ENCODING,
+        http::header::TRANSFER_ENCODING,
+    ] {
+        headers.remove(name);
+    }
+    let response = upstream
+        .send(
+            target,
+            WireRequest {
+                method,
+                path,
+                query,
+                headers,
+                body: HttpBody::Bytes(bytes::Bytes::new()),
+            },
+        )
+        .await?;
+    receive_json(response, limits, upstream.limits().read_bytes).await
+}
+
+async fn receive_json<O: DeserializeOwned + DeclaredFields>(
+    response: WireResponse<HttpBody>,
+    limits: CodecLimits,
+    read_bytes: u64,
+) -> Result<JsonInvocation<O>, TransformError> {
     if !response.status.is_success() {
         return Ok(JsonInvocation::Rejected(response));
     }
@@ -85,7 +129,7 @@ where
         mut headers,
         body,
     } = response;
-    let limits = bound_limits(limits, host_limits.read_bytes);
+    let limits = bound_limits(limits, read_bytes);
     let bytes = codec::read_http_body(body, limits)
         .await
         .map_err(|error| codec_error(error, true))?;
@@ -108,6 +152,19 @@ where
         headers,
         body: body.into_declared(),
     }))
+}
+
+fn validate_path(path: &str) -> Result<(), TransformError> {
+    if !path.starts_with('/')
+        || path.starts_with("//")
+        || path.contains(['?', '#', '\\', '\r', '\n'])
+    {
+        return Err(TransformError::shape(
+            "request.path",
+            "expected an origin-relative path with a separate query",
+        ));
+    }
+    Ok(())
 }
 
 fn bound_limits(mut limits: CodecLimits, host_bytes: u64) -> CodecLimits {
