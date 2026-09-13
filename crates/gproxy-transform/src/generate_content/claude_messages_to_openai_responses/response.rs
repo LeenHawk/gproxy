@@ -164,28 +164,24 @@ fn typed_blocks(
         ))],
         openai::TypedResponseItem::Reasoning {
             content,
+            summary,
             encrypted_content,
             ..
         } => {
-            let thinking = content
+            let mut thinking = content
                 .into_iter()
                 .flatten()
                 .map(|part| part.text)
                 .collect::<String>();
+            if thinking.is_empty() {
+                thinking = summary.into_iter().map(|part| part.text).collect();
+            }
             match (thinking.is_empty(), encrypted_content) {
-                (false, Some(signature)) => vec![claude::ResponseContentBlock::Thinking(
-                    crate::wire!(claude::ThinkingBlock {
-                        signature: Some(signature),
+                (false, signature) => vec![claude::ResponseContentBlock::Thinking(crate::wire!(
+                    claude::ThinkingBlock {
+                        signature,
                         thinking,
                         type_: claude::ThinkingBlockType::Thinking,
-                        rest: Default::default(),
-                    }),
-                )],
-                (false, None) => vec![claude::ResponseContentBlock::Text(crate::wire!(
-                    claude::ResponseTextBlock {
-                        citations: None,
-                        text: thinking,
-                        type_: claude::TextBlockType::Text,
                         rest: Default::default(),
                     }
                 ))],

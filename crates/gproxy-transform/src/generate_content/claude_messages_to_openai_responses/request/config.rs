@@ -75,12 +75,28 @@ pub(super) fn reasoning(
         }
         Some(claude::ThinkingConfig::Unknown(_)) | Some(_) | None => None,
     });
+    // Responses only emits visible reasoning when a summary is requested.
+    // Claude defaults to summarized thinking; omitted explicitly suppresses it.
+    let display = match thinking {
+        Some(claude::ThinkingConfig::Enabled(config)) => Some(config.display.as_ref()),
+        Some(claude::ThinkingConfig::Adaptive(config)) => Some(config.display.as_ref()),
+        _ => None,
+    };
+    let summary = match display {
+        Some(
+            None
+            | Some(claude::ThinkingDisplay::Known(
+                claude::ThinkingDisplayKnown::Summarized | claude::ThinkingDisplayKnown::Updates,
+            )),
+        ) => Some(openai::ReasoningSummary::Auto),
+        _ => None,
+    };
     Ok(effort.map(|effort| {
         crate::wire!(openai::ReasoningConfig {
             context: None,
             effort: Some(effort),
             mode: None,
-            summary: None,
+            summary,
             generate_summary: None,
             rest: Default::default(),
         })

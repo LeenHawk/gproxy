@@ -25,8 +25,8 @@ fn responses_to_claude_defaults_and_wraps_lossy_blocks() {
     assert_eq!(converted["model"], "unknown");
     assert_eq!(converted["usage"]["input_tokens"], 0);
     assert_eq!(converted["usage"]["output_tokens"], 0);
-    assert_eq!(converted["content"][0]["type"], "text");
-    assert_eq!(converted["content"][0]["text"], "visible");
+    assert_eq!(converted["content"][0]["type"], "thinking");
+    assert_eq!(converted["content"][0]["thinking"], "visible");
     assert_eq!(converted["content"][1]["input"], json!({}));
     assert_eq!(
         converted["content"][2]["input"],
