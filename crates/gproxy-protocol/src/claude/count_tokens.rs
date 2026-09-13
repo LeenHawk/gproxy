@@ -75,6 +75,7 @@ pub struct ClearToolUsesEdit {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ClearToolUsesType {
+    #[serde(rename = "clear_tool_uses_20250919")]
     Clear,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -138,12 +139,30 @@ pub struct ClearThinkingEdit {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ClearThinkingType {
+    #[serde(rename = "clear_thinking_20251015")]
     Clear,
+}
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct AllThinkingTurns {
+    #[serde(rename = "type")]
+    pub type_: AllThinkingType,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub enum AllThinkingTurns {
+pub enum AllThinkingType {
+    #[serde(rename = "all")]
+    All,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AllStringThinkingTurns {
+    #[serde(rename = "all")]
     All,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -152,7 +171,7 @@ pub enum AllThinkingTurns {
 pub enum ThinkingKeep {
     Turns(ThinkingTurns),
     All(AllThinkingTurns),
-    Text(String),
+    AllString(AllStringThinkingTurns),
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
@@ -189,6 +208,7 @@ pub struct CompactEdit {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum CompactType {
+    #[serde(rename = "compact_20260112")]
     Compact,
 }
 
@@ -234,8 +254,31 @@ pub struct OutputConfig {
     pub effort: Option<Effort>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub format: Option<JsonOutputFormat>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_budget: Option<TokenTaskBudget>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
+}
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct TokenTaskBudget {
+    pub total: i64,
+    #[serde(rename = "type")]
+    pub type_: TokenTaskBudgetType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remaining: Option<i64>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum TokenTaskBudgetType {
+    Tokens,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
