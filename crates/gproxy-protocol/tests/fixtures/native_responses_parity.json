@@ -1,0 +1,1227 @@
+[
+  {
+    "name": "valid_text",
+    "events": [
+      {
+        "type": "response.created",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "in_progress"
+        },
+        "sequence_number": 0
+      },
+      {
+        "type": "response.output_item.added",
+        "output_index": 0,
+        "item": {
+          "type": "message",
+          "id": "msg",
+          "role": "assistant",
+          "status": "in_progress",
+          "content": []
+        },
+        "sequence_number": 1
+      },
+      {
+        "type": "response.content_part.added",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 2
+      },
+      {
+        "type": "response.output_text.delta",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "delta": "Hello",
+        "logprobs": [],
+        "sequence_number": 3
+      },
+      {
+        "type": "response.output_text.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "text": "Hello",
+        "logprobs": [],
+        "sequence_number": 4
+      },
+      {
+        "type": "response.content_part.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "Hello",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 5
+      },
+      {
+        "type": "response.output_item.done",
+        "output_index": 0,
+        "item": {
+          "type": "message",
+          "id": "msg",
+          "role": "assistant",
+          "status": "completed",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "Hello",
+              "annotations": [],
+              "logprobs": []
+            }
+          ]
+        },
+        "sequence_number": 6
+      },
+      {
+        "type": "response.completed",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [
+            {
+              "type": "message",
+              "id": "msg",
+              "role": "assistant",
+              "status": "completed",
+              "content": [
+                {
+                  "type": "output_text",
+                  "text": "Hello",
+                  "annotations": [],
+                  "logprobs": []
+                }
+              ]
+            }
+          ],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "completed"
+        },
+        "sequence_number": 7
+      }
+    ]
+  },
+  {
+    "name": "no_terminal",
+    "events": [
+      {
+        "type": "response.created",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "in_progress"
+        },
+        "sequence_number": 0
+      },
+      {
+        "type": "response.output_item.added",
+        "output_index": 0,
+        "item": {
+          "type": "message",
+          "id": "msg",
+          "role": "assistant",
+          "status": "in_progress",
+          "content": []
+        },
+        "sequence_number": 1
+      },
+      {
+        "type": "response.content_part.added",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 2
+      },
+      {
+        "type": "response.output_text.delta",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "delta": "Hello",
+        "logprobs": [],
+        "sequence_number": 3
+      },
+      {
+        "type": "response.output_text.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "text": "Hello",
+        "logprobs": [],
+        "sequence_number": 4
+      },
+      {
+        "type": "response.content_part.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "Hello",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 5
+      },
+      {
+        "type": "response.output_item.done",
+        "output_index": 0,
+        "item": {
+          "type": "message",
+          "id": "msg",
+          "role": "assistant",
+          "status": "completed",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "Hello",
+              "annotations": [],
+              "logprobs": []
+            }
+          ]
+        },
+        "sequence_number": 6
+      }
+    ]
+  },
+  {
+    "name": "nonmonotonic_sequence",
+    "events": [
+      {
+        "type": "response.created",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "in_progress"
+        },
+        "sequence_number": 0
+      },
+      {
+        "type": "response.output_item.added",
+        "output_index": 0,
+        "item": {
+          "type": "message",
+          "id": "msg",
+          "role": "assistant",
+          "status": "in_progress",
+          "content": []
+        },
+        "sequence_number": 1
+      },
+      {
+        "type": "response.content_part.added",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 2
+      },
+      {
+        "type": "response.output_text.delta",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "delta": "Hello",
+        "logprobs": [],
+        "sequence_number": 0
+      },
+      {
+        "type": "response.output_text.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "text": "Hello",
+        "logprobs": [],
+        "sequence_number": 4
+      },
+      {
+        "type": "response.content_part.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "Hello",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 5
+      },
+      {
+        "type": "response.output_item.done",
+        "output_index": 0,
+        "item": {
+          "type": "message",
+          "id": "msg",
+          "role": "assistant",
+          "status": "completed",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "Hello",
+              "annotations": [],
+              "logprobs": []
+            }
+          ]
+        },
+        "sequence_number": 6
+      },
+      {
+        "type": "response.completed",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [
+            {
+              "type": "message",
+              "id": "msg",
+              "role": "assistant",
+              "status": "completed",
+              "content": [
+                {
+                  "type": "output_text",
+                  "text": "Hello",
+                  "annotations": [],
+                  "logprobs": []
+                }
+              ]
+            }
+          ],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "completed"
+        },
+        "sequence_number": 7
+      }
+    ]
+  },
+  {
+    "name": "text_delta_contradicts_done",
+    "events": [
+      {
+        "type": "response.created",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "in_progress"
+        },
+        "sequence_number": 0
+      },
+      {
+        "type": "response.output_item.added",
+        "output_index": 0,
+        "item": {
+          "type": "message",
+          "id": "msg",
+          "role": "assistant",
+          "status": "in_progress",
+          "content": []
+        },
+        "sequence_number": 1
+      },
+      {
+        "type": "response.content_part.added",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 2
+      },
+      {
+        "type": "response.output_text.delta",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "delta": "WRONG",
+        "logprobs": [],
+        "sequence_number": 3
+      },
+      {
+        "type": "response.output_text.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "text": "Hello",
+        "logprobs": [],
+        "sequence_number": 4
+      },
+      {
+        "type": "response.content_part.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "Hello",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 5
+      },
+      {
+        "type": "response.output_item.done",
+        "output_index": 0,
+        "item": {
+          "type": "message",
+          "id": "msg",
+          "role": "assistant",
+          "status": "completed",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "Hello",
+              "annotations": [],
+              "logprobs": []
+            }
+          ]
+        },
+        "sequence_number": 6
+      },
+      {
+        "type": "response.completed",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [
+            {
+              "type": "message",
+              "id": "msg",
+              "role": "assistant",
+              "status": "completed",
+              "content": [
+                {
+                  "type": "output_text",
+                  "text": "Hello",
+                  "annotations": [],
+                  "logprobs": []
+                }
+              ]
+            }
+          ],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "completed"
+        },
+        "sequence_number": 7
+      }
+    ]
+  },
+  {
+    "name": "item_id_index_disagrees",
+    "events": [
+      {
+        "type": "response.created",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "in_progress"
+        },
+        "sequence_number": 0
+      },
+      {
+        "type": "response.output_item.added",
+        "output_index": 0,
+        "item": {
+          "type": "message",
+          "id": "msg",
+          "role": "assistant",
+          "status": "in_progress",
+          "content": []
+        },
+        "sequence_number": 1
+      },
+      {
+        "type": "response.content_part.added",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 2
+      },
+      {
+        "type": "response.output_text.delta",
+        "output_index": 0,
+        "item_id": "other",
+        "content_index": 0,
+        "delta": "Hello",
+        "logprobs": [],
+        "sequence_number": 3
+      },
+      {
+        "type": "response.output_text.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "text": "Hello",
+        "logprobs": [],
+        "sequence_number": 4
+      },
+      {
+        "type": "response.content_part.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "Hello",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 5
+      },
+      {
+        "type": "response.output_item.done",
+        "output_index": 0,
+        "item": {
+          "type": "message",
+          "id": "msg",
+          "role": "assistant",
+          "status": "completed",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "Hello",
+              "annotations": [],
+              "logprobs": []
+            }
+          ]
+        },
+        "sequence_number": 6
+      },
+      {
+        "type": "response.completed",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [
+            {
+              "type": "message",
+              "id": "msg",
+              "role": "assistant",
+              "status": "completed",
+              "content": [
+                {
+                  "type": "output_text",
+                  "text": "Hello",
+                  "annotations": [],
+                  "logprobs": []
+                }
+              ]
+            }
+          ],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "completed"
+        },
+        "sequence_number": 7
+      }
+    ]
+  },
+  {
+    "name": "missing_item_done",
+    "events": [
+      {
+        "type": "response.created",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "in_progress"
+        },
+        "sequence_number": 0
+      },
+      {
+        "type": "response.output_item.added",
+        "output_index": 0,
+        "item": {
+          "type": "message",
+          "id": "msg",
+          "role": "assistant",
+          "status": "in_progress",
+          "content": []
+        },
+        "sequence_number": 1
+      },
+      {
+        "type": "response.content_part.added",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 2
+      },
+      {
+        "type": "response.output_text.delta",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "delta": "Hello",
+        "logprobs": [],
+        "sequence_number": 3
+      },
+      {
+        "type": "response.output_text.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "text": "Hello",
+        "logprobs": [],
+        "sequence_number": 4
+      },
+      {
+        "type": "response.content_part.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "Hello",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 5
+      },
+      {
+        "type": "response.completed",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [
+            {
+              "type": "message",
+              "id": "msg",
+              "role": "assistant",
+              "status": "completed",
+              "content": [
+                {
+                  "type": "output_text",
+                  "text": "Hello",
+                  "annotations": [],
+                  "logprobs": []
+                }
+              ]
+            }
+          ],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "completed"
+        },
+        "sequence_number": 7
+      }
+    ]
+  },
+  {
+    "name": "terminal_drops_output",
+    "events": [
+      {
+        "type": "response.created",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "in_progress"
+        },
+        "sequence_number": 0
+      },
+      {
+        "type": "response.output_item.added",
+        "output_index": 0,
+        "item": {
+          "type": "message",
+          "id": "msg",
+          "role": "assistant",
+          "status": "in_progress",
+          "content": []
+        },
+        "sequence_number": 1
+      },
+      {
+        "type": "response.content_part.added",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 2
+      },
+      {
+        "type": "response.output_text.delta",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "delta": "Hello",
+        "logprobs": [],
+        "sequence_number": 3
+      },
+      {
+        "type": "response.output_text.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "text": "Hello",
+        "logprobs": [],
+        "sequence_number": 4
+      },
+      {
+        "type": "response.content_part.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "Hello",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 5
+      },
+      {
+        "type": "response.output_item.done",
+        "output_index": 0,
+        "item": {
+          "type": "message",
+          "id": "msg",
+          "role": "assistant",
+          "status": "completed",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "Hello",
+              "annotations": [],
+              "logprobs": []
+            }
+          ]
+        },
+        "sequence_number": 6
+      },
+      {
+        "type": "response.completed",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "completed"
+        },
+        "sequence_number": 7
+      }
+    ]
+  },
+  {
+    "name": "terminal_identity_changes",
+    "events": [
+      {
+        "type": "response.created",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "in_progress"
+        },
+        "sequence_number": 0
+      },
+      {
+        "type": "response.output_item.added",
+        "output_index": 0,
+        "item": {
+          "type": "message",
+          "id": "msg",
+          "role": "assistant",
+          "status": "in_progress",
+          "content": []
+        },
+        "sequence_number": 1
+      },
+      {
+        "type": "response.content_part.added",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 2
+      },
+      {
+        "type": "response.output_text.delta",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "delta": "Hello",
+        "logprobs": [],
+        "sequence_number": 3
+      },
+      {
+        "type": "response.output_text.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "text": "Hello",
+        "logprobs": [],
+        "sequence_number": 4
+      },
+      {
+        "type": "response.content_part.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "Hello",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 5
+      },
+      {
+        "type": "response.output_item.done",
+        "output_index": 0,
+        "item": {
+          "type": "message",
+          "id": "msg",
+          "role": "assistant",
+          "status": "completed",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "Hello",
+              "annotations": [],
+              "logprobs": []
+            }
+          ]
+        },
+        "sequence_number": 6
+      },
+      {
+        "type": "response.completed",
+        "response": {
+          "id": "other",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [
+            {
+              "type": "message",
+              "id": "msg",
+              "role": "assistant",
+              "status": "completed",
+              "content": [
+                {
+                  "type": "output_text",
+                  "text": "Hello",
+                  "annotations": [],
+                  "logprobs": []
+                }
+              ]
+            }
+          ],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "completed"
+        },
+        "sequence_number": 7
+      }
+    ]
+  },
+  {
+    "name": "post_terminal_event",
+    "events": [
+      {
+        "type": "response.created",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "in_progress"
+        },
+        "sequence_number": 0
+      },
+      {
+        "type": "response.output_item.added",
+        "output_index": 0,
+        "item": {
+          "type": "message",
+          "id": "msg",
+          "role": "assistant",
+          "status": "in_progress",
+          "content": []
+        },
+        "sequence_number": 1
+      },
+      {
+        "type": "response.content_part.added",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 2
+      },
+      {
+        "type": "response.output_text.delta",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "delta": "Hello",
+        "logprobs": [],
+        "sequence_number": 3
+      },
+      {
+        "type": "response.output_text.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "text": "Hello",
+        "logprobs": [],
+        "sequence_number": 4
+      },
+      {
+        "type": "response.content_part.done",
+        "output_index": 0,
+        "item_id": "msg",
+        "content_index": 0,
+        "part": {
+          "type": "output_text",
+          "text": "Hello",
+          "annotations": [],
+          "logprobs": []
+        },
+        "sequence_number": 5
+      },
+      {
+        "type": "response.output_item.done",
+        "output_index": 0,
+        "item": {
+          "type": "message",
+          "id": "msg",
+          "role": "assistant",
+          "status": "completed",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "Hello",
+              "annotations": [],
+              "logprobs": []
+            }
+          ]
+        },
+        "sequence_number": 6
+      },
+      {
+        "type": "response.completed",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [
+            {
+              "type": "message",
+              "id": "msg",
+              "role": "assistant",
+              "status": "completed",
+              "content": [
+                {
+                  "type": "output_text",
+                  "text": "Hello",
+                  "annotations": [],
+                  "logprobs": []
+                }
+              ]
+            }
+          ],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "completed"
+        },
+        "sequence_number": 7
+      },
+      {
+        "type": "response.completed",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [
+            {
+              "type": "message",
+              "id": "msg",
+              "role": "assistant",
+              "status": "completed",
+              "content": [
+                {
+                  "type": "output_text",
+                  "text": "Hello",
+                  "annotations": [],
+                  "logprobs": []
+                }
+              ]
+            }
+          ],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "completed"
+        },
+        "sequence_number": 100
+      }
+    ]
+  },
+  {
+    "name": "only_created",
+    "events": [
+      {
+        "type": "response.created",
+        "response": {
+          "id": "r",
+          "created_at": 123,
+          "error": null,
+          "incomplete_details": null,
+          "instructions": null,
+          "metadata": null,
+          "model": "m",
+          "object": "response",
+          "output": [],
+          "parallel_tool_calls": true,
+          "temperature": null,
+          "tool_choice": "auto",
+          "tools": [],
+          "top_p": null,
+          "status": "in_progress"
+        },
+        "sequence_number": 0
+      }
+    ]
+  }
+]
