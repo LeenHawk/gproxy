@@ -100,3 +100,13 @@ pub(in crate::handlers) async fn summary(
     let totals: UsageSummaryDto = state.store().usage_summary(&filter).await?.into();
     response::json(StatusCode::OK, &totals)
 }
+
+pub(in crate::handlers) async fn delete(
+    state: &impl State,
+    id: i64,
+) -> Result<Response<Bytes>, AdminError> {
+    if !state.store().delete_usage(id).await? {
+        return Err(AdminError::NotFound);
+    }
+    Ok(response::empty(StatusCode::NO_CONTENT))
+}

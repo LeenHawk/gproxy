@@ -3,6 +3,17 @@ use crate::records::{UsageFilter, UsageRecord, UsageTotals};
 use crate::{Store, StoreError};
 
 impl Store {
+    /// Remove a usage detail without reversing settled billing, quota attribution,
+    /// or retained hourly accounting rollups.
+    pub async fn delete_usage(&self, id: i64) -> Result<bool, StoreError> {
+        Ok(self
+            .backend()
+            .execute(crate::query::delete_by_id("usage_rows", id)?)
+            .await?
+            .affected_rows
+            == 1)
+    }
+
     pub async fn active_usage_credentials(
         &self,
         since: i64,

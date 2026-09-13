@@ -60,6 +60,15 @@ billed after pricing; tokens are the provider's or the estimator's counts;
 metrics and dimensions carry everything that is not a token and are priced
 by `price_rates` rows (see [Pricing & Tiers](/reference/pricing/)).
 
+### Deleting Usage Details
+
+In the Usage tab, choose **Batch**, select records, then **Delete** and confirm.
+The list and detail-based statistics refresh after deletion. The admin API also
+supports `DELETE /admin/api/usage/{id}` and
+`POST /admin/api/batch/usage` with `{"action":"delete","ids":[1,2]}`.
+Deletion is audited. It does not refund settled charges, reset quotas, or remove
+historical hourly rollups used by the Overview trend and accounting.
+
 ## Request Audit
 
 Request audit stores the downstream exchange (what the client sent and

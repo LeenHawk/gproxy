@@ -6,6 +6,7 @@ use ts_rs::TS;
 #[serde(rename_all = "kebab-case")]
 #[ts(rename_all = "kebab-case")]
 pub(crate) enum Entity {
+    Usage,
     Organizations,
     Teams,
     Providers,
@@ -238,6 +239,7 @@ fn special(method: &Method, name: &str) -> Option<Route> {
 
 fn entity(name: &str) -> Option<Entity> {
     Some(match name {
+        "usage" => Entity::Usage,
         "organizations" => Entity::Organizations,
         "teams" => Entity::Teams,
         "providers" => Entity::Providers,
@@ -390,6 +392,7 @@ impl Entity {
             Self::RuleSets => "rule_sets",
             Self::Rules => "rules",
             Self::ProviderRuleSets => "provider_rule_sets",
+            Self::Usage => "usage",
         }
     }
 }

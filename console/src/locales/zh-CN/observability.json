@@ -212,6 +212,10 @@
       "estimated": "本地估算",
       "complete": "完成",
       "interrupted": "中断"
+    },
+    "delete": {
+      "title": "删除 {{count}} 条用量记录？",
+      "description": "所选用量明细将永久删除，基于明细的统计会更新。已结算费用、配额和历史小时汇总会保留。"
     }
   },
   "overview": {
