@@ -7,8 +7,9 @@ Keep HTTP metadata together with raw or typed bodies, and represent established 
 connections independently.
 
 This is the v4 development API. It includes connection models, OpenAI/Claude/Gemini model
-metadata and token-counting body types, including the documented native media, tool, and
-configuration structures. Content generation models, body codecs, and cross-format conversion
+metadata, token-counting and content-generation types, plus typed streaming payloads for
+Claude Messages, Gemini, OpenAI Responses and Chat Completions. Documented media, tool and
+configuration fields retain their native shapes. Body codecs and cross-format conversion
 are under development.
 
 ## Installation
@@ -78,6 +79,20 @@ resource is carried in the request path.
 - WebSocket handshakes use HTTP requests and responses. The established `WebSocket` exposes
   independent incoming and outgoing streams/sinks, carrying text, binary, ping, pong, and close.
   It is not an HTTP body variant. Transport adapters handle connection setup and wire framing.
+
+## Typed generation payloads
+
+| API | Request and buffered response | Stream payload |
+|---|---|---|
+| Claude Messages | `claude::generate_content` | `claude::stream::StreamEvent` |
+| Gemini | `gemini::generate_content` | `gemini::stream::StreamChunk` |
+| OpenAI Responses | `openai::responses::{generate, response}` | `openai::responses::stream::StreamEvent` |
+| OpenAI Chat Completions | `openai::chat::{request, response}` | `openai::chat::stream::ChatCompletionChunk` |
+
+Stream response aliases carry `ByteStream`. A caller decodes SSE or JSON-array framing and
+then deserializes each JSON payload into the corresponding type. These types do not parse
+network chunks, accumulate model output, or convert between APIs. Non-JSON transport markers
+such as Chat Completions' `[DONE]` remain the caller's framing responsibility.
 
 ## Operations and dialects
 

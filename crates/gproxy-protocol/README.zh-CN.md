@@ -5,8 +5,9 @@
 面向 AI API 网关、SDK 和协议适配器的 Rust HTTP/WebSocket 类型库。
 将 HTTP 元信息与原始或强类型 body 放在同一条消息中，独立建模已建立的 WebSocket 连接。
 
-当前为 v4 开发版，包含连接模型、OpenAI/Claude/Gemini 的模型元数据与令牌计数 body 类型，
-以及文档定义的原生媒体、工具和配置结构。内容生成模型、body 编解码与跨格式转换仍在开发。
+当前为 v4 开发版，包含连接模型、OpenAI/Claude/Gemini 的模型元数据、令牌计数和内容生成类型，
+以及 Claude Messages、Gemini、OpenAI Responses、Chat Completions 的流式载荷类型。
+文档定义的媒体、工具和配置字段均保持各自原生形状。body 编解码与跨格式转换仍在开发。
 
 ## 安装
 
@@ -73,6 +74,19 @@ HTTP 方法、路径、查询参数、状态码和头始终在 body 外面。que
   相同字段名的多个 part 会被保留。
 - WebSocket 握手使用 HTTP 请求和响应；已建立的 `WebSocket` 提供独立的接收流和发送端，
   支持文本、二进制、ping、pong、close。它不属于 HTTP body 变体，连接建立与底层帧处理由传输适配器负责。
+
+## 内容生成的强类型载荷
+
+| API | 请求与非流式响应 | 流式载荷 |
+|---|---|---|
+| Claude Messages | `claude::generate_content` | `claude::stream::StreamEvent` |
+| Gemini | `gemini::generate_content` | `gemini::stream::StreamChunk` |
+| OpenAI Responses | `openai::responses::{generate, response}` | `openai::responses::stream::StreamEvent` |
+| OpenAI Chat Completions | `openai::chat::{request, response}` | `openai::chat::stream::ChatCompletionChunk` |
+
+流式响应别名承载 `ByteStream`。调用方处理 SSE 或 JSON 数组分帧，再把每条 JSON 载荷
+反序列化为对应类型。这些类型不负责拆解网络 chunk、累积模型输出或跨 API 转换；
+Chat Completions 的 `[DONE]` 等非 JSON 传输标记也由调用方的分帧逻辑处理。
 
 ## 操作与方言
 
