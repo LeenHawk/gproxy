@@ -4,6 +4,7 @@ pub mod input;
 pub mod response;
 pub mod stream;
 pub mod tools;
+pub mod websocket;
 
 pub use generate::*;
 pub use input::*;
