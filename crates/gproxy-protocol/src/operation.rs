@@ -8,12 +8,34 @@
 //! Paths are deliberately absent. Which URL serves an operation is an HTTP
 //! convention owned by the ingress layer; an SDK caller names the operation
 //! directly and never sees a path.
+//!
+//! Persistence strings live on the variants rather than in a hand-written
+//! match. `snake_case` conversion is exact for every operation; the OpenAI
+//! dialects need an explicit spelling because the derive would otherwise split
+//! them into `open_ai`. A pinning test guards the whole set, so renaming a
+//! variant cannot silently change what is already in a database.
 
 /// What the caller wants done.
 ///
-/// Four of these are content generation (see [`Operation::is_content_generation`])
-/// and carry a [`ContentGenerationKind`]; the rest carry a [`WireFamily`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// Four of these are content generation and carry a [`ContentGenerationKind`];
+/// the rest carry a [`WireFamily`].
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::IntoStaticStr,
+    strum::EnumString,
+    strum::EnumIter,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum Operation {
     // models
@@ -75,6 +97,15 @@ pub enum Operation {
 }
 
 impl Operation {
+    /// Stable persistence id.
+    pub fn id(self) -> &'static str {
+        self.into()
+    }
+
+    pub fn from_id(value: &str) -> Option<Self> {
+        value.parse().ok()
+    }
+
     /// Which kind variant this operation pairs with. An invariant of
     /// [`OperationKey`] construction and nothing more — deliberately private,
     /// because no caller has a reason to ask.
@@ -94,113 +125,45 @@ impl Operation {
                 | Self::GuardianClassify
         )
     }
-
-    /// Stable persistence id. Exhaustive on purpose: adding an operation must
-    /// not silently collapse into a debug string or a catch-all.
-    pub const fn id(self) -> &'static str {
-        use Operation::*;
-        match self {
-            ListModels => "list_models",
-            GetModel => "get_model",
-            CountTokens => "count_tokens",
-            GenerateContent => "generate_content",
-            StreamGenerateContent => "stream_generate_content",
-            GuardianReview => "guardian_review",
-            GuardianClassify => "guardian_classify",
-            CompactContent => "compact_content",
-            SummarizeMemory => "summarize_memory",
-            CreateConversation => "create_conversation",
-            CreateEmbedding => "create_embedding",
-            BatchCreateEmbedding => "batch_create_embedding",
-            Rerank => "rerank",
-            WebSearch => "web_search",
-            CreateImage => "create_image",
-            EditImage => "edit_image",
-            CreateSpeech => "create_speech",
-            CreateTranscription => "create_transcription",
-            CreateTranslation => "create_translation",
-            CreateFile => "create_file",
-            ListFiles => "list_files",
-            RetrieveFile => "retrieve_file",
-            RetrieveFileContent => "retrieve_file_content",
-            DeleteFile => "delete_file",
-            CreateVideo => "create_video",
-            RetrieveVideo => "retrieve_video",
-            ListVideos => "list_videos",
-            DeleteVideo => "delete_video",
-            DownloadVideoContent => "download_video_content",
-            CreateRealtimeCall => "create_realtime_call",
-            ConnectRealtime => "connect_realtime",
-        }
-    }
-
-    pub fn from_id(value: &str) -> Option<Self> {
-        use Operation::*;
-        Some(match value {
-            "list_models" => ListModels,
-            "get_model" => GetModel,
-            "count_tokens" => CountTokens,
-            "generate_content" => GenerateContent,
-            "stream_generate_content" => StreamGenerateContent,
-            "guardian_review" => GuardianReview,
-            "guardian_classify" => GuardianClassify,
-            "compact_content" => CompactContent,
-            "summarize_memory" => SummarizeMemory,
-            "create_conversation" => CreateConversation,
-            "create_embedding" => CreateEmbedding,
-            "batch_create_embedding" => BatchCreateEmbedding,
-            "rerank" => Rerank,
-            "web_search" => WebSearch,
-            "create_image" => CreateImage,
-            "edit_image" => EditImage,
-            "create_speech" => CreateSpeech,
-            "create_transcription" => CreateTranscription,
-            "create_translation" => CreateTranslation,
-            "create_file" => CreateFile,
-            "list_files" => ListFiles,
-            "retrieve_file" => RetrieveFile,
-            "retrieve_file_content" => RetrieveFileContent,
-            "delete_file" => DeleteFile,
-            "create_video" => CreateVideo,
-            "retrieve_video" => RetrieveVideo,
-            "list_videos" => ListVideos,
-            "delete_video" => DeleteVideo,
-            "download_video_content" => DownloadVideoContent,
-            "create_realtime_call" => CreateRealtimeCall,
-            "connect_realtime" => ConnectRealtime,
-            _ => return None,
-        })
-    }
 }
 
 /// Wire dialect for operations that are not content generation.
 ///
 /// Names a dialect, not a configured backend — v2 called this `Provider` and
 /// the two kept getting confused.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::IntoStaticStr,
+    strum::EnumString,
+    strum::EnumIter,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum WireFamily {
+    #[serde(rename = "openai")]
+    #[strum(serialize = "openai")]
     OpenAi,
     Claude,
     Gemini,
 }
 
 impl WireFamily {
-    pub const fn id(self) -> &'static str {
-        match self {
-            Self::OpenAi => "openai",
-            Self::Claude => "claude",
-            Self::Gemini => "gemini",
-        }
+    pub fn id(self) -> &'static str {
+        self.into()
     }
 
     pub fn from_id(value: &str) -> Option<Self> {
-        Some(match value {
-            "openai" => Self::OpenAi,
-            "claude" => Self::Claude,
-            "gemini" => Self::Gemini,
-            _ => return None,
-        })
+        value.parse().ok()
     }
 }
 
@@ -209,40 +172,49 @@ impl WireFamily {
 /// There is no AWS variant: Bedrock Converse has no ingress path, so no client
 /// speaks it to us. It is an upstream shape the `aws_bedrock` channel produces,
 /// and its wire types live with that channel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::IntoStaticStr,
+    strum::EnumString,
+    strum::EnumIter,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum ContentGenerationKind {
+    #[serde(rename = "openai_chat")]
+    #[strum(serialize = "openai_chat")]
     OpenAiChat,
+    #[serde(rename = "openai_responses")]
+    #[strum(serialize = "openai_responses")]
     OpenAiResponses,
     /// Envelope variant of [`ContentGenerationKind::OpenAiResponses`]: same
     /// semantics carried over a websocket. It never owns transform pairs of its
     /// own — the envelope layer unwraps it onto the Responses pairs and wraps
     /// the result back.
+    #[serde(rename = "openai_responses_websocket")]
+    #[strum(serialize = "openai_responses_websocket")]
     OpenAiResponsesWebSocket,
     ClaudeMessages,
     GeminiGenerateContent,
 }
 
 impl ContentGenerationKind {
-    pub const fn id(self) -> &'static str {
-        match self {
-            Self::OpenAiChat => "openai_chat",
-            Self::OpenAiResponses => "openai_responses",
-            Self::OpenAiResponsesWebSocket => "openai_responses_websocket",
-            Self::ClaudeMessages => "claude_messages",
-            Self::GeminiGenerateContent => "gemini_generate_content",
-        }
+    pub fn id(self) -> &'static str {
+        self.into()
     }
 
     pub fn from_id(value: &str) -> Option<Self> {
-        Some(match value {
-            "openai_chat" => Self::OpenAiChat,
-            "openai_responses" => Self::OpenAiResponses,
-            "openai_responses_websocket" => Self::OpenAiResponsesWebSocket,
-            "claude_messages" => Self::ClaudeMessages,
-            "gemini_generate_content" => Self::GeminiGenerateContent,
-            _ => return None,
-        })
+        value.parse().ok()
     }
 
     /// The kind that owns the transform pairs for this dialect. Only the
@@ -264,7 +236,7 @@ pub enum OperationKind {
 }
 
 impl OperationKind {
-    pub const fn id(self) -> &'static str {
+    pub fn id(self) -> &'static str {
         match self {
             Self::ContentGeneration(kind) => kind.id(),
             Self::Family(family) => family.id(),
@@ -365,56 +337,110 @@ impl core::error::Error for OperationKeyError {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use strum::IntoEnumIterator;
 
-    const ALL: &[Operation] = &[
-        Operation::ListModels,
-        Operation::GetModel,
-        Operation::CountTokens,
-        Operation::GenerateContent,
-        Operation::StreamGenerateContent,
-        Operation::GuardianReview,
-        Operation::GuardianClassify,
-        Operation::CompactContent,
-        Operation::SummarizeMemory,
-        Operation::CreateConversation,
-        Operation::CreateEmbedding,
-        Operation::BatchCreateEmbedding,
-        Operation::Rerank,
-        Operation::WebSearch,
-        Operation::CreateImage,
-        Operation::EditImage,
-        Operation::CreateSpeech,
-        Operation::CreateTranscription,
-        Operation::CreateTranslation,
-        Operation::CreateFile,
-        Operation::ListFiles,
-        Operation::RetrieveFile,
-        Operation::RetrieveFileContent,
-        Operation::DeleteFile,
-        Operation::CreateVideo,
-        Operation::RetrieveVideo,
-        Operation::ListVideos,
-        Operation::DeleteVideo,
-        Operation::DownloadVideoContent,
-        Operation::CreateRealtimeCall,
-        Operation::ConnectRealtime,
-    ];
+    /// Pins every persistence id. The derive generates these from the variant
+    /// names, so without this test renaming a variant would silently rewrite
+    /// what is already stored in a database. Order and count are pinned too,
+    /// which is what makes adding an operation a deliberate act.
+    #[test]
+    fn operation_ids_are_pinned() {
+        let ids: Vec<&'static str> = Operation::iter().map(Operation::id).collect();
+        assert_eq!(
+            ids,
+            [
+                "list_models",
+                "get_model",
+                "count_tokens",
+                "generate_content",
+                "stream_generate_content",
+                "guardian_review",
+                "guardian_classify",
+                "compact_content",
+                "summarize_memory",
+                "create_conversation",
+                "create_embedding",
+                "batch_create_embedding",
+                "rerank",
+                "web_search",
+                "create_image",
+                "edit_image",
+                "create_speech",
+                "create_transcription",
+                "create_translation",
+                "create_file",
+                "list_files",
+                "retrieve_file",
+                "retrieve_file_content",
+                "delete_file",
+                "create_video",
+                "retrieve_video",
+                "list_videos",
+                "delete_video",
+                "download_video_content",
+                "create_realtime_call",
+                "connect_realtime",
+            ]
+        );
+    }
 
     #[test]
-    fn every_operation_round_trips_through_its_id() {
-        assert_eq!(ALL.len(), 31, "update ALL when adding an operation");
-        for operation in ALL {
-            assert_eq!(Operation::from_id(operation.id()), Some(*operation));
+    fn dialect_ids_are_pinned() {
+        let families: Vec<&'static str> = WireFamily::iter().map(WireFamily::id).collect();
+        assert_eq!(families, ["openai", "claude", "gemini"]);
+
+        let kinds: Vec<&'static str> = ContentGenerationKind::iter()
+            .map(ContentGenerationKind::id)
+            .collect();
+        assert_eq!(
+            kinds,
+            [
+                "openai_chat",
+                "openai_responses",
+                "openai_responses_websocket",
+                "claude_messages",
+                "gemini_generate_content",
+            ]
+        );
+    }
+
+    #[test]
+    fn every_id_round_trips() {
+        for operation in Operation::iter() {
+            assert_eq!(Operation::from_id(operation.id()), Some(operation));
+        }
+        for family in WireFamily::iter() {
+            assert_eq!(WireFamily::from_id(family.id()), Some(family));
+        }
+        for kind in ContentGenerationKind::iter() {
+            assert_eq!(ContentGenerationKind::from_id(kind.id()), Some(kind));
+        }
+    }
+
+    /// serde and strum derive their strings separately; nothing forces them to
+    /// agree, so check that they do.
+    #[test]
+    fn serde_agrees_with_strum() {
+        for operation in Operation::iter() {
+            let json = serde_json::to_string(&operation).expect("serializes");
+            assert_eq!(json, format!("\"{}\"", operation.id()));
+            let back: Operation = serde_json::from_str(&json).expect("deserializes");
+            assert_eq!(back, operation);
+        }
+        for kind in ContentGenerationKind::iter() {
+            let json = serde_json::to_string(&kind).expect("serializes");
+            assert_eq!(json, format!("\"{}\"", kind.id()));
+        }
+        for family in WireFamily::iter() {
+            let json = serde_json::to_string(&family).expect("serializes");
+            assert_eq!(json, format!("\"{}\"", family.id()));
         }
     }
 
     #[test]
-    fn operation_ids_are_unique() {
-        let mut ids: Vec<_> = ALL.iter().map(|operation| operation.id()).collect();
-        ids.sort_unstable();
-        let before = ids.len();
-        ids.dedup();
-        assert_eq!(ids.len(), before, "two operations share a persistence id");
+    fn unknown_ids_are_rejected() {
+        assert_eq!(Operation::from_id("not_an_operation"), None);
+        assert_eq!(WireFamily::from_id("open_ai"), None);
     }
 
     #[test]
