@@ -36,7 +36,7 @@ body 可以是原始 `HttpBody`、解析后的 multipart，也可以是厂商的
 
 ```rust
 use gproxy_protocol::connection::{HeaderMap, Method, StatusCode};
-use gproxy_protocol::openai::models::{GetModelRequest, GetModelResponse, Model};
+use gproxy_protocol::wire::openai::models::{GetModelRequest, GetModelResponse, Model};
 
 let request = GetModelRequest {
     method: Method::GET,
@@ -80,12 +80,15 @@ HTTP 方法、路径、查询参数、状态码和头始终在 body 外面。que
 
 ## 内容生成的强类型载荷
 
+厂商类型统一位于 `wire::{claude, gemini, openai}`。根级 `claude`、`gemini`、`openai`
+保留同一套类型的重新导出，兼容已有引用路径。
+
 | API | 请求与非流式响应 | 流式载荷 |
 |---|---|---|
-| Claude Messages | `claude::generate_content` | `claude::stream::StreamEvent` |
-| Gemini | `gemini::generate_content` | `gemini::stream::StreamChunk` |
-| OpenAI Responses | `openai::responses::{generate, response}` | `openai::responses::stream::StreamEvent` |
-| OpenAI Chat Completions | `openai::chat::{request, response}` | `openai::chat::stream::ChatCompletionChunk` |
+| Claude Messages | `wire::claude::generate_content` | `wire::claude::stream::StreamEvent` |
+| Gemini | `wire::gemini::generate_content` | `wire::gemini::stream::StreamChunk` |
+| OpenAI Responses | `wire::openai::responses::{generate, response}` | `wire::openai::responses::stream::StreamEvent` |
+| OpenAI Chat Completions | `wire::openai::chat::{request, response}` | `wire::openai::chat::stream::ChatCompletionChunk` |
 
 流式响应别名承载 `ByteStream`。调用方处理 SSE 或 JSON 数组分帧，再把每条 JSON 载荷
 反序列化为对应类型。这些类型不负责拆解网络 chunk、累积模型输出或跨 API 转换；
@@ -95,14 +98,14 @@ Chat Completions 的 `[DONE]` 等非 JSON 传输标记也由调用方的分帧�
 
 | 范围 | 模块 |
 |---|---|
-| 上下文与会话 | `openai::{compact, conversation, memory}` |
-| Codex 客户端接口 | `openai::{guardian, web_search}` |
-| 嵌入与重排 | `openai::{embeddings, rerank}`、`gemini::embeddings` |
-| 文件操作 | `openai::files`、`claude::files`、`gemini::files` |
-| 图像与音频 | `openai::{images, audio}` |
-| 视频 | `openai::video`，扩展格式与原生格式独立 |
-| Responses WebSocket | `openai::responses::websocket` |
-| 实时 / WebRTC | `openai::realtime`、`gemini::live` |
+| 上下文与会话 | `wire::openai::{compact, conversation, memory}` |
+| Codex 客户端接口 | `wire::openai::{guardian, web_search}` |
+| 嵌入与重排 | `wire::openai::{embeddings, rerank}`、`wire::gemini::embeddings` |
+| 文件操作 | `wire::openai::files`、`wire::claude::files`、`wire::gemini::files` |
+| 图像与音频 | `wire::openai::{images, audio}` |
+| 视频 | `wire::openai::video`，扩展格式与原生格式独立 |
+| Responses WebSocket | `wire::openai::responses::websocket` |
+| 实时 / WebRTC | `wire::openai::realtime`、`wire::gemini::live` |
 
 multipart 表单包含明确的元数据字段和真实的 `MultipartPart` 文件流，下载响应保留原始 body。
 类型本身不上传文件、不抓取结果 URL，也不在原生与扩展视频格式之间执行转换。

@@ -21,12 +21,12 @@
 //! Everything here derives from `upstream_docs/`, which is the source of truth
 //! for field names, semantics and examples.
 
-pub mod claude;
 pub mod connection;
-pub mod gemini;
-pub mod openai;
 pub mod operation;
 pub mod spec;
+pub mod wire;
+
+pub use wire::{claude, gemini, openai};
 
 pub use connection::{HttpBody, WebSocket, WireRequest, WireResponse};
 pub use operation::{Dialect, Operation, OperationKey, WireFamily};
