@@ -3,16 +3,27 @@
 //! The request uses the same native input and tool shapes as Responses.  The
 //! types here deliberately remain OpenAI-shaped; they are not a shared IR.
 //!
-//! Initial schema coverage: several hosted-tool payloads remain raw JSON and
-//! some input-item/tool variants are not yet modeled. HTTP envelopes are complete;
-//! these body types are not yet the full upstream schema.
+//! Shapes follow `Get input token counts.md`, including native history items.
+//! Known structures are typed; `rest` retains only unknown extension fields.
+use super::tools::*;
 use crate::Rest;
 use serde::{Deserialize, Serialize};
+
+/// Deserialize a present non-null optional field; a missing field uses serde default.
+pub(in crate::openai) fn present_optional<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
+}
 
 /// A field which is required on the wire but explicitly permits JSON null.
 /// `deserialize_with` preserves the distinction between a missing field
 /// (serde reports an error) and a present null (returns `None`).
-fn required_nullable<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+pub(in crate::openai) fn required_nullable<'de, D, T>(
+    deserializer: D,
+) -> Result<Option<T>, D::Error>
 where
     D: serde::Deserializer<'de>,
     T: Deserialize<'de>,
@@ -20,7 +31,9 @@ where
     Option::<T>::deserialize(deserializer)
 }
 
-fn present_nullable<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
+pub(in crate::openai) fn present_nullable<'de, D, T>(
+    deserializer: D,
+) -> Result<Option<Option<T>>, D::Error>
 where
     D: serde::Deserializer<'de>,
     T: Deserialize<'de>,
@@ -84,7 +97,11 @@ pub struct ResponseInputText {
     #[serde(rename = "type")]
     pub type_: ResponseInputTextType,
     pub text: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub prompt_cache_breakpoint: Option<PromptCacheBreakpoint>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -98,12 +115,24 @@ pub struct ResponseInputText {
 pub struct ResponseInputImage {
     #[serde(rename = "type")]
     pub type_: ResponseInputImageType,
-    pub detail: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub image_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: ImageDetail,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub file_id: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub image_url: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub prompt_cache_breakpoint: Option<PromptCacheBreakpoint>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -117,17 +146,41 @@ pub struct ResponseInputImage {
 pub struct ResponseInputFile {
     #[serde(rename = "type")]
     pub type_: ResponseInputFileType,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub detail: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub detail: Option<FileDetail>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub file_data: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub file_id: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub file_url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub filename: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub prompt_cache_breakpoint: Option<PromptCacheBreakpoint>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -139,7 +192,7 @@ pub struct ResponseInputFile {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct PromptCacheBreakpoint {
-    pub mode: String,
+    pub mode: PromptCacheMode,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -152,9 +205,18 @@ pub struct PromptCacheBreakpoint {
 pub struct EasyInputMessage {
     pub content: MessageContent,
     pub role: MessageRole,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub phase: Option<String>,
-    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub phase: Option<Option<MessagePhase>>,
+    #[serde(
+        rename = "type",
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub type_: Option<MessageType>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -168,9 +230,18 @@ pub struct EasyInputMessage {
 pub struct InputMessage {
     pub content: Vec<InputContent>,
     pub role: InputMessageRole,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub status: Option<OutputMessageStatus>,
-    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "type",
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub type_: Option<MessageType>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -223,10 +294,8 @@ pub struct ResponseOutputText {
     #[serde(rename = "type")]
     pub type_: ResponseOutputTextType,
     pub text: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub annotations: Option<Vec<OutputAnnotation>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub logprobs: Option<Vec<OutputLogprob>>,
+    pub annotations: Vec<OutputAnnotation>,
+    pub logprobs: Vec<OutputLogprob>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -239,10 +308,30 @@ pub enum OutputAnnotation {
     Path(FilePath),
 }
 macro_rules! citation { ($name:ident { $($field:tt)* }) => { #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)] #[serde(rename_all = "snake_case")] pub struct $name { $($field)* #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")] pub rest: Rest } }; }
-citation!(FileCitation { pub file_id: String, pub filename: String, pub index: i64, #[serde(rename = "type")] pub type_: String, });
-citation!(UrlCitation { pub end_index: i64, pub start_index: i64, pub title: String, pub url: String, #[serde(rename = "type")] pub type_: String, });
-citation!(ContainerFileCitation { pub container_id: String, pub end_index: i64, pub file_id: String, pub filename: String, pub start_index: i64, #[serde(rename = "type")] pub type_: String, });
-citation!(FilePath { pub file_id: String, pub index: i64, #[serde(rename = "type")] pub type_: String, });
+citation!(FileCitation { pub file_id: String, pub filename: String, pub index: i64, #[serde(rename = "type")] pub type_: FileCitationType, });
+citation!(UrlCitation { pub end_index: i64, pub start_index: i64, pub title: String, pub url: String, #[serde(rename = "type")] pub type_: UrlCitationType, });
+citation!(ContainerFileCitation { pub container_id: String, pub end_index: i64, pub file_id: String, pub filename: String, pub start_index: i64, #[serde(rename = "type")] pub type_: ContainerFileCitationType, });
+citation!(FilePath { pub file_id: String, pub index: i64, #[serde(rename = "type")] pub type_: FilePathType, });
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FileCitationType {
+    #[serde(rename = "file_citation")]
+    FileCitation,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum UrlCitationType {
+    #[serde(rename = "url_citation")]
+    UrlCitation,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ContainerFileCitationType {
+    #[serde(rename = "container_file_citation")]
+    ContainerFileCitation,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FilePathType {
+    #[serde(rename = "file_path")]
+    FilePath,
+}
 #[derive(
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
@@ -289,14 +378,30 @@ pub struct FunctionCall {
     pub arguments: String,
     pub call_id: String,
     pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub namespace: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub caller: Option<Caller>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub caller: Option<Option<Caller>>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub status: Option<ItemStatus>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -310,16 +415,36 @@ pub struct FunctionCallOutput {
     pub type_: FunctionCallOutputType,
     pub call_id: String,
     pub output: FunctionOutput,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub namespace: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub caller: Option<Caller>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub id: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub name: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub namespace: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub caller: Option<Option<Caller>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub status: Option<Option<ItemStatus>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -328,7 +453,94 @@ pub struct FunctionCallOutput {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum FunctionOutput {
     Text(String),
-    Content(Vec<InputContent>),
+    Content(Vec<FunctionOutputContent>),
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum FunctionOutputContent {
+    Text(FunctionOutputText),
+    Image(FunctionOutputImage),
+    File(FunctionOutputFile),
+}
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[serde(rename_all = "snake_case")]
+pub struct FunctionOutputImage {
+    #[serde(rename = "type")]
+    pub type_: ResponseInputImageType,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub detail: Option<Option<ImageDetail>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub file_id: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub image_url: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub prompt_cache_breakpoint: Option<Option<PromptCacheBreakpoint>>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[serde(rename_all = "snake_case")]
+pub struct FunctionOutputFile {
+    #[serde(rename = "type")]
+    pub type_: ResponseInputFileType,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub file_data: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub file_id: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub file_url: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub prompt_cache_breakpoint: Option<Option<PromptCacheBreakpoint>>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub detail: Option<FileDetail>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub filename: Option<Option<String>>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
 }
 
 #[derive(
@@ -337,16 +549,36 @@ pub enum FunctionOutput {
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ReasoningConfig {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub effort: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub generate_summary: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub effort: Option<Option<ReasoningEffort>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub generate_summary: Option<Option<ReasoningSummary>>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub mode: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub summary: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub context: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub summary: Option<Option<ReasoningSummary>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub context: Option<Option<ReasoningContext>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -360,10 +592,51 @@ pub struct ReasoningItem {
     pub type_: ReasoningItemType,
     pub id: String,
     pub summary: Vec<SummaryText>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub encrypted_content: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub content: Option<Vec<ReasoningContent>>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub status: Option<ReasoningStatus>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub encrypted_content: Option<Option<String>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
+}
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[serde(rename_all = "snake_case")]
+pub struct ReasoningContent {
+    #[serde(rename = "type")]
+    pub type_: ReasoningTextType,
+    pub text: String,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ReasoningTextType {
+    #[serde(rename = "reasoning_text")]
+    ReasoningText,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ReasoningStatus {
+    #[serde(rename = "in_progress")]
+    InProgress,
+    #[serde(rename = "completed")]
+    Completed,
+    #[serde(rename = "incomplete")]
+    Incomplete,
 }
 #[derive(
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
@@ -403,8 +676,12 @@ pub struct Compaction {
     #[serde(rename = "type")]
     pub type_: CompactionType,
     pub encrypted_content: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub id: Option<Option<String>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -416,10 +693,18 @@ pub struct Compaction {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct PendingSafetyCheck {
     pub id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub code: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub message: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub code: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub message: Option<Option<String>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -471,26 +756,59 @@ pub enum ComputerAction {
     #[serde(rename = "wait")]
     Wait(WaitAction),
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ComputerScreenshotType {
+    #[serde(rename = "computer_screenshot")]
+    ComputerScreenshot,
+}
 macro_rules! action_struct { ($name:ident { $($field:tt)* }) => { #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)] #[serde(rename_all = "snake_case")] #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)] pub struct $name { $($field)* #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")] pub rest: Rest } }; }
-action_struct!(ClickAction { pub button: String, pub x: i64, pub y: i64, #[serde(skip_serializing_if = "Option::is_none")] pub keys: Option<Vec<String>>, });
-action_struct!(DoubleClickAction { pub x: i64, pub y: i64, #[serde(skip_serializing_if = "Option::is_none")] pub keys: Option<Vec<String>>, });
-action_struct!(DragAction { pub path: Vec<Coordinate>, #[serde(skip_serializing_if = "Option::is_none")] pub keys: Option<Vec<String>>, });
+action_struct!(ClickAction { pub button: ClickButton, pub x: i64, pub y: i64, #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub keys: Option<Option<Vec<String>>>, });
+action_struct!(DoubleClickAction { pub x: i64, pub y: i64, #[wire(required)] #[serde(deserialize_with = "required_nullable")] pub keys: Option<Vec<String>>, });
+action_struct!(DragAction { pub path: Vec<Coordinate>, #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub keys: Option<Option<Vec<String>>>, });
 action_struct!(KeypressAction { pub keys: Vec<String>, });
-action_struct!(MoveAction { pub x: i64, pub y: i64, #[serde(skip_serializing_if = "Option::is_none")] pub keys: Option<Vec<String>>, });
+action_struct!(MoveAction { pub x: i64, pub y: i64, #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub keys: Option<Option<Vec<String>>>, });
 action_struct!(ScreenshotAction {});
-action_struct!(ScrollAction { pub scroll_x: i64, pub scroll_y: i64, #[serde(skip_serializing_if = "Option::is_none")] pub keys: Option<Vec<String>>, });
+action_struct!(ScrollAction { pub scroll_x: i64, pub scroll_y: i64, pub x: i64, pub y: i64, #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub keys: Option<Option<Vec<String>>>, });
 action_struct!(TypeAction { pub text: String, });
 action_struct!(WaitAction {});
 action_struct!(Coordinate { pub x: i64, pub y: i64, });
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ComputerToolCallOutput {
-    Screenshot(ComputerScreenshot),
-    Other(ComputerOutputImage),
+pub type ComputerToolCallOutput = ComputerScreenshot;
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[serde(rename_all = "snake_case")]
+pub struct ComputerScreenshot {
+    #[serde(rename = "type")]
+    pub type_: ComputerScreenshotType,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub file_id: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub image_url: Option<String>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
 }
-action_struct!(ComputerScreenshot { pub image_url: String, });
-action_struct!(ComputerOutputImage { #[serde(rename = "type")] pub type_: String, pub data: Option<String>, });
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ClickButton {
+    #[serde(rename = "left")]
+    Left,
+    #[serde(rename = "right")]
+    Right,
+    #[serde(rename = "wheel")]
+    Wheel,
+    #[serde(rename = "back")]
+    Back,
+    #[serde(rename = "forward")]
+    Forward,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -502,8 +820,14 @@ pub enum WebSearchAction {
     #[serde(rename = "find_in_page")]
     FindInPage(WebSearchFindInPage),
 }
-action_struct!(WebSearchQuery { pub queries: Vec<String>, #[serde(skip_serializing_if = "Option::is_none")] pub query: Option<String>, #[serde(skip_serializing_if = "Option::is_none")] pub sources: Option<Vec<String>>, });
-action_struct!(WebSearchOpenPage { pub url: String, });
+action_struct!(WebSearchQuery { #[serde(default, deserialize_with = "present_optional", skip_serializing_if = "Option::is_none")] pub queries: Option<Vec<String>>, #[serde(default, deserialize_with = "present_optional", skip_serializing_if = "Option::is_none")] pub query: Option<String>, #[serde(default, deserialize_with = "present_optional", skip_serializing_if = "Option::is_none")] pub sources: Option<Vec<WebSearchSource>>, });
+action_struct!(WebSearchSource { #[serde(rename = "type")] pub type_: WebSearchSourceType, pub url: String, });
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WebSearchSourceType {
+    #[serde(rename = "url")]
+    Url,
+}
+action_struct!(WebSearchOpenPage { #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub url: Option<Option<String>>, });
 action_struct!(WebSearchFindInPage { pub pattern: String, pub url: String, });
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -526,10 +850,20 @@ pub struct ComputerCall {
     pub type_: ComputerCallType,
     pub id: String,
     pub call_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub action: Option<ComputerAction>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub actions: Option<Vec<ComputerAction>>,
     pub pending_safety_checks: Vec<PendingSafetyCheck>,
-    pub status: String,
+    pub status: ItemStatus,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -543,12 +877,24 @@ pub struct ComputerCallOutput {
     pub type_: ComputerCallOutputType,
     pub call_id: String,
     pub output: ComputerToolCallOutput,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub acknowledged_safety_checks: Option<Vec<PendingSafetyCheck>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub id: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub acknowledged_safety_checks: Option<Option<Vec<PendingSafetyCheck>>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub status: Option<Option<ItemStatus>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -562,7 +908,7 @@ pub struct WebSearchCall {
     pub type_: WebSearchCallType,
     pub id: String,
     pub action: WebSearchAction,
-    pub status: String,
+    pub status: WebSearchStatus,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -576,7 +922,51 @@ pub struct FileSearchCall {
     pub type_: FileSearchCallType,
     pub id: String,
     pub queries: Vec<String>,
-    pub status: String,
+    pub status: FileSearchStatus,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub results: Option<Option<Vec<FileSearchResult>>>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+#[serde(rename_all = "snake_case")]
+pub struct FileSearchResult {
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub attributes: Option<Option<std::collections::BTreeMap<String, FileAttributeValue>>>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub file_id: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub filename: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub score: Option<serde_json::Number>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub text: Option<String>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -592,7 +982,7 @@ pub struct ImageGenerationCall {
     #[wire(required)]
     #[serde(deserialize_with = "required_nullable")]
     pub result: Option<String>,
-    pub status: String,
+    pub status: ImageGenerationStatus,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -612,7 +1002,7 @@ pub struct CodeInterpreterCall {
     #[wire(required)]
     #[serde(deserialize_with = "required_nullable")]
     pub outputs: Option<Vec<CodeInterpreterOutput>>,
-    pub status: String,
+    pub status: CodeInterpreterStatus,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -627,6 +1017,24 @@ pub struct CustomToolCall {
     pub call_id: String,
     pub input: String,
     pub name: String,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub id: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub caller: Option<Option<Caller>>,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub namespace: Option<String>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -639,7 +1047,19 @@ pub struct CustomToolCallOutput {
     #[serde(rename = "type")]
     pub type_: CustomToolCallOutputType,
     pub call_id: String,
-    pub output: FunctionOutput,
+    pub output: CustomOutput,
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub id: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub caller: Option<Option<Caller>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -654,8 +1074,12 @@ pub struct ResponseOutputMessage {
     pub content: Vec<OutputContent>,
     pub role: OutputMessageRole,
     pub status: OutputMessageStatus,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub phase: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub phase: Option<Option<MessagePhase>>,
     #[serde(rename = "type")]
     pub type_: MessageType,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -697,51 +1121,66 @@ macro_rules! simple_item {
 
 simple_item!(ToolSearchCall {
     #[serde(rename = "type")] pub type_: ToolSearchCallType,
-    pub id: String, pub arguments: String,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub id: Option<Option<String>>,
+    // Get input token counts.md:1183 explicitly declares arbitrary unknown JSON.
+    pub arguments: serde_json::Value,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub call_id: Option<Option<String>>,
+    #[serde(default, deserialize_with = "present_optional", skip_serializing_if = "Option::is_none")] pub execution: Option<ToolExecution>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub status: Option<Option<ItemStatus>>,
 });
 simple_item!(ToolSearchOutput {
     #[serde(rename = "type")] pub type_: ToolSearchOutputType,
-    pub id: String, pub tools: Vec<Tool>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub id: Option<Option<String>>,
+    pub tools: Vec<Tool>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub call_id: Option<Option<String>>,
+    #[serde(default, deserialize_with = "present_optional", skip_serializing_if = "Option::is_none")] pub execution: Option<ToolExecution>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub status: Option<Option<ItemStatus>>,
 });
 simple_item!(AdditionalTools {
     #[serde(rename = "type")] pub type_: AdditionalToolsType,
-    pub id: String, pub role: String, pub tools: Vec<Tool>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub id: Option<Option<String>>,
+    pub role: AdditionalToolsRole, pub tools: Vec<Tool>,
 });
 simple_item!(LocalShellCall {
     #[serde(rename = "type")] pub type_: LocalShellCallType,
     pub id: String, pub call_id: String, pub action: LocalShellAction,
-    #[serde(skip_serializing_if = "Option::is_none")] pub status: Option<String>,
+    pub status: ItemStatus,
 });
 simple_item!(LocalShellCallOutput {
     #[serde(rename = "type")] pub type_: LocalShellCallOutputType,
-    pub id: String, pub output: String, pub status: String,
+    pub id: String, pub output: String, #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub status: Option<Option<ItemStatus>>,
 });
 simple_item!(ShellCall {
     #[serde(rename = "type")] pub type_: ShellCallType,
     pub call_id: String, pub action: ShellAction,
-    #[serde(skip_serializing_if = "Option::is_none")] pub id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub status: Option<String>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub caller: Option<Option<Caller>>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub environment: Option<Option<ShellCallEnvironment>>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub id: Option<Option<String>>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub status: Option<Option<ItemStatus>>,
 });
 simple_item!(ShellCallOutput {
     #[serde(rename = "type")] pub type_: ShellCallOutputType,
     pub call_id: String, pub output: Vec<ShellOutputContent>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub status: Option<String>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub caller: Option<Option<Caller>>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub max_output_length: Option<Option<i64>>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub id: Option<Option<String>>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub status: Option<Option<ItemStatus>>,
 });
 simple_item!(ApplyPatchCall {
     #[serde(rename = "type")] pub type_: ApplyPatchCallType,
-    pub call_id: String, pub operation: ApplyPatchOperation,
-    #[serde(skip_serializing_if = "Option::is_none")] pub id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub status: Option<String>,
+    pub call_id: String, pub operation: ApplyPatchOperation, pub status: ApplyPatchStatus,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub caller: Option<Option<Caller>>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub id: Option<Option<String>>,
 });
 simple_item!(ApplyPatchCallOutput {
     #[serde(rename = "type")] pub type_: ApplyPatchCallOutputType,
-    pub call_id: String, pub status: String,
-    #[serde(skip_serializing_if = "Option::is_none")] pub id: Option<String>,
+    pub call_id: String, pub status: ApplyPatchOutputStatus, #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub output: Option<Option<String>>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub caller: Option<Option<Caller>>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub id: Option<Option<String>>,
 });
 simple_item!(McpListTools {
     #[serde(rename = "type")] pub type_: McpListToolsType,
-    pub id: String, pub server_label: String, pub tools: Vec<McpToolDefinition>,
+    pub id: String, pub server_label: String, pub tools: Vec<McpToolDefinition>, #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub error: Option<Option<String>>,
 });
 simple_item!(McpApprovalRequest {
     #[serde(rename = "type")] pub type_: McpApprovalRequestType,
@@ -750,12 +1189,16 @@ simple_item!(McpApprovalRequest {
 simple_item!(McpApprovalResponse {
     #[serde(rename = "type")] pub type_: McpApprovalResponseType,
     pub approval_request_id: String, pub approve: bool,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub id: Option<Option<String>>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub reason: Option<Option<String>>,
 });
 simple_item!(McpCall {
     #[serde(rename = "type")] pub type_: McpCallType,
     pub id: String, pub arguments: String, pub name: String, pub server_label: String,
-    #[serde(skip_serializing_if = "Option::is_none")] pub output: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")] pub status: Option<String>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub approval_request_id: Option<Option<String>>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub error: Option<Option<String>>,
+    #[serde(default, deserialize_with = "present_nullable", skip_serializing_if = "Option::is_none")] pub output: Option<Option<String>>,
+    #[serde(default, deserialize_with = "present_optional", skip_serializing_if = "Option::is_none")] pub status: Option<McpCallStatus>,
 });
 simple_item!(CompactionTrigger { #[serde(rename = "type")] pub type_: CompactionTriggerType, });
 simple_item!(Program {
@@ -774,7 +1217,21 @@ simple_item!(ProgramOutput {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct McpToolDefinition {
     pub name: String,
-    pub description: String,
+    // Get input token counts.md:3757: unknown schema, not a fixed wire object.
+    pub input_schema: serde_json::Value,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    // Get input token counts.md:3765 permits arbitrary annotations JSON or null.
+    pub annotations: Option<Option<serde_json::Value>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub description: Option<Option<String>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -786,15 +1243,27 @@ pub struct McpToolDefinition {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct LocalShellAction {
     pub command: Vec<String>,
-    pub env: Rest,
+    pub env: std::collections::BTreeMap<String, String>,
     #[serde(rename = "type")]
     pub type_: LocalShellActionType,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub timeout_ms: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub user: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub working_directory: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub timeout_ms: Option<Option<i64>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub user: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub working_directory: Option<Option<String>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -805,10 +1274,18 @@ pub struct LocalShellAction {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ShellAction {
     pub commands: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub timeout_ms: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_output_length: Option<i64>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub timeout_ms: Option<Option<i64>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub max_output_length: Option<Option<i64>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -853,10 +1330,18 @@ action_struct!(ShellExit { pub exit_code: i64, });
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TextConfig {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub format: Option<TextFormat>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub verbosity: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub verbosity: Option<Option<TextVerbosity>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -887,11 +1372,20 @@ pub struct TextFormatText {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct TextFormatJsonSchema {
     pub name: String,
+    // Get input token counts.md:4246: user-provided map[unknown] JSON Schema.
     pub schema: Rest,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub strict: Option<bool>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub strict: Option<Option<bool>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -959,6 +1453,7 @@ pub struct ToolChoiceAllowed {
     #[serde(rename = "type")]
     pub type_: ToolChoiceAllowedType,
     pub mode: AllowedToolChoiceMode,
+    // Get input token counts.md:4334 declares array of map[unknown].
     pub tools: Vec<Rest>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -983,8 +1478,12 @@ pub struct ToolChoiceMcp {
     #[serde(rename = "type")]
     pub type_: ToolChoiceMcpType,
     pub server_label: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub name: Option<Option<String>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -997,381 +1496,6 @@ pub struct ToolChoiceCustom {
     #[serde(rename = "type")]
     pub type_: ToolChoiceCustomType,
     pub name: String,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "type")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub enum Tool {
-    #[serde(rename = "function")]
-    Function(FunctionTool),
-    #[serde(rename = "file_search")]
-    FileSearch(FileSearchTool),
-    #[serde(rename = "computer_use_preview")]
-    Computer(ComputerTool),
-    #[serde(rename = "computer")]
-    ComputerHosted(ToolMarker),
-    #[serde(rename = "web_search_preview")]
-    WebSearch(WebSearchTool),
-    #[serde(rename = "web_search")]
-    WebSearchLegacy(WebSearchTool),
-    #[serde(rename = "web_search_2025_08_26")]
-    WebSearch2025(WebSearchTool),
-    #[serde(rename = "code_interpreter")]
-    CodeInterpreter(CodeInterpreterTool),
-    #[serde(rename = "custom")]
-    Custom(CustomTool),
-    #[serde(rename = "namespace")]
-    Namespace(NamespaceTool),
-    #[serde(rename = "local_shell")]
-    LocalShell(ToolMarker),
-    #[serde(rename = "shell")]
-    Shell(ShellTool),
-    #[serde(rename = "image_generation")]
-    ImageGeneration(ImageGenerationTool),
-    #[serde(rename = "mcp")]
-    Mcp(McpTool),
-    #[serde(rename = "programmatic_tool_calling")]
-    Programmatic(ToolMarker),
-    #[serde(rename = "apply_patch")]
-    ApplyPatch(ToolMarker),
-    #[serde(rename = "tool_search")]
-    ToolSearch(ToolSearchTool),
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub struct FunctionTool {
-    pub name: String,
-    #[wire(required)]
-    #[serde(deserialize_with = "required_nullable")]
-    pub parameters: Option<Rest>,
-    #[wire(required)]
-    #[serde(deserialize_with = "required_nullable")]
-    pub strict: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allowed_callers: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub defer_loading: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub output_schema: Option<Rest>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub struct FileSearchTool {
-    pub vector_store_ids: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub filters: Option<FileSearchFilter>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_num_results: Option<serde_json::Number>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ranking_options: Option<RankingOptions>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub struct ComputerTool {
-    pub display_height: i64,
-    pub display_width: i64,
-    pub environment: String,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub struct WebSearchTool {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub filters: Option<WebSearchFilters>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub search_context_size: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub user_location: Option<UserLocation>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub struct CodeInterpreterTool {
-    pub container: String,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub struct CustomTool {
-    pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub format: Option<Rest>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allowed_callers: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub defer_loading: Option<bool>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub struct NamespaceTool {
-    pub description: String,
-    pub name: String,
-    pub tools: Vec<NamespaceToolDefinition>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub struct ToolMarker {
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub struct ShellTool {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub environment: Option<ShellEnvironment>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub struct ImageGenerationTool {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub action: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub background: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub output_format: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub output_compression: Option<serde_json::Number>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub partial_images: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub quality: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub size: Option<String>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub struct McpTool {
-    pub server_label: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allowed_tools: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub authorization: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub server_description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub server_url: Option<String>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub struct ToolSearchTool {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub execution: Option<ToolExecution>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parameters: Option<Rest>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ToolExecution {
-    #[serde(rename = "server")]
-    Server,
-    #[serde(rename = "client")]
-    Client,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum FileSearchFilter {
-    Comparison(ComparisonFilter),
-    Compound(CompoundFilter),
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-pub struct ComparisonFilter {
-    pub key: String,
-    pub value: FilterValue,
-    pub op: String,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum FilterValue {
-    String(String),
-    Number(serde_json::Number),
-    Boolean(bool),
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-pub struct CompoundFilter {
-    pub filters: Vec<FileSearchFilter>,
-    pub r#type: String,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-pub struct RankingOptions {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub hybrid_search: Option<HybridSearch>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ranker: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub score_threshold: Option<serde_json::Number>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-pub struct HybridSearch {
-    pub embedding_weight: serde_json::Number,
-    pub text_weight: serde_json::Number,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-pub struct WebSearchFilters {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub allowed_domains: Option<Vec<String>>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-pub struct UserLocation {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub city: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub country: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub region: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub timezone: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename = "type")]
-    pub type_: Option<String>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-pub struct NamespaceToolDefinition {
-    pub name: String,
-    pub r#type: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ShellEnvironment {
-    Auto(ShellContainerAuto),
-    Local(ShellLocalEnvironment),
-    Reference(ShellContainerReference),
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-pub struct ShellContainerAuto {
-    pub r#type: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_ids: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub memory_limit: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub network_policy: Option<Rest>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-pub struct ShellLocalEnvironment {
-    pub r#type: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub skills: Option<Vec<String>>,
-    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
-    pub rest: Rest,
-}
-#[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
-)]
-#[serde(rename_all = "snake_case")]
-pub struct ShellContainerReference {
-    pub r#type: String,
-    pub container_id: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -1591,12 +1715,29 @@ pub enum ProgramOutputStatus {
     #[serde(rename = "incomplete")]
     Incomplete,
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ItemStatus {
+    #[serde(rename = "in_progress")]
+    InProgress,
+    #[serde(rename = "completed")]
+    Completed,
+    #[serde(rename = "incomplete")]
+    Incomplete,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum MessageType {
     #[serde(rename = "message")]
     Message,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MessagePhase {
+    #[serde(rename = "commentary")]
+    Commentary,
+    #[serde(rename = "final_answer")]
+    FinalAnswer,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1619,6 +1760,11 @@ pub enum InputMessageRole {
     User,
     #[serde(rename = "system")]
     System,
+    #[serde(rename = "developer")]
+    Developer,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AdditionalToolsRole {
     #[serde(rename = "developer")]
     Developer,
 }
@@ -1695,4 +1841,180 @@ pub struct ToolChoiceShell {
 pub enum ToolChoiceShellType {
     #[serde(rename = "shell")]
     Tag,
+}
+
+// Get input token counts.md:1019-1037 differs from ordinary input text:
+// the function-output cache breakpoint explicitly permits null.
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
+pub struct FunctionOutputText {
+    #[serde(rename = "type")]
+    pub type_: ResponseInputTextType,
+    pub text: String,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub prompt_cache_breakpoint: Option<Option<PromptCacheBreakpoint>>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+// D:3896-3917 uses ordinary input content rather than the function-output variants.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CustomOutput {
+    Text(String),
+    Content(Vec<InputContent>),
+}
+// D:3469-3475: input shell calls accept local/reference, never container_auto.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ShellCallEnvironment {
+    Local(ShellLocalEnvironment),
+    Reference(ShellContainerReference),
+}
+// D:466-478: file attributes are scalar values, not arbitrary JSON.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum FileAttributeValue {
+    Text(String),
+    Number(serde_json::Number),
+    Boolean(bool),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ImageDetail {
+    Low,
+    High,
+    Auto,
+    Original,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum FileDetail {
+    Auto,
+    Low,
+    High,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum PromptCacheMode {
+    Explicit,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum WebSearchStatus {
+    InProgress,
+    Searching,
+    Completed,
+    Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum FileSearchStatus {
+    InProgress,
+    Searching,
+    Completed,
+    Incomplete,
+    Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ImageGenerationStatus {
+    InProgress,
+    Completed,
+    Generating,
+    Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum CodeInterpreterStatus {
+    InProgress,
+    Completed,
+    Incomplete,
+    Interpreting,
+    Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ApplyPatchStatus {
+    InProgress,
+    Completed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ApplyPatchOutputStatus {
+    Completed,
+    Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum McpCallStatus {
+    InProgress,
+    Completed,
+    Incomplete,
+    Calling,
+    Failed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ReasoningEffort {
+    None,
+    Minimal,
+    Low,
+    Medium,
+    High,
+    Xhigh,
+    Max,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ReasoningSummary {
+    Auto,
+    Concise,
+    Detailed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ReasoningContext {
+    Auto,
+    CurrentTurn,
+    AllTurns,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum TextVerbosity {
+    Low,
+    Medium,
+    High,
 }

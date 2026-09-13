@@ -7,8 +7,9 @@ Keep HTTP metadata together with raw or typed bodies, and represent established 
 connections independently.
 
 This is the v4 development API. It includes connection models, OpenAI/Claude/Gemini model
-metadata types, and initial token-counting body types. Body codecs and cross-format conversion
-are under development; token-counting types do not yet cover every documented tool payload.
+metadata and token-counting body types, including the documented native media, tool, and
+configuration structures. Content generation models, body codecs, and cross-format conversion
+are under development.
 
 ## Installation
 

@@ -5,8 +5,8 @@
 面向 AI API 网关、SDK 和协议适配器的 Rust HTTP/WebSocket 类型库。
 将 HTTP 元信息与原始或强类型 body 放在同一条消息中，独立建模已建立的 WebSocket 连接。
 
-当前为 v4 开发版，包含连接模型、OpenAI/Claude/Gemini 的模型元数据类型，以及初步的
-令牌计数 body 类型。body 编解码与跨格式转换仍在开发；令牌计数类型尚未覆盖全部公开工具载荷。
+当前为 v4 开发版，包含连接模型、OpenAI/Claude/Gemini 的模型元数据与令牌计数 body 类型，
+以及文档定义的原生媒体、工具和配置结构。内容生成模型、body 编解码与跨格式转换仍在开发。
 
 ## 安装
 
