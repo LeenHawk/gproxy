@@ -26,9 +26,10 @@ pub struct CountTokensRequestBody {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct ModalityTokenCount {
-    pub modality: Modality,
-    #[serde(alias = "token_count")]
-    pub token_count: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub modality: Option<Modality>,
+    #[serde(alias = "token_count", skip_serializing_if = "Option::is_none")]
+    pub token_count: Option<i64>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -39,8 +40,8 @@ pub struct ModalityTokenCount {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct CountTokensResponseBody {
-    #[serde(alias = "total_tokens")]
-    pub total_tokens: i64,
+    #[serde(alias = "total_tokens", skip_serializing_if = "Option::is_none")]
+    pub total_tokens: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "cached_content_token_count")]
     pub cached_content_token_count: Option<i64>,

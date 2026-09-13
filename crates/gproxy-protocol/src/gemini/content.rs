@@ -196,7 +196,8 @@ pub enum ComputerEnvironment {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub struct Content {
-    pub parts: Vec<Part>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parts: Option<Vec<Part>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub role: Option<String>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
