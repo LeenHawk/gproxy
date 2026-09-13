@@ -98,11 +98,11 @@ pub(super) fn gemini_content_to_chat(
     let mut assistant = Vec::new();
     let mut calls = Vec::new();
     let mut result = Vec::new();
-    for part in content.parts.unwrap_or_default() {
+    for mut part in content.parts.unwrap_or_default() {
         unsupported_part(&part)?;
         if part.thought == Some(true) {
             report.omitted("parts.thought", "Chat has no typed reasoning replay block");
-            continue;
+            part.text = None;
         }
         if part.thought_signature.is_some() {
             report.omitted(
