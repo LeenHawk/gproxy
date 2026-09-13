@@ -6,6 +6,7 @@
 
 pub mod embeddings;
 mod error;
+pub mod generate;
 pub mod identity;
 pub mod models;
 
