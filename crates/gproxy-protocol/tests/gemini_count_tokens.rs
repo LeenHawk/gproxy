@@ -50,7 +50,7 @@ fn count_tokens_embedded_generate_request_and_response_round_trip() {
         body: response_body,
     };
     assert_eq!(response.status, http::StatusCode::OK);
-    assert_eq!(response.body.total_tokens, 12);
+    assert_eq!(response.body.total_tokens, Some(12));
 }
 
 #[test]
@@ -99,5 +99,48 @@ fn official_proto_snake_case_aliases_are_typed_and_canonicalized() {
         output["contents"][0]["parts"][0]
             .get("inline_data")
             .is_none()
+    );
+}
+
+#[test]
+fn shared_proto_defaults_may_be_omitted_without_inventing_values() {
+    for value in [
+        serde_json::json!({}),
+        serde_json::json!({"totalTokens":0}),
+        serde_json::json!({"totalTokens":12,"promptTokensDetails":[{}, {"modality":"MODALITY_UNSPECIFIED","tokenCount":0}],"cacheTokensDetails":[{"tokenCount":7}]}),
+    ] {
+        let parsed: CountTokensResponseBody = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(serde_json::to_value(parsed).unwrap(), value);
+    }
+    for value in [
+        serde_json::json!({}),
+        serde_json::json!({"parts":[]}),
+        serde_json::json!({"parts":[{"text":"kept"}]}),
+        serde_json::json!({"role":"model"}),
+    ] {
+        let parsed: Content = serde_json::from_value(value.clone()).unwrap();
+        assert_eq!(serde_json::to_value(parsed).unwrap(), value);
+    }
+    let parsed: CountTokensResponseBody = serde_json::from_value(serde_json::json!({"totalTokens":null,"promptTokensDetails":[{"modality":null,"tokenCount":null}]})).unwrap();
+    assert_eq!(
+        serde_json::to_value(parsed).unwrap(),
+        serde_json::json!({"promptTokensDetails":[{}]})
+    );
+    let content: Content = serde_json::from_value(serde_json::json!({"parts":null})).unwrap();
+    assert_eq!(
+        serde_json::to_value(content).unwrap(),
+        serde_json::json!({})
+    );
+    assert_eq!(
+        serde_json::to_value(CountTokensResponseBody::builder().build()).unwrap(),
+        serde_json::json!({})
+    );
+    assert_eq!(
+        serde_json::to_value(CountTokensResponseBody::builder().total_tokens(0).build()).unwrap(),
+        serde_json::json!({"totalTokens":0})
+    );
+    assert_eq!(
+        serde_json::to_value(ModalityTokenCount::builder().token_count(0).build()).unwrap(),
+        serde_json::json!({"tokenCount":0})
     );
 }
