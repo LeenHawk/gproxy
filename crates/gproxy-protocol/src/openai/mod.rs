@@ -5,3 +5,8 @@ pub mod responses;
 pub mod embeddings;
 pub mod rerank;
 pub mod files;
+pub mod compact;
+pub mod conversation;
+pub mod memory;
+pub mod web_search;
+pub mod guardian;
