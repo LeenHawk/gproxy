@@ -7,6 +7,7 @@
 pub mod count_tokens;
 pub mod embeddings;
 mod error;
+pub mod files;
 pub mod generate;
 pub mod identity;
 pub mod models;
