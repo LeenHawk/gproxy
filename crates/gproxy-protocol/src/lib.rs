@@ -23,4 +23,4 @@
 
 pub mod operation;
 
-pub use operation::{Dialect, Operation, OperationKey, OperationKeyError, WireFamily};
+pub use operation::{Dialect, Operation, OperationKey, WireFamily};
