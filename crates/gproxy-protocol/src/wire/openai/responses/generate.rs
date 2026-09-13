@@ -14,6 +14,7 @@ use std::collections::BTreeMap;
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct GenerateContentRequestBody {
     #[serde(
         default,
@@ -209,6 +210,7 @@ pub struct GenerateContentRequestBody {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[serde(rename_all = "snake_case")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ContextManagement {
     pub r#type: String,
     #[serde(
@@ -220,7 +222,16 @@ pub struct ContextManagement {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum ResponseIncludable {
     #[serde(rename = "web_search_call.action.sources")]
     WebSearchSources,
@@ -241,6 +252,7 @@ pub enum ResponseIncludable {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[serde(rename_all = "snake_case")]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseModeration {
     pub model: String,
     #[serde(
@@ -252,7 +264,16 @@ pub struct ResponseModeration {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum ModerationMode {
     #[serde(rename = "score")]
     Score,
@@ -260,7 +281,14 @@ pub enum ModerationMode {
     Block,
 }
 #[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
 )]
 pub struct ModerationPolicy {
     #[serde(
@@ -279,7 +307,14 @@ pub struct ModerationPolicy {
     pub rest: Rest,
 }
 #[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
 )]
 pub struct ModerationPolicyMode {
     pub mode: ModerationMode,
@@ -287,7 +322,14 @@ pub struct ModerationPolicyMode {
     pub rest: Rest,
 }
 #[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
 )]
 pub struct ResponsePrompt {
     pub id: String,
@@ -306,7 +348,16 @@ pub struct ResponsePrompt {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum PromptCachingMode {
     #[serde(rename = "implicit")]
     Implicit,
@@ -314,7 +365,14 @@ pub enum PromptCachingMode {
     Explicit,
 }
 #[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
 )]
 pub struct PromptCacheOptions {
     #[serde(
@@ -332,14 +390,32 @@ pub struct PromptCacheOptions {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum PromptCacheRetention {
     #[serde(rename = "in_memory")]
     InMemory,
     #[serde(rename = "24h")]
     TwentyFourHours,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum ServiceTier {
     #[serde(rename = "auto")]
     Auto,
@@ -355,7 +431,14 @@ pub enum ServiceTier {
     Fast,
 }
 #[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
 )]
 pub struct StreamOptions {
     #[serde(
@@ -367,7 +450,16 @@ pub struct StreamOptions {
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
 pub enum GenerateTruncation {
     #[serde(rename = "auto")]
     Auto,
@@ -380,6 +472,7 @@ pub type GenerateContentRequest = crate::WireRequest<GenerateContentRequestBody>
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum PromptVariableValue {
     String(String),
     Text(ResponseInputText),
@@ -390,6 +483,7 @@ pub enum PromptVariableValue {
 /// `ttl` has exactly one documented value (source line 4459).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum PromptCacheTtl {
     #[serde(rename = "30m")]
     ThirtyMinutes,

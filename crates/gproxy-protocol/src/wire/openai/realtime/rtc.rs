@@ -8,6 +8,7 @@ use crate::{
 
 #[derive(Debug, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CreateRealtimeCallMultipartForm {
     pub sdp: MultipartPart,
     pub session: Option<RealtimeSessionCreateRequest>,

@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 /// Source: `openai/types/audio/transcription_language.py`, `TranscriptionLanguage`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct TranscriptionLanguage {
     pub code: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -19,6 +20,7 @@ pub struct TranscriptionLanguage {
 /// Source: `openai/types/realtime/log_prob_properties.py`, `LogProbProperties`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LogProbProperties {
     pub token: String,
     pub bytes: Vec<i64>,
@@ -30,6 +32,7 @@ pub struct LogProbProperties {
 /// Source: `openai/types/realtime/realtime_transcription_session_create_request.py`, `RealtimeTranscriptionSessionCreateRequest`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeTranscriptionSessionCreateRequest {
     #[serde(rename = "type")]
     pub type_: RealtimeTranscriptionSessionCreateRequestType,
@@ -52,6 +55,7 @@ pub struct RealtimeTranscriptionSessionCreateRequest {
 /// Source: `openai/types/realtime/audio_transcription.py`, `AudioTranscription`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct AudioTranscription {
     #[serde(
         default,
@@ -96,6 +100,7 @@ pub struct AudioTranscription {
 /// Source: `openai/types/realtime/realtime_transcription_session_audio.py`, `RealtimeTranscriptionSessionAudio`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeTranscriptionSessionAudio {
     #[serde(
         default,
@@ -110,6 +115,7 @@ pub struct RealtimeTranscriptionSessionAudio {
 /// Source: `openai/types/realtime/noise_reduction_type.py`, `NoiseReductionType`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum NoiseReductionType {
     #[serde(rename = "near_field")]
     NearField,
@@ -120,6 +126,7 @@ pub enum NoiseReductionType {
 /// Source: `openai/types/realtime/realtime_transcription_session_audio_input.py`, `RealtimeTranscriptionSessionAudioInput`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeTranscriptionSessionAudioInput {
     #[serde(
         default,
@@ -152,6 +159,7 @@ pub struct RealtimeTranscriptionSessionAudioInput {
 /// Source: `openai/types/realtime/realtime_transcription_session_audio_input.py`, `NoiseReduction`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeTranscriptionSessionAudioInputNoiseReduction {
     #[serde(rename = "type")]
     #[serde(
@@ -168,6 +176,7 @@ pub struct RealtimeTranscriptionSessionAudioInputNoiseReduction {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeTranscriptionSessionAudioInputTurnDetection {
     RealtimeTranscriptionSessionAudioInputTurnDetectionServerVad(
         RealtimeTranscriptionSessionAudioInputTurnDetectionServerVad,
@@ -181,6 +190,7 @@ pub enum RealtimeTranscriptionSessionAudioInputTurnDetection {
 /// Source: `openai/types/realtime/realtime_transcription_session_audio_input_turn_detection.py`, `ServerVad`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeTranscriptionSessionAudioInputTurnDetectionServerVad {
     #[serde(rename = "type")]
     pub type_: RealtimeTranscriptionSessionAudioInputTurnDetectionServerVadType,
@@ -227,6 +237,7 @@ pub struct RealtimeTranscriptionSessionAudioInputTurnDetectionServerVad {
 /// Source: `openai/types/realtime/realtime_transcription_session_audio_input_turn_detection.py`, `SemanticVad`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeTranscriptionSessionAudioInputTurnDetectionSemanticVad {
     #[serde(rename = "type")]
     pub type_: RealtimeTranscriptionSessionAudioInputTurnDetectionSemanticVadType,
@@ -255,6 +266,7 @@ pub struct RealtimeTranscriptionSessionAudioInputTurnDetectionSemanticVad {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeTranscriptionSessionCreateRequestType {
     #[serde(rename = "transcription")]
     Transcription,
@@ -262,6 +274,7 @@ pub enum RealtimeTranscriptionSessionCreateRequestType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeTranscriptionSessionCreateRequestIncludeItem {
     #[serde(rename = "item.input_audio_transcription.logprobs")]
     ItemInputAudioTranscriptionLogprobs,
@@ -269,6 +282,7 @@ pub enum RealtimeTranscriptionSessionCreateRequestIncludeItem {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum AudioTranscriptionDelay {
     #[serde(rename = "minimal")]
     Minimal,
@@ -284,6 +298,7 @@ pub enum AudioTranscriptionDelay {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeTranscriptionSessionAudioInputTurnDetectionServerVadType {
     #[serde(rename = "server_vad")]
     ServerVad,
@@ -291,6 +306,7 @@ pub enum RealtimeTranscriptionSessionAudioInputTurnDetectionServerVadType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeTranscriptionSessionAudioInputTurnDetectionSemanticVadType {
     #[serde(rename = "semantic_vad")]
     SemanticVad,
@@ -298,6 +314,7 @@ pub enum RealtimeTranscriptionSessionAudioInputTurnDetectionSemanticVadType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeTranscriptionSessionAudioInputTurnDetectionSemanticVadEagerness {
     #[serde(rename = "low")]
     Low,

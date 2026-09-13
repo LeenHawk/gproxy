@@ -12,6 +12,7 @@ use super::{generate::GenerateContentRequestBody, stream::StreamEvent};
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "type")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ClientEvent {
     #[serde(rename = "response.create")]
     ResponseCreate(GenerateContentRequestBody),

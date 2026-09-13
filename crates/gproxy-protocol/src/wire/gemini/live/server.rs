@@ -14,6 +14,7 @@ pub type LiveUrlContextMetadata = crate::gemini::generate_content::UrlContextMet
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct BidiGenerateContentServerContent {
     #[serde(alias = "model_turn")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -60,6 +61,7 @@ pub struct BidiGenerateContentServerContent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct BidiGenerateContentToolCall {
     #[serde(alias = "function_calls")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -71,6 +73,7 @@ pub struct BidiGenerateContentToolCall {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct BidiGenerateContentToolCallCancellation {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ids: Option<Vec<String>>,
@@ -81,6 +84,7 @@ pub struct BidiGenerateContentToolCallCancellation {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct GoAway {
     #[serde(alias = "time_left")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -92,6 +96,7 @@ pub struct GoAway {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct SessionResumptionUpdate {
     #[serde(alias = "new_handle")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -108,6 +113,7 @@ pub struct SessionResumptionUpdate {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct BidiGenerateContentTranscription {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
@@ -128,6 +134,7 @@ pub struct BidiGenerateContentTranscription {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct WordInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub word: Option<String>,
@@ -144,6 +151,7 @@ pub struct WordInfo {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LiveUsageMetadata {
     #[serde(alias = "prompt_token_count")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -185,6 +193,7 @@ pub struct LiveUsageMetadata {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct VoiceActivityDetectionSignal {
     #[serde(alias = "vad_signal_type")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -196,6 +205,7 @@ pub struct VoiceActivityDetectionSignal {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct VoiceActivity {
     #[serde(rename = "type")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -209,6 +219,7 @@ pub struct VoiceActivity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum TurnCompleteReason {
     #[serde(rename = "TURN_COMPLETE_REASON_UNSPECIFIED")]
     TurnCompleteReasonUnspecified,
@@ -270,6 +281,7 @@ pub enum TurnCompleteReason {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum InteractionStatus {
     #[serde(rename = "INTERACTION_STATUS_UNSPECIFIED")]
     InteractionStatusUnspecified,
@@ -283,6 +295,7 @@ pub enum InteractionStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum VadSignalType {
     #[serde(rename = "VAD_SIGNAL_TYPE_UNSPECIFIED")]
     VadSignalTypeUnspecified,
@@ -294,6 +307,7 @@ pub enum VadSignalType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum VoiceActivityType {
     #[serde(rename = "TYPE_UNSPECIFIED")]
     TypeUnspecified,
@@ -309,6 +323,7 @@ pub enum VoiceActivityType {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum SpeechState {
     Name(String),
     Number(i32),

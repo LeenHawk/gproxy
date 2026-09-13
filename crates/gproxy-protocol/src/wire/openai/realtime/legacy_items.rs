@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 /// Source: `upstream_docs/openai/docs/Realtime.md`, Conversation Item With Reference, `ConversationItemWithReference`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ConversationItemWithReferencePayload {
     #[serde(
         default,
@@ -79,6 +80,7 @@ pub struct ConversationItemWithReferencePayload {
 /// Source: `upstream_docs/openai/docs/Realtime.md`, Conversation Item With Reference, `ConversationItemWithReferenceContent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ConversationItemWithReferenceContent {
     #[serde(
         default,
@@ -117,6 +119,7 @@ pub struct ConversationItemWithReferenceContent {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ConversationItemWithReferenceObject {
     #[serde(rename = "realtime.item")]
     RealtimeItem,
@@ -124,6 +127,7 @@ pub enum ConversationItemWithReferenceObject {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ConversationItemWithReferenceRole {
     #[serde(rename = "user")]
     User,
@@ -135,6 +139,7 @@ pub enum ConversationItemWithReferenceRole {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ConversationItemWithReferenceStatus {
     #[serde(rename = "completed")]
     Completed,
@@ -146,6 +151,7 @@ pub enum ConversationItemWithReferenceStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ConversationItemWithReferenceType {
     #[serde(rename = "message")]
     Message,
@@ -157,6 +163,7 @@ pub enum ConversationItemWithReferenceType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ConversationItemWithReferenceContentType {
     #[serde(rename = "input_audio")]
     InputAudio,
@@ -172,12 +179,14 @@ pub enum ConversationItemWithReferenceContentType {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ConversationItemWithReference {
     Item(ConversationItemWithReferencePayload),
     Reference(ConversationItemReference),
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ConversationItemReference {
     pub id: String,
     #[serde(rename = "type")]
@@ -187,6 +196,7 @@ pub struct ConversationItemReference {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ConversationItemReferenceType {
     #[serde(rename = "item_reference")]
     ItemReference,

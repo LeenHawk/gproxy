@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct FileObject {
     pub id: String,
     pub bytes: i64,
@@ -33,12 +34,14 @@ pub struct FileObject {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FileObjectType {
     #[serde(rename = "file")]
     File,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FilePurpose {
     #[serde(rename = "assistants")]
     Assistants,
@@ -59,6 +62,7 @@ pub enum FilePurpose {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FileStatus {
     #[serde(rename = "uploaded")]
     Uploaded,
@@ -70,6 +74,7 @@ pub enum FileStatus {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ListFilesQuery {
     #[serde(
         default,
@@ -100,6 +105,7 @@ pub struct ListFilesQuery {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FileOrder {
     #[serde(rename = "asc")]
     Asc,
@@ -109,6 +115,7 @@ pub enum FileOrder {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ListFilesResponseBody {
     // Official list reference declares string, rather than a closed literal.
     pub object: String,
@@ -125,6 +132,7 @@ pub struct ListFilesResponseBody {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct DeleteFileResponseBody {
     pub id: String,
     pub object: DeletedFileObject,
@@ -134,12 +142,14 @@ pub struct DeleteFileResponseBody {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum DeletedFileObject {
     #[serde(rename = "file")]
     File,
 }
 #[derive(Debug, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct UploadFileForm {
     pub file: MultipartPart,
     pub purpose: UploadFilePurpose,
@@ -161,6 +171,7 @@ pub type DeleteFileWireResponse = DeleteFileResponse;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum UploadFilePurpose {
     #[serde(rename = "assistants")]
     Assistants,
@@ -179,6 +190,7 @@ pub enum UploadFilePurpose {
     Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
 )]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct FileExpiry {
     pub anchor: FileExpiryAnchor,
     pub seconds: i64,
@@ -187,6 +199,7 @@ pub struct FileExpiry {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum FileExpiryAnchor {
     #[serde(rename = "created_at")]
     CreatedAt,

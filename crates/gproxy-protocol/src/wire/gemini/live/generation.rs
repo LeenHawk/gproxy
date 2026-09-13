@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LiveGenerationConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "stop_sequences")]
@@ -99,6 +100,7 @@ pub struct LiveGenerationConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LiveSpeechConfig {
     #[serde(alias = "voice_config")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -116,6 +118,7 @@ pub struct LiveSpeechConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LiveVoiceConfig {
     #[serde(alias = "prebuilt_voice_config")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -130,6 +133,7 @@ pub struct LiveVoiceConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LivePrebuiltVoiceConfig {
     #[serde(alias = "voice_name")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -141,6 +145,7 @@ pub struct LivePrebuiltVoiceConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LiveMultiSpeakerVoiceConfig {
     #[serde(alias = "speaker_voice_configs")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -152,6 +157,7 @@ pub struct LiveMultiSpeakerVoiceConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct LiveSpeakerVoiceConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub speaker: Option<String>,
@@ -165,6 +171,7 @@ pub struct LiveSpeakerVoiceConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ReplicatedVoiceConfig {
     #[serde(alias = "mime_type")]
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -185,6 +192,7 @@ pub struct ReplicatedVoiceConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct TranslationConfig {
     #[serde(alias = "echo_target_language")]
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 /// Source: `openai/types/realtime/realtime_session_create_response.py`, `RealtimeSessionCreateResponse`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeSessionCreateResponse {
     pub id: String,
     pub object: RealtimeSessionCreateResponseObject,
@@ -104,6 +105,7 @@ pub struct RealtimeSessionCreateResponse {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseTracing {
     Literal(RealtimeSessionCreateResponseTracingVariant1),
     RealtimeSessionCreateResponseTracingTracingConfiguration(
@@ -115,6 +117,7 @@ pub enum RealtimeSessionCreateResponseTracing {
 /// Source: `openai/types/realtime/realtime_session_create_response.py`, `TracingTracingConfiguration`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeSessionCreateResponseTracingTracingConfiguration {
     #[serde(
         default,
@@ -140,6 +143,7 @@ pub struct RealtimeSessionCreateResponseTracingTracingConfiguration {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseObject {
     #[serde(rename = "realtime.session")]
     RealtimeSession,
@@ -147,6 +151,7 @@ pub enum RealtimeSessionCreateResponseObject {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseType {
     #[serde(rename = "realtime")]
     Realtime,
@@ -154,6 +159,7 @@ pub enum RealtimeSessionCreateResponseType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseIncludeItem {
     #[serde(rename = "item.input_audio_transcription.logprobs")]
     ItemInputAudioTranscriptionLogprobs,
@@ -161,6 +167,7 @@ pub enum RealtimeSessionCreateResponseIncludeItem {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseMaxOutputTokensVariant2 {
     #[serde(rename = "inf")]
     Inf,
@@ -169,6 +176,7 @@ pub enum RealtimeSessionCreateResponseMaxOutputTokensVariant2 {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseMaxOutputTokens {
     Number(i64),
     Literal(RealtimeSessionCreateResponseMaxOutputTokensVariant2),
@@ -176,6 +184,7 @@ pub enum RealtimeSessionCreateResponseMaxOutputTokens {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseOutputModalitiesItem {
     #[serde(rename = "text")]
     Text,
@@ -185,6 +194,7 @@ pub enum RealtimeSessionCreateResponseOutputModalitiesItem {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateResponseTracingVariant1 {
     #[serde(rename = "auto")]
     Auto,

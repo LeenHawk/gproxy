@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct EmbedContentRequestBody {
     pub content: Content,
     #[serde(alias = "task_type")]
@@ -26,6 +27,7 @@ pub type EmbedContentRequest = WireRequest<EmbedContentRequestBody>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct EmbedContentResponseBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embedding: Option<ContentEmbedding>,
@@ -39,6 +41,7 @@ pub type EmbedContentResponse = WireResponse<EmbedContentResponseBody>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct EmbedContentConfig {
     #[serde(alias = "document_ocr", skip_serializing_if = "Option::is_none")]
     pub document_ocr: Option<bool>,
@@ -63,6 +66,7 @@ pub struct EmbedContentConfig {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum GeminiTaskType {
     #[serde(rename = "TASK_TYPE_UNSPECIFIED")]
     Unspecified,
@@ -86,6 +90,7 @@ pub enum GeminiTaskType {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ContentEmbedding {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub values: Option<Vec<serde_json::Number>>,
@@ -97,6 +102,7 @@ pub struct ContentEmbedding {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct EmbeddingUsageMetadata {
     #[serde(alias = "prompt_token_count", skip_serializing_if = "Option::is_none")]
     pub prompt_token_count: Option<i64>,
@@ -111,6 +117,7 @@ pub struct EmbeddingUsageMetadata {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct BatchEmbedContentsRequestBody {
     pub requests: Vec<BatchEmbedContentRequest>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -120,6 +127,7 @@ pub type BatchEmbedContentsRequest = WireRequest<BatchEmbedContentsRequestBody>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct BatchEmbedContentRequest {
     pub model: String,
     pub content: Content,
@@ -140,6 +148,7 @@ pub struct BatchEmbedContentRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct BatchEmbedContentsResponseBody {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embeddings: Option<Vec<ContentEmbedding>>,

@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 /// Source: `openai/types/realtime/realtime_reasoning.py`, `RealtimeReasoning`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeReasoning {
     #[serde(
         default,
@@ -25,6 +26,7 @@ pub struct RealtimeReasoning {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeToolChoiceConfig {
     ToolChoiceOptions(ToolChoiceOptions),
     ToolChoiceFunction(ToolChoiceFunction),
@@ -35,6 +37,7 @@ pub enum RealtimeToolChoiceConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeTracingConfig {
     Literal(RealtimeTracingConfigVariant1),
     RealtimeTracingConfigTracingConfiguration(RealtimeTracingConfigTracingConfiguration),
@@ -45,6 +48,7 @@ pub enum RealtimeTracingConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeTruncation {
     Literal(RealtimeTruncationVariant1),
     RealtimeTruncationRetentionRatio(RealtimeTruncationRetentionRatio),
@@ -53,6 +57,7 @@ pub enum RealtimeTruncation {
 /// Source: `openai/types/realtime/realtime_error.py`, `RealtimeError`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeError {
     pub message: String,
     #[serde(rename = "type")]
@@ -82,6 +87,7 @@ pub struct RealtimeError {
 /// Source: `openai/types/realtime/realtime_reasoning_effort.py`, `RealtimeReasoningEffort`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeReasoningEffort {
     #[serde(rename = "minimal")]
     Minimal,
@@ -98,6 +104,7 @@ pub enum RealtimeReasoningEffort {
 /// Source: `openai/types/realtime/realtime_tracing_config.py`, `TracingConfiguration`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeTracingConfigTracingConfiguration {
     #[serde(
         default,
@@ -124,6 +131,7 @@ pub struct RealtimeTracingConfigTracingConfiguration {
 /// Source: `openai/types/realtime/realtime_truncation_retention_ratio.py`, `RealtimeTruncationRetentionRatio`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeTruncationRetentionRatio {
     pub retention_ratio: serde_json::Number,
     #[serde(rename = "type")]
@@ -141,6 +149,7 @@ pub struct RealtimeTruncationRetentionRatio {
 /// Source: `openai/types/realtime/realtime_function_tool.py`, `RealtimeFunctionTool`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeFunctionTool {
     #[serde(
         default,
@@ -174,6 +183,7 @@ pub struct RealtimeFunctionTool {
 /// Source: `openai/types/realtime/realtime_truncation_retention_ratio.py`, `TokenLimits`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeTruncationRetentionRatioTokenLimits {
     #[serde(
         default,
@@ -188,6 +198,7 @@ pub struct RealtimeTruncationRetentionRatioTokenLimits {
 /// Source: `openai/types/realtime/realtime_mcphttp_error.py`, `RealtimeMcphttpError`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeMcphttpError {
     pub code: i64,
     pub message: String,
@@ -199,6 +210,7 @@ pub struct RealtimeMcphttpError {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeTracingConfigVariant1 {
     #[serde(rename = "auto")]
     Auto,
@@ -206,6 +218,7 @@ pub enum RealtimeTracingConfigVariant1 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeTruncationVariant1 {
     #[serde(rename = "auto")]
     Auto,
@@ -215,6 +228,7 @@ pub enum RealtimeTruncationVariant1 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeTruncationRetentionRatioType {
     #[serde(rename = "retention_ratio")]
     RetentionRatio,
@@ -222,6 +236,7 @@ pub enum RealtimeTruncationRetentionRatioType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeFunctionToolType {
     #[serde(rename = "function")]
     Function,
@@ -229,6 +244,7 @@ pub enum RealtimeFunctionToolType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeMcphttpErrorType {
     #[serde(rename = "http_error")]
     HttpError,

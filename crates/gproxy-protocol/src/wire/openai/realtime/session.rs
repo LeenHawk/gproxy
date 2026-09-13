@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 /// Source: `openai/types/realtime/realtime_session_create_request.py`, `RealtimeSessionCreateRequest`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeSessionCreateRequest {
     #[serde(rename = "type")]
     pub type_: RealtimeSessionCreateRequestType,
@@ -102,6 +103,7 @@ pub struct RealtimeSessionCreateRequest {
 /// Source: `openai/types/realtime/session_created_event.py`, `SessionCreatedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct SessionCreatedEvent {
     pub event_id: String,
     pub session: SessionCreatedEventSession,
@@ -114,6 +116,7 @@ pub struct SessionCreatedEvent {
 /// Source: `openai/types/realtime/session_updated_event.py`, `SessionUpdatedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct SessionUpdatedEvent {
     pub event_id: String,
     pub session: SessionUpdatedEventSession,
@@ -128,6 +131,7 @@ pub struct SessionUpdatedEvent {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum SessionCreatedEventSession {
     RealtimeSessionCreateRequest(RealtimeSessionCreateRequest),
     RealtimeTranscriptionSessionCreateRequest(RealtimeTranscriptionSessionCreateRequest),
@@ -138,6 +142,7 @@ pub enum SessionCreatedEventSession {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum SessionUpdatedEventSession {
     RealtimeSessionCreateRequest(RealtimeSessionCreateRequest),
     RealtimeTranscriptionSessionCreateRequest(RealtimeTranscriptionSessionCreateRequest),
@@ -145,6 +150,7 @@ pub enum SessionUpdatedEventSession {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateRequestType {
     #[serde(rename = "realtime")]
     Realtime,
@@ -152,6 +158,7 @@ pub enum RealtimeSessionCreateRequestType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateRequestIncludeItem {
     #[serde(rename = "item.input_audio_transcription.logprobs")]
     ItemInputAudioTranscriptionLogprobs,
@@ -159,6 +166,7 @@ pub enum RealtimeSessionCreateRequestIncludeItem {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateRequestMaxOutputTokensVariant2 {
     #[serde(rename = "inf")]
     Inf,
@@ -167,6 +175,7 @@ pub enum RealtimeSessionCreateRequestMaxOutputTokensVariant2 {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateRequestMaxOutputTokens {
     Number(i64),
     Literal(RealtimeSessionCreateRequestMaxOutputTokensVariant2),
@@ -174,6 +183,7 @@ pub enum RealtimeSessionCreateRequestMaxOutputTokens {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeSessionCreateRequestOutputModalitiesItem {
     #[serde(rename = "text")]
     Text,
@@ -183,6 +193,7 @@ pub enum RealtimeSessionCreateRequestOutputModalitiesItem {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum SessionCreatedEventType {
     #[serde(rename = "session.created")]
     SessionCreated,
@@ -190,6 +201,7 @@ pub enum SessionCreatedEventType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum SessionUpdatedEventType {
     #[serde(rename = "session.updated")]
     SessionUpdated,

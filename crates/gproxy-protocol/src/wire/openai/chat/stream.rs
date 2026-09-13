@@ -26,6 +26,7 @@ pub type StreamResponse = WireResponse<ByteStream>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ChatCompletionChunk {
     #[serde(
         default,
@@ -68,6 +69,7 @@ pub struct ChatCompletionChunk {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ChunkObject {
     #[serde(rename = "chat.completion.chunk")]
     ChatCompletionChunk,
@@ -76,6 +78,7 @@ pub enum ChunkObject {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct StreamChoice {
     pub index: i64,
     pub delta: Delta,
@@ -98,6 +101,7 @@ pub struct StreamChoice {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct Delta {
     #[serde(
         default,
@@ -135,6 +139,7 @@ pub struct Delta {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum DeltaRole {
     #[serde(rename = "developer")]
     Developer,
@@ -153,6 +158,7 @@ pub enum DeltaRole {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct DeltaFunctionCall {
     #[serde(
         default,
@@ -175,6 +181,7 @@ pub struct DeltaFunctionCall {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct DeltaToolCall {
     pub index: i64,
     #[serde(
@@ -202,6 +209,7 @@ pub struct DeltaToolCall {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum DeltaToolCallType {
     #[serde(rename = "function")]
     Function,
@@ -210,6 +218,7 @@ pub enum DeltaToolCallType {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ChunkLogprobs {
     #[serde(
         default,
@@ -230,6 +239,7 @@ pub struct ChunkLogprobs {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ChunkTokenLogprob {
     pub token: String,
     #[serde(
@@ -247,6 +257,7 @@ pub struct ChunkTokenLogprob {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ChunkTopLogprob {
     pub token: String,
     #[serde(
@@ -263,6 +274,7 @@ pub struct ChunkTopLogprob {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ChunkUsage {
     pub completion_tokens: i64,
     pub prompt_tokens: i64,
@@ -286,6 +298,7 @@ pub struct ChunkUsage {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ChunkCompletionTokensDetails {
     #[serde(
         default,
@@ -324,6 +337,7 @@ pub struct ChunkCompletionTokensDetails {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ChunkPromptTokensDetails {
     #[serde(
         default,

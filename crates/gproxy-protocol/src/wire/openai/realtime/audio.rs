@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 /// Source: `openai/types/realtime/realtime_audio_config.py`, `RealtimeAudioConfig`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeAudioConfig {
     #[serde(
         default,
@@ -30,6 +31,7 @@ pub struct RealtimeAudioConfig {
 /// Source: `openai/types/realtime/realtime_audio_config_input.py`, `RealtimeAudioConfigInput`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeAudioConfigInput {
     #[serde(
         default,
@@ -62,6 +64,7 @@ pub struct RealtimeAudioConfigInput {
 /// Source: `openai/types/realtime/realtime_audio_config_output.py`, `RealtimeAudioConfigOutput`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeAudioConfigOutput {
     #[serde(
         default,
@@ -89,6 +92,7 @@ pub struct RealtimeAudioConfigOutput {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeAudioFormats {
     RealtimeAudioFormatsAudioPCM(RealtimeAudioFormatsAudioPCM),
     RealtimeAudioFormatsAudioPCMU(RealtimeAudioFormatsAudioPCMU),
@@ -98,6 +102,7 @@ pub enum RealtimeAudioFormats {
 /// Source: `openai/types/realtime/realtime_audio_config_input.py`, `NoiseReduction`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeAudioConfigInputNoiseReduction {
     #[serde(rename = "type")]
     #[serde(
@@ -114,6 +119,7 @@ pub struct RealtimeAudioConfigInputNoiseReduction {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeAudioInputTurnDetection {
     RealtimeAudioInputTurnDetectionServerVad(RealtimeAudioInputTurnDetectionServerVad),
     RealtimeAudioInputTurnDetectionSemanticVad(RealtimeAudioInputTurnDetectionSemanticVad),
@@ -124,6 +130,7 @@ pub enum RealtimeAudioInputTurnDetection {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeAudioConfigOutputVoice {
     Text(String),
     RealtimeAudioConfigOutputVoiceID(RealtimeAudioConfigOutputVoiceID),
@@ -132,6 +139,7 @@ pub enum RealtimeAudioConfigOutputVoice {
 /// Source: `openai/types/realtime/realtime_audio_formats.py`, `AudioPCM`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeAudioFormatsAudioPCM {
     #[serde(
         default,
@@ -153,6 +161,7 @@ pub struct RealtimeAudioFormatsAudioPCM {
 /// Source: `openai/types/realtime/realtime_audio_formats.py`, `AudioPCMU`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeAudioFormatsAudioPCMU {
     #[serde(rename = "type")]
     #[serde(
@@ -168,6 +177,7 @@ pub struct RealtimeAudioFormatsAudioPCMU {
 /// Source: `openai/types/realtime/realtime_audio_formats.py`, `AudioPCMA`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeAudioFormatsAudioPCMA {
     #[serde(rename = "type")]
     #[serde(
@@ -183,6 +193,7 @@ pub struct RealtimeAudioFormatsAudioPCMA {
 /// Source: `openai/types/realtime/realtime_audio_input_turn_detection.py`, `ServerVad`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeAudioInputTurnDetectionServerVad {
     #[serde(rename = "type")]
     pub type_: RealtimeAudioInputTurnDetectionServerVadType,
@@ -229,6 +240,7 @@ pub struct RealtimeAudioInputTurnDetectionServerVad {
 /// Source: `openai/types/realtime/realtime_audio_input_turn_detection.py`, `SemanticVad`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeAudioInputTurnDetectionSemanticVad {
     #[serde(rename = "type")]
     pub type_: RealtimeAudioInputTurnDetectionSemanticVadType,
@@ -257,6 +269,7 @@ pub struct RealtimeAudioInputTurnDetectionSemanticVad {
 /// Source: `openai/types/realtime/realtime_audio_config_output.py`, `VoiceID`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeAudioConfigOutputVoiceID {
     pub id: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -267,6 +280,7 @@ pub struct RealtimeAudioConfigOutputVoiceID {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "i64", into = "i64")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeAudioFormatsAudioPCMRate {
     Value24000,
 }
@@ -288,6 +302,7 @@ impl From<RealtimeAudioFormatsAudioPCMRate> for i64 {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeAudioFormatsAudioPCMType {
     #[serde(rename = "audio/pcm")]
     AudioPcm,
@@ -295,6 +310,7 @@ pub enum RealtimeAudioFormatsAudioPCMType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeAudioFormatsAudioPCMUType {
     #[serde(rename = "audio/pcmu")]
     AudioPcmu,
@@ -302,6 +318,7 @@ pub enum RealtimeAudioFormatsAudioPCMUType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeAudioFormatsAudioPCMAType {
     #[serde(rename = "audio/pcma")]
     AudioPcma,
@@ -309,6 +326,7 @@ pub enum RealtimeAudioFormatsAudioPCMAType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeAudioInputTurnDetectionServerVadType {
     #[serde(rename = "server_vad")]
     ServerVad,
@@ -316,6 +334,7 @@ pub enum RealtimeAudioInputTurnDetectionServerVadType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeAudioInputTurnDetectionSemanticVadType {
     #[serde(rename = "semantic_vad")]
     SemanticVad,
@@ -323,6 +342,7 @@ pub enum RealtimeAudioInputTurnDetectionSemanticVadType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeAudioInputTurnDetectionSemanticVadEagerness {
     #[serde(rename = "low")]
     Low,

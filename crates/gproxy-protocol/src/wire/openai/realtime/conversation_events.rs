@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 /// Source: `openai/types/realtime/conversation_created_event.py`, `ConversationCreatedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ConversationCreatedEvent {
     pub conversation: ConversationCreatedEventConversation,
     pub event_id: String,
@@ -22,6 +23,7 @@ pub struct ConversationCreatedEvent {
 /// Source: `openai/types/realtime/conversation_item_created_event.py`, `ConversationItemCreatedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ConversationItemCreatedEvent {
     pub event_id: String,
     pub item: ConversationItem,
@@ -40,6 +42,7 @@ pub struct ConversationItemCreatedEvent {
 /// Source: `openai/types/realtime/conversation_item_deleted_event.py`, `ConversationItemDeletedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ConversationItemDeletedEvent {
     pub event_id: String,
     pub item_id: String,
@@ -52,6 +55,7 @@ pub struct ConversationItemDeletedEvent {
 /// Source: `openai/types/realtime/conversation_item_truncated_event.py`, `ConversationItemTruncatedEvent`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ConversationItemTruncatedEvent {
     pub audio_end_ms: i64,
     pub content_index: i64,
@@ -66,6 +70,7 @@ pub struct ConversationItemTruncatedEvent {
 /// Source: `openai/types/realtime/conversation_item_added.py`, `ConversationItemAdded`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ConversationItemAdded {
     pub event_id: String,
     pub item: ConversationItem,
@@ -84,6 +89,7 @@ pub struct ConversationItemAdded {
 /// Source: `openai/types/realtime/conversation_item_done.py`, `ConversationItemDone`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ConversationItemDone {
     pub event_id: String,
     pub item: ConversationItem,
@@ -102,6 +108,7 @@ pub struct ConversationItemDone {
 /// Source: `openai/types/realtime/conversation_created_event.py`, `Conversation`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ConversationCreatedEventConversation {
     #[serde(
         default,
@@ -121,6 +128,7 @@ pub struct ConversationCreatedEventConversation {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ConversationCreatedEventType {
     #[serde(rename = "conversation.created")]
     ConversationCreated,
@@ -128,6 +136,7 @@ pub enum ConversationCreatedEventType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ConversationItemCreatedEventType {
     #[serde(rename = "conversation.item.created")]
     ConversationItemCreated,
@@ -135,6 +144,7 @@ pub enum ConversationItemCreatedEventType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ConversationItemDeletedEventType {
     #[serde(rename = "conversation.item.deleted")]
     ConversationItemDeleted,
@@ -142,6 +152,7 @@ pub enum ConversationItemDeletedEventType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ConversationItemTruncatedEventType {
     #[serde(rename = "conversation.item.truncated")]
     ConversationItemTruncated,
@@ -149,6 +160,7 @@ pub enum ConversationItemTruncatedEventType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ConversationItemAddedType {
     #[serde(rename = "conversation.item.added")]
     ConversationItemAdded,
@@ -156,6 +168,7 @@ pub enum ConversationItemAddedType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ConversationItemDoneType {
     #[serde(rename = "conversation.item.done")]
     ConversationItemDone,
@@ -163,6 +176,7 @@ pub enum ConversationItemDoneType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ConversationCreatedEventConversationObject {
     #[serde(rename = "realtime.conversation")]
     RealtimeConversation,

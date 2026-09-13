@@ -36,6 +36,7 @@ pub type HandshakeResponse = crate::WireResponse<()>;
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
 #[allow(clippy::large_enum_variant)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeClientEvent {
     ConversationItemCreateEvent(ConversationItemCreateEvent),
     ConversationItemDeleteEvent(ConversationItemDeleteEvent),
@@ -54,6 +55,7 @@ pub enum RealtimeClientEvent {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeServerEvent {
     ConversationCreatedEvent(ConversationCreatedEvent),
     ConversationItemCreatedEvent(ConversationItemCreatedEvent),
@@ -112,6 +114,7 @@ pub enum RealtimeServerEvent {
 /// Source: `openai/types/realtime/realtime_server_event.py`, `ConversationItemRetrieved`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ConversationItemRetrieved {
     pub event_id: String,
     pub item: ConversationItem,
@@ -124,6 +127,7 @@ pub struct ConversationItemRetrieved {
 /// Source: `openai/types/realtime/realtime_server_event.py`, `OutputAudioBufferStarted`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeServerEventOutputAudioBufferStarted {
     pub event_id: String,
     pub response_id: String,
@@ -136,6 +140,7 @@ pub struct RealtimeServerEventOutputAudioBufferStarted {
 /// Source: `openai/types/realtime/realtime_server_event.py`, `OutputAudioBufferStopped`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeServerEventOutputAudioBufferStopped {
     pub event_id: String,
     pub response_id: String,
@@ -148,6 +153,7 @@ pub struct RealtimeServerEventOutputAudioBufferStopped {
 /// Source: `openai/types/realtime/realtime_server_event.py`, `OutputAudioBufferCleared`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct RealtimeServerEventOutputAudioBufferCleared {
     pub event_id: String,
     pub response_id: String,
@@ -159,6 +165,7 @@ pub struct RealtimeServerEventOutputAudioBufferCleared {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ConversationItemRetrievedType {
     #[serde(rename = "conversation.item.retrieved")]
     ConversationItemRetrieved,
@@ -166,6 +173,7 @@ pub enum ConversationItemRetrievedType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeServerEventOutputAudioBufferStartedType {
     #[serde(rename = "output_audio_buffer.started")]
     OutputAudioBufferStarted,
@@ -173,6 +181,7 @@ pub enum RealtimeServerEventOutputAudioBufferStartedType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeServerEventOutputAudioBufferStoppedType {
     #[serde(rename = "output_audio_buffer.stopped")]
     OutputAudioBufferStopped,
@@ -180,6 +189,7 @@ pub enum RealtimeServerEventOutputAudioBufferStoppedType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum RealtimeServerEventOutputAudioBufferClearedType {
     #[serde(rename = "output_audio_buffer.cleared")]
     OutputAudioBufferCleared,

@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CreateEmbeddingRequestBody {
     pub input: EmbeddingInput,
     pub model: String,
@@ -23,6 +24,7 @@ pub type CreateEmbeddingRequest = WireRequest<CreateEmbeddingRequestBody>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum EmbeddingInput {
     Text(String),
     Texts(Vec<String>),
@@ -31,6 +33,7 @@ pub enum EmbeddingInput {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum EmbeddingModel {
     #[serde(rename = "text-embedding-ada-002")]
     Ada002,
@@ -41,6 +44,7 @@ pub enum EmbeddingModel {
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum EmbeddingEncodingFormat {
     #[serde(rename = "float")]
     Float,
@@ -50,6 +54,7 @@ pub enum EmbeddingEncodingFormat {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CreateEmbeddingResponseBody {
     pub data: Vec<OpenAiEmbedding>,
     pub model: String,
@@ -63,6 +68,7 @@ pub type CreateEmbeddingResponse = WireResponse<CreateEmbeddingResponseBody>;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct OpenAiEmbedding {
     pub embedding: EmbeddingVector,
     pub index: i64,
@@ -74,18 +80,21 @@ pub struct OpenAiEmbedding {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum EmbeddingVector {
     Floats(Vec<serde_json::Number>),
     Base64(String),
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum EmbeddingObject {
     #[serde(rename = "embedding")]
     Embedding,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum EmbeddingListObject {
     #[serde(rename = "list")]
     List,
@@ -95,6 +104,7 @@ pub enum EmbeddingListObject {
 )]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct EmbeddingUsage {
     pub prompt_tokens: i64,
     pub total_tokens: i64,
