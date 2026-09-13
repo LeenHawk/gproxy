@@ -5,9 +5,12 @@
 面向 AI API 网关、SDK 和协议适配器的 Rust HTTP/WebSocket 类型库。
 将 HTTP 元信息与原始或强类型 body 放在同一条消息中，独立建模已建立的 WebSocket 连接。
 
-当前为 v4 开发版，包含连接模型、OpenAI/Claude/Gemini 的模型元数据、令牌计数和内容生成类型，
-以及 Claude Messages、Gemini、OpenAI Responses、Chat Completions 的流式载荷类型。
-文档定义的媒体、工具和配置字段均保持各自原生形状。body 编解码与跨格式转换仍在开发。
+当前为 v4 开发版，提供模型发现、令牌计数、内容生成与流式、上下文管理、嵌入、重排、
+文件、图像、音频、视频和实时会话的原生类型。HTTP 元信息与强类型 body 分离；
+WebSocket 消息和双向连接分别建模。
+
+已声明字段与变体依据对应的厂商 API 或官方客户端结构。`rest` 保留未知扩展；只有来源
+明确允许任意 JSON 的位置才保留任意 JSON 类型。body 编解码器、网络客户端和跨格式转换尚未实现。
 
 ## 安装
 
@@ -87,6 +90,25 @@ HTTP 方法、路径、查询参数、状态码和头始终在 body 外面。que
 流式响应别名承载 `ByteStream`。调用方处理 SSE 或 JSON 数组分帧，再把每条 JSON 载荷
 反序列化为对应类型。这些类型不负责拆解网络 chunk、累积模型输出或跨 API 转换；
 Chat Completions 的 `[DONE]` 等非 JSON 传输标记也由调用方的分帧逻辑处理。
+
+## 其他 API 模型
+
+| 范围 | 模块 |
+|---|---|
+| 上下文与会话 | `openai::{compact, conversation, memory}` |
+| Codex 客户端接口 | `openai::{guardian, web_search}` |
+| 嵌入与重排 | `openai::{embeddings, rerank}`、`gemini::embeddings` |
+| 文件操作 | `openai::files`、`claude::files`、`gemini::files` |
+| 图像与音频 | `openai::{images, audio}` |
+| 视频 | `openai::video`，扩展格式与原生格式独立 |
+| Responses WebSocket | `openai::responses::websocket` |
+| 实时 / WebRTC | `openai::realtime`、`gemini::live` |
+
+multipart 表单包含明确的元数据字段和真实的 `MultipartPart` 文件流，下载响应保留原始 body。
+类型本身不上传文件、不抓取结果 URL，也不在原生与扩展视频格式之间执行转换。
+
+`spec::OPERATION_SPECS` 描述已建模的操作／方言组合及 wire 格式，不代表某个供应商支持该操作，
+也不代表转换已经存在。TLS、ALPN 和 HTTP/2 客户端配置归出站 client 实现。
 
 ## 操作与方言
 

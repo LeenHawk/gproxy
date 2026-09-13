@@ -6,11 +6,15 @@ HTTP and WebSocket types for AI API gateways, SDKs, and protocol adapters in Rus
 Keep HTTP metadata together with raw or typed bodies, and represent established WebSocket
 connections independently.
 
-This is the v4 development API. It includes connection models, OpenAI/Claude/Gemini model
-metadata, token-counting and content-generation types, plus typed streaming payloads for
-Claude Messages, Gemini, OpenAI Responses and Chat Completions. Documented media, tool and
-configuration fields retain their native shapes. Body codecs and cross-format conversion
-are under development.
+This is the v4 development API. It provides native models for model discovery, token counting,
+content generation and streaming, context management, embeddings, reranking, files, images,
+audio, video, and realtime sessions. HTTP metadata stays separate from typed bodies;
+WebSocket messages and their duplex connections are modeled independently.
+
+All declared fields and variants follow the referenced vendor API or official client schemas.
+`rest` preserves unknown extensions; documented arbitrary JSON stays arbitrary only where the
+source contract permits it. Body codecs, network clients, and cross-format conversion are not
+implemented by this crate yet.
 
 ## Installation
 
@@ -93,6 +97,27 @@ Stream response aliases carry `ByteStream`. A caller decodes SSE or JSON-array f
 then deserializes each JSON payload into the corresponding type. These types do not parse
 network chunks, accumulate model output, or convert between APIs. Non-JSON transport markers
 such as Chat Completions' `[DONE]` remain the caller's framing responsibility.
+
+## Other API models
+
+| Area | Modules |
+|---|---|
+| Context and conversations | `openai::{compact, conversation, memory}` |
+| Codex client endpoints | `openai::{guardian, web_search}` |
+| Embeddings and reranking | `openai::{embeddings, rerank}`, `gemini::embeddings` |
+| File operations | `openai::files`, `claude::files`, `gemini::files` |
+| Image and audio operations | `openai::{images, audio}` |
+| Video | `openai::video` (extended and native formats are distinct) |
+| Responses WebSocket | `openai::responses::websocket` |
+| Realtime / WebRTC | `openai::realtime`, `gemini::live` |
+
+Multipart forms expose typed metadata and actual `MultipartPart` file streams. Download
+responses retain raw bodies. No model performs uploads, fetches result URLs, or converts
+between the native and extended video formats.
+
+`spec::OPERATION_SPECS` describes the modeled operation/dialect combinations and their wire
+formats. It does not assert that a provider supports an operation or that a conversion exists.
+TLS, ALPN and HTTP/2 client configuration belong to outbound client implementations.
 
 ## Operations and dialects
 
