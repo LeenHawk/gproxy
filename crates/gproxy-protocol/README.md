@@ -2,11 +2,13 @@
 
 English | [简体中文](https://github.com/LeenHawk/gproxy/blob/4.0/crates/gproxy-protocol/README.zh-CN.md)
 
-Protocol types for working with OpenAI, Anthropic Claude, and Google Gemini APIs in Rust.
-Use them to identify API operations and wire formats in gateways, SDKs, and protocol adapters.
+HTTP and WebSocket types for AI API gateways, SDKs, and protocol adapters in Rust.
+Keep HTTP metadata together with raw or typed bodies, and represent established WebSocket
+connections independently.
 
-> This README describes the v4 development API. It currently provides operation and dialect
-> identifiers. Request/response models and format conversion are under development.
+This is the v4 development API. It includes connection models, OpenAI/Claude/Gemini model
+metadata types, and initial token-counting body types. Body codecs and cross-format conversion
+are under development; token-counting types do not yet cover every documented tool payload.
 
 ## Installation
 
@@ -24,29 +26,62 @@ Until that version is published, use a local checkout of the repository's `4.0` 
 gproxy-protocol = { path = "../gproxy/crates/gproxy-protocol" }
 ```
 
-## Usage
+## HTTP requests and responses
 
-An `OperationKey` combines an operation with the format used to express it:
+`WireRequest<B>` contains `method`, `path`, `query`, `headers`, and `body`.
+`WireResponse<B>` contains `status`, `headers`, and `body`.
+The body type can be raw `HttpBody`, parsed multipart, or a vendor's JSON body type.
 
 ```rust
-use gproxy_protocol::{Dialect, Operation, OperationKey};
+use gproxy_protocol::connection::{HeaderMap, Method, StatusCode};
+use gproxy_protocol::openai::models::{GetModelRequest, GetModelResponse, Model};
 
-let messages = OperationKey {
-    operation: Operation::GenerateContent,
-    dialect: Dialect::Claude,
+let request = GetModelRequest {
+    method: Method::GET,
+    path: "/v1/models/gpt-5".into(),
+    query: None,
+    headers: HeaderMap::new(),
+    body: (), // No HTTP body.
 };
 
-let responses = OperationKey {
-    operation: Operation::GenerateContent,
-    dialect: Dialect::OpenAi,
+let body: Model = serde_json::from_str(r#"{
+    "id": "gpt-5", "object": "model", "created": 0, "owned_by": "openai"
+}"#).unwrap();
+let response = GetModelResponse {
+    status: StatusCode::OK,
+    headers: HeaderMap::new(),
+    body,
 };
 
-assert_eq!(messages.operation, responses.operation);
-assert_ne!(messages.dialect, responses.dialect);
+assert_eq!(request.path, "/v1/models/gpt-5");
+assert_eq!(response.body.id, "gpt-5");
 ```
 
-Keys implement `Copy`, `Eq`, `Hash`, and `Ord`, so they can be used directly in maps and sets.
-Constructing a key identifies a combination; it does not check whether your application supports it.
+Add `serde_json = "1"` to run this example. Serialize or deserialize the JSON body itself;
+HTTP method, path, query, status, and headers remain outside it. Query strings retain their
+original encoding, parameter order, and duplicate keys.
+
+Vendor `CountTokensRequest` and `CountTokensResponse` aliases wrap their respective
+`CountTokensRequestBody` and `CountTokensResponseBody` types in the same HTTP envelopes.
+A model name stays in the JSON body when the vendor defines it there; Gemini's outer model
+resource is carried in the request path.
+
+## Streaming, multipart, and WebSocket
+
+- `HttpBody::Bytes` holds a complete encoded body; `HttpBody::Stream` holds raw byte chunks.
+  A chunk may split a UTF-8 character, JSON value, SSE event, or multipart boundary.
+- `StreamFraming` describes SSE, an incremental JSON array, or NDJSON. It is format metadata,
+  not a parser or an assumption about transport chunk boundaries.
+- `Multipart` holds an ordered stream of parts. Each `MultipartPart` has its own headers and
+  buffered or streaming body. Repeated field names are preserved.
+- WebSocket handshakes use HTTP requests and responses. The established `WebSocket` exposes
+  independent incoming and outgoing streams/sinks, carrying text, binary, ping, pong, and close.
+  It is not an HTTP body variant. Transport adapters handle connection setup and wire framing.
+
+## Operations and dialects
+
+Use `OperationKey { operation, dialect }` to identify an API operation and its wire format.
+Keys implement `Copy`, `Eq`, `Hash`, and `Ord` for use in maps and sets.
 
 | Dialect | Content generation API |
 |---|---|
@@ -56,9 +91,8 @@ Constructing a key identifies a combination; it does not check whether your appl
 | `OpenAiChat` | OpenAI Chat Completions |
 | `OpenAiResponsesWebSocket` | OpenAI Responses over WebSocket |
 
-`Operation` also covers model listing, token counting, embeddings, images, audio, video, files,
-and realtime sessions. Use `StreamGenerateContent` for streaming content generation.
-The dialect identifies the wire format, independently of which service hosts the model.
+The dialect identifies the format independently of which service hosts the model.
+Constructing a key does not check conversion or backend support.
 
 ## String identifiers
 
