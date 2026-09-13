@@ -307,3 +307,23 @@ fn legacy_function_declarations_history_and_response_map_without_fake_ids() {
     assert_eq!(call.name, "f");
     assert!(call.id.is_none());
 }
+
+#[test]
+fn strict_tools_require_validated_mode_and_keep_forced_allowlist() {
+    for choice in [
+        json!("auto"),
+        json!({"type":"function","function":{"name":"f"}}),
+    ] {
+        let input:chat::GenerateContentRequestBody=serde_json::from_value(json!({"model":"source","messages":[{"role":"user","content":"x"}],"tools":[{"type":"function","function":{"name":"f","strict":true,"parameters":{"type":"object"}}}],"tool_choice":choice})).unwrap();
+        let output = gemini_chat::openai_to_gemini_request(&input, "target", &BTreeMap::new())
+            .unwrap()
+            .value;
+        let config = output.tool_config.unwrap().function_calling_config.unwrap();
+        if let Some(names) = config.allowed_function_names {
+            assert_eq!(config.mode, Some(gemini::FunctionCallingMode::Any));
+            assert_eq!(names, vec!["f"]);
+        } else {
+            assert_eq!(config.mode, Some(gemini::FunctionCallingMode::Validated));
+        }
+    }
+}

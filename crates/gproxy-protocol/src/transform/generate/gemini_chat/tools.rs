@@ -103,7 +103,7 @@ pub(crate) fn chat_tools_to_gemini(
         if tool.function.strict.flatten() == Some(true) {
             report.changed(
                 "tools.strict",
-                "Gemini schema enforcement depends on selected function-calling endpoint",
+                "strict schema calls use Gemini VALIDATED or ANY mode; selected endpoint must support schema keywords",
             );
         }
         let schema = None;
