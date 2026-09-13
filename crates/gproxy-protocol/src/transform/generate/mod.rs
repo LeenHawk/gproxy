@@ -3,4 +3,5 @@
 
 pub mod chat_responses;
 pub mod claude_chat;
+pub mod gemini_chat;
 pub mod gemini_schema;
