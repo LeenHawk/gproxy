@@ -73,10 +73,17 @@ pub enum Operation {
 }
 
 impl Operation {
-    /// Operations whose body is a model conversation, and which therefore key
-    /// on [`ContentGenerationKind`] rather than [`WireFamily`]. These are the
-    /// only operations with a dense transform matrix.
-    pub const fn is_content_generation(self) -> bool {
+    /// Which kind variant this operation pairs with. An invariant of
+    /// [`OperationKey`] construction and nothing more — deliberately private,
+    /// because no caller has a reason to ask.
+    ///
+    /// The rule is **not** "the body is a conversation": `CountTokens` and
+    /// `CompactContent` both carry one and still key on [`WireFamily`]. It is
+    /// "the body is a conversation *and* the dialects need converting between
+    /// each other", which is why only these four carry the dense 4x3 matrix.
+    /// Cross-vendor demand for the other two is sparse enough — two pairs and
+    /// one pair respectively — that a family split covers it.
+    const fn is_content_generation(self) -> bool {
         matches!(
             self,
             Self::GenerateContent
