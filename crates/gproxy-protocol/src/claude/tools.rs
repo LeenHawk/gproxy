@@ -111,6 +111,34 @@ pub struct McpToolset {
     pub type_: McpToolsetType,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_control: Option<CacheControl>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub configs: Option<std::collections::BTreeMap<String, McpToolConfig>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_config: Option<McpToolDefaultConfig>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct McpToolConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub defer_loading: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct McpToolDefaultConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub defer_loading: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }
@@ -599,6 +627,8 @@ pub struct TextEditorTool20250728 {
     pub defer_loading: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input_examples: Option<Examples>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_characters: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub strict: Option<bool>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
