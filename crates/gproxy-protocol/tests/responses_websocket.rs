@@ -19,7 +19,10 @@ fn response_create_uses_flat_native_fields_and_preserves_extensions() {
     assert_eq!(body.rest.len(), 1);
     assert_eq!(serde_json::to_value(event).unwrap(), wire);
     assert_eq!(
-        serde_json::to_value(ClientEvent::ResponseCreate(GenerateContentRequestBody::builder().build())).unwrap(),
+        serde_json::to_value(ClientEvent::ResponseCreate(
+            GenerateContentRequestBody::builder().build()
+        ))
+        .unwrap(),
         json!({"type": "response.create"})
     );
 }
@@ -30,11 +33,16 @@ fn server_events_keep_payload_schema_and_handshake_stays_http() {
     let event: ServerEvent = serde_json::from_value(wire.clone()).unwrap();
     assert_eq!(serde_json::to_value(event).unwrap(), wire);
     let request = HandshakeRequest {
-        method: http::Method::GET, path: "/v1/responses".into(), query: None,
-        headers: http::HeaderMap::new(), body: (),
+        method: http::Method::GET,
+        path: "/v1/responses".into(),
+        query: None,
+        headers: http::HeaderMap::new(),
+        body: (),
     };
     let response = HandshakeResponse {
-        status: http::StatusCode::SWITCHING_PROTOCOLS, headers: http::HeaderMap::new(), body: (),
+        status: http::StatusCode::SWITCHING_PROTOCOLS,
+        headers: http::HeaderMap::new(),
+        body: (),
     };
     assert_eq!(request.path, "/v1/responses");
     assert_eq!(response.status.as_u16(), 101);

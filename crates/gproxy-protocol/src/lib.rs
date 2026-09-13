@@ -26,6 +26,7 @@ pub mod connection;
 pub mod gemini;
 pub mod openai;
 pub mod operation;
+pub mod spec;
 
 pub use connection::{HttpBody, WebSocket, WireRequest, WireResponse};
 pub use operation::{Dialect, Operation, OperationKey, WireFamily};
