@@ -31,3 +31,25 @@ fn required_arguments_optional_setters_and_extension_fields() {
     assert_eq!(minimal.r#type, None);
     assert!(minimal.rest.is_empty());
 }
+
+#[derive(WireBuilder)]
+struct NullableRequest {
+    name: String,
+    #[wire(required)]
+    parameters: Option<String>,
+    description: Option<String>,
+}
+
+#[test]
+fn required_nullable_argument_is_supplied_even_when_null() {
+    let request = NullableRequest::builder("lookup".into(), None)
+        .description("description")
+        .build();
+    assert_eq!(request.name, "lookup");
+    assert_eq!(request.parameters, None);
+    assert_eq!(request.description.as_deref(), Some("description"));
+
+    let request = NullableRequest::builder("lookup".into(), Some("schema".into())).build();
+    assert_eq!(request.parameters.as_deref(), Some("schema"));
+    assert_eq!(request.description, None);
+}

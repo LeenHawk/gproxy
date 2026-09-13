@@ -9,7 +9,9 @@ use syn::{Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, parse
 /// Required fields are supplied in declaration order. `Option<T>` fields start
 /// as `None` and have setters accepting `T`; `rest` starts empty and has a
 /// setter accepting its declared type. `build()` returns the completed value.
-#[proc_macro_derive(WireBuilder)]
+/// Mark a nullable but required field with `#[wire(required)]` to require an
+/// explicit `Option<T>` argument instead of defaulting it in the builder.
+#[proc_macro_derive(WireBuilder, attributes(wire))]
 pub fn wire_builder(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     expand(input)
@@ -42,6 +44,26 @@ fn expand(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     for field in &fields.named {
         let ident = field.ident.as_ref().expect("named field");
         let ty = &field.ty;
+        let mut required = false;
+        for attr in field
+            .attrs
+            .iter()
+            .filter(|attr| attr.path().is_ident("wire"))
+        {
+            attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("required") {
+                    required = true;
+                    Ok(())
+                } else {
+                    Err(meta.error("expected `required`"))
+                }
+            })?;
+        }
+        if required {
+            arguments.push(quote!(#ident: #ty));
+            initializers.push(quote!(#ident));
+            continue;
+        }
         if let Some(inner) = option_inner(ty) {
             initializers.push(quote!(#ident: ::core::option::Option::None));
             setters.push(quote! {
