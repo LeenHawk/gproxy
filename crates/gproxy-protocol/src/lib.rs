@@ -6,9 +6,9 @@
 //!    HTTP link — five request elements, three response elements, and buffered
 //!    or streaming bodies. An established WebSocket is a separate duplex link.
 //! 2. **Describe host capabilities for protocol adaptation.** A host supplies
-//!    upstream calls, resource access, and scoped state. Concrete codecs and
-//!    conversions are not implemented yet; future adapters can compose these
-//!    capabilities for one or more calls without depending on a full core.
+//!    upstream calls, resource access, and scoped state. Bounded codecs and
+//!    identity mapping support adapters that compose these capabilities for
+//!    one or more calls without depending on a full core.
 //!
 //! What is deliberately absent:
 //!
@@ -25,6 +25,7 @@
 //! for field names, semantics and examples.
 
 pub mod capability;
+pub mod codec;
 pub mod connection;
 pub mod operation;
 pub mod spec;
