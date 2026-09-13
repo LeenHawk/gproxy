@@ -5,6 +5,7 @@
 //! Conversion state and diagnostics are separate from vendor wire payloads.
 
 pub mod count_tokens;
+pub mod compact;
 pub mod embeddings;
 mod error;
 pub mod files;

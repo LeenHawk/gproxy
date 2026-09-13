@@ -3,6 +3,7 @@
 //! Targets and authentication remain host-owned. Adapters perform explicit
 //! operations and retain their concrete return-mapping state.
 
+pub mod compact;
 pub mod embeddings;
 pub mod files;
 mod json;
