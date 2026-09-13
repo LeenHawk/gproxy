@@ -2,12 +2,12 @@
 
 [English](https://github.com/LeenHawk/gproxy/blob/4.0/crates/gproxy-protocol/README.md) | 简体中文
 
-面向 AI API 网关、SDK 和协议适配器的 Rust HTTP/WebSocket 类型库。
+面向 AI API 网关、SDK 和协议适配器的 Rust HTTP/WebSocket 类型与宿主能力接口库。
 将 HTTP 元信息与原始或强类型 body 放在同一条消息中，独立建模已建立的 WebSocket 连接。
 
 当前为 v4 开发版，提供模型发现、令牌计数、内容生成与流式、上下文管理、嵌入、重排、
 文件、图像、音频、视频和实时会话的原生类型。HTTP 元信息与强类型 body 分离；
-WebSocket 消息和双向连接分别建模。
+WebSocket 消息和双向连接分别建模。独立能力 trait 描述宿主提供的上游调用、资源访问和作用域状态。
 
 已声明字段与变体依据对应的厂商 API 或官方客户端结构。`rest` 保留未知扩展；只有来源
 明确允许任意 JSON 的位置才保留任意 JSON 类型。body 编解码器、网络客户端和跨格式转换尚未实现。
@@ -112,6 +112,31 @@ multipart 表单包含明确的元数据字段和真实的 `MultipartPart` 文�
 
 `spec::OPERATION_SPECS` 描述已建模的操作／方言组合及 wire 格式，不代表某个供应商支持该操作，
 也不代表转换已经存在。TLS、ALPN 和 HTTP/2 客户端配置归出站 client 实现。
+
+## 宿主能力
+
+`capability` 定义三个独立 trait，供宿主为协议适配提供上游调用、资源访问或作用域状态。
+适配可以组合多次调用，无需依赖完整网关 core。
+
+| Trait | 操作 |
+|---|---|
+| `Upstream` | 发送已编码的 HTTP 请求；建立 WS 并保留握手响应 |
+| `ResourceAccess` | 解析／读取资源；发布、查询发布结果、释放有所有权的发布资源 |
+| `StateStore` | 读取作用域状态；以 CAS 原子创建、替换或删除 |
+
+`ResourceReference` 区分上游 ID 和 URL。发布指定所需形态和未来到期时间；宿主不支持时
+在发布前拒绝。释放或到期后，操作 ID 保留为过期状态，重试不会重新创建资源。
+
+宿主提供目标、鉴权、所有权检查和绑定的 `CapabilityLimits`，并在整个传输期间执行时限
+和字节限制，返回 stream 后也不例外。`CapabilityFuture` 在原生平台要求 `Send`，wasm
+允许非 `Send`，不依赖特定异步 runtime、HTTP client 或数据库。
+
+非成功 HTTP 状态仍以 `WireResponse` 返回；传输／存储错误使用 `CapabilityError` 并保留
+原始错误来源。WS 握手拒绝保留完整 HTTP 响应 body。取消只停止本地处理，不保证远端回滚；
+发布可以按作用域内的操作 ID 查询结果。
+
+这里提供的是宿主实现必须遵守的契约，尚未附带能力实现、codec、转换器或网关 core。
+后续转换只使用明确声明的 wire 字段：不读取源 `rest`，也不填充目标 `rest`。
 
 ## 操作与方言
 
