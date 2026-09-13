@@ -5,4 +5,5 @@
 
 pub mod embeddings;
 mod json;
-pub use json::{JsonInvocation, invoke_json};
+pub mod models;
+pub use json::{JsonInvocation, invoke_empty, invoke_json};
