@@ -1,0 +1,48 @@
+//! Realtime WebSocket event payloads and WebRTC setup forms.
+//! Client/server events are JSON values exchanged over an independent duplex
+//! connection. These DTOs neither open a connection nor frame/convert payloads.
+pub mod audio;
+pub mod audio_events;
+pub mod client_events;
+pub mod conversation_events;
+pub mod events;
+pub mod items;
+pub mod legacy_items;
+pub mod mcp;
+pub mod mcp_events;
+pub mod prompt;
+pub mod response;
+pub mod response_config;
+pub mod response_events;
+pub mod rtc;
+pub mod session;
+pub mod session_response;
+pub mod session_response_audio;
+pub mod session_response_tools;
+pub mod settings;
+pub mod transcription;
+pub mod transcription_events;
+pub mod transcription_response;
+mod wire;
+pub use audio::*;
+pub use audio_events::*;
+pub use client_events::*;
+pub use conversation_events::*;
+pub use events::*;
+pub use items::*;
+pub use legacy_items::*;
+pub use mcp::*;
+pub use mcp_events::*;
+pub use prompt::*;
+pub use response::*;
+pub use response_config::*;
+pub use response_events::*;
+pub use rtc::*;
+pub use session::*;
+pub use session_response::*;
+pub use session_response_audio::*;
+pub use session_response_tools::*;
+pub use settings::*;
+pub use transcription::*;
+pub use transcription_events::*;
+pub use transcription_response::*;
