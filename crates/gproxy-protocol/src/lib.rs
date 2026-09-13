@@ -24,3 +24,6 @@
 pub mod operation;
 
 pub use operation::{Dialect, Operation, OperationKey, WireFamily};
+
+/// Unknown fields preserved when a wire object is read and written unchanged.
+pub type Rest = serde_json::Map<String, serde_json::Value>;
