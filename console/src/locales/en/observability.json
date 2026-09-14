@@ -69,6 +69,7 @@
     "tps": "Output TPS",
     "durationValue": "{{value}} ms",
     "tpsValue": "{{value}} tok/s",
+    "tokenUsage": "in:{{input}} out:{{output}} hit:{{hit}}",
     "filters": {
       "user": "User",
       "key": "API key",

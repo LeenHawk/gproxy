@@ -69,6 +69,7 @@
     "tps": "输出 TPS",
     "durationValue": "{{value}} ms",
     "tpsValue": "{{value}} token/s",
+    "tokenUsage": "in:{{input}} out:{{output}} hit:{{hit}}",
     "filters": {
       "user": "用户",
       "key": "API 密钥",
