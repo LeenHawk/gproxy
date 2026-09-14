@@ -13,6 +13,7 @@ pub mod generate;
 pub mod guardian;
 pub mod identity;
 pub mod images;
+mod instructions;
 pub mod memory;
 pub mod models;
 

@@ -47,7 +47,7 @@ pub fn claude_to_responses_request(
     let mut report = Report::default();
     let mut out = r::GenerateContentRequestBody::builder().build();
     controls::to_responses(&input, &mut out, &mut report)?;
-    out.model = Some(model);
+    out.model = Some(model.clone());
     out.tools = input
         .tools
         .map(|v| tools::to_responses(v, &mut report))
@@ -80,6 +80,12 @@ pub fn claude_to_responses_request(
         policy,
         &mut report,
     )?));
+    crate::transform::instructions::responses(
+        &mut out.input,
+        &mut out.instructions,
+        &model,
+        &mut report,
+    );
     *flow = ids;
     Ok(Converted { value: out, report })
 }
@@ -137,6 +143,7 @@ pub fn responses_to_claude_request(
         .map(|v| tools::choice_to_claude(v, input.parallel_tool_calls.flatten()))
         .transpose()?;
     let (mut messages, mut system) = history::to_claude(input.input, context, &mut report)?;
+    crate::transform::instructions::claude(&mut messages, &out.model, &mut report);
     if let Some(Some(text)) = input.instructions {
         system.insert(
             0,

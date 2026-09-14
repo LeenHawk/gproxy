@@ -45,7 +45,7 @@ pub fn chat_to_responses_request_with_calls(
     let mut report = Report::default();
     let mut output = responses::GenerateContentRequestBody::builder().build();
     controls::to_responses(&input, &mut output, &mut report)?;
-    output.model = Some(model);
+    output.model = Some(model.clone());
     if input.tools.is_some() && input.functions.is_some() {
         return Err(TransformError::shape(
             "tools",
@@ -84,6 +84,12 @@ pub fn chat_to_responses_request_with_calls(
     output.store = input.store;
     output.stream = input.stream;
     output.user = input.user;
+    crate::transform::instructions::responses(
+        &mut output.input,
+        &mut output.instructions,
+        &model,
+        &mut report,
+    );
     *flow = ids;
     Ok(Converted {
         value: output,
@@ -119,6 +125,7 @@ pub fn responses_to_chat_request(
     output.store = input.store;
     output.stream = input.stream;
     output.user = input.user;
+    crate::transform::instructions::chat(&mut output.messages, &output.model, &mut report);
     Ok(Converted {
         value: output,
         report,

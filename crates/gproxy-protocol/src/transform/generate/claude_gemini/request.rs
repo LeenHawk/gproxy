@@ -55,7 +55,9 @@ pub fn claude_to_gemini_request(
         }
     }
     let mut contents = Vec::new();
-    for message in input.messages {
+    let mut position = crate::transform::instructions::Position::default();
+    for (index, message) in input.messages.into_iter().enumerate() {
+        let leading = position.leading(message.role == c::Role::System);
         let blocks = match message.content {
             c::MessageContent::Text(text) => vec![c::ContentBlock::Text(
                 c::TextBlock::builder(c::TextBlockType::Tag, text).build(),
@@ -71,13 +73,14 @@ pub fn claude_to_gemini_request(
             &mut report,
         )?;
         if message.role == c::Role::System {
-            if parts.iter().any(|p| p.text.is_none()) {
-                return Err(TransformError::unsupported(
-                    "system",
-                    "system instructions must be text",
-                ));
-            }
-            system.extend(parts);
+            crate::transform::instructions::gemini(
+                parts,
+                leading,
+                &mut system,
+                &mut contents,
+                format!("messages[{index}].role"),
+                &mut report,
+            )?;
         } else if !parts.is_empty() {
             let role = match message.role {
                 c::Role::User => "user",
@@ -162,6 +165,7 @@ pub fn gemini_to_claude_request(
     }
     let mut ids = flow.clone();
     let mut calls = Calls::default();
+    let mut position = crate::transform::instructions::Position::default();
     for content in input.contents {
         let role = match content.role.as_deref() {
             Some("model") => c::Role::Assistant,
@@ -169,6 +173,7 @@ pub fn gemini_to_claude_request(
             Some("system") => c::Role::System,
             Some(_) => return Err(TransformError::shape("contents.role", "unknown role")),
         };
+        let leading = position.leading(role == c::Role::System);
         let blocks = super::history::to_claude(
             content.parts.unwrap_or_default(),
             &mut calls,
@@ -177,13 +182,21 @@ pub fn gemini_to_claude_request(
             &mut report,
         )?;
         if role == c::Role::System {
-            for block in blocks {
-                let c::ContentBlock::Text(text) = block else {
-                    return Err(TransformError::unsupported("system", "text required"));
-                };
-                system.push(text.text);
+            if blocks
+                .iter()
+                .any(|block| !matches!(block, c::ContentBlock::Text(_)))
+            {
+                return Err(TransformError::unsupported("system", "text required"));
             }
-        } else if !blocks.is_empty() {
+            if leading {
+                system.extend(blocks.into_iter().filter_map(|block| match block {
+                    c::ContentBlock::Text(text) => Some(text.text),
+                    _ => None,
+                }));
+                continue;
+            }
+        }
+        if !blocks.is_empty() {
             out.messages
                 .push(c::Message::builder(role, c::MessageContent::Blocks(blocks)).build());
         }
@@ -191,6 +204,7 @@ pub fn gemini_to_claude_request(
     if !system.is_empty() {
         out.system = Some(ct::SystemPrompt::Text(system.join("\n")));
     }
+    crate::transform::instructions::claude(&mut out.messages, &out.model, &mut report);
     *flow = ids;
     Ok(Converted { value: out, report })
 }

@@ -18,7 +18,7 @@ pub fn gemini_to_openai(
     let mut ids = flow.clone();
     let mut report = Report::default();
     let mut out = o::CountTokensRequestBody::builder().build();
-    out.model = Some(Some(model));
+    out.model = Some(Some(model.clone()));
     super::controls::gemini_to_openai(&input, &mut out, &mut report)?;
     let validated = input
         .tool_config
@@ -71,6 +71,14 @@ pub fn gemini_to_openai(
         policy,
         &mut report,
     )?)));
+    let mut input = out.input.take().flatten();
+    crate::transform::instructions::responses(
+        &mut input,
+        &mut out.instructions,
+        &model,
+        &mut report,
+    );
+    out.input = Some(input);
     *flow = ids;
     Ok(Converted { value: out, report })
 }
