@@ -9,6 +9,7 @@ pub mod compact;
 pub mod embeddings;
 mod error;
 pub mod files;
+pub mod guardian;
 pub mod generate;
 pub mod identity;
 pub mod images;

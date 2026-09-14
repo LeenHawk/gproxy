@@ -6,6 +6,7 @@
 pub mod compact;
 pub mod embeddings;
 pub mod files;
+pub mod guardian;
 mod json;
 pub mod images;
 pub mod memory;
