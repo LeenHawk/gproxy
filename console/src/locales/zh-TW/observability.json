@@ -69,6 +69,7 @@
     "tps": "輸出 TPS",
     "durationValue": "{{value}} ms",
     "tpsValue": "{{value}} token/s",
+    "tokenUsage": "in:{{input}} out:{{output}} hit:{{hit}}",
     "filters": {
       "user": "使用者",
       "key": "API 金鑰",
