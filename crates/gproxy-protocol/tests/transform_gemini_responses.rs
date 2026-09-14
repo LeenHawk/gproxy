@@ -173,7 +173,15 @@ fn multimodal_tool_outputs_use_native_parts_and_scoped_reasoning_restores_exact_
         target.clone(),
     );
     state.client_item_id = Some("rs".into());
-    state.opaque_signature = Some(OpaqueSignature::new("sig", "origin", "gemini").unwrap());
+    state.opaque_signature = Some(
+        OpaqueSignature::new(
+            gproxy_protocol::transform::identity::OpaqueField::GeminiPartThoughtSignature,
+            "sig",
+            "origin",
+            "gemini",
+        )
+        .unwrap(),
+    );
     let part = g::Part::builder()
         .thought(true)
         .text("exact")

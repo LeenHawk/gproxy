@@ -7,7 +7,7 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
-const STATE_SCHEMA: u16 = 1;
+const STATE_SCHEMA: u16 = 2;
 
 /// Target semantics are persisted with an identity record. A record from a
 /// different model or target dialect cannot be restored into a new flow.
@@ -47,10 +47,31 @@ impl IdentityTarget {
     }
 }
 
-/// A declared opaque signature can be restored only for its original origin
-/// and model. It is intentionally just a small token, never a wire DTO.
+/// The exact declared upstream field that owns an opaque value. A matching
+/// origin/model does not permit moving bytes between these fields.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OpaqueField {
+    ClaudeThinkingSignature,
+    ClaudeRedactedThinkingData,
+    GeminiPartThoughtSignature,
+    ResponsesReasoningEncryptedContent,
+}
+
+impl OpaqueField {
+    pub fn dialect(self) -> DialectId {
+        match self {
+            Self::ClaudeThinkingSignature | Self::ClaudeRedactedThinkingData => DialectId::Claude,
+            Self::GeminiPartThoughtSignature => DialectId::Gemini,
+            Self::ResponsesReasoningEncryptedContent => DialectId::OpenAi,
+        }
+    }
+}
+
+/// A declared opaque signature can be restored only for its original origin,
+/// model and field. It is intentionally just a small token, never a wire DTO.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OpaqueSignature {
+    pub field: OpaqueField,
     pub value: String,
     pub origin: String,
     pub model: String,
@@ -58,6 +79,7 @@ pub struct OpaqueSignature {
 
 impl OpaqueSignature {
     pub fn new(
+        field: OpaqueField,
         value: impl Into<String>,
         origin: impl Into<String>,
         model: impl Into<String>,
@@ -71,6 +93,7 @@ impl OpaqueSignature {
             ));
         }
         Ok(Self {
+            field,
             value,
             origin,
             model,
@@ -166,10 +189,11 @@ impl IdentityStateRecord {
                 || signature.origin.trim().is_empty()
                 || signature.model.trim().is_empty()
                 || self.target.origin.as_deref() != Some(signature.origin.as_str())
-                || signature.model != self.target.model)
+                || signature.model != self.target.model
+                || signature.field.dialect() != self.target.dialect)
         {
             return Err(IdentityError::InvalidIdentity(
-                "opaque signature origin/model does not match its target".into(),
+                "opaque signature origin/model/field does not match its target".into(),
             ));
         }
         Ok(())

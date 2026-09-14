@@ -321,7 +321,13 @@ fn optional_native_thinking_restoration_checks_scope_content_and_clears_extensio
         );
         state.client_item_id = Some("rs-1".into());
         state.opaque_signature = Some(
-            OpaqueSignature::new("native-signature", "original-upstream", "actual-model").unwrap(),
+            OpaqueSignature::new(
+                gproxy_protocol::transform::identity::OpaqueField::ClaudeThinkingSignature,
+                "native-signature",
+                "original-upstream",
+                "actual-model",
+            )
+            .unwrap(),
         );
         ClaudeRequestContext{target:Some(target),restored_thinking:std::collections::BTreeMap::from([("rs-1".into(),RestoredClaudeThinking{state,block:serde_json::from_value(json!({"type":"thinking","thinking":"original thought","signature":"native-signature","foreign":true})).unwrap()})])}
     }

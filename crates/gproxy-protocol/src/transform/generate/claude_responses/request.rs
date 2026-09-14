@@ -203,7 +203,11 @@ pub(super) fn restore_reasoning(
         .state
         .opaque_signature
         .as_ref()
-        .is_none_or(|signature| signature.value != original.signature)
+        .is_none_or(|signature| {
+            signature.value != original.signature
+                || signature.field
+                    != crate::transform::identity::OpaqueField::ClaudeThinkingSignature
+        })
         || original.signature.is_empty()
     {
         return Err(TransformError::shape(
