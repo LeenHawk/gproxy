@@ -50,6 +50,26 @@ impl ClaudeToResponsesStream {
         flow: IdentityFlow,
         limits: StreamLimits,
     ) -> Result<Self, TransformError> {
+        Self::new_with_policy(
+            context,
+            flow,
+            limits,
+            TargetIdPolicy::new(crate::Dialect::OpenAi),
+        )
+    }
+    pub fn new_with_policy(
+        context: impl Into<ClaudeToResponsesContext>,
+        flow: IdentityFlow,
+        limits: StreamLimits,
+        policy: TargetIdPolicy,
+    ) -> Result<Self, TransformError> {
+        if policy.dialect != crate::Dialect::OpenAi {
+            return Err(TransformError::shape(
+                "stream.policy",
+                "target policy dialect mismatch",
+            ));
+        }
+
         let context = clean_context(context.into(), limits)?;
         Ok(Self {
             source: Some(ClaudeStreamCollector::new(ClaudeStreamLimits {
@@ -61,7 +81,7 @@ impl ClaudeToResponsesStream {
             context,
             events: ResponseEvents::new(limits),
             flow,
-            policy: TargetIdPolicy::new(crate::Dialect::OpenAi),
+            policy,
             budget: Budget::new(limits),
             limits,
             blocks: BTreeMap::new(),

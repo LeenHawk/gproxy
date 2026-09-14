@@ -76,6 +76,27 @@ impl ChatToResponsesStream {
         flow: IdentityFlow,
         limits: StreamLimits,
     ) -> Self {
+        Self::new_with_policy(
+            context,
+            flow,
+            limits,
+            TargetIdPolicy::new(crate::Dialect::OpenAi),
+        )
+        .expect("default policy matches target dialect")
+    }
+    pub fn new_with_policy(
+        context: impl Into<ChatToResponsesContext>,
+        flow: IdentityFlow,
+        limits: StreamLimits,
+        policy: TargetIdPolicy,
+    ) -> Result<Self, TransformError> {
+        if policy.dialect != crate::Dialect::OpenAi {
+            return Err(TransformError::shape(
+                "stream.policy",
+                "target policy dialect mismatch",
+            ));
+        }
+
         let mut context = context.into();
         context.response.request = declared(context.response.request);
         context.response.effective_tool_choice = declared(context.response.effective_tool_choice);
@@ -92,7 +113,7 @@ impl ChatToResponsesStream {
             },
         );
         let usage_facts = context.response.usage;
-        Self {
+        Ok(Self {
             source: Some(source),
             target: Some(ResponsesStreamCollector::new(
                 crate::transform::generate::stream::responses::ResponsesStreamLimits {
@@ -105,7 +126,7 @@ impl ChatToResponsesStream {
             )),
             context: Some(context.response),
             flow,
-            target_policy: TargetIdPolicy::new(Dialect::OpenAi),
+            target_policy: policy,
             limits,
             budget: Budget::new(limits),
             sequence: 0,
@@ -124,7 +145,7 @@ impl ChatToResponsesStream {
             usage_facts,
             failed: false,
             done: false,
-        }
+        })
     }
 
     pub fn identities(&self) -> &IdentityFlow {

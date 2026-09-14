@@ -16,6 +16,7 @@ pub struct GeminiToChatContext {
 }
 pub struct GeminiToChatStream {
     source: Option<GeminiStreamCollector>,
+    policy: TargetIdPolicy,
     flow: IdentityFlow,
     budget: Budget,
     limits: StreamLimits,
@@ -35,6 +36,26 @@ impl GeminiToChatStream {
         flow: IdentityFlow,
         limits: StreamLimits,
     ) -> Result<Self, TransformError> {
+        Self::new_with_policy(
+            context,
+            flow,
+            limits,
+            TargetIdPolicy::new(crate::Dialect::OpenAiChat),
+        )
+    }
+    pub fn new_with_policy(
+        context: GeminiToChatContext,
+        flow: IdentityFlow,
+        limits: StreamLimits,
+        policy: TargetIdPolicy,
+    ) -> Result<Self, TransformError> {
+        if policy.dialect != crate::Dialect::OpenAiChat {
+            return Err(TransformError::shape(
+                "stream.policy",
+                "target policy dialect mismatch",
+            ));
+        }
+
         if context.created < 0 || context.model.as_ref().is_some_and(|v| v.is_empty()) {
             return Err(invalid("invalid factual creation/model context"));
         }
@@ -48,6 +69,7 @@ impl GeminiToChatStream {
                 max_candidates: limits.max_choices,
                 max_parts: limits.max_events,
             })),
+            policy,
             flow,
             budget: Budget::new(limits),
             limits,
@@ -121,7 +143,7 @@ impl GeminiToChatStream {
         chunk: g::GenerateContentResponseBody,
         out: &mut Vec<s::ChatCompletionChunk>,
     ) -> Result<(), TransformError> {
-        let policy = TargetIdPolicy::new(crate::Dialect::OpenAiChat);
+        let policy = self.policy.clone();
         // Resolve again when a late source ID arrives. IdentityFlow attaches it to
         // the same logical response without changing an already emitted client ID.
         let response = id(
@@ -279,7 +301,7 @@ impl GeminiToChatStream {
         for pending in std::mem::take(&mut self.pending) {
             self.content(pending, &mut chunks)?;
         }
-        let policy = TargetIdPolicy::new(crate::Dialect::OpenAiChat);
+        let policy = self.policy.clone();
         let response = id(
             &mut self.flow,
             &policy,

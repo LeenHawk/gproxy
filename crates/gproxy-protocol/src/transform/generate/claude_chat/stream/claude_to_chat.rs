@@ -24,6 +24,7 @@ enum Block {
 pub struct ClaudeToChatStream {
     source: Option<ClaudeStreamCollector>,
     target: Option<ChatStreamCollector>,
+    policy: TargetIdPolicy,
     flow: IdentityFlow,
     budget: Budget,
     limits: StreamLimits,
@@ -43,13 +44,38 @@ impl ClaudeToChatStream {
         flow: IdentityFlow,
         limits: StreamLimits,
     ) -> Result<Self, TransformError> {
+        Self::new_with_policy(
+            context,
+            flow,
+            limits,
+            TargetIdPolicy::new(crate::Dialect::OpenAiChat),
+        )
+    }
+    pub fn new_with_policy(
+        context: ClaudeToChatContext,
+        flow: IdentityFlow,
+        limits: StreamLimits,
+        policy: TargetIdPolicy,
+    ) -> Result<Self, TransformError> {
+        if policy.dialect != crate::Dialect::OpenAiChat {
+            return Err(TransformError::shape(
+                "stream.policy",
+                "target policy dialect mismatch",
+            ));
+        }
+
         if context.created < 0 {
             return Err(invalid("negative factual creation timestamp"));
         }
+        // These IDs were already allocated under the selected policy. The
+        // native target collector must preserve them while checking syntax;
+        // preserve_source_ids=false must not trigger a second allocation.
+        let mut collector_policy = policy.clone();
+        collector_policy.preserve_source_ids = true;
         Ok(Self {
             target: Some(ChatStreamCollector::with_limits(
                 IdentityFlow::new(flow.namespace()),
-                TargetIdPolicy::new(crate::Dialect::OpenAiChat),
+                collector_policy,
                 ChatStreamLimits {
                     max_events: limits.max_events,
                     max_bytes: limits.max_bytes,
@@ -63,6 +89,7 @@ impl ClaudeToChatStream {
                 max_text_bytes: limits.max_bytes,
                 max_blocks: limits.max_blocks,
             })),
+            policy,
             flow,
             budget: Budget::new(limits),
             limits,
@@ -108,7 +135,7 @@ impl ClaudeToChatStream {
             s::StreamEvent::MessageStart(v) => {
                 self.id = Some(id(
                     &mut self.flow,
-                    &TargetIdPolicy::new(crate::Dialect::OpenAiChat),
+                    &self.policy,
                     IdentityRole::Response,
                     crate::Dialect::Claude,
                     Some(v.message.id),
@@ -153,7 +180,7 @@ impl ClaudeToChatStream {
                         self.next_tool += 1;
                         let call_id = id(
                             &mut self.flow,
-                            &TargetIdPolicy::new(crate::Dialect::OpenAiChat),
+                            &self.policy,
                             IdentityRole::ToolCall,
                             crate::Dialect::Claude,
                             Some(tool.id),

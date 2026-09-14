@@ -1,6 +1,6 @@
 use super::super::ClaudeGeminiUsageFacts;
 use super::{
-    common::{Budget, StreamEnd, StreamLimits, bound, claude_policy, invalid, limit, response_id},
+    common::{Budget, StreamEnd, StreamLimits, bound, invalid, limit, response_id},
     usage::{GeminiUsageProgress, gemini_usage, prepare_initial, validate_facts},
 };
 use crate::transform::generate::stream::{
@@ -49,10 +49,25 @@ pub struct GeminiToClaudeStream {
 }
 impl GeminiToClaudeStream {
     pub fn new(
-        mut ctx: GeminiToClaudeContext,
+        ctx: GeminiToClaudeContext,
         flow: IdentityFlow,
         limits: StreamLimits,
     ) -> Result<Self, TransformError> {
+        Self::new_with_policy(ctx, flow, limits, super::common::claude_policy())
+    }
+    pub fn new_with_policy(
+        mut ctx: GeminiToClaudeContext,
+        flow: IdentityFlow,
+        limits: StreamLimits,
+        policy: TargetIdPolicy,
+    ) -> Result<Self, TransformError> {
+        if policy.dialect != crate::Dialect::Claude {
+            return Err(TransformError::shape(
+                "stream.policy",
+                "target policy dialect mismatch",
+            ));
+        }
+
         ctx.usage = ctx.usage.into_declared();
         validate_facts(ctx.facts)?;
         if ctx.model.as_ref().is_some_and(|v| v.trim().is_empty())
@@ -84,7 +99,7 @@ impl GeminiToClaudeStream {
                 max_blocks: limits.max_blocks,
             })),
             flow,
-            policy: claude_policy(),
+            policy,
             budget: Budget::new(limits),
             limits,
             source_id: ctx.response_id.clone(),

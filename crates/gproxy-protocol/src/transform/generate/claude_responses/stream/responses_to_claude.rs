@@ -1,8 +1,7 @@
 use super::super::ClaudeRequestContext;
 use super::{
     common::{
-        Budget, StreamEnd, StreamLimits, claude_policy, declared, id, initial_usage, invalid,
-        limit, measure,
+        Budget, StreamEnd, StreamLimits, declared, id, initial_usage, invalid, limit, measure,
     },
     context::{clean_restoration, clone_restoration},
     response_items::Item,
@@ -58,10 +57,25 @@ pub struct ResponsesToClaudeStream {
 }
 impl ResponsesToClaudeStream {
     pub fn new(
-        mut context: ResponsesToClaudeContext,
+        context: ResponsesToClaudeContext,
         flow: IdentityFlow,
         limits: StreamLimits,
     ) -> Result<Self, TransformError> {
+        Self::new_with_policy(context, flow, limits, super::common::claude_policy())
+    }
+    pub fn new_with_policy(
+        mut context: ResponsesToClaudeContext,
+        flow: IdentityFlow,
+        limits: StreamLimits,
+        policy: TargetIdPolicy,
+    ) -> Result<Self, TransformError> {
+        if policy.dialect != crate::Dialect::Claude {
+            return Err(TransformError::shape(
+                "stream.policy",
+                "target policy dialect mismatch",
+            ));
+        }
+
         context.usage = context.usage.map(initial_usage).transpose()?;
         measure(&context.usage, limits.max_bytes)?;
         let restoration = context
@@ -84,7 +98,7 @@ impl ResponsesToClaudeStream {
                 max_blocks: limits.max_blocks,
             })),
             flow,
-            policy: claude_policy(),
+            policy,
             limits,
             budget: Budget::new(limits),
             fixed_start: context.usage.is_some(),
