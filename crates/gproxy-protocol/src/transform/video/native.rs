@@ -7,7 +7,7 @@ use crate::{
 };
 use std::collections::BTreeMap;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct NativeVideoDefaults {
     /// Effective source settings, supplied from the selected source model's
     /// invocation contract when the client omitted these controls.
