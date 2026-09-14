@@ -40,6 +40,26 @@ impl ClaudeToGeminiStream {
         flow: IdentityFlow,
         limits: StreamLimits,
     ) -> Result<Self, TransformError> {
+        Self::new_with_policy(
+            context,
+            flow,
+            limits,
+            TargetIdPolicy::new(crate::Dialect::Gemini),
+        )
+    }
+    pub fn new_with_policy(
+        context: ClaudeToGeminiContext,
+        flow: IdentityFlow,
+        limits: StreamLimits,
+        policy: TargetIdPolicy,
+    ) -> Result<Self, TransformError> {
+        if policy.dialect != crate::Dialect::Gemini {
+            return Err(TransformError::shape(
+                "stream.policy",
+                "target policy dialect mismatch",
+            ));
+        }
+
         validate_facts(context.usage)?;
         Ok(Self {
             source: Some(ClaudeStreamCollector::new(ClaudeStreamLimits {
@@ -55,7 +75,7 @@ impl ClaudeToGeminiStream {
                 max_parts: limits.max_parts,
             })),
             flow,
-            policy: TargetIdPolicy::new(crate::Dialect::Gemini),
+            policy,
             budget: Budget::new(limits),
             limits,
             blocks: Blocks::new(limits),

@@ -28,7 +28,12 @@ impl ChatTool {
         }
         Ok(())
     }
-    pub fn part(self, flow: &mut IdentityFlow, legacy: bool) -> Result<g::Part, TransformError> {
+    pub fn part(
+        self,
+        flow: &mut IdentityFlow,
+        legacy: bool,
+        policy: &TargetIdPolicy,
+    ) -> Result<g::Part, TransformError> {
         if self.name.is_empty() {
             return Err(TransformError::missing_metadata("tool.name"));
         }
@@ -43,7 +48,7 @@ impl ChatTool {
         if !legacy {
             call.id = Some(super::common::id(
                 flow,
-                &TargetIdPolicy::new(crate::Dialect::Gemini),
+                policy,
                 IdentityRole::ToolCall,
                 crate::Dialect::OpenAiChat,
                 self.id,

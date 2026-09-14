@@ -8,6 +8,7 @@ use crate::transform::generate::stream::chat::{ChatStreamCollector, ChatStreamLi
 /// their choice finishes because Gemini requires one complete JSON object.
 pub struct ChatToGeminiStream {
     source: Option<ChatStreamCollector>,
+    policy: TargetIdPolicy,
     flow: IdentityFlow,
     budget: Budget,
     limits: StreamLimits,
@@ -21,6 +22,21 @@ pub struct ChatToGeminiStream {
 }
 impl ChatToGeminiStream {
     pub fn new(flow: IdentityFlow, limits: StreamLimits) -> Self {
+        Self::new_with_policy(flow, limits, TargetIdPolicy::new(crate::Dialect::Gemini))
+            .expect("default policy matches target dialect")
+    }
+    pub fn new_with_policy(
+        flow: IdentityFlow,
+        limits: StreamLimits,
+        policy: TargetIdPolicy,
+    ) -> Result<Self, TransformError> {
+        if policy.dialect != crate::Dialect::Gemini {
+            return Err(TransformError::shape(
+                "stream.policy",
+                "target policy dialect mismatch",
+            ));
+        }
+
         let source = ChatStreamCollector::with_limits(
             IdentityFlow::new(flow.namespace()),
             TargetIdPolicy::new(crate::Dialect::OpenAiChat),
@@ -31,8 +47,9 @@ impl ChatToGeminiStream {
                 max_tool_calls: limits.max_tools,
             },
         );
-        Self {
+        Ok(Self {
             source: Some(source),
+            policy,
             flow,
             budget: Budget::new(limits),
             limits,
@@ -43,7 +60,7 @@ impl ChatToGeminiStream {
             response_id: None,
             model: None,
             report: Default::default(),
-        }
+        })
     }
     pub fn identities(&self) -> &IdentityFlow {
         &self.flow
@@ -72,7 +89,14 @@ impl ChatToGeminiStream {
             .ok_or_else(|| invalid("source consumed"))?
             .push(chunk.clone())?;
         if !chunk.id.is_empty() {
-            self.response_id = Some(chunk.id.clone());
+            self.response_id = Some(super::common::id(
+                &mut self.flow,
+                &self.policy,
+                IdentityRole::Response,
+                crate::Dialect::OpenAiChat,
+                Some(chunk.id.clone()),
+                0,
+            )?);
         }
         if !chunk.model.is_empty() {
             self.model = Some(chunk.model.clone());
@@ -137,10 +161,10 @@ impl ChatToGeminiStream {
                     self.report.changed("refusal","Gemini represents refusal as text; the source finish reason controls the terminal reason");
                 }
                 if let Some(tool) = state.legacy.take() {
-                    parts.push(tool.part(&mut self.flow, true)?);
+                    parts.push(tool.part(&mut self.flow, true, &self.policy)?);
                 }
                 for (_, tool) in std::mem::take(&mut state.tools) {
-                    parts.push(tool.part(&mut self.flow, false)?);
+                    parts.push(tool.part(&mut self.flow, false, &self.policy)?);
                 }
                 if !parts.is_empty() {
                     output.push(candidate(index, parts));
@@ -217,7 +241,14 @@ impl ChatToGeminiStream {
             .transpose()?;
         let mut tail = g::GenerateContentResponseBody::builder()
             .candidates(candidates)
-            .response_id(source.id)
+            .response_id(super::common::id(
+                &mut self.flow,
+                &self.policy,
+                IdentityRole::Response,
+                crate::Dialect::OpenAiChat,
+                Some(source.id),
+                0,
+            )?)
             .model_version(source.model)
             .build();
         tail.usage_metadata = usage;

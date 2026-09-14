@@ -64,7 +64,31 @@ pub struct ResponsesToChatStream {
 }
 impl ResponsesToChatStream {
     pub fn new(flow: IdentityFlow, limits: StreamLimits) -> Self {
-        Self {
+        Self::new_with_policy(
+            flow,
+            limits,
+            TargetIdPolicy::new(crate::Dialect::OpenAiChat),
+        )
+        .expect("default policy matches target dialect")
+    }
+    pub fn new_with_policy(
+        flow: IdentityFlow,
+        limits: StreamLimits,
+        policy: TargetIdPolicy,
+    ) -> Result<Self, TransformError> {
+        if policy.dialect != crate::Dialect::OpenAiChat {
+            return Err(TransformError::shape(
+                "stream.policy",
+                "target policy dialect mismatch",
+            ));
+        }
+
+        // These IDs were already allocated under the selected policy. The
+        // native target collector must preserve them while checking syntax;
+        // preserve_source_ids=false must not trigger a second allocation.
+        let mut collector_policy = policy.clone();
+        collector_policy.preserve_source_ids = true;
+        Ok(Self {
             source: Some(ResponsesStreamCollector::new(ResponsesStreamLimits {
                 max_events: limits.max_events,
                 max_bytes: limits.max_bytes,
@@ -74,7 +98,7 @@ impl ResponsesToChatStream {
             })),
             target: Some(ChatStreamCollector::with_limits(
                 IdentityFlow::new(flow.namespace()),
-                TargetIdPolicy::new(Dialect::OpenAiChat),
+                collector_policy,
                 ChatStreamLimits {
                     max_events: limits.max_events,
                     max_bytes: limits.max_bytes,
@@ -83,7 +107,7 @@ impl ResponsesToChatStream {
                 },
             )),
             flow,
-            policy: TargetIdPolicy::new(Dialect::OpenAiChat),
+            policy,
             budget: Budget::new(limits),
             response_id: None,
             model: None,
@@ -96,7 +120,7 @@ impl ResponsesToChatStream {
             expected: None,
             terminal: false,
             failed: false,
-        }
+        })
     }
     pub fn identities(&self) -> &IdentityFlow {
         &self.flow

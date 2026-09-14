@@ -1,6 +1,6 @@
 use super::{
     chat_blocks::{self, Tool},
-    common::{Budget, StreamEnd, bounded, claude_finish, claude_policy, id},
+    common::{Budget, StreamEnd, bounded, claude_finish, id},
     *,
 };
 use crate::transform::generate::stream::{
@@ -17,6 +17,7 @@ pub struct ChatToClaudeContext {
 pub struct ChatToClaudeStream {
     source: Option<ChatStreamCollector>,
     target: Option<ClaudeStreamCollector>,
+    policy: TargetIdPolicy,
     flow: IdentityFlow,
     budget: Budget,
     limits: StreamLimits,
@@ -38,10 +39,25 @@ pub struct ChatToClaudeStream {
 }
 impl ChatToClaudeStream {
     pub fn new(
-        mut context: ChatToClaudeContext,
+        context: ChatToClaudeContext,
         flow: IdentityFlow,
         limits: StreamLimits,
     ) -> Result<Self, TransformError> {
+        Self::new_with_policy(context, flow, limits, super::common::claude_policy())
+    }
+    pub fn new_with_policy(
+        mut context: ChatToClaudeContext,
+        flow: IdentityFlow,
+        limits: StreamLimits,
+        policy: TargetIdPolicy,
+    ) -> Result<Self, TransformError> {
+        if policy.dialect != crate::Dialect::Claude {
+            return Err(TransformError::shape(
+                "stream.policy",
+                "target policy dialect mismatch",
+            ));
+        }
+
         context.start_usage = context.start_usage.into_declared();
         if let Some(usage) = &context.start_usage {
             bounded(usage, limits.max_bytes)?;
@@ -65,6 +81,7 @@ impl ChatToClaudeStream {
                 },
             )),
             target: Some(ClaudeStreamCollector::new(native)),
+            policy,
             flow,
             budget: Budget::new(limits),
             limits,
@@ -156,7 +173,7 @@ impl ChatToClaudeStream {
     fn start(&mut self, out: &mut Vec<s::StreamEvent>) -> Result<(), TransformError> {
         let id = id(
             &mut self.flow,
-            &claude_policy(),
+            &self.policy,
             IdentityRole::Response,
             crate::Dialect::OpenAiChat,
             self.source_id.clone(),
@@ -206,7 +223,7 @@ impl ChatToClaudeStream {
         if let Some(id) = self.source_id.clone() {
             common::id(
                 &mut self.flow,
-                &claude_policy(),
+                &self.policy,
                 IdentityRole::Response,
                 crate::Dialect::OpenAiChat,
                 Some(id),
@@ -292,7 +309,7 @@ impl ChatToClaudeStream {
             let block = self.allocate_block()?;
             let id = id(
                 &mut self.flow,
-                &claude_policy(),
+                &self.policy,
                 IdentityRole::ToolCall,
                 crate::Dialect::OpenAiChat,
                 tool.id,
