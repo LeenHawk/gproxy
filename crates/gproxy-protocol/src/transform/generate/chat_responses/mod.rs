@@ -8,7 +8,10 @@ mod common;
 mod request;
 mod response;
 
-pub use request::{chat_to_responses_request, responses_to_chat_request};
+pub use request::{
+    ToolCallKind, chat_to_responses_request, chat_to_responses_request_with_calls,
+    responses_to_chat_request,
+};
 pub use response::{
     ChatUsageSupplement, ResponsesResponseContext, chat_to_responses_response,
     responses_to_chat_response,
