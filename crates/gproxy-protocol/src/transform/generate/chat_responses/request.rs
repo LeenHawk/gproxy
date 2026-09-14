@@ -31,6 +31,9 @@ pub fn chat_to_responses_request_with_calls(
     flow: &mut crate::transform::identity::IdentityFlow,
     policy: &crate::transform::identity::TargetIdPolicy,
 ) -> Result<Converted<responses::GenerateContentRequestBody>, TransformError> {
+    if input.stream.flatten() == Some(true) {
+        super::stream_tools::check(&input)?;
+    }
     if policy.dialect != crate::Dialect::OpenAi {
         return Err(TransformError::shape(
             "identity.policy",
@@ -126,6 +129,9 @@ pub fn responses_to_chat_request(
     output.stream = input.stream;
     output.user = input.user;
     crate::transform::instructions::chat(&mut output.messages, &output.model, &mut report);
+    if output.stream.flatten() == Some(true) {
+        super::stream_tools::check(&output)?;
+    }
     Ok(Converted {
         value: output,
         report,

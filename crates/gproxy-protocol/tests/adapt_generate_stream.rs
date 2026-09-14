@@ -314,3 +314,6 @@ mod instructions;
 
 #[path = "adapt_generate_stream/tool_reference.rs"]
 mod tool_reference;
+
+#[path = "adapt_generate_stream/custom_tools.rs"]
+mod custom_tools;

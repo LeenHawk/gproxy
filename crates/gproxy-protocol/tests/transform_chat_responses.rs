@@ -2,6 +2,40 @@ use gproxy_protocol::transform::generate::chat_responses::*;
 use gproxy_protocol::transform::identity::{IdNamespace, IdentityFlow, TargetIdPolicy};
 use gproxy_protocol::wire::openai::{chat, responses};
 use serde_json::json;
+
+#[test]
+fn custom_streams_fail_before_conversion_but_disabled_tools_and_history_are_allowed() {
+    for enabled in [true, false] {
+        let source: chat::GenerateContentRequestBody = serde_json::from_value(json!({
+            "model":"source","stream":true,"messages":[{"role":"user","content":"hi"}],
+            "tools":[{"type":"custom","custom":{"name":"edit"}}],
+            "tool_choice":if enabled { "auto" } else { "none" }
+        }))
+        .unwrap();
+        let out = chat_to_responses_request(source, "target");
+        if enabled {
+            assert_eq!(out.unwrap_err().context(), "stream.custom_tools");
+        } else {
+            let back = responses_to_chat_request(out.unwrap().value, "source").unwrap();
+            assert_eq!(back.value.stream, Some(Some(true)));
+        }
+    }
+    let source = serde_json::from_value(
+        json!({"model":"m","stream":true,"input":"hi","tools":[{"type":"custom","name":"edit"}]}),
+    )
+    .unwrap();
+    assert_eq!(
+        responses_to_chat_request(source, "target")
+            .unwrap_err()
+            .context(),
+        "stream.custom_tools"
+    );
+    let history = serde_json::from_value(json!({"model":"source","stream":true,"messages":[
+        {"role":"assistant","tool_calls":[{"type":"custom","id":"c","custom":{"name":"edit","input":"not JSON"}}]},
+        {"role":"tool","tool_call_id":"c","content":"done"}
+    ]})).unwrap();
+    assert!(chat_to_responses_request(history, "target").is_ok());
+}
 fn chat_to_responses_request(
     input: chat::GenerateContentRequestBody,
     model: &str,

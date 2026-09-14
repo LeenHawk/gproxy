@@ -7,6 +7,7 @@
 mod common;
 mod request;
 mod response;
+pub(crate) mod stream_tools;
 
 pub use request::{
     ToolCallKind, chat_to_responses_request, chat_to_responses_request_with_calls,
