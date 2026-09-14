@@ -19,7 +19,7 @@ pub struct GeminiOperationContext {
     pub source_polling_url: String,
     pub operation_name: String,
 }
-fn operation_name(value: &str) -> Result<(), TransformError> {
+pub(super) fn operation_name(value: &str) -> Result<(), TransformError> {
     let segments: Vec<_> = value.split('/').collect();
     if segments.len() < 2
         || segments[segments.len() - 2] != "operations"
