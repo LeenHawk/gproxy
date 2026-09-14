@@ -15,3 +15,5 @@ pub use response::{
     GeminiResponseContext, GeminiUsageFacts, gemini_to_responses_response,
     responses_to_gemini_response,
 };
+
+pub mod stream;
