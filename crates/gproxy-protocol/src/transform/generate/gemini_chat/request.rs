@@ -87,6 +87,7 @@ pub(crate) fn gemini_to_openai_request_with_calls(
             &mut bindings,
         )?);
     }
+    crate::transform::instructions::chat(&mut out.messages, &out.model, &mut report);
     *identity = ids;
     Ok(Converted { value: out, report })
 }
@@ -145,22 +146,41 @@ pub fn openai_to_gemini_request(
         }
     }
     let mut system = Vec::new();
-    for message in &input.messages {
+    let mut position = crate::transform::instructions::Position::default();
+    for (index, message) in input.messages.iter().enumerate() {
+        let leading = position.leading(matches!(
+            message,
+            c::ChatMessage::System(_) | c::ChatMessage::Developer(_)
+        ));
         let (role, parts) = match message {
             c::ChatMessage::System(message) => {
-                system.push(
-                    g::Part::builder()
-                        .text(super::content::chat_text(&message.content))
-                        .build(),
-                );
+                crate::transform::instructions::gemini(
+                    vec![
+                        g::Part::builder()
+                            .text(super::content::chat_text(&message.content))
+                            .build(),
+                    ],
+                    leading,
+                    &mut system,
+                    &mut out.contents,
+                    format!("messages[{index}].role"),
+                    &mut report,
+                )?;
                 continue;
             }
             c::ChatMessage::Developer(message) => {
-                system.push(
-                    g::Part::builder()
-                        .text(super::content::chat_text(&message.content))
-                        .build(),
-                );
+                crate::transform::instructions::gemini(
+                    vec![
+                        g::Part::builder()
+                            .text(super::content::chat_text(&message.content))
+                            .build(),
+                    ],
+                    leading,
+                    &mut system,
+                    &mut out.contents,
+                    format!("messages[{index}].role"),
+                    &mut report,
+                )?;
                 continue;
             }
             c::ChatMessage::User(message) => ("user", super::media::user(&message.content)?),

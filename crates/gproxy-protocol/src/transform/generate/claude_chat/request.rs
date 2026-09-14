@@ -16,6 +16,7 @@ pub fn claude_to_openai(
     input: &cg::GenerateContentRequestBody,
     target_model: impl Into<String>,
 ) -> Result<Converted<chat::GenerateContentRequestBody>, TransformError> {
+    let target_model = target_model.into();
     let mut report = Report::default();
     super::requirements::claude(input, &mut report)?;
     let mut messages = Vec::new();
@@ -38,6 +39,7 @@ pub fn claude_to_openai(
     for message in &input.messages {
         messages.extend(claude_message_to_openai(message, &mut report)?);
     }
+    crate::transform::instructions::chat(&mut messages, &target_model, &mut report);
     let tool_choice = claude_choice_to_openai(input.tool_choice.as_ref())?;
     let parallel_tool_calls = input.tool_choice.as_ref().and_then(|choice| match choice {
         cc::ToolChoice::Auto(choice) => choice.disable_parallel_tool_use.map(|value| !value),
@@ -129,7 +131,7 @@ pub fn claude_to_openai(
     Ok(Converted {
         value: chat::GenerateContentRequestBody {
             messages,
-            model: target_model.into(),
+            model: target_model,
             audio: None,
             frequency_penalty: None,
             function_call: None,
@@ -187,6 +189,7 @@ pub fn openai_to_claude(
     input: &chat::GenerateContentRequestBody,
     target_model: impl Into<String>,
 ) -> Result<Converted<cg::GenerateContentRequestBody>, TransformError> {
+    let target_model = target_model.into();
     let mut report = Report::default();
     if input.n.flatten().is_some_and(|value| value != 1) {
         return Err(TransformError::unsupported(
@@ -197,15 +200,22 @@ pub fn openai_to_claude(
     super::requirements::chat(input, &mut report)?;
     let mut messages = Vec::new();
     let mut system = Vec::new();
+    let mut position = crate::transform::instructions::Position::default();
     for message in &input.messages {
+        let leading = position.leading(matches!(
+            message,
+            chat::ChatMessage::System(_) | chat::ChatMessage::Developer(_)
+        ));
         match message {
-            chat::ChatMessage::System(message) => {
+            chat::ChatMessage::System(message) if leading => {
                 system.push(super::content::chat_text(&message.content))
             }
-            chat::ChatMessage::Developer(message) => {
+            chat::ChatMessage::Developer(message) if leading => {
                 system.push(super::content::chat_text(&message.content))
             }
-            chat::ChatMessage::User(_)
+            chat::ChatMessage::System(_)
+            | chat::ChatMessage::Developer(_)
+            | chat::ChatMessage::User(_)
             | chat::ChatMessage::Assistant(_)
             | chat::ChatMessage::Tool(_)
             | chat::ChatMessage::Function(_) => {
@@ -213,6 +223,7 @@ pub fn openai_to_claude(
             }
         }
     }
+    crate::transform::instructions::claude(&mut messages, &target_model, &mut report);
     let max_tokens = input
         .max_completion_tokens
         .flatten()
@@ -334,7 +345,7 @@ pub fn openai_to_claude(
         value: cg::GenerateContentRequestBody {
             max_tokens,
             messages,
-            model: target_model.into(),
+            model: target_model,
             cache_control: None,
             container: None,
             context_management: None,

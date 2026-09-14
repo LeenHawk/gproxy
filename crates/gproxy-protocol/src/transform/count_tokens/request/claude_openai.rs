@@ -18,7 +18,7 @@ pub fn claude_to_openai(
     let mut ids = flow.clone();
     let mut report = Report::default();
     let mut out = o::CountTokensRequestBody::builder().build();
-    out.model = Some(Some(model));
+    out.model = Some(Some(model.clone()));
     super::controls::claude_to_openai(&input, &mut out, &mut report)?;
     out.tools = input
         .tools
@@ -57,6 +57,14 @@ pub fn claude_to_openai(
         policy,
         &mut report,
     )?)));
+    let mut input = out.input.take().flatten();
+    crate::transform::instructions::responses(
+        &mut input,
+        &mut out.instructions,
+        &model,
+        &mut report,
+    );
+    out.input = Some(input);
     *flow = ids;
     Ok(Converted { value: out, report })
 }
@@ -109,6 +117,7 @@ pub fn openai_to_claude(
     let (messages, mut system) =
         pair::history::to_claude(input.input.flatten(), context, &mut report)?;
     out.messages = messages;
+    crate::transform::instructions::claude(&mut out.messages, &out.model, &mut report);
     if let Some(Some(text)) = input.instructions {
         system.insert(
             0,

@@ -26,7 +26,7 @@ pub fn gemini_to_responses_request(
     let mut report = Report::default();
     let mut out = r::GenerateContentRequestBody::builder().build();
     super::config::to_responses(&input, &mut out, &mut report)?;
-    out.model = Some(model);
+    out.model = Some(model.clone());
     let validated = input
         .tool_config
         .as_ref()
@@ -72,6 +72,12 @@ pub fn gemini_to_responses_request(
         &mut out.tools,
         &mut out.tool_choice,
     )?;
+    crate::transform::instructions::responses(
+        &mut out.input,
+        &mut out.instructions,
+        &model,
+        &mut report,
+    );
     *flow = ids;
     Ok(Converted { value: out, report })
 }

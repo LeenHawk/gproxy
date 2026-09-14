@@ -308,3 +308,6 @@ mod websocket;
 
 #[path = "adapt_generate_stream/fanout.rs"]
 mod fanout;
+
+#[path = "adapt_generate_stream/instructions.rs"]
+mod instructions;

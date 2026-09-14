@@ -28,7 +28,8 @@ pub(crate) fn to_gemini(
     }
     let mut contents = Vec::new();
     let mut system = Vec::new();
-    for item in input {
+    let mut position = crate::transform::instructions::Position::default();
+    for (index, item) in input.into_iter().enumerate() {
         let (role, parts) = match item {
             r::InputItem::Easy(message) => (message.role, parts(message.content)?),
             r::InputItem::Message(message) => (
@@ -140,15 +141,20 @@ pub(crate) fn to_gemini(
                 ));
             }
         };
+        let leading = position.leading(matches!(
+            role,
+            r::MessageRole::System | r::MessageRole::Developer
+        ));
         match role {
             r::MessageRole::System | r::MessageRole::Developer => {
-                if parts.iter().any(|v| v.text.is_none()) {
-                    return Err(TransformError::unsupported(
-                        "system",
-                        "Gemini system instructions require text",
-                    ));
-                }
-                system.extend(parts);
+                crate::transform::instructions::gemini(
+                    parts,
+                    leading,
+                    &mut system,
+                    &mut contents,
+                    format!("input[{index}].role"),
+                    report,
+                )?;
             }
             r::MessageRole::User => {
                 contents.push(g::Content::builder().role("user").parts(parts).build())

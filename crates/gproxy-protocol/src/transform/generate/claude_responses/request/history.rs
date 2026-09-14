@@ -20,6 +20,7 @@ pub(crate) fn to_claude(
     };
     let mut messages = Vec::new();
     let mut system = Vec::new();
+    let mut position = crate::transform::instructions::Position::default();
     for item in items {
         let (role, blocks) = match item {
             r::InputItem::Easy(message) => {
@@ -216,17 +217,31 @@ pub(crate) fn to_claude(
                 ));
             }
         };
+        let leading = position.leading(matches!(
+            role,
+            r::MessageRole::System | r::MessageRole::Developer
+        ));
         match role {
             r::MessageRole::System | r::MessageRole::Developer => {
-                for block in blocks {
-                    if let c::ContentBlock::Text(text) = block {
-                        system.push(text);
-                    } else {
-                        return Err(TransformError::unsupported(
-                            "system",
-                            "Claude system prompt is text only",
-                        ));
-                    }
+                if blocks
+                    .iter()
+                    .any(|block| !matches!(block, c::ContentBlock::Text(_)))
+                {
+                    return Err(TransformError::unsupported(
+                        "system",
+                        "Claude system prompt is text only",
+                    ));
+                }
+                if leading {
+                    system.extend(blocks.into_iter().filter_map(|block| match block {
+                        c::ContentBlock::Text(text) => Some(text),
+                        _ => None,
+                    }));
+                } else {
+                    messages.push(
+                        c::Message::builder(c::Role::System, c::MessageContent::Blocks(blocks))
+                            .build(),
+                    );
                 }
             }
             r::MessageRole::User => messages.push(
