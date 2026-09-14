@@ -62,6 +62,17 @@ pub(super) fn gemini_request(
 #[derive(Debug, Default, Clone)]
 pub(super) struct SignedToolBindings(BTreeMap<String, Option<String>>);
 impl SignedToolBindings {
+    pub(super) fn from_stream(
+        proof: &crate::transform::generate::gemini_responses::stream::SignedToolBindings,
+    ) -> Self {
+        Self(
+            proof
+                .iter()
+                .map(|(client, native)| (client.to_owned(), Some(native.to_owned())))
+                .collect(),
+        )
+    }
+
     pub(super) fn original_call_id(&self, client_id: &str) -> Option<&Option<String>> {
         self.0.get(client_id)
     }

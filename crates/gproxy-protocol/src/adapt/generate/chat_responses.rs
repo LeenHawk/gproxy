@@ -238,7 +238,22 @@ impl ResponsesViaChat {
         input: r::GenerateContentRequestBody,
         selected_model: impl Into<String>,
         endpoint: Endpoint,
+        identities: GenerationIdentity,
+    ) -> Result<Self, TransformError> {
+        Self::prepare_with_replay(
+            input,
+            selected_model,
+            endpoint,
+            identities,
+            &Default::default(),
+        )
+    }
+    fn prepare_with_replay(
+        input: r::GenerateContentRequestBody,
+        selected_model: impl Into<String>,
+        endpoint: Endpoint,
         mut identities: GenerationIdentity,
+        replay: &super::GenerationToolReplay,
     ) -> Result<Self, TransformError> {
         identities.validate(Dialect::OpenAi, Dialect::OpenAiChat)?;
         endpoint.validate()?;
@@ -255,6 +270,7 @@ impl ResponsesViaChat {
         }
         let mut converted =
             p::responses_to_chat_request(original_request.clone(), &selected_model)?;
+        super::legacy_chat::restore(&mut converted.value, replay, &mut converted.report)?;
         super::claude_chat_ids::chat_request(
             &mut converted.value,
             &mut identities,
@@ -281,8 +297,8 @@ impl ResponsesViaChat {
         state.validate_target(Dialect::OpenAiChat, &selected_model)?;
         let original = input.into_declared();
         let (restored, names) = super::history::responses(original.clone(), state).await?;
-        let _ = names;
-        let mut prepared = Self::prepare(restored, selected_model, endpoint, identities)?;
+        let mut prepared =
+            Self::prepare_with_replay(restored, selected_model, endpoint, identities, &names)?;
         prepared.original_request = original;
         Ok(prepared)
     }
@@ -421,3 +437,5 @@ impl ResponsesViaChat {
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }
+
+mod synthesis;

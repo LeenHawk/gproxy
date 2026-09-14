@@ -1,0 +1,141 @@
+//! Concrete native event collection. The associated payloads remain vendor wire types.
+mod chat;
+mod claude;
+mod gemini;
+mod responses;
+use super::super::{
+    ToolCallKind,
+    identity_facts::{IdentityFacts, ToolIdentity},
+};
+use crate::{
+    Dialect,
+    transform::{
+        Converted, TransformError,
+        identity::{IdentityFlow, TargetIdPolicy},
+    },
+    wire::DeclaredFields,
+};
+use serde::{Serialize, de::DeserializeOwned};
+
+#[derive(Debug, Clone, Copy)]
+pub struct EventLimits {
+    pub max_events: usize,
+    pub max_bytes: usize,
+    pub max_pending_bytes: usize,
+    pub max_items: usize,
+    pub max_tools: usize,
+    pub max_parts: usize,
+    pub max_choices: usize,
+}
+impl EventLimits {
+    pub fn validate(self) -> Result<(), TransformError> {
+        if [
+            self.max_events,
+            self.max_bytes,
+            self.max_pending_bytes,
+            self.max_items,
+            self.max_tools,
+            self.max_parts,
+            self.max_choices,
+        ]
+        .contains(&0)
+        {
+            return Err(invalid("positive stream event limits required"));
+        }
+        Ok(())
+    }
+}
+#[derive(Debug, Clone)]
+pub struct Collected<T> {
+    pub value: T,
+    /// Actual source observations override IDs synthesized only to construct a
+    /// complete native Chat DTO. These are never invented upstream identities.
+    pub(crate) original_tool_ids: Option<Vec<Option<String>>>,
+}
+impl<T> Collected<T> {
+    fn native(value: T) -> Self {
+        Self {
+            value,
+            original_tool_ids: None,
+        }
+    }
+}
+impl<T: IdentityFacts> IdentityFacts for Collected<T> {
+    fn dialect(&self) -> Dialect {
+        self.value.dialect()
+    }
+    fn response_id(&self) -> Option<&str> {
+        self.value.response_id()
+    }
+    fn native_model(&self) -> Option<&str> {
+        self.value.native_model()
+    }
+    fn tools(&self) -> Vec<ToolIdentity> {
+        let mut tools = self.value.tools();
+        if let Some(ids) = &self.original_tool_ids {
+            // The DTO's native legacy/modern form remains intact. Only IDs
+            // synthesized for DTO completeness are replaced by actual observations.
+            for (tool, id) in tools.iter_mut().zip(ids) {
+                tool.call_id.clone_from(id);
+            }
+        }
+        tools
+    }
+    fn items(&self) -> Vec<(crate::transform::identity::IdentityRole, String)> {
+        self.value.items()
+    }
+    fn signed_claude(&self, index: u64) -> Option<crate::wire::claude::content::ThinkingBlock> {
+        self.value.signed_claude(index)
+    }
+    fn signed_gemini_reasoning(&self, index: u64) -> Option<crate::wire::gemini::Part> {
+        self.value.signed_gemini_reasoning(index)
+    }
+    fn signed_gemini_tool(&self, index: usize) -> Option<crate::wire::gemini::Part> {
+        self.value.signed_gemini_tool(index)
+    }
+}
+pub(crate) mod sealed {
+    pub trait Event {}
+}
+/// Sealed over the four actual generation event types.
+pub trait NativeEvent:
+    sealed::Event + Serialize + DeserializeOwned + DeclaredFields + Clone
+{
+    type Full: Serialize + Clone + DeclaredFields;
+    type Collector;
+    const DIALECT: Dialect;
+    const DONE: bool = false;
+    fn collector(
+        flow: IdentityFlow,
+        policy: TargetIdPolicy,
+        limits: EventLimits,
+    ) -> Self::Collector;
+    fn collect(collector: &mut Self::Collector, event: Self) -> Result<(), TransformError>;
+    fn collect_done(_collector: &mut Self::Collector) -> Result<(), TransformError> {
+        Err(invalid("unexpected DONE for native dialect"))
+    }
+    fn collected(
+        collector: Self::Collector,
+    ) -> Result<Converted<Collected<Self::Full>>, TransformError>;
+    fn event_name(&self) -> Option<&'static str>;
+    fn is_terminal(&self) -> bool;
+    fn is_usage_only(&self) -> bool {
+        false
+    }
+    /// Complete emitted ID, actual call kind, and complete name if already known.
+    fn tool_declarations(
+        &self,
+        complete_tool_names: bool,
+    ) -> Vec<(String, ToolCallKind, Option<String>)>;
+    fn validate_name(&self, name: Option<&str>) -> Result<(), TransformError> {
+        if let Some(name) = name.filter(|v| !v.is_empty())
+            && name != self.event_name().unwrap_or("message")
+        {
+            return Err(invalid("SSE event name disagrees with native payload"));
+        }
+        Ok(())
+    }
+}
+fn invalid(message: impl Into<String>) -> TransformError {
+    TransformError::invalid_result("generation.stream.event", message)
+}

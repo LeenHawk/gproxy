@@ -192,13 +192,29 @@ fn missing_ids_generate_unique_calls_and_legacy_fragments_remain_one_call() {
         .unwrap()
         .value;
     stream.push_done().unwrap();
-    out.extend(stream.finish().unwrap().chunks);
+    let end = stream.finish().unwrap();
+    out.extend(end.chunks);
     let v = serde_json::to_value(g_collected(out)).unwrap();
     assert_eq!(
         v["candidates"][0]["content"]["parts"][0]["functionCall"]["name"],
         "legacy"
     );
+    let id = v["candidates"][0]["content"]["parts"][0]["functionCall"]["id"]
+        .as_str()
+        .unwrap();
+    let handle = end
+        .identities
+        .lookup_emitted_as(
+            gproxy_protocol::transform::identity::IdentityRole::ToolCall,
+            id,
+        )
+        .unwrap();
+    assert!(
+        handle.source_id().is_none(),
+        "client alias must not become a fabricated native legacy ID"
+    );
 }
+
 #[test]
 fn gemini_repeated_fragments_and_tools_emit_preterminal_and_match_buffered() {
     let source = vec![

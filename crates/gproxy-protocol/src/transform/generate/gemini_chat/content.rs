@@ -11,8 +11,58 @@ pub(super) struct Calls {
     pub index: u64,
     pub names: BTreeMap<String, Vec<String>>,
     pub ids: BTreeMap<String, String>,
+    pub legacy: BTreeMap<String, String>,
+    pub prior: BTreeMap<String, (String, String)>,
+    pub(super) legacy_declared: std::collections::BTreeSet<String>,
+    pub(super) legacy_names: BTreeMap<String, Vec<String>>,
 }
 impl Calls {
+    fn legacy_call(&mut self, name: &str, id: Option<&str>) -> Result<bool, TransformError> {
+        let Some(id) = id else {
+            return Ok(false);
+        };
+        let Some(actual) = self.legacy.get(id) else {
+            return Ok(false);
+        };
+        if actual != name || name.is_empty() || !self.legacy_declared.insert(id.into()) {
+            return Err(TransformError::shape(
+                "function_call.legacy",
+                "name mismatch or duplicate actual legacy declaration",
+            ));
+        }
+        self.legacy_names
+            .entry(name.into())
+            .or_default()
+            .push(id.into());
+        Ok(true)
+    }
+    fn legacy_result(&mut self, name: &str, id: Option<&str>) -> Result<bool, TransformError> {
+        if let Some(id) = id {
+            let Some(actual) = self.legacy.get(id) else {
+                return Ok(false);
+            };
+            if actual != name || name.is_empty() {
+                return Err(TransformError::shape(
+                    "function_response.legacy",
+                    "result differs from actual native legacy name",
+                ));
+            }
+            if let Some(pending) = self.legacy_names.get_mut(name) {
+                pending.retain(|known| known != id);
+            }
+            return Ok(true);
+        }
+        let Some(pending) = self.legacy_names.get_mut(name).filter(|v| !v.is_empty()) else {
+            return Ok(false);
+        };
+        if pending.len() != 1 || self.names.get(name).is_some_and(|v| !v.is_empty()) {
+            return Err(TransformError::missing_metadata(
+                "ambiguous legacy/modern function result without client ID",
+            ));
+        }
+        pending.pop();
+        Ok(true)
+    }
     pub(super) fn call(
         &mut self,
         name: &str,
@@ -21,6 +71,18 @@ impl Calls {
         policy: &TargetIdPolicy,
     ) -> Result<String, TransformError> {
         let source = id.clone();
+        let id =
+            if let Some((original, actual_name)) = id.as_ref().and_then(|id| self.prior.get(id)) {
+                if actual_name != name {
+                    return Err(TransformError::shape(
+                        "function_call.name",
+                        "name differs from actual scoped native call",
+                    ));
+                }
+                Some(original.clone())
+            } else {
+                id
+            };
         let handle = flow
             .resolve_or_allocate(
                 IdentityRole::ToolCall,
@@ -43,11 +105,33 @@ impl Calls {
             .push(handle.emitted_id.clone());
         Ok(handle.emitted_id)
     }
-    fn result(&mut self, name: &str, id: Option<String>) -> Result<String, TransformError> {
+    fn result(
+        &mut self,
+        name: &str,
+        id: Option<String>,
+        policy: &TargetIdPolicy,
+    ) -> Result<String, TransformError> {
         if let Some(id) = id {
-            let resolved = self.ids.get(&id).cloned().ok_or_else(|| {
-                TransformError::missing_metadata("function_response.id call binding")
-            })?;
+            let resolved = if let Some(mapped) = self.ids.get(&id) {
+                mapped.clone()
+            } else if let Some((original, actual)) = self.prior.get(&id) {
+                if actual != name {
+                    return Err(TransformError::shape(
+                        "function_response.name",
+                        "name differs from actual scoped native call",
+                    ));
+                }
+                if !policy.accepts_source(original) {
+                    return Err(TransformError::missing_metadata(
+                        "actual native ID violates policy; declared call history is required before remapping",
+                    ));
+                }
+                original.clone()
+            } else {
+                return Err(TransformError::missing_metadata(
+                    "function_response.id call binding",
+                ));
+            };
             if let Some(names) = self.names.get_mut(name) {
                 names.retain(|value| value != &resolved);
             }
@@ -96,7 +180,7 @@ pub(super) fn gemini_content_to_chat(
     }
     let mut user = Vec::new();
     let mut assistant = Vec::new();
-    let mut calls = Vec::new();
+    let mut call_messages: Vec<c::AssistantMessage> = Vec::new();
     let mut result = Vec::new();
     for mut part in content.parts.unwrap_or_default() {
         unsupported_part(&part)?;
@@ -158,19 +242,35 @@ pub(super) fn gemini_content_to_chat(
                     "function calls require model role",
                 ));
             }
-            let id = bindings.call(&call.name, call.id, flow, policy)?;
-            calls.push(c::MessageToolCall::Function(
-                c::ChatToolCall::builder(
-                    id,
-                    c::FunctionCall::builder(
-                        serde_json::to_string(&call.args.unwrap_or_default())?,
-                        call.name,
-                    )
-                    .build(),
-                    c::ChatToolCallType::Function,
-                )
-                .build(),
-            ));
+            let legacy = bindings.legacy_call(&call.name, call.id.as_deref())?;
+            let function = c::FunctionCall::builder(
+                serde_json::to_string(&call.args.unwrap_or_default())?,
+                call.name.clone(),
+            )
+            .build();
+            if legacy {
+                let mut message = c::AssistantMessage::builder(c::AssistantRole::Assistant).build();
+                message.function_call = Some(Some(function));
+                call_messages.push(message);
+            } else {
+                let id = bindings.call(&call.name, call.id, flow, policy)?;
+                if call_messages
+                    .last()
+                    .is_none_or(|v| v.function_call.is_some())
+                {
+                    call_messages
+                        .push(c::AssistantMessage::builder(c::AssistantRole::Assistant).build());
+                }
+                call_messages
+                    .last_mut()
+                    .expect("allocated")
+                    .tool_calls
+                    .get_or_insert_with(Vec::new)
+                    .push(c::MessageToolCall::Function(
+                        c::ChatToolCall::builder(id, function, c::ChatToolCallType::Function)
+                            .build(),
+                    ));
+            }
         }
         if let Some(response) = part.function_response {
             if role != "user"
@@ -184,26 +284,37 @@ pub(super) fn gemini_content_to_chat(
                 ));
             }
             flush_user(&mut user, &mut result);
-            let id = bindings.result(&response.name, response.id)?;
-            result.push(c::ChatMessage::Tool(
-                c::ToolMessage::builder(
-                    c::ToolRole::Tool,
-                    c::TextContent::Text(serde_json::to_string(&response.response)?),
-                    id,
-                )
-                .build(),
-            ));
+            let content = serde_json::to_string(&response.response)?;
+            if bindings.legacy_result(&response.name, response.id.as_deref())? {
+                result.push(c::ChatMessage::Function(
+                    c::FunctionMessage::builder(
+                        c::FunctionRole::Function,
+                        Some(content),
+                        response.name,
+                    )
+                    .build(),
+                ));
+                report.changed(
+                    "function_response",
+                    "restored explicitly bound native legacy Chat function result",
+                );
+            } else {
+                let id = bindings.result(&response.name, response.id, policy)?;
+                result.push(c::ChatMessage::Tool(
+                    c::ToolMessage::builder(c::ToolRole::Tool, c::TextContent::Text(content), id)
+                        .build(),
+                ));
+            }
         }
     }
     if role == "model" {
-        let mut message = c::AssistantMessage::builder(c::AssistantRole::Assistant).build();
+        if call_messages.is_empty() {
+            call_messages.push(c::AssistantMessage::builder(c::AssistantRole::Assistant).build());
+        }
         if !assistant.is_empty() {
-            message.content = Some(Some(c::AssistantContent::Parts(assistant)));
+            call_messages[0].content = Some(Some(c::AssistantContent::Parts(assistant)));
         }
-        if !calls.is_empty() {
-            message.tool_calls = Some(calls);
-        }
-        result.push(c::ChatMessage::Assistant(message));
+        result.extend(call_messages.into_iter().map(c::ChatMessage::Assistant));
     } else if role == "system" {
         let parts = user
             .into_iter()

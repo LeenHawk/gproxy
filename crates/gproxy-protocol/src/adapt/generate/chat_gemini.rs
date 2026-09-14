@@ -244,7 +244,22 @@ impl GeminiViaChat {
         input: g::GenerateContentRequestBody,
         selected_model: impl Into<String>,
         endpoint: Endpoint,
+        identities: GenerationIdentity,
+    ) -> Result<Self, TransformError> {
+        Self::prepare_with_replay(
+            input,
+            selected_model,
+            endpoint,
+            identities,
+            &Default::default(),
+        )
+    }
+    fn prepare_with_replay(
+        input: g::GenerateContentRequestBody,
+        selected_model: impl Into<String>,
+        endpoint: Endpoint,
         mut identities: GenerationIdentity,
+        replay: &super::GenerationToolReplay,
     ) -> Result<Self, TransformError> {
         identities.validate(Dialect::Gemini, Dialect::OpenAiChat)?;
         endpoint.validate()?;
@@ -254,9 +269,11 @@ impl GeminiViaChat {
         }
         let original_request = input.into_declared();
 
-        let converted = p::gemini_to_openai_request(
+        let converted = p::gemini_to_openai_request_with_calls(
             original_request.clone(),
             &selected_model,
+            &replay.legacy_chat_calls(),
+            &replay.original_chat_calls(),
             &mut identities.request,
             &identities.request_policy,
         )?;
@@ -281,8 +298,8 @@ impl GeminiViaChat {
         state.validate_target(Dialect::OpenAiChat, &selected_model)?;
         let original = input.into_declared();
         let (restored, names) = super::history::gemini(original.clone(), state).await?;
-        let _ = names;
-        let mut prepared = Self::prepare(restored, selected_model, endpoint, identities)?;
+        let mut prepared =
+            Self::prepare_with_replay(restored, selected_model, endpoint, identities, &names)?;
         prepared.original_request = original;
         Ok(prepared)
     }
@@ -412,3 +429,5 @@ impl GeminiViaChat {
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }
+
+mod synthesis;

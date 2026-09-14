@@ -370,3 +370,9 @@ mod resources;
 
 #[path = "adapt_generate/review.rs"]
 mod review;
+
+#[path = "adapt_generate/chat_form.rs"]
+mod chat_form;
+
+#[path = "adapt_generate/chat_form_roles.rs"]
+mod chat_form_roles;

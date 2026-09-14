@@ -11,6 +11,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub(super) struct ToolIdentity {
     pub kind: super::ToolCallKind,
+    pub chat_form: Option<super::ChatCallForm>,
     pub call_id: Option<String>,
     pub item_id: Option<String>,
     pub name: String,
@@ -57,6 +58,7 @@ impl IdentityFacts for c::GenerateContentResponseBody {
             .filter_map(|b| match b {
                 c::ResponseContentBlock::ToolUse(b) => Some(ToolIdentity {
                     kind: super::ToolCallKind::Function,
+                    chat_form: None,
                     call_id: Some(b.id.clone()),
                     item_id: None,
                     name: b.name.clone(),
@@ -86,6 +88,7 @@ impl IdentityFacts for h::GenerateContentResponseBody {
                     .iter()
                     .map(|call| ToolIdentity {
                         kind: super::ToolCallKind::Function,
+                        chat_form: Some(super::ChatCallForm::LegacyFunction),
                         call_id: None,
                         item_id: None,
                         name: call.name.clone(),
@@ -98,12 +101,14 @@ impl IdentityFacts for h::GenerateContentResponseBody {
                     .map(|call| match call {
                         h::MessageToolCall::Function(call) => ToolIdentity {
                             kind: super::ToolCallKind::Function,
+                            chat_form: Some(super::ChatCallForm::Modern),
                             call_id: Some(call.id.clone()),
                             item_id: None,
                             name: call.function.name.clone(),
                         },
                         h::MessageToolCall::Custom(call) => ToolIdentity {
                             kind: super::ToolCallKind::Custom,
+                            chat_form: Some(super::ChatCallForm::Modern),
                             call_id: Some(call.id.clone()),
                             item_id: None,
                             name: call.custom.name.clone(),
@@ -154,6 +159,7 @@ impl IdentityFacts for g::GenerateContentResponseBody {
             .filter_map(|p| p.function_call.as_ref())
             .map(|b| ToolIdentity {
                 kind: super::ToolCallKind::Function,
+                chat_form: None,
                 call_id: b.id.clone(),
                 item_id: None,
                 name: b.name.clone(),
@@ -177,12 +183,14 @@ impl IdentityFacts for r::GenerateContentResponseBody {
             .filter_map(|b| match b {
                 r::ResponseOutputItem::FunctionCall(b) => Some(ToolIdentity {
                     kind: super::ToolCallKind::Function,
+                    chat_form: None,
                     call_id: Some(b.call_id.clone()),
                     item_id: b.id.clone(),
                     name: b.name.clone(),
                 }),
                 r::ResponseOutputItem::CustomToolCall(b) => Some(ToolIdentity {
                     kind: super::ToolCallKind::Custom,
+                    chat_form: None,
                     call_id: Some(b.call_id.clone()),
                     item_id: b.id.clone(),
                     name: b.name.clone(),
