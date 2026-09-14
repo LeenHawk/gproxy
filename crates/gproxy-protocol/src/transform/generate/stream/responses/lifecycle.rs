@@ -111,7 +111,7 @@ impl ResponsesStreamCollector {
                 return Err(invalid("output_text contradicts output"));
             }
         }
-        if let Some(u) = &v.usage
+        if let Some(u) = v.usage.as_ref().and_then(Option::as_ref)
             && ([
                 u.input_tokens,
                 u.output_tokens,

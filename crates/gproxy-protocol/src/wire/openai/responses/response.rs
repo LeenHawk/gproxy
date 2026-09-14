@@ -1,4 +1,6 @@
-//! OpenAI Responses non-streaming response, Create a model response.md:5768-14778.
+//! OpenAI Responses response, Create a model response.md:5768-14778.
+//! Nullable usage/user also follow the native created/in_progress examples at
+//! Create a model response.md:15512-15515 and Responses.md:33257-33260.
 use super::generate;
 use super::input::{self, present_nullable, present_optional, required_nullable};
 use super::tools;
@@ -158,16 +160,16 @@ pub struct GenerateContentResponseBody {
     pub truncation: Option<Option<generate::GenerateTruncation>>,
     #[serde(
         default,
-        deserialize_with = "present_optional",
+        deserialize_with = "present_nullable",
         skip_serializing_if = "Option::is_none"
     )]
-    pub usage: Option<ResponseUsage>,
+    pub usage: Option<Option<ResponseUsage>>,
     #[serde(
         default,
-        deserialize_with = "present_optional",
+        deserialize_with = "present_nullable",
         skip_serializing_if = "Option::is_none"
     )]
-    pub user: Option<String>,
+    pub user: Option<Option<String>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }

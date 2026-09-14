@@ -402,6 +402,7 @@ pub fn image_response_from_responses(
     let usage = body
         .usage
         .as_ref()
+        .and_then(Option::as_ref)
         .map(|u| {
             if [
                 u.input_tokens,

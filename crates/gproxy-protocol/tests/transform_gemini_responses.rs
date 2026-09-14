@@ -67,7 +67,16 @@ fn response_status_thoughts_functions_and_usage_are_preserved_without_fake_signa
         .value;
     assert_eq!(output.model, "actual");
     assert_eq!(output.status, Some(r::ResponseStatus::Incomplete));
-    assert_eq!(output.usage.as_ref().unwrap().output_tokens, 3);
+    assert_eq!(
+        output
+            .usage
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .output_tokens,
+        3
+    );
     let wire = serde_json::to_value(&output).unwrap();
     assert!(wire["output"][0].get("encrypted_content").is_none());
     assert_eq!(wire["output"][2]["type"], "function_call");

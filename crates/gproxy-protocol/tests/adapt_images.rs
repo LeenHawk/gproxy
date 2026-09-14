@@ -784,7 +784,7 @@ fn jpeg_and_requested_format_are_validated_from_actual_container() {
     let ImageError::InvalidResponses { response, .. } = error else {
         panic!("invalid native response retained")
     };
-    assert_eq!(response.body.usage.unwrap().total_tokens, 18);
+    assert_eq!(response.body.usage.unwrap().unwrap().total_tokens, 18);
 }
 #[test]
 fn explicit_and_host_default_delivery_are_respected() {
