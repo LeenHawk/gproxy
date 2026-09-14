@@ -40,7 +40,7 @@ fn actual(source: Option<i64>, supplied: Option<i64>, field: &str) -> Result<i64
         field,
     )
 }
-pub(super) fn to_responses(
+pub(crate) fn to_responses(
     input: c::Usage,
     facts: ResponsesUsageFacts,
     report: &mut Report,
@@ -119,7 +119,7 @@ pub(super) fn to_responses(
         rest: Default::default(),
     })
 }
-pub(super) fn to_claude(input: r::ResponseUsage) -> Result<c::Usage, TransformError> {
+pub(crate) fn to_claude(input: r::ResponseUsage) -> Result<c::Usage, TransformError> {
     let total_input = count(input.input_tokens, "usage.input_tokens")?;
     let output = count(input.output_tokens, "usage.output_tokens")?;
     let cached = count(
