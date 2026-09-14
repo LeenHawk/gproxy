@@ -37,6 +37,15 @@ pub fn gemini_to_openai(
         .transpose()?
         .flatten()
         .map(Some);
+    let mut image_tools = out.tools.take().flatten();
+    let mut image_choice = out.tool_choice.take().flatten();
+    pair::request_images::to_responses(
+        input.generation_config.as_ref(),
+        &mut image_tools,
+        &mut image_choice,
+    )?;
+    out.tools = image_tools.map(Some);
+    out.tool_choice = image_choice.map(Some);
     if let Some(system) = input.system_instruction {
         let mut text = String::new();
         for part in system.parts.unwrap_or_default() {
@@ -74,15 +83,23 @@ pub fn openai_to_gemini(
     let input = input.into_declared();
     super::openai_state(&input)?;
     let mut report = Report::default();
-    let config = super::controls::openai_to_gemini(&input, &mut report)?;
-    let (tools, strict) = match input.tools.flatten() {
+    let mut config = super::controls::openai_to_gemini(&input, &mut report)?;
+    let mut image_tools = input.tools.flatten();
+    let mut image_choice = input.tool_choice.flatten();
+    pair::request_images::to_gemini(
+        &mut image_tools,
+        &mut image_choice,
+        &mut config,
+        &mut report,
+    )?;
+    let (tools, strict) = match image_tools {
         Some(tools) => {
             let (tools, strict) = pair::tools::to_gemini(tools)?;
             (Some(tools), strict)
         }
         None => (None, false),
     };
-    let choice = pair::tools::choice_to_gemini(input.tool_choice.flatten(), strict)?;
+    let choice = pair::tools::choice_to_gemini(image_choice, strict)?;
     let (contents, mut system) =
         pair::history::to_gemini(input.input.flatten(), &model, &mut context, &mut report)?;
     if let Some(Some(text)) = input.instructions {

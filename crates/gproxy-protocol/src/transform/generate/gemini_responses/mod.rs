@@ -9,11 +9,15 @@ mod request;
 mod response;
 pub(crate) mod tools;
 mod usage;
-pub use identity::{GeminiReplayContext, RestoredGeminiPart};
+pub use identity::{GeminiReplayContext, RestoredGeminiImage, RestoredGeminiPart};
 pub use request::{gemini_to_responses_request, responses_to_gemini_request};
 pub use response::{
     GeminiResponseContext, GeminiUsageFacts, gemini_to_responses_response,
-    responses_to_gemini_response,
+    responses_to_gemini_response, responses_to_gemini_response_with_modalities,
 };
 
 pub mod stream;
+
+mod images;
+
+pub(crate) mod request_images;

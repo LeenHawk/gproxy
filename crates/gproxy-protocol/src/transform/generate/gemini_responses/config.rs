@@ -43,18 +43,23 @@ pub(super) fn to_responses(
             "frequency_penalty",
         ),
         (config.speech_config.is_some(), "speech_config"),
-        (config.image_config.is_some(), "image_config"),
         (config.media_resolution.is_some(), "media_resolution"),
-        (config.response_format.is_some(), "response_format"),
+        (
+            config
+                .response_format
+                .as_ref()
+                .is_some_and(|v| v.text.is_some() || v.audio.is_some()),
+            "response_format",
+        ),
         (
             config.enable_enhanced_civic_answers.is_some(),
             "civic_answers",
         ),
         (
-            config
-                .response_modalities
-                .as_ref()
-                .is_some_and(|v| v.iter().any(|v| !matches!(v, g::Modality::Text))),
+            config.response_modalities.as_ref().is_some_and(|v| {
+                v.iter()
+                    .any(|v| !matches!(v, g::Modality::Text | g::Modality::Image))
+            }),
             "response_modalities",
         ),
     ] {

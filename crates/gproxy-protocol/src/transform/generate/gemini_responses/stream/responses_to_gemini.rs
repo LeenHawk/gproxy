@@ -37,7 +37,10 @@ pub struct ResponsesToGeminiStream {
     response_id: Option<String>,
     observed_usage: Option<r::ResponseUsage>,
     failed: bool,
-    terminal: bool,
+    pub(super) terminal: bool,
+    image_progress: bool,
+    pub(super) image_only: bool,
+    pub(super) jpeg_only: bool,
     pub(super) items: BTreeMap<i64, Item>,
     pub(super) cursor: i64,
     pub(super) held: usize,
@@ -98,6 +101,12 @@ impl ResponsesToGeminiStream {
             observed_usage: None,
             failed: false,
             terminal: false,
+            image_progress: false,
+            jpeg_only: context.image_mime == Some(g::ImageMimeType::ImageJpeg),
+            image_only: context
+                .response_modalities
+                .as_ref()
+                .is_some_and(|v| !v.is_empty() && v.iter().all(|v| *v == g::Modality::Image)),
             items: Default::default(),
             cursor: 0,
             held: 0,
@@ -209,9 +218,16 @@ impl ResponsesToGeminiStream {
             | s::StreamEvent::OutputTextAnnotationAdded(_)
             | s::StreamEvent::ReasoningSummaryTextDone(_)
             | s::StreamEvent::ReasoningSummaryPartDone(_) => {}
+            s::StreamEvent::ImageCall(_)
+            | s::StreamEvent::ImageGenerating(_)
+            | s::StreamEvent::ImageCompleted(_)
+            | s::StreamEvent::ImagePartial(_) => {
+                self.image_progress = true;
+            }
             s::StreamEvent::Failed(_) | s::StreamEvent::Error(_) => {
                 return Err(invalid("native source failure"));
             }
+            _ if self.image_only => {}
             _ => {
                 return Err(TransformError::unsupported(
                     "response.event",
@@ -301,10 +317,15 @@ impl ResponsesToGeminiStream {
             .ok_or_else(|| invalid("source consumed"))?
             .finish()?
             .value;
-        let mut converted = super::super::responses_to_gemini_response(
+        let only_image = [g::Modality::Image];
+        let mut converted = super::super::responses_to_gemini_response_with_modalities(
             source.clone(),
             std::mem::take(&mut self.parity_restoration),
+            self.image_only.then_some(only_image.as_slice()),
         )?;
+        if self.image_progress {
+            converted.report.omitted("image.progress", "Gemini inline images expose the final image; preview/progress events are not additional generated images");
+        }
         let mut check_flow = self.flow.clone();
         converted.value.response_id = Some(identity::response_id(
             &mut check_flow,
@@ -317,6 +338,9 @@ impl ResponsesToGeminiStream {
             .iter()
             .enumerate()
             .filter_map(|(index, item)| {
+                if self.image_only {
+                    return None;
+                }
                 if let r::ResponseOutputItem::FunctionCall(call) = item {
                     Some((index as i64, call))
                 } else {

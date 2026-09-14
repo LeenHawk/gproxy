@@ -54,3 +54,5 @@ pub mod websocket;
 mod history;
 
 pub use history::ResponsesHistoryCache;
+
+mod resource_map;

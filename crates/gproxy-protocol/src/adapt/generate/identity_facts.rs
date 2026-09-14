@@ -26,6 +26,9 @@ pub(super) trait IdentityFacts {
     fn signed_gemini_reasoning(&self, _index: u64) -> Option<g::Part> {
         None
     }
+    fn signed_gemini_image(&self, _index: u64) -> Option<g::Part> {
+        None
+    }
     fn signed_gemini_tool(&self, _index: usize) -> Option<g::Part> {
         None
     }
@@ -133,6 +136,21 @@ impl IdentityFacts for g::GenerateContentResponseBody {
             .get(usize::try_from(index).ok()?)?;
         (part.thought == Some(true) && part.thought_signature.is_some()).then(|| part.clone())
     }
+    fn signed_gemini_image(&self, index: u64) -> Option<g::Part> {
+        self.candidates
+            .as_ref()?
+            .first()?
+            .content
+            .as_ref()?
+            .parts
+            .as_ref()?
+            .get(usize::try_from(index).ok()?)
+            .filter(|part| {
+                (part.inline_data.is_some() || part.file_data.is_some())
+                    && part.thought_signature.is_some()
+            })
+            .cloned()
+    }
     fn signed_gemini_tool(&self, index: usize) -> Option<g::Part> {
         self.candidates
             .iter()
@@ -212,6 +230,9 @@ impl IdentityFacts for r::GenerateContentResponseBody {
                 }
                 r::ResponseOutputItem::CustomToolCall(b) => {
                     b.id.clone().map(|id| (OutputItemKind::CustomToolCall, id))
+                }
+                r::ResponseOutputItem::ImageGenerationCall(b) => {
+                    Some((OutputItemKind::ImageGenerationCall, b.id.clone()))
                 }
                 _ => None,
             })

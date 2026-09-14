@@ -263,7 +263,8 @@ impl ResponseEvents {
                     })?;
                 }
             }
-            r::ResponseOutputItem::FunctionCall(_) => {}
+            r::ResponseOutputItem::FunctionCall(_)
+            | r::ResponseOutputItem::ImageGenerationCall(_) => {}
             _ => return Err(invalid("unsupported projected output item")),
         }
         self.emit(budget, out, |sequence_number| {

@@ -13,6 +13,11 @@ pub(super) struct Part {
     pub done: bool,
 }
 pub(super) enum Kind {
+    Excluded,
+    Image {
+        value: Box<i::ImageGenerationCall>,
+        emitted: bool,
+    },
     Message {
         parts: BTreeMap<i64, Part>,
         next: i64,
@@ -52,6 +57,24 @@ impl ResponsesToGeminiStream {
     ) -> Result<(), TransformError> {
         if self.items.len() >= self.limits.max_items {
             return Err(limit());
+        }
+        if self.image_only && !matches!(value, r::ResponseOutputItem::ImageGenerationCall(_)) {
+            if self
+                .items
+                .insert(
+                    index,
+                    Item {
+                        id: None,
+                        kind: Kind::Excluded,
+                        done: false,
+                        held: 0,
+                    },
+                )
+                .is_some()
+            {
+                return Err(invalid("duplicate source item"));
+            }
+            return Ok(());
         }
         let (id, kind, held) = match value {
             r::ResponseOutputItem::Message(v) => {
@@ -107,6 +130,18 @@ impl ResponsesToGeminiStream {
                         projected: false,
                     },
                     bytes,
+                )
+            }
+            r::ResponseOutputItem::ImageGenerationCall(v) => {
+                self.count_part()?;
+                let held = measure(&v, self.limits.max_pending)?;
+                (
+                    Some(v.id.clone()),
+                    Kind::Image {
+                        value: Box::new(v),
+                        emitted: false,
+                    },
+                    held,
                 )
             }
             r::ResponseOutputItem::FunctionCall(v) => {
@@ -184,6 +219,13 @@ impl ResponsesToGeminiStream {
         n: i64,
         value: s::OutputContentPart,
     ) -> Result<(), TransformError> {
+        if self
+            .items
+            .get(&index)
+            .is_some_and(|item| matches!(item.kind, Kind::Excluded))
+        {
+            return Ok(());
+        }
         self.count_part()?;
         let (text, reasoning) = match value {
             s::OutputContentPart::Text(v) => (v.text, false),
@@ -228,6 +270,13 @@ impl ResponsesToGeminiStream {
         text: String,
         reasoning: bool,
     ) -> Result<(), TransformError> {
+        if self
+            .items
+            .get(&index)
+            .is_some_and(|item| matches!(item.kind, Kind::Excluded))
+        {
+            return Ok(());
+        }
         self.reserve(text.len())?;
         let item = self
             .items
@@ -246,6 +295,13 @@ impl ResponsesToGeminiStream {
         Ok(())
     }
     pub(super) fn part_done(&mut self, index: i64, n: i64) -> Result<(), TransformError> {
+        if self
+            .items
+            .get(&index)
+            .is_some_and(|item| matches!(item.kind, Kind::Excluded))
+        {
+            return Ok(());
+        }
         let item = self
             .items
             .get_mut(&index)
@@ -265,6 +321,13 @@ impl ResponsesToGeminiStream {
         index: i64,
         bytes: usize,
     ) -> Result<(), TransformError> {
+        if self
+            .items
+            .get(&index)
+            .is_some_and(|item| matches!(item.kind, Kind::Excluded))
+        {
+            return Ok(());
+        }
         self.reserve(bytes)?;
         let item = self
             .items
@@ -281,6 +344,13 @@ impl ResponsesToGeminiStream {
         index: i64,
         args: String,
     ) -> Result<(), TransformError> {
+        if self
+            .items
+            .get(&index)
+            .is_some_and(|item| matches!(item.kind, Kind::Excluded))
+        {
+            return Ok(());
+        }
         let mut item = self
             .items
             .remove(&index)
@@ -304,6 +374,13 @@ impl ResponsesToGeminiStream {
         Ok(())
     }
     pub(super) fn summary(&mut self, index: i64, bytes: usize) -> Result<(), TransformError> {
+        if self
+            .items
+            .get(&index)
+            .is_some_and(|item| matches!(item.kind, Kind::Excluded))
+        {
+            return Ok(());
+        }
         self.reserve(bytes)?;
         let item = self
             .items
@@ -324,6 +401,7 @@ impl ResponsesToGeminiStream {
             r::ResponseOutputItem::Message(v) => Some(&v.id),
             r::ResponseOutputItem::Reasoning(v) => Some(&v.id),
             r::ResponseOutputItem::FunctionCall(v) => v.id.as_ref(),
+            r::ResponseOutputItem::ImageGenerationCall(v) => Some(&v.id),
             _ => None,
         };
         if let Some(id) = id {
@@ -337,6 +415,7 @@ impl ResponsesToGeminiStream {
             .remove(&index)
             .ok_or_else(|| invalid("item done without start"))?;
         match (&mut item.kind, value) {
+            (Kind::Excluded, _) => {}
             (Kind::Message { parts, .. }, r::ResponseOutputItem::Message(_)) => {
                 for part in parts.values_mut() {
                     part.done = true;
@@ -364,6 +443,18 @@ impl ResponsesToGeminiStream {
                 }
             }
             (Kind::Function { .. }, r::ResponseOutputItem::FunctionCall(_)) => {}
+            (
+                Kind::Image {
+                    value,
+                    emitted: false,
+                },
+                r::ResponseOutputItem::ImageGenerationCall(v),
+            ) => {
+                self.release(item.held);
+                item.held = measure(&v, self.limits.max_pending)?;
+                self.reserve(item.held)?;
+                **value = v;
+            }
             _ => return Err(invalid("item done kind mismatch")),
         }
         item.done = true;

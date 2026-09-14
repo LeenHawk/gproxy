@@ -163,3 +163,6 @@ mod gemini;
 mod limits;
 #[path = "transform_gemini_responses_stream/responses.rs"]
 mod responses;
+
+#[path = "transform_gemini_responses_stream/images.rs"]
+mod images;

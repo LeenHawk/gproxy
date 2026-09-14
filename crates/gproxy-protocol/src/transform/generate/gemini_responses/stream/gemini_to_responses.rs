@@ -22,7 +22,7 @@ pub struct GeminiToResponsesStream {
     pub(super) target: ResponseEvents,
     pub(super) flow: IdentityFlow,
     pub(super) policy: TargetIdPolicy,
-    context: GeminiToResponsesContext,
+    pub(super) context: GeminiToResponsesContext,
     pub(super) limits: StreamLimits,
     pub(super) budget: Budget,
     model: Option<String>,
@@ -249,6 +249,11 @@ impl GeminiToResponsesStream {
             return Err(invalid("native Gemini output item count changed"));
         }
         for (index, item) in expected.output.iter().enumerate() {
+            // Complete inline image bytes were emitted atomically when that
+            // actual Gemini part arrived; never emit a second item.done.
+            if matches!(item, r::ResponseOutputItem::ImageGenerationCall(_)) {
+                continue;
+            }
             if matches!(item, r::ResponseOutputItem::FunctionCall(_)) {
                 self.target
                     .arguments_done(&mut self.budget, &mut out, index as i64, item)?;

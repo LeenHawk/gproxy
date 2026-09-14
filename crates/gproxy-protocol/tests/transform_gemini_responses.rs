@@ -188,6 +188,7 @@ fn multimodal_tool_outputs_use_native_parts_and_scoped_reasoning_restores_exact_
         .thought_signature("sig")
         .build();
     let context = GeminiReplayContext {
+        image_files: Default::default(),
         target: Some(target),
         parts: std::collections::BTreeMap::from([(
             "rs".into(),

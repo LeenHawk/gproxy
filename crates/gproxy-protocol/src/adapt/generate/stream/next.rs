@@ -56,8 +56,13 @@ impl<B: StreamBridge> StreamInvocation<B> {
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<Option<StreamChunk<B::ClientEvent>>, TransformError> {
         if self.websocket_terminal {
-            self.next_inner(state, Some(&mut futures_util::stream::empty()))
-                .await
+            self.next_inner(
+                state,
+                Some(&mut futures_util::stream::poll_fn(|_| {
+                    std::task::Poll::Ready(None)
+                })),
+            )
+            .await
         } else {
             self.next_inner(state, None).await
         }
@@ -65,13 +70,32 @@ impl<B: StreamBridge> StreamInvocation<B> {
     pub(super) async fn next_inner<S: StateStore>(
         &mut self,
         state: &GenerationStateAccess<'_, S>,
-        mut external: Option<
-            &mut (dyn futures_core::Stream<Item = Result<B::NativeEvent, TransformError>> + Unpin),
-        >,
+        external: Option<&mut super::resource_map::ExternalSource<'_, B::NativeEvent>>,
+    ) -> Result<Option<StreamChunk<B::ClientEvent>>, TransformError> {
+        self.next_mapped(state, external, None).await
+    }
+    pub(super) async fn next_mapped<S: StateStore>(
+        &mut self,
+        state: &GenerationStateAccess<'_, S>,
+        mut external: Option<&mut super::resource_map::ExternalSource<'_, B::NativeEvent>>,
+        mut mapping: Option<&mut dyn super::resource_map::ResourceMapping<B, S>>,
     ) -> Result<Option<StreamChunk<B::ClientEvent>>, TransformError> {
         use futures_util::StreamExt;
+        if self.image_resources_required && mapping.is_none() {
+            return Err(super::missing(
+                "continue this invocation with its image resource progress",
+            ));
+        }
         self.state_binding.validate(state)?;
         self.preparation.verify(state).await?;
+        if mapping
+            .as_ref()
+            .is_some_and(|mapper| mapper.revision() != self.resource_revision)
+        {
+            return Err(super::conflict(
+                "image resource progress changed during invocation",
+            ));
+        }
         if self.failed {
             return Err(super::invalid("stream invocation failed"));
         }
@@ -82,6 +106,68 @@ impl<B: StreamBridge> StreamInvocation<B> {
             return Err(super::missing("successful stream start required"));
         }
         loop {
+            if let Some(original) = self.pending_native.as_ref() {
+                let view = if let Some(mapper) = mapping.as_deref_mut() {
+                    self.resource_revision = mapper.begin_step()?;
+                    let value = match mapper.source(original).await {
+                        Ok(value) => value,
+                        Err(error) => {
+                            if mapper.failed() {
+                                self.failed = true;
+                                self.reader = None;
+                            }
+                            return Err(self.image_resource_error(error));
+                        }
+                    };
+                    self.resource_revision = mapper.revision();
+                    value
+                } else {
+                    original.clone()
+                };
+                let original = self.pending_native.take().expect("retained native event");
+                let terminal = external.is_some() && original.is_terminal();
+                if let Err(error) = self.source_event(original, view) {
+                    self.failed = true;
+                    self.reader = None;
+                    return Err(error);
+                }
+                if terminal {
+                    self.websocket_terminal = true;
+                }
+            }
+            if let Some(events) = self.pending_converted.as_ref() {
+                let mapped = if let Some(mapper) = mapping.as_deref_mut() {
+                    self.resource_revision = mapper.begin_step()?;
+                    let value = match mapper.client(events).await {
+                        Ok(value) => value,
+                        Err(error) => {
+                            if mapper.failed() {
+                                self.failed = true;
+                                self.reader = None;
+                            }
+                            return Err(self.image_resource_error(error));
+                        }
+                    };
+                    self.resource_revision = mapper.revision();
+                    value
+                } else {
+                    events.clone()
+                };
+                self.pending_converted = None;
+                if let Err(error) = self.enqueue(mapped) {
+                    self.failed = true;
+                    self.reader = None;
+                    return Err(error);
+                }
+            }
+            if self.finishing_source {
+                if let Err(error) = self.finish_client() {
+                    self.failed = true;
+                    self.reader = None;
+                    return Err(error);
+                }
+                self.finishing_source = false;
+            }
             if self.eof && !self.final_saved {
                 self.ledger
                     .save(
@@ -103,6 +189,18 @@ impl<B: StreamBridge> StreamInvocation<B> {
                     &mut self.final_progress,
                 )
                 .await?;
+                if let Some(mapper) = mapping.as_deref_mut() {
+                    self.resource_revision = mapper.begin_step()?;
+                    mapper
+                        .save(
+                            self.native_final.as_ref().expect("native final"),
+                            self.client_final.as_ref().expect("client final"),
+                            &self.flow,
+                            state,
+                        )
+                        .await?;
+                    self.resource_revision = mapper.revision();
+                }
                 if let Some(history) = &mut self.history {
                     let response = B::ClientEvent::responses_history(
                         self.client_final.as_ref().expect("final response checked"),
@@ -185,10 +283,10 @@ impl<B: StreamBridge> StreamInvocation<B> {
                 Err(error) => Err(error),
                 Ok(Some(NativeFrame::Done)) => self.source_done(),
                 Ok(Some(NativeFrame::Event { name, value })) => {
-                    let terminal = external.is_some() && value.is_terminal();
-                    let result = self.source_event(name.as_deref(), value);
-                    if terminal && result.is_ok() {
-                        self.websocket_terminal = true;
+                    self.last_native_event = Some(value.clone());
+                    let result = value.validate_name(name.as_deref());
+                    if result.is_ok() {
+                        self.pending_native = Some(value);
                     }
                     result
                 }
@@ -201,18 +299,31 @@ impl<B: StreamBridge> StreamInvocation<B> {
             }
         }
     }
+    fn image_resource_error(&mut self, error: TransformError) -> TransformError {
+        use crate::transform::TransformErrorKind;
+        if matches!(
+            error.kind(),
+            TransformErrorKind::InvalidInput
+                | TransformErrorKind::InvalidResult
+                | TransformErrorKind::Unsupported
+                | TransformErrorKind::Limit
+        ) {
+            self.failed = true;
+            self.reader = None;
+        }
+        error
+    }
     fn source_event(
         &mut self,
-        name: Option<&str>,
+        original: B::NativeEvent,
         event: B::NativeEvent,
     ) -> Result<(), TransformError> {
-        self.last_native_event = Some(event.clone());
-        event.validate_name(name)?;
+        self.last_native_event = Some(original.clone());
         B::NativeEvent::collect(
             self.source
                 .as_mut()
                 .ok_or_else(|| super::invalid("native collector consumed"))?,
-            event.clone(),
+            original,
         )?;
         let bridge = self
             .bridge
@@ -224,7 +335,8 @@ impl<B: StreamBridge> StreamInvocation<B> {
             self.signed = proof.clone();
         }
         self.append_report(converted.report)?;
-        self.enqueue(converted.value)
+        self.pending_converted = Some(converted.value);
+        Ok(())
     }
     fn source_done(&mut self) -> Result<(), TransformError> {
         if !B::NativeEvent::DONE {
@@ -311,7 +423,11 @@ impl<B: StreamBridge> StreamInvocation<B> {
         self.signed = end.signed_tool_bindings;
         self.append_report(end.report)?;
         self.queued.extend(std::mem::take(&mut self.held));
-        self.enqueue(end.chunks)?;
+        self.pending_converted = Some(end.chunks);
+        self.finishing_source = true;
+        Ok(())
+    }
+    fn finish_client(&mut self) -> Result<(), TransformError> {
         let events: Vec<_> = self.queued.iter().map(|(e, _)| e.clone()).collect();
         for event in events {
             self.observe(&event)?;

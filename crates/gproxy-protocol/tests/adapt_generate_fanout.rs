@@ -833,6 +833,7 @@ fn signed_gemini_replay(
         part["functionCall"]["id"] = json!(id);
     }
     GeminiReplayContext {
+        image_files: Default::default(),
         target: Some(target),
         parts: std::collections::BTreeMap::from([(
             "a.b".into(),

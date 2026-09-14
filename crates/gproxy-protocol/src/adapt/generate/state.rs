@@ -297,6 +297,19 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
                         &mut native_payloads,
                     )?;
                 }
+                if role
+                    == IdentityRole::OutputItem(
+                        crate::transform::identity::OutputItemKind::ImageGenerationCall,
+                    )
+                    && let Some(part) = native.signed_gemini_image(handle.source.logical_index)
+                {
+                    self.attach_gemini(
+                        &mut record,
+                        part,
+                        native.native_model(),
+                        &mut native_payloads,
+                    )?;
+                }
             }
             records.push((record, None));
         }

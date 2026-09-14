@@ -94,6 +94,13 @@ pub(crate) fn to_gemini(
                     )?],
                 )
             }
+            r::InputItem::ImageGenerationCall(image) => {
+                let max = image.result.as_ref().map_or(0, |v| v.len() as u64);
+                (
+                    r::MessageRole::Assistant,
+                    vec![super::images::restore(image, model, context, max)?],
+                )
+            }
             r::InputItem::Reasoning(reasoning) => (
                 r::MessageRole::Assistant,
                 vec![super::identity::reasoning(reasoning, model, context)?],
@@ -108,7 +115,6 @@ pub(crate) fn to_gemini(
             | r::InputItem::ComputerCallOutput(_)
             | r::InputItem::WebSearchCall(_)
             | r::InputItem::FileSearchCall(_)
-            | r::InputItem::ImageGenerationCall(_)
             | r::InputItem::CodeInterpreterCall(_)
             | r::InputItem::CustomToolCall(_)
             | r::InputItem::CustomToolCallOutput(_)

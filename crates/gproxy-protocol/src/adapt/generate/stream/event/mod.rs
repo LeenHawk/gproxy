@@ -90,6 +90,9 @@ impl<T: IdentityFacts> IdentityFacts for Collected<T> {
     fn signed_gemini_reasoning(&self, index: u64) -> Option<crate::wire::gemini::Part> {
         self.value.signed_gemini_reasoning(index)
     }
+    fn signed_gemini_image(&self, index: u64) -> Option<crate::wire::gemini::Part> {
+        self.value.signed_gemini_image(index)
+    }
     fn signed_gemini_tool(&self, index: usize) -> Option<crate::wire::gemini::Part> {
         self.value.signed_gemini_tool(index)
     }
