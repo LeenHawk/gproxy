@@ -34,3 +34,6 @@ pub use native::{
     native_content, native_to_gemini_create_composed, native_to_gemini_query_composed,
     recover_native_result,
 };
+
+mod reverse;
+pub use reverse::*;
