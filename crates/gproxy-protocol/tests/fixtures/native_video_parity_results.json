@@ -1,0 +1,323 @@
+{
+  "baselines": {
+    "v2": "993eac13",
+    "v3": "77d2353d"
+  },
+  "source_verification": {
+    "v2": {
+      "ref": "993eac13",
+      "source_files_checked": 377,
+      "mismatches": []
+    },
+    "v3": {
+      "ref": "77d2353d",
+      "source_files_checked": 504,
+      "mismatches": []
+    }
+  },
+  "v4_facts": {
+    "pending_response": {
+      "client_id": "video_host",
+      "created_at": 123,
+      "model": "sora-2",
+      "seconds": "8",
+      "size": "1280x720",
+      "progress": 0,
+      "pending_status": "in_progress"
+    },
+    "native_completed_response": {
+      "operation_name": "operations/host-a",
+      "published_video_uri": "https://published.test/actual.mp4"
+    }
+  },
+  "runs": {
+    "v2": [
+      {
+        "accepted": true,
+        "name": "native_exact_720",
+        "output": {
+          "instances": [
+            {
+              "prompt": "sunset"
+            }
+          ],
+          "parameters": {
+            "aspectRatio": "16:9",
+            "durationSeconds": 8,
+            "resolution": "720p"
+          }
+        }
+      },
+      {
+        "accepted": true,
+        "name": "native_1024_not_exact",
+        "output": {
+          "instances": [
+            {
+              "prompt": "sunset"
+            }
+          ],
+          "parameters": {
+            "aspectRatio": "9:16",
+            "durationSeconds": 8,
+            "resolution": "720p"
+          }
+        }
+      },
+      {
+        "accepted": true,
+        "name": "native_reference_needs_capability",
+        "output": {
+          "instances": [
+            {
+              "prompt": "sunset"
+            }
+          ],
+          "parameters": {
+            "aspectRatio": "16:9",
+            "durationSeconds": 8,
+            "resolution": "720p"
+          }
+        }
+      },
+      {
+        "accepted": true,
+        "name": "veo_1080_not_native_1024",
+        "output": {
+          "prompt": "sunset",
+          "seconds": "8",
+          "size": "1792x1024"
+        }
+      },
+      {
+        "accepted": true,
+        "name": "veo_unknown_dimensions",
+        "output": {
+          "prompt": "sunset",
+          "seconds": "8",
+          "size": "1280x720"
+        }
+      },
+      {
+        "accepted": true,
+        "name": "veo_pending_real_native_facts",
+        "output": {
+          "created_at": 0,
+          "id": "operations/a",
+          "model": "veo",
+          "object": "video",
+          "progress": 0,
+          "seconds": "0",
+          "size": "unspecified",
+          "status": "in_progress"
+        }
+      },
+      {
+        "accepted": true,
+        "name": "veo_empty_completed",
+        "output": {
+          "created_at": 0,
+          "id": "operations/a",
+          "model": "veo",
+          "object": "video",
+          "progress": 100,
+          "seconds": "0",
+          "size": "unspecified",
+          "status": "completed"
+        }
+      },
+      {
+        "accepted": true,
+        "name": "native_completed_real_resource_not_extension",
+        "output": {
+          "done": true,
+          "name": "video_a"
+        }
+      }
+    ],
+    "v3": [
+      {
+        "accepted": true,
+        "name": "native_exact_720",
+        "output": {
+          "instances": [
+            {
+              "prompt": "sunset"
+            }
+          ],
+          "parameters": {
+            "aspectRatio": "16:9",
+            "durationSeconds": 8,
+            "resolution": "720p"
+          }
+        }
+      },
+      {
+        "accepted": true,
+        "name": "native_1024_not_exact",
+        "output": {
+          "instances": [
+            {
+              "prompt": "sunset"
+            }
+          ],
+          "parameters": {
+            "aspectRatio": "9:16",
+            "durationSeconds": 8,
+            "resolution": "720p"
+          }
+        }
+      },
+      {
+        "accepted": true,
+        "name": "native_reference_needs_capability",
+        "output": {
+          "instances": [
+            {
+              "prompt": "sunset"
+            }
+          ],
+          "parameters": {
+            "aspectRatio": "16:9",
+            "durationSeconds": 8,
+            "resolution": "720p"
+          }
+        }
+      },
+      {
+        "accepted": true,
+        "name": "veo_1080_not_native_1024",
+        "output": {
+          "model": "sora-2",
+          "prompt": "sunset",
+          "seconds": "8",
+          "size": "1792x1024"
+        }
+      },
+      {
+        "accepted": true,
+        "name": "veo_unknown_dimensions",
+        "output": {
+          "model": "sora-2",
+          "prompt": "sunset",
+          "seconds": "8",
+          "size": "1280x720"
+        }
+      },
+      {
+        "accepted": true,
+        "name": "veo_pending_real_native_facts",
+        "output": {
+          "created_at": 0,
+          "id": "operations/a",
+          "model": "veo",
+          "object": "video",
+          "progress": 0,
+          "seconds": "0",
+          "size": "1280x720",
+          "status": "in_progress"
+        }
+      },
+      {
+        "accepted": true,
+        "name": "veo_empty_completed",
+        "output": {
+          "created_at": 0,
+          "id": "operations/a",
+          "model": "veo",
+          "object": "video",
+          "progress": 100,
+          "seconds": "0",
+          "size": "1280x720",
+          "status": "completed"
+        }
+      },
+      {
+        "accepted": true,
+        "name": "native_completed_real_resource_not_extension",
+        "output": {
+          "done": true,
+          "name": "video_a"
+        }
+      }
+    ],
+    "v4": [
+      {
+        "accepted": true,
+        "name": "native_exact_720",
+        "output": {
+          "instances": [
+            {
+              "prompt": "sunset"
+            }
+          ],
+          "parameters": {
+            "aspectRatio": "16:9",
+            "durationSeconds": 8,
+            "resolution": "720p",
+            "sampleCount": 1
+          }
+        }
+      },
+      {
+        "accepted": false,
+        "error": "native.size: Veo has no exact 1024x1792 or 1792x1024 dimensions",
+        "name": "native_1024_not_exact"
+      },
+      {
+        "accepted": false,
+        "error": "bound video/image resource: required factual metadata is unavailable",
+        "name": "native_reference_needs_capability"
+      },
+      {
+        "accepted": false,
+        "error": "veo.dimensions: no exact native dimension mapping",
+        "name": "veo_1080_not_native_1024"
+      },
+      {
+        "accepted": false,
+        "error": "veo.effective_dimensions: required factual metadata is unavailable",
+        "name": "veo_unknown_dimensions"
+      },
+      {
+        "accepted": true,
+        "name": "veo_pending_real_native_facts",
+        "output": {
+          "created_at": 123,
+          "id": "video_host",
+          "model": "sora-2",
+          "object": "video",
+          "progress": 0,
+          "prompt": "sunset",
+          "seconds": "8",
+          "size": "1280x720",
+          "status": "in_progress"
+        }
+      },
+      {
+        "accepted": false,
+        "error": "generatedSamples: completed operation produced no result",
+        "name": "veo_empty_completed"
+      },
+      {
+        "accepted": true,
+        "name": "native_completed_real_resource_not_extension",
+        "output": {
+          "done": true,
+          "name": "operations/host-a",
+          "response": {
+            "generateVideoResponse": {
+              "generatedSamples": [
+                {
+                  "video": {
+                    "uri": "https://published.test/actual.mp4"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
