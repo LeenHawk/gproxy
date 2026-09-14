@@ -1,0 +1,247 @@
+{
+  "baselines": {
+    "v2": {
+      "commit": "993eac13",
+      "source_files_compared": 377,
+      "source_mismatches": []
+    },
+    "v3": {
+      "commit": "77d2353d",
+      "source_files_compared": 504,
+      "source_mismatches": []
+    }
+  },
+  "results": [
+    {
+      "accepted": true,
+      "error": null,
+      "name": "text",
+      "version": "v2",
+      "event_count": 3,
+      "created_count": 0,
+      "terminal_output_counts": [
+        0
+      ],
+      "finished_tools": []
+    },
+    {
+      "accepted": true,
+      "error": null,
+      "name": "refusal_before_text",
+      "version": "v2",
+      "event_count": 3,
+      "created_count": 0,
+      "terminal_output_counts": [
+        0
+      ],
+      "finished_tools": []
+    },
+    {
+      "accepted": true,
+      "error": null,
+      "name": "parallel_fragmented_tools",
+      "version": "v2",
+      "event_count": 9,
+      "created_count": 0,
+      "terminal_output_counts": [
+        0
+      ],
+      "finished_tools": []
+    },
+    {
+      "accepted": true,
+      "error": null,
+      "name": "late_tool_id",
+      "version": "v2",
+      "event_count": 3,
+      "created_count": 0,
+      "terminal_output_counts": [
+        0
+      ],
+      "finished_tools": []
+    },
+    {
+      "accepted": true,
+      "error": null,
+      "name": "usage_tail",
+      "version": "v2",
+      "event_count": 3,
+      "created_count": 0,
+      "terminal_output_counts": [
+        0,
+        0
+      ],
+      "finished_tools": []
+    },
+    {
+      "accepted": true,
+      "error": null,
+      "name": "missing_done",
+      "version": "v2",
+      "event_count": 2,
+      "created_count": 0,
+      "terminal_output_counts": [
+        0
+      ],
+      "finished_tools": []
+    },
+    {
+      "accepted": true,
+      "error": null,
+      "name": "text",
+      "version": "v3",
+      "event_count": 9,
+      "created_count": 1,
+      "terminal_output_counts": [
+        1
+      ],
+      "finished_tools": []
+    },
+    {
+      "accepted": true,
+      "error": null,
+      "name": "refusal_before_text",
+      "version": "v3",
+      "event_count": 14,
+      "created_count": 1,
+      "terminal_output_counts": [
+        2
+      ],
+      "finished_tools": []
+    },
+    {
+      "accepted": false,
+      "error": "invalid Chat stream wire shape: tool call name changed between deltas",
+      "name": "parallel_fragmented_tools",
+      "version": "v3",
+      "event_count": 5,
+      "created_count": 1,
+      "terminal_output_counts": [],
+      "finished_tools": []
+    },
+    {
+      "accepted": false,
+      "error": "invalid Chat stream wire shape: tool call id missing on first delta",
+      "name": "late_tool_id",
+      "version": "v3",
+      "event_count": 0,
+      "created_count": 0,
+      "terminal_output_counts": [],
+      "finished_tools": []
+    },
+    {
+      "accepted": true,
+      "error": null,
+      "name": "usage_tail",
+      "version": "v3",
+      "event_count": 8,
+      "created_count": 1,
+      "terminal_output_counts": [
+        1
+      ],
+      "finished_tools": []
+    },
+    {
+      "accepted": true,
+      "error": null,
+      "name": "missing_done",
+      "version": "v3",
+      "event_count": 8,
+      "created_count": 1,
+      "terminal_output_counts": [
+        1
+      ],
+      "finished_tools": []
+    },
+    {
+      "accepted": true,
+      "error": null,
+      "name": "text",
+      "version": "v4",
+      "event_count": 9,
+      "created_count": 1,
+      "terminal_output_counts": [
+        1
+      ],
+      "finished_tools": []
+    },
+    {
+      "accepted": true,
+      "error": null,
+      "name": "refusal_before_text",
+      "version": "v4",
+      "event_count": 12,
+      "created_count": 1,
+      "terminal_output_counts": [
+        1
+      ],
+      "finished_tools": []
+    },
+    {
+      "accepted": true,
+      "error": null,
+      "name": "parallel_fragmented_tools",
+      "version": "v4",
+      "event_count": 10,
+      "created_count": 1,
+      "terminal_output_counts": [
+        2
+      ],
+      "finished_tools": [
+        {
+          "id": "fc_25252525252525252525252525252525_h_if_0",
+          "call_id": "call-a",
+          "name": "look",
+          "arguments": "{\"x\":1}"
+        },
+        {
+          "id": "fc_25252525252525252525252525252525_h_if_1",
+          "call_id": "call-b",
+          "name": "look",
+          "arguments": "{\"y\":2}"
+        }
+      ]
+    },
+    {
+      "accepted": true,
+      "error": null,
+      "name": "late_tool_id",
+      "version": "v4",
+      "event_count": 6,
+      "created_count": 1,
+      "terminal_output_counts": [
+        1
+      ],
+      "finished_tools": [
+        {
+          "id": "fc_25252525252525252525252525252525_h_if_0",
+          "call_id": "call-late",
+          "name": "f",
+          "arguments": "{}"
+        }
+      ]
+    },
+    {
+      "accepted": true,
+      "error": null,
+      "name": "usage_tail",
+      "version": "v4",
+      "event_count": 8,
+      "created_count": 1,
+      "terminal_output_counts": [
+        1
+      ],
+      "finished_tools": []
+    },
+    {
+      "accepted": false,
+      "error": "chat_responses.stream: Chat stream ended without valid SSE DONE",
+      "name": "missing_done",
+      "version": "v4",
+      "event_count": 7,
+      "created_count": 1,
+      "terminal_output_counts": [],
+      "finished_tools": []
+    }
+  ]
+}

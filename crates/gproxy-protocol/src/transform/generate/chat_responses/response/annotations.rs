@@ -3,7 +3,7 @@ use crate::{
     wire::openai::{chat::response as c, responses::input as r},
 };
 
-pub(super) fn to_responses(
+pub(crate) fn to_responses(
     input: Option<Vec<c::Annotation>>,
 ) -> Result<Vec<r::OutputAnnotation>, TransformError> {
     input
@@ -29,7 +29,7 @@ pub(super) fn to_responses(
         })
         .collect()
 }
-pub(super) fn to_chat(
+pub(crate) fn to_chat(
     input: Vec<r::OutputAnnotation>,
     offset: i64,
     report: &mut Report,
@@ -76,7 +76,7 @@ fn number(value: f64) -> Result<serde_json::Number, TransformError> {
     serde_json::Number::from_f64(value)
         .ok_or_else(|| TransformError::invalid_result("logprobs", "non-finite log probability"))
 }
-pub(super) fn logs_to_responses(
+pub(crate) fn logs_to_responses(
     input: Option<Vec<c::TokenLogprob>>,
     report: &mut Report,
 ) -> Result<Vec<r::OutputLogprob>, TransformError> {
@@ -122,7 +122,7 @@ fn float(value: serde_json::Number) -> Result<f64, TransformError> {
         TransformError::invalid_result("logprobs", "log probability exceeds target numeric range")
     })
 }
-pub(super) fn logs_to_chat(
+pub(crate) fn logs_to_chat(
     input: Vec<r::OutputLogprob>,
 ) -> Result<Vec<c::TokenLogprob>, TransformError> {
     input

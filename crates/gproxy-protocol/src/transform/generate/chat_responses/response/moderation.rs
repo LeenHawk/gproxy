@@ -3,7 +3,7 @@ use crate::{
     wire::openai::{chat::response as c, responses::response as r},
 };
 
-pub(super) fn to_responses(
+pub(crate) fn to_responses(
     value: c::ModerationResponse,
     report: &mut Report,
 ) -> Result<r::ResponseModerationReport, TransformError> {
@@ -84,7 +84,7 @@ fn outcome_to_responses(
         }
     })
 }
-pub(super) fn to_chat(
+pub(crate) fn to_chat(
     value: r::ResponseModerationReport,
 ) -> Result<c::ModerationResponse, TransformError> {
     Ok(c::ModerationResponse {

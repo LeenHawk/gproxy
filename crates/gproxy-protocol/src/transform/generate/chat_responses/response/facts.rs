@@ -20,7 +20,7 @@ pub struct ResponsesResponseContext {
     pub effective_prompt_cache_options: Option<r::ResponsePromptCacheOptions>,
 }
 impl ResponsesResponseContext {
-    pub(super) fn into_response(
+    pub(crate) fn into_response(
         self,
         id: String,
         created_at: i64,
