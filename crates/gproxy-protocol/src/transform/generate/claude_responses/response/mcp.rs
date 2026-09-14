@@ -8,7 +8,7 @@ use crate::{
     wire::{claude::generate_content as c, openai::responses as r},
 };
 
-pub(super) fn call(
+pub(crate) fn call(
     source: c::ResponseMcpToolUseBlock,
     index: u64,
     flow: &mut IdentityFlow,
@@ -80,7 +80,7 @@ pub(super) fn result(
     }
     Ok(())
 }
-pub(super) fn to_claude(
+pub(crate) fn to_claude(
     source: r::McpCall,
     index: u64,
     flow: &mut IdentityFlow,

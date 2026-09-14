@@ -8,8 +8,8 @@ use crate::{
 };
 mod content;
 mod facts;
-mod mcp;
-mod usage;
+pub(crate) mod mcp;
+pub(crate) mod usage;
 pub use facts::ClaudeResponseContext;
 pub use usage::ResponsesUsageFacts;
 
