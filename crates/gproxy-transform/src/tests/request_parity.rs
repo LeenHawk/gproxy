@@ -102,6 +102,28 @@ fn mid_conversation_system_policy_is_model_gated() {
 }
 
 #[test]
+fn trailing_system_prefill_fallback_is_model_gated() {
+    let chat = content(Operation::GenerateContent, Kind::OpenAiChat);
+    let claude = content(Operation::GenerateContent, Kind::ClaudeMessages);
+    for role in ["system", "developer"] {
+        let body = Bytes::from(
+            serde_json::to_vec(&json!({
+                "model":"route","messages":[
+                    {"role":"user","content":"Explain this code."},
+                    {"role":role,"content":"Answer concisely."}
+                ]
+            }))
+            .unwrap(),
+        );
+        for (model, expected) in [("claude-sonnet-4-5", "user"), ("claude-opus-4-8", "system")] {
+            let bytes = request(chat, claude, body.clone(), model, false).unwrap();
+            let converted: Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(converted["messages"][1]["role"], expected);
+        }
+    }
+}
+
+#[test]
 fn gemini_safety_and_generation_extras_do_not_block_text_requests() {
     let gemini = content(Operation::GenerateContent, Kind::GeminiGenerateContent);
     let input = json!({

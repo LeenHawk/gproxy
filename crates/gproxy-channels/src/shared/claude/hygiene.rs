@@ -108,10 +108,8 @@ pub(crate) fn coerce_prefill(body: &mut Value) {
     if !text_prefill {
         return;
     }
-    if !matches!(
-        last.get("role").and_then(Value::as_str),
-        Some("user" | "tool")
-    ) {
+    // A trailing system instruction is not an assistant-prefill continuation.
+    if last.get("role").and_then(Value::as_str) == Some("assistant") {
         last.insert("role".into(), Value::String("user".into()));
     }
 }
@@ -180,6 +178,41 @@ pub(crate) fn json_object(body: &[u8]) -> Result<Value, ChannelError> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn prefill_coercion_preserves_trailing_system_instructions() {
+        for content in [
+            json!("Answer concisely."),
+            json!([{"type":"text","text":"Answer concisely."}]),
+        ] {
+            let mut body = json!({
+                "model":"claude-opus-4-8",
+                "messages":[
+                    {"role":"user","content":"Explain this code."},
+                    {"role":"system","content":content}
+                ]
+            });
+            let original = body.clone();
+            coerce_prefill(&mut body);
+            assert_eq!(body, original);
+        }
+    }
+
+    #[test]
+    fn prefill_coercion_preserves_legacy_assistant_prefill() {
+        for model in PREFILL_TOLERANT {
+            let mut body = json!({
+                "model":model,
+                "messages":[
+                    {"role":"user","content":"Continue."},
+                    {"role":"assistant","content":"Once upon a time"}
+                ]
+            });
+            let original = body.clone();
+            coerce_prefill(&mut body);
+            assert_eq!(body, original);
+        }
+    }
 
     #[test]
     fn prefill_coercion_never_turns_thinking_into_user_content() {
