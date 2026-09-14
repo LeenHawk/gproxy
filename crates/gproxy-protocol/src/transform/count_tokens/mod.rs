@@ -1,7 +1,7 @@
 //! Token-count request/response mappings. Counts always describe the selected
 //! target model's tokenizer; conversion cannot estimate a different tokenizer.
 
-mod response;
 pub mod request;
-pub use response::*;
+mod response;
 pub use request::*;
+pub use response::*;
