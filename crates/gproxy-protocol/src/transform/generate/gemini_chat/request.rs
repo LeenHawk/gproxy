@@ -12,6 +12,25 @@ pub fn gemini_to_openai_request(
     identity: &mut IdentityFlow,
     policy: &TargetIdPolicy,
 ) -> Result<Converted<c::GenerateContentRequestBody>, TransformError> {
+    gemini_to_openai_request_with_calls(
+        input,
+        target_model,
+        &BTreeMap::new(),
+        &BTreeMap::new(),
+        identity,
+        policy,
+    )
+}
+/// Explicit native Chat call forms and original IDs supplied by scoped invocation state.
+/// An orphan result uses its actual saved name and does not create a call history.
+pub(crate) fn gemini_to_openai_request_with_calls(
+    input: g::GenerateContentRequestBody,
+    target_model: impl Into<String>,
+    legacy_calls: &BTreeMap<String, String>,
+    original_calls: &BTreeMap<String, (String, String)>,
+    identity: &mut IdentityFlow,
+    policy: &TargetIdPolicy,
+) -> Result<Converted<c::GenerateContentRequestBody>, TransformError> {
     if policy.dialect != crate::Dialect::OpenAiChat {
         return Err(TransformError::shape(
             "identity.policy",
@@ -44,7 +63,11 @@ pub fn gemini_to_openai_request(
             }
         }
     }
-    let mut bindings = super::content::Calls::default();
+    let mut bindings = super::content::Calls {
+        legacy: legacy_calls.clone(),
+        prior: original_calls.clone(),
+        ..Default::default()
+    };
     if let Some(mut system) = input.system_instruction {
         system.role = Some("system".into());
         out.messages.extend(super::content::gemini_content_to_chat(

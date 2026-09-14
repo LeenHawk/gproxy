@@ -91,8 +91,12 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
     ) -> Result<Option<StoredIdentity>, TransformError> {
         self.validate()?;
         let key = self.key(role, client_id)?;
-        let Some(entry) = self.store.get(self.scope, &key).await? else {
-            return Ok(None);
+        let entry = match self.store.get(self.scope, &key).await? {
+            Some(entry) => entry,
+            None => match self.store.get(self.scope, &format!("stream:{key}")).await? {
+                Some(entry) => entry,
+                None => return Ok(None),
+            },
         };
         if entry.payload.len() as u64 > self.store.limits().read_bytes {
             return Err(limit());
@@ -106,14 +110,7 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         }
         let stored: StoredIdentity = serde_json::from_slice(&entry.payload)
             .map_err(|e| TransformError::invalid_result("generation.state", e.to_string()))?;
-        if stored.schema != 1
-            || (stored.identity.role == IdentityRole::ToolCall) != stored.tool_kind.is_some()
-        {
-            return Err(TransformError::invalid_result(
-                "generation.state",
-                "unsupported record schema or missing tool kind",
-            ));
-        }
+        stored.validate_shape()?;
         let record = &stored.identity;
         record
             .validate_for(&self.target)
@@ -169,6 +166,7 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         }
         let mut records = Vec::new();
         let mut native_payloads = Vec::new();
+        let mut chat_forms = BTreeMap::new();
         if let Some(client_id) = client.response_id() {
             let role = IdentityRole::Response;
             let mut record = IdentityStateRecord::new(role, self.target.clone());
@@ -216,6 +214,9 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
             let mut record = IdentityStateRecord::new(IdentityRole::ToolCall, self.target.clone());
             record.original_call_id = original.call_id.clone();
             record.original_item_id = original.item_id.clone();
+            if let Some(form) = original.chat_form {
+                chat_forms.insert(client_id.clone(), form);
+            }
             record.client_call_id = Some(client_id);
             record.client_item_id = client.item_id;
             record.tool_name = Some(original.name.clone());
@@ -235,8 +236,47 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
             record.client_item_id = Some(id.clone());
             record.response_id = native.response_id().map(str::to_owned);
             if let Some(handle) = flow.lookup_emitted_as(role, &id) {
-                record.original_item_id = handle.source_id().map(str::to_owned);
-                if let Some(block) = native.signed_claude(handle.source.logical_index) {
+                if handle.source.dialect != native.dialect() {
+                    return Err(TransformError::invalid_result(
+                        "generation.identity",
+                        "output item flow differs from native dialect",
+                    ));
+                }
+                match handle.source_role {
+                    IdentityRole::ToolCall => {
+                        record.original_call_id = handle.source_id().map(str::to_owned)
+                    }
+                    IdentityRole::OutputItem(_) => {
+                        record.original_item_id = handle.source_id().map(str::to_owned)
+                    }
+                    IdentityRole::Response | IdentityRole::Message => {
+                        if let Some(id) = handle.source_id() {
+                            if record
+                                .response_id
+                                .as_deref()
+                                .is_some_and(|known| known != id)
+                            {
+                                return Err(TransformError::invalid_result(
+                                    "generation.identity",
+                                    "source response identity contradicts actual native response",
+                                ));
+                            }
+                            record.response_id = Some(id.into());
+                        }
+                    }
+                    IdentityRole::Resource => {
+                        return Err(TransformError::invalid_result(
+                            "generation.identity",
+                            "resource identity cannot become generation output",
+                        ));
+                    }
+                }
+                if role
+                    == IdentityRole::OutputItem(
+                        crate::transform::identity::OutputItemKind::Reasoning,
+                    )
+                    && let Some(block) = native.signed_claude(handle.source.logical_index)
+                {
                     self.attach_claude(
                         &mut record,
                         block,
@@ -244,7 +284,12 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
                         &mut native_payloads,
                     )?;
                 }
-                if let Some(part) = native.signed_gemini_reasoning(handle.source.logical_index) {
+                if role
+                    == IdentityRole::OutputItem(
+                        crate::transform::identity::OutputItemKind::Reasoning,
+                    )
+                    && let Some(part) = native.signed_gemini_reasoning(handle.source.logical_index)
+                {
                     self.attach_gemini(
                         &mut record,
                         part,
@@ -255,120 +300,8 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
             }
             records.push((record, None));
         }
-        self.save_records(records, native_payloads, progress).await
-    }
-    pub(super) async fn save_records<N>(
-        &self,
-        records: Vec<(IdentityStateRecord, Option<super::ToolCallKind>)>,
-        native_payloads: Vec<(String, Vec<u8>)>,
-        progress: &mut GenerationProgress<N>,
-    ) -> Result<(), TransformError> {
-        if records.len() > self.max_records {
-            return Err(limit());
-        }
-        let mut prepared = Vec::new();
-        let mut seen = BTreeSet::new();
-        let mut total = 0u64;
-        for (record, tool_kind) in records {
-            record
-                .validate_for(&self.target)
-                .map_err(|e| TransformError::invalid_result("generation.state", e.to_string()))?;
-            let id = if record.role == IdentityRole::ToolCall {
-                record.client_call_id.as_deref()
-            } else {
-                record.client_item_id.as_deref()
-            }
-            .ok_or_else(|| {
-                TransformError::invalid_result("generation.state", "missing client ID")
-            })?;
-            let key = self.key(record.role, id)?;
-            if !seen.insert(key.clone()) {
-                return Err(TransformError::invalid_result(
-                    "generation.state",
-                    "duplicate client identity",
-                ));
-            }
-            let bytes = serde_json::to_vec(&StoredIdentity {
-                schema: 1,
-                identity: record,
-                tool_kind,
-            })?;
-            total = total.checked_add(bytes.len() as u64).ok_or_else(limit)?;
-            if total > self.store.limits().write_bytes {
-                return Err(limit());
-            }
-            prepared.push((key, bytes));
-        }
-        for (key, bytes) in native_payloads {
-            if !seen.insert(key.clone()) {
-                return Err(TransformError::invalid_result(
-                    "generation.state",
-                    "duplicate native signed record",
-                ));
-            }
-            total = total.checked_add(bytes.len() as u64).ok_or_else(limit)?;
-            if total > self.store.limits().write_bytes {
-                return Err(limit());
-            }
-            prepared.push((key, bytes));
-        }
-        for (key, bytes) in prepared {
-            if let Some((version, existing)) = progress.saved_identities.get(&key) {
-                if existing != &bytes {
-                    return Err(TransformError::new(
-                        TransformErrorKind::Conflict,
-                        "generation.state",
-                        "identity changed during response recovery",
-                    ));
-                }
-                let current = self.store.get(self.scope, &key).await?.ok_or_else(|| {
-                    TransformError::new(
-                        TransformErrorKind::MissingState,
-                        "generation.state",
-                        "previously applied record expired or disappeared",
-                    )
-                })?;
-                if current.payload.len() as u64 > self.store.limits().read_bytes {
-                    return Err(limit());
-                }
-                if &current.version != version
-                    || current.payload.as_ref() != existing.as_slice()
-                    || current.expires_at != Some(self.expires_at)
-                {
-                    return Err(TransformError::new(
-                        TransformErrorKind::Conflict,
-                        "generation.state",
-                        "previously applied record changed",
-                    ));
-                }
-                continue;
-            }
-            let result = self
-                .store
-                .compare_exchange(
-                    self.scope,
-                    &key,
-                    None,
-                    Some(StateWrite {
-                        payload: bytes.clone().into(),
-                        expires_at: Some(self.expires_at),
-                    }),
-                )
-                .await?;
-            match result {
-                CasResult::Applied(Some(version)) => {
-                    progress.saved_identities.insert(key, (version, bytes));
-                }
-                _ => {
-                    return Err(TransformError::new(
-                        TransformErrorKind::Conflict,
-                        "generation.state",
-                        "client identity already exists or CAS was not applied",
-                    ));
-                }
-            }
-        }
-        Ok(())
+        self.save_records_with_chat_forms(records, native_payloads, &chat_forms, progress)
+            .await
     }
 }
 fn limit() -> TransformError {
@@ -386,6 +319,9 @@ pub(super) type SavedIdentities = BTreeMap<String, (Version, Vec<u8>)>;
 pub struct GenerationToolReplay {
     pub names: BTreeMap<String, String>,
     pub kinds: BTreeMap<String, super::ToolCallKind>,
+    /// Known native Chat forms, keyed by the original client alias. Unknown
+    /// provisional forms cannot be used to replay a result.
+    pub chat_forms: BTreeMap<String, ChatCallForm>,
     pub original_call_ids: BTreeMap<String, String>,
     pub original_item_ids: BTreeMap<String, String>,
 }
@@ -417,6 +353,34 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         for id in client_ids {
             let saved = self.read_stored(IdentityRole::ToolCall, id).await?;
             if let Some(saved) = saved {
+                let legacy = if self.target.dialect == Dialect::OpenAiChat {
+                    let form = saved
+                        .chat_form
+                        .ok_or_else(|| missing_form("native Chat call form is not yet known"))?;
+                    output.chat_forms.insert(id.clone(), form);
+                    form == ChatCallForm::LegacyFunction
+                } else {
+                    false
+                };
+                if self.target.dialect != Dialect::Gemini
+                    && !legacy
+                    && saved.identity.original_call_id.is_none()
+                {
+                    return Err(missing_form(
+                        "original native tool-call ID is unavailable; client aliases cannot replace it",
+                    ));
+                }
+                if legacy
+                    && saved
+                        .identity
+                        .tool_name
+                        .as_ref()
+                        .is_none_or(|name| name.is_empty())
+                {
+                    return Err(missing_form(
+                        "legacy Chat function requires its actual complete name",
+                    ));
+                }
                 if let Some(kind) = saved.tool_kind {
                     output.kinds.insert(id.clone(), kind);
                 }
@@ -451,9 +415,18 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-struct StoredIdentity {
-    schema: u16,
-    identity: IdentityStateRecord,
-    tool_kind: Option<super::ToolCallKind>,
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub(super) struct StoredIdentity {
+    pub(super) schema: u16,
+    pub(super) identity: IdentityStateRecord,
+    pub(super) tool_kind: Option<super::ToolCallKind>,
+    // Absent is unknown for a Chat tool record, not an implicit legacy flag.
+    // It is inapplicable to other dialects and non-tool identity roles.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) chat_form: Option<ChatCallForm>,
 }
+
+mod chat_form;
+mod save;
+pub use chat_form::ChatCallForm;
+use chat_form::missing_form;

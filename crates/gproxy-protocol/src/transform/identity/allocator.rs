@@ -178,6 +178,14 @@ impl IdentityFlow {
         }
     }
 
+    /// Current associations, including source IDs learned after first emission.
+    /// Iterator order is unspecified; persistence callers must sort their keys.
+    pub fn handles(&self) -> impl Iterator<Item = IdentityHandle> + '_ {
+        self.entries
+            .iter()
+            .map(|(locator, entry)| handle_from_entry(self.namespace, locator.role, entry))
+    }
+
     pub fn namespace(&self) -> IdNamespace {
         self.namespace
     }

@@ -31,7 +31,7 @@ impl ChatTool {
     pub fn part(
         self,
         flow: &mut IdentityFlow,
-        legacy: bool,
+        _legacy: bool,
         policy: &TargetIdPolicy,
     ) -> Result<g::Part, TransformError> {
         if self.name.is_empty() {
@@ -45,16 +45,16 @@ impl ChatTool {
                 )
             })?;
         let mut call = g::FunctionCall::builder(self.name).args(args).build();
-        if !legacy {
-            call.id = Some(super::common::id(
-                flow,
-                policy,
-                IdentityRole::ToolCall,
-                crate::Dialect::OpenAiChat,
-                self.id,
-                self.ordinal,
-            )?);
-        }
+        // Both modern and legacy calls need a durable client alias. Legacy
+        // native source identity remains None in the flow and in saved facts.
+        call.id = Some(super::common::id(
+            flow,
+            policy,
+            IdentityRole::ToolCall,
+            crate::Dialect::OpenAiChat,
+            self.id,
+            self.ordinal,
+        )?);
         Ok(g::Part::builder().function_call(call).build())
     }
 }

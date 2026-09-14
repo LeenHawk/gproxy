@@ -70,7 +70,7 @@ impl ClaudeViaGemini {
         let original = input.into_declared();
         let (restored, names) = super::history::claude(original.clone(), state).await?;
         let mut context = context;
-        super::history::merge_names(&mut context.tool_names, names)?;
+        super::history::merge_names(&mut context.tool_names, names.names)?;
         let mut prepared = Self::prepare(restored, selected_model, endpoint, identities, context)?;
         state
             .restore_gemini_tool_parts(
@@ -424,3 +424,5 @@ impl GeminiViaClaude {
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }
+
+mod synthesis;

@@ -9,6 +9,7 @@ mod response;
 mod tools;
 mod usage;
 
+pub(crate) use request::gemini_to_openai_request_with_calls;
 pub use request::{gemini_to_openai_request, openai_to_gemini_request};
 pub use response::{
     GeminiChatResponseSupplement, gemini_to_openai_response, openai_to_gemini_response,

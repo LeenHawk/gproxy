@@ -441,3 +441,5 @@ impl ResponsesViaGemini {
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }
+
+mod synthesis;

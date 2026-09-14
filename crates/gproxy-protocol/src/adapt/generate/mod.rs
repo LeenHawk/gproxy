@@ -11,7 +11,7 @@ pub use transport::{Endpoint, GenerationIdentity, GenerationOutcome, GenerationP
 
 mod identity_facts;
 mod state;
-pub use state::{GenerationStateAccess, GenerationToolReplay};
+pub use state::{ChatCallForm, GenerationStateAccess, GenerationToolReplay};
 
 mod history;
 
@@ -26,6 +26,8 @@ pub use crate::transform::generate::chat_responses::ToolCallKind;
 
 mod request_ids;
 
+pub mod stream;
+
 pub mod fanout;
 
-pub mod stream;
+mod legacy_chat;

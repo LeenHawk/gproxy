@@ -443,3 +443,5 @@ impl ResponsesViaClaude {
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }
+
+mod synthesis;
