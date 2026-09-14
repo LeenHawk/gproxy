@@ -317,3 +317,6 @@ mod tool_reference;
 
 #[path = "adapt_generate_stream/custom_tools.rs"]
 mod custom_tools;
+
+#[path = "adapt_generate_stream/client_tools.rs"]
+mod client_tools;

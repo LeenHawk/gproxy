@@ -38,6 +38,7 @@ pub(super) fn to_responses(
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
     report: &mut Report,
+    bindings: &super::super::client_tools::Bindings,
 ) -> Result<Vec<r::ResponseOutputItem>, TransformError> {
     if message.audio.flatten().is_some() {
         return Err(TransformError::unsupported(
@@ -155,7 +156,7 @@ pub(super) fn to_responses(
                     policy,
                     Dialect::OpenAiChat,
                     IdentityRole::ToolCall,
-                    IdentityRole::OutputItem(OutputItemKind::FunctionCall),
+                    IdentityRole::OutputItem(bindings.kind(&call.function.name)),
                     Some(call.id.clone()),
                     index,
                 )?;
@@ -168,7 +169,7 @@ pub(super) fn to_responses(
                     Some(call.id),
                     index,
                 )?;
-                output.push(r::ResponseOutputItem::FunctionCall(i::FunctionCall {
+                output.push(bindings.restore(i::FunctionCall {
                     type_: i::FunctionCallType::FunctionCall,
                     arguments: call.function.arguments,
                     call_id,
@@ -182,7 +183,7 @@ pub(super) fn to_responses(
                         i::ItemStatus::Completed
                     }),
                     rest: Default::default(),
-                }));
+                })?);
             }
             cc::MessageToolCall::Custom(call) => {
                 let id = identity(

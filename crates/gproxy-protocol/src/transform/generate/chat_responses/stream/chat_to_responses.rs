@@ -59,6 +59,7 @@ pub struct ChatToResponsesStream {
     base: Option<r::GenerateContentResponseBody>,
     message: Option<MessageState>,
     tools: BTreeMap<i64, ToolState>,
+    client_tools: super::super::client_tools::Bindings,
     next_output: i64,
     finish: Option<c::FinishReason>,
     events: Vec<rs::StreamEvent>,
@@ -98,6 +99,7 @@ impl ChatToResponsesStream {
         }
 
         let mut context = context.into();
+        let client_tools = super::super::client_tools::Bindings::new(&context.response.request)?;
         context.response.request = declared(context.response.request);
         context.response.effective_tool_choice = declared(context.response.effective_tool_choice);
         context.response.effective_prompt_cache_options =
@@ -136,6 +138,7 @@ impl ChatToResponsesStream {
             base: None,
             message: None,
             tools: BTreeMap::new(),
+            client_tools,
             next_output: 0,
             finish: None,
             events: Vec::new(),

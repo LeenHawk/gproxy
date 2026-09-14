@@ -49,6 +49,7 @@ pub fn chat_to_responses_response(
         ));
     }
     let mut ids = flow.clone();
+    let bindings = super::client_tools::Bindings::new(&context.request)?;
     let mut report = Report::default();
     let choice = input.choices.into_iter().next().expect("one choice");
     if choice.index != 0 {
@@ -83,6 +84,7 @@ pub fn chat_to_responses_response(
         &mut ids,
         policy,
         &mut report,
+        &bindings,
     )?;
     let mut target = context.into_response(id, input.created, input.model)?;
     target.output = output;
