@@ -14,3 +14,5 @@ pub mod models;
 pub use json::{JsonInvocation, invoke_empty, invoke_json};
 
 pub mod responses_ws;
+
+pub mod video;
