@@ -15,7 +15,7 @@ pub use allocator::{CallResultLink, IdSyntax, IdentityFlow, IdentityHandle, Targ
 pub use error::{IdentityError, IdentityRoleName};
 pub use state::{
     IdentityStateRecord, IdentityStateSnapshot, IdentityStateStore, IdentityTarget,
-    LateIdentityFacts, OpaqueSignature,
+    LateIdentityFacts, OpaqueField, OpaqueSignature,
 };
 pub use types::{
     DialectId, IdNamespace, IdentityRole, KnownIdPrefix, OutputItemKind, SourceIdentity,

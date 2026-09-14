@@ -111,6 +111,14 @@ fn validate(
             .map(|v| v.value.as_str())
             != part.thought_signature.as_deref()
         || part.thought_signature.is_none()
+        || native
+            .state
+            .opaque_signature
+            .as_ref()
+            .is_none_or(|signature| {
+                signature.field
+                    != crate::transform::identity::OpaqueField::GeminiPartThoughtSignature
+            })
     {
         return Err(TransformError::shape(
             "replay.signature",

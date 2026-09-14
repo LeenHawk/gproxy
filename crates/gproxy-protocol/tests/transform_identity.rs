@@ -272,7 +272,15 @@ fn state_is_scoped_cas_checked_and_late_facts_are_immutable() {
         .unwrap();
     let mut record = IdentityStateRecord::new(IdentityRole::ToolCall, target.clone());
     record.client_call_id = Some("call_client".into());
-    record.opaque_signature = Some(OpaqueSignature::new("sig", "provider-a", "model-a").unwrap());
+    record.opaque_signature = Some(
+        OpaqueSignature::new(
+            gproxy_protocol::transform::identity::OpaqueField::ResponsesReasoningEncryptedContent,
+            "sig",
+            "provider-a",
+            "model-a",
+        )
+        .unwrap(),
+    );
     let version = ready(state.save(&scope, key, None, &record, None)).unwrap();
     assert!(matches!(
         ready(state.save(&scope, key, None, &record, None)),
@@ -445,8 +453,15 @@ fn signatures_and_state_validate_after_deserialization_not_only_construction() {
         .unwrap();
     let mut record = IdentityStateRecord::new(IdentityRole::ToolCall, target.clone());
     record.client_call_id = Some("client".into());
-    record.opaque_signature =
-        Some(OpaqueSignature::new("sig", "provider/principal-a", "model").unwrap());
+    record.opaque_signature = Some(
+        OpaqueSignature::new(
+            gproxy_protocol::transform::identity::OpaqueField::GeminiPartThoughtSignature,
+            "sig",
+            "provider/principal-a",
+            "model",
+        )
+        .unwrap(),
+    );
     assert!(record.validate_for(&target).is_ok());
     for (origin, model) in [
         ("provider/principal-b", "model"),
@@ -675,4 +690,68 @@ fn deserialized_empty_source_ids_are_missing_not_ambiguous_duplicate_ids() {
         );
     }
     assert_ne!(ids[0], ids[1]);
+}
+
+#[test]
+fn opaque_field_binding_survives_storage_and_rejects_unbound_legacy_records() {
+    let target = IdentityTarget::new("model", Dialect::Claude)
+        .unwrap()
+        .with_origin("origin")
+        .unwrap();
+    let mut record = IdentityStateRecord::new(
+        IdentityRole::OutputItem(OutputItemKind::Reasoning),
+        target.clone(),
+    );
+    record.opaque_signature = Some(
+        OpaqueSignature::new(
+            OpaqueField::ClaudeThinkingSignature,
+            "same-bytes",
+            "origin",
+            "model",
+        )
+        .unwrap(),
+    );
+    let state = IdentityStateStore::new(FakeStore::default());
+    let scope = "conversation".to_owned();
+    let version = ready(state.save(&scope, "reasoning", None, &record, None)).unwrap();
+    assert_eq!(
+        ready(state.read(&scope, "reasoning", &target))
+            .unwrap()
+            .record
+            .opaque_signature
+            .unwrap()
+            .field,
+        OpaqueField::ClaudeThinkingSignature
+    );
+    let changed = OpaqueSignature::new(
+        OpaqueField::ClaudeRedactedThinkingData,
+        "same-bytes",
+        "origin",
+        "model",
+    )
+    .unwrap();
+    assert!(
+        ready(state.update_late(
+            &scope,
+            "reasoning",
+            version,
+            &target,
+            LateIdentityFacts {
+                opaque_signature: Some(changed),
+                ..Default::default()
+            }
+        ))
+        .is_err()
+    );
+    let mut serialized = serde_json::to_value(&record).unwrap();
+    serialized["opaque_signature"]
+        .as_object_mut()
+        .unwrap()
+        .remove("field");
+    assert!(serde_json::from_value::<IdentityStateRecord>(serialized).is_err());
+    record.opaque_signature.as_mut().unwrap().field = OpaqueField::GeminiPartThoughtSignature;
+    assert!(record.validate_for(&target).is_err());
+    record.opaque_signature.as_mut().unwrap().field = OpaqueField::ClaudeThinkingSignature;
+    record.schema = 1;
+    assert!(record.validate_for(&target).is_err());
 }

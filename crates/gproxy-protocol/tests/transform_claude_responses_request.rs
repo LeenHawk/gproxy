@@ -78,8 +78,15 @@ fn native_reasoning_restores_only_bound_origin_model_id_signature_and_text() {
             target.clone(),
         );
         state.client_item_id = Some(id.into());
-        state.opaque_signature =
-            Some(OpaqueSignature::new("native-signature", "origin", "claude").unwrap());
+        state.opaque_signature = Some(
+            OpaqueSignature::new(
+                gproxy_protocol::transform::identity::OpaqueField::ClaudeThinkingSignature,
+                "native-signature",
+                "origin",
+                "claude",
+            )
+            .unwrap(),
+        );
         let block:cc::ThinkingBlock=serde_json::from_value(json!({"type":"thinking","thinking":"native text","signature":"native-signature","foreign":1})).unwrap();
         ClaudeRequestContext {
             target: Some(target),
@@ -102,6 +109,17 @@ fn native_reasoning_restores_only_bound_origin_model_id_signature_and_text() {
             .contains("foreign")
     );
     assert!(responses_to_claude_request(response.clone(), "different", context(&id)).is_err());
+    let mut wrong_field = context(&id);
+    wrong_field
+        .restored_thinking
+        .get_mut(&id)
+        .unwrap()
+        .state
+        .opaque_signature
+        .as_mut()
+        .unwrap()
+        .field = gproxy_protocol::transform::identity::OpaqueField::ClaudeRedactedThinkingData;
+    assert!(responses_to_claude_request(response.clone(), "claude", wrong_field).is_err());
     let mut changed = wire;
     changed["input"][0]["content"][0]["text"] = json!("modified");
     assert!(
