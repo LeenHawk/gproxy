@@ -26,3 +26,5 @@ pub use response::{claude_response_to_openai, openai_response_to_claude};
 pub struct ResponseSupplement {
     pub created_unix_seconds: Option<i64>,
 }
+
+pub mod stream;

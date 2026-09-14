@@ -224,6 +224,7 @@ pub fn openai_response_to_claude(
         chat::FinishReason::Length => cg::StopReason::MaxTokens,
         chat::FinishReason::ToolCalls | chat::FinishReason::FunctionCall => cg::StopReason::ToolUse,
         chat::FinishReason::ContentFilter => cg::StopReason::Refusal,
+        chat::FinishReason::Stop if choice.message.refusal.is_some() => cg::StopReason::Refusal,
         chat::FinishReason::Stop => cg::StopReason::EndTurn,
     };
     Ok(Converted {
