@@ -97,7 +97,7 @@ impl ResponsesResponseContext {
             top_logprobs: request.top_logprobs,
             truncation: request.truncation,
             usage: None,
-            user: request.user,
+            user: request.user.map(Some),
             rest: Default::default(),
         })
     }

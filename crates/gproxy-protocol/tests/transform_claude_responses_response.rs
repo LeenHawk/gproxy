@@ -69,7 +69,7 @@ fn claude_text_thinking_tools_preserve_formal_data_and_identity_roles() {
         serde_json::from_str::<Value>(&call.arguments).unwrap(),
         json!({"unknown":{"formal":true}})
     );
-    let usage = value.usage.unwrap();
+    let usage = value.usage.unwrap().unwrap();
     assert_eq!(
         (usage.input_tokens, usage.output_tokens, usage.total_tokens),
         (9, 5, 14)
@@ -145,6 +145,7 @@ fn actual_usage_supplements_are_required_checked_and_not_zero_filled() {
         .unwrap()
         .value
         .usage
+        .unwrap()
         .unwrap()
         .input_tokens,
         9
@@ -238,7 +239,13 @@ fn missing_or_inconsistent_usage_and_nonterminal_items_are_errors() {
         TransformErrorKind::MissingMetadata
     );
     let mut source = response(json!([]), "completed");
-    source.usage.as_mut().unwrap().total_tokens = 99;
+    source
+        .usage
+        .as_mut()
+        .unwrap()
+        .as_mut()
+        .unwrap()
+        .total_tokens = 99;
     assert!(
         responses_to_claude_response(source, &mut flow(), &TargetIdPolicy::new(Dialect::Claude))
             .is_err()

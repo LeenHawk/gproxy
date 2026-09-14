@@ -233,7 +233,7 @@ pub fn gemini_to_responses_response(
     let created = context.created_at;
     let mut out = context.into_response(id, created, model)?;
     out.output = output;
-    out.usage = Some(usage);
+    out.usage = Some(Some(usage));
     out.status = Some(if incomplete {
         r::ResponseStatus::Incomplete
     } else {
@@ -293,6 +293,7 @@ pub fn responses_to_gemini_response(
     let usage = super::usage::to_gemini(
         input
             .usage
+            .flatten()
             .ok_or_else(|| TransformError::missing_metadata("usage"))?,
         &mut report,
     )?;

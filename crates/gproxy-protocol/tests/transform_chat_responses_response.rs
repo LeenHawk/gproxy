@@ -184,7 +184,15 @@ fn missing_usage_detail_requires_real_facts_and_errors_do_not_mutate_ids() {
     )
     .unwrap()
     .value;
-    assert_eq!(output.usage.unwrap().input_tokens_details.cached_tokens, 3);
+    assert_eq!(
+        output
+            .usage
+            .unwrap()
+            .unwrap()
+            .input_tokens_details
+            .cached_tokens,
+        3
+    );
     let mut input = chat();
     input["usage"]["total_tokens"] = json!(18);
     assert_eq!(

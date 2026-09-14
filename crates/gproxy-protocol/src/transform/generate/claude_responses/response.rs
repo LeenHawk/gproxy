@@ -98,7 +98,7 @@ pub fn claude_to_responses_response(
     let created_at = context.created_at;
     let mut target = context.into_response(response_id, created_at, input.model)?;
     target.output = output;
-    target.usage = Some(usage);
+    target.usage = Some(Some(usage));
     target.service_tier = tier.map(Some);
     target.status = Some(if incomplete {
         r::ResponseStatus::Incomplete
@@ -230,6 +230,7 @@ fn convert_to_claude(
     let mut usage = usage::to_claude(
         input
             .usage
+            .flatten()
             .ok_or_else(|| TransformError::missing_metadata("response.usage"))?,
     )?;
     usage.service_tier = input.service_tier.flatten().and_then(|tier| match tier {

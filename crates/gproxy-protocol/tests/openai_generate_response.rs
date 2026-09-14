@@ -190,7 +190,7 @@ fn root_35_fields_and_http_three_elements_are_complete() {
         ResponseModerationOutcome::Error(v) => assert!(v.rest.is_empty()),
         _ => panic!(),
     }
-    let usage = body.usage.as_ref().unwrap();
+    let usage = body.usage.as_ref().unwrap().as_ref().unwrap();
     assert!(usage.rest.is_empty());
     assert!(usage.input_tokens_details.rest.is_empty());
     assert!(usage.output_tokens_details.rest.is_empty());
@@ -259,8 +259,11 @@ fn root_required_nullable_and_optional_contracts_match_source() {
         "service_tier",
         "top_logprobs",
         "truncation",
+        // Native created/in_progress examples explicitly carry these as null.
+        "usage",
+        "user",
     ];
-    let optional = ["prompt_cache_options", "status", "text", "usage", "user"];
+    let optional = ["prompt_cache_options", "status", "text"];
     for f in required {
         let mut x = wire.clone();
         x.as_object_mut().unwrap().remove(f);
