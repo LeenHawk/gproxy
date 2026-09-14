@@ -65,7 +65,17 @@ pub(crate) fn claude_message_to_openai(
                                 .iter()
                                 .map(|block| match block {
                                     c::ToolResultContentBlock::Text(text) => Ok(text.text.clone()),
-                                    c::ToolResultContentBlock::Image(_) | c::ToolResultContentBlock::SearchResult(_) | c::ToolResultContentBlock::Document(_) | c::ToolResultContentBlock::ToolReference(_) => Err(TransformError::unsupported("tool_result.content", "Chat tool messages cannot represent non-text result blocks")),
+                                    c::ToolResultContentBlock::ToolReference(reference) => {
+                                        if reference.tool_name.trim().is_empty() {
+                                            return Err(TransformError::shape("tool_result.tool_reference.tool_name", "non-empty tool name required"));
+                                        }
+                                        report.changed("tool_result.tool_reference", "tool reference represented as text; callable schema remains in tools");
+                                        if reference.cache_control.is_some() {
+                                            report.omitted("tool_result.tool_reference.cache_control", "Chat tool results have no Claude cache field");
+                                        }
+                                        Ok(serde_json::json!({"type":"tool_reference","tool_name":reference.tool_name}).to_string())
+                                    }
+                                    c::ToolResultContentBlock::Image(_) | c::ToolResultContentBlock::SearchResult(_) | c::ToolResultContentBlock::Document(_) => Err(TransformError::unsupported("tool_result.content", "Chat tool messages cannot represent non-text result blocks")),
                                 })
                                 .collect::<Result<Vec<_>, _>>()?
                                 .join(""),
