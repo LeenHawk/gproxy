@@ -305,3 +305,6 @@ mod synthesis;
 
 #[path = "adapt_generate_stream/websocket.rs"]
 mod websocket;
+
+#[path = "adapt_generate_stream/fanout.rs"]
+mod fanout;

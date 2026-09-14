@@ -51,6 +51,8 @@ pub mod synthesize;
 
 pub mod websocket;
 
+pub mod fanout;
+
 mod history;
 
 pub use history::ResponsesHistoryCache;

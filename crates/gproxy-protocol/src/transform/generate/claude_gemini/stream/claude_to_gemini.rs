@@ -87,6 +87,20 @@ impl ClaudeToGeminiStream {
             stopped: false,
         })
     }
+    pub(crate) fn reserve_external_ids(
+        &mut self,
+        role: crate::transform::identity::IdentityRole,
+        ids: &std::collections::BTreeSet<String>,
+        max: usize,
+    ) -> Result<(), TransformError> {
+        self.flow.reserve_external_ids(role, ids, max).map_err(|e| {
+            TransformError::new(
+                crate::transform::TransformErrorKind::Conflict,
+                "fanout.ids",
+                e.to_string(),
+            )
+        })
+    }
     pub fn identities(&self) -> &IdentityFlow {
         &self.flow
     }

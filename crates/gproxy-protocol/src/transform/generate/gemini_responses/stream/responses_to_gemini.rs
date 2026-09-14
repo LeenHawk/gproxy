@@ -114,6 +114,23 @@ impl ResponsesToGeminiStream {
             tools: 0,
         })
     }
+    pub(crate) fn reserve_external_ids(
+        &mut self,
+        role: crate::transform::identity::IdentityRole,
+        ids: &std::collections::BTreeSet<String>,
+        max: usize,
+    ) -> Result<(), TransformError> {
+        self.flow.reserve_external_ids(role, ids, max).map_err(|e| {
+            TransformError::new(
+                crate::transform::TransformErrorKind::Conflict,
+                "fanout.ids",
+                e.to_string(),
+            )
+        })
+    }
+    pub(crate) fn reserved_tool_ids(&self) -> &std::collections::BTreeSet<String> {
+        &self.reserved
+    }
     pub fn identities(&self) -> &IdentityFlow {
         &self.flow
     }

@@ -4,7 +4,7 @@
 mod edges;
 mod invoke;
 mod journal;
-mod output;
+pub(super) mod output;
 mod prepare;
 use super::{Endpoint, GenerationIdentity, GenerationProgress};
 use crate::{
@@ -83,7 +83,10 @@ fn codec_error(e: crate::codec::CodecError) -> TransformError {
         e.to_string(),
     )
 }
-fn group_id(options: FanoutOptions, ids: &[GenerationIdentity]) -> Result<String, TransformError> {
+pub(super) fn group_id(
+    options: FanoutOptions,
+    ids: &[GenerationIdentity],
+) -> Result<String, TransformError> {
     let Some(first) = ids.first() else {
         return Err(limit());
     };
