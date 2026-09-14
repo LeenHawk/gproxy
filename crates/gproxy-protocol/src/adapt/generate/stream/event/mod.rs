@@ -103,6 +103,11 @@ pub trait NativeEvent:
 {
     type Full: Serialize + Clone + DeclaredFields;
     type Collector;
+    fn responses_history(
+        _value: &Self::Full,
+    ) -> Option<&crate::wire::openai::responses::GenerateContentResponseBody> {
+        None
+    }
     const DIALECT: Dialect;
     const DONE: bool = false;
     fn collector(

@@ -40,6 +40,7 @@ pub struct Store {
     pub serial: AtomicUsize,
     pub hang_applied: AtomicBool,
     pub hung: AtomicBool,
+    pub hang_key_prefix: Mutex<Option<String>>,
 }
 impl StateStore for Store {
     type Scope = ();
@@ -75,7 +76,19 @@ impl StateStore for Store {
                     },
                 );
             }
-            if self.hang_applied.swap(false, Ordering::SeqCst) {
+            let keyed_hang = {
+                let mut prefix = self.hang_key_prefix.lock().unwrap();
+                if prefix
+                    .as_ref()
+                    .is_some_and(|prefix| key.starts_with(prefix))
+                {
+                    prefix.take();
+                    true
+                } else {
+                    false
+                }
+            };
+            if keyed_hang || self.hang_applied.swap(false, Ordering::SeqCst) {
                 self.hung.store(true, Ordering::SeqCst);
                 return std::future::pending().await;
             }

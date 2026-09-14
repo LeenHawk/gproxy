@@ -80,6 +80,7 @@ pub struct ResponsesWsSession {
     poisoned: bool,
     busy: bool,
     failure: Option<Box<StreamEvent>>,
+    websocket_failure: Option<Box<crate::wire::openai::responses::websocket::ErrorMessage>>,
     peer_close: Option<WsClose>,
     last_response_id: Option<String>,
     last_status: Option<ResponseStatus>,
@@ -93,6 +94,7 @@ impl ResponsesWsSession {
             poisoned: false,
             busy: false,
             failure: None,
+            websocket_failure: None,
             peer_close: None,
             last_response_id: None,
             last_status: None,
@@ -108,6 +110,11 @@ impl ResponsesWsSession {
     /// A received native Error/Failed event remains available after poisoning.
     pub fn failure_event(&self) -> Option<&StreamEvent> {
         self.failure.as_deref()
+    }
+    pub fn websocket_failure(
+        &self,
+    ) -> Option<&crate::wire::openai::responses::websocket::ErrorMessage> {
+        self.websocket_failure.as_deref()
     }
     pub fn peer_close(&self) -> Option<&WsClose> {
         self.peer_close.as_ref()
@@ -125,6 +132,25 @@ impl ResponsesWsSession {
     pub fn turn(
         &mut self,
         request: GenerateContentRequestBody,
+    ) -> Result<ResponsesWsTurn<'_>, TransformError> {
+        if self.poisoned || self.busy || self.socket.is_none() {
+            return Err(TransformError::new(
+                TransformErrorKind::MissingState,
+                "responses.websocket",
+                "connection is closed or has an uncertain turn",
+            ));
+        }
+        self.turn_message(crate::wire::openai::responses::websocket::RequestMessage {
+            event: crate::wire::openai::responses::websocket::ClientEvent::ResponseCreate(request),
+            stream_id: None,
+            generate: None,
+        })
+    }
+    /// One explicit lane at a time. Native Responses supports concurrent lanes;
+    /// this owned-turn helper intentionally serializes them.
+    pub fn turn_message(
+        &mut self,
+        request: crate::wire::openai::responses::websocket::RequestMessage,
     ) -> Result<ResponsesWsTurn<'_>, TransformError> {
         if self.poisoned || self.busy || self.socket.is_none() {
             return Err(TransformError::new(
@@ -183,4 +209,20 @@ fn host_error(error: crate::connection::TransportError) -> TransformError {
         error.to_string(),
         error,
     )
+}
+
+pub(crate) fn validate_lane(lane: Option<&str>) -> Result<(), TransformError> {
+    if lane.is_some_and(|id| {
+        id.is_empty()
+            || id.len() > 256
+            || !id
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
+    }) {
+        return Err(TransformError::shape(
+            "responses.websocket.stream_id",
+            "nonempty ASCII letters, numbers, underscore, hyphen or period, at most 256 characters required",
+        ));
+    }
+    Ok(())
 }

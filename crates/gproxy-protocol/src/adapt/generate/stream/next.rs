@@ -55,6 +55,21 @@ impl<B: StreamBridge> StreamInvocation<B> {
         &mut self,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<Option<StreamChunk<B::ClientEvent>>, TransformError> {
+        if self.websocket_terminal {
+            self.next_inner(state, Some(&mut futures_util::stream::empty()))
+                .await
+        } else {
+            self.next_inner(state, None).await
+        }
+    }
+    pub(super) async fn next_inner<S: StateStore>(
+        &mut self,
+        state: &GenerationStateAccess<'_, S>,
+        mut external: Option<
+            &mut (dyn futures_core::Stream<Item = Result<B::NativeEvent, TransformError>> + Unpin),
+        >,
+    ) -> Result<Option<StreamChunk<B::ClientEvent>>, TransformError> {
+        use futures_util::StreamExt;
         self.state_binding.validate(state)?;
         self.preparation.verify(state).await?;
         if self.failed {
@@ -63,7 +78,7 @@ impl<B: StreamBridge> StreamInvocation<B> {
         if self.finished {
             return Ok(None);
         }
-        if self.reader.is_none() {
+        if self.reader.is_none() && external.is_none() {
             return Err(super::missing("successful stream start required"));
         }
         loop {
@@ -88,6 +103,15 @@ impl<B: StreamBridge> StreamInvocation<B> {
                     &mut self.final_progress,
                 )
                 .await?;
+                if let Some(history) = &mut self.history {
+                    let response = B::ClientEvent::responses_history(
+                        self.client_final.as_ref().expect("final response checked"),
+                    )
+                    .ok_or_else(|| {
+                        super::invalid("Responses history attached to another dialect")
+                    })?;
+                    history.save(response, state, self.settings.codec).await?;
+                }
                 self.final_saved = true;
             }
             if self.ready.is_some() {
@@ -143,17 +167,30 @@ impl<B: StreamBridge> StreamInvocation<B> {
                     (B::NativeEvent::DIALECT == crate::Dialect::OpenAi).then_some(&self.signed),
                 )
                 .await?;
-            let next = self
-                .reader
-                .as_mut()
-                .expect("successful start")
-                .next::<B::NativeEvent>()
-                .await;
+            let next = if let Some(source) = external.as_mut() {
+                source
+                    .next()
+                    .await
+                    .transpose()
+                    .map(|event| event.map(|value| NativeFrame::Event { name: None, value }))
+            } else {
+                self.reader
+                    .as_mut()
+                    .expect("successful start")
+                    .next::<B::NativeEvent>()
+                    .await
+                    .map_err(super::codec_error)
+            };
             let result = match next {
-                Err(error) => Err(super::codec_error(error)),
+                Err(error) => Err(error),
                 Ok(Some(NativeFrame::Done)) => self.source_done(),
                 Ok(Some(NativeFrame::Event { name, value })) => {
-                    self.source_event(name.as_deref(), value)
+                    let terminal = external.is_some() && value.is_terminal();
+                    let result = self.source_event(name.as_deref(), value);
+                    if terminal && result.is_ok() {
+                        self.websocket_terminal = true;
+                    }
+                    result
                 }
                 Ok(None) => self.finish_source(),
             };

@@ -48,3 +48,9 @@ pub use prepare::{
 };
 
 pub mod synthesize;
+
+pub mod websocket;
+
+mod history;
+
+pub use history::ResponsesHistoryCache;

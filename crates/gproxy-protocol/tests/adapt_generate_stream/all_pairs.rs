@@ -232,7 +232,7 @@ fn run<B: StreamBridge>(mut call: StreamInvocation<B>, store: Arc<Store>) {
 fn auto() -> r::ToolChoice {
     r::ToolChoice::Mode(r::ToolChoiceMode::Auto)
 }
-fn chat_response_context() -> p::chat_responses::stream::ChatToResponsesContext {
+pub(super) fn chat_response_context() -> p::chat_responses::stream::ChatToResponsesContext {
     p::chat_responses::ResponsesResponseContext {
         request: serde_json::from_value(request(Dialect::OpenAi)).unwrap(),
         effective_parallel_tool_calls: true,
@@ -242,7 +242,7 @@ fn chat_response_context() -> p::chat_responses::stream::ChatToResponsesContext 
     }
     .into()
 }
-fn claude_response_context() -> p::claude_responses::stream::ClaudeToResponsesContext {
+pub(super) fn claude_response_context() -> p::claude_responses::stream::ClaudeToResponsesContext {
     p::claude_responses::ClaudeResponseContext {
         request: serde_json::from_value(request(Dialect::OpenAi)).unwrap(),
         created_at: 7,
@@ -253,7 +253,7 @@ fn claude_response_context() -> p::claude_responses::stream::ClaudeToResponsesCo
     }
     .into()
 }
-fn gemini_response_context() -> p::gemini_responses::stream::GeminiToResponsesContext {
+pub(super) fn gemini_response_context() -> p::gemini_responses::stream::GeminiToResponsesContext {
     p::gemini_responses::stream::GeminiToResponsesContext {
         response: p::gemini_responses::GeminiResponseContext {
             request: serde_json::from_value(request(Dialect::OpenAi)).unwrap(),

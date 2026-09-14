@@ -92,16 +92,44 @@ impl ChatViaResponses {
 impl ResponsesViaChat {
     pub async fn prepare_stream<S: StateStore>(
         input: r::GenerateContentRequestBody,
+        target: StreamTarget,
+        context: p::ChatToResponsesContext,
+        settings: StreamSettings,
+        state: &GenerationStateAccess<'_, S>,
+    ) -> Result<StreamInvocation<p::ChatToResponsesStream>, TransformError> {
+        Self::prepare_stream_inner(input, target, context, settings, state, None).await
+    }
+    pub async fn prepare_stream_with_history_cache<S: StateStore>(
+        input: r::GenerateContentRequestBody,
+        target: StreamTarget,
+        context: p::ChatToResponsesContext,
+        settings: StreamSettings,
+        state: &GenerationStateAccess<'_, S>,
+        history_cache: &super::super::ResponsesHistoryCache,
+    ) -> Result<StreamInvocation<p::ChatToResponsesStream>, TransformError> {
+        Self::prepare_stream_inner(input, target, context, settings, state, Some(history_cache))
+            .await
+    }
+    async fn prepare_stream_inner<S: StateStore>(
+        input: r::GenerateContentRequestBody,
         mut target: StreamTarget,
         mut context: p::ChatToResponsesContext,
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
+        history_cache: Option<&super::super::ResponsesHistoryCache>,
     ) -> Result<StreamInvocation<p::ChatToResponsesStream>, TransformError> {
         settings.validate::<p::ChatToResponsesStream>()?;
         let original = input.into_declared();
+        let (history, expanded) = super::super::history::History::prepare_with_cache(
+            &original,
+            state,
+            settings.codec,
+            history_cache,
+        )
+        .await?;
         context.response.request = original.clone();
         let prepared = Self::prepare_with_state(
-            original.clone().buffered(),
+            expanded.buffered(),
             target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
@@ -115,7 +143,7 @@ impl ResponsesViaChat {
             settings.events.into(),
             target.identities.response_policy.clone(),
         )?;
-        StreamInvocation::new(
+        let mut invocation = StreamInvocation::new(
             original,
             prepared.target_request().clone().streaming(),
             target,
@@ -124,21 +152,68 @@ impl ResponsesViaChat {
             prepared.report().clone(),
             state,
         )
-        .await
+        .await?;
+        history.bind(&invocation.preparation, state).await?;
+        invocation.history = Some(history);
+        Ok(invocation)
     }
     pub async fn prepare_stream_with_capabilities<S: StateStore, R: ResourceAccess>(
+        input: r::GenerateContentRequestBody,
+        target: StreamTarget,
+        context: p::ChatToResponsesContext,
+        settings: StreamSettings,
+        state: &GenerationStateAccess<'_, S>,
+        resources: &GenerationResources<'_, R>,
+    ) -> Result<StreamInvocation<p::ChatToResponsesStream>, TransformError> {
+        Self::prepare_stream_with_capabilities_inner(
+            input, target, context, settings, state, resources, None,
+        )
+        .await
+    }
+    pub async fn prepare_stream_with_capabilities_and_history_cache<
+        S: StateStore,
+        R: ResourceAccess,
+    >(
+        input: r::GenerateContentRequestBody,
+        target: StreamTarget,
+        context: p::ChatToResponsesContext,
+        settings: StreamSettings,
+        state: &GenerationStateAccess<'_, S>,
+        resources: &GenerationResources<'_, R>,
+        history_cache: &super::super::ResponsesHistoryCache,
+    ) -> Result<StreamInvocation<p::ChatToResponsesStream>, TransformError> {
+        Self::prepare_stream_with_capabilities_inner(
+            input,
+            target,
+            context,
+            settings,
+            state,
+            resources,
+            Some(history_cache),
+        )
+        .await
+    }
+    async fn prepare_stream_with_capabilities_inner<S: StateStore, R: ResourceAccess>(
         input: r::GenerateContentRequestBody,
         mut target: StreamTarget,
         mut context: p::ChatToResponsesContext,
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
+        history_cache: Option<&super::super::ResponsesHistoryCache>,
     ) -> Result<StreamInvocation<p::ChatToResponsesStream>, TransformError> {
         settings.validate::<p::ChatToResponsesStream>()?;
         let original = input.into_declared();
+        let (history, expanded) = super::super::history::History::prepare_with_cache(
+            &original,
+            state,
+            settings.codec,
+            history_cache,
+        )
+        .await?;
         context.response.request = original.clone();
         let prepared = Self::prepare_with_capabilities(
-            original.clone().buffered(),
+            expanded.buffered(),
             target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
@@ -153,7 +228,7 @@ impl ResponsesViaChat {
             settings.events.into(),
             target.identities.response_policy.clone(),
         )?;
-        StreamInvocation::new(
+        let mut invocation = StreamInvocation::new(
             original,
             prepared.target_request().clone().streaming(),
             target,
@@ -162,6 +237,9 @@ impl ResponsesViaChat {
             prepared.report().clone(),
             state,
         )
-        .await
+        .await?;
+        history.bind(&invocation.preparation, state).await?;
+        invocation.history = Some(history);
+        Ok(invocation)
     }
 }
