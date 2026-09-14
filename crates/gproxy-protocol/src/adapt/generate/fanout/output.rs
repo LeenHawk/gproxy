@@ -9,7 +9,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::collections::BTreeSet;
 mod chat;
 mod gemini;
-pub(super) trait Client:
+pub(in crate::adapt::generate) trait Client:
     Serialize + DeserializeOwned + Clone + DeclaredFields + IdentityFacts
 {
     fn set_calls(&mut self, ids: Vec<Option<String>>);

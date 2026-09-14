@@ -178,6 +178,37 @@ impl IdentityFlow {
         }
     }
 
+    /// Reserve identities owned by other calls without inventing source associations.
+    pub(crate) fn reserve_external_ids(
+        &mut self,
+        role: IdentityRole,
+        ids: &std::collections::BTreeSet<String>,
+        max: usize,
+    ) -> Result<(), IdentityError> {
+        if self.used_ids.len().saturating_add(ids.len()) > max {
+            return Err(IdentityError::InvalidIdentity(
+                "external identity budget exceeded".into(),
+            ));
+        }
+        if ids.iter().any(|id| {
+            self.by_emitted.contains_key(&EmittedLookup {
+                role,
+                id: id.clone(),
+            })
+        }) {
+            return Err(IdentityError::InvalidIdentity(
+                "external identity already emitted by this call".into(),
+            ));
+        }
+        for id in ids {
+            self.used_ids.insert(EmittedLookup {
+                role,
+                id: id.clone(),
+            });
+        }
+        Ok(())
+    }
+
     /// Current associations, including source IDs learned after first emission.
     /// Iterator order is unspecified; persistence callers must sort their keys.
     pub fn handles(&self) -> impl Iterator<Item = IdentityHandle> + '_ {
