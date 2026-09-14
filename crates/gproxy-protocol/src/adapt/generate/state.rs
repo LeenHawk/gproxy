@@ -257,7 +257,7 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         }
         self.save_records(records, native_payloads, progress).await
     }
-    async fn save_records<N>(
+    pub(super) async fn save_records<N>(
         &self,
         records: Vec<(IdentityStateRecord, Option<super::ToolCallKind>)>,
         native_payloads: Vec<(String, Vec<u8>)>,

@@ -1,0 +1,439 @@
+{
+  "scope": "v2/v3 public generation request transforms compared with v4 injected Upstream and StateStore adapter; not legacy full-core or live-provider evidence",
+  "baselines": {
+    "v2": "993eac13",
+    "v3": "77d2353d"
+  },
+  "v2": [
+    {
+      "accepted": true,
+      "name": "chat_via_claude",
+      "output": {
+        "max_tokens": 64,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "hi",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "client"
+      }
+    },
+    {
+      "accepted": true,
+      "name": "chat_via_responses",
+      "output": {
+        "input": [
+          {
+            "content": "hi",
+            "role": "user",
+            "type": "message"
+          }
+        ],
+        "max_output_tokens": 64,
+        "model": "client"
+      }
+    },
+    {
+      "accepted": true,
+      "name": "gemini_via_claude",
+      "output": {
+        "max_tokens": 64,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "hi",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": ""
+      }
+    },
+    {
+      "accepted": true,
+      "name": "gemini_via_responses",
+      "output": {
+        "input": [
+          {
+            "content": "hi",
+            "role": "user",
+            "type": "message"
+          }
+        ],
+        "max_output_tokens": 64
+      }
+    }
+  ],
+  "v3": [
+    {
+      "accepted": true,
+      "name": "chat_via_claude",
+      "output": {
+        "max_tokens": 64,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "hi",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "selected",
+        "stream": false
+      }
+    },
+    {
+      "accepted": true,
+      "name": "chat_via_responses",
+      "output": {
+        "input": [
+          {
+            "content": "hi",
+            "role": "user",
+            "type": "message"
+          }
+        ],
+        "max_output_tokens": 64,
+        "model": "selected",
+        "stream": false
+      }
+    },
+    {
+      "accepted": true,
+      "name": "gemini_via_claude",
+      "output": {
+        "max_tokens": 64,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "hi",
+                "type": "text"
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "selected",
+        "stream": false
+      }
+    },
+    {
+      "accepted": true,
+      "name": "gemini_via_responses",
+      "output": {
+        "input": [
+          {
+            "content": [
+              {
+                "text": "hi",
+                "type": "input_text"
+              }
+            ],
+            "role": "user",
+            "type": "message"
+          }
+        ],
+        "max_output_tokens": 64,
+        "model": "selected",
+        "stream": false
+      }
+    }
+  ],
+  "v4": [
+    {
+      "accepted": true,
+      "name": "chat_via_claude",
+      "output": {
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": "answer",
+              "refusal": null,
+              "role": "assistant"
+            }
+          },
+          {
+            "finish_reason": "stop",
+            "index": 1,
+            "logprobs": null,
+            "message": {
+              "content": "answer",
+              "refusal": null,
+              "role": "assistant"
+            }
+          }
+        ],
+        "created": 123,
+        "id": "resp_05050505050505050505050505050505_h_r_0",
+        "model": "selected",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 4,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "prompt_tokens": 8,
+          "prompt_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "total_tokens": 12
+        }
+      },
+      "post_count": 2,
+      "requests": [
+        {
+          "max_tokens": 64,
+          "messages": [
+            {
+              "content": [
+                {
+                  "text": "hi",
+                  "type": "text"
+                }
+              ],
+              "role": "user"
+            }
+          ],
+          "model": "selected"
+        },
+        {
+          "max_tokens": 64,
+          "messages": [
+            {
+              "content": [
+                {
+                  "text": "hi",
+                  "type": "text"
+                }
+              ],
+              "role": "user"
+            }
+          ],
+          "model": "selected"
+        }
+      ]
+    },
+    {
+      "accepted": true,
+      "name": "chat_via_responses",
+      "output": {
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": "answer",
+              "refusal": null,
+              "role": "assistant"
+            }
+          },
+          {
+            "finish_reason": "stop",
+            "index": 1,
+            "logprobs": null,
+            "message": {
+              "content": "answer",
+              "refusal": null,
+              "role": "assistant"
+            }
+          }
+        ],
+        "created": 123,
+        "id": "resp_05050505050505050505050505050505_h_r_0",
+        "model": "selected",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 4,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "prompt_tokens": 8,
+          "prompt_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "total_tokens": 12
+        }
+      },
+      "post_count": 2,
+      "requests": [
+        {
+          "input": [
+            {
+              "content": "hi",
+              "role": "user"
+            }
+          ],
+          "max_output_tokens": 64,
+          "model": "selected"
+        },
+        {
+          "input": [
+            {
+              "content": "hi",
+              "role": "user"
+            }
+          ],
+          "max_output_tokens": 64,
+          "model": "selected"
+        }
+      ]
+    },
+    {
+      "accepted": true,
+      "name": "gemini_via_claude",
+      "output": {
+        "candidates": [
+          {
+            "content": {
+              "parts": [
+                {
+                  "text": "answer"
+                }
+              ],
+              "role": "model"
+            },
+            "finishReason": "STOP",
+            "index": 0
+          },
+          {
+            "content": {
+              "parts": [
+                {
+                  "text": "answer"
+                }
+              ],
+              "role": "model"
+            },
+            "finishReason": "STOP",
+            "index": 1
+          }
+        ],
+        "modelVersion": "selected",
+        "responseId": "resp_05050505050505050505050505050505_g_r_0",
+        "usageMetadata": {
+          "cachedContentTokenCount": 0,
+          "candidatesTokenCount": 4,
+          "promptTokenCount": 8,
+          "thoughtsTokenCount": 0,
+          "totalTokenCount": 12
+        }
+      },
+      "post_count": 2,
+      "requests": [
+        {
+          "max_tokens": 64,
+          "messages": [
+            {
+              "content": [
+                {
+                  "text": "hi",
+                  "type": "text"
+                }
+              ],
+              "role": "user"
+            }
+          ],
+          "model": "selected"
+        },
+        {
+          "max_tokens": 64,
+          "messages": [
+            {
+              "content": [
+                {
+                  "text": "hi",
+                  "type": "text"
+                }
+              ],
+              "role": "user"
+            }
+          ],
+          "model": "selected"
+        }
+      ]
+    },
+    {
+      "accepted": true,
+      "name": "gemini_via_responses",
+      "output": {
+        "candidates": [
+          {
+            "content": {
+              "parts": [
+                {
+                  "text": "answer"
+                }
+              ],
+              "role": "model"
+            },
+            "finishReason": "STOP",
+            "index": 0
+          },
+          {
+            "content": {
+              "parts": [
+                {
+                  "text": "answer"
+                }
+              ],
+              "role": "model"
+            },
+            "finishReason": "STOP",
+            "index": 1
+          }
+        ],
+        "modelVersion": "selected",
+        "responseId": "resp_05050505050505050505050505050505_g_r_0",
+        "usageMetadata": {
+          "cachedContentTokenCount": 0,
+          "candidatesTokenCount": 4,
+          "promptTokenCount": 8,
+          "thoughtsTokenCount": 0,
+          "totalTokenCount": 12
+        }
+      },
+      "post_count": 2,
+      "requests": [
+        {
+          "input": [
+            {
+              "content": "hi",
+              "role": "user"
+            }
+          ],
+          "max_output_tokens": 64,
+          "model": "selected"
+        },
+        {
+          "input": [
+            {
+              "content": "hi",
+              "role": "user"
+            }
+          ],
+          "max_output_tokens": 64,
+          "model": "selected"
+        }
+      ]
+    }
+  ]
+}
