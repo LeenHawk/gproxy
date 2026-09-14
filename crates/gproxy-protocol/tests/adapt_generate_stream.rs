@@ -311,3 +311,6 @@ mod fanout;
 
 #[path = "adapt_generate_stream/instructions.rs"]
 mod instructions;
+
+#[path = "adapt_generate_stream/tool_reference.rs"]
+mod tool_reference;

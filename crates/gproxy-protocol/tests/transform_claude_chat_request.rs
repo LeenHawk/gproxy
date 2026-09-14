@@ -6,6 +6,63 @@ use gproxy_protocol::{
 use serde_json::json;
 
 #[test]
+fn tool_references_preserve_names_schema_and_mixed_result_order() {
+    for mixed in [false, true] {
+        let mut result = vec![
+            json!({"type":"tool_reference","tool_name":"lookup","cache_control":{"type":"ephemeral"},"foreign":"DROP"}),
+        ];
+        if mixed {
+            result.insert(0, json!({"type":"text","text":"Found: "}));
+            result.push(json!({"type":"text","text":"; use it."}));
+        }
+        let input: cg::GenerateContentRequestBody = serde_json::from_value(json!({
+            "model":"claude", "max_tokens":32,
+            "tools":[{"name":"lookup","input_schema":{"type":"object","properties":{"q":{"type":"string"}}}}],
+            "messages":[
+                {"role":"assistant","content":[{"type":"tool_use","id":"call-search","name":"discover","input":{}}]},
+                {"role":"user","content":[{"type":"tool_result","tool_use_id":"call-search","content":result}]}
+            ]
+        })).unwrap();
+        let converted = claude_chat::claude_to_openai(&input, "target").unwrap();
+        let wire = serde_json::to_value(converted.value).unwrap();
+        let reference = json!({"type":"tool_reference","tool_name":"lookup"}).to_string();
+        assert_eq!(
+            wire["messages"][1]["content"],
+            if mixed {
+                format!("Found: {reference}; use it.")
+            } else {
+                reference
+            }
+        );
+        assert_eq!(wire["messages"][1]["tool_call_id"], "call-search");
+        assert_eq!(wire["tools"][0]["function"]["name"], "lookup");
+        assert_eq!(
+            wire["tools"][0]["function"]["parameters"]["properties"]["q"]["type"],
+            "string"
+        );
+        assert!(!wire.to_string().contains("DROP"));
+        assert!(
+            converted
+                .report
+                .diagnostics
+                .iter()
+                .any(|d| d.field == "tool_result.tool_reference")
+        );
+        let mut deferred = input.clone();
+        let gproxy_protocol::claude::tools::ToolUnion::Custom(tool) =
+            &mut deferred.tools.as_mut().unwrap()[0]
+        else {
+            panic!()
+        };
+        tool.defer_loading = Some(true);
+        assert!(
+            claude_chat::claude_to_openai(&deferred, "target").is_err(),
+            "reference text alone must not silently enable deferred tools"
+        );
+    }
+}
+
+#[test]
 fn claude_request_maps_roles_tools_and_nested_schema_without_rest_leakage() {
     let input: cg::GenerateContentRequestBody = serde_json::from_value(json!({
         "max_tokens": 128,
