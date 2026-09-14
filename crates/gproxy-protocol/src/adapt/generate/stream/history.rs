@@ -215,6 +215,11 @@ fn output_item(
         O::Message(v) => I::OutputMessage(same(v)?),
         O::FunctionCall(v) => I::FunctionCall(same(v)?),
         O::CustomToolCall(v) => I::CustomToolCall(same(v)?),
+        O::ShellCall(v) => I::ShellCall(same(v)?),
+        O::ApplyPatchCall(v) => I::ApplyPatchCall(same(v)?),
+        O::ToolSearchCall(v) => I::ToolSearchCall(same(v)?),
+        O::ToolSearchOutput(v) => I::ToolSearchOutput(same(v)?),
+        O::AdditionalTools(v) => I::AdditionalTools(same(v)?),
         O::Reasoning(v) => I::Reasoning(same(v)?),
         O::ImageGenerationCall(v) => I::ImageGenerationCall(same(v)?),
         _ => {

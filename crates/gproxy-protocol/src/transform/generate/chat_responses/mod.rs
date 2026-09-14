@@ -4,6 +4,7 @@
 //! reconstructed into the target protocol's declared input/output items; no
 //! common content representation or source `rest` map is used.
 
+pub(crate) mod client_tools;
 mod common;
 mod request;
 mod response;

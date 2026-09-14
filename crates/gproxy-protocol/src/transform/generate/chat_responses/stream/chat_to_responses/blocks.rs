@@ -260,7 +260,7 @@ impl ChatToResponsesStream {
                 .flow
                 .resolve_as(
                     IdentityRole::ToolCall,
-                    IdentityRole::OutputItem(OutputItemKind::FunctionCall),
+                    IdentityRole::OutputItem(self.client_tools.kind(&t.name)),
                     SourceIdentity::new(Dialect::OpenAiChat, t.source_id, ordinal as u64),
                     &self.target_policy,
                 )
@@ -277,7 +277,41 @@ impl ChatToResponsesStream {
             if t.name.is_empty() {
                 return Err(TransformError::missing_metadata("tool.function.name"));
             }
-            let item = r::ResponseOutputItem::FunctionCall(i::FunctionCall {
+            if self.client_tools.kind(&t.name) != OutputItemKind::FunctionCall {
+                // These native actions have no function-argument delta shape.
+                // Emit only after the complete action can be validated, preserving
+                // the original client executor and call/item identity roles.
+                let item = self.client_tools.restore(i::FunctionCall {
+                    type_: i::FunctionCallType::FunctionCall,
+                    arguments: t.arguments,
+                    call_id,
+                    name: t.name,
+                    id: Some(item_id),
+                    namespace: None,
+                    caller: None,
+                    status: Some(if incomplete {
+                        i::ItemStatus::Incomplete
+                    } else {
+                        i::ItemStatus::Completed
+                    }),
+                    rest: Default::default(),
+                })?;
+                self.emit(rs::StreamEvent::OutputItemAdded(rs::OutputItemEvent {
+                    sequence_number: self.sequence,
+                    output_index,
+                    item: item.clone(),
+                    rest: Default::default(),
+                }))?;
+                self.output.insert(output_index, item.clone());
+                self.emit(rs::StreamEvent::OutputItemDone(rs::OutputItemEvent {
+                    sequence_number: self.sequence,
+                    output_index,
+                    item,
+                    rest: Default::default(),
+                }))?;
+                continue;
+            }
+            let item = self.client_tools.restore(i::FunctionCall {
                 type_: i::FunctionCallType::FunctionCall,
                 arguments: String::new(),
                 call_id: call_id.clone(),
@@ -287,7 +321,11 @@ impl ChatToResponsesStream {
                 caller: None,
                 status: Some(i::ItemStatus::InProgress),
                 rest: Default::default(),
-            });
+            })?;
+            let r::ResponseOutputItem::FunctionCall(ref restored) = item else {
+                unreachable!()
+            };
+            let restored_name = restored.name.clone();
             self.emit(rs::StreamEvent::OutputItemAdded(rs::OutputItemEvent {
                 sequence_number: self.sequence,
                 output_index,
@@ -308,12 +346,12 @@ impl ChatToResponsesStream {
                     sequence_number: self.sequence,
                     item_id: item_id.clone(),
                     output_index,
-                    name: t.name.clone(),
+                    name: restored_name,
                     arguments: t.arguments.clone(),
                     rest: Default::default(),
                 },
             ))?;
-            let item = r::ResponseOutputItem::FunctionCall(i::FunctionCall {
+            let item = self.client_tools.restore(i::FunctionCall {
                 type_: i::FunctionCallType::FunctionCall,
                 arguments: t.arguments,
                 call_id,
@@ -327,7 +365,7 @@ impl ChatToResponsesStream {
                     i::ItemStatus::Completed
                 }),
                 rest: Default::default(),
-            });
+            })?;
             self.output.insert(output_index, item.clone());
             self.emit(rs::StreamEvent::OutputItemDone(rs::OutputItemEvent {
                 sequence_number: self.sequence,

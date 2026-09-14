@@ -296,10 +296,14 @@ impl ResponsesViaChat {
         let selected_model = selected_model.into();
         state.validate_target(Dialect::OpenAiChat, &selected_model)?;
         let original = input.into_declared();
-        let (restored, names) = super::history::responses(original.clone(), state).await?;
+        let mut lowered = original.clone();
+        let mut tool_report = Report::default();
+        p::client_tools::Bindings::new(&original)?.lower(&mut lowered, &mut tool_report)?;
+        let (restored, names) = super::history::responses(lowered, state).await?;
         let mut prepared =
             Self::prepare_with_replay(restored, selected_model, endpoint, identities, &names)?;
         prepared.original_request = original;
+        prepared.report.diagnostics.extend(tool_report.diagnostics);
         Ok(prepared)
     }
     /// Materialize foreign resources and restore scoped history before preparing the selected endpoint.

@@ -42,6 +42,8 @@ pub enum OutputItemKind {
     Compaction,
     ImageGenerationCall,
     LocalShellCall,
+    ShellCall,
+    ApplyPatchCall,
     WebSearchCall,
     Reasoning,
 }
@@ -75,6 +77,8 @@ impl IdentityRole {
                 OutputItemKind::Compaction => "ip",
                 OutputItemKind::ImageGenerationCall => "ii",
                 OutputItemKind::LocalShellCall => "il",
+                OutputItemKind::ShellCall => "ish",
+                OutputItemKind::ApplyPatchCall => "iap",
                 OutputItemKind::WebSearchCall => "iw",
             },
         }
@@ -113,6 +117,9 @@ impl IdentityRole {
                 Some(KnownIdPrefix::ImageGenerationItem)
             }
             Self::OutputItem(OutputItemKind::LocalShellCall) => Some(KnownIdPrefix::LocalShellItem),
+            Self::OutputItem(OutputItemKind::ShellCall | OutputItemKind::ApplyPatchCall) => {
+                Some(KnownIdPrefix::ClientToolItem)
+            }
             Self::OutputItem(OutputItemKind::WebSearchCall) => Some(KnownIdPrefix::WebSearchItem),
             Self::OutputItem(OutputItemKind::Reasoning) => Some(KnownIdPrefix::Reasoning),
             Self::ToolCall => Some(KnownIdPrefix::Call),
@@ -129,6 +136,8 @@ impl IdentityRole {
 /// `call_foo` is recognized while `callback` is not.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum KnownIdPrefix {
+    /// Gateway-generated item ID for a bound client action, not an upstream convention.
+    ClientToolItem,
     Call,
     FunctionCallItem,
     FunctionCallOutputItem,
@@ -150,6 +159,7 @@ pub enum KnownIdPrefix {
 impl KnownIdPrefix {
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::ClientToolItem => "gproxy_tool_item_",
             Self::Call => "call_",
             Self::FunctionCallItem => "fc_",
             Self::FunctionCallOutputItem => "fco_",
@@ -172,6 +182,7 @@ impl KnownIdPrefix {
 
     pub fn parse(value: &str) -> Option<Self> {
         [
+            Self::ClientToolItem,
             Self::Call,
             Self::FunctionCallItem,
             Self::FunctionCallOutputItem,

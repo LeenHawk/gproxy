@@ -204,8 +204,41 @@ impl IdentityFacts for r::GenerateContentResponseBody {
                     chat_form: None,
                     call_id: Some(b.call_id.clone()),
                     item_id: b.id.clone(),
-                    name: b.name.clone(),
+                    name: b.namespace.as_ref().map_or_else(
+                        || b.name.clone(),
+                        |ns| {
+                            crate::transform::generate::chat_responses::client_tools::qualified(
+                                ns, &b.name,
+                            )
+                        },
+                    ),
                 }),
+                r::ResponseOutputItem::ShellCall(b) => Some(ToolIdentity {
+                    kind: super::ToolCallKind::Function,
+                    chat_form: None,
+                    call_id: Some(b.call_id.clone()),
+                    item_id: Some(b.id.clone()),
+                    name: crate::transform::generate::chat_responses::client_tools::SHELL.into(),
+                }),
+                r::ResponseOutputItem::ApplyPatchCall(b) => Some(ToolIdentity {
+                    kind: super::ToolCallKind::Function,
+                    chat_form: None,
+                    call_id: Some(b.call_id.clone()),
+                    item_id: Some(b.id.clone()),
+                    name: crate::transform::generate::chat_responses::client_tools::PATCH.into(),
+                }),
+                r::ResponseOutputItem::ToolSearchCall(b)
+                    if b.execution == r::ToolExecution::Client =>
+                {
+                    Some(ToolIdentity {
+                        kind: super::ToolCallKind::Function,
+                        chat_form: None,
+                        call_id: b.call_id.clone(),
+                        item_id: Some(b.id.clone()),
+                        name: crate::transform::generate::chat_responses::client_tools::SEARCH
+                            .into(),
+                    })
+                }
                 r::ResponseOutputItem::CustomToolCall(b) => Some(ToolIdentity {
                     kind: super::ToolCallKind::Custom,
                     chat_form: None,
@@ -231,6 +264,18 @@ impl IdentityFacts for r::GenerateContentResponseBody {
                 r::ResponseOutputItem::CustomToolCall(b) => {
                     b.id.clone().map(|id| (OutputItemKind::CustomToolCall, id))
                 }
+                r::ResponseOutputItem::ShellCall(b) => {
+                    Some((OutputItemKind::ShellCall, b.id.clone()))
+                }
+
+                r::ResponseOutputItem::ApplyPatchCall(b) => {
+                    Some((OutputItemKind::ApplyPatchCall, b.id.clone()))
+                }
+
+                r::ResponseOutputItem::ToolSearchCall(b) => {
+                    Some((OutputItemKind::ToolSearchCall, b.id.clone()))
+                }
+
                 r::ResponseOutputItem::ImageGenerationCall(b) => {
                     Some((OutputItemKind::ImageGenerationCall, b.id.clone()))
                 }

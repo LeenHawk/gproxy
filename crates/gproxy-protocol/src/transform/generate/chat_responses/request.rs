@@ -101,7 +101,7 @@ pub fn chat_to_responses_request_with_calls(
 }
 
 pub fn responses_to_chat_request(
-    input: responses::GenerateContentRequestBody,
+    mut input: responses::GenerateContentRequestBody,
     target_model: impl Into<String>,
 ) -> Result<Converted<chat::GenerateContentRequestBody>, TransformError> {
     let model = target_model.into();
@@ -109,6 +109,8 @@ pub fn responses_to_chat_request(
         return Err(TransformError::missing_metadata("target_model"));
     }
     let mut report = Report::default();
+    let bindings = super::client_tools::Bindings::new(&input)?;
+    bindings.lower(&mut input, &mut report)?;
     let mut output = chat::GenerateContentRequestBody::builder(Vec::new(), model).build();
     controls::to_chat(&input, &mut output, &mut report)?;
     output.tools = input.tools.map(tools::to_chat).transpose()?;
