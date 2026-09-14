@@ -69,7 +69,7 @@ fn details(
     }
     Ok(())
 }
-pub(super) fn to_responses(
+pub(crate) fn to_responses(
     source: c::Usage,
     extra: ChatUsageSupplement,
     report: &mut Report,
@@ -147,7 +147,7 @@ pub(super) fn to_responses(
         rest: Default::default(),
     })
 }
-pub(super) fn to_chat(source: r::ResponseUsage) -> Result<c::Usage, TransformError> {
+pub(crate) fn to_chat(source: r::ResponseUsage) -> Result<c::Usage, TransformError> {
     totals(
         source.input_tokens,
         source.output_tokens,

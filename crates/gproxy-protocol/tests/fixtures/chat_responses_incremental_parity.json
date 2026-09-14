@@ -1,0 +1,266 @@
+[
+  {
+    "name": "text",
+    "done": true,
+    "events": [
+      {
+        "id": "chat-source",
+        "object": "chat.completion.chunk",
+        "created": 17,
+        "model": "actual",
+        "choices": [
+          {
+            "index": 0,
+            "delta": {
+              "role": "assistant",
+              "content": "hello"
+            },
+            "finish_reason": null,
+            "logprobs": null
+          }
+        ]
+      },
+      {
+        "id": "chat-source",
+        "object": "chat.completion.chunk",
+        "created": 17,
+        "model": "actual",
+        "choices": [
+          {
+            "index": 0,
+            "delta": {
+              "content": " world"
+            },
+            "finish_reason": "stop",
+            "logprobs": null
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "refusal_before_text",
+    "done": true,
+    "events": [
+      {
+        "id": "chat-source",
+        "object": "chat.completion.chunk",
+        "created": 17,
+        "model": "actual",
+        "choices": [
+          {
+            "index": 0,
+            "delta": {
+              "refusal": "no"
+            },
+            "finish_reason": null,
+            "logprobs": null
+          }
+        ]
+      },
+      {
+        "id": "chat-source",
+        "object": "chat.completion.chunk",
+        "created": 17,
+        "model": "actual",
+        "choices": [
+          {
+            "index": 0,
+            "delta": {
+              "content": "why"
+            },
+            "finish_reason": "stop",
+            "logprobs": null
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "parallel_fragmented_tools",
+    "done": true,
+    "events": [
+      {
+        "id": "chat-source",
+        "object": "chat.completion.chunk",
+        "created": 17,
+        "model": "actual",
+        "choices": [
+          {
+            "index": 0,
+            "delta": {
+              "tool_calls": [
+                {
+                  "index": 0,
+                  "id": "call-a",
+                  "type": "function",
+                  "function": {
+                    "name": "lo",
+                    "arguments": "{\"x\":"
+                  }
+                },
+                {
+                  "index": 1,
+                  "id": "call-b",
+                  "type": "function",
+                  "function": {
+                    "name": "lo",
+                    "arguments": "{\"y\":"
+                  }
+                }
+              ]
+            },
+            "finish_reason": null,
+            "logprobs": null
+          }
+        ]
+      },
+      {
+        "id": "chat-source",
+        "object": "chat.completion.chunk",
+        "created": 17,
+        "model": "actual",
+        "choices": [
+          {
+            "index": 0,
+            "delta": {
+              "tool_calls": [
+                {
+                  "index": 0,
+                  "function": {
+                    "name": "ok",
+                    "arguments": "1}"
+                  }
+                },
+                {
+                  "index": 1,
+                  "function": {
+                    "name": "ok",
+                    "arguments": "2}"
+                  }
+                }
+              ]
+            },
+            "finish_reason": "tool_calls",
+            "logprobs": null
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "late_tool_id",
+    "done": true,
+    "events": [
+      {
+        "id": "chat-source",
+        "object": "chat.completion.chunk",
+        "created": 17,
+        "model": "actual",
+        "choices": [
+          {
+            "index": 0,
+            "delta": {
+              "tool_calls": [
+                {
+                  "index": 0,
+                  "type": "function",
+                  "function": {
+                    "name": "f",
+                    "arguments": "{}"
+                  }
+                }
+              ]
+            },
+            "finish_reason": null,
+            "logprobs": null
+          }
+        ]
+      },
+      {
+        "id": "chat-source",
+        "object": "chat.completion.chunk",
+        "created": 17,
+        "model": "actual",
+        "choices": [
+          {
+            "index": 0,
+            "delta": {
+              "tool_calls": [
+                {
+                  "index": 0,
+                  "id": "call-late"
+                }
+              ]
+            },
+            "finish_reason": "tool_calls",
+            "logprobs": null
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "usage_tail",
+    "done": true,
+    "events": [
+      {
+        "id": "chat-source",
+        "object": "chat.completion.chunk",
+        "created": 17,
+        "model": "actual",
+        "choices": [
+          {
+            "index": 0,
+            "delta": {
+              "content": "x"
+            },
+            "finish_reason": "stop",
+            "logprobs": null
+          }
+        ]
+      },
+      {
+        "id": "chat-source",
+        "object": "chat.completion.chunk",
+        "created": 17,
+        "model": "actual",
+        "choices": [],
+        "usage": {
+          "prompt_tokens": 7,
+          "completion_tokens": 3,
+          "total_tokens": 10,
+          "prompt_tokens_details": {
+            "cached_tokens": 2,
+            "cache_write_tokens": 1
+          },
+          "completion_tokens_details": {
+            "reasoning_tokens": 1
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "missing_done",
+    "done": false,
+    "events": [
+      {
+        "id": "chat-source",
+        "object": "chat.completion.chunk",
+        "created": 17,
+        "model": "actual",
+        "choices": [
+          {
+            "index": 0,
+            "delta": {
+              "content": "x"
+            },
+            "finish_reason": "stop",
+            "logprobs": null
+          }
+        ]
+      }
+    ]
+  }
+]
