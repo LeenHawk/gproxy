@@ -1,7 +1,6 @@
 use super::*;
+use crate::client_tools_base as fixtures;
 use gproxy_protocol::adapt::generate::chat_responses::ResponsesViaChat;
-#[path = "../support/client_tools.rs"]
-mod fixtures;
 
 #[test]
 fn local_tools_stream_as_native_items_and_replay_with_original_call_ids() {

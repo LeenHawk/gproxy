@@ -41,6 +41,7 @@ pub(super) fn to_responses(
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
     report: &mut Report,
+    bindings: &crate::transform::generate::client_tools::Bindings,
 ) -> Result<Vec<r::ResponseOutputItem>, TransformError> {
     let mut output = Vec::new();
     let mut calls = std::collections::BTreeSet::new();
@@ -115,7 +116,7 @@ pub(super) fn to_responses(
                     policy,
                     Dialect::Claude,
                     IdentityRole::ToolCall,
-                    IdentityRole::OutputItem(OutputItemKind::FunctionCall),
+                    IdentityRole::OutputItem(bindings.kind(&block.name)),
                     Some(block.id),
                     index,
                 )?;
@@ -136,7 +137,7 @@ pub(super) fn to_responses(
                         .transpose()
                     })
                     .transpose()?;
-                r::ResponseOutputItem::FunctionCall(r::FunctionCall {
+                bindings.restore(r::FunctionCall {
                     type_: r::FunctionCallType::FunctionCall,
                     arguments: serde_json::to_string(&block.input)?,
                     call_id,
@@ -150,7 +151,7 @@ pub(super) fn to_responses(
                         r::ItemStatus::Completed
                     }),
                     rest: Default::default(),
-                })
+                })?
             }
             c::ResponseContentBlock::Thinking(block) => {
                 report.omitted("content.thinking.signature","Claude signature must stay bound to its original model and upstream; it is not Responses encrypted_content");

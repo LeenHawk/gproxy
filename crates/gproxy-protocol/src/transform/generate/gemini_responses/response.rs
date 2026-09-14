@@ -74,6 +74,8 @@ pub fn gemini_to_responses_response(
         }
     };
     let incomplete = reason.is_some();
+    let bindings =
+        super::super::client_tools::Bindings::for_target(&context.request, crate::Dialect::Gemini)?;
     let mut ids = flow.clone();
     let mut report = Report::default();
     let usage = super::usage::to_responses(
@@ -203,7 +205,7 @@ pub fn gemini_to_responses_response(
                 &mut ids,
                 policy,
                 IdentityRole::ToolCall,
-                IdentityRole::OutputItem(OutputItemKind::FunctionCall),
+                IdentityRole::OutputItem(bindings.kind(&call.name)),
                 call.id,
                 index as u64,
             )?;
@@ -220,7 +222,7 @@ pub fn gemini_to_responses_response(
             } else {
                 i::ItemStatus::Completed
             });
-            output.push(r::ResponseOutputItem::FunctionCall(item));
+            output.push(bindings.restore(item)?);
         }
     }
     for (present, field) in [

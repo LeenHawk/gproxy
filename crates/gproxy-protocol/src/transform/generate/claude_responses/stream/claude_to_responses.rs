@@ -1,7 +1,7 @@
 pub use super::context::ClaudeToResponsesContext;
 use super::{
     common::{
-        Budget, StreamEnd, StreamLimits, declared, id, invalid, item_id, measure,
+        Budget, StreamEnd, StreamLimits, declared, id, invalid, item_id, limit, measure,
         normalize_arguments,
     },
     context::{annotations, clean_context, clone_response_context},
@@ -19,11 +19,12 @@ use crate::{
         openai::responses::{input as i, response as r, stream as s},
     },
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 pub(super) struct Block {
     pub output_index: Option<i64>,
     pub item: Option<r::ResponseOutputItem>,
     pub closed: bool,
+    pub deferred: bool,
 }
 pub struct ClaudeToResponsesStream {
     source: Option<ClaudeStreamCollector>,
@@ -38,6 +39,12 @@ pub struct ClaudeToResponsesStream {
     pub(super) parts: usize,
     pub(super) tool_count: usize,
     pub(super) argument_bytes: usize,
+    pub(super) client_tools: crate::transform::generate::client_tools::Bindings,
+    pub(super) deferred_block: Option<i64>,
+    pub(super) deferred_bytes: usize,
+    pending_events: BTreeMap<usize, (cs::StreamEvent, usize)>,
+    pending_blocks: BTreeMap<i64, VecDeque<usize>>,
+    next_pending: usize,
     pub(super) mcp_calls: BTreeMap<String, i64>,
     pub(super) mcp_results: BTreeSet<String>,
     usage: ClaudeProgress,
@@ -71,6 +78,10 @@ impl ClaudeToResponsesStream {
         }
 
         let context = clean_context(context.into(), limits)?;
+        let client_tools = crate::transform::generate::client_tools::Bindings::for_target(
+            &context.response.request,
+            crate::Dialect::Claude,
+        )?;
         Ok(Self {
             source: Some(ClaudeStreamCollector::new(ClaudeStreamLimits {
                 max_events: limits.max_events,
@@ -89,6 +100,12 @@ impl ClaudeToResponsesStream {
             parts: 0,
             tool_count: 0,
             argument_bytes: 0,
+            client_tools,
+            deferred_block: None,
+            deferred_bytes: 0,
+            pending_events: BTreeMap::new(),
+            pending_blocks: BTreeMap::new(),
+            next_pending: 0,
             mcp_calls: BTreeMap::new(),
             mcp_results: BTreeSet::new(),
             usage: Default::default(),
@@ -123,6 +140,64 @@ impl ClaudeToResponsesStream {
             .ok_or_else(|| invalid("source consumed"))?
             .push(event.clone())?;
         let mut out = Vec::new();
+        if self.deferred_block.is_some() && block_index(&event) != self.deferred_block {
+            let size = measure(
+                &event,
+                self.limits
+                    .max_pending
+                    .saturating_sub(self.argument_bytes)
+                    .saturating_sub(self.deferred_bytes),
+            )?;
+            self.deferred_bytes += size;
+            let ordinal = self.next_pending;
+            self.next_pending = ordinal.checked_add(1).ok_or_else(limit)?;
+            if let Some(index) = block_index(&event) {
+                self.pending_blocks
+                    .entry(index)
+                    .or_default()
+                    .push_back(ordinal);
+            }
+            self.pending_events.insert(ordinal, (event, size));
+        } else {
+            self.process(event, &mut out)?;
+        }
+        loop {
+            let next = match self.deferred_block {
+                Some(index) => self
+                    .pending_blocks
+                    .get(&index)
+                    .and_then(|events| events.front())
+                    .copied(),
+                None => self.pending_events.first_key_value().map(|(key, _)| *key),
+            };
+            let Some(next) = next else { break };
+            let (event, bytes) = self
+                .pending_events
+                .remove(&next)
+                .expect("selected queued event");
+            if let Some(index) = block_index(&event) {
+                let events = self
+                    .pending_blocks
+                    .get_mut(&index)
+                    .expect("queued block index");
+                events.pop_front();
+                if events.is_empty() {
+                    self.pending_blocks.remove(&index);
+                }
+            }
+            self.deferred_bytes -= bytes;
+            self.process(event, &mut out)?;
+        }
+        Ok(Converted {
+            value: out,
+            report: Report::default(),
+        })
+    }
+    fn process(
+        &mut self,
+        event: cs::StreamEvent,
+        out: &mut Vec<s::StreamEvent>,
+    ) -> Result<(), TransformError> {
         match event {
             cs::StreamEvent::MessageStart(v) => {
                 self.usage.start(&v.message.usage)?;
@@ -143,23 +218,20 @@ impl ClaudeToResponsesStream {
                 base.status = Some(r::ResponseStatus::InProgress);
                 base.usage = Some(None);
                 measure(&base, self.limits.max_bytes)?;
-                self.events
-                    .emit(&mut self.budget, &mut out, |sequence_number| {
-                        s::StreamEvent::Created(s::ResponseCreated {
-                            sequence_number,
-                            response: base,
-                            rest: Default::default(),
-                        })
-                    })?;
+                self.events.emit(&mut self.budget, out, |sequence_number| {
+                    s::StreamEvent::Created(s::ResponseCreated {
+                        sequence_number,
+                        response: base,
+                        rest: Default::default(),
+                    })
+                })?;
             }
-            cs::StreamEvent::ContentBlockStart(v) => self.start_block(v, &mut out)?,
+            cs::StreamEvent::ContentBlockStart(v) => self.start_block(v, out)?,
             cs::StreamEvent::ContentBlockDelta(v) => match v.delta {
-                cs::ContentBlockDelta::Text(vv) => self.payload(v.index, vv.text, &mut out)?,
-                cs::ContentBlockDelta::Thinking(vv) => {
-                    self.payload(v.index, vv.thinking, &mut out)?
-                }
+                cs::ContentBlockDelta::Text(vv) => self.payload(v.index, vv.text, out)?,
+                cs::ContentBlockDelta::Thinking(vv) => self.payload(v.index, vv.thinking, out)?,
                 cs::ContentBlockDelta::InputJson(vv) => {
-                    self.payload(v.index, vv.partial_json, &mut out)?
+                    self.payload(v.index, vv.partial_json, out)?
                 }
                 cs::ContentBlockDelta::Signature(_) | cs::ContentBlockDelta::Citations(_) => {}
                 cs::ContentBlockDelta::Compaction(_) => {
@@ -169,7 +241,7 @@ impl ClaudeToResponsesStream {
                     ));
                 }
             },
-            cs::StreamEvent::ContentBlockStop(v) => self.stop_block(v.index, &mut out)?,
+            cs::StreamEvent::ContentBlockStop(v) => self.stop_block(v.index, out)?,
             cs::StreamEvent::MessageDelta(v) => self.usage.delta(&v.usage)?,
             cs::StreamEvent::MessageStop(_) => self.stopped = true,
             cs::StreamEvent::Ping(_) => {}
@@ -177,13 +249,14 @@ impl ClaudeToResponsesStream {
                 return Err(invalid(format!("{:?}: {}", v.error.type_, v.error.message)));
             }
         }
-        Ok(Converted {
-            value: out,
-            report: Report::default(),
-        })
+        Ok(())
     }
     pub fn finish(mut self) -> Result<StreamEnd<s::StreamEvent>, TransformError> {
-        if self.failed || !self.stopped || self.blocks.values().any(|v| !v.closed) {
+        if self.failed
+            || !self.stopped
+            || !self.pending_events.is_empty()
+            || self.blocks.values().any(|v| !v.closed)
+        {
             return Err(invalid("failed stream or premature EOF"));
         }
         let mut source = self
@@ -302,6 +375,15 @@ fn lower_refusal(response: &mut r::GenerateContentResponseBody) {
         reason: Some(r::ResponseIncompleteReason::ContentFilter),
         rest: Default::default(),
     });
+}
+
+fn block_index(event: &cs::StreamEvent) -> Option<i64> {
+    match event {
+        cs::StreamEvent::ContentBlockStart(v) => Some(v.index),
+        cs::StreamEvent::ContentBlockDelta(v) => Some(v.index),
+        cs::StreamEvent::ContentBlockStop(v) => Some(v.index),
+        _ => None,
+    }
 }
 
 fn checked_raw(canonical: &str, actual: &str) -> Result<String, TransformError> {

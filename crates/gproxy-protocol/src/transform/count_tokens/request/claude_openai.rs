@@ -74,7 +74,7 @@ pub fn openai_to_claude(
     context: claude_responses::ClaudeRequestContext,
 ) -> Result<Converted<c::CountTokensRequestBody>, TransformError> {
     let model = super::model(target_model)?;
-    let input = input.into_declared();
+    let mut input = input.into_declared();
     super::openai_state(&input)?;
     if context
         .target
@@ -88,6 +88,18 @@ pub fn openai_to_claude(
     }
     let mut out = c::CountTokensRequestBody::builder(Vec::new(), model).build();
     let mut report = Report::default();
+    let mut tools = input.tools.take().flatten();
+    let mut history = input.input.take().flatten();
+    let mut choice = input.tool_choice.take().flatten();
+    crate::transform::generate::client_tools::Bindings::for_parts(
+        &tools,
+        &history,
+        crate::Dialect::Claude,
+    )?
+    .lower_parts(&mut tools, &mut history, &mut choice, &mut report)?;
+    input.tools = tools.map(Some);
+    input.input = history.map(Some);
+    input.tool_choice = choice.map(Some);
     super::controls::openai_to_claude(&input, &mut out, &mut report)?;
     if let Some(Some(tools)) = input.tools {
         let mut functions = Vec::new();

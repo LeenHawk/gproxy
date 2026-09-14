@@ -206,11 +206,7 @@ impl IdentityFacts for r::GenerateContentResponseBody {
                     item_id: b.id.clone(),
                     name: b.namespace.as_ref().map_or_else(
                         || b.name.clone(),
-                        |ns| {
-                            crate::transform::generate::chat_responses::client_tools::qualified(
-                                ns, &b.name,
-                            )
-                        },
+                        |ns| crate::transform::generate::client_tools::qualified(ns, &b.name),
                     ),
                 }),
                 r::ResponseOutputItem::ShellCall(b) => Some(ToolIdentity {
@@ -218,14 +214,14 @@ impl IdentityFacts for r::GenerateContentResponseBody {
                     chat_form: None,
                     call_id: Some(b.call_id.clone()),
                     item_id: Some(b.id.clone()),
-                    name: crate::transform::generate::chat_responses::client_tools::SHELL.into(),
+                    name: crate::transform::generate::client_tools::SHELL.into(),
                 }),
                 r::ResponseOutputItem::ApplyPatchCall(b) => Some(ToolIdentity {
                     kind: super::ToolCallKind::Function,
                     chat_form: None,
                     call_id: Some(b.call_id.clone()),
                     item_id: Some(b.id.clone()),
-                    name: crate::transform::generate::chat_responses::client_tools::PATCH.into(),
+                    name: crate::transform::generate::client_tools::PATCH.into(),
                 }),
                 r::ResponseOutputItem::ToolSearchCall(b)
                     if b.execution == r::ToolExecution::Client =>
@@ -235,8 +231,7 @@ impl IdentityFacts for r::GenerateContentResponseBody {
                         chat_form: None,
                         call_id: b.call_id.clone(),
                         item_id: Some(b.id.clone()),
-                        name: crate::transform::generate::chat_responses::client_tools::SEARCH
-                            .into(),
+                        name: crate::transform::generate::client_tools::SEARCH.into(),
                     })
                 }
                 r::ResponseOutputItem::CustomToolCall(b) => Some(ToolIdentity {

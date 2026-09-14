@@ -156,6 +156,7 @@ impl ResponsesViaGemini {
         )
         .await?;
         context.response.response.request = original.clone();
+        context.response.response.request.input = expanded.input.clone();
         if context.response.actual_model.is_none() {
             context.response.actual_model = Some(target.model.clone());
         }
@@ -244,6 +245,7 @@ impl ResponsesViaGemini {
         )
         .await?;
         context.response.response.request = original.clone();
+        context.response.response.request.input = expanded.input.clone();
         if context.response.actual_model.is_none() {
             context.response.actual_model = Some(target.model.clone());
         }

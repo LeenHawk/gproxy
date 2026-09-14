@@ -64,6 +64,8 @@ pub fn claude_to_responses_response(
         Some(input.id),
         0,
     )?;
+    let bindings =
+        super::super::client_tools::Bindings::for_target(&context.request, Dialect::Claude)?;
     let output = content::to_responses(
         input.content,
         incomplete,
@@ -71,11 +73,18 @@ pub fn claude_to_responses_response(
         &mut ids,
         policy,
         &mut report,
+        &bindings,
     )?;
     if input.stop_reason == c::StopReason::ToolUse
-        && !output
-            .iter()
-            .any(|item| matches!(item, r::ResponseOutputItem::FunctionCall(_)))
+        && !output.iter().any(|item| {
+            matches!(
+                item,
+                r::ResponseOutputItem::FunctionCall(_)
+                    | r::ResponseOutputItem::ShellCall(_)
+                    | r::ResponseOutputItem::ApplyPatchCall(_)
+                    | r::ResponseOutputItem::ToolSearchCall(_)
+            )
+        })
     {
         return Err(TransformError::invalid_result(
             "stop_reason",

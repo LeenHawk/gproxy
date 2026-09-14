@@ -272,7 +272,11 @@ impl ResponsesViaClaude {
         let selected_model = selected_model.into();
         state.validate_target(Dialect::Claude, &selected_model)?;
         let original = input.into_declared();
-        let (restored, names) = super::history::responses(original.clone(), state).await?;
+        let mut lowered = original.clone();
+        let mut tool_report = Report::default();
+        crate::transform::generate::client_tools::Bindings::for_target(&original, Dialect::Claude)?
+            .lower(&mut lowered, &mut tool_report)?;
+        let (restored, names) = super::history::responses(lowered.clone(), state).await?;
         let _ = names;
         let mut context = context;
         if context
@@ -285,7 +289,7 @@ impl ResponsesViaClaude {
                 "caller replay binding conflicts with selected state",
             ));
         }
-        let recovered = state.claude_replay(&original).await?;
+        let recovered = state.claude_replay(&lowered).await?;
         context.target = recovered.target;
         for (id, piece) in recovered.restored_thinking {
             if context.restored_thinking.contains_key(&id) {
@@ -298,6 +302,7 @@ impl ResponsesViaClaude {
         }
         let mut prepared = Self::prepare(restored, selected_model, endpoint, identities, context)?;
         prepared.original_request = original;
+        prepared.report.diagnostics.extend(tool_report.diagnostics);
         Ok(prepared)
     }
     /// Materialize foreign resources and restore scoped history before preparing the selected endpoint.

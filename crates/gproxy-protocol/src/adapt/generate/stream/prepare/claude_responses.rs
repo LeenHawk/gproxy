@@ -130,6 +130,7 @@ impl ResponsesViaClaude {
         )
         .await?;
         context.response.response.request = original.clone();
+        context.response.response.request.input = expanded.input.clone();
         let prepared = Self::prepare_with_state(
             expanded.buffered(),
             target.model.clone(),
@@ -215,6 +216,7 @@ impl ResponsesViaClaude {
         )
         .await?;
         context.response.response.request = original.clone();
+        context.response.response.request.input = expanded.input.clone();
         let prepared = Self::prepare_with_capabilities(
             expanded.buffered(),
             target.model.clone(),

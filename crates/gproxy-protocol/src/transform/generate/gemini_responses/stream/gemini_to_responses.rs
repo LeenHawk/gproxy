@@ -38,6 +38,7 @@ pub struct GeminiToResponsesStream {
     pub(super) item_count: usize,
     pub(super) tools: usize,
     pub(super) call_ids: std::collections::BTreeSet<String>,
+    pub(super) client_tools: crate::transform::generate::client_tools::Bindings,
 }
 impl GeminiToResponsesStream {
     pub fn new(
@@ -57,6 +58,10 @@ impl GeminiToResponsesStream {
             return Err(invalid("Responses target policy required"));
         }
         let context = clean_context(context, limits)?;
+        let client_tools = crate::transform::generate::client_tools::Bindings::for_target(
+            &context.response.request,
+            Dialect::Gemini,
+        )?;
         Ok(Self {
             source: Some(GeminiStreamCollector::new(GeminiStreamLimits {
                 max_events: limits.max_events,
@@ -83,6 +88,7 @@ impl GeminiToResponsesStream {
             item_count: 0,
             tools: 0,
             call_ids: Default::default(),
+            client_tools,
         })
     }
     pub fn identities(&self) -> &IdentityFlow {

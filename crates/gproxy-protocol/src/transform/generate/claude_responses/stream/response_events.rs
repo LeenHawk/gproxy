@@ -263,7 +263,10 @@ impl ResponseEvents {
                     })?;
                 }
             }
-            r::ResponseOutputItem::FunctionCall(_) => {}
+            r::ResponseOutputItem::FunctionCall(_)
+            | r::ResponseOutputItem::ShellCall(_)
+            | r::ResponseOutputItem::ApplyPatchCall(_)
+            | r::ResponseOutputItem::ToolSearchCall(_) => {}
             _ => return Err(invalid("unsupported projected output item")),
         }
         self.emit(budget, out, |sequence_number| {

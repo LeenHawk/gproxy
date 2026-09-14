@@ -88,9 +88,21 @@ pub fn openai_to_gemini(
     mut context: pair::GeminiReplayContext,
 ) -> Result<Converted<g::CountTokensRequestBody>, TransformError> {
     let model = super::model(target_model)?;
-    let input = input.into_declared();
+    let mut input = input.into_declared();
     super::openai_state(&input)?;
     let mut report = Report::default();
+    let mut tools = input.tools.take().flatten();
+    let mut history = input.input.take().flatten();
+    let mut choice = input.tool_choice.take().flatten();
+    crate::transform::generate::client_tools::Bindings::for_parts(
+        &tools,
+        &history,
+        crate::Dialect::Gemini,
+    )?
+    .lower_parts(&mut tools, &mut history, &mut choice, &mut report)?;
+    input.tools = tools.map(Some);
+    input.input = history.map(Some);
+    input.tool_choice = choice.map(Some);
     let mut config = super::controls::openai_to_gemini(&input, &mut report)?;
     let mut image_tools = input.tools.flatten();
     let mut image_choice = input.tool_choice.flatten();

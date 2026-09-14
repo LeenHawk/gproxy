@@ -142,6 +142,9 @@ pub(super) fn item_id(item: &r::ResponseOutputItem) -> Option<&str> {
         r::ResponseOutputItem::Reasoning(v) => Some(&v.id),
         r::ResponseOutputItem::FunctionCall(v) => v.id.as_deref(),
         r::ResponseOutputItem::McpCall(v) => Some(&v.id),
+        r::ResponseOutputItem::ShellCall(v) => Some(&v.id),
+        r::ResponseOutputItem::ApplyPatchCall(v) => Some(&v.id),
+        r::ResponseOutputItem::ToolSearchCall(v) => Some(&v.id),
         _ => None,
     }
 }

@@ -93,6 +93,8 @@ pub fn responses_to_gemini_request(
     let mut input = input.into_declared();
     let mut out = g::GenerateContentRequestBody::builder(Vec::new()).build();
     let mut report = Report::default();
+    super::super::client_tools::Bindings::for_target(&input, crate::Dialect::Gemini)?
+        .lower(&mut input, &mut report)?;
     super::config::to_gemini(&input, &mut out, &mut report)?;
     super::request_images::to_gemini(
         &mut input.tools,
