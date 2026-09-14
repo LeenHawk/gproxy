@@ -22,6 +22,7 @@ impl ChatViaResponses {
     ) -> Result<StreamInvocation<p::ResponsesToChatStream>, TransformError> {
         settings.validate::<p::ResponsesToChatStream>()?;
         let original = input.into_declared();
+        crate::transform::generate::chat_responses::stream_tools::check(&original)?;
         let prepared = Self::prepare_with_state(
             original.clone().buffered(),
             target.model.clone(),
@@ -59,6 +60,7 @@ impl ChatViaResponses {
     ) -> Result<StreamInvocation<p::ResponsesToChatStream>, TransformError> {
         settings.validate::<p::ResponsesToChatStream>()?;
         let original = input.into_declared();
+        crate::transform::generate::chat_responses::stream_tools::check(&original)?;
         let prepared = Self::prepare_with_capabilities(
             original.clone().buffered(),
             target.model.clone(),
@@ -137,6 +139,7 @@ impl ResponsesViaChat {
         )
         .await?;
         target.identities = prepared.identities().clone();
+        crate::transform::generate::chat_responses::stream_tools::check(prepared.target_request())?;
         let bridge = p::ChatToResponsesStream::new_with_policy(
             context,
             target.identities.response.clone(),
@@ -222,6 +225,7 @@ impl ResponsesViaChat {
         )
         .await?;
         target.identities = prepared.identities().clone();
+        crate::transform::generate::chat_responses::stream_tools::check(prepared.target_request())?;
         let bridge = p::ChatToResponsesStream::new_with_policy(
             context,
             target.identities.response.clone(),

@@ -8,6 +8,59 @@ use gproxy_protocol::wire::{
     openai::responses::{response as r, stream as s},
 };
 use serde_json::{Value, json};
+
+#[test]
+fn custom_input_deltas_keep_raw_text_and_distinct_item_and_call_ids() {
+    let raw = "*** Begin Patch\n+你好\nnot-json";
+    let input = response(
+        json!([{"type":"custom_tool_call","id":"item_custom","call_id":"call_custom","name":"edit","input":raw}]),
+    );
+    let mut events = Vec::new();
+    for event in synth(input) {
+        if let s::StreamEvent::CustomToolInputDelta(mut delta) = event {
+            for part in ["*** Begin Patch\n", "+你好\n", "not-json"] {
+                delta.delta = part.into();
+                events.push(s::StreamEvent::CustomToolInputDelta(delta.clone()));
+            }
+        } else {
+            events.push(event);
+        }
+    }
+    let events: Vec<s::StreamEvent> = events
+        .into_iter()
+        .enumerate()
+        .map(|(index, event)| {
+            let mut wire = serde_json::to_value(event).unwrap();
+            wire["sequence_number"] = json!(index);
+            serde_json::from_value(wire).unwrap()
+        })
+        .collect();
+    let output = collect(events.clone()).unwrap();
+    let wire = serde_json::to_value(&output).unwrap();
+    assert_eq!(wire["output"][0]["input"], raw);
+    assert_eq!(wire["output"][0]["id"], "item_custom");
+    assert_eq!(wire["output"][0]["call_id"], "call_custom");
+    let chat = gproxy_protocol::transform::generate::chat_responses::responses_to_chat_response(
+        output,
+        &mut flow(),
+        &gproxy_protocol::transform::identity::TargetIdPolicy::new(
+            gproxy_protocol::Dialect::OpenAiChat,
+        ),
+    )
+    .unwrap();
+    let chat = serde_json::to_value(chat.value).unwrap();
+    assert_eq!(
+        chat["choices"][0]["message"]["tool_calls"][0]["type"],
+        "custom"
+    );
+    assert_eq!(
+        chat["choices"][0]["message"]["tool_calls"][0]["custom"]["input"],
+        raw
+    );
+    let mut truncated = events;
+    truncated.pop();
+    assert!(collect(truncated).is_err());
+}
 fn response(output: Value) -> r::GenerateContentResponseBody {
     serde_json::from_value(json!({"id":"r","created_at":123,"error":null,"incomplete_details":null,"instructions":null,"metadata":null,"model":"m","object":"response","output":output,"parallel_tool_calls":true,"temperature":null,"tool_choice":"auto","tools":[],"top_p":null,"status":"completed"})).unwrap()
 }

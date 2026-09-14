@@ -11,6 +11,7 @@ impl ChatViaResponses {
         state: &super::super::GenerationStateAccess<'_, S>,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
+        p::stream_tools::check(&original)?;
         let mut buffered = original.clone();
         buffered.stream = Some(Some(false));
         let mut prepared =
@@ -36,6 +37,7 @@ impl ChatViaResponses {
         resources: &super::super::GenerationResources<'_, R>,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
+        p::stream_tools::check(&original)?;
         let mut buffered = original.clone();
         buffered.stream = Some(Some(false));
         let mut prepared = Self::prepare_with_capabilities(
