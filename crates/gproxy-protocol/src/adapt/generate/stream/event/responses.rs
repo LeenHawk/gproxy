@@ -7,6 +7,9 @@ impl sealed::Event for s::StreamEvent {}
 impl NativeEvent for s::StreamEvent {
     type Full = r::GenerateContentResponseBody;
     type Collector = ResponsesStreamCollector;
+    fn responses_history(value: &Self::Full) -> Option<&r::GenerateContentResponseBody> {
+        Some(value)
+    }
     const DIALECT: Dialect = Dialect::OpenAi;
     fn collector(_: IdentityFlow, _: TargetIdPolicy, limits: EventLimits) -> Self::Collector {
         ResponsesStreamCollector::new(ResponsesStreamLimits {

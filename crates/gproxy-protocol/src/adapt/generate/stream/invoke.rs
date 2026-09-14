@@ -72,6 +72,7 @@ pub(super) struct ReadyChunk<E> {
 /// writes/events; a started upstream send is never implicitly repeated.
 pub struct StreamInvocation<B: StreamBridge> {
     pub(super) original: B::ClientRequest,
+    pub(super) history: Option<super::history::History>,
     pub(super) target: B::NativeRequest,
     pub(super) selected: StreamTarget,
     pub(super) settings: StreamSettings,
@@ -102,6 +103,7 @@ pub struct StreamInvocation<B: StreamBridge> {
     pub(super) rejected: Option<WireResponse<Bytes>>,
     pub(super) sent: bool,
     pub(super) eof: bool,
+    pub(super) websocket_terminal: bool,
     pub(super) finished: bool,
     pub(super) failed: bool,
 }
@@ -147,6 +149,7 @@ impl<B: StreamBridge> StreamInvocation<B> {
         );
         let preparation = reservation.preparation(state).await?;
         Ok(Self {
+            history: None,
             original,
             target,
             selected,
@@ -178,6 +181,7 @@ impl<B: StreamBridge> StreamInvocation<B> {
             rejected: None,
             sent: false,
             eof: false,
+            websocket_terminal: false,
             finished: false,
             failed: false,
         })
@@ -221,7 +225,7 @@ impl<B: StreamBridge> StreamInvocation<B> {
     ) -> Result<StreamStart, TransformError> {
         self.state_binding.validate(state)?;
         self.preparation.verify(state).await?;
-        if self.sent || self.failed {
+        if self.sent || self.failed || self.reservation.is_websocket() {
             return Err(super::conflict(
                 "stream send already started or failed; cannot replay POST",
             ));

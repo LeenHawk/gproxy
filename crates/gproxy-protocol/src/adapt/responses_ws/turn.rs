@@ -3,7 +3,10 @@ use crate::{
     codec,
     connection::WsFrame,
     transform::generate::stream::responses::ResponsesStreamCollector,
-    wire::{DeclaredFields, openai::responses::websocket::ClientEvent},
+    wire::{
+        DeclaredFields,
+        openai::responses::websocket::{ClientEvent, ErrorMessage, RequestMessage, ServerMessage},
+    },
 };
 use futures_core::Stream;
 use std::{
@@ -21,6 +24,7 @@ pub struct ResponsesWsTurn<'a> {
     sent_bytes: usize,
     sent_frames: usize,
     terminal: bool,
+    lane: Option<String>,
     failed: bool,
 }
 impl Unpin for ResponsesWsTurn<'_> {}
@@ -32,9 +36,20 @@ enum SendState {
 impl<'a> ResponsesWsTurn<'a> {
     pub(super) fn new(
         session: &'a mut ResponsesWsSession,
-        request: GenerateContentRequestBody,
+        mut request: RequestMessage,
     ) -> Result<Self, TransformError> {
-        let event = ClientEvent::ResponseCreate(request.into_declared());
+        validate_lane(request.stream_id.as_deref())?;
+        let ClientEvent::ResponseCreate(body) = &mut request.event;
+        if body.background.flatten() == Some(true) {
+            return Err(TransformError::unsupported(
+                "responses.websocket.background",
+                "WebSocket mode has no background generation control",
+            ));
+        }
+        body.stream = None;
+        body.background = None;
+        let event = request.into_declared();
+        let lane = event.stream_id.clone();
         let bytes = codec::encode_json(
             &event,
             codec_limits(session.bounds.send_event.min(session.bounds.send_bytes)),
@@ -60,6 +75,7 @@ impl<'a> ResponsesWsTurn<'a> {
             sent_bytes: len,
             sent_frames: 1,
             terminal: false,
+            lane,
             failed: false,
         })
     }
@@ -78,6 +94,9 @@ impl<'a> ResponsesWsTurn<'a> {
     }
     pub fn failure_event(&self) -> Option<&StreamEvent> {
         self.session.failure_event()
+    }
+    pub fn websocket_failure(&self) -> Option<&ErrorMessage> {
+        self.session.websocket_failure()
     }
     fn fail(&mut self, error: TransformError) -> TransformError {
         self.failed = true;
@@ -165,12 +184,32 @@ impl<'a> ResponsesWsTurn<'a> {
                 "JSON event cap exceeded",
             ));
         }
-        let event = codec::decode_json::<StreamEvent>(
-            bytes,
-            codec_limits(self.session.bounds.receive_event),
-        )
-        .map_err(|e| codec_error(e, false))?
-        .into_declared();
+        let limits = codec_limits(self.session.bounds.receive_event);
+        // Known nested WS errors must not fall back to the SSE Error variant
+        // and discard a malformed error object as an unknown extension.
+        let probe: serde_json::Value =
+            codec::decode_json(bytes, limits).map_err(|e| codec_error(e, false))?;
+        if probe.get("type").and_then(serde_json::Value::as_str) == Some("error")
+            && probe.get("error").is_some()
+        {
+            let error = codec::decode_json::<ErrorMessage>(bytes, limits)
+                .map_err(|e| codec_error(e, false))?
+                .into_declared();
+            let lane_matches = error.stream_id.is_none() || error.stream_id == self.lane;
+            self.session.websocket_failure = Some(Box::new(error));
+            return Err(invalid(if lane_matches {
+                "native WebSocket error; see websocket_failure receipt"
+            } else {
+                "WebSocket error belongs to another lane"
+            }));
+        }
+        let message = codec::decode_json::<ServerMessage>(bytes, limits)
+            .map_err(|e| codec_error(e, false))?
+            .into_declared();
+        if message.stream_id != self.lane {
+            return Err(invalid("WebSocket event belongs to another lane"));
+        }
+        let event = message.event;
         if matches!(event, StreamEvent::Failed(_) | StreamEvent::Error(_)) {
             self.session.failure = Some(Box::new(event.clone()));
         }

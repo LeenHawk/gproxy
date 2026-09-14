@@ -41,6 +41,7 @@ pub(super) struct Reservation {
     in_flight: bool,
     version: Option<Version>,
     failed: bool,
+    ws_lane: Option<Option<String>>,
 }
 impl Reservation {
     pub fn new<
@@ -88,7 +89,74 @@ impl Reservation {
             in_flight: false,
             version: None,
             failed: false,
+            ws_lane: None,
         })
+    }
+    pub async fn connection<S: StateStore>(
+        namespace: crate::transform::identity::IdNamespace,
+        request: &crate::WireRequest<()>,
+        state: &GenerationStateAccess<'_, S>,
+    ) -> Result<Self, TransformError> {
+        state.validate()?;
+        let headers: Vec<_> = request
+            .headers
+            .iter()
+            .map(|(name, value)| (name.as_str(), value.as_bytes()))
+            .collect();
+        let payload = serde_json::to_vec(
+            &serde_json::json!({ "transport": "responses_websocket_connection", "namespace": namespace, "method": request.method.as_str(), "path": request.path, "query": request.query, "headers": headers, "target": state.target, "conversation": state.conversation_key, "expires_at": state.expires_at }),
+        )?;
+        if payload.len() as u64 > state.store.limits().write_bytes {
+            return Err(super::limit(
+                "WebSocket connection binding exceeds state write limit",
+            ));
+        }
+        let mut marker = Self {
+            key: format!(
+                "ws-connect:{}:{}:{}",
+                state.conversation_key.len(),
+                state.conversation_key,
+                namespace.hex()
+            ),
+            payload,
+            in_flight: false,
+            version: None,
+            failed: false,
+            ws_lane: None,
+        };
+        marker.reserve(state).await?;
+        Ok(marker)
+    }
+    pub fn websocket<S: StateStore>(
+        &mut self,
+        lane: Option<&str>,
+        state: &GenerationStateAccess<'_, S>,
+    ) -> Result<(), TransformError> {
+        let lane = lane.map(str::to_owned);
+        if let Some(known) = &self.ws_lane {
+            if known != &lane {
+                return Err(super::conflict("reserved WebSocket lane changed"));
+            }
+            return Ok(());
+        }
+        if self.in_flight || self.version.is_some() {
+            return Err(super::conflict(
+                "HTTP reservation cannot become a WebSocket turn",
+            ));
+        }
+        self.payload = serde_json::to_vec(
+            &serde_json::json!({ "transport": "responses_websocket", "stream_id": lane, "binding": serde_json::from_slice::<serde_json::Value>(&self.payload)? }),
+        )?;
+        if self.payload.len() as u64 > state.store.limits().write_bytes {
+            return Err(super::limit(
+                "WebSocket reservation exceeds state write budget",
+            ));
+        }
+        self.ws_lane = Some(lane);
+        Ok(())
+    }
+    pub fn is_websocket(&self) -> bool {
+        self.ws_lane.is_some()
     }
     pub async fn preparation<S: StateStore>(
         &self,
@@ -100,6 +168,7 @@ impl Reservation {
             in_flight: false,
             version: None,
             failed: false,
+            ws_lane: None,
         };
         binding.reserve(state).await?;
         Ok(binding)

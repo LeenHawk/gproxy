@@ -302,3 +302,6 @@ mod parity;
 
 #[path = "adapt_generate_stream/synthesis.rs"]
 mod synthesis;
+
+#[path = "adapt_generate_stream/websocket.rs"]
+mod websocket;

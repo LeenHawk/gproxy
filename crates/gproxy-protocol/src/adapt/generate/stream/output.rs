@@ -5,6 +5,12 @@ use crate::{
 };
 use bytes::Bytes;
 pub(super) enum Encoder {
+    WebSocket {
+        total: u64,
+        events: usize,
+        limits: CodecLimits,
+        lane: Option<String>,
+    },
     Sse(codec::SseEncoder),
     Array(codec::JsonArrayEncoder),
     Ndjson(codec::NdjsonEncoder),
@@ -23,6 +29,36 @@ impl Encoder {
         limits: CodecLimits,
     ) -> Result<Bytes, TransformError> {
         let value = match self {
+            Self::WebSocket {
+                total,
+                events,
+                limits: bound,
+                lane,
+            } => {
+                #[derive(serde::Serialize)]
+                struct Message<'a, E: serde::Serialize> {
+                    #[serde(skip_serializing_if = "Option::is_none")]
+                    stream_id: &'a Option<String>,
+                    #[serde(flatten)]
+                    event: &'a E,
+                }
+                let bytes = codec::encode_json(
+                    &Message {
+                        stream_id: lane,
+                        event,
+                    },
+                    *bound,
+                )
+                .map_err(super::codec_error)?;
+                *total = total
+                    .checked_add(bytes.len() as u64)
+                    .filter(|v| *v <= bound.max_body_bytes)
+                    .ok_or_else(|| super::limit("WebSocket aggregate event bytes exceeded"))?;
+                *events = events
+                    .checked_add(1)
+                    .ok_or_else(|| super::limit("WebSocket event count overflow"))?;
+                Ok(bytes)
+            }
             Self::Sse(encoder) => {
                 let json = codec::encode_json(event, limits).map_err(super::codec_error)?;
                 let data = std::str::from_utf8(&json).map_err(|e| {
