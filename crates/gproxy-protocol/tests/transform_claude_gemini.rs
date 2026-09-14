@@ -403,3 +403,32 @@ fn output_schema_mime_conflict_rejects_and_native_web_citation_keeps_source() {
         Some("https://example/source")
     );
 }
+
+#[test]
+fn thought_flag_on_a_function_preserves_the_payload_without_a_foreign_signature() {
+    let mut input = g_response();
+    input.candidates.as_mut().unwrap()[0].content.as_mut().unwrap().parts = Some(vec![serde_json::from_value(json!({"thought":true,"thoughtSignature":"opaque","functionCall":{"id":"actual-call","name":"run","args":{"x":1}}})).unwrap()]);
+    let converted = gemini_to_claude_response(
+        input,
+        None,
+        ClaudeGeminiUsageFacts {
+            cache_creation_input_tokens: Some(0),
+            cache_read_input_tokens: Some(4),
+            thinking_tokens: Some(2),
+        },
+        &mut flow(),
+        &policy(Dialect::Claude),
+    )
+    .unwrap();
+    assert_eq!(converted.value.stop_reason, c::StopReason::ToolUse);
+    let c::ResponseContentBlock::ToolUse(tool) = &converted.value.content[0] else {
+        panic!("thought metadata cannot erase a function payload")
+    };
+    assert_eq!(tool.name, "run");
+    assert_eq!(tool.input["x"], 1);
+    assert!(
+        !serde_json::to_string(&converted.value)
+            .unwrap()
+            .contains("opaque")
+    );
+}

@@ -64,7 +64,7 @@ pub fn claude_to_gemini_response(
             c::ResponseContentBlock::Thinking(v) => {
                 report.omitted(
                     "content.signature",
-                    "native Claude signature retained in scoped host state, not Gemini signature",
+                    "native Claude signature requires scoped host state and cannot become a Gemini signature",
                 );
                 parts.push(g::Part::builder().text(v.thinking).thought(true).build());
             }
@@ -250,18 +250,18 @@ pub fn gemini_to_claude_response(
         if p.part_metadata.is_some() {
             report.omitted("part_metadata", "Claude lacks Gemini part metadata");
         }
-        if p.thought == Some(true) {
-            if p.text.is_none() {
-                return Err(TransformError::unsupported(
-                    "thought",
-                    "non-text reasoning cannot become Claude response",
-                ));
-            }
+        if p.thought == Some(true) && p.text.is_some() {
             report.omitted(
                 "thought",
                 "Claude thinking requires native signed block from scoped state",
             );
             continue;
+        }
+        if p.thought == Some(true) {
+            report.omitted(
+                "thought",
+                "non-text payload is preserved without a foreign reasoning flag",
+            );
         }
         if let Some(text) = p.text {
             content.push(c::ResponseContentBlock::Text(
