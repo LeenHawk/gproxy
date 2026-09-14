@@ -264,6 +264,9 @@ impl ResponseEvents {
                 }
             }
             r::ResponseOutputItem::FunctionCall(_)
+            | r::ResponseOutputItem::ShellCall(_)
+            | r::ResponseOutputItem::ApplyPatchCall(_)
+            | r::ResponseOutputItem::ToolSearchCall(_)
             | r::ResponseOutputItem::ImageGenerationCall(_) => {}
             _ => return Err(invalid("unsupported projected output item")),
         }

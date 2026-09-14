@@ -1,3 +1,5 @@
+#[path = "support/client_tools.rs"]
+mod client_tools_base;
 #[path = "adapt_generate_stream/host.rs"]
 mod host;
 use gproxy_protocol::{
@@ -320,3 +322,6 @@ mod custom_tools;
 
 #[path = "adapt_generate_stream/client_tools.rs"]
 mod client_tools;
+
+#[path = "adapt_generate_stream/client_tools_backends.rs"]
+mod client_tools_backends;

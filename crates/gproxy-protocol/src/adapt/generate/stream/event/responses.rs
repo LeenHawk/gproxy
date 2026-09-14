@@ -114,8 +114,34 @@ impl NativeEvent for s::StreamEvent {
                 r::ResponseOutputItem::FunctionCall(v) => Some((
                     v.call_id.clone(),
                     ToolCallKind::Function,
-                    (!v.name.is_empty()).then(|| v.name.clone()),
+                    (!v.name.is_empty()).then(|| {
+                        v.namespace.as_ref().map_or_else(
+                            || v.name.clone(),
+                            |ns| crate::transform::generate::client_tools::qualified(ns, &v.name),
+                        )
+                    }),
                 )),
+                r::ResponseOutputItem::ShellCall(v) => Some((
+                    v.call_id.clone(),
+                    ToolCallKind::Function,
+                    Some(crate::transform::generate::client_tools::SHELL.into()),
+                )),
+                r::ResponseOutputItem::ApplyPatchCall(v) => Some((
+                    v.call_id.clone(),
+                    ToolCallKind::Function,
+                    Some(crate::transform::generate::client_tools::PATCH.into()),
+                )),
+                r::ResponseOutputItem::ToolSearchCall(v)
+                    if v.execution == crate::wire::openai::responses::ToolExecution::Client =>
+                {
+                    v.call_id.clone().map(|id| {
+                        (
+                            id,
+                            ToolCallKind::Function,
+                            Some(crate::transform::generate::client_tools::SEARCH.into()),
+                        )
+                    })
+                }
                 r::ResponseOutputItem::CustomToolCall(v) => Some((
                     v.call_id.clone(),
                     ToolCallKind::Custom,

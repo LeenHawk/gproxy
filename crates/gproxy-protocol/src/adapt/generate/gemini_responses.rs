@@ -333,7 +333,11 @@ impl ResponsesViaGemini {
         let selected_model = selected_model.into();
         state.validate_target(Dialect::Gemini, &selected_model)?;
         let original = input.into_declared();
-        let (restored, names) = super::history::responses(original.clone(), state).await?;
+        let mut lowered = original.clone();
+        let mut tool_report = Report::default();
+        crate::transform::generate::client_tools::Bindings::for_target(&original, Dialect::Gemini)?
+            .lower(&mut lowered, &mut tool_report)?;
+        let (restored, names) = super::history::responses(lowered.clone(), state).await?;
         let _ = names;
         let mut context = context;
         if context
@@ -346,7 +350,7 @@ impl ResponsesViaGemini {
                 "caller replay binding conflicts with selected state",
             ));
         }
-        let recovered = state.gemini_replay(&original).await?;
+        let recovered = state.gemini_replay(&lowered).await?;
         context.target = recovered.target;
         for (id, piece) in recovered.parts {
             if context.parts.contains_key(&id) {
@@ -367,6 +371,7 @@ impl ResponsesViaGemini {
         }
         let mut prepared = Self::prepare(restored, selected_model, endpoint, identities, context)?;
         prepared.original_request = original;
+        prepared.report.diagnostics.extend(tool_report.diagnostics);
         Ok(prepared)
     }
     /// Materialize foreign resources and restore scoped history before preparing the selected endpoint.

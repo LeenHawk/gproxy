@@ -108,7 +108,7 @@ pub fn responses_to_claude_request(
             "native Claude replay requires matching model and explicit upstream origin",
         ));
     }
-    let input = input.into_declared();
+    let mut input = input.into_declared();
     let max = input
         .max_output_tokens
         .flatten()
@@ -116,6 +116,8 @@ pub fn responses_to_claude_request(
         .ok_or_else(|| TransformError::missing_metadata("max_output_tokens positive budget"))?;
     let mut out = c::GenerateContentRequestBody::builder(max, Vec::new(), model).build();
     let mut report = Report::default();
+    super::super::client_tools::Bindings::for_target(&input, crate::Dialect::Claude)?
+        .lower(&mut input, &mut report)?;
     controls::to_claude(&input, &mut out, &mut report)?;
     if let Some(input_tools) = input.tools {
         let mut native = Vec::new();

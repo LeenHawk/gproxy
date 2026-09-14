@@ -1,4 +1,4 @@
-//! Responses client-executed tools carried by ordinary Chat function calls.
+//! Responses client-executed tools carried by target-native function calls.
 //! The original declared request is the reverse binding; no private wire fields
 //! or execution in the proxy are used.
 mod history;
@@ -26,6 +26,8 @@ pub(crate) struct Bindings {
     pub entries: BTreeMap<String, Kind>,
     tools: Vec<r::Tool>,
     hidden: BTreeSet<String>,
+    target: Option<crate::Dialect>,
+    keep_deferred: bool,
 }
 
 pub(crate) fn qualified(namespace: &str, name: &str) -> String {
@@ -69,9 +71,28 @@ impl Bindings {
         Ok(())
     }
     pub(crate) fn new(input: &r::GenerateContentRequestBody) -> Result<Self, TransformError> {
-        let mut out = Self::default();
+        Self::for_target(input, crate::Dialect::OpenAiChat)
+    }
+    pub(crate) fn for_target(
+        input: &r::GenerateContentRequestBody,
+        target: crate::Dialect,
+    ) -> Result<Self, TransformError> {
+        Self::for_parts(&input.tools, &input.input, target)
+    }
+    pub(crate) fn for_parts(
+        tools: &Option<Vec<r::Tool>>,
+        history: &Option<r::Input>,
+        target: crate::Dialect,
+    ) -> Result<Self, TransformError> {
+        let discovery = tools.iter().flatten().any(|tool| matches!(tool, r::Tool::ToolSearch(tool) if tool.execution == Some(r::ToolExecution::Client)))
+            || matches!(history, Some(r::Input::Items(items)) if items.iter().any(|item| matches!(item, r::InputItem::ToolSearchOutput(_) | r::InputItem::AdditionalTools(_))));
+        let mut out = Self {
+            target: Some(target),
+            keep_deferred: target != crate::Dialect::OpenAiChat && !discovery,
+            ..Self::default()
+        };
         let mut discovered = Vec::new();
-        if let Some(r::Input::Items(items)) = &input.input {
+        if let Some(r::Input::Items(items)) = history {
             for item in items {
                 match item {
                     r::InputItem::ToolSearchOutput(item)
@@ -100,8 +121,7 @@ impl Bindings {
                 _ => {}
             }
         }
-        let all_tools: Vec<_> = input
-            .tools
+        let all_tools: Vec<_> = tools
             .clone()
             .unwrap_or_default()
             .into_iter()
@@ -157,8 +177,16 @@ impl Bindings {
                     if tool.name.is_empty() {
                         return Err(unsupported("empty namespaced function name"));
                     }
-                    if tool.output_schema.is_some() {
-                        return Err(unsupported("Chat cannot enforce tool output schema"));
+                    if tool
+                        .output_schema
+                        .as_ref()
+                        .and_then(Option::as_ref)
+                        .is_some()
+                        && self.target != Some(crate::Dialect::Gemini)
+                    {
+                        return Err(unsupported(
+                            "selected backend cannot enforce tool output schema",
+                        ));
                     }
                     let alias = qualified(&ns.name, &tool.name);
                     self.bind(
@@ -168,7 +196,10 @@ impl Bindings {
                             name: tool.name,
                         },
                     )?;
-                    if tool.defer_loading == Some(true) && !active.contains(&alias) {
+                    if tool.defer_loading == Some(true)
+                        && !self.keep_deferred
+                        && !active.contains(&alias)
+                    {
                         self.hidden.insert(alias);
                         continue;
                     }
@@ -183,6 +214,9 @@ impl Bindings {
                         .transpose()?;
                     let mut target =
                         r::FunctionTool::builder(alias, parameters, tool.strict.flatten()).build();
+                    target.output_schema = tool.output_schema.filter(Option::is_some);
+                    target.defer_loading =
+                        self.keep_deferred.then_some(tool.defer_loading).flatten();
                     target.description = Some(Some(format!(
                         "{}\n{}",
                         ns.description,
@@ -230,7 +264,9 @@ impl Bindings {
                     schema,
                 )?);
             }
-            r::Tool::Function(mut tool) if tool.defer_loading == Some(true) => {
+            r::Tool::Function(mut tool)
+                if tool.defer_loading == Some(true) && !self.keep_deferred =>
+            {
                 direct(&tool.allowed_callers)?;
                 if active.contains(&tool.name) {
                     tool.defer_loading = None;
@@ -248,14 +284,28 @@ impl Bindings {
         input: &mut r::GenerateContentRequestBody,
         report: &mut Report,
     ) -> Result<(), TransformError> {
-        if input.tools.is_some() || !self.tools.is_empty() {
-            input.tools = Some(self.tools.clone());
+        self.lower_parts(
+            &mut input.tools,
+            &mut input.input,
+            &mut input.tool_choice,
+            report,
+        )
+    }
+    pub(crate) fn lower_parts(
+        &self,
+        tools: &mut Option<Vec<r::Tool>>,
+        history: &mut Option<r::Input>,
+        choice: &mut Option<r::ToolChoice>,
+        report: &mut Report,
+    ) -> Result<(), TransformError> {
+        if tools.is_some() || !self.tools.is_empty() {
+            *tools = Some(self.tools.clone());
         }
         if !self.hidden.is_empty() {
-            report.changed("tools.defer_loading", "undiscovered deferred tools stay out of the Chat catalog until declared discovery output activates them");
+            report.changed("tools.defer_loading", "undiscovered deferred tools stay out of the target catalog until declared discovery output activates them");
         }
-        self.history(&mut input.input, report)?;
-        if let Some(choice) = &mut input.tool_choice {
+        self.history(history, report)?;
+        if let Some(choice) = choice {
             if matches!(choice, r::ToolChoice::Function(tool) if self.hidden.contains(&tool.name)) {
                 return Err(unsupported(
                     "selected deferred tool has not been discovered",
@@ -294,6 +344,42 @@ impl Bindings {
                         ]);
                     }
                 }
+                if self.target == Some(crate::Dialect::Claude) {
+                    let names = allowed
+                        .tools
+                        .iter()
+                        .map(|selector| {
+                            if selector.get("type").and_then(Value::as_str) != Some("function") {
+                                return Err(unsupported(
+                                    "selected subset contains a non-function tool",
+                                ));
+                            }
+                            selector
+                                .get("name")
+                                .and_then(Value::as_str)
+                                .map(str::to_owned)
+                                .ok_or_else(|| unsupported("selected function name required"))
+                        })
+                        .collect::<Result<BTreeSet<_>, _>>()?;
+                    if names.is_empty()
+                        || names.iter().any(|name| {
+                            !self
+                                .tools
+                                .iter()
+                                .any(|tool| matches!(tool, r::Tool::Function(t) if &t.name == name))
+                        })
+                    {
+                        return Err(unsupported(
+                            "selected function is not active in the catalog",
+                        ));
+                    }
+                    *tools = Some(self.tools.iter().filter(|tool| matches!(tool, r::Tool::Function(t) if names.contains(&t.name))).cloned().collect());
+                    *choice = r::ToolChoice::Mode(match allowed.mode {
+                        r::AllowedToolChoiceMode::Auto => r::ToolChoiceMode::Auto,
+                        r::AllowedToolChoiceMode::Required => r::ToolChoiceMode::Required,
+                    });
+                    report.changed("tool_choice.allowed_tools", "target catalog restricted to the selected functions; selection mode preserved");
+                }
             }
             let alias = match choice {
                 r::ToolChoice::Shell(_) => Some(SHELL),
@@ -314,7 +400,7 @@ impl Bindings {
             }
         }
         if !self.entries.is_empty() {
-            report.changed("tools", "client-executed tools use bound Chat functions; original call types are restored on return");
+            report.changed("tools", "client-executed tools use bound functions; original call types are restored on return");
         }
         Ok(())
     }

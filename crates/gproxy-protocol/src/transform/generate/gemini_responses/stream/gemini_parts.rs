@@ -127,12 +127,27 @@ impl GeminiToResponsesStream {
                 &mut self.flow,
                 &self.policy,
                 IdentityRole::ToolCall,
-                IdentityRole::OutputItem(OutputItemKind::FunctionCall),
+                IdentityRole::OutputItem(self.client_tools.kind(&call.name)),
                 call.id,
                 logical,
             )?;
             let arguments = serde_json::to_string(&call.args.unwrap_or_default())?;
-            let item = r::ResponseOutputItem::FunctionCall(
+            if self.client_tools.kind(&call.name) != OutputItemKind::FunctionCall {
+                let item = self.client_tools.restore(
+                    i::FunctionCall::builder(
+                        i::FunctionCallType::FunctionCall,
+                        arguments,
+                        call_id,
+                        call.name,
+                    )
+                    .id(item_id)
+                    .status(i::ItemStatus::InProgress)
+                    .build(),
+                )?;
+                self.add_output(item, out)?;
+                return Ok(());
+            }
+            let item = self.client_tools.restore(
                 i::FunctionCall::builder(
                     i::FunctionCallType::FunctionCall,
                     String::new(),
@@ -142,7 +157,7 @@ impl GeminiToResponsesStream {
                 .id(item_id.clone())
                 .status(i::ItemStatus::InProgress)
                 .build(),
-            );
+            )?;
             let index = self.add_output(item, out)?;
             self.target
                 .arguments(&mut self.budget, out, index, item_id, arguments, false)?;

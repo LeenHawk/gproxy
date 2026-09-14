@@ -22,6 +22,7 @@ impl ClaudeToResponsesStream {
             return Err(limit());
         }
         let index = event.index;
+        let mut deferred = false;
         let source_index = u64::try_from(index).map_err(|_| invalid("negative block index"))?;
         let (mut item, initial) = match event.content_block {
             c::ResponseContentBlock::Text(v) => {
@@ -75,6 +76,7 @@ impl ClaudeToResponsesStream {
                 if v.name.is_empty() {
                     return Err(invalid("empty tool name"));
                 }
+                deferred = self.client_tools.kind(&v.name) != OutputItemKind::FunctionCall;
                 let caller = v
                     .caller
                     .map(|v| {
@@ -104,7 +106,7 @@ impl ClaudeToResponsesStream {
                     &self.policy,
                     crate::Dialect::Claude,
                     IdentityRole::ToolCall,
-                    IdentityRole::OutputItem(OutputItemKind::FunctionCall),
+                    IdentityRole::OutputItem(self.client_tools.kind(&v.name)),
                     Some(v.id),
                     source_index,
                 )?;
@@ -162,20 +164,30 @@ impl ClaudeToResponsesStream {
                 ));
             }
         };
+        if !deferred {
+            item = item
+                .map(|value| match value {
+                    r::ResponseOutputItem::FunctionCall(call) => self.client_tools.restore(call),
+                    other => Ok(other),
+                })
+                .transpose()?;
+        }
         let output_index = if let Some(value) = &mut item {
             if self.output_items >= self.limits.max_items {
                 return Err(limit());
             }
             let n = i64::try_from(self.output_items).map_err(|_| limit())?;
             self.output_items += 1;
-            self.events.emit(&mut self.budget, out, |sequence_number| {
-                s::StreamEvent::OutputItemAdded(s::OutputItemEvent {
-                    sequence_number,
-                    output_index: n,
-                    item: value.clone(),
-                    rest: Default::default(),
-                })
-            })?;
+            if !deferred {
+                self.events.emit(&mut self.budget, out, |sequence_number| {
+                    s::StreamEvent::OutputItemAdded(s::OutputItemEvent {
+                        sequence_number,
+                        output_index: n,
+                        item: value.clone(),
+                        rest: Default::default(),
+                    })
+                })?;
+            }
             if matches!(
                 value,
                 r::ResponseOutputItem::Message(_) | r::ResponseOutputItem::Reasoning(_)
@@ -202,8 +214,12 @@ impl ClaudeToResponsesStream {
                 output_index,
                 item,
                 closed: false,
+                deferred,
             },
         );
+        if deferred {
+            self.deferred_block = Some(index);
+        }
         if let Some(initial) = initial
             && !initial.is_empty()
         {
@@ -237,10 +253,13 @@ impl ClaudeToResponsesStream {
             let pending = self
                 .argument_bytes
                 .checked_add(value.len())
-                .filter(|n| *n <= self.limits.max_pending)
+                .filter(|n| *n <= self.limits.max_pending.saturating_sub(self.deferred_bytes))
                 .ok_or_else(limit)?;
             args.push_str(&value);
             self.argument_bytes = pending;
+            if block.deferred {
+                return Ok(());
+            }
             self.events
                 .arguments(&mut self.budget, out, output, id, value, mcp)
         } else {
@@ -270,6 +289,23 @@ impl ClaudeToResponsesStream {
             .get_mut(&index)
             .ok_or_else(|| invalid("missing block stop"))?;
         block.closed = true;
+        if block.deferred {
+            let Some(r::ResponseOutputItem::FunctionCall(call)) = block.item.take() else {
+                return Err(invalid("deferred tool lost its argument state"));
+            };
+            let item = self.client_tools.restore(call)?;
+            self.events.emit(&mut self.budget, out, |sequence_number| {
+                s::StreamEvent::OutputItemAdded(s::OutputItemEvent {
+                    sequence_number,
+                    output_index: block.output_index.unwrap(),
+                    item: item.clone(),
+                    rest: Default::default(),
+                })
+            })?;
+            block.item = Some(item);
+            self.deferred_block = None;
+            return Ok(());
+        }
         if let Some(item) = &block.item
             && matches!(
                 item,
