@@ -25,3 +25,5 @@ pub use resources::GenerationResources;
 pub use crate::transform::generate::chat_responses::ToolCallKind;
 
 mod request_ids;
+
+pub mod fanout;
