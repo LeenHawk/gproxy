@@ -31,3 +31,5 @@ pub mod stream;
 pub mod fanout;
 
 mod legacy_chat;
+
+pub mod image_resources;

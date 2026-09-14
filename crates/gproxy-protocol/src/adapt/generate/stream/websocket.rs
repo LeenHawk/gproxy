@@ -236,3 +236,5 @@ pub fn decode_message(
     request.background = None;
     Ok(message)
 }
+
+mod image_resources;

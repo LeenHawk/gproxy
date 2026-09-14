@@ -67,6 +67,11 @@ pub fn gemini_to_responses_request(
         policy,
         &mut report,
     )?));
+    super::request_images::to_responses(
+        input.generation_config.as_ref(),
+        &mut out.tools,
+        &mut out.tool_choice,
+    )?;
     *flow = ids;
     Ok(Converted { value: out, report })
 }
@@ -79,10 +84,16 @@ pub fn responses_to_gemini_request(
     if model.is_empty() {
         return Err(TransformError::missing_metadata("target_model"));
     }
-    let input = input.into_declared();
+    let mut input = input.into_declared();
     let mut out = g::GenerateContentRequestBody::builder(Vec::new()).build();
     let mut report = Report::default();
     super::config::to_gemini(&input, &mut out, &mut report)?;
+    super::request_images::to_gemini(
+        &mut input.tools,
+        &mut input.tool_choice,
+        &mut out.generation_config,
+        &mut report,
+    )?;
     let strict = if let Some(tools) = input.tools {
         let (tools, strict) = super::tools::to_gemini(tools)?;
         out.tools = Some(tools);

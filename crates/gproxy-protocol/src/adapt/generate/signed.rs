@@ -208,6 +208,10 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
                         &item.id,
                     ),
                     r::InputItem::FunctionCall(item) => (IdentityRole::ToolCall, &item.call_id),
+                    r::InputItem::ImageGenerationCall(item) => (
+                        IdentityRole::OutputItem(OutputItemKind::ImageGenerationCall),
+                        &item.id,
+                    ),
                     _ => continue,
                 };
                 if let Some(record) = self.read(role, id).await?
@@ -222,6 +226,13 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
                             "signature.native",
                             "native Gemini signature differs from saved identity",
                         ));
+                    }
+                    if role == IdentityRole::OutputItem(OutputItemKind::ImageGenerationCall)
+                        && part.file_data.is_some()
+                    {
+                        let restored = self.gemini_file_image_replay(id, record, part).await?;
+                        context.image_files.insert(id.clone(), restored);
+                        continue;
                     }
                     context.parts.insert(
                         id.clone(),

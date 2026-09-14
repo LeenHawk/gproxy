@@ -21,12 +21,22 @@ impl GeminiViaResponses {
     pub async fn prepare_stream<S: StateStore>(
         input: g::GenerateContentRequestBody,
         mut target: StreamTarget,
-        context: p::ResponsesToGeminiContext,
+        mut context: p::ResponsesToGeminiContext,
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<StreamInvocation<p::ResponsesToGeminiStream>, TransformError> {
         settings.validate::<p::ResponsesToGeminiStream>()?;
         let original = input.into_declared();
+        context.response_modalities = original
+            .generation_config
+            .as_ref()
+            .and_then(|v| v.response_modalities.clone());
+        context.image_mime = original
+            .generation_config
+            .as_ref()
+            .and_then(|v| v.response_format.as_ref())
+            .and_then(|v| v.image.as_ref())
+            .and_then(|v| v.mime_type.clone());
         let prepared = Self::prepare_with_state(
             original.clone().buffered(),
             target.model.clone(),
@@ -42,7 +52,8 @@ impl GeminiViaResponses {
             target.identities.response_policy.clone(),
             settings.events.into(),
         )?;
-        StreamInvocation::new(
+        let needs_images = crate::adapt::generate::image_resources::wants_uri(&original);
+        let mut invocation = StreamInvocation::new(
             original,
             prepared.target_request().clone().streaming(),
             target,
@@ -51,18 +62,30 @@ impl GeminiViaResponses {
             prepared.report().clone(),
             state,
         )
-        .await
+        .await?;
+        invocation.image_resources_required = needs_images;
+        Ok(invocation)
     }
     pub async fn prepare_stream_with_capabilities<S: StateStore, R: ResourceAccess>(
         input: g::GenerateContentRequestBody,
         mut target: StreamTarget,
-        context: p::ResponsesToGeminiContext,
+        mut context: p::ResponsesToGeminiContext,
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
     ) -> Result<StreamInvocation<p::ResponsesToGeminiStream>, TransformError> {
         settings.validate::<p::ResponsesToGeminiStream>()?;
         let original = input.into_declared();
+        context.response_modalities = original
+            .generation_config
+            .as_ref()
+            .and_then(|v| v.response_modalities.clone());
+        context.image_mime = original
+            .generation_config
+            .as_ref()
+            .and_then(|v| v.response_format.as_ref())
+            .and_then(|v| v.image.as_ref())
+            .and_then(|v| v.mime_type.clone());
         let prepared = Self::prepare_with_capabilities(
             original.clone().buffered(),
             target.model.clone(),
@@ -79,7 +102,8 @@ impl GeminiViaResponses {
             target.identities.response_policy.clone(),
             settings.events.into(),
         )?;
-        StreamInvocation::new(
+        let needs_images = crate::adapt::generate::image_resources::wants_uri(&original);
+        let mut invocation = StreamInvocation::new(
             original,
             prepared.target_request().clone().streaming(),
             target,
@@ -88,7 +112,9 @@ impl GeminiViaResponses {
             prepared.report().clone(),
             state,
         )
-        .await
+        .await?;
+        invocation.image_resources_required = needs_images;
+        Ok(invocation)
     }
 }
 impl ResponsesViaGemini {

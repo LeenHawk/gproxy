@@ -178,3 +178,75 @@ fn count_conflicts_context_requirements_and_late_failures_are_explicit() {
         .is_none()
     );
 }
+
+#[test]
+fn image_count_controls_match_generation_without_fake_output_budget() {
+    use gproxy_protocol::transform::generate::gemini_responses as pair;
+    let config = json!({"responseModalities":["IMAGE"],"responseFormat":{"image":{"mimeType":"IMAGE_JPEG","delivery":"INLINE"},"rest_sentinel":"DROP"}});
+    let contents = json!([{"role":"user","parts":[{"text":"draw","rest_sentinel":"DROP"}]}]);
+    let count:g::CountTokensRequestBody=serde_json::from_value(json!({"generateContentRequest":{"model":"models/source","contents":contents,"generationConfig":config},"rest_sentinel":"DROP"})).unwrap();
+    let generation: g::GenerateContentRequestBody =
+        serde_json::from_value(json!({"contents":contents,"generationConfig":config})).unwrap();
+    let expected = pair::gemini_to_responses_request(
+        generation,
+        "selected",
+        &mut flow(),
+        &policy(Dialect::OpenAi),
+    )
+    .unwrap()
+    .value;
+    let actual = gemini_to_openai(count, "selected", &mut flow(), &policy(Dialect::OpenAi))
+        .unwrap()
+        .value;
+    assert_eq!(actual.tools.clone().flatten(), expected.tools);
+    assert_eq!(actual.tool_choice.clone().flatten(), expected.tool_choice);
+    let wire = serde_json::to_value(&actual).unwrap();
+    assert!(!wire.to_string().contains("sentinel"));
+    assert!(wire.get("max_tokens").is_none());
+    assert!(wire.get("max_output_tokens").is_none());
+    let back = openai_to_gemini(actual, "selected", Default::default())
+        .unwrap()
+        .value
+        .generate_content_request
+        .unwrap();
+    let generation_back =
+        pair::responses_to_gemini_request(expected, "selected", Default::default())
+            .unwrap()
+            .value;
+    assert_eq!(back.generation_config, generation_back.generation_config);
+    assert_eq!(back.tools, generation_back.tools);
+    assert_eq!(back.tool_config, generation_back.tool_config);
+    assert!(back.generation_config.unwrap().max_output_tokens.is_none());
+}
+#[test]
+fn count_image_constraints_and_tool_exclusion_use_the_same_native_rules() {
+    let gcount = |config| {
+        serde_json::from_value::<g::CountTokensRequestBody>(json!({"generateContentRequest":{"model":"models/source","contents":[{"parts":[{"text":"draw"}]}],"generationConfig":config}})).unwrap()
+    };
+    for config in [
+        json!({"responseModalities":["TEXT","IMAGE"],"imageConfig":{"imageSize":"1K"}}),
+        json!({"responseModalities":["AUDIO"]}),
+    ] {
+        assert!(
+            gemini_to_openai(
+                gcount(config),
+                "selected",
+                &mut flow(),
+                &policy(Dialect::OpenAi)
+            )
+            .is_err()
+        );
+    }
+    let disabled:o::CountTokensRequestBody=serde_json::from_value(json!({"input":"text","tools":[{"type":"image_generation","size":"999x999"}],"tool_choice":"none"})).unwrap();
+    let actual = openai_to_gemini(disabled, "selected", Default::default())
+        .unwrap()
+        .value
+        .generate_content_request
+        .unwrap();
+    assert_eq!(
+        actual.generation_config.unwrap().response_modalities,
+        Some(vec![g::Modality::Text])
+    );
+    let required:o::CountTokensRequestBody=serde_json::from_value(json!({"input":"task","tools":[{"type":"image_generation"},{"type":"function","name":"f","parameters":{},"strict":false}],"tool_choice":"required"})).unwrap();
+    assert!(openai_to_gemini(required, "selected", Default::default()).is_err());
+}

@@ -13,6 +13,51 @@ impl ResponsesToGeminiStream {
     ) -> Result<(), TransformError> {
         while let Some(mut item) = self.items.remove(&self.cursor) {
             let advance = match &mut item.kind {
+                Kind::Excluded => item.done,
+                Kind::Image { value, emitted } => {
+                    if item.done && !*emitted
+                        && value.status != crate::wire::openai::responses::input::ImageGenerationStatus::Completed {
+                        // A nonterminal image is not an image chunk. Hold its
+                        // disposition until the actual response terminal; the
+                        // canonical converter distinguishes incomplete from a
+                        // malformed completed response without fabricating bytes.
+                        if self.terminal {
+                            self.release(item.held);
+                            item.held = 0;
+                            *emitted = true;
+                        }
+                    } else if item.done && !*emitted {
+                        let model = self
+                            .model
+                            .as_deref()
+                            .ok_or_else(|| invalid("missing native model"))?;
+                        let part = super::super::images::restore(
+                            (**value).clone(),
+                            model,
+                            &mut self.restoration,
+                            self.limits.max_bytes as u64,
+                        )?;
+                        if self.jpeg_only {
+                            let mime = part
+                                .inline_data
+                                .as_ref()
+                                .map(|b| b.mime_type.as_str())
+                                .or_else(|| {
+                                    part.file_data.as_ref().and_then(|f| f.mime_type.as_deref())
+                                });
+                            if mime != Some("image/jpeg") {
+                                return Err(invalid(
+                                    "actual image MIME differs from requested JPEG output",
+                                ));
+                            }
+                        }
+                        self.emit_part(part, out)?;
+                        self.release(item.held);
+                        item.held = 0;
+                        *emitted = true;
+                    }
+                    *emitted
+                }
                 Kind::Message { parts, next } => {
                     self.flush_parts(parts, next, false, &mut item.held, out)?;
                     item.done && *next == parts.len() as i64

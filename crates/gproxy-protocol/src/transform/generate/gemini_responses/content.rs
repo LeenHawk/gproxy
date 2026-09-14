@@ -41,6 +41,30 @@ pub(crate) fn to_responses(
         };
         for part in content.parts.unwrap_or_default() {
             validate(&part)?;
+            if role == r::MessageRole::Assistant
+                && let Some(blob) = &part.inline_data
+            {
+                super::images::validate_part(&part)?;
+                let id = super::identity::id(
+                    flow,
+                    policy,
+                    IdentityRole::Message,
+                    IdentityRole::OutputItem(OutputItemKind::ImageGenerationCall),
+                    None,
+                    index,
+                )?;
+                index += 1;
+                out.push(r::InputItem::ImageGenerationCall(
+                    super::images::to_responses(blob.clone(), id, blob.data.len() as u64)?,
+                ));
+                if part.thought_signature.is_some() {
+                    report.omitted(
+                        "thought_signature",
+                        "Gemini signature retained only in scoped native replay state",
+                    );
+                }
+                continue;
+            }
             if part.thought == Some(true) {
                 let id = super::identity::id(
                     flow,

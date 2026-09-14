@@ -229,6 +229,7 @@ fn replay(id: Option<&str>) -> GeminiReplayContext {
         part["functionCall"]["id"] = json!(id);
     }
     GeminiReplayContext {
+        image_files: Default::default(),
         target: Some(target),
         parts: std::collections::BTreeMap::from([(
             "call-one".into(),
@@ -249,6 +250,8 @@ fn signed_function_preserves_original_id_or_none_and_exposes_exact_bindings() {
         );
         let mut stream = ResponsesToGeminiStream::new(
             ResponsesToGeminiContext {
+                response_modalities: None,
+                image_mime: None,
                 restoration: replay(id),
             },
             flow(),
@@ -312,7 +315,11 @@ fn signed_replay_rejects_modified_arguments_wrong_field_and_target_policy_confli
             TargetIdPolicy::new(Dialect::Gemini)
         };
         let mut stream = ResponsesToGeminiStream::new_with_policy(
-            ResponsesToGeminiContext { restoration: ctx },
+            ResponsesToGeminiContext {
+                response_modalities: None,
+                image_mime: None,
+                restoration: ctx,
+            },
             flow(),
             policy,
             Default::default(),
@@ -564,6 +571,7 @@ fn unsigned_empty_reasoning_is_omitted_but_signed_original_thinking_is_preserved
     )
     .unwrap();
     let ctx = GeminiReplayContext {
+        image_files: Default::default(),
         target: Some(target),
         parts: std::collections::BTreeMap::from([(
             "rs-source".into(),
@@ -579,7 +587,11 @@ fn unsigned_empty_reasoning_is_omitted_but_signed_original_thinking_is_preserved
         None,
     );
     let mut stream = ResponsesToGeminiStream::new(
-        ResponsesToGeminiContext { restoration: ctx },
+        ResponsesToGeminiContext {
+            response_modalities: None,
+            image_mime: None,
+            restoration: ctx,
+        },
         flow(),
         Default::default(),
     )

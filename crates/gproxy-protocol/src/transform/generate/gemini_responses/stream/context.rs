@@ -12,6 +12,8 @@ pub struct GeminiToResponsesContext {
 #[derive(Default)]
 pub struct ResponsesToGeminiContext {
     pub restoration: GeminiReplayContext,
+    pub response_modalities: Option<Vec<crate::wire::gemini::Modality>>,
+    pub image_mime: Option<crate::wire::gemini::ImageMimeType>,
 }
 pub(super) fn clean_context(
     mut c: GeminiToResponsesContext,
@@ -64,7 +66,7 @@ pub(super) fn clean_replay(
     mut c: GeminiReplayContext,
     limits: StreamLimits,
 ) -> Result<GeminiReplayContext, TransformError> {
-    if c.parts.len() > limits.max_items {
+    if c.parts.len().saturating_add(c.image_files.len()) > limits.max_items {
         return Err(limit());
     }
     let mut size = measure(&c.target, limits.max_bytes)?;
@@ -88,11 +90,48 @@ pub(super) fn clean_replay(
             return Err(limit());
         }
     }
+    for (key, proof) in &mut c.image_files {
+        proof.part = proof.part.clone().into_declared();
+        proof.materialized = proof.materialized.clone().into_declared();
+        size = size.checked_add(key.len()).ok_or_else(limit)?;
+        size = size
+            .checked_add(measure(
+                &proof.state,
+                limits.max_bytes.saturating_sub(size),
+            )?)
+            .ok_or_else(limit)?;
+        size = size
+            .checked_add(measure(&proof.part, limits.max_bytes.saturating_sub(size))?)
+            .ok_or_else(limit)?;
+        size = size
+            .checked_add(measure(
+                &proof.materialized,
+                limits.max_bytes.saturating_sub(size),
+            )?)
+            .ok_or_else(limit)?;
+        if size > limits.max_bytes {
+            return Err(limit());
+        }
+    }
     Ok(c)
 }
 pub(super) fn clone_replay(c: &GeminiReplayContext) -> GeminiReplayContext {
     GeminiReplayContext {
         target: c.target.clone(),
+        image_files: c
+            .image_files
+            .iter()
+            .map(|(key, proof)| {
+                (
+                    key.clone(),
+                    super::super::RestoredGeminiImage {
+                        state: proof.state.clone(),
+                        part: proof.part.clone(),
+                        materialized: proof.materialized.clone(),
+                    },
+                )
+            })
+            .collect(),
         parts: c
             .parts
             .iter()

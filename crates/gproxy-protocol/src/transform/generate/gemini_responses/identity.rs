@@ -29,10 +29,16 @@ pub struct RestoredGeminiPart {
     pub state: IdentityStateRecord,
     pub part: g::Part,
 }
+pub struct RestoredGeminiImage {
+    pub state: IdentityStateRecord,
+    pub part: g::Part,
+    pub materialized: g::Blob,
+}
 #[derive(Default)]
 pub struct GeminiReplayContext {
     pub target: Option<IdentityTarget>,
     pub parts: std::collections::BTreeMap<String, RestoredGeminiPart>,
+    pub image_files: std::collections::BTreeMap<String, RestoredGeminiImage>,
 }
 pub(crate) fn reasoning(
     value: r::ReasoningItem,
@@ -72,7 +78,7 @@ pub(crate) fn reasoning(
     }
     Ok(part)
 }
-fn validate(
+pub(super) fn validate(
     native: RestoredGeminiPart,
     key: &str,
     model: &str,

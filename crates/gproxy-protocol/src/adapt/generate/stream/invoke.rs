@@ -73,6 +73,11 @@ pub(super) struct ReadyChunk<E> {
 pub struct StreamInvocation<B: StreamBridge> {
     pub(super) original: B::ClientRequest,
     pub(super) history: Option<super::history::History>,
+    pub(super) pending_native: Option<B::NativeEvent>,
+    pub(super) pending_converted: Option<Vec<B::ClientEvent>>,
+    pub(super) finishing_source: bool,
+    pub(super) image_resources_required: bool,
+    pub(super) resource_revision: u64,
     pub(super) target: B::NativeRequest,
     pub(super) selected: StreamTarget,
     pub(super) settings: StreamSettings,
@@ -150,6 +155,11 @@ impl<B: StreamBridge> StreamInvocation<B> {
         let preparation = reservation.preparation(state).await?;
         Ok(Self {
             history: None,
+            pending_native: None,
+            pending_converted: None,
+            finishing_source: false,
+            image_resources_required: false,
+            resource_revision: 0,
             original,
             target,
             selected,

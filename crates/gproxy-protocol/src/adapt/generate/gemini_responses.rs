@@ -84,7 +84,16 @@ impl GeminiViaResponses {
         let selected_model = selected_model.into();
         state.validate_target(identities.request_policy.dialect, &selected_model)?;
         endpoint.validate()?;
-        let materialized = resources.gemini(original.clone()).await?;
+        let mut materialized = resources.gemini(original.clone()).await?;
+        if let Some(image) = materialized
+            .generation_config
+            .as_mut()
+            .and_then(|v| v.response_format.as_mut())
+            .and_then(|v| v.image.as_mut())
+            && image.delivery == Some(g::Delivery::Uri)
+        {
+            image.delivery = Some(g::Delivery::Inline);
+        }
         let mut prepared =
             Self::prepare_with_state(materialized, selected_model, endpoint, identities, state)
                 .await?;
@@ -115,8 +124,62 @@ impl GeminiViaResponses {
         native: r::GenerateContentResponseBody,
         facts: p::GeminiReplayContext,
     ) -> Result<Converted<g::GenerateContentResponseBody>, TransformError> {
+        if self
+            .original_request
+            .generation_config
+            .as_ref()
+            .and_then(|v| v.response_format.as_ref())
+            .and_then(|v| v.image.as_ref())
+            .and_then(|v| v.delivery.as_ref())
+            == Some(&g::Delivery::Uri)
+        {
+            return Err(TransformError::new(
+                crate::transform::TransformErrorKind::MissingState,
+                "image.delivery",
+                "URI output requires the image resource invocation adapter",
+            ));
+        }
+        self.convert_response_inline(native, facts)
+    }
+    pub(super) fn convert_response_inline(
+        &mut self,
+        native: r::GenerateContentResponseBody,
+        facts: p::GeminiReplayContext,
+    ) -> Result<Converted<g::GenerateContentResponseBody>, TransformError> {
         let native = native.into_declared();
-        let mut converted = p::responses_to_gemini_response(native.clone(), facts)?;
+        let modalities = self
+            .original_request
+            .generation_config
+            .as_ref()
+            .and_then(|v| v.response_modalities.as_deref());
+        let mut converted =
+            p::responses_to_gemini_response_with_modalities(native.clone(), facts, modalities)?;
+        if self
+            .original_request
+            .generation_config
+            .as_ref()
+            .and_then(|v| v.response_format.as_ref())
+            .and_then(|v| v.image.as_ref())
+            .and_then(|v| v.mime_type.as_ref())
+            == Some(&g::ImageMimeType::ImageJpeg)
+        {
+            for blob in converted
+                .value
+                .candidates
+                .iter()
+                .flatten()
+                .filter_map(|c| c.content.as_ref())
+                .flat_map(|c| c.parts.iter().flatten())
+                .filter_map(|p| p.inline_data.as_ref())
+            {
+                if blob.mime_type != "image/jpeg" {
+                    return Err(TransformError::invalid_result(
+                        "image.mime",
+                        "actual image does not match requested JPEG output",
+                    ));
+                }
+            }
+        }
         self.signed_ids = super::request_ids::gemini_response(
             &mut converted.value,
             &mut self.identities,
@@ -294,6 +357,14 @@ impl ResponsesViaGemini {
             }
             context.parts.insert(id, piece);
         }
+        for (id, image) in recovered.image_files {
+            if context.parts.contains_key(&id) || context.image_files.insert(id, image).is_some() {
+                return Err(TransformError::shape(
+                    "signature.context",
+                    "duplicate caller and stored image proof",
+                ));
+            }
+        }
         let mut prepared = Self::prepare(restored, selected_model, endpoint, identities, context)?;
         prepared.original_request = original;
         Ok(prepared)
@@ -443,3 +514,5 @@ impl ResponsesViaGemini {
 }
 
 mod synthesis;
+
+mod image_resources;

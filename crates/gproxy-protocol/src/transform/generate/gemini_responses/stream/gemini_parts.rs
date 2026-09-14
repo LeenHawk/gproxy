@@ -24,14 +24,36 @@ impl GeminiToResponsesStream {
         let logical = self.part_index as u64;
         self.part_index += 1;
         super::super::content::validate(&part)?;
-        if part.inline_data.is_some()
-            || part.file_data.is_some()
-            || part.function_response.is_some()
-        {
+        if part.file_data.is_some() || part.function_response.is_some() {
             return Err(TransformError::unsupported(
                 "candidate.part",
                 "native media/server result requires invocation adapter",
             ));
+        }
+        if let Some(blob) = &part.inline_data {
+            super::super::images::validate_part(&part)?;
+            super::super::images::requested_format(blob, &self.context.response.request)?;
+            let id = super::super::identity::id(
+                &mut self.flow,
+                &self.policy,
+                IdentityRole::Message,
+                IdentityRole::OutputItem(OutputItemKind::ImageGenerationCall),
+                None,
+                logical,
+            )?;
+            let complete =
+                super::super::images::to_responses(blob.clone(), id, self.limits.max_bytes as u64)?;
+            let mut added = complete.clone();
+            added.result = None;
+            added.status = i::ImageGenerationStatus::InProgress;
+            let index = self.add_output(r::ResponseOutputItem::ImageGenerationCall(added), out)?;
+            self.target.item_done(
+                &mut self.budget,
+                out,
+                index,
+                r::ResponseOutputItem::ImageGenerationCall(complete),
+            )?;
+            return Ok(());
         }
         if let Some(text) = part.text {
             let reasoning = part.thought == Some(true);
