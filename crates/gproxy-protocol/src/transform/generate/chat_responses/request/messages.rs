@@ -24,6 +24,7 @@ pub(super) fn easy(role: r::MessageRole, text: String) -> r::InputItem {
 }
 pub(super) fn to_responses(
     messages: Vec<c::ChatMessage>,
+    prior_calls: &std::collections::BTreeMap<String, super::ToolCallKind>,
     _report: &mut Report,
     flow: &mut crate::transform::identity::IdentityFlow,
     policy: &crate::transform::identity::TargetIdPolicy,
@@ -61,6 +62,42 @@ pub(super) fn to_responses(
                 calls.insert(source.clone(), (handle.emitted_id, is_custom));
             }
         }
+    }
+    for message in &messages {
+        let c::ChatMessage::Tool(message) = message else {
+            continue;
+        };
+        let Some(kind) = prior_calls.get(&message.tool_call_id) else {
+            continue;
+        };
+        if message.tool_call_id.is_empty() {
+            return Err(TransformError::shape(
+                "tool_call_id",
+                "empty prior call identity",
+            ));
+        }
+        let is_custom = *kind == super::ToolCallKind::Custom;
+        if let Some((_, existing)) = calls.get(&message.tool_call_id) {
+            if *existing != is_custom {
+                return Err(TransformError::shape(
+                    "call.kind",
+                    "saved kind conflicts with declared history",
+                ));
+            }
+            continue;
+        }
+        let handle = flow
+            .resolve_or_allocate(
+                IdentityRole::ToolCall,
+                SourceIdentity::new(
+                    crate::Dialect::OpenAiChat,
+                    Some(message.tool_call_id.clone()),
+                    calls.len() as u64,
+                ),
+                policy,
+            )
+            .map_err(|error| TransformError::shape("request.identity", error.to_string()))?;
+        calls.insert(message.tool_call_id.clone(), (handle.emitted_id, is_custom));
     }
     let mut legacy_pending = std::collections::BTreeMap::new();
     let mut legacy_index = calls.len() as u64;

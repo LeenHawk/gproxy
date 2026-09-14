@@ -9,9 +9,25 @@ use crate::{
     wire::openai::{chat, responses},
 };
 
+/// Exact declared call kind recovered from a previous response, never inferred from an ID prefix.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ToolCallKind {
+    Function,
+    Custom,
+}
 pub fn chat_to_responses_request(
     input: chat::GenerateContentRequestBody,
     target_model: impl Into<String>,
+    flow: &mut crate::transform::identity::IdentityFlow,
+    policy: &crate::transform::identity::TargetIdPolicy,
+) -> Result<Converted<responses::GenerateContentRequestBody>, TransformError> {
+    chat_to_responses_request_with_calls(input, target_model, &Default::default(), flow, policy)
+}
+
+pub fn chat_to_responses_request_with_calls(
+    input: chat::GenerateContentRequestBody,
+    target_model: impl Into<String>,
+    prior_calls: &std::collections::BTreeMap<String, ToolCallKind>,
     flow: &mut crate::transform::identity::IdentityFlow,
     policy: &crate::transform::identity::TargetIdPolicy,
 ) -> Result<Converted<responses::GenerateContentRequestBody>, TransformError> {
@@ -57,6 +73,7 @@ pub fn chat_to_responses_request(
     };
     output.input = Some(responses::input::Input::Items(messages::to_responses(
         input.messages,
+        prior_calls,
         &mut report,
         &mut ids,
         policy,

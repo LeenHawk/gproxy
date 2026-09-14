@@ -1,0 +1,145 @@
+[
+  {
+    "name": "parallel_same_name_missing_ids",
+    "upstream": "gemini",
+    "operation": "response",
+    "input": {
+      "responseId": "g-native",
+      "modelVersion": "selected",
+      "candidates": [
+        {
+          "index": 0,
+          "content": {
+            "role": "model",
+            "parts": [
+              {
+                "functionCall": {
+                  "name": "same",
+                  "args": {
+                    "a": 1
+                  }
+                }
+              },
+              {
+                "functionCall": {
+                  "name": "same",
+                  "args": {
+                    "a": 2
+                  }
+                }
+              }
+            ]
+          },
+          "finishReason": "STOP"
+        }
+      ],
+      "usageMetadata": {
+        "promptTokenCount": 4,
+        "candidatesTokenCount": 2,
+        "totalTokenCount": 6,
+        "cachedContentTokenCount": 0,
+        "thoughtsTokenCount": 0
+      }
+    }
+  },
+  {
+    "name": "distinct_punctuation_ids",
+    "upstream": "claude",
+    "operation": "response",
+    "input": {
+      "id": "msg-native",
+      "type": "message",
+      "role": "assistant",
+      "model": "selected",
+      "content": [
+        {
+          "type": "tool_use",
+          "id": "a.b",
+          "name": "same",
+          "input": {}
+        },
+        {
+          "type": "tool_use",
+          "id": "a_b",
+          "name": "same",
+          "input": {}
+        }
+      ],
+      "stop_reason": "tool_use",
+      "usage": {
+        "input_tokens": 4,
+        "output_tokens": 2,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "output_tokens_details": {
+          "thinking_tokens": 0
+        }
+      }
+    }
+  },
+  {
+    "name": "truncated_tool_result",
+    "upstream": "gemini",
+    "operation": "request",
+    "prime": {
+      "responseId": "g-prime",
+      "modelVersion": "selected",
+      "candidates": [
+        {
+          "index": 0,
+          "content": {
+            "role": "model",
+            "parts": [
+              {
+                "functionCall": {
+                  "id": "known-client-call",
+                  "name": "actual_lookup",
+                  "args": {}
+                }
+              }
+            ]
+          },
+          "finishReason": "STOP"
+        }
+      ],
+      "usageMetadata": {
+        "promptTokenCount": 4,
+        "candidatesTokenCount": 2,
+        "totalTokenCount": 6,
+        "cachedContentTokenCount": 0,
+        "thoughtsTokenCount": 0
+      }
+    },
+    "input": {
+      "model": "client",
+      "messages": [
+        {
+          "role": "tool",
+          "tool_call_id": "known-client-call",
+          "content": "actual result"
+        }
+      ]
+    }
+  },
+  {
+    "name": "foreign_image_url",
+    "upstream": "gemini",
+    "operation": "request",
+    "input": {
+      "model": "client",
+      "messages": [
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "https://source/private.png"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+]
