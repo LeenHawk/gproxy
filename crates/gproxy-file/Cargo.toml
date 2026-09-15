@@ -1,0 +1,33 @@
+[package]
+name = "gproxy-file"
+description = "Optional local filesystem and S3/R2 storage for GPROXY, powered by OpenDAL"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version = "1.91"
+
+[features]
+default = []
+fs = ["dep:opendal-service-fs"]
+s3 = ["dep:opendal-service-s3", "dep:opendal-http-transport-reqwest", "dep:wasm-bindgen-futures"]
+
+[dependencies]
+opendal-core = { workspace = true }
+opendal-service-s3 = { workspace = true, optional = true }
+opendal-http-transport-reqwest = { workspace = true, optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+opendal-core = { workspace = true, features = ["executors-tokio"] }
+opendal-service-fs = { workspace = true, optional = true }
+opendal-http-transport-reqwest = { workspace = true, optional = true, features = ["rustls"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = { workspace = true, optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+tokio = { workspace = true }
+tempfile = { workspace = true }
+http = { workspace = true }
+futures-util = { workspace = true }

@@ -5,6 +5,7 @@ members = [
     "crates/gproxy-protocol-macros",
     "crates/gproxy-seaorm-d1",
     "crates/gproxy-tokenizer",
+    "crates/gproxy-file",
 ]
 
 [workspace.package]
@@ -28,6 +29,7 @@ gproxy-admin = { path = "crates/gproxy-admin", version = "=3.0.13" }
 gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "=3.0.13" }
 gproxy-channels = { path = "crates/gproxy-channels", version = "=3.0.13" }
 gproxy-core = { path = "crates/gproxy-core", version = "=3.0.13" }
+gproxy-file = { path = "crates/gproxy-file", version = "=4.0.0-dev", default-features = false }
 gproxy-protocol = { path = "crates/gproxy-protocol", version = "=4.0.0-dev", features = ["exhaustive"] }
 gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=4.0.0-dev" }
 gproxy-seaorm-d1 = { path = "crates/gproxy-seaorm-d1", version = "=4.0.0-dev" }
@@ -50,6 +52,10 @@ http = "1"
 hmac = "0.13"
 js-sys = "0.3"
 mime_guess = "2"
+opendal-core = { version = "0.59", default-features = false }
+opendal-service-fs = { version = "0.59", default-features = false }
+opendal-service-s3 = { version = "0.59", default-features = false }
+opendal-http-transport-reqwest = { version = "0.59", default-features = false }
 mysql_async = { version = "0.37", default-features = false, features = ["default-rustls"] }
 percent-encoding = "2"
 proc-macro2 = "1"
