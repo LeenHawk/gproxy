@@ -112,6 +112,8 @@ jobs:
         run: cargo install cross --locked
       - if: ${{ matrix.builder == 'cargo-ndk' }}
         uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
       - if: ${{ matrix.builder == 'cargo-ndk' }}
         run: cargo install cargo-ndk --locked
       - name: Build
