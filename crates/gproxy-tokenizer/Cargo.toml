@@ -7,14 +7,13 @@ license.workspace = true
 repository.workspace = true
 
 [features]
-default = []
+default = ["local"]
 tiktoken = ["dep:tiktoken-rs"]
 huggingface = ["dep:tokenizers"]
 bundled-deepseek = ["huggingface"]
 local = ["tiktoken", "huggingface", "bundled-deepseek"]
 
 [dependencies]
-serde_json.workspace = true
 tiktoken-rs = { workspace = true, optional = true }
 tokenizers = { workspace = true, optional = true }
 
