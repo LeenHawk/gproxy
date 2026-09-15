@@ -183,7 +183,7 @@
       "channelHint": "通道來自目前執行的 GPROXY 二進位檔。",
       "channelCapabilities": "目前宣告 {{count}} 條路由，涵蓋以下操作群組",
       "labelHint": "可選的顯示文字；路由名稱仍是穩定的路由識別碼。",
-      "credentialStrategyHint": "輪詢會輪替請求；黏性策略讓每個 API 金鑰穩定使用同一憑證。",
+      "credentialStrategyHint": "輪詢會輪替請求；黏性策略固定憑證；額度即將重設優先會先使用目前模型下仍有額度、且最早重設的帳號。",
       "proxyHint": "覆寫此供應商的執行個體 Proxy；憑證仍可再次覆寫。",
       "settingsHint": "進階 JSON 入口。日常編輯請使用上方由通道宣告的欄位。",
       "settingsInvalid": "請輸入有效的 JSON 物件。",
@@ -196,7 +196,8 @@
     },
     "strategies": {
       "round_robin": "輪詢",
-      "sticky": "依 API 金鑰黏性"
+      "sticky": "依 API 金鑰黏性",
+      "earliest_reset": "額度即將重設優先"
     },
     "fingerprint": {
       "title": "用戶端指紋",

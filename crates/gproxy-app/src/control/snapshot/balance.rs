@@ -1,8 +1,16 @@
 use std::cmp::Reverse;
 use std::collections::BTreeMap;
 
-use super::types::{CredentialHealthMap, CredentialStrategy, TargetSeed};
+use super::types::{CredentialHealthMap, CredentialPressureMap, CredentialStrategy, TargetSeed};
 
+pub(super) struct SelectionState<'a> {
+    pub health: &'a CredentialHealthMap,
+    pub pressure: &'a CredentialPressureMap,
+    pub now: i64,
+}
+
+#[cfg(test)]
+mod earliest_reset_tests;
 mod rotation;
 #[cfg(test)]
 mod tests;
@@ -15,9 +23,10 @@ pub(super) fn order(
     strategy: RouteStrategy,
     balance_key: i64,
     affinity: Option<i64>,
-    health: &CredentialHealthMap,
+    selection: &SelectionState<'_>,
     counters: &RotationCounters,
 ) -> Vec<TargetSeed> {
+    let health = selection.health;
     seeds.retain(|seed| health_rank(seed, health) < 2);
     seeds.sort_by_key(|seed| {
         (
@@ -25,6 +34,7 @@ pub(super) fn order(
             health_rank(seed, health),
             Reverse(seed.member_weight),
             seed.member_id,
+            reset_rank(seed, selection),
             Reverse(seed.credential_weight),
             seed.credential.0,
         )
@@ -66,9 +76,17 @@ pub(super) fn order(
         .collect::<BTreeMap<_, _>>();
     seeds[..primary_end].sort_by_key(|seed| order[&seed.member_id]);
     let member_id = members[0].0;
-    let credentials = seeds[..primary_end]
+    // Restrict rotation to the best reset bucket first. Sorting after rotating
+    // the whole pool would bias ties toward the lowest credential ID.
+    let best_reset = seeds[..primary_end]
         .iter()
         .filter(|seed| seed.member_id == member_id)
+        .map(|seed| reset_rank(seed, selection))
+        .min()
+        .expect("selected member has credentials");
+    let credentials = seeds[..primary_end]
+        .iter()
+        .filter(|seed| seed.member_id == member_id && reset_rank(seed, selection) == best_reset)
         .map(|seed| (seed.credential.0, seed.credential_weight))
         .collect::<Vec<_>>();
     let strategy = seeds
@@ -77,7 +95,7 @@ pub(super) fn order(
         .map(|seed| seed.credential_strategy)
         .unwrap_or(CredentialStrategy::RoundRobin);
     let credential_id = match strategy {
-        CredentialStrategy::RoundRobin => {
+        CredentialStrategy::RoundRobin | CredentialStrategy::EarliestReset => {
             counters.smooth((1, balance_key, member_id), &credentials)
         }
         CredentialStrategy::Sticky => weighted_owner(
@@ -93,6 +111,18 @@ pub(super) fn order(
         seeds.insert(0, selected);
     }
     seeds
+}
+
+fn reset_rank(seed: &TargetSeed, selection: &SelectionState<'_>) -> (u8, i64) {
+    if seed.credential_strategy == CredentialStrategy::EarliestReset {
+        super::pressure::earliest_reset(
+            selection.pressure.get(&seed.credential),
+            &seed.upstream_model,
+            selection.now,
+        )
+    } else {
+        (0, 0)
+    }
 }
 
 fn health_rank(seed: &TargetSeed, health: &CredentialHealthMap) -> u8 {

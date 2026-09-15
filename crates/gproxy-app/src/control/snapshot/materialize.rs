@@ -1,8 +1,8 @@
 use gproxy_core::control::FailoverBudget;
 use gproxy_core::{CoreError, Plan, Target};
 
-use super::balance::{self, RotationCounters};
-use super::types::{CompiledSnapshot, CredentialHealthMap, TargetSeed};
+use super::balance::{self, RotationCounters, SelectionState};
+use super::types::{CompiledSnapshot, TargetSeed};
 
 impl CompiledSnapshot {
     pub(super) fn plan(
@@ -11,7 +11,7 @@ impl CompiledSnapshot {
         max_attempts: Option<u32>,
         balance_key: i64,
         affinity: Option<i64>,
-        health: &CredentialHealthMap,
+        selection: &SelectionState<'_>,
         counters: &RotationCounters,
     ) -> Result<Plan, CoreError> {
         let strategy = self
@@ -21,7 +21,7 @@ impl CompiledSnapshot {
             .map_or(gproxy_store::records::RouteStrategy::RoundRobin, |route| {
                 route.strategy
             });
-        let targets = balance::order(seeds, strategy, balance_key, affinity, health, counters)
+        let targets = balance::order(seeds, strategy, balance_key, affinity, selection, counters)
             .into_iter()
             .filter_map(|seed| {
                 self.providers.get(&seed.provider_id).map(|stored| {

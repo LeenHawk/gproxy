@@ -183,7 +183,7 @@
       "channelHint": "Channels come from this running GPROXY binary.",
       "channelCapabilities": "{{count}} declared routes across these operation groups",
       "labelHint": "Optional display text. The route name remains the stable routing identifier.",
-      "credentialStrategyHint": "Round robin rotates requests; sticky keeps each API key on a stable credential.",
+      "credentialStrategyHint": "Round robin rotates requests; sticky keeps each API key on a stable credential; earliest reset spends usable quota that resets soonest for the requested model.",
       "proxyHint": "Overrides the instance proxy for this provider. Credentials can override it again.",
       "settingsHint": "Advanced JSON escape hatch. Declared fields above remain the normal editing path.",
       "settingsInvalid": "Enter a valid JSON object.",
@@ -196,7 +196,8 @@
     },
     "strategies": {
       "round_robin": "Round robin",
-      "sticky": "Sticky by API key"
+      "sticky": "Sticky by API key",
+      "earliest_reset": "Earliest quota reset first"
     },
     "fingerprint": {
       "title": "Client fingerprint",
