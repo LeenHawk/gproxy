@@ -30,15 +30,14 @@ extern "C" {
 /// SeaORM connection to a Workers D1 binding, without interactive transactions.
 ///
 /// JS handles and futures remain on their originating WASM thread. Cloning a
-/// connection shares its binding, not a mutable/global projection. The binding
-/// must remain valid for the current Worker request; do not store it globally.
+/// connection shares its binding, not a mutable/global projection.
 ///
 /// This type does not implement or expose `TransactionTrait`. SeaORM APIs that
 /// require it (including some cascading relation writes) cannot be used here.
 #[derive(Clone, Debug)]
 pub struct D1Connection {
     binding: Arc<SendWrapper<D1Database>>,
-    projection: Projection,
+    pub(crate) projection: Projection,
 }
 
 fn js_error(value: JsValue) -> DbErr {
@@ -79,6 +78,19 @@ impl D1Connection {
             binding: Arc::clone(&self.binding),
             projection,
         }
+    }
+
+    pub(crate) async fn raw_rows(&self, statement: Statement) -> Result<Json, DbErr> {
+        SendWrapper::new(async {
+            let options = Object::new();
+            Reflect::set(&options, &JsValue::from_str("columnNames"), &JsValue::TRUE)
+                .map_err(js_error)?;
+            let result = JsFuture::from(self.prepare(&statement)?.raw(&options).map_err(js_error)?)
+                .await
+                .map_err(js_error)?;
+            serde_wasm_bindgen::from_value(result).map_err(|_| error("invalid D1 raw query result"))
+        })
+        .await
     }
 
     fn prepare(&self, statement: &Statement) -> Result<D1PreparedStatement, DbErr> {
@@ -178,20 +190,10 @@ impl ConnectionTrait for D1Connection {
     }
 
     async fn query_all_raw(&self, statement: Statement) -> Result<Vec<QueryResult>, DbErr> {
-        SendWrapper::new(async {
-            let options = Object::new();
-            Reflect::set(&options, &JsValue::from_str("columnNames"), &JsValue::TRUE)
-                .map_err(js_error)?;
-            let result = JsFuture::from(self.prepare(&statement)?.raw(&options).map_err(js_error)?)
-                .await
-                .map_err(js_error)?;
-            let result: Json = serde_wasm_bindgen::from_value(result)
-                .map_err(|_| error("invalid D1 raw query result"))?;
-            Ok(codec::rows(&result, &self.projection)?
-                .into_iter()
-                .map(Into::into)
-                .collect())
-        })
-        .await
+        let result = self.raw_rows(statement).await?;
+        Ok(codec::rows(&result, &self.projection)?
+            .into_iter()
+            .map(Into::into)
+            .collect())
     }
 }

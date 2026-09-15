@@ -63,6 +63,7 @@ self-replace = "1"
 rust-embed = { version = "8", features = ["include-exclude"] }
 sea-query = { version = "1.0.2", default-features = false, features = ["backend-mysql", "backend-postgres", "backend-sqlite", "derive"] }
 sea-orm = { version = "2", default-features = false, features = ["macros", "proxy", "with-json"] }
+sea-orm-migration = { version = "2", default-features = false, features = ["with-time"] }
 send_wrapper = { version = "0.6", features = ["futures"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

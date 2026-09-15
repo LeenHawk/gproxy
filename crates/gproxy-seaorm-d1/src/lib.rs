@@ -13,6 +13,11 @@
 
 mod projection;
 pub use projection::{D1Type, Projection};
+pub use sea_orm_migration;
+
+mod migration_support;
+pub mod schema;
+pub use migration_support::D1SchemaManagerExt;
 
 #[cfg(any(target_arch = "wasm32", test))]
 mod codec;
@@ -20,6 +25,8 @@ mod codec;
 mod connection;
 #[cfg(target_arch = "wasm32")]
 pub use connection::D1Connection;
+#[cfg(target_arch = "wasm32")]
+mod migration;
 
 fn error(message: impl Into<String>) -> sea_orm::DbErr {
     sea_orm::DbErr::Custom(message.into())
