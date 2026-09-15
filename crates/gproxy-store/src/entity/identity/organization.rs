@@ -1,0 +1,22 @@
+//! Organizations own shared credentials and contain teams.
+
+use sea_orm::entity::prelude::*;
+
+#[sea_orm::model]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
+#[sea_orm(table_name = "organizations")]
+pub struct Model {
+    #[sea_orm(primary_key, auto_increment = false)]
+    pub id: String,
+    #[sea_orm(unique)]
+    pub name: String,
+    pub created_at_ms: i64,
+    #[sea_orm(has_many)]
+    pub teams: HasMany<super::team::Entity>,
+    #[sea_orm(has_many)]
+    pub members: HasMany<super::organization_member::Entity>,
+    #[sea_orm(has_many)]
+    pub credentials: HasMany<crate::entity::upstream::credential::Entity>,
+}
+
+impl ActiveModelBehavior for ActiveModel {}
