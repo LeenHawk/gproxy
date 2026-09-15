@@ -1,30 +1,51 @@
 //! Local token counting, with no network, persistence or task runtime.
 //!
-//! Callers select and retain a tokenizer. Request counting encodes visible text
-//! without adding message overhead or applying a model's chat template.
+//! Callers select and retain a tokenizer, pass a string, and receive its token
+//! count. No request parsing, message overhead or chat template is applied.
 
 #![doc = include_str!("../README.md")]
 
 mod error;
-mod extract;
+#[cfg(feature = "local")]
+mod model;
+#[cfg(feature = "huggingface")]
+mod vocabulary;
 
 pub use error::CountError;
-pub use extract::RequestFormat;
+#[cfg(feature = "huggingface")]
+pub use vocabulary::Vocabulary;
 
-/// A reusable local encoder. Model selection and fallback policy belong to callers.
+/// A reusable encoder. Cloning shares the vocabulary rather than copying it.
+#[derive(Clone)]
 pub struct Tokenizer {
     backend: Backend,
 }
 
+#[derive(Clone)]
 enum Backend {
     CharacterEstimate,
     #[cfg(feature = "tiktoken")]
     Tiktoken(&'static tiktoken_rs::CoreBPE),
     #[cfg(feature = "huggingface")]
-    HuggingFace(Box<tokenizers::Tokenizer>),
+    HuggingFace(std::sync::Arc<tokenizers::Tokenizer>),
 }
 
 impl Tokenizer {
+    /// GPT family: tiktoken. Otherwise: supplied vocabulary, then bundled DeepSeek V4.
+    /// The supplied vocabulary is shared, never reparsed or deep-cloned here.
+    #[cfg(feature = "local")]
+    pub fn for_model(model: &str, vocabulary: Option<&Vocabulary>) -> Result<Self, CountError> {
+        if let Some(encoder) = model::gpt_encoding(model) {
+            return Ok(Self {
+                backend: Backend::Tiktoken(encoder),
+            });
+        }
+        match vocabulary {
+            Some(vocabulary) => Ok(Self::from_vocabulary(vocabulary)),
+            None => Self::deepseek_v4_pro(),
+        }
+    }
+
     /// Estimate one token per two Unicode scalar values, rounding up.
     pub fn character_estimate() -> Self {
         Self {
@@ -46,31 +67,22 @@ impl Tokenizer {
         }
     }
 
-    /// Load a Hugging Face tokenizer.json supplied by the caller.
-    /// Padding and truncation are disabled so the full input is counted.
+    /// Share a vocabulary already loaded by the caller.
     #[cfg(feature = "huggingface")]
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, CountError> {
-        let mut tokenizer = tokenizers::Tokenizer::from_bytes(bytes)
-            .map_err(|error| CountError::InvalidTokenizer(error.to_string()))?;
-        tokenizer.with_padding(None);
-        tokenizer
-            .with_truncation(None)
-            .map_err(|error| CountError::InvalidTokenizer(error.to_string()))?;
-        Ok(Self {
-            backend: Backend::HuggingFace(Box::new(tokenizer)),
-        })
+    pub fn from_vocabulary(vocabulary: &Vocabulary) -> Self {
+        Self {
+            backend: Backend::HuggingFace(std::sync::Arc::clone(&vocabulary.0)),
+        }
     }
 
-    /// Construct the bundled encoder. Retain this instance to avoid reparsing.
+    /// Share the bundled encoder, parsed once on first use.
     #[cfg(feature = "bundled-deepseek")]
     pub fn deepseek_v4_pro() -> Result<Self, CountError> {
-        Self::from_bytes(include_bytes!(
-            "../assets/tokenizers/deepseek-v4-pro.tokenizer.json"
-        ))
+        vocabulary::bundled().map(Self::from_vocabulary)
     }
 
     /// Count text without adding message framing or special tokens.
-    pub fn count_text(&self, text: &str) -> Result<u64, CountError> {
+    pub fn count(&self, text: &str) -> Result<u64, CountError> {
         let count = match &self.backend {
             Backend::CharacterEstimate => text.chars().count().div_ceil(2),
             #[cfg(feature = "tiktoken")]
@@ -82,15 +94,5 @@ impl Tokenizer {
                 .len(),
         };
         Ok(count as u64)
-    }
-
-    /// Count visible request content, joining fragments with newlines without
-    /// adding message overhead.
-    ///
-    /// The caller validates the wire contract and supplies the final target
-    /// request. This projection does not resolve references or count media.
-    pub fn count_request(&self, format: RequestFormat, body: &[u8]) -> Result<u64, CountError> {
-        let text = extract::extract(format, body)?;
-        self.count_text(&text)
     }
 }

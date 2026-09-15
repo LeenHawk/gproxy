@@ -1,62 +1,77 @@
 # gproxy-tokenizer
 
-Small, synchronous, local token counting for GPROXY v4. No HTTP client, database,
-Tokio, registry, model-name matching, global configuration or background tasks.
+[中文](README.zh-CN.md) · English
+
+A synchronous local tokenizer: select by model, then **string in, token count out**.
 
 ```rust
-use gproxy_tokenizer::{RequestFormat, Tokenizer};
+# #[cfg(feature = "local")]
+# {
+use gproxy_tokenizer::Tokenizer;
 
-let tokenizer = Tokenizer::character_estimate();
-assert_eq!(tokenizer.count_text("你好 world")?, 4);
-let body = br#"{"messages":[{"role":"user","content":"hello world"}]}"#;
-assert_eq!(tokenizer.count_request(RequestFormat::OpenAiChat, body)?, 6);
+let tokenizer = Tokenizer::for_model("gpt-5", None)?;
+assert_eq!(tokenizer.count("hello world")?, 2);
+
+// Non-GPT model without a supplied vocabulary: shared DeepSeek V4 encoder.
+let tokenizer = Tokenizer::for_model("claude-sonnet-4", None)?;
+let tokens = tokenizer.count("Hello, 世界!")?;
+# }
 # Ok::<(), gproxy_tokenizer::CountError>(())
 ```
 
-| Feature | Constructors |
-|---|---|
-| default (none) | `Tokenizer::character_estimate()`; only depends on serde_json |
-| `tiktoken` | `Tokenizer::cl100k_base()`, `Tokenizer::o200k_base()` |
-| `huggingface` | `Tokenizer::from_bytes(tokenizer_json)` |
-| `bundled-deepseek` | `Tokenizer::deepseek_v4_pro()`; includes `huggingface` |
-| `local` | All local backends above |
+Selection is fixed:
 
-The tokenizer is selected explicitly and reused for both `count_text` and
-`count_request`. Hugging Face instances disable padding and truncation, and
-encode without added special tokens. `from_bytes` accepts tokenizer.json bytes,
-not a repository name, file path or tokenizer_config.json/chat template.
-The bundled constructor parses the included asset; retain its instance rather
-than constructing it per request. Native and wasm builds use Rust regex; HF's
-WASM support is enabled on wasm32. Heavy vocabularies remain opt-in.
+1. GPT family → tiktoken, even when a vocabulary is supplied.
+2. Other models with a supplied vocabulary → that vocabulary.
+3. Other models without one → bundled DeepSeek V4 Pro.
 
-## Request counting
+GPT names use tiktoken's model mapping, including GPT-3.5/4, GPT-4o/4.1/5 and
+GPT-OSS. ChatGPT, o1/o3/o4 and Codex Mini names are also recognized. New GPT names
+unknown to tiktoken use `o200k_base`. Pass the actual model name, without a provider
+prefix. A fallback vocabulary does not imply equivalence to the model's native tokenizer.
 
-`RequestFormat` selects Chat, Responses, Claude or Gemini JSON. The caller
-validates the protocol schema and supplies the final target request. Generation
-and CountTokens request bodies use their respective format (OpenAI CountTokens
-uses Responses). Gemini embedded `generateContentRequest` is supported.
+## Supplied vocabularies
 
-Collect visible text and serialized tool/schema configuration, join fragments
-with newlines, and encode. No fixed overhead is added per message or input item.
-Top-level projection follows the selected format instead of recursively scanning
-unrelated metadata. This is an estimate, not a model-specific chat template.
+Load `tokenizer.json` bytes once with `Vocabulary::from_bytes(&bytes)?`, then pass
+`Some(&vocabulary)` to `Tokenizer::for_model(model, ...)`. Core can retain the
+vocabulary and reuse it across requests and models.
 
-Only supplied content is counted. Media token costs, opaque signatures, file IDs,
-cached-content references and previous-response IDs are not counted as text or
-resolved. A text document's supplied source is included. Upstream usage and
-CountTokens responses are outside this crate's responsibilities.
+```rust
+# #[cfg(feature = "local")]
+# {
+use gproxy_tokenizer::{CountError, Tokenizer, Vocabulary};
 
-Malformed JSON, unusable vocabularies and encoding failures return errors; there
-is no silent tokenizer switch. The caller can explicitly use the character
-encoder, which computes `ceil(Unicode scalar values / 2)`.
+fn count_with_vocab(vocab: &Vocabulary, text: &str) -> Result<u64, CountError> {
+    Tokenizer::for_model("my-model", Some(vocab))?.count(text)
+}
+# }
+```
 
-## Core boundary
+`Vocabulary` and `Tokenizer` share encoders through `Arc`: selection and cloning
+only copy a shared handle, never the vocabulary contents. Parsing borrows the JSON
+bytes and allocates the encoder once. Bundled DeepSeek bytes are embedded once;
+the encoder is initialized once on first use and shared thereafter. Tiktoken also
+uses shared singleton encoders.
 
-Core owns model-to-vocabulary mapping, fallback selection, instance caching,
-download authentication, persistence, load deduplication and preheating. It
-obtains bytes via its client/store capabilities and passes them to `from_bytes`.
-Management operations belong to manage. These integrations will be implemented
-with v4 core/manage; this crate does not restore the v3 registry or its I/O traits.
+`count(&str) -> Result<u64, CountError>` encodes the supplied string directly.
+It does not parse requests, join text, apply chat templates, or add message
+overhead/special tokens. HF padding and truncation are disabled. Invalid
+vocabularies and encoding failures return errors; a failed supplied vocabulary
+does not silently switch to DeepSeek or character estimation.
 
-The DeepSeek asset and its original attribution are retained; see
-`THIRD_PARTY_NOTICES.md` and `assets/tokenizers/LICENSE`.
+## Features and ownership
+
+Defaults enable `local`, including `tiktoken`, `huggingface` and
+`bundled-deepseek`. `for_model` is available with `local`. These features can also
+be enabled individually for explicit encoder selection through `cl100k_base`,
+`o200k_base`, `from_vocabulary` or `deepseek_v4_pro`. With default features disabled,
+`character_estimate()` provides dependency-free `ceil(Unicode scalars / 2)`;
+character estimation is never part of the automatic selection chain.
+
+Native/WASM builds use Rust regex; wasm32 enables HF's WASM support. Core/callers
+own request preparation, custom model-to-vocabulary configuration, downloads,
+authentication, persistence and custom vocabulary caching. Management belongs to
+manage. This crate has no network, database, Tokio, registry or background tasks.
+
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
+[LICENSE](assets/tokenizers/LICENSE) for DeepSeek attribution and licensing.

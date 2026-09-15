@@ -1045,7 +1045,6 @@ dependencies = [
 name = "gproxy-tokenizer"
 version = "4.0.0-dev"
 dependencies = [
- "serde_json",
  "tiktoken-rs",
  "tokenizers",
 ]
