@@ -190,6 +190,77 @@ fn removes_only_root_store_and_unwraps_stream_frames() {
 }
 
 #[test]
+fn preserves_only_claude_generation_output_limits() {
+    let secret = json!({"access_token":"access","project_id":"p1"});
+    let settings = json!({});
+    let headers = HeaderMap::new();
+    for operation in [Operation::GenerateContent, Operation::StreamGenerateContent] {
+        for model in [
+            "claude-opus-4-6-thinking",
+            "claude-sonnet-4-6",
+            "models/claude-opus-4-6-thinking",
+            "gemini-pro-agent",
+            "gemini-3.1-pro-high",
+        ] {
+            for field in ["maxOutputTokens", "max_output_tokens"] {
+                for limit in [None, Some(16), Some(128_000)] {
+                    let mut input = json!({
+                        "contents":[{"role":"user","parts":[{"text":"hi"}]}],
+                        "store":true,
+                        "generationConfig":{
+                            "temperature":0.4,
+                            "thinkingConfig":{"thinkingBudget":0,"includeThoughts":false},
+                            "logprobs":5,
+                            "responseLogprobs":true,
+                            "response_logprobs":true
+                        }
+                    });
+                    if let Some(limit) = limit {
+                        input["generationConfig"][field] = json!(limit);
+                    }
+                    let prepared = AntigravityChannel
+                        .prepare(PrepareCtx {
+                            session_id: None,
+                            key: gemini(operation),
+                            stream: operation == Operation::StreamGenerateContent,
+                            method: &Method::POST,
+                            path: "/v1beta/models/client:generateContent",
+                            query: None,
+                            headers: &headers,
+                            body: &Bytes::from(serde_json::to_vec(&input).unwrap()),
+                            upstream_model: model,
+                            provider_settings: &settings,
+                            secret: &secret,
+                        })
+                        .unwrap();
+                    let envelope: Value = serde_json::from_slice(prepared.request.body()).unwrap();
+                    let config = &envelope["request"]["generationConfig"];
+                    let expected = limit
+                        .filter(|_| {
+                            crate::shared::gemini::model::model_id(model).starts_with("claude-")
+                        })
+                        .map(Value::from);
+                    assert_eq!(config.get(field), expected.as_ref(), "{model}: {field}");
+                    if limit.is_none() {
+                        assert!(config.get("maxOutputTokens").is_none());
+                        assert!(config.get("max_output_tokens").is_none());
+                    }
+                    assert_eq!(config["temperature"], 0.4);
+                    assert_eq!(
+                        config["thinkingConfig"],
+                        json!({"thinkingBudget":0,"includeThoughts":false})
+                    );
+                    for unsupported in ["logprobs", "responseLogprobs", "response_logprobs"] {
+                        assert!(config.get(unsupported).is_none());
+                    }
+                    assert!(envelope["request"].get("store").is_none());
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn claude_code_uses_buffered_antigravity_25_flash() {
     let secret = json!({"access_token":"access","project_id":"p1"});
     let mut headers = HeaderMap::new();

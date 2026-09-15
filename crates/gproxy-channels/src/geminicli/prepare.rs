@@ -31,7 +31,7 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
                 ctx.body,
                 ctx.upstream_model,
             )?;
-            let body = crate::shared::code_assist::sanitize(&body)?;
+            let body = crate::shared::code_assist::sanitize(&body, false)?;
             (
                 if stream {
                     "gemini_stream_generate_content"
