@@ -4,6 +4,7 @@ members = [
     "crates/gproxy-protocol",
     "crates/gproxy-protocol-macros",
     "crates/gproxy-seaorm-d1",
+    "crates/gproxy-tokenizer",
 ]
 
 [workspace.package]
@@ -31,7 +32,7 @@ gproxy-protocol = { path = "crates/gproxy-protocol", version = "=4.0.0-dev", fea
 gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=4.0.0-dev" }
 gproxy-seaorm-d1 = { path = "crates/gproxy-seaorm-d1", version = "=4.0.0-dev" }
 gproxy-store = { path = "crates/gproxy-store", version = "=3.0.13" }
-gproxy-tokenize = { path = "crates/gproxy-tokenize", version = "=3.0.13" }
+gproxy-tokenizer = { path = "crates/gproxy-tokenizer", version = "=4.0.0-dev" }
 gproxy-transform = { path = "crates/gproxy-transform", version = "=3.0.13", features = ["exhaustive"] }
 gproxy-upstream = { path = "crates/gproxy-upstream", version = "=3.0.13" }
 getrandom = { version = "0.4", features = ["wasm_js"] }
@@ -78,7 +79,7 @@ time = { version = "0.3", features = ["parsing"] }
 tiktoken-rs = "0.12"
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-postgres = "0.7"
-tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
+tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
 tokio-rusqlite = { version = "0.7", features = ["bundled"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
