@@ -6,6 +6,7 @@ members = [
     "crates/gproxy-seaorm-d1",
     "crates/gproxy-tokenizer",
     "crates/gproxy-file",
+    "crates/gproxy-store",
 ]
 
 [workspace.package]
@@ -33,7 +34,7 @@ gproxy-file = { path = "crates/gproxy-file", version = "=4.0.0-dev", default-fea
 gproxy-protocol = { path = "crates/gproxy-protocol", version = "=4.0.0-dev", features = ["exhaustive"] }
 gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=4.0.0-dev" }
 gproxy-seaorm-d1 = { path = "crates/gproxy-seaorm-d1", version = "=4.0.0-dev" }
-gproxy-store = { path = "crates/gproxy-store", version = "=3.0.13" }
+gproxy-store = { path = "crates/gproxy-store", version = "=4.0.0-dev" }
 gproxy-tokenizer = { path = "crates/gproxy-tokenizer", version = "=4.0.0-dev" }
 gproxy-transform = { path = "crates/gproxy-transform", version = "=3.0.13", features = ["exhaustive"] }
 gproxy-upstream = { path = "crates/gproxy-upstream", version = "=3.0.13" }

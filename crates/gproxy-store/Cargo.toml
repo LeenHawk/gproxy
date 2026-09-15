@@ -1,0 +1,11 @@
+[package]
+name = "gproxy-store"
+description = "SeaORM entity definitions for GPROXY v4"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+sea-orm = { workspace = true, features = ["with-rust_decimal"] }
