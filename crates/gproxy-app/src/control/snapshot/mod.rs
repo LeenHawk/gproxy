@@ -306,6 +306,20 @@ impl ControlPlane for SnapshotControl {
         self.snapshot.load().provider_catalogue.clone()
     }
 
+    fn catalogue_mode(&self, mode: &RoutingMode) -> RoutingMode {
+        let snapshot = self.snapshot.load();
+        if let RoutingMode::Named { name } = mode
+            && !snapshot.namespaces.contains_key(&name.to_ascii_lowercase())
+            && !snapshot.route_names.contains_key(name)
+            && snapshot.provider_names.contains_key(name)
+        {
+            return RoutingMode::Scoped {
+                provider: name.clone(),
+            };
+        }
+        mode.clone()
+    }
+
     fn exposed_models(&self) -> Vec<gproxy_core::ExposedModel> {
         self.snapshot
             .load()

@@ -6,8 +6,8 @@ use serde_json::{Value, json};
 use web_time::Instant;
 
 use crate::api::Core;
-use crate::boundary::{ExecOutcome, RequestCtx};
-use crate::control::{ControlPlane, Plan};
+use crate::boundary::{ExecOutcome, RequestCtx, RoutingMode};
+use crate::control::{ControlPlane, ExposedModel, Plan};
 use crate::error::CoreError;
 use crate::funnel::{self, FunnelCtx};
 use crate::host::Host;
@@ -28,7 +28,11 @@ pub(super) async fn run<H: Host>(
     if !catalogue && !local_route(core, plan, classified.key) {
         return None;
     }
-    Some(serve(core, control, request, plan, classified, identity, started).await)
+    let mut request = request.clone();
+    if catalogue {
+        request.mode = control.catalogue_mode(&request.mode);
+    }
+    Some(serve(core, control, &request, plan, classified, identity, started).await)
 }
 
 fn local_route<H: Host>(core: &Core<H>, plan: &Plan, key: gproxy_protocol::OperationKey) -> bool {
@@ -63,7 +67,7 @@ async fn serve<H: Host>(
         Operation::ListModels => {
             let scoped = matches!(&request.mode, crate::boundary::RoutingMode::Scoped { .. });
             let mut models = if scoped {
-                Vec::new()
+                scoped_catalogue(core, control, request, plan, classified.key)
             } else {
                 control.exposed_models()
             };
@@ -83,10 +87,14 @@ async fn serve<H: Host>(
         }
         Operation::GetModel => {
             let models = if matches!(&request.mode, crate::boundary::RoutingMode::Scoped { .. }) {
-                super::model_refresh::for_local_get(
-                    core, control, request, plan, classified, identity,
-                )
-                .await
+                let mut models = scoped_catalogue(core, control, request, plan, classified.key);
+                models.extend(
+                    super::model_refresh::for_local_get(
+                        core, control, request, plan, classified, identity,
+                    )
+                    .await,
+                );
+                models
             } else {
                 control.exposed_models()
             };
@@ -178,6 +186,32 @@ async fn serve<H: Host>(
         disposition,
     )
     .await)
+}
+
+fn scoped_catalogue<H: Host>(
+    core: &Core<H>,
+    control: &dyn ControlPlane,
+    request: &RequestCtx,
+    plan: &Plan,
+    key: gproxy_protocol::OperationKey,
+) -> Vec<ExposedModel> {
+    let RoutingMode::Scoped { provider } = &request.mode else {
+        return Vec::new();
+    };
+    // Explicit discovery and credential-local catalogues must report only what
+    // the current upstream/credential supplies, without stored-model fallback.
+    if request.force_model_refresh || local_route(core, plan, key) {
+        return Vec::new();
+    }
+    let prefix = format!("{provider}/");
+    control
+        .provider_catalogue()
+        .into_iter()
+        .filter_map(|mut model| {
+            model.id = model.id.strip_prefix(&prefix)?.to_owned();
+            Some(model)
+        })
+        .collect()
 }
 
 fn render_count(family: WireFamily, count: u64) -> Value {
