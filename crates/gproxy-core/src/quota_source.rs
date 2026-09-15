@@ -6,6 +6,7 @@ use gproxy_channel_api::{
 };
 
 pub struct QuotaSourceProbeResult {
+    pub credential_version: u64,
     pub entries: Vec<QuotaEntry>,
     pub reset_credits: Option<QuotaResetCredits>,
     pub raw: String,
@@ -76,6 +77,7 @@ impl<H: Host> Core<H> {
             }
             let observed_at_ms = crate::quota::now_ms();
             return Ok(QuotaSourceProbeResult {
+                credential_version: result.credential_version,
                 entries: result
                     .observations
                     .iter()
@@ -155,6 +157,7 @@ impl<H: Host> Core<H> {
                 }
                 None => {
                     return Ok(QuotaSourceProbeResult {
+                        credential_version: record.version,
                         entries,
                         reset_credits: None,
                         raw: String::new(),

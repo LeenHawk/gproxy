@@ -300,6 +300,16 @@ pub trait Channel: Send + Sync {
         Vec::new()
     }
 
+    /// Optional legacy endpoint when a richer quota surface is unavailable.
+    /// The host never uses this to bypass authentication or rate-limit errors.
+    fn prepare_quota_probe_fallback(
+        &self,
+        _secret: &Value,
+        _provider_settings: &Value,
+    ) -> Result<Option<Request<Bytes>>, ChannelError> {
+        Ok(None)
+    }
+
     /// Richer reset-credit details when the channel has a dedicated credits
     /// endpoint (per-credit expiry). Fired after the usage probe; its
     /// response also goes through [`Channel::parse_quota_probe_credits`].

@@ -13,6 +13,8 @@ use crate::{Core, CoreError, Host, ProviderRef, UpstreamTransport};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct QuotaProbeResult {
+    /// Version actually used, including an OAuth rotation during this probe.
+    pub credential_version: u64,
     pub observations: Vec<QuotaObservation>,
     pub reset_credits: Option<QuotaResetCredits>,
     /// Verbatim usage-endpoint body, so an operator can inspect windows the
@@ -71,13 +73,30 @@ impl<H: Host> Core<H> {
         {
             return Err(CoreError::Unsupported);
         }
-        let Some(mut request) = channel.prepare_quota_probe(&record.secret, &provider.settings)?
-        else {
-            return Err(CoreError::Unsupported);
-        };
-        crate::fingerprint::apply_request(&mut request, provider)?;
+        let mut record = crate::execution::credential::load_fresh(
+            self.host.as_ref(),
+            channel,
+            credential,
+            provider,
+        )
+        .await?;
         let started_at_ms = now_ms();
-        let (status, body) = self.buffered(request).await?;
+        let (mut status, mut body) = self
+            .quota_probe_response(channel, provider, credential, &mut record, false)
+            .await?;
+        let unsupported = matches!(status.as_u16(), 404 | 405 | 501);
+        let empty = status.is_success()
+            && channel.parse_quota_probe(status, &body).is_empty()
+            && channel.parse_quota_probe_credits(status, &body).is_none();
+        if (unsupported || empty)
+            && channel
+                .prepare_quota_probe_fallback(&record.secret, &provider.settings)?
+                .is_some()
+        {
+            (status, body) = self
+                .quota_probe_response(channel, provider, credential, &mut record, true)
+                .await?;
+        }
         let received_at_ms = now_ms();
         if !status.is_success() {
             return Err(CoreError::UpstreamExhausted(format!(
@@ -112,10 +131,49 @@ impl<H: Host> Core<H> {
                 .await;
         }
         Ok(QuotaProbeResult {
+            credential_version: record.version,
             observations,
             reset_credits,
             raw,
         })
+    }
+
+    async fn quota_probe_response(
+        &self,
+        channel: &dyn gproxy_channel_api::Channel,
+        provider: &ProviderRef,
+        credential: CredentialId,
+        record: &mut crate::host::CredentialRecord,
+        fallback: bool,
+    ) -> Result<(http::StatusCode, BytesMut), CoreError> {
+        // One forced refresh also handles revoked access tokens or credentials
+        // imported without an expiry timestamp. Never retry indefinitely.
+        for attempt in 0..2 {
+            let request = if fallback {
+                channel.prepare_quota_probe_fallback(&record.secret, &provider.settings)?
+            } else {
+                channel.prepare_quota_probe(&record.secret, &provider.settings)?
+            };
+            let Some(mut request) = request else {
+                return Err(CoreError::Unsupported);
+            };
+            crate::fingerprint::apply_request(&mut request, provider)?;
+            let response = self.buffered(request).await?;
+            if response.0 != http::StatusCode::UNAUTHORIZED
+                || attempt != 0
+                || record.kind != "oauth"
+            {
+                return Ok(response);
+            }
+            *record = crate::execution::credential::refresh_now(
+                self.host.as_ref(),
+                channel,
+                credential,
+                provider,
+            )
+            .await?;
+        }
+        unreachable!("the second attempt always returns")
     }
 
     pub async fn quota_reset(
