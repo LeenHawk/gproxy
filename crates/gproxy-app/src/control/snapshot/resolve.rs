@@ -1,5 +1,5 @@
-use super::balance::RotationCounters;
-use super::types::{CompiledSnapshot, CredentialHealthMap, TargetSeed, namespace_route_ids};
+use super::balance::{RotationCounters, SelectionState};
+use super::types::{CompiledSnapshot, TargetSeed, namespace_route_ids};
 use gproxy_core::{CoreError, Plan, RoutingMode};
 
 impl CompiledSnapshot {
@@ -107,24 +107,24 @@ impl CompiledSnapshot {
         model: Option<&str>,
         mode: &RoutingMode,
         affinity: Option<i64>,
-        health: &CredentialHealthMap,
+        selection: &SelectionState<'_>,
         counters: &RotationCounters,
     ) -> Result<Plan, CoreError> {
         match mode {
-            RoutingMode::Aggregated => self.aggregated(model, affinity, health, counters),
+            RoutingMode::Aggregated => self.aggregated(model, affinity, selection, counters),
             RoutingMode::Namespace { namespace } => {
-                self.namespace(namespace, model, affinity, health, counters)
+                self.namespace(namespace, model, affinity, selection, counters)
             }
             RoutingMode::Scoped { provider } => {
-                self.scoped(provider, model, affinity, health, counters)
+                self.scoped(provider, model, affinity, selection, counters)
             }
             RoutingMode::Named { name } => {
                 if self.namespaces.contains_key(&name.to_ascii_lowercase()) {
-                    self.namespace(name, model, affinity, health, counters)
+                    self.namespace(name, model, affinity, selection, counters)
                 } else if let Some(route_id) = self.route_names.get(name) {
-                    self.route(*route_id, affinity, health, counters)
+                    self.route(*route_id, affinity, selection, counters)
                 } else {
-                    self.scoped(name, model, affinity, health, counters)
+                    self.scoped(name, model, affinity, selection, counters)
                 }
             }
         }
@@ -134,14 +134,14 @@ impl CompiledSnapshot {
         &self,
         model: Option<&str>,
         affinity: Option<i64>,
-        health: &CredentialHealthMap,
+        selection: &SelectionState<'_>,
         counters: &RotationCounters,
     ) -> Result<Plan, CoreError> {
         let Some(model) = model else {
-            return self.all_providers("", affinity, health, counters);
+            return self.all_providers("", affinity, selection, counters);
         };
         if let Some(route_id) = self.exposed.get(model) {
-            return self.route(*route_id, affinity, health, counters);
+            return self.route(*route_id, affinity, selection, counters);
         }
         let Some((provider, upstream_model)) = model.split_once('/') else {
             return Err(CoreError::UnknownRoute(model.to_owned()));
@@ -149,7 +149,13 @@ impl CompiledSnapshot {
         if provider.is_empty() || upstream_model.is_empty() {
             return Err(CoreError::UnknownRoute(model.to_owned()));
         }
-        self.scoped(provider, Some(upstream_model), affinity, health, counters)
+        self.scoped(
+            provider,
+            Some(upstream_model),
+            affinity,
+            selection,
+            counters,
+        )
     }
 
     fn namespace(
@@ -157,7 +163,7 @@ impl CompiledSnapshot {
         namespace: &str,
         model: Option<&str>,
         affinity: Option<i64>,
-        health: &CredentialHealthMap,
+        selection: &SelectionState<'_>,
         counters: &RotationCounters,
     ) -> Result<Plan, CoreError> {
         let namespace_key = namespace.to_ascii_lowercase();
@@ -170,12 +176,12 @@ impl CompiledSnapshot {
                 .filter_map(|id| self.routes.get(&id))
                 .flat_map(|route| route.targets.iter().cloned())
                 .collect();
-            return self.plan(seeds, None, 0, affinity, health, counters);
+            return self.plan(seeds, None, 0, affinity, selection, counters);
         };
         let route_id = routes
             .get(model)
             .ok_or_else(|| CoreError::UnknownRoute(format!("{namespace}/{model}")))?;
-        self.route(*route_id, affinity, health, counters)
+        self.route(*route_id, affinity, selection, counters)
     }
 
     fn scoped(
@@ -183,7 +189,7 @@ impl CompiledSnapshot {
         provider: &str,
         model: Option<&str>,
         affinity: Option<i64>,
-        health: &CredentialHealthMap,
+        selection: &SelectionState<'_>,
         counters: &RotationCounters,
     ) -> Result<Plan, CoreError> {
         let provider_id = self
@@ -212,14 +218,14 @@ impl CompiledSnapshot {
                 upstream_model: upstream_model.clone(),
             })
             .collect();
-        self.plan(seeds, None, -provider_id, affinity, health, counters)
+        self.plan(seeds, None, -provider_id, affinity, selection, counters)
     }
 
     fn all_providers(
         &self,
         upstream_model: &str,
         affinity: Option<i64>,
-        health: &CredentialHealthMap,
+        selection: &SelectionState<'_>,
         counters: &RotationCounters,
     ) -> Result<Plan, CoreError> {
         let seeds = self
@@ -241,14 +247,14 @@ impl CompiledSnapshot {
                 })
             })
             .collect();
-        self.plan(seeds, None, 0, affinity, health, counters)
+        self.plan(seeds, None, 0, affinity, selection, counters)
     }
 
     fn route(
         &self,
         route_id: i64,
         affinity: Option<i64>,
-        health: &CredentialHealthMap,
+        selection: &SelectionState<'_>,
         counters: &RotationCounters,
     ) -> Result<Plan, CoreError> {
         let route = self
@@ -260,7 +266,7 @@ impl CompiledSnapshot {
             Some(route.max_attempts),
             route_id,
             affinity,
-            health,
+            selection,
             counters,
         )
     }

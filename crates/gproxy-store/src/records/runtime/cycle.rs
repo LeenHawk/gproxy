@@ -109,6 +109,8 @@ pub struct CredentialQuotaCycleModelRecord {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CredentialQuotaPressure {
+    #[serde(default)]
+    pub scope: gproxy_core::QuotaScope,
     pub cycle_id: i64,
     pub credential_id: i64,
     pub window_key: String,

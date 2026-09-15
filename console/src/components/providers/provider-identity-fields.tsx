@@ -34,6 +34,7 @@ export function ProviderIdentityFields(props: Props) {
             <SelectContent>
               <SelectItem value="round_robin">{t("providers.strategies.round_robin")}</SelectItem>
               <SelectItem value="sticky">{t("providers.strategies.sticky")}</SelectItem>
+              <SelectItem value="earliest_reset">{t("providers.strategies.earliest_reset")}</SelectItem>
             </SelectContent>
           </Select>
           <FieldDescription>{t("providers.form.credentialStrategyHint")}</FieldDescription>
