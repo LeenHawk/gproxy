@@ -155,6 +155,7 @@
       }
     },
     "cycleUsage": {
+      "antigravityDisabled": "上游已停用此視窗，請以同組模型的週配額為準。",
       "used": "本週期已用（本機）",
       "estimated": "預估本週期總額度",
       "tokens": "{{value}} 權杖",
@@ -177,6 +178,7 @@
       "empty": "此期間未觀測到上游憑證配額視窗。"
     },
     "windowNames": {
+      "inactive": "{{window}}（目前不適用）",
       "five_hour": "5 小時視窗",
       "seven_day": "7 天視窗",
       "primary": "主視窗",
@@ -194,7 +196,11 @@
       "weekly_surface": "{{scope}} 週限額",
       "additional_primary": "{{scope}} 主視窗",
       "additional_secondary": "{{scope}} 次視窗",
-      "product": "{{scope}}"
+      "product": "{{scope}}",
+      "gemini-5h": "Gemini · 5 小時額度",
+      "gemini-weekly": "Gemini · 週額度",
+      "3p-5h": "Claude / GPT · 5 小時額度",
+      "3p-weekly": "Claude / GPT · 週額度"
     },
     "record": {
       "time": "時間",

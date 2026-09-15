@@ -155,6 +155,7 @@
       }
     },
     "cycleUsage": {
+      "antigravityDisabled": "The upstream has disabled this window. Check the weekly quota for this model group.",
       "used": "Used this cycle (local)",
       "estimated": "Estimated total cycle capacity",
       "tokens": "{{value}} tokens",
@@ -177,6 +178,7 @@
       "empty": "No upstream credential quota windows were observed in this period."
     },
     "windowNames": {
+      "inactive": "{{window}} (inactive)",
       "five_hour": "5-hour window",
       "seven_day": "7-day window",
       "primary": "Primary window",
@@ -194,7 +196,11 @@
       "weekly_surface": "{{scope}} weekly limit",
       "additional_primary": "{{scope}} primary window",
       "additional_secondary": "{{scope}} secondary window",
-      "product": "{{scope}}"
+      "product": "{{scope}}",
+      "gemini-5h": "Gemini · 5-hour quota",
+      "gemini-weekly": "Gemini · Weekly quota",
+      "3p-5h": "Claude / GPT · 5-hour quota",
+      "3p-weekly": "Claude / GPT · Weekly quota"
     },
     "record": {
       "time": "Time",
