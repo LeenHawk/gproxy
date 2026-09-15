@@ -68,6 +68,22 @@ pub struct Projection {
 }
 
 impl Projection {
+    /// Combine compatible named projections, for example migration metadata and
+    /// application queries. A conflicting alias is rejected before execution.
+    pub fn merge(mut self, other: Self) -> Result<Self, DbErr> {
+        if self.positional || other.positional {
+            return Err(error("cannot merge positional projections"));
+        }
+        for (name, column) in other.columns {
+            if let Some(existing) = self.columns.get(&name)
+                && (existing.kind != column.kind || existing.nullable != column.nullable)
+            {
+                return Err(error(format!("conflicting projection alias: {name}")));
+            }
+            self.columns.insert(name, column);
+        }
+        Ok(self)
+    }
     pub fn new() -> Self {
         Self::default()
     }
