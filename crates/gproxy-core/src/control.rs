@@ -68,6 +68,12 @@ pub trait ControlPlane: gproxy_channel_api::MaybeSend + gproxy_channel_api::Mayb
     /// in-memory snapshot used by [`Self::resolve`].
     fn exposed_models(&self) -> Vec<ExposedModel>;
 
+    /// Resolve named provider prefixes for catalogue serving, preserving the
+    /// control plane's namespace and route-name precedence.
+    fn catalogue_mode(&self, mode: &RoutingMode) -> RoutingMode {
+        mode.clone()
+    }
+
     fn catalogue_visible(
         &self,
         _identity: &gproxy_channel_api::CallerIdentity,
