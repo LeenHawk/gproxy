@@ -18,7 +18,7 @@ GPROXY v4 的 SeaORM 2 entity 定义。**当前是实体审查稿**，尚未实�
 | `pricing` 定价 | PriceRule、PriceRate、PriceTier |
 | `usage` 用量 | UsageRecord、CaptureRecord、CaptureLink、CaptureEvent |
 | `resource` 资源 | FileObject、AgentSession、AgentAssignment、ResourceBinding、ProtocolState |
-| `config` 设置 | Setting |
+| `config` 设置 | Setting、ConnectionProfile |
 
 字段、主键／唯一键、关系和删除行为直接写在 SeaORM 属性中。
 `schema(backend)` 把实体注册到 SeaORM schema builder。
@@ -32,9 +32,11 @@ GPROXY v4 的 SeaORM 2 entity 定义。**当前是实体审查稿**，尚未实�
   明确列出网络、执行、词表、日志、存储选择、维护和用户门户字段。
 - Provider 为全局配置。Credential 引用 Provider，同时归属组织、团队、用户三者之一；
   凭证归属与供应商配置分别建模。
-- 代理使用独立的 `proxy` 列，优先级为 `Credential.proxy → Provider.proxy → Setting.proxy`，
-  `None` 表示继承上一级；三级均未配置时，按全局 `inherit_system_proxy` 决定是否使用系统代理，
-  否则直连。当前仅定义存储字段与继承契约，尚未接入网络执行层。
+- 独立 ConnectionProfile 保存后端、代理模式／URL、wreq 模拟参数、解压开关、重定向、重试和连接池参数。
+  三层可空 `connection_profile_id` 按凭证 → Provider → 全局 → 内置 reqwest／直连选择。
+  `None` 继承整份配置；直连／系统代理是配置中的明确模式，不使用空 URL 表示。
+  被引用的配置禁止删除（`ON DELETE RESTRICT`），没有 profile version。
+  `gproxy-client` 按有效参数缓存 Client；宿主 CRUD、校验、继承和执行接线尚未实现。
 - Team 属于一个 Organization。OrganizationMember 和 TeamMember 分别保存 `member`／`admin`
   角色，同一用户在不同组织、团队中的角色可以不同。
 - 组织凭证供组织成员及下属团队用户使用，团队凭证供团队成员使用；查看、编辑、删除这些
@@ -186,7 +188,7 @@ API Key 的用户／类型、设备与授权的客户端／scopes 一致性需�
 条件更新密文及到期时间并递增版本，避免覆盖较新的凭证。加密封装及供应商刷新适配尚未实现。
 上游登录过程的 state／PKCE verifier／device code 使用有过期时间、绑定发起人及 Provider
 的缓存事务。交互式登录和凭证替换遵循归属管理权限；自动刷新由宿主执行，不改变普通
-成员对共享凭证的使用权。上游登录／刷新均使用三级代理配置。
+成员对共享凭证的使用权。上游登录／刷新均使用三级连接配置选择。
 
 当前完成的是实体和序列化结构，未实现 OAuth HTTP 端点、密钥管理、token 轮换事务、
 上游登录／刷新和客户端集成验证。

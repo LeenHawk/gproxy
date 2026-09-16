@@ -17,12 +17,10 @@ pub struct Model {
     pub instance_name: String,
 
     // Network
-    /// Global proxy URL, overridden by Provider.proxy and then Credential.proxy.
-    /// If all three are None, inherit_system_proxy controls system proxy fallback.
-    #[sea_orm(column_type = "Text")]
-    pub proxy: Option<String>,
-    #[sea_orm(default_value = false)]
-    pub inherit_system_proxy: bool,
+    /// Global connection profile. None uses the built-in reqwest/direct defaults.
+    /// Credential then Provider selections override this entire profile.
+    #[sea_orm(indexed)]
+    pub connection_profile_id: Option<String>,
     /// JSON array of browser origin strings.
     #[sea_orm(default_value = "[]")]
     pub cors_origins: Json,
@@ -97,6 +95,13 @@ pub struct Model {
     #[sea_orm(default_value = true)]
     pub portal_recent_requests_enabled: bool,
 
+    #[sea_orm(
+        belongs_to,
+        from = "connection_profile_id",
+        to = "id",
+        on_delete = "Restrict"
+    )]
+    pub connection_profile: BelongsTo<Option<super::connection_profile::Entity>>,
     #[sea_orm(
         belongs_to,
         from = "default_vocabulary_file_id",

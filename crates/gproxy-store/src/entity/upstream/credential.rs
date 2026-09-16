@@ -31,14 +31,21 @@ pub struct Model {
     /// Writers replace secret + expiry and increment version in one conditional write.
     #[sea_orm(default_value = 0)]
     pub version: i64,
-    /// Credential proxy URL. None inherits Provider.proxy, then Setting.proxy.
-    #[sea_orm(column_type = "Text")]
-    pub proxy: Option<String>,
+    /// None inherits Provider.connection_profile_id, then Setting.connection_profile_id.
+    #[sea_orm(indexed)]
+    pub connection_profile_id: Option<String>,
     pub metadata: Json,
     /// Access-token expiry for OAuth; updated atomically with secret/version.
     pub expires_at_ms: Option<i64>,
     #[sea_orm(default_value = true)]
     pub enabled: bool,
+    #[sea_orm(
+        belongs_to,
+        from = "connection_profile_id",
+        to = "id",
+        on_delete = "Restrict"
+    )]
+    pub connection_profile: BelongsTo<Option<crate::entity::config::connection_profile::Entity>>,
     #[sea_orm(belongs_to, from = "provider_id", to = "id", on_delete = "Cascade")]
     pub provider: BelongsTo<super::provider::Entity>,
     #[sea_orm(belongs_to, from = "organization_id", to = "id", on_delete = "Cascade")]
