@@ -29,6 +29,56 @@ When overriding entity SQL column types or using custom Rust value types, check
 that the column metadata matches the Rust decoding type. Use an explicit
 projection when they differ.
 
+## Automatic entity and relation projections
+
+Import `SelectProjection` to derive the SQL result projection from a normal
+SeaORM select. This covers a single entity, two-entity optional/required/grouped
+joins, and three-to-six-entity selects. One-to-many and many-to-many relations
+continue to use SeaORM's normal relation definitions and grouping.
+
+```rust
+use gproxy_seaorm::{BatchConnectionTrait, SelectProjection};
+use sea_orm::{DbBackend, EntityTrait};
+
+let query = provider::Entity::find().find_with_related(credential::Entity);
+
+// Single D1 query: retain SeaORM's (provider, Vec<credential>) result.
+let view = connection.for_select(&query)?;
+let models = query.clone().all(&view).await?;
+
+// Portable batch: return the ordered flat row set for each prepared query.
+let prepared = query.batch_query(DbBackend::Sqlite)?;
+let result_sets = connection.query_batch(&[prepared]).await?;
+```
+
+The helpers infer SeaORM's `A_`, `B_`, `C_`, etc. aliases and mark optional joined
+entities nullable, including their primary keys. Required INNER JOIN entities
+retain their declared nullability. Renamed SQL columns and standard ActiveEnum
+selects are supported. Filters, ordering, LIMIT/OFFSET and selecting a subset of
+normal columns do not require manual mappings; unselected unsupported types do
+not prevent deriving a supported subset.
+
+WHERE conditions are preserved as parameterized SeaORM SQL, including AND/OR,
+IN, LIKE, comparisons, NULL checks, related-column filters and EXISTS subqueries.
+Explicit projection requirements concern SELECT outputs, not WHERE expressions.
+
+Construct the final selection first, then derive its view/batch query. Grouped
+three/four-table wrappers do not expose SeaORM QueryTrait: derive from the normal
+select before converting it to the grouped wrapper. A paginator's count query is
+a separate aggregate and needs its own explicit projection.
+
+Computed expressions, custom aliases/table aliases (including linked/self-join
+queries that introduce them), custom select casts, duplicate result aliases and
+unsupported selected column types are rejected while preparing the automatic
+projection, before dispatch. Use `BatchQuery::new(statement, projection)` or
+`with_projection` for these queries. Automatic generation does not parse arbitrary
+SQL or infer aggregates from output names.
+
+For manual joins using whole entity column sets, compose
+`Projection::for_entity_prefixed::<E>(prefix, nullable)` with `.merge(...)`.
+The nullable argument applies to the entire optional entity. Existing D1 decoding
+checks remain in force; projections are not silently guessed when missing.
+
 ## Custom queries and result order
 
 Use `Projection::column(alias, type, nullable)` for joins, aliases, and aggregates.

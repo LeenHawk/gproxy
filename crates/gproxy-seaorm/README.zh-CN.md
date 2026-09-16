@@ -24,6 +24,49 @@ let rows = provider::Entity::find().all(&providers).await?;
 不共享可变的列名注册表。显式覆盖 entity SQL 列类型、使用自定义 Rust 值类型时，应确认
 列元数据与 Rust 解码类型一致；不一致则使用显式投影。
 
+## 自动生成实体与关联投影
+
+导入 `SelectProjection` 后，可从普通 SeaORM select 直接生成结果投影。支持单表、
+两表可选／必选／分组关联，以及三至六表 select；一对多、多对多继续使用 SeaORM 的
+关系定义和结果分组，不另建查询框架。
+
+```rust
+use gproxy_seaorm::{BatchConnectionTrait, SelectProjection};
+use sea_orm::{DbBackend, EntityTrait};
+
+let query = provider::Entity::find().find_with_related(credential::Entity);
+
+// 单条 D1 查询：仍返回 SeaORM 的 (provider, Vec<credential>)。
+let view = connection.for_select(&query)?;
+let models = query.clone().all(&view).await?;
+
+// 通用批量查询：每个查询返回对应的平面行集合。
+let prepared = query.batch_query(DbBackend::Sqlite)?;
+let result_sets = connection.query_batch(&[prepared]).await?;
+```
+
+辅助接口自动处理 `A_`、`B_`、`C_` 等别名；LEFT JOIN 的可选关联实体全部列（包括主键）
+允许 NULL，必选 INNER JOIN 保留 entity 声明的可空性。支持改名后的 SQL 列和标准
+ActiveEnum 查询。过滤、排序、LIMIT/OFFSET、选择普通列的子集无需手写映射；未选中的
+不支持类型不会妨碍已选列的投影生成。
+
+WHERE 条件不受选择列投影限制：AND／OR、IN、LIKE、比较、NULL 判断、关联列筛选及
+EXISTS 子查询均由 SeaORM 原样生成参数化 SQL。需要显式投影的聚合／自定义表达式指
+SELECT 的返回列，不是 WHERE 中的条件。
+
+先构造最终选择列，再生成连接视图／批量请求。三／四表分组包装类型未暴露 SeaORM
+QueryTrait，应在转成分组包装前从普通 select 生成投影。分页器的 count 查询是单独的
+聚合查询，需要单独提供显式投影。
+
+聚合表达式、自定义列别名／表别名（包括引入别名的 linked／自关联查询）、自定义 select
+类型转换、重复结果别名和不支持的已选列类型，会在自动生成阶段、执行 SQL 前报错。
+这些场景使用 `BatchQuery::new(statement, projection)` 或 `with_projection`。自动生成
+不解析任意 SQL，也不根据输出别名猜聚合类型。
+
+手工关联完整实体列集合时，可用 `Projection::for_entity_prefixed::<E>(prefix, nullable)`
+和 `.merge(...)` 组合；nullable 表示整个关联侧可为空。原有 D1 解码检查仍保留，缺失的
+投影不会被静默猜测。
+
 ## 自定义查询与结果顺序
 
 JOIN、别名、聚合通过 `Projection::column(alias, type, nullable)` 指定结果类型。

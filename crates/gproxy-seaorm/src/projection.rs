@@ -25,7 +25,7 @@ pub enum D1Type {
 }
 
 impl D1Type {
-    fn from_column_type(column: &ColumnType) -> Result<Self, DbErr> {
+    pub(crate) fn from_column_type(column: &ColumnType) -> Result<Self, DbErr> {
         Ok(match column {
             ColumnType::Boolean => Self::Bool,
             ColumnType::TinyInteger => Self::I8,
@@ -99,13 +99,23 @@ impl Projection {
     /// Temporal/decimal/UUID/custom SQL types require deliberate application
     /// modelling or explicit projections and are not guessed as strings.
     pub fn for_entity<E: EntityTrait>() -> Result<Self, DbErr> {
+        Self::for_entity_prefixed::<E>("", false)
+    }
+
+    /// Derive columns under a SQL alias prefix. `nullable` marks the whole entity
+    /// optional, as on the right of a LEFT JOIN. Normal relation queries can use
+    /// SelectProjection::projection without specifying prefixes manually.
+    pub fn for_entity_prefixed<E: EntityTrait>(
+        prefix: &str,
+        nullable: bool,
+    ) -> Result<Self, DbErr> {
         let mut projection = Self::new();
         for column in E::Column::iter() {
             let definition = column.def();
             projection = projection.column(
-                column.as_str(),
+                format!("{prefix}{}", column.as_str()),
                 D1Type::from_column_type(definition.get_column_type())?,
-                definition.is_null(),
+                nullable || definition.is_null(),
             )?;
         }
         Ok(projection)

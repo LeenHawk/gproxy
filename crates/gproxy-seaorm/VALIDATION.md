@@ -1,5 +1,20 @@
 # 独立 crate 验证记录
 
+## 自动实体／关联投影（本地验证）
+
+2026-09-16：22 项单元测试和 6 项 SQLite 批量集成测试通过，原生及 WASM all-targets
+Clippy `-D warnings` 通过。新增测试使用 ORM 生成的真实 SQLite JOIN 结果，经过 D1
+对象结果解码器，再由 SeaORM 的可选关联 model selector 还原模型；与原生关联结果对比。
+覆盖改名列、ActiveEnum、LEFT JOIN 全 NULL、INNER JOIN、一对一／一对多／多对多、
+三表别名、重复选择列、聚合／自定义别名预检，以及仅选择实体中受支持字段的子集。
+
+另将当前代码编为 WASM，连接 Miniflare 本地 D1，通过 8 个场景：单实体／枚举、
+一对一空关联、一对多分组、INNER JOIN、多对多分组、三表关联、独立的批量关联投影、
+列子集与 LIMIT/OFFSET。另新增原生条件查询回归，验证 AND／OR、IN、LIKE、比较、
+NULL 关联筛选、参数绑定及 EXISTS，并通过 D1 对象结果解码器还原。未访问真实 Cloudflare 或生产数据库。临时 harness 使用与本机
+CLI 匹配的 wasm-bindgen 0.2.127；workspace 的 WASM 静态检查使用 0.2.128。
+临时目录在验证后删除，保留 crate 内可重复执行的回归测试。
+
 ## 统一批量接口（本地验证）
 
 2026-09-16：16 项字段映射／schema 单元测试、6 项真实 SQLx SQLite 集成测试通过，
