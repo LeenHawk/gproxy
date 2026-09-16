@@ -1,6 +1,77 @@
 use bytes::Bytes;
 
 #[tokio::test]
+async fn provider_api_accepts_earliest_reset_and_rejects_unknown_strategy() {
+    let directory = tempfile::tempdir().unwrap();
+    let key = super::setup::random_key();
+    let config = super::test_config(directory.path(), crate::MasterKeyConfig::new(None))
+        .with_native_options(crate::config::NativeOptions {
+            admin_user: "operator".into(),
+            admin_password: Some(super::setup::random_key()),
+            bootstrap_admin_api_key: Some(key.clone()),
+            ..Default::default()
+        });
+    let app = crate::App::start(config).await.unwrap();
+    let request = |method: http::Method, path: &str| {
+        http::Request::builder()
+            .method(method)
+            .uri(path)
+            .header(http::header::AUTHORIZATION, format!("Bearer {key}"))
+            .body(())
+            .unwrap()
+            .into_parts()
+            .0
+    };
+    let mut body = serde_json::json!({
+        "name": "reset-pool", "label": null, "channel": "antigravity",
+        "settings": {}, "credential_strategy": "earliest_reset",
+        "proxy_url": null, "tls_fingerprint": null, "enabled": true
+    });
+    let response = app
+        .admin_dispatch(
+            &request(http::Method::POST, "/admin/api/providers"),
+            Bytes::from(body.to_string()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), http::StatusCode::CREATED);
+    let snapshot = app.inner.host.services.control.current();
+    let provider = snapshot
+        .providers
+        .iter()
+        .find(|p| p.name == "reset-pool")
+        .unwrap();
+    assert_eq!(provider.credential_strategy, "earliest_reset");
+    body["credential_strategy"] = serde_json::json!("not-a-strategy");
+    let response = app
+        .admin_dispatch(
+            &request(
+                http::Method::PATCH,
+                &format!("/admin/api/providers/{}", provider.id),
+            ),
+            Bytes::from(body.to_string()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), http::StatusCode::BAD_REQUEST);
+    assert!(String::from_utf8_lossy(response.body()).contains("credential_strategy"));
+    app.reload().await.unwrap();
+    assert_eq!(
+        app.inner
+            .host
+            .services
+            .control
+            .current()
+            .providers
+            .iter()
+            .find(|p| p.id == provider.id)
+            .unwrap()
+            .credential_strategy,
+        "earliest_reset"
+    );
+}
+
+#[tokio::test]
 async fn explicit_environment_admin_password_updates_existing_account() {
     let directory = tempfile::tempdir().unwrap();
     let config = |password: &str| {

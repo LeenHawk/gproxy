@@ -65,6 +65,7 @@ impl Store {
             .into_iter()
             .filter_map(|cycle| {
                 pressure(&cycle).map(|used_percent| CredentialQuotaPressure {
+                    scope: cycle.tracking.scope.clone(),
                     cycle_id: cycle.id,
                     credential_id: cycle.credential_id,
                     window_key: cycle.window_key.clone(),

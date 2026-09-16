@@ -118,3 +118,153 @@ fn unix_now() -> i64 {
         .try_into()
         .unwrap_or(i64::MAX)
 }
+
+#[tokio::test]
+async fn earliest_reset_survives_reload_and_uses_model_scoped_persisted_windows() {
+    let setup::Fixture {
+        app,
+        provider,
+        credential,
+        ..
+    } = setup::fixture().await;
+    let second = setup::id(
+        app.mutate(crate::ControlMutation::Credential {
+            provider_id: provider,
+            label: None,
+            secret: json!({"api_key": setup::random_key()}),
+            enabled: true,
+        })
+        .await
+        .unwrap(),
+    );
+    let store = &app.inner.host.services.store;
+    store
+        .update_provider(
+            provider,
+            &gproxy_store::records::ProviderInput {
+                name: "provider".into(),
+                label: None,
+                channel: "openai".into(),
+                settings: json!({}),
+                credential_strategy: "earliest_reset".into(),
+                proxy_url: None,
+                tls_fingerprint: None,
+                enabled: true,
+            },
+        )
+        .await
+        .unwrap();
+    app.reload().await.unwrap();
+    let now = unix_now();
+    for (id, key, used, end, scope) in [
+        (
+            credential,
+            "claude-5h",
+            99,
+            now + 600,
+            gproxy_core::QuotaScope::Models(vec!["upstream-model".into()]),
+        ),
+        (
+            second,
+            "claude-5h",
+            0,
+            now + 1200,
+            gproxy_core::QuotaScope::All,
+        ),
+        // This unrelated exhausted bucket must not demote a Claude request.
+        (
+            credential,
+            "gemini-weekly",
+            100,
+            now + 300,
+            gproxy_core::QuotaScope::ModelPrefixes(vec!["gemini".into()]),
+        ),
+    ] {
+        app.observe_credential_quota_cycle(observation(id, key, used, end, scope, now))
+            .await
+            .unwrap();
+    }
+    for _ in 0..4 {
+        assert_eq!(resolve_credentials(&app), [credential, second]);
+    }
+    app.mutate(crate::ControlMutation::Alias(
+        gproxy_store::records::AliasInput {
+            alias: "latest".into(),
+            target: "upstream-model".into(),
+            provider_id: Some(provider),
+            priority: 0,
+            enabled: true,
+        },
+    ))
+    .await
+    .unwrap();
+    // Cold control-plane initialization exercises the persisted pressure path,
+    // not just the in-memory observation callback.
+    let cold = crate::control::SnapshotControl::new(store.clone(), Default::default())
+        .await
+        .unwrap();
+    let order = |control: &dyn ControlPlane, model: &str, mode: &gproxy_core::RoutingMode| {
+        control
+            .resolve(Some(model), mode, None)
+            .unwrap()
+            .targets
+            .iter()
+            .map(|target| target.credential.0)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        order(&cold, "public-model", &gproxy_core::RoutingMode::Aggregated),
+        [credential, second]
+    );
+    let scoped = gproxy_core::RoutingMode::Scoped {
+        provider: "provider".into(),
+    };
+    assert_eq!(
+        order(&cold, "upstream-model", &scoped),
+        [credential, second]
+    );
+    assert_eq!(order(&cold, "latest", &scoped), [credential, second]);
+    assert_eq!(order(&cold, "gemini-pro", &scoped), [second, credential]);
+    app.observe_credential_quota_cycle(observation(
+        credential,
+        "claude-weekly",
+        100,
+        now + 3600,
+        gproxy_core::QuotaScope::Models(vec!["upstream-model".into()]),
+        now,
+    ))
+    .await
+    .unwrap();
+    assert_eq!(resolve_credentials(&app), [second, credential]);
+}
+
+fn observation(
+    credential_id: i64,
+    key: &str,
+    used: i64,
+    end: i64,
+    scope: gproxy_core::QuotaScope,
+    now: i64,
+) -> CredentialQuotaObservation {
+    CredentialQuotaObservation {
+        unit: None,
+        reset_behavior: gproxy_core::QuotaResetBehavior::Periodic,
+        scope,
+        sample: gproxy_core::QuotaSample {
+            source: gproxy_core::QuotaSampleSource::Unknown,
+            started_at_ms: now * 1000,
+            received_at_ms: now * 1000,
+        },
+        credential_id,
+        window_key: key.into(),
+        label: None,
+        period_start: Some(now - 60),
+        period_end: Some(end),
+        boundary_source: QuotaBoundarySource::Upstream,
+        boundary_confidence: QuotaBoundaryConfidence::Exact,
+        observed_at: now,
+        upstream_used: None,
+        upstream_limit: None,
+        used_percent: Some(Decimal::from(used)),
+    }
+}

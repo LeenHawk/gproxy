@@ -1,6 +1,29 @@
 use super::*;
 
-fn seed(member_id: i64, tier: u32, member_weight: u32, credential: i64) -> TargetSeed {
+// Keep the existing strategy regressions independent of quota observations.
+fn order(
+    seeds: Vec<TargetSeed>,
+    strategy: RouteStrategy,
+    balance_key: i64,
+    affinity: Option<i64>,
+    health: &CredentialHealthMap,
+    counters: &RotationCounters,
+) -> Vec<TargetSeed> {
+    super::order(
+        seeds,
+        strategy,
+        balance_key,
+        affinity,
+        &SelectionState {
+            health,
+            pressure: &BTreeMap::new(),
+            now: 100,
+        },
+        counters,
+    )
+}
+
+pub(super) fn seed(member_id: i64, tier: u32, member_weight: u32, credential: i64) -> TargetSeed {
     TargetSeed {
         member_id,
         tier,

@@ -17,6 +17,7 @@ pub(super) struct CredentialPressure {
     pub version: u64,
     pub last_observed_at: i64,
     pub used_percent: rust_decimal::Decimal,
+    pub scope: gproxy_core::QuotaScope,
     pub period_end: Option<i64>,
 }
 
@@ -80,6 +81,7 @@ pub(super) struct TargetSeed {
 pub(super) enum CredentialStrategy {
     RoundRobin,
     Sticky,
+    EarliestReset,
 }
 
 #[derive(Clone)]

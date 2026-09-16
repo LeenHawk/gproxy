@@ -31,6 +31,7 @@ pub(super) async fn run(store: &Store, credential_id: i64) -> Result<Outcome, St
     assert_eq!(updated.last_observed_at, 20);
 
     let mut secondary = observation(credential_id, "secondary", 0, 300, 20, 1);
+    secondary.scope = gproxy_core::QuotaScope::ModelPrefixes(vec!["claude".into()]);
     secondary.used_percent = Some(Decimal::from(70));
     store.observe_credential_quota_cycle(&secondary).await?;
     let mut expired = observation(credential_id, "expired", 0, 25, 20, 99);
@@ -44,6 +45,14 @@ pub(super) async fn run(store: &Store, credential_id: i64) -> Result<Outcome, St
 
     let pressures = store.credential_quota_pressures(30).await?;
     assert_eq!(pressures.len(), 3);
+    assert_eq!(
+        pressures
+            .iter()
+            .find(|pressure| pressure.window_key == "secondary")
+            .unwrap()
+            .scope,
+        secondary.scope
+    );
     assert_eq!(
         store.credential_quota_pressure(credential_id, 30).await?,
         Some(Decimal::from(80))
