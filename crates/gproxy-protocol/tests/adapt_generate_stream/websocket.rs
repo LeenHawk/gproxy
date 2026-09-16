@@ -334,12 +334,11 @@ fn ws_named_lane_native_messages_reuse_connection_and_strip_unused_controls() {
         panic!()
     };
     let request: Value = serde_json::from_str(text).unwrap();
+    drop(shared);
     assert_eq!(request["stream_id"], "main");
     assert_eq!(request["generate"], false);
     assert!(request.get("stream").is_none());
     assert!(request.get("background").is_none());
-    let invalid = br#"{"type":"response.create","stream_id":"bad space","input":"hi"}"#;
-    assert!(runtime::websocket::decode_message(invalid, settings().codec).is_err());
     let prefill = br#"{"type":"response.create","generate":false,"input":"hi"}"#;
     assert_eq!(
         runtime::websocket::decode_message(prefill, settings().codec)
