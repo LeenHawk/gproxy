@@ -59,9 +59,10 @@ QueryTrait，应在转成分组包装前从普通 select 生成投影。分页�
 聚合查询，需要单独提供显式投影。
 
 聚合表达式、自定义列别名／表别名（包括引入别名的 linked／自关联查询）、自定义 select
-类型转换、重复结果别名和不支持的已选列类型，会在自动生成阶段、执行 SQL 前报错。
+类型转换（entity 未声明的）、重复结果别名和不支持的已选列类型，会在自动生成阶段、执行 SQL 前报错。
 这些场景使用 `BatchQuery::new(statement, projection)` 或 `with_projection`。自动生成
-不解析任意 SQL，也不根据输出别名猜聚合类型。
+不解析任意 SQL，也不根据输出别名猜聚合类型。entity 声明的 `select_as` 可按完整表达式
+精确匹配，沿用该列元数据。
 
 手工关联完整实体列集合时，可用 `Projection::for_entity_prefixed::<E>(prefix, nullable)`
 和 `.merge(...)` 组合；nullable 表示整个关联侧可为空。原有 D1 解码检查仍保留，缺失的
@@ -171,6 +172,18 @@ DDL；真实业务查询和批量操作仍走实际数据库驱动。这避开�
   `unsafe impl Send/Sync`。
 - `Projection` 在原生平台也可构造和测试；真正的 D1 连接只在 Workers WASM 上提供。
   本库不提供原生数据库驱动、Redis、KV、文件存储或后台任务。
+
+## 精确定点数
+
+`FixedDecimal` 提供固定 9 位小数的 i64 原子值、精确解析、带溢出检查的加减，以及从
+`rust_decimal::Decimal` 显式中点取偶舍入。JSON 表示为十进制字符串。实体字段必须声明
+`column_type = "BigInteger", select_as = "char(32)", save_as = "decimal(20,0)"`。
+SQL 存整数，文本参数和查询转换保持 D1 完整 i64 精度。SeaORM 列比较会应用保存转换；
+手写 SQL／col_expr 必须显式应用。可空字段使用相同标注。
+
+这是明确的自定义表示，不是 SQL DECIMAL 自动支持。可表示约正负 92.2 亿单位。
+解析拒绝超出精度；需要舍入时对计算完成的整笔费用调用 `FixedDecimal::rounded` 一次。
+已验证 SQLite 与本地 D1 执行；PostgreSQL／MySQL 仅检查转换 SQL 生成，未运行真实数据库。
 
 ## Entity-first sync
 

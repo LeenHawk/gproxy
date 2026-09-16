@@ -26,7 +26,6 @@ pub trait SelectProjection: QueryTrait<QueryStatement = SelectStatement> {
 }
 
 struct SelectedColumn {
-    name: String,
     source: Expr,
     kind: ColumnType,
     nullable: bool,
@@ -42,8 +41,7 @@ fn entity_columns<E: EntityTrait>(
             (
                 format!("{prefix}{}", column.as_str()),
                 SelectedColumn {
-                    name: column.as_str().to_owned(),
-                    source: column.into_expr(),
+                    source: column.select_as(column.into_expr()),
                     kind: definition.get_column_type().clone(),
                     nullable: nullable || definition.is_null(),
                 },
@@ -60,14 +58,6 @@ fn column_name(expr: &Expr) -> Option<String> {
     }
 }
 
-fn column_source(expr: &Expr) -> Option<&Expr> {
-    match expr {
-        Expr::Column(_) => Some(expr),
-        Expr::AsEnum(_, inner) => column_source(inner),
-        _ => None,
-    }
-}
-
 fn selection_projection(
     query: &SelectStatement,
     columns: BTreeMap<String, SelectedColumn>,
@@ -79,19 +69,15 @@ fn selection_projection(
         .exprs_mut_for_each(|select| selects.push(select.clone()));
     let mut projection = Projection::new();
     for select in selects {
-        let name = column_name(&select.expr)
-            .filter(|_| select.window.is_none())
-            .ok_or_else(|| error("computed SELECT expression requires an explicit Projection"))?;
         let alias = select
             .alias
             .as_ref()
             .map(ToString::to_string)
-            .unwrap_or_else(|| name.clone());
+            .or_else(|| column_name(&select.expr))
+            .ok_or_else(|| error("computed SELECT expression requires an explicit Projection"))?;
         let column = columns
             .get(&alias)
-            .filter(|column| {
-                column.name == name && column_source(&select.expr) == Some(&column.source)
-            })
+            .filter(|column| select.window.is_none() && select.expr == column.source)
             .ok_or_else(|| {
                 error(format!(
                     "custom SELECT alias `{alias}` requires an explicit Projection"

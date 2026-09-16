@@ -68,11 +68,12 @@ select before converting it to the grouped wrapper. A paginator's count query is
 a separate aggregate and needs its own explicit projection.
 
 Computed expressions, custom aliases/table aliases (including linked/self-join
-queries that introduce them), custom select casts, duplicate result aliases and
+queries that introduce them), undeclared select casts, duplicate result aliases and
 unsupported selected column types are rejected while preparing the automatic
 projection, before dispatch. Use `BatchQuery::new(statement, projection)` or
 `with_projection` for these queries. Automatic generation does not parse arbitrary
-SQL or infer aggregates from output names.
+SQL or infer aggregates from output names. Entity-declared `select_as` expressions
+are recognized by exact expression matching and retain the column metadata.
 
 For manual joins using whole entity column sets, compose
 `Projection::for_entity_prefixed::<E>(prefix, nullable)` with `.merge(...)`.
@@ -206,6 +207,22 @@ Tokio only as target-specific dev dependencies, without linking them into Worker
 - `Projection` can be constructed and tested on native targets. The actual D1
   connection is available only on Workers WASM. This crate does not provide
   native database drivers, Redis, KV, file storage, or background tasks.
+
+## Exact fixed-point values
+
+`FixedDecimal` provides signed i64 atoms at scale 9, exact parsing, checked
+arithmetic and explicit ties-to-even rounding from `rust_decimal::Decimal`.
+Its JSON representation is a decimal string. Entity fields must declare
+`column_type = "BigInteger", select_as = "char(32)", save_as = "decimal(20,0)"`.
+SQL stores integers; text bindings and SELECT casts preserve full i64 precision
+through D1. SeaORM column comparisons apply the save cast; manual SQL/col_expr
+must apply it explicitly. Nullable fields use the same annotations.
+
+This is an explicit custom representation, not automatic SQL DECIMAL support.
+Its complete range is ±about 9.22 billion units. Parsing rejects excess precision;
+round the complete calculated charge once with `FixedDecimal::rounded` when that
+is the caller's policy. SQLite and local D1 execution are verified; PostgreSQL
+and MySQL cast generation is checked without live database validation.
 
 ## Entity-first schema sync
 

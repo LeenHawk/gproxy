@@ -16,6 +16,8 @@ mod projection;
 pub use projection::{D1Type, Projection};
 mod select;
 pub use select::SelectProjection;
+mod fixed_decimal;
+pub use fixed_decimal::{FixedDecimal, FixedDecimalError};
 mod batch;
 pub use batch::{BatchConnectionTrait, BatchQuery, BatchResult, BatchStatement};
 /// D1's bound-parameter limit per SQL statement. A logical batch may contain
