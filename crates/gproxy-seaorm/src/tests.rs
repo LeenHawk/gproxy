@@ -3,6 +3,8 @@ use serde_json::json;
 
 use crate::{D1Type, Projection, codec};
 
+mod relations;
+
 fn query_result(row: codec::DecodedRow) -> QueryResult {
     #[cfg(target_arch = "wasm32")]
     return row.into();

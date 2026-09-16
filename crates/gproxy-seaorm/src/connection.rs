@@ -8,8 +8,8 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
 use crate::{
-    BatchConnectionTrait, BatchResult, BatchStatement, D1_MAX_BIND_PARAMETERS, Projection, codec,
-    error,
+    BatchConnectionTrait, BatchResult, BatchStatement, D1_MAX_BIND_PARAMETERS, Projection,
+    SelectProjection, codec, error,
 };
 
 #[wasm_bindgen]
@@ -73,6 +73,12 @@ impl D1Connection {
     /// Make a connection view with result types derived from an entity.
     pub fn for_entity<E: EntityTrait>(&self) -> Result<Self, DbErr> {
         Ok(self.with_projection(Projection::for_entity::<E>()?))
+    }
+
+    /// Infer aliases/types for the final SeaORM entity or relation selection.
+    /// Run that same query on this view to retain SeaORM's normal model grouping.
+    pub fn for_select<Q: SelectProjection>(&self, query: &Q) -> Result<Self, DbErr> {
+        Ok(self.with_projection(query.projection()?))
     }
 
     /// Make a connection view for explicit SQL aliases, aggregates or joins.
