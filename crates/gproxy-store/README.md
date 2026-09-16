@@ -11,11 +11,11 @@ with one entity per file:
 | Directory | Entities |
 |---|---|
 | `upstream` | Provider, Credential, Model, ProviderModel, OperationRule |
-| `routing` | Namespace, Route, RouteTarget |
+| `routing` | ExposedModel, Route, RouteMember |
 | `identity` | Organization, Team, OrganizationMember, TeamMember, User, ApiKey, UserSession, Permission |
 | `limits` | RateLimit, Quota, QuotaWindow, QuotaSettlement, CredentialQuotaCycle |
 | `pricing` | PriceRule, PriceRate, PriceTier |
-| `usage` | UsageRecord, UpstreamCall, CaptureRecord |
+| `usage` | UsageRecord, CaptureRecord, CaptureLink, CaptureEvent |
 | `resource` | FileObject, ResourceBinding, ProtocolState |
 | `config` | Setting |
 
@@ -47,8 +47,8 @@ Review decisions currently expressed in the code:
   Entity definitions record these relationships; API authorization is not implemented here.
 - Provider models may reference a global model; deleting catalog metadata clears
   that optional reference.
-- Route targets reference providers and optionally override the upstream model
-  name. Routing does not require a model-catalog foreign key.
+- Public model names map to routes containing provider/upstream-model members.
+  Routing definitions have no organization, team or user ownership.
 - Permission, rate-limit, and quota owner columns currently allow a user or an
   API key. The ownership shape is explicitly left for review before policy CRUD.
 - Configuration-owned rows use the declared delete actions. Historical identity
@@ -61,6 +61,31 @@ Review decisions currently expressed in the code:
   be settled before these entities are used for D1 data operations.
 - OAuth issuer tables, reusable mutation rule sets, audit events, and derived
   usage rollups are outside this first entity draft.
+
+## Routing structure
+
+[`ExposedModel`](src/entity/routing/exposed_model.rs) maps a globally unique public
+model name exactly to a [`Route`](src/entity/routing/route.rs). Multiple public names
+can share a route. Routes contain a name, enabled state, a round_robin/weighted/failover
+strategy and a positive max_attempts including the first attempt, bounded by the
+global attempt limit during execution.
+
+[`RouteMember`](src/entity/routing/route_member.rs) selects a provider and explicit
+upstream model, with tier, positive weight and enabled state. Prefer lower available
+tiers; balance members in the preferred group, then select a credential using the
+provider strategy. No model-catalog FK is required. The current v3 API/execution
+path no longer uses the legacy schema's pinned credential_id or priority columns,
+so they are not included here.
+
+Namespace is derived from the first segment of a public name: coding/fast is
+indexed globally by its full name and as fast inside coding. There is no Namespace
+table. Named entry points resolve namespace, then route name, then provider name.
+This model-to-route mapping is distinct from alias string rewriting.
+
+Deleting a route cascades to its members and public mappings; deleting a provider
+removes its members. These definitions have no organization/team/user ownership.
+Nonempty names, positive weights/budgets and runtime selection are future write-layer
+and execution contracts, not behavior implemented by these entities.
 
 ## Pricing structure
 
@@ -103,3 +128,60 @@ charges.
 
 These entities and metric names do not implement extraction, rate selection or
 settlement. Adding a metric does not imply every upstream reports its quantity.
+
+## Downstream/upstream exchanges and streaming
+
+`UpstreamCall` is merged into [`CaptureRecord`](src/entity/usage/capture_record.rs).
+One row holds a physical exchange on one side, including call metadata and both
+request and response. `side` distinguishes downstream from upstream.
+
+| Entity | Responsibility |
+|---|---|
+| CaptureRecord | HTTP exchange, WS connection or WS business turn, with request and response together |
+| CaptureLink | Many-to-many downstream/upstream edges, with order local to each downstream |
+| CaptureEvent | Ordered stream chunks or WS messages, including direction and observation time |
+
+HTTP request elements are method, URL/path, raw query, headers and body; response
+elements are status, headers and body. The query is stored separately and headers
+use `[name, value]` pairs to preserve repetitions, matching the actual WireRequest
+and WireResponse contracts.
+
+Bodies stay in the database without FileObject references. `Buffered` uses inline
+request/response body columns; streaming leaves them unset and appends events.
+Concatenate payloads in sequence per direction to reconstruct SSE, NDJSON, JSON
+arrays or byte streams, including their delimiters. Chunks are not calls. Capture
+completeness is tracked separately for request and response; exchange state tracks
+completion, failure or cancellation independently of HTTP status. Body events need
+not be stored when body logging is disabled. Logging redaction applies to URLs,
+queries, headers and bodies.
+
+Edges support D1-U1 (one-to-one), D1-U1/D1-U2 (fanout/retry), D1-U1/D2-U1
+(sharing), or any many-to-many combination. Each actual retry has its own upstream
+record; shared upstream payload/usage is stored once. No single common request ID
+is forced on upstream records. An edge's sequence is local to its downstream.
+Deleting an endpoint removes its edges, not the opposite endpoint. A downstream
+error without any upstream call is independently representable.
+
+WS uses `WsConnection` for handshake/lifetime and `WsTurn` for each business turn,
+linked to the same-side connection by `session_id`. Only the handshake carries
+HTTP method/headers/status; later turns do not invent HTTP envelopes. All WS message events belong to the connection, independently of its handshake
+body. An optional turn_id associates a business message with its turn; control
+and unassigned messages leave it unset. Store each message once; the primary key
+(capture_id, sequence) enforces unique connection-wide order across interleaved turns. This logs
+application messages, not TCP packets or WS fragments. Leave messages at connection
+scope when protocol evidence is insufficient to assign a turn.
+
+Edges connect HTTP exchanges/WS turns, allowing HTTP-to-WS and WS-to-HTTP as well
+as aggregation/fanout across any number of connections. Connection reuse does not
+imply reuse of a business invocation. Writers must enforce endpoint directions,
+same-side turn/session binding and event ordering; these are not automatically
+validated by the entity definitions.
+
+UsageRecord.request_id identifies the downstream HTTP exchange or WS turn, with
+independent log retention. Native upstream metrics belong to the physical exchange
+and must not be summed again for each edge. Downstream cost allocation is an
+explicit settlement policy; edges imply neither equal splitting nor repeated full
+charges.
+
+These remain entity definitions. Capture integration, WS turn identification,
+shared-call settlement and log query APIs are not implemented here.
