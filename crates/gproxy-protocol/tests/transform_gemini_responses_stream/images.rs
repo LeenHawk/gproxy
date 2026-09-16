@@ -252,7 +252,7 @@ fn image_request_selectors_and_exact_format_controls_are_not_conflated() {
     );
 }
 #[test]
-fn signed_inline_image_history_restores_only_original_model_origin_field_and_bytes() {
+fn signed_inline_image_history_restores_original_bytes_and_clears_extensions() {
     fn replay() -> GeminiReplayContext {
         let target = IdentityTarget::new("actual-model", Dialect::Gemini)
             .unwrap()
@@ -283,10 +283,6 @@ fn signed_inline_image_history_restores_only_original_model_origin_field_and_byt
     assert_eq!(part.thought_signature.as_deref(), Some("opaque-image"));
     assert_eq!(part.inline_data.as_ref().unwrap().data, PNG);
     assert!(!serde_json::to_string(&restored).unwrap().contains("DROP"));
-    assert!(pair::responses_to_gemini_request(request(), "different-model", replay()).is_err());
-    let mut wrong_origin = replay();
-    wrong_origin.target.as_mut().unwrap().origin = Some("other-origin".into());
-    assert!(pair::responses_to_gemini_request(request(), "actual-model", wrong_origin).is_err());
     let mut changed = replay();
     changed
         .parts

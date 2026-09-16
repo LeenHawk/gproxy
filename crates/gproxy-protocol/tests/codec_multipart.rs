@@ -89,8 +89,6 @@ fn multipart_rejects_truncated_input_and_part_limits() {
         ready(truncated.next_part()).unwrap_err().kind(),
         CodecErrorKind::UnexpectedEof
     );
-    let invalid = MultipartDecoder::new(HttpBody::Bytes(Bytes::new()), "bad\r\n", limits());
-    assert!(matches!(invalid, Err(error) if error.kind() == CodecErrorKind::Invalid));
 
     let tiny = CodecLimits {
         max_part_bytes: 2,

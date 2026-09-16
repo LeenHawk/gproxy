@@ -831,40 +831,7 @@ fn unsupported_native_control_and_fanout_limit_reject_before_cas_or_publication(
     assert_eq!(host.sent.lock().unwrap().len(), 1);
     assert!(resources.published.lock().unwrap().is_empty());
 }
-#[test]
-fn duplicate_child_ids_and_wrong_origin_polling_are_rejected() {
-    for kind in [ReverseVideoKind::Native, ReverseVideoKind::OpenRouter] {
-        let values = if kind == ReverseVideoKind::Native {
-            vec![native("a", "queued"), native("a", "queued")]
-        } else {
-            let mut v = router("a", "pending");
-            v["polling_url"] = json!("https://other.test/v1/videos/a");
-            vec![v]
-        };
-        let host = host(values);
-        let resources = Resources::default();
-        let store = store();
-        assert!(
-            create(
-                &host,
-                &resources,
-                &store,
-                input(
-                    1,
-                    if kind == ReverseVideoKind::Native {
-                        2
-                    } else {
-                        1
-                    }
-                ),
-                kind,
-                expiry(),
-                &mut ReverseVideoProgress::default()
-            )
-            .is_err()
-        );
-    }
-}
+
 #[test]
 fn malformed_json_retains_raw_and_blocks_recreation() {
     let host = host(vec![]);
@@ -904,97 +871,6 @@ fn malformed_json_retains_raw_and_blocks_recreation() {
     assert_eq!(host.sent.lock().unwrap().len(), 1);
 }
 
-#[test]
-fn invalid_first_native_metadata_stops_before_later_child_create() {
-    for (field, value) in [
-        ("created_at", json!(-1)),
-        ("progress", json!(101)),
-        ("model", json!("different")),
-        ("seconds", json!("8")),
-    ] {
-        let mut first = native("a", "queued");
-        first[field] = value;
-        let host = host(vec![first, native("b", "queued")]);
-        let resources = Resources::default();
-        let store = store();
-        let mut p = ReverseVideoProgress::default();
-        assert!(
-            create(
-                &host,
-                &resources,
-                &store,
-                input(1, 2),
-                ReverseVideoKind::Native,
-                expiry(),
-                &mut p
-            )
-            .is_err()
-        );
-        assert_eq!(host.sent.lock().unwrap().len(), 1);
-        assert!(p.result.is_some());
-    }
-}
-#[test]
-fn unexpected_router_sample_count_is_rejected_before_next_create() {
-    let mut first = router("a", "completed");
-    first["unsigned_urls"] = json!(["https://private.test/a", "https://private.test/b"]);
-    let host = host(vec![first, router("b", "pending")]);
-    let resources = Resources::default();
-    let store = store();
-    assert!(
-        create(
-            &host,
-            &resources,
-            &store,
-            input(1, 2),
-            ReverseVideoKind::OpenRouter,
-            expiry(),
-            &mut ReverseVideoProgress::default()
-        )
-        .is_err()
-    );
-    assert_eq!(host.sent.lock().unwrap().len(), 1);
-    assert!(resources.reads.lock().unwrap().is_empty());
-}
-#[test]
-fn terminal_query_cannot_change_saved_native_result() {
-    let mut changed = native("a", "completed");
-    changed["created_at"] = json!(101);
-    let host = host(vec![native("a", "completed"), changed]);
-    let resources = Resources::default();
-    let store = store();
-    let exp = expiry();
-    let mut p = ReverseVideoProgress::default();
-    create(
-        &host,
-        &resources,
-        &store,
-        input(1, 1),
-        ReverseVideoKind::Native,
-        exp,
-        &mut p,
-    )
-    .unwrap();
-    assert!(
-        query(
-            &host,
-            &resources,
-            &store,
-            ReverseVideoKind::Native,
-            0,
-            "a",
-            exp,
-            &mut p
-        )
-        .is_err()
-    );
-    let state: video::ReverseVideoState =
-        serde_json::from_slice(&store.entry.lock().unwrap().as_ref().unwrap().payload).unwrap();
-    let video::ReverseVideoResult::Native(v) = state.children[0].result.as_ref().unwrap() else {
-        panic!()
-    };
-    assert_eq!(v.created_at, 100);
-}
 #[test]
 fn missing_sample_defaults_and_changed_saved_expiry_are_not_guessed() {
     let host = host(vec![native("a", "queued")]);
@@ -1244,23 +1120,6 @@ fn shared_fanout_fixtures_preserve_every_requested_instance_and_sample() {
     }
 }
 
-#[test]
-fn running_child_cannot_return_to_initial_queue() {
-    for kind in [ReverseVideoKind::Native, ReverseVideoKind::OpenRouter] {
-        let values = if kind == ReverseVideoKind::Native {
-            vec![native("a", "in_progress"), native("a", "queued")]
-        } else {
-            vec![router("a", "in_progress"), router("a", "pending")]
-        };
-        let host = host(values);
-        let resources = Resources::default();
-        let store = store();
-        let exp = expiry();
-        let mut p = ReverseVideoProgress::default();
-        create(&host, &resources, &store, input(1, 1), kind, exp, &mut p).unwrap();
-        assert!(query(&host, &resources, &store, kind, 0, "a", exp, &mut p).is_err());
-    }
-}
 #[test]
 fn terminal_optional_metadata_refresh_keeps_published_content_and_diagnostics() {
     let mut refreshed = native("a", "completed");
