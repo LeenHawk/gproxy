@@ -1,6 +1,7 @@
 //! USD allowance per subscriber, copied to Quota(metric = cost, unit = USD)
 //! on issuance. Later changes must not silently reset/resize existing windows.
 
+use gproxy_seaorm::FixedDecimal;
 use sea_orm::entity::prelude::*;
 
 #[sea_orm::model]
@@ -16,8 +17,12 @@ pub struct Model {
     pub window_key: String,
     /// Allowance in USD. Token/media/tool usage is priced in USD
     /// before settlement; upstream percentages are not dollar balances.
-    #[sea_orm(column_type = "Decimal(Some((28, 12)))")]
-    pub limit: Decimal,
+    #[sea_orm(
+        column_type = "BigInteger",
+        select_as = "char(32)",
+        save_as = "decimal(20,0)"
+    )]
+    pub limit: FixedDecimal,
     /// Same reset contract as Quota: total, fixed, day, week or month.
     pub period: String,
     /// Required positive duration for fixed windows; unused for calendar/total.

@@ -2,8 +2,82 @@
 
 [English](README.md) | 简体中文
 
-GPROXY v4 的 SeaORM 2 entity 定义。**当前是实体审查稿**，尚未实现仓储读写，也未向
-实际数据库应用迁移。
+GPROXY v4 的 SeaORM 2 实体、类型化批量仓储和原子持久化操作。原生 SeaORM 连接与
+Cloudflare D1 使用相同 Store API；构造 Store 不打开数据库，也不自动修改 schema。
+
+## Store 接口
+
+[`Store<C>`](src/store.rs) 接收实现 `gproxy_seaorm::BatchConnectionTrait` 的连接。
+所有实体入口共享 [`Repository<C, E>`](src/repository.rs)，普通 CRUD 不逐表手写。
+全局设置是唯一单例入口（`id = 1`）。
+
+```rust
+use gproxy_store::{Store, entity::upstream::provider};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+let store = Store::new(connection);
+let enabled = provider::Entity::find().filter(provider::Column::Enabled.eq(true));
+let page = store.providers().page(enabled, 0, 50).await?;
+let rows = store.providers().get_many(&["provider-id".to_owned()]).await?;
+let control_data = store.load_control_data().await?;
+```
+
+| 方法 | 约定 |
+|---|---|
+| `create_many` | 调用方提供主键；批量插入及读取数据库默认值在同一 batch 内 |
+| `get_many` | 保留输入顺序、重复 ID 和缺失项 `None`；支持复合主键 |
+| `update_many` | 只修改显式 `Set` 的非主键字段；保留 `NotSet`／`Unchanged`；返回最终行或 `None` |
+| `delete_many` | 按输入顺序返回影响行数 |
+| `query`／`query_many` | 直接使用 SeaORM 条件、排序、JOIN，返回完整实体模型 |
+| `update_where_many`／`delete_where_many` | SeaORM 条件批量修改，逐语句返回影响行数 |
+| `count_many`／`page` | 分页前计数；总数和页面共享快照，并追加主键排序消除同值歧义 |
+| `settings().get/update` | 读取或 upsert 第 1 行；只修改显式 `Set` 字段 |
+| `load_control_data` | 一致的配置表快照，返回实体行，不解密 secret 或编译运行时对象 |
+
+每个方法通过 gproxy-seaorm 执行一次原子 batch。`get_many` 按 D1 每语句 100 个参数的
+上限拆分主键条件，仍在同一 batch 内；不自动拆分任意调用方 SQL，数据库请求／大小限制
+仍然适用。空批次不做 I/O。`query` 必须选出模型解码所需字段；自定义投影和多实体结果
+直接使用 gproxy-seaorm 的 batch API。一对多查询应先分页父表，再加载子项。
+
+SQL 错误回滚事务写入；条件更新零行只返回冲突／行数，不回滚同批其他输入。
+领域方法通过持久消费凭据或版本检查约束后续写入。不自动重试；提交结果不明确时先查
+持久状态。CRUD 不运行 SeaORM ActiveModel hooks，也不负责宿主鉴权、全部业务字段校验、
+加密、调度及网络操作；受保护的状态转换应使用领域方法，避免通过 CRUD 绕过约束。
+
+[`operations`](src/operations/mod.rs) 仅包含原子领域操作：凭证刷新 CAS、改写规则替换及
+有序加载、额度幂等结算、带过期语义的协议状态 CAS、OAuth 签发／轮换／撤销／设备批准／
+客户端退役，以及 agent 分配预留／启用／失败／当前目标读取。设备轮询及结果交付由签发层
+负责，可用通用查询读取持久状态；订阅发放与价格计算仍由 core 完成。
+
+## 精确金额与 schema 变更
+
+`FixedDecimal` 固定 9 位小数，USD 最小单位为 `$0.000000001`，范围为
+`-9223372036.854775808` 至 `9223372036.854775807`。JSON 使用十进制字符串。
+解析及精确转换拒绝不能表示的精度和溢出；计算使用 `rust_decimal::Decimal`，最后对完整
+结算金额显式调用 `FixedDecimal::rounded` 一次（中点取偶）。单价、数量及倍率共享此表示，
+具体币种和单位仍由实体字段表达。
+
+SQL 列为 BIGINT；实体通过 `save_as = "decimal(20,0)"` 和 `select_as = "char(32)"`
+将整数原子值以文本跨越 D1 的 JavaScript 边界。数据库比较、排序和加法仍是数值运算。
+手写 SQL 或 `col_expr` 写入 FixedDecimal 时必须调用该列的 `save_as` 转换。
+结算操作在递增计数前检查非负金额和有符号整数溢出。
+
+相较之前的 schema 草稿，decimal 列改为缩放整数；结算／设备批准新增尝试凭据，agent
+会话新增待启用分配指针，数据库大小／刷新次数改用有符号 SQL 整数。本次没有迁移既有
+数据库。已有 decimal 数据必须通过显式迁移转换；schema sync 不会转换旧值或修改列类型。
+
+## 验证
+
+```sh
+cargo test -p gproxy-store -p gproxy-seaorm
+cargo clippy -p gproxy-store -p gproxy-seaorm --all-targets -- -D warnings
+cargo clippy -p gproxy-store -p gproxy-seaorm --target wasm32-unknown-unknown --all-targets -- -D warnings
+```
+
+永久测试覆盖原生 SQLite CRUD／约束、回滚、精确金额、状态过期、OAuth 消费与版本保护的
+agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压力验证。实际 WASM Store
+场景也通过了 Miniflare 本地 D1，详见[适配器验证记录](../gproxy-seaorm/VALIDATION.md)。
+本次新 Store 操作没有执行真实 PostgreSQL／MySQL 或生产 Cloudflare 验证。
 
 从 [`src/entity/mod.rs`](src/entity/mod.rs) 开始审阅，按业务分目录、一张表一个文件：
 
@@ -23,7 +97,7 @@ GPROXY v4 的 SeaORM 2 entity 定义。**当前是实体审查稿**，尚未实�
 字段、主键／唯一键、关系和删除行为直接写在 SeaORM 属性中。
 `schema(backend)` 把实体注册到 SeaORM schema builder。
 
-草案覆盖上游与路由、用户与 API Key、权限与额度、定价、历史用量与调用、文件元数据、
+结构覆盖上游与路由、用户与 API Key、权限与额度、定价、历史用量与调用、文件元数据、
 资源映射、协议续接状态和设置。
 
 代码中目前采用的待审设计：
@@ -36,7 +110,7 @@ GPROXY v4 的 SeaORM 2 entity 定义。**当前是实体审查稿**，尚未实�
   三层可空 `connection_profile_id` 按凭证 → Provider → 全局 → 内置 reqwest／直连选择。
   `None` 继承整份配置；直连／系统代理是配置中的明确模式，不使用空 URL 表示。
   被引用的配置禁止删除（`ON DELETE RESTRICT`），没有 profile version。
-  `gproxy-client` 按有效参数缓存 Client；宿主 CRUD、校验、继承和执行接线尚未实现。
+  `gproxy-client` 按有效参数缓存 Client；已提供仓储 CRUD；宿主校验、继承和执行接线仍由 core 实现。
 - Team 属于一个 Organization。OrganizationMember 和 TeamMember 分别保存 `member`／`admin`
   角色，同一用户在不同组织、团队中的角色可以不同。
 - 组织凭证供组织成员及下属团队用户使用，团队凭证供团队成员使用；查看、编辑、删除这些
@@ -48,12 +122,12 @@ GPROXY v4 的 SeaORM 2 entity 定义。**当前是实体审查稿**，尚未实�
 - 配置从属行使用代码中声明的删除行为。历史身份 ID 不建立配置外键；QuotaSettlement 关联
   QuotaWindow，与可以清理的 UsageRecord 独立。
 - 文件内容留在 file/S3，文件实体只保存位置和元数据；模型自定义词表引用 FileObject。
-- 金额／数量暂按 `Decimal(28,12)` 表达业务类型。当前 D1 适配器尚未实现该映射；实际接入
-  D1 数据读写前，需要确认精度和存储表示。
+- 金额／数量使用 9 位小数的 `FixedDecimal`，数据库保存有符号 BIGINT 原子值。
+  D1 通过字符串和显式转换传输，不经过浮点数。
 - 改写规则通过 RewriteRuleSet 复用，通过 ProviderRewriteRuleSet 按顺序绑定到供应商。
   RewriteRule 明确保存正则、替换文本、可选 JSON 点路径和筛选条件。删除规则集会级联
-  删除规则及绑定；删除供应商只删除其绑定。仓储方法与改写执行尚未实现。
-- 审计和派生用量汇总不在首轮实体草案中。
+  删除规则及绑定；删除供应商只删除其绑定。已实现原子规则替换和有序加载；改写执行仍由 core 完成。
+- 审计和派生用量汇总不在当前持久化层中。
 
 ## 路由结构
 
@@ -100,11 +174,11 @@ Provider 名的查找顺序。这里是模型映射，不是 alias 字符串改�
 | 请求 | 按请求收费 | 次 |
 
 费率金额使用规则币种，计算为 `数量 × value / unit_quantity`。分母须大于零，价格、
-阈值和倍率须非负；条件须为非空对象且值为标量。这些是未来写入层需要校验的契约，
+阈值和倍率须非负；条件须为非空对象且值为标量。这些是宿主写入层需要校验的契约，
 当前 entity 未实现业务校验。缓存读取应从普通输入中扣除；推理／媒体 token 如果已包含
 在总输入输出中，不能重复收费；按张与按 token 也不能无条件叠加。
 
-本次仅定义存储结构与指标名称，尚未实现用量提取、条件选价或结算；新增指标不表示
+已实现账本幂等结算；用量提取、条件选价和费用计算仍由 core 完成。新增指标不表示
 所有上游已能提供对应数量。
 
 ## 上下游交互与流式记录
@@ -155,7 +229,7 @@ ping、pong、close 和无法归属轮次的消息不填写 turn_id。每条消�
 上游原始用量存于实际交互的 `metrics`，不能因多条边重复累加；共享调用如何向下游
 分摊费用由结算层明确决定，关联本身不规定等分或全额重复扣费。
 
-当前仍是实体草稿，尚未接入日志采集、WS 轮次识别、聚合分摊或日志查询接口。
+已提供批量持久化，尚未接入日志采集、WS 轮次识别、聚合分摊或日志查询接口。
 
 ## OAuth
 
@@ -175,10 +249,10 @@ Client.id 就是公开的 OAuth client_id；Grant 关联 GProxy 用户及一个 
 与授权 scopes 的交集；不能获得控制台管理权限。UserSession 继续独立表示控制台会话。
 
 授权码与 refresh token 的消费、令牌插入、登录／刷新统计必须在同一原子操作内提交。
-`consumed_by` 保存新 refresh token 的摘要作为消费凭据；不能先消费再单独插入令牌。
-API Key 的用户／类型、设备与授权的客户端／scopes 一致性需要写入层校验。
-每次访问及 WS 新轮次都要验证 token 过期、撤销、Grant、Client、用户和内部 key 状态。
-实体只承载这些数据，不会自动完成鉴权或并发刷新控制。
+`exchange_tokens_many` 使用每次尝试新生成的随机 `consumed_by` 消费凭据，保护后续令牌写入
+和统计更新。`issue_many` 检查 key 用户／类型及设备与授权的客户端一致性；签发层校验用户同意、scopes 和回调策略。
+`resolve_access_many` 检查 token 过期、撤销、Grant、Client、用户、内部 key 和订阅状态；
+core 必须在每次访问及 WS 新轮次调用，并负责用户授权和 PKCE 策略。
 
 撤销授权使用 revoked_at，客户端删除使用 deleted_at，保留会话历史；重新启用客户端
 不得恢复旧授权。物理删除用户、内部 key 或客户端会级联清理授权及其码、token 和设备记录，
@@ -193,8 +267,8 @@ API Key 的用户／类型、设备与授权的客户端／scopes 一致性需�
 的缓存事务。交互式登录和凭证替换遵循归属管理权限；自动刷新由宿主执行，不改变普通
 成员对共享凭证的使用权。上游登录／刷新均使用三级连接配置选择。
 
-当前完成的是实体和序列化结构，未实现 OAuth HTTP 端点、密钥管理、token 轮换事务、
-上游登录／刷新和客户端集成验证。
+已实现原子签发、轮换、撤销、客户端退役及上游凭证 CAS。OAuth HTTP 端点、密钥管理、
+上游网络登录／刷新和客户端集成仍由宿主完成。
 
 ## 订阅聚合与切分
 
@@ -242,7 +316,7 @@ Pool 的 Quota、订阅的 Quota → QuotaWindow → QuotaSettlement
 
 复用现有配额窗口和幂等扣账表，持久化层没有第二套订阅用量账本。删除订阅会删除其 key、
 OAuth 授权及配置配额，但历史窗口、结算、请求用量仍保留；通常通过停用／到期保留配置。
-存在已发放订阅时不允许物理删除套餐。当前仅完成实体关系与契约，未实现聚合计算、发放、
+存在已发放订阅时不允许物理删除套餐。已有批量 CRUD 和幂等结算；尚未实现聚合计算、发放、
 配额预占、候选筛选或 Codex／Claude Code 订阅接口渲染。
 
 ## 云端 agent 粘性与耗尽切换
@@ -258,12 +332,13 @@ scope 和下游 affinity_key 唯一标识；它与 CaptureRecord 的一次 WS �
 不会覆盖旧目标。会话保存 version 和 active_generation，当前目标必须按
 `(session_id, active_generation)` 查找，不能取最新一行。切换预留使用条件更新 version，
 新代号采用本次预留版本且不复用；准备失败后的下一次尝试也使用新版本。
+`pending_assignment_id` 将后续写入限定在本次预留的具体分配。
 
 准备阶段在新凭证下按具体 API 建立或续接所需资源。只有准备完成，才能在同一原子提交中
 验证会话版本、将新分配设为 active、旧分配设为 replaced，并更新 active_generation 和 version。
 过期 worker／回调的旧版本不能覆盖当前分配；开始切换后新工作等待有效分配，旧调用保留
 原代。上游创建结果未知时记录 uncertain，并利用资源查询或受支持的幂等键恢复结果，不能
-仅因等待超时就重复创建。这些原子操作和检查仍需在实际仓储／执行层实现。
+仅因等待超时就重复创建。仓储已实现预留、启用和失败状态转换；远程准备及恢复仍由 core 完成。
 
 [`ResourceBinding`](src/entity/resource/resource_binding.rs) 的唯一键增加 generation，
 普通资源用 0，agent 资源对应分配代号。对外 server、environment、session 等 ID 可以稳定，
@@ -284,5 +359,5 @@ ProtocolState，scope/key 必须绑定用户、逻辑会话和分配代；状态
 删除分配行、清空资源的 assignment_id，但保留资源代号／原目标，不将其变成普通第 0 代资源。
 
 这部分依据 v3 的会话粘性、持久资源绑定及本地 Codex／Claude Code API 调查建模。
-当前是实体、唯一约束和版本更新契约，尚未实现耗尽判定、并发切换、资源重建、token 映射
+已实现并发切换的原子持久化，尚未实现耗尽判定、资源重建、token 映射
 或真实 WS 续接；调查中的接口存在也不等于已证明支持跨账号迁移。

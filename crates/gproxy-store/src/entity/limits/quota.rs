@@ -6,6 +6,7 @@
 //! unit = USD. Other user/API-key limits may use other metrics/units. The future
 //! write layer must enforce the subscription denomination contract.
 
+use gproxy_seaorm::FixedDecimal;
 use sea_orm::entity::prelude::*;
 
 #[sea_orm::model]
@@ -26,8 +27,12 @@ pub struct Model {
     pub window_key: String,
     pub metric: String,
     pub unit: String,
-    #[sea_orm(column_type = "Decimal(Some((28, 12)))")]
-    pub limit_value: Decimal,
+    #[sea_orm(
+        column_type = "BigInteger",
+        select_as = "char(32)",
+        save_as = "decimal(20,0)"
+    )]
+    pub limit_value: FixedDecimal,
     pub period: String,
     pub period_seconds: Option<i64>,
     /// Fixed-window anchor; subscription issuance defaults this to starts_at_ms.

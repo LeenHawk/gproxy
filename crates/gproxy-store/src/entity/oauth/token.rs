@@ -20,7 +20,7 @@ pub struct Model {
     pub expires_at_ms: i64,
     /// Refresh-token consumption; access tokens are not single-use.
     pub consumed_at_ms: Option<i64>,
-    /// Replacement refresh-token hash, written atomically with consumption.
+    /// Fresh per-attempt receipt, written atomically with consumption.
     #[sea_orm(column_type = "Binary(32)")]
     pub consumed_by: Option<Vec<u8>>,
     pub revoked_at_ms: Option<i64>,

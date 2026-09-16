@@ -1,5 +1,6 @@
 //! Per-request usage summary. Identity fields are historical references, without configuration FKs.
 
+use gproxy_seaorm::FixedDecimal;
 use sea_orm::entity::prelude::*;
 
 #[sea_orm::model]
@@ -23,8 +24,12 @@ pub struct Model {
     pub operation: String,
     pub metrics: Json,
     /// For subscription requests, the settled charge is denominated in USD.
-    #[sea_orm(column_type = "Decimal(Some((28, 12)))")]
-    pub cost: Option<Decimal>,
+    #[sea_orm(
+        column_type = "BigInteger",
+        select_as = "char(32)",
+        save_as = "decimal(20,0)"
+    )]
+    pub cost: Option<FixedDecimal>,
     #[sea_orm(indexed)]
     pub started_at_ms: i64,
     pub ended_at_ms: Option<i64>,

@@ -22,8 +22,8 @@ pub struct Model {
     #[sea_orm(indexed)]
     pub expires_at_ms: i64,
     pub consumed_at_ms: Option<i64>,
-    /// Issued refresh-token hash: a receipt tying consumption to token inserts
-    /// in the same atomic exchange, as in the v3 exchange contract.
+    /// Fresh per-attempt receipt tying consumption to dependent writes. It is
+    /// not reused when retrying an exchange after an uncertain response.
     #[sea_orm(column_type = "Binary(32)")]
     pub consumed_by: Option<Vec<u8>>,
     #[sea_orm(belongs_to, from = "grant_id", to = "id", on_delete = "Cascade")]

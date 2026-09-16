@@ -1,6 +1,6 @@
 [package]
 name = "gproxy-store"
-description = "SeaORM entity definitions for GPROXY v4"
+description = "SeaORM entities and batch persistence for GPROXY v4"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true
@@ -10,3 +10,12 @@ repository.workspace = true
 [dependencies]
 sea-orm = { workspace = true, features = ["with-rust_decimal"] }
 serde = { workspace = true }
+gproxy-seaorm = { workspace = true }
+serde_json = { workspace = true }
+rust_decimal = { workspace = true }
+thiserror = { workspace = true }
+getrandom = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

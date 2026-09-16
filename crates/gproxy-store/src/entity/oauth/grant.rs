@@ -31,7 +31,7 @@ pub struct Model {
     pub logged_in_at_ms: Option<i64>,
     pub last_refreshed_at_ms: Option<i64>,
     #[sea_orm(default_value = 0)]
-    pub refresh_count: u64,
+    pub refresh_count: i64,
     pub refresh_expires_at_ms: Option<i64>,
     #[sea_orm(belongs_to, from = "user_id", to = "id", on_delete = "Cascade")]
     pub user: BelongsTo<crate::entity::identity::user::Entity>,
