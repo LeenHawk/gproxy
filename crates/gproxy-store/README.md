@@ -2,8 +2,97 @@
 
 English | [简体中文](README.zh-CN.md)
 
-SeaORM 2 entity definitions for GPROXY v4. **This is an entity review draft**, not
-an implemented repository or an applied database migration.
+SeaORM 2 entities, typed batch repositories and atomic persistence operations for
+GPROXY v4. Native SeaORM connections and Cloudflare D1 share the same Store API.
+Constructing Store neither opens a database nor applies schema changes.
+
+## Store API
+
+[`Store<C>`](src/store.rs) accepts a connection implementing
+`gproxy_seaorm::BatchConnectionTrait`. All entity accessors share
+[`Repository<C, E>`](src/repository.rs); normal CRUD is not hand-written per table.
+Settings is the sole singleton accessor (`id = 1`).
+
+```rust
+use gproxy_store::{Store, entity::upstream::provider};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+
+let store = Store::new(connection);
+let enabled = provider::Entity::find().filter(provider::Column::Enabled.eq(true));
+let page = store.providers().page(enabled, 0, 50).await?;
+let rows = store.providers().get_many(&["provider-id".to_owned()]).await?;
+let control_data = store.load_control_data().await?;
+```
+
+| Methods | Contract |
+|---|---|
+| `create_many` | Caller-supplied keys; insert all rows and read database defaults in one batch |
+| `get_many` | Preserve input order, duplicates and `None` for missing IDs; supports composite keys |
+| `update_many` | Update explicitly `Set` non-key fields; preserve `NotSet`/`Unchanged`; return final rows or `None` |
+| `delete_many` | Per-input affected-row counts |
+| `query` / `query_many` | Ordinary SeaORM conditions, ordering and joins, returning complete entity models |
+| `update_where_many` / `delete_where_many` | SeaORM conditional bulk mutations, with per-statement affected-row counts |
+| `count_many` / `page` | Count before limit/offset; page count and items share one snapshot, with primary-key order tie breakers |
+| `settings().get/update` | Read or upsert row 1; patch only explicitly `Set` fields |
+| `load_control_data` | Coherent configuration-table snapshot as entity rows; no decrypted secrets or compiled runtime objects |
+
+Each method executes one atomic batch through gproxy-seaorm. `get_many` splits key
+predicates to fit D1's 100-bind statement limit within the same batch. Arbitrary
+caller SQL is not split; database request/size limits still apply. Empty batches
+perform no I/O. A `query` projection must include fields needed to decode its model;
+custom projections and multi-entity results use gproxy-seaorm's batch API directly.
+Page parent rows before loading one-to-many children.
+
+SQL errors roll back transactional writes. Conditional zero-row writes return a
+conflict/count and do not roll back other entries in the same batch. Domain methods
+gate dependent writes using persistent receipts or version checks. There is no
+automatic retry; an ambiguous commit result requires checking durable state first.
+CRUD does not run SeaORM ActiveModel hooks or implement host authorization,
+validation of every business field, cryptography, scheduling or network operations.
+Use domain methods for protected transitions instead of bypassing them with CRUD.
+
+[`operations`](src/operations/mod.rs) contains only atomic domain transitions:
+credential refresh CAS, rewrite replacement/ordered loading, idempotent quota
+settlement, expiring protocol-state CAS, OAuth issuance/rotation/revocation/device
+approval/client retirement, and agent assignment reserve/activate/fail/current reads.
+OAuth device polling/result delivery remains issuer work; generic queries can read
+its persisted state. Subscription provisioning and price calculation remain core work.
+
+## Exact amounts and schema changes
+
+`FixedDecimal` stores units at scale 9: one USD atom is `$0.000000001`, with range
+`-9223372036.854775808` through `9223372036.854775807`. JSON uses decimal strings.
+Parsing/exact conversion rejects unrepresentable precision and overflow; calculate
+with `rust_decimal::Decimal`, then explicitly use `FixedDecimal::rounded` once for
+the complete settlement (ties to even). Rates, quantities and multipliers share
+this representation; currency/unit semantics remain in the entity fields.
+
+SQL columns are BIGINT. Entity `save_as = "decimal(20,0)"` and
+`select_as = "char(32)"` carry integer atoms as text across D1's JavaScript boundary.
+Database comparisons/order/addition remain numeric. Raw SQL and `col_expr` callers
+must use the column's `save_as` conversion for FixedDecimal values. Settlement
+checks nonnegative values and signed overflow before incrementing counters.
+
+Compared with the previous schema draft, decimal columns now store scaled integers;
+settlements/device approval add attempt receipts, agent sessions add a pending
+assignment pointer, and database-size/refresh counters use signed SQL integers.
+No existing database was migrated. Existing decimal data requires an explicit
+conversion migration; schema sync does not convert its values or change its type.
+
+## Validation
+
+```sh
+cargo test -p gproxy-store -p gproxy-seaorm
+cargo clippy -p gproxy-store -p gproxy-seaorm --all-targets -- -D warnings
+cargo clippy -p gproxy-store -p gproxy-seaorm --target wasm32-unknown-unknown --all-targets -- -D warnings
+```
+
+Permanent tests cover native SQLite CRUD/constraints, rollback, exact amounts,
+state expiry, OAuth consumption and fenced agent handoff. The concurrency test
+uses one SQLite connection; it is not multi-server stress evidence. Actual WASM
+Store scenarios also passed against local Miniflare D1; see
+[adapter validation](../gproxy-seaorm/VALIDATION.md). No live PostgreSQL/MySQL or
+production Cloudflare validation was performed for these new Store operations.
 
 Start at [`src/entity/mod.rs`](src/entity/mod.rs). Entities are grouped by domain,
 with one entity per file:
@@ -25,7 +114,7 @@ Fields, primary/unique keys, relations, and delete actions are declared directly
 with SeaORM attributes. `schema(backend)` registers all entities with SeaORM's
 schema builder.
 
-The draft covers upstreams and routing, users and API keys, policies and quotas,
+The schema covers upstreams and routing, users and API keys, policies and quotas,
 pricing, historical usage and calls, file metadata, resource bindings, protocol
 continuation state, and settings.
 
@@ -42,7 +131,7 @@ Review decisions currently expressed in the code:
   inherits the complete next profile; explicit direct/system modes belong to a
   profile, not to a nullable URL. Referenced profiles use `ON DELETE RESTRICT`.
   There is no profile version. `gproxy-client` caches by effective parameters;
-  host CRUD, validation, inheritance and execution wiring are not implemented here.
+  repository CRUD is available; host validation, inheritance and execution wiring stay in core.
 - A team belongs to one organization. OrganizationMember and TeamMember store
   scoped `member`/`admin` roles, so one user's role can differ between groups.
 - Organization credentials can be used by its members and descendant team users;
@@ -54,22 +143,20 @@ Review decisions currently expressed in the code:
 - Public model names map to routes containing provider/upstream-model members.
   Routing definitions have no organization, team or user ownership.
 - Permissions/rate limits currently target users or API keys. A quota targets
-  exactly one user, API key, subscription or subscription pool; the future write
+  exactly one user, API key, subscription or subscription pool; the host write
   layer must enforce ownership consistency.
 - Configuration-owned rows use the declared delete actions. Historical identity
   references have no configuration foreign keys. Quota settlements refer to quota
   windows, independently of removable usage detail records.
 - File content stays in filesystem/S3 storage. File entities contain locators
   and metadata. Custom vocabulary configuration references a file object.
-- Amounts use `Decimal(28,12)` as a proposed business representation. The current
-  D1 adapter does not implement that mapping; decimal storage and precision must
-  be settled before these entities are used for D1 data operations.
+- Amounts use exact nine-place `FixedDecimal`, stored as signed BIGINT atoms.
+  D1 uses textual transport and explicit casts; no floating-point conversion.
 - RewriteRuleSet groups reusable rewrite rules; ProviderRewriteRuleSet attaches
   them to providers in order. RewriteRule stores regex, replacement, optional JSON
   dot paths and filters as explicit fields. Deleting a set cascades to its rules
-  and attachments; deleting a provider removes only its attachments. Repository
-  methods and rewrite execution are not implemented yet.
-- Audit events and derived usage rollups are outside this first entity draft.
+  and attachments; deleting a provider removes only its attachments. Atomic rule replacement and ordered loading are implemented; rewrite execution stays in core.
+- Audit events and derived usage rollups are outside this persistence layer.
 
 ## Routing structure
 
@@ -93,7 +180,7 @@ This model-to-route mapping is distinct from alias string rewriting.
 
 Deleting a route cascades to its members and public mappings; deleting a provider
 removes its members. These definitions have no organization/team/user ownership.
-Nonempty names, positive weights/budgets and runtime selection are future write-layer
+Nonempty names, positive weights/budgets and runtime selection are host write-layer
 and execution contracts, not behavior implemented by these entities.
 
 ## Pricing structure
@@ -129,7 +216,7 @@ remain supported:
 
 The price formula is `quantity * value / unit_quantity` in the rule currency.
 Denominators must be positive; prices, thresholds and multipliers nonnegative;
-conditions must be nonempty objects of scalar values. These are future write-layer
+conditions must be nonempty objects of scalar values. These are host write-layer
 validation contracts, not implemented business checks. Deduct cache reads from
 ordinary input, avoid billing reasoning/media subsets twice when aggregate token
 prices already cover them, and do not unconditionally add per-image and per-token
@@ -192,7 +279,7 @@ and must not be summed again for each edge. Downstream cost allocation is an
 explicit settlement policy; edges imply neither equal splitting nor repeated full
 charges.
 
-These remain entity definitions. Capture integration, WS turn identification,
+Batch persistence is available. Capture integration, WS turn identification,
 shared-call settlement and log query APIs are not implemented here.
 
 ## OAuth
@@ -216,10 +303,11 @@ permissions intersected with granted scopes; they grant no Console admin access.
 UserSession remains a separate Console login session.
 
 Code/refresh consumption, token insertion and session statistics must commit in
-one atomic operation. consumed_by is the replacement refresh-token hash used as
-a consumption receipt. Writers must check key owner/kind and device/grant
-client/scope consistency. Each request and new WS turn must recheck expiry,
-revocation, client/grant/user/key state. Entities do not implement these checks.
+one atomic operation. `exchange_tokens_many` enforces this using a fresh random
+`consumed_by` receipt for each attempt. `issue_many` checks key owner/kind and
+device/grant client consistency; the issuer validates consent, scopes and redirect policy. `resolve_access_many` checks expiry,
+revocation, client/grant/user/key/subscription state; core must call it for each
+request and new WS turn and apply authorization/PKCE policy.
 
 Use revoked_at/deleted_at for revocation and client deletion to retain history;
 reactivating a client must not restore old grants. Physical user/key/client deletion
@@ -237,9 +325,9 @@ refresh adapters are not implemented. Short-lived upstream state/verifier/device
 transactions belong in an expiring cache bound to initiator and provider; credential
 ownership rules and the three-level connection-profile selection continue to apply.
 
-Only entities and the serialized credential shape are implemented. OAuth endpoints,
-key management, atomic rotation, upstream login/refresh and client integration remain
-future work.
+Atomic issuance, rotation, revocation, client retirement and upstream credential
+CAS are implemented. OAuth HTTP endpoints, key management, upstream network
+login/refresh and client integration remain host work.
 
 ## Subscription aggregation and allocation
 
@@ -299,9 +387,9 @@ create fresh independent allowances.
 Existing QuotaWindow/QuotaSettlement remain the only consumption ledger. Deleting
 a subscription deletes its keys, OAuth grants and quota configuration, while historical
 windows/settlements/usage survive. Prefer disabling/expiry to retain configuration.
-Plans with issued subscriptions cannot be physically deleted. Only entities and
-contracts are implemented: aggregation, provisioning, reservations, candidate
-filtering and client subscription rendering remain future work.
+Plans with issued subscriptions cannot be physically deleted. Batch CRUD and
+consumption settlement are available; aggregation, provisioning, reservations,
+candidate filtering and client subscription rendering remain core work.
 
 ## Cloud-agent affinity and exhaustion handoff
 
@@ -318,7 +406,8 @@ previous active generation, reason/evidence references and preparation/activatio
 replacement/failure/uncertain outcome. Never overwrite an old target. Resolve the
 current target using session.active_generation, not the newest assignment. Reserve
 switches by conditional version update and use the reservation revision as a
-never-reused generation, including after failed attempts.
+never-reused generation, including after failed attempts. `pending_assignment_id`
+fences dependent writes to the exact reservation.
 
 Prepare/rebuild/resume resources on the replacement as supported by the concrete
 API. Only after successful preparation may an atomic commit validate the expected
@@ -326,8 +415,8 @@ session version, activate the new assignment, replace the old one and advance th
 active pointer/version. Stale workers/callbacks cannot overwrite a newer selection.
 New work waits while switching; existing calls retain their original assignment.
 An uncertain upstream create outcome must be recovered through lookup or supported
-idempotency, not blindly replayed after a timeout. These operations remain future
-store/execution-layer work.
+idempotency, not blindly replayed after a timeout. Store implements reserve,
+activate and fail transitions; remote preparation and recovery stay in core.
 
 [`ResourceBinding`](src/entity/resource/resource_binding.rs) adds generation to its
 unique public-resource key: ordinary resources use 0, agent resources use their
@@ -354,7 +443,7 @@ means unavailable, not unrestricted fallback. Explicit session purge deletes its
 assignment rows and clears binding assignment_id while retaining original target
 and generation; such rows must not be treated as ordinary generation-0 resources.
 
-This models v3 affinity/resource ownership and locally surveyed client APIs. Entities,
-constraints and update contracts do not implement exhaustion detection, concurrent
-handoff, resource recreation, token translation or live WS continuation. An inventoried
+This models v3 affinity/resource ownership and locally surveyed client APIs. Store
+implements concurrent handoff persistence; exhaustion detection, resource recreation,
+token translation and live WS continuation remain core/adapter work. An inventoried
 endpoint alone is not evidence of cross-account migration support.

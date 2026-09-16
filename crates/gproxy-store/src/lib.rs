@@ -1,14 +1,26 @@
-//! GPROXY v4 persistence entities, currently a review draft.
+//! GPROXY v4 entities, batch repositories and atomic persistence operations.
 //!
-//! This crate defines database structure. It does not open a database or perform
+//! Store accepts an existing batch connection. It does not open a database or perform
 //! schema changes during construction. Callers can obtain [`schema`] to inspect
 //! or initialize the registered entities through SeaORM.
 
 pub mod entity;
+mod error;
+pub use error::{Result, StoreError};
+mod repository;
+pub use repository::{Key, Page, Repository};
+mod store;
+pub use store::Store;
+mod settings;
+pub use gproxy_seaorm::FixedDecimal;
+pub use settings::Settings;
+mod control;
+pub use control::ControlData;
+pub mod operations;
 
 use sea_orm::{DbBackend, Schema, SchemaBuilder};
 
-/// Register the draft entities; SeaORM determines the foreign-key creation order.
+/// Register the entities; SeaORM determines the foreign-key creation order.
 pub fn schema(backend: DbBackend) -> SchemaBuilder {
     SchemaBuilder::new(Schema::new(backend))
         .register(entity::config::connection_profile::Entity)

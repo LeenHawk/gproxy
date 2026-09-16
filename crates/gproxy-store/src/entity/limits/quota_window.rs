@@ -1,5 +1,6 @@
 //! Historical quota windows. quota_id is a historical reference, not a cascading configuration FK.
 
+use gproxy_seaorm::FixedDecimal;
 use sea_orm::entity::prelude::*;
 
 #[sea_orm::model]
@@ -13,8 +14,12 @@ pub struct Model {
     #[sea_orm(unique_key = "window")]
     pub starts_at_ms: i64,
     pub ends_at_ms: Option<i64>,
-    #[sea_orm(column_type = "Decimal(Some((28, 12)))")]
-    pub used: Decimal,
+    #[sea_orm(
+        column_type = "BigInteger",
+        select_as = "char(32)",
+        save_as = "decimal(20,0)"
+    )]
+    pub used: FixedDecimal,
     pub quota_snapshot: Json,
     #[sea_orm(has_many)]
     pub settlements: HasMany<super::quota_settlement::Entity>,

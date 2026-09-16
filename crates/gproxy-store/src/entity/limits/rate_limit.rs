@@ -1,5 +1,6 @@
 //! Configured rate limits. Live counters belong to the cache layer. Owner binding is the same draft as permissions.
 
+use gproxy_seaorm::FixedDecimal;
 use sea_orm::entity::prelude::*;
 
 #[sea_orm::model]
@@ -13,8 +14,12 @@ pub struct Model {
     #[sea_orm(indexed)]
     pub api_key_id: Option<String>,
     pub metric: String,
-    #[sea_orm(column_type = "Decimal(Some((28, 12)))")]
-    pub limit_value: Decimal,
+    #[sea_orm(
+        column_type = "BigInteger",
+        select_as = "char(32)",
+        save_as = "decimal(20,0)"
+    )]
+    pub limit_value: FixedDecimal,
     pub period_seconds: i64,
     pub model_pattern: Option<String>,
     #[sea_orm(default_value = true)]

@@ -4,6 +4,7 @@
 //! first unconditional row. A selected conditional rate replaces the base rate.
 
 use super::price_unit::PriceUnit;
+use gproxy_seaorm::FixedDecimal;
 use sea_orm::entity::prelude::*;
 
 #[sea_orm::model]
@@ -18,11 +19,19 @@ pub struct Model {
     pub metric: String,
     pub unit: PriceUnit,
     /// Positive denominator: e.g. 1_000_000 tokens, 1 image, or 60 seconds.
-    #[sea_orm(column_type = "Decimal(Some((28, 12)))")]
-    pub unit_quantity: Decimal,
+    #[sea_orm(
+        column_type = "BigInteger",
+        select_as = "char(32)",
+        save_as = "decimal(20,0)"
+    )]
+    pub unit_quantity: FixedDecimal,
     /// Nonnegative price for unit_quantity units, in the parent rule's currency.
-    #[sea_orm(column_type = "Decimal(Some((28, 12)))")]
-    pub value: Decimal,
+    #[sea_orm(
+        column_type = "BigInteger",
+        select_as = "char(32)",
+        save_as = "decimal(20,0)"
+    )]
+    pub value: FixedDecimal,
     /// None is the fallback rate; otherwise a nonempty object of dimension
     /// names to scalar values. All conditions must match, e.g. size + quality.
     pub conditions: Option<Json>,

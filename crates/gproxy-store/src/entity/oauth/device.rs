@@ -27,6 +27,9 @@ pub struct Model {
     pub approved_at_ms: Option<i64>,
     pub denied_at_ms: Option<i64>,
     pub consumed_at_ms: Option<i64>,
+    /// Internal receipt guarding atomic device approval + grant/code creation.
+    #[sea_orm(column_type = "Binary(32)")]
+    pub approval_receipt: Option<Vec<u8>>,
     /// Host-sealed envelope with authorization_code/code_verifier/code_challenge
     /// for the legacy Codex device adapter. Generic device grants need no payload.
     pub authorization_payload: Option<Vec<u8>>,

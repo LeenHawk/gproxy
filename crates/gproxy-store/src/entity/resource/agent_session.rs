@@ -36,6 +36,9 @@ pub struct Model {
     /// Logical pointer avoids a cyclic creation dependency; activation must
     /// verify the ready assignment and update this pointer atomically by version.
     pub active_generation: Option<i64>,
+    /// Reserved assignment for the current switch attempt. Dependent writes
+    /// must match both this ID and version, not version alone.
+    pub pending_assignment_id: Option<String>,
     #[sea_orm(default_value = "pending")]
     pub state: AgentSessionState,
     pub created_at_ms: i64,

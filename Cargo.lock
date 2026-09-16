@@ -1554,8 +1554,14 @@ dependencies = [
 name = "gproxy-store"
 version = "4.0.0-dev"
 dependencies = [
+ "getrandom 0.4.3",
+ "gproxy-seaorm",
+ "rust_decimal",
  "sea-orm",
  "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
 ]
 
 [[package]]

@@ -85,7 +85,7 @@ pub struct Model {
     /// None uses the application's retention default.
     pub retention_days: Option<u32>,
     /// Saved preference for database cleanup; does not describe S3 object storage.
-    pub max_database_size_mb: Option<u64>,
+    pub max_database_size_mb: Option<i64>,
     /// None follows the application's build channel.
     pub update_channel: Option<String>,
     #[sea_orm(default_value = true)]
