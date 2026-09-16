@@ -1443,6 +1443,8 @@ dependencies = [
  "futures-util",
  "gproxy-protocol",
  "http",
+ "rust_decimal",
+ "serde",
  "serde_json",
  "thiserror 2.0.20",
  "tokio",
