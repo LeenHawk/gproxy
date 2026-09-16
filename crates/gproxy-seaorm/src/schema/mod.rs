@@ -271,7 +271,15 @@ impl ConnectionTrait for Recorder {
             .lock()
             .map_err(|_| error("schema recorder poisoned"))?
             .push(statement);
-        Ok(sea_orm::ProxyExecResult::default().into())
+        #[cfg(target_arch = "wasm32")]
+        return Ok(sea_orm::ProxyExecResult::default().into());
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            use sea_orm::{MockDatabase, MockDatabaseTrait, MockExecResult};
+            MockDatabase::new(DbBackend::Sqlite)
+                .append_exec_results([MockExecResult::default()])
+                .execute(0, Statement::from_string(DbBackend::Sqlite, ""))
+        }
     }
     async fn execute_unprepared(&self, sql: &str) -> Result<ExecResult, DbErr> {
         self.execute_raw(Statement::from_string(DbBackend::Sqlite, sql))

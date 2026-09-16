@@ -1,10 +1,10 @@
-# gproxy-seaorm-d1
+# gproxy-seaorm
 
 English | [简体中文](README.zh-CN.md)
 
-A standalone SeaORM 2 adapter for Cloudflare D1. Application entities stay in
+Standalone SeaORM 2 batch operations and a Cloudflare D1 adapter. Application entities stay in
 your application. This crate provides the Workers WASM binding, parameter and
-result conversion, ORM queries, D1 batches, entity-first schema synchronization,
+result conversion, ORM queries, portable atomic batches, entity-first schema synchronization,
 and integration with the official `sea-orm-migration` crate. It does not depend
 on gproxy core.
 
@@ -15,7 +15,7 @@ Pass the actual `env.DB` binding as a `JsValue`, then select an entity or explic
 result projection for the operation:
 
 ```rust
-use gproxy_seaorm_d1::D1Connection;
+use gproxy_seaorm::D1Connection;
 use sea_orm::EntityTrait;
 
 let connection = D1Connection::from_binding(binding)?;
@@ -36,7 +36,7 @@ The adapter does not contain application table names, column names, or business
 rules.
 
 ```rust
-use gproxy_seaorm_d1::{D1Type, Projection};
+use gproxy_seaorm::{D1Type, Projection};
 
 let projection = Projection::new()
     .column("total", D1Type::I64, false)?;
@@ -55,29 +55,87 @@ ordered values. Duplicate or unknown aliases, mismatched row widths, invalid
 column values, and unexpected NULLs return errors. Queries with no rows return
 an empty collection.
 
-## Atomic writes
+## Portable batches
+
+`BatchConnectionTrait` is implemented for native SeaORM `DatabaseConnection` and
+Workers `D1Connection`. Ordinary operations continue to use `ConnectionTrait`.
+Batch SQL can be generated with SeaORM/SeaQuery; the adapter has no business tables.
+
+| Method | Input | Result |
+|---|---|---|
+| `atomic_batch` | Insert/update/delete statements | An `ExecResult` per statement |
+| `query_batch` | Queries, each with its own named `Projection` | A row set per query, including empty sets |
+| `batch` | Ordered `Execute` and `Query` steps | Matching `BatchResult` variants in input order |
+
+All three methods submit one transaction. Native connections use SeaORM transactions
+with repeatable-read isolation (SQLite uses its native transaction snapshot); D1
+uses one `DB.batch()` call. Native applications enable their desired SeaORM driver
+features. Query steps can use SELECT or backend-supported DML RETURNING. Execute
+steps return execution metadata, not returned rows. Empty batches do no I/O.
 
 ```rust
-let results = connection.atomic_batch(&statements).await?;
-let changed = results[0].rows_affected();
+use gproxy_seaorm::{
+    BatchConnectionTrait, BatchQuery, BatchResult, BatchStatement, D1Type, Projection,
+};
+use sea_orm::{DbBackend, Statement};
+
+// SQLite SQL for either a native SQLite connection or D1.
+let steps = [
+    BatchStatement::Execute(Statement::from_sql_and_values(
+        DbBackend::Sqlite,
+        "UPDATE counters SET value = value + ? WHERE id = ?",
+        [1.into(), 7.into()],
+    )),
+    BatchStatement::Query(BatchQuery::new(
+        Statement::from_sql_and_values(
+            DbBackend::Sqlite, "SELECT value FROM counters WHERE id = ?", [7.into()],
+        ),
+        Projection::new().column("value", D1Type::I64, false)?,
+    )),
+];
+let results = connection.batch(&steps).await?;
+if let BatchResult::Rows(rows) = &results[1] {
+    let value: i64 = rows[0].try_get("", "value")?;
+}
 ```
 
-Statements must use the SQLite dialect. Parameters are converted before the
-batch is sent. `atomic_batch` returns execution metadata for each statement;
-it does not decode SELECT or RETURNING rows. Use a connection with a projection
-for queries and ORM RETURNING operations. Affected-row counts use D1's
-`meta.changes`, rather than `rows_written`, which includes index writes.
+The existing inherent `D1Connection::atomic_batch()` remains available without a
+trait import and delegates to the same implementation. Affected-row counts use D1's
+`meta.changes`, not `rows_written` (which includes index writes).
 
-The application connection **does not implement `TransactionTrait` or expose an
-underlying `DatabaseConnection`**. Interactive `begin()/rollback()` calls and ORM
-cascading writes requiring that trait are unavailable. D1 rejects unsupported
-transaction-control SQL.
+D1 batch rows are named objects and do not carry positional column metadata.
+Use named entity/FromQueryResult/try_get decoding, with distinct SQL aliases.
+`Projection::by_index()` is rejected before executing a portable batch; use a
+single ordinary query for positional results. D1 itself loses duplicate aliases
+in batch objects, so they cannot be detected after execution. Each query gets its
+own projection; the connection's default projection is irrelevant to batch queries.
+Native drivers decode rows using their native metadata.
 
-A D1 batch rolls back when a SQL statement fails. A conditional UPDATE affecting
-zero rows is still successful SQL, so business preconditions must also govern
-dependent writes. A timeout, cancellation, or result-decoding failure after
-dispatch does not prove that writes were undone. Recover using a durable
-operation ID instead of automatically repeating non-idempotent writes.
+Dialect and projection mode are checked across the batch before execution. D1 also
+validates every parameter before dispatch. `max_bind_parameters()` returns `Some(100)`
+for D1 and `None` when this adapter does not specify a native driver limit. Large CRUD
+operations may be built as several SQL statements inside one batch; this library
+does not silently split one atomic batch into separate transactions or split SQL.
+
+A SQL failure rolls back transactional DML in the batch. A conditional UPDATE
+changing zero rows is successful SQL; business conditions/consumption receipts
+must also guard dependent writes. Use transaction-compatible statements: native
+DDL that implicitly commits and explicit transaction-control SQL are outside this
+contract. No automatic retries or application transaction callbacks are exposed.
+A timeout, cancellation, commit acknowledgement or D1 result-decoding error after
+dispatch does not prove rollback. Recover durable operations before retrying.
+
+`D1Connection` still does not implement `TransactionTrait` or expose an underlying
+`DatabaseConnection`; interactive transactions and ORM cascading writes requiring
+that trait remain unavailable. Schema/migration behavior is unchanged.
+
+## Native and WASM feature boundary
+
+SeaORM's `proxy` feature is enabled only on WASM, where D1 needs it. Native schema
+planning uses SeaORM mock acknowledgements for its DDL recorder; native application
+queries/batches still use the real driver. This avoids SeaORM 2.0.3's incompatible
+SQLx-to-Proxy row conversion code. Native integration tests enable SQLx SQLite and
+Tokio only as target-specific dev dependencies, without linking them into Workers.
 
 ## Types and runtime
 
@@ -132,7 +190,7 @@ call `connection.inspect_schema(&["providers"]).await?`.
 Define application migrations with the official `sea-orm-migration`
 `MigrationTrait` and `MigratorTrait`. This adapter uses its migration format and
 history table. The dependency is also re-exported as
-`gproxy_seaorm_d1::sea_orm_migration`.
+`gproxy_seaorm::sea_orm_migration`.
 
 ```rust
 connection.migrate_up::<Migrator>(None).await?;
@@ -149,8 +207,8 @@ features. D1 migrations can use the corresponding extension methods while
 continuing to use the official SchemaManager for DDL:
 
 ```rust
-use gproxy_seaorm_d1::D1SchemaManagerExt;
-use gproxy_seaorm_d1::sea_orm_migration::sea_query::{ColumnDef, Table};
+use gproxy_seaorm::D1SchemaManagerExt;
+use gproxy_seaorm::sea_orm_migration::sea_query::{ColumnDef, Table};
 
 if !manager.d1_has_column("providers", "description").await? {
     manager.alter_table(
@@ -172,12 +230,13 @@ still does not implement `TransactionTrait`.
 ## Validation
 
 ```bash
-cargo test -p gproxy-seaorm-d1
-cargo clippy -p gproxy-seaorm-d1 --all-targets -- -D warnings
-cargo clippy -p gproxy-seaorm-d1 --target wasm32-unknown-unknown -- -D warnings
+cargo test -p gproxy-seaorm
+cargo clippy -p gproxy-seaorm --all-targets -- -D warnings
+cargo clippy -p gproxy-seaorm --target wasm32-unknown-unknown -- -D warnings
 ```
 
 Native tests cover entity metadata, conversion errors, BLOBs, integer boundaries,
-result order, logical affected-row counts, and schema sync rules. See [VALIDATION.md](VALIDATION.md)
+result order, logical affected-row counts, schema sync, and real SQLite batch CRUD,
+RETURNING, mixed reads/writes, rollback and conditional-write semantics. See [VALIDATION.md](VALIDATION.md)
 for live validation notes in Chinese. Temporary deployment scripts and test
 Workers are not included in the library.

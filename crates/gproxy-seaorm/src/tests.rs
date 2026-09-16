@@ -3,6 +3,20 @@ use serde_json::json;
 
 use crate::{D1Type, Projection, codec};
 
+fn query_result(row: codec::DecodedRow) -> QueryResult {
+    #[cfg(target_arch = "wasm32")]
+    return row.into();
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use sea_orm::{DbBackend, MockDatabase, MockDatabaseTrait, Statement};
+        MockDatabase::new(DbBackend::Sqlite)
+            .append_query_results([[row.values]])
+            .query(0, Statement::from_string(DbBackend::Sqlite, ""))
+            .unwrap()
+            .remove(0)
+    }
+}
+
 mod sample {
     use sea_orm::entity::prelude::*;
 
@@ -31,7 +45,7 @@ fn entity_metadata_decodes_types_without_business_column_names() {
         &projection,
     )
     .unwrap();
-    let row: QueryResult = rows.into_iter().next().unwrap().into();
+    let row = query_result(rows.into_iter().next().unwrap());
     let model = sample::Model::from_query_result(&row, "").unwrap();
     assert_eq!(model.id, 23);
     assert!(model.flag);
@@ -83,7 +97,7 @@ fn positional_projection_preserves_sql_order_not_sorted_aliases() {
         .unwrap()
         .by_index();
     let rows = codec::rows(&json!([["z", "a"], ["first", 99]]), &projection).unwrap();
-    let row: QueryResult = rows.into_iter().next().unwrap().into();
+    let row = query_result(rows.into_iter().next().unwrap());
     assert_eq!(row.try_get_by_index::<String>(0).unwrap(), "first");
     assert_eq!(row.try_get_by_index::<i32>(1).unwrap(), 99);
 }
@@ -175,4 +189,59 @@ fn metadata_uses_logical_changes_and_rejects_invalid_acknowledgements() {
     ] {
         assert!(codec::execution(&raw).is_err());
     }
+}
+
+#[test]
+fn batch_queries_decode_separate_named_projections_and_empty_sets() {
+    let entity = Projection::for_entity::<sample::Entity>().unwrap();
+    let rows = codec::batch_rows(&json!({"success":true,"results":[{
+        "id":7,"flag":1,"payload":[0,255],"json_data":"{\"name\":\"中文\"}","optional_counter":null
+    }]}), &entity).unwrap();
+    let row = query_result(rows.into_iter().next().unwrap());
+    let model = sample::Model::from_query_result(&row, "").unwrap();
+    assert_eq!(model.id, 7);
+    assert!(model.flag);
+    assert_eq!(model.payload, [0, 255]);
+    assert_eq!(model.json_data, json!({"name":"中文"}));
+    let count = Projection::new()
+        .column("total", D1Type::I64, false)
+        .unwrap();
+    let rows = codec::batch_rows(
+        &json!({"success":true,"results":[{"total":"9007199254740993"}]}),
+        &count,
+    )
+    .unwrap();
+    let row = query_result(rows.into_iter().next().unwrap());
+    assert_eq!(
+        row.try_get::<i64>("", "total").unwrap(),
+        9_007_199_254_740_993
+    );
+    assert!(
+        codec::batch_rows(&json!({"success":true,"results":[]}), &entity)
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn batch_query_validation_does_not_silently_drop_bad_rows() {
+    let projection = Projection::new().column("x", D1Type::I32, false).unwrap();
+    for value in [
+        json!({"success":false,"results":[]}),
+        json!({"success":true}),
+        json!({"success":true,"results":[[1]]}),
+        json!({"success":true,"results":[{"x":null}]}),
+        json!({"success":true,"results":[{"x":1},{"y":2}]}),
+        json!({"success":true,"results":[{"x":1},{}]}),
+        json!({"success":true,"results":[{"x":1,"unknown":2}]}),
+    ] {
+        assert!(codec::batch_rows(&value, &projection).is_err(), "{value}");
+    }
+    assert!(
+        codec::batch_rows(
+            &json!({"success":true,"results":[]}),
+            &projection.by_index()
+        )
+        .is_err()
+    );
 }

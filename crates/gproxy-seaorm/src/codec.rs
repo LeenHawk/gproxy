@@ -1,11 +1,53 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use sea_orm::{DbErr, ProxyExecResult, ProxyRow, Value};
+use sea_orm::{DbErr, Value};
 use serde_json::Value as Json;
 
 use crate::{D1Type, Projection, error};
 
 const MAX_SAFE_INTEGER: i64 = 9_007_199_254_740_991;
+
+#[derive(Debug)]
+pub(crate) struct DecodedRow {
+    pub values: BTreeMap<String, Value>,
+}
+
+#[derive(Debug)]
+pub(crate) struct DecodedExecution {
+    pub rows_affected: u64,
+    pub last_insert_id: u64,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl From<DecodedRow> for sea_orm::ProxyRow {
+    fn from(row: DecodedRow) -> Self {
+        Self { values: row.values }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl From<DecodedRow> for sea_orm::QueryResult {
+    fn from(row: DecodedRow) -> Self {
+        sea_orm::ProxyRow::from(row).into()
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl From<DecodedExecution> for sea_orm::ProxyExecResult {
+    fn from(result: DecodedExecution) -> Self {
+        Self {
+            rows_affected: result.rows_affected,
+            last_insert_id: result.last_insert_id,
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+impl From<DecodedExecution> for sea_orm::ExecResult {
+    fn from(result: DecodedExecution) -> Self {
+        sea_orm::ProxyExecResult::from(result).into()
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Parameter {
@@ -161,7 +203,7 @@ fn cell(value: &Json, kind: D1Type) -> Result<Value, DbErr> {
 }
 
 /// D1 raw({columnNames:true}) preserves ordering and exposes duplicate aliases.
-pub(crate) fn rows(raw: &Json, projection: &Projection) -> Result<Vec<ProxyRow>, DbErr> {
+pub(crate) fn rows(raw: &Json, projection: &Projection) -> Result<Vec<DecodedRow>, DbErr> {
     let raw = raw
         .as_array()
         .ok_or_else(|| error("expected D1 raw row array"))?;
@@ -207,12 +249,12 @@ pub(crate) fn rows(raw: &Json, projection: &Projection) -> Result<Vec<ProxyRow>,
                 };
                 values.insert(name, cell(value, column.kind)?);
             }
-            Ok(ProxyRow { values })
+            Ok(DecodedRow { values })
         })
         .collect()
 }
 
-pub(crate) fn execution(result: &Json) -> Result<ProxyExecResult, DbErr> {
+pub(crate) fn execution(result: &Json) -> Result<DecodedExecution, DbErr> {
     if result["success"].as_bool() != Some(true) {
         return Err(error("D1 operation reported failure"));
     }
@@ -221,9 +263,61 @@ pub(crate) fn execution(result: &Json) -> Result<ProxyExecResult, DbErr> {
         Some(value) if !value.is_null() => integer(value)?,
         _ => 0,
     };
-    Ok(ProxyExecResult {
+    Ok(DecodedExecution {
         rows_affected: u64::try_from(changes)
             .map_err(|_| error("negative D1 affected row count"))?,
         last_insert_id: u64::try_from(last_id).map_err(|_| error("negative D1 last row id"))?,
     })
+}
+
+/// D1 batch returns named objects rather than raw rows/column metadata.
+/// Query aliases must be distinct: duplicate SQL aliases are lost by D1 before
+/// decoding and cannot be recovered or validated here. Empty results have no schema.
+pub(crate) fn batch_rows(result: &Json, projection: &Projection) -> Result<Vec<DecodedRow>, DbErr> {
+    if projection.positional {
+        return Err(error("D1 batch results have no positional column metadata"));
+    }
+    if result["success"].as_bool() != Some(true) {
+        return Err(error("D1 query batch step reported failure"));
+    }
+    let rows = result["results"]
+        .as_array()
+        .ok_or_else(|| error("missing D1 batch query rows"))?;
+    let Some(first) = rows.first() else {
+        return Ok(Vec::new());
+    };
+    let first = first
+        .as_object()
+        .ok_or_else(|| error("expected D1 batch row object"))?;
+    let columns = first
+        .keys()
+        .map(|name| {
+            let column = projection
+                .columns
+                .get(name)
+                .ok_or_else(|| error(format!("unregistered D1 result alias: {name}")))?;
+            Ok((name, column))
+        })
+        .collect::<Result<Vec<_>, DbErr>>()?;
+    rows.iter()
+        .map(|row| {
+            let row = row
+                .as_object()
+                .ok_or_else(|| error("expected D1 batch row object"))?;
+            if row.len() != columns.len() {
+                return Err(error("inconsistent D1 batch result columns"));
+            }
+            let mut values = BTreeMap::new();
+            for (name, column) in &columns {
+                let value = row
+                    .get(*name)
+                    .ok_or_else(|| error("missing D1 batch result column"))?;
+                if value.is_null() && !column.nullable {
+                    return Err(error(format!("unexpected NULL in D1 column: {name}")));
+                }
+                values.insert((*name).clone(), cell(value, column.kind)?);
+            }
+            Ok(DecodedRow { values })
+        })
+        .collect()
 }
