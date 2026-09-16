@@ -208,6 +208,16 @@ Tokio only as target-specific dev dependencies, without linking them into Worker
   connection is available only on Workers WASM. This crate does not provide
   native database drivers, Redis, KV, file storage, or background tasks.
 
+## Portable JSON string membership
+
+`json_array_contains_text(backend, array_expr, value_expr)` returns
+`Result<Expr, DbErr>` for exact top-level string membership. Arguments remain
+bound expressions; NULL/non-array documents and non-string elements do not match.
+SQLite/D1 use `json_each`, PostgreSQL uses `jsonb_array_elements`, and MySQL 8+
+uses `JSON_TABLE`. Unknown backends return an error before SQL dispatch. The
+open-source SeaORM 2.0.3 dependency has no MSSQL backend; SQL Server support is
+provided separately by [SeaORM X](https://www.sea-ql.org/SeaORM-X/).
+
 ## Exact fixed-point values
 
 `FixedDecimal` provides signed i64 atoms at scale 9, exact parsing, checked

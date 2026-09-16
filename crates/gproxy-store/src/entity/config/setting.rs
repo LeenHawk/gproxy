@@ -16,6 +16,10 @@ pub struct Model {
     #[sea_orm(default_value = "default")]
     pub instance_name: String,
 
+    /// OAuth client-ID ceiling as a JSON string array. None adds no restriction;
+    /// [] denies all. Organization/team/user policies can only narrow it.
+    pub oauth_client_allowlist: Option<Json>,
+
     // Network
     /// Global connection profile. None uses the built-in reqwest/direct defaults.
     /// Credential then Provider selections override this entire profile.

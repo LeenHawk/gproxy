@@ -3,6 +3,7 @@
 pub mod agents;
 pub mod credentials;
 pub mod oauth;
+mod oauth_policy;
 pub mod quota;
 pub mod rewrite;
 mod sql;

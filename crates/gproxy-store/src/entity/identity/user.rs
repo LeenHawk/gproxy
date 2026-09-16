@@ -16,6 +16,9 @@ pub struct Model {
     pub role: String,
     #[sea_orm(default_value = true)]
     pub enabled: bool,
+    /// OAuth client-ID string array. None inherits; [] denies all for this user.
+    /// Intersected with global, organization and team allowlists.
+    pub oauth_client_allowlist: Option<Json>,
     pub created_at_ms: i64,
     #[sea_orm(has_many)]
     pub organization_memberships: HasMany<super::organization_member::Entity>,

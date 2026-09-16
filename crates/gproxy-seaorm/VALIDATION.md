@@ -1,5 +1,24 @@
 # 独立 crate 验证记录
 
+## OAuth 分层白名单与 JSON 匹配（本地验证）
+
+2026-09-17：两个 crate 共 43 项原生测试通过；原生及 WASM all-targets Clippy
+`-D warnings` 通过。新增 JSON 匹配测试验证顶层字符串、大小写、空白、特殊字符／绑定参数、
+NULL、空数组、非数组及嵌套／非字符串元素。PostgreSQL／MySQL 只验证 SQL 构造和参数绑定，
+没有真实数据库执行证据；MySQL 表达式使用 8+ 的 JSON_TABLE。当前开源 SeaORM 2.0.3
+没有 MSSQL 后端，未集成单独的 SeaORM X；未实现后端明确报错，不返回伪造的匹配结果。
+
+实际 `Store<D1Connection>` WASM 连接 Miniflare 本地 D1，两组新增场景通过：
+
+- 全局上限，同级已配置名单取并集、跨级取交集，NULL 继承、空数组、用户限制、无关组织
+  隔离、团队所属组织继承（不依赖额外组织成员行）、成员关系变动和客户端停用。
+- 策略拒绝不批准设备、不创建 key/grant/code、不消费 code／refresh token、不更新刷新统计；
+  收紧策略后已有 access token 校验失败，恢复允许后未消费的源 token 可以正常换取。
+
+此轮验证包含完整建表和实际 D1 batch，不只是 SQL 生成。未部署云端 Worker、未访问生产
+数据库、未执行既有数据库迁移。临时 harness 使用 CLI 对应的 wasm-bindgen 0.2.127，
+workspace 静态检查使用 0.2.128；临时 harness／构建目录验证后删除，永久回归测试保留。
+
 ## 精确金额与 Store 接入（本地验证）
 
 2026-09-17：两个 crate 共 39 项原生测试通过（适配器 22 单元 + 6 batch + 2 定点数；

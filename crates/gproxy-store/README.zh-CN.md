@@ -270,6 +270,35 @@ core 必须在每次访问及 WS 新轮次调用，并负责用户授权和 PKCE
 已实现原子签发、轮换、撤销、客户端退役及上游凭证 CAS。OAuth HTTP 端点、密钥管理、
 上游网络登录／刷新和客户端集成仍由宿主完成。
 
+### OAuth client ID 分层白名单
+
+全局 `Setting`、`Organization`、`Team`、`User` 都有可空的 `oauth_client_allowlist`
+字段，内容为 client ID 的 JSON 字符串数组。通过现有 settings update／repository 批量
+CRUD 配置；客户端本身仍须登记在 `oauth_clients`，启用且未软删除。
+
+- `None`／SQL NULL：本层未配置，不增加限制；全局未配置时仍受客户端注册表限制。
+- `[]`：本作用域不允许任何 client；同级其他已配置作用域仍可通过并集允许它。
+- 多个组织或多个团队：只对已配置的名单取并集；未配置的成员关系不会把并集放宽为全量。
+- 全局、组织层、团队层、用户层之间取交集；下级不能放宽上级限制。某层没有任何已配置
+  名单时该层不增加限制。用户与全局的空数组都表示完全禁止。
+- 组织层包括用户直接加入的组织，以及所加入团队的所属组织；不要求额外存在组织成员行。
+  管理员角色不绕过名单。ID 按字符串精确、区分大小写匹配，不支持通配符；非数组值和
+  非字符串元素不会匹配。
+
+例如全局 `[a,b]`、两个组织分别 `[a,c]`／`[b]`、团队 `[b,c]`，最终只允许 `b`；
+用户再设置 `[a]`，最终为空，不会覆盖上层限制。
+
+`oauth_clients().allowed_many(&[ClientAccess { user_id, client_id }])` 提供批量预检查。
+`issue_many`（含设备批准）、授权码／refresh token 换取和 `resolve_access_many` 都在自己的
+数据库语句中重新检查当前策略。策略拒绝返回冲突或空身份，且不消费源 token、不批准设备、
+不创建依赖行。收紧后已有 token 在后续校验时失效；放宽后未过期且未撤销的 token 可以再次
+通过，名单变更本身不等于永久撤销。core 应在每次请求及 WS 新轮次执行身份校验。
+
+数据库 JSON 方言实现集中在 `gproxy-seaorm::json_array_contains_text`；Store 只组合
+SeaORM 条件。D1 使用 SQLite JSON 扩展。当前开源 `sea-orm 2.0.3` 只有 SQLite、PostgreSQL、
+MySQL 后端，MSSQL 属于单独的 SeaORM X，项目未接入；不支持的后端明确报错。
+此次增加四个可空列，既有数据默认继承；未自动执行数据库 schema 更新。
+
 ## 订阅聚合与切分
 
 [`subscription`](src/entity/subscription/mod.rs) 表达上游订阅池向下游发放 GProxy 虚拟订阅：

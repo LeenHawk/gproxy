@@ -329,6 +329,47 @@ Atomic issuance, rotation, revocation, client retirement and upstream credential
 CAS are implemented. OAuth HTTP endpoints, key management, upstream network
 login/refresh and client integration remain host work.
 
+### Hierarchical OAuth client-ID allowlists
+
+Global `Setting`, `Organization`, `Team` and `User` each have a nullable
+`oauth_client_allowlist` JSON string-array field, writable through existing
+settings update/repository batch CRUD. Clients must also remain registered,
+enabled and not soft-deleted in `oauth_clients`.
+
+- `None`/SQL NULL means unconfigured and adds no restriction; an unconfigured
+  global policy still requires client registration.
+- `[]` admits no client for that scope. Other configured peers may still admit
+  it through their same-level union.
+- Union configured organization lists and configured team lists separately.
+  Unconfigured peers do not widen that union to all clients.
+- Intersect global, organization, team and user levels. A level with no configured
+  lists adds no restriction. Children cannot widen parents; an empty global or
+  user list denies everything.
+- Organizations include direct memberships and parent organizations of the user's
+  teams, even without separate organization membership rows. Admin roles do not
+  bypass policy. IDs match exact, case-sensitive strings without wildcard syntax;
+  non-array documents and non-string elements never match.
+
+For example, global `[a,b]`, organizations `[a,c]` and `[b]`, and team `[b,c]`
+admit only `b`. Adding user `[a]` yields no allowed client instead of overriding
+its parents.
+
+`oauth_clients().allowed_many(&[ClientAccess { user_id, client_id }])` provides a
+batch preflight. `issue_many` (including device approval), code/refresh exchange,
+and `resolve_access_many` recheck current policies in their own SQL statements.
+Denial returns conflict/no identity without consuming tokens, approving devices or
+creating dependent rows. Tightening policy blocks existing tokens at subsequent
+checks; relaxing it can readmit unexpired, unrevoked tokens. Policy changes are
+not permanent revocations. Core must resolve identity per request/new WS turn.
+
+Dialect-specific JSON membership lives in
+`gproxy-seaorm::json_array_contains_text`; Store only composes SeaORM conditions.
+D1 uses SQLite's JSON extension. The current open-source `sea-orm 2.0.3` supports
+SQLite, PostgreSQL and MySQL; MSSQL belongs to separate SeaORM X and is not wired
+into this project. Unsupported backends return an explicit error. This adds four
+nullable columns; existing rows inherit, and no database schema update is run
+automatically.
+
 ## Subscription aggregation and allocation
 
 [`subscription`](src/entity/subscription/mod.rs) models gateway-issued virtual subscriptions:
