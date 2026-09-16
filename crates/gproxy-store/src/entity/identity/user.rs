@@ -30,6 +30,8 @@ pub struct Model {
     #[sea_orm(has_many)]
     pub oauth_grants: HasMany<crate::entity::oauth::grant::Entity>,
     #[sea_orm(has_many)]
+    pub subscriptions: HasMany<crate::entity::subscription::user_subscription::Entity>,
+    #[sea_orm(has_many)]
     pub permissions: HasMany<super::permission::Entity>,
     #[sea_orm(has_many)]
     pub rate_limits: HasMany<crate::entity::limits::rate_limit::Entity>,
@@ -37,6 +39,8 @@ pub struct Model {
     pub quotas: HasMany<crate::entity::limits::quota::Entity>,
     #[sea_orm(has_many)]
     pub resource_bindings: HasMany<crate::entity::resource::resource_binding::Entity>,
+    #[sea_orm(has_many)]
+    pub agent_sessions: HasMany<crate::entity::resource::agent_session::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

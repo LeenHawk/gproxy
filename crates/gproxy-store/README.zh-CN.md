@@ -13,10 +13,11 @@ GPROXY v4 的 SeaORM 2 entity 定义。**当前是实体审查稿**，尚未实�
 | `routing` 路由 | ExposedModel、Route、RouteMember |
 | `identity` 身份 | Organization、Team、OrganizationMember、TeamMember、User、ApiKey、UserSession、Permission |
 | `oauth` 下游授权 | Client、Grant、Code、Token、Device |
+| `subscription` 订阅 | Pool、PoolMember、Plan、PlanLimit、Subscription |
 | `limits` 额度 | RateLimit、Quota、QuotaWindow、QuotaSettlement、CredentialQuotaCycle |
 | `pricing` 定价 | PriceRule、PriceRate、PriceTier |
 | `usage` 用量 | UsageRecord、CaptureRecord、CaptureLink、CaptureEvent |
-| `resource` 资源 | FileObject、ResourceBinding、ProtocolState |
+| `resource` 资源 | FileObject、AgentSession、AgentAssignment、ResourceBinding、ProtocolState |
 | `config` 设置 | Setting |
 
 字段、主键／唯一键、关系和删除行为直接写在 SeaORM 属性中。
@@ -40,7 +41,8 @@ GPROXY v4 的 SeaORM 2 entity 定义。**当前是实体审查稿**，尚未实�
   共享凭证要求具备其归属组织／团队的管理员角色。当前 entity 只表达关系，尚未实现 API 权限判断。
 - ProviderModel 可关联全局模型，删除模型资料时清空该可选引用。
 - 路由结构为对外模型名 → Route → Provider／上游模型成员；不设置组织、团队、用户归属。
-- Permission、RateLimit、Quota 暂留 user／API key 两种归属列，归属结构确认后再实现管理逻辑。
+- Permission、RateLimit 暂留 user／API key 归属。Quota 可归用户、API Key、订阅或订阅池，
+  四者恰选其一；归属一致性由后续写入层校验。
 - 配置从属行使用代码中声明的删除行为。历史身份 ID 不建立配置外键；QuotaSettlement 关联
   QuotaWindow，与可以清理的 UsageRecord 独立。
 - 文件内容留在 file/S3，文件实体只保存位置和元数据；模型自定义词表引用 FileObject。
@@ -188,3 +190,94 @@ API Key 的用户／类型、设备与授权的客户端／scopes 一致性需�
 
 当前完成的是实体和序列化结构，未实现 OAuth HTTP 端点、密钥管理、token 轮换事务、
 上游登录／刷新和客户端集成验证。
+
+## 订阅聚合与切分
+
+[`subscription`](src/entity/subscription/mod.rs) 表达上游订阅池向下游发放 GProxy 虚拟订阅：
+
+```text
+Credential → PoolMember → Pool → Plan → Subscription → 多个 API Key / OAuth 会话
+                               └─ PlanLimit → 复制为订阅的 Quota
+Pool 的 Quota、订阅的 Quota → QuotaWindow → QuotaSettlement
+```
+
+- PoolMember 绑定一个上游凭证，以渠道提供的真实订阅 source_key 去重。一个真实订阅
+  只计入一个池，切分发生在下游；更新 token 不创建新的容量来源。池成员不改变凭证归属。
+- Pool 的 Quota 是可分配的预算；上游实际可用量来自成员的 CredentialQuotaCycle 观测。
+  两者分开保存，不能把运营配置的预算当成上游报告的剩余量。
+- Plan 定义 GProxy 套餐名称和 Codex／Claude Code 的展示字段。PlanLimit 定义每个订户的
+  默认窗口、美元额度 `limit` 及模型范围；发放时复制到 subscription_id 归属的 Quota，
+  固定使用 `metric = cost`、`unit = USD`，
+  可在发放时调整额度。更改模板不追溯修改已有额度，已发放的套餐通过新 Plan 变更条款。
+- Subscription 绑定用户和套餐，具有生效、到期、启用状态；API Key.subscription_id 指向
+  所选订阅，OAuth 通过内部 key 共享同一关系。key 和订阅必须属于同一用户。暂停或到期
+  后必须拒绝继续使用该订阅，不能退回无订阅模式；Plan.enabled 只控制新发放，Pool.enabled
+  则控制该池是否继续承接请求。
+
+额度聚合按同一指标、单位、模型范围及窗口类别分组。同一来源的五小时／七天限制是
+同时生效的约束，不是两份可以相加的容量。不同账号保留各自重置时间，不为池捏造统一
+的上游重置点。只有百分比而无对应基数时，绝对额度保持未知；过期或不完整观测不能
+当作零用量。容量换算及观测有效性由后续聚合实现明确处理。
+
+下游统一使用 USD 账本：输入输出、缓存、工具、图像等用量按价格规则转换为 USD 后扣款。
+订阅计费要求价格规则以 USD 计价，不隐式混算其他币种。上游百分比、token 限制只描述
+承接能力，不能直接相加成美元余额。池的可分配 USD 预算需要明确配置或另行估算。
+例如池预算 $1000、每份订阅分配 $100；同窗口和范围的已分配金额应在发放／调整时校验。
+窗口不一致时不能直接相加。下游固定周期
+由订阅生效时间／Quota.anchor_at_ms 锚定，日周月使用 UTC，总量不重置；不随某个上游
+账号重置而清空下游已用量。primary、secondary 等 window_key 供客户端适配器选择展示窗口。
+下游展示自己分到的 USD 总额度、USD 已用／剩余及重置时间（协议要求百分比时由美元账本计算），不暴露各上游账号，也不直接展示整个池的
+全部剩余额度。客户端套餐标签是 GProxy 分配视图，不改变真实上游订阅权益。
+
+执行候选须同时满足路由目标、池成员、现有凭证使用权限。API Key 切换订阅只影响后续
+请求／WS 新轮次；已开始的请求固定原订阅和池，历史 UsageRecord.subscription_id 与
+上游 CaptureRecord.pool_id 保持不变。池预算按上游实际调用 ID 结算一次，用户预算按下游
+请求 ID 结算一次；共享上游调用的下游费用分摊仍需显式结算策略。登录新的 OAuth 会话
+不应自动复制出一份新额度。
+
+复用现有配额窗口和幂等扣账表，持久化层没有第二套订阅用量账本。删除订阅会删除其 key、
+OAuth 授权及配置配额，但历史窗口、结算、请求用量仍保留；通常通过停用／到期保留配置。
+存在已发放订阅时不允许物理删除套餐。当前仅完成实体关系与契约，未实现聚合计算、发放、
+配额预占、候选筛选或 Codex／Claude Code 订阅接口渲染。
+
+## 云端 agent 粘性与耗尽切换
+
+[`AgentSession`](src/entity/resource/agent_session.rs) 是稳定的逻辑会话，按用户、服务／路由
+scope 和下游 affinity_key 唯一标识；它与 CaptureRecord 的一次 WS 连接不是同一个概念。
+固定策略为尽量使用同一份符合路由、模型、权限和订阅池要求的凭证，确认所需额度耗尽后
+才因额度原因切换；普通瞬时限流不能直接认定订阅耗尽。切换成功后继续粘住新凭证，
+旧凭证重置不会触发切回。会话的下游订阅及 USD 账本保持不变。
+
+[`AgentAssignment`](src/entity/resource/agent_assignment.rs) 每代保存目标 Provider／Credential、
+前一有效代、触发原因／额度观测或请求关联，以及准备、启用、替换、失败／结果未知状态。
+不会覆盖旧目标。会话保存 version 和 active_generation，当前目标必须按
+`(session_id, active_generation)` 查找，不能取最新一行。切换预留使用条件更新 version，
+新代号采用本次预留版本且不复用；准备失败后的下一次尝试也使用新版本。
+
+准备阶段在新凭证下按具体 API 建立或续接所需资源。只有准备完成，才能在同一原子提交中
+验证会话版本、将新分配设为 active、旧分配设为 replaced，并更新 active_generation 和 version。
+过期 worker／回调的旧版本不能覆盖当前分配；开始切换后新工作等待有效分配，旧调用保留
+原代。上游创建结果未知时记录 uncertain，并利用资源查询或受支持的幂等键恢复结果，不能
+仅因等待超时就重复创建。这些原子操作和检查仍需在实际仓储／执行层实现。
+
+[`ResourceBinding`](src/entity/resource/resource_binding.rs) 的唯一键增加 generation，
+普通资源用 0，agent 资源对应分配代号。对外 server、environment、session 等 ID 可以稳定，
+每代另存真实上游 ID、目标、依赖资源 ID、摘要和时间。远程 token 类映射的 public_id 存
+宿主生成的下游 bearer 摘要，实际上游 token 放密文 secret，不混入公开摘要。
+同一逻辑会话的资源 scope 绑定逻辑 session，不随上游切换变化；每个关联必须校验同一
+用户／会话、匹配的代号及目标。多种句柄最终解析到同一 AgentSession 的当前有效代。
+
+旧任务、文件、环境不会因为换凭证就自动迁移。普通新工作使用当前代，明确针对旧资源的
+读取／管理继续使用其原目标；新目标下的复制／重建／续接由有对应能力的适配器完成，
+没有能力时保留失败原因并阻塞该续接，不宣称透明无损迁移。续接检查点可使用现有
+ProtocolState，scope/key 必须绑定用户、逻辑会话和分配代；状态字节应由宿主按需加密。
+
+已开始的 WS／流式调用固定其 CaptureRecord.agent_assignment_id，不能中途换成另一账号的
+数据流。切换只影响准备完成后的新调用／受支持的重新连接。日志中的分配 ID 是历史引用；
+凭证／Provider 删除也不再级联清除 AgentAssignment 或 ResourceBinding 的目标记录。
+目标配置不存在时必须返回不可用，不能把丢失绑定当作无约束选路。显式清理逻辑会话会
+删除分配行、清空资源的 assignment_id，但保留资源代号／原目标，不将其变成普通第 0 代资源。
+
+这部分依据 v3 的会话粘性、持久资源绑定及本地 Codex／Claude Code API 调查建模。
+当前是实体、唯一约束和版本更新契约，尚未实现耗尽判定、并发切换、资源重建、token 映射
+或真实 WS 续接；调查中的接口存在也不等于已证明支持跨账号迁移。
