@@ -6,14 +6,14 @@ mod stream;
 
 pub(crate) use stream::decoder;
 
-pub(crate) fn sanitize(body: &Bytes) -> Result<Bytes, ChannelError> {
+pub(crate) fn sanitize(body: &Bytes, preserve_output_limit: bool) -> Result<Bytes, ChannelError> {
     let mut value: Value = serde_json::from_slice(body)
         .map_err(|error| ChannelError::Prepare(format!("Gemini body JSON: {error}")))?;
-    sanitize_value(&mut value)?;
+    sanitize_value(&mut value, preserve_output_limit)?;
     encode(&value, ChannelError::Prepare)
 }
 
-fn sanitize_value(value: &mut Value) -> Result<(), ChannelError> {
+fn sanitize_value(value: &mut Value, preserve_output_limit: bool) -> Result<(), ChannelError> {
     let object = value
         .as_object_mut()
         .ok_or_else(|| ChannelError::Prepare("Gemini body must be an object".into()))?;
@@ -24,13 +24,14 @@ fn sanitize_value(value: &mut Value) -> Result<(), ChannelError> {
         .get_mut("generationConfig")
         .and_then(Value::as_object_mut)
     {
-        for name in [
-            "maxOutputTokens",
-            "max_output_tokens",
-            "logprobs",
-            "responseLogprobs",
-            "response_logprobs",
-        ] {
+        // Preserve caller-supplied output limits for Claude generation rather
+        // than silently selecting the upstream default. Keep the existing
+        // compatibility filtering for Gemini generation and count-token calls.
+        if !preserve_output_limit {
+            config.remove("maxOutputTokens");
+            config.remove("max_output_tokens");
+        }
+        for name in ["logprobs", "responseLogprobs", "response_logprobs"] {
             config.remove(name);
         }
     }
@@ -73,7 +74,7 @@ pub(crate) fn wrap_count(body: &Bytes) -> Result<Bytes, ChannelError> {
         }
         Value::Object(request)
     };
-    sanitize_value(&mut request)?;
+    sanitize_value(&mut request, false)?;
     force_roles(&mut request);
     encode(&json!({"request":request}), ChannelError::Prepare)
 }

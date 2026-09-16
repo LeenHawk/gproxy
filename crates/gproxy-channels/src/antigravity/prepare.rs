@@ -32,7 +32,9 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
                 ctx.body,
                 ctx.upstream_model,
             )?;
-            let body = crate::shared::code_assist::sanitize(&body)?;
+            let preserve_output_limit =
+                crate::shared::gemini::model::model_id(ctx.upstream_model).starts_with("claude-");
+            let body = crate::shared::code_assist::sanitize(&body, preserve_output_limit)?;
             let body = apply_model_defaults(&body, ctx.upstream_model)?;
             let buffered = stream && buffered_claude_flash(&ctx);
             (
