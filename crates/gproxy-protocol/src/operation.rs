@@ -82,9 +82,9 @@ pub enum Operation {
     RetrieveVideo,
     ListVideos,
     DeleteVideo,
-    /// Not an upstream call. Every video vendor hands back a time-limited
-    /// signed URL rather than serving bytes, so this operation is synthesized:
-    /// the engine fetches that URL and relays it.
+    /// Download video bytes, e.g. OpenAI's GET /videos/{video_id}/content.
+    /// Some vendors instead expose a download URL in a job response; their
+    /// channel implementation resolves that URL as part of this operation.
     DownloadVideoContent,
     // realtime
     /// SDP handshake creating a WebRTC realtime call.
