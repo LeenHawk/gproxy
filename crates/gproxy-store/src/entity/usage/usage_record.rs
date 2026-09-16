@@ -6,6 +6,9 @@ use sea_orm::entity::prelude::*;
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "usage_records")]
 pub struct Model {
+    /// Downstream HTTP exchange or WS turn ID, never the whole WS connection.
+    /// Logical reference to CaptureRecord.id; usage and log retention are independent.
+    /// Shared upstream usage must be allocated explicitly, not summed per link.
     #[sea_orm(primary_key, auto_increment = false)]
     pub request_id: String,
     #[sea_orm(indexed)]
@@ -14,13 +17,9 @@ pub struct Model {
     pub api_key_id: Option<String>,
     pub model: String,
     pub operation: String,
-    pub dialect: String,
     pub metrics: Json,
     #[sea_orm(column_type = "Decimal(Some((28, 12)))")]
     pub cost: Option<Decimal>,
-    pub pricing_snapshot: Option<Json>,
-    #[sea_orm(default_value = false)]
-    pub estimated: bool,
     #[sea_orm(indexed)]
     pub started_at_ms: i64,
     pub ended_at_ms: Option<i64>,

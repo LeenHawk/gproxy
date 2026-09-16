@@ -16,7 +16,6 @@ pub struct Model {
     pub provider_id: Option<String>,
     pub model_pattern: String,
     pub operation: Option<String>,
-    pub dialect: Option<String>,
     pub action: String,
     #[sea_orm(default_value = 0)]
     pub priority: i32,

@@ -26,7 +26,7 @@ pub struct Model {
     #[sea_orm(has_many)]
     pub models: HasMany<super::provider_model::Entity>,
     #[sea_orm(has_many)]
-    pub route_targets: HasMany<crate::entity::routing::route_target::Entity>,
+    pub route_members: HasMany<crate::entity::routing::route_member::Entity>,
     #[sea_orm(has_many)]
     pub operation_rules: HasMany<super::operation_rule::Entity>,
     #[sea_orm(has_many)]

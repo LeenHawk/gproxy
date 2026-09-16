@@ -20,8 +20,6 @@ pub struct Model {
     #[sea_orm(has_many)]
     pub models: HasMany<crate::entity::upstream::model::Entity>,
     #[sea_orm(has_many)]
-    pub captures: HasMany<crate::entity::usage::capture_record::Entity>,
-    #[sea_orm(has_many)]
     pub resource_bindings: HasMany<super::resource_binding::Entity>,
     #[sea_orm(has_many)]
     pub global_settings: HasMany<crate::entity::config::setting::Entity>,

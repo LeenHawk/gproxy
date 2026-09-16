@@ -1,4 +1,4 @@
-//! User overrides for a provider operation/dialect. Channel defaults remain in code.
+//! User overrides for a provider operation. Channel defaults remain in code.
 
 use sea_orm::entity::prelude::*;
 
@@ -12,8 +12,6 @@ pub struct Model {
     pub provider_id: String,
     #[sea_orm(unique_key = "operation")]
     pub operation: String,
-    #[sea_orm(unique_key = "operation")]
-    pub dialect: String,
     pub action: String,
     /// Optional target OperationKey/configuration; action variants remain for review.
     pub target: Option<Json>,

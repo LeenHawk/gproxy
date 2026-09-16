@@ -1,5 +1,6 @@
-//! Namespaces, routes and route candidates.
+//! Public model names map to named routes, which balance provider/model members.
+//! These are global routing definitions, without organization/team/user owners.
 
-pub mod namespace;
+pub mod exposed_model;
 pub mod route;
-pub mod route_target;
+pub mod route_member;
