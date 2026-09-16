@@ -9,7 +9,8 @@ use crate::{
     transform::{Converted, Report, TransformError},
     wire::DeclaredFields,
 };
-/// A prepared h client request executed by the selected r endpoint.
+
+/// A prepared Chat Completions client request executed by the selected Responses endpoint.
 #[derive(Debug)]
 pub struct ChatViaResponses {
     original_request: h::GenerateContentRequestBody,
@@ -19,6 +20,7 @@ pub struct ChatViaResponses {
     identities: GenerationIdentity,
     report: Report,
 }
+
 impl ChatViaResponses {
     pub fn prepare(
         input: h::GenerateContentRequestBody,
@@ -71,13 +73,11 @@ impl ChatViaResponses {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: h::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
     ) -> Result<Self, TransformError> {
         let selected_model = state.target.model.clone();
-
         let original = input.into_declared();
         let (restored, names) = super::history::chat(original.clone(), state).await?;
         let mut prepared =
@@ -91,14 +91,12 @@ impl ChatViaResponses {
         R: crate::capability::ResourceAccess,
     >(
         input: h::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
         resources: &super::GenerationResources<'_, R>,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
-
         let materialized = resources.chat(original.clone()).await?;
         let mut prepared =
             Self::prepare_with_state(materialized, endpoint, identities, state).await?;
@@ -208,6 +206,7 @@ impl ChatViaResponses {
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }
+
 /// Effective settings and measured facts absent from the upstream wire response.
 #[derive(Debug)]
 pub struct ChatReturnFacts {
@@ -216,7 +215,8 @@ pub struct ChatReturnFacts {
     pub prompt_cache_options: Option<r::response::ResponsePromptCacheOptions>,
     pub usage: p::ChatUsageSupplement,
 }
-/// A prepared r client request executed by the selected h endpoint.
+
+/// A prepared Responses client request executed by the selected Chat Completions endpoint.
 #[derive(Debug)]
 pub struct ResponsesViaChat {
     original_request: r::GenerateContentRequestBody,
@@ -226,6 +226,7 @@ pub struct ResponsesViaChat {
     identities: GenerationIdentity,
     report: Report,
 }
+
 impl ResponsesViaChat {
     pub fn prepare(
         input: r::GenerateContentRequestBody,
@@ -279,13 +280,11 @@ impl ResponsesViaChat {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: r::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
     ) -> Result<Self, TransformError> {
         let selected_model = state.target.model.clone();
-
         let original = input.into_declared();
         let mut lowered = original.clone();
         let mut tool_report = Report::default();
@@ -303,14 +302,12 @@ impl ResponsesViaChat {
         R: crate::capability::ResourceAccess,
     >(
         input: r::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
         resources: &super::GenerationResources<'_, R>,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
-
         let materialized = resources.responses(original.clone()).await?;
         let mut prepared =
             Self::prepare_with_state(materialized, endpoint, identities, state).await?;

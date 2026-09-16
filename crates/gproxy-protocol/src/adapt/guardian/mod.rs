@@ -1,6 +1,10 @@
 //! Host-facing Guardian invocation. One prepared target request is sent once;
 //! non-2xx responses retain their complete original body and no retry is done.
 
+mod invoke_sse;
+mod resources;
+mod stream;
+
 use crate::{
     HttpBody, WireResponse,
     adapt::{JsonInvocation, invoke_json},
@@ -14,6 +18,10 @@ use crate::{
         },
     },
 };
+
+pub use invoke_sse::{classify_sse, review_sse};
+pub use resources::{GuardianResourceLimits, prepare_with_resources};
+pub use stream::{GuardianStreamContext, GuardianStreamInvocation, GuardianStreamLimits};
 
 #[derive(Debug, Clone, Copy)]
 pub struct GuardianLimits {
@@ -41,6 +49,7 @@ pub enum GuardianReviewInvocation {
         native: GuardianNativeResponse,
     },
 }
+
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum GuardianClassifyInvocation {
@@ -277,6 +286,7 @@ fn map_review(value: Extracted) -> GuardianReviewInvocation {
         Extracted::Classify { .. } => unreachable!("review extraction returned classify result"),
     }
 }
+
 fn map_classify(value: Extracted) -> GuardianClassifyInvocation {
     match value {
         Extracted::Classify { result, native } => {
@@ -289,12 +299,3 @@ fn map_classify(value: Extracted) -> GuardianClassifyInvocation {
         Extracted::Review { .. } => unreachable!("classify extraction returned review result"),
     }
 }
-
-mod stream;
-pub use stream::{GuardianStreamContext, GuardianStreamInvocation, GuardianStreamLimits};
-
-mod invoke_sse;
-pub use invoke_sse::{classify_sse, review_sse};
-
-mod resources;
-pub use resources::{GuardianResourceLimits, prepare_with_resources};

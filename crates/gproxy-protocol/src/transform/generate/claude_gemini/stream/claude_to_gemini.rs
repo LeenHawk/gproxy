@@ -15,10 +15,12 @@ use crate::{
     },
     wire::{DeclaredFields, claude::stream as s, gemini as g},
 };
+
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ClaudeToGeminiContext {
     pub usage: ClaudeGeminiUsageFacts,
 }
+
 pub struct ClaudeToGeminiStream {
     source: Option<ClaudeStreamCollector>,
     target: Option<GeminiStreamCollector>,
@@ -34,6 +36,7 @@ pub struct ClaudeToGeminiStream {
     failed: bool,
     stopped: bool,
 }
+
 impl ClaudeToGeminiStream {
     pub fn new(
         context: ClaudeToGeminiContext,

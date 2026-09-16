@@ -23,12 +23,13 @@
 //! Required opaque replay, media/execution output and continuation state need
 //! an invocation adapter. Omitted optional metadata is reported separately.
 //! These contracts do not establish empirical equality of model judgments.
+
+mod claude_blocks;
 mod claude_to_gemini;
 mod common;
 mod gemini_to_claude;
+mod usage;
+
 pub use claude_to_gemini::{ClaudeToGeminiContext, ClaudeToGeminiStream};
 pub use common::{StreamEnd, StreamLimits};
 pub use gemini_to_claude::{GeminiToClaudeContext, GeminiToClaudeStream};
-
-mod claude_blocks;
-mod usage;

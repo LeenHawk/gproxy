@@ -1,5 +1,6 @@
 use super::*;
 use crate::wire::{DeclaredFields, openai::chat as h};
+
 impl<R: ResourceAccess> GenerationResources<'_, R> {
     pub async fn chat(
         &self,

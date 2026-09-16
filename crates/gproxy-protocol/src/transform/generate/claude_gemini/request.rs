@@ -84,6 +84,7 @@ pub fn claude_to_gemini_request(
             let role = match message.role {
                 c::Role::User => "user",
                 c::Role::Assistant => "model",
+                // System roles are consumed by the instructions branch above.
                 c::Role::System => unreachable!(),
             };
             contents.push(

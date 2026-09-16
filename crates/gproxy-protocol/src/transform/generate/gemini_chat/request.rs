@@ -6,6 +6,7 @@ use crate::{
     wire::{DeclaredFields, gemini as g, openai::chat as c},
 };
 use std::collections::BTreeMap;
+
 pub fn gemini_to_openai_request(
     input: g::GenerateContentRequestBody,
     target_model: impl Into<String>,
@@ -21,6 +22,7 @@ pub fn gemini_to_openai_request(
         policy,
     )
 }
+
 /// Explicit native Chat call forms and original IDs supplied by scoped invocation state.
 /// An orphan result uses its actual saved name and does not create a call history.
 pub(crate) fn gemini_to_openai_request_with_calls(
@@ -83,6 +85,7 @@ pub(crate) fn gemini_to_openai_request_with_calls(
     *identity = ids;
     Ok(Converted { value: out, report })
 }
+
 /// The selected Gemini model is an HTTP path resource, not a field of this body.
 pub fn openai_to_gemini_request(
     input: &c::GenerateContentRequestBody,

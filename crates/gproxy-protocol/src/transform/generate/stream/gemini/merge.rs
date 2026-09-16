@@ -1,4 +1,5 @@
 use crate::{transform::TransformError, wire::gemini as g};
+
 pub(super) fn usage(
     old: &mut g::UsageMetadata,
     new: g::UsageMetadata,
@@ -50,6 +51,7 @@ pub(super) fn usage(
     }
     Ok(())
 }
+
 fn counter(old: &mut Option<i64>, new: Option<i64>, field: &str) -> Result<(), TransformError> {
     if let Some(value) = new {
         if value < 0 || old.is_some_and(|n| value < n) {
@@ -62,6 +64,7 @@ fn counter(old: &mut Option<i64>, new: Option<i64>, field: &str) -> Result<(), T
     }
     Ok(())
 }
+
 pub(super) fn candidate(old: &mut g::Candidate, new: g::Candidate) -> Result<(), TransformError> {
     if super::collector::terminal(old.finish_reason)
         && new.finish_reason.is_some()

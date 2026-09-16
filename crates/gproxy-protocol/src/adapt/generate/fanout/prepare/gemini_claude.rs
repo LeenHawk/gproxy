@@ -1,6 +1,8 @@
 use super::*;
+
 #[derive(Debug)]
 pub struct GeminiViaClaudeFanout(Fanout<GeminiViaClaude>);
+
 impl GeminiViaClaudeFanout {
     pub async fn prepare<S: StateStore>(
         input: g::GenerateContentRequestBody,

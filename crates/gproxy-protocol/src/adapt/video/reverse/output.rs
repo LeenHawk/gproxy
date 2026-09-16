@@ -25,6 +25,7 @@ fn project(
         )?,
     })
 }
+
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn finish<R: ResourceAccess, S: StateStore>(
     access: &R,
@@ -117,6 +118,7 @@ pub(super) async fn finish<R: ResourceAccess, S: StateStore>(
                 let published = publish(access, publish_scope, &id, bytes, &mime, expiry).await?;
                 progress.publications.push(published.reference.clone());
                 let ResourceReference::Url(url) = published.reference else {
+                    // publish() requests PublicationKind::Url, so the host returns a Url reference.
                     unreachable!()
                 };
                 sample.video = Some(g::Video::builder().uri(url).encoding(mime).build());

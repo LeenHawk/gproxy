@@ -1,4 +1,5 @@
 use super::*;
+
 impl<S: StateStore> GenerationStateAccess<'_, S> {
     pub(in crate::adapt::generate) async fn save_records<N>(
         &self,

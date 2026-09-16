@@ -1,5 +1,6 @@
 //! Native Sora JSON request mapping. Native sizes/durations are not the
 //! OpenRouter contract and do not pass through its request DTO.
+
 use super::ResolvedVideoResource;
 use crate::{
     transform::{Converted, Report, TransformError},
@@ -14,6 +15,7 @@ pub struct NativeVideoDefaults {
     pub seconds: o::NativeVideoSeconds,
     pub size: o::NativeVideoSize,
 }
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct PreparedNativeVeoRequest {
     pub body: g::PredictLongRunningRequestBody,
@@ -21,6 +23,7 @@ pub struct PreparedNativeVeoRequest {
     pub effective: NativeVideoDefaults,
     pub target_model: String,
 }
+
 pub fn native_to_gemini_request(
     input: o::NativeCreateVideoRequestBody,
     target_model: &str,
@@ -83,12 +86,14 @@ pub fn native_to_gemini_request(
         report: Report::default(),
     })
 }
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct PreparedVeoNativeRequest {
     pub body: o::NativeCreateVideoRequestBody,
     pub original: g::PredictLongRunningRequestBody,
     pub target_model: String,
 }
+
 /// One instance/sample; multi-instance or sample fanout belongs to the composed
 /// adapter. The return projection still belongs to the original Veo request.
 pub fn gemini_to_native_request(

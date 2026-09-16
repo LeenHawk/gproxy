@@ -8,6 +8,7 @@ use crate::{
     wire::{DeclaredFields, claude::files as c, gemini::files as g, openai::files as o},
 };
 use std::collections::BTreeSet;
+
 fn template(request: &WireRequest<()>, method: http::Method) -> Result<(), TransformError> {
     super::path(&request.path)?;
     if request.method != method || request.query.as_ref().is_some_and(|v| !v.is_empty()) {
@@ -18,6 +19,7 @@ fn template(request: &WireRequest<()>, method: http::Method) -> Result<(), Trans
     }
     Ok(())
 }
+
 fn get_request(
     mut request: WireRequest<()>,
     id: &str,
@@ -38,6 +40,7 @@ fn get_request(
     );
     Ok(request)
 }
+
 pub async fn openai_get<U: Upstream>(
     u: &U,
     target: &U::Target,
@@ -47,6 +50,7 @@ pub async fn openai_get<U: Upstream>(
 ) -> Result<JsonInvocation<o::FileObject>, TransformError> {
     invoke_empty(u, target, get_request(template, id, false)?, limits).await
 }
+
 pub async fn claude_get<U: Upstream>(
     u: &U,
     target: &U::Target,
@@ -56,6 +60,7 @@ pub async fn claude_get<U: Upstream>(
 ) -> Result<JsonInvocation<c::FileMetadata>, TransformError> {
     invoke_empty(u, target, get_request(template, id, false)?, limits).await
 }
+
 pub async fn gemini_get<U: Upstream>(
     u: &U,
     target: &U::Target,
@@ -65,6 +70,7 @@ pub async fn gemini_get<U: Upstream>(
 ) -> Result<JsonInvocation<g::File>, TransformError> {
     invoke_empty(u, target, get_request(template, name, true)?, limits).await
 }
+
 pub async fn delete_empty<U: Upstream>(
     u: &U,
     target: &U::Target,
@@ -98,6 +104,7 @@ pub async fn delete_empty<U: Upstream>(
     .await
     .map_err(TransformError::from)
 }
+
 struct Progress {
     calls: usize,
     files: usize,
@@ -106,6 +113,7 @@ struct Progress {
     tokens: BTreeSet<String>,
     limits: FileCrudLimits,
 }
+
 impl Progress {
     fn new(request: &WireRequest<()>, limits: FileCrudLimits) -> Result<Self, FileOperationError> {
         template(request, http::Method::GET)?;
@@ -202,6 +210,7 @@ impl Progress {
         Ok(token)
     }
 }
+
 fn page_request(request: &WireRequest<()>, pairs: Vec<(&str, String)>) -> WireRequest<()> {
     WireRequest {
         method: request.method.clone(),
@@ -217,6 +226,7 @@ fn page_request(request: &WireRequest<()>, pairs: Vec<(&str, String)>) -> WireRe
         body: (),
     }
 }
+
 pub async fn openai_list<U: Upstream>(
     u: &U,
     target: &U::Target,
@@ -281,6 +291,7 @@ pub async fn openai_list<U: Upstream>(
         cursor = Some(progress.cursor(page.last_id)?);
     }
 }
+
 pub async fn claude_list<U: Upstream>(
     u: &U,
     target: &U::Target,
@@ -358,6 +369,7 @@ pub async fn claude_list<U: Upstream>(
         );
     }
 }
+
 pub async fn gemini_list<U: Upstream>(
     u: &U,
     target: &U::Target,

@@ -5,6 +5,7 @@ use crate::{
         openai::responses::{generate as r, input as i},
     },
 };
+
 pub(super) fn to_responses(
     input: &c::GenerateContentRequestBody,
     out: &mut r::GenerateContentRequestBody,
@@ -107,6 +108,7 @@ pub(super) fn to_responses(
     }
     Ok(())
 }
+
 pub(super) fn to_claude(
     input: &r::GenerateContentRequestBody,
     out: &mut c::GenerateContentRequestBody,
@@ -216,6 +218,7 @@ pub(super) fn to_claude(
                         i::ReasoningEffort::High => cc::Effort::High,
                         i::ReasoningEffort::Xhigh => cc::Effort::Xhigh,
                         i::ReasoningEffort::Max => cc::Effort::Max,
+                        // The enclosing arm excluded None and Minimal.
                         i::ReasoningEffort::None | i::ReasoningEffort::Minimal => unreachable!(),
                     };
                     out.output_config = Some(cc::OutputConfig::builder().effort(effort).build());
@@ -273,9 +276,11 @@ pub(super) fn to_claude(
     }
     Ok(())
 }
+
 fn number(v: Option<f64>) -> Result<Option<Option<serde_json::Number>>, TransformError> {
     Ok(v.and_then(serde_json::Number::from_f64).map(Some))
 }
+
 fn float(v: &Option<Option<serde_json::Number>>) -> Result<Option<f64>, TransformError> {
     Ok(v.as_ref()
         .and_then(Option::as_ref)

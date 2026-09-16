@@ -8,6 +8,7 @@ use crate::{
         openai::{chat as o, guardian as source, memory::RawMemory, responses as r},
     },
 };
+
 #[derive(serde::Serialize)]
 struct TraceTask<'a> {
     id: &'a str,
@@ -15,6 +16,7 @@ struct TraceTask<'a> {
     items: &'a [serde_json::Value],
     task: &'static str,
 }
+
 /// Serializes only declared trace identity/path and formal arbitrary items.
 /// Paths are data, never resolved or read from the local filesystem.
 pub fn trace_payload(trace: &RawMemory, limits: CodecLimits) -> Result<String, TransformError> {
@@ -51,9 +53,11 @@ pub fn trace_payload(trace: &RawMemory, limits: CodecLimits) -> Result<String, T
     })?;
     String::from_utf8(bytes.to_vec()).map_err(|e| TransformError::shape("trace", e.to_string()))
 }
+
 fn schema() -> serde_json::Value {
     serde_json::json!({"type":"object","properties":{"trace_summary":{"type":"string"},"memory_summary":{"type":"string"}},"required":["trace_summary","memory_summary"],"additionalProperties":false})
 }
+
 #[allow(clippy::large_enum_variant)]
 pub enum MemoryDialectRequest {
     Claude(WireRequest<c::GenerateContentRequestBody>),
@@ -61,6 +65,7 @@ pub enum MemoryDialectRequest {
     OpenAiChat(WireRequest<o::GenerateContentRequestBody>),
     OpenAiResponses(WireRequest<r::GenerateContentRequestBody>),
 }
+
 fn req<T>(path: String, body: T) -> WireRequest<T> {
     WireRequest {
         method: http::Method::POST,
@@ -124,6 +129,7 @@ pub fn build_claude(
         body,
     )))
 }
+
 pub fn build_gemini(
     payload: String,
     model: String,
@@ -171,6 +177,7 @@ pub fn build_gemini(
         body,
     )))
 }
+
 pub fn build_openai_chat(
     payload: String,
     model: String,
@@ -221,6 +228,7 @@ pub fn build_openai_chat(
         body,
     )))
 }
+
 pub fn build_openai_responses(
     payload: String,
     model: String,
@@ -289,6 +297,7 @@ pub fn build_openai_responses(
         body,
     )))
 }
+
 fn encode(value: &str) -> String {
     use std::fmt::Write;
     let mut out = String::new();

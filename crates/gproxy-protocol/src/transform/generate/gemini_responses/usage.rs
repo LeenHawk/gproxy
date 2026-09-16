@@ -2,22 +2,27 @@ use crate::{
     transform::{Report, TransformError},
     wire::{gemini as g, openai::responses::response as r},
 };
+
 #[derive(Debug, Default, Clone, Copy)]
 pub struct GeminiUsageFacts {
     pub cache_write_tokens: Option<i64>,
     pub cached_tokens: Option<i64>,
 }
+
 fn nonnegative(n: i64) -> Result<i64, TransformError> {
     Ok(n)
 }
+
 fn count(v: Option<i64>, field: &str) -> Result<i64, TransformError> {
     nonnegative(v.ok_or_else(|| TransformError::missing_metadata(field))?)
 }
+
 fn add(a: i64, b: i64) -> Result<i64, TransformError> {
     nonnegative(a)?
         .checked_add(nonnegative(b)?)
         .ok_or_else(|| TransformError::invalid_result("usage", "token overflow"))
 }
+
 pub(super) fn to_responses(
     input: g::UsageMetadata,
     facts: GeminiUsageFacts,
@@ -59,6 +64,7 @@ pub(super) fn to_responses(
     )
     .build())
 }
+
 pub(super) fn to_gemini(
     input: r::ResponseUsage,
     report: &mut Report,

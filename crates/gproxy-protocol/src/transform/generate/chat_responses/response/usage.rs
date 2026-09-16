@@ -14,6 +14,7 @@ pub struct ChatUsageSupplement {
 fn count(value: i64, _field: &str) -> Result<i64, TransformError> {
     Ok(value)
 }
+
 fn fact(source: Option<i64>, extra: Option<i64>, field: &str) -> Result<i64, TransformError> {
     count(
         source
@@ -90,6 +91,7 @@ pub(crate) fn to_responses(
         rest: Default::default(),
     })
 }
+
 pub(crate) fn to_chat(source: r::ResponseUsage) -> Result<c::Usage, TransformError> {
     Ok(c::Usage {
         prompt_tokens: source.input_tokens,

@@ -1,4 +1,5 @@
 use super::*;
+
 /// Input/cache facts describe the fixed input of this invocation. They may fill
 /// omitted native details, but must not contradict the final native counters.
 pub(super) fn resolve(
@@ -100,6 +101,7 @@ pub(super) fn resolve(
     }
     Ok(output)
 }
+
 fn merge(actual: &mut Option<i64>, known: Option<i64>) -> Result<(), TransformError> {
     if let (Some(a), Some(b)) = (*actual, known)
         && a != b
@@ -111,6 +113,7 @@ fn merge(actual: &mut Option<i64>, known: Option<i64>) -> Result<(), TransformEr
     }
     Ok(())
 }
+
 fn merge_nested(
     actual: &mut Option<Option<i64>>,
     known: Option<i64>,

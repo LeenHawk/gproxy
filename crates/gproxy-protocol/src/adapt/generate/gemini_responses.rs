@@ -9,7 +9,8 @@ use crate::{
     transform::{Converted, Report, TransformError},
     wire::DeclaredFields,
 };
-/// A prepared g client request executed by the selected r endpoint.
+
+/// A prepared Gemini client request executed by the selected Responses endpoint.
 #[derive(Debug)]
 pub struct GeminiViaResponses {
     original_request: g::GenerateContentRequestBody,
@@ -20,6 +21,7 @@ pub struct GeminiViaResponses {
     report: Report,
     signed_ids: super::request_ids::SignedToolBindings,
 }
+
 impl GeminiViaResponses {
     pub fn prepare(
         input: g::GenerateContentRequestBody,
@@ -52,13 +54,11 @@ impl GeminiViaResponses {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: g::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
     ) -> Result<Self, TransformError> {
         let selected_model = state.target.model.clone();
-
         let original = input.into_declared();
         let (restored, names) = super::history::gemini(original.clone(), state).await?;
         let _ = names;
@@ -72,7 +72,6 @@ impl GeminiViaResponses {
         R: crate::capability::ResourceAccess,
     >(
         input: g::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
@@ -262,6 +261,7 @@ impl GeminiViaResponses {
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }
+
 /// Effective settings and measured facts absent from the upstream wire response.
 #[derive(Debug)]
 pub struct GeminiReturnFacts {
@@ -271,7 +271,8 @@ pub struct GeminiReturnFacts {
     pub usage: p::GeminiUsageFacts,
     pub created_at: i64,
 }
-/// A prepared r client request executed by the selected g endpoint.
+
+/// A prepared Responses client request executed by the selected Gemini endpoint.
 #[derive(Debug)]
 pub struct ResponsesViaGemini {
     original_request: r::GenerateContentRequestBody,
@@ -281,6 +282,7 @@ pub struct ResponsesViaGemini {
     identities: GenerationIdentity,
     report: Report,
 }
+
 impl ResponsesViaGemini {
     pub fn prepare(
         input: r::GenerateContentRequestBody,
@@ -315,14 +317,12 @@ impl ResponsesViaGemini {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: r::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
         context: p::GeminiReplayContext,
     ) -> Result<Self, TransformError> {
         let selected_model = state.target.model.clone();
-
         let original = input.into_declared();
         let mut lowered = original.clone();
         let mut tool_report = Report::default();
@@ -371,7 +371,6 @@ impl ResponsesViaGemini {
         R: crate::capability::ResourceAccess,
     >(
         input: r::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
@@ -379,7 +378,6 @@ impl ResponsesViaGemini {
         context: p::GeminiReplayContext,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
-
         let materialized = resources.responses(original.clone()).await?;
         let mut prepared =
             Self::prepare_with_state(materialized, endpoint, identities, state, context).await?;

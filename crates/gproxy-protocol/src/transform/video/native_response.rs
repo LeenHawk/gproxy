@@ -8,6 +8,7 @@ pub enum NativePendingStatus {
     Queued,
     InProgress,
 }
+
 /// Facts recorded by the invocation or measured from its result. Veo does not
 /// provide native Sora's required timestamps, size, duration or percentage.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -26,12 +27,14 @@ pub struct NativeVideoResponseFacts {
     /// A caller-supplied real classification when a Google error has no code.
     pub failure_code: Option<String>,
 }
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct NativeVeoResult {
     pub body: o::NativeVideo,
     /// Must be retained for the native content endpoint before exposing `id`.
     pub videos: Vec<g::Video>,
 }
+
 pub fn gemini_operation_to_native(
     input: g::VideoOperation,
     facts: &NativeVideoResponseFacts,
@@ -206,6 +209,7 @@ pub fn gemini_operation_to_native(
         report,
     })
 }
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct NativeToVeoContext {
     pub source_id: String,
@@ -214,6 +218,7 @@ pub struct NativeToVeoContext {
     /// source completed. A native ID is never reinterpreted as a media URL.
     pub video: Option<g::Video>,
 }
+
 pub fn native_to_gemini_operation(
     input: o::NativeVideo,
     context: NativeToVeoContext,

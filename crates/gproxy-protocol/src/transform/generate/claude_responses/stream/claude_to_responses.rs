@@ -20,12 +20,14 @@ use crate::{
     },
 };
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
+
 pub(super) struct Block {
     pub output_index: Option<i64>,
     pub item: Option<r::ResponseOutputItem>,
     pub closed: bool,
     pub deferred: bool,
 }
+
 pub struct ClaudeToResponsesStream {
     source: Option<ClaudeStreamCollector>,
     context: ClaudeToResponsesContext,
@@ -51,6 +53,7 @@ pub struct ClaudeToResponsesStream {
     failed: bool,
     stopped: bool,
 }
+
 impl ClaudeToResponsesStream {
     pub fn new(
         context: impl Into<ClaudeToResponsesContext>,
@@ -352,6 +355,7 @@ impl ClaudeToResponsesStream {
         })
     }
 }
+
 fn lower_refusal(response: &mut r::GenerateContentResponseBody) {
     for item in &mut response.output {
         if let r::ResponseOutputItem::Message(message) = item {

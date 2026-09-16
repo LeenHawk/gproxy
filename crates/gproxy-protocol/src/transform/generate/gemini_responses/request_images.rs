@@ -107,6 +107,7 @@ pub(crate) fn to_responses(
         .push(t::Tool::ImageGeneration(tool));
     Ok(())
 }
+
 /// Remove the hosted image declaration from the function-only mapper while
 /// preserving its selected modality/format separately in the concrete G config.
 pub(crate) fn to_gemini(

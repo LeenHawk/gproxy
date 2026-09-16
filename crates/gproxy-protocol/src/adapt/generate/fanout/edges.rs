@@ -13,6 +13,7 @@ use crate::{
     },
 };
 use serde::{Serialize, de::DeserializeOwned};
+
 pub(super) trait Edge {
     type Request: Serialize + DeclaredFields + Clone;
     type Native: Serialize + DeserializeOwned + DeclaredFields + Clone + IdentityFacts;
@@ -31,6 +32,7 @@ pub(super) trait Edge {
         facts: Self::Facts,
     ) -> Result<Converted<Self::Client>, TransformError>;
 }
+
 macro_rules! edge {
     ($a:ty,$request:ty,$native:ty,$client:ty,$facts:ty) => {
         impl Edge for $a {
@@ -78,6 +80,7 @@ edge!(
     g::GenerateContentResponseBody,
     crate::transform::generate::claude_gemini::ClaudeGeminiUsageFacts
 );
+
 impl Edge for GeminiViaResponses {
     type Request = r::GenerateContentRequestBody;
     type Native = r::GenerateContentResponseBody;

@@ -1,10 +1,10 @@
 use super::*;
+
 impl GeminiViaResponses {
     /// URI delivery is handled by actual publication after generation. Only the
     /// mapped request uses inline delivery; original_request remains unchanged.
     pub async fn prepare_with_image_resources<S: StateStore, R: ResourceAccess>(
         input: g::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &GenerationStateAccess<'_, S>,

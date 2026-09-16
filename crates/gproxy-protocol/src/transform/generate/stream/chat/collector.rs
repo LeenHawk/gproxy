@@ -10,6 +10,7 @@ use crate::{
     },
 };
 use std::collections::{BTreeMap, BTreeSet};
+
 #[derive(Debug, Clone, Copy)]
 pub struct ChatStreamLimits {
     pub max_events: usize,
@@ -17,6 +18,7 @@ pub struct ChatStreamLimits {
     pub max_choices: usize,
     pub max_tool_calls: usize,
 }
+
 impl Default for ChatStreamLimits {
     fn default() -> Self {
         Self {
@@ -27,12 +29,14 @@ impl Default for ChatStreamLimits {
         }
     }
 }
+
 #[derive(Debug, Default, Clone)]
 pub struct ChatStreamContext {
     pub created: Option<i64>,
     pub model: Option<String>,
     pub response_id: Option<String>,
 }
+
 /// Native Chat collector. The SSE decoder must call `push_done` for `[DONE]`;
 /// EOF after a finish chunk without the framing terminator remains incomplete.
 pub struct ChatStreamCollector {
@@ -52,6 +56,7 @@ pub struct ChatStreamCollector {
     tools: usize,
     report: Report,
 }
+
 impl ChatStreamCollector {
     pub fn new(flow: IdentityFlow, target: TargetIdPolicy) -> Self {
         Self::with_limits(flow, target, Default::default())
@@ -253,6 +258,7 @@ impl ChatStreamCollector {
         })
     }
 }
+
 fn identity(old: &mut Option<String>, new: String, field: &str) -> Result<(), TransformError> {
     if new.is_empty() {
         return Ok(());

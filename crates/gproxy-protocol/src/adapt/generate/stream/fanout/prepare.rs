@@ -92,6 +92,7 @@ impl ChatViaClaudeFanout {
         FanoutStream::new(children, target.options, original, state).await
     }
 }
+
 impl ChatViaResponsesFanout {
     pub async fn prepare_stream<S: StateStore>(
         input: h::GenerateContentRequestBody,
@@ -158,6 +159,7 @@ impl ChatViaResponsesFanout {
         FanoutStream::new(children, target.options, original, state).await
     }
 }
+
 impl GeminiViaClaudeFanout {
     pub async fn prepare_stream<S: StateStore>(
         input: g::GenerateContentRequestBody,
@@ -246,6 +248,7 @@ impl GeminiViaClaudeFanout {
         FanoutStream::new(children, target.options, original, state).await
     }
 }
+
 impl GeminiViaResponsesFanout {
     pub async fn prepare_stream<S: StateStore>(
         input: g::GenerateContentRequestBody,

@@ -2,9 +2,11 @@ use crate::{
     transform::{Report, TransformError},
     wire::{claude::content as c, openai::responses::input as r},
 };
+
 fn text(value: String) -> c::ContentBlock {
     c::ContentBlock::Text(c::TextBlock::builder(c::TextBlockType::Tag, value).build())
 }
+
 pub(crate) fn to_claude(
     input: Option<r::Input>,
     mut context: super::ClaudeRequestContext,

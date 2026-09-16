@@ -1,5 +1,6 @@
 use super::*;
 use crate::wire::{DeclaredFields, openai::responses as r};
+
 impl<R: ResourceAccess> GenerationResources<'_, R> {
     pub async fn responses(
         &self,
@@ -43,6 +44,7 @@ impl<R: ResourceAccess> GenerationResources<'_, R> {
         Ok(input)
     }
 }
+
 impl<R: ResourceAccess> Budget<'_, '_, R> {
     async fn input_part(&mut self, part: &mut r::InputContent) -> Result<(), TransformError> {
         match part {

@@ -2,6 +2,7 @@ use crate::{
     transform::{Report, TransformError},
     wire::openai::{chat as c, responses::input as r},
 };
+
 fn text(value: c::TextContent) -> String {
     match value {
         c::TextContent::Text(value) => value,
@@ -12,6 +13,7 @@ fn text(value: c::TextContent) -> String {
             .join(""),
     }
 }
+
 pub(super) fn id(value: String) -> Result<String, TransformError> {
     if value.is_empty() {
         Err(TransformError::shape("call_id", "empty tool identity"))
@@ -19,9 +21,11 @@ pub(super) fn id(value: String) -> Result<String, TransformError> {
         Ok(value)
     }
 }
+
 pub(super) fn easy(role: r::MessageRole, text: String) -> r::InputItem {
     r::InputItem::Easy(r::EasyInputMessage::builder(r::MessageContent::Text(text), role).build())
 }
+
 pub(super) fn to_responses(
     messages: Vec<c::ChatMessage>,
     prior_calls: &std::collections::BTreeMap<String, super::ToolCallKind>,
@@ -277,6 +281,7 @@ pub(super) fn to_responses(
     }
     Ok(items)
 }
+
 fn output_text(text: String) -> r::OutputContent {
     r::OutputContent::Text(
         r::ResponseOutputText::builder(
@@ -288,6 +293,7 @@ fn output_text(text: String) -> r::OutputContent {
         .build(),
     )
 }
+
 fn output_refusal(text: String) -> r::OutputContent {
     r::OutputContent::Refusal(
         r::ResponseOutputRefusal::builder(

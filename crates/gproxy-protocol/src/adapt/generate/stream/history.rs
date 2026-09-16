@@ -1,4 +1,5 @@
 //! Scoped Responses continuation snapshots contain only declared native history.
+
 use super::super::GenerationStateAccess;
 use crate::{
     capability::{CasResult, StateStore, StateWrite, Version},
@@ -6,6 +7,7 @@ use crate::{
     wire::{DeclaredFields, openai::responses as r},
 };
 use serde::{Deserialize, Serialize};
+
 #[derive(Clone, Serialize, Deserialize)]
 struct Snapshot {
     schema: u16,
@@ -13,6 +15,7 @@ struct Snapshot {
     input: Vec<r::input::InputItem>,
     output: Vec<r::response::ResponseOutputItem>,
 }
+
 pub(super) struct History {
     input: Vec<r::input::InputItem>,
     enabled: bool,
@@ -27,6 +30,7 @@ pub(super) struct History {
 /// cached content. No cache entries are written to StateStore for store=false.
 #[derive(Clone)]
 pub struct ResponsesHistoryCache(std::sync::Arc<std::sync::Mutex<Cache>>);
+
 struct Cache {
     preparation: Option<(super::reservation::Reservation, std::time::SystemTime)>,
     max_entries: usize,
@@ -34,6 +38,7 @@ struct Cache {
     bytes: usize,
     entries: std::collections::VecDeque<(Snapshot, std::time::SystemTime, usize)>,
 }
+
 impl ResponsesHistoryCache {
     pub fn new(max_entries: usize, max_bytes: usize) -> Self {
         Self(std::sync::Arc::new(std::sync::Mutex::new(Cache {
@@ -153,6 +158,7 @@ impl ResponsesHistoryCache {
         Ok(())
     }
 }
+
 fn key<S: StateStore>(state: &GenerationStateAccess<'_, S>, id: &str) -> String {
     format!(
         "responses-history:{}:{}:{}:{}",
@@ -162,6 +168,7 @@ fn key<S: StateStore>(state: &GenerationStateAccess<'_, S>, id: &str) -> String 
         id
     )
 }
+
 fn items(input: Option<r::input::Input>) -> Vec<r::input::InputItem> {
     use r::input::*;
     match input {
@@ -172,6 +179,7 @@ fn items(input: Option<r::input::Input>) -> Vec<r::input::InputItem> {
         )],
     }
 }
+
 fn output_item(
     item: r::response::ResponseOutputItem,
 ) -> Result<r::input::InputItem, TransformError> {
@@ -202,6 +210,7 @@ fn output_item(
         }
     })
 }
+
 impl History {
     pub async fn bind<S: StateStore>(
         &self,

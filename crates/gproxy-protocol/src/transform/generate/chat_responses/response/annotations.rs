@@ -29,6 +29,7 @@ pub(crate) fn to_responses(
         })
         .collect()
 }
+
 pub(crate) fn to_chat(
     input: Vec<r::OutputAnnotation>,
     offset: i64,
@@ -72,10 +73,12 @@ pub(crate) fn to_chat(
     }
     Ok(result)
 }
+
 fn number(value: f64) -> Result<serde_json::Number, TransformError> {
     serde_json::Number::from_f64(value)
         .ok_or_else(|| TransformError::invalid_result("logprobs", "non-finite log probability"))
 }
+
 pub(crate) fn logs_to_responses(
     input: Option<Vec<c::TokenLogprob>>,
     report: &mut Report,
@@ -117,11 +120,13 @@ pub(crate) fn logs_to_responses(
         })
         .collect()
 }
+
 fn float(value: serde_json::Number) -> Result<f64, TransformError> {
     value.as_f64().filter(|n| n.is_finite()).ok_or_else(|| {
         TransformError::invalid_result("logprobs", "log probability exceeds target numeric range")
     })
 }
+
 pub(crate) fn logs_to_chat(
     input: Vec<r::OutputLogprob>,
 ) -> Result<Vec<c::TokenLogprob>, TransformError> {

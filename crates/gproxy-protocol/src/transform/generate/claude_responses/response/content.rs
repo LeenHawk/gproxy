@@ -34,6 +34,7 @@ pub(super) fn id(
     .map(|h| h.emitted_id)
     .map_err(|e| TransformError::shape("identity", e.to_string()))
 }
+
 pub(super) fn to_responses(
     content: Vec<c::ResponseContentBlock>,
     incomplete: bool,
@@ -232,10 +233,12 @@ pub(super) struct ClaudeContent {
     pub tools: bool,
     pub refusal: bool,
 }
+
 pub(super) struct Restoration<'a> {
     pub model: &'a str,
     pub context: Option<&'a mut super::super::request::ClaudeRequestContext>,
 }
+
 pub(super) fn to_claude(
     output: Vec<r::ResponseOutputItem>,
     completed: bool,

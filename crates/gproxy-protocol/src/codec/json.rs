@@ -7,6 +7,7 @@ use std::io::{self, Write};
 fn error(kind: CodecErrorKind, stage: CodecErrorStage, message: &'static str) -> CodecError {
     CodecError::new(kind, stage, message)
 }
+
 fn json_error(source: serde_json::Error, stage: CodecErrorStage) -> CodecError {
     CodecError::with_source(
         if source.is_eof() {
@@ -19,6 +20,7 @@ fn json_error(source: serde_json::Error, stage: CodecErrorStage) -> CodecError {
         source,
     )
 }
+
 fn size(n: u64, max: u64) -> Result<(), CodecError> {
     if n > max {
         Err(error(
@@ -30,6 +32,7 @@ fn size(n: u64, max: u64) -> Result<(), CodecError> {
         Ok(())
     }
 }
+
 fn whitespace(b: u8) -> bool {
     matches!(b, b' ' | b'\t' | b'\r' | b'\n')
 }
@@ -39,6 +42,7 @@ pub struct JsonDecoder {
     limits: CodecLimits,
     failed: bool,
 }
+
 impl JsonDecoder {
     pub fn new(limits: CodecLimits) -> Self {
         Self {
@@ -80,6 +84,7 @@ impl JsonDecoder {
         serde_json::from_slice(&self.buffer).map_err(|e| json_error(e, CodecErrorStage::Finish))
     }
 }
+
 pub fn decode_json<T: DeserializeOwned>(
     bytes: &[u8],
     limits: CodecLimits,
@@ -88,11 +93,13 @@ pub fn decode_json<T: DeserializeOwned>(
     d.push(bytes)?;
     d.finish()
 }
+
 struct LimitedWriter {
     bytes: Vec<u8>,
     max: u64,
     exceeded: bool,
 }
+
 impl Write for LimitedWriter {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
         if (self.bytes.len() as u64).saturating_add(bytes.len() as u64) > self.max {
@@ -106,6 +113,7 @@ impl Write for LimitedWriter {
         Ok(())
     }
 }
+
 pub fn encode_json<T: Serialize>(value: &T, limits: CodecLimits) -> Result<Bytes, CodecError> {
     let mut writer = LimitedWriter {
         bytes: Vec::new(),
@@ -133,6 +141,7 @@ enum Phase {
     Finished,
     Failed,
 }
+
 /// Parses array elements only once a delimiter establishes the token boundary.
 /// The retained buffer is one value, independent of transport chunk size.
 pub struct JsonArrayDecoder {
@@ -144,6 +153,7 @@ pub struct JsonArrayDecoder {
     escape: bool,
     seen: u64,
 }
+
 impl JsonArrayDecoder {
     pub fn new(limits: CodecLimits) -> Self {
         Self {
@@ -322,6 +332,7 @@ pub struct JsonArrayEncoder {
     failed: bool,
     seen: u64,
 }
+
 impl JsonArrayEncoder {
     pub fn new(limits: CodecLimits) -> Self {
         Self {
@@ -386,6 +397,7 @@ pub struct NdjsonDecoder {
     finished: bool,
     failed: bool,
 }
+
 impl NdjsonDecoder {
     pub fn new(limits: CodecLimits) -> Self {
         Self {
@@ -455,11 +467,13 @@ impl NdjsonDecoder {
         Ok(values)
     }
 }
+
 pub struct NdjsonEncoder {
     limits: CodecLimits,
     seen: u64,
     failed: bool,
 }
+
 impl NdjsonEncoder {
     pub fn new(limits: CodecLimits) -> Self {
         Self {

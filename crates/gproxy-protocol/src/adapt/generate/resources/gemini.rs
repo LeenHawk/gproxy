@@ -1,5 +1,6 @@
 use super::*;
 use crate::wire::{DeclaredFields, gemini as g};
+
 impl<R: ResourceAccess> GenerationResources<'_, R> {
     pub async fn gemini(
         &self,

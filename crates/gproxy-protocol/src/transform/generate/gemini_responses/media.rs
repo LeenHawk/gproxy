@@ -3,6 +3,7 @@ use crate::{
     wire::{gemini as g, openai::responses::input as r},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
+
 pub(super) fn inline(value: g::Blob) -> Result<r::InputContent, TransformError> {
     STANDARD
         .decode(&value.data)
@@ -29,6 +30,7 @@ pub(super) fn inline(value: g::Blob) -> Result<r::InputContent, TransformError> 
         ))
     }
 }
+
 pub(super) fn file(value: g::FileData) -> Result<r::InputContent, TransformError> {
     if !value.file_uri.starts_with("https://") && !value.file_uri.starts_with("http://") {
         return Err(TransformError::missing_metadata(
@@ -55,6 +57,7 @@ pub(super) fn file(value: g::FileData) -> Result<r::InputContent, TransformError
         ))
     }
 }
+
 pub(super) fn to_gemini(value: r::InputContent) -> Result<g::Part, TransformError> {
     match value {
         r::InputContent::Text(value) => Ok(g::Part::builder().text(value.text).build()),
@@ -89,6 +92,7 @@ pub(super) fn to_gemini(value: r::InputContent) -> Result<g::Part, TransformErro
         }
     }
 }
+
 fn blob(value: &str) -> Result<g::Blob, TransformError> {
     let (mime, bytes) = value
         .strip_prefix("data:")
@@ -134,6 +138,7 @@ pub(super) fn output(input: g::FunctionResponse) -> Result<r::FunctionOutput, Tr
     }
     Ok(r::FunctionOutput::Content(content))
 }
+
 pub(super) fn output_to_gemini(
     output: r::FunctionOutput,
     name: String,

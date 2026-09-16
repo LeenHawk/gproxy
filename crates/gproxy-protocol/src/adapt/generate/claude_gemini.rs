@@ -8,7 +8,8 @@ use crate::{
     transform::{Converted, Report, TransformError},
     wire::DeclaredFields,
 };
-/// A prepared c client request executed by the selected g endpoint.
+
+/// A prepared Claude client request executed by the selected Gemini endpoint.
 #[derive(Debug)]
 pub struct ClaudeViaGemini {
     original_request: c::GenerateContentRequestBody,
@@ -18,6 +19,7 @@ pub struct ClaudeViaGemini {
     identities: GenerationIdentity,
     report: Report,
 }
+
 impl ClaudeViaGemini {
     pub fn prepare(
         input: c::GenerateContentRequestBody,
@@ -56,14 +58,12 @@ impl ClaudeViaGemini {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: c::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
         context: p::ClaudeGeminiRequestContext,
     ) -> Result<Self, TransformError> {
         let selected_model = state.target.model.clone();
-
         let original = input.into_declared();
         let (restored, names) = super::history::claude(original.clone(), state).await?;
         let mut context = context;
@@ -85,7 +85,6 @@ impl ClaudeViaGemini {
         R: crate::capability::ResourceAccess,
     >(
         input: c::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
@@ -93,7 +92,6 @@ impl ClaudeViaGemini {
         context: p::ClaudeGeminiRequestContext,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
-
         let materialized = resources.claude(original.clone()).await?;
         let mut prepared =
             Self::prepare_with_state(materialized, endpoint, identities, state, context).await?;
@@ -209,7 +207,8 @@ impl ClaudeViaGemini {
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }
-/// A prepared g client request executed by the selected c endpoint.
+
+/// A prepared Gemini client request executed by the selected Claude endpoint.
 #[derive(Debug)]
 pub struct GeminiViaClaude {
     original_request: g::GenerateContentRequestBody,
@@ -219,6 +218,7 @@ pub struct GeminiViaClaude {
     identities: GenerationIdentity,
     report: Report,
 }
+
 impl GeminiViaClaude {
     pub fn prepare(
         input: g::GenerateContentRequestBody,
@@ -252,14 +252,12 @@ impl GeminiViaClaude {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: g::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
         max_tokens: Option<i64>,
     ) -> Result<Self, TransformError> {
         let selected_model = state.target.model.clone();
-
         let original = input.into_declared();
         let (restored, names) = super::history::gemini(original.clone(), state).await?;
         let _ = names;
@@ -274,7 +272,6 @@ impl GeminiViaClaude {
         R: crate::capability::ResourceAccess,
     >(
         input: g::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
@@ -282,7 +279,6 @@ impl GeminiViaClaude {
         max_tokens: Option<i64>,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
-
         let materialized = resources.gemini(original.clone()).await?;
         let mut prepared =
             Self::prepare_with_state(materialized, endpoint, identities, state, max_tokens).await?;

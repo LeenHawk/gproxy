@@ -9,6 +9,7 @@ use crate::{
     transform::{TransformError, generate::gemini_chat::stream as p},
     wire::{DeclaredFields, gemini as g, openai::chat as h},
 };
+
 pub struct ChatViaGeminiStreamFacts {
     pub function_names: std::collections::BTreeMap<String, String>,
     pub response: p::GeminiToChatContext,
@@ -92,6 +93,7 @@ impl ChatViaGemini {
         Ok(invocation)
     }
 }
+
 impl GeminiViaChat {
     pub async fn prepare_stream<S: StateStore>(
         input: g::GenerateContentRequestBody,

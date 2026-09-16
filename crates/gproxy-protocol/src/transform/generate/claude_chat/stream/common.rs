@@ -1,4 +1,5 @@
 use super::*;
+
 #[derive(Debug, Clone, Copy)]
 pub struct StreamLimits {
     pub max_events: usize,
@@ -6,6 +7,7 @@ pub struct StreamLimits {
     pub max_blocks: usize,
     pub max_tools: usize,
 }
+
 impl Default for StreamLimits {
     fn default() -> Self {
         Self {
@@ -16,11 +18,13 @@ impl Default for StreamLimits {
         }
     }
 }
+
 pub struct StreamEnd<T> {
     pub chunks: Vec<T>,
     pub identities: IdentityFlow,
     pub report: Report,
 }
+
 pub(super) struct Budget {
     limits: StreamLimits,
     input_events: usize,
@@ -28,6 +32,7 @@ pub(super) struct Budget {
     output_events: usize,
     output_bytes: usize,
 }
+
 impl Budget {
     pub fn new(limits: StreamLimits) -> Self {
         Self {
@@ -60,6 +65,7 @@ impl Budget {
         Ok(())
     }
 }
+
 pub(super) fn bounded<T: serde::Serialize>(value: &T, cap: usize) -> Result<usize, TransformError> {
     let n = cap as u64;
     crate::codec::encode_json(
@@ -82,6 +88,7 @@ pub(super) fn bounded<T: serde::Serialize>(value: &T, cap: usize) -> Result<usiz
         }
     })
 }
+
 pub(super) fn id(
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
@@ -101,11 +108,13 @@ pub(super) fn id(
             )
         })
 }
+
 pub(super) fn claude_policy() -> TargetIdPolicy {
     TargetIdPolicy::new(crate::Dialect::Claude)
         .with_generated_prefix(IdentityRole::Response, KnownIdPrefix::Message)
         .with_generated_prefix(IdentityRole::ToolCall, KnownIdPrefix::Tool)
 }
+
 pub(super) fn chat_finish(reason: c::StopReason) -> Result<o::FinishReason, TransformError> {
     Ok(match reason {
         c::StopReason::EndTurn | c::StopReason::StopSequence => o::FinishReason::Stop,
@@ -117,6 +126,7 @@ pub(super) fn chat_finish(reason: c::StopReason) -> Result<o::FinishReason, Tran
         c::StopReason::PauseTurn | c::StopReason::Compaction => o::FinishReason::Stop,
     })
 }
+
 pub(super) fn claude_finish(reason: o::FinishReason, refusal: bool) -> c::StopReason {
     match reason {
         o::FinishReason::Stop if refusal => c::StopReason::Refusal,

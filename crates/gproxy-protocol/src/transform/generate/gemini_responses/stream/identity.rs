@@ -8,10 +8,12 @@ use crate::{
     wire::{gemini as g, openai::responses::input as r},
 };
 use std::collections::{BTreeMap, BTreeSet};
+
 /// Exact associations for fixed IDs in validated native signed replay. They are
 /// available before yielding the corresponding Gemini part to the host.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct SignedToolBindings(BTreeMap<String, String>);
+
 impl SignedToolBindings {
     pub fn source_call_id(&self, emitted_id: &str) -> Option<&str> {
         self.0.get(emitted_id).map(String::as_str)
@@ -20,6 +22,7 @@ impl SignedToolBindings {
         self.0.iter().map(|(a, b)| (a.as_str(), b.as_str()))
     }
 }
+
 pub(super) fn response_id(
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
@@ -34,6 +37,7 @@ pub(super) fn response_id(
     .map(|h| h.emitted_id)
     .map_err(|e| invalid(e.to_string()))
 }
+
 pub(super) fn call(
     part: &mut g::Part,
     original: &r::FunctionCall,
@@ -95,6 +99,7 @@ pub(super) fn call(
     *flow = trial;
     Ok(())
 }
+
 pub(super) fn normalize_text(body: &mut g::GenerateContentResponseBody) {
     for candidate in body.candidates.iter_mut().flatten() {
         if let Some(parts) = candidate.content.as_mut().and_then(|c| c.parts.as_mut()) {
@@ -118,6 +123,7 @@ pub(super) fn normalize_text(body: &mut g::GenerateContentResponseBody) {
         }
     }
 }
+
 fn plain(p: &g::Part) -> bool {
     p.text.is_some()
         && p.thought_signature.is_none()

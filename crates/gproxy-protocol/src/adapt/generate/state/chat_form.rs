@@ -1,4 +1,5 @@
 use super::*;
+
 /// Actual native Chat wire form. Missing source IDs never imply legacy calls.
 /// A Modern observation can still lack its native ID; that fact is retained,
 /// but cannot authorize a guessed tool-result ID. LegacyFunction uses its
@@ -8,6 +9,7 @@ pub enum ChatCallForm {
     Modern,
     LegacyFunction,
 }
+
 impl StoredIdentity {}
 pub(super) fn missing_form(message: &'static str) -> TransformError {
     TransformError::new(
@@ -16,6 +18,7 @@ pub(super) fn missing_form(message: &'static str) -> TransformError {
         message,
     )
 }
+
 impl GenerationToolReplay {
     pub(crate) fn original_chat_calls(&self) -> BTreeMap<String, (String, String)> {
         self.chat_forms

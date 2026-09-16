@@ -12,6 +12,7 @@ use crate::{
     },
     wire::{DeclaredFields, claude::generate_content as c, openai::responses as r},
 };
+
 pub struct ResponsesViaClaudeStreamFacts {
     pub request: pair::ClaudeRequestContext,
     pub response: p::ClaudeToResponsesContext,
@@ -87,6 +88,7 @@ impl ClaudeViaResponses {
         .await
     }
 }
+
 impl ResponsesViaClaude {
     pub async fn prepare_stream<S: StateStore>(
         input: r::GenerateContentRequestBody,

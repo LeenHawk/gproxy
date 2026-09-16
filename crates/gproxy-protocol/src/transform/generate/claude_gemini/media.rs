@@ -4,12 +4,14 @@ use crate::{
 };
 use base64::{Engine, engine::general_purpose::STANDARD};
 use std::collections::BTreeMap;
+
 /// MIME and public resource URI resolved by an invocation. The key is the exact
 /// source URL/file ID; opaque native IDs cannot simply become target URLs.
 #[derive(Debug, Default)]
 pub struct MediaFacts {
     pub resources: BTreeMap<String, g::FileData>,
 }
+
 pub(super) fn image(
     block: c::ImageBlock,
     facts: &MediaFacts,
@@ -24,6 +26,7 @@ pub(super) fn image(
         c::ImageSource::File(source) => resource(&source.file_id, facts, false),
     }
 }
+
 fn resource(key: &str, facts: &MediaFacts, is_url: bool) -> Result<g::Part, TransformError> {
     if let Some(value) = facts.resources.get(key) {
         if value.mime_type.as_deref().is_none_or(str::is_empty)
@@ -57,6 +60,7 @@ fn resource(key: &str, facts: &MediaFacts, is_url: bool) -> Result<g::Part, Tran
         "media[{key}] resolved URI and MIME"
     )))
 }
+
 fn blob(data: String, mime: String) -> Result<g::Part, TransformError> {
     STANDARD
         .decode(&data)
@@ -68,6 +72,7 @@ fn blob(data: String, mime: String) -> Result<g::Part, TransformError> {
         .inline_data(g::Blob::builder(mime, data).build())
         .build())
 }
+
 fn mime(value: c::ImageMediaType) -> &'static str {
     match value {
         c::ImageMediaType::Jpeg => "image/jpeg",
@@ -76,6 +81,7 @@ fn mime(value: c::ImageMediaType) -> &'static str {
         c::ImageMediaType::Webp => "image/webp",
     }
 }
+
 fn image_mime(value: &str) -> Option<c::ImageMediaType> {
     match value {
         "image/jpeg" => Some(c::ImageMediaType::Jpeg),
@@ -85,6 +91,7 @@ fn image_mime(value: &str) -> Option<c::ImageMediaType> {
         _ => None,
     }
 }
+
 pub(super) fn document(
     block: c::DocumentBlock,
     facts: &MediaFacts,
@@ -121,6 +128,7 @@ pub(super) fn document(
         },
     })
 }
+
 pub(super) fn inline(source: g::Blob) -> Result<c::ContentBlock, TransformError> {
     let bytes = STANDARD
         .decode(&source.data)
@@ -157,6 +165,7 @@ pub(super) fn inline(source: g::Blob) -> Result<c::ContentBlock, TransformError>
         c::DocumentBlock::builder(c::DocumentBlockType::Tag, source).build(),
     ))
 }
+
 pub(super) fn file(source: g::FileData) -> Result<c::ContentBlock, TransformError> {
     if !source.file_uri.starts_with("https://") && !source.file_uri.starts_with("http://") {
         return Err(TransformError::missing_metadata(

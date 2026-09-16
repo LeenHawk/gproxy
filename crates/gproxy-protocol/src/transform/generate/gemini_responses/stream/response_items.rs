@@ -7,11 +7,13 @@ use crate::{
     wire::openai::responses::{input as i, response as r, stream as s},
 };
 use std::collections::BTreeMap;
+
 pub(super) struct Part {
     pub pending: String,
     pub emitted: bool,
     pub done: bool,
 }
+
 pub(super) enum Kind {
     Excluded,
     Image {
@@ -36,12 +38,14 @@ pub(super) enum Kind {
         emitted: bool,
     },
 }
+
 pub(super) struct Item {
     pub id: Option<String>,
     pub kind: Kind,
     pub done: bool,
     pub held: usize,
 }
+
 impl ResponsesToGeminiStream {
     pub(super) fn count_part(&mut self) -> Result<(), TransformError> {
         if self.parts >= self.limits.max_parts {

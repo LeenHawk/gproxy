@@ -18,6 +18,7 @@ pub struct ClaudeStreamLimits {
     pub max_json_bytes: usize,
     pub max_blocks: usize,
 }
+
 impl Default for ClaudeStreamLimits {
     fn default() -> Self {
         Self {
@@ -28,6 +29,7 @@ impl Default for ClaudeStreamLimits {
         }
     }
 }
+
 /// Native Claude lifecycle collector. Every failed push poisons the stream;
 /// EOF never substitutes for message_stop or an unclosed content block.
 pub struct ClaudeStreamCollector {
@@ -43,6 +45,7 @@ pub struct ClaudeStreamCollector {
     call_ids: HashSet<String>,
     json_buffers: HashMap<usize, String>,
 }
+
 impl ClaudeStreamCollector {
     pub fn new(limits: ClaudeStreamLimits) -> Self {
         Self {
@@ -267,6 +270,7 @@ impl ClaudeStreamCollector {
         })
     }
 }
+
 pub(super) fn bounded<T: serde::Serialize>(
     value: &T,
     remaining: usize,
@@ -291,9 +295,11 @@ pub(super) fn bounded<T: serde::Serialize>(
         }
     })
 }
+
 pub(super) fn invalid(field: &str, message: impl Into<String>) -> TransformError {
     TransformError::invalid_result(field, message)
 }
+
 fn limit(field: &str) -> TransformError {
     TransformError::new(
         TransformErrorKind::Limit,
@@ -301,6 +307,7 @@ fn limit(field: &str) -> TransformError {
         "Claude stream limit exceeded",
     )
 }
+
 fn add(total: &mut usize, n: usize, max: usize, field: &str) -> Result<(), TransformError> {
     *total = total
         .checked_add(n)
@@ -308,6 +315,7 @@ fn add(total: &mut usize, n: usize, max: usize, field: &str) -> Result<(), Trans
         .ok_or_else(|| limit(field))?;
     Ok(())
 }
+
 fn index(n: i64) -> Result<usize, TransformError> {
     usize::try_from(n).map_err(|_| invalid("block.index", "negative or unrepresentable index"))
 }

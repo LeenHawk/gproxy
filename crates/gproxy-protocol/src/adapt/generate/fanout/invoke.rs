@@ -10,6 +10,7 @@ use crate::{
     transform::{Converted, Report, identity::IdentityStateRecord},
 };
 use std::collections::BTreeSet;
+
 impl<A: Edge> Fanout<A> {
     fn journal<S: StateStore>(
         &self,

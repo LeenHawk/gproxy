@@ -1,4 +1,5 @@
 use super::*;
+
 impl ResponsesViaGemini {
     /// Materialize actual native fileData images, convert a separate view, then
     /// persist original identities and signed image proofs before returning.

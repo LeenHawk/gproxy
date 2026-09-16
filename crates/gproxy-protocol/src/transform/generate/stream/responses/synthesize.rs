@@ -6,6 +6,7 @@ use crate::{
     },
     wire::DeclaredFields,
 };
+
 /// Synthesize a complete native lifecycle. Caller-owned identity flow supplies
 /// missing output item IDs independently of tool call IDs.
 pub fn synthesize_responses_stream(

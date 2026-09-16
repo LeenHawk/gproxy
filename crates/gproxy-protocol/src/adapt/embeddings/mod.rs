@@ -5,15 +5,16 @@ mod openai_gemini;
 mod openai_packing;
 mod packing;
 mod single;
-pub use gemini_openai::gemini_batch_to_openai;
-pub use openai_gemini::openai_to_gemini_batch;
-pub use single::{gemini_single_to_openai, openai_to_gemini_single};
 
 use crate::{
     HttpBody, WireResponse,
     codec::CodecLimits,
     transform::{Converted, TransformError, embeddings::OpenAiUsageFacts},
 };
+
+pub use gemini_openai::gemini_batch_to_openai;
+pub use openai_gemini::openai_to_gemini_batch;
+pub use single::{gemini_single_to_openai, openai_to_gemini_single};
 
 #[derive(Debug, Clone)]
 pub struct EmbeddingBatchOptions {
@@ -64,6 +65,7 @@ impl std::fmt::Display for EmbeddingBatchError {
         }
     }
 }
+
 impl std::error::Error for EmbeddingBatchError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.failure {
@@ -72,6 +74,7 @@ impl std::error::Error for EmbeddingBatchError {
         }
     }
 }
+
 impl From<TransformError> for EmbeddingBatchError {
     fn from(error: TransformError) -> Self {
         Self {

@@ -1,6 +1,7 @@
 //! Responses client-executed tools carried by target-native function calls.
 //! The original declared request is the reverse binding; no private wire fields
 //! or execution in the proxy are used.
+
 mod history;
 mod output;
 use crate::{
@@ -11,7 +12,9 @@ use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) const SHELL: &str = "gproxy_client_shell";
+
 pub(crate) const PATCH: &str = "gproxy_client_apply_patch";
+
 pub(crate) const SEARCH: &str = "gproxy_client_tool_search";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -21,6 +24,7 @@ pub(crate) enum Kind {
     Patch,
     Search,
 }
+
 #[derive(Default, Clone, Debug)]
 pub(crate) struct Bindings {
     pub entries: BTreeMap<String, Kind>,
@@ -39,9 +43,11 @@ pub(crate) fn qualified(namespace: &str, name: &str) -> String {
     }
     format!("gproxy_namespace_{hash:016x}")
 }
+
 fn unsupported(detail: &str) -> TransformError {
     TransformError::unsupported("client_tools", detail)
 }
+
 fn direct(callers: &Option<Option<Vec<r::AllowedCaller>>>) -> Result<(), TransformError> {
     if callers.as_ref().and_then(Option::as_ref).is_some_and(|v| {
         v.iter()
@@ -53,6 +59,7 @@ fn direct(callers: &Option<Option<Vec<r::AllowedCaller>>>) -> Result<(), Transfo
     }
     Ok(())
 }
+
 fn function(name: &str, description: &str, schema: Value) -> Result<r::Tool, TransformError> {
     let parameters = schema
         .as_object()
@@ -62,6 +69,7 @@ fn function(name: &str, description: &str, schema: Value) -> Result<r::Tool, Tra
     out.description = Some(Some(description.into()));
     Ok(r::Tool::Function(out))
 }
+
 impl Bindings {
     fn bind(&mut self, alias: String, kind: Kind) -> Result<(), TransformError> {
         if self.entries.get(&alias).is_some_and(|old| old != &kind) {

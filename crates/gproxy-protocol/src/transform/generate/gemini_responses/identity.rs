@@ -8,6 +8,7 @@ use crate::{
     },
     wire::{DeclaredFields, gemini as g, openai::responses::input as r},
 };
+
 pub(crate) fn id(
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
@@ -25,24 +26,27 @@ pub(crate) fn id(
     .map(|v| v.emitted_id)
     .map_err(|e| TransformError::shape("identity", e.to_string()))
 }
+
 pub struct RestoredGeminiPart {
     pub state: IdentityStateRecord,
     pub part: g::Part,
 }
+
 pub struct RestoredGeminiImage {
     pub state: IdentityStateRecord,
     pub part: g::Part,
     pub materialized: g::Blob,
 }
+
 #[derive(Default)]
 pub struct GeminiReplayContext {
     pub target: Option<IdentityTarget>,
     pub parts: std::collections::BTreeMap<String, RestoredGeminiPart>,
     pub image_files: std::collections::BTreeMap<String, RestoredGeminiImage>,
 }
+
 pub(crate) fn reasoning(
     value: r::ReasoningItem,
-
     context: &mut GeminiReplayContext,
 ) -> Result<g::Part, TransformError> {
     let native = context
@@ -75,7 +79,6 @@ pub(crate) fn reasoning(
 
 pub(crate) fn function(
     call: r::FunctionCall,
-
     context: &mut GeminiReplayContext,
 ) -> Result<g::Part, TransformError> {
     if call.namespace.is_some()

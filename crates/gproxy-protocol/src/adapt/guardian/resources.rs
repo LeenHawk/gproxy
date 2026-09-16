@@ -1,6 +1,7 @@
 //! Scoped, bounded media reads for targets which require inline attachments.
 //! All policy, execution dependencies, target controls and known media shapes
 //! are validated before a read. Native URL-capable targets retain their URLs.
+
 use crate::{
     capability::{ResourceAccess, ResourceReference},
     codec::{self, CodecLimits},
@@ -20,6 +21,7 @@ pub struct GuardianResourceLimits {
     pub max_resource_bytes: u64,
     pub max_total_resource_bytes: u64,
 }
+
 fn limit(field: &str) -> TransformError {
     TransformError::new(
         TransformErrorKind::Limit,
@@ -27,6 +29,7 @@ fn limit(field: &str) -> TransformError {
         "Guardian media exceeds configured cap",
     )
 }
+
 /// Prepare one request using the caller's authorized resource scope. No model
 /// invocation or publication occurs here; cancellation cannot trigger a retry.
 /// Source evidence retains its original references for subsequent SSE binding.

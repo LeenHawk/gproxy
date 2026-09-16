@@ -1,5 +1,6 @@
 //! Native signed pieces are stored as their original declared DTOs, separately
 //! from the small identity record. They are never translated into foreign opaque fields.
+
 use super::GenerationStateAccess;
 use crate::{
     Dialect,
@@ -16,6 +17,7 @@ use crate::{
     },
     wire::{DeclaredFields, claude::content::ThinkingBlock, gemini as g, openai::responses as r},
 };
+
 impl<S: StateStore> GenerationStateAccess<'_, S> {
     fn signature(
         &self,
@@ -245,6 +247,7 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         Ok(context)
     }
 }
+
 impl<S: StateStore> GenerationStateAccess<'_, S> {
     pub(super) async fn restore_gemini_tool_parts(
         &self,

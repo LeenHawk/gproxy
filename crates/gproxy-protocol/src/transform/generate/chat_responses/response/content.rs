@@ -31,6 +31,7 @@ pub(super) fn identity(
             )
         })
 }
+
 pub(super) fn to_responses(
     message: c::ResponseMessage,
     logs: Option<c::Logprobs>,
@@ -225,6 +226,7 @@ pub(super) struct ChatOutput {
     pub logprobs: Option<c::Logprobs>,
     pub has_tools: bool,
 }
+
 pub(super) fn to_chat(
     output: Vec<r::ResponseOutputItem>,
     completed: bool,

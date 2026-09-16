@@ -15,6 +15,7 @@ pub enum ToolCallKind {
     Function,
     Custom,
 }
+
 pub fn chat_to_responses_request(
     input: chat::GenerateContentRequestBody,
     target_model: impl Into<String>,

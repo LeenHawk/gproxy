@@ -1,6 +1,8 @@
 use super::*;
+
 #[derive(Debug)]
 pub struct GeminiViaResponsesFanout(Fanout<GeminiViaResponses>);
+
 impl GeminiViaResponsesFanout {
     pub async fn prepare<S: StateStore>(
         input: g::GenerateContentRequestBody,

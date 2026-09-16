@@ -1,5 +1,6 @@
 //! The buffered Claude/Chat pure pair preserves IDs. Apply the selected target
 //! policy here and retain its exact call/result association in the invocation flow.
+
 use super::GenerationIdentity;
 use crate::{
     Dialect,
@@ -13,6 +14,7 @@ use crate::{
     },
 };
 use std::collections::BTreeMap;
+
 pub(super) fn allocate(
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
@@ -29,6 +31,7 @@ pub(super) fn allocate(
     .map(|h| h.emitted_id)
     .map_err(|e| TransformError::shape("identity", e.to_string()))
 }
+
 pub(super) fn result_id(
     id: &mut String,
     aliases: &BTreeMap<String, String>,
@@ -43,6 +46,7 @@ pub(super) fn result_id(
     }
     Ok(())
 }
+
 pub(super) fn chat_request(
     value: &mut h::GenerateContentRequestBody,
     identities: &mut GenerationIdentity,
@@ -75,6 +79,7 @@ pub(super) fn chat_request(
     identities.request = flow;
     Ok(())
 }
+
 pub(super) fn claude_request(
     value: &mut c::GenerateContentRequestBody,
     identities: &mut GenerationIdentity,
@@ -115,6 +120,7 @@ pub(super) fn claude_request(
     identities.request = flow;
     Ok(())
 }
+
 pub(super) fn chat_response(
     value: &mut h::GenerateContentResponseBody,
     identities: &mut GenerationIdentity,
@@ -151,6 +157,7 @@ pub(super) fn chat_response(
     identities.response = flow;
     Ok(())
 }
+
 pub(super) fn claude_response(
     value: &mut c::GenerateContentResponseBody,
     identities: &mut GenerationIdentity,

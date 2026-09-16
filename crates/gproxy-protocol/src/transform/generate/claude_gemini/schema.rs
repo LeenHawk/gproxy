@@ -177,6 +177,7 @@ pub(super) fn from_json(input: &Rest) -> Result<ct::JsonSchema, TransformError> 
     }
     Ok(output)
 }
+
 fn decode<T: serde::de::DeserializeOwned>(value: &Value, key: &str) -> Result<T, TransformError> {
     serde_json::from_value(value.clone()).map_err(|error| {
         TransformError::shape(format!("tools.parameters.{key}"), error.to_string())

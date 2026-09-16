@@ -4,6 +4,7 @@ use super::{
     *,
 };
 use crate::transform::generate::stream::chat::{ChatStreamCollector, ChatStreamLimits};
+
 /// Text is emitted immediately. Function arguments remain bounded strings until
 /// their choice finishes because Gemini requires one complete JSON object.
 pub struct ChatToGeminiStream {
@@ -20,6 +21,7 @@ pub struct ChatToGeminiStream {
     model: Option<String>,
     report: Report,
 }
+
 impl ChatToGeminiStream {
     pub fn new(flow: IdentityFlow, limits: StreamLimits) -> Self {
         Self::new_with_policy(flow, limits, TargetIdPolicy::new(crate::Dialect::Gemini))
@@ -119,40 +121,38 @@ impl ChatToGeminiStream {
                 state.refusal.get_or_insert_default().push_str(&refusal);
             }
             for call in d.tool_calls.flatten().into_iter().flatten() {
-                if let std::collections::btree_map::Entry::Vacant(entry) =
-                    state.tools.entry(call.index)
-                {
-                    if self.next_tool >= self.limits.max_tools as u64 {
-                        return Err(limit());
+                let tool = match state.tools.entry(call.index) {
+                    std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+                    std::collections::btree_map::Entry::Vacant(entry) => {
+                        if self.next_tool >= self.limits.max_tools as u64 {
+                            return Err(limit());
+                        }
+                        let ordinal = self.next_tool;
+                        self.next_tool += 1;
+                        entry.insert(ChatTool {
+                            ordinal,
+                            ..Default::default()
+                        })
                     }
-                    entry.insert(ChatTool {
-                        ordinal: self.next_tool,
-                        ..Default::default()
-                    });
-                    self.next_tool += 1;
-                }
-                state
-                    .tools
-                    .get_mut(&call.index)
-                    .unwrap()
-                    .append(call.id.flatten(), call.function.flatten())?;
+                };
+                tool.append(call.id.flatten(), call.function.flatten())?;
             }
             if let Some(function) = d.function_call.flatten() {
-                if state.legacy.is_none() {
-                    if self.next_tool >= self.limits.max_tools as u64 {
-                        return Err(limit());
+                let legacy = match &mut state.legacy {
+                    Some(tool) => tool,
+                    slot => {
+                        if self.next_tool >= self.limits.max_tools as u64 {
+                            return Err(limit());
+                        }
+                        let ordinal = self.next_tool;
+                        self.next_tool += 1;
+                        slot.insert(ChatTool {
+                            ordinal,
+                            ..Default::default()
+                        })
                     }
-                    state.legacy = Some(ChatTool {
-                        ordinal: self.next_tool,
-                        ..Default::default()
-                    });
-                    self.next_tool += 1;
-                }
-                state
-                    .legacy
-                    .as_mut()
-                    .unwrap()
-                    .append(None, Some(function))?;
+                };
+                legacy.append(None, Some(function))?;
             }
             if choice.finish_reason.flatten().is_some() {
                 let mut parts = Vec::new();
@@ -285,6 +285,7 @@ impl ChatToGeminiStream {
         })
     }
 }
+
 fn candidate(index: i64, parts: Vec<g::Part>) -> g::GenerateContentResponseBody {
     g::GenerateContentResponseBody::builder()
         .candidates(vec![

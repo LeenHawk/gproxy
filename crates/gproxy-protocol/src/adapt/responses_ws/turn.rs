@@ -27,12 +27,14 @@ pub struct ResponsesWsTurn<'a> {
     lane: Option<String>,
     failed: bool,
 }
+
 impl Unpin for ResponsesWsTurn<'_> {}
 enum SendState {
     Ready(WsFrame),
     Flush,
     Done,
 }
+
 impl<'a> ResponsesWsTurn<'a> {
     pub(super) fn new(
         session: &'a mut ResponsesWsSession,
@@ -240,6 +242,7 @@ impl<'a> ResponsesWsTurn<'a> {
         Ok(event)
     }
 }
+
 impl Stream for ResponsesWsTurn<'_> {
     type Item = Result<StreamEvent, TransformError>;
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -312,6 +315,7 @@ impl Stream for ResponsesWsTurn<'_> {
         }
     }
 }
+
 impl Drop for ResponsesWsTurn<'_> {
     fn drop(&mut self) {
         if !self.terminal {
@@ -320,6 +324,7 @@ impl Drop for ResponsesWsTurn<'_> {
         }
     }
 }
+
 fn poll_send(
     socket: &mut WebSocket,
     state: &mut SendState,
@@ -334,6 +339,7 @@ fn poll_send(
                     // Move this exact pending frame once. Readiness/flush Pending
                     // never recreates response.create or replaces a queued Pong.
                     let SendState::Ready(frame) = std::mem::replace(state, SendState::Flush) else {
+                        // The enclosing arm already matched SendState::Ready.
                         unreachable!()
                     };
                     if let Err(e) = socket.outgoing.as_mut().start_send(frame) {

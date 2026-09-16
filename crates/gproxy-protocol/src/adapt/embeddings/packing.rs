@@ -95,6 +95,7 @@ fn encoded(
         .map(|_| ())
         .map_err(encoding)
 }
+
 pub(super) fn encoding(error: codec::CodecError) -> TransformError {
     let kind = if error.kind() == CodecErrorKind::Limit {
         TransformErrorKind::Limit

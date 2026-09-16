@@ -8,11 +8,13 @@ use crate::{
     wire::{DeclaredFields, gemini::files as g},
 };
 use serde::de::DeserializeOwned;
+
 #[derive(Debug)]
 pub enum UploadFailure {
     Transform(TransformError),
     Rejected(Box<WireResponse<HttpBody>>),
 }
+
 /// A request may have reached upstream even if its transport future failed.
 /// `attempted_calls` is not permission to retry a side effect.
 #[derive(Debug)]
@@ -20,6 +22,7 @@ pub struct UploadError {
     pub attempted_calls: usize,
     pub failure: UploadFailure,
 }
+
 impl From<TransformError> for UploadError {
     fn from(error: TransformError) -> Self {
         Self {
@@ -28,12 +31,14 @@ impl From<TransformError> for UploadError {
         }
     }
 }
+
 fn after(error: TransformError) -> UploadError {
     UploadError {
         attempted_calls: 1,
         failure: UploadFailure::Transform(error),
     }
 }
+
 fn codec_error(error: codec::CodecError, response: bool) -> TransformError {
     let kind = match error.kind() {
         CodecErrorKind::Limit => TransformErrorKind::Limit,
@@ -52,12 +57,14 @@ fn codec_error(error: codec::CodecError, response: bool) -> TransformError {
     };
     TransformError::with_source(kind, "file.upload", error.to_string(), error)
 }
+
 fn bounded(mut limits: CodecLimits, bytes: u64) -> CodecLimits {
     limits.max_body_bytes = limits.max_body_bytes.min(bytes);
     limits.max_value_bytes = limits.max_value_bytes.min(bytes);
     limits.max_buffer_bytes = limits.max_buffer_bytes.min(bytes);
     limits
 }
+
 fn clean(headers: &mut http::HeaderMap) {
     for key in [
         http::header::CONTENT_LENGTH,
@@ -67,6 +74,7 @@ fn clean(headers: &mut http::HeaderMap) {
         headers.remove(key);
     }
 }
+
 async fn decode<O: DeserializeOwned + DeclaredFields>(
     response: WireResponse<HttpBody>,
     limits: CodecLimits,
@@ -94,6 +102,7 @@ async fn decode<O: DeserializeOwned + DeclaredFields>(
         body: body.into_declared(),
     }))
 }
+
 pub async fn upload_multipart_json<U: Upstream, O: DeserializeOwned + DeclaredFields>(
     upstream: &U,
     target: &U::Target,
@@ -139,6 +148,7 @@ pub async fn upload_multipart_json<U: Upstream, O: DeserializeOwned + DeclaredFi
         .await
         .map_err(after)
 }
+
 #[derive(Debug, Clone)]
 pub struct GeminiUploadSession {
     upload_path: String,
@@ -148,6 +158,7 @@ pub struct GeminiUploadSession {
     size: u64,
     closed: bool,
 }
+
 impl GeminiUploadSession {
     pub fn offset(&self) -> u64 {
         self.offset
@@ -162,6 +173,7 @@ impl GeminiUploadSession {
         self.closed
     }
 }
+
 fn origin(value: &str) -> Result<String, TransformError> {
     let uri: http::Uri = value.parse().map_err(|e: http::uri::InvalidUri| {
         TransformError::shape("upload.origin", e.to_string())
@@ -182,6 +194,7 @@ fn origin(value: &str) -> Result<String, TransformError> {
         uri.authority().unwrap().as_str().to_ascii_lowercase()
     ))
 }
+
 #[allow(clippy::too_many_arguments)] // Explicit host target, metadata and origin facts.
 pub async fn gemini_start_resumable<U: Upstream>(
     upstream: &U,
@@ -266,11 +279,13 @@ pub async fn gemini_start_resumable<U: Upstream>(
         closed: false,
     })
 }
+
 #[derive(Debug)]
 pub enum GeminiUploadProgress {
     Accepted(http::StatusCode),
     Finalized(Box<WireResponse<g::UploadFileResponseBody>>),
 }
+
 #[allow(clippy::too_many_arguments)] // Chunk data and target-origin validation remain explicit.
 pub async fn gemini_upload_chunk<U: Upstream>(
     upstream: &U,

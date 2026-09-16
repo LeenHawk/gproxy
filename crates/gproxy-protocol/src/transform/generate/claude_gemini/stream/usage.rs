@@ -7,14 +7,17 @@ use crate::{
         gemini as g,
     },
 };
+
 fn count(n: i64) -> Result<i64, TransformError> {
     Ok(n)
 }
+
 fn add(a: i64, b: i64) -> Result<i64, TransformError> {
     count(a)?
         .checked_add(count(b)?)
         .ok_or_else(|| invalid("usage", "token count overflow"))
 }
+
 fn agree(a: Option<i64>, b: Option<i64>, _field: &str) -> Result<Option<i64>, TransformError> {
     a.or(b).map(count).transpose()
 }
@@ -34,6 +37,7 @@ fn written(usage: &c::Usage) -> Result<Option<i64>, TransformError> {
         "usage.cache_creation",
     )
 }
+
 pub(super) fn prepare_initial(usage: &mut c::Usage, facts: Facts) -> Result<(), TransformError> {
     count(usage.input_tokens)?;
     count(usage.output_tokens)?;
@@ -56,12 +60,14 @@ pub(super) fn prepare_initial(usage: &mut c::Usage, facts: Facts) -> Result<(), 
 
     Ok(())
 }
+
 #[derive(Default)]
 pub(super) struct ClaudeUsageProgress {
     last_output: i64,
     highest_thinking: Option<i64>,
     thinking_at_output: Option<i64>,
 }
+
 impl ClaudeUsageProgress {
     pub fn start(&mut self, usage: &c::Usage) -> Result<(), TransformError> {
         self.observe(
@@ -107,11 +113,13 @@ impl ClaudeUsageProgress {
         Ok(())
     }
 }
+
 pub(super) struct GeminiUsageProgress {
     usage: g::UsageMetadata,
     candidate_total: Option<i64>,
     thinking_total: Option<i64>,
 }
+
 impl Default for GeminiUsageProgress {
     fn default() -> Self {
         Self {
@@ -121,6 +129,7 @@ impl Default for GeminiUsageProgress {
         }
     }
 }
+
 impl GeminiUsageProgress {
     pub fn observe(&mut self, new: &g::UsageMetadata) {
         macro_rules! field {
@@ -185,6 +194,7 @@ impl GeminiUsageProgress {
         &self.usage
     }
 }
+
 /// Resolve fixed input/cache facts before calculating the Claude uncached input.
 /// Thinking facts are final observations, never filled from an initial zero.
 pub(super) fn gemini_usage(

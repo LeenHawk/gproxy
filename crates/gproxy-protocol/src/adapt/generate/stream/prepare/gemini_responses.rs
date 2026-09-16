@@ -12,6 +12,7 @@ use crate::{
     },
     wire::{DeclaredFields, gemini as g, openai::responses as r},
 };
+
 pub struct ResponsesViaGeminiStreamFacts {
     pub request: pair::GeminiReplayContext,
     pub response: p::GeminiToResponsesContext,
@@ -113,6 +114,7 @@ impl GeminiViaResponses {
         Ok(invocation)
     }
 }
+
 impl ResponsesViaGemini {
     pub async fn prepare_stream<S: StateStore>(
         input: r::GenerateContentRequestBody,

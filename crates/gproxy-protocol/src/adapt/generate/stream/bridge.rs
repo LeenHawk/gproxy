@@ -1,4 +1,5 @@
 //! Sealed pair bindings over concrete native wire types; no shared content model.
+
 use super::super::{GenerationProgress, GenerationStateAccess};
 use super::event::{Collected, NativeEvent};
 use crate::{
@@ -23,15 +24,18 @@ use crate::{
     },
 };
 use serde::Serialize;
+
 pub(crate) mod sealed {
     pub trait Bridge {}
 }
+
 pub struct BridgeEnd<E> {
     pub chunks: Vec<E>,
     pub identities: IdentityFlow,
     pub report: Report,
     pub signed_tool_bindings: gr::SignedToolBindings,
 }
+
 pub trait StreamBridge: sealed::Bridge + Sized {
     type NativeEvent: NativeEvent;
     type ClientEvent: NativeEvent;
@@ -61,6 +65,7 @@ pub trait StreamBridge: sealed::Bridge + Sized {
         progress: &mut GenerationProgress<Collected<<Self::NativeEvent as NativeEvent>::Full>>,
     ) -> impl std::future::Future<Output = Result<(), TransformError>>;
 }
+
 macro_rules! bridge {
     ($ty:ty, $native:ty, $client:ty, $native_request:ty, $client_request:ty $(, done $done:ident)? $(, signed $signed:ident)?) => {
         impl sealed::Bridge for $ty {}

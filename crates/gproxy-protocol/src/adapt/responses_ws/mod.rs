@@ -15,6 +15,7 @@
 //! collector's policy: four orphaned audio/transcript shapes are Unsupported
 //! because the canonical response DTO has no audio item. There is no implicit
 //! audio consumer, transcript substitution, or fabricated terminal response.
+
 mod connect;
 mod turn;
 use crate::{
@@ -46,6 +47,7 @@ pub struct ResponsesWsLimits {
     pub allow_binary: bool,
     pub collector: ResponsesStreamLimits,
 }
+
 impl Default for ResponsesWsLimits {
     fn default() -> Self {
         Self {
@@ -60,6 +62,7 @@ impl Default for ResponsesWsLimits {
         }
     }
 }
+
 #[derive(Debug, Clone, Copy)]
 pub(super) struct Bounds {
     send_frame: usize,
@@ -73,6 +76,7 @@ pub(super) struct Bounds {
     allow_binary: bool,
     collector: ResponsesStreamLimits,
 }
+
 #[derive(Debug)]
 pub struct ResponsesWsSession {
     socket: Option<WebSocket>,
@@ -86,6 +90,7 @@ pub struct ResponsesWsSession {
     last_status: Option<ResponseStatus>,
     last_report: Report,
 }
+
 impl ResponsesWsSession {
     pub(super) fn connected(socket: WebSocket, bounds: Bounds) -> Self {
         Self {
@@ -167,12 +172,15 @@ impl ResponsesWsSession {
         self.socket.take();
     }
 }
+
 fn limit(field: &'static str, detail: &'static str) -> TransformError {
     TransformError::new(TransformErrorKind::Limit, field, detail)
 }
+
 fn invalid(detail: &'static str) -> TransformError {
     TransformError::invalid_result("responses.websocket", detail)
 }
+
 fn codec_limits(max: usize) -> crate::codec::CodecLimits {
     crate::codec::CodecLimits {
         max_buffer_bytes: max as u64,
@@ -183,6 +191,7 @@ fn codec_limits(max: usize) -> crate::codec::CodecLimits {
         max_parts: 1,
     }
 }
+
 fn codec_error(error: crate::codec::CodecError, request: bool) -> TransformError {
     let kind = if error.kind() == crate::codec::CodecErrorKind::Limit {
         TransformErrorKind::Limit
@@ -202,6 +211,7 @@ fn codec_error(error: crate::codec::CodecError, request: bool) -> TransformError
         error,
     )
 }
+
 fn host_error(error: crate::connection::TransportError) -> TransformError {
     TransformError::with_source(
         TransformErrorKind::Host,

@@ -13,6 +13,7 @@ use std::{
     task::{Context, Poll, Waker},
     time::{Duration, UNIX_EPOCH},
 };
+
 #[derive(Default)]
 struct Store {
     entries: Mutex<BTreeMap<String, StateEntry>>,
@@ -20,6 +21,7 @@ struct Store {
     applied_pending: AtomicBool,
     absent_pending: AtomicBool,
 }
+
 impl StateStore for Store {
     type Scope = ();
     fn get<'a>(
@@ -73,6 +75,7 @@ impl StateStore for Store {
         }
     }
 }
+
 fn state(store: &Store) -> GenerationStateAccess<'_, Store> {
     GenerationStateAccess {
         store,
@@ -87,6 +90,7 @@ fn state(store: &Store) -> GenerationStateAccess<'_, Store> {
         max_records: 16,
     }
 }
+
 fn ready<F: Future>(future: F) -> F::Output {
     match Box::pin(future)
         .as_mut()
@@ -96,9 +100,11 @@ fn ready<F: Future>(future: F) -> F::Output {
         Poll::Pending => panic!("unexpected pending"),
     }
 }
+
 fn flow() -> IdentityFlow {
     IdentityFlow::new(IdNamespace::with_bytes([91; 16]))
 }
+
 fn response(flow: &mut IdentityFlow) -> crate::transform::identity::IdentityHandle {
     flow.resolve_or_allocate(
         IdentityRole::Response,
@@ -107,6 +113,7 @@ fn response(flow: &mut IdentityFlow) -> crate::transform::identity::IdentityHand
     )
     .unwrap()
 }
+
 #[test]
 fn late_identity_and_complete_tool_name_are_recoverable_without_changing_alias() {
     let host = Store::default();
@@ -159,6 +166,7 @@ fn late_identity_and_complete_tool_name_are_recoverable_without_changing_alias()
     ready(ledger.save(&flow, &access, None)).unwrap();
     assert_eq!(writes, host.serial.load(Ordering::SeqCst));
 }
+
 #[test]
 fn applied_but_unacknowledged_cas_is_read_back_without_a_second_write() {
     let host = Store::default();
@@ -179,6 +187,7 @@ fn applied_but_unacknowledged_cas_is_read_back_without_a_second_write() {
     ready(ledger.save(&flow, &access, None)).unwrap();
     assert_eq!(host.serial.load(Ordering::SeqCst), 1);
 }
+
 #[test]
 fn absent_unacknowledged_cas_is_not_retried_and_expired_or_changed_state_blocks_yield() {
     let host = Store::default();
@@ -264,6 +273,7 @@ fn chat_responses_pair() -> (
     }
     (native, target.finish().unwrap().value, end.identities)
 }
+
 #[test]
 fn completed_item_state_keeps_the_provisional_source_call_role() {
     use crate::{
@@ -300,6 +310,7 @@ fn completed_item_state_keeps_the_provisional_source_call_role() {
     assert!(after.original_item_id.is_none());
     assert_eq!(after.response_id.as_deref(), Some("actual-response"));
 }
+
 #[test]
 fn final_form_state_recovers_unacknowledged_cas_by_readback_without_repeating_it() {
     use crate::adapt::generate::{ChatCallForm, GenerationProgress};

@@ -174,6 +174,7 @@ pub(super) fn legacy_choice(choice: &chat::FunctionCallChoice) -> cc::ToolChoice
         }
     }
 }
+
 pub(super) fn legacy_tools(
     functions: &[chat::LegacyFunction],
 ) -> Result<Vec<ct::ToolUnion>, TransformError> {

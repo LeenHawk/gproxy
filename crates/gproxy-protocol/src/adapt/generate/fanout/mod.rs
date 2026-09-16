@@ -1,6 +1,7 @@
 //! Bounded, journaled multi-candidate generation over concrete single-result edges.
 //! Every child POST is reserved durably. A started child without an actual result
 //! requires reconciliation and is never automatically replayed.
+
 mod edges;
 mod invoke;
 mod journal;
@@ -28,6 +29,7 @@ pub struct FanoutOptions {
     pub max_children: usize,
     pub response_policy: TargetIdPolicy,
 }
+
 /// Caller-owned evidence survives cancellation and failed post-send state writes.
 /// `resume` additionally reads the durable journal; no started POST is replayed.
 #[derive(Debug)]
@@ -37,6 +39,7 @@ pub struct FanoutProgress<N> {
     children: Vec<GenerationProgress<N>>,
     group: GenerationProgress<()>,
 }
+
 impl<N> Default for FanoutProgress<N> {
     fn default() -> Self {
         Self {
@@ -47,6 +50,7 @@ impl<N> Default for FanoutProgress<N> {
         }
     }
 }
+
 impl<N> FanoutProgress<N> {
     pub fn children(&self) -> &[GenerationProgress<N>] {
         &self.children
@@ -55,6 +59,7 @@ impl<N> FanoutProgress<N> {
         self.journal.as_ref().map(|j| j.binding.id.as_str())
     }
 }
+
 #[derive(Debug)]
 struct Fanout<A> {
     children: Vec<A>,
@@ -63,9 +68,11 @@ struct Fanout<A> {
     original: Vec<u8>,
     options: FanoutOptions,
 }
+
 fn conflict(message: impl Into<String>) -> TransformError {
     TransformError::new(TransformErrorKind::Conflict, "generation.fanout", message)
 }
+
 fn limit() -> TransformError {
     TransformError::new(
         TransformErrorKind::Limit,
@@ -73,6 +80,7 @@ fn limit() -> TransformError {
         "fanout budget exceeded",
     )
 }
+
 fn codec_error(e: crate::codec::CodecError) -> TransformError {
     TransformError::new(
         if e.kind() == crate::codec::CodecErrorKind::Limit {
@@ -84,6 +92,7 @@ fn codec_error(e: crate::codec::CodecError) -> TransformError {
         e.to_string(),
     )
 }
+
 pub(super) fn group_id(options: &FanoutOptions) -> Result<String, TransformError> {
     IdentityFlow::new(options.namespace)
         .resolve_or_allocate(
@@ -94,6 +103,7 @@ pub(super) fn group_id(options: &FanoutOptions) -> Result<String, TransformError
         .map(|v| v.emitted_id)
         .map_err(|e| conflict(e.to_string()))
 }
+
 impl FanoutOptions {
     pub(in crate::adapt::generate) fn child_identity(
         &self,
@@ -117,6 +127,7 @@ impl FanoutOptions {
         }
     }
 }
+
 fn encode<T: serde::Serialize>(v: &T, limits: CodecLimits) -> Result<Vec<u8>, TransformError> {
     crate::codec::encode_json(v, limits)
         .map(|b| b.to_vec())

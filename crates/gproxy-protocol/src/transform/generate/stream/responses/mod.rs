@@ -1,4 +1,5 @@
 //! Bounded native Responses SSE lifecycle, collection and synthesis.
+
 mod collector;
 mod emit;
 mod events;
@@ -12,9 +13,11 @@ use crate::transform::TransformError;
 use crate::wire::openai::responses::{input as i, response as r, stream as s};
 pub use collector::{ResponsesStreamCollector, ResponsesStreamLimits};
 pub use synthesize::synthesize_responses_stream;
+
 fn invalid(message: &'static str) -> TransformError {
     TransformError::invalid_result("responses.stream", message)
 }
+
 fn limit() -> TransformError {
     TransformError::new(
         crate::transform::TransformErrorKind::Limit,
@@ -22,6 +25,7 @@ fn limit() -> TransformError {
         "Responses stream limit exceeded",
     )
 }
+
 fn bounded<T: serde::Serialize>(value: &T, cap: usize) -> Result<usize, TransformError> {
     crate::codec::encode_json(
         value,

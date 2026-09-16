@@ -6,12 +6,14 @@ use crate::{
     wire::openai::chat::{content as c, response as r, stream as s},
 };
 use std::collections::BTreeMap;
+
 #[derive(Default)]
 struct FunctionAccum {
     name: String,
     args: String,
     id: Option<String>,
 }
+
 impl FunctionAccum {
     fn push(&mut self, function: s::DeltaFunctionCall) {
         if let Some(Some(v)) = function.name {
@@ -28,6 +30,7 @@ impl FunctionAccum {
         Ok(c::FunctionCall::builder(self.args, self.name).build())
     }
 }
+
 #[derive(Default)]
 pub(super) struct ChoiceAccum {
     role: Option<s::DeltaRole>,
@@ -38,6 +41,7 @@ pub(super) struct ChoiceAccum {
     finish: Option<r::FinishReason>,
     logs: Option<r::Logprobs>,
 }
+
 impl ChoiceAccum {
     pub(super) fn tool_count(&self) -> usize {
         self.tools.len() + usize::from(self.legacy.is_some())

@@ -1,9 +1,11 @@
 use super::*;
+
 pub(super) struct Emitter {
     pub events: Vec<s::StreamEvent>,
     collector: Option<ResponsesStreamCollector>,
     sequence: i64,
 }
+
 impl Emitter {
     pub fn new(limits: ResponsesStreamLimits) -> Self {
         Self {

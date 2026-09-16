@@ -176,10 +176,12 @@ pub fn synthesize_claude_stream(
         report: Default::default(),
     })
 }
+
 struct Sink {
     collector: ClaudeStreamCollector,
     events: Vec<s::StreamEvent>,
 }
+
 impl Sink {
     fn emit(&mut self, event: s::StreamEvent) -> Result<(), TransformError> {
         self.collector.push(event.clone())?;

@@ -17,6 +17,7 @@ pub struct Endpoint {
     pub query: Option<String>,
     pub headers: http::HeaderMap,
 }
+
 impl Endpoint {
     pub fn new(path: impl Into<String>) -> Result<Self, TransformError> {
         let value = Self {
@@ -28,6 +29,7 @@ impl Endpoint {
         Ok(value)
     }
 }
+
 /// Distinct invocation namespaces prevent request-history identities from colliding
 /// with response output positions. The host reuses these namespaces on recovery.
 #[derive(Debug, Clone)]
@@ -37,6 +39,7 @@ pub struct GenerationIdentity {
     pub request_policy: TargetIdPolicy,
     pub response_policy: TargetIdPolicy,
 }
+
 impl GenerationIdentity {
     pub fn new(
         request: IdNamespace,
@@ -58,6 +61,7 @@ impl GenerationIdentity {
         })
     }
 }
+
 /// Kept by the caller if an await is cancelled or response conversion fails.
 /// A started send is never implicitly retried. Native bytes are retained before decoding.
 #[derive(Debug)]
@@ -70,6 +74,7 @@ pub struct GenerationProgress<N> {
     pub raw_response: Option<WireResponse<bytes::Bytes>>,
     pub native_response: Option<N>,
 }
+
 impl<N> Default for GenerationProgress<N> {
     fn default() -> Self {
         Self {
@@ -83,6 +88,7 @@ impl<N> Default for GenerationProgress<N> {
         }
     }
 }
+
 #[derive(Debug)]
 pub enum GenerationOutcome<C> {
     Success {
@@ -91,6 +97,7 @@ pub enum GenerationOutcome<C> {
     },
     Rejected(WireResponse<bytes::Bytes>),
 }
+
 pub(super) async fn send<
     U: Upstream,
     I: Serialize + DeclaredFields,
@@ -165,6 +172,7 @@ pub(super) async fn send<
     progress.native_response = Some(native.into_declared());
     Ok(true)
 }
+
 pub(super) fn finish<C: Serialize, N>(
     progress: &mut GenerationProgress<N>,
     converted: Converted<C>,
@@ -200,6 +208,7 @@ pub(super) fn finish<C: Serialize, N>(
         report,
     })
 }
+
 pub(super) fn rejected<C, N>(progress: &GenerationProgress<N>) -> GenerationOutcome<C> {
     let raw = progress
         .raw_response
@@ -211,6 +220,7 @@ pub(super) fn rejected<C, N>(progress: &GenerationProgress<N>) -> GenerationOutc
         body: raw.body.clone(),
     })
 }
+
 fn json_headers(headers: &mut http::HeaderMap) {
     for name in [
         http::header::CONTENT_LENGTH,
@@ -224,12 +234,14 @@ fn json_headers(headers: &mut http::HeaderMap) {
         http::HeaderValue::from_static("application/json"),
     );
 }
+
 fn bound(mut limits: CodecLimits, bytes: u64) -> CodecLimits {
     limits.max_body_bytes = limits.max_body_bytes.min(bytes);
     limits.max_buffer_bytes = limits.max_buffer_bytes.min(bytes);
     limits.max_value_bytes = limits.max_value_bytes.min(bytes);
     limits
 }
+
 fn codec_error(error: codec::CodecError) -> TransformError {
     let kind = match error.kind() {
         codec::CodecErrorKind::Limit => TransformErrorKind::Limit,
@@ -253,6 +265,7 @@ pub(super) struct InvocationBinding {
     conversation: String,
     expiry: std::time::SystemTime,
 }
+
 pub(super) fn bind<
     S: crate::capability::StateStore,
     C: Serialize + DeclaredFields + Clone,

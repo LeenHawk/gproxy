@@ -9,6 +9,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::collections::BTreeSet;
 mod chat;
 mod gemini;
+
 pub(in crate::adapt::generate) trait Client:
     Serialize + DeserializeOwned + Clone + DeclaredFields + IdentityFacts
 {
@@ -22,6 +23,7 @@ pub(in crate::adapt::generate) trait Client:
         report: &mut Report,
     ) -> Result<Self, TransformError>;
 }
+
 impl Client for h::GenerateContentResponseBody {
     fn set_calls(&mut self, ids: Vec<Option<String>>) {
         for (call, id) in self
@@ -44,6 +46,7 @@ impl Client for h::GenerateContentResponseBody {
         chat::aggregate(values, id, report)
     }
 }
+
 impl Client for g::GenerateContentResponseBody {
     fn signed_calls(&self) -> Vec<bool> {
         self.candidates
@@ -76,9 +79,11 @@ impl Client for g::GenerateContentResponseBody {
         gemini::aggregate(values, id, report)
     }
 }
+
 /// Each child's tools keep their actual native association. The aggregate has
 /// its own response identity and journal linking all actual native responses.
 pub(super) struct ToolsOnly<'a, C>(pub &'a C);
+
 impl<C: IdentityFacts> IdentityFacts for ToolsOnly<'_, C> {
     fn dialect(&self) -> Dialect {
         self.0.dialect()
@@ -93,6 +98,7 @@ impl<C: IdentityFacts> IdentityFacts for ToolsOnly<'_, C> {
         self.0.tools()
     }
 }
+
 pub(super) fn reserved<C: Client>(values: &[C]) -> Result<BTreeSet<String>, TransformError> {
     let mut ids = BTreeSet::new();
     for value in values {
@@ -109,6 +115,7 @@ pub(super) fn reserved<C: Client>(values: &[C]) -> Result<BTreeSet<String>, Tran
     }
     Ok(ids)
 }
+
 pub(super) fn normalize<N: IdentityFacts, C: Client>(
     native: &N,
     client: &mut C,
@@ -214,6 +221,7 @@ fn sum(a: i64, b: i64) -> Result<i64, TransformError> {
     }
     a.checked_add(b).ok_or_else(limit)
 }
+
 fn optional(
     a: Option<i64>,
     b: Option<i64>,
@@ -232,6 +240,7 @@ fn optional(
         }
     }
 }
+
 fn common<T: PartialEq>(a: Option<T>, b: Option<T>, field: &str, report: &mut Report) -> Option<T> {
     if a == b {
         a

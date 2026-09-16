@@ -36,6 +36,7 @@ pub(super) fn request_id(value: &str) -> Result<String, TransformError> {
     }
     Ok(value.to_owned())
 }
+
 pub(super) fn response_id(value: &str) -> Result<String, TransformError> {
     if value.is_empty() {
         return Err(TransformError::invalid_result(

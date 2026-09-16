@@ -13,18 +13,23 @@ use std::{
     },
     task::{Context, Poll},
 };
+
 #[cfg(not(target_arch = "wasm32"))]
 type Driver = Arc<Mutex<Pump>>;
+
 #[cfg(target_arch = "wasm32")]
 type Driver = std::rc::Rc<std::cell::RefCell<Pump>>;
+
 #[cfg(not(target_arch = "wasm32"))]
 fn access<T>(driver: &Driver, f: impl FnOnce(&mut Pump) -> T) -> T {
     f(&mut driver.lock().unwrap())
 }
+
 #[cfg(target_arch = "wasm32")]
 fn access<T>(driver: &Driver, f: impl FnOnce(&mut Pump) -> T) -> T {
     f(&mut driver.borrow_mut())
 }
+
 fn failure(kind: CodecErrorKind, message: &'static str) -> CodecError {
     CodecError::new(kind, CodecErrorStage::Body, message)
 }
@@ -46,11 +51,14 @@ fn map_error(source: multer::Error) -> CodecError {
         source,
     )
 }
+
 struct Feed {
     queue: VecDeque<Bytes>,
     closed: bool,
 }
+
 struct FeedStream(Arc<Mutex<Feed>>);
+
 impl Stream for FeedStream {
     type Item = Result<Bytes, TransportError>;
     fn poll_next(self: std::pin::Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -75,6 +83,7 @@ enum MeterMode {
     Boundary,
     End,
 }
+
 struct Meter {
     mode: MeterMode,
     line: Vec<u8>,
@@ -84,6 +93,7 @@ struct Meter {
     header_bytes: u64,
     limits: CodecLimits,
 }
+
 impl Meter {
     fn new(boundary: &str, limits: CodecLimits) -> Self {
         Self {
@@ -181,6 +191,7 @@ impl Meter {
         Ok(())
     }
 }
+
 struct Pump {
     input: Option<ByteStream>,
     pending: Bytes,
@@ -191,6 +202,7 @@ struct Pump {
     meter: Meter,
     error: Option<CodecError>,
 }
+
 impl Pump {
     fn close(&mut self) {
         self.input = None;
@@ -286,12 +298,14 @@ impl Pump {
         Poll::Pending
     }
 }
+
 struct FieldStream {
     field: Option<multer::Field<'static>>,
     driver: Driver,
     failed: Arc<AtomicBool>,
     done: bool,
 }
+
 impl Stream for FieldStream {
     type Item = Result<Bytes, TransportError>;
     fn poll_next(
@@ -333,6 +347,7 @@ impl Stream for FieldStream {
         Poll::Pending
     }
 }
+
 /// Each part owns a real field stream. Consume/drop it before next_part;
 /// dropping an unread field lets multer discard it under the same size limits.
 /// The caller driving next_part OR the returned body drives the original input.
@@ -345,6 +360,7 @@ pub struct MultipartDecoder {
     failed: Arc<AtomicBool>,
     done: bool,
 }
+
 impl MultipartDecoder {
     pub fn new(
         body: HttpBody,
@@ -497,6 +513,7 @@ pub struct MultipartEncoder {
     wire_bytes: u64,
     count: usize,
 }
+
 impl MultipartEncoder {
     pub fn new(
         boundary: impl Into<String>,
@@ -635,6 +652,7 @@ impl MultipartEncoder {
         }
     }
 }
+
 fn encode_prefix(
     boundary: &str,
     part: &MultipartPart,

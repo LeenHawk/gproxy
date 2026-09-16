@@ -17,6 +17,7 @@ pub(super) fn limit(path: &str) -> TransformError {
         "video byte or resource bound exceeded",
     )
 }
+
 pub(super) fn bound_value<T: Serialize>(
     value: &T,
     limits: VideoLimits,
@@ -25,12 +26,14 @@ pub(super) fn bound_value<T: Serialize>(
         .map(|_| ())
         .map_err(|e| TransformError::new(TransformErrorKind::Limit, "video.value", e.to_string()))
 }
+
 fn byte_limits(limits: VideoLimits, cap: u64) -> CodecLimits {
     let mut out = limits.codec;
     out.max_body_bytes = out.max_body_bytes.min(cap);
     out.max_buffer_bytes = out.max_buffer_bytes.min(out.max_body_bytes);
     out
 }
+
 fn check_media(bytes: &[u8], mime: &str, image: bool) -> Result<(), TransformError> {
     if image {
         let actual = crate::transform::images::inspect_image(bytes)?;
@@ -48,6 +51,7 @@ fn check_media(bytes: &[u8], mime: &str, image: bool) -> Result<(), TransformErr
     }
     Ok(())
 }
+
 pub(super) async fn read<R: ResourceAccess>(
     access: &R,
     scope: &R::Scope,
@@ -93,6 +97,7 @@ pub(super) async fn read<R: ResourceAccess>(
     check_media(&bytes, &mime, image)?;
     Ok((bytes, mime))
 }
+
 pub(super) async fn resolve_resources<R: ResourceAccess>(
     access: &R,
     scope: &R::Scope,
@@ -146,6 +151,7 @@ pub(super) async fn resolve_resources<R: ResourceAccess>(
     }
     Ok(out)
 }
+
 pub(super) fn decoded(
     encoded: &str,
     mime: &str,
@@ -165,6 +171,7 @@ pub(super) fn decoded(
     check_media(&bytes, mime, image)?;
     Ok(bytes.into())
 }
+
 pub(super) async fn publish<R: ResourceAccess>(
     access: &R,
     scope: &R::Scope,
@@ -216,6 +223,7 @@ pub(super) async fn publish<R: ResourceAccess>(
     }
     Ok(out)
 }
+
 pub async fn publish_video_output<R: ResourceAccess>(
     access: &R,
     scope: &R::Scope,
@@ -239,6 +247,7 @@ pub async fn publish_video_output<R: ResourceAccess>(
     )?;
     publish(access, scope, operation_id, bytes, mime, expires_at).await
 }
+
 /// Every output URI is resolved in the selected upstream resource scope. The
 /// returned client URLs come from explicit host publication, including when an
 /// upstream URI is private or authenticated.

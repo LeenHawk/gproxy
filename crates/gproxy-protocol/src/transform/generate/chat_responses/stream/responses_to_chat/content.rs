@@ -1,4 +1,5 @@
 use super::*;
+
 impl ResponsesToChatStream {
     pub(super) fn add_item(
         &mut self,

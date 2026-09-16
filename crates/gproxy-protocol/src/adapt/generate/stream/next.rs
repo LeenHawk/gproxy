@@ -8,6 +8,7 @@ use crate::{
     codec,
     transform::{Report, TransformError},
 };
+
 impl<B: StreamBridge> StreamInvocation<B> {
     /// Collect the mapped stream into its concrete complete client wire response.
     /// The host calls `start` once first. This does not perform another POST.

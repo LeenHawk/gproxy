@@ -10,6 +10,7 @@ use crate::{
     },
 };
 use std::collections::BTreeMap;
+
 pub(super) struct Part {
     pub pending: String,
     pub refusal: bool,
@@ -17,6 +18,7 @@ pub(super) struct Part {
     pub done: bool,
     pub closed: bool,
 }
+
 pub(super) enum Kind {
     Excluded,
     Message {
@@ -40,12 +42,14 @@ pub(super) enum Kind {
         projected: bool,
     },
 }
+
 pub(super) struct Item {
     pub id: Option<String>,
     pub kind: Kind,
     pub done: bool,
     pub held: usize,
 }
+
 impl ResponsesToClaudeStream {
     pub(super) fn add_item(
         &mut self,
@@ -267,6 +271,7 @@ impl ResponsesToClaudeStream {
             let item = self.items.get_mut(&index).unwrap();
             item.held += n;
             let Kind::Message { parts } = &mut item.kind else {
+                // This branch is reached only for an item recorded as Kind::Message.
                 unreachable!()
             };
             parts.get_mut(&part_index).unwrap().pending.push_str(&value);
@@ -313,6 +318,7 @@ impl ResponsesToClaudeStream {
             let item = self.items.get_mut(&index).unwrap();
             item.held += n;
             let Kind::Function { pending, .. } = &mut item.kind else {
+                // This branch is reached only for an item recorded as Kind::Function.
                 unreachable!()
             };
             pending.push_str(&value);

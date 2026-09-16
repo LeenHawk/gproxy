@@ -8,10 +8,12 @@ use crate::{
     transform::generate::gemini_responses::stream::ResponsesToGeminiStream,
     wire::gemini as g,
 };
+
 struct Images<'a, 'r, R: ResourceAccess> {
     resources: &'a GenerationResources<'r, R>,
     progress: &'a mut [ImageStreamProgress<R::PublishedHandle>],
 }
+
 impl<R: ResourceAccess + ResourceSync, S: StateStore + ResourceSync>
     super::driver::ChildNext<ResponsesToGeminiStream, S> for Images<'_, '_, R>
 where
@@ -61,6 +63,7 @@ where
             .await
     }
 }
+
 impl FanoutStream<ResponsesToGeminiStream> {
     /// Keep one progress entry per child. Publication operation IDs and receipts
     /// survive cancellation, and resource budgets apply to the whole group.

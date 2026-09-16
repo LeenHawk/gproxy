@@ -39,6 +39,7 @@ pub(crate) fn collect(input: s::ChunkUsage, report: &mut Report) -> r::Usage {
     });
     out
 }
+
 pub(crate) fn synthesize(input: r::Usage) -> Result<s::ChunkUsage, TransformError> {
     let mut out = s::ChunkUsage::builder(
         input.completion_tokens,

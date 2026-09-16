@@ -6,12 +6,14 @@ use crate::{
         openai::responses as r,
     },
 };
+
 #[derive(Default)]
 pub(super) struct ClaudeProgress {
     output: i64,
     thinking: Option<i64>,
     thinking_at: Option<i64>,
 }
+
 impl ClaudeProgress {
     pub fn start(&mut self, v: &c::Usage) -> Result<(), TransformError> {
         self.observe(

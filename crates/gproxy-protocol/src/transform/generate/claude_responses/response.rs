@@ -134,6 +134,7 @@ pub fn responses_to_claude_response_with_context(
 ) -> Result<Converted<c::GenerateContentResponseBody>, TransformError> {
     convert_to_claude(input, Some(context), flow, policy)
 }
+
 fn convert_to_claude(
     input: r::GenerateContentResponseBody,
     mut context: Option<super::request::ClaudeRequestContext>,

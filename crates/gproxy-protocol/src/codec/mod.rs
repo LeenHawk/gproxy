@@ -11,10 +11,19 @@ mod sse;
 
 use std::{error::Error, fmt, future::Future, pin::Pin};
 
+pub use body::read_http_body;
+pub use json::{
+    JsonArrayDecoder, JsonArrayEncoder, JsonDecoder, NdjsonDecoder, NdjsonEncoder, decode_json,
+    encode_json,
+};
+pub use multipart::{MultipartDecoder, MultipartEncoder};
+pub use sse::{SseDecoder, SseEncoder, SseEvent, SseFrame, encode_sse_done, encode_sse_event};
+
 /// A boxed codec operation future. Native futures are `Send`; wasm follows the
 /// connection stream contract and does not require `Send`.
 #[cfg(not(target_arch = "wasm32"))]
 pub type CodecFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+
 #[cfg(target_arch = "wasm32")]
 pub type CodecFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
@@ -115,11 +124,3 @@ impl Error for CodecError {
             .map(|source| source as &(dyn Error + 'static))
     }
 }
-
-pub use body::read_http_body;
-pub use json::{
-    JsonArrayDecoder, JsonArrayEncoder, JsonDecoder, NdjsonDecoder, NdjsonEncoder, decode_json,
-    encode_json,
-};
-pub use multipart::{MultipartDecoder, MultipartEncoder};
-pub use sse::{SseDecoder, SseEncoder, SseEvent, SseFrame, encode_sse_done, encode_sse_event};

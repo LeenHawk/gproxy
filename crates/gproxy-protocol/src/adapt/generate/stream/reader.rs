@@ -1,4 +1,5 @@
 //! Transport framing only. Native event validation belongs to the concrete pair.
+
 use crate::{
     HttpBody,
     codec::{self, CodecError, CodecErrorKind, CodecErrorStage, CodecLimits},
@@ -16,20 +17,24 @@ pub enum SourceFraming {
     JsonArray,
     Ndjson,
 }
+
 #[derive(Debug)]
 pub enum NativeFrame<T> {
     Event { name: Option<String>, value: T },
     Done,
 }
+
 enum Decoder {
     Sse(codec::SseDecoder),
     Array(codec::JsonArrayDecoder),
     Ndjson(codec::NdjsonDecoder),
 }
+
 enum Frame {
     Sse(codec::SseFrame),
     Json(serde_json::Value),
 }
+
 /// Reads only until another framed event is available. Dropping `next` while
 /// awaiting another body chunk retains decoder state and the current chunk.
 /// A decoder/transport error poisons this reader and releases its transport;
@@ -47,6 +52,7 @@ pub struct NativeReader {
     eof: bool,
     failed: bool,
 }
+
 impl NativeReader {
     pub fn new(
         body: HttpBody,
@@ -204,6 +210,7 @@ impl NativeReader {
         }
     }
 }
+
 fn error(kind: CodecErrorKind, message: &'static str) -> CodecError {
     CodecError::new(kind, CodecErrorStage::Stream, message)
 }

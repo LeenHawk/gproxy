@@ -1,5 +1,6 @@
 use super::*;
 use crate::{capability::Upstream, transform::TransformErrorKind};
+
 impl<B: FanoutBridge> FanoutStream<B>
 where
     B::ClientEvent: FanoutEvent,

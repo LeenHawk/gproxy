@@ -4,6 +4,7 @@ use super::{
 };
 use crate::{transform::Report, wire::DeclaredFields};
 use std::collections::HashSet;
+
 #[derive(Debug, Clone, Copy)]
 pub struct ResponsesStreamLimits {
     pub max_events: usize,
@@ -12,6 +13,7 @@ pub struct ResponsesStreamLimits {
     pub max_text_bytes: usize,
     pub max_json_bytes: usize,
 }
+
 impl Default for ResponsesStreamLimits {
     fn default() -> Self {
         Self {
@@ -23,6 +25,7 @@ impl Default for ResponsesStreamLimits {
         }
     }
 }
+
 pub struct ResponsesStreamCollector {
     pub(super) limits: ResponsesStreamLimits,
     pub(super) sequence: Option<i64>,
@@ -37,6 +40,7 @@ pub struct ResponsesStreamCollector {
     pub(super) json_bytes: usize,
     pub(super) report: Report,
 }
+
 impl ResponsesStreamCollector {
     pub fn new(limits: ResponsesStreamLimits) -> Self {
         Self {

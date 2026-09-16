@@ -1,5 +1,6 @@
 //! Explicit image reads and publication with caller-owned cancellation progress.
 //! The original signed Gemini Part is retained separately from its mapped bytes.
+
 mod publish;
 mod read;
 mod state;
@@ -24,6 +25,7 @@ pub struct MaterializedImage {
     /// Expiry observed while reading the original resource, if the host knows it.
     pub resource_expiry: Option<std::time::SystemTime>,
 }
+
 /// Retains completed reads and an active resource body. Bytes are counted as
 /// each chunk arrives; cancellation resumes that same body without a new read.
 #[derive(Default)]
@@ -35,6 +37,7 @@ pub struct GeminiImageReads {
     pending: Option<PendingImageRead>,
     failed: bool,
 }
+
 impl GeminiImageReads {
     pub fn bytes_read(&self) -> u64 {
         self.bytes
@@ -46,12 +49,14 @@ impl GeminiImageReads {
         self.images.values()
     }
 }
+
 pub(super) struct Publication {
     source: g::Blob,
     operation: String,
     expiry: std::time::SystemTime,
     receipt: Option<usize>,
 }
+
 /// Receipts, including malformed host replies, remain inspectable for host
 /// compensation. An uncertain publication is queried, never automatically sent
 /// again. This object and its resource scope belong to one invocation.
@@ -61,6 +66,7 @@ pub struct GeminiImagePublications<H> {
     receipts: Vec<PublishedResource<H>>,
     failed: bool,
 }
+
 impl<H> Default for GeminiImagePublications<H> {
     fn default() -> Self {
         Self {
@@ -71,6 +77,7 @@ impl<H> Default for GeminiImagePublications<H> {
         }
     }
 }
+
 impl<H> GeminiImagePublications<H> {
     pub fn operation_ids(&self) -> impl Iterator<Item = &str> {
         self.publications
@@ -81,6 +88,7 @@ impl<H> GeminiImagePublications<H> {
         &self.receipts
     }
 }
+
 /// Generation, resource, and proof writes have independent retained progress.
 /// Re-enter through `recover_with_image_resources`, never repeat an uncertain POST.
 pub struct ImageResourceProgress<N, H> {
@@ -89,6 +97,7 @@ pub struct ImageResourceProgress<N, H> {
     pub publications: GeminiImagePublications<H>,
     pub(super) proofs: GenerationProgress<()>,
 }
+
 impl<N, H> Default for ImageResourceProgress<N, H> {
     fn default() -> Self {
         Self {
@@ -99,9 +108,11 @@ impl<N, H> Default for ImageResourceProgress<N, H> {
         }
     }
 }
+
 fn invalid(message: impl Into<String>) -> TransformError {
     TransformError::invalid_result("generation.image_resources", message)
 }
+
 fn missing(message: impl Into<String>) -> TransformError {
     TransformError::new(
         TransformErrorKind::MissingState,
@@ -109,6 +120,7 @@ fn missing(message: impl Into<String>) -> TransformError {
         message,
     )
 }
+
 fn conflict(message: impl Into<String>) -> TransformError {
     TransformError::new(
         TransformErrorKind::Conflict,
@@ -116,6 +128,7 @@ fn conflict(message: impl Into<String>) -> TransformError {
         message,
     )
 }
+
 fn limit() -> TransformError {
     TransformError::new(
         TransformErrorKind::Limit,
@@ -142,6 +155,7 @@ struct PendingImageRead {
     buffer: Vec<u8>,
     limit: u64,
 }
+
 fn codec_error(error: crate::codec::CodecError) -> TransformError {
     let kind = if error.kind() == crate::codec::CodecErrorKind::Limit {
         TransformErrorKind::Limit

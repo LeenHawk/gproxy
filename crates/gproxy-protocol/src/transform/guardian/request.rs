@@ -33,6 +33,7 @@ use openai_chat::prepare_openai_chat_plan;
 pub use openai_chat::{prepare_openai_chat, prepare_openai_chat_with_limits};
 use openai_responses::prepare_openai_responses_plan;
 pub use openai_responses::{prepare_openai_responses, prepare_openai_responses_with_limits};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GuardianOperation {
     Review,
@@ -61,6 +62,7 @@ pub struct GuardianPreparedRequest {
     request: GuardianDialectRequest,
     source: source::GuardianRequestBody,
 }
+
 impl GuardianPreparedRequest {
     pub fn source(&self) -> &source::GuardianRequestBody {
         &self.source

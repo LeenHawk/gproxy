@@ -23,6 +23,7 @@ use crate::{WebSocket, WireRequest, WireResponse, connection::HttpBody};
 /// contracts and do not require `Send`.
 #[cfg(not(target_arch = "wasm32"))]
 pub type CapabilityFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+
 #[cfg(target_arch = "wasm32")]
 pub type CapabilityFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 

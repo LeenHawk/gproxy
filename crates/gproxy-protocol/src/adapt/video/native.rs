@@ -58,6 +58,7 @@ async fn input_resources<R: ResourceAccess>(
     );
     Ok(out)
 }
+
 #[allow(clippy::too_many_arguments)]
 pub async fn native_to_gemini_create_composed<
     U: Upstream,
@@ -123,11 +124,9 @@ pub async fn native_to_gemini_create_composed<
         limits,
     )
     .await?;
-    let JsonInvocation::Success(response) = response else {
-        return Ok(match response {
-            JsonInvocation::Rejected(r) => JsonInvocation::Rejected(r),
-            _ => unreachable!(),
-        });
+    let response = match response {
+        JsonInvocation::Success(response) => response,
+        JsonInvocation::Rejected(r) => return Ok(JsonInvocation::Rejected(r)),
     };
     operation(&response.body, &state.binding)?;
     state.operation = Some(response.body.clone());
@@ -145,6 +144,7 @@ pub async fn native_to_gemini_create_composed<
     )
     .await
 }
+
 #[allow(clippy::too_many_arguments)]
 async fn finish<
     S: StateStore,
@@ -231,6 +231,7 @@ async fn finish<
         },
     }))
 }
+
 #[allow(clippy::too_many_arguments)]
 pub async fn native_to_gemini_query_composed<
     U: Upstream,
@@ -279,11 +280,9 @@ pub async fn native_to_gemini_query_composed<
         limits,
     )
     .await?;
-    let JsonInvocation::Success(response) = response else {
-        return Ok(match response {
-            JsonInvocation::Rejected(r) => JsonInvocation::Rejected(r),
-            _ => unreachable!(),
-        });
+    let response = match response {
+        JsonInvocation::Success(response) => response,
+        JsonInvocation::Rejected(r) => return Ok(JsonInvocation::Rejected(r)),
     };
     if operation(&response.body, &binding)? != name
         || old.done == Some(true)
@@ -311,6 +310,7 @@ pub async fn native_to_gemini_query_composed<
     )
     .await
 }
+
 #[allow(clippy::too_many_arguments)]
 pub async fn recover_native_result<
     S: StateStore,
@@ -358,6 +358,7 @@ pub async fn recover_native_result<
     )
     .await
 }
+
 /// Reads the actual completed video's bytes for the native `/content` route.
 /// The selected target resource scope supplies authorization for private URIs.
 pub async fn native_content<R: ResourceAccess, S: StateStore>(

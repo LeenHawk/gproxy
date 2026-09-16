@@ -5,6 +5,7 @@ use crate::{
     capability::Upstream,
     transform::{TransformError, guardian::GuardianPreparedRequest, identity::IdentityFlow},
 };
+
 /// Run one prepared review request and return the client's native Responses SSE
 /// body. Return controls are taken from the prepared client request.
 pub async fn review_sse<U: Upstream>(
@@ -21,6 +22,7 @@ pub async fn review_sse<U: Upstream>(
         .await?
         .into_stream(context, flow, stream_limits)
 }
+
 pub async fn classify_sse<U: Upstream>(
     upstream: &U,
     target: &U::Target,
@@ -35,6 +37,7 @@ pub async fn classify_sse<U: Upstream>(
         .await?
         .into_stream(context, flow, stream_limits)
 }
+
 fn source_context(
     request: &GuardianPreparedRequest,
     context: GuardianStreamContext,

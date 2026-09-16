@@ -8,6 +8,7 @@ use super::{Bytes, HeaderMap, TransportError};
 /// UTF-8 character, SSE event, or multipart boundary.
 #[cfg(not(target_arch = "wasm32"))]
 pub type ByteStream = Pin<Box<dyn Stream<Item = Result<Bytes, TransportError>> + Send + 'static>>;
+
 #[cfg(target_arch = "wasm32")]
 pub type ByteStream = Pin<Box<dyn Stream<Item = Result<Bytes, TransportError>> + 'static>>;
 
@@ -47,6 +48,7 @@ pub enum StreamFraming {
 #[cfg(not(target_arch = "wasm32"))]
 pub type PartStream =
     Pin<Box<dyn Stream<Item = Result<MultipartPart, TransportError>> + Send + 'static>>;
+
 #[cfg(target_arch = "wasm32")]
 pub type PartStream = Pin<Box<dyn Stream<Item = Result<MultipartPart, TransportError>> + 'static>>;
 

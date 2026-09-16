@@ -8,6 +8,7 @@ use crate::{
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use futures_util::StreamExt;
+
 impl GeminiImageReads {
     /// Returns a separate inline conversion view; original fileData and its
     /// signature stay in retained progress for exact scoped replay.

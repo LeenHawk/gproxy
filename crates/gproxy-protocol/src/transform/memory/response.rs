@@ -7,12 +7,14 @@ use crate::{
         openai::{chat as o, responses as r},
     },
 };
+
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Output {
     trace_summary: String,
     memory_summary: String,
 }
+
 pub fn parse_output(text: &str, limits: CodecLimits) -> Result<(String, String), TransformError> {
     let value: Output = codec::decode_json(text.as_bytes(), limits).map_err(|e| {
         TransformError::new(
@@ -27,6 +29,7 @@ pub fn parse_output(text: &str, limits: CodecLimits) -> Result<(String, String),
     })?;
     Ok((value.trace_summary, value.memory_summary))
 }
+
 fn nonempty(text: String) -> Result<String, TransformError> {
     if text.is_empty() {
         Err(TransformError::invalid_result(
@@ -37,6 +40,7 @@ fn nonempty(text: String) -> Result<String, TransformError> {
         Ok(text)
     }
 }
+
 pub fn claude_text(input: c::GenerateContentResponseBody) -> Result<String, TransformError> {
     if input.stop_reason != c::StopReason::EndTurn {
         return Err(TransformError::invalid_result(
@@ -73,6 +77,7 @@ pub fn claude_text(input: c::GenerateContentResponseBody) -> Result<String, Tran
     }
     nonempty(text)
 }
+
 pub fn gemini_text(input: g::GenerateContentResponseBody) -> Result<String, TransformError> {
     if input
         .prompt_feedback
@@ -134,6 +139,7 @@ pub fn gemini_text(input: g::GenerateContentResponseBody) -> Result<String, Tran
     }
     nonempty(text)
 }
+
 pub fn chat_text(input: o::GenerateContentResponseBody) -> Result<String, TransformError> {
     if input.choices.len() != 1 {
         return Err(TransformError::invalid_result(
@@ -165,6 +171,7 @@ pub fn chat_text(input: o::GenerateContentResponseBody) -> Result<String, Transf
             .ok_or_else(|| TransformError::invalid_result("memory.content", "missing content"))?,
     )
 }
+
 pub fn responses_text(input: r::GenerateContentResponseBody) -> Result<String, TransformError> {
     if input.status != Some(r::ResponseStatus::Completed)
         || input.error.is_some()

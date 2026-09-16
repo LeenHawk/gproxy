@@ -44,6 +44,7 @@ pub(crate) fn call(
         rest: Default::default(),
     })
 }
+
 pub(super) fn result(
     source: c::ResponseMcpToolResultBlock,
     call: &mut r::McpCall,
@@ -80,6 +81,7 @@ pub(super) fn result(
     }
     Ok(())
 }
+
 pub(crate) fn to_claude(
     source: r::McpCall,
     index: u64,
