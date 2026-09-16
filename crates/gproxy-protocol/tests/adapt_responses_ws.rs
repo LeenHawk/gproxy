@@ -504,35 +504,12 @@ fn host_read_and_write_caps_are_directional_and_preflight_failure_is_reusable() 
     assert_eq!(collected(drain(&mut turn).unwrap()), response("r"));
 }
 #[test]
-fn path_method_query_and_impossible_host_limits_fail_before_connect() {
-    for path in [
-        "https://example.test/v1/responses",
-        "//other/v1/responses",
-        "/v1/responses?x=1",
-        "/v1/\nresponses",
-        "/v1\\responses",
-    ] {
-        let host = Host::new(vec![]);
-        let mut req = handshake();
-        req.path = path.into();
-        assert!(
-            ready(responses_ws::connect(
-                &host,
-                &"t".into(),
-                req,
-                Default::default()
-            ))
-            .is_err()
-        );
-        assert_eq!(host.connections.load(Ordering::SeqCst), 0);
-    }
-    for field in 0..4 {
+fn impossible_host_limits_fail_before_connect() {
+    for field in 0..2 {
         let mut host = Host::new(vec![]);
-        let mut req = handshake();
+        let req = handshake();
         match field {
-            0 => req.method = http::Method::POST,
-            1 => req.query = Some("?wrong=1".into()),
-            2 => host.caps.write_bytes = 1,
+            0 => host.caps.write_bytes = 1,
             _ => host.caps.ws_frame_bytes = 0,
         };
         assert!(

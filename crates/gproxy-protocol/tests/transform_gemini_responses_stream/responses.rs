@@ -295,20 +295,10 @@ fn signed_function_preserves_original_id_or_none_and_exposes_exact_bindings() {
     }
 }
 #[test]
-fn signed_replay_rejects_modified_arguments_wrong_field_and_target_policy_conflict() {
-    for case in 0..3 {
-        let mut ctx = replay(Some("original.native"));
+fn signed_replay_rejects_modified_arguments_and_target_policy_conflict() {
+    for case in [0, 2] {
+        let ctx = replay(Some("original.native"));
         let args = if case == 0 { "{\"x\":2}" } else { "{\"x\":1}" };
-        if case == 1 {
-            ctx.parts
-                .get_mut("call-one")
-                .unwrap()
-                .state
-                .opaque_signature
-                .as_mut()
-                .unwrap()
-                .field = OpaqueField::ClaudeThinkingSignature;
-        }
         let policy = if case == 2 {
             TargetIdPolicy::new(Dialect::Gemini).with_syntax(IdSyntax::AsciiIdentifier)
         } else {

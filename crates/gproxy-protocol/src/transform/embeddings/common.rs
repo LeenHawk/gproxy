@@ -92,11 +92,11 @@ pub(crate) fn decode_base64(value: &str) -> Result<Vec<serde_json::Number>, Tran
     })?;
 
     bytes
-        .as_chunks::<4>()
-        .0
-        .iter()
+        .chunks(4)
         .map(|chunk| {
-            let value = f32::from_le_bytes(*chunk);
+            let value = f32::from_le_bytes(chunk.try_into().map_err(|_| {
+                TransformError::invalid_result("embedding.base64", "incomplete float32 value")
+            })?);
             serde_json::Number::from_f64(f64::from(value)).ok_or_else(|| {
                 TransformError::invalid_result(
                     "embedding.base64",

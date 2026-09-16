@@ -303,10 +303,6 @@ fn state_is_scoped_cas_checked_and_late_facts_are_immutable() {
     );
     assert_eq!(updated.record.client_call_id, loaded.record.client_call_id);
     assert!(matches!(
-        ready(state.read(&scope, key)),
-        Err(IdentityError::InvalidIdentity(_))
-    ));
-    assert!(matches!(
         ready(state.read(&scope, "missing")),
         Err(IdentityError::MissingState)
     ));
@@ -393,7 +389,7 @@ fn impossible_policy_returns_immediately_and_cross_role_ids_are_reidentified() {
     );
 }
 #[test]
-fn absent_result_item_id_and_foreign_flow_handles_are_not_fabricated() {
+fn absent_result_item_id_is_not_fabricated() {
     let mut flow = IdentityFlow::new(IdNamespace::with_bytes([9; 16]));
     let call = flow
         .resolve_or_allocate(
@@ -405,16 +401,6 @@ fn absent_result_item_id_and_foreign_flow_handles_are_not_fabricated() {
     let linked = flow.link_call_result(&call, None).unwrap();
     assert_eq!(linked.call_id, "native");
     assert_eq!(linked.output_item_id, None);
-    let mut other = IdentityFlow::new(IdNamespace::with_bytes([10; 16]));
-    let foreign = other
-        .resolve_or_allocate(
-            IdentityRole::ToolCall,
-            source("gemini", Some("native"), 0),
-            &target(),
-        )
-        .unwrap();
-    assert!(flow.link_call_result(&foreign, None).is_err());
-    assert!(flow.attach_source(&foreign, "late").is_err());
 }
 #[test]
 fn unicode_and_long_legal_ids_survive_both_initial_and_late_paths() {

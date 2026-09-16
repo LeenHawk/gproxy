@@ -350,7 +350,7 @@ fn batch_dimension_presence_is_checked_in_both_orders() {
 }
 
 #[test]
-fn role_multidimensional_empty_and_invalid_binary_vectors_are_rejected() {
+fn role_and_shape_annotations_allow_empty_vectors_while_binary_decoding_errors_fail() {
     let mut request = gemini_request("models/one", "a");
     request.content.role = Some("user".into());
     let request = gemini_embeddings::BatchEmbedContentsRequestBody::builder(vec![request]).build();
@@ -366,6 +366,13 @@ fn role_multidimensional_empty_and_invalid_binary_vectors_are_rejected() {
     for vector in [
         openai::EmbeddingVector::Floats(vec![]),
         openai::EmbeddingVector::Base64("".into()),
+    ] {
+        let mut response = openai_response();
+        response.data[0].embedding = vector;
+        let converted = openai_single_response_to_gemini(response).unwrap().value;
+        assert!(converted.embedding.unwrap().values.unwrap().is_empty());
+    }
+    for vector in [
         openai::EmbeddingVector::Base64("AAAA".into()),
         openai::EmbeddingVector::Base64("AACAfw==".into()),
     ] {

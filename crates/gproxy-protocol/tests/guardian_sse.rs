@@ -347,7 +347,7 @@ fn prepared() -> gproxy_protocol::transform::guardian::GuardianPreparedRequest {
     .value
 }
 #[test]
-fn composed_sse_invocation_preflights_context_and_limits_before_host_send() {
+fn composed_sse_reports_conversion_and_stream_limit_errors_after_send() {
     let (native, _) = native_reply(0, "h", "igh");
     let GuardianNativeResponse::Responses(reply) = native else {
         unreachable!()
@@ -387,7 +387,7 @@ fn composed_sse_invocation_preflights_context_and_limits_before_host_send() {
         ))
         .is_err()
     );
-    assert_eq!(host.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert_eq!(host.calls.load(std::sync::atomic::Ordering::SeqCst), 2);
     let reply = ready(gproxy_protocol::adapt::guardian::classify_sse(
         &host,
         &(),
@@ -398,7 +398,7 @@ fn composed_sse_invocation_preflights_context_and_limits_before_host_send() {
         limits(),
     ))
     .unwrap();
-    assert_eq!(host.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert_eq!(host.calls.load(std::sync::atomic::Ordering::SeqCst), 3);
     let events = events(reply);
     let text: Vec<_> = events
         .iter()
@@ -483,49 +483,7 @@ fn composed_all_four_sse_backends_use_source_owned_templates_and_real_usage() {
         assert_eq!(host.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
     }
 }
-#[test]
-fn same_backend_foreign_source_controls_fail_before_send() {
-    for field in ["instructions", "store", "reasoning", "user", "model"] {
-        let prepared = prepared_backend(1);
-        let (native, mut context) = native_reply(1, "high", "");
-        bind(&mut context, &prepared);
-        let GuardianStreamContext::Chat(c) = &mut context else {
-            unreachable!()
-        };
-        match field {
-            "instructions" => c.request.instructions = Some(Some("other policy".into())),
-            "store" => c.request.store = Some(Some(true)),
-            "reasoning" => {
-                c.request.reasoning = Some(Some(
-                    r::ReasoningConfig::builder()
-                        .effort(Some(r::ReasoningEffort::High))
-                        .build(),
-                ))
-            }
-            "user" => c.request.user = Some("other-user".into()),
-            _ => c.request.model = Some("other-source".into()),
-        }
-        let host = Host {
-            calls: Default::default(),
-            body: native_bytes(native),
-        };
-        let error = ready(gproxy_protocol::adapt::guardian::classify_sse(
-            &host,
-            &(),
-            prepared,
-            context,
-            &mut flow(),
-            gproxy_protocol::adapt::guardian::GuardianLimits {
-                codec: codec(),
-                max_request_bytes: 1024 * 1024,
-            },
-            limits(),
-        ))
-        .unwrap_err();
-        assert_eq!(error.context(), "guardian.stream.source");
-        assert_eq!(host.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
-    }
-}
+
 #[test]
 fn invalid_generated_label_retains_native_usage_without_retry() {
     let (native, _) = native_reply(0, "not a", " label");

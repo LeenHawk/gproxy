@@ -76,7 +76,7 @@ ruzstd = "0.9"
 semver = "1"
 self-replace = "1"
 rust-embed = { version = "8", features = ["include-exclude"] }
-sea-query = { version = "1.0.2", default-features = false, features = ["backend-mysql", "backend-postgres", "backend-sqlite", "derive"] }
+sea-query = { version = "1", default-features = false, features = ["backend-mysql", "backend-postgres", "backend-sqlite", "derive"] }
 sea-orm = { version = "2", default-features = false, features = ["macros", "proxy", "with-json"] }
 sea-orm-migration = { version = "2", default-features = false, features = ["with-time"] }
 send_wrapper = { version = "0.6", features = ["futures"] }
@@ -99,7 +99,7 @@ tokio-rusqlite = { version = "0.7", features = ["bundled"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 url = "2"
-ts-rs = { version = "12.0.1", features = ["serde-json-impl"] }
+ts-rs = { version = "12", features = ["serde-json-impl"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 wasm-streams = "0.6"

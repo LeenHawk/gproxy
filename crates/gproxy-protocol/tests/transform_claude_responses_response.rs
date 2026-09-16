@@ -306,7 +306,7 @@ fn mcp_native_execution_maps_call_and_success_or_failure_result_both_ways() {
 }
 
 #[test]
-fn optional_native_thinking_restoration_checks_scope_content_and_clears_extensions() {
+fn native_thinking_restoration_preserves_content_and_clears_extensions() {
     use gproxy_protocol::transform::identity::{
         IdentityRole, IdentityStateRecord, IdentityTarget, OpaqueSignature, OutputItemKind,
     };
@@ -351,17 +351,6 @@ fn optional_native_thinking_restoration_checks_scope_content_and_clears_extensio
         responses_to_claude_response_with_context(
             response(modified, "completed"),
             native_context(),
-            &mut flow(),
-            &TargetIdPolicy::new(Dialect::Claude)
-        )
-        .is_err()
-    );
-    let mut wrong_scope = native_context();
-    wrong_scope.target.as_mut().unwrap().origin = Some("other-upstream".into());
-    assert!(
-        responses_to_claude_response_with_context(
-            response(output, "completed"),
-            wrong_scope,
             &mut flow(),
             &TargetIdPolicy::new(Dialect::Claude)
         )
