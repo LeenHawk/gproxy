@@ -1,3 +1,12 @@
+[build.env]
+passthrough = [
+    "GPROXY_UPDATE_PUBKEY",
+    "GPROXY_BUILD_VERSION",
+    "GPROXY_BUILD_CHANNEL",
+    "GPROXY_BUILD_HASH",
+    "GPROXY_INSTALLATION_KIND",
+]
+
 [target.riscv64gc-unknown-linux-gnu]
 image = "ghcr.io/cross-rs/riscv64gc-unknown-linux-gnu:main"
 
