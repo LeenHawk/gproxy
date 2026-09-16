@@ -1,32 +1,11 @@
-use gproxy_client::{Backend, ConnectionConfig, EmulationConfig, Error, ProxyConfig};
+#[cfg(all(feature = "wreq", not(target_arch = "wasm32")))]
+use gproxy_client::EmulationConfig;
+#[cfg(not(target_arch = "wasm32"))]
+use gproxy_client::{Backend, ClientPool};
+use gproxy_client::{ConnectionConfig, ProxyConfig};
 
 #[test]
-fn rejects_invalid_or_incompatible_configuration() {
-    let mut config = ConnectionConfig {
-        emulation: Some(EmulationConfig {
-            profile: "chrome_133".into(),
-            platform: "linux".into(),
-            http2: true,
-            headers: false,
-        }),
-        ..Default::default()
-    };
-    assert!(matches!(config.validate(), Err(Error::InvalidConfig(_))));
-    config.emulation = None;
-    for url in [
-        "",
-        "ftp://proxy.test",
-        "http://proxy.test/path",
-        "http://proxy.test?x=1",
-        "socks5://proxy.test",
-        "http://proxy.test:0",
-    ] {
-        config.proxy = ProxyConfig::Explicit { url: url.into() };
-        assert!(
-            matches!(config.validate(), Err(Error::InvalidProxy)),
-            "{url}"
-        );
-    }
+fn rejects_unknown_fields() {
     assert!(
         serde_json::from_str::<ConnectionConfig>(
             r#"{"proxy":{"mode":"direct","url":"http://ignored.test"}}"#
@@ -36,8 +15,10 @@ fn rejects_invalid_or_incompatible_configuration() {
     assert!(serde_json::from_str::<ConnectionConfig>(r#"{"connect_timout_ms":5}"#).is_err());
 }
 
-#[test]
-fn unavailable_backend_never_falls_back() {
+#[cfg(not(target_arch = "wasm32"))]
+#[tokio::test]
+async fn unavailable_backend_never_falls_back() {
+    let pool = ClientPool::default();
     for (backend, available) in [
         (
             Backend::Reqwest,
@@ -52,7 +33,7 @@ fn unavailable_backend_never_falls_back() {
             backend,
             ..Default::default()
         };
-        assert_eq!(config.validate().is_ok(), available);
+        assert_eq!(pool.get(&config).await.is_ok(), available);
     }
 }
 
@@ -76,8 +57,8 @@ fn proxy_debug_does_not_expose_credentials() {
 }
 
 #[cfg(all(feature = "wreq", not(target_arch = "wasm32")))]
-#[test]
-fn unknown_fingerprints_fail_instead_of_changing_identity() {
+#[tokio::test]
+async fn unknown_fingerprints_fail_instead_of_changing_identity() {
     let mut config = ConnectionConfig {
         backend: Backend::Wreq,
         emulation: Some(EmulationConfig {
@@ -88,10 +69,11 @@ fn unknown_fingerprints_fail_instead_of_changing_identity() {
         }),
         ..Default::default()
     };
-    config.validate().unwrap();
+    let pool = ClientPool::default();
+    pool.get(&config).await.unwrap();
     config.emulation.as_mut().unwrap().profile = "unknown_browser".into();
-    assert!(config.validate().is_err());
+    assert!(pool.get(&config).await.is_err());
     config.emulation.as_mut().unwrap().profile = "chrome_133".into();
     config.emulation.as_mut().unwrap().platform = "unknown_os".into();
-    assert!(config.validate().is_err());
+    assert!(pool.get(&config).await.is_err());
 }

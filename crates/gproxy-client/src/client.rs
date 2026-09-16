@@ -77,7 +77,7 @@ fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest:
         ProxyConfig::System => builder,
         ProxyConfig::Explicit { url } => builder
             .no_proxy()
-            .proxy(reqwest::Proxy::all(url).map_err(|_| Error::InvalidProxy)?),
+            .proxy(reqwest::Proxy::all(url).map_err(Error::Reqwest)?),
     };
     builder.build().map_err(Error::Reqwest)
 }
@@ -113,7 +113,7 @@ fn build_wreq(config: &ConnectionConfig, http1_only: bool) -> Result<wreq::Clien
         ProxyConfig::System => builder,
         ProxyConfig::Explicit { url } => builder
             .no_proxy()
-            .proxy(wreq::Proxy::all(url.as_str()).map_err(|_| Error::InvalidProxy)?),
+            .proxy(wreq::Proxy::all(url.as_str()).map_err(Error::Wreq)?),
     };
     builder.build().map_err(Error::Wreq)
 }

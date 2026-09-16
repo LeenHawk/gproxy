@@ -59,7 +59,7 @@ store 保存具名的 `ConnectionProfile`；宿主按凭证 → Provider → 全
 | `retry` | `never`（默认）或 `default`（后端原生重试策略） |
 | 三个超时／池容量字段 | 同名字段直接映射 |
 
-宿主管理层保存／使用前调用 `validate()`。继承、映射和数据库调用仍待未来宿主接线，
+继承、映射和数据库调用仍待未来宿主接线，
 store 当前仅为 entity 草案。代理 URL 可能包含认证信息，序列化配置和 entity Debug
 输出不应作为普通用户可见资料或日志内容。
 
@@ -89,14 +89,16 @@ store 当前仅为 entity 草案。代理 URL 可能包含认证信息，序列�
 
 指纹使用 wreq-util 的具名 TLS／HTTP 预设，不支持任意自定义 TLS 参数 JSON。
 `http2` 表示应用预设的 HTTP/2 参数，设为 false 不等于禁止 HTTP/2；`headers`
-控制预设请求头。profile／platform 使用 wreq-util 的 serde 名称。未知名称、
-reqwest 搭配指纹、未知字段或未编译的后端均明确报错。正常证书校验始终开启。
-HTTP(S)／SOCKS 代理 URL 只允许 authority（允许末尾 `/`）；SOCKS 必须显式提供端口。
+控制预设请求头。profile／platform 使用 wreq-util 的 serde 名称，未知名称在构造 wreq Client 时报错。
+指纹仅对 wreq 生效。未知字段或未编译的后端均明确报错。正常证书校验始终开启。
+配置不做预校验；底层构造错误返回给调用方。
 
 ## 缓存与生命周期
 
 缓存 key 包含全部有效连接参数及 WS 的 HTTP/1.1 覆盖，不含配置 ID、名称、version、目标 URL 或 API Key。
-代理 URL 会规范化；代理认证、完整模拟参数、解压、重定向和重试设置都参与比较。API Key 按请求设置，
+代理 URL 必须解析并归一化为 authority 形式，统一主机名、默认端口和末尾斜杠写法；解析失败返回错误。
+任意一个空闲连接池参数为零时，两个参数均归零。
+代理认证、完整模拟参数、解压、重定向和重试设置都参与比较。API Key 按请求设置，
 默认不启用 Cookie 存储或连接绑定的账号身份。
 
 同 key 并发未命中时只构建一次，构建工作放到 Tokio blocking pool；失败不缓存。
