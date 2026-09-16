@@ -1,9 +1,9 @@
-# gproxy-seaorm-d1
+# gproxy-seaorm
 
 [English](README.md) | 简体中文
 
-SeaORM 2 到 Cloudflare D1 的独立适配 crate。业务 entity 留在调用方；本库负责 Workers
-WASM binding、参数和结果映射、普通 ORM 操作、D1 batch、entity-first sync，以及官方
+SeaORM 2 批量操作与 Cloudflare D1 的独立适配 crate。业务 entity 留在调用方；本库负责 Workers
+WASM binding、参数和结果映射、普通 ORM 操作、跨后端原子 batch、entity-first sync，以及官方
 `sea-orm-migration` 的接入，不依赖 gproxy core。
 
 ## 普通 entity 查询
@@ -12,7 +12,7 @@ WASM binding、参数和结果映射、普通 ORM 操作、D1 batch、entity-fir
 binding 的 `JsValue`，再为本次操作选择 entity 或显式结果投影：
 
 ```rust
-use gproxy_seaorm_d1::D1Connection;
+use gproxy_seaorm::D1Connection;
 use sea_orm::EntityTrait;
 
 let connection = D1Connection::from_binding(binding)?;
@@ -30,7 +30,7 @@ JOIN、别名、聚合通过 `Projection::column(alias, type, nullable)` 指定�
 数据库中的业务表名、字段名和业务规则不进入适配器。
 
 ```rust
-use gproxy_seaorm_d1::{D1Type, Projection};
+use gproxy_seaorm::{D1Type, Projection};
 
 let projection = Projection::new()
     .column("total", D1Type::I64, false)?;
@@ -45,23 +45,75 @@ SeaORM 的 ProxyRow 内部按键排序；使用 `into_tuple()` 或 `try_get_by_i
 连接通过 D1 `raw({columnNames: true})` 获取列名及有序值，拒绝重复/未知别名、行宽不匹配、
 不符合列类型的值和非空列中的 NULL。查询空结果返回空集合。
 
-## 原子写入
+## 统一批量接口
+
+`BatchConnectionTrait` 同时实现于原生 SeaORM `DatabaseConnection` 和 Workers
+`D1Connection`。普通操作继续使用 `ConnectionTrait`；批量 SQL 由 SeaORM／SeaQuery
+构造，本库不包含业务表名和业务事务规则。
+
+| 方法 | 输入 | 返回 |
+|---|---|---|
+| `atomic_batch` | 批量增删改 SQL | 按输入顺序返回每条语句的 ExecResult |
+| `query_batch` | 每条带独立命名 Projection 的查询 | 每个查询一个结果集，空结果保留为空集合 |
+| `batch` | 有序 Execute／Query 步骤 | 与输入步骤对应的 BatchResult |
+
+三种方法都在一个事务中执行。原生连接使用 SeaORM 事务与 repeatable-read 隔离
+（SQLite 使用原生事务快照），D1 使用一次 `DB.batch()`。原生应用自行开启所需 SeaORM
+驱动 feature。Query 步骤支持 SELECT 和后端支持的 DML RETURNING；Execute 返回执行
+元数据、不返回行。空批次不执行 I/O。
 
 ```rust
-let results = connection.atomic_batch(&statements).await?;
-let changed = results[0].rows_affected();
+use gproxy_seaorm::{
+    BatchConnectionTrait, BatchQuery, BatchResult, BatchStatement, D1Type, Projection,
+};
+use sea_orm::{DbBackend, Statement};
+
+// SQLite SQL，可用于原生 SQLite 或 D1。
+let steps = [
+    BatchStatement::Execute(Statement::from_sql_and_values(
+        DbBackend::Sqlite,
+        "UPDATE counters SET value = value + ? WHERE id = ?",
+        [1.into(), 7.into()],
+    )),
+    BatchStatement::Query(BatchQuery::new(
+        Statement::from_sql_and_values(
+            DbBackend::Sqlite, "SELECT value FROM counters WHERE id = ?", [7.into()],
+        ),
+        Projection::new().column("value", D1Type::I64, false)?,
+    )),
+];
+let results = connection.batch(&steps).await?;
+if let BatchResult::Rows(rows) = &results[1] {
+    let value: i64 = rows[0].try_get("", "value")?;
+}
 ```
 
-所有语句必须是 SQLite 方言，全部参数通过验证后才发送。`atomic_batch` 返回每条语句的
-执行元数据，不解码 SELECT/RETURNING 行；普通查询与 ORM RETURNING 使用带投影的连接。
-影响行数取 D1 的 `meta.changes`，不使用包含索引写入的 `rows_written`。
+原有的 `D1Connection::atomic_batch()` 保留，无须导入 trait，内部复用相同实现。
+D1 影响行数取 `meta.changes`，不使用包含索引写入的 `rows_written`。
 
-本类型**不实现 `TransactionTrait`，不返回底层 `DatabaseConnection`**。不能调用
-`begin()/rollback()` 或依赖交互式事务的 ORM 级联写入；原始 SQL 的事务指令由 D1 拒绝。
+D1 batch 返回按列名组织的对象，没有 SQL 列位置元数据。因此批量结果使用 entity、
+FromQueryResult 或按别名 try_get；SQL 必须使用不重复的别名。批量接口在执行前拒绝
+`Projection::by_index()`，按位置读取仍可使用原有的单条查询。D1 对象结果已丢失重复别名，
+适配器无法在收到结果后检测它们。每条查询使用自己的 Projection，不依赖连接默认投影；
+原生驱动根据自己的结果元数据解码。
 
-D1 batch 只有 SQL 失败才整批回滚。条件 UPDATE 影响 0 行仍是成功，业务前置条件必须
-控制所有后续写入。派发后的超时、取消或返回值解码失败不证明写入未发生；调用方应通过
-持久化操作 ID 查询结果，不自动重发非幂等写入。
+整批执行前检查 SQL 方言和投影模式；D1 另会预检全部参数。`max_bind_parameters()`
+在 D1 返回 `Some(100)`，原生驱动上本库未指定限制时返回 None。大量 CRUD 可生成多条 SQL
+放进同一个 batch；库不会自动拆 SQL，也不会把一次原子操作悄悄拆成多个事务。
+
+SQL 失败会回滚同批的事务性 DML。条件更新影响零行仍是成功，后续写入必须受业务条件／
+消费凭据约束。原生数据库会隐式提交的 DDL、显式事务控制 SQL 不在该原子保证内。
+不提供自动重试或交互式业务闭包。派发后的超时、取消、提交确认或 D1 解码错误不证明
+写入回滚，重试前应查询持久操作结果。
+
+`D1Connection` 仍不实现 TransactionTrait、不暴露内部 DatabaseConnection；交互式事务
+以及依赖该 trait 的 ORM 级联操作仍不可用。既有 schema sync／migration 行为不变。
+
+## 原生与 WASM 特性边界
+
+SeaORM 的 proxy 仅在 WASM 端启用。原生 schema 规划使用 SeaORM mock 回执记录生成的
+DDL；真实业务查询和批量操作仍走实际数据库驱动。这避开了 SeaORM 2.0.3 的 SQLx-to-Proxy
+行转换编译问题。SQLx SQLite／Tokio 仅作为原生集成测试依赖，不会链接进 Workers。
 
 ## 类型与运行边界
 
@@ -103,7 +155,7 @@ SeaORM 2.0.3 原生 `SchemaBuilder::sync` 的发现路径依赖 SQLx/rusqlite，
 ## 官方 SeaORM migration
 
 业务迁移按 `sea-orm-migration` 的 `MigrationTrait`、`MigratorTrait` 定义，本库不另建迁移
-格式或历史表。该依赖也通过 `gproxy_seaorm_d1::sea_orm_migration` 重新导出。
+格式或历史表。该依赖也通过 `gproxy_seaorm::sea_orm_migration` 重新导出。
 
 ```rust
 connection.migrate_up::<Migrator>(None).await?;
@@ -118,8 +170,8 @@ connection.migrate_down::<Migrator>(Some(1)).await?;
 可以使用对应扩展，其他 DDL 仍使用官方 SchemaManager：
 
 ```rust
-use gproxy_seaorm_d1::D1SchemaManagerExt;
-use gproxy_seaorm_d1::sea_orm_migration::sea_query::{ColumnDef, Table};
+use gproxy_seaorm::D1SchemaManagerExt;
+use gproxy_seaorm::sea_orm_migration::sea_query::{ColumnDef, Table};
 
 if !manager.d1_has_column("providers", "description").await? {
     manager.alter_table(
@@ -138,9 +190,9 @@ DDL/DML 可能已经提交；应按实际结果修复迁移后再执行。迁移
 ## 验证
 
 ```bash
-cargo test -p gproxy-seaorm-d1
-cargo clippy -p gproxy-seaorm-d1 --all-targets -- -D warnings
-cargo clippy -p gproxy-seaorm-d1 --target wasm32-unknown-unknown -- -D warnings
+cargo test -p gproxy-seaorm
+cargo clippy -p gproxy-seaorm --all-targets -- -D warnings
+cargo clippy -p gproxy-seaorm --target wasm32-unknown-unknown -- -D warnings
 ```
 
 原生测试覆盖类型元数据、错误拒绝、BLOB、整数边界、结果顺序、逻辑影响行数和 schema 同步规则。

@@ -36,7 +36,10 @@ impl ProxyDatabaseTrait for MigrationProxy {
     async fn query(&self, statement: Statement) -> Result<Vec<ProxyRow>, DbErr> {
         self.check()?;
         let result = self.connection.raw_rows(statement).await?;
-        codec::rows(&result, &self.connection.projection)
+        Ok(codec::rows(&result, &self.connection.projection)?
+            .into_iter()
+            .map(Into::into)
+            .collect())
     }
     async fn execute(&self, statement: Statement) -> Result<ProxyExecResult, DbErr> {
         self.check()?;

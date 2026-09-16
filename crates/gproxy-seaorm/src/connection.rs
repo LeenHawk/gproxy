@@ -7,7 +7,10 @@ use serde_json::Value as Json;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
-use crate::{Projection, codec, error};
+use crate::{
+    BatchConnectionTrait, BatchResult, BatchStatement, D1_MAX_BIND_PARAMETERS, Projection, codec,
+    error,
+};
 
 #[wasm_bindgen]
 extern "C" {
@@ -99,7 +102,7 @@ impl D1Connection {
         }
         let values = Array::new();
         if let Some(parameters) = &statement.values {
-            if parameters.0.len() > 100 {
+            if parameters.0.len() > D1_MAX_BIND_PARAMETERS {
                 return Err(error(
                     "D1 supports at most 100 bound parameters per statement",
                 ));
@@ -132,13 +135,25 @@ impl D1Connection {
     ///
     /// Returned rows (including RETURNING rows) are not decoded by this write API.
     pub async fn atomic_batch(&self, statements: &[Statement]) -> Result<Vec<ExecResult>, DbErr> {
+        BatchConnectionTrait::atomic_batch(self, statements).await
+    }
+}
+
+#[async_trait::async_trait]
+impl BatchConnectionTrait for D1Connection {
+    fn max_bind_parameters(&self) -> Option<usize> {
+        Some(D1_MAX_BIND_PARAMETERS)
+    }
+
+    async fn batch(&self, statements: &[BatchStatement]) -> Result<Vec<BatchResult>, DbErr> {
         SendWrapper::new(async {
             if statements.is_empty() {
                 return Ok(Vec::new());
             }
             let prepared = Array::new();
-            for statement in statements {
-                prepared.push(&self.prepare(statement)?.into());
+            for step in statements {
+                step.validate(DbBackend::Sqlite)?;
+                prepared.push(&self.prepare(step.statement())?.into());
             }
             let result = JsFuture::from(self.binding.batch(&prepared).map_err(js_error)?)
                 .await
@@ -148,9 +163,16 @@ impl D1Connection {
             if results.len() != statements.len() {
                 return Err(error("D1 batch result count mismatch after dispatch"));
             }
-            results
+            statements
                 .iter()
-                .map(|result| codec::execution(result).map(Into::into))
+                .zip(&results)
+                .map(|(step, result)| match step {
+                    BatchStatement::Execute(_) => {
+                        codec::execution(result).map(|result| BatchResult::Executed(result.into()))
+                    }
+                    BatchStatement::Query(query) => codec::batch_rows(result, &query.projection)
+                        .map(|rows| BatchResult::Rows(rows.into_iter().map(Into::into).collect())),
+                })
                 .collect()
         })
         .await

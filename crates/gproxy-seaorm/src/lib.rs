@@ -1,6 +1,7 @@
 //! SeaORM 2 entity queries and atomic writes over a Cloudflare D1 binding.
 //!
-//! [`Projection`] derives result types from an entity or explicit SQL aliases.
+//! [`BatchConnectionTrait`] unifies ordered atomic writes and named queries on
+//! native SeaORM connections and D1. [`Projection`] derives D1 result types.
 //! On Workers WASM, `D1Connection` implements `sea_orm::ConnectionTrait`, **not**
 //! `TransactionTrait`. Use its `atomic_batch` for transactional writes. A SQL
 //! statement affecting zero rows is successful and does not roll back a batch.
@@ -13,6 +14,11 @@
 
 mod projection;
 pub use projection::{D1Type, Projection};
+mod batch;
+pub use batch::{BatchConnectionTrait, BatchQuery, BatchResult, BatchStatement};
+/// D1's bound-parameter limit per SQL statement. A logical batch may contain
+/// several statements; they are still submitted as one atomic database batch.
+pub const D1_MAX_BIND_PARAMETERS: usize = 100;
 pub use sea_orm_migration;
 
 mod migration_support;

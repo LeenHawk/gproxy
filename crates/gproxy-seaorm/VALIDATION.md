@@ -1,5 +1,22 @@
 # 独立 crate 验证记录
 
+## 统一批量接口（本地验证）
+
+2026-09-16：16 项字段映射／schema 单元测试、6 项真实 SQLx SQLite 集成测试通过，
+原生及 WASM all-targets Clippy `-D warnings` 通过。SQLite 验证批量增删查改、
+逐项结果顺序、空结果、混合写后读、RETURNING、SQL 失败回滚、零行更新及依赖条件。
+
+另用当前 crate 构建 WASM，通过 Miniflare 5.20260825.0-alpha 的本地 D1 binding 执行
+13 项场景：空批次、批量 CRUD、有序查询、空结果、BLOB／JSON、混合批次、RETURNING、
+回滚、零行条件、方言预检、投影模式预检、参数上限预检、提交后解码失败。全部通过。
+该验证使用本地 D1 运行时，未部署真实 Cloudflare Worker，也未访问生产数据库。
+临时 harness 为匹配已安装的 wasm-bindgen CLI 单独锁定 0.2.127；workspace 的 WASM
+检查仍使用 0.2.128。未更改 workspace 的 wasm-bindgen 版本。临时目录验证后删除。
+
+SeaORM 2.0.3 的 proxy + SQLx SQLite 组合存在上游编译错误，因此 proxy 改为只在 WASM
+启用，原生 DDL 规划使用 mock 回执，真实 SQLite 事务测试走 SQLx。PostgreSQL／MySQL
+复用原生事务实现，但本次没有运行它们的真实数据库测试。
+
 ## Schema sync 与官方 migration
 
 2026-09-15 北京时间 19:03:41–19:05:03，在真实 Cloudflare Worker / D1 上完成 13 个场景。

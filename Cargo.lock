@@ -1531,7 +1531,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gproxy-seaorm-d1"
+name = "gproxy-seaorm"
 version = "4.0.0-dev"
 dependencies = [
  "async-trait",
@@ -1543,6 +1543,7 @@ dependencies = [
  "serde-wasm-bindgen",
  "serde_json",
  "time",
+ "tokio",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -2186,6 +2187,7 @@ version = "0.37.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1f111c8c41e7c61a49cd34e44c7619462967221a6443b0ec299e0ac30cfb9b1"
 dependencies = [
+ "cc",
  "pkg-config",
  "vcpkg",
 ]
@@ -3375,6 +3377,8 @@ dependencies = [
  "sea-schema",
  "serde",
  "serde_json",
+ "sqlx",
+ "sqlx-core",
  "strum",
  "thiserror 2.0.20",
  "time",
@@ -3471,7 +3475,9 @@ checksum = "3553c77dceed56e95bece9ea876c4dd67ca879ef51055a0b97a7bb89a8ae4fed"
 dependencies = [
  "async-trait",
  "sea-query",
+ "sea-query-sqlx",
  "sea-schema-derive",
+ "sqlx",
 ]
 
 [[package]]
@@ -3783,6 +3789,8 @@ dependencies = [
  "smallvec",
  "thiserror 2.0.20",
  "time",
+ "tokio",
+ "tokio-stream",
  "tracing",
  "url",
  "uuid",
@@ -3822,6 +3830,7 @@ dependencies = [
  "sqlx-postgres",
  "sqlx-sqlite",
  "syn 2.0.119",
+ "tokio",
  "url",
 ]
 
@@ -4268,6 +4277,17 @@ dependencies = [
  "either",
  "futures-util",
  "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
+name = "tokio-stream"
+version = "0.1.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3d06f0b082ba57c26b79407372e57cf2a1e28124f78e9479fe80322cf53420b"
+dependencies = [
+ "futures-core",
+ "pin-project-lite",
  "tokio",
 ]
 
