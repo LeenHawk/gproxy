@@ -19,7 +19,7 @@ with one entity per file:
 | `pricing` | PriceRule, PriceRate, PriceTier |
 | `usage` | UsageRecord, CaptureRecord, CaptureLink, CaptureEvent |
 | `resource` | FileObject, AgentSession, AgentAssignment, ResourceBinding, ProtocolState |
-| `config` | Setting |
+| `config` | Setting, ConnectionProfile |
 
 Fields, primary/unique keys, relations, and delete actions are declared directly
 with SeaORM attributes. `schema(backend)` registers all entities with SeaORM's
@@ -36,11 +36,13 @@ Review decisions currently expressed in the code:
   logging, storage-selection, maintenance and portal fields.
 - Providers are global. Each credential references a provider and has one owner:
   an organization, a team, or a user. The owner IDs are separate from provider configuration.
-- Dedicated proxy columns resolve in order: `Credential.proxy`, `Provider.proxy`,
-  then `Setting.proxy`. `None` inherits the next level. When all three are unset,
-  global `inherit_system_proxy` controls system proxy fallback; otherwise connect
-  directly. These are storage fields and an inheritance contract, not a wired
-  network implementation.
+- Named connection profiles hold backend, proxy mode/URL, wreq emulation and
+  decompression, redirect, retry and connection-pool parameters. Optional `connection_profile_id` references resolve
+  Credential → Provider → Setting → built-in reqwest/direct defaults. `None`
+  inherits the complete next profile; explicit direct/system modes belong to a
+  profile, not to a nullable URL. Referenced profiles use `ON DELETE RESTRICT`.
+  There is no profile version. `gproxy-client` caches by effective parameters;
+  host CRUD, validation, inheritance and execution wiring are not implemented here.
 - A team belongs to one organization. OrganizationMember and TeamMember store
   scoped `member`/`admin` roles, so one user's role can differ between groups.
 - Organization credentials can be used by its members and descendant team users;
@@ -229,7 +231,7 @@ expires_at_ms tracks access expiry. Refresh conditionally replaces secret/expiry
 against version and increments it, avoiding stale overwrites. Encryption and provider
 refresh adapters are not implemented. Short-lived upstream state/verifier/device
 transactions belong in an expiring cache bound to initiator and provider; credential
-ownership rules and the three-level proxy configuration continue to apply.
+ownership rules and the three-level connection-profile selection continue to apply.
 
 Only entities and the serialized credential shape are implemented. OAuth endpoints,
 key management, atomic rotation, upstream login/refresh and client integration remain

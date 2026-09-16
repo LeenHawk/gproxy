@@ -11,6 +11,7 @@ use sea_orm::{DbBackend, Schema, SchemaBuilder};
 /// Register the draft entities; SeaORM determines the foreign-key creation order.
 pub fn schema(backend: DbBackend) -> SchemaBuilder {
     SchemaBuilder::new(Schema::new(backend))
+        .register(entity::config::connection_profile::Entity)
         .register(entity::upstream::provider::Entity)
         .register(entity::upstream::credential::Entity)
         .register(entity::upstream::model::Entity)

@@ -1,0 +1,34 @@
+[package]
+name = "gproxy-client"
+description = "Reusable outbound reqwest and wreq clients for GPROXY"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["reqwest"]
+reqwest = ["dep:reqwest", "dep:reqwest-websocket"]
+wreq = ["dep:wreq", "dep:wreq-util"]
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+url = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+moka = { workspace = true }
+tokio = { workspace = true, features = ["rt"] }
+reqwest = { workspace = true, optional = true, features = ["gzip", "brotli", "deflate", "zstd", "multipart"] }
+reqwest-websocket = { workspace = true, optional = true }
+wreq = { workspace = true, optional = true, features = ["system-proxy", "multipart", "ws"] }
+wreq-util = { workspace = true, optional = true, features = ["emulation-serde"] }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+tokio = { workspace = true, features = ["io-util"] }
+tokio-tungstenite = { workspace = true }
+futures-util = { workspace = true, features = ["sink"] }

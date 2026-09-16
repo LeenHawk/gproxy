@@ -14,13 +14,20 @@ pub struct Model {
     pub channel: String,
     #[sea_orm(column_type = "Text")]
     pub base_url: Option<String>,
-    /// Provider proxy URL. None inherits Setting.proxy; a credential may override it.
-    #[sea_orm(column_type = "Text")]
-    pub proxy: Option<String>,
+    /// None inherits Setting.connection_profile_id; a credential may override it.
+    #[sea_orm(indexed)]
+    pub connection_profile_id: Option<String>,
     pub config: Json,
     #[sea_orm(default_value = true)]
     pub enabled: bool,
     pub created_at_ms: i64,
+    #[sea_orm(
+        belongs_to,
+        from = "connection_profile_id",
+        to = "id",
+        on_delete = "Restrict"
+    )]
+    pub connection_profile: BelongsTo<Option<crate::entity::config::connection_profile::Entity>>,
     #[sea_orm(has_many)]
     pub credentials: HasMany<super::credential::Entity>,
     #[sea_orm(has_many)]
