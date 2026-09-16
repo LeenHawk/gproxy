@@ -3,11 +3,30 @@
 //! and a client. Neither channel identity nor credentials are global enums.
 
 mod binding;
+mod oauth;
 mod operations;
+mod quota;
 mod refresh;
+mod service;
+mod usage;
 
 pub use binding::ChannelBinding;
+pub use oauth::{
+    AuthorizationCode, AuthorizationRequest, AuthorizationStart, CookieLogin, DeviceAuthorization,
+    DevicePoll, LoginContext, OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode,
+};
 pub use operations::{OperationContext, OperationFuture};
+pub use quota::{
+    QuotaAllowance, QuotaBalance, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaQuery,
+    QuotaReset, QuotaResetBehavior, QuotaResetCredits, QuotaResetOutcome, QuotaResetResult,
+    QuotaScope, QuotaSnapshot, QuotaSubject, QuotaValue,
+};
+pub use service::{ChannelServices, ServiceContext, ServiceRoute, ServiceTransport};
+pub use usage::{
+    NormalizedUsage, ResponseView, TokenUsage, UsageAttempt, UsageCompleteness, UsageContext,
+    UsageExtractor, UsageFrame, UsageObserver, UsageStream, UsageStreamContext, UsageStreamEnd,
+    UsageTransport,
+};
 
 pub use refresh::{CredentialRefresh, CredentialUpdate, RefreshContext};
 
@@ -19,6 +38,15 @@ use serde_json::Value;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ChannelError {
+    #[error("channel service is not supported")]
+    UnsupportedService,
+    #[error("invalid upstream response: {0}")]
+    InvalidResponse(String),
+    #[error("upstream returned {status}")]
+    UpstreamResponse {
+        status: http::StatusCode,
+        body: gproxy_protocol::connection::Bytes,
+    },
     #[error("operation is not supported: {0:?}")]
     UnsupportedOperation(OperationKey),
     #[error("wrong transport for operation: {0:?}")]
@@ -54,6 +82,15 @@ pub struct CredentialView<'a> {
     pub secret: &'a Value,
     pub version: i64,
     pub expires_at_ms: Option<i64>,
+}
+
+/// The caller's selected account and client, shared by refresh, quotas and CLI
+/// services. This is passed through directly, without additional binding checks.
+#[derive(Clone, Copy)]
+pub struct CredentialContext<'a> {
+    pub provider: ProviderView<'a>,
+    pub credential: CredentialView<'a>,
+    pub client: &'a dyn crate::OutboundClient,
 }
 
 pub struct PrepareContext<'a, B = HttpBody> {
@@ -357,6 +394,42 @@ pub trait BaseChannel: Send + Sync {
     }
 
     fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        None
+    }
+
+    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
+        None
+    }
+
+    fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
+        None
+    }
+
+    fn cookie_login(&self) -> Option<&dyn CookieLogin> {
+        None
+    }
+
+    fn quota_query(&self) -> Option<&dyn QuotaQuery> {
+        None
+    }
+
+    fn quota_reset(&self) -> Option<&dyn QuotaReset> {
+        None
+    }
+
+    fn quota_headers(&self) -> Option<&dyn QuotaHeaders> {
+        None
+    }
+
+    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
+        None
+    }
+
+    fn usage_stream(&self) -> Option<&dyn UsageStream> {
+        None
+    }
+
+    fn services(&self) -> Option<&dyn ChannelServices> {
         None
     }
 }

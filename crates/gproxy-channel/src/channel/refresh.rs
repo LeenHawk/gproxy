@@ -4,14 +4,9 @@
 use gproxy_protocol::capability::CapabilityFuture;
 use serde_json::Value;
 
-use super::{ChannelError, CredentialView, ProviderView};
-use crate::client::OutboundClient;
+use super::{ChannelError, CredentialContext};
 
-pub struct RefreshContext<'a> {
-    pub provider: ProviderView<'a>,
-    pub credential: CredentialView<'a>,
-    pub client: &'a dyn OutboundClient,
-}
+pub type RefreshContext<'a> = CredentialContext<'a>;
 
 /// A full replacement, never a partial secret merge. Intentionally no Debug or
 /// Serialize. Persist secret + expiry with a CAS on the input credential version;
