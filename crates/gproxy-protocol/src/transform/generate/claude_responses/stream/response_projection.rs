@@ -7,6 +7,7 @@ use crate::{
     transform::{TransformError, identity::IdentityRole},
     wire::claude::{generate_content as c, stream as cs},
 };
+
 impl ResponsesToClaudeStream {
     pub(super) fn flush_items(
         &mut self,

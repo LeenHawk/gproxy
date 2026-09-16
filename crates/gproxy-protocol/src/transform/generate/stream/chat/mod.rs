@@ -1,4 +1,5 @@
 //! Bounded native Chat collection and response synthesis. `[DONE]` is framing.
+
 mod choice;
 mod collector;
 pub(crate) mod logs;
@@ -6,6 +7,7 @@ mod synthesize;
 pub(crate) mod usage;
 pub use collector::{ChatStreamCollector, ChatStreamContext, ChatStreamLimits};
 pub use synthesize::synthesize_chat_stream;
+
 fn limit(field: &str) -> crate::transform::TransformError {
     crate::transform::TransformError::new(
         crate::transform::TransformErrorKind::Limit,
@@ -13,6 +15,7 @@ fn limit(field: &str) -> crate::transform::TransformError {
         "Chat stream limit exceeded",
     )
 }
+
 fn encoded<T: serde::Serialize>(
     value: &T,
     remaining: usize,

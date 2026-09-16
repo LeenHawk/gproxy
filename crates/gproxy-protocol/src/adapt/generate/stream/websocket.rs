@@ -1,5 +1,6 @@
 //! Concrete Responses WebSocket transport using the same incremental pair states.
 //! The host binds authentication to its target and state scope at connection time.
+
 use super::super::GenerationStateAccess;
 use super::{StreamChunk, StreamInvocation, bridge::StreamBridge};
 use crate::{
@@ -21,6 +22,7 @@ pub struct GenerationWsSession {
     native: ws::ResponsesWsSession,
     preparation: super::reservation::Reservation,
 }
+
 #[allow(clippy::large_enum_variant)]
 pub enum GenerationWsConnect {
     Connected {
@@ -29,11 +31,13 @@ pub enum GenerationWsConnect {
     },
     Rejected(WireResponse<HttpBody>),
 }
+
 impl GenerationWsSession {
     pub fn native(&self) -> &ws::ResponsesWsSession {
         &self.native
     }
 }
+
 pub async fn connect<U: Upstream, S: StateStore>(
     upstream: &U,
     target: &U::Target,
@@ -57,6 +61,7 @@ pub async fn connect<U: Upstream, S: StateStore>(
         ws::ResponsesWsConnect::Rejected(response) => Ok(GenerationWsConnect::Rejected(response)),
     }
 }
+
 /// Owns the native turn while borrowing its caller-owned conversion progress.
 /// Dropping a nonterminal native turn poisons the connection; it never resends.
 pub struct GenerationWsTurn<'a, B: StreamBridge<NativeEvent = StreamEvent>> {
@@ -65,6 +70,7 @@ pub struct GenerationWsTurn<'a, B: StreamBridge<NativeEvent = StreamEvent>> {
     failure: Option<StreamEvent>,
     websocket_failure: Option<r::websocket::ErrorMessage>,
 }
+
 impl<B: StreamBridge<NativeEvent = StreamEvent>> GenerationWsTurn<'_, B> {
     pub async fn next<S: StateStore>(
         &mut self,
@@ -109,6 +115,7 @@ impl<B: StreamBridge<NativeEvent = StreamEvent>> GenerationWsTurn<'_, B> {
             .or_else(|| self.turn.as_ref().and_then(|turn| turn.websocket_failure()))
     }
 }
+
 impl<B: StreamBridge<NativeEvent = StreamEvent, NativeRequest = r::GenerateContentRequestBody>>
     StreamInvocation<B>
 {
@@ -153,6 +160,7 @@ impl<B: StreamBridge<NativeEvent = StreamEvent, NativeRequest = r::GenerateConte
         })
     }
 }
+
 impl<B: StreamBridge<ClientEvent = StreamEvent>> StreamInvocation<B> {
     /// Select bare, individually bounded JSON server messages before HTTP start.
     /// Each returned nonempty chunk is exactly one WebSocket Text payload.
@@ -175,6 +183,7 @@ impl<B: StreamBridge<ClientEvent = StreamEvent>> StreamInvocation<B> {
         Ok(())
     }
 }
+
 /// Decode only the declared response.create shape. Unknown extensions are scrubbed.
 pub fn decode_request(
     bytes: &[u8],
@@ -190,6 +199,7 @@ pub fn decode_request(
     let ClientEvent::ResponseCreate(request) = message.event;
     Ok(request)
 }
+
 /// Decode the WS envelope for cross-protocol generation. Warmup has no
 /// equivalent operation on Chat, Claude or Gemini and is rejected explicitly.
 pub fn decode_message(

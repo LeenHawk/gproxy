@@ -5,7 +5,6 @@ impl ChatViaGemini {
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis<S: crate::capability::StateStore>(
         input: h::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -19,9 +18,6 @@ impl ChatViaGemini {
         prepared.original_request = original;
         Ok(prepared)
     }
-}
-
-impl ChatViaGemini {
     /// Prepare a buffered upstream result for later native stream synthesis,
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis_with_capabilities<
@@ -29,7 +25,6 @@ impl ChatViaGemini {
         R: crate::capability::ResourceAccess,
     >(
         input: h::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -58,7 +53,6 @@ impl GeminiViaChat {
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis<S: crate::capability::StateStore>(
         input: g::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -70,9 +64,6 @@ impl GeminiViaChat {
         prepared.target_request.stream = Some(Some(false));
         Ok(prepared)
     }
-}
-
-impl GeminiViaChat {
     /// Prepare a buffered upstream result for later native stream synthesis,
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis_with_capabilities<
@@ -80,7 +71,6 @@ impl GeminiViaChat {
         R: crate::capability::ResourceAccess,
     >(
         input: g::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,

@@ -6,6 +6,7 @@ use crate::{
         openai::chat::{content as c, response as r, stream as s},
     },
 };
+
 /// Synthesizes native JSON chunks. The framing encoder emits `[DONE]` after
 /// these chunks; the source's actual creation time is retained.
 pub fn synthesize_chat_stream(
@@ -150,6 +151,7 @@ pub fn synthesize_chat_stream(
     }
     Ok(Converted { value: out, report })
 }
+
 fn base(
     source: &r::GenerateContentResponseBody,
     choices: Vec<s::StreamChoice>,
@@ -167,6 +169,7 @@ fn base(
     out.moderation = source.moderation.clone();
     out
 }
+
 fn push(
     out: &mut Vec<s::ChatCompletionChunk>,
     bytes: &mut usize,

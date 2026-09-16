@@ -18,6 +18,7 @@ use crate::{
         gemini as g,
     },
 };
+
 #[derive(Debug, Default)]
 pub struct GeminiToClaudeContext {
     /// Actual model fallback, used only until a native model is observed.
@@ -27,6 +28,7 @@ pub struct GeminiToClaudeContext {
     pub usage: Option<c::Usage>,
     pub facts: ClaudeGeminiUsageFacts,
 }
+
 pub struct GeminiToClaudeStream {
     source: Option<GeminiStreamCollector>,
     target: Option<ClaudeStreamCollector>,
@@ -47,6 +49,7 @@ pub struct GeminiToClaudeStream {
     tools: usize,
     calls: super::super::history::Calls,
 }
+
 impl GeminiToClaudeStream {
     pub fn new(
         ctx: GeminiToClaudeContext,

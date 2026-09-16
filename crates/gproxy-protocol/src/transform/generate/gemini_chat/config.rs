@@ -2,6 +2,7 @@ use crate::{
     transform::{Report, TransformError},
     wire::{gemini as g, openai::chat as c},
 };
+
 pub(super) fn to_chat(
     input: &g::GenerateContentRequestBody,
     out: &mut c::GenerateContentRequestBody,
@@ -147,6 +148,7 @@ pub(super) fn to_chat(
     }
     Ok(())
 }
+
 pub(super) fn to_gemini(
     input: &c::GenerateContentRequestBody,
     out: &mut g::GenerateContentRequestBody,

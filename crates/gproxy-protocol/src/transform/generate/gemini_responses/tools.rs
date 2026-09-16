@@ -5,6 +5,7 @@ use crate::{
         openai::responses::{input as i, tools as r},
     },
 };
+
 pub(crate) fn to_responses(
     input: Vec<g::Tool>,
     validated: bool,
@@ -47,6 +48,7 @@ pub(crate) fn to_responses(
     }
     Ok(out)
 }
+
 pub(crate) fn to_gemini(input: Vec<r::Tool>) -> Result<(Vec<g::Tool>, bool), TransformError> {
     let mut functions = Vec::new();
     let mut strict = false;
@@ -70,6 +72,7 @@ pub(crate) fn to_gemini(input: Vec<r::Tool>) -> Result<(Vec<g::Tool>, bool), Tra
         strict,
     ))
 }
+
 fn schema(
     typed: Option<&g::Schema>,
     raw: Option<&serde_json::Value>,
@@ -87,6 +90,7 @@ fn schema(
 
     Ok(typed.map(|v| v.value).or(raw))
 }
+
 pub(crate) fn choice_to_responses(
     config: g::ToolConfig,
 ) -> Result<Option<i::ToolChoice>, TransformError> {
@@ -132,6 +136,7 @@ pub(crate) fn choice_to_responses(
         i::ToolChoice::Mode(mode)
     }))
 }
+
 pub(crate) fn choice_to_gemini(
     choice: Option<i::ToolChoice>,
     strict: bool,

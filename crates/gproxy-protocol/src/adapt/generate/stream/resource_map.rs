@@ -1,4 +1,5 @@
 //! Async resource work over the two concrete Gemini/Responses event types.
+
 use super::{
     StreamInvocation,
     bridge::StreamBridge,
@@ -18,13 +19,17 @@ use crate::{
     },
     wire::{gemini as g, openai::responses::stream::StreamEvent},
 };
+
 type Work<'a, T> = crate::capability::CapabilityFuture<'a, Result<T, TransformError>>;
+
 #[cfg(not(target_arch = "wasm32"))]
 pub(super) type ExternalSource<'a, E> =
     dyn futures_core::Stream<Item = Result<E, TransformError>> + Unpin + Send + 'a;
+
 #[cfg(target_arch = "wasm32")]
 pub(super) type ExternalSource<'a, E> =
     dyn futures_core::Stream<Item = Result<E, TransformError>> + Unpin + 'a;
+
 pub(super) trait ResourceMapping<B: StreamBridge, S: StateStore>: ResourceSend {
     fn revision(&self) -> u64;
     fn failed(&self) -> bool;
@@ -39,10 +44,12 @@ pub(super) trait ResourceMapping<B: StreamBridge, S: StateStore>: ResourceSend {
         state: &'a GenerationStateAccess<'_, S>,
     ) -> Work<'a, ()>;
 }
+
 pub(super) struct ReadImages<'a, 'b, R: ResourceAccess> {
     resources: &'a GenerationResources<'b, R>,
     progress: &'a mut ImageStreamProgress<R::PublishedHandle>,
 }
+
 impl<R: ResourceAccess + ResourceSync, S: StateStore + ResourceSync>
     ResourceMapping<GeminiToResponsesStream, S> for ReadImages<'_, '_, R>
 where
@@ -88,12 +95,14 @@ where
         })
     }
 }
+
 pub(super) struct PublishImages<'a, 'b, R: ResourceAccess> {
     pub(super) resources: &'a GenerationResources<'b, R>,
     pub(super) progress: &'a mut ImageStreamProgress<R::PublishedHandle>,
     pub(super) expires_at: std::time::SystemTime,
     pub(super) enabled: bool,
 }
+
 impl<R: ResourceAccess + ResourceSync, S: StateStore + ResourceSync>
     ResourceMapping<ResponsesToGeminiStream, S> for PublishImages<'_, '_, R>
 where
@@ -139,6 +148,7 @@ where
         Box::pin(async move { self.progress.committed(()) })
     }
 }
+
 impl StreamInvocation<GeminiToResponsesStream> {
     pub async fn next_with_image_resources<S, R>(
         &mut self,
@@ -166,6 +176,7 @@ impl StreamInvocation<GeminiToResponsesStream> {
         .await
     }
 }
+
 impl StreamInvocation<ResponsesToGeminiStream> {
     pub async fn next_with_image_resources<S, R>(
         &mut self,

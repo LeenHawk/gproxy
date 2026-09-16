@@ -10,13 +10,16 @@ pub struct ResponsesUsageFacts {
     pub cached_tokens: Option<i64>,
     pub reasoning_tokens: Option<i64>,
 }
+
 fn count(value: i64, _field: &str) -> Result<i64, TransformError> {
     Ok(value)
 }
+
 fn sum(a: i64, b: i64) -> Result<i64, TransformError> {
     a.checked_add(b)
         .ok_or_else(|| TransformError::invalid_result("usage", "token count overflow"))
 }
+
 fn actual(source: Option<i64>, supplied: Option<i64>, field: &str) -> Result<i64, TransformError> {
     count(
         source
@@ -25,6 +28,7 @@ fn actual(source: Option<i64>, supplied: Option<i64>, field: &str) -> Result<i64
         field,
     )
 }
+
 pub(crate) fn to_responses(
     input: c::Usage,
     facts: ResponsesUsageFacts,
@@ -96,6 +100,7 @@ pub(crate) fn to_responses(
         rest: Default::default(),
     })
 }
+
 pub(crate) fn to_claude(input: r::ResponseUsage) -> Result<c::Usage, TransformError> {
     let total_input = count(input.input_tokens, "usage.input_tokens")?;
     let output = count(input.output_tokens, "usage.output_tokens")?;

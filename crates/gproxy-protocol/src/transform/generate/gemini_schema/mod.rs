@@ -5,10 +5,10 @@
 mod from_json;
 mod to_json;
 
+use crate::transform::{TransformError, TransformErrorKind};
+
 pub use from_json::from_json;
 pub use to_json::to_json;
-
-use crate::transform::{TransformError, TransformErrorKind};
 
 /// Bound recursive schema conversion independently of the HTTP decoder's limits.
 #[derive(Debug, Clone, Copy)]

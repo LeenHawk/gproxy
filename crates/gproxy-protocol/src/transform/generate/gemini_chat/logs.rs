@@ -2,6 +2,7 @@ use crate::{
     transform::{Report, TransformError},
     wire::{gemini as g, openai::chat as c},
 };
+
 fn valid(value: f64) -> Result<f64, TransformError> {
     if value.is_finite() {
         Ok(value)
@@ -12,6 +13,7 @@ fn valid(value: f64) -> Result<f64, TransformError> {
         ))
     }
 }
+
 fn fields(value: g::LogprobCandidate) -> Result<(String, f64), TransformError> {
     Ok((
         value
@@ -24,6 +26,7 @@ fn fields(value: g::LogprobCandidate) -> Result<(String, f64), TransformError> {
         )?,
     ))
 }
+
 pub(super) fn to_chat(
     value: g::LogprobsResult,
     report: &mut Report,
@@ -77,6 +80,7 @@ pub(super) fn to_chat(
         rest: Default::default(),
     })
 }
+
 pub(super) fn to_gemini(
     value: &c::Logprobs,
     report: &mut Report,

@@ -6,10 +6,12 @@ use crate::transform::generate::stream::{
     chat::{self, ChatStreamCollector, ChatStreamLimits},
     claude::{ClaudeStreamCollector, ClaudeStreamLimits},
 };
+
 #[derive(Debug, Clone, Copy)]
 pub struct ClaudeToChatContext {
     pub created: i64,
 }
+
 enum Block {
     Omitted,
     Text {
@@ -22,6 +24,7 @@ enum Block {
         has_arguments: bool,
     },
 }
+
 pub struct ClaudeToChatStream {
     source: Option<ClaudeStreamCollector>,
     target: Option<ChatStreamCollector>,
@@ -39,6 +42,7 @@ pub struct ClaudeToChatStream {
     failed: bool,
     report: Report,
 }
+
 impl ClaudeToChatStream {
     pub fn new(
         context: ClaudeToChatContext,
@@ -407,6 +411,7 @@ impl ClaudeToChatStream {
         })
     }
 }
+
 fn arguments(index: i64, text: String) -> q::Delta {
     let mut tool = q::DeltaToolCall::builder(index).build();
     tool.function = Some(Some(

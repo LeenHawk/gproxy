@@ -10,6 +10,7 @@ use crate::{
     transform::TransformError,
     wire::DeclaredFields,
 };
+
 /// Downloads a source resource and sends an actual selected Files upload.
 /// This does not use ResourceAccess::publish or treat publication as file upload.
 /// Source is fully bounded/preflighted before the target side effect begins.

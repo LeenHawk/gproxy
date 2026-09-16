@@ -1,21 +1,26 @@
 use super::common::invalid;
 use crate::{transform::TransformError, wire::gemini as g};
+
 fn count(n: i64) -> Result<i64, TransformError> {
     Ok(n)
 }
+
 fn add(a: i64, b: i64) -> Result<i64, TransformError> {
     count(a)?
         .checked_add(count(b)?)
         .ok_or_else(|| invalid("count overflow"))
 }
+
 fn agree(a: Option<i64>, b: Option<i64>, _: &str) -> Result<Option<i64>, TransformError> {
     a.or(b).map(count).transpose()
 }
+
 pub(super) struct GeminiUsageProgress {
     usage: g::UsageMetadata,
     candidate_total: Option<i64>,
     thinking_total: Option<i64>,
 }
+
 impl Default for GeminiUsageProgress {
     fn default() -> Self {
         Self {
@@ -25,6 +30,7 @@ impl Default for GeminiUsageProgress {
         }
     }
 }
+
 impl GeminiUsageProgress {
     pub fn observe(&mut self, new: &g::UsageMetadata) {
         macro_rules! field {

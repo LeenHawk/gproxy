@@ -5,6 +5,7 @@ use crate::{
     },
     wire::{DeclaredFields, gemini as g, openai::responses as r},
 };
+
 pub fn gemini_to_responses_request(
     input: g::GenerateContentRequestBody,
     target_model: impl Into<String>,
@@ -65,6 +66,7 @@ pub fn gemini_to_responses_request(
     *flow = ids;
     Ok(Converted { value: out, report })
 }
+
 pub fn responses_to_gemini_request(
     input: r::GenerateContentRequestBody,
     target_model: impl Into<String>,

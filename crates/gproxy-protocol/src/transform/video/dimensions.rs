@@ -1,5 +1,6 @@
 use super::request::enum_string;
 use crate::{transform::TransformError, wire::openai::video as o};
+
 pub(super) fn dimensions(
     input: &o::CreateVideoRequestBody,
 ) -> Result<(Option<String>, Option<String>), TransformError> {

@@ -10,14 +10,17 @@ pub struct SseEvent {
     pub data: String,
     pub retry: Option<u64>,
 }
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SseFrame {
     Event(SseEvent),
     Done,
 }
+
 fn invalid(stage: CodecErrorStage, msg: &'static str) -> CodecError {
     CodecError::new(CodecErrorKind::Invalid, stage, msg)
 }
+
 fn limit(n: u64, max: u64) -> Result<(), CodecError> {
     if n > max {
         Err(CodecError::new(
@@ -29,6 +32,7 @@ fn limit(n: u64, max: u64) -> Result<(), CodecError> {
         Ok(())
     }
 }
+
 fn text(bytes: &[u8]) -> Result<&str, CodecError> {
     std::str::from_utf8(bytes).map_err(|e| {
         CodecError::with_source(
@@ -39,6 +43,7 @@ fn text(bytes: &[u8]) -> Result<&str, CodecError> {
         )
     })
 }
+
 /// Incremental LF/CRLF/CR framing. Invalid UTF-8 is rejected rather than
 /// replaced. `finish` rejects a pending data event instead of dispatching an
 /// event without its required blank-line delimiter. A final partial comment or
@@ -57,6 +62,7 @@ pub struct SseDecoder {
     finished: bool,
     limits: CodecLimits,
 }
+
 impl SseDecoder {
     pub fn new(limits: CodecLimits) -> Self {
         Self {
@@ -230,6 +236,7 @@ impl SseDecoder {
         Ok(Vec::new())
     }
 }
+
 fn line(
     out: &mut Vec<u8>,
     field: &str,
@@ -253,6 +260,7 @@ fn line(
     out.push(b'\n');
     Ok(())
 }
+
 /// Encodes one event. Use SseEncoder for cumulative limits over a whole body.
 pub fn encode_sse_event(event: &SseEvent, limits: CodecLimits) -> Result<Bytes, CodecError> {
     limit(event.data.len() as u64, limits.max_value_bytes)?;
@@ -276,16 +284,19 @@ pub fn encode_sse_event(event: &SseEvent, limits: CodecLimits) -> Result<Bytes, 
     output.push(b'\n');
     Ok(Bytes::from(output))
 }
+
 /// Literal marker bytes, not a complete streaming encoder; SseEncoder::done
 /// accounts this marker against the enclosing body limit.
 pub fn encode_sse_done() -> Bytes {
     Bytes::from_static(b"data: [DONE]\n\n")
 }
+
 pub struct SseEncoder {
     limits: CodecLimits,
     seen: u64,
     terminated: bool,
 }
+
 impl SseEncoder {
     pub fn new(limits: CodecLimits) -> Self {
         Self {

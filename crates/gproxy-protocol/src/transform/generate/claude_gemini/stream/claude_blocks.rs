@@ -10,6 +10,7 @@ use crate::{
     },
 };
 use std::collections::BTreeMap;
+
 enum Payload {
     Text {
         value: String,
@@ -24,11 +25,13 @@ enum Payload {
     },
     Omitted,
 }
+
 struct Block {
     payload: Payload,
     closed: bool,
     bytes: usize,
 }
+
 pub(super) struct Blocks {
     values: BTreeMap<i64, Block>,
     cursor: i64,
@@ -38,6 +41,7 @@ pub(super) struct Blocks {
     limits: StreamLimits,
     calls: super::super::history::Calls,
 }
+
 impl Blocks {
     pub fn new(limits: StreamLimits) -> Self {
         Self {
@@ -220,6 +224,7 @@ impl Blocks {
                         json,
                     } = block.payload
                     else {
+                        // The enclosing arm already matched Payload::Tool on this same block.
                         unreachable!()
                     };
                     let args = if json.is_empty() {

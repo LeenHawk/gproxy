@@ -1,4 +1,5 @@
 //! Explicit image resource operations are separate from ordinary pure conversion.
+
 use super::super::{
     GenerationResources, GenerationStateAccess, image_resources::ImageResourceProgress,
 };
@@ -16,6 +17,7 @@ pub(super) fn wants_uri(input: &g::GenerateContentRequestBody) -> bool {
         .and_then(|image| image.delivery.as_ref())
         == Some(&g::Delivery::Uri)
 }
+
 fn inline_request(mut input: g::GenerateContentRequestBody) -> g::GenerateContentRequestBody {
     if let Some(image) = input
         .generation_config

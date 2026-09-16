@@ -15,6 +15,7 @@ pub(super) fn template(request: &WireRequest<()>) -> Result<(), TransformError> 
     }
     Ok(())
 }
+
 pub(super) fn page_size(value: Option<i64>, max: i64) -> Result<(), TransformError> {
     if value.is_some_and(|n| n <= 0 || n > max) {
         return Err(TransformError::shape(
@@ -24,6 +25,7 @@ pub(super) fn page_size(value: Option<i64>, max: i64) -> Result<(), TransformErr
     }
     Ok(())
 }
+
 pub(super) fn encode(pairs: &[(&str, String)]) -> Option<String> {
     if pairs.is_empty() {
         return None;
@@ -36,6 +38,7 @@ pub(super) fn encode(pairs: &[(&str, String)]) -> Option<String> {
             .join("&"),
     )
 }
+
 fn component(value: &str) -> String {
     use std::fmt::Write;
     let mut result = String::new();

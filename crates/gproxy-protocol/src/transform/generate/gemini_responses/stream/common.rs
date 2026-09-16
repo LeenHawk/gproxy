@@ -2,6 +2,7 @@ use crate::{
     transform::{Report, TransformError, TransformErrorKind, identity::IdentityFlow},
     wire::DeclaredFields,
 };
+
 #[derive(Debug, Clone, Copy)]
 pub struct StreamLimits {
     pub max_events: usize,
@@ -11,6 +12,7 @@ pub struct StreamLimits {
     pub max_parts: usize,
     pub max_tools: usize,
 }
+
 impl Default for StreamLimits {
     fn default() -> Self {
         Self {
@@ -23,6 +25,7 @@ impl Default for StreamLimits {
         }
     }
 }
+
 #[derive(Debug)]
 pub struct StreamEnd<T> {
     pub chunks: Vec<T>,
@@ -30,9 +33,11 @@ pub struct StreamEnd<T> {
     pub report: Report,
     pub signed_tool_bindings: super::identity::SignedToolBindings,
 }
+
 pub(super) fn invalid(message: impl Into<String>) -> TransformError {
     TransformError::invalid_result("gemini_responses.stream", message)
 }
+
 pub(super) fn limit() -> TransformError {
     TransformError::new(
         TransformErrorKind::Limit,
@@ -40,6 +45,7 @@ pub(super) fn limit() -> TransformError {
         "stream limit exceeded",
     )
 }
+
 pub(super) struct Budget {
     limits: StreamLimits,
     input_events: usize,
@@ -47,6 +53,7 @@ pub(super) struct Budget {
     output_events: usize,
     output_bytes: usize,
 }
+
 impl Budget {
     pub fn new(limits: StreamLimits) -> Self {
         Self {
@@ -81,6 +88,7 @@ impl Budget {
         Ok(n)
     }
 }
+
 pub(super) fn measure<T: serde::Serialize>(value: &T, cap: usize) -> Result<usize, TransformError> {
     let n = cap as u64;
     crate::codec::encode_json(
@@ -103,6 +111,7 @@ pub(super) fn measure<T: serde::Serialize>(value: &T, cap: usize) -> Result<usiz
         }
     })
 }
+
 pub(super) fn declared<T: DeclaredFields>(value: T) -> T {
     value.into_declared()
 }

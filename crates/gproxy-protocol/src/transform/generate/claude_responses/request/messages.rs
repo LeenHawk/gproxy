@@ -5,9 +5,11 @@ use crate::{
     },
     wire::{claude::content as c, openai::responses::input as r},
 };
+
 fn easy(role: r::MessageRole, content: r::MessageContent) -> r::InputItem {
     r::InputItem::Easy(r::EasyInputMessage::builder(content, role).build())
 }
+
 pub(crate) fn to_responses(
     messages: Vec<c::Message>,
     flow: &mut IdentityFlow,

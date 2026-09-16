@@ -1,10 +1,12 @@
 use super::*;
 use serde::{Deserialize, Serialize};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ReverseVideoKind {
     Native,
     OpenRouter,
 }
+
 /// Host-selected target/API facts, persisted before any publication or create.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReverseVideoBinding {
@@ -16,16 +18,19 @@ pub struct ReverseVideoBinding {
     pub create_path: String,
     pub query_prefix: String,
 }
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ReverseVideoRequest {
     Native(o::NativeCreateVideoRequestBody),
     OpenRouter(o::CreateVideoRequestBody),
 }
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ReverseVideoResult {
     Native(o::NativeVideo),
     OpenRouter(o::VideoGenerationResponseBody),
 }
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReverseVideoChild {
     pub instance_index: usize,
@@ -37,6 +42,7 @@ pub struct ReverseVideoChild {
     pub result: Option<ReverseVideoResult>,
     pub published: Option<g::VideoOperation>,
 }
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReverseVideoState {
     pub schema: u32,
@@ -46,6 +52,7 @@ pub struct ReverseVideoState {
     pub original: g::PredictLongRunningRequestBody,
     pub children: Vec<ReverseVideoChild>,
 }
+
 #[derive(Debug, Default)]
 pub struct ReverseVideoProgress {
     pub state: Option<ReverseVideoState>,
@@ -57,6 +64,7 @@ pub struct ReverseVideoProgress {
     pub publication_ids: Vec<String>,
     pub publications: Vec<ResourceReference>,
 }
+
 pub(super) fn conflict(path: &str) -> TransformError {
     TransformError::new(
         TransformErrorKind::Conflict,
@@ -64,6 +72,7 @@ pub(super) fn conflict(path: &str) -> TransformError {
         "saved creation requires reconciliation; do not repeat POST",
     )
 }
+
 impl ReverseVideoBinding {
     pub(super) fn key(&self) -> String {
         format!(
@@ -124,6 +133,7 @@ impl ReverseVideoResult {
         }
     }
 }
+
 pub(super) async fn save<S: StateStore>(
     store: &S,
     scope: &S::Scope,
@@ -145,6 +155,7 @@ pub(super) async fn save<S: StateStore>(
     progress.version = Some(version);
     Ok(())
 }
+
 pub(super) async fn load<S: StateStore>(
     store: &S,
     scope: &S::Scope,

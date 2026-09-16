@@ -34,6 +34,7 @@
 //! unsupported execution/media and conflicting factual metadata cannot produce
 //! a successful target terminal. Annotations/logprobs/usage retain actual final
 //! native facts rather than replaying previously emitted text.
+
 mod common;
 mod context;
 mod gemini_parts;

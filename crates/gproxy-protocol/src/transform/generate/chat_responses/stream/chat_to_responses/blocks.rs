@@ -1,4 +1,5 @@
 use super::*;
+
 impl ChatToResponsesStream {
     pub(super) fn message_mut(&mut self) -> Result<(), TransformError> {
         if self.message.is_some() {
@@ -323,6 +324,7 @@ impl ChatToResponsesStream {
                 rest: Default::default(),
             })?;
             let r::ResponseOutputItem::FunctionCall(ref restored) = item else {
+                // restore() returns the same FunctionCall item it was handed.
                 unreachable!()
             };
             let restored_name = restored.name.clone();

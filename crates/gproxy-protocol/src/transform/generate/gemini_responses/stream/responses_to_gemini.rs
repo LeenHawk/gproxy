@@ -20,6 +20,7 @@ use crate::{
     },
 };
 use std::collections::{BTreeMap, BTreeSet};
+
 pub struct ResponsesToGeminiStream {
     source: Option<ResponsesStreamCollector>,
     target: Option<GeminiStreamCollector>,
@@ -47,6 +48,7 @@ pub struct ResponsesToGeminiStream {
     pub(super) parts: usize,
     pub(super) tools: usize,
 }
+
 impl ResponsesToGeminiStream {
     pub fn new(
         context: ResponsesToGeminiContext,

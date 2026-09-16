@@ -2,6 +2,7 @@ use crate::{
     transform::{Report, TransformError},
     wire::{gemini as g, openai::responses::input as r},
 };
+
 pub(super) fn to_gemini(input: Vec<r::OutputLogprob>) -> Result<g::LogprobsResult, TransformError> {
     let mut chosen = Vec::new();
     let mut top = Vec::new();
@@ -38,6 +39,7 @@ pub(super) fn to_gemini(input: Vec<r::OutputLogprob>) -> Result<g::LogprobsResul
         .top_candidates(top)
         .build())
 }
+
 pub(super) fn citations(
     input: Vec<r::OutputAnnotation>,
     report: &mut Report,

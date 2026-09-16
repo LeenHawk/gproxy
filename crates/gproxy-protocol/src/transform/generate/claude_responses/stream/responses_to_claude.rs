@@ -22,11 +22,13 @@ use crate::{
     },
 };
 use std::collections::BTreeMap;
+
 #[derive(Default)]
 pub struct ResponsesToClaudeContext {
     pub usage: Option<c::Usage>,
     pub restoration: Option<ClaudeRequestContext>,
 }
+
 pub struct ResponsesToClaudeStream {
     source: Option<ResponsesStreamCollector>,
     target: Option<ClaudeStreamCollector>,
@@ -54,6 +56,7 @@ pub struct ResponsesToClaudeStream {
     next_block: usize,
     pub(super) report: Report,
 }
+
 impl ResponsesToClaudeStream {
     pub fn new(
         context: ResponsesToClaudeContext,

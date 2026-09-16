@@ -263,6 +263,7 @@ pub fn responses_to_chat_response(
     *flow = ids;
     Ok(Converted { value, report })
 }
+
 pub(crate) fn tier_to_responses(value: c::ResponseServiceTier) -> g::ServiceTier {
     match value {
         c::ResponseServiceTier::Auto => g::ServiceTier::Auto,
@@ -273,6 +274,7 @@ pub(crate) fn tier_to_responses(value: c::ResponseServiceTier) -> g::ServiceTier
         c::ResponseServiceTier::Fast => g::ServiceTier::Fast,
     }
 }
+
 pub(crate) fn tier_to_chat(value: g::ServiceTier) -> c::ResponseServiceTier {
     match value {
         g::ServiceTier::Auto => c::ResponseServiceTier::Auto,

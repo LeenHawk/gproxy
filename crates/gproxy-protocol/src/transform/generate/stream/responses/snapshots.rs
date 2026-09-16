@@ -2,6 +2,7 @@ use super::{
     items::{Item, item_id},
     *,
 };
+
 impl ResponsesStreamCollector {
     pub(super) fn seed_output(
         &mut self,

@@ -7,6 +7,7 @@ use crate::transform::generate::stream::{
     chat::{self, ChatStreamCollector, ChatStreamLimits},
     claude::{ClaudeStreamCollector, ClaudeStreamLimits},
 };
+
 /// Claude needs real initial usage. Without this fact, pending Chat chunks are
 /// released only after an actual usage record arrives. The source must supply
 /// its actual response model; no model name is guessed.
@@ -14,6 +15,7 @@ use crate::transform::generate::stream::{
 pub struct ChatToClaudeContext {
     pub start_usage: Option<c::Usage>,
 }
+
 pub struct ChatToClaudeStream {
     source: Option<ChatStreamCollector>,
     target: Option<ClaudeStreamCollector>,
@@ -37,6 +39,7 @@ pub struct ChatToClaudeStream {
     tool_count: usize,
     report: Report,
 }
+
 impl ChatToClaudeStream {
     pub fn new(
         context: ChatToClaudeContext,
@@ -240,19 +243,17 @@ impl ChatToClaudeStream {
                 self.refusal_text.get_or_insert_default().push_str(&refusal);
             }
             for call in delta.tool_calls.flatten().into_iter().flatten() {
-                if let std::collections::btree_map::Entry::Vacant(entry) =
-                    self.tools.entry(call.index)
-                {
-                    if self.tool_count >= self.limits.max_tools {
-                        return Err(limit());
+                let tool = match self.tools.entry(call.index) {
+                    std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+                    std::collections::btree_map::Entry::Vacant(entry) => {
+                        if self.tool_count >= self.limits.max_tools {
+                            return Err(limit());
+                        }
+                        self.tool_count += 1;
+                        entry.insert(Tool::default())
                     }
-                    self.tool_count += 1;
-                    entry.insert(Tool::default());
-                }
-                self.tools
-                    .get_mut(&call.index)
-                    .unwrap()
-                    .append(call.id.flatten(), call.function.flatten())?;
+                };
+                tool.append(call.id.flatten(), call.function.flatten())?;
             }
             if let Some(function) = delta.function_call.flatten() {
                 if self.legacy.is_none() {
@@ -260,9 +261,10 @@ impl ChatToClaudeStream {
                         return Err(limit());
                     }
                     self.tool_count += 1;
-                    self.legacy = Some(Tool::default());
                 }
-                self.legacy.as_mut().unwrap().append(None, Some(function))?;
+                self.legacy
+                    .get_or_insert_default()
+                    .append(None, Some(function))?;
             }
             if choice.finish_reason.flatten().is_some() {
                 self.close_blocks(out)?;

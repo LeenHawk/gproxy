@@ -1,5 +1,6 @@
 //! Durable identity association before client exposure. Host scopes must bind
 //! principal and upstream; the explicit prefix additionally binds conversation.
+
 use super::{GenerationProgress, identity_facts::IdentityFacts};
 use crate::{
     Dialect,
@@ -23,6 +24,7 @@ pub struct GenerationStateAccess<'a, S: StateStore> {
     pub now: SystemTime,
     pub max_records: usize,
 }
+
 impl<S: StateStore> GenerationStateAccess<'_, S> {
     pub(super) fn key(&self, role: IdentityRole, id: &str) -> Result<String, TransformError> {
         if id.is_empty() {
@@ -281,6 +283,7 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
             .await
     }
 }
+
 fn limit() -> TransformError {
     TransformError::new(
         TransformErrorKind::Limit,
@@ -288,6 +291,7 @@ fn limit() -> TransformError {
         "identity state budget exceeded",
     )
 }
+
 pub(super) type SavedIdentities = BTreeMap<String, (Version, Vec<u8>)>;
 
 /// Explicit identity/name facts recovered for tool results. No content or opaque
@@ -302,6 +306,7 @@ pub struct GenerationToolReplay {
     pub original_call_ids: BTreeMap<String, String>,
     pub original_item_ids: BTreeMap<String, String>,
 }
+
 impl<S: StateStore> GenerationStateAccess<'_, S> {
     /// Declared full history supplies names first. State supplies names for
     /// truncated histories and exact original IDs when an alias was emitted.

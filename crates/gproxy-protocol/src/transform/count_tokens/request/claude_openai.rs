@@ -6,6 +6,7 @@ use crate::{
     },
     wire::{DeclaredFields, claude::count_tokens as c, openai::count_tokens as o},
 };
+
 pub fn claude_to_openai(
     input: c::CountTokensRequestBody,
     target_model: impl Into<String>,
@@ -70,6 +71,7 @@ pub fn claude_to_openai(
     *flow = ids;
     Ok(Converted { value: out, report })
 }
+
 pub fn openai_to_claude(
     input: o::CountTokensRequestBody,
     target_model: impl Into<String>,

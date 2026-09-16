@@ -82,6 +82,7 @@ pub(super) fn to_gemini(
     }
     Ok(out)
 }
+
 pub(super) fn to_claude(
     mut source: g::FunctionResponse,
     id: String,

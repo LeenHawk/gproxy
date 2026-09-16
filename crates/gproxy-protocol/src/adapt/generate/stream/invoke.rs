@@ -19,7 +19,9 @@ use crate::{
 };
 use bytes::Bytes;
 use std::collections::VecDeque;
+
 pub(super) type NativeFull<B> = <<B as StreamBridge>::NativeEvent as NativeEvent>::Full;
+
 pub(super) type ClientFull<B> = <<B as StreamBridge>::ClientEvent as NativeEvent>::Full;
 
 /// Selected operation and per-invocation identity namespaces, supplied by the host.
@@ -27,6 +29,7 @@ pub struct StreamTarget {
     pub endpoint: Endpoint,
     pub identities: GenerationIdentity,
 }
+
 #[derive(Debug, Clone, Copy)]
 pub struct StreamSettings {
     pub codec: CodecLimits,
@@ -34,12 +37,15 @@ pub struct StreamSettings {
     pub source_framing: SourceFraming,
     pub client_framing: SourceFraming,
 }
+
 impl StreamSettings {}
+
 #[derive(Debug)]
 pub enum StreamStart {
     Streaming(WireResponse<()>),
     Rejected(WireResponse<Bytes>),
 }
+
 /// A client event and its already bounded native transport encoding. The final
 /// framing chunk (`[DONE]` or `]`) has `event = None` and `finished = true`.
 #[derive(Debug)]
@@ -48,9 +54,11 @@ pub struct StreamChunk<E> {
     pub bytes: Bytes,
     pub finished: bool,
 }
+
 pub(super) struct ReadyChunk<E> {
     pub chunk: StreamChunk<E>,
 }
+
 /// Caller-owned invocation and progress. Cancellation retains pending state
 /// writes/events; a started upstream send is never implicitly repeated.
 pub struct StreamInvocation<B: StreamBridge> {
@@ -94,6 +102,7 @@ pub struct StreamInvocation<B: StreamBridge> {
     pub(super) finished: bool,
     pub(super) failed: bool,
 }
+
 impl<B: StreamBridge> StreamInvocation<B> {
     pub(super) async fn new<S: StateStore>(
         original: B::ClientRequest,

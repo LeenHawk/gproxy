@@ -6,6 +6,7 @@ use crate::{
     wire::{claude::content as c, gemini as g},
 };
 use std::collections::BTreeMap;
+
 #[derive(Default)]
 pub(crate) struct Calls {
     index: u64,
@@ -13,6 +14,7 @@ pub(crate) struct Calls {
     calls: BTreeMap<String, (String, String, bool)>,
     seeded: std::collections::BTreeSet<String>,
 }
+
 impl Calls {
     pub(crate) fn seed(&mut self, id: String, name: String) -> Result<(), TransformError> {
         if id.is_empty() || name.is_empty() {
@@ -200,6 +202,7 @@ pub(crate) fn to_gemini(
     }
     Ok(out)
 }
+
 pub(crate) fn to_claude(
     parts: Vec<g::Part>,
     calls: &mut Calls,

@@ -24,11 +24,13 @@ pub struct WsClose {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub type WsReceiver = Pin<Box<dyn Stream<Item = Result<WsFrame, TransportError>> + Send + 'static>>;
+
 #[cfg(target_arch = "wasm32")]
 pub type WsReceiver = Pin<Box<dyn Stream<Item = Result<WsFrame, TransportError>> + 'static>>;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub type WsSender = Pin<Box<dyn Sink<WsFrame, Error = TransportError> + Send + 'static>>;
+
 #[cfg(target_arch = "wasm32")]
 pub type WsSender = Pin<Box<dyn Sink<WsFrame, Error = TransportError> + 'static>>;
 

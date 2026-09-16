@@ -1,6 +1,8 @@
 use super::*;
+
 #[derive(Debug)]
 pub struct ChatViaResponsesFanout(Fanout<ChatViaResponses>);
+
 impl ChatViaResponsesFanout {
     pub async fn prepare<S: StateStore>(
         input: h::GenerateContentRequestBody,

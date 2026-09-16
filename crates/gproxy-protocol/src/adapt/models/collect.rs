@@ -17,6 +17,7 @@ struct Progress {
     ids: BTreeSet<String>,
     limits: ModelListLimits,
 }
+
 impl Progress {
     fn new(request: &WireRequest<()>, limits: ModelListLimits) -> Result<Self, ModelListError> {
         query::template(request)?;

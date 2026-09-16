@@ -17,6 +17,7 @@ use crate::{
         openai::responses::{response as r, stream as s},
     },
 };
+
 pub struct GeminiToResponsesStream {
     source: Option<GeminiStreamCollector>,
     pub(super) target: ResponseEvents,
@@ -40,6 +41,7 @@ pub struct GeminiToResponsesStream {
     pub(super) call_ids: std::collections::BTreeSet<String>,
     pub(super) client_tools: crate::transform::generate::client_tools::Bindings,
 }
+
 impl GeminiToResponsesStream {
     pub fn new(
         context: GeminiToResponsesContext,

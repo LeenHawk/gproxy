@@ -171,7 +171,6 @@ impl KnownIdPrefix {
             Self::ImageGenerationItem => "ig_",
             Self::LocalShellItem => "lsh_",
             Self::WebSearchItem => "ws_",
-
             Self::CallToolCall => "ctc_",
             Self::Reasoning => "rs_",
             Self::Message => "msg_",

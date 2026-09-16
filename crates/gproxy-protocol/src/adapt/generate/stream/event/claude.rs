@@ -3,6 +3,7 @@ use crate::{
     transform::generate::stream::claude::{ClaudeStreamCollector, ClaudeStreamLimits},
     wire::claude::{generate_content as c, stream as s},
 };
+
 impl sealed::Event for s::StreamEvent {}
 impl NativeEvent for s::StreamEvent {
     type Full = c::GenerateContentResponseBody;

@@ -1,5 +1,6 @@
 //! Rebuild declared histories with exact saved aliases; source extensions are
 //! removed before either traversal or storage. Tool names come from history first.
+
 use super::{GenerationStateAccess, GenerationToolReplay};
 use crate::{
     Dialect,
@@ -13,6 +14,7 @@ use crate::{
     },
 };
 use std::collections::{BTreeMap, BTreeSet};
+
 fn name(names: &mut BTreeMap<String, String>, id: &str, value: &str) -> Result<(), TransformError> {
     if id.is_empty() || value.is_empty() || names.get(id).is_some_and(|old| old != value) {
         return Err(TransformError::shape(
@@ -23,6 +25,7 @@ fn name(names: &mut BTreeMap<String, String>, id: &str, value: &str) -> Result<(
     names.insert(id.into(), value.into());
     Ok(())
 }
+
 pub(super) fn merge_names(
     target: &mut BTreeMap<String, String>,
     incoming: BTreeMap<String, String>,
@@ -32,6 +35,7 @@ pub(super) fn merge_names(
     }
     Ok(())
 }
+
 fn restore(id: &mut String, replay: &GenerationToolReplay) {
     // Keep client identities until Chat legacy/modern form selection. An
     // actual native modern ID may collide with another client's legacy alias.
@@ -42,6 +46,7 @@ fn restore(id: &mut String, replay: &GenerationToolReplay) {
         *id = original.clone();
     }
 }
+
 async fn facts<S: StateStore>(
     state: &GenerationStateAccess<'_, S>,
     ids: BTreeSet<String>,
@@ -68,6 +73,7 @@ async fn facts<S: StateStore>(
     }
     Ok(replay)
 }
+
 fn require_result_bindings<S: StateStore>(
     state: &GenerationStateAccess<'_, S>,
     results: &BTreeSet<String>,
@@ -87,6 +93,7 @@ fn require_result_bindings<S: StateStore>(
     }
     Ok(())
 }
+
 fn kind(
     replay: &GenerationToolReplay,
     id: &str,
@@ -100,6 +107,7 @@ fn kind(
     }
     Ok(())
 }
+
 pub(super) async fn chat<S: StateStore>(
     input: h::GenerateContentRequestBody,
     state: &GenerationStateAccess<'_, S>,
@@ -174,6 +182,7 @@ pub(super) async fn chat<S: StateStore>(
     }
     Ok((input, replay))
 }
+
 pub(super) async fn claude<S: StateStore>(
     input: c::GenerateContentRequestBody,
     state: &GenerationStateAccess<'_, S>,
@@ -222,6 +231,7 @@ pub(super) async fn claude<S: StateStore>(
     }
     Ok((input, replay))
 }
+
 pub(super) async fn gemini<S: StateStore>(
     input: g::GenerateContentRequestBody,
     state: &GenerationStateAccess<'_, S>,
@@ -269,6 +279,7 @@ pub(super) async fn gemini<S: StateStore>(
     }
     Ok((input, replay))
 }
+
 pub(super) async fn responses<S: StateStore>(
     input: r::GenerateContentRequestBody,
     state: &GenerationStateAccess<'_, S>,

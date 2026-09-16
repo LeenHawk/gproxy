@@ -3,6 +3,7 @@ use crate::{
     wire::{claude::content as c, openai::responses::input as r},
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
+
 pub(super) fn image(source: c::ImageSource) -> Result<r::InputContent, TransformError> {
     let url = match source {
         c::ImageSource::Url(source) => source.url,
@@ -30,6 +31,7 @@ pub(super) fn image(source: c::ImageSource) -> Result<r::InputContent, Transform
     value.image_url = Some(Some(url));
     Ok(r::InputContent::Image(value))
 }
+
 pub(super) fn document(block: c::DocumentBlock) -> Result<r::InputContent, TransformError> {
     let mut value =
         r::ResponseInputFile::builder(r::ResponseInputFileType::ResponseInputFile).build();
@@ -70,6 +72,7 @@ pub(super) fn document(block: c::DocumentBlock) -> Result<r::InputContent, Trans
     }
     Ok(r::InputContent::File(value))
 }
+
 pub(super) fn to_claude(value: r::InputContent) -> Result<c::ContentBlock, TransformError> {
     Ok(match value {
         r::InputContent::Text(value) => {
@@ -156,6 +159,7 @@ pub(super) fn to_claude(value: r::InputContent) -> Result<c::ContentBlock, Trans
         }
     })
 }
+
 pub(super) fn result_to_responses(
     value: c::ToolResultContent,
 ) -> Result<r::FunctionOutput, TransformError> {
@@ -205,6 +209,7 @@ pub(super) fn result_to_responses(
                             target.filename = value.filename.map(Some);
                             r::FunctionOutputContent::File(target)
                         }
+                        // image()/document() yield only Image or File parts; text returned earlier.
                         r::InputContent::Text(_) => unreachable!(),
                     })
                 })
@@ -212,6 +217,7 @@ pub(super) fn result_to_responses(
         ),
     })
 }
+
 pub(super) fn result_to_claude(
     value: r::FunctionOutput,
 ) -> Result<c::ToolResultContent, TransformError> {

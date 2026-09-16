@@ -1,4 +1,5 @@
 //! Native generated-image payloads. MIME is verified from actual bytes.
+
 use crate::{
     transform::{TransformError, images::decode_image},
     wire::{DeclaredFields, gemini as g, openai::responses::input as r},
@@ -19,6 +20,7 @@ pub(super) fn to_responses(
     )
     .build())
 }
+
 pub(super) fn to_gemini(
     value: &r::ImageGenerationCall,
     max_bytes: u64,
@@ -38,9 +40,9 @@ pub(super) fn to_gemini(
         .inline_data(g::Blob::builder(image.metadata.mime().to_owned(), data.clone()).build())
         .build())
 }
+
 pub(super) fn restore(
     value: r::ImageGenerationCall,
-
     context: &mut super::identity::GeminiReplayContext,
     max_bytes: u64,
 ) -> Result<g::Part, TransformError> {

@@ -6,6 +6,7 @@ use crate::{
     wire::DeclaredFields,
 };
 use serde::Serialize;
+
 #[derive(Clone)]
 pub(super) struct Reservation {
     key: String,
@@ -15,6 +16,7 @@ pub(super) struct Reservation {
     failed: bool,
     ws_lane: Option<Option<String>>,
 }
+
 impl Reservation {
     pub fn new<
         C: Serialize + Clone + DeclaredFields,

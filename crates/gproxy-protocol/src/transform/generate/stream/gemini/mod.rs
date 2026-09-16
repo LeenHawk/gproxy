@@ -1,4 +1,5 @@
 //! Bounded native Gemini stream collection and buffered response synthesis.
+
 mod collector;
 mod merge;
 mod synthesize;

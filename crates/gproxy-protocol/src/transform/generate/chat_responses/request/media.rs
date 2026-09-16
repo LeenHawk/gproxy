@@ -2,6 +2,7 @@ use crate::{
     transform::TransformError,
     wire::openai::{chat, responses},
 };
+
 pub(super) fn user_message(
     content: chat::content::UserContent,
 ) -> Result<responses::input::InputItem, TransformError> {
@@ -172,6 +173,7 @@ fn to_responses_cache(
         .build(),
     }
 }
+
 fn to_chat_cache(value: responses::input::PromptCacheBreakpoint) -> chat::PromptCacheBreakpoint {
     match value.mode {
         responses::input::PromptCacheMode::Explicit => {

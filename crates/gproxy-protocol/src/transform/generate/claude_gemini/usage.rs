@@ -2,6 +2,7 @@ use crate::{
     transform::{Report, TransformError},
     wire::{claude::generate_content as c, gemini as g},
 };
+
 /// Measured counters absent from the source response. Supplied counters must
 /// agree with any corresponding upstream fields; omission is not zero.
 #[derive(Debug, Default, Clone, Copy)]
@@ -10,20 +11,24 @@ pub struct ClaudeGeminiUsageFacts {
     pub cache_read_input_tokens: Option<i64>,
     pub thinking_tokens: Option<i64>,
 }
+
 fn count(v: i64) -> Result<i64, TransformError> {
     Ok(v)
 }
+
 fn sum(a: i64, b: i64) -> Result<i64, TransformError> {
     count(a)?
         .checked_add(count(b)?)
         .ok_or_else(|| TransformError::invalid_result("usage", "count overflow"))
 }
+
 fn actual(a: Option<i64>, b: Option<i64>, field: &str) -> Result<i64, TransformError> {
     count(
         a.or(b)
             .ok_or_else(|| TransformError::missing_metadata(field))?,
     )
 }
+
 pub(super) fn to_gemini(
     input: c::Usage,
     facts: ClaudeGeminiUsageFacts,
@@ -93,6 +98,7 @@ pub(super) fn to_gemini(
         .total_token_count(sum(input_count, output)?)
         .build())
 }
+
 pub(super) fn to_claude(
     input: g::UsageMetadata,
     facts: ClaudeGeminiUsageFacts,

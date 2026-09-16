@@ -21,6 +21,7 @@ pub struct ClaudeResponseContext {
     pub created_at: i64,
     pub effective_prompt_cache_options: Option<r::ResponsePromptCacheOptions>,
 }
+
 impl ClaudeResponseContext {
     pub(crate) fn into_response(
         self,

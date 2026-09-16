@@ -6,6 +6,7 @@ use crate::{
     },
     wire::{DeclaredFields, claude::generate_content as c, gemini as g},
 };
+
 pub fn claude_to_gemini_response(
     input: c::GenerateContentResponseBody,
     facts: ClaudeGeminiUsageFacts,
@@ -145,6 +146,7 @@ pub fn claude_to_gemini_response(
     *flow = ids;
     Ok(Converted { value: out, report })
 }
+
 pub fn gemini_to_claude_response(
     input: g::GenerateContentResponseBody,
     model_fallback: Option<String>,

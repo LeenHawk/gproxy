@@ -2,6 +2,7 @@ use crate::{
     transform::TransformError,
     wire::{gemini::video as g, openai::video as o},
 };
+
 /// OpenRouter provider options are keyed by the documented provider slug.
 /// Only selected Google AI Studio options are used for Developer API Veo.
 pub(super) fn to_gemini(
@@ -46,6 +47,7 @@ pub(super) fn to_gemini(
     }
     Ok(())
 }
+
 fn decode<T: serde::de::DeserializeOwned>(
     value: &serde_json::Value,
     key: &str,
@@ -53,6 +55,7 @@ fn decode<T: serde::de::DeserializeOwned>(
     serde_json::from_value(value.clone())
         .map_err(|e| TransformError::shape(format!("provider.options.{key}"), e.to_string()))
 }
+
 fn assign<T: serde::de::DeserializeOwned + PartialEq>(
     target: &mut Option<T>,
     value: &serde_json::Value,
@@ -68,6 +71,7 @@ fn assign<T: serde::de::DeserializeOwned + PartialEq>(
     *target = Some(value);
     Ok(())
 }
+
 pub(super) fn to_openrouter(input: &g::VideoGenerationParameters) -> Option<o::VideoProvider> {
     let mut options = serde_json::Map::new();
     if let Some(count) = input.sample_count {

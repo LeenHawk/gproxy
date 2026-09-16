@@ -1,4 +1,5 @@
 use super::*;
+
 pub(super) fn sequence(event: &s::StreamEvent) -> i64 {
     match event {
         s::StreamEvent::Created(v) => v.sequence_number,

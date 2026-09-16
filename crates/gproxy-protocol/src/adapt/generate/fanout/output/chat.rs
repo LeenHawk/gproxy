@@ -1,4 +1,5 @@
 use super::*;
+
 pub(super) fn aggregate(
     mut values: Vec<h::GenerateContentResponseBody>,
     id: String,
@@ -37,6 +38,7 @@ pub(super) fn aggregate(
     report.changed("id,choices,usage","aggregate identity, ordered child choices and sum of actual per-call charges; created is the first child's actual time");
     Ok(out)
 }
+
 fn usage(
     a: Option<h::Usage>,
     b: Option<h::Usage>,
@@ -66,6 +68,7 @@ fn usage(
         }
     }
 }
+
 fn prompt(
     a: Option<h::PromptTokensDetails>,
     b: Option<h::PromptTokensDetails>,
@@ -93,6 +96,7 @@ fn prompt(
         }
     }
 }
+
 fn completion(
     a: Option<h::CompletionTokensDetails>,
     b: Option<h::CompletionTokensDetails>,

@@ -4,6 +4,7 @@ use crate::{
     wire::{DeclaredFields, gemini as g},
 };
 use std::collections::{BTreeMap, BTreeSet};
+
 #[derive(Debug, Clone, Copy)]
 pub struct GeminiStreamLimits {
     pub max_events: usize,
@@ -11,6 +12,7 @@ pub struct GeminiStreamLimits {
     pub max_candidates: usize,
     pub max_parts: usize,
 }
+
 impl Default for GeminiStreamLimits {
     fn default() -> Self {
         Self {
@@ -21,6 +23,7 @@ impl Default for GeminiStreamLimits {
         }
     }
 }
+
 /// Collects native chunks without retaining a second copy of the event log.
 /// Content is incremental; usage and non-content metadata are native cumulative
 /// snapshots. A failed push poisons the collector so partial state cannot pass.
@@ -34,6 +37,7 @@ pub struct GeminiStreamCollector {
     candidates: BTreeMap<i64, g::Candidate>,
     seen_candidates: bool,
 }
+
 impl GeminiStreamCollector {
     pub fn new(limits: GeminiStreamLimits) -> Self {
         Self {
@@ -212,9 +216,11 @@ impl GeminiStreamCollector {
         })
     }
 }
+
 pub(super) fn terminal(reason: Option<g::FinishReason>) -> bool {
     reason.is_some_and(|r| r != g::FinishReason::Unspecified)
 }
+
 pub(super) fn limit(field: &str) -> TransformError {
     TransformError::new(
         TransformErrorKind::Limit,
@@ -222,6 +228,7 @@ pub(super) fn limit(field: &str) -> TransformError {
         "Gemini stream limit exceeded",
     )
 }
+
 fn add_limit(total: &mut usize, n: usize, max: usize, field: &str) -> Result<(), TransformError> {
     *total = total
         .checked_add(n)
@@ -229,6 +236,7 @@ fn add_limit(total: &mut usize, n: usize, max: usize, field: &str) -> Result<(),
         .ok_or_else(|| limit(field))?;
     Ok(())
 }
+
 fn merge_identity(
     old: &mut Option<String>,
     new: Option<String>,

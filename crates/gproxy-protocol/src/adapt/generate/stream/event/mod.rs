@@ -1,4 +1,5 @@
 //! Concrete native event collection. The associated payloads remain vendor wire types.
+
 mod chat;
 mod claude;
 mod gemini;
@@ -27,7 +28,9 @@ pub struct EventLimits {
     pub max_parts: usize,
     pub max_choices: usize,
 }
+
 impl EventLimits {}
+
 #[derive(Debug, Clone)]
 pub struct Collected<T> {
     pub value: T,
@@ -35,6 +38,7 @@ pub struct Collected<T> {
     /// complete native Chat DTO. These are never invented upstream identities.
     pub(crate) original_tool_ids: Option<Vec<Option<String>>>,
 }
+
 impl<T> Collected<T> {
     fn native(value: T) -> Self {
         Self {
@@ -43,6 +47,7 @@ impl<T> Collected<T> {
         }
     }
 }
+
 impl<T: IdentityFacts> IdentityFacts for Collected<T> {
     fn dialect(&self) -> Dialect {
         self.value.dialect()
@@ -80,9 +85,11 @@ impl<T: IdentityFacts> IdentityFacts for Collected<T> {
         self.value.signed_gemini_tool(index)
     }
 }
+
 pub(crate) mod sealed {
     pub trait Event {}
 }
+
 /// Sealed over the four actual generation event types.
 pub trait NativeEvent:
     sealed::Event + Serialize + DeserializeOwned + DeclaredFields + Clone
@@ -119,6 +126,7 @@ pub trait NativeEvent:
         complete_tool_names: bool,
     ) -> Vec<(String, ToolCallKind, Option<String>)>;
 }
+
 fn invalid(message: impl Into<String>) -> TransformError {
     TransformError::invalid_result("generation.stream.event", message)
 }

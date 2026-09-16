@@ -172,7 +172,6 @@ pub async fn openai_to_claude_list<U: Upstream>(
     upstream: &U,
     target: &U::Target,
     request: WireRequest<()>,
-
     supplements: &BTreeMap<String, ClaudeModelSupplement>,
     empty_page_ids: Option<(String, String)>,
     limits: ModelListLimits,
@@ -215,7 +214,6 @@ pub async fn openai_to_gemini_list<U: Upstream>(
     upstream: &U,
     target: &U::Target,
     request: WireRequest<()>,
-
     supplements: &BTreeMap<String, GeminiModelSupplement>,
     limits: ModelListLimits,
 ) -> Result<ModelDirectory<Converted<g::ListModelsResponseBody>>, ModelListError> {

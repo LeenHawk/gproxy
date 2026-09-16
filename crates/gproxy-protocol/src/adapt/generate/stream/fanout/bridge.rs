@@ -3,9 +3,11 @@ use crate::transform::generate::{
     chat_responses::stream as hr, claude_chat::stream as ch, claude_gemini::stream as cg,
     gemini_responses::stream as gr,
 };
+
 mod sealed {
     pub trait Edge {}
 }
+
 /// The four single-result upstream edges that can serve a multi-candidate client.
 pub trait FanoutBridge: StreamBridge + sealed::Edge {
     fn reserve(
@@ -18,6 +20,7 @@ pub trait FanoutBridge: StreamBridge + sealed::Edge {
         BTreeSet::new()
     }
 }
+
 macro_rules! edge {
     ($ty:ty) => {
         impl sealed::Edge for $ty {}
@@ -36,6 +39,7 @@ macro_rules! edge {
 edge!(ch::ClaudeToChatStream);
 edge!(cg::ClaudeToGeminiStream);
 edge!(hr::ResponsesToChatStream);
+
 impl sealed::Edge for gr::ResponsesToGeminiStream {}
 impl FanoutBridge for gr::ResponsesToGeminiStream {
     fn reserve(

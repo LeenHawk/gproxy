@@ -2,6 +2,7 @@ use crate::{
     transform::{Report, TransformError},
     wire::{claude::count_tokens as c, gemini as g, openai::count_tokens as o},
 };
+
 pub(super) fn claude_to_openai(
     input: &c::CountTokensRequestBody,
     out: &mut o::CountTokensRequestBody,
@@ -84,6 +85,7 @@ pub(super) fn claude_to_openai(
     }
     Ok(())
 }
+
 pub(super) fn openai_to_claude(
     input: &o::CountTokensRequestBody,
     out: &mut c::CountTokensRequestBody,
@@ -112,6 +114,7 @@ pub(super) fn openai_to_claude(
                     o::ReasoningEffort::High => c::Effort::High,
                     o::ReasoningEffort::Xhigh => c::Effort::Xhigh,
                     o::ReasoningEffort::Max => c::Effort::Max,
+                    // The enclosing arm excluded None and Minimal.
                     o::ReasoningEffort::None | o::ReasoningEffort::Minimal => unreachable!(),
                 };
                 out.thinking = Some(c::ThinkingConfig::Adaptive(
@@ -149,6 +152,7 @@ pub(super) fn openai_to_claude(
     }
     Ok(())
 }
+
 pub(super) fn gemini_to_openai(
     input: &g::EmbeddedGenerateContentRequest,
     out: &mut o::CountTokensRequestBody,
@@ -224,6 +228,7 @@ pub(super) fn gemini_to_openai(
     );
     Ok(())
 }
+
 pub(super) fn openai_to_gemini(
     input: &o::CountTokensRequestBody,
     report: &mut Report,

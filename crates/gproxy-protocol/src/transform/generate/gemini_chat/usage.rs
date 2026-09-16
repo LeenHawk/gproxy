@@ -2,17 +2,21 @@ use crate::{
     transform::{Report, TransformError},
     wire::{gemini as g, openai::chat as c},
 };
+
 fn count(value: i64) -> Result<i64, TransformError> {
     Ok(value)
 }
+
 fn add(a: i64, b: i64) -> Result<i64, TransformError> {
     count(a)?
         .checked_add(count(b)?)
         .ok_or_else(|| TransformError::invalid_result("usage", "token overflow"))
 }
+
 fn required(v: Option<i64>, field: &str) -> Result<i64, TransformError> {
     count(v.ok_or_else(|| TransformError::missing_metadata(field))?)
 }
+
 /// Modality entries carry individual facts. Missing entries/counts are not zero.
 fn audio_count(
     details: &Option<Vec<g::ModalityTokenCount>>,
@@ -46,6 +50,7 @@ fn audio_count(
     }
     Ok(audio)
 }
+
 fn audio_detail(value: i64) -> Vec<g::ModalityTokenCount> {
     vec![
         g::ModalityTokenCount::builder()
@@ -54,6 +59,7 @@ fn audio_detail(value: i64) -> Vec<g::ModalityTokenCount> {
             .build(),
     ]
 }
+
 pub(super) fn to_chat(
     source: &g::UsageMetadata,
     report: &mut Report,
@@ -156,6 +162,7 @@ pub(super) fn to_chat(
     }
     Ok(out)
 }
+
 pub(super) fn to_gemini(
     source: &c::Usage,
     report: &mut Report,

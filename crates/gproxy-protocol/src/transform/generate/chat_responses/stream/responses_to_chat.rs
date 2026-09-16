@@ -23,6 +23,7 @@ pub(super) struct TextPart {
     pub done: bool,
     pub emitted: bool,
 }
+
 pub(super) enum ItemKind {
     Message {
         parts: BTreeMap<i64, TextPart>,
@@ -37,6 +38,7 @@ pub(super) enum ItemKind {
     },
     Reasoning,
 }
+
 pub(super) struct ItemState {
     pub id: Option<String>,
     pub kind: ItemKind,
@@ -62,6 +64,7 @@ pub struct ResponsesToChatStream {
     pub(super) terminal: bool,
     pub(super) failed: bool,
 }
+
 impl ResponsesToChatStream {
     pub fn new(flow: IdentityFlow, limits: StreamLimits) -> Self {
         Self::new_with_policy(
@@ -395,6 +398,7 @@ impl ResponsesToChatStream {
         })
     }
 }
+
 fn item_id(item: &r::ResponseOutputItem) -> Option<&str> {
     match item {
         r::ResponseOutputItem::Message(v) => Some(&v.id),

@@ -5,6 +5,7 @@ use crate::{
         responses::{generate as r, input as i},
     },
 };
+
 fn number(
     value: Option<Option<f64>>,
 ) -> Result<Option<Option<serde_json::Number>>, TransformError> {
@@ -14,6 +15,7 @@ fn number(
         None => None,
     })
 }
+
 fn float(
     value: &Option<Option<serde_json::Number>>,
 ) -> Result<Option<Option<f64>>, TransformError> {
@@ -23,6 +25,7 @@ fn float(
         None => None,
     })
 }
+
 pub(super) fn to_responses(
     input: &c::GenerateContentRequestBody,
     out: &mut r::GenerateContentRequestBody,
@@ -160,6 +163,7 @@ pub(super) fn to_responses(
     super::shared_controls::to_responses(input, out)?;
     Ok(())
 }
+
 pub(super) fn to_chat(
     input: &r::GenerateContentRequestBody,
     out: &mut c::GenerateContentRequestBody,

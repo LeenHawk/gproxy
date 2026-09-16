@@ -1,5 +1,6 @@
 use super::super::resources::{bound_value, decoded, limit, read};
 use super::*;
+
 pub(super) fn split(
     input: g::PredictLongRunningRequestBody,
     binding: ReverseVideoBinding,
@@ -78,6 +79,7 @@ pub(super) fn split(
     bound_value(&state, limits)?;
     Ok(state)
 }
+
 pub(super) fn map(
     source: g::PredictLongRunningRequestBody,
     binding: &ReverseVideoBinding,
@@ -97,6 +99,7 @@ pub(super) fn map(
         ),
     })
 }
+
 /// Validate controls without reading or publishing media. Full resource mapping
 /// runs against the original child after publication and verifies bytes/MIME.
 pub(super) fn controls(
@@ -129,6 +132,7 @@ pub(super) fn controls(
     }
     Ok(())
 }
+
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn prepare<R: ResourceAccess>(
     access: &R,
@@ -224,6 +228,7 @@ pub(super) async fn prepare<R: ResourceAccess>(
         let published = publish(access, publish_scope, &id, bytes, &mime, expiry).await?;
         progress.publications.push(published.reference.clone());
         let ResourceReference::Url(url) = published.reference else {
+            // publish() requests PublicationKind::Url, so the host returns a Url reference.
             unreachable!()
         };
         if !image {

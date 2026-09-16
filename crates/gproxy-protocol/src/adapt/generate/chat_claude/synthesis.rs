@@ -5,7 +5,6 @@ impl ChatViaClaude {
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis<S: crate::capability::StateStore>(
         input: h::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -18,9 +17,6 @@ impl ChatViaClaude {
         prepared.target_request.stream = Some(false);
         Ok(prepared)
     }
-}
-
-impl ChatViaClaude {
     /// Prepare a buffered upstream result for later native stream synthesis,
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis_with_capabilities<
@@ -28,7 +24,6 @@ impl ChatViaClaude {
         R: crate::capability::ResourceAccess,
     >(
         input: h::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -51,7 +46,6 @@ impl ClaudeViaChat {
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis<S: crate::capability::StateStore>(
         input: c::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -64,9 +58,6 @@ impl ClaudeViaChat {
         prepared.target_request.stream = Some(Some(false));
         Ok(prepared)
     }
-}
-
-impl ClaudeViaChat {
     /// Prepare a buffered upstream result for later native stream synthesis,
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis_with_capabilities<
@@ -74,7 +65,6 @@ impl ClaudeViaChat {
         R: crate::capability::ResourceAccess,
     >(
         input: c::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,

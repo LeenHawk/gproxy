@@ -14,6 +14,7 @@ use crate::{
         openai::{chat as h, responses as r},
     },
 };
+
 #[derive(Debug)]
 pub struct FanoutTarget {
     pub endpoint: Endpoint,

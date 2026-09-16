@@ -1,4 +1,5 @@
 use super::*;
+
 #[derive(Debug, Clone, Copy)]
 pub struct StreamLimits {
     pub max_events: usize,
@@ -6,6 +7,7 @@ pub struct StreamLimits {
     pub max_choices: usize,
     pub max_tools: usize,
 }
+
 impl Default for StreamLimits {
     fn default() -> Self {
         Self {
@@ -16,6 +18,7 @@ impl Default for StreamLimits {
         }
     }
 }
+
 /// Final chunks and the invocation's identity associations. A successful Chat
 /// target finish is followed by the SSE `[DONE]` framing token.
 pub struct StreamEnd<T> {
@@ -23,6 +26,7 @@ pub struct StreamEnd<T> {
     pub identities: IdentityFlow,
     pub report: Report,
 }
+
 pub(super) struct Budget {
     limits: StreamLimits,
     events: usize,
@@ -30,6 +34,7 @@ pub(super) struct Budget {
     output_events: usize,
     output_bytes: usize,
 }
+
 impl Budget {
     pub fn new(limits: StreamLimits) -> Self {
         Self {
@@ -62,6 +67,7 @@ impl Budget {
         Ok(())
     }
 }
+
 pub(super) fn bounded<T: serde::Serialize>(value: &T, cap: usize) -> Result<usize, TransformError> {
     let cap = cap as u64;
     crate::codec::encode_json(
@@ -84,6 +90,7 @@ pub(super) fn bounded<T: serde::Serialize>(value: &T, cap: usize) -> Result<usiz
         }
     })
 }
+
 pub(super) fn chat_finish(
     v: g::FinishReason,
     has_tools: bool,
@@ -121,6 +128,7 @@ pub(super) fn chat_finish(
         }
     })
 }
+
 pub(super) fn gemini_finish(v: c::FinishReason) -> g::FinishReason {
     match v {
         c::FinishReason::Stop | c::FinishReason::ToolCalls | c::FinishReason::FunctionCall => {
@@ -130,6 +138,7 @@ pub(super) fn gemini_finish(v: c::FinishReason) -> g::FinishReason {
         c::FinishReason::ContentFilter => g::FinishReason::Safety,
     }
 }
+
 pub(super) fn id(
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,

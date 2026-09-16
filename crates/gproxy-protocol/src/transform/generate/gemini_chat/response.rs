@@ -5,10 +5,12 @@ use crate::{
     },
     wire::{DeclaredFields, gemini as g, openai::chat as c},
 };
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct GeminiChatResponseSupplement {
     pub created_unix_seconds: Option<i64>,
 }
+
 pub fn gemini_to_openai_response(
     input: g::GenerateContentResponseBody,
     target_model: impl Into<String>,
@@ -219,6 +221,7 @@ pub fn gemini_to_openai_response(
     *flow = ids;
     Ok(Converted { value: out, report })
 }
+
 pub fn openai_to_gemini_response(
     input: &c::GenerateContentResponseBody,
 ) -> Result<Converted<g::GenerateContentResponseBody>, TransformError> {

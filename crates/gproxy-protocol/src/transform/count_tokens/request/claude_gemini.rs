@@ -10,6 +10,7 @@ use crate::{
         gemini as g,
     },
 };
+
 pub fn claude_to_gemini(
     input: c::CountTokensRequestBody,
     target_model: impl Into<String>,
@@ -88,6 +89,7 @@ pub fn claude_to_gemini(
         report,
     })
 }
+
 pub fn gemini_to_claude(
     input: g::CountTokensRequestBody,
     target_model: impl Into<String>,
@@ -145,6 +147,7 @@ pub fn gemini_to_claude(
     *flow = ids;
     Ok(Converted { value: out, report })
 }
+
 fn to_gemini_config(
     input: &c::CountTokensRequestBody,
 ) -> Result<Option<g::GenerationConfig>, TransformError> {
@@ -186,6 +189,7 @@ fn to_gemini_config(
     }
     Ok(present.then_some(out))
 }
+
 fn to_claude_config(
     input: Option<&g::GenerationConfig>,
     out: &mut c::CountTokensRequestBody,

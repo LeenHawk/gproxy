@@ -1,4 +1,5 @@
 //! Apply explicit host ID policy where the pure pair preserves native IDs.
+
 use super::{
     GenerationIdentity,
     claude_chat_ids::{allocate, result_id},
@@ -61,6 +62,7 @@ pub(super) fn gemini_request(
 /// Evidence produced only after a direct pure converter validates native replay.
 #[derive(Debug, Default, Clone)]
 pub(super) struct SignedToolBindings(BTreeMap<String, Option<String>>);
+
 impl SignedToolBindings {
     pub(super) fn from_stream(
         proof: &crate::transform::generate::gemini_responses::stream::SignedToolBindings,

@@ -1,6 +1,7 @@
 use super::parts::Part;
 use super::*;
 use std::collections::BTreeMap;
+
 pub(super) struct Item {
     pub value: r::ResponseOutputItem,
     pub done: bool,
@@ -9,6 +10,7 @@ pub(super) struct Item {
     pub argument_streamed: bool,
     progress_phase: Option<u8>,
 }
+
 pub(super) fn item_id(item: &r::ResponseOutputItem) -> Option<&str> {
     match item {
         r::ResponseOutputItem::Message(v) => Some(&v.id),

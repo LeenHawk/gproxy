@@ -5,6 +5,7 @@ use crate::{
         responses::{input as i, tools as r},
     },
 };
+
 pub(super) fn to_responses(tools: Vec<c::ChatTool>) -> Result<Vec<r::Tool>, TransformError> {
     tools
         .into_iter()
@@ -47,6 +48,7 @@ pub(super) fn to_responses(tools: Vec<c::ChatTool>) -> Result<Vec<r::Tool>, Tran
         .filter_map(|value| crate::transform::optional(value).transpose())
         .collect()
 }
+
 pub(super) fn to_chat(tools: Vec<r::Tool>) -> Result<Vec<c::ChatTool>, TransformError> {
     tools
         .into_iter()
@@ -114,6 +116,7 @@ pub(super) fn to_chat(tools: Vec<r::Tool>) -> Result<Vec<c::ChatTool>, Transform
         .filter_map(|value| crate::transform::optional(value).transpose())
         .collect()
 }
+
 pub(super) fn choice_to_responses(choice: c::ToolChoice) -> Result<i::ToolChoice, TransformError> {
     Ok(match choice {
         c::ToolChoice::Mode(mode) => i::ToolChoice::Mode(match mode {
@@ -148,6 +151,7 @@ pub(super) fn choice_to_responses(choice: c::ToolChoice) -> Result<i::ToolChoice
         ),
     })
 }
+
 pub(super) fn choice_to_chat(choice: i::ToolChoice) -> Result<c::ToolChoice, TransformError> {
     Ok(match choice {
         i::ToolChoice::Mode(mode) => c::ToolChoice::Mode(match mode {
@@ -246,6 +250,7 @@ pub(super) fn legacy(functions: Vec<c::LegacyFunction>) -> Result<Vec<r::Tool>, 
         })
         .collect())
 }
+
 pub(super) fn legacy_choice(choice: c::FunctionCallChoice) -> i::ToolChoice {
     match choice {
         c::FunctionCallChoice::Mode(c::FunctionCallMode::Auto) => {

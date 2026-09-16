@@ -1,5 +1,6 @@
 //! Direct counting requests reuse the same pair's content/tool field mappings.
 //! No generation request or invented output token budget is constructed.
+
 mod claude_gemini;
 mod claude_openai;
 mod controls;
@@ -11,6 +12,7 @@ use crate::{
 pub use claude_gemini::{claude_to_gemini, gemini_to_claude};
 pub use claude_openai::{claude_to_openai, openai_to_claude};
 pub use gemini_openai::{gemini_to_openai, openai_to_gemini};
+
 fn model(value: impl Into<String>) -> Result<String, TransformError> {
     let value = value.into();
     if value.trim().is_empty() {
@@ -19,6 +21,7 @@ fn model(value: impl Into<String>) -> Result<String, TransformError> {
         Ok(value)
     }
 }
+
 fn policy(policy: &TargetIdPolicy, dialect: crate::Dialect) -> Result<(), TransformError> {
     if policy.dialect != dialect {
         Err(TransformError::shape(
@@ -29,6 +32,7 @@ fn policy(policy: &TargetIdPolicy, dialect: crate::Dialect) -> Result<(), Transf
         Ok(())
     }
 }
+
 fn openai_state(input: &o::CountTokensRequestBody) -> Result<(), TransformError> {
     if input
         .conversation
@@ -53,6 +57,7 @@ fn openai_state(input: &o::CountTokensRequestBody) -> Result<(), TransformError>
     }
     Ok(())
 }
+
 fn gemini_input(
     input: g::CountTokensRequestBody,
 ) -> Result<g::EmbeddedGenerateContentRequest, TransformError> {
@@ -77,6 +82,7 @@ fn gemini_input(
         Ok(g::EmbeddedGenerateContentRequest::builder(String::new(), contents).build())
     }
 }
+
 fn gemini_target(
     model: String,
     contents: Vec<g::Content>,

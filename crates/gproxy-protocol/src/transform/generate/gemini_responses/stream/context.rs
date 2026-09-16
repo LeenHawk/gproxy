@@ -9,12 +9,14 @@ pub struct GeminiToResponsesContext {
     /// Explicit final thinking observation when native cumulative fields omit the final split.
     pub final_thinking_tokens: Option<i64>,
 }
+
 #[derive(Default)]
 pub struct ResponsesToGeminiContext {
     pub restoration: GeminiReplayContext,
     pub response_modalities: Option<Vec<crate::wire::gemini::Modality>>,
     pub image_mime: Option<crate::wire::gemini::ImageMimeType>,
 }
+
 pub(super) fn clean_context(
     mut c: GeminiToResponsesContext,
     limits: StreamLimits,
@@ -52,6 +54,7 @@ pub(super) fn clean_context(
     )?;
     Ok(c)
 }
+
 pub(super) fn clone_response(c: &GeminiResponseContext) -> GeminiResponseContext {
     GeminiResponseContext {
         request: c.request.clone(),
@@ -62,6 +65,7 @@ pub(super) fn clone_response(c: &GeminiResponseContext) -> GeminiResponseContext
         effective_prompt_cache_options: c.effective_prompt_cache_options.clone(),
     }
 }
+
 pub(super) fn clean_replay(
     mut c: GeminiReplayContext,
     limits: StreamLimits,
@@ -115,6 +119,7 @@ pub(super) fn clean_replay(
     }
     Ok(c)
 }
+
 pub(super) fn clone_replay(c: &GeminiReplayContext) -> GeminiReplayContext {
     GeminiReplayContext {
         target: c.target.clone(),

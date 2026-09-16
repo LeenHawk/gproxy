@@ -6,6 +6,7 @@ use crate::{
     },
     wire::{DeclaredFields, gemini as g, openai::count_tokens as o},
 };
+
 pub fn gemini_to_openai(
     input: g::CountTokensRequestBody,
     target_model: impl Into<String>,
@@ -74,6 +75,7 @@ pub fn gemini_to_openai(
     *flow = ids;
     Ok(Converted { value: out, report })
 }
+
 pub fn openai_to_gemini(
     input: o::CountTokensRequestBody,
     target_model: impl Into<String>,

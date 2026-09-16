@@ -7,12 +7,14 @@ use crate::{
     },
 };
 use base64::Engine;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImageMetadata {
     pub format: o::ImageOutputFormat,
     pub width: u32,
     pub height: u32,
 }
+
 impl ImageMetadata {
     pub fn mime(&self) -> &'static str {
         match self.format {
@@ -22,17 +24,20 @@ impl ImageMetadata {
         }
     }
 }
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeneratedImagePart {
     pub bytes: bytes::Bytes,
     pub metadata: ImageMetadata,
     pub revised_prompt: Option<String>,
 }
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ImageUsageFacts {
     Responses(r::response::ResponseUsage),
     Gemini(g::UsageMetadata),
 }
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct ImageCallResult {
     pub image: GeneratedImagePart,
@@ -41,15 +46,19 @@ pub struct ImageCallResult {
     pub model: Option<String>,
     pub report: Report,
 }
+
 fn invalid(detail: &str) -> TransformError {
     TransformError::invalid_result("image.output", detail)
 }
+
 fn u32be(b: &[u8]) -> u32 {
     u32::from_be_bytes(b.try_into().unwrap())
 }
+
 fn u32le(b: &[u8]) -> u32 {
     u32::from_le_bytes(b.try_into().unwrap())
 }
+
 fn crc32(b: &[u8]) -> u32 {
     let mut c = !0u32;
     for x in b {
@@ -60,6 +69,7 @@ fn crc32(b: &[u8]) -> u32 {
     }
     !c
 }
+
 /// Container validation and dimensions; this does not decode pixels. PNG CRCs,
 /// JPEG marker framing and WebP RIFF framing are checked before publication.
 pub fn inspect_image(b: &[u8]) -> Result<ImageMetadata, TransformError> {
@@ -253,6 +263,7 @@ pub fn inspect_image(b: &[u8]) -> Result<ImageMetadata, TransformError> {
         height,
     })
 }
+
 pub fn decode_image(
     encoded: &str,
     mime: Option<&str>,
@@ -394,6 +405,7 @@ pub fn image_response_from_responses(
         report,
     })
 }
+
 pub fn image_response_from_gemini(
     body: &g::GenerateContentResponseBody,
     _context: &ImageRequestContext,

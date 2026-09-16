@@ -13,6 +13,7 @@
 //! before the first publish. Non-2xx responses retain their original HTTP body;
 //! invalid decoded 2xx responses retain the typed native response, including
 //! usage, so failed output conversion does not erase billing evidence.
+
 use crate::{
     HttpBody, WireRequest, WireResponse,
     adapt::{JsonInvocation, invoke_json},
@@ -42,6 +43,7 @@ pub struct ImageLimits {
     pub max_output_bytes: u64,
     pub max_total_output_bytes: u64,
 }
+
 /// Caller-owned progress survives future cancellation. Once generation starts,
 /// this object cannot be reused for generation: a dropped send may have billed
 /// upstream. All completed image bytes and native usage remain available.
@@ -55,6 +57,7 @@ pub struct ImageProgress<H> {
     publication_ids: Vec<String>,
     published: Vec<PublishedResource<H>>,
 }
+
 impl<H> Default for ImageProgress<H> {
     fn default() -> Self {
         Self {
@@ -66,6 +69,7 @@ impl<H> Default for ImageProgress<H> {
         }
     }
 }
+
 impl<H> ImageProgress<H> {
     pub fn started(&self) -> bool {
         self.started
@@ -83,6 +87,7 @@ impl<H> ImageProgress<H> {
         &self.published
     }
 }
+
 #[derive(Debug)]
 pub enum ImageError {
     Transform(TransformError),
@@ -97,11 +102,13 @@ pub enum ImageError {
         response: Box<WireResponse<crate::gemini::GenerateContentResponseBody>>,
     },
 }
+
 impl From<TransformError> for ImageError {
     fn from(v: TransformError) -> Self {
         Self::Transform(v)
     }
 }
+
 impl std::fmt::Display for ImageError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -112,6 +119,7 @@ impl std::fmt::Display for ImageError {
         }
     }
 }
+
 impl std::error::Error for ImageError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
@@ -122,11 +130,13 @@ impl std::error::Error for ImageError {
         }
     }
 }
+
 #[derive(Debug)]
 pub struct ImageOutcome {
     pub response: o::ImagesResponse,
     pub report: Report,
 }
+
 fn limit(context: &str) -> TransformError {
     TransformError::new(
         TransformErrorKind::Limit,
@@ -134,6 +144,7 @@ fn limit(context: &str) -> TransformError {
         "image operation exceeds configured cap",
     )
 }
+
 fn clone_request<T: Clone>(r: &WireRequest<T>) -> WireRequest<T> {
     WireRequest {
         method: r.method.clone(),
@@ -143,6 +154,7 @@ fn clone_request<T: Clone>(r: &WireRequest<T>) -> WireRequest<T> {
         body: r.body.clone(),
     }
 }
+
 fn request_fits<T: serde::Serialize>(
     r: &WireRequest<T>,
     limits: CodecLimits,
@@ -435,6 +447,7 @@ pub async fn generate<A: ResourceAccess, U: Upstream>(
     // Quality/background are requested controls, not factual upstream results.
     Ok(ImageOutcome { response, report })
 }
+
 async fn read_image<A: ResourceAccess>(
     access: &A,
     scope: &A::Scope,
@@ -483,6 +496,7 @@ async fn read_image<A: ResourceAccess>(
         len,
     ))
 }
+
 async fn read_resource<A: ResourceAccess>(
     access: &A,
     scope: &A::Scope,

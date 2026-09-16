@@ -30,19 +30,18 @@
 //! Every failed push poisons the converter. Source terminal events and finish
 //! are mandatory. Input/output bytes/events and retained payloads are bounded,
 //! and each target event is charged once before native validation/retention.
-mod claude_to_responses;
-mod common;
-mod responses_to_claude;
-pub use claude_to_responses::{ClaudeToResponsesContext, ClaudeToResponsesStream};
-pub use common::{StreamEnd, StreamLimits};
-pub use responses_to_claude::{ResponsesToClaudeContext, ResponsesToClaudeStream};
 
 mod claude_blocks;
+mod claude_to_responses;
+mod common;
 mod context;
 mod response_events;
-mod usage;
-pub use context::BoundResponseAnnotation;
-
 mod response_items;
-
 mod response_projection;
+mod responses_to_claude;
+mod usage;
+
+pub use claude_to_responses::{ClaudeToResponsesContext, ClaudeToResponsesStream};
+pub use common::{StreamEnd, StreamLimits};
+pub use context::BoundResponseAnnotation;
+pub use responses_to_claude::{ResponsesToClaudeContext, ResponsesToClaudeStream};

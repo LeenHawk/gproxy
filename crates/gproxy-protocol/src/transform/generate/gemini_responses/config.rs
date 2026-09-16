@@ -5,6 +5,7 @@ use crate::{
         openai::responses::{generate as r, input as i},
     },
 };
+
 pub(super) fn to_responses(
     input: &g::GenerateContentRequestBody,
     out: &mut r::GenerateContentRequestBody,
@@ -130,6 +131,7 @@ pub(super) fn to_responses(
     }
     Ok(())
 }
+
 pub(super) fn to_gemini(
     input: &r::GenerateContentRequestBody,
     out: &mut g::GenerateContentRequestBody,
@@ -281,9 +283,11 @@ pub(super) fn to_gemini(
     }
     Ok(())
 }
+
 fn number(v: Option<f64>) -> Result<Option<Option<serde_json::Number>>, TransformError> {
     Ok(v.and_then(serde_json::Number::from_f64).map(Some))
 }
+
 fn float(v: &Option<Option<serde_json::Number>>) -> Result<Option<f64>, TransformError> {
     Ok(v.as_ref()
         .and_then(Option::as_ref)

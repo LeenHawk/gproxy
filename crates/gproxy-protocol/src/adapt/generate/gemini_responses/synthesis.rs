@@ -5,7 +5,6 @@ impl GeminiViaResponses {
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis<S: crate::capability::StateStore>(
         input: g::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -17,9 +16,6 @@ impl GeminiViaResponses {
         prepared.target_request.stream = Some(Some(false));
         Ok(prepared)
     }
-}
-
-impl GeminiViaResponses {
     /// Prepare a buffered upstream result for later native stream synthesis,
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis_with_capabilities<
@@ -27,7 +23,6 @@ impl GeminiViaResponses {
         R: crate::capability::ResourceAccess,
     >(
         input: g::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -49,7 +44,6 @@ impl ResponsesViaGemini {
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis<S: crate::capability::StateStore>(
         input: r::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -63,9 +57,6 @@ impl ResponsesViaGemini {
         prepared.original_request = original;
         Ok(prepared)
     }
-}
-
-impl ResponsesViaGemini {
     /// Prepare a buffered upstream result for later native stream synthesis,
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis_with_capabilities<
@@ -73,7 +64,6 @@ impl ResponsesViaGemini {
         R: crate::capability::ResourceAccess,
     >(
         input: r::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,

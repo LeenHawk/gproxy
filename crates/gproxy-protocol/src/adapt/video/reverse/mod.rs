@@ -1,24 +1,27 @@
 //! Veo instance/sample fanout into concrete OpenRouter or native Sora jobs.
+
 mod invoke;
 mod output;
 mod prepare;
 mod state;
+
 use super::*;
 use crate::{
     WireResponse,
     capability::{ResourceAccess, ResourceReference, StateStore, Version},
     transform::{Report, TransformErrorKind},
 };
+use state::*;
+use std::time::SystemTime;
+
 pub use invoke::{
     gemini_video_create_composed, gemini_video_query_composed, gemini_video_resume_composed,
     recover_reverse_video_result,
 };
-use state::*;
 pub use state::{
     ReverseVideoBinding, ReverseVideoChild, ReverseVideoKind, ReverseVideoProgress,
     ReverseVideoRequest, ReverseVideoResult, ReverseVideoState,
 };
-use std::time::SystemTime;
 
 async fn publish<R: ResourceAccess>(
     access: &R,

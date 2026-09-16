@@ -1,5 +1,6 @@
 //! Encode an already converted complete response as a native client lifecycle.
 //! No new client identity is allocated after buffered invocation state was saved.
+
 use super::super::GenerationOutcome;
 use super::{
     event::{EventLimits, NativeEvent},
@@ -25,9 +26,11 @@ use crate::{
     },
 };
 use bytes::Bytes;
+
 mod sealed {
     pub trait Complete {}
 }
+
 pub trait CompleteResponse:
     sealed::Complete + DeclaredFields + serde::Serialize + Clone + Sized
 {
@@ -38,6 +41,7 @@ pub trait CompleteResponse:
         limits: EventLimits,
     ) -> Result<Converted<Vec<Self::Event>>, TransformError>;
 }
+
 pub enum GenerationStreamOutcome {
     Success {
         response: WireResponse<HttpBody>,
@@ -45,6 +49,7 @@ pub enum GenerationStreamOutcome {
     },
     Rejected(WireResponse<Bytes>),
 }
+
 /// The buffered adapter must have completed its required state writes first.
 /// This helper preserves all its client IDs and pre-encodes under the supplied
 /// aggregate byte limit before exposing any stream bytes.
@@ -87,6 +92,7 @@ pub fn synthesize<C: CompleteResponse>(
         report,
     })
 }
+
 /// Synthesize the complete Chat result using the actual client's usage option.
 /// The generic `synthesize` utility instead preserves every field of its DTO.
 pub fn synthesize_chat(
@@ -110,6 +116,7 @@ pub fn synthesize_chat(
     }
     synthesize(outcome, namespace, framing, codec, events)
 }
+
 impl sealed::Complete for c::GenerateContentResponseBody {}
 impl CompleteResponse for c::GenerateContentResponseBody {
     type Event = cs::StreamEvent;
@@ -129,6 +136,7 @@ impl CompleteResponse for c::GenerateContentResponseBody {
         )
     }
 }
+
 impl sealed::Complete for h::GenerateContentResponseBody {}
 impl CompleteResponse for h::GenerateContentResponseBody {
     type Event = hs::ChatCompletionChunk;
@@ -148,6 +156,7 @@ impl CompleteResponse for h::GenerateContentResponseBody {
         )
     }
 }
+
 impl sealed::Complete for g::GenerateContentResponseBody {}
 impl CompleteResponse for g::GenerateContentResponseBody {
     type Event = Self;
@@ -167,6 +176,7 @@ impl CompleteResponse for g::GenerateContentResponseBody {
         )
     }
 }
+
 impl sealed::Complete for r::GenerateContentResponseBody {}
 impl CompleteResponse for r::GenerateContentResponseBody {
     type Event = rs::StreamEvent;

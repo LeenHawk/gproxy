@@ -1,4 +1,5 @@
 use super::*;
+
 pub(super) struct Part {
     pub value: s::OutputContentPart,
     pub summary: bool,
@@ -9,6 +10,7 @@ pub(super) struct Part {
     pub incomplete: bool,
     pub seeded: bool,
 }
+
 impl Part {
     pub fn new(value: s::OutputContentPart, summary: bool) -> Self {
         let annotation_index = match &value {
@@ -135,6 +137,7 @@ impl Part {
         }
     }
 }
+
 pub(super) fn stream_logs(logs: &[i::OutputLogprob]) -> Vec<s::StreamLogprob> {
     logs.iter()
         .map(|v| s::StreamLogprob {

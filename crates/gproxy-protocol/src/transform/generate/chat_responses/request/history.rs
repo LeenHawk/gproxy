@@ -3,6 +3,7 @@ use crate::{
     transform::{Report, TransformError},
     wire::openai::{chat as c, responses::input as r},
 };
+
 fn role(
     role: r::MessageRole,
     content: r::MessageContent,
@@ -49,11 +50,13 @@ fn role(
                     message.content = Some(Some(c::AssistantContent::Text(text)));
                     c::ChatMessage::Assistant(message)
                 }
+                // The enclosing arm matched System | Developer | Assistant only.
                 r::MessageRole::User => unreachable!(),
             })
         }
     }
 }
+
 fn tool(call_id: String, output: String) -> Result<c::ChatMessage, TransformError> {
     Ok(c::ChatMessage::Tool(
         c::ToolMessage::builder(
@@ -64,6 +67,7 @@ fn tool(call_id: String, output: String) -> Result<c::ChatMessage, TransformErro
         .build(),
     ))
 }
+
 pub(super) fn to_chat(
     input: Option<r::Input>,
     report: &mut Report,

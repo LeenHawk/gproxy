@@ -6,6 +6,7 @@ use super::{
 };
 use crate::{transform::TransformError, wire::gemini as g};
 use std::collections::BTreeMap;
+
 impl ResponsesToGeminiStream {
     pub(super) fn flush(
         &mut self,

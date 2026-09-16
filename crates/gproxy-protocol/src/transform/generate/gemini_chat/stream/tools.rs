@@ -1,4 +1,5 @@
 use super::*;
+
 #[derive(Default)]
 pub(super) struct ChatTool {
     pub name: String,
@@ -6,6 +7,7 @@ pub(super) struct ChatTool {
     pub id: Option<String>,
     pub ordinal: u64,
 }
+
 impl ChatTool {
     pub fn append(
         &mut self,
@@ -58,6 +60,7 @@ impl ChatTool {
         Ok(g::Part::builder().function_call(call).build())
     }
 }
+
 #[derive(Default)]
 pub(super) struct ChatChoice {
     pub tools: BTreeMap<i64, ChatTool>,

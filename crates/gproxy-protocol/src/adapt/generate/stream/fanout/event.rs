@@ -4,6 +4,7 @@ use crate::wire::{
     gemini as g,
     openai::chat::{self as h, stream as hs},
 };
+
 /// Sealed by NativeEvent. Rewrites only the aggregate envelope of concrete client events.
 pub trait FanoutEvent: NativeEvent {
     fn project(
@@ -21,6 +22,7 @@ pub trait FanoutEvent: NativeEvent {
     fn equivalent(a: &Self::Full, b: &Self::Full) -> bool;
     fn visible(&self) -> bool;
 }
+
 impl FanoutEvent for hs::ChatCompletionChunk {
     fn project(
         &mut self,
@@ -89,6 +91,7 @@ impl FanoutEvent for hs::ChatCompletionChunk {
         !self.choices.is_empty()
     }
 }
+
 impl FanoutEvent for g::GenerateContentResponseBody {
     fn project(
         &mut self,

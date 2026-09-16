@@ -1,4 +1,5 @@
 use super::*;
+
 pub(super) fn facts(
     resources: &BTreeMap<String, ResolvedVideoResource>,
     limits: VideoLimits,
@@ -27,6 +28,7 @@ pub(super) fn facts(
     )?;
     Ok(())
 }
+
 pub(super) fn check_template(
     request: &WireRequest<()>,
     method: http::Method,
@@ -195,6 +197,7 @@ pub async fn native_create<U: Upstream>(
     }
     invoke_json(upstream, target, request, limits.codec).await
 }
+
 pub async fn native_retrieve<U: Upstream>(
     upstream: &U,
     target: &U::Target,

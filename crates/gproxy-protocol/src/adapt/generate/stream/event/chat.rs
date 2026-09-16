@@ -4,15 +4,18 @@ use crate::{
     wire::openai::chat::{self as c, stream as s},
 };
 use std::collections::BTreeMap;
+
 #[derive(Default)]
 struct ChoiceIds {
     legacy: bool,
     tools: BTreeMap<i64, Option<String>>,
 }
+
 pub struct ChatCollector {
     native: ChatStreamCollector,
     ids: BTreeMap<i64, ChoiceIds>,
 }
+
 impl sealed::Event for s::ChatCompletionChunk {}
 impl NativeEvent for s::ChatCompletionChunk {
     type Full = c::GenerateContentResponseBody;

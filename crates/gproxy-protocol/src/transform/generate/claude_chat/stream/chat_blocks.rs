@@ -1,10 +1,12 @@
 use super::*;
+
 #[derive(Default)]
 pub(super) struct Tool {
     pub name: String,
     pub arguments: String,
     pub id: Option<String>,
 }
+
 impl Tool {
     pub fn append(
         &mut self,
@@ -39,6 +41,7 @@ impl Tool {
         })
     }
 }
+
 pub(super) fn text_start(index: i64) -> s::StreamEvent {
     s::StreamEvent::ContentBlockStart(
         s::ContentBlockStartEvent::builder(
@@ -50,6 +53,7 @@ pub(super) fn text_start(index: i64) -> s::StreamEvent {
         .build(),
     )
 }
+
 pub(super) fn text_delta(index: i64, text: String) -> s::StreamEvent {
     s::StreamEvent::ContentBlockDelta(
         s::ContentBlockDeltaEvent::builder(
@@ -59,9 +63,11 @@ pub(super) fn text_delta(index: i64, text: String) -> s::StreamEvent {
         .build(),
     )
 }
+
 pub(super) fn block_stop(index: i64) -> s::StreamEvent {
     s::StreamEvent::ContentBlockStop(s::ContentBlockStopEvent::builder(index).build())
 }
+
 pub(super) fn usage_delta(usage: c::Usage) -> s::MessageDeltaUsage {
     s::MessageDeltaUsage {
         output_tokens: usage.output_tokens,

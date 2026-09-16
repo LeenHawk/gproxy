@@ -1,4 +1,5 @@
 //! Restore the Guardian client's Responses SSE contract after validation.
+
 use super::{GuardianClassifyInvocation, GuardianNativeResponse, GuardianReviewInvocation};
 use crate::{
     HttpBody, WireResponse,
@@ -19,6 +20,7 @@ use crate::{
         openai::responses::{input as i, response as r, stream as s},
     },
 };
+
 /// Concrete invocation facts used by the existing direct response pair. Claude
 /// and Gemini need a factual timestamp, and missing usage details need actual
 /// host facts. No timestamp or zero counter is supplied by this adapter.
@@ -30,6 +32,7 @@ pub enum GuardianStreamContext {
     Claude(ClaudeResponseContext),
     Gemini(GeminiResponseContext),
 }
+
 #[derive(Debug)]
 pub enum GuardianStreamInvocation {
     Success {
@@ -43,11 +46,13 @@ pub enum GuardianStreamInvocation {
         native: Box<GuardianNativeResponse>,
     },
 }
+
 #[derive(Debug, Clone, Copy)]
 pub struct GuardianStreamLimits {
     pub codec: CodecLimits,
     pub stream: ResponsesStreamLimits,
 }
+
 impl GuardianReviewInvocation {
     pub fn into_stream(
         self,
@@ -71,6 +76,7 @@ impl GuardianReviewInvocation {
         }
     }
 }
+
 impl GuardianClassifyInvocation {
     pub fn into_stream(
         self,
@@ -94,6 +100,7 @@ impl GuardianClassifyInvocation {
         }
     }
 }
+
 fn clean<T: DeclaredFields + serde::Serialize>(
     body: T,
     limits: CodecLimits,
@@ -102,6 +109,7 @@ fn clean<T: DeclaredFields + serde::Serialize>(
     codec::encode_json(&body, limits).map_err(encoding)?;
     Ok(body)
 }
+
 fn build(
     native: GuardianNativeResponse,
     context: GuardianStreamContext,
@@ -229,6 +237,7 @@ fn build(
         report,
     })
 }
+
 fn collapse_text(
     response: &mut r::GenerateContentResponseBody,
     text: String,
@@ -279,6 +288,7 @@ fn collapse_text(
     }
     Ok(())
 }
+
 fn encoding(error: crate::codec::CodecError) -> TransformError {
     TransformError::new(
         if error.kind() == crate::codec::CodecErrorKind::Limit {

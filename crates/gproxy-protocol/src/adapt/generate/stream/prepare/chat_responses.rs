@@ -87,6 +87,7 @@ impl ChatViaResponses {
         Ok(invocation)
     }
 }
+
 impl ResponsesViaChat {
     pub async fn prepare_stream<S: StateStore>(
         input: r::GenerateContentRequestBody,

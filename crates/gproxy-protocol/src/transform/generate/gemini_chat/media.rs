@@ -40,6 +40,7 @@ pub(super) fn to_chat(blob: g::Blob) -> Result<c::UserContentPart, TransformErro
         ));
     })
 }
+
 pub(super) fn data_uri(value: &str) -> Result<g::Blob, TransformError> {
     let (mime, data) = value
         .strip_prefix("data:")
@@ -53,6 +54,7 @@ pub(super) fn data_uri(value: &str) -> Result<g::Blob, TransformError> {
     }
     Ok(g::Blob::builder(mime.into(), data.into()).build())
 }
+
 pub(super) fn user(content: &c::UserContent) -> Result<Vec<g::Part>, TransformError> {
     match content {
         c::UserContent::Text(text) => Ok(vec![g::Part::builder().text(text.clone()).build()]),

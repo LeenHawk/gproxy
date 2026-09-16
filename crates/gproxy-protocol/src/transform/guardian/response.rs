@@ -95,6 +95,7 @@ pub fn extract_claude(
     let text = crate::transform::memory::claude_text(input)?;
     extract_text(text, operation)
 }
+
 pub fn extract_gemini(
     input: g::GenerateContentResponseBody,
     operation: super::GuardianOperation,
@@ -102,6 +103,7 @@ pub fn extract_gemini(
     let text = crate::transform::memory::gemini_text(input)?;
     extract_text(text, operation)
 }
+
 pub fn extract_chat(
     input: o::GenerateContentResponseBody,
     operation: super::GuardianOperation,
@@ -109,6 +111,7 @@ pub fn extract_chat(
     let text = crate::transform::memory::chat_text(input)?;
     extract_text(text, operation)
 }
+
 pub fn extract_responses(
     input: r::GenerateContentResponseBody,
     operation: super::GuardianOperation,

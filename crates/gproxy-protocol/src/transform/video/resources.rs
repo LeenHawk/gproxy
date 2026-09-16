@@ -5,6 +5,7 @@ use crate::{
     wire::{gemini::video as g, openai::video as o},
 };
 use std::collections::BTreeMap;
+
 pub(super) fn image_resource(
     reference: &str,
     resources: &BTreeMap<String, ResolvedVideoResource>,
@@ -132,6 +133,7 @@ pub(super) fn bound<'a>(
     }
     Ok(resource)
 }
+
 pub(super) fn url(value: &str) -> Result<String, TransformError> {
     let uri: http::Uri = value
         .parse()

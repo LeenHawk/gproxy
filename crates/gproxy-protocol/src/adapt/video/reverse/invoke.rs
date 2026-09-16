@@ -1,5 +1,6 @@
 use super::super::{composed::prepare_headers, direct::check_template, resources::bound_value};
 use super::*;
+
 fn expiry_valid(expiry: SystemTime) -> Result<(), TransformError> {
     if expiry <= SystemTime::now() {
         return Err(TransformError::shape(
@@ -9,6 +10,7 @@ fn expiry_valid(expiry: SystemTime) -> Result<(), TransformError> {
     }
     Ok(())
 }
+
 fn template(
     binding: &ReverseVideoBinding,
     mut template: WireRequest<()>,
@@ -30,6 +32,7 @@ fn template(
     template.method = method;
     Ok(template)
 }
+
 #[allow(clippy::too_many_arguments)]
 async fn send<U: Upstream>(
     upstream: &U,
@@ -82,6 +85,7 @@ async fn send<U: Upstream>(
         ReverseVideoKind::OpenRouter => invoke!(o::VideoGenerationResponseBody, OpenRouter),
     }
 }
+
 #[allow(clippy::too_many_arguments)]
 pub async fn gemini_video_create_composed<U: Upstream, R: ResourceAccess, S: StateStore>(
     upstream: &U,
@@ -139,6 +143,7 @@ pub async fn gemini_video_create_composed<U: Upstream, R: ResourceAccess, S: Sta
     )
     .await
 }
+
 /// Continue only children whose durable `started` marker is false. A started
 /// child without a retained result requires explicit caller reconciliation.
 #[allow(clippy::too_many_arguments)]
@@ -193,6 +198,7 @@ pub async fn gemini_video_resume_composed<U: Upstream, R: ResourceAccess, S: Sta
     )
     .await
 }
+
 #[allow(clippy::too_many_arguments)]
 async fn drive<U: Upstream, R: ResourceAccess, S: StateStore>(
     upstream: &U,
@@ -261,11 +267,9 @@ async fn drive<U: Upstream, R: ResourceAccess, S: StateStore>(
             limits,
         )
         .await?;
-        let JsonInvocation::Success(response) = response else {
-            return Ok(match response {
-                JsonInvocation::Rejected(r) => JsonInvocation::Rejected(r),
-                _ => unreachable!(),
-            });
+        let response = match response {
+            JsonInvocation::Success(response) => response,
+            JsonInvocation::Rejected(r) => return Ok(JsonInvocation::Rejected(r)),
         };
 
         state.children[index].result = Some(response.body);
@@ -289,6 +293,7 @@ async fn drive<U: Upstream, R: ResourceAccess, S: StateStore>(
         body,
     }))
 }
+
 /// Poll a selected child using its exact recorded resource path. Other children
 /// retain their actual outcomes and are never implicitly recreated or polled.
 #[allow(clippy::too_many_arguments)]
@@ -337,11 +342,9 @@ pub async fn gemini_video_query_composed<U: Upstream, R: ResourceAccess, S: Stat
         limits,
     )
     .await?;
-    let JsonInvocation::Success(response) = response else {
-        return Ok(match response {
-            JsonInvocation::Rejected(r) => JsonInvocation::Rejected(r),
-            _ => unreachable!(),
-        });
+    let response = match response {
+        JsonInvocation::Success(response) => response,
+        JsonInvocation::Rejected(r) => return Ok(JsonInvocation::Rejected(r)),
     };
 
     if state.children[index]
@@ -371,6 +374,7 @@ pub async fn gemini_video_query_composed<U: Upstream, R: ResourceAccess, S: Stat
         body,
     }))
 }
+
 /// Persist a retained, real result after a post-send CAS failure. This performs
 /// no upstream request; unknown outcomes need caller reconciliation first.
 pub async fn recover_reverse_video_result<S: StateStore>(

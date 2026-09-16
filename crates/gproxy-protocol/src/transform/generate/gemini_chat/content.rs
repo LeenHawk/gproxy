@@ -6,6 +6,7 @@ use crate::{
     wire::{gemini as g, openai::chat as c},
 };
 use std::collections::BTreeMap;
+
 #[derive(Default)]
 pub(super) struct Calls {
     pub index: u64,
@@ -16,6 +17,7 @@ pub(super) struct Calls {
     pub(super) legacy_declared: std::collections::BTreeSet<String>,
     pub(super) legacy_names: BTreeMap<String, Vec<String>>,
 }
+
 impl Calls {
     fn legacy_call(&mut self, name: &str, id: Option<&str>) -> Result<bool, TransformError> {
         let Some(id) = id else {
@@ -321,6 +323,7 @@ pub(super) fn gemini_content_to_chat(
     }
     Ok(result)
 }
+
 fn flush_user(parts: &mut Vec<c::UserContentPart>, out: &mut Vec<c::ChatMessage>) {
     if !parts.is_empty() {
         out.push(c::ChatMessage::User(
@@ -332,6 +335,7 @@ fn flush_user(parts: &mut Vec<c::UserContentPart>, out: &mut Vec<c::ChatMessage>
         ));
     }
 }
+
 pub(super) fn chat_text(content: &c::TextContent) -> String {
     match content {
         c::TextContent::Text(text) => text.clone(),
@@ -342,6 +346,7 @@ pub(super) fn chat_text(content: &c::TextContent) -> String {
             .join(""),
     }
 }
+
 pub(super) fn assistant(
     message: &c::AssistantMessage,
     report: &mut Report,

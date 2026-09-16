@@ -1,5 +1,6 @@
 use super::*;
 use crate::{capability::ResourceAccess, transform::identity::IdNamespace};
+
 /// Resource progress for a single incremental invocation. Native events remain
 /// in the invocation while these operations await; receipts and proofs survive
 /// cancellation of an individual `next_with_image_resources` future.
@@ -14,6 +15,7 @@ pub struct ImageStreamProgress<H> {
     pub(crate) reads: GeminiImageReads,
     pub(crate) proofs: GenerationProgress<()>,
 }
+
 impl<H> Default for ImageStreamProgress<H> {
     fn default() -> Self {
         Self {
@@ -29,6 +31,7 @@ impl<H> Default for ImageStreamProgress<H> {
         }
     }
 }
+
 impl<H> ImageStreamProgress<H> {
     pub(crate) fn failed(&self) -> bool {
         self.source.values().any(|event| event.failed)

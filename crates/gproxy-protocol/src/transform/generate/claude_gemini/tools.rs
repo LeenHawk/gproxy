@@ -5,6 +5,7 @@ use crate::{
         gemini as g,
     },
 };
+
 pub(crate) fn to_gemini(
     input: Option<Vec<ct::ToolUnion>>,
     choice: Option<c::ToolChoice>,
@@ -96,6 +97,7 @@ pub(crate) fn to_gemini(
         }),
     ))
 }
+
 pub(crate) fn to_claude(
     input: Option<Vec<g::Tool>>,
     config: Option<g::ToolConfig>,

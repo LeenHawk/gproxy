@@ -3,6 +3,7 @@ use crate::{
     transform::generate::stream::gemini::{GeminiStreamCollector, GeminiStreamLimits},
     wire::gemini as g,
 };
+
 impl sealed::Event for g::GenerateContentResponseBody {}
 impl NativeEvent for g::GenerateContentResponseBody {
     type Full = Self;

@@ -72,6 +72,7 @@ impl Bindings {
             Kind::Search => {
                 json!({"type":"tool_search_call","id":id,"call_id":call.call_id,"arguments":value,"execution":"client","status":call.status})
             }
+            // Namespace kinds are filtered out before a call reaches output mapping.
             Kind::Namespace { .. } => unreachable!(),
         };
         serde_json::from_value(wire)

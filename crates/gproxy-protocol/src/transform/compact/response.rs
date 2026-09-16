@@ -5,6 +5,7 @@ use crate::{
         openai::{compact::ClientCompactResponseBody, guardian as c},
     },
 };
+
 /// Construct the exact client response envelope consumed by CompactClient.
 /// The caller replaces history with this full array; no native encrypted block
 /// is invented and retained tail items are preserved in their original order.

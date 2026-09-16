@@ -13,6 +13,7 @@ pub(crate) fn to_responses(
         rest: Default::default(),
     })
 }
+
 fn outcome_to_responses(
     value: c::ModerationResultOrError,
     report: &mut Report,
@@ -84,6 +85,7 @@ fn outcome_to_responses(
         }
     })
 }
+
 pub(crate) fn to_chat(
     value: r::ResponseModerationReport,
 ) -> Result<c::ModerationResponse, TransformError> {
@@ -93,6 +95,7 @@ pub(crate) fn to_chat(
         rest: Default::default(),
     })
 }
+
 fn outcome_to_chat(
     value: r::ResponseModerationOutcome,
 ) -> Result<c::ModerationResultOrError, TransformError> {

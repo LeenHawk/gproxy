@@ -1,5 +1,6 @@
 //! Materialize declared foreign URLs/native IDs through scoped ResourceAccess.
 //! Bytes and factual MIME stay in concrete vendor fields; no content IR is used.
+
 mod chat;
 mod claude;
 mod gemini;
@@ -11,6 +12,7 @@ use crate::{
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use std::time::SystemTime;
+
 pub struct GenerationResources<'a, R: ResourceAccess> {
     pub access: &'a R,
     pub scope: &'a R::Scope,
@@ -18,21 +20,25 @@ pub struct GenerationResources<'a, R: ResourceAccess> {
     pub max_references: usize,
     pub now: SystemTime,
 }
+
 pub(super) struct Budget<'a, 'b, R: ResourceAccess> {
     ctx: &'a GenerationResources<'b, R>,
     remaining: u64,
     references: usize,
 }
+
 struct Media {
     bytes: bytes::Bytes,
     mime: String,
     filename: Option<String>,
 }
+
 impl Media {
     fn data_uri(&self) -> String {
         format!("data:{};base64,{}", self.mime, STANDARD.encode(&self.bytes))
     }
 }
+
 impl<R: ResourceAccess> GenerationResources<'_, R> {
     fn budget(&self) -> Budget<'_, '_, R> {
         Budget {
@@ -45,6 +51,7 @@ impl<R: ResourceAccess> GenerationResources<'_, R> {
         }
     }
 }
+
 impl<R: ResourceAccess> Budget<'_, '_, R> {
     async fn read(
         &mut self,
@@ -128,6 +135,7 @@ impl<R: ResourceAccess> Budget<'_, '_, R> {
         })
     }
 }
+
 fn limit() -> TransformError {
     TransformError::new(
         TransformErrorKind::Limit,

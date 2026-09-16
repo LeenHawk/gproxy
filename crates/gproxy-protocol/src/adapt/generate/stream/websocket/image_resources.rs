@@ -8,6 +8,7 @@ use crate::{
     transform::generate::gemini_responses::stream::ResponsesToGeminiStream,
     wire::gemini as g,
 };
+
 impl GenerationWsTurn<'_, ResponsesToGeminiStream> {
     /// Perform actual URI publications while retaining the native WS turn and
     /// pending client events across cancellation of this individual future.

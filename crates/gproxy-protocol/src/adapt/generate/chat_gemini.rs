@@ -9,7 +9,8 @@ use crate::{
     transform::{Converted, Report, TransformError},
     wire::DeclaredFields,
 };
-/// A prepared h client request executed by the selected g endpoint.
+
+/// A prepared Chat Completions client request executed by the selected Gemini endpoint.
 #[derive(Debug)]
 pub struct ChatViaGemini {
     original_request: h::GenerateContentRequestBody,
@@ -19,6 +20,7 @@ pub struct ChatViaGemini {
     identities: GenerationIdentity,
     report: Report,
 }
+
 impl ChatViaGemini {
     pub fn prepare(
         input: h::GenerateContentRequestBody,
@@ -57,14 +59,12 @@ impl ChatViaGemini {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: h::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
         function_names: &std::collections::BTreeMap<String, String>,
     ) -> Result<Self, TransformError> {
         let selected_model = state.target.model.clone();
-
         let original = input.into_declared();
         let (restored, names) = super::history::chat(original.clone(), state).await?;
         let mut merged_names = function_names.clone();
@@ -92,7 +92,6 @@ impl ChatViaGemini {
         R: crate::capability::ResourceAccess,
     >(
         input: h::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
@@ -100,7 +99,6 @@ impl ChatViaGemini {
         function_names: &std::collections::BTreeMap<String, String>,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
-
         let materialized = resources.chat(original.clone()).await?;
         let mut prepared =
             Self::prepare_with_state(materialized, endpoint, identities, state, function_names)
@@ -217,7 +215,8 @@ impl ChatViaGemini {
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }
-/// A prepared g client request executed by the selected h endpoint.
+
+/// A prepared Gemini client request executed by the selected Chat Completions endpoint.
 #[derive(Debug)]
 pub struct GeminiViaChat {
     original_request: g::GenerateContentRequestBody,
@@ -227,6 +226,7 @@ pub struct GeminiViaChat {
     identities: GenerationIdentity,
     report: Report,
 }
+
 impl GeminiViaChat {
     pub fn prepare(
         input: g::GenerateContentRequestBody,
@@ -275,13 +275,11 @@ impl GeminiViaChat {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: g::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
     ) -> Result<Self, TransformError> {
         let selected_model = state.target.model.clone();
-
         let original = input.into_declared();
         let (restored, names) = super::history::gemini(original.clone(), state).await?;
         let mut prepared =
@@ -295,14 +293,12 @@ impl GeminiViaChat {
         R: crate::capability::ResourceAccess,
     >(
         input: g::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
         resources: &super::GenerationResources<'_, R>,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
-
         let materialized = resources.gemini(original.clone()).await?;
         let mut prepared =
             Self::prepare_with_state(materialized, endpoint, identities, state).await?;

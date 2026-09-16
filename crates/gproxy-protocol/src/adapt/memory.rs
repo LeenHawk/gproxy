@@ -10,6 +10,7 @@ use crate::{
     },
     wire::DeclaredFields,
 };
+
 #[derive(Debug, Clone, Copy)]
 pub struct MemoryLimits {
     pub max_calls: usize,
@@ -17,6 +18,7 @@ pub struct MemoryLimits {
     pub max_bytes: u64,
     pub codec: CodecLimits,
 }
+
 #[derive(Debug, Clone, Copy)]
 pub enum MemoryDialect {
     Claude,
@@ -24,11 +26,13 @@ pub enum MemoryDialect {
     OpenAiChat,
     OpenAiResponses,
 }
+
 #[derive(Debug)]
 pub enum MemoryFailure {
     Transform(TransformError),
     Rejected(Box<WireResponse<HttpBody>>),
 }
+
 #[derive(Debug)]
 pub struct MemoryError {
     pub attempted_calls: usize,
@@ -36,6 +40,7 @@ pub struct MemoryError {
     pub trace_id: Option<String>,
     pub failure: MemoryFailure,
 }
+
 impl MemoryError {
     fn at(error: TransformError, calls: usize, done: usize, id: Option<String>) -> Self {
         Self {
@@ -52,11 +57,13 @@ impl MemoryError {
         }
     }
 }
+
 impl From<TransformError> for MemoryError {
     fn from(e: TransformError) -> Self {
         Self::at(e, 0, 0, None)
     }
 }
+
 pub async fn summarize<U: Upstream>(
     upstream: &U,
     target: &U::Target,
@@ -71,6 +78,7 @@ pub async fn summarize<U: Upstream>(
     )
     .await
 }
+
 #[allow(clippy::too_many_arguments)]
 pub async fn summarize_with_reasoning<U: Upstream>(
     upstream: &U,
@@ -227,6 +235,7 @@ pub async fn summarize_with_reasoning<U: Upstream>(
     }
     Ok(output)
 }
+
 fn finish<T>(
     result: Result<JsonInvocation<T>, TransformError>,
     extract: fn(T) -> Result<String, TransformError>,
@@ -245,6 +254,7 @@ fn finish<T>(
         }),
     }
 }
+
 fn limit(field: &str) -> TransformError {
     TransformError::new(
         TransformErrorKind::Limit,

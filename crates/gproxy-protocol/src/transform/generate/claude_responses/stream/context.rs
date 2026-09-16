@@ -5,6 +5,7 @@ use crate::{
     wire::{claude::generate_content as c, openai::responses as r},
 };
 use std::collections::BTreeMap;
+
 /// Exact source citation occurrence and measured target-native annotation facts.
 /// Coordinates and resource IDs are supplied by the host, never guessed.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -14,10 +15,12 @@ pub struct BoundResponseAnnotation {
     pub source: c::ResponseTextCitation,
     pub target: r::OutputAnnotation,
 }
+
 pub struct ClaudeToResponsesContext {
     pub response: ClaudeResponseContext,
     pub annotations: Vec<BoundResponseAnnotation>,
 }
+
 impl From<ClaudeResponseContext> for ClaudeToResponsesContext {
     fn from(response: ClaudeResponseContext) -> Self {
         Self {
@@ -26,6 +29,7 @@ impl From<ClaudeResponseContext> for ClaudeToResponsesContext {
         }
     }
 }
+
 pub(super) fn clean_context(
     mut ctx: ClaudeToResponsesContext,
     limits: StreamLimits,
@@ -95,6 +99,7 @@ pub(super) fn clean_context(
     )?;
     Ok(ctx)
 }
+
 pub(super) fn clone_response_context(ctx: &ClaudeResponseContext) -> ClaudeResponseContext {
     ClaudeResponseContext {
         request: ctx.request.clone(),
@@ -105,6 +110,7 @@ pub(super) fn clone_response_context(ctx: &ClaudeResponseContext) -> ClaudeRespo
         effective_prompt_cache_options: ctx.effective_prompt_cache_options.clone(),
     }
 }
+
 pub(super) fn annotations(
     facts: Vec<BoundResponseAnnotation>,
     content: &[c::ResponseContentBlock],
@@ -166,6 +172,7 @@ pub(super) fn annotations(
     }
     Ok(output)
 }
+
 pub(super) fn clean_restoration(
     context: ClaudeRequestContext,
     limits: StreamLimits,
@@ -211,6 +218,7 @@ pub(super) fn clean_restoration(
     }
     Ok(context)
 }
+
 pub(super) fn clone_restoration(context: &ClaudeRequestContext) -> ClaudeRequestContext {
     ClaudeRequestContext {
         target: context.target.clone(),

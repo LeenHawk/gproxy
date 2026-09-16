@@ -12,10 +12,12 @@ use crate::{
     },
     wire::{DeclaredFields, claude::generate_content as c, gemini as g},
 };
+
 pub struct ClaudeViaGeminiStreamFacts {
     pub request: pair::ClaudeGeminiRequestContext,
     pub response: p::GeminiToClaudeContext,
 }
+
 pub struct GeminiViaClaudeStreamFacts {
     pub max_tokens: Option<i64>,
     pub response: p::ClaudeToGeminiContext,
@@ -93,6 +95,7 @@ impl ClaudeViaGemini {
         .await
     }
 }
+
 impl GeminiViaClaude {
     pub async fn prepare_stream<S: StateStore>(
         input: g::GenerateContentRequestBody,

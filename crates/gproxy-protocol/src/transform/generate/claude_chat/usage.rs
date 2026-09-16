@@ -6,11 +6,13 @@ use crate::{
 fn count(value: i64) -> Result<i64, TransformError> {
     Ok(value)
 }
+
 fn add(left: i64, right: i64) -> Result<i64, TransformError> {
     count(left)?
         .checked_add(count(right)?)
         .ok_or_else(|| TransformError::invalid_result("usage", "token count overflow"))
 }
+
 fn optional(value: Option<i64>) -> Result<Option<i64>, TransformError> {
     value.map(count).transpose()
 }

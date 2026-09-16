@@ -9,6 +9,7 @@ use crate::{
     transform::{TransformError, generate::claude_chat::stream as p},
     wire::{DeclaredFields, claude::generate_content as c, openai::chat as h},
 };
+
 impl ChatViaClaude {
     pub async fn prepare_stream<S: StateStore>(
         input: h::GenerateContentRequestBody,
@@ -85,6 +86,7 @@ impl ChatViaClaude {
         Ok(invocation)
     }
 }
+
 impl ClaudeViaChat {
     pub async fn prepare_stream<S: StateStore>(
         input: c::GenerateContentRequestBody,

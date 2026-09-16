@@ -1,4 +1,5 @@
 use super::*;
+
 pub(super) fn item(
     value: &r::ResponseOutputItem,
     complete_response: bool,

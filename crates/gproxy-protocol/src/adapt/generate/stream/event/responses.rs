@@ -3,6 +3,7 @@ use crate::{
     transform::generate::stream::responses::{ResponsesStreamCollector, ResponsesStreamLimits},
     wire::openai::responses::{self as r, stream as s},
 };
+
 impl sealed::Event for s::StreamEvent {}
 impl NativeEvent for s::StreamEvent {
     type Full = r::GenerateContentResponseBody;

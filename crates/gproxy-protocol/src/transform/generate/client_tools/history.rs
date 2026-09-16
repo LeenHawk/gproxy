@@ -21,6 +21,7 @@ fn call(
     out.id = id;
     Ok(r::InputItem::FunctionCall(out))
 }
+
 fn result(call_id: String, value: impl serde::Serialize) -> Result<r::InputItem, TransformError> {
     if call_id.is_empty() {
         return Err(unsupported("client tool output call_id required"));
@@ -36,12 +37,14 @@ fn result(call_id: String, value: impl serde::Serialize) -> Result<r::InputItem,
         .build(),
     ))
 }
+
 fn caller(value: &Option<Option<r::Caller>>) -> Result<(), TransformError> {
     if matches!(value, Some(Some(r::Caller::Program(_)))) {
         return Err(unsupported("server-owned calls cannot become client calls"));
     }
     Ok(())
 }
+
 impl Bindings {
     pub(super) fn namespace_name(
         &self,

@@ -157,6 +157,7 @@ pub fn claude_to_openai(
         facts,
     )
 }
+
 fn openai_metadata(
     source_size: i64,
     filename: &str,
@@ -386,11 +387,13 @@ fn date(value: &str) -> Result<time::OffsetDateTime, TransformError> {
             .map_err(|e| TransformError::shape("file.timestamp", e.to_string()))
     }
 }
+
 fn iso(value: &str) -> Result<String, TransformError> {
     date(value)?
         .format(&time::format_description::well_known::Rfc3339)
         .map_err(|e| TransformError::shape("file.timestamp", e.to_string()))
 }
+
 fn epoch(value: &str) -> Result<i64, TransformError> {
     let value = date(value)?;
     if value.nanosecond() != 0 {
@@ -401,6 +404,7 @@ fn epoch(value: &str) -> Result<i64, TransformError> {
     }
     Ok(value.unix_timestamp())
 }
+
 fn gemini_size(source: &gemini::files::File) -> Result<Option<u64>, TransformError> {
     source
         .size_bytes
@@ -435,6 +439,7 @@ fn gemini_state(value: Option<&FileStatusFacts>) -> Option<Option<gemini::files:
         Some(FileStatusFacts::Uploaded | FileStatusFacts::Unknown) | None => None,
     }
 }
+
 fn mapping_report() -> Report {
     let mut report = Report::default();
     report.omitted("file.provider_metadata","native URLs/hash/scope/downloadability and provider lifecycle details require separately bound resource facts");

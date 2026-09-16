@@ -9,7 +9,8 @@ use crate::{
     transform::{Converted, Report, TransformError},
     wire::DeclaredFields,
 };
-/// A prepared h client request executed by the selected c endpoint.
+
+/// A prepared Chat Completions client request executed by the selected Claude endpoint.
 #[derive(Debug)]
 pub struct ChatViaClaude {
     original_request: h::GenerateContentRequestBody,
@@ -19,6 +20,7 @@ pub struct ChatViaClaude {
     identities: GenerationIdentity,
     report: Report,
 }
+
 impl ChatViaClaude {
     pub fn prepare(
         input: h::GenerateContentRequestBody,
@@ -55,13 +57,11 @@ impl ChatViaClaude {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: h::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
     ) -> Result<Self, TransformError> {
         let selected_model = state.target.model.clone();
-
         let original = input.into_declared();
         let (restored, names) = super::history::chat(original.clone(), state).await?;
         let _ = names;
@@ -75,14 +75,12 @@ impl ChatViaClaude {
         R: crate::capability::ResourceAccess,
     >(
         input: h::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
         resources: &super::GenerationResources<'_, R>,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
-
         let materialized = resources.chat(original.clone()).await?;
         let mut prepared =
             Self::prepare_with_state(materialized, endpoint, identities, state).await?;
@@ -194,7 +192,8 @@ impl ChatViaClaude {
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }
-/// A prepared c client request executed by the selected h endpoint.
+
+/// A prepared Claude client request executed by the selected Chat Completions endpoint.
 #[derive(Debug)]
 pub struct ClaudeViaChat {
     original_request: c::GenerateContentRequestBody,
@@ -204,6 +203,7 @@ pub struct ClaudeViaChat {
     identities: GenerationIdentity,
     report: Report,
 }
+
 impl ClaudeViaChat {
     pub fn prepare(
         input: c::GenerateContentRequestBody,
@@ -256,13 +256,11 @@ impl ClaudeViaChat {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: c::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
     ) -> Result<Self, TransformError> {
         let selected_model = state.target.model.clone();
-
         let original = input.into_declared();
         let (restored, names) = super::history::claude(original.clone(), state).await?;
         let mut prepared =
@@ -276,14 +274,12 @@ impl ClaudeViaChat {
         R: crate::capability::ResourceAccess,
     >(
         input: c::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
         resources: &super::GenerationResources<'_, R>,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
-
         let materialized = resources.claude(original.clone()).await?;
         let mut prepared =
             Self::prepare_with_state(materialized, endpoint, identities, state).await?;

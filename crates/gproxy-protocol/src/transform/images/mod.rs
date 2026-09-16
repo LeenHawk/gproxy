@@ -11,6 +11,7 @@
 //! never from requested settings. This is container validation, not pixel
 //! decoding or transcoding. Native usage remains typed per call because generic
 //! generation counters cannot fabricate Images' image/text token breakdown.
+
 mod request;
 mod response;
 pub use request::{

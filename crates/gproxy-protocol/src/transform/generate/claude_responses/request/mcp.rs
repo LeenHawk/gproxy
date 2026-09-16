@@ -2,6 +2,7 @@ use crate::{
     transform::{Report, TransformError},
     wire::{claude::count_tokens as c, openai::responses::tools as r},
 };
+
 /// Claude's MCP URL connector executes server calls directly and has no
 /// approval-request/result wire turn; preserve that contract explicitly.
 pub(crate) fn to_responses(
@@ -27,6 +28,7 @@ pub(crate) fn to_responses(
     out.require_approval = Some(Some(r::McpApproval::Setting(r::McpApprovalSetting::Never)));
     Ok(Some(r::Tool::Mcp(out)))
 }
+
 pub(crate) fn to_claude(
     input: r::McpTool,
     report: &mut Report,

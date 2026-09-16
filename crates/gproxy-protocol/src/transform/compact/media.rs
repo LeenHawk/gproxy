@@ -7,6 +7,7 @@ use crate::{
     },
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
+
 pub(super) fn attach(
     target: &mut Target,
     history: &[source::ClientResponseItem],
@@ -26,6 +27,7 @@ pub(super) fn attach(
     }
     Ok(())
 }
+
 fn uri(value: &str) -> Result<(String, String), TransformError> {
     let (mime, data) = value
         .strip_prefix("data:")
@@ -38,6 +40,7 @@ fn uri(value: &str) -> Result<(String, String), TransformError> {
         .map_err(|e| TransformError::shape("compact.media", e.to_string()))?;
     Ok((mime.into(), data.into()))
 }
+
 fn attach_image(
     target: &mut Target,
     image: &source::ContentItemInputImage,
@@ -165,6 +168,7 @@ fn attach_image(
     }
     Ok(())
 }
+
 fn attach_audio(target: &mut Target, url: &str) -> Result<(), TransformError> {
     let (mime, data) = uri(url)?;
     match target {

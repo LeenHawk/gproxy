@@ -15,11 +15,13 @@ pub struct VideoBinding {
     pub polling_url: String,
     pub operation_prefix: String,
 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum VideoOriginalRequest {
     OpenRouter(o::CreateVideoRequestBody),
     Native(o::NativeCreateVideoRequestBody),
 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VideoJobState {
     pub schema: u32,
@@ -32,6 +34,7 @@ pub struct VideoJobState {
     pub operation: Option<g::VideoOperation>,
     pub published_urls: BTreeMap<String, String>,
 }
+
 /// Caller-owned progress survives dropped futures and post-create failures.
 /// The native response is retained before binding/publication work begins.
 #[derive(Debug, Default)]
@@ -45,6 +48,7 @@ pub struct VideoProgress {
     pub publication_ids: Vec<String>,
     pub publications: Vec<ResourceReference>,
 }
+
 impl VideoBinding {
     pub(super) fn create_path(&self) -> Result<String, TransformError> {
         let model = self.model.strip_prefix("models/").unwrap_or(&self.model);
@@ -86,6 +90,7 @@ impl VideoBinding {
         Ok(format!("{}{name}", self.operation_prefix))
     }
 }
+
 pub(super) fn public_url(value: &str) -> Result<(), TransformError> {
     let uri: http::Uri = value
         .parse()
@@ -100,6 +105,7 @@ pub(super) fn public_url(value: &str) -> Result<(), TransformError> {
     }
     Ok(())
 }
+
 pub(super) async fn save<S: StateStore>(
     store: &S,
     scope: &S::Scope,
@@ -109,6 +115,7 @@ pub(super) async fn save<S: StateStore>(
 ) -> Result<Version, TransformError> {
     save_payload(store, scope, &state.binding.key(), state, expected, limits).await
 }
+
 pub(super) async fn save_payload<S: StateStore, T: Serialize>(
     store: &S,
     scope: &S::Scope,
@@ -148,6 +155,7 @@ pub(super) async fn save_payload<S: StateStore, T: Serialize>(
         )),
     }
 }
+
 pub(super) async fn load<S: StateStore>(
     store: &S,
     scope: &S::Scope,

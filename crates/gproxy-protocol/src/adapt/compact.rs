@@ -13,21 +13,25 @@ use crate::{
         openai::compact::{ClientCompactRequestBody, ClientCompactResponseBody},
     },
 };
+
 #[derive(Debug, Clone, Copy)]
 pub struct CompactLimits {
     pub max_bytes: u64,
     pub codec: CodecLimits,
 }
+
 #[derive(Debug)]
 pub enum CompactFailure {
     Transform(TransformError),
     Rejected(Box<WireResponse<HttpBody>>),
 }
+
 #[derive(Debug)]
 pub struct CompactError {
     pub attempted_calls: usize,
     pub failure: CompactFailure,
 }
+
 impl CompactError {
     pub fn kind(&self) -> TransformErrorKind {
         match &self.failure {
@@ -36,6 +40,7 @@ impl CompactError {
         }
     }
 }
+
 impl From<TransformError> for CompactError {
     fn from(error: TransformError) -> Self {
         Self {
@@ -44,12 +49,14 @@ impl From<TransformError> for CompactError {
         }
     }
 }
+
 fn after(error: TransformError) -> CompactError {
     CompactError {
         attempted_calls: 1,
         failure: CompactFailure::Transform(error),
     }
 }
+
 #[allow(clippy::too_many_arguments)]
 pub async fn compact<U: Upstream>(
     upstream: &U,
@@ -121,6 +128,7 @@ pub async fn compact<U: Upstream>(
     codec::encode_json(&result, local).map_err(|e| after(encoding(e, true)))?;
     Ok(result)
 }
+
 fn extract<T>(
     response: Result<JsonInvocation<T>, TransformError>,
     text: fn(T) -> Result<String, TransformError>,
@@ -133,6 +141,7 @@ fn extract<T>(
         }),
     }
 }
+
 fn encoding(e: codec::CodecError, response: bool) -> TransformError {
     TransformError::new(
         if e.kind() == codec::CodecErrorKind::Limit {

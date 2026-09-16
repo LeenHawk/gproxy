@@ -1,4 +1,5 @@
 //! Only declared identity/name facts: this is not a content representation.
+
 use crate::{
     Dialect,
     transform::identity::{IdentityRole, OutputItemKind},
@@ -8,6 +9,7 @@ use crate::{
         openai::{chat as h, responses as r},
     },
 };
+
 #[derive(Debug, Clone)]
 pub(super) struct ToolIdentity {
     pub kind: super::ToolCallKind,
@@ -16,6 +18,7 @@ pub(super) struct ToolIdentity {
     pub item_id: Option<String>,
     pub name: String,
 }
+
 pub(super) trait IdentityFacts {
     fn dialect(&self) -> Dialect;
     fn response_id(&self) -> Option<&str>;
@@ -37,6 +40,7 @@ pub(super) trait IdentityFacts {
         Vec::new()
     }
 }
+
 impl IdentityFacts for c::GenerateContentResponseBody {
     fn native_model(&self) -> Option<&str> {
         Some(&self.model)
@@ -71,6 +75,7 @@ impl IdentityFacts for c::GenerateContentResponseBody {
             .collect()
     }
 }
+
 impl IdentityFacts for h::GenerateContentResponseBody {
     fn native_model(&self) -> Option<&str> {
         Some(&self.model)
@@ -122,6 +127,7 @@ impl IdentityFacts for h::GenerateContentResponseBody {
             .collect()
     }
 }
+
 impl IdentityFacts for g::GenerateContentResponseBody {
     fn native_model(&self) -> Option<&str> {
         self.model_version.as_deref()
@@ -185,6 +191,7 @@ impl IdentityFacts for g::GenerateContentResponseBody {
             .collect()
     }
 }
+
 impl IdentityFacts for r::GenerateContentResponseBody {
     fn native_model(&self) -> Option<&str> {
         Some(&self.model)

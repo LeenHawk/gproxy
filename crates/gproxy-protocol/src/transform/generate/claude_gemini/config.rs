@@ -5,6 +5,7 @@ use crate::{
         gemini as g,
     },
 };
+
 pub(super) fn to_gemini(
     input: &c::GenerateContentRequestBody,
     report: &mut Report,
@@ -88,12 +89,14 @@ pub(super) fn to_gemini(
     }
     Ok(config)
 }
+
 fn display(v: cc::ThinkingDisplay) -> bool {
     match v {
         cc::ThinkingDisplay::Summarized => true,
         cc::ThinkingDisplay::Omitted => false,
     }
 }
+
 fn level(v: cc::Effort) -> Option<g::ThinkingLevel> {
     match v {
         cc::Effort::Low => Some(g::ThinkingLevel::Low),
@@ -102,6 +105,7 @@ fn level(v: cc::Effort) -> Option<g::ThinkingLevel> {
         cc::Effort::Xhigh | cc::Effort::Max => None,
     }
 }
+
 pub(super) fn to_claude(
     input: &g::GenerateContentRequestBody,
     out: &mut c::GenerateContentRequestBody,
@@ -203,6 +207,7 @@ pub(super) fn to_claude(
                         Some(g::ThinkingLevel::Medium) => cc::Effort::Medium,
                         Some(g::ThinkingLevel::High) => cc::Effort::High,
                         Some(g::ThinkingLevel::Minimal | g::ThinkingLevel::Unspecified) | None => {
+                            // The enclosing arm matched Low | Medium | High only.
                             unreachable!()
                         }
                     };

@@ -14,11 +14,13 @@ pub enum ImageDialect {
     Responses,
     Gemini,
 }
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ImageInput {
     Create(o::CreateImageRequestBody),
     Edit(o::EditImageJsonBody),
 }
+
 /// The generation model is selected by the host. An image tool model is a
 /// separate routing decision; an absent override retains the source image model.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,12 +28,14 @@ pub struct ImageTargetModels {
     pub generation_model: String,
     pub image_tool_model: Option<String>,
 }
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedImageInput {
     pub reference: ResourceReference,
     pub bytes_base64: String,
     pub mime_type: String,
 }
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImageRequestContext {
     pub source_model: Option<String>,
@@ -41,6 +45,7 @@ pub struct ImageRequestContext {
     pub output_format: Option<o::ImageOutputFormat>,
     pub requested_size: Option<String>,
 }
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImageResponseFacts {
     pub created: i64,
@@ -51,12 +56,14 @@ pub struct ImageResponseFacts {
     pub publish_expires_at: Option<std::time::SystemTime>,
     pub operation_id: String,
 }
+
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum ImageDialectBody {
     Responses(WireRequest<r::GenerateContentRequestBody>),
     Gemini(WireRequest<g::GenerateContentRequestBody>),
 }
+
 pub struct PreparedImageRequest {
     pub body: ImageDialectBody,
     pub context: ImageRequestContext,
@@ -74,12 +81,14 @@ struct Options {
     mask: Option<ResourceReference>,
     user: Option<String>,
 }
+
 fn unsupported(field: &str) -> TransformError {
     TransformError::unsupported(
         field,
         "no exact equivalent in selected image generation API",
     )
 }
+
 fn options(input: &ImageInput) -> Result<Options, TransformError> {
     let (
         prompt,
@@ -220,6 +229,7 @@ fn options(input: &ImageInput) -> Result<Options, TransformError> {
         user,
     })
 }
+
 pub fn image_reference(v: &o::ImageReference) -> Result<ResourceReference, TransformError> {
     match (&v.file_id, &v.image_url) {
         (Some(id), None) if !id.trim().is_empty() => Ok(ResourceReference::Id(id.clone())),
@@ -230,6 +240,7 @@ pub fn image_reference(v: &o::ImageReference) -> Result<ResourceReference, Trans
         )),
     }
 }
+
 /// Selects the source resources and return parameters used by the adapter.
 pub fn preflight(
     input: &ImageInput,
@@ -270,6 +281,7 @@ pub fn preflight(
         report,
     ))
 }
+
 fn resolved<'a>(
     reference: &ResourceReference,
     values: &'a [ResolvedImageInput],
@@ -281,9 +293,11 @@ fn resolved<'a>(
 
     Ok(v)
 }
+
 fn data_url(v: &ResolvedImageInput) -> String {
     format!("data:{};base64,{}", v.mime_type, v.bytes_base64)
 }
+
 /// Builds ONE call; `context.n` is the adapter's total call count.
 pub fn build_request(
     input: ImageInput,
@@ -370,6 +384,7 @@ pub fn build_request(
         report,
     })
 }
+
 fn request<T>(path: String, body: T) -> WireRequest<T> {
     WireRequest {
         method: http::Method::POST,

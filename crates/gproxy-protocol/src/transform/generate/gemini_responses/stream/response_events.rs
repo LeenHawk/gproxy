@@ -4,10 +4,12 @@ use crate::{
     transform::generate::stream::responses::{ResponsesStreamCollector, ResponsesStreamLimits},
     wire::openai::responses::{input as i, response as r, stream as s},
 };
+
 pub(super) struct ResponseEvents {
     native: Option<ResponsesStreamCollector>,
     sequence: i64,
 }
+
 impl ResponseEvents {
     pub fn new(limits: StreamLimits) -> Self {
         Self {
@@ -280,6 +282,7 @@ impl ResponseEvents {
         })
     }
 }
+
 pub(super) fn text(value: String, annotations: Vec<i::OutputAnnotation>) -> i::ResponseOutputText {
     i::ResponseOutputText {
         type_: i::ResponseOutputTextType::ResponseOutputText,

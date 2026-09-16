@@ -1,11 +1,13 @@
 //! Restore only explicitly attested native legacy Chat function forms. No call
 //! declaration or arguments are invented for an orphan result.
+
 use super::GenerationToolReplay;
 use crate::{
     transform::{Report, TransformError},
     wire::openai::chat as h,
 };
 use std::collections::BTreeMap;
+
 pub(super) fn restore(
     request: &mut h::GenerateContentRequestBody,
     replay: &GenerationToolReplay,
@@ -71,12 +73,14 @@ pub(super) fn restore(
     }
     Ok(())
 }
+
 fn call_id(call: &h::MessageToolCall) -> &str {
     match call {
         h::MessageToolCall::Function(v) => &v.id,
         h::MessageToolCall::Custom(v) => &v.id,
     }
 }
+
 fn declarations(
     mut original: h::AssistantMessage,
     legacy: &BTreeMap<String, String>,

@@ -1,4 +1,5 @@
 use super::*;
+
 pub(super) fn aggregate(
     mut values: Vec<g::GenerateContentResponseBody>,
     id: String,
@@ -47,6 +48,7 @@ pub(super) fn aggregate(
     );
     Ok(out)
 }
+
 fn usage(
     a: Option<g::UsageMetadata>,
     b: Option<g::UsageMetadata>,
@@ -132,6 +134,7 @@ fn usage(
         }
     }
 }
+
 fn details(
     a: Option<Vec<g::ModalityTokenCount>>,
     b: Option<Vec<g::ModalityTokenCount>>,

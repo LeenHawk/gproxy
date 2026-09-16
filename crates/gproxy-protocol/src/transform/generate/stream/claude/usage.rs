@@ -2,6 +2,7 @@ use crate::{
     transform::TransformError,
     wire::claude::stream::{MessageDeltaEvent, StreamMessage},
 };
+
 pub(super) fn merge(m: &mut StreamMessage, e: MessageDeltaEvent) -> Result<(), TransformError> {
     if let Some(old) = m.stop_reason.flatten()
         && e.delta.stop_reason.is_some_and(|new| new != Some(old))

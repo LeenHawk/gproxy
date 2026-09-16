@@ -4,6 +4,7 @@ use crate::{
     transform::TransformError,
 };
 use bytes::Bytes;
+
 pub(super) enum Encoder {
     WebSocket {
         total: u64,
@@ -15,6 +16,7 @@ pub(super) enum Encoder {
     Array(codec::JsonArrayEncoder),
     Ndjson(codec::NdjsonEncoder),
 }
+
 impl Encoder {
     pub fn new(framing: SourceFraming, limits: CodecLimits) -> Self {
         match framing {
@@ -88,6 +90,7 @@ impl Encoder {
         }
     }
 }
+
 pub(super) fn headers(mut headers: http::HeaderMap, framing: SourceFraming) -> http::HeaderMap {
     for name in [
         http::header::CONTENT_LENGTH,

@@ -7,6 +7,7 @@ use crate::{
     transform::{identity::IdNamespace, images::decode_image},
     wire::DeclaredFields,
 };
+
 impl<H> GeminiImagePublications<H> {
     /// Publish validated image bytes as actual host URLs. A lost publish result
     /// is recovered by status only; Missing/Pending/Expired never replay a body.

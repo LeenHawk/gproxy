@@ -1,13 +1,26 @@
 //! Pair preparation reuses the declared buffered request mappings and scoped
 //! history recovery, then explicitly selects native streaming transport.
+
 mod chat_claude;
+mod chat_gemini;
+mod chat_responses;
+mod claude_gemini;
+mod claude_responses;
+mod gemini_responses;
 mod limits;
+
 use crate::wire::{
     DeclaredFields,
     claude::generate_content as c,
     gemini as g,
     openai::{chat as h, responses as r},
 };
+
+pub use chat_gemini::ChatViaGeminiStreamFacts;
+pub use claude_gemini::{ClaudeViaGeminiStreamFacts, GeminiViaClaudeStreamFacts};
+pub use claude_responses::ResponsesViaClaudeStreamFacts;
+pub use gemini_responses::ResponsesViaGeminiStreamFacts;
+
 trait RequestMode: DeclaredFields + Clone {
     fn buffered(self) -> Self;
     fn streaming(self) -> Self;
@@ -15,6 +28,7 @@ trait RequestMode: DeclaredFields + Clone {
         true
     }
 }
+
 impl RequestMode for h::GenerateContentRequestBody {
     fn buffered(mut self) -> Self {
         self.stream = Some(Some(false));
@@ -43,6 +57,7 @@ impl RequestMode for h::GenerateContentRequestBody {
             == Some(true)
     }
 }
+
 impl RequestMode for c::GenerateContentRequestBody {
     fn buffered(mut self) -> Self {
         self.stream = Some(false);
@@ -53,6 +68,7 @@ impl RequestMode for c::GenerateContentRequestBody {
         self
     }
 }
+
 impl RequestMode for r::GenerateContentRequestBody {
     fn buffered(mut self) -> Self {
         self.stream = Some(Some(false));
@@ -63,6 +79,7 @@ impl RequestMode for r::GenerateContentRequestBody {
         self
     }
 }
+
 impl RequestMode for g::GenerateContentRequestBody {
     fn buffered(self) -> Self {
         self
@@ -71,13 +88,3 @@ impl RequestMode for g::GenerateContentRequestBody {
         self
     }
 }
-
-mod chat_gemini;
-mod chat_responses;
-mod claude_gemini;
-mod claude_responses;
-mod gemini_responses;
-pub use chat_gemini::ChatViaGeminiStreamFacts;
-pub use claude_gemini::{ClaudeViaGeminiStreamFacts, GeminiViaClaudeStreamFacts};
-pub use claude_responses::ResponsesViaClaudeStreamFacts;
-pub use gemini_responses::ResponsesViaGeminiStreamFacts;

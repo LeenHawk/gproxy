@@ -7,12 +7,14 @@ use crate::{
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, time::SystemTime};
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct Raw {
     status: u16,
     headers: Vec<(String, Vec<u8>)>,
     body: Vec<u8>,
 }
+
 impl Raw {
     pub fn from_wire(v: &WireResponse<bytes::Bytes>) -> Self {
         Self {
@@ -41,13 +43,16 @@ impl Raw {
         })
     }
 }
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct ChildBinding {
     pub request: Vec<u8>,
     pub namespaces: (IdNamespace, IdNamespace),
     pub policies: (TargetIdPolicy, TargetIdPolicy),
 }
+
 type SavedEndpoint = (String, Option<String>, Vec<(String, Vec<u8>)>);
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct Binding {
     pub id: String,
@@ -58,12 +63,14 @@ pub(super) struct Binding {
     pub endpoint: SavedEndpoint,
     pub children: Vec<ChildBinding>,
 }
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub(super) struct SavedChild {
     pub started: bool,
     pub raw: Option<Raw>,
     pub identities: BTreeMap<String, (Vec<u8>, Vec<u8>)>,
 }
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct Journal {
     pub schema: u16,
@@ -72,6 +79,7 @@ pub(super) struct Journal {
     pub group_identities: BTreeMap<String, (Vec<u8>, Vec<u8>)>,
     pub exposed: Option<Vec<u8>>,
 }
+
 impl Journal {
     pub fn key(&self) -> String {
         format!(
@@ -83,11 +91,13 @@ impl Journal {
         )
     }
 }
+
 pub(super) fn pack(v: &SavedIdentities) -> BTreeMap<String, (Vec<u8>, Vec<u8>)> {
     v.iter()
         .map(|(k, (version, bytes))| (k.clone(), (version.as_bytes().to_vec(), bytes.clone())))
         .collect()
 }
+
 fn unpack(v: &BTreeMap<String, (Vec<u8>, Vec<u8>)>) -> SavedIdentities {
     v.iter()
         .map(|(k, (version, bytes))| {
@@ -98,6 +108,7 @@ fn unpack(v: &BTreeMap<String, (Vec<u8>, Vec<u8>)>) -> SavedIdentities {
         })
         .collect()
 }
+
 pub(super) async fn save<S: StateStore, N>(
     state: &GenerationStateAccess<'_, S>,
     limits: CodecLimits,
@@ -130,6 +141,7 @@ pub(super) async fn save<S: StateStore, N>(
         )),
     }
 }
+
 pub(super) async fn load<S: StateStore, N>(
     expected: Journal,
     state: &GenerationStateAccess<'_, S>,

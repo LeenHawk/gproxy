@@ -4,6 +4,7 @@ use super::{
     *,
 };
 use crate::transform::Converted;
+
 impl ResponsesStreamCollector {
     pub(super) fn check_response(
         &self,

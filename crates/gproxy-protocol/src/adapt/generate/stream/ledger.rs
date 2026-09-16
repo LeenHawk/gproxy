@@ -3,6 +3,7 @@
 //! Provisional Chat call forms stay explicitly unknown. Required-ID replay is
 //! blocked until the completed native observation supplies a known form; an
 //! absent upstream ID is never guessed from the client alias.
+
 use super::super::{GenerationStateAccess, ToolCallKind, state::StoredIdentity};
 use crate::{
     capability::{CasResult, StateStore, StateWrite, Version},
@@ -20,12 +21,14 @@ pub(crate) struct ToolDeclaration {
     /// Only a complete declared name; streamed Chat name fragments stay absent.
     pub name: Option<String>,
 }
+
 struct PendingWrite {
     key: String,
     bytes: Vec<u8>,
     expected: Option<Version>,
     in_flight: bool,
 }
+
 #[derive(Default)]
 pub(crate) struct StreamLedger {
     saved: BTreeMap<String, (Version, Vec<u8>)>,
@@ -33,6 +36,7 @@ pub(crate) struct StreamLedger {
     pending: Option<PendingWrite>,
     failed: bool,
 }
+
 impl StreamLedger {
     pub fn observe_tools(
         &mut self,
@@ -293,6 +297,7 @@ impl StreamLedger {
         Ok(())
     }
 }
+
 fn check_enrichment(old: &StoredIdentity, new: &StoredIdentity) -> Result<(), TransformError> {
     if old.schema != new.schema
         || old.tool_kind != new.tool_kind
@@ -323,9 +328,11 @@ fn check_enrichment(old: &StoredIdentity, new: &StoredIdentity) -> Result<(), Tr
     }
     Ok(())
 }
+
 fn invalid(message: impl Into<String>) -> TransformError {
     TransformError::invalid_result("generation.stream.state", message)
 }
+
 fn conflict(message: impl Into<String>) -> TransformError {
     TransformError::new(
         TransformErrorKind::Conflict,
@@ -333,6 +340,7 @@ fn conflict(message: impl Into<String>) -> TransformError {
         message,
     )
 }
+
 fn missing(message: impl Into<String>) -> TransformError {
     TransformError::new(
         TransformErrorKind::MissingState,
@@ -340,6 +348,7 @@ fn missing(message: impl Into<String>) -> TransformError {
         message,
     )
 }
+
 fn limit() -> TransformError {
     TransformError::new(
         TransformErrorKind::Limit,

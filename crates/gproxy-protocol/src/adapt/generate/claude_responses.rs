@@ -9,7 +9,8 @@ use crate::{
     transform::{Converted, Report, TransformError},
     wire::DeclaredFields,
 };
-/// A prepared c client request executed by the selected r endpoint.
+
+/// A prepared Claude client request executed by the selected Responses endpoint.
 #[derive(Debug)]
 pub struct ClaudeViaResponses {
     original_request: c::GenerateContentRequestBody,
@@ -19,6 +20,7 @@ pub struct ClaudeViaResponses {
     identities: GenerationIdentity,
     report: Report,
 }
+
 impl ClaudeViaResponses {
     pub fn prepare(
         input: c::GenerateContentRequestBody,
@@ -55,13 +57,11 @@ impl ClaudeViaResponses {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: c::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
     ) -> Result<Self, TransformError> {
         let selected_model = state.target.model.clone();
-
         let original = input.into_declared();
         let (restored, names) = super::history::claude(original.clone(), state).await?;
         let _ = names;
@@ -75,14 +75,12 @@ impl ClaudeViaResponses {
         R: crate::capability::ResourceAccess,
     >(
         input: c::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
         resources: &super::GenerationResources<'_, R>,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
-
         let materialized = resources.claude(original.clone()).await?;
         let mut prepared =
             Self::prepare_with_state(materialized, endpoint, identities, state).await?;
@@ -197,6 +195,7 @@ impl ClaudeViaResponses {
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }
+
 /// Effective settings and measured facts absent from the upstream wire response.
 #[derive(Debug)]
 pub struct ClaudeReturnFacts {
@@ -206,7 +205,8 @@ pub struct ClaudeReturnFacts {
     pub usage: p::ResponsesUsageFacts,
     pub created_at: i64,
 }
-/// A prepared r client request executed by the selected c endpoint.
+
+/// A prepared Responses client request executed by the selected Claude endpoint.
 #[derive(Debug)]
 pub struct ResponsesViaClaude {
     original_request: r::GenerateContentRequestBody,
@@ -216,6 +216,7 @@ pub struct ResponsesViaClaude {
     identities: GenerationIdentity,
     report: Report,
 }
+
 impl ResponsesViaClaude {
     pub fn prepare(
         input: r::GenerateContentRequestBody,
@@ -254,14 +255,12 @@ impl ResponsesViaClaude {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: r::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
         context: p::ClaudeRequestContext,
     ) -> Result<Self, TransformError> {
         let selected_model = state.target.model.clone();
-
         let original = input.into_declared();
         let mut lowered = original.clone();
         let mut tool_report = Report::default();
@@ -302,7 +301,6 @@ impl ResponsesViaClaude {
         R: crate::capability::ResourceAccess,
     >(
         input: r::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
@@ -310,7 +308,6 @@ impl ResponsesViaClaude {
         context: p::ClaudeRequestContext,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
-
         let materialized = resources.responses(original.clone()).await?;
         let mut prepared =
             Self::prepare_with_state(materialized, endpoint, identities, state, context).await?;

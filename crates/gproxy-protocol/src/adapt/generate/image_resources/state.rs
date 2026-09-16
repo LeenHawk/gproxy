@@ -8,6 +8,7 @@ use crate::{
     wire::{DeclaredFields, openai::responses as r},
 };
 use serde::{Deserialize, Serialize};
+
 #[derive(Serialize, Deserialize)]
 struct FileImageProof {
     schema: u16,
@@ -18,9 +19,11 @@ struct FileImageProof {
     #[serde(default)]
     resource_expiry: Option<std::time::SystemTime>,
 }
+
 fn image_role() -> IdentityRole {
     IdentityRole::OutputItem(OutputItemKind::ImageGenerationCall)
 }
+
 impl<S: StateStore> super::super::GenerationStateAccess<'_, S> {
     pub(in crate::adapt::generate) async fn save_file_image_proofs(
         &self,

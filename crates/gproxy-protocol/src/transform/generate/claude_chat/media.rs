@@ -6,6 +6,7 @@ use crate::{
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use std::borrow::Cow;
+
 pub(super) fn image_url(source: &c::ImageSource) -> Result<chat::ImageUrl, TransformError> {
     let url = match source {
         c::ImageSource::Url(source) => source.url.clone(),

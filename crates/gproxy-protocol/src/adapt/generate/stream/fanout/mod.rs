@@ -1,11 +1,13 @@
 //! Ordered incremental multi-candidate calls. Child streams are polled one at a
 //! time; their first content is exposed before EOF. No started POST is replayed.
+
 mod bridge;
 mod driver;
 mod event;
 mod images;
 mod prepare;
 mod run;
+
 use super::{
     StreamChunk, StreamInvocation, StreamSettings, StreamStart, bridge::StreamBridge,
     event::NativeEvent, invoke::ClientFull, output::Encoder, reservation::Reservation,
@@ -22,9 +24,11 @@ use crate::{
         identity::{IdentityFlow, IdentityRole, IdentityStateRecord},
     },
 };
+use std::collections::{BTreeMap, BTreeSet};
+
 pub use bridge::FanoutBridge;
 pub use event::FanoutEvent;
-use std::collections::{BTreeMap, BTreeSet};
+
 /// Caller-owned progress retains every child receipt, pending journal write and
 /// active stream across cancellation. Dropping it cancels the active body.
 pub struct FanoutStream<B: FanoutBridge>
@@ -59,6 +63,7 @@ where
     events: usize,
     retained_bytes: usize,
 }
+
 impl<B: FanoutBridge> FanoutStream<B>
 where
     B::ClientEvent: FanoutEvent,

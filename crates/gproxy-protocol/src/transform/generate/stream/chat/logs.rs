@@ -2,6 +2,7 @@ use crate::{
     transform::TransformError,
     wire::openai::chat::{response as r, stream as s},
 };
+
 pub(crate) fn append(
     old: &mut Option<r::Logprobs>,
     source: s::ChunkLogprobs,
@@ -25,6 +26,7 @@ pub(crate) fn append(
     }
     Ok(())
 }
+
 fn collect(source: s::ChunkTokenLogprob) -> Result<r::TokenLogprob, TransformError> {
     let mut top = Vec::new();
     for value in source.top_logprobs {
@@ -61,6 +63,7 @@ pub(crate) fn synthesize(input: r::Logprobs) -> Result<s::ChunkLogprobs, Transfo
     out.refusal = refusal.map(Some);
     Ok(out)
 }
+
 fn synthesize_token(input: r::TokenLogprob) -> Result<s::ChunkTokenLogprob, TransformError> {
     let mut top = Vec::new();
     for v in input.top_logprobs {

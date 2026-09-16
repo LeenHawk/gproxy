@@ -12,6 +12,7 @@ use crate::{
         openai::responses::{input as i, response as r, stream as s},
     },
 };
+
 impl ClaudeToResponsesStream {
     pub(super) fn start_block(
         &mut self,

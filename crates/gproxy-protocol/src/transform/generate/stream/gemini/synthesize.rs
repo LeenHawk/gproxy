@@ -3,6 +3,7 @@ use crate::{
     transform::{Converted, TransformError},
     wire::{DeclaredFields, gemini as g},
 };
+
 /// Gemini streams contain the same native response body as buffered delivery.
 /// A single terminal chunk is a valid synthesized stream. Validation shares the
 /// collector's complete lifecycle and memory bounds; no counters are invented.

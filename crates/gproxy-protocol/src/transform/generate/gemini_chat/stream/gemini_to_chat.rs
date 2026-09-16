@@ -6,6 +6,7 @@ use crate::transform::generate::stream::{
     chat,
     gemini::{GeminiStreamCollector, GeminiStreamLimits},
 };
+
 /// Factual invocation timestamp; `model` is an actual model identity when the
 /// source does not supply one. Without either model fact, chunks remain bounded
 /// and pending until the source supplies its model version.
@@ -14,6 +15,7 @@ pub struct GeminiToChatContext {
     pub created: i64,
     pub model: Option<String>,
 }
+
 pub struct GeminiToChatStream {
     source: Option<GeminiStreamCollector>,
     policy: TargetIdPolicy,
@@ -30,6 +32,7 @@ pub struct GeminiToChatStream {
     failed: bool,
     report: Report,
 }
+
 impl GeminiToChatStream {
     pub fn new(
         context: GeminiToChatContext,

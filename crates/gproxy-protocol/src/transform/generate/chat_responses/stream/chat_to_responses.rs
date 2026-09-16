@@ -38,6 +38,7 @@ struct MessageState {
     refusal_part: bool,
     logs: Option<c::Logprobs>,
 }
+
 struct ToolState {
     source_id: Option<String>,
     name: String,

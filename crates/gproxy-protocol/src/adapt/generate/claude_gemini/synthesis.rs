@@ -5,7 +5,6 @@ impl ClaudeViaGemini {
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis<S: crate::capability::StateStore>(
         input: c::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -19,9 +18,6 @@ impl ClaudeViaGemini {
         prepared.original_request = original;
         Ok(prepared)
     }
-}
-
-impl ClaudeViaGemini {
     /// Prepare a buffered upstream result for later native stream synthesis,
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis_with_capabilities<
@@ -29,7 +25,6 @@ impl ClaudeViaGemini {
         R: crate::capability::ResourceAccess,
     >(
         input: c::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -53,7 +48,6 @@ impl GeminiViaClaude {
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis<S: crate::capability::StateStore>(
         input: g::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -67,9 +61,6 @@ impl GeminiViaClaude {
         prepared.target_request.stream = Some(false);
         Ok(prepared)
     }
-}
-
-impl GeminiViaClaude {
     /// Prepare a buffered upstream result for later native stream synthesis,
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis_with_capabilities<
@@ -77,7 +68,6 @@ impl GeminiViaClaude {
         R: crate::capability::ResourceAccess,
     >(
         input: g::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,

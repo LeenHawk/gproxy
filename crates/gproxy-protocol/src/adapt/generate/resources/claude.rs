@@ -3,6 +3,7 @@ use crate::wire::{
     DeclaredFields,
     claude::{content as c, generate_content as cg},
 };
+
 impl<R: ResourceAccess> GenerationResources<'_, R> {
     pub async fn claude(
         &self,
@@ -40,6 +41,7 @@ impl<R: ResourceAccess> GenerationResources<'_, R> {
         Ok(input)
     }
 }
+
 impl<R: ResourceAccess> Budget<'_, '_, R> {
     async fn image(&mut self, image: &mut c::ImageBlock) -> Result<(), TransformError> {
         let reference = match &image.source {

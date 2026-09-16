@@ -11,6 +11,7 @@ use crate::{
     },
 };
 pub use facts::GeminiResponseContext;
+
 pub fn gemini_to_responses_response(
     input: g::GenerateContentResponseBody,
     context: GeminiResponseContext,
@@ -248,12 +249,14 @@ pub fn gemini_to_responses_response(
     *flow = ids;
     Ok(Converted { value: out, report })
 }
+
 pub fn responses_to_gemini_response(
     input: r::GenerateContentResponseBody,
     context: super::identity::GeminiReplayContext,
 ) -> Result<Converted<g::GenerateContentResponseBody>, TransformError> {
     responses_to_gemini_response_with_modalities(input, context, None)
 }
+
 pub fn responses_to_gemini_response_with_modalities(
     input: r::GenerateContentResponseBody,
     mut context: super::identity::GeminiReplayContext,

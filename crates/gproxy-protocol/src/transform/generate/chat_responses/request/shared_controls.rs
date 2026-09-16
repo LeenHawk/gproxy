@@ -2,6 +2,7 @@ use crate::{
     transform::TransformError,
     wire::openai::{chat as c, responses::generate as r},
 };
+
 pub(super) fn to_responses(
     input: &c::GenerateContentRequestBody,
     out: &mut r::GenerateContentRequestBody,
@@ -55,6 +56,7 @@ pub(super) fn to_responses(
     });
     Ok(())
 }
+
 pub(super) fn to_chat(
     input: &r::GenerateContentRequestBody,
     out: &mut c::GenerateContentRequestBody,

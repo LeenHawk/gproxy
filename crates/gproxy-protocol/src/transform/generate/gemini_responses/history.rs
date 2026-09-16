@@ -2,6 +2,7 @@ use crate::{
     transform::{Report, TransformError},
     wire::{gemini as g, openai::responses::input as r},
 };
+
 pub(crate) fn to_gemini(
     input: Option<r::Input>,
     _model: &str,
@@ -161,6 +162,7 @@ pub(crate) fn to_gemini(
     }
     Ok((contents, system))
 }
+
 fn parts(value: r::MessageContent) -> Result<Vec<g::Part>, TransformError> {
     match value {
         r::MessageContent::Text(text) => Ok(vec![g::Part::builder().text(text).build()]),

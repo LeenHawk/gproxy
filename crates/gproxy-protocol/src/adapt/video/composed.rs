@@ -17,6 +17,7 @@ pub(super) fn fresh(progress: &VideoProgress) -> Result<(), TransformError> {
     }
     Ok(())
 }
+
 pub(super) fn prepare_headers(
     template: WireRequest<()>,
     body: bytes::Bytes,
@@ -45,6 +46,7 @@ pub(super) fn prepare_headers(
         body: HttpBody::Bytes(body),
     }
 }
+
 pub(super) fn operation<'a>(
     body: &'a g::VideoOperation,
     binding: &VideoBinding,
@@ -64,6 +66,7 @@ pub(super) fn operation<'a>(
     }
     Ok(name)
 }
+
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn finish<R: ResourceAccess, S: StateStore>(
     access: &R,
@@ -134,6 +137,7 @@ pub(super) async fn finish<R: ResourceAccess, S: StateStore>(
         body: converted,
     }))
 }
+
 #[allow(clippy::too_many_arguments)]
 pub async fn openai_to_gemini_create_composed<U: Upstream, R: ResourceAccess, S: StateStore>(
     upstream: &U,
@@ -198,11 +202,9 @@ pub async fn openai_to_gemini_create_composed<U: Upstream, R: ResourceAccess, S:
         limits,
     )
     .await?;
-    let JsonInvocation::Success(response) = response else {
-        return Ok(match response {
-            JsonInvocation::Rejected(r) => JsonInvocation::Rejected(r),
-            _ => unreachable!(),
-        });
+    let response = match response {
+        JsonInvocation::Success(response) => response,
+        JsonInvocation::Rejected(r) => return Ok(JsonInvocation::Rejected(r)),
     };
     operation(&response.body, &state.binding)?;
     state.operation = Some(response.body.clone());
@@ -222,6 +224,7 @@ pub async fn openai_to_gemini_create_composed<U: Upstream, R: ResourceAccess, S:
     )
     .await
 }
+
 #[allow(clippy::too_many_arguments)]
 pub async fn openai_to_gemini_query_composed<U: Upstream, R: ResourceAccess, S: StateStore>(
     upstream: &U,
@@ -277,11 +280,9 @@ pub async fn openai_to_gemini_query_composed<U: Upstream, R: ResourceAccess, S: 
         limits,
     )
     .await?;
-    let JsonInvocation::Success(response) = response else {
-        return Ok(match response {
-            JsonInvocation::Rejected(r) => JsonInvocation::Rejected(r),
-            _ => unreachable!(),
-        });
+    let response = match response {
+        JsonInvocation::Success(response) => response,
+        JsonInvocation::Rejected(r) => return Ok(JsonInvocation::Rejected(r)),
     };
     if operation(&response.body, &binding)? != name {
         return Err(TransformError::invalid_result(

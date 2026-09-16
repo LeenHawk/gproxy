@@ -1,9 +1,11 @@
 //! Source-owned response controls for the Guardian client's SSE envelope.
+
 use super::{GuardianDialectRequest, GuardianPreparedRequest};
 use crate::{
     transform::TransformError,
     wire::openai::{guardian as s, responses as r},
 };
+
 impl GuardianPreparedRequest {
     /// A bounded, typed envelope template for the existing response-pair
     /// contexts. Private Guardian history is deliberately not fabricated into

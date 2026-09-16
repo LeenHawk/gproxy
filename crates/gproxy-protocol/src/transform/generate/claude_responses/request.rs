@@ -16,16 +16,19 @@ use crate::{
         openai::responses as r,
     },
 };
+
 /// A native signed block and its scoped identity record recovered by the host.
 pub struct RestoredClaudeThinking {
     pub state: crate::transform::identity::IdentityStateRecord,
     pub block: cc::ThinkingBlock,
 }
+
 #[derive(Default)]
 pub struct ClaudeRequestContext {
     pub target: Option<crate::transform::identity::IdentityTarget>,
     pub restored_thinking: std::collections::BTreeMap<String, RestoredClaudeThinking>,
 }
+
 pub fn claude_to_responses_request(
     input: c::GenerateContentRequestBody,
     target_model: impl Into<String>,
@@ -83,6 +86,7 @@ pub fn claude_to_responses_request(
     *flow = ids;
     Ok(Converted { value: out, report })
 }
+
 pub fn responses_to_claude_request(
     input: r::GenerateContentRequestBody,
     target_model: impl Into<String>,

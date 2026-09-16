@@ -16,6 +16,7 @@ pub mod images;
 mod instructions;
 pub mod memory;
 pub mod models;
+pub mod video;
 
 pub use error::{Diagnostic, DiagnosticKind, Report, TransformError, TransformErrorKind};
 
@@ -43,5 +44,3 @@ pub struct Converted<T> {
     pub value: T,
     pub report: Report,
 }
-
-pub mod video;

@@ -5,7 +5,6 @@ impl ClaudeViaResponses {
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis<S: crate::capability::StateStore>(
         input: c::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -18,9 +17,6 @@ impl ClaudeViaResponses {
         prepared.target_request.stream = Some(Some(false));
         Ok(prepared)
     }
-}
-
-impl ClaudeViaResponses {
     /// Prepare a buffered upstream result for later native stream synthesis,
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis_with_capabilities<
@@ -28,7 +24,6 @@ impl ClaudeViaResponses {
         R: crate::capability::ResourceAccess,
     >(
         input: c::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -51,7 +46,6 @@ impl ResponsesViaClaude {
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis<S: crate::capability::StateStore>(
         input: r::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -66,9 +60,6 @@ impl ResponsesViaClaude {
         prepared.target_request.stream = Some(false);
         Ok(prepared)
     }
-}
-
-impl ResponsesViaClaude {
     /// Prepare a buffered upstream result for later native stream synthesis,
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis_with_capabilities<
@@ -76,7 +67,6 @@ impl ResponsesViaClaude {
         R: crate::capability::ResourceAccess,
     >(
         input: r::GenerateContentRequestBody,
-
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,

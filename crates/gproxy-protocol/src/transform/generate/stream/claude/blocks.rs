@@ -3,7 +3,9 @@ use crate::{
     transform::TransformError,
     wire::claude::{generate_content::ResponseContentBlock as B, stream::ContentBlockDelta as D},
 };
+
 type Input = serde_json::Map<String, serde_json::Value>;
+
 pub(super) fn input(block: &mut B) -> Option<&mut Input> {
     match block {
         B::ToolUse(b) => Some(&mut b.input),
@@ -12,6 +14,7 @@ pub(super) fn input(block: &mut B) -> Option<&mut Input> {
         _ => None,
     }
 }
+
 pub(super) fn call_id(block: &B) -> Option<&str> {
     match block {
         B::ToolUse(b) => Some(&b.id),
@@ -20,6 +23,7 @@ pub(super) fn call_id(block: &B) -> Option<&str> {
         _ => None,
     }
 }
+
 pub(super) fn text_bytes(block: &B) -> usize {
     match block {
         B::Text(b) => b.text.len(),
@@ -32,6 +36,7 @@ pub(super) fn text_bytes(block: &B) -> usize {
         _ => 0,
     }
 }
+
 pub(super) fn delta_text_bytes(delta: &D) -> usize {
     match delta {
         D::Text(b) => b.text.len(),
@@ -44,6 +49,7 @@ pub(super) fn delta_text_bytes(delta: &D) -> usize {
         _ => 0,
     }
 }
+
 pub(super) fn apply(block: &mut B, delta: D, buffer: &mut String) -> Result<(), TransformError> {
     match (delta, block) {
         (D::Text(d), B::Text(b)) => b.text.push_str(&d.text),
