@@ -1437,6 +1437,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
 
 [[package]]
+name = "gproxy-channel"
+version = "4.0.0-dev"
+dependencies = [
+ "futures-util",
+ "gproxy-protocol",
+ "http",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
+]
+
+[[package]]
 name = "gproxy-client"
 version = "4.0.0-dev"
 dependencies = [
