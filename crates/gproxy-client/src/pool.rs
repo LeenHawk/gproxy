@@ -63,8 +63,10 @@ impl ClientPool {
         config: &ConnectionConfig,
         http1_only: bool,
     ) -> Result<Arc<Client>, Arc<Error>> {
-        let config = config.clone().normalized().map_err(Arc::new)?;
-        let key = ClientKey { config, http1_only };
+        let key = ClientKey {
+            config: config.clone().normalized().map_err(Arc::new)?,
+            http1_only,
+        };
         self.cache
             .try_get_with(key.clone(), async move {
                 tokio::task::spawn_blocking(move || {

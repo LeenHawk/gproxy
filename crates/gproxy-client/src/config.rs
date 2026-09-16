@@ -2,6 +2,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+#[cfg(not(target_arch = "wasm32"))]
 use crate::Error;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -66,7 +67,7 @@ impl fmt::Debug for ProxyConfig {
 
 /// A named wreq-util TLS/HTTP profile, including platform and header behavior.
 /// Strings use wreq-util's serde names, e.g. chrome_133 and linux. Unknown names
-/// fail validation; they never fall back to another fingerprint.
+/// fail when constructing a wreq client; they never fall back to another fingerprint.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EmulationConfig {
@@ -121,41 +122,12 @@ impl Default for ConnectionConfig {
 }
 
 impl ConnectionConfig {
-    /// Validate stored settings before saving them or constructing a client.
-    /// No network requests are performed. Availability checks reflect this build.
-    pub fn validate(&self) -> Result<(), Error> {
-        if self.connect_timeout_ms == 0 {
-            return Err(Error::InvalidConfig("connect_timeout_ms must be positive"));
-        }
-        if self.backend != Backend::Wreq && self.emulation.is_some() {
-            return Err(Error::InvalidConfig("emulation requires the wreq backend"));
-        }
-        if let ProxyConfig::Explicit { url } = &self.proxy {
-            parse_proxy(url)?;
-        }
-        match self.backend {
-            Backend::Reqwest if !cfg!(all(feature = "reqwest", not(target_arch = "wasm32"))) => {
-                return Err(Error::BackendUnavailable(Backend::Reqwest));
-            }
-            Backend::Wreq if !cfg!(all(feature = "wreq", not(target_arch = "wasm32"))) => {
-                return Err(Error::BackendUnavailable(Backend::Wreq));
-            }
-            _ => {}
-        }
-        #[cfg(all(feature = "wreq", not(target_arch = "wasm32")))]
-        if let Some(emulation) = &self.emulation {
-            emulation.build()?;
-        }
-        Ok(())
-    }
-
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn normalized(mut self) -> Result<Self, Error> {
-        self.validate()?;
         if let ProxyConfig::Explicit { url } = &mut self.proxy {
-            // Both libraries accept authority-form proxy URLs. Strip the URL
-            // parser's default slash and normalize host/default port spelling.
-            let parsed = parse_proxy(url)?;
+            // Normalize proxy URLs to authority form without imposing additional
+            // scheme, port or path restrictions on top of the URL parser.
+            let parsed = url::Url::parse(url).map_err(Error::InvalidProxy)?;
             *url = parsed[..url::Position::BeforePath].to_owned();
         }
         if self.pool_idle_timeout_ms == 0 || self.pool_max_idle_per_host == 0 {
@@ -164,26 +136,6 @@ impl ConnectionConfig {
         }
         Ok(self)
     }
-}
-
-fn parse_proxy(value: &str) -> Result<url::Url, Error> {
-    let url = url::Url::parse(value).map_err(|_| Error::InvalidProxy)?;
-    if !matches!(
-        url.scheme(),
-        "http" | "https" | "socks4" | "socks4a" | "socks5" | "socks5h"
-    ) || url.host_str().is_none()
-        || !matches!(url.path(), "" | "/")
-        || url.query().is_some()
-        || url.fragment().is_some()
-        || url.port() == Some(0)
-    {
-        return Err(Error::InvalidProxy);
-    }
-    // Require an explicit SOCKS port rather than relying on backend-specific defaults.
-    if url.scheme().starts_with("socks") && url.port().is_none() {
-        return Err(Error::InvalidProxy);
-    }
-    Ok(url)
 }
 
 #[cfg(all(feature = "wreq", not(target_arch = "wasm32")))]

@@ -246,13 +246,16 @@ async fn explicit_proxy_routes_and_authenticates_without_resolving_origin() {
                     .to_lowercase()
                     .contains("proxy-authorization: basic ywxpy2u6c2vjcmv0\r\n")
             );
-            let canonical = ConnectionConfig {
+            let trailing_slash = ConnectionConfig {
                 proxy: ProxyConfig::Explicit {
                     url: format!("{proxy_url}/"),
                 },
                 ..config.clone()
             };
-            assert!(Arc::ptr_eq(&client, &pool.get(&canonical).await.unwrap()));
+            assert!(Arc::ptr_eq(
+                &client,
+                &pool.get(&trailing_slash).await.unwrap()
+            ));
             let different_auth = ConnectionConfig {
                 proxy: ProxyConfig::Explicit {
                     url: proxy_url.replace("secret", "other"),
@@ -300,6 +303,44 @@ async fn concurrent_misses_share_a_client_and_parameter_changes_replace_it() {
             ..config
         };
         assert!(!Arc::ptr_eq(&client, &pool.get(&changed).await.unwrap()));
+    }
+}
+
+#[tokio::test]
+async fn equivalent_proxy_spelling_and_disabled_idle_pools_share_clients() {
+    for backend in backends() {
+        let pool = ClientPool::default();
+        let config = ConnectionConfig {
+            backend,
+            proxy: ProxyConfig::Explicit {
+                url: "http://EXAMPLE.com:80/".into(),
+            },
+            pool_idle_timeout_ms: 0,
+            ..Default::default()
+        };
+        let client = pool.get(&config).await.unwrap();
+        let mut equivalent = ConnectionConfig {
+            backend,
+            proxy: ProxyConfig::Explicit {
+                url: "http://example.com".into(),
+            },
+            pool_max_idle_per_host: 0,
+            ..Default::default()
+        };
+        assert!(Arc::ptr_eq(&client, &pool.get(&equivalent).await.unwrap()));
+        equivalent.pool_idle_timeout_ms = 0;
+        assert!(Arc::ptr_eq(&client, &pool.get(&equivalent).await.unwrap()));
+        equivalent.proxy = ProxyConfig::Explicit {
+            url: "http://EXAMPLE.com:80/path?query=1#fragment".into(),
+        };
+        assert!(Arc::ptr_eq(&client, &pool.get(&equivalent).await.unwrap()));
+        equivalent.proxy = ProxyConfig::Explicit {
+            url: "http://[invalid".into(),
+        };
+        assert!(matches!(
+            pool.get(&equivalent).await.unwrap_err().as_ref(),
+            gproxy_client::Error::InvalidProxy(_)
+        ));
     }
 }
 

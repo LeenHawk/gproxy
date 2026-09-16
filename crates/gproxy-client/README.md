@@ -50,9 +50,9 @@ Clearing the Client cache does not interrupt an already upgraded stream.
 
 Store persists named `ConnectionProfile` rows. The host selects the first explicit
 `connection_profile_id` from Credential → Provider → Setting, loads that complete
-profile, maps its fields into `ConnectionConfig`, and calls `validate()` before
-saving/using it. An absent selection uses `ConnectionConfig::default()` (reqwest,
-direct). A missing referenced row is an error, never a reason to fall back.
+profile, and maps its fields into `ConnectionConfig`. An absent selection uses
+`ConnectionConfig::default()` (reqwest, direct). A missing referenced row is an
+error, never a reason to fall back.
 No per-field merging or profile-to-profile inheritance is performed.
 
 | Store fields | Client configuration |
@@ -98,16 +98,19 @@ Example effective configuration:
 Emulation uses wreq-util's named TLS/HTTP presets, not arbitrary custom TLS option
 JSON. `http2` selects whether to apply the preset's HTTP/2 settings; it is not an
 HTTP/2 protocol ban when false. `headers` controls preset headers. Profile and
-platform use wreq-util serde names. Invalid names, reqwest + emulation, unknown
-fields and disabled backends fail explicitly. Normal certificate verification
-remains enabled. HTTP(S)/SOCKS proxy URLs must contain only an authority (an
-optional trailing slash is accepted); SOCKS URLs require an explicit port.
+platform use wreq-util serde names; invalid names fail when building a wreq client.
+Emulation applies only to wreq. Unknown fields and disabled backends fail explicitly.
+Normal certificate verification remains enabled. Configuration is not pre-validated;
+backend construction errors are returned to the caller.
 
 ## Reuse and lifetime
 
 The cache key contains all effective connection parameters plus the WS HTTP/1.1
 override, not profile ID, name,
-version, destination or API key. Proxy URL spelling is normalized; proxy credentials
+version, destination or API key. Proxy URLs are parsed and normalized to authority
+form, including host, default port and trailing slash spelling. Parse failures
+return an error. If either idle pool parameter is zero, both are normalized to zero.
+Proxy credentials
 and all emulation, decompression, redirect and retry parameters participate in equality. Use API keys on individual
 requests. Cookie stores and connection-bound account identity are not enabled.
 

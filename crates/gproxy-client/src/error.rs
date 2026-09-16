@@ -4,8 +4,8 @@ use crate::Backend;
 pub enum Error {
     #[error("invalid connection configuration: {0}")]
     InvalidConfig(&'static str),
-    #[error("invalid proxy URL (expected an HTTP(S) or SOCKS authority; SOCKS requires a port)")]
-    InvalidProxy,
+    #[error("failed to parse proxy URL")]
+    InvalidProxy(#[source] url::ParseError),
     #[error("backend {0:?} is not available in this build")]
     BackendUnavailable(Backend),
     #[cfg(all(feature = "reqwest", not(target_arch = "wasm32")))]
