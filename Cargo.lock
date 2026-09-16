@@ -1238,6 +1238,7 @@ name = "gproxy-store"
 version = "4.0.0-dev"
 dependencies = [
  "sea-orm",
+ "serde",
 ]
 
 [[package]]

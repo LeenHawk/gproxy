@@ -11,6 +11,10 @@ pub struct Model {
     #[sea_orm(indexed)]
     pub user_id: String,
     pub name: String,
+    /// OAuth keys carry a grant's policy/usage identity and are not ordinary
+    /// bearer API keys. The auth/admin layer must enforce that separation.
+    #[sea_orm(default_value = "user")]
+    pub kind: ApiKeyKind,
     #[sea_orm(unique)]
     pub key_hash: String,
     pub prefix: String,
@@ -27,6 +31,17 @@ pub struct Model {
     pub rate_limits: HasMany<crate::entity::limits::rate_limit::Entity>,
     #[sea_orm(has_many)]
     pub quotas: HasMany<crate::entity::limits::quota::Entity>,
+    #[sea_orm(has_one)]
+    pub oauth_grant: HasOne<crate::entity::oauth::grant::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(16))")]
+pub enum ApiKeyKind {
+    #[sea_orm(string_value = "user")]
+    User,
+    #[sea_orm(string_value = "oauth")]
+    OAuth,
+}

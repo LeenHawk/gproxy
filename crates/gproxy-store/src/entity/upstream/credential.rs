@@ -24,11 +24,18 @@ pub struct Model {
     pub user_id: Option<String>,
     pub label: Option<String>,
     pub auth_kind: String,
+    /// Host-sealed secret payload. For OAuth, the common plaintext shape is
+    /// OAuthCredentialSecret below; provider-specific data stays within its envelope.
     pub secret: Vec<u8>,
+    /// Optimistic version for secret/config updates, including token refresh.
+    /// Writers replace secret + expiry and increment version in one conditional write.
+    #[sea_orm(default_value = 0)]
+    pub version: i64,
     /// Credential proxy URL. None inherits Provider.proxy, then Setting.proxy.
     #[sea_orm(column_type = "Text")]
     pub proxy: Option<String>,
     pub metadata: Json,
+    /// Access-token expiry for OAuth; updated atomically with secret/version.
     pub expires_at_ms: Option<i64>,
     #[sea_orm(default_value = true)]
     pub enabled: bool,
@@ -45,3 +52,19 @@ pub struct Model {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
+
+/// Common plaintext inside an upstream OAuth credential's sealed secret blob.
+/// Kept out of Debug output; this is a data contract, not an encryption codec.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct OAuthCredentialSecret {
+    pub access_token: String,
+    pub refresh_token: Option<String>,
+    pub id_token: Option<String>,
+    pub token_type: Option<String>,
+    #[serde(default)]
+    pub scopes: Vec<String>,
+    pub refresh_expires_at_ms: Option<i64>,
+    /// Provider-specific secret fields, not public credential metadata.
+    #[serde(default)]
+    pub provider_fields: std::collections::BTreeMap<String, Json>,
+}
