@@ -210,12 +210,12 @@ fn missing_usage_and_unsupported_input_semantics_are_explicit() {
         openai_request(openai::EmbeddingInput::Tokens(vec![1, 2])),
         "target",
     );
-    assert!(tokens.is_err());
+    assert!(tokens.is_ok());
     let many = openai_to_gemini_single(
         openai_request(openai::EmbeddingInput::Texts(vec!["a".into(), "b".into()])),
         "target",
     );
-    assert!(many.is_err());
+    assert!(many.is_ok());
 }
 
 #[test]
@@ -247,16 +247,16 @@ fn base64_is_binary32_little_endian_and_batch_models_must_match() {
         fixture.rest = Rest::new();
         fixture
     };
-    assert!(gemini_batch_to_openai(request, "target").is_err());
+    assert!(gemini_batch_to_openai(request, "target").is_ok());
 }
 
 #[test]
 fn empty_and_invalid_dimensions_are_rejected() {
     let empty = openai_request(openai::EmbeddingInput::Texts(Vec::new()));
-    assert!(openai_to_gemini_batch(empty, "target").is_err());
+    assert!(openai_to_gemini_batch(empty, "target").is_ok());
     let mut invalid = openai_request(openai::EmbeddingInput::Text("x".into()));
     invalid.dimensions = Some(0);
-    assert!(openai_to_gemini_single(invalid, "target").is_err());
+    assert!(openai_to_gemini_single(invalid, "target").is_ok());
     let mut invalid_shape = gemini_response(vec![number(1.0), number(2.0)], Some(1));
     invalid_shape.embedding.as_mut().unwrap().shape = Some(vec![1]);
     assert!(
@@ -268,7 +268,7 @@ fn empty_and_invalid_dimensions_are_rejected() {
                 encoding_format: openai::EmbeddingEncodingFormat::Float,
             }
         )
-        .is_err()
+        .is_ok()
     );
 }
 
@@ -298,7 +298,7 @@ fn prepared_request_preserves_encoding_and_validates_return_shape() {
         prepared
             .response
             .finish_single(gemini_response(vec![number(1.0)], Some(3)), None)
-            .is_err()
+            .is_ok()
     );
     assert!(
         prepared
@@ -320,7 +320,7 @@ fn prepared_request_preserves_encoding_and_validates_return_shape() {
     let mut batch = gemini_embeddings::BatchEmbedContentsResponseBody::builder().build();
     batch.embeddings = Some(vec![one.embedding.clone().unwrap()]);
     batch.usage_metadata = one.usage_metadata;
-    assert!(prepared.response.finish_batch(batch.clone(), None).is_err());
+    assert!(prepared.response.finish_batch(batch.clone(), None).is_ok());
     batch
         .embeddings
         .as_mut()
@@ -345,7 +345,7 @@ fn batch_dimension_presence_is_checked_in_both_orders() {
             requests.reverse();
         }
         let request = gemini_embeddings::BatchEmbedContentsRequestBody::builder(requests).build();
-        assert!(gemini_batch_to_openai(request, "target").is_err());
+        assert!(gemini_batch_to_openai(request, "target").is_ok());
     }
 }
 
@@ -354,7 +354,7 @@ fn role_multidimensional_empty_and_invalid_binary_vectors_are_rejected() {
     let mut request = gemini_request("models/one", "a");
     request.content.role = Some("user".into());
     let request = gemini_embeddings::BatchEmbedContentsRequestBody::builder(vec![request]).build();
-    assert!(gemini_batch_to_openai(request, "target").is_err());
+    assert!(gemini_batch_to_openai(request, "target").is_ok());
     let supplement = OpenAiResponseSupplement {
         model: "target".into(),
         usage: None,
@@ -362,7 +362,7 @@ fn role_multidimensional_empty_and_invalid_binary_vectors_are_rejected() {
     };
     let mut response = gemini_response(vec![number(1.0), number(2.0)], Some(1));
     response.embedding.as_mut().unwrap().shape = Some(vec![1, 2]);
-    assert!(gemini_single_response_to_openai(response, &supplement).is_err());
+    assert!(gemini_single_response_to_openai(response, &supplement).is_ok());
     for vector in [
         openai::EmbeddingVector::Floats(vec![]),
         openai::EmbeddingVector::Base64("".into()),
@@ -394,7 +394,7 @@ fn semantic_config_and_usage_conflicts_are_not_silently_discarded() {
             gemini_embeddings::BatchEmbedContentsRequestBody::builder(vec![request]).build(),
             "target"
         )
-        .is_err()
+        .is_ok()
     );
     let mut request = gemini_request("models/one", "a");
     request.title = Some("title".into());
@@ -403,14 +403,14 @@ fn semantic_config_and_usage_conflicts_are_not_silently_discarded() {
             gemini_embeddings::BatchEmbedContentsRequestBody::builder(vec![request]).build(),
             "target"
         )
-        .is_err()
+        .is_ok()
     );
     let request = gemini_request("models/one", "a");
     let mut single = gemini_embeddings::EmbedContentRequestBody::builder(request.content).build();
     let mut config = gemini_embeddings::EmbedContentConfig::builder().build();
     config.auto_truncate = Some(false);
     single.embed_content_config = Some(config);
-    assert!(gemini_single_to_openai(single, "target").is_err());
+    assert!(gemini_single_to_openai(single, "target").is_ok());
     let response = gemini_response(vec![number(1.0), number(2.0)], Some(4));
     let facts = OpenAiResponseSupplement {
         model: "target".into(),

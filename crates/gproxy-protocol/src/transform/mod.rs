@@ -19,6 +19,23 @@ pub mod models;
 
 pub use error::{Diagnostic, DiagnosticKind, Report, TransformError, TransformErrorKind};
 
+/// An unrepresentable field or item is omitted at its mapping boundary.
+/// Parsing, host and state errors still propagate to the caller.
+pub(crate) fn optional<T>(value: Result<T, TransformError>) -> Result<Option<T>, TransformError> {
+    match value {
+        Ok(value) => Ok(Some(value)),
+        Err(error)
+            if matches!(
+                error.kind(),
+                TransformErrorKind::Unsupported | TransformErrorKind::MissingMetadata
+            ) =>
+        {
+            Ok(None)
+        }
+        Err(error) => Err(error),
+    }
+}
+
 /// A typed target value and out-of-band field diagnostics. This wrapper never
 /// changes or normalizes the payload type into a common content model.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -20,12 +20,10 @@ impl ChatViaResponses {
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<StreamInvocation<p::ResponsesToChatStream>, TransformError> {
-        settings.validate::<p::ResponsesToChatStream>()?;
         let original = input.into_declared();
-        crate::transform::generate::chat_responses::stream_tools::check(&original)?;
+
         let prepared = Self::prepare_with_state(
             original.clone().buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,
@@ -58,12 +56,10 @@ impl ChatViaResponses {
         state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
     ) -> Result<StreamInvocation<p::ResponsesToChatStream>, TransformError> {
-        settings.validate::<p::ResponsesToChatStream>()?;
         let original = input.into_declared();
-        crate::transform::generate::chat_responses::stream_tools::check(&original)?;
+
         let prepared = Self::prepare_with_capabilities(
             original.clone().buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,
@@ -120,7 +116,6 @@ impl ResponsesViaChat {
         state: &GenerationStateAccess<'_, S>,
         history_cache: Option<&super::super::ResponsesHistoryCache>,
     ) -> Result<StreamInvocation<p::ChatToResponsesStream>, TransformError> {
-        settings.validate::<p::ChatToResponsesStream>()?;
         let original = input.into_declared();
         let (history, expanded) = super::super::history::History::prepare_with_cache(
             &original,
@@ -133,14 +128,13 @@ impl ResponsesViaChat {
         context.response.request.input = expanded.input.clone();
         let prepared = Self::prepare_with_state(
             expanded.buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,
         )
         .await?;
         target.identities = prepared.identities().clone();
-        crate::transform::generate::chat_responses::stream_tools::check(prepared.target_request())?;
+
         let bridge = p::ChatToResponsesStream::new_with_policy(
             context,
             target.identities.response.clone(),
@@ -206,7 +200,6 @@ impl ResponsesViaChat {
         resources: &GenerationResources<'_, R>,
         history_cache: Option<&super::super::ResponsesHistoryCache>,
     ) -> Result<StreamInvocation<p::ChatToResponsesStream>, TransformError> {
-        settings.validate::<p::ChatToResponsesStream>()?;
         let original = input.into_declared();
         let (history, expanded) = super::super::history::History::prepare_with_cache(
             &original,
@@ -219,7 +212,6 @@ impl ResponsesViaChat {
         context.response.request.input = expanded.input.clone();
         let prepared = Self::prepare_with_capabilities(
             expanded.buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,
@@ -227,7 +219,7 @@ impl ResponsesViaChat {
         )
         .await?;
         target.identities = prepared.identities().clone();
-        crate::transform::generate::chat_responses::stream_tools::check(prepared.target_request())?;
+
         let bridge = p::ChatToResponsesStream::new_with_policy(
             context,
             target.identities.response.clone(),

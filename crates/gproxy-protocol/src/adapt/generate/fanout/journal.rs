@@ -103,7 +103,6 @@ pub(super) async fn save<S: StateStore, N>(
     limits: CodecLimits,
     progress: &mut FanoutProgress<N>,
 ) -> Result<(), TransformError> {
-    state.validate()?;
     let value = progress.journal.as_ref().expect("journal initialized");
     let bytes = encode(value, limits)?;
     if bytes.len() as u64 > state.store.limits().write_bytes {
@@ -137,7 +136,9 @@ pub(super) async fn load<S: StateStore, N>(
     limits: CodecLimits,
     progress: &mut FanoutProgress<N>,
 ) -> Result<(), TransformError> {
-    state.validate()?;
+    if state.now >= state.expires_at {
+        return Err(conflict("fanout invocation state expired"));
+    }
     let entry = state
         .store
         .get(state.scope, &expected.key())

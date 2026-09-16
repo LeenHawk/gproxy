@@ -116,10 +116,7 @@ pub(super) fn to_responses(
             }
             c::ChatMessage::Assistant(message) => {
                 if message.audio.flatten().is_some() {
-                    return Err(TransformError::unsupported(
-                        "messages.audio",
-                        "Responses has no Chat audio-history reference",
-                    ));
+                    continue;
                 }
                 let legacy = message.function_call.flatten();
                 if legacy.is_some()

@@ -27,13 +27,12 @@ impl ResponsesToGeminiStream {
                             *emitted = true;
                         }
                     } else if item.done && !*emitted {
-                        let model = self
+                        let _model = self
                             .model
                             .as_deref()
                             .ok_or_else(|| invalid("missing native model"))?;
                         let part = super::super::images::restore(
                             (**value).clone(),
-                            model,
                             &mut self.restoration,
                             self.limits.max_bytes as u64,
                         )?;
@@ -73,13 +72,12 @@ impl ResponsesToGeminiStream {
                     if *signed || !*has_content {
                         if let Some(reasoning) = final_item.take() {
                             let part = if *signed {
-                                let model = self
+                                let _model = self
                                     .model
                                     .as_deref()
                                     .ok_or_else(|| invalid("missing native model"))?;
                                 let part = super::super::identity::reasoning(
                                     reasoning,
-                                    model,
                                     &mut self.restoration,
                                 )?;
                                 if part.function_call.is_some() {
@@ -124,13 +122,12 @@ impl ResponsesToGeminiStream {
                     emitted,
                 } => {
                     if *ready && !*emitted {
-                        let model = self
+                        let _model = self
                             .model
                             .as_deref()
                             .ok_or_else(|| invalid("missing native model"))?;
                         let mut part = super::super::identity::function(
                             (**value).clone(),
-                            model,
                             &mut self.restoration,
                         )?;
                         identity::call(

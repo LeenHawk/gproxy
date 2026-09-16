@@ -28,24 +28,7 @@ pub(super) fn dimensions(
             explicit_resolution.or(inferred.1),
         ));
     }
-    if explicit_aspect
-        .as_deref()
-        .is_some_and(|value| !matches!(value, "16:9" | "9:16"))
-    {
-        return Err(TransformError::unsupported(
-            "aspect_ratio",
-            "Developer API Veo supports 16:9 and 9:16 in this mapping",
-        ));
-    }
-    if explicit_resolution
-        .as_deref()
-        .is_some_and(|value| !matches!(value, "720p" | "1080p" | "4K"))
-    {
-        return Err(TransformError::unsupported(
-            "resolution",
-            "Developer API Veo supports 720p, 1080p and 4K in this mapping",
-        ));
-    }
+
     Ok((explicit_aspect, explicit_resolution))
 }
 

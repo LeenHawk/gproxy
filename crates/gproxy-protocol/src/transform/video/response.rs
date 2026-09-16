@@ -208,6 +208,7 @@ pub fn openai_response_to_gemini_operation(
                             .build()
                     })
                 })
+                .filter_map(|value| crate::transform::optional(value).transpose())
                 .collect::<Result<Vec<_>, _>>()?;
             out.done = Some(true);
             out.response = Some(

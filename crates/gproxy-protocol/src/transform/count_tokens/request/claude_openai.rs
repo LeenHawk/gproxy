@@ -23,7 +23,9 @@ pub fn claude_to_openai(
     out.tools = input
         .tools
         .map(|tools| pair::tools::to_responses(tools, &mut report))
+        .map(crate::transform::optional)
         .transpose()?
+        .flatten()
         .map(Some);
     if let Some(servers) = input.mcp_servers {
         for server in servers {
@@ -76,16 +78,7 @@ pub fn openai_to_claude(
     let model = super::model(target_model)?;
     let mut input = input.into_declared();
     super::openai_state(&input)?;
-    if context
-        .target
-        .as_ref()
-        .is_some_and(|target| target.model != model)
-    {
-        return Err(TransformError::shape(
-            "reasoning.target",
-            "native replay model differs from count model",
-        ));
-    }
+
     let mut out = c::CountTokensRequestBody::builder(Vec::new(), model).build();
     let mut report = Report::default();
     let mut tools = input.tools.take().flatten();
@@ -125,7 +118,9 @@ pub fn openai_to_claude(
     });
     out.tool_choice = choice
         .map(|choice| pair::tools::choice_to_claude(choice, input.parallel_tool_calls.flatten()))
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     let (messages, mut system) =
         pair::history::to_claude(input.input.flatten(), context, &mut report)?;
     out.messages = messages;

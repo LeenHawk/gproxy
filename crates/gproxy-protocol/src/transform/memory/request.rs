@@ -70,42 +70,19 @@ fn req<T>(path: String, body: T) -> WireRequest<T> {
         body,
     }
 }
-fn validate(model: &str, max: i64) -> Result<(), TransformError> {
-    if model.trim().is_empty() || max <= 0 {
-        return Err(TransformError::shape(
-            "memory.target",
-            "nonempty model and positive output budget required",
-        ));
-    }
-    Ok(())
-}
+
 fn effort(reasoning: Option<&source::Reasoning>) -> Option<&str> {
     reasoning
         .and_then(|r| r.effort.as_deref())
         .filter(|v| *v != "model_defined")
 }
-fn non_responses(reasoning: Option<&source::Reasoning>) -> Result<(), TransformError> {
-    if reasoning.is_some_and(|v| {
-        v.summary
-            .as_ref()
-            .is_some_and(|v| !matches!(v, source::ReasoningSummary::None))
-            || v.context.is_some()
-    }) {
-        return Err(TransformError::unsupported(
-            "reasoning.summary/context",
-            "only Responses has equivalent private-client reasoning controls",
-        ));
-    }
-    Ok(())
-}
+
 pub fn build_claude(
     payload: String,
     model: String,
     max: i64,
     reasoning: Option<&source::Reasoning>,
 ) -> Result<MemoryDialectRequest, TransformError> {
-    validate(&model, max)?;
-    non_responses(reasoning)?;
     let mut body = c::GenerateContentRequestBody::builder(
         max,
         vec![cc::Message::builder(cc::Role::User, cc::MessageContent::Text(payload)).build()],
@@ -121,7 +98,7 @@ pub fn build_claude(
                 ct::ThinkingDisabled::builder().build(),
             ))
         }
-        Some(level) => {
+        Some(level @ ("low" | "medium" | "high" | "xhigh" | "max")) => {
             let level = match level {
                 "low" => ct::Effort::Low,
                 "medium" => ct::Effort::Medium,
@@ -140,6 +117,7 @@ pub fn build_claude(
             ));
             body.output_config = Some(ct::OutputConfig::builder().effort(level).build());
         }
+        Some(_) => {}
     }
     Ok(MemoryDialectRequest::Claude(req(
         "/v1/messages".into(),
@@ -152,8 +130,6 @@ pub fn build_gemini(
     max: i64,
     reasoning: Option<&source::Reasoning>,
 ) -> Result<MemoryDialectRequest, TransformError> {
-    validate(&model, max)?;
-    non_responses(reasoning)?;
     let model = model.strip_prefix("models/").unwrap_or(&model);
     if model.is_empty()
         || model.contains(['/', '?', '#', '\\'])
@@ -178,12 +154,7 @@ pub fn build_gemini(
             "low" => thinking.thinking_level = Some(g::ThinkingLevel::Low),
             "medium" => thinking.thinking_level = Some(g::ThinkingLevel::Medium),
             "high" => thinking.thinking_level = Some(g::ThinkingLevel::High),
-            _ => {
-                return Err(TransformError::unsupported(
-                    "reasoning.effort",
-                    "Gemini lacks requested effort",
-                ));
-            }
+            _ => {}
         }
         config.thinking_config = Some(thinking);
     }
@@ -206,8 +177,6 @@ pub fn build_openai_chat(
     max: i64,
     reasoning: Option<&source::Reasoning>,
 ) -> Result<MemoryDialectRequest, TransformError> {
-    validate(&model, max)?;
-    non_responses(reasoning)?;
     let mut body = o::GenerateContentRequestBody::builder(
         vec![o::ChatMessage::User(
             o::UserMessage::builder(o::UserRole::User, o::UserContent::Text(payload)).build(),
@@ -244,7 +213,9 @@ pub fn build_openai_chat(
                 }
             }))
         })
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     Ok(MemoryDialectRequest::OpenAiChat(req(
         "/v1/chat/completions".into(),
         body,
@@ -256,7 +227,6 @@ pub fn build_openai_responses(
     max: i64,
     reasoning: Option<&source::Reasoning>,
 ) -> Result<MemoryDialectRequest, TransformError> {
-    validate(&model, max)?;
     let mut body = r::GenerateContentRequestBody::builder()
         .model(model)
         .input(r::Input::Text(payload))
@@ -294,7 +264,9 @@ pub fn build_openai_responses(
                     }
                 }))
             })
-            .transpose()?;
+            .map(crate::transform::optional)
+            .transpose()?
+            .flatten();
         config.summary = source.summary.as_ref().map(|v| {
             Some(match v {
                 source::ReasoningSummary::Auto => r::ReasoningSummary::Auto,

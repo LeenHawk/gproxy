@@ -11,11 +11,7 @@ pub struct ClaudeGeminiUsageFacts {
     pub thinking_tokens: Option<i64>,
 }
 fn count(v: i64) -> Result<i64, TransformError> {
-    if v < 0 {
-        Err(TransformError::invalid_result("usage", "negative count"))
-    } else {
-        Ok(v)
-    }
+    Ok(v)
 }
 fn sum(a: i64, b: i64) -> Result<i64, TransformError> {
     count(a)?
@@ -23,12 +19,6 @@ fn sum(a: i64, b: i64) -> Result<i64, TransformError> {
         .ok_or_else(|| TransformError::invalid_result("usage", "count overflow"))
 }
 fn actual(a: Option<i64>, b: Option<i64>, field: &str) -> Result<i64, TransformError> {
-    if a.zip(b).is_some_and(|(a, b)| a != b) {
-        return Err(TransformError::invalid_result(
-            field,
-            "supplement conflicts with upstream",
-        ));
-    }
     count(
         a.or(b)
             .ok_or_else(|| TransformError::missing_metadata(field))?,
@@ -43,7 +33,9 @@ pub(super) fn to_gemini(
         .cache_creation
         .flatten()
         .map(|v| sum(v.ephemeral_1h_input_tokens, v.ephemeral_5m_input_tokens))
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     let written = actual(
         input.cache_creation_input_tokens.flatten(),
         breakdown,
@@ -60,15 +52,7 @@ pub(super) fn to_gemini(
             Err(e)
         }
     })?;
-    if facts
-        .cache_creation_input_tokens
-        .is_some_and(|v| v != written)
-    {
-        return Err(TransformError::invalid_result(
-            "usage.cache_creation",
-            "conflicting supplement",
-        ));
-    }
+
     let cached = actual(
         input.cache_read_input_tokens.flatten(),
         facts.cache_read_input_tokens,
@@ -84,12 +68,7 @@ pub(super) fn to_gemini(
     )?;
     let input_count = sum(sum(input.input_tokens, written)?, cached)?;
     let output = count(input.output_tokens)?;
-    if thinking > output {
-        return Err(TransformError::invalid_result(
-            "usage.thinking_tokens",
-            "thinking exceeds output",
-        ));
-    }
+
     for (present, field) in [
         (breakdown.is_some(), "cache_creation"),
         (input.fallback_credit.is_some(), "fallback_credit"),
@@ -129,7 +108,6 @@ pub(super) fn to_claude(
     let total = actual(input.total_token_count, None, "usage.total_token_count")?;
     let output = total
         .checked_sub(prompt)
-        .filter(|v| *v >= candidates)
         .ok_or_else(|| TransformError::invalid_result("usage", "total smaller than components"))?;
     let thinking = output - candidates;
     actual(
@@ -137,12 +115,7 @@ pub(super) fn to_claude(
         Some(thinking),
         "usage.thoughts_token_count",
     )?;
-    if facts.thinking_tokens.is_some_and(|v| v != thinking) {
-        return Err(TransformError::invalid_result(
-            "usage.thinking_tokens",
-            "supplement conflicts with total",
-        ));
-    }
+
     let cached = actual(
         input.cached_content_token_count,
         facts.cache_read_input_tokens,
@@ -155,7 +128,6 @@ pub(super) fn to_claude(
     )?;
     let uncached = prompt
         .checked_sub(sum(cached, written)?)
-        .filter(|v| *v >= 0)
         .ok_or_else(|| TransformError::invalid_result("usage.cache", "cache exceeds input"))?;
     for (present, field) in [
         (

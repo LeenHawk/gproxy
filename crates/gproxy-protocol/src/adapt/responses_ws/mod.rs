@@ -210,19 +210,3 @@ fn host_error(error: crate::connection::TransportError) -> TransformError {
         error,
     )
 }
-
-pub(crate) fn validate_lane(lane: Option<&str>) -> Result<(), TransformError> {
-    if lane.is_some_and(|id| {
-        id.is_empty()
-            || id.len() > 256
-            || !id
-                .bytes()
-                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
-    }) {
-        return Err(TransformError::shape(
-            "responses.websocket.stream_id",
-            "nonempty ASCII letters, numbers, underscore, hyphen or period, at most 256 characters required",
-        ));
-    }
-    Ok(())
-}

@@ -18,22 +18,11 @@ pub(crate) fn model_resource(value: &str) -> Result<String, TransformError> {
 }
 
 pub(crate) fn target_model_name(value: &str) -> Result<String, TransformError> {
-    if value.is_empty() {
-        Err(TransformError::missing_metadata("target_model"))
-    } else {
-        Ok(value.to_owned())
-    }
+    Ok(value.to_owned())
 }
 
 pub(crate) fn source_model_resource(value: &str) -> Result<String, TransformError> {
-    if value.starts_with("models/") && value.len() > "models/".len() {
-        Ok(value.to_owned())
-    } else {
-        Err(TransformError::shape(
-            "embedding.model",
-            "Gemini batch model must be a complete models/{name} resource",
-        ))
-    }
+    model_resource(value)
 }
 
 pub(crate) fn text_content(value: String) -> gemini::content::Content {
@@ -61,64 +50,17 @@ pub(crate) fn text_content(value: String) -> gemini::content::Content {
 }
 
 pub(crate) fn content_text(content: gemini::content::Content) -> Result<String, TransformError> {
-    if content.role.is_some() {
-        return Err(TransformError::unsupported(
-            "embedding.content.role",
-            "role-annotated embedding content has no OpenAI equivalent",
-        ));
-    }
-    let parts = content
+    Ok(content
         .parts
-        .ok_or_else(|| TransformError::shape("embedding.content", "content has no parts"))?;
-    if parts.is_empty() {
-        return Err(TransformError::shape(
-            "embedding.content",
-            "content has no parts",
-        ));
-    }
-    let mut text = String::new();
-    for part in parts {
-        if part.text.is_none()
-            || part.thought.is_some()
-            || part.thought_signature.is_some()
-            || part.inline_data.is_some()
-            || part.function_call.is_some()
-            || part.function_response.is_some()
-            || part.file_data.is_some()
-            || part.executable_code.is_some()
-            || part.code_execution_result.is_some()
-            || part.tool_call.is_some()
-            || part.tool_response.is_some()
-            || part.video_metadata.is_some()
-            || part.part_metadata.is_some()
-            || part.media_resolution.is_some()
-        {
-            return Err(TransformError::unsupported(
-                "embedding.content",
-                "non-text or annotated parts require embedding capability",
-            ));
-        }
-        text.push_str(part.text.as_deref().unwrap_or_default());
-    }
-    if text.is_empty() {
-        return Err(TransformError::shape("embedding.content", "text is empty"));
-    }
-    Ok(text)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|part| part.text)
+        .collect::<Vec<_>>()
+        .join(""))
 }
 
 pub(crate) fn dimensions(value: Option<i64>) -> Result<Option<i64>, TransformError> {
-    value
-        .map(|dimension| {
-            if dimension <= 0 {
-                Err(TransformError::shape(
-                    "embedding.dimensions",
-                    "dimension must be positive",
-                ))
-            } else {
-                Ok(dimension)
-            }
-        })
-        .transpose()
+    Ok(value)
 }
 
 pub(crate) fn gemini_dimensions(
@@ -148,12 +90,7 @@ pub(crate) fn decode_base64(value: &str) -> Result<Vec<serde_json::Number>, Tran
             format!("invalid base64 vector: {error}"),
         )
     })?;
-    if bytes.len() % 4 != 0 {
-        return Err(TransformError::shape(
-            "embedding.base64",
-            "IEEE754 binary32 little-endian vector has incomplete bytes",
-        ));
-    }
+
     bytes
         .as_chunks::<4>()
         .0

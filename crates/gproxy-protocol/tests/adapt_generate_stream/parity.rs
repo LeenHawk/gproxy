@@ -77,7 +77,6 @@ impl ResourceAccess for Resources {
 }
 fn target(dialect: Dialect, second: bool) -> StreamTarget {
     StreamTarget {
-        model: "selected".into(),
         endpoint: Endpoint::new("/selected/generate").unwrap(),
         identities: GenerationIdentity::new(
             IdNamespace([if second { 3 } else { 1 }; 16]),

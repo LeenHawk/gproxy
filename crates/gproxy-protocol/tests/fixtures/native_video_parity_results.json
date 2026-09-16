@@ -260,24 +260,54 @@
         }
       },
       {
-        "accepted": false,
-        "error": "native.size: Veo has no exact 1024x1792 or 1792x1024 dimensions",
-        "name": "native_1024_not_exact"
+        "accepted": true,
+        "name": "native_1024_not_exact",
+        "output": {
+          "instances": [
+            {
+              "prompt": "sunset"
+            }
+          ],
+          "parameters": {
+            "sampleCount": 1,
+            "durationSeconds": 8
+          }
+        }
       },
       {
-        "accepted": false,
-        "error": "bound video/image resource: required factual metadata is unavailable",
-        "name": "native_reference_needs_capability"
+        "accepted": true,
+        "name": "native_reference_needs_capability",
+        "output": {
+          "instances": [
+            {
+              "prompt": "sunset"
+            }
+          ],
+          "parameters": {
+            "sampleCount": 1,
+            "durationSeconds": 8,
+            "aspectRatio": "16:9",
+            "resolution": "720p"
+          }
+        }
       },
       {
-        "accepted": false,
-        "error": "veo.dimensions: no exact native dimension mapping",
-        "name": "veo_1080_not_native_1024"
+        "accepted": true,
+        "name": "veo_1080_not_native_1024",
+        "output": {
+          "prompt": "sunset",
+          "model": "sora-2",
+          "seconds": "8"
+        }
       },
       {
-        "accepted": false,
-        "error": "veo.effective_dimensions: required factual metadata is unavailable",
-        "name": "veo_unknown_dimensions"
+        "accepted": true,
+        "name": "veo_unknown_dimensions",
+        "output": {
+          "prompt": "sunset",
+          "model": "sora-2",
+          "seconds": "8"
+        }
       },
       {
         "accepted": true,

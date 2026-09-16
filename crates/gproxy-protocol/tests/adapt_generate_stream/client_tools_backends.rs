@@ -161,7 +161,6 @@ fn gemini_client_tools_preserve_signed_parts_and_resume_discovery_history() {
     let followup = fixtures::followup(&output);
     let next = ready(ResponsesViaGemini::prepare_with_state(
         serde_json::from_value(followup.clone()).unwrap(),
-        "selected",
         Endpoint::new("/generate").unwrap(),
         GenerationIdentity::new(
             IdNamespace([103; 16]),
@@ -195,7 +194,6 @@ fn gemini_client_tools_preserve_signed_parts_and_resume_discovery_history() {
     assert!(
         ready(ResponsesViaGemini::prepare_with_state(
             serde_json::from_value(tampered).unwrap(),
-            "selected",
             Endpoint::new("/generate").unwrap(),
             GenerationIdentity::new(
                 IdNamespace([105; 16]),

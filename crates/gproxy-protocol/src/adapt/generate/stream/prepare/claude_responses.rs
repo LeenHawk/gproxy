@@ -25,11 +25,9 @@ impl ClaudeViaResponses {
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<StreamInvocation<p::ResponsesToClaudeStream>, TransformError> {
-        settings.validate::<p::ResponsesToClaudeStream>()?;
         let original = input.into_declared();
         let prepared = Self::prepare_with_state(
             original.clone().buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,
@@ -61,11 +59,9 @@ impl ClaudeViaResponses {
         state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
     ) -> Result<StreamInvocation<p::ResponsesToClaudeStream>, TransformError> {
-        settings.validate::<p::ResponsesToClaudeStream>()?;
         let original = input.into_declared();
         let prepared = Self::prepare_with_capabilities(
             original.clone().buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,
@@ -120,7 +116,6 @@ impl ResponsesViaClaude {
         state: &GenerationStateAccess<'_, S>,
         history_cache: Option<&super::super::ResponsesHistoryCache>,
     ) -> Result<StreamInvocation<p::ClaudeToResponsesStream>, TransformError> {
-        settings.validate::<p::ClaudeToResponsesStream>()?;
         let original = input.into_declared();
         let (history, expanded) = super::super::history::History::prepare_with_cache(
             &original,
@@ -133,7 +128,6 @@ impl ResponsesViaClaude {
         context.response.response.request.input = expanded.input.clone();
         let prepared = Self::prepare_with_state(
             expanded.buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,
@@ -206,7 +200,6 @@ impl ResponsesViaClaude {
         resources: &GenerationResources<'_, R>,
         history_cache: Option<&super::super::ResponsesHistoryCache>,
     ) -> Result<StreamInvocation<p::ClaudeToResponsesStream>, TransformError> {
-        settings.validate::<p::ClaudeToResponsesStream>()?;
         let original = input.into_declared();
         let (history, expanded) = super::super::history::History::prepare_with_cache(
             &original,
@@ -219,7 +212,6 @@ impl ResponsesViaClaude {
         context.response.response.request.input = expanded.input.clone();
         let prepared = Self::prepare_with_capabilities(
             expanded.buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,

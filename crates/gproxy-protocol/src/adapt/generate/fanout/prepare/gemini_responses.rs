@@ -9,7 +9,12 @@ impl GeminiViaResponsesFanout {
         limits: CodecLimits,
     ) -> Result<Self, TransformError> {
         let mut input = input.into_declared();
-        let id = validate(&target, gemini_count(&input)?)?;
+        let id = group_id(&target.options)?;
+        let count = input
+            .generation_config
+            .as_ref()
+            .and_then(|v| v.candidate_count)
+            .unwrap_or(1);
         let original = encode(&input, limits)?;
         input
             .generation_config
@@ -17,11 +22,11 @@ impl GeminiViaResponsesFanout {
             .expect("count set")
             .candidate_count = Some(1);
         let mut children = Vec::new();
-        for identities in target.identities {
+        for index in 0..count {
+            let identities = target.options.child_identity(index, crate::Dialect::OpenAi);
             children.push(
                 GeminiViaResponses::prepare_with_state(
                     input.clone(),
-                    target.model.clone(),
                     target.endpoint.clone(),
                     identities,
                     state,
@@ -46,7 +51,6 @@ impl GeminiViaResponsesFanout {
         limits: CodecLimits,
     ) -> Result<Self, TransformError> {
         let input = input.into_declared();
-        validate(&target, gemini_count(&input)?)?;
         let original = encode(&input, limits)?;
         let mut prepared =
             Self::prepare(resources.gemini(input).await?, target, state, limits).await?;

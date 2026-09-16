@@ -253,31 +253,6 @@ pub fn inspect_image(b: &[u8]) -> Result<ImageMetadata, TransformError> {
         height,
     })
 }
-/// The caller first validates the PNG container with inspect_image.
-pub(crate) fn png_has_alpha(b: &[u8]) -> bool {
-    if b.len() < 33 || !b.starts_with(b"\x89PNG\r\n\x1a\n") {
-        return false;
-    }
-    if matches!(b[25], 4 | 6) {
-        return true;
-    }
-    let mut pos = 8usize;
-    while pos + 12 <= b.len() {
-        let len = u32be(&b[pos..pos + 4]) as usize;
-        let Some(end) = pos
-            .checked_add(12)
-            .and_then(|p| p.checked_add(len))
-            .filter(|p| *p <= b.len())
-        else {
-            return false;
-        };
-        if &b[pos + 4..pos + 8] == b"tRNS" && len > 0 {
-            return true;
-        }
-        pos = end;
-    }
-    false
-}
 pub fn decode_image(
     encoded: &str,
     mime: Option<&str>,
@@ -323,27 +298,10 @@ pub fn decode_image(
         revised_prompt: None,
     })
 }
-fn validate_requested(
-    image: &GeneratedImagePart,
-    context: &ImageRequestContext,
-) -> Result<(), TransformError> {
-    if context
-        .output_format
-        .is_some_and(|f| f != image.metadata.format)
-    {
-        return Err(invalid("output encoding differs from request"));
-    }
-    if let Some(size) = &context.requested_size
-        && size != "auto"
-        && *size != format!("{}x{}", image.metadata.width, image.metadata.height)
-    {
-        return Err(invalid("output dimensions differ from request"));
-    }
-    Ok(())
-}
+
 pub fn image_response_from_responses(
     body: &r::response::GenerateContentResponseBody,
-    context: &ImageRequestContext,
+    _context: &ImageRequestContext,
     max_bytes: u64,
 ) -> Result<ImageCallResult, TransformError> {
     if body.id.trim().is_empty()
@@ -374,7 +332,7 @@ pub fn image_response_from_responses(
                     None,
                     max_bytes,
                 )?;
-                validate_requested(&image, context)?;
+
                 if out.replace(image).is_some() {
                     return Err(invalid("expected exactly one image per call"));
                 }
@@ -425,7 +383,9 @@ pub fn image_response_from_responses(
             }
             Ok(ImageUsageFacts::Responses(u.clone().into_declared()))
         })
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     Ok(ImageCallResult {
         image: out.ok_or_else(|| invalid("missing image result"))?,
         usage,
@@ -436,7 +396,7 @@ pub fn image_response_from_responses(
 }
 pub fn image_response_from_gemini(
     body: &g::GenerateContentResponseBody,
-    context: &ImageRequestContext,
+    _context: &ImageRequestContext,
     max_bytes: u64,
 ) -> Result<ImageCallResult, TransformError> {
     if body
@@ -493,7 +453,7 @@ pub fn image_response_from_gemini(
             .as_ref()
             .ok_or_else(|| invalid("unexpected empty Gemini output"))?;
         let image = decode_image(&data.data, Some(&data.mime_type), max_bytes)?;
-        validate_requested(&image, context)?;
+
         if out.replace(image).is_some() {
             return Err(invalid("expected exactly one Gemini image"));
         }
@@ -531,7 +491,9 @@ pub fn image_response_from_gemini(
             }
             Ok(ImageUsageFacts::Gemini(u.clone().into_declared()))
         })
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     Ok(ImageCallResult {
         image: out.ok_or_else(|| invalid("missing Gemini image"))?,
         usage,

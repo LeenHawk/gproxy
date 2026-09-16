@@ -31,17 +31,6 @@ pub(super) fn image(source: c::ImageSource) -> Result<r::InputContent, Transform
     Ok(r::InputContent::Image(value))
 }
 pub(super) fn document(block: c::DocumentBlock) -> Result<r::InputContent, TransformError> {
-    if block
-        .citations
-        .as_ref()
-        .is_some_and(|v| v.enabled == Some(true))
-        || block.context.is_some()
-    {
-        return Err(TransformError::unsupported(
-            "document.context/citations",
-            "Responses file lacks Claude document instructions",
-        ));
-    }
     let mut value =
         r::ResponseInputFile::builder(r::ResponseInputFileType::ResponseInputFile).build();
     value.filename = block.title;
@@ -67,6 +56,7 @@ pub(super) fn document(block: c::DocumentBlock) -> Result<r::InputContent, Trans
                             "mixed document resource conversion",
                         )),
                     })
+                    .filter_map(|value| crate::transform::optional(value).transpose())
                     .collect::<Result<Vec<_>, _>>()?
                     .join(""),
             };

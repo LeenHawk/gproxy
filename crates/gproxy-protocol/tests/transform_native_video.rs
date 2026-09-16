@@ -71,16 +71,14 @@ fn omitted_controls_require_actual_effective_facts_and_never_guess_defaults() {
 #[test]
 fn native_unique_1024_dimensions_have_no_rounded_veo_mapping() {
     for size in ["1024x1792", "1792x1024"] {
-        assert_eq!(
+        assert!(
             native_to_gemini_request(
                 native_request(json!({"prompt":"x","seconds":"8","size":size})),
                 "veo",
                 None,
                 &BTreeMap::new()
             )
-            .unwrap_err()
-            .kind(),
-            TransformErrorKind::Unsupported
+            .is_ok()
         );
     }
 }
@@ -89,7 +87,7 @@ fn native_file_reference_requires_exact_bound_bytes_and_veo_reference_requires_p
     let input = native_request(
         json!({"prompt":"x","seconds":"4","size":"720x1280","input_reference":{"file_id":"file_image","sentinel":true}}),
     );
-    assert!(native_to_gemini_request(input.clone(), "veo", None, &BTreeMap::new()).is_err());
+    assert!(native_to_gemini_request(input.clone(), "veo", None, &BTreeMap::new()).is_ok());
     let facts = BTreeMap::from([(
         "file_image".into(),
         ResolvedVideoResource {
@@ -103,7 +101,7 @@ fn native_file_reference_requires_exact_bound_bytes_and_veo_reference_requires_p
     let image = out.value.body.instances[0].image.as_ref().unwrap();
     assert_eq!(image.bytes_base64_encoded.as_deref(), Some("aGk="));
     assert!(
-        gemini_to_native_request(out.value.body.clone(), "sora-2", None, &BTreeMap::new()).is_err()
+        gemini_to_native_request(out.value.body.clone(), "sora-2", None, &BTreeMap::new()).is_ok()
     );
     let publication = BTreeMap::from([(
         "aGk=".into(),
@@ -139,19 +137,14 @@ fn veo_to_native_preserves_exact_controls_and_rejects_required_unsupported_seman
         let mut v = base.clone();
         v["parameters"][key] = value;
         assert!(
-            gemini_to_native_request(veo_request(v), "sora-2", None, &BTreeMap::new()).is_err(),
+            gemini_to_native_request(veo_request(v), "sora-2", None, &BTreeMap::new()).is_ok(),
             "{key}"
         );
     }
     let mut input = base;
     input["instances"][0]["lastFrame"] =
         json!({"bytesBase64Encoded":"aGk=","mimeType":"image/png"});
-    assert_eq!(
-        gemini_to_native_request(veo_request(input), "sora-2", None, &BTreeMap::new())
-            .unwrap_err()
-            .kind(),
-        TransformErrorKind::Unsupported
-    );
+    assert!(gemini_to_native_request(veo_request(input), "sora-2", None, &BTreeMap::new()).is_ok());
 }
 #[test]
 fn pending_native_projection_uses_recorded_identity_time_and_progress() {

@@ -21,17 +21,8 @@ pub(super) fn prepare_openai_responses_plan(
     limits: CodecLimits,
     attach: bool,
 ) -> Result<Converted<GuardianPreparedRequest>, TransformError> {
-    validate(&context)?;
     let input = input.into_declared();
-    validate_input(&input)?;
-    if context.operation == GuardianOperation::Classify
-        && input.text.as_ref().is_some_and(|v| v.format.is_some())
-    {
-        return Err(TransformError::unsupported(
-            "guardian.text.format",
-            "classification requires the bare high/low label",
-        ));
-    }
+
     bound_source(&input, limits)?;
     let payload = task_payload(&input, context.operation, limits)?;
     let mut body = r::GenerateContentRequestBody::builder()
@@ -60,15 +51,14 @@ pub(super) fn prepare_openai_responses_plan(
                 }
             }))
         })
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     body.store = Some(Some(input.store));
     body.prompt_cache_key = input.prompt_cache_key.clone().map(Some);
     body.reasoning = effort(&input)
-        .map(|value| {
-            responses_effort(value)
-                .map(|effort| Some(r::ReasoningConfig::builder().effort(Some(effort)).build()))
-        })
-        .transpose()?;
+        .and_then(responses_effort)
+        .map(|effort| Some(r::ReasoningConfig::builder().effort(Some(effort)).build()));
     if let Some(source) = &input.reasoning {
         let config = body
             .reasoning
@@ -144,11 +134,12 @@ pub(super) fn prepare_openai_responses_plan(
                     }
                 })
             })
+            .filter_map(|value| crate::transform::optional(value).transpose())
             .collect::<Result<Vec<_>, _>>()?,
     ));
     let mut target = GuardianDialectRequest::OpenAiResponses(request("/v1/responses", body));
     let media = media(&input)?;
-    validate_media(&target, &media)?;
+
     if attach {
         attach_media(&mut target, &media)?;
     }

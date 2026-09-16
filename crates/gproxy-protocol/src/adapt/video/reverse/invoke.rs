@@ -267,7 +267,7 @@ async fn drive<U: Upstream, R: ResourceAccess, S: StateStore>(
                 _ => unreachable!(),
             });
         };
-        output::validate(&state, index, &response.body)?;
+
         state.children[index].result = Some(response.body);
         save(store, state_scope, &state, progress, limits).await?;
     }
@@ -343,7 +343,7 @@ pub async fn gemini_video_query_composed<U: Upstream, R: ResourceAccess, S: Stat
             _ => unreachable!(),
         });
     };
-    output::validate(&state, index, &response.body)?;
+
     if state.children[index]
         .result
         .as_ref()
@@ -401,7 +401,7 @@ pub async fn recover_reverse_video_result<S: StateStore>(
     if state.children.get(index).is_none_or(|c| !c.started) {
         return Err(conflict("video.child.reservation"));
     }
-    output::validate(&state, index, &result)?;
+
     state.children[index].result = Some(result);
     state.children[index].published = None;
     bound_value(&state, limits)?;

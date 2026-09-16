@@ -231,14 +231,18 @@ impl ChatToGeminiStream {
                 .logprobs
                 .as_ref()
                 .map(|v| super::super::logs::to_gemini(v, &mut self.report))
-                .transpose()?;
+                .map(crate::transform::optional)
+                .transpose()?
+                .flatten();
             candidates.push(candidate);
         }
         let usage = source
             .usage
             .as_ref()
             .map(|u| super::super::usage::to_gemini(u, &mut self.report))
-            .transpose()?;
+            .map(crate::transform::optional)
+            .transpose()?
+            .flatten();
         let mut tail = g::GenerateContentResponseBody::builder()
             .candidates(candidates)
             .response_id(super::common::id(

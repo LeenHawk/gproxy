@@ -11,7 +11,6 @@ fn foreign_chat_image_is_read_in_source_scope_and_sent_as_actual_gemini_bytes() 
     request["messages"] = json!([{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://source/private.png","foreign":"ignore"}}]}]);
     let mut p = ready(ChatViaGemini::prepare_with_capabilities(
         serde_json::from_value(request).unwrap(),
-        "selected",
         endpoint(),
         ids(Dialect::OpenAiChat, Dialect::Gemini),
         &state,

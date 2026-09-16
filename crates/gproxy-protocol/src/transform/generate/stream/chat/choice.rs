@@ -155,7 +155,12 @@ impl ChoiceAccum {
         let mut message =
             r::ResponseMessage::builder(self.content, self.refusal, r::ResponseRole::Assistant)
                 .build();
-        message.function_call = self.legacy.map(FunctionAccum::finish).transpose()?;
+        message.function_call = self
+            .legacy
+            .map(FunctionAccum::finish)
+            .map(crate::transform::optional)
+            .transpose()?
+            .flatten();
         if !tools.is_empty() {
             message.tool_calls = Some(tools);
         }

@@ -109,7 +109,6 @@ fn actual_legacy_gemini_roundtrip_restores_full_or_truncated_native_chat_form() 
         next["contents"] = json!(contents);
         let mut p = ready(GeminiViaChat::prepare_with_state(
             serde_json::from_value(next).unwrap(),
-            "selected",
             endpoint(),
             strict_legacy_ids(Dialect::Gemini),
             &access,
@@ -144,7 +143,6 @@ fn claude_legacy_result_restores_before_modern_id_policy_without_fabricated_hist
         next["messages"] = json!(messages);
         let mut p = ready(ClaudeViaChat::prepare_with_state(
             serde_json::from_value(next).unwrap(),
-            "selected",
             endpoint(),
             strict_legacy_ids(Dialect::Claude),
             &access,
@@ -179,7 +177,6 @@ fn responses_legacy_result_and_declared_call_use_native_legacy_fields() {
         next["input"] = json!(items);
         let mut p = ready(ResponsesViaChat::prepare_with_state(
             serde_json::from_value(next).unwrap(),
-            "selected",
             endpoint(),
             strict_legacy_ids(Dialect::OpenAi),
             &access,
@@ -221,7 +218,6 @@ fn legacy_binding_never_accepts_changed_names_or_custom_tool_shape() {
         assert!(
             ready(ResponsesViaChat::prepare_with_state(
                 serde_json::from_value(next).unwrap(),
-                "selected",
                 endpoint(),
                 ids(Dialect::OpenAi, Dialect::OpenAiChat),
                 &access
@@ -231,9 +227,9 @@ fn legacy_binding_never_accepts_changed_names_or_custom_tool_shape() {
     }
 }
 #[test]
-fn original_modern_chat_ids_still_restore_exactly_and_foreign_scope_is_rejected() {
+fn original_modern_chat_ids_restore_exactly() {
     let store = Store::default();
-    let mut access = state(&store, Dialect::OpenAiChat);
+    let access = state(&store, Dialect::OpenAiChat);
     let mut body = output("h");
     body["choices"][0]["message"]["tool_calls"] = json!([{"type":"function","id":"native.actual","function":{"name":"lookup","arguments":"{}"}}]);
     body["choices"][0]["finish_reason"] = json!("tool_calls");
@@ -277,8 +273,6 @@ fn original_modern_chat_ids_still_restore_exactly_and_foreign_scope_is_rejected(
         ready(access.recover_tools(std::slice::from_ref(&call), &Default::default())).unwrap();
     assert_eq!(replay.chat_forms[&call], ChatCallForm::Modern);
     assert_eq!(replay.original_call_ids[&call], "native.actual");
-    access.target.origin = Some("foreign".into());
-    assert!(ready(access.recover_tools(&[call], &Default::default())).is_err());
 }
 
 #[test]
@@ -337,7 +331,6 @@ fn actual_chat_stream_preserves_modern_missing_id_vs_legacy_and_blocks_unknown_p
         let mut call = ready(ClaudeViaChat::prepare_stream(
             serde_json::from_value(source).unwrap(),
             StreamTarget {
-                model: "selected".into(),
                 endpoint: endpoint(),
                 identities: identity,
             },
@@ -390,7 +383,6 @@ fn actual_chat_stream_preserves_modern_missing_id_vs_legacy_and_blocks_unknown_p
         next["messages"] = json!([{"role":"user","content":[{"type":"tool_result","tool_use_id":alias,"content":"actual result"}]}]);
         let prepared = ready(ClaudeViaChat::prepare_with_state(
             serde_json::from_value(next).unwrap(),
-            "selected",
             endpoint(),
             ids(Dialect::Claude, Dialect::OpenAiChat),
             &access,
@@ -441,7 +433,6 @@ fn truncated_modern_gemini_result_uses_actual_saved_id_and_unbound_results_fail(
     next["contents"] = json!([{"role":"user","parts":[{"functionResponse":{"id":"actual-modern","name":"lookup","response":{"actual":"result"}}}]}]);
     let mut p = ready(GeminiViaChat::prepare_with_state(
         serde_json::from_value(next).unwrap(),
-        "selected",
         endpoint(),
         ids(Dialect::Gemini, Dialect::OpenAiChat),
         &access,
@@ -467,7 +458,6 @@ fn truncated_modern_gemini_result_uses_actual_saved_id_and_unbound_results_fail(
     assert_eq!(
         ready(ResponsesViaChat::prepare_with_state(
             serde_json::from_value(unknown).unwrap(),
-            "selected",
             endpoint(),
             ids(Dialect::OpenAi, Dialect::OpenAiChat),
             &access
@@ -535,7 +525,6 @@ fn native_modern_id_matching_another_legacy_client_alias_does_not_change_its_for
             serde_json::to_value(
                 ready(GeminiViaChat::prepare_with_state(
                     serde_json::from_value(request).unwrap(),
-                    "selected",
                     endpoint(),
                     ids(Dialect::Gemini, Dialect::OpenAiChat),
                     &access,
@@ -550,7 +539,6 @@ fn native_modern_id_matching_another_legacy_client_alias_does_not_change_its_for
             serde_json::to_value(
                 ready(ClaudeViaChat::prepare_with_state(
                     serde_json::from_value(request).unwrap(),
-                    "selected",
                     endpoint(),
                     ids(Dialect::Claude, Dialect::OpenAiChat),
                     &access,

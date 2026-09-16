@@ -374,7 +374,7 @@ fn ws_generation_cancel_before_poll_never_repeats_send_or_reuses_connection() {
 fn ws_store_false_uses_connection_cache_and_reconnect_requires_full_history() {
     let store = Arc::new(http_host::Store::default());
     let state = access(&store, Dialect::OpenAiChat);
-    let cache = runtime::ResponsesHistoryCache::new(&state, 2, 100_000).unwrap();
+    let cache = runtime::ResponsesHistoryCache::new(2, 100_000);
     let mut request = client_request();
     request.store = Some(Some(false));
     let mut call = http_host::ready(
@@ -457,7 +457,7 @@ fn ws_store_false_uses_connection_cache_and_reconnect_requires_full_history() {
     drop(next);
     drop(call);
     drop(cache);
-    let reconnected = runtime::ResponsesHistoryCache::new(&state, 2, 100_000).unwrap();
+    let reconnected = runtime::ResponsesHistoryCache::new(2, 100_000);
     let error = http_host::ready(
         generation::chat_responses::ResponsesViaChat::prepare_stream_with_history_cache(
             request,

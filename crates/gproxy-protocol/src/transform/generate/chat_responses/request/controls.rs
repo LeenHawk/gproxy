@@ -8,33 +8,20 @@ use crate::{
 fn number(
     value: Option<Option<f64>>,
 ) -> Result<Option<Option<serde_json::Number>>, TransformError> {
-    value
-        .map(|value| {
-            value
-                .map(|value| {
-                    serde_json::Number::from_f64(value)
-                        .ok_or_else(|| TransformError::shape("sampling", "non-finite number"))
-                })
-                .transpose()
-        })
-        .transpose()
+    Ok(match value {
+        Some(Some(v)) => serde_json::Number::from_f64(v).map(Some),
+        Some(None) => Some(None),
+        None => None,
+    })
 }
 fn float(
     value: &Option<Option<serde_json::Number>>,
 ) -> Result<Option<Option<f64>>, TransformError> {
-    value
-        .as_ref()
-        .map(|value| {
-            value
-                .as_ref()
-                .map(|value| {
-                    value.as_f64().ok_or_else(|| {
-                        TransformError::shape("sampling", "number outside f64 range")
-                    })
-                })
-                .transpose()
-        })
-        .transpose()
+    Ok(match value {
+        Some(Some(v)) => v.as_f64().map(Some),
+        Some(None) => Some(None),
+        None => None,
+    })
 }
 pub(super) fn to_responses(
     input: &c::GenerateContentRequestBody,
@@ -83,16 +70,10 @@ pub(super) fn to_responses(
         (input.web_search_options.is_some(), "web_search_options"),
     ] {
         if present {
-            return Err(TransformError::unsupported(
-                field,
-                "Chat requirement needs an explicit Responses adapter",
-            ));
+            report.omitted(field, "field has no target representation");
         }
     }
     out.max_output_tokens = match (input.max_completion_tokens, input.max_tokens) {
-        (Some(Some(a)), Some(Some(b))) if a != b => {
-            return Err(TransformError::shape("max_tokens", "conflicting budgets"));
-        }
         (Some(Some(a)), _) => Some(Some(a)),
         (_, Some(Some(b))) => Some(Some(b)),
         (a, b) => a.or(b),
@@ -161,7 +142,9 @@ pub(super) fn to_responses(
                     }
                 })
             })
-            .transpose()?;
+            .map(crate::transform::optional)
+            .transpose()?
+            .flatten();
         out.text = Some(text);
     }
     if let Some(options) = input.stream_options.as_ref() {
@@ -205,9 +188,10 @@ pub(super) fn to_chat(
         ),
     ] {
         if present {
-            return Err(TransformError::missing_metadata(format!(
-                "{field} resolved history"
-            )));
+            report.omitted(
+                format!("{field} resolved history"),
+                "field has no target representation",
+            );
         }
     }
     for (present, field) in [
@@ -227,10 +211,7 @@ pub(super) fn to_chat(
         ),
     ] {
         if present {
-            return Err(TransformError::unsupported(
-                field,
-                "Responses execution policy needs a Chat host adapter",
-            ));
+            report.omitted(field, "field has no target representation");
         }
     }
     out.max_completion_tokens = input.max_output_tokens;
@@ -254,10 +235,7 @@ pub(super) fn to_chat(
             || config.generate_summary.flatten().is_some()
             || config.context.as_ref().and_then(Option::as_ref).is_some()
         {
-            return Err(TransformError::unsupported(
-                "reasoning",
-                "Chat has effort but no reasoning summary/context policy",
-            ));
+            report.omitted("reasoning", "field has no target representation");
         }
         out.reasoning_effort = config.effort.map(|v| {
             v.map(|v| match v {

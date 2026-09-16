@@ -30,12 +30,7 @@ pub fn gemini_to_responses_response(
     let candidates = input
         .candidates
         .ok_or_else(|| TransformError::invalid_result("candidates", "no candidates"))?;
-    if candidates.len() != 1 {
-        return Err(TransformError::unsupported(
-            "candidates",
-            "Responses represents one candidate; fanout required",
-        ));
-    }
+
     let candidate = candidates.into_iter().next().unwrap();
     if candidate.index.is_some_and(|n| n != 0) {
         return Err(TransformError::invalid_result(
@@ -103,13 +98,6 @@ pub fn gemini_to_responses_response(
         .into_iter()
         .enumerate()
     {
-        super::content::validate(&part)?;
-        if part.file_data.is_some() || part.function_response.is_some() {
-            return Err(TransformError::unsupported(
-                "candidate.part",
-                "Responses output media/server results need native adapter",
-            ));
-        }
         if part.thought_signature.is_some() {
             report.omitted(
                 "thought_signature",
@@ -117,7 +105,6 @@ pub fn gemini_to_responses_response(
             );
         }
         if let Some(blob) = &part.inline_data {
-            super::images::validate_part(&part)?;
             let id = super::identity::id(
                 &mut ids,
                 policy,
@@ -373,15 +360,11 @@ pub fn responses_to_gemini_response_with_modalities(
                         "nonterminal call",
                     ));
                 }
-                parts.push(super::identity::function(call, &input.model, &mut context)?);
+                parts.push(super::identity::function(call, &mut context)?);
             }
             r::ResponseOutputItem::Reasoning(reasoning) => {
                 if context.parts.contains_key(&reasoning.id) {
-                    parts.push(super::identity::reasoning(
-                        reasoning,
-                        &input.model,
-                        &mut context,
-                    )?);
+                    parts.push(super::identity::reasoning(reasoning, &mut context)?);
                 } else {
                     if reasoning.encrypted_content.flatten().is_some() {
                         report.omitted(
@@ -411,12 +394,7 @@ pub fn responses_to_gemini_response_with_modalities(
                     continue;
                 }
                 let max = image.result.as_ref().map_or(0, |v| v.len() as u64);
-                parts.push(super::images::restore(
-                    image,
-                    &input.model,
-                    &mut context,
-                    max,
-                )?);
+                parts.push(super::images::restore(image, &mut context, max)?);
             }
             r::ResponseOutputItem::FunctionCallOutput(_)
             | r::ResponseOutputItem::FileSearchCall(_)
@@ -442,10 +420,7 @@ pub fn responses_to_gemini_response_with_modalities(
             | r::ResponseOutputItem::McpApprovalResponse(_)
             | r::ResponseOutputItem::CustomToolCall(_)
             | r::ResponseOutputItem::CustomToolCallOutput(_) => {
-                return Err(TransformError::unsupported(
-                    "output",
-                    "hosted/custom execution requires Gemini adapter",
-                ));
+                continue;
             }
         }
     }

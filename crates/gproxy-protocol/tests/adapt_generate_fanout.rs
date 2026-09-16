@@ -186,17 +186,12 @@ impl Upstream for Host {
         }
     }
 }
-fn setup(client: Dialect, upstream: Dialect) -> FanoutTarget {
+fn setup(client: Dialect, _upstream: Dialect) -> FanoutTarget {
     FanoutTarget {
-        model: "selected".into(),
         endpoint: Endpoint::new("/selected/generate").unwrap(),
-        identities: vec![
-            GenerationIdentity::new(IdNamespace([1; 16]), IdNamespace([2; 16]), client, upstream)
-                .unwrap(),
-            GenerationIdentity::new(IdNamespace([3; 16]), IdNamespace([4; 16]), client, upstream)
-                .unwrap(),
-        ],
+
         options: FanoutOptions {
+            response_policy: gproxy_protocol::transform::identity::TargetIdPolicy::new(client),
             namespace: IdNamespace([5; 16]),
             max_children: 8,
         },

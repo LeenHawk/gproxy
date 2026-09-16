@@ -2,79 +2,7 @@ use crate::{
     transform::{Report, TransformError},
     wire::openai::chat::{response as r, stream as s},
 };
-pub(crate) fn validate(v: &s::ChunkUsage) -> Result<(), TransformError> {
-    if v.prompt_tokens < 0
-        || v.completion_tokens < 0
-        || v.prompt_tokens.checked_add(v.completion_tokens) != Some(v.total_tokens)
-    {
-        return Err(TransformError::invalid_result(
-            "usage",
-            "negative or inconsistent total",
-        ));
-    }
-    if let Some(Some(d)) = &v.prompt_tokens_details {
-        for value in [
-            d.audio_tokens,
-            d.cache_write_tokens,
-            d.cached_tokens,
-            d.image_tokens,
-            d.text_tokens,
-        ]
-        .into_iter()
-        .flatten()
-        .flatten()
-        {
-            if value < 0 || value > v.prompt_tokens {
-                return Err(TransformError::invalid_result(
-                    "usage.prompt_tokens_details",
-                    "detail outside prompt total",
-                ));
-            }
-        }
-        if d.cache_write_tokens
-            .flatten()
-            .zip(d.cached_tokens.flatten())
-            .is_some_and(|(a, b)| {
-                a.checked_add(b)
-                    .is_none_or(|vtotal| vtotal > v.prompt_tokens)
-            })
-        {
-            return Err(TransformError::invalid_result(
-                "usage.cache",
-                "cache exceeds prompt",
-            ));
-        }
-    }
-    if let Some(Some(d)) = &v.completion_tokens_details {
-        for value in [
-            d.audio_tokens,
-            d.reasoning_tokens,
-            d.accepted_prediction_tokens,
-            d.text_tokens,
-        ]
-        .into_iter()
-        .flatten()
-        .flatten()
-        {
-            if value < 0 || value > v.completion_tokens {
-                return Err(TransformError::invalid_result(
-                    "usage.completion_tokens_details",
-                    "detail outside completion total",
-                ));
-            }
-        }
-        if d.rejected_prediction_tokens
-            .flatten()
-            .is_some_and(|v| v < 0)
-        {
-            return Err(TransformError::invalid_result(
-                "usage.rejected_prediction_tokens",
-                "negative count",
-            ));
-        }
-    }
-    Ok(())
-}
+
 pub(crate) fn collect(input: s::ChunkUsage, report: &mut Report) -> r::Usage {
     let mut out = r::Usage::builder(
         input.prompt_tokens,
@@ -133,6 +61,6 @@ pub(crate) fn synthesize(input: r::Usage) -> Result<s::ChunkUsage, TransformErro
         out.rejected_prediction_tokens = v.rejected_prediction_tokens.map(Some);
         Some(out)
     });
-    validate(&out)?;
+
     Ok(out)
 }

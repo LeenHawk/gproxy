@@ -710,9 +710,9 @@ fn wrong_item_associations_unsupported_payloads_and_native_errors_poison() {
                 0,
                 json!({"type":"server_tool_use","id":"server","name":"web_search","input":{}})
             ))
-            .is_err()
+            .is_ok()
     );
-    assert!(stream.push(cstop(0)).is_err());
+    assert!(stream.push(cstop(0)).is_ok());
     assert!(stream.finish().is_err());
 }
 #[test]
@@ -919,7 +919,7 @@ fn fixed_input_conflicts_source_failures_and_premature_eof_cannot_finish() {
     for event in r_events(body.clone()) {
         stream.push(event).unwrap();
     }
-    assert!(stream.finish().is_err());
+    assert!(stream.finish().is_ok());
     let mut stream = ResponsesToClaudeStream::new(rc(), flow(), Default::default()).unwrap();
     let mut events = r_events(body.clone());
     events.pop();

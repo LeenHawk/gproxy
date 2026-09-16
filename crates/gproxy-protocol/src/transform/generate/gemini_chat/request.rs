@@ -31,16 +31,8 @@ pub(crate) fn gemini_to_openai_request_with_calls(
     identity: &mut IdentityFlow,
     policy: &TargetIdPolicy,
 ) -> Result<Converted<c::GenerateContentRequestBody>, TransformError> {
-    if policy.dialect != crate::Dialect::OpenAiChat {
-        return Err(TransformError::shape(
-            "identity.policy",
-            "expected Chat target policy",
-        ));
-    }
     let model = target_model.into();
-    if model.is_empty() {
-        return Err(TransformError::missing_metadata("target_model"));
-    }
+
     let input = input.into_declared();
     let mut ids = identity.clone();
     let mut report = Report::default();
@@ -94,12 +86,9 @@ pub(crate) fn gemini_to_openai_request_with_calls(
 /// The selected Gemini model is an HTTP path resource, not a field of this body.
 pub fn openai_to_gemini_request(
     input: &c::GenerateContentRequestBody,
-    target_model: impl Into<String>,
+    _target_model: impl Into<String>,
     function_names: &BTreeMap<String, String>,
 ) -> Result<Converted<g::GenerateContentRequestBody>, TransformError> {
-    if target_model.into().is_empty() {
-        return Err(TransformError::missing_metadata("target_model"));
-    }
     let mut names = function_names.clone();
     for message in &input.messages {
         if let c::ChatMessage::Assistant(message) = message {
@@ -122,12 +111,7 @@ pub fn openai_to_gemini_request(
     let mut out = g::GenerateContentRequestBody::builder(Vec::new()).build();
     let mut report = Report::default();
     super::config::to_gemini(input, &mut out, &mut report)?;
-    if input.tools.is_some() && input.functions.is_some() {
-        return Err(TransformError::shape(
-            "tools",
-            "legacy/current declarations conflict",
-        ));
-    }
+
     out.tools = if let Some(functions) = &input.functions {
         Some(super::tools::legacy(functions))
     } else {

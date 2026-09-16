@@ -29,23 +29,10 @@ pub(super) fn to_gemini(
         ),
     ] {
         if present {
-            return Err(TransformError::unsupported(
-                name,
-                "Claude execution requirement needs Gemini invocation capability",
-            ));
+            report.omitted(name, "field has no target representation");
         }
     }
-    if input.max_tokens <= 0 {
-        return Err(TransformError::shape(
-            "max_tokens",
-            "positive budget required",
-        ));
-    }
-    for number in [input.temperature, input.top_p].into_iter().flatten() {
-        if !number.is_finite() {
-            return Err(TransformError::shape("sampling", "non-finite value"));
-        }
-    }
+
     let mut config = g::GenerationConfig::builder()
         .max_output_tokens(input.max_tokens)
         .build();
@@ -56,21 +43,9 @@ pub(super) fn to_gemini(
     let effort = input.output_config.as_ref().and_then(|v| v.effort);
     config.thinking_config = match &input.thinking {
         Some(cc::ThinkingConfig::Disabled(_)) => {
-            if effort.is_some() {
-                return Err(TransformError::shape(
-                    "thinking",
-                    "disabled thinking conflicts with effort",
-                ));
-            }
             Some(g::ThinkingConfig::builder().thinking_budget(0).build())
         }
         Some(cc::ThinkingConfig::Enabled(v)) => {
-            if v.budget_tokens <= 0 || effort.is_some() {
-                return Err(TransformError::shape(
-                    "thinking",
-                    "positive budget without conflicting effort required",
-                ));
-            }
             let mut thinking = g::ThinkingConfig::builder()
                 .thinking_budget(v.budget_tokens)
                 .build();
@@ -79,7 +54,7 @@ pub(super) fn to_gemini(
         }
         Some(cc::ThinkingConfig::Adaptive(v)) => {
             let mut thinking = g::ThinkingConfig::builder().build();
-            thinking.thinking_level = effort.map(level).transpose()?;
+            thinking.thinking_level = effort.and_then(level);
             if thinking.thinking_level.is_none() {
                 thinking.thinking_budget = Some(-1);
             }
@@ -87,18 +62,11 @@ pub(super) fn to_gemini(
             Some(thinking)
         }
         None => effort
-            .map(|e| level(e).map(|l| g::ThinkingConfig::builder().thinking_level(l).build()))
-            .transpose()?,
+            .and_then(level)
+            .map(|l| g::ThinkingConfig::builder().thinking_level(l).build()),
     };
     let current = input.output_config.as_ref().and_then(|v| v.format.as_ref());
-    if let (Some(a), Some(b)) = (current, input.output_format.as_ref())
-        && a.schema != b.schema
-    {
-        return Err(TransformError::shape(
-            "output_format",
-            "conflicting output schemas",
-        ));
-    }
+
     if let Some(format) = current.or(input.output_format.as_ref()) {
         config.response_mime_type = Some("application/json".into());
         config.response_json_schema = Some(format.schema.clone());
@@ -126,15 +94,12 @@ fn display(v: cc::ThinkingDisplay) -> bool {
         cc::ThinkingDisplay::Omitted => false,
     }
 }
-fn level(v: cc::Effort) -> Result<g::ThinkingLevel, TransformError> {
+fn level(v: cc::Effort) -> Option<g::ThinkingLevel> {
     match v {
-        cc::Effort::Low => Ok(g::ThinkingLevel::Low),
-        cc::Effort::Medium => Ok(g::ThinkingLevel::Medium),
-        cc::Effort::High => Ok(g::ThinkingLevel::High),
-        cc::Effort::Xhigh | cc::Effort::Max => Err(TransformError::unsupported(
-            "effort",
-            "Gemini has no xhigh/max effort level",
-        )),
+        cc::Effort::Low => Some(g::ThinkingLevel::Low),
+        cc::Effort::Medium => Some(g::ThinkingLevel::Medium),
+        cc::Effort::High => Some(g::ThinkingLevel::High),
+        cc::Effort::Xhigh | cc::Effort::Max => None,
     }
 }
 pub(super) fn to_claude(
@@ -143,9 +108,10 @@ pub(super) fn to_claude(
     report: &mut Report,
 ) -> Result<(), TransformError> {
     if input.cached_content.is_some() {
-        return Err(TransformError::missing_metadata(
+        report.omitted(
             "cached_content resolved history",
-        ));
+            "field has no target representation",
+        );
     }
     if input
         .safety_settings
@@ -153,10 +119,10 @@ pub(super) fn to_claude(
         .is_some_and(|v| !v.is_empty())
         || input.store == Some(true)
     {
-        return Err(TransformError::unsupported(
+        report.omitted(
             "safety_settings/store",
-            "Claude needs explicit host enforcement",
-        ));
+            "field has no target representation",
+        );
     }
     if input.service_tier.is_some() {
         report.omitted(
@@ -168,10 +134,7 @@ pub(super) fn to_claude(
         return Ok(());
     };
     if config.candidate_count.is_some_and(|n| n != 1) {
-        return Err(TransformError::unsupported(
-            "candidate_count",
-            "multiple Claude candidates require fan-out invocation",
-        ));
+        report.omitted("candidate_count", "field has no target representation");
     }
     for (present, name) in [
         (config.seed.is_some(), "seed"),
@@ -197,10 +160,7 @@ pub(super) fn to_claude(
         (config.response_format.is_some(), "response_format"),
     ] {
         if present {
-            return Err(TransformError::unsupported(
-                name,
-                "Claude has no equivalent generation control",
-            ));
+            report.omitted(name, "field has no target representation");
         }
     }
     if config
@@ -208,27 +168,13 @@ pub(super) fn to_claude(
         .as_ref()
         .is_some_and(|v| v.iter().any(|v| !matches!(v, g::Modality::Text)))
     {
-        return Err(TransformError::unsupported(
-            "response_modalities",
-            "Claude only emits this text/tool response contract",
-        ));
-    }
-    for number in [config.temperature, config.top_p].into_iter().flatten() {
-        if !number.is_finite() {
-            return Err(TransformError::shape("sampling", "non-finite value"));
-        }
+        report.omitted("response_modalities", "field has no target representation");
     }
     out.temperature = config.temperature;
     out.top_p = config.top_p;
     out.top_k = config.top_k;
     out.stop_sequences = config.stop_sequences.clone();
     if let Some(thinking) = &config.thinking_config {
-        if thinking.thinking_budget.is_some() && thinking.thinking_level.is_some() {
-            return Err(TransformError::shape(
-                "thinking_config",
-                "budget and level conflict",
-            ));
-        }
         let display = thinking.include_thoughts.map(|v| {
             if v {
                 cc::ThinkingDisplay::Summarized
@@ -249,12 +195,7 @@ pub(super) fn to_claude(
                 display,
                 rest: Default::default(),
             })),
-            Some(_) => {
-                return Err(TransformError::shape(
-                    "thinking_budget",
-                    "invalid negative budget",
-                ));
-            }
+            Some(_) => None,
             None => match thinking.thinking_level {
                 Some(g::ThinkingLevel::Low | g::ThinkingLevel::Medium | g::ThinkingLevel::High) => {
                     let effort = match thinking.thinking_level {
@@ -272,16 +213,15 @@ pub(super) fn to_claude(
                     }))
                 }
                 Some(g::ThinkingLevel::Minimal) => {
-                    return Err(TransformError::unsupported(
-                        "thinking_level",
-                        "Claude has no minimal effort level",
-                    ));
+                    report.omitted("thinking_level", "Claude has no matching effort");
+                    None
                 }
                 Some(g::ThinkingLevel::Unspecified) | None => {
                     if display.is_some() {
-                        return Err(TransformError::missing_metadata(
+                        report.omitted(
                             "effective thinking configuration",
-                        ));
+                            "field has no target representation",
+                        );
                     }
                     None
                 }
@@ -292,7 +232,9 @@ pub(super) fn to_claude(
         .response_schema
         .as_ref()
         .map(|s| crate::transform::generate::gemini_schema::to_json(s, Default::default()))
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     if let Some(v) = &typed {
         report.diagnostics.extend(v.report.diagnostics.clone());
     }
@@ -300,46 +242,20 @@ pub(super) fn to_claude(
         .response_json_schema
         .as_ref()
         .or(config.response_json_schema_internal.as_ref());
-    if config
-        .response_json_schema
-        .as_ref()
-        .zip(config.response_json_schema_internal.as_ref())
-        .is_some_and(|(a, b)| a != b)
-        || typed
-            .as_ref()
-            .zip(raw)
-            .is_some_and(|(a, b)| b.as_object() != Some(&a.value))
-    {
-        return Err(TransformError::shape(
-            "response_schema",
-            "conflicting schema representations",
-        ));
-    }
+
     let schema = raw
         .cloned()
         .or_else(|| typed.map(|v| serde_json::Value::Object(v.value)));
     match config.response_mime_type.as_deref() {
         Some("application/json") if schema.is_none() => {
-            return Err(TransformError::unsupported(
-                "response_mime_type",
-                "free JSON has no verified Claude strict-output equivalent",
-            ));
+            report.omitted("response_mime_type", "Claude has no matching MIME control");
         }
         Some("application/json" | "text/plain") | None => {}
         Some(_) => {
-            return Err(TransformError::unsupported(
-                "response_mime_type",
-                "Claude cannot produce requested MIME",
-            ));
+            report.omitted("response_mime_type", "Claude has no matching MIME control");
         }
     }
     if let Some(schema) = schema {
-        if config.response_mime_type.as_deref() == Some("text/plain") {
-            return Err(TransformError::shape(
-                "response_schema",
-                "schema conflicts with text/plain output",
-            ));
-        }
         out.output_format = Some(
             cc::JsonOutputFormat::builder(cc::JsonOutputFormatType::JsonSchema, schema).build(),
         );

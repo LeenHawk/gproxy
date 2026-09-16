@@ -136,7 +136,9 @@ pub(super) fn to_responses(
                         })
                         .transpose()
                     })
-                    .transpose()?;
+                    .map(crate::transform::optional)
+                    .transpose()?
+                    .flatten();
                 bindings.restore(r::FunctionCall {
                     type_: r::FunctionCallType::FunctionCall,
                     arguments: serde_json::to_string(&block.input)?,
@@ -217,10 +219,7 @@ pub(super) fn to_responses(
             | c::ResponseContentBlock::ContainerUpload(_)
             | c::ResponseContentBlock::Compaction(_)
             | c::ResponseContentBlock::Fallback(_) => {
-                return Err(TransformError::unsupported(
-                    "content",
-                    "native server execution, resources or replacement history require operation-specific invocation mapping",
-                ));
+                continue;
             }
         };
         output.push(item);
@@ -306,10 +305,7 @@ pub(super) fn to_claude(
                     ));
                 }
                 if call.namespace.is_some() {
-                    return Err(TransformError::unsupported(
-                        "function_call.namespace",
-                        "Claude tool names do not encode a Responses namespace",
-                    ));
+                    continue;
                 }
                 match call.status {
                     Some(r::ItemStatus::InProgress) => {
@@ -331,10 +327,7 @@ pub(super) fn to_claude(
                         TransformError::invalid_result("function_call.arguments", e.to_string())
                     })?;
                 let serde_json::Value::Object(input) = arguments else {
-                    return Err(TransformError::unsupported(
-                        "function_call.arguments",
-                        "Claude input requires a JSON object",
-                    ));
+                    continue;
                 };
                 let caller = call
                     .caller
@@ -350,7 +343,9 @@ pub(super) fn to_claude(
                         })
                         .transpose()
                     })
-                    .transpose()?;
+                    .map(crate::transform::optional)
+                    .transpose()?
+                    .flatten();
                 let id = id(
                     flow,
                     policy,
@@ -431,10 +426,7 @@ pub(super) fn to_claude(
             | r::ResponseOutputItem::McpApprovalResponse(_)
             | r::ResponseOutputItem::CustomToolCall(_)
             | r::ResponseOutputItem::CustomToolCallOutput(_) => {
-                return Err(TransformError::unsupported(
-                    "output",
-                    "native tools, resources, tool results or replacement history require an invocation adapter",
-                ));
+                continue;
             }
         }
     }

@@ -1,54 +1,5 @@
 use super::*;
 
-pub(super) fn validate(context: &GuardianRequestContext) -> Result<(), TransformError> {
-    if context.target_model.trim().is_empty() {
-        return Err(TransformError::missing_metadata("guardian.target_model"));
-    }
-    if context.max_tokens <= 0 {
-        return Err(TransformError::shape(
-            "guardian.max_tokens",
-            "positive output budget required",
-        ));
-    }
-    Ok(())
-}
-
-pub(super) fn validate_input(input: &source::GuardianRequestBody) -> Result<(), TransformError> {
-    if input.access_programs.is_some() {
-        return Err(TransformError::unsupported(
-            "guardian.access_programs",
-            "access programs require a host capability and cannot be serialized as evidence",
-        ));
-    }
-    let policy = !input.instructions.trim().is_empty() || input.input.iter().any(|item| {
-        matches!(item, source::ClientResponseItem::Message(m) if matches!(m.role.as_str(), "system" | "developer") && m.content.iter().any(|part| match part {
-            source::ContentItem::InputText(v) => !v.text.trim().is_empty(),
-            source::ContentItem::OutputText(v) => !v.text.trim().is_empty(),
-            _ => false,
-        }))
-    });
-    if !policy {
-        return Err(TransformError::missing_metadata("guardian.policy"));
-    }
-    let tools_present = input
-        .tools
-        .as_ref()
-        .and_then(Option::as_ref)
-        .is_some_and(|v| !v.is_null() && v.as_array().is_none_or(|v| !v.is_empty()))
-        || input.input.iter().any(|item| match item {
-            source::ClientResponseItem::AdditionalTools(v) => !v.tools.is_empty(),
-            source::ClientResponseItem::ToolSearchOutput(v) => !v.tools.is_empty(),
-            _ => false,
-        });
-    if input.tool_choice != "none" && (tools_present || input.tool_choice != "auto") {
-        return Err(TransformError::unsupported(
-            "guardian.tools",
-            "active tool dependencies require a host executor",
-        ));
-    }
-    Ok(())
-}
-
 pub(super) fn schema() -> serde_json::Value {
     json!({"type":"object","properties":{
         "risk_level":{"type":"string","enum":["low","medium","high","critical"]},
@@ -74,27 +25,9 @@ pub(super) fn review_schema(
         let schema = match &format.schema {
             Value::Bool(true) => json!({}),
             Value::Object(_) => format.schema.clone(),
-            _ => {
-                return Err(TransformError::unsupported(
-                    "guardian.text.format.schema",
-                    "schema cannot describe a Guardian result object",
-                ));
-            }
+            _ => schema(),
         };
-        if schema
-            .get("type")
-            .is_some_and(|v| v.as_str().is_some_and(|v| v != "object"))
-            || (schema.get("additionalProperties") == Some(&Value::Bool(false))
-                && schema
-                    .get("properties")
-                    .and_then(Value::as_object)
-                    .is_none_or(|v| !v.contains_key("outcome")))
-        {
-            return Err(TransformError::unsupported(
-                "guardian.text.format.schema",
-                "schema excludes the mandatory outcome field",
-            ));
-        }
+
         return Ok((format.name.clone(), schema, format.strict));
     }
     Ok(("guardian_review".into(), schema(), false))
@@ -108,8 +41,8 @@ pub(super) fn effort(input: &source::GuardianRequestBody) -> Option<&str> {
         .filter(|value| *value != "model_defined")
 }
 
-pub(super) fn chat_effort(value: &str) -> Result<o::ReasoningEffort, TransformError> {
-    Ok(match value {
+pub(super) fn chat_effort(value: &str) -> Option<o::ReasoningEffort> {
+    Some(match value {
         "none" => o::ReasoningEffort::None,
         "minimal" => o::ReasoningEffort::Minimal,
         "low" => o::ReasoningEffort::Low,
@@ -117,17 +50,12 @@ pub(super) fn chat_effort(value: &str) -> Result<o::ReasoningEffort, TransformEr
         "high" => o::ReasoningEffort::High,
         "xhigh" => o::ReasoningEffort::XHigh,
         "max" => o::ReasoningEffort::Max,
-        _ => {
-            return Err(TransformError::unsupported(
-                "guardian.reasoning.effort",
-                "selected target has no equivalent reasoning effort",
-            ));
-        }
+        _ => return None,
     })
 }
 
-pub(super) fn responses_effort(value: &str) -> Result<r::ReasoningEffort, TransformError> {
-    Ok(match value {
+pub(super) fn responses_effort(value: &str) -> Option<r::ReasoningEffort> {
+    Some(match value {
         "none" => r::ReasoningEffort::None,
         "minimal" => r::ReasoningEffort::Minimal,
         "low" => r::ReasoningEffort::Low,
@@ -135,12 +63,7 @@ pub(super) fn responses_effort(value: &str) -> Result<r::ReasoningEffort, Transf
         "high" => r::ReasoningEffort::High,
         "xhigh" => r::ReasoningEffort::Xhigh,
         "max" => r::ReasoningEffort::Max,
-        _ => {
-            return Err(TransformError::unsupported(
-                "guardian.reasoning.effort",
-                "selected target has no equivalent reasoning effort",
-            ));
-        }
+        _ => return None,
     })
 }
 
@@ -211,23 +134,6 @@ pub(super) fn bound_source(
             e.to_string(),
         )
     })?;
-    Ok(())
-}
-
-pub(super) fn non_responses_controls(
-    input: &source::GuardianRequestBody,
-) -> Result<(), TransformError> {
-    if input.reasoning.as_ref().is_some_and(|v| {
-        v.summary
-            .as_ref()
-            .is_some_and(|v| !matches!(v, source::ReasoningSummary::None))
-            || matches!(v.context, Some(source::ReasoningContext::CurrentTurn))
-    }) {
-        return Err(TransformError::unsupported(
-            "guardian.reasoning",
-            "selected target lacks requested summary or current-turn reasoning control",
-        ));
-    }
     Ok(())
 }
 

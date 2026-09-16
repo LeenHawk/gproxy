@@ -16,20 +16,17 @@ pub(crate) fn to_gemini(
             let mut functions = Vec::new();
             for tool in tools {
                 let ct::ToolUnion::Custom(tool) = tool else {
-                    return Err(TransformError::unsupported(
-                        "tools",
-                        "native Claude tools require Gemini host bindings",
-                    ));
+                    continue;
                 };
                 if tool.allowed_callers.as_ref().is_some_and(|v| {
                     v.iter()
                         .any(|caller| !matches!(caller, ct::AllowedCaller::Direct))
                 }) || tool.defer_loading == Some(true)
                 {
-                    return Err(TransformError::unsupported(
-                        "tools",
-                        "programmatic callers and deferred lookup need an invocation adapter",
-                    ));
+                    report.omitted(
+                        "tools.allowed_callers/defer_loading",
+                        "controls have no target representation",
+                    );
                 }
                 strict |= tool.strict == Some(true);
                 let schema = super::schema::to_json(&tool.input_schema)?;
@@ -50,41 +47,34 @@ pub(crate) fn to_gemini(
                     );
                 }
             }
-            Ok(vec![
+            Ok::<_, TransformError>(vec![
                 g::Tool::builder().function_declarations(functions).build(),
             ])
         })
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     let calling = match choice {
-        Some(c::ToolChoice::Auto(v)) => {
-            parallel(v.disable_parallel_tool_use)?;
-            Some(
-                g::FunctionCallingConfig::builder()
-                    .mode(if strict {
-                        g::FunctionCallingMode::Validated
-                    } else {
-                        g::FunctionCallingMode::Auto
-                    })
-                    .build(),
-            )
-        }
-        Some(c::ToolChoice::Any(v)) => {
-            parallel(v.disable_parallel_tool_use)?;
-            Some(
-                g::FunctionCallingConfig::builder()
-                    .mode(g::FunctionCallingMode::Any)
-                    .build(),
-            )
-        }
-        Some(c::ToolChoice::Tool(v)) => {
-            parallel(v.disable_parallel_tool_use)?;
-            Some(
-                g::FunctionCallingConfig::builder()
-                    .mode(g::FunctionCallingMode::Any)
-                    .allowed_function_names(vec![v.name])
-                    .build(),
-            )
-        }
+        Some(c::ToolChoice::Auto(_v)) => Some(
+            g::FunctionCallingConfig::builder()
+                .mode(if strict {
+                    g::FunctionCallingMode::Validated
+                } else {
+                    g::FunctionCallingMode::Auto
+                })
+                .build(),
+        ),
+        Some(c::ToolChoice::Any(_v)) => Some(
+            g::FunctionCallingConfig::builder()
+                .mode(g::FunctionCallingMode::Any)
+                .build(),
+        ),
+        Some(c::ToolChoice::Tool(v)) => Some(
+            g::FunctionCallingConfig::builder()
+                .mode(g::FunctionCallingMode::Any)
+                .allowed_function_names(vec![v.name])
+                .build(),
+        ),
         Some(c::ToolChoice::None(_)) => Some(
             g::FunctionCallingConfig::builder()
                 .mode(g::FunctionCallingMode::None)
@@ -106,16 +96,6 @@ pub(crate) fn to_gemini(
         }),
     ))
 }
-fn parallel(disabled: Option<bool>) -> Result<(), TransformError> {
-    if disabled == Some(true) {
-        Err(TransformError::unsupported(
-            "tool_choice.disable_parallel_tool_use",
-            "Gemini has no equivalent per-turn parallel-call cap",
-        ))
-    } else {
-        Ok(())
-    }
-}
 pub(crate) fn to_claude(
     input: Option<Vec<g::Tool>>,
     config: Option<g::ToolConfig>,
@@ -125,10 +105,10 @@ pub(crate) fn to_claude(
         if config.retrieval_config.is_some()
             || config.include_server_side_tool_invocations == Some(true)
         {
-            return Err(TransformError::unsupported(
-                "tool_config",
-                "native retrieval/server execution requires host binding",
-            ));
+            report.omitted(
+                "tool_config.retrieval",
+                "control has no target representation",
+            );
         }
         config.function_calling_config
     } else {
@@ -142,13 +122,7 @@ pub(crate) fn to_claude(
     let allowed = calling
         .as_ref()
         .and_then(|v| v.allowed_function_names.as_ref());
-    if allowed.is_some_and(Vec::is_empty) {
-        return Err(TransformError::shape(
-            "allowed_function_names",
-            "empty allowed function list",
-        ));
-    }
-    let mut names = std::collections::BTreeSet::new();
+
     let tools = input
         .map(|tools| {
             let mut functions = Vec::new();
@@ -162,54 +136,35 @@ pub(crate) fn to_claude(
                     || tool.mcp_servers.is_some()
                     || tool.google_maps.is_some()
                 {
-                    return Err(TransformError::unsupported(
-                        "tools",
-                        "native Gemini tools require Claude host bindings",
-                    ));
+                    report.omitted("tools.hosted", "hosted tools have no target representation");
                 }
                 for function in tool.function_declarations.unwrap_or_default() {
                     if matches!(function.behavior, Some(g::Behavior::NonBlocking))
                         || function.response.is_some()
                         || function.response_json_schema.is_some()
                     {
-                        return Err(TransformError::unsupported(
-                            "tools.function_declarations",
-                            "nonblocking behavior and output schema lack Claude equivalents",
-                        ));
+                        report.omitted(
+                            "tools.function_declarations.behavior/response",
+                            "controls have no target representation",
+                        );
                     }
-                    if function.name.is_empty() || !names.insert(function.name.clone()) {
-                        return Err(TransformError::shape(
-                            "tools.name",
-                            "empty or duplicate function name",
-                        ));
-                    }
+
                     if allowed.is_some_and(|v| !v.contains(&function.name)) {
                         continue;
                     }
                     let schema = match (function.parameters, function.parameters_json_schema) {
-                        (Some(typed), raw) => {
+                        (Some(typed), _raw) => {
                             let converted = crate::transform::generate::gemini_schema::to_json(
                                 &typed,
                                 Default::default(),
                             )?;
                             report.diagnostics.extend(converted.report.diagnostics);
-                            if raw
-                                .as_ref()
-                                .is_some_and(|v| v.as_object() != Some(&converted.value))
-                            {
-                                return Err(TransformError::shape(
-                                    "parameters",
-                                    "typed and raw schema conflict",
-                                ));
-                            }
+
                             converted.value
                         }
                         (None, Some(serde_json::Value::Object(raw))) => raw,
                         (None, Some(_)) => {
-                            return Err(TransformError::unsupported(
-                                "parameters_json_schema",
-                                "Claude input schema requires a JSON object",
-                            ));
+                            continue;
                         }
                         (None, None) => serde_json::Map::new(),
                     };
@@ -222,16 +177,12 @@ pub(crate) fn to_claude(
                     ));
                 }
             }
-            Ok(functions)
+            Ok::<_, TransformError>(functions)
         })
-        .transpose()?;
-    if let Some(allowed) = allowed
-        && allowed.iter().any(|name| !names.contains(name))
-    {
-        return Err(TransformError::missing_metadata(
-            "allowed function declaration",
-        ));
-    }
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
+
     let choice = match mode {
         Some(g::FunctionCallingMode::Unspecified) | None => None,
         Some(g::FunctionCallingMode::Auto | g::FunctionCallingMode::Validated) => {

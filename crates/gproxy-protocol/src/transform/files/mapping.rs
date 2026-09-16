@@ -123,12 +123,16 @@ pub fn openai_to_gemini(
                 .expires_at
                 .as_ref()
                 .map(|v| iso(v).map(Some))
+                .map(crate::transform::optional)
                 .transpose()?
+                .flatten()
                 .or(source
                     .expires_at
                     .flatten()
                     .map(|v| iso(&v.to_string()).map(Some))
-                    .transpose()?),
+                    .map(crate::transform::optional)
+                    .transpose()?
+                    .flatten()),
             sha256_hash: None,
             uri: None,
             download_uri: None,
@@ -225,7 +229,9 @@ fn openai_metadata(
                 .expires_at
                 .as_ref()
                 .map(|value| epoch(value).map(Some))
-                .transpose()?,
+                .map(crate::transform::optional)
+                .transpose()?
+                .flatten(),
             rest: Rest::new(),
         },
         report: mapping_report(),
@@ -315,7 +321,9 @@ pub fn claude_to_gemini(
                 .expires_at
                 .as_ref()
                 .map(|v| iso(v).map(Some))
-                .transpose()?,
+                .map(crate::transform::optional)
+                .transpose()?
+                .flatten(),
             sha256_hash: None,
             uri: None,
             download_uri: None,

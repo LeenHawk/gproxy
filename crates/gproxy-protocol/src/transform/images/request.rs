@@ -91,8 +91,8 @@ fn options(input: &ImageInput) -> Result<Options, TransformError> {
         background,
         moderation,
         compression,
-        partial,
-        stream,
+        _partial,
+        _stream,
         quality,
         fidelity,
         images,
@@ -100,9 +100,6 @@ fn options(input: &ImageInput) -> Result<Options, TransformError> {
         user,
     ) = match input {
         ImageInput::Create(v) => {
-            if v.style.flatten().is_some() {
-                return Err(unsupported("style"));
-            }
             let quality = v
                 .quality
                 .flatten()
@@ -113,7 +110,9 @@ fn options(input: &ImageInput) -> Result<Options, TransformError> {
                     o::ImageQuality::Auto => Ok(rt::ImageQuality::Auto),
                     _ => Err(unsupported("quality")),
                 })
-                .transpose()?;
+                .map(crate::transform::optional)
+                .transpose()?
+                .flatten();
             (
                 v.prompt.clone(),
                 v.model.clone().flatten(),
@@ -134,12 +133,6 @@ fn options(input: &ImageInput) -> Result<Options, TransformError> {
             )
         }
         ImageInput::Edit(v) => {
-            if v.images.is_empty() {
-                return Err(TransformError::shape(
-                    "images",
-                    "edit requires at least one input image",
-                ));
-            }
             let quality = v.quality.flatten().map(|q| match q {
                 o::EditedImageQuality::Low => rt::ImageQuality::Low,
                 o::EditedImageQuality::Medium => rt::ImageQuality::Medium,
@@ -172,41 +165,19 @@ fn options(input: &ImageInput) -> Result<Options, TransformError> {
                 v.images
                     .iter()
                     .map(image_reference)
+                    .filter_map(|value| crate::transform::optional(value).transpose())
                     .collect::<Result<Vec<_>, _>>()?,
-                v.mask.as_ref().map(image_reference).transpose()?,
+                v.mask
+                    .as_ref()
+                    .map(image_reference)
+                    .map(crate::transform::optional)
+                    .transpose()?
+                    .flatten(),
                 v.user.clone(),
             )
         }
     };
-    if prompt.trim().is_empty() || n <= 0 {
-        return Err(TransformError::shape(
-            "image.request",
-            "nonempty prompt and positive n required",
-        ));
-    }
-    if stream == Some(true) || partial.is_some_and(|v| v != 0) {
-        return Err(unsupported("stream/partial_images"));
-    }
-    if compression.is_some_and(|v| !(0..=100).contains(&v)) {
-        return Err(TransformError::shape(
-            "output_compression",
-            "must be between 0 and 100",
-        ));
-    }
-    if compression.is_some() && output == Some(o::ImageOutputFormat::Png) {
-        return Err(TransformError::shape(
-            "output_compression",
-            "PNG does not support requested compression",
-        ));
-    }
-    if let Some(size) = &size
-        && !matches!(
-            size.as_str(),
-            "auto" | "1024x1024" | "1536x1024" | "1024x1536"
-        )
-    {
-        return Err(unsupported("size"));
-    }
+
     let mut tool = rt::ImageGenerationTool::builder().build();
     tool.action = Some(if images.is_empty() {
         rt::ImageAction::Generate
@@ -259,65 +230,18 @@ pub fn image_reference(v: &o::ImageReference) -> Result<ResourceReference, Trans
         )),
     }
 }
-/// Validates all source controls before the adapter reads any input resource.
+/// Selects the source resources and return parameters used by the adapter.
 pub fn preflight(
     input: &ImageInput,
     dialect: ImageDialect,
     models: &ImageTargetModels,
 ) -> Result<(ImageRequestContext, Vec<ResourceReference>, Report), TransformError> {
     let v = options(input)?;
-    if models.generation_model.trim().is_empty()
-        || models.generation_model.chars().any(|c| {
-            c.is_control()
-                || (dialect == ImageDialect::Gemini && matches!(c, '/' | '?' | '#' | '%'))
-        })
-    {
-        return Err(TransformError::shape(
-            "target.generation_model",
-            "nonempty model identifier required",
-        ));
-    }
-    for value in [v.model.as_ref(), models.image_tool_model.as_ref()]
-        .into_iter()
-        .flatten()
-    {
-        if value.trim().is_empty() {
-            return Err(TransformError::shape(
-                "image.model",
-                "nonempty model required",
-            ));
-        }
-    }
+
     let mut report = Report::default();
     if dialect == ImageDialect::Gemini {
-        if models.image_tool_model.is_some() {
-            return Err(unsupported("target.image_tool_model"));
-        }
-        if v.mask.is_some() {
-            return Err(unsupported("mask"));
-        }
-        if v.tool.input_fidelity.is_some() {
-            return Err(unsupported("input_fidelity"));
-        }
-        if v.output_format.is_some() || v.tool.output_compression.is_some() {
-            return Err(unsupported("output_format/output_compression"));
-        }
-        if v.tool
-            .background
-            .is_some_and(|v| v != rt::ImageBackground::Auto)
-        {
-            return Err(unsupported("background"));
-        }
-        if v.tool.quality.is_some_and(|v| v != rt::ImageQuality::Auto) {
-            return Err(unsupported("quality"));
-        }
-        if v.tool.moderation.is_some() {
-            return Err(unsupported("moderation"));
-        }
         // Gemini imageSize is a resolution class, not an exact pixel size.
-        if v.size.as_deref().is_some_and(|s| s != "auto") {
-            return Err(unsupported("size"));
-        }
+
         if v.user.is_some() {
             report.omitted("user", "Gemini has no equivalent user attribution field");
         }
@@ -326,11 +250,10 @@ pub fn preflight(
         }
     }
     let mut refs = v.images;
-    if let Some(mask) = v.mask {
+    if let Some(mask) = v.mask.filter(|_| dialect == ImageDialect::Responses) {
         refs.push(mask);
     }
-    let n = usize::try_from(v.n)
-        .map_err(|_| TransformError::shape("n", "image count overflows platform"))?;
+    let n = usize::try_from(v.n).unwrap_or(1);
     if n > 1 {
         report.changed("n", "one native image generation call per requested image");
     }
@@ -355,17 +278,7 @@ fn resolved<'a>(
     let v = matches
         .next()
         .ok_or_else(|| TransformError::missing_metadata("image.resource"))?;
-    if matches.next().is_some() {
-        return Err(TransformError::shape(
-            "image.resource",
-            "ambiguous duplicate resolved reference",
-        ));
-    }
-    super::response::decode_image(
-        &v.bytes_base64,
-        Some(&v.mime_type),
-        v.bytes_base64.len() as u64,
-    )?;
+
     Ok(v)
 }
 fn data_url(v: &ResolvedImageInput) -> String {
@@ -385,27 +298,6 @@ pub fn build_request(
             v.tool.model = models.image_tool_model.clone().or(v.model);
             if let Some(mask) = v.mask {
                 let mask = resolved(&mask, values)?;
-                let first = resolved(&v.images[0], values)?;
-                let mask_bytes = super::response::decode_image(
-                    &mask.bytes_base64,
-                    Some(&mask.mime_type),
-                    mask.bytes_base64.len() as u64,
-                )?;
-                let first_bytes = super::response::decode_image(
-                    &first.bytes_base64,
-                    Some(&first.mime_type),
-                    first.bytes_base64.len() as u64,
-                )?;
-                if !super::response::png_has_alpha(&mask_bytes.bytes)
-                    || mask_bytes.metadata.format != o::ImageOutputFormat::Png
-                    || (mask_bytes.metadata.width, mask_bytes.metadata.height)
-                        != (first_bytes.metadata.width, first_bytes.metadata.height)
-                {
-                    return Err(TransformError::shape(
-                        "mask",
-                        "PNG mask must contain alpha and match the first input dimensions",
-                    ));
-                }
                 v.tool.input_image_mask = Some(
                     rt::InputImageMask::builder()
                         .image_url(data_url(mask))

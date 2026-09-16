@@ -74,7 +74,6 @@ fn executes_shared_historical_fixtures_with_actual_capability_host() {
             let resources = resources(&access, &scope);
             let mut p = ready(ChatViaGemini::prepare_with_capabilities(
                 serde_json::from_value(case["input"].clone()).unwrap(),
-                "selected",
                 endpoint(),
                 ids(Dialect::OpenAiChat, Dialect::Gemini),
                 &state,

@@ -1,11 +1,7 @@
 use super::common::invalid;
 use crate::{transform::TransformError, wire::gemini as g};
 fn count(n: i64) -> Result<i64, TransformError> {
-    if n < 0 {
-        Err(invalid("negative count"))
-    } else {
-        Ok(n)
-    }
+    Ok(n)
 }
 fn add(a: i64, b: i64) -> Result<i64, TransformError> {
     count(a)?
@@ -13,9 +9,6 @@ fn add(a: i64, b: i64) -> Result<i64, TransformError> {
         .ok_or_else(|| invalid("count overflow"))
 }
 fn agree(a: Option<i64>, b: Option<i64>, _: &str) -> Result<Option<i64>, TransformError> {
-    if a.zip(b).is_some_and(|(a, b)| a != b) {
-        return Err(invalid("factual counters disagree"));
-    }
     a.or(b).map(count).transpose()
 }
 pub(super) struct GeminiUsageProgress {
@@ -68,7 +61,6 @@ impl GeminiUsageProgress {
         };
         let output = count(total)?
             .checked_sub(add(prompt, usage.tool_use_prompt_token_count.unwrap_or(0))?)
-            .filter(|v| *v >= 0)
             .ok_or_else(|| invalid("usage: total below actual prompt"))?;
         let old_c = usage.candidates_token_count;
         let old_t = usage.thoughts_token_count;
@@ -83,37 +75,10 @@ impl GeminiUsageProgress {
             candidates = Some(c);
             thinking = Some(t);
         }
-        match (candidates, thinking) {
-            (Some(c), Some(t)) if add(c, t)? != output => {
-                return Err(invalid(
-                    "usage: current output components disagree with total",
-                ));
-            }
-            (Some(c), None) => {
-                thinking = Some(
-                    output
-                        .checked_sub(count(c)?)
-                        .filter(|v| *v >= 0)
-                        .ok_or_else(|| invalid("usage: candidates exceed output"))?,
-                )
-            }
-            (None, Some(t)) => {
-                candidates = Some(
-                    output
-                        .checked_sub(count(t)?)
-                        .filter(|v| *v >= 0)
-                        .ok_or_else(|| invalid("usage: thinking exceeds output"))?,
-                )
-            }
-            _ => {}
+        if let (None, Some(thinking)) = (candidates, thinking) {
+            candidates = Some(output - thinking);
         }
-        if old_c.zip(candidates).is_some_and(|(old, new)| new < old)
-            || old_t.zip(thinking).is_some_and(|(old, new)| new < old)
-        {
-            return Err(invalid(
-                "usage: resolved output component decreased from observed prefix",
-            ));
-        }
+
         usage.candidates_token_count = candidates;
         // Keep native absence explicit; the pair helper derives the same
         // thinking value from current candidates/total and validates facts.

@@ -74,100 +74,105 @@ impl Bindings {
         };
         let mut lowered = Vec::new();
         for item in std::mem::take(items) {
-            let mapped = match item {
-                r::InputItem::FunctionCall(mut item) => {
-                    if let Some(namespace) = item.namespace.take() {
-                        item.name = self.namespace_name(&namespace, &item.name)?;
+            let mapped = (|| -> Result<Option<r::InputItem>, TransformError> {
+                Ok(Some(match item {
+                    r::InputItem::FunctionCall(mut item) => {
+                        if let Some(namespace) = item.namespace.take() {
+                            item.name = self.namespace_name(&namespace, &item.name)?;
+                        }
+                        r::InputItem::FunctionCall(item)
                     }
-                    r::InputItem::FunctionCall(item)
-                }
-                r::InputItem::FunctionCallOutput(mut item) => {
-                    if let Some(Some(namespace)) = item.namespace.take()
-                        && let Some(Some(name)) = &mut item.name
-                    {
-                        *name = self.namespace_name(&namespace, name)?;
+                    r::InputItem::FunctionCallOutput(mut item) => {
+                        if let Some(Some(namespace)) = item.namespace.take()
+                            && let Some(Some(name)) = &mut item.name
+                        {
+                            *name = self.namespace_name(&namespace, name)?;
+                        }
+                        r::InputItem::FunctionCallOutput(item)
                     }
-                    r::InputItem::FunctionCallOutput(item)
-                }
-                r::InputItem::ShellCall(item) => {
-                    caller(&item.caller)?;
-                    if item
-                        .environment
-                        .flatten()
-                        .is_some_and(|v| !matches!(v, r::ShellCallEnvironment::Local(_)))
-                    {
-                        return Err(unsupported(
-                            "hosted shell history cannot be replayed as local shell",
-                        ));
-                    }
-                    call(
-                        SHELL,
-                        item.call_id,
-                        item.id.flatten(),
-                        item.action.into_declared(),
-                    )?
-                }
-                r::InputItem::ShellCallOutput(item) => {
-                    caller(&item.caller)?;
-                    result(
-                        item.call_id,
-                        json!({"output":item.output.into_declared(),"max_output_length":item.max_output_length}),
-                    )?
-                }
-                r::InputItem::ApplyPatchCall(item) => {
-                    caller(&item.caller)?;
-                    call(
-                        PATCH,
-                        item.call_id,
-                        item.id.flatten(),
-                        item.operation.into_declared(),
-                    )?
-                }
-                r::InputItem::ApplyPatchCallOutput(item) => {
-                    caller(&item.caller)?;
-                    result(
-                        item.call_id,
-                        json!({"status":item.status,"output":item.output}),
-                    )?
-                }
-                r::InputItem::ToolSearchCall(item) => {
-                    if item.execution != Some(r::ToolExecution::Client) {
-                        return Err(unsupported(
-                            "server ToolSearch history needs its native executor",
-                        ));
-                    }
-                    call(
-                        SEARCH,
-                        item.call_id
+                    r::InputItem::ShellCall(item) => {
+                        caller(&item.caller)?;
+                        if item
+                            .environment
                             .flatten()
-                            .ok_or_else(|| unsupported("client ToolSearch call_id required"))?,
-                        item.id.flatten(),
-                        item.arguments,
-                    )?
-                }
-                r::InputItem::ToolSearchOutput(item) => {
-                    if item.execution != Some(r::ToolExecution::Client) {
-                        return Err(unsupported(
-                            "server ToolSearch result cannot become a client result",
-                        ));
+                            .is_some_and(|v| !matches!(v, r::ShellCallEnvironment::Local(_)))
+                        {
+                            return Err(unsupported(
+                                "hosted shell history cannot be replayed as local shell",
+                            ));
+                        }
+                        call(
+                            SHELL,
+                            item.call_id,
+                            item.id.flatten(),
+                            item.action.into_declared(),
+                        )?
                     }
-                    result(
-                        item.call_id.flatten().ok_or_else(|| {
-                            unsupported("client ToolSearch output call_id required")
-                        })?,
-                        json!({"tools":item.tools.into_declared()}),
-                    )?
-                }
-                r::InputItem::AdditionalTools(_) => {
-                    report.changed(
-                        "input.additional_tools",
-                        "declared additional tools are included in the target tool catalog",
-                    );
-                    continue;
-                }
-                item => item,
-            };
-            lowered.push(mapped);
+                    r::InputItem::ShellCallOutput(item) => {
+                        caller(&item.caller)?;
+                        result(
+                            item.call_id,
+                            json!({"output":item.output.into_declared(),"max_output_length":item.max_output_length}),
+                        )?
+                    }
+                    r::InputItem::ApplyPatchCall(item) => {
+                        caller(&item.caller)?;
+                        call(
+                            PATCH,
+                            item.call_id,
+                            item.id.flatten(),
+                            item.operation.into_declared(),
+                        )?
+                    }
+                    r::InputItem::ApplyPatchCallOutput(item) => {
+                        caller(&item.caller)?;
+                        result(
+                            item.call_id,
+                            json!({"status":item.status,"output":item.output}),
+                        )?
+                    }
+                    r::InputItem::ToolSearchCall(item) => {
+                        if item.execution != Some(r::ToolExecution::Client) {
+                            return Err(unsupported(
+                                "server ToolSearch history needs its native executor",
+                            ));
+                        }
+                        call(
+                            SEARCH,
+                            item.call_id
+                                .flatten()
+                                .ok_or_else(|| unsupported("client ToolSearch call_id required"))?,
+                            item.id.flatten(),
+                            item.arguments,
+                        )?
+                    }
+                    r::InputItem::ToolSearchOutput(item) => {
+                        if item.execution != Some(r::ToolExecution::Client) {
+                            return Err(unsupported(
+                                "server ToolSearch result cannot become a client result",
+                            ));
+                        }
+                        result(
+                            item.call_id.flatten().ok_or_else(|| {
+                                unsupported("client ToolSearch output call_id required")
+                            })?,
+                            json!({"tools":item.tools.into_declared()}),
+                        )?
+                    }
+                    r::InputItem::AdditionalTools(_) => {
+                        report.changed(
+                            "input.additional_tools",
+                            "declared additional tools are included in the target tool catalog",
+                        );
+                        return Ok(None);
+                    }
+                    item => item,
+                }))
+            })();
+
+            if let Some(mapped) = crate::transform::optional(mapped)?.flatten() {
+                lowered.push(mapped);
+            }
         }
         *items = lowered;
         Ok(())

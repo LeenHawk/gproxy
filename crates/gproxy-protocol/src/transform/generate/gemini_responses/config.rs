@@ -16,10 +16,7 @@ pub(super) fn to_responses(
         (input.service_tier.is_some(), "service_tier"),
     ] {
         if present {
-            return Err(TransformError::unsupported(
-                field,
-                "Gemini context/policy requires Responses host adaptation",
-            ));
+            report.omitted(field, "field has no target representation");
         }
     }
     out.store = input.store.map(Some);
@@ -64,10 +61,7 @@ pub(super) fn to_responses(
         ),
     ] {
         if present {
-            return Err(TransformError::unsupported(
-                field,
-                "Responses lacks this direct control; fanout/media/capability adapter required",
-            ));
+            report.omitted(field, "field has no target representation");
         }
     }
     out.max_output_tokens = config.max_output_tokens.map(Some);
@@ -79,30 +73,19 @@ pub(super) fn to_responses(
     }
     if let Some(thinking) = &config.thinking_config {
         let mut reasoning = i::ReasoningConfig::builder().build();
-        reasoning.effort = match (thinking.thinking_budget, thinking.thinking_level.as_ref()) {
-            (Some(0), None) => Some(Some(i::ReasoningEffort::None)),
-            (Some(_), _) => {
-                return Err(TransformError::unsupported(
-                    "thinking_budget",
-                    "Responses cannot preserve exact budget",
-                ));
-            }
-            (None, Some(level)) => Some(Some(match level {
-                g::ThinkingLevel::Minimal => i::ReasoningEffort::Minimal,
-                g::ThinkingLevel::Low => i::ReasoningEffort::Low,
-                g::ThinkingLevel::Medium => i::ReasoningEffort::Medium,
-                g::ThinkingLevel::High => i::ReasoningEffort::High,
-                g::ThinkingLevel::Unspecified => {
-                    return Err(TransformError::shape("thinking_level", "unspecified"));
-                }
-            })),
-            (None, None) => None,
+        reasoning.effort = match thinking.thinking_level {
+            Some(g::ThinkingLevel::Minimal) => Some(Some(i::ReasoningEffort::Minimal)),
+            Some(g::ThinkingLevel::Low) => Some(Some(i::ReasoningEffort::Low)),
+            Some(g::ThinkingLevel::Medium) => Some(Some(i::ReasoningEffort::Medium)),
+            Some(g::ThinkingLevel::High) => Some(Some(i::ReasoningEffort::High)),
+            _ if thinking.thinking_budget == Some(0) => Some(Some(i::ReasoningEffort::None)),
+            _ => None,
         };
+        if thinking.thinking_budget.is_some_and(|n| n != 0) {
+            report.omitted("thinking_budget", "Responses has no token budget control");
+        }
         if thinking.include_thoughts == Some(true) {
-            return Err(TransformError::unsupported(
-                "include_thoughts",
-                "Responses summary is not equivalent full thought output",
-            ));
+            report.omitted("include_thoughts", "field has no target representation");
         }
         out.reasoning = Some(Some(reasoning));
     }
@@ -110,44 +93,21 @@ pub(super) fn to_responses(
         .response_schema
         .as_ref()
         .map(|s| super::super::gemini_schema::to_json(s, Default::default()))
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     if let Some(v) = &typed {
         report.diagnostics.extend(v.report.diagnostics.clone());
     }
-    if let (Some(a), Some(b)) = (
-        &config.response_json_schema,
-        &config.response_json_schema_internal,
-    ) && a != b
-    {
-        return Err(TransformError::shape("schema", "conflicting raw schemas"));
-    }
+
     let raw = config
         .response_json_schema
         .as_ref()
         .or(config.response_json_schema_internal.as_ref())
-        .map(|v| {
-            v.as_object().cloned().ok_or_else(|| {
-                TransformError::unsupported("schema", "Responses requires object schema")
-            })
-        })
-        .transpose()?;
-    if let (Some(a), Some(b)) = (&typed, &raw)
-        && &a.value != b
-    {
-        return Err(TransformError::shape("schema", "typed/raw schema conflict"));
-    }
+        .and_then(|v| v.as_object().cloned());
+
     let schema = typed.map(|v| v.value).or(raw);
     let format = if let Some(schema) = schema {
-        if config
-            .response_mime_type
-            .as_deref()
-            .is_some_and(|v| v != "application/json")
-        {
-            return Err(TransformError::shape(
-                "response_mime_type",
-                "schema conflicts MIME",
-            ));
-        }
         Some(i::TextFormat::JsonSchema(
             i::TextFormatJsonSchema::builder("gemini_response".into(), schema)
                 .strict(Some(true))
@@ -160,10 +120,8 @@ pub(super) fn to_responses(
                 i::TextFormatJsonObject::builder().build(),
             )),
             Some(_) => {
-                return Err(TransformError::unsupported(
-                    "response_mime_type",
-                    "no target representation",
-                ));
+                report.omitted("response_mime_type", "no target representation");
+                None
             }
         }
     };
@@ -200,9 +158,10 @@ pub(super) fn to_gemini(
         ),
     ] {
         if present {
-            return Err(TransformError::missing_metadata(format!(
-                "{field} resolved context"
-            )));
+            report.omitted(
+                format!("{field} resolved context"),
+                "field has no target representation",
+            );
         }
     }
     for (present, field) in [
@@ -231,10 +190,7 @@ pub(super) fn to_gemini(
         ),
     ] {
         if present {
-            return Err(TransformError::unsupported(
-                field,
-                "Gemini needs a host adapter for this policy",
-            ));
+            report.omitted(field, "field has no target representation");
         }
     }
     let mut config = g::GenerationConfig::builder().build();
@@ -260,10 +216,7 @@ pub(super) fn to_gemini(
                 .and_then(Option::as_ref)
                 .is_some()
         {
-            return Err(TransformError::unsupported(
-                "reasoning",
-                "Gemini lacks matching summary/context policy",
-            ));
+            report.omitted("reasoning", "field has no target representation");
         }
         if let Some(effort) = reasoning.effort.flatten() {
             let mut thinking = g::ThinkingConfig::builder().build();
@@ -278,10 +231,7 @@ pub(super) fn to_gemini(
                 }
                 i::ReasoningEffort::High => thinking.thinking_level = Some(g::ThinkingLevel::High),
                 i::ReasoningEffort::Xhigh | i::ReasoningEffort::Max => {
-                    return Err(TransformError::unsupported(
-                        "reasoning.effort",
-                        "Gemini has no matching effort",
-                    ));
+                    report.omitted("reasoning.effort", "Gemini has no matching effort");
                 }
             }
             config.thinking_config = Some(thinking);
@@ -289,10 +239,7 @@ pub(super) fn to_gemini(
     }
     if let Some(text) = &input.text {
         if text.verbosity.flatten().is_some() {
-            return Err(TransformError::unsupported(
-                "verbosity",
-                "Gemini lacks verbosity setting",
-            ));
+            report.omitted("verbosity", "field has no target representation");
         }
         if let Some(format) = &text.format {
             match format {
@@ -335,20 +282,10 @@ pub(super) fn to_gemini(
     Ok(())
 }
 fn number(v: Option<f64>) -> Result<Option<Option<serde_json::Number>>, TransformError> {
-    v.map(|v| {
-        serde_json::Number::from_f64(v)
-            .ok_or_else(|| TransformError::shape("sampling", "nonfinite"))
-    })
-    .transpose()
-    .map(|v| v.map(Some))
+    Ok(v.and_then(serde_json::Number::from_f64).map(Some))
 }
 fn float(v: &Option<Option<serde_json::Number>>) -> Result<Option<f64>, TransformError> {
-    v.as_ref()
+    Ok(v.as_ref()
         .and_then(Option::as_ref)
-        .map(|v| {
-            v.as_f64()
-                .filter(|v| v.is_finite())
-                .ok_or_else(|| TransformError::shape("sampling", "invalid double"))
-        })
-        .transpose()
+        .and_then(serde_json::Number::as_f64))
 }

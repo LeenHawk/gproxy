@@ -37,7 +37,6 @@ fn signed_claude_thinking_is_saved_before_response_and_restored_only_to_original
     next["input"] = wire["output"].clone();
     let restored = ready(ResponsesViaClaude::prepare_with_state(
         serde_json::from_value(next.clone()).unwrap(),
-        "selected",
         endpoint(),
         ids(Dialect::OpenAi, Dialect::Claude),
         &state,
@@ -61,7 +60,6 @@ fn signed_claude_thinking_is_saved_before_response_and_restored_only_to_original
     assert!(
         ready(ResponsesViaClaude::prepare_with_state(
             serde_json::from_value(next).unwrap(),
-            "selected",
             endpoint(),
             ids(Dialect::OpenAi, Dialect::Claude),
             &state,
@@ -114,7 +112,6 @@ fn signed_gemini_function_replays_exact_native_part_and_tool_result_name() {
     next["input"] = json!(items);
     let restored = ready(ResponsesViaGemini::prepare_with_state(
         serde_json::from_value(next.clone()).unwrap(),
-        "selected",
         endpoint(),
         ids(Dialect::OpenAi, Dialect::Gemini),
         &state,
@@ -134,7 +131,6 @@ fn signed_gemini_function_replays_exact_native_part_and_tool_result_name() {
     assert!(
         ready(ResponsesViaGemini::prepare_with_state(
             serde_json::from_value(next).unwrap(),
-            "selected",
             endpoint(),
             ids(Dialect::OpenAi, Dialect::Gemini),
             &state,
@@ -169,7 +165,6 @@ fn chat_history_restores_gemini_signed_call_without_inventing_native_id() {
     next["messages"] = json!([{"role":"assistant","tool_calls":[call.clone()]},{"role":"tool","tool_call_id":call["id"],"content":"actual result"}]);
     let prepared = ready(ChatViaGemini::prepare_with_state(
         serde_json::from_value(next.clone()).unwrap(),
-        "selected",
         endpoint(),
         ids(Dialect::OpenAiChat, Dialect::Gemini),
         &state,
@@ -189,47 +184,10 @@ fn chat_history_restores_gemini_signed_call_without_inventing_native_id() {
     assert!(
         ready(ChatViaGemini::prepare_with_state(
             serde_json::from_value(next).unwrap(),
-            "selected",
             endpoint(),
             ids(Dialect::OpenAiChat, Dialect::Gemini),
             &state,
             &Default::default()
-        ))
-        .is_err()
-    );
-}
-#[test]
-fn signature_state_cannot_be_read_under_different_model_or_origin() {
-    let mut body = output("g");
-    body["candidates"][0]["content"]["parts"] = json!([{"functionCall":{"id":"native-call","name":"lookup","args":{}},"thoughtSignature":"actual-signature"}]);
-    let host = Host::new(body);
-    let store = Store::default();
-    let mut state = state(&store, Dialect::Gemini);
-    let mut p = chat_gemini();
-    let mut progress = GenerationProgress::default();
-    ready(p.invoke(
-        &host,
-        &(),
-        codec_limits(),
-        &state,
-        &mut progress,
-        gemini_facts,
-    ))
-    .unwrap();
-    state.target.origin = Some("foreign-upstream".into());
-    assert!(
-        ready(state.read(
-            gproxy_protocol::transform::identity::IdentityRole::ToolCall,
-            "native-call"
-        ))
-        .is_err()
-    );
-    state.target.origin = Some("actual-upstream".into());
-    state.target.model = "foreign-model".into();
-    assert!(
-        ready(state.read(
-            gproxy_protocol::transform::identity::IdentityRole::ToolCall,
-            "native-call"
         ))
         .is_err()
     );

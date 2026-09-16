@@ -38,7 +38,6 @@ impl<'a> ResponsesWsTurn<'a> {
         session: &'a mut ResponsesWsSession,
         mut request: RequestMessage,
     ) -> Result<Self, TransformError> {
-        validate_lane(request.stream_id.as_deref())?;
         let ClientEvent::ResponseCreate(body) = &mut request.event;
         if body.background.flatten() == Some(true) {
             return Err(TransformError::unsupported(

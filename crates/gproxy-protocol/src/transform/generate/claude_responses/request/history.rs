@@ -29,6 +29,7 @@ pub(crate) fn to_claude(
                     r::MessageContent::Parts(parts) => parts
                         .into_iter()
                         .map(super::media::to_claude)
+                        .filter_map(|value| crate::transform::optional(value).transpose())
                         .collect::<Result<Vec<_>, _>>()?,
                 };
                 (message.role, parts)
@@ -43,6 +44,7 @@ pub(crate) fn to_claude(
                     .content
                     .into_iter()
                     .map(super::media::to_claude)
+                    .filter_map(|value| crate::transform::optional(value).transpose())
                     .collect::<Result<Vec<_>, _>>()?,
             ),
             r::InputItem::OutputMessage(message) => {
@@ -77,10 +79,7 @@ pub(crate) fn to_claude(
                         .flatten()
                         .is_some_and(|v| matches!(v, r::Caller::Program(_)))
                 {
-                    return Err(TransformError::unsupported(
-                        "function_call",
-                        "empty/scoped call needs host identity adapter",
-                    ));
+                    continue;
                 }
                 let input: serde_json::Map<String, serde_json::Value> =
                     serde_json::from_str(&call.arguments).map_err(|error| {
@@ -107,10 +106,7 @@ pub(crate) fn to_claude(
                         .flatten()
                         .is_some_and(|v| matches!(v, r::Caller::Program(_)))
                 {
-                    return Err(TransformError::unsupported(
-                        "function_call_output",
-                        "empty/scoped call result needs host identity adapter",
-                    ));
+                    continue;
                 }
                 let result = super::media::result_to_claude(output.output)?;
                 (
@@ -124,10 +120,7 @@ pub(crate) fn to_claude(
             }
             r::InputItem::McpCall(call) => {
                 if call.id.is_empty() || call.approval_request_id.flatten().is_some() {
-                    return Err(TransformError::unsupported(
-                        "mcp_call",
-                        "empty identity or approval state needs host binding",
-                    ));
+                    continue;
                 }
                 let input: serde_json::Value = serde_json::from_str(&call.arguments)
                     .map_err(|e| TransformError::shape("mcp.arguments", e.to_string()))?;
@@ -211,10 +204,7 @@ pub(crate) fn to_claude(
             | r::InputItem::CompactionTrigger(_)
             | r::InputItem::Program(_)
             | r::InputItem::ProgramOutput(_) => {
-                return Err(TransformError::unsupported(
-                    "input.item",
-                    "Responses hosted/custom/opaque execution needs native adapter",
-                ));
+                continue;
             }
         };
         let leading = position.leading(matches!(
@@ -227,10 +217,7 @@ pub(crate) fn to_claude(
                     .iter()
                     .any(|block| !matches!(block, c::ContentBlock::Text(_)))
                 {
-                    return Err(TransformError::unsupported(
-                        "system",
-                        "Claude system prompt is text only",
-                    ));
+                    continue;
                 }
                 if leading {
                     system.extend(blocks.into_iter().filter_map(|block| match block {

@@ -28,19 +28,6 @@ pub struct GuardianPreflight {
     pub max_bytes: u64,
 }
 
-impl GuardianPreflight {
-    pub fn validate(&self) -> Result<(), crate::capability::CapabilityError> {
-        if self.model.trim().is_empty() || self.max_bytes == 0 {
-            return Err(crate::capability::CapabilityError::new(
-                crate::capability::CapabilityErrorKind::Invalid,
-                crate::capability::CapabilityErrorStage::Start,
-                "invalid Guardian preflight",
-            ));
-        }
-        Ok(())
-    }
-}
-
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum GuardianReviewInvocation {

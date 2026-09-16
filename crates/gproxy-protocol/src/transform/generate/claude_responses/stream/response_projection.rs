@@ -18,6 +18,7 @@ impl ResponsesToClaudeStream {
                 return Ok(());
             };
             let advance = match &mut item.kind {
+                Kind::Excluded => item.done,
                 Kind::Message { parts } => {
                     for part in parts.values_mut() {
                         if part.block.is_none() {

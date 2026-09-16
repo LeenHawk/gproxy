@@ -150,7 +150,7 @@ pub async fn openai_to_gemini_create_composed<U: Upstream, R: ResourceAccess, S:
     limits: VideoLimits,
 ) -> Result<JsonInvocation<Converted<o::VideoGenerationResponseBody>>, TransformError> {
     fresh(progress)?;
-    binding.validate()?;
+
     direct::check_template(&template, http::Method::POST)?;
     if template.path != binding.create_path()? {
         return Err(TransformError::shape(
@@ -237,7 +237,7 @@ pub async fn openai_to_gemini_query_composed<U: Upstream, R: ResourceAccess, S: 
     limits: VideoLimits,
 ) -> Result<JsonInvocation<Converted<o::VideoGenerationResponseBody>>, TransformError> {
     fresh(progress)?;
-    binding.validate()?;
+
     direct::check_template(&template, http::Method::GET)?;
     if expires_at <= SystemTime::now() {
         return Err(TransformError::shape(

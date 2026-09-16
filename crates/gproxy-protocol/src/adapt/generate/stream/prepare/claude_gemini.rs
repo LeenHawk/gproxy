@@ -29,11 +29,9 @@ impl ClaudeViaGemini {
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<StreamInvocation<p::GeminiToClaudeStream>, TransformError> {
-        settings.validate::<p::GeminiToClaudeStream>()?;
         let original = input.into_declared();
         let prepared = Self::prepare_with_state(
             original.clone().buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,
@@ -66,11 +64,9 @@ impl ClaudeViaGemini {
         state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
     ) -> Result<StreamInvocation<p::GeminiToClaudeStream>, TransformError> {
-        settings.validate::<p::GeminiToClaudeStream>()?;
         let original = input.into_declared();
         let prepared = Self::prepare_with_capabilities(
             original.clone().buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,
@@ -105,11 +101,9 @@ impl GeminiViaClaude {
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<StreamInvocation<p::ClaudeToGeminiStream>, TransformError> {
-        settings.validate::<p::ClaudeToGeminiStream>()?;
         let original = input.into_declared();
         let prepared = Self::prepare_with_state(
             original.clone().buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,
@@ -142,11 +136,9 @@ impl GeminiViaClaude {
         state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
     ) -> Result<StreamInvocation<p::ClaudeToGeminiStream>, TransformError> {
-        settings.validate::<p::ClaudeToGeminiStream>()?;
         let original = input.into_declared();
         let prepared = Self::prepare_with_capabilities(
             original.clone().buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,

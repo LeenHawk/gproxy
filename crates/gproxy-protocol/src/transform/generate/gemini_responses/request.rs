@@ -11,16 +11,8 @@ pub fn gemini_to_responses_request(
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
 ) -> Result<Converted<r::GenerateContentRequestBody>, TransformError> {
-    if policy.dialect != crate::Dialect::OpenAi {
-        return Err(TransformError::shape(
-            "identity.policy",
-            "Responses target required",
-        ));
-    }
     let model = target_model.into();
-    if model.is_empty() {
-        return Err(TransformError::missing_metadata("target_model"));
-    }
+
     let input = input.into_declared();
     let mut ids = flow.clone();
     let mut report = Report::default();
@@ -36,27 +28,19 @@ pub fn gemini_to_responses_request(
     out.tools = input
         .tools
         .map(|tools| super::tools::to_responses(tools, validated, &mut report))
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     out.tool_choice = input
         .tool_config
         .map(super::tools::choice_to_responses)
+        .map(crate::transform::optional)
         .transpose()?
+        .flatten()
         .flatten();
     if let Some(system) = input.system_instruction {
         let mut text = String::new();
         for part in system.parts.unwrap_or_default() {
-            super::content::validate(&part)?;
-            if part.inline_data.is_some()
-                || part.file_data.is_some()
-                || part.function_call.is_some()
-                || part.function_response.is_some()
-                || part.thought == Some(true)
-            {
-                return Err(TransformError::unsupported(
-                    "system",
-                    "Responses instructions require text",
-                ));
-            }
             text.push_str(part.text.as_deref().unwrap_or(""));
         }
         out.instructions = Some(Some(text));
@@ -87,9 +71,7 @@ pub fn responses_to_gemini_request(
     mut context: super::identity::GeminiReplayContext,
 ) -> Result<Converted<g::GenerateContentRequestBody>, TransformError> {
     let model = target_model.into();
-    if model.is_empty() {
-        return Err(TransformError::missing_metadata("target_model"));
-    }
+
     let mut input = input.into_declared();
     let mut out = g::GenerateContentRequestBody::builder(Vec::new()).build();
     let mut report = Report::default();

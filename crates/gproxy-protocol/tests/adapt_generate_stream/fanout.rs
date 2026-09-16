@@ -66,22 +66,12 @@ fn access(store: &Store, native: Dialect) -> GenerationStateAccess<'_, Store> {
         .unwrap();
     s
 }
-fn target(client: Dialect, native: Dialect) -> FanoutTarget {
+fn target(client: Dialect, _native: Dialect) -> FanoutTarget {
     FanoutTarget {
-        model: "selected".into(),
         endpoint: Endpoint::new("/generation").unwrap(),
-        identities: (0..2)
-            .map(|i| {
-                GenerationIdentity::new(
-                    IdNamespace([81 + 2 * i; 16]),
-                    IdNamespace([82 + 2 * i; 16]),
-                    client,
-                    native,
-                )
-                .unwrap()
-            })
-            .collect(),
+
         options: FanoutOptions {
+            response_policy: gproxy_protocol::transform::identity::TargetIdPolicy::new(client),
             namespace: IdNamespace([90; 16]),
             max_children: 2,
         },
@@ -234,10 +224,14 @@ fn chat_claude_live_unique_ids_and_aggregate_usage() {
     let call = ready(ChatViaClaudeFanout::prepare_stream(
         serde_json::from_value(request(Dialect::OpenAiChat)).unwrap(),
         target(Dialect::OpenAiChat, Dialect::Claude),
-        vec![
-            ClaudeToChatContext { created: 7 },
-            ClaudeToChatContext { created: 9 },
-        ],
+        {
+            let mut contexts = vec![
+                ClaudeToChatContext { created: 7 },
+                ClaudeToChatContext { created: 9 },
+            ]
+            .into_iter();
+            move |_| contexts.next().unwrap()
+        },
         settings(),
         &state,
     ))
@@ -264,7 +258,10 @@ fn gemini_claude_live_unique_ids_and_aggregate_usage() {
     let call = ready(GeminiViaClaudeFanout::prepare_stream(
         serde_json::from_value(request(Dialect::Gemini)).unwrap(),
         target(Dialect::Gemini, Dialect::Claude),
-        vec![gemini_context(), gemini_context()],
+        {
+            let mut contexts = vec![gemini_context(), gemini_context()].into_iter();
+            move |_| contexts.next().unwrap()
+        },
         settings(),
         &state,
     ))
@@ -278,10 +275,14 @@ fn gemini_responses_live_unique_ids_and_aggregate_usage() {
     let call = ready(GeminiViaResponsesFanout::prepare_stream(
         serde_json::from_value(request(Dialect::Gemini)).unwrap(),
         target(Dialect::Gemini, Dialect::OpenAi),
-        vec![
-            gr::ResponsesToGeminiContext::default(),
-            gr::ResponsesToGeminiContext::default(),
-        ],
+        {
+            let mut contexts = vec![
+                gr::ResponsesToGeminiContext::default(),
+                gr::ResponsesToGeminiContext::default(),
+            ]
+            .into_iter();
+            move |_| contexts.next().unwrap()
+        },
         settings(),
         &state,
     ))
@@ -376,7 +377,10 @@ fn future_signed_id_is_reserved_before_first_unsigned_child_exposure() {
     let mut call = ready(GeminiViaResponsesFanout::prepare_stream(
         serde_json::from_value(request(Dialect::Gemini)).unwrap(),
         target(Dialect::Gemini, Dialect::OpenAi),
-        vec![Default::default(), signed_context("tool:source")],
+        {
+            let mut contexts = vec![Default::default(), signed_context("tool:source")].into_iter();
+            move |_| contexts.next().unwrap()
+        },
         settings(),
         &state,
     ))
@@ -420,7 +424,10 @@ fn duplicate_actual_signed_ids_stop_before_second_exposure() {
     let mut call = ready(GeminiViaResponsesFanout::prepare_stream(
         serde_json::from_value(request(Dialect::Gemini)).unwrap(),
         target(Dialect::Gemini, Dialect::OpenAi),
-        vec![signed_context("fixed"), signed_context("fixed")],
+        {
+            let mut contexts = vec![signed_context("fixed"), signed_context("fixed")].into_iter();
+            move |_| contexts.next().unwrap()
+        },
         settings(),
         &state,
     ))
@@ -503,10 +510,14 @@ fn chat_usage_opt_out_suppresses_wire_usage_but_retains_measured_aggregate() {
                 ready(ChatViaClaudeFanout::prepare_stream(
                     serde_json::from_value(input).unwrap(),
                     target(Dialect::OpenAiChat, native),
-                    vec![
-                        ClaudeToChatContext { created: 7 },
-                        ClaudeToChatContext { created: 9 },
-                    ],
+                    {
+                        let mut contexts = vec![
+                            ClaudeToChatContext { created: 7 },
+                            ClaudeToChatContext { created: 9 },
+                        ]
+                        .into_iter();
+                        move |_| contexts.next().unwrap()
+                    },
                     settings(),
                     &state,
                 ))

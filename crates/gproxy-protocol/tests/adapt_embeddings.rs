@@ -401,12 +401,12 @@ fn gemini_mixed_dimensions_split_and_reordered_openai_results_restore_input_orde
 }
 
 #[test]
-fn gemini_batch_validates_all_source_semantics_before_any_call() {
+fn gemini_batch_omits_source_only_task_controls_and_executes_groups() {
     let host = Host::default();
     let mut input = gemini_input();
     input.requests.last_mut().unwrap().task_type =
         Some(gproxy_protocol::wire::gemini::embeddings::GeminiTaskType::RetrievalQuery);
-    let error = ready(gemini_batch_to_openai(
+    let output = ready(gemini_batch_to_openai(
         &host,
         &(),
         template(),
@@ -414,12 +414,9 @@ fn gemini_batch_validates_all_source_semantics_before_any_call() {
         "selected-openai",
         options(),
     ))
-    .unwrap_err();
-    let EmbeddingFailure::Transform(error) = error.failure else {
-        panic!("unsupported source semantics")
-    };
-    assert_eq!(error.kind(), TransformErrorKind::Unsupported);
-    assert!(host.sent.lock().unwrap().is_empty());
+    .unwrap();
+    assert_eq!(output.output.value.embeddings.unwrap().len(), 4);
+    assert!(!host.sent.lock().unwrap().is_empty());
 }
 
 #[test]

@@ -47,7 +47,10 @@ fn prepare_images(
     ready(GeminiViaResponsesFanout::prepare_stream_with_capabilities(
         serde_json::from_value(input).unwrap(),
         target(Dialect::Gemini, Dialect::OpenAi),
-        vec![Default::default(), Default::default()],
+        {
+            let mut contexts = vec![Default::default(), Default::default()].into_iter();
+            move |_| contexts.next().unwrap()
+        },
         settings(),
         &access(store, Dialect::OpenAi),
         resources,

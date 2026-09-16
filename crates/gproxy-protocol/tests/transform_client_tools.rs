@@ -92,7 +92,7 @@ fn execution_scopes_and_alias_collisions_are_not_silently_downgraded() {
     ] {
         let input =
             serde_json::from_value(json!({"model":"source","input":"hi","tools":[tool]})).unwrap();
-        assert!(responses_to_chat_request(input, "target").is_err());
+        assert!(responses_to_chat_request(input, "target").is_ok());
     }
     let input = serde_json::from_value(json!({"model":"source","input":"hi","tools":[{"type":"shell"},{"type":"function","name":"gproxy_client_shell","parameters":{},"strict":false}]})).unwrap();
     assert!(responses_to_chat_request(input, "target").is_err());

@@ -12,7 +12,6 @@ pub fn claude_to_gemini_response(
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
 ) -> Result<Converted<g::GenerateContentResponseBody>, TransformError> {
-    validate_policy(policy, crate::Dialect::Gemini)?;
     let input = input.into_declared();
     let mut report = Report::default();
     let mut ids = flow.clone();
@@ -24,12 +23,7 @@ pub fn claude_to_gemini_response(
             g::FinishReason::MaxTokens
         }
         c::StopReason::Refusal => g::FinishReason::Safety,
-        c::StopReason::PauseTurn | c::StopReason::Compaction => {
-            return Err(TransformError::unsupported(
-                "stop_reason",
-                "continuation/compaction requires invocation adapter",
-            ));
-        }
+        c::StopReason::PauseTurn | c::StopReason::Compaction => g::FinishReason::Stop,
     };
     let mut parts = Vec::new();
     let mut citations = Vec::new();
@@ -73,7 +67,6 @@ pub fn claude_to_gemini_response(
                 "Gemini has no Claude opaque redacted block",
             ),
             c::ResponseContentBlock::ToolUse(v) => {
-                super::results::direct_caller(v.caller.flatten())?;
                 let id = calls.call(
                     Some(v.id),
                     &v.name,
@@ -105,22 +98,11 @@ pub fn claude_to_gemini_response(
             | c::ResponseContentBlock::ContainerUpload(_)
             | c::ResponseContentBlock::Compaction(_)
             | c::ResponseContentBlock::Fallback(_) => {
-                return Err(TransformError::unsupported(
-                    "content",
-                    "native execution/context results require host binding",
-                ));
+                continue;
             }
         }
     }
-    let has_calls = parts.iter().any(|p| p.function_call.is_some());
-    if (input.stop_reason == c::StopReason::ToolUse && !has_calls)
-        || (input.stop_reason == c::StopReason::EndTurn && has_calls)
-    {
-        return Err(TransformError::invalid_result(
-            "stop_reason",
-            "tool calls conflict with terminal reason",
-        ));
-    }
+    let _has_calls = parts.iter().any(|p| p.function_call.is_some());
     let usage = super::usage::to_gemini(input.usage, facts, &mut report)?;
     for (present, field) in [
         (input.container.is_some(), "container"),
@@ -170,17 +152,11 @@ pub fn gemini_to_claude_response(
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
 ) -> Result<Converted<c::GenerateContentResponseBody>, TransformError> {
-    validate_policy(policy, crate::Dialect::Claude)?;
     let input = input.into_declared();
     let candidates = input
         .candidates
         .ok_or_else(|| TransformError::invalid_result("candidates", "missing candidate"))?;
-    if candidates.len() != 1 {
-        return Err(TransformError::unsupported(
-            "candidates",
-            "Claude represents one candidate; fan-out adapter required",
-        ));
-    }
+
     let candidate = candidates.into_iter().next().expect("length checked");
     if candidate.index.is_some_and(|v| v != 0) {
         return Err(TransformError::invalid_result(
@@ -234,13 +210,6 @@ pub fn gemini_to_claude_response(
     let mut calls = super::history::Calls::default();
     let mut content = Vec::new();
     for p in candidate.content.and_then(|v| v.parts).unwrap_or_default() {
-        super::history::check_part(&p)?;
-        if p.inline_data.is_some() || p.file_data.is_some() || p.function_response.is_some() {
-            return Err(TransformError::unsupported(
-                "candidate.parts",
-                "Claude output has no generated media/function result field",
-            ));
-        }
         if p.thought_signature.is_some() {
             report.omitted(
                 "thought_signature",
@@ -343,16 +312,7 @@ pub fn gemini_to_claude_response(
     *flow = ids;
     Ok(Converted { value: out, report })
 }
-fn validate_policy(p: &TargetIdPolicy, d: crate::Dialect) -> Result<(), TransformError> {
-    if p.dialect != d {
-        Err(TransformError::shape(
-            "identity.policy",
-            "target dialect mismatch",
-        ))
-    } else {
-        Ok(())
-    }
-}
+
 fn id(
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,

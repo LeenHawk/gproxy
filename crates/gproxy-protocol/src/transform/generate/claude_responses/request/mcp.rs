@@ -31,42 +31,10 @@ pub(crate) fn to_claude(
     input: r::McpTool,
     report: &mut Report,
 ) -> Result<c::McpServerUrlDefinition, TransformError> {
-    if input.server_label.is_empty()
-        || input.connector_id.is_some()
-        || input.tunnel_id.is_some()
-        || input.headers.flatten().is_some()
-        || input.defer_loading == Some(true)
-        || input.allowed_callers.flatten().is_some_and(|v| {
-            v.iter()
-                .any(|v| matches!(v, r::AllowedCaller::Programmatic))
-        })
-    {
-        return Err(TransformError::unsupported(
-            "mcp_tool",
-            "connector/tunnel/headers/deferred/server caller requires Claude host adaptation",
-        ));
-    }
-    if !matches!(
-        input.require_approval.flatten(),
-        Some(r::McpApproval::Setting(r::McpApprovalSetting::Never))
-    ) {
-        return Err(TransformError::unsupported(
-            "mcp.require_approval",
-            "Claude URL connector cannot preserve Responses approval turns without explicit host approval state",
-        ));
-    }
     let names = match input.allowed_tools.flatten() {
         None => None,
         Some(r::McpAllowedTools::Names(names)) => Some(names),
-        Some(r::McpAllowedTools::Filter(filter)) => {
-            if filter.read_only.is_some() {
-                return Err(TransformError::unsupported(
-                    "mcp.allowed_tools.read_only",
-                    "Claude connector has only a name allowlist",
-                ));
-            }
-            filter.tool_names
-        }
+        Some(r::McpAllowedTools::Filter(filter)) => filter.tool_names,
     };
     let mut out = c::McpServerUrlDefinition::builder(
         input.server_label,

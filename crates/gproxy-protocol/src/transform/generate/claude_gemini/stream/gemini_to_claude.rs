@@ -1,7 +1,7 @@
 use super::super::ClaudeGeminiUsageFacts;
 use super::{
     common::{Budget, StreamEnd, StreamLimits, bound, invalid, limit, response_id},
-    usage::{GeminiUsageProgress, gemini_usage, prepare_initial, validate_facts},
+    usage::{GeminiUsageProgress, gemini_usage, prepare_initial},
 };
 use crate::transform::generate::stream::{
     claude::{ClaudeStreamCollector, ClaudeStreamLimits},
@@ -69,7 +69,7 @@ impl GeminiToClaudeStream {
         }
 
         ctx.usage = ctx.usage.into_declared();
-        validate_facts(ctx.facts)?;
+
         if ctx.model.as_ref().is_some_and(|v| v.trim().is_empty())
             || ctx.response_id.as_ref().is_some_and(String::is_empty)
         {
@@ -188,10 +188,7 @@ impl GeminiToClaudeStream {
         self.ensure_start(&mut out)?;
         for candidate in chunk.candidates.unwrap_or_default() {
             if candidate.index.is_some_and(|v| v != 0) {
-                return Err(TransformError::unsupported(
-                    "candidate.index",
-                    "Claude needs a separate invocation per candidate",
-                ));
+                continue;
             }
             if candidate
                 .content
@@ -258,16 +255,6 @@ impl GeminiToClaudeStream {
         Ok(index)
     }
     fn part(&mut self, part: g::Part, out: &mut Vec<s::StreamEvent>) -> Result<(), TransformError> {
-        super::super::history::check_part(&part)?;
-        if part.inline_data.is_some()
-            || part.file_data.is_some()
-            || part.function_response.is_some()
-        {
-            return Err(TransformError::unsupported(
-                "candidate.parts",
-                "Claude output lacks generated media/function results",
-            ));
-        }
         if let Some(text) = part.text.filter(|_| part.thought != Some(true)) {
             let index = self.allocate_block()?;
             let block = c::ResponseContentBlock::Text(
@@ -397,9 +384,7 @@ impl GeminiToClaudeStream {
             self.ctx.usage.as_ref().filter(|_| self.fixed_start),
             &mut Report::default(),
         )?;
-        if let Some(initial) = &self.ctx.usage {
-            super::usage::validate_output_progress(initial, &usage)?;
-        }
+
         response_id(
             &mut self.flow,
             &self.policy,

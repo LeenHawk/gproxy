@@ -373,7 +373,9 @@ impl ChatToResponsesStream {
             .map(|u| {
                 super::super::response::usage::to_responses(u, self.usage_facts, &mut self.report)
             })
-            .transpose()?;
+            .map(crate::transform::optional)
+            .transpose()?
+            .flatten();
         let mut response = self
             .base
             .take()
@@ -410,7 +412,9 @@ impl ChatToResponsesStream {
                 v.map(|v| super::super::response::moderation::to_responses(v, &mut self.report))
                     .transpose()
             })
-            .transpose()?;
+            .map(crate::transform::optional)
+            .transpose()?
+            .flatten();
         if final_chat.system_fingerprint.is_some() {
             self.report
                 .omitted("system_fingerprint", "Responses has no fingerprint field");

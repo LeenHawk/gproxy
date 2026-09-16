@@ -5,12 +5,7 @@ use crate::{
         openai::responses::{input as i, tools as t},
     },
 };
-fn unsupported(field: &'static str) -> TransformError {
-    TransformError::unsupported(
-        field,
-        "no equivalent selected native image control; required semantics cannot be inferred from a prompt or approximate size class",
-    )
-}
+
 pub(crate) fn to_responses(
     config: Option<&g::GenerationConfig>,
     out_tools: &mut Option<Vec<t::Tool>>,
@@ -19,73 +14,21 @@ pub(crate) fn to_responses(
     let Some(config) = config else {
         return Ok(());
     };
-    if config.response_modalities.as_ref().is_some_and(|values| {
-        values
-            .iter()
-            .any(|v| !matches!(v, g::Modality::Text | g::Modality::Image))
-    }) {
-        return Err(unsupported("response_modalities"));
-    }
-    if config
-        .response_format
-        .as_ref()
-        .is_some_and(|format| format.text.is_some() || format.audio.is_some())
-    {
-        return Err(unsupported("response_format"));
-    }
+
     let enabled = config
         .response_modalities
         .as_ref()
         .is_some_and(|v| v.contains(&g::Modality::Image));
     if !enabled {
-        if config.image_config.is_some()
-            || config
-                .response_format
-                .as_ref()
-                .is_some_and(|v| v.image.is_some())
-        {
-            return Err(unsupported("image.modalities"));
-        }
         return Ok(());
     }
-    if let Some(image) = &config.image_config {
-        if image.aspect_ratio.is_some() {
-            return Err(unsupported("image_config.aspect_ratio"));
-        }
-        if image.image_size.is_some() {
-            return Err(unsupported("image_config.image_size"));
-        }
-    }
+
     let mut tool = t::ImageGenerationTool::builder().build();
-    if let Some(format) = &config.response_format {
-        if format.text.is_some() || format.audio.is_some() {
-            return Err(unsupported("response_format"));
-        }
-        if let Some(image) = &format.image {
-            if image.delivery == Some(g::Delivery::Uri) {
-                return Err(TransformError::unsupported(
-                    "image.delivery",
-                    "URI delivery requires the publication capability adapter",
-                ));
-            }
-            if image
-                .aspect_ratio
-                .as_ref()
-                .is_some_and(|v| *v != g::AspectRatio::Unspecified)
-            {
-                return Err(unsupported("image.aspect_ratio"));
-            }
-            if image
-                .image_size
-                .as_ref()
-                .is_some_and(|v| *v != g::ImageSize::Unspecified)
-            {
-                return Err(unsupported("image.image_size"));
-            }
-            if image.mime_type == Some(g::ImageMimeType::ImageJpeg) {
-                tool.output_format = Some(t::ImageOutputFormat::Jpeg);
-            }
-        }
+    if let Some(format) = &config.response_format
+        && let Some(image) = &format.image
+        && image.mime_type == Some(g::ImageMimeType::ImageJpeg)
+    {
+        tool.output_format = Some(t::ImageOutputFormat::Jpeg);
     }
     let image_only = config
         .response_modalities
@@ -157,7 +100,7 @@ pub(crate) fn to_responses(
             )
         }
         Some(choice @ i::ToolChoice::Function(_)) if !image_only => choice,
-        _ => return Err(unsupported("image.tool_choice")),
+        _ => i::ToolChoice::Mode(i::ToolChoiceMode::Auto),
     });
     (*out_tools)
         .get_or_insert_with(Vec::new)
@@ -177,9 +120,7 @@ pub(crate) fn to_gemini(
     for tool in (*request_tools).take().unwrap_or_default() {
         match tool {
             t::Tool::ImageGeneration(v) => {
-                if image.replace(v).is_some() {
-                    return Err(unsupported("tools.image_generation.count"));
-                }
+                image = Some(v);
             }
             other => tools.push(other),
         }
@@ -198,9 +139,6 @@ pub(crate) fn to_gemini(
             enabled = false
         }
         Some(i::ToolChoice::Mode(i::ToolChoiceMode::Required)) => {
-            if !tools.is_empty() {
-                return Err(unsupported("tool_choice.required_image_or_function"));
-            }
             image_only = true;
             (*request_choice) = None;
         }
@@ -218,9 +156,6 @@ pub(crate) fn to_gemini(
                 .tools
                 .retain(|v| v.get("type").and_then(|v| v.as_str()) != Some("image_generation"));
             if enabled && allowed.mode == i::AllowedToolChoiceMode::Required {
-                if !allowed.tools.is_empty() {
-                    return Err(unsupported("tool_choice.required_image_or_function"));
-                }
                 image_only = true;
                 tools.clear();
                 (*request_choice) = None;
@@ -228,62 +163,11 @@ pub(crate) fn to_gemini(
                 (*request_choice) = Some(i::ToolChoice::Mode(i::ToolChoiceMode::None));
             }
         }
-        _ => return Err(unsupported("image.tool_choice")),
+        _ => {
+            *request_choice = None;
+        }
     }
     if enabled {
-        for (bad, field) in [
-            (
-                image
-                    .action
-                    .as_ref()
-                    .is_some_and(|v| *v != t::ImageAction::Auto),
-                "image.action",
-            ),
-            (
-                image
-                    .background
-                    .as_ref()
-                    .is_some_and(|v| *v != t::ImageBackground::Auto),
-                "image.background",
-            ),
-            (
-                image
-                    .quality
-                    .as_ref()
-                    .is_some_and(|v| *v != t::ImageQuality::Auto),
-                "image.quality",
-            ),
-            (
-                image.size.as_ref().is_some_and(|v| v != "auto"),
-                "image.size",
-            ),
-            (
-                image.partial_images.is_some_and(|v| v != 0),
-                "image.partial_images",
-            ),
-            (
-                image.input_fidelity.flatten().is_some(),
-                "image.input_fidelity",
-            ),
-            (image.input_image_mask.is_some(), "image.mask"),
-            (image.moderation.is_some(), "image.moderation"),
-            (image.model.is_some(), "image.model"),
-            (
-                image.output_compression.is_some(),
-                "image.output_compression",
-            ),
-        ] {
-            if bad {
-                return Err(unsupported(field));
-            }
-        }
-        if image
-            .output_format
-            .as_ref()
-            .is_some_and(|v| *v != t::ImageOutputFormat::Jpeg)
-        {
-            return Err(unsupported("image.output_format"));
-        }
     } else {
         report.omitted(
             "tools.image_generation",
@@ -298,7 +182,7 @@ pub(crate) fn to_gemini(
     } else {
         vec![g::Modality::Text, g::Modality::Image]
     });
-    if enabled && image.output_format.is_some() {
+    if enabled && image.output_format == Some(t::ImageOutputFormat::Jpeg) {
         config.response_format = Some(
             g::ResponseFormatConfig::builder()
                 .image(

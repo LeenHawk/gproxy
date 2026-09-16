@@ -3,7 +3,7 @@ use gproxy_protocol::adapt::generate::{
     claude_gemini::GeminiViaClaude, claude_responses::ResponsesViaClaude,
 };
 
-fn target(source: Dialect, model: &str) -> StreamTarget {
+fn target(source: Dialect, _model: &str) -> StreamTarget {
     let namespace = match source {
         Dialect::OpenAiChat => 61,
         Dialect::OpenAi => 63,
@@ -11,7 +11,6 @@ fn target(source: Dialect, model: &str) -> StreamTarget {
         _ => unreachable!(),
     };
     StreamTarget {
-        model: model.into(),
         endpoint: Endpoint::new("/messages").unwrap(),
         identities: GenerationIdentity::new(
             IdNamespace([namespace; 16]),

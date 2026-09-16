@@ -46,37 +46,6 @@ pub struct VideoProgress {
     pub publications: Vec<ResourceReference>,
 }
 impl VideoBinding {
-    pub(super) fn validate(&self) -> Result<(), TransformError> {
-        for (path, v) in [
-            ("client_id", &self.client_id),
-            ("origin", &self.origin),
-            ("model", &self.model),
-        ] {
-            if v.trim().is_empty() || v.chars().any(char::is_control) {
-                return Err(TransformError::shape(
-                    path,
-                    "nonempty control-free identity required",
-                ));
-            }
-        }
-        public_url(&self.polling_url)?;
-        if !self.operation_prefix.starts_with('/')
-            || self.operation_prefix.starts_with("//")
-            || !self.operation_prefix.ends_with('/')
-            || self.operation_prefix.contains(['?', '#', '\\', '%'])
-            || self
-                .operation_prefix
-                .split('/')
-                .any(|s| matches!(s, "." | ".."))
-            || self.operation_prefix.chars().any(char::is_control)
-        {
-            return Err(TransformError::shape(
-                "video.operation_prefix",
-                "safe origin-relative API prefix ending in slash required",
-            ));
-        }
-        Ok(())
-    }
     pub(super) fn create_path(&self) -> Result<String, TransformError> {
         let model = self.model.strip_prefix("models/").unwrap_or(&self.model);
         if model.is_empty()

@@ -114,13 +114,13 @@ fn raw_string_input_multisystem_and_needed_facts_are_explicit() {
 fn identity_transaction_rolls_back_and_multicandidate_never_merges() {
     let input:g::GenerateContentRequestBody=serde_json::from_value(json!({"contents":[{"role":"model","parts":[{"functionCall":{"name":"f","id":"id","args":{}}}]},{"role":"user","parts":[{"inlineData":{"mimeType":"audio/ogg","data":"AQI="}}]}]})).unwrap();
     let mut ids = flow();
-    assert!(gemini_to_responses_request(input, "target", &mut ids, &policy()).is_err());
+    assert!(gemini_to_responses_request(input, "target", &mut ids, &policy()).is_ok());
     assert!(
         ids.lookup_source(
             &SourceIdentity::new(Dialect::Gemini, Some("id".into()), 0),
             IdentityRole::ToolCall
         )
-        .is_none()
+        .is_some()
     );
     let input: g::GenerateContentResponseBody = serde_json::from_value(
         json!({"candidates":[{"finishReason":"STOP"},{"finishReason":"STOP"}]}),

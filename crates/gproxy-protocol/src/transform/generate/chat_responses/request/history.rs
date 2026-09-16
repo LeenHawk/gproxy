@@ -27,6 +27,7 @@ fn role(
                             ))
                         }
                     })
+                    .filter_map(|value| crate::transform::optional(value).transpose())
                     .collect::<Result<Vec<_>, _>>()?
                     .join(""),
             };
@@ -130,10 +131,7 @@ pub(super) fn to_chat(
                         .flatten()
                         .is_some_and(|caller| matches!(caller, r::Caller::Program(_)))
                 {
-                    return Err(TransformError::unsupported(
-                        "function_call.namespace/caller",
-                        "Chat calls have no scoped execution identity",
-                    ));
+                    continue;
                 }
                 let mut message = c::AssistantMessage::builder(c::AssistantRole::Assistant).build();
                 message.tool_calls = Some(vec![c::MessageToolCall::Function(
@@ -153,10 +151,7 @@ pub(super) fn to_chat(
                         .flatten()
                         .is_some_and(|caller| matches!(caller, r::Caller::Program(_)))
                 {
-                    return Err(TransformError::unsupported(
-                        "custom_tool_call.namespace/caller",
-                        "Chat calls have no scoped execution identity",
-                    ));
+                    continue;
                 }
                 let mut message = c::AssistantMessage::builder(c::AssistantRole::Assistant).build();
                 message.tool_calls = Some(vec![c::MessageToolCall::Custom(
@@ -176,10 +171,7 @@ pub(super) fn to_chat(
                         .flatten()
                         .is_some_and(|caller| matches!(caller, r::Caller::Program(_)))
                 {
-                    return Err(TransformError::unsupported(
-                        "function_call_output.scope",
-                        "Chat tool results have no program/namespace scope",
-                    ));
+                    continue;
                 }
                 let value = match output.output {
                     r::FunctionOutput::Text(text) => text,
@@ -195,6 +187,7 @@ pub(super) fn to_chat(
                                 ))
                             }
                         })
+                        .filter_map(|value| crate::transform::optional(value).transpose())
                         .collect::<Result<Vec<_>, _>>()?
                         .join(""),
                 };
@@ -206,10 +199,7 @@ pub(super) fn to_chat(
                     .flatten()
                     .is_some_and(|caller| matches!(caller, r::Caller::Program(_)))
                 {
-                    return Err(TransformError::unsupported(
-                        "custom_tool_call_output.caller",
-                        "Chat tool results have no program caller",
-                    ));
+                    continue;
                 }
                 let value = match output.output {
                     r::CustomOutput::Text(text) => text,
@@ -224,6 +214,7 @@ pub(super) fn to_chat(
                                 ))
                             }
                         })
+                        .filter_map(|value| crate::transform::optional(value).transpose())
                         .collect::<Result<Vec<_>, _>>()?
                         .join(""),
                 };
@@ -258,10 +249,7 @@ pub(super) fn to_chat(
             | r::InputItem::CompactionTrigger(_)
             | r::InputItem::Program(_)
             | r::InputItem::ProgramOutput(_) => {
-                return Err(TransformError::unsupported(
-                    "input.item",
-                    "Responses hosted execution or opaque state has no Chat input item",
-                ));
+                continue;
             }
         }
     }

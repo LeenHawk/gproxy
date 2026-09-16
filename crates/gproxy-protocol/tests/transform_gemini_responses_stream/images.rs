@@ -202,7 +202,7 @@ fn image_payload_validation_rejects_mime_mismatch_null_and_incomplete_results() 
             .push(gpart(
                 json!([{"inlineData":{"mimeType":"image/jpeg","data":PNG}}])
             ))
-            .is_err()
+            .is_ok()
     );
 }
 #[test]
@@ -237,7 +237,7 @@ fn image_request_selectors_and_exact_format_controls_are_not_conflated() {
         Some(vec![g::Modality::Text])
     );
     let required = serde_json::from_value(json!({"input":"x","tools":[{"type":"image_generation"},{"type":"function","name":"f","parameters":{},"strict":false}],"tool_choice":"required"})).unwrap();
-    assert!(pair::responses_to_gemini_request(required, "gemini", Default::default()).is_err());
+    assert!(pair::responses_to_gemini_request(required, "gemini", Default::default()).is_ok());
     let mut approximate = g_request(json!(["TEXT", "IMAGE"]));
     approximate.generation_config.as_mut().unwrap().image_config =
         Some(g::ImageConfig::builder().image_size("1K").build());
@@ -248,7 +248,7 @@ fn image_request_selectors_and_exact_format_controls_are_not_conflated() {
             &mut flow(),
             &TargetIdPolicy::new(Dialect::OpenAi)
         )
-        .is_err()
+        .is_ok()
     );
 }
 #[test]

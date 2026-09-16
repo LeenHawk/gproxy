@@ -148,22 +148,7 @@ impl Calls {
         Ok(ids.remove(0))
     }
 }
-pub(super) fn unsupported_part(part: &g::Part) -> Result<(), TransformError> {
-    if part.executable_code.is_some()
-        || part.code_execution_result.is_some()
-        || part.tool_call.is_some()
-        || part.tool_response.is_some()
-        || part.video_metadata.is_some()
-        || part.part_metadata.is_some()
-        || part.media_resolution.is_some()
-    {
-        return Err(TransformError::unsupported(
-            "parts",
-            "Gemini execution/annotated media requires a host adapter",
-        ));
-    }
-    Ok(())
-}
+
 pub(super) fn gemini_content_to_chat(
     content: g::Content,
     report: &mut Report,
@@ -183,7 +168,6 @@ pub(super) fn gemini_content_to_chat(
     let mut call_messages: Vec<c::AssistantMessage> = Vec::new();
     let mut result = Vec::new();
     for mut part in content.parts.unwrap_or_default() {
-        unsupported_part(&part)?;
         if part.thought == Some(true) {
             report.omitted("parts.thought", "Chat has no typed reasoning replay block");
             part.text = None;
@@ -206,13 +190,13 @@ pub(super) fn gemini_content_to_chat(
             }
         }
         if let Some(blob) = part.inline_data {
-            if role != "user" {
-                return Err(TransformError::unsupported(
-                    "parts.inline_data",
-                    "Chat non-user history has no multimedia parts",
-                ));
+            if role == "user" {
+                if let Some(media) = crate::transform::optional(super::media::to_chat(blob))? {
+                    user.push(media);
+                }
+            } else {
+                report.omitted("parts.inline_data", "Chat has no media in this role");
             }
-            user.push(super::media::to_chat(blob)?);
         }
         if let Some(file) = part.file_data {
             if role == "user"
@@ -230,9 +214,7 @@ pub(super) fn gemini_content_to_chat(
                     .build(),
                 ));
             } else {
-                return Err(TransformError::missing_metadata(
-                    "file_data requires resource bytes or supported public image URL",
-                ));
+                report.omitted("file_data", "resource has no direct target representation");
             }
         }
         if let Some(call) = part.function_call {
@@ -273,15 +255,17 @@ pub(super) fn gemini_content_to_chat(
             }
         }
         if let Some(response) = part.function_response {
-            if role != "user"
-                || response.parts.is_some()
-                || response.will_continue == Some(true)
+            if role != "user" {
+                continue;
+            }
+            if response.parts.is_some()
+                || response.will_continue.is_some()
                 || response.scheduling.is_some()
             {
-                return Err(TransformError::unsupported(
-                    "function_response",
-                    "non-user, multimodal or asynchronous tool output requires adapter",
-                ));
+                report.omitted(
+                    "function_response.parts/scheduling/will_continue",
+                    "Chat tool result only maps its response payload",
+                );
             }
             flush_user(&mut user, &mut result);
             let content = serde_json::to_string(&response.response)?;
@@ -327,6 +311,7 @@ pub(super) fn gemini_content_to_chat(
                     "system must be text only",
                 )),
             })
+            .filter_map(|value| crate::transform::optional(value).transpose())
             .collect::<Result<Vec<_>, _>>()?;
         result.push(c::ChatMessage::System(
             c::SystemMessage::builder(c::SystemRole::System, c::TextContent::Parts(parts)).build(),
@@ -440,10 +425,7 @@ pub(super) fn assistant(
                 );
             }
             c::MessageToolCall::Custom(_) => {
-                return Err(TransformError::unsupported(
-                    "custom_tool",
-                    "Gemini functions require JSON-object input and lack custom grammar tools",
-                ));
+                continue;
             }
         }
     }

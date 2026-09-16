@@ -16,10 +16,7 @@ pub(crate) fn claude_tools_to_openai(
     let mut output = Vec::new();
     for tool in tools {
         let ct::ToolUnion::Custom(tool) = tool else {
-            return Err(TransformError::unsupported(
-                "tools",
-                "non-custom Claude server tool needs a host capability",
-            ));
+            continue;
         };
         if tool.allowed_callers.as_ref().is_some_and(|callers| {
             callers
@@ -27,10 +24,10 @@ pub(crate) fn claude_tools_to_openai(
                 .any(|caller| !matches!(caller, ct::AllowedCaller::Direct))
         }) || tool.defer_loading == Some(true)
         {
-            return Err(TransformError::unsupported(
+            report.omitted(
                 "tools.allowed_callers/defer_loading",
-                "Chat function tools cannot preserve execution restrictions or deferred loading",
-            ));
+                "controls have no target representation",
+            );
         }
         for (present, field) in [
             (tool.cache_control.is_some(), "cache_control"),
@@ -75,13 +72,17 @@ pub(crate) fn openai_tools_to_claude(
     let mut output = Vec::new();
     for tool in tools {
         let chat::ChatTool::Function(tool) = tool else {
-            return Err(TransformError::unsupported(
-                "tools",
-                "OpenAI custom tools need a Claude host capability",
-            ));
+            continue;
         };
         let input_schema = match tool.function.parameters.as_ref() {
-            Some(parameters) => super::schema::from_chat(parameters)?,
+            Some(parameters) => {
+                let Some(schema) =
+                    crate::transform::optional(super::schema::from_chat(parameters))?
+                else {
+                    continue;
+                };
+                schema
+            }
             None => {
                 let mut schema = ct::JsonSchema::builder(ct::JsonSchemaType::Object).build();
                 schema.properties = Some(serde_json::json!({}));
@@ -155,10 +156,7 @@ pub(crate) fn openai_choice_to_claude(
             rest: Rest::new(),
         }),
         chat::ToolChoice::Custom(_) | chat::ToolChoice::Allowed(_) => {
-            return Err(TransformError::unsupported(
-                "tool_choice",
-                "custom/allowed Chat choices have no Claude equivalent",
-            ));
+            return Ok(None);
         }
     }))
 }
@@ -194,5 +192,6 @@ pub(super) fn legacy_tools(
             tool.description = function.description.clone();
             Ok(ct::ToolUnion::Custom(tool))
         })
+        .filter_map(|value| crate::transform::optional(value).transpose())
         .collect()
 }

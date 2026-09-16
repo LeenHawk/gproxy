@@ -39,10 +39,7 @@ pub(crate) fn to_responses(
                 }
                 c::ContentBlock::Image(image) => {
                     if role != r::MessageRole::User {
-                        return Err(TransformError::unsupported(
-                            "image.role",
-                            "Responses input media requires user role",
-                        ));
+                        continue;
                     }
                     out.push(easy(
                         role,
@@ -51,10 +48,7 @@ pub(crate) fn to_responses(
                 }
                 c::ContentBlock::Document(doc) => {
                     if role != r::MessageRole::User {
-                        return Err(TransformError::unsupported(
-                            "document.role",
-                            "Responses input media requires user role",
-                        ));
+                        continue;
                     }
                     out.push(easy(
                         role,
@@ -67,10 +61,7 @@ pub(crate) fn to_responses(
                         .as_ref()
                         .is_some_and(|caller| !matches!(caller, c::Caller::Direct(_)))
                     {
-                        return Err(TransformError::unsupported(
-                            "tool_use.caller",
-                            "server execution identity requires host mapping",
-                        ));
+                        continue;
                     }
                     if role != r::MessageRole::Assistant
                         || call.id.is_empty()
@@ -280,10 +271,7 @@ pub(crate) fn to_responses(
                 | c::ContentBlock::ToolAddition(_)
                 | c::ContentBlock::ToolRemoval(_)
                 | c::ContentBlock::Fallback(_) => {
-                    return Err(TransformError::unsupported(
-                        "content",
-                        "Claude hosted tool/state block needs native invocation adapter",
-                    ));
+                    continue;
                 }
             }
         }

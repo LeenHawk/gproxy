@@ -10,7 +10,6 @@ impl ResponsesViaGemini {
         resources: &GenerationResources<'_, R>,
         progress: &mut ImageResourceProgress<g::GenerateContentResponseBody, R::PublishedHandle>,
     ) -> Result<Converted<r::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(Dialect::Gemini, &self.selected_model)?;
         let native = native.into_declared();
         let view = progress.reads.materialize(&native, resources).await?;
         let converted = self.convert_response(view, facts)?;
@@ -46,7 +45,6 @@ impl ResponsesViaGemini {
         progress: &mut ImageResourceProgress<g::GenerateContentResponseBody, R::PublishedHandle>,
         facts: impl FnOnce(&g::GenerateContentResponseBody) -> Result<GeminiReturnFacts, TransformError>,
     ) -> Result<GenerationOutcome<r::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(Dialect::Gemini, &self.selected_model)?;
         transport::bind(
             (&self.endpoint, &self.selected_model),
             &self.identities,
@@ -79,7 +77,6 @@ impl ResponsesViaGemini {
         progress: &mut ImageResourceProgress<g::GenerateContentResponseBody, R::PublishedHandle>,
         facts: impl FnOnce(&g::GenerateContentResponseBody) -> Result<GeminiReturnFacts, TransformError>,
     ) -> Result<GenerationOutcome<r::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(Dialect::Gemini, &self.selected_model)?;
         transport::bind(
             (&self.endpoint, &self.selected_model),
             &self.identities,

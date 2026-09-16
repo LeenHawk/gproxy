@@ -1,7 +1,7 @@
 //! Concrete Responses WebSocket transport using the same incremental pair states.
 //! The host binds authentication to its target and state scope at connection time.
 use super::super::GenerationStateAccess;
-use super::{StreamChunk, StreamInvocation, bridge::StreamBridge, reservation::StateBinding};
+use super::{StreamChunk, StreamInvocation, bridge::StreamBridge};
 use crate::{
     HttpBody, WireRequest, WireResponse,
     adapt::responses_ws as ws,
@@ -19,7 +19,6 @@ use crate::{
 
 pub struct GenerationWsSession {
     native: ws::ResponsesWsSession,
-    binding: StateBinding,
     preparation: super::reservation::Reservation,
 }
 #[allow(clippy::large_enum_variant)]
@@ -43,8 +42,6 @@ pub async fn connect<U: Upstream, S: StateStore>(
     connection_namespace: crate::transform::identity::IdNamespace,
     state: &GenerationStateAccess<'_, S>,
 ) -> Result<GenerationWsConnect, ws::ResponsesWsConnectError> {
-    state.validate_target(crate::Dialect::OpenAi, &state.target.model)?;
-    let binding = StateBinding::new(state)?;
     let preparation =
         super::reservation::Reservation::connection(connection_namespace, &request, state).await?;
     match ws::connect(upstream, target, request, limits).await? {
@@ -53,7 +50,6 @@ pub async fn connect<U: Upstream, S: StateStore>(
                 handshake,
                 session: GenerationWsSession {
                     native: session,
-                    binding,
                     preparation,
                 },
             })
@@ -131,10 +127,8 @@ impl<B: StreamBridge<NativeEvent = StreamEvent, NativeRequest = r::GenerateConte
         lane: Option<String>,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<GenerationWsTurn<'a, B>, TransformError> {
-        ws::validate_lane(lane.as_deref())?;
-        self.state_binding.validate(state)?;
         self.preparation.verify(state).await?;
-        session.binding.validate(state)?;
+
         session.preparation.verify(state).await?;
         if self.sent || self.failed {
             return Err(super::conflict("invocation already sent or failed"));
@@ -169,7 +163,6 @@ impl<B: StreamBridge<ClientEvent = StreamEvent>> StreamInvocation<B> {
         &mut self,
         lane: Option<String>,
     ) -> Result<(), TransformError> {
-        ws::validate_lane(lane.as_deref())?;
         if self.sent || self.failed {
             return Err(super::conflict("select WebSocket output before send"));
         }
@@ -218,7 +211,7 @@ pub fn decode_message(
             )
         })?
         .into_declared();
-    ws::validate_lane(message.stream_id.as_deref())?;
+
     if message.generate == Some(false) {
         return Err(TransformError::unsupported(
             "responses.websocket.generate",

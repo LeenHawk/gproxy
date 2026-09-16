@@ -18,6 +18,7 @@ pub(super) struct Part {
     pub closed: bool,
 }
 pub(super) enum Kind {
+    Excluded,
     Message {
         parts: BTreeMap<i64, Part>,
     },
@@ -78,32 +79,28 @@ impl ResponsesToClaudeStream {
                 }
                 (Some(v.id), Kind::Message { parts }, bytes)
             }
+            r::ResponseOutputItem::FunctionCall(v)
+                if v.namespace.is_some()
+                    || v.caller
+                        .as_ref()
+                        .and_then(Option::as_ref)
+                        .is_some_and(|v| matches!(v, i::Caller::Program(_))) =>
+            {
+                (v.id, Kind::Excluded, 0)
+            }
             r::ResponseOutputItem::FunctionCall(v) => {
                 self.count_tool()?;
                 if v.call_id.is_empty() || v.name.is_empty() {
                     return Err(invalid("missing native function call ID/name"));
                 }
-                if v.namespace.is_some() {
-                    return Err(TransformError::unsupported(
-                        "function.namespace",
-                        "Claude has no separate function namespace",
-                    ));
-                }
-                let caller = v
-                    .caller
-                    .map(|v| {
-                        v.map(|v| match v {
-                            i::Caller::Direct(_) => Ok(cc::Caller::Direct(cc::DirectCaller {
-                                rest: Default::default(),
-                            })),
-                            i::Caller::Program(_) => Err(TransformError::unsupported(
-                                "function.caller",
-                                "program identity requires invocation mapping",
-                            )),
-                        })
-                        .transpose()
+                let caller = v.caller.map(|v| {
+                    v.and_then(|v| match v {
+                        i::Caller::Direct(_) => Some(cc::Caller::Direct(cc::DirectCaller {
+                            rest: Default::default(),
+                        })),
+                        i::Caller::Program(_) => None,
                     })
-                    .transpose()?;
+                });
                 let held = v.arguments.len();
                 (
                     v.id,
@@ -143,12 +140,7 @@ impl ResponsesToClaudeStream {
                     0,
                 )
             }
-            _ => {
-                return Err(TransformError::unsupported(
-                    "output",
-                    "native custom tools, execution, resources and continuation require an invocation adapter",
-                ));
-            }
+            _ => (None, Kind::Excluded, 0),
         };
         self.reserve_held(held)?;
         if self
@@ -174,6 +166,14 @@ impl ResponsesToClaudeStream {
         part_index: i64,
         value: s::OutputContentPart,
     ) -> Result<(), TransformError> {
+        if self
+            .items
+            .get(&index)
+            .is_some_and(|item| matches!(item.kind, Kind::Excluded))
+        {
+            return Ok(());
+        }
+
         self.count_part()?;
         let (text, refusal) = match value {
             s::OutputContentPart::Text(v) => (v.text, false),
@@ -229,6 +229,14 @@ impl ResponsesToClaudeStream {
         refusal: bool,
         out: &mut Vec<cs::StreamEvent>,
     ) -> Result<(), TransformError> {
+        if self
+            .items
+            .get(&index)
+            .is_some_and(|item| matches!(item.kind, Kind::Excluded))
+        {
+            return Ok(());
+        }
+
         self.bind(index, Some(id))?;
         let block = match self.items.get(&index).map(|v| &v.kind) {
             Some(Kind::Message { parts }) => {
@@ -272,6 +280,14 @@ impl ResponsesToClaudeStream {
         value: String,
         out: &mut Vec<cs::StreamEvent>,
     ) -> Result<(), TransformError> {
+        if self
+            .items
+            .get(&index)
+            .is_some_and(|item| matches!(item.kind, Kind::Excluded))
+        {
+            return Ok(());
+        }
+
         self.bind(index, Some(id))?;
         let block = match self.items.get(&index).map(|v| &v.kind) {
             Some(Kind::Function { block, .. }) => *block,
@@ -309,6 +325,14 @@ impl ResponsesToClaudeStream {
         value: &str,
         out: &mut Vec<cs::StreamEvent>,
     ) -> Result<(), TransformError> {
+        if self
+            .items
+            .get(&index)
+            .is_some_and(|item| matches!(item.kind, Kind::Excluded))
+        {
+            return Ok(());
+        }
+
         let object: serde_json::Map<String, serde_json::Value> = serde_json::from_str(value)
             .map_err(|e| invalid(format!("Claude function input requires an object: {e}")))?;
         drop(object);
@@ -345,6 +369,14 @@ impl ResponsesToClaudeStream {
         part_index: i64,
         out: &mut Vec<cs::StreamEvent>,
     ) -> Result<(), TransformError> {
+        if self
+            .items
+            .get(&index)
+            .is_some_and(|item| matches!(item.kind, Kind::Excluded))
+        {
+            return Ok(());
+        }
+
         let close = if let Some(Item {
             kind: Kind::Message { parts },
             ..
@@ -378,6 +410,13 @@ impl ResponsesToClaudeStream {
         value: r::ResponseOutputItem,
         out: &mut Vec<cs::StreamEvent>,
     ) -> Result<(), TransformError> {
+        if let Some(item) = self.items.get_mut(&index)
+            && matches!(item.kind, Kind::Excluded)
+        {
+            item.done = true;
+            return Ok(());
+        }
+
         self.bind(index, super::common::item_id(&value))?;
         match value {
             r::ResponseOutputItem::Message(_) => {
@@ -417,12 +456,7 @@ impl ResponsesToClaudeStream {
                 };
                 *final_item = Some(v);
             }
-            _ => {
-                return Err(TransformError::unsupported(
-                    "output",
-                    "unsupported output item",
-                ));
-            }
+            _ => {}
         }
         self.items.get_mut(&index).unwrap().done = true;
         Ok(())

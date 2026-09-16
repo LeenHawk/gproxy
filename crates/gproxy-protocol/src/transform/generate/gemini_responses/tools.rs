@@ -21,17 +21,11 @@ pub(crate) fn to_responses(
             || tool.mcp_servers.is_some()
             || tool.google_maps.is_some()
         {
-            return Err(TransformError::unsupported(
-                "tools",
-                "Gemini hosted tool needs Responses invocation binding",
-            ));
+            report.omitted("tools.hosted", "hosted tool has no target representation");
         }
         for function in tool.function_declarations.unwrap_or_default() {
             if function.behavior.is_some() {
-                return Err(TransformError::unsupported(
-                    "function.behavior",
-                    "Gemini asynchronous behavior needs host adapter",
-                ));
+                report.omitted("function.behavior", "control has no target representation");
             }
             let parameters = schema(
                 function.parameters.as_ref(),
@@ -58,22 +52,9 @@ pub(crate) fn to_gemini(input: Vec<r::Tool>) -> Result<(Vec<g::Tool>, bool), Tra
     let mut strict = false;
     for tool in input {
         let r::Tool::Function(tool) = tool else {
-            return Err(TransformError::unsupported(
-                "tools",
-                "Responses native/custom tool needs Gemini capability",
-            ));
+            continue;
         };
-        if tool.defer_loading == Some(true)
-            || tool.allowed_callers.flatten().is_some_and(|v| {
-                v.iter()
-                    .any(|v| matches!(v, r::AllowedCaller::Programmatic))
-            })
-        {
-            return Err(TransformError::unsupported(
-                "tools",
-                "Gemini declaration lacks deferred/programmatic-caller policy",
-            ));
-        }
+
         strict |= tool.strict == Some(true);
         let mut out = g::FunctionDeclaration::builder(
             tool.name,
@@ -96,35 +77,19 @@ fn schema(
 ) -> Result<Option<crate::Rest>, TransformError> {
     let typed = typed
         .map(|s| super::super::gemini_schema::to_json(s, Default::default()))
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     if let Some(v) = &typed {
         report.diagnostics.extend(v.report.diagnostics.clone());
     }
-    let raw = raw
-        .map(|value| {
-            value.as_object().cloned().ok_or_else(|| {
-                TransformError::unsupported("schema", "Responses requires object JSON schema")
-            })
-        })
-        .transpose()?;
-    if let (Some(a), Some(b)) = (&typed, &raw)
-        && &a.value != b
-    {
-        return Err(TransformError::shape("schema", "typed/raw schema conflict"));
-    }
+    let raw = raw.and_then(|value| value.as_object().cloned());
+
     Ok(typed.map(|v| v.value).or(raw))
 }
 pub(crate) fn choice_to_responses(
     config: g::ToolConfig,
 ) -> Result<Option<i::ToolChoice>, TransformError> {
-    if config.retrieval_config.is_some()
-        || config.include_server_side_tool_invocations == Some(true)
-    {
-        return Err(TransformError::unsupported(
-            "tool_config",
-            "server retrieval policy needs adapter",
-        ));
-    }
     let Some(config) = config.function_calling_config else {
         return Ok(None);
     };
@@ -135,15 +100,12 @@ pub(crate) fn choice_to_responses(
         g::FunctionCallingMode::Any => i::ToolChoiceMode::Required,
         g::FunctionCallingMode::None => i::ToolChoiceMode::None,
         g::FunctionCallingMode::Unspecified => {
-            return Err(TransformError::shape("function.mode", "unspecified mode"));
+            return Ok(None);
         }
     };
     Ok(Some(if let Some(names) = config.allowed_function_names {
         if mode == i::ToolChoiceMode::None {
-            return Err(TransformError::shape(
-                "allowed_names",
-                "none mode conflicts with allowlist",
-            ));
+            return Ok(Some(i::ToolChoice::Mode(mode)));
         }
         let tools = names
             .into_iter()
@@ -223,6 +185,7 @@ pub(crate) fn choice_to_gemini(
                             .map(str::to_owned)
                             .ok_or_else(|| TransformError::shape("allowed_tools", "missing name"))
                     })
+                    .filter_map(|value| crate::transform::optional(value).transpose())
                     .collect::<Result<Vec<_>, _>>()?,
             );
         }

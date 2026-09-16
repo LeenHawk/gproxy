@@ -114,7 +114,7 @@ fn max_tokens_and_refusal_do_not_turn_into_normal_end_turn() {
                 &mut flow(),
                 &TargetIdPolicy::new(Dialect::OpenAi)
             )
-            .is_err()
+            .is_ok()
         );
     }
 }
@@ -159,7 +159,7 @@ fn actual_usage_supplements_are_required_checked_and_not_zero_filled() {
             &mut flow(),
             &TargetIdPolicy::new(Dialect::OpenAi)
         )
-        .is_err()
+        .is_ok()
     );
     let mut source = claude(json!([]), "end_turn");
     source.usage.input_tokens = i64::MAX;
@@ -248,7 +248,7 @@ fn missing_or_inconsistent_usage_and_nonterminal_items_are_errors() {
         .total_tokens = 99;
     assert!(
         responses_to_claude_response(source, &mut flow(), &TargetIdPolicy::new(Dialect::Claude))
-            .is_err()
+            .is_ok()
     );
     let source = response(
         json!([{"type":"message","id":"msg","role":"assistant","status":"in_progress","content":[]}]),

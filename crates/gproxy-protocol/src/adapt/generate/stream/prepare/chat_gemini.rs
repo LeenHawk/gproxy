@@ -22,11 +22,9 @@ impl ChatViaGemini {
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<StreamInvocation<p::GeminiToChatStream>, TransformError> {
-        settings.validate::<p::GeminiToChatStream>()?;
         let original = input.into_declared();
         let prepared = Self::prepare_with_state(
             original.clone().buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,
@@ -62,11 +60,9 @@ impl ChatViaGemini {
         state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
     ) -> Result<StreamInvocation<p::GeminiToChatStream>, TransformError> {
-        settings.validate::<p::GeminiToChatStream>()?;
         let original = input.into_declared();
         let prepared = Self::prepare_with_capabilities(
             original.clone().buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,
@@ -103,11 +99,9 @@ impl GeminiViaChat {
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<StreamInvocation<p::ChatToGeminiStream>, TransformError> {
-        settings.validate::<p::ChatToGeminiStream>()?;
         let original = input.into_declared();
         let prepared = Self::prepare_with_state(
             original.clone().buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,
@@ -137,11 +131,9 @@ impl GeminiViaChat {
         state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
     ) -> Result<StreamInvocation<p::ChatToGeminiStream>, TransformError> {
-        settings.validate::<p::ChatToGeminiStream>()?;
         let original = input.into_declared();
         let prepared = Self::prepare_with_capabilities(
             original.clone().buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,

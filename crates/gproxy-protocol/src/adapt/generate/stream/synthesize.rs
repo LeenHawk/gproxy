@@ -55,7 +55,6 @@ pub fn synthesize<C: CompleteResponse>(
     codec: CodecLimits,
     events: EventLimits,
 ) -> Result<GenerationStreamOutcome, TransformError> {
-    events.validate()?;
     let (response, mut report) = match outcome {
         GenerationOutcome::Success { response, report } => (response, report),
         GenerationOutcome::Rejected(raw) => return Ok(GenerationStreamOutcome::Rejected(raw)),

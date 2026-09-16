@@ -40,18 +40,8 @@ pub fn claude_to_responses_response(
         | c::StopReason::ToolUse
         | c::StopReason::StopSequence
         | c::StopReason::Refusal => false,
-        c::StopReason::ModelContextWindowExceeded => {
-            return Err(TransformError::unsupported(
-                "stop_reason",
-                "context window exhaustion is not a Responses max_output_tokens stop",
-            ));
-        }
-        c::StopReason::PauseTurn | c::StopReason::Compaction => {
-            return Err(TransformError::unsupported(
-                "stop_reason",
-                "paused execution or replacement history requires invocation continuation",
-            ));
-        }
+        c::StopReason::ModelContextWindowExceeded => true,
+        c::StopReason::PauseTurn | c::StopReason::Compaction => true,
     };
     let mut ids = flow.clone();
     let mut report = Report::default();
@@ -75,22 +65,6 @@ pub fn claude_to_responses_response(
         &mut report,
         &bindings,
     )?;
-    if input.stop_reason == c::StopReason::ToolUse
-        && !output.iter().any(|item| {
-            matches!(
-                item,
-                r::ResponseOutputItem::FunctionCall(_)
-                    | r::ResponseOutputItem::ShellCall(_)
-                    | r::ResponseOutputItem::ApplyPatchCall(_)
-                    | r::ResponseOutputItem::ToolSearchCall(_)
-            )
-        })
-    {
-        return Err(TransformError::invalid_result(
-            "stop_reason",
-            "tool_use stop has no function call",
-        ));
-    }
     let tier = input
         .usage
         .service_tier
@@ -114,10 +88,11 @@ pub fn claude_to_responses_response(
     } else {
         r::ResponseStatus::Completed
     });
-    target.incomplete_details = incomplete.then(|| r::ResponseIncompleteDetails {
-        reason: Some(r::ResponseIncompleteReason::MaxOutputTokens),
-        rest: Default::default(),
-    });
+    target.incomplete_details =
+        (input.stop_reason == c::StopReason::MaxTokens).then(|| r::ResponseIncompleteDetails {
+            reason: Some(r::ResponseIncompleteReason::MaxOutputTokens),
+            rest: Default::default(),
+        });
     for (present, field) in [
         (input.container.is_some(), "container"),
         (input.context_management.is_some(), "context_management"),

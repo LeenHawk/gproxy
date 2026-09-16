@@ -59,7 +59,6 @@ fn local_tools_stream_as_native_items_and_replay_with_original_call_ids() {
     }
     let next = ready(ResponsesViaChat::prepare_with_state(
         serde_json::from_value(fixtures::followup(&response)).unwrap(),
-        "selected",
         Endpoint::new("/chat/completions").unwrap(),
         GenerationIdentity::new(
             IdNamespace([91; 16]),

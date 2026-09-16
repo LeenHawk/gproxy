@@ -22,10 +22,7 @@ pub(crate) fn gemini_tools_to_chat(
             || tool.mcp_servers.is_some()
             || tool.google_maps.is_some()
         {
-            return Err(TransformError::unsupported(
-                "tools",
-                "Gemini hosted tools require host adapter",
-            ));
+            report.omitted("tools.hosted", "hosted tools have no target representation");
         }
         let Some(functions) = &tool.function_declarations else {
             continue;
@@ -35,38 +32,25 @@ pub(crate) fn gemini_tools_to_chat(
                 || function.response.is_some()
                 || function.response_json_schema.is_some()
             {
-                return Err(TransformError::unsupported(
-                    "function_declaration",
-                    "Chat lacks asynchronous behavior/output schema",
-                ));
+                report.omitted(
+                    "function_declaration.behavior/response",
+                    "controls have no target representation",
+                );
             }
             let parameters = match (
                 function.parameters.as_ref(),
                 &function.parameters_json_schema,
             ) {
-                (Some(schema), raw) => {
+                (Some(schema), _raw) => {
                     let converted = crate::transform::generate::gemini_schema::to_json(
                         schema,
                         Default::default(),
                     )?;
-                    if raw
-                        .as_ref()
-                        .is_some_and(|raw| raw.as_object() != Some(&converted.value))
-                    {
-                        return Err(TransformError::shape(
-                            "parameters",
-                            "typed/raw schemas conflict",
-                        ));
-                    }
+
                     report.diagnostics.extend(converted.report.diagnostics);
                     Some(converted.value)
                 }
-                (None, Some(schema)) => Some(schema.as_object().cloned().ok_or_else(|| {
-                    TransformError::unsupported(
-                        "parameters_json_schema",
-                        "Chat function schema must be an object",
-                    )
-                })?),
+                (None, Some(schema)) => schema.as_object().cloned(),
                 (None, None) => None,
             };
             output.push(chat::ChatTool::Function(chat::FunctionTool {
@@ -95,10 +79,7 @@ pub(crate) fn chat_tools_to_gemini(
     let mut declarations = Vec::new();
     for tool in tools {
         let chat::ChatTool::Function(tool) = tool else {
-            return Err(TransformError::unsupported(
-                "tools",
-                "custom Chat tools have no Gemini function declaration",
-            ));
+            continue;
         };
         if tool.function.strict.flatten() == Some(true) {
             report.changed(

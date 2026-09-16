@@ -149,7 +149,9 @@ pub fn build_request(
                 .service_tier
                 .as_deref()
                 .map(responses_tier)
+                .map(crate::transform::optional)
                 .transpose()?
+                .flatten()
                 .map(Some);
         }
         m::MemoryDialectRequest::OpenAiChat(v) => {
@@ -159,7 +161,9 @@ pub fn build_request(
                 .service_tier
                 .as_deref()
                 .map(chat_tier)
+                .map(crate::transform::optional)
                 .transpose()?
+                .flatten()
                 .map(Some);
         }
         m::MemoryDialectRequest::Claude(v) => {

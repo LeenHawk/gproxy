@@ -5,22 +5,7 @@ use crate::{
     },
     wire::{gemini as g, openai::responses::input as r},
 };
-pub(crate) fn validate(part: &g::Part) -> Result<(), TransformError> {
-    if part.executable_code.is_some()
-        || part.code_execution_result.is_some()
-        || part.tool_call.is_some()
-        || part.tool_response.is_some()
-        || part.video_metadata.is_some()
-        || part.part_metadata.is_some()
-        || part.media_resolution.is_some()
-    {
-        return Err(TransformError::unsupported(
-            "part",
-            "native execution/annotated media requires adapter",
-        ));
-    }
-    Ok(())
-}
+
 pub(crate) fn to_responses(
     input: Vec<g::Content>,
     flow: &mut IdentityFlow,
@@ -37,14 +22,12 @@ pub(crate) fn to_responses(
             None | Some("user") => r::MessageRole::User,
             Some("model") => r::MessageRole::Assistant,
             Some("system") => r::MessageRole::System,
-            Some(_) => return Err(TransformError::shape("role", "unknown Gemini role")),
+            Some(_) => continue,
         };
         for part in content.parts.unwrap_or_default() {
-            validate(&part)?;
             if role == r::MessageRole::Assistant
                 && let Some(blob) = &part.inline_data
             {
-                super::images::validate_part(&part)?;
                 let id = super::identity::id(
                     flow,
                     policy,
@@ -110,13 +93,13 @@ pub(crate) fn to_responses(
             .flatten()
             {
                 if role != r::MessageRole::User {
-                    return Err(TransformError::unsupported(
-                        "media.role",
-                        "Responses history media requires user role",
-                    ));
+                    continue;
                 }
+                let Some(media) = crate::transform::optional(media)? else {
+                    continue;
+                };
                 out.push(r::InputItem::Easy(
-                    r::EasyInputMessage::builder(r::MessageContent::Parts(vec![media?]), role)
+                    r::EasyInputMessage::builder(r::MessageContent::Parts(vec![media]), role)
                         .build(),
                 ));
             }
@@ -167,10 +150,10 @@ pub(crate) fn to_responses(
             }
             if let Some(result) = part.function_response {
                 if result.scheduling.is_some() || result.will_continue == Some(true) {
-                    return Err(TransformError::unsupported(
-                        "function_response",
-                        "multimedia/async result needs output adapter",
-                    ));
+                    report.omitted(
+                        "function_response.scheduling/will_continue",
+                        "controls have no target representation",
+                    );
                 }
                 let id = if let Some(id) = result.id.as_ref() {
                     calls.get(id).cloned().ok_or_else(|| {

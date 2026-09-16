@@ -181,11 +181,7 @@ fn host_byte_limits_are_obeyed_even_when_codec_limits_are_larger() {
 }
 
 #[test]
-fn invalid_target_path_fails_before_send_and_invalid_success_json_is_not_retried() {
-    let host = host(
-        StatusCode::OK,
-        HttpBody::Bytes(Bytes::from_static(b"{\"input_tokens\":")),
-    );
+fn paths_are_left_to_transport_and_invalid_success_json_is_not_retried() {
     for path in [
         "https://example.com/a",
         "//example.com/a",
@@ -193,19 +189,18 @@ fn invalid_target_path_fails_before_send_and_invalid_success_json_is_not_retried
         "/a#fragment",
         "/\\evil",
     ] {
+        let host = host(
+            StatusCode::OK,
+            HttpBody::Bytes(Bytes::from_static(b"{\"input_tokens\":")),
+        );
         let mut request = request();
         request.path = path.into();
         assert_eq!(
             invoke(&host, request).unwrap_err().kind(),
-            TransformErrorKind::InvalidInput
+            TransformErrorKind::InvalidResult
         );
+        assert_eq!(host.sent.lock().unwrap().len(), 1);
     }
-    assert!(host.sent.lock().unwrap().is_empty());
-    assert_eq!(
-        invoke(&host, request()).unwrap_err().kind(),
-        TransformErrorKind::InvalidResult
-    );
-    assert_eq!(host.sent.lock().unwrap().len(), 1);
 }
 
 #[test]

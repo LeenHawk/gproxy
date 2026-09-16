@@ -23,10 +23,10 @@ pub(crate) fn to_responses(
                 .as_ref()
                 .is_some_and(|v| v.iter().any(|v| !matches!(v, c::AllowedCaller::Direct)))
             {
-                return Err(TransformError::unsupported(
+                report.omitted(
                     "tools.allowed_callers",
-                    "versioned Claude execution caller cannot be broadened",
-                ));
+                    "caller restriction has no target representation",
+                );
             }
             let schema = super::schema::to_chat(&tool.input_schema)?;
             let mut target = r::FunctionTool::builder(tool.name, Some(schema), tool.strict).build();
@@ -43,6 +43,7 @@ pub(crate) fn to_responses(
             }
             Ok(r::Tool::Function(target))
         })
+        .filter_map(|value| crate::transform::optional(value).transpose())
         .collect()
 }
 pub(crate) fn to_claude(input: Vec<r::Tool>) -> Result<Vec<c::ToolUnion>, TransformError> {
@@ -55,16 +56,7 @@ pub(crate) fn to_claude(input: Vec<r::Tool>) -> Result<Vec<c::ToolUnion>, Transf
                     "Responses hosted/custom tools need explicit Claude binding",
                 ));
             };
-            if tool.allowed_callers.flatten().is_some_and(|v| {
-                v.iter()
-                    .any(|v| matches!(v, r::AllowedCaller::Programmatic))
-            }) || tool.output_schema.is_some()
-            {
-                return Err(TransformError::unsupported(
-                    "tools",
-                    "Claude function lacks matching caller/output schema",
-                ));
-            }
+
             let schema = match tool.parameters {
                 Some(schema) => super::schema::from_chat(&schema)?,
                 None => c::JsonSchema::builder(c::JsonSchemaType::Object).build(),
@@ -75,6 +67,7 @@ pub(crate) fn to_claude(input: Vec<r::Tool>) -> Result<Vec<c::ToolUnion>, Transf
             target.defer_loading = tool.defer_loading;
             Ok(c::ToolUnion::Custom(target))
         })
+        .filter_map(|value| crate::transform::optional(value).transpose())
         .collect()
 }
 pub(crate) fn choice_to_responses(choice: cc::ToolChoice) -> (i::ToolChoice, Option<bool>) {

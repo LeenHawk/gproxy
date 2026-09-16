@@ -104,38 +104,7 @@ impl Calls {
         Ok((target.clone(), n.clone()))
     }
 }
-pub(crate) fn check_part(p: &g::Part) -> Result<(), TransformError> {
-    if p.executable_code.is_some()
-        || p.code_execution_result.is_some()
-        || p.tool_call.is_some()
-        || p.tool_response.is_some()
-        || p.video_metadata.is_some()
-        || p.media_resolution.is_some()
-    {
-        return Err(TransformError::unsupported(
-            "parts",
-            "native execution/video/resolution needs host binding",
-        ));
-    }
-    if [
-        p.text.is_some(),
-        p.inline_data.is_some(),
-        p.file_data.is_some(),
-        p.function_call.is_some(),
-        p.function_response.is_some(),
-    ]
-    .into_iter()
-    .filter(|v| *v)
-    .count()
-        != 1
-    {
-        return Err(TransformError::shape(
-            "parts",
-            "exactly one payload is required",
-        ));
-    }
-    Ok(())
-}
+
 pub(crate) fn to_gemini(
     blocks: Vec<c::ContentBlock>,
     media: &super::media::MediaFacts,
@@ -156,11 +125,23 @@ pub(crate) fn to_gemini(
                 }
                 out.push(g::Part::builder().text(v.text).build());
             }
-            c::ContentBlock::Image(v) => out.push(super::media::image(v, media, report)?),
-            c::ContentBlock::Document(v) => out.extend(super::media::document(v, media, report)?),
+            c::ContentBlock::Image(v) => {
+                if let Some(part) =
+                    crate::transform::optional(super::media::image(v, media, report))?
+                {
+                    out.push(part);
+                }
+            }
+            c::ContentBlock::Document(v) => {
+                if let Some(parts) =
+                    crate::transform::optional(super::media::document(v, media, report))?
+                {
+                    out.extend(parts);
+                }
+            }
             c::ContentBlock::ToolUse(v) => {
                 if v.caller.is_some() {
-                    super::results::direct_caller(v.caller)?;
+                    report.omitted("tool_use.caller", "caller has no target representation");
                 }
                 let args = v.input.as_object().cloned().ok_or_else(|| {
                     TransformError::shape("tool_use.input", "object arguments required")
@@ -213,10 +194,7 @@ pub(crate) fn to_gemini(
             | c::ContentBlock::ToolAddition(_)
             | c::ContentBlock::ToolRemoval(_)
             | c::ContentBlock::Fallback(_) => {
-                return Err(TransformError::unsupported(
-                    "messages.content",
-                    "native execution/context block needs host binding",
-                ));
+                continue;
             }
         }
     }
@@ -231,7 +209,6 @@ pub(crate) fn to_claude(
 ) -> Result<Vec<c::ContentBlock>, TransformError> {
     let mut out = Vec::new();
     for p in parts {
-        check_part(&p)?;
         if p.part_metadata.is_some() {
             report.omitted("part_metadata", "no Claude part metadata field");
         }
@@ -243,10 +220,7 @@ pub(crate) fn to_claude(
         }
         if p.thought == Some(true) {
             if p.text.is_none() {
-                return Err(TransformError::unsupported(
-                    "thought",
-                    "nontext reasoning payload",
-                ));
+                continue;
             }
             report.omitted(
                 "thought",
@@ -259,11 +233,15 @@ pub(crate) fn to_claude(
                 c::TextBlock::builder(c::TextBlockType::Tag, text).build(),
             ));
         }
-        if let Some(blob) = p.inline_data {
-            out.push(super::media::inline(blob)?);
+        if let Some(blob) = p.inline_data
+            && let Some(block) = crate::transform::optional(super::media::inline(blob))?
+        {
+            out.push(block);
         }
-        if let Some(file) = p.file_data {
-            out.push(super::media::file(file)?);
+        if let Some(file) = p.file_data
+            && let Some(block) = crate::transform::optional(super::media::file(file))?
+        {
+            out.push(block);
         }
         if let Some(call) = p.function_call {
             let id = calls.call(call.id, &call.name, crate::Dialect::Gemini, flow, policy)?;

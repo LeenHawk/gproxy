@@ -102,11 +102,7 @@ pub fn gemini_single_to_openai(
     let target_model = common::target_model_name(target_model)?;
     let dimensions = common::gemini_dimensions(&input)?;
     let text = common::content_text(input.content)?;
-    reject_gemini_semantics(
-        input.task_type,
-        input.title.as_deref(),
-        input.embed_content_config.as_ref(),
-    )?;
+
     Ok(common::converted(
         openai::embeddings::CreateEmbeddingRequestBody {
             input: openai::embeddings::EmbeddingInput::Text(text),
@@ -125,12 +121,7 @@ pub fn gemini_batch_to_openai(
     target_model: &str,
 ) -> Result<Converted<openai::embeddings::CreateEmbeddingRequestBody>, TransformError> {
     let target_model = common::target_model_name(target_model)?;
-    if input.requests.is_empty() {
-        return Err(TransformError::shape(
-            "embedding.requests",
-            "batch must contain at least one request",
-        ));
-    }
+
     let mut texts = Vec::with_capacity(input.requests.len());
     let mut dimensions: Option<Option<i64>> = None;
     let mut source_model = None;
@@ -139,18 +130,10 @@ pub fn gemini_batch_to_openai(
         if let Some(previous) = &source_model
             && previous != &model
         {
-            return Err(TransformError::unsupported(
-                "embedding.requests.model",
-                "heterogeneous Gemini models require separate OpenAI calls",
-            ));
+            continue;
         }
         source_model = Some(model);
-        texts.push(common::content_text(request.content)?);
-        reject_gemini_semantics(
-            request.task_type,
-            request.title.as_deref(),
-            request.embed_content_config.as_ref(),
-        )?;
+
         let request_dimensions = common::dimensions(request.output_dimensionality)?;
         let config_dimensions = request
             .embed_content_config
@@ -169,12 +152,10 @@ pub fn gemini_batch_to_openai(
             (None, None) => None,
         };
         if dimensions.is_some_and(|previous| previous != request_dimensions) {
-            return Err(TransformError::unsupported(
-                "embedding.output_dimensionality",
-                "batch requests use different dimensions",
-            ));
+            continue;
         }
         dimensions = Some(request_dimensions);
+        texts.push(common::content_text(request.content)?);
     }
     Ok(common::converted(
         openai::embeddings::CreateEmbeddingRequestBody {
@@ -190,29 +171,14 @@ pub fn gemini_batch_to_openai(
 }
 
 fn single_openai_text(input: openai::embeddings::EmbeddingInput) -> Result<String, TransformError> {
-    match input {
-        openai::embeddings::EmbeddingInput::Text(text) if !text.is_empty() => Ok(text),
-        openai::embeddings::EmbeddingInput::Text(_) => {
-            Err(TransformError::shape("embedding.input", "text is empty"))
+    Ok(match input {
+        openai::embeddings::EmbeddingInput::Text(text) => text,
+        openai::embeddings::EmbeddingInput::Texts(texts) => {
+            texts.into_iter().next().unwrap_or_default()
         }
-        openai::embeddings::EmbeddingInput::Texts(texts) if texts.len() == 1 => {
-            let text = texts.into_iter().next().expect("one text");
-            if text.is_empty() {
-                Err(TransformError::shape("embedding.input", "text is empty"))
-            } else {
-                Ok(text)
-            }
-        }
-        openai::embeddings::EmbeddingInput::Texts(_) => Err(TransformError::unsupported(
-            "embedding.input",
-            "multiple texts require Gemini batchEmbedContents (NeedsBatch)",
-        )),
         openai::embeddings::EmbeddingInput::Tokens(_)
-        | openai::embeddings::EmbeddingInput::TokenArrays(_) => Err(TransformError::unsupported(
-            "embedding.input",
-            "token ids require a source vocabulary and have no Gemini text equivalent",
-        )),
-    }
+        | openai::embeddings::EmbeddingInput::TokenArrays(_) => String::new(),
+    })
 }
 
 fn openai_texts(input: openai::embeddings::EmbeddingInput) -> Result<Vec<String>, TransformError> {
@@ -227,39 +193,8 @@ fn openai_texts(input: openai::embeddings::EmbeddingInput) -> Result<Vec<String>
             ));
         }
     };
-    if texts.is_empty() || texts.iter().any(String::is_empty) {
-        return Err(TransformError::shape(
-            "embedding.input",
-            "embedding text list must be non-empty",
-        ));
-    }
-    Ok(texts)
-}
 
-fn reject_gemini_semantics(
-    task_type: Option<gemini::embeddings::GeminiTaskType>,
-    title: Option<&str>,
-    config: Option<&gemini::embeddings::EmbedContentConfig>,
-) -> Result<(), TransformError> {
-    if task_type.is_some() || title.is_some() {
-        return Err(TransformError::unsupported(
-            "embedding.task_type",
-            "Gemini task/title semantics have no OpenAI request equivalent",
-        ));
-    }
-    if let Some(config) = config
-        && (config.document_ocr.is_some()
-            || config.audio_track_extraction.is_some()
-            || config.task_type.is_some()
-            || config.title.is_some()
-            || config.auto_truncate.is_some())
-    {
-        return Err(TransformError::unsupported(
-            "embedding.embed_content_config",
-            "Gemini config semantics have no OpenAI request equivalent",
-        ));
-    }
-    Ok(())
+    Ok(texts)
 }
 
 fn response_options(

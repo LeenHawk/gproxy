@@ -404,7 +404,7 @@ fn responses_nondefault_fields_are_typed_and_auto_is_not_high() {
     );
 }
 #[test]
-fn unsupported_gemini_constraints_fail_before_any_resource_read() {
+fn unmapped_gemini_controls_do_not_block_resource_reads_or_generation() {
     for field in [
         json!({"mask":{"file_id":"mask"}}),
         json!({"quality":"high"}),
@@ -422,25 +422,22 @@ fn unsupported_gemini_constraints_fail_before_any_resource_read() {
             .unwrap()
             .extend(field.as_object().unwrap().clone());
         let resources = Resources::default();
-        let host = Host::new(vec![]);
-        assert_eq!(
-            kind(
-                run(
-                    &resources,
-                    &host,
-                    edit(v),
-                    ImageDialect::Gemini,
-                    limits(),
-                    &mut ImageProgress::default()
-                )
-                .unwrap_err()
-            ),
-            TransformErrorKind::Unsupported
-        );
-        assert!(resources.reads.lock().unwrap().is_empty());
-        assert!(host.sent.lock().unwrap().is_empty());
+        let host = Host::new(vec![response(value(ImageDialect::Gemini))]);
+        let result = run(
+            &resources,
+            &host,
+            edit(v),
+            ImageDialect::Gemini,
+            limits(),
+            &mut ImageProgress::default(),
+        )
+        .unwrap();
+        assert_eq!(result.response.data.unwrap().len(), 1);
+        assert_eq!(resources.reads.lock().unwrap().len(), 1);
+        assert_eq!(host.sent.lock().unwrap().len(), 1);
     }
 }
+
 #[test]
 fn reference_kind_is_native_and_metadata_is_verified() {
     for bad in [false, true] {
@@ -767,12 +764,12 @@ fn png_integrity_and_declared_mime_are_checked() {
 const JPEG: &str = "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDi6KKK+ZP3E//Z";
 
 #[test]
-fn jpeg_and_requested_format_are_validated_from_actual_container() {
+fn response_reports_actual_format_without_enforcing_requested_format() {
     let meta = mapping::inspect_image(&bytes(JPEG)).unwrap();
     assert_eq!(meta.mime(), "image/jpeg");
     assert_eq!((meta.width, meta.height), (1, 1));
     let host = Host::new(vec![response(value(ImageDialect::Responses))]);
-    let error = run(
+    let output = run(
         &Resources::default(),
         &host,
         create(json!({"prompt":"draw","output_format":"jpeg"})),
@@ -780,12 +777,10 @@ fn jpeg_and_requested_format_are_validated_from_actual_container() {
         limits(),
         &mut ImageProgress::default(),
     )
-    .unwrap_err();
-    let ImageError::InvalidResponses { response, .. } = error else {
-        panic!("invalid native response retained")
-    };
-    assert_eq!(response.body.usage.unwrap().unwrap().total_tokens, 18);
+    .unwrap();
+    assert_eq!(output.response.data.unwrap().len(), 1);
 }
+
 #[test]
 fn explicit_and_host_default_delivery_are_respected() {
     for explicit in [false, true] {
@@ -819,11 +814,11 @@ fn explicit_and_host_default_delivery_are_respected() {
     }
 }
 #[test]
-fn opaque_mask_is_rejected_and_ancillary_text_is_diagnosed() {
+fn mask_is_forwarded_and_ancillary_text_is_diagnosed() {
     let data = format!("data:image/png;base64,{PNG}");
     let input =
         edit(json!({"prompt":"edit","images":[{"image_url":data}],"mask":{"image_url":data}}));
-    let host = Host::new(vec![]);
+    let host = Host::new(vec![response(value(ImageDialect::Responses))]);
     assert!(
         run(
             &Resources::default(),
@@ -833,9 +828,9 @@ fn opaque_mask_is_rejected_and_ancillary_text_is_diagnosed() {
             limits(),
             &mut ImageProgress::default()
         )
-        .is_err()
+        .is_ok()
     );
-    assert!(host.sent.lock().unwrap().is_empty());
+    assert_eq!(host.sent.lock().unwrap().len(), 1);
     let mut v = value(ImageDialect::Gemini);
     v["candidates"][0]["content"]["parts"]
         .as_array_mut()

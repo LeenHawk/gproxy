@@ -153,7 +153,6 @@ impl ChatStreamCollector {
                 .omitted("obfuscation", "stream padding is not buffered content");
         }
         if let Some(Some(usage)) = chunk.usage {
-            super::usage::validate(&usage)?;
             if self.usage.as_ref().is_some_and(|v| v != &usage) {
                 return Err(TransformError::invalid_result(
                     "usage",

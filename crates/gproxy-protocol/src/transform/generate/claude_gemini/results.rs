@@ -3,17 +3,7 @@ use crate::{
     wire::{claude::content as c, gemini as g},
 };
 use serde_json::Value;
-pub(super) fn direct_caller(caller: Option<c::ToolCaller>) -> Result<(), TransformError> {
-    match caller {
-        None | Some(c::Caller::Direct(_)) => Ok(()),
-        Some(c::Caller::Server(_) | c::Caller::Server20260120(_)) => {
-            Err(TransformError::unsupported(
-                "tool_use.caller",
-                "programmatic execution needs native host binding",
-            ))
-        }
-    }
-}
+
 pub(super) fn to_gemini(
     block: c::ToolResultBlock,
     id: String,
@@ -62,10 +52,7 @@ pub(super) fn to_gemini(
                     }
                     c::ToolResultContentBlock::SearchResult(_)
                     | c::ToolResultContentBlock::ToolReference(_) => {
-                        return Err(TransformError::unsupported(
-                            "tool_result",
-                            "native result references need execution binding",
-                        ));
+                        continue;
                     }
                 }
             }
@@ -99,17 +86,6 @@ pub(super) fn to_claude(
     mut source: g::FunctionResponse,
     id: String,
 ) -> Result<c::ToolResultBlock, TransformError> {
-    if source.will_continue == Some(true)
-        || source
-            .scheduling
-            .as_ref()
-            .is_some_and(|s| !matches!(s, g::Scheduling::Unspecified))
-    {
-        return Err(TransformError::unsupported(
-            "function_response.scheduling",
-            "Claude lacks nonblocking result scheduling",
-        ));
-    }
     let is_error = source.response.contains_key("error");
     let text = if source.response.len() == 1 && (is_error || source.response.contains_key("output"))
     {

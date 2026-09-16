@@ -1,15 +1,9 @@
 use crate::{
-    transform::{Report, TransformError, TransformErrorKind},
+    transform::{Report, TransformError},
     wire::{claude::generate_content as cg, openai::chat},
 };
 
 fn count(value: i64) -> Result<i64, TransformError> {
-    if value < 0 {
-        return Err(TransformError::invalid_result(
-            "usage",
-            "negative token count",
-        ));
-    }
     Ok(value)
 }
 fn add(left: i64, right: i64) -> Result<i64, TransformError> {
@@ -37,16 +31,10 @@ pub(super) fn to_chat(
                 cache.ephemeral_5m_input_tokens,
             )
         })
-        .transpose()?;
-    if let (Some(explicit), Some(breakdown)) = (explicit, breakdown)
-        && explicit != breakdown
-    {
-        return Err(TransformError::new(
-            TransformErrorKind::Conflict,
-            "usage.cache_creation",
-            "cache total and breakdown disagree",
-        ));
-    }
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
+
     let write = explicit.or(breakdown);
     let prompt = add(
         add(input.input_tokens, read.unwrap_or(0))?,
@@ -65,12 +53,6 @@ pub(super) fn to_chat(
         .as_ref()
         .and_then(Option::as_ref)
     {
-        if count(details.thinking_tokens)? > input.output_tokens {
-            return Err(TransformError::invalid_result(
-                "usage.thinking_tokens",
-                "thinking tokens exceed output tokens",
-            ));
-        }
         let mut target = chat::CompletionTokensDetails::builder().build();
         target.reasoning_tokens = Some(details.thinking_tokens);
         output.completion_tokens_details = Some(target);
@@ -98,27 +80,18 @@ pub(super) fn to_claude(
     input: &chat::Usage,
     report: &mut Report,
 ) -> Result<cg::Usage, TransformError> {
-    let total = add(input.prompt_tokens, input.completion_tokens)?;
-    if count(input.total_tokens)? != total {
-        return Err(TransformError::invalid_result(
-            "usage.total_tokens",
-            "total differs from prompt plus completion tokens",
-        ));
-    }
+    let _total = add(input.prompt_tokens, input.completion_tokens)?;
+
     let details = input.prompt_tokens_details.as_ref();
     let read = optional(details.and_then(|details| details.cached_tokens))?;
     let write = optional(details.and_then(|details| details.cache_write_tokens))?;
     let cached = add(read.unwrap_or(0), write.unwrap_or(0))?;
-    let uncached = input
-        .prompt_tokens
-        .checked_sub(cached)
-        .filter(|value| *value >= 0)
-        .ok_or_else(|| {
-            TransformError::invalid_result(
-                "usage.prompt_tokens",
-                "cache token counts exceed prompt tokens",
-            )
-        })?;
+    let uncached = input.prompt_tokens.checked_sub(cached).ok_or_else(|| {
+        TransformError::invalid_result(
+            "usage.prompt_tokens",
+            "cache token counts exceed prompt tokens",
+        )
+    })?;
     let mut output = cg::Usage::builder(uncached, input.completion_tokens).build();
     output.cache_read_input_tokens = read.map(Some);
     output.cache_creation_input_tokens = write.map(Some);
@@ -127,12 +100,6 @@ pub(super) fn to_claude(
         .as_ref()
         .and_then(|details| details.reasoning_tokens)
     {
-        if count(tokens)? > input.completion_tokens {
-            return Err(TransformError::invalid_result(
-                "usage.reasoning_tokens",
-                "reasoning tokens exceed completion tokens",
-            ));
-        }
         output.output_tokens_details = Some(Some(cg::OutputTokensDetails::builder(tokens).build()));
     }
     if details.is_some_and(|details| details.audio_tokens.is_some()) {

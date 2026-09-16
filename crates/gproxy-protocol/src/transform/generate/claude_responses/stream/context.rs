@@ -204,10 +204,6 @@ pub(super) fn clean_restoration(
     }
     let mut bytes = measure(target, limits.max_bytes)?;
     for (id, value) in &context.restored_thinking {
-        value
-            .state
-            .validate_for(target)
-            .map_err(|e| invalid(e.to_string()))?;
         bytes += measure(
             &(id, &value.state, &value.block),
             limits.max_bytes.saturating_sub(bytes),

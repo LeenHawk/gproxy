@@ -26,8 +26,6 @@ impl ClaudeViaResponses {
         endpoint: Endpoint,
         mut identities: GenerationIdentity,
     ) -> Result<Self, TransformError> {
-        identities.validate(Dialect::Claude, Dialect::OpenAi)?;
-        endpoint.validate()?;
         let selected_model = selected_model.into();
         if selected_model.trim().is_empty() {
             return Err(TransformError::missing_metadata("selected_model"));
@@ -57,13 +55,13 @@ impl ClaudeViaResponses {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: c::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
     ) -> Result<Self, TransformError> {
-        let selected_model = selected_model.into();
-        state.validate_target(Dialect::OpenAi, &selected_model)?;
+        let selected_model = state.target.model.clone();
+
         let original = input.into_declared();
         let (restored, names) = super::history::claude(original.clone(), state).await?;
         let _ = names;
@@ -77,20 +75,17 @@ impl ClaudeViaResponses {
         R: crate::capability::ResourceAccess,
     >(
         input: c::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
         resources: &super::GenerationResources<'_, R>,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
-        let selected_model = selected_model.into();
-        state.validate_target(identities.request_policy.dialect, &selected_model)?;
-        endpoint.validate()?;
+
         let materialized = resources.claude(original.clone()).await?;
         let mut prepared =
-            Self::prepare_with_state(materialized, selected_model, endpoint, identities, state)
-                .await?;
+            Self::prepare_with_state(materialized, endpoint, identities, state).await?;
         prepared.original_request = original;
         Ok(prepared)
     }
@@ -136,7 +131,6 @@ impl ClaudeViaResponses {
             &r::GenerateContentResponseBody,
         ) -> Result<p::ClaudeRequestContext, TransformError>,
     ) -> Result<GenerationOutcome<c::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(self.identities.request_policy.dialect, &self.selected_model)?;
         transport::bind(
             (&self.endpoint, &self.selected_model),
             &self.identities,
@@ -170,7 +164,6 @@ impl ClaudeViaResponses {
             &r::GenerateContentResponseBody,
         ) -> Result<p::ClaudeRequestContext, TransformError>,
     ) -> Result<GenerationOutcome<c::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(self.identities.request_policy.dialect, &self.selected_model)?;
         transport::bind(
             (&self.endpoint, &self.selected_model),
             &self.identities,
@@ -231,8 +224,6 @@ impl ResponsesViaClaude {
         mut identities: GenerationIdentity,
         context: p::ClaudeRequestContext,
     ) -> Result<Self, TransformError> {
-        identities.validate(Dialect::OpenAi, Dialect::Claude)?;
-        endpoint.validate()?;
         let selected_model = selected_model.into();
         if selected_model.trim().is_empty() {
             return Err(TransformError::missing_metadata("selected_model"));
@@ -263,14 +254,14 @@ impl ResponsesViaClaude {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: r::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
         context: p::ClaudeRequestContext,
     ) -> Result<Self, TransformError> {
-        let selected_model = selected_model.into();
-        state.validate_target(Dialect::Claude, &selected_model)?;
+        let selected_model = state.target.model.clone();
+
         let original = input.into_declared();
         let mut lowered = original.clone();
         let mut tool_report = Report::default();
@@ -311,7 +302,7 @@ impl ResponsesViaClaude {
         R: crate::capability::ResourceAccess,
     >(
         input: r::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
@@ -319,19 +310,10 @@ impl ResponsesViaClaude {
         context: p::ClaudeRequestContext,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
-        let selected_model = selected_model.into();
-        state.validate_target(identities.request_policy.dialect, &selected_model)?;
-        endpoint.validate()?;
+
         let materialized = resources.responses(original.clone()).await?;
-        let mut prepared = Self::prepare_with_state(
-            materialized,
-            selected_model,
-            endpoint,
-            identities,
-            state,
-            context,
-        )
-        .await?;
+        let mut prepared =
+            Self::prepare_with_state(materialized, endpoint, identities, state, context).await?;
         prepared.original_request = original;
         Ok(prepared)
     }
@@ -382,7 +364,6 @@ impl ResponsesViaClaude {
         progress: &mut GenerationProgress<c::GenerateContentResponseBody>,
         facts: impl FnOnce(&c::GenerateContentResponseBody) -> Result<ClaudeReturnFacts, TransformError>,
     ) -> Result<GenerationOutcome<r::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(self.identities.request_policy.dialect, &self.selected_model)?;
         transport::bind(
             (&self.endpoint, &self.selected_model),
             &self.identities,
@@ -414,7 +395,6 @@ impl ResponsesViaClaude {
         progress: &mut GenerationProgress<c::GenerateContentResponseBody>,
         facts: impl FnOnce(&c::GenerateContentResponseBody) -> Result<ClaudeReturnFacts, TransformError>,
     ) -> Result<GenerationOutcome<r::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(self.identities.request_policy.dialect, &self.selected_model)?;
         transport::bind(
             (&self.endpoint, &self.selected_model),
             &self.identities,

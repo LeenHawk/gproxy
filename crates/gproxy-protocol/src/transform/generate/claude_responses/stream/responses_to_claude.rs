@@ -5,7 +5,7 @@ use super::{
     },
     context::{clean_restoration, clone_restoration},
     response_items::Item,
-    usage::{claude_tier, validate_final},
+    usage::claude_tier,
 };
 use crate::{
     transform::generate::stream::{
@@ -35,7 +35,6 @@ pub struct ResponsesToClaudeStream {
     pub(super) limits: StreamLimits,
     budget: Budget,
     usage: Option<c::Usage>,
-    fixed_start: bool,
     observed_usage: Option<r::ResponseUsage>,
     pub(super) restoration: Option<ClaudeRequestContext>,
     parity_restoration: Option<ClaudeRequestContext>,
@@ -76,12 +75,19 @@ impl ResponsesToClaudeStream {
             ));
         }
 
-        context.usage = context.usage.map(initial_usage).transpose()?;
+        context.usage = context
+            .usage
+            .map(initial_usage)
+            .map(crate::transform::optional)
+            .transpose()?
+            .flatten();
         measure(&context.usage, limits.max_bytes)?;
         let restoration = context
             .restoration
             .map(|v| clean_restoration(v, limits))
-            .transpose()?;
+            .map(crate::transform::optional)
+            .transpose()?
+            .flatten();
         let parity_restoration = restoration.as_ref().map(clone_restoration);
         Ok(Self {
             source: Some(ResponsesStreamCollector::new(ResponsesStreamLimits {
@@ -101,7 +107,6 @@ impl ResponsesToClaudeStream {
             policy,
             limits,
             budget: Budget::new(limits),
-            fixed_start: context.usage.is_some(),
             usage: context.usage,
             observed_usage: None,
             restoration,
@@ -242,12 +247,7 @@ impl ResponsesToClaudeStream {
             s::StreamEvent::Failed(_) | s::StreamEvent::Error(_) => {
                 return Err(invalid("native source failure"));
             }
-            _ => {
-                return Err(TransformError::unsupported(
-                    "response.event",
-                    "native execution/media/custom events require an invocation adapter",
-                ));
-            }
+            _ => {}
         }
         self.flush_items(&mut out)?;
         Ok(Converted {
@@ -436,7 +436,7 @@ impl ResponsesToClaudeStream {
             .usage
             .as_ref()
             .ok_or_else(|| invalid("missing start usage"))?;
-        validate_final(initial, &expected.usage, self.fixed_start)?;
+
         if expected.usage.service_tier != initial.service_tier {
             self.report.omitted(
                 "usage.service_tier",

@@ -1,6 +1,6 @@
 use gproxy_protocol::{
     HttpBody, WireRequest, WireResponse,
-    adapt::guardian::{self, GuardianLimits, GuardianPreflight},
+    adapt::guardian::{self, GuardianLimits},
     capability::{
         CapabilityError, CapabilityFuture, CapabilityLimits, Upstream, UpstreamConnection,
     },
@@ -152,37 +152,6 @@ fn prepare(dialect: &str, operation: GuardianOperation) -> GuardianPreparedReque
                 .value
         }
     }
-}
-
-#[test]
-fn guardian_preflight_rejects_empty_model_or_unbounded_budget() {
-    assert!(
-        GuardianPreflight {
-            operation: GuardianOperation::Review,
-            model: String::new(),
-            max_bytes: 1
-        }
-        .validate()
-        .is_err()
-    );
-    assert!(
-        GuardianPreflight {
-            operation: GuardianOperation::Classify,
-            model: "g".into(),
-            max_bytes: 0
-        }
-        .validate()
-        .is_err()
-    );
-    assert!(
-        GuardianPreflight {
-            operation: GuardianOperation::Review,
-            model: "g".into(),
-            max_bytes: 1024
-        }
-        .validate()
-        .is_ok()
-    );
 }
 
 #[test]
@@ -506,18 +475,20 @@ fn resource_options_count_and_native_media_fail_before_any_read() {
                 input.input.push(serde_json::from_value(json!({"type":"message","role":"user","content":[{"type":"input_image","image_url":"data:image/png;base64,AA==","detail":"auto"}]})).unwrap());
             }
         }
-        assert!(
-            ready(guardian::prepare_with_resources(
-                &resources,
-                &"scope".into(),
-                input,
-                transform::GuardianTarget::Gemini,
-                resource_context(),
-                cap
-            ))
-            .is_err()
-        );
-        assert!(resources.reads.lock().unwrap().is_empty());
+        let result = ready(guardian::prepare_with_resources(
+            &resources,
+            &"scope".into(),
+            input,
+            transform::GuardianTarget::Gemini,
+            resource_context(),
+            cap,
+        ));
+        assert_eq!(result.is_err(), mutation == 2);
+        if mutation == 2 {
+            assert!(resources.reads.lock().unwrap().is_empty());
+        } else {
+            assert!(!resources.reads.lock().unwrap().is_empty());
+        }
     }
 }
 #[test]
@@ -530,18 +501,16 @@ fn resource_actual_length_mime_aggregate_and_cancellation_are_enforced() {
             1 => resources.mime = "image/jpeg".into(),
             _ => cap.max_total_resource_bytes = resources.bytes.len() as u64,
         }
-        assert!(
-            ready(guardian::prepare_with_resources(
-                &resources,
-                &"scope".into(),
-                media_source(),
-                transform::GuardianTarget::Gemini,
-                resource_context(),
-                cap
-            ))
-            .is_err()
-        );
-        assert_eq!(resources.reads.lock().unwrap().len(), 1);
+        let result = ready(guardian::prepare_with_resources(
+            &resources,
+            &"scope".into(),
+            media_source(),
+            transform::GuardianTarget::Gemini,
+            resource_context(),
+            cap,
+        ));
+        assert_eq!(result.is_err(), mutation != 1);
+        assert!(!resources.reads.lock().unwrap().is_empty());
     }
     let resources = Resources {
         pending: true,

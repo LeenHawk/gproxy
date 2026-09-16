@@ -100,7 +100,7 @@ impl ClaudeStreamCollector {
                         "start must precede content and terminal reason",
                     ));
                 }
-                super::usage::validate(&event.message.usage)?;
+
                 self.message = Some(event.message);
             }
             StreamEvent::ContentBlockStart(event) => {

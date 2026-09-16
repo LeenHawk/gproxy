@@ -31,18 +31,10 @@ pub(super) fn to_responses(
         ),
     ] {
         if present {
-            return Err(TransformError::unsupported(
-                name,
-                "Claude execution requirement needs target capability",
-            ));
+            report.omitted(name, "field has no target representation");
         }
     }
-    if input.max_tokens <= 0 {
-        return Err(TransformError::shape(
-            "max_tokens",
-            "positive token budget required",
-        ));
-    }
+
     out.max_output_tokens = Some(Some(input.max_tokens));
     out.stream = input.stream.map(Some);
     out.temperature = number(input.temperature)?;
@@ -67,31 +59,20 @@ pub(super) fn to_responses(
         });
     match &input.thinking {
         Some(cc::ThinkingConfig::Disabled(_)) => {
-            if effort.is_some() {
-                return Err(TransformError::shape(
-                    "thinking",
-                    "disabled thinking conflicts with effort",
-                ));
-            }
             effort = Some(i::ReasoningEffort::None);
         }
         Some(cc::ThinkingConfig::Enabled(_)) => {
-            return Err(TransformError::unsupported(
-                "thinking.budget",
-                "Responses effort cannot enforce exact thinking token budget",
-            ));
+            report.omitted("thinking.budget", "Responses has no token budget control");
         }
         Some(cc::ThinkingConfig::Adaptive(config)) => {
             if effort.is_none() {
-                return Err(TransformError::missing_metadata(
+                report.omitted(
                     "adaptive target reasoning effort",
-                ));
+                    "field has no target representation",
+                );
             }
             if config.display.is_some() {
-                return Err(TransformError::unsupported(
-                    "thinking.display",
-                    "Responses has no equivalent display contract",
-                ));
+                report.omitted("thinking.display", "field has no target representation");
             }
         }
         None => {}
@@ -102,29 +83,21 @@ pub(super) fn to_responses(
         ));
     }
     let current = input.output_config.as_ref().and_then(|v| v.format.as_ref());
-    if let (Some(a), Some(b)) = (current, input.output_format.as_ref())
-        && a.schema != b.schema
-    {
-        return Err(TransformError::shape(
-            "output_format",
-            "conflicting schemas",
-        ));
-    }
+
     if let Some(format) = current.or(input.output_format.as_ref()) {
-        let schema = format
-            .schema
-            .as_object()
-            .cloned()
-            .ok_or_else(|| TransformError::shape("schema", "JSON object schema required"))?;
-        out.text = Some(
-            i::TextConfig::builder()
-                .format(i::TextFormat::JsonSchema(
-                    i::TextFormatJsonSchema::builder("claude_output".into(), schema)
-                        .strict(Some(true))
-                        .build(),
-                ))
-                .build(),
-        );
+        if let Some(schema) = format.schema.as_object() {
+            out.text = Some(
+                i::TextConfig::builder()
+                    .format(i::TextFormat::JsonSchema(
+                        i::TextFormatJsonSchema::builder("claude_output".into(), schema.clone())
+                            .strict(Some(true))
+                            .build(),
+                    ))
+                    .build(),
+            );
+        } else {
+            report.omitted("output_format", "target requires an object schema");
+        }
     }
     if input.cache_control.is_some() || input.diagnostics.is_some() {
         report.omitted(
@@ -162,9 +135,10 @@ pub(super) fn to_claude(
         ),
     ] {
         if present {
-            return Err(TransformError::missing_metadata(format!(
-                "{name} resolved history"
-            )));
+            report.omitted(
+                format!("{name} resolved history"),
+                "field has no target representation",
+            );
         }
     }
     for (present, name) in [
@@ -190,10 +164,7 @@ pub(super) fn to_claude(
         (input.top_logprobs.flatten().is_some(), "top_logprobs"),
     ] {
         if present {
-            return Err(TransformError::unsupported(
-                name,
-                "Responses execution policy needs Claude adapter",
-            ));
+            report.omitted(name, "field has no target representation");
         }
     }
     out.stream = input.stream.flatten();
@@ -209,10 +180,8 @@ pub(super) fn to_claude(
             | r::ServiceTier::Priority
             | r::ServiceTier::Fast,
         ) => {
-            return Err(TransformError::unsupported(
-                "service_tier",
-                "no equivalent Claude tier",
-            ));
+            report.omitted("service_tier", "Claude has no matching tier");
+            None
         }
     };
     if let Some(user) = &input.user {
@@ -224,10 +193,7 @@ pub(super) fn to_claude(
             || config.summary.flatten().is_some()
             || config.generate_summary.flatten().is_some()
         {
-            return Err(TransformError::unsupported(
-                "reasoning",
-                "reasoning summary/context has no exact Claude control",
-            ));
+            report.omitted("reasoning", "field has no target representation");
         }
         if let Some(effort) = config.effort.flatten() {
             match effort {
@@ -237,10 +203,7 @@ pub(super) fn to_claude(
                     ))
                 }
                 i::ReasoningEffort::Minimal => {
-                    return Err(TransformError::unsupported(
-                        "effort",
-                        "Claude has no minimal level",
-                    ));
+                    report.omitted("reasoning.effort", "Claude has no matching effort");
                 }
                 i::ReasoningEffort::Low
                 | i::ReasoningEffort::Medium
@@ -265,19 +228,13 @@ pub(super) fn to_claude(
     }
     if let Some(text) = &input.text {
         if text.verbosity.flatten().is_some() {
-            return Err(TransformError::unsupported(
-                "text.verbosity",
-                "no Claude verbosity control",
-            ));
+            report.omitted("text.verbosity", "field has no target representation");
         }
         if let Some(format) = &text.format {
             match format {
                 i::TextFormat::Text(_) => {}
                 i::TextFormat::JsonObject(_) => {
-                    return Err(TransformError::unsupported(
-                        "text.format",
-                        "free JSON object has no verified Claude structured-output equivalent",
-                    ));
+                    report.omitted("text.format", "Claude has no matching format");
                 }
                 i::TextFormat::JsonSchema(schema) => {
                     out.output_format = Some(
@@ -317,20 +274,10 @@ pub(super) fn to_claude(
     Ok(())
 }
 fn number(v: Option<f64>) -> Result<Option<Option<serde_json::Number>>, TransformError> {
-    v.map(|v| {
-        serde_json::Number::from_f64(v)
-            .ok_or_else(|| TransformError::shape("sampling", "non-finite number"))
-    })
-    .transpose()
-    .map(|v| v.map(Some))
+    Ok(v.and_then(serde_json::Number::from_f64).map(Some))
 }
 fn float(v: &Option<Option<serde_json::Number>>) -> Result<Option<f64>, TransformError> {
-    v.as_ref()
+    Ok(v.as_ref()
         .and_then(Option::as_ref)
-        .map(|v| {
-            v.as_f64()
-                .filter(|v| v.is_finite())
-                .ok_or_else(|| TransformError::shape("sampling", "invalid double"))
-        })
-        .transpose()
+        .and_then(serde_json::Number::as_f64))
 }

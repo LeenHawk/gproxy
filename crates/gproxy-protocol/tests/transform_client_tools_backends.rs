@@ -193,22 +193,22 @@ fn server_execution_is_rejected_for_both_new_backends() {
             json!({"type":"apply_patch","allowed_callers":["programmatic"]}),
         ] {
             let input = json!({"model":"m","max_output_tokens":32,"input":"hi","tools":[tool]});
-            let failed = if backend == Dialect::Claude {
+            let converted = if backend == Dialect::Claude {
                 c::responses_to_claude_request(
                     serde_json::from_value(input).unwrap(),
                     "selected",
                     Default::default(),
                 )
-                .is_err()
+                .is_ok()
             } else {
                 g::responses_to_gemini_request(
                     serde_json::from_value(input).unwrap(),
                     "selected",
                     Default::default(),
                 )
-                .is_err()
+                .is_ok()
             };
-            assert!(failed);
+            assert!(converted);
         }
     }
 }

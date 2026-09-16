@@ -13,22 +13,11 @@ pub(super) fn to_chat(
         (input.service_tier.is_some(), "service_tier"),
     ] {
         if present {
-            return Err(TransformError::unsupported(
-                field,
-                "Gemini context/policy requires a target adapter",
-            ));
+            report.omitted(field, "field has no target representation");
         }
     }
     out.store = input.store.map(Some);
     if let Some(config) = &input.generation_config {
-        if config.candidate_count.is_some_and(|n| n <= 0)
-            || config.max_output_tokens.is_some_and(|n| n <= 0)
-        {
-            return Err(TransformError::shape(
-                "generation_config",
-                "candidate count and token budget must be positive",
-            ));
-        }
         for (present, field) in [
             (config.top_k.is_some(), "top_k"),
             (config.speech_config.is_some(), "speech_config"),
@@ -48,10 +37,7 @@ pub(super) fn to_chat(
             ),
         ] {
             if present {
-                return Err(TransformError::unsupported(
-                    field,
-                    "Chat lacks an equivalent generation control",
-                ));
+                report.omitted(field, "field has no target representation");
             }
         }
         out.max_completion_tokens = config.max_output_tokens.map(Some);
@@ -70,40 +56,30 @@ pub(super) fn to_chat(
             .map(Some);
         if let Some(thinking) = &config.thinking_config {
             if thinking.include_thoughts == Some(true) {
-                return Err(TransformError::unsupported(
+                report.omitted(
                     "thinking.include_thoughts",
-                    "Chat has no thought output channel",
-                ));
+                    "field has no target representation",
+                );
             }
-            out.reasoning_effort = match (thinking.thinking_budget, thinking.thinking_level.clone())
-            {
-                (Some(0), None) => Some(Some(c::ReasoningEffort::None)),
-                (Some(_), _) => {
-                    return Err(TransformError::unsupported(
-                        "thinking_budget",
-                        "Chat effort cannot preserve exact thinking budget",
-                    ));
-                }
-                (None, Some(level)) => Some(Some(match level {
-                    g::ThinkingLevel::Minimal => c::ReasoningEffort::Minimal,
-                    g::ThinkingLevel::Low => c::ReasoningEffort::Low,
-                    g::ThinkingLevel::Medium => c::ReasoningEffort::Medium,
-                    g::ThinkingLevel::High => c::ReasoningEffort::High,
-                    g::ThinkingLevel::Unspecified => {
-                        return Err(TransformError::shape(
-                            "thinking_level",
-                            "unspecified thinking level",
-                        ));
-                    }
-                })),
-                (None, None) => None,
+            out.reasoning_effort = match thinking.thinking_level {
+                Some(g::ThinkingLevel::Minimal) => Some(Some(c::ReasoningEffort::Minimal)),
+                Some(g::ThinkingLevel::Low) => Some(Some(c::ReasoningEffort::Low)),
+                Some(g::ThinkingLevel::Medium) => Some(Some(c::ReasoningEffort::Medium)),
+                Some(g::ThinkingLevel::High) => Some(Some(c::ReasoningEffort::High)),
+                _ if thinking.thinking_budget == Some(0) => Some(Some(c::ReasoningEffort::None)),
+                _ => None,
             };
+            if thinking.thinking_budget.is_some_and(|n| n != 0) {
+                report.omitted("thinking_budget", "Chat has no token budget control");
+            }
         }
         let typed = config
             .response_schema
             .as_ref()
             .map(|schema| super::super::gemini_schema::to_json(schema, Default::default()))
-            .transpose()?;
+            .map(crate::transform::optional)
+            .transpose()?
+            .flatten();
         if let Some(typed) = &typed {
             report.diagnostics.extend(typed.report.diagnostics.clone());
         }
@@ -111,46 +87,10 @@ pub(super) fn to_chat(
             .response_json_schema
             .as_ref()
             .or(config.response_json_schema_internal.as_ref());
-        if let (Some(a), Some(b)) = (
-            &config.response_json_schema,
-            &config.response_json_schema_internal,
-        ) && a != b
-        {
-            return Err(TransformError::shape(
-                "response_schema",
-                "conflicting raw schemas",
-            ));
-        }
-        let raw = raw
-            .map(|value| {
-                value.as_object().cloned().ok_or_else(|| {
-                    TransformError::unsupported(
-                        "response_json_schema",
-                        "Chat schema must be object JSON",
-                    )
-                })
-            })
-            .transpose()?;
-        if let (Some(a), Some(b)) = (&typed, &raw)
-            && &a.value != b
-        {
-            return Err(TransformError::shape(
-                "response_schema",
-                "typed/raw schemas conflict",
-            ));
-        }
+
+        let raw = raw.and_then(|value| value.as_object().cloned());
         let schema = typed.map(|v| v.value).or(raw);
         out.response_format = if let Some(schema) = schema {
-            if config
-                .response_mime_type
-                .as_deref()
-                .is_some_and(|m| m != "application/json")
-            {
-                return Err(TransformError::shape(
-                    "response_mime_type",
-                    "schema conflicts with MIME",
-                ));
-            }
             let mut value = c::JsonSchemaFormat::builder("gemini_response".into()).build();
             value.schema = Some(schema);
             value.strict = Some(Some(true));
@@ -166,10 +106,8 @@ pub(super) fn to_chat(
                         .build(),
                 )),
                 Some(_) => {
-                    return Err(TransformError::unsupported(
-                        "response_mime_type",
-                        "Chat supports text or JSON output",
-                    ));
+                    report.omitted("response_mime_type", "Chat has no matching MIME control");
+                    None
                 }
             }
         };
@@ -178,66 +116,33 @@ pub(super) fn to_chat(
         if config.retrieval_config.is_some()
             || config.include_server_side_tool_invocations == Some(true)
         {
-            return Err(TransformError::unsupported(
-                "tool_config",
-                "server retrieval needs adapter",
-            ));
+            report.omitted("tool_config", "field has no target representation");
         }
         if let Some(function) = &config.function_calling_config {
             let mode = function
                 .mode
                 .clone()
                 .unwrap_or(g::FunctionCallingMode::Auto);
-            out.tool_choice = Some(if let Some(names) = &function.allowed_function_names {
-                let selectors = names
-                    .iter()
-                    .map(|name| {
-                        serde_json::json!({"type":"function","function":{"name":name}})
-                            .as_object()
-                            .unwrap()
-                            .clone()
-                    })
-                    .collect();
-                match mode {
-                    g::FunctionCallingMode::Any
-                    | g::FunctionCallingMode::Auto
-                    | g::FunctionCallingMode::Validated => c::ToolChoice::Allowed(
-                        c::AllowedToolChoice::builder(
-                            c::AllowedToolChoiceType::AllowedTools,
-                            c::AllowedTools::builder(
-                                if mode == g::FunctionCallingMode::Any {
-                                    c::AllowedToolsMode::Required
-                                } else {
-                                    c::AllowedToolsMode::Auto
-                                },
-                                selectors,
-                            )
-                            .build(),
-                        )
-                        .build(),
-                    ),
-                    g::FunctionCallingMode::None | g::FunctionCallingMode::Unspecified => {
-                        return Err(TransformError::unsupported(
-                            "function_calling_config",
-                            "allowed names incompatible with mode",
-                        ));
-                    }
-                }
-            } else {
-                c::ToolChoice::Mode(match mode {
-                    g::FunctionCallingMode::Auto | g::FunctionCallingMode::Validated => {
+            out.tool_choice = match mode {
+                g::FunctionCallingMode::None => Some(c::ToolChoice::Mode(c::ToolChoiceMode::None)),
+                g::FunctionCallingMode::Unspecified => None,
+                mode => Some(if let Some(names) = &function.allowed_function_names {
+                    c::ToolChoice::Allowed(c::AllowedToolChoice::builder(
+                        c::AllowedToolChoiceType::AllowedTools,
+                        c::AllowedTools::builder(
+                            if mode == g::FunctionCallingMode::Any { c::AllowedToolsMode::Required }
+                            else { c::AllowedToolsMode::Auto },
+                            names.iter().map(|name| serde_json::json!({"type":"function","function":{"name":name}}).as_object().unwrap().clone()).collect(),
+                        ).build(),
+                    ).build())
+                } else {
+                    c::ToolChoice::Mode(if mode == g::FunctionCallingMode::Any {
+                        c::ToolChoiceMode::Required
+                    } else {
                         c::ToolChoiceMode::Auto
-                    }
-                    g::FunctionCallingMode::Any => c::ToolChoiceMode::Required,
-                    g::FunctionCallingMode::None => c::ToolChoiceMode::None,
-                    g::FunctionCallingMode::Unspecified => {
-                        return Err(TransformError::unsupported(
-                            "function_calling_config.mode",
-                            "Chat has no validated mode",
-                        ));
-                    }
-                })
-            });
+                    })
+                }),
+            };
         }
     }
     Ok(())
@@ -285,34 +190,10 @@ pub(super) fn to_gemini(
         ),
     ] {
         if present {
-            return Err(TransformError::unsupported(
-                field,
-                "Gemini needs explicit capability for this Chat behavior",
-            ));
+            report.omitted(field, "field has no target representation");
         }
     }
-    if input.n.flatten().is_some_and(|n| n <= 0)
-        || input
-            .max_completion_tokens
-            .flatten()
-            .is_some_and(|n| n <= 0)
-        || input.max_tokens.flatten().is_some_and(|n| n <= 0)
-    {
-        return Err(TransformError::shape(
-            "generation_config",
-            "candidate count and token budget must be positive",
-        ));
-    }
-    if let (Some(a), Some(b)) = (
-        input.max_completion_tokens.flatten(),
-        input.max_tokens.flatten(),
-    ) && a != b
-    {
-        return Err(TransformError::shape(
-            "max_tokens",
-            "conflicting token budgets",
-        ));
-    }
+
     let mut config = g::GenerationConfig::builder().build();
     config.max_output_tokens = input
         .max_completion_tokens
@@ -345,10 +226,7 @@ pub(super) fn to_gemini(
             c::ReasoningEffort::Medium => thinking.thinking_level = Some(g::ThinkingLevel::Medium),
             c::ReasoningEffort::High => thinking.thinking_level = Some(g::ThinkingLevel::High),
             c::ReasoningEffort::XHigh | c::ReasoningEffort::Max => {
-                return Err(TransformError::unsupported(
-                    "reasoning_effort",
-                    "Gemini has no equivalent effort level",
-                ));
+                report.omitted("reasoning_effort", "Gemini has no matching effort");
             }
         }
         config.thinking_config = Some(thinking);
@@ -360,24 +238,15 @@ pub(super) fn to_gemini(
                 config.response_mime_type = Some("application/json".into())
             }
             c::ResponseFormat::JsonSchema(format) => {
-                let schema = format.json_schema.schema.as_ref().ok_or_else(|| {
-                    TransformError::shape("response_format.schema", "missing schema")
-                })?;
-                config.response_mime_type = Some("application/json".into());
-                config.response_json_schema = Some(serde_json::Value::Object(schema.clone()));
-                report.changed(
-                    "response_format",
-                    "Gemini raw JSON schema endpoint must support the selected schema keywords",
-                );
+                if let Some(schema) = format.json_schema.schema.as_ref() {
+                    config.response_mime_type = Some("application/json".into());
+                    config.response_json_schema = Some(serde_json::Value::Object(schema.clone()));
+                    report.changed("response_format", "schema mapped to Gemini raw JSON schema");
+                }
             }
         }
     }
-    if input.tool_choice.is_some() && input.function_call.is_some() {
-        return Err(TransformError::shape(
-            "tool_choice",
-            "legacy/current choices conflict",
-        ));
-    }
+
     if let Some(choice) = &input.function_call {
         let mut function = g::FunctionCallingConfig::builder().build();
         match choice {
@@ -422,26 +291,17 @@ pub(super) fn to_gemini(
                         .allowed_tools
                         .tools
                         .iter()
-                        .map(|v| {
+                        .filter_map(|v| {
                             v.get("function")
                                 .and_then(|v| v.get("name"))
                                 .and_then(|v| v.as_str())
                                 .map(str::to_owned)
-                                .ok_or_else(|| {
-                                    TransformError::unsupported(
-                                        "tool_choice.allowed",
-                                        "Gemini accepts named function selectors only",
-                                    )
-                                })
                         })
-                        .collect::<Result<Vec<_>, _>>()?,
+                        .collect(),
                 );
             }
             c::ToolChoice::Custom(_) => {
-                return Err(TransformError::unsupported(
-                    "tool_choice.custom",
-                    "Gemini lacks custom tools",
-                ));
+                report.omitted("tool_choice.custom", "Gemini has no custom tool selector");
             }
         }
         out.tool_config = Some(
