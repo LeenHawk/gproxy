@@ -12,6 +12,9 @@ pub struct Model {
     pub organization_id: String,
     #[sea_orm(unique_key = "organization_name")]
     pub name: String,
+    /// OAuth client-ID string array. None inherits; [] denies this scope.
+    /// Configured teams are unioned, then intersected with other levels.
+    pub oauth_client_allowlist: Option<Json>,
     pub created_at_ms: i64,
     #[sea_orm(belongs_to, from = "organization_id", to = "id", on_delete = "Cascade")]
     pub organization: BelongsTo<super::organization::Entity>,

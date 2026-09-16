@@ -52,6 +52,42 @@ pub struct AccessIdentity {
     pub expires_at_ms: i64,
 }
 
+#[derive(Clone, Debug)]
+pub struct ClientAccess {
+    pub user_id: String,
+    pub client_id: String,
+}
+
+impl<C: BatchConnectionTrait> Repository<'_, C, client::Entity> {
+    /// Preflight for issuer/management callers. Protected OAuth writes and
+    /// token reads recheck these policies in their own database statements.
+    pub async fn allowed_many(&self, requests: &[ClientAccess]) -> Result<Vec<bool>> {
+        let queries = requests
+            .iter()
+            .map(|request| {
+                let live_user = user::Entity::find_by_id(request.user_id.clone())
+                    .filter(user::Column::Enabled.eq(true))
+                    .into_query();
+                Ok(client::Entity::find_by_id(request.client_id.clone())
+                    .filter(client::Column::Enabled.eq(true))
+                    .filter(client::Column::DeletedAtMs.is_null())
+                    .filter(Expr::exists(live_user))
+                    .filter(super::oauth_policy::allowed(
+                        self.db.get_database_backend(),
+                        Expr::val(request.user_id.clone()),
+                        Expr::val(request.client_id.clone()),
+                    )?))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(self
+            .query_many(queries)
+            .await?
+            .into_iter()
+            .map(|rows| !rows.is_empty())
+            .collect())
+    }
+}
+
 fn column(name: &str) -> Expr {
     Expr::col(Alias::new(name))
 }
@@ -96,7 +132,11 @@ pub(crate) fn eligible_subscriptions(now: i64) -> SelectStatement {
         .to_owned()
 }
 
-fn live_grants(now: i64, selected_client: Option<&str>) -> SelectStatement {
+fn live_grants(
+    backend: sea_orm::DbBackend,
+    now: i64,
+    selected_client: Option<&str>,
+) -> Result<SelectStatement> {
     let mut subscriptions = eligible_subscriptions(now);
     subscriptions.and_where(equality(
         (user_subscription::Entity, user_subscription::Column::UserId),
@@ -133,6 +173,11 @@ fn live_grants(now: i64, selected_client: Option<&str>) -> SelectStatement {
         .and_where(user::Column::Enabled.eq(true))
         .and_where(api_key::Column::Enabled.eq(true))
         .and_where(api_key::Column::Kind.eq(api_key::ApiKeyKind::OAuth))
+        .cond_where(super::oauth_policy::allowed(
+            backend,
+            Expr::col((grant::Entity, grant::Column::UserId)),
+            Expr::col((grant::Entity, grant::Column::ClientId)),
+        )?)
         .and_where(equality(
             (api_key::Entity, api_key::Column::UserId),
             (grant::Entity, grant::Column::UserId),
@@ -150,7 +195,7 @@ fn live_grants(now: i64, selected_client: Option<&str>) -> SelectStatement {
     if let Some(id) = selected_client {
         query.and_where(grant::Column::ClientId.eq(id));
     }
-    query.to_owned()
+    Ok(query.to_owned())
 }
 
 impl<C: BatchConnectionTrait> Repository<'_, C, grant::Entity> {
@@ -221,10 +266,11 @@ impl<C: BatchConnectionTrait> Repository<'_, C, grant::Entity> {
                 .and_where(column("grant_id").eq(exchange.grant_id.clone()))
                 .and_where(column("consumed_at_ms").is_null())
                 .and_where(column("expires_at_ms").gt(exchange.now_ms))
-                .and_where(
-                    column("grant_id")
-                        .in_subquery(live_grants(exchange.now_ms, Some(&exchange.client_id))),
-                );
+                .and_where(column("grant_id").in_subquery(live_grants(
+                    backend,
+                    exchange.now_ms,
+                    Some(&exchange.client_id),
+                )?));
             match &exchange.source {
                 ExchangeSource::Code {
                     redirect_uri,
@@ -321,7 +367,11 @@ impl<C: BatchConnectionTrait> Repository<'_, C, grant::Entity> {
                     .filter(token::Column::Kind.eq(token::TokenKind::Access))
                     .filter(token::Column::ExpiresAtMs.gt(now))
                     .filter(token::Column::RevokedAtMs.is_null())
-                    .filter(token::Column::GrantId.in_subquery(live_grants(now, None)))
+                    .filter(token::Column::GrantId.in_subquery(live_grants(
+                        self.db.get_database_backend(),
+                        now,
+                        None,
+                    )?))
                     .find_both_related(grant::Entity)
                     .batch_query(self.db.get_database_backend())?)
             })
@@ -461,7 +511,12 @@ impl<C: BatchConnectionTrait> Repository<'_, C, grant::Entity> {
                 .into_query();
             let mut allowed = Condition::all()
                 .add(Expr::exists(client))
-                .add(Expr::exists(user));
+                .add(Expr::exists(user))
+                .add(super::oauth_policy::allowed(
+                    backend,
+                    Expr::val(user_id.clone()),
+                    Expr::val(client_id.clone()),
+                )?);
             if let Some(Some(subscription)) = auth.api_key.subscription_id.try_as_ref().cloned() {
                 let mut eligible = eligible_subscriptions(auth.now_ms);
                 eligible

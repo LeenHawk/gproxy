@@ -173,6 +173,15 @@ DDL；真实业务查询和批量操作仍走实际数据库驱动。这避开�
 - `Projection` 在原生平台也可构造和测试；真正的 D1 连接只在 Workers WASM 上提供。
   本库不提供原生数据库驱动、Redis、KV、文件存储或后台任务。
 
+## 跨后端 JSON 字符串匹配
+
+`json_array_contains_text(backend, array_expr, value_expr)` 返回 `Result<Expr, DbErr>`，
+在 JSON 数组顶层进行精确字符串匹配；参数保持绑定表达式，NULL／非数组值和非字符串
+元素不匹配。SQLite／D1 使用 `json_each`，PostgreSQL 使用 `jsonb_array_elements`，
+MySQL 8+ 使用 `JSON_TABLE`；未知后端在派发 SQL 前明确报错。当前开源 SeaORM 2.0.3
+依赖没有 MSSQL 后端，SQL Server 支持由单独的 [SeaORM X](https://www.sea-ql.org/SeaORM-X/)
+提供，未集成到本项目。
+
 ## 精确定点数
 
 `FixedDecimal` 提供固定 9 位小数的 i64 原子值、精确解析、带溢出检查的加减，以及从

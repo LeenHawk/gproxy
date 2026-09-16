@@ -18,6 +18,8 @@ mod select;
 pub use select::SelectProjection;
 mod fixed_decimal;
 pub use fixed_decimal::{FixedDecimal, FixedDecimalError};
+mod json;
+pub use json::json_array_contains_text;
 mod batch;
 pub use batch::{BatchConnectionTrait, BatchQuery, BatchResult, BatchStatement};
 /// D1's bound-parameter limit per SQL statement. A logical batch may contain
