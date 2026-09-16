@@ -14,10 +14,11 @@ with one entity per file:
 | `routing` | ExposedModel, Route, RouteMember |
 | `identity` | Organization, Team, OrganizationMember, TeamMember, User, ApiKey, UserSession, Permission |
 | `oauth` | Client, Grant, Code, Token, Device |
+| `subscription` | Pool, PoolMember, Plan, PlanLimit, Subscription |
 | `limits` | RateLimit, Quota, QuotaWindow, QuotaSettlement, CredentialQuotaCycle |
 | `pricing` | PriceRule, PriceRate, PriceTier |
 | `usage` | UsageRecord, CaptureRecord, CaptureLink, CaptureEvent |
-| `resource` | FileObject, ResourceBinding, ProtocolState |
+| `resource` | FileObject, AgentSession, AgentAssignment, ResourceBinding, ProtocolState |
 | `config` | Setting |
 
 Fields, primary/unique keys, relations, and delete actions are declared directly
@@ -50,8 +51,9 @@ Review decisions currently expressed in the code:
   that optional reference.
 - Public model names map to routes containing provider/upstream-model members.
   Routing definitions have no organization, team or user ownership.
-- Permission, rate-limit, and quota owner columns currently allow a user or an
-  API key. The ownership shape is explicitly left for review before policy CRUD.
+- Permissions/rate limits currently target users or API keys. A quota targets
+  exactly one user, API key, subscription or subscription pool; the future write
+  layer must enforce ownership consistency.
 - Configuration-owned rows use the declared delete actions. Historical identity
   references have no configuration foreign keys. Quota settlements refer to quota
   windows, independently of removable usage detail records.
@@ -232,3 +234,121 @@ ownership rules and the three-level proxy configuration continue to apply.
 Only entities and the serialized credential shape are implemented. OAuth endpoints,
 key management, atomic rotation, upstream login/refresh and client integration remain
 future work.
+
+## Subscription aggregation and allocation
+
+[`subscription`](src/entity/subscription/mod.rs) models gateway-issued virtual subscriptions:
+
+```text
+Credential -> PoolMember -> Pool -> Plan -> Subscription -> API keys / OAuth sessions
+                                      PlanLimit -> subscription-owned Quota
+Pool/subscription Quota -> QuotaWindow -> QuotaSettlement
+```
+
+PoolMember binds a credential and a channel-defined canonical source_key for the
+real upstream subscription. A source contributes to one pool only; downstream
+allocations split its capacity. Token refresh does not create a new source, and
+membership does not change credential ownership. Pool-owned quotas are provisioned
+budgets; actual available capacity comes from member CredentialQuotaCycle observations.
+Configured budgets are not upstream-reported remaining capacity.
+
+Plans define gateway display names and Codex/Claude Code presentation fields.
+PlanLimit defines default windows, dollar allowances (limit, in USD) and model scopes.
+Issuance copies these into subscription-owned Quota rows with metric = cost and
+unit = USD, optionally adjusting the dollar allocation.
+Template edits do not retroactively resize/reset issued limits; changed terms use a
+new plan. Subscriptions bind users and plans with start/expiry/enabled state. API
+keys select a subscription; OAuth follows its internal key, so multiple sessions
+share the same allocation. Key and subscription owners must match. A disabled or
+expired subscription cannot fall back to unrestricted access. Plan.enabled controls
+new issuance; Pool.enabled controls whether its capacity may continue serving work.
+
+Group source capacities only by compatible metric, unit, model scope and window
+class. Five-hour and seven-day constraints on one source are simultaneous limits,
+not additive capacity. Preserve each source's reset time. Percentages without an
+absolute basis remain unknown, not summed; stale/incomplete observations are not
+zero consumption. Conversion and observation freshness require future aggregation
+logic. Downstream allowances are always USD: token/cache/tool/media quantities
+are priced in USD before charging. Subscription pricing rules must use USD; no
+implicit currency mixing is defined. Upstream percentages/token limits describe
+serving capacity, not dollar balances. Pool dollar budgets are explicitly configured
+or separately estimated. Provisioning checks outstanding USD allocations against
+compatible pool budgets; different windows/scopes cannot be naively summed.
+
+Fixed downstream windows use subscription start/Quota.anchor_at_ms; calendar
+windows use UTC and total quotas never reset. Upstream resets do not clear downstream
+consumption. Client adapters use window_key (primary/secondary/etc.) to show the
+subscriber's USD allowance, spent/remaining USD and reset (deriving percentages
+from the dollar ledger where required), not all pool balances or
+upstream account identities. Gateway plan labels do not change upstream entitlements.
+
+Runtime candidates intersect route targets, pool members and existing credential
+permissions. Subscription switches affect later requests/WS turns, not in-flight
+work. Historical UsageRecord.subscription_id and upstream CaptureRecord.pool_id
+retain attribution. Pool quota settlement uses physical upstream call IDs once;
+subscription settlement uses downstream request IDs once. Shared-call allocation
+still requires an explicit settlement policy. New OAuth logins must not silently
+create fresh independent allowances.
+
+Existing QuotaWindow/QuotaSettlement remain the only consumption ledger. Deleting
+a subscription deletes its keys, OAuth grants and quota configuration, while historical
+windows/settlements/usage survive. Prefer disabling/expiry to retain configuration.
+Plans with issued subscriptions cannot be physically deleted. Only entities and
+contracts are implemented: aggregation, provisioning, reservations, candidate
+filtering and client subscription rendering remain future work.
+
+## Cloud-agent affinity and exhaustion handoff
+
+[`AgentSession`](src/entity/resource/agent_session.rs) identifies a stable logical
+session by user, service/routing scope and downstream affinity_key, independently of
+a captured WS connection. Reuse the same eligible credential until confirmed
+exhaustion for the required workload; a transient rate limit is not proof of quota
+exhaustion. After switching, stick to the replacement even if an older credential
+resets. Routing/model permissions and subscription-pool eligibility still apply.
+The downstream subscription and USD ledger do not change.
+
+Each [`AgentAssignment`](src/entity/resource/agent_assignment.rs) stores a target,
+previous active generation, reason/evidence references and preparation/activation/
+replacement/failure/uncertain outcome. Never overwrite an old target. Resolve the
+current target using session.active_generation, not the newest assignment. Reserve
+switches by conditional version update and use the reservation revision as a
+never-reused generation, including after failed attempts.
+
+Prepare/rebuild/resume resources on the replacement as supported by the concrete
+API. Only after successful preparation may an atomic commit validate the expected
+session version, activate the new assignment, replace the old one and advance the
+active pointer/version. Stale workers/callbacks cannot overwrite a newer selection.
+New work waits while switching; existing calls retain their original assignment.
+An uncertain upstream create outcome must be recovered through lookup or supported
+idempotency, not blindly replayed after a timeout. These operations remain future
+store/execution-layer work.
+
+[`ResourceBinding`](src/entity/resource/resource_binding.rs) adds generation to its
+unique public-resource key: ordinary resources use 0, agent resources use their
+assignment generation. Stable public server/environment/session IDs can map to
+new upstream IDs each generation while preserving old targets, dependencies,
+metadata and timestamps. Token-kind public_id contains a host-generated downstream
+bearer digest; upstream tokens live in a sealed secret, never public metadata.
+Agent resource scope binds the logical session, not the changing provider. Writers
+must validate owner/session/generation/target consistency. All associated handles
+ultimately resolve through the same session's active generation.
+
+Existing tasks/files/environments do not migrate merely by changing credentials.
+New work uses the current generation; explicit reads/management of historical
+resources use their original targets. Copy/rebuild/resume requires adapter support;
+otherwise record the failure and block that continuation rather than claim seamless
+migration. ProtocolState can hold checkpoints scoped to owner/session/generation,
+with host encryption when needed.
+
+In-flight WS/streaming calls pin CaptureRecord.agent_assignment_id; never splice a
+second account into an established stream. Handoff affects prepared new calls or
+supported reconnects. Capture references are historical. Credential/provider removal
+cannot cascade-delete assignment or resource target history; missing configuration
+means unavailable, not unrestricted fallback. Explicit session purge deletes its
+assignment rows and clears binding assignment_id while retaining original target
+and generation; such rows must not be treated as ordinary generation-0 resources.
+
+This models v3 affinity/resource ownership and locally surveyed client APIs. Entities,
+constraints and update contracts do not implement exhaustion detection, concurrent
+handoff, resource recreation, token translation or live WS continuation. An inventoried
+endpoint alone is not evidence of cross-account migration support.
