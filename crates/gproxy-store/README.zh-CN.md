@@ -9,7 +9,7 @@ GPROXY v4 的 SeaORM 2 entity 定义。**当前是实体审查稿**，尚未实�
 
 | 目录 | 实体 |
 |---|---|
-| `upstream` 上游 | Provider、Credential、Model、ProviderModel、OperationRule |
+| `upstream` 上游 | Provider、Credential、Model、ProviderModel、OperationRule、RewriteRuleSet、RewriteRule、ProviderRewriteRuleSet |
 | `routing` 路由 | ExposedModel、Route、RouteMember |
 | `identity` 身份 | Organization、Team、OrganizationMember、TeamMember、User、ApiKey、UserSession、Permission |
 | `oauth` 下游授权 | Client、Grant、Code、Token、Device |
@@ -50,7 +50,10 @@ GPROXY v4 的 SeaORM 2 entity 定义。**当前是实体审查稿**，尚未实�
 - 文件内容留在 file/S3，文件实体只保存位置和元数据；模型自定义词表引用 FileObject。
 - 金额／数量暂按 `Decimal(28,12)` 表达业务类型。当前 D1 适配器尚未实现该映射；实际接入
   D1 数据读写前，需要确认精度和存储表示。
-- 可复用修改规则集、审计和派生用量汇总不在首轮实体草案中。
+- 改写规则通过 RewriteRuleSet 复用，通过 ProviderRewriteRuleSet 按顺序绑定到供应商。
+  RewriteRule 明确保存正则、替换文本、可选 JSON 点路径和筛选条件。删除规则集会级联
+  删除规则及绑定；删除供应商只删除其绑定。仓储方法与改写执行尚未实现。
+- 审计和派生用量汇总不在首轮实体草案中。
 
 ## 路由结构
 

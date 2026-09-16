@@ -10,7 +10,7 @@ with one entity per file:
 
 | Directory | Entities |
 |---|---|
-| `upstream` | Provider, Credential, Model, ProviderModel, OperationRule |
+| `upstream` | Provider, Credential, Model, ProviderModel, OperationRule, RewriteRuleSet, RewriteRule, ProviderRewriteRuleSet |
 | `routing` | ExposedModel, Route, RouteMember |
 | `identity` | Organization, Team, OrganizationMember, TeamMember, User, ApiKey, UserSession, Permission |
 | `oauth` | Client, Grant, Code, Token, Device |
@@ -64,8 +64,12 @@ Review decisions currently expressed in the code:
 - Amounts use `Decimal(28,12)` as a proposed business representation. The current
   D1 adapter does not implement that mapping; decimal storage and precision must
   be settled before these entities are used for D1 data operations.
-- Reusable mutation rule sets, audit events, and derived usage rollups are outside
-  this first entity draft.
+- RewriteRuleSet groups reusable rewrite rules; ProviderRewriteRuleSet attaches
+  them to providers in order. RewriteRule stores regex, replacement, optional JSON
+  dot paths and filters as explicit fields. Deleting a set cascades to its rules
+  and attachments; deleting a provider removes only its attachments. Repository
+  methods and rewrite execution are not implemented yet.
+- Audit events and derived usage rollups are outside this first entity draft.
 
 ## Routing structure
 
