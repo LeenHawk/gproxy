@@ -28,19 +28,7 @@ fn access<T>(driver: &Driver, f: impl FnOnce(&mut Pump) -> T) -> T {
 fn failure(kind: CodecErrorKind, message: &'static str) -> CodecError {
     CodecError::new(kind, CodecErrorStage::Body, message)
 }
-pub fn validate_boundary(boundary: &str) -> Result<(), CodecError> {
-    if boundary.is_empty()
-        || boundary.len() > 70
-        || boundary.ends_with(' ')
-        || !boundary
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b"'()+_,-./:=? ".contains(&b))
-    {
-        Err(failure(CodecErrorKind::Invalid, "invalid MIME boundary"))
-    } else {
-        Ok(())
-    }
-}
+
 fn map_error(source: multer::Error) -> CodecError {
     let kind = match &source {
         multer::Error::FieldSizeExceeded { .. } | multer::Error::StreamSizeExceeded { .. } => {
@@ -364,7 +352,7 @@ impl MultipartDecoder {
         limits: CodecLimits,
     ) -> Result<Self, CodecError> {
         let boundary = boundary.into();
-        validate_boundary(&boundary)?;
+
         let reserve = boundary.len() + 8;
         let quantum = usize::try_from(limits.max_buffer_bytes)
             .unwrap_or(usize::MAX)
@@ -535,7 +523,7 @@ impl MultipartEncoder {
         limits: CodecLimits,
     ) -> Result<Self, CodecError> {
         let boundary = boundary.into();
-        validate_boundary(&boundary)?;
+
         Ok(Self {
             boundary,
             parts: body.parts,

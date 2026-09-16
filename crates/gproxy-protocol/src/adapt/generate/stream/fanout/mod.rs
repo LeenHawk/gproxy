@@ -7,12 +7,8 @@ mod images;
 mod prepare;
 mod run;
 use super::{
-    StreamChunk, StreamInvocation, StreamSettings, StreamStart,
-    bridge::StreamBridge,
-    event::NativeEvent,
-    invoke::ClientFull,
-    output::Encoder,
-    reservation::{Reservation, StateBinding},
+    StreamChunk, StreamInvocation, StreamSettings, StreamStart, bridge::StreamBridge,
+    event::NativeEvent, invoke::ClientFull, output::Encoder, reservation::Reservation,
 };
 use super::{codec_error, conflict, invalid, limit};
 use crate::{
@@ -38,7 +34,6 @@ where
     children: Vec<StreamInvocation<B>>,
     id: String,
     settings: StreamSettings,
-    binding: StateBinding,
     manifest: Reservation,
     group: GenerationProgress<()>,
     group_saved: bool,
@@ -78,9 +73,9 @@ where
             .iter()
             .map(|v| v.selected.identities.clone())
             .collect();
-        let id = group_id(options, &ids)?;
+        let id = group_id(&options)?;
         let settings = children[0].settings;
-        if children.len() > settings.events.max_choices
+        if children.len() > settings.events.max_choices.min(options.max_children)
             || children
                 .len()
                 .checked_add(1)
@@ -88,18 +83,10 @@ where
         {
             return Err(limit("fanout count exceeds event/state budget"));
         }
-        let binding = StateBinding::new(state)?;
         let mut fixed = BTreeSet::new();
         let mut entries = Vec::new();
         for child in &children {
-            child.state_binding.validate(state)?;
             child.preparation.verify(state).await?;
-            if child.sent || child.failed {
-                return Err(conflict("fanout requires unstarted prepared children"));
-            }
-            if child.selected.model != children[0].selected.model {
-                return Err(conflict("fanout selected child models differ"));
-            }
             fixed.extend(
                 child
                     .bridge
@@ -142,7 +129,6 @@ where
             children,
             id,
             settings,
-            binding,
             manifest,
             group: Default::default(),
             group_saved: false,

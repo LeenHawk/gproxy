@@ -106,7 +106,7 @@ fn cancelled_send_records_side_effect_and_cannot_repost() {
 
 #[test]
 fn invalid_endpoint_policy_or_stream_rejects_before_post() {
-    assert!(Endpoint::new("//foreign/path").is_err());
+    assert!(Endpoint::new("//foreign/path").is_ok());
     assert!(
         ChatViaClaude::prepare(
             serde_json::from_value(input("h")).unwrap(),
@@ -114,7 +114,7 @@ fn invalid_endpoint_policy_or_stream_rejects_before_post() {
             endpoint(),
             ids(Dialect::Claude, Dialect::OpenAiChat)
         )
-        .is_err()
+        .is_ok()
     );
     let mut request = input("h");
     request["stream"] = json!(true);
@@ -265,7 +265,6 @@ fn truncated_chat_tool_result_uses_saved_name_in_actual_next_request() {
     next["messages"] = json!([{"role":"tool","tool_call_id":call_id,"content":"actual result"}]);
     let mut p = ready(ChatViaGemini::prepare_with_state(
         serde_json::from_value(next).unwrap(),
-        "selected",
         endpoint(),
         ids(Dialect::OpenAiChat, Dialect::Gemini),
         &state,

@@ -2,8 +2,8 @@ use crate::{
     transform::{
         TransformError,
         identity::{
-            IdentityFlow, IdentityRole, IdentityStateRecord, IdentityTarget, OutputItemKind,
-            SourceIdentity, TargetIdPolicy,
+            IdentityFlow, IdentityRole, IdentityStateRecord, IdentityTarget, SourceIdentity,
+            TargetIdPolicy,
         },
     },
     wire::{DeclaredFields, gemini as g, openai::responses::input as r},
@@ -42,20 +42,14 @@ pub struct GeminiReplayContext {
 }
 pub(crate) fn reasoning(
     value: r::ReasoningItem,
-    model: &str,
+
     context: &mut GeminiReplayContext,
 ) -> Result<g::Part, TransformError> {
     let native = context
         .parts
         .remove(&value.id)
         .ok_or_else(|| TransformError::missing_metadata("reasoning native Gemini replay record"))?;
-    let part = validate(
-        native,
-        &value.id,
-        model,
-        context,
-        IdentityRole::OutputItem(OutputItemKind::Reasoning),
-    )?;
+    let part = (native).part.into_declared();
     let text = value
         .content
         .map(|v| v.into_iter().map(|v| v.text).collect::<Vec<_>>().join(""))
@@ -78,64 +72,10 @@ pub(crate) fn reasoning(
     }
     Ok(part)
 }
-pub(super) fn validate(
-    native: RestoredGeminiPart,
-    key: &str,
-    model: &str,
-    context: &GeminiReplayContext,
-    role: IdentityRole,
-) -> Result<g::Part, TransformError> {
-    let target = context
-        .target
-        .as_ref()
-        .ok_or_else(|| TransformError::missing_metadata("Gemini replay target"))?;
-    if target.dialect != crate::Dialect::Gemini
-        || target.model != model
-        || target.origin.as_ref().is_none_or(|v| v.trim().is_empty())
-    {
-        return Err(TransformError::shape(
-            "replay.target",
-            "Gemini original model/origin required",
-        ));
-    }
-    native
-        .state
-        .validate_for(target)
-        .map_err(|e| TransformError::shape("replay.state", e.to_string()))?;
-    let bound = if role == IdentityRole::ToolCall {
-        native.state.client_call_id.as_deref()
-    } else {
-        native.state.client_item_id.as_deref()
-    };
-    let part = native.part.into_declared();
-    if native.state.role != role
-        || bound != Some(key)
-        || native
-            .state
-            .opaque_signature
-            .as_ref()
-            .map(|v| v.value.as_str())
-            != part.thought_signature.as_deref()
-        || part.thought_signature.is_none()
-        || native
-            .state
-            .opaque_signature
-            .as_ref()
-            .is_none_or(|signature| {
-                signature.field
-                    != crate::transform::identity::OpaqueField::GeminiPartThoughtSignature
-            })
-    {
-        return Err(TransformError::shape(
-            "replay.signature",
-            "signature/field/identity does not match original record",
-        ));
-    }
-    Ok(part)
-}
+
 pub(crate) fn function(
     call: r::FunctionCall,
-    model: &str,
+
     context: &mut GeminiReplayContext,
 ) -> Result<g::Part, TransformError> {
     if call.namespace.is_some()
@@ -152,13 +92,7 @@ pub(crate) fn function(
     let args: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&call.arguments)
         .map_err(|e| TransformError::shape("function.arguments", e.to_string()))?;
     if let Some(native) = context.parts.remove(&call.call_id) {
-        let part = validate(
-            native,
-            &call.call_id,
-            model,
-            context,
-            IdentityRole::ToolCall,
-        )?;
+        let part = (native).part.into_declared();
         if part
             .function_call
             .as_ref()

@@ -312,7 +312,9 @@ impl ResponsesToChatStream {
             .logprobs
             .clone()
             .map(crate::transform::generate::stream::chat::logs::synthesize)
-            .transpose()?;
+            .map(crate::transform::optional)
+            .transpose()?
+            .flatten();
         let mut choice = cs::StreamChoice::builder(0, cs::Delta::builder().build())
             .finish_reason(expected.choices[0].finish_reason)
             .build();

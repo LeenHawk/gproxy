@@ -19,52 +19,30 @@ use crate::{
     },
     wire::{DeclaredFields, gemini as g, openai::chat as h},
 };
-fn validate(
-    target: &FanoutTarget,
-    count: i64,
-    settings: StreamSettings,
-) -> Result<(), TransformError> {
-    target.endpoint.validate()?;
-    if usize::try_from(count).ok() != Some(target.identities.len()) {
-        return Err(TransformError::shape(
-            "fanout.count",
-            "candidate count must match distinct prepared child identities",
-        ));
-    }
-    group_id(target.options, &target.identities)?;
-    if target.identities.len() > settings.events.max_choices {
-        return Err(limit("fanout candidate limit exceeded"));
-    }
-    Ok(())
-}
+
 impl ChatViaClaudeFanout {
     pub async fn prepare_stream<S: StateStore>(
         input: h::GenerateContentRequestBody,
         target: FanoutTarget,
-        contexts: Vec<ch::ClaudeToChatContext>,
+        mut context: impl FnMut(usize) -> ch::ClaudeToChatContext,
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<FanoutStream<ch::ClaudeToChatStream>, TransformError> {
         let input = input.into_declared();
-        validate(&target, input.n.flatten().unwrap_or(1), settings)?;
-        if contexts.len() != target.identities.len() {
-            return Err(TransformError::shape(
-                "fanout.contexts",
-                "each child requires its factual response context",
-            ));
-        }
+
         let original = crate::codec::encode_json(&input, settings.codec)
             .map_err(codec_error)?
             .to_vec();
         let mut children = Vec::new();
-        for (identities, context) in target.identities.into_iter().zip(contexts) {
+        for index in 0..input.n.flatten().unwrap_or(1) {
+            let identities = target.options.child_identity(index, crate::Dialect::Claude);
+            let context = context(index as usize);
             let mut request = input.clone();
             request.n = Some(Some(1));
             children.push(
                 ChatViaClaude::prepare_stream(
                     request,
                     StreamTarget {
-                        model: target.model.clone(),
                         endpoint: target.endpoint.clone(),
                         identities,
                     },
@@ -80,31 +58,26 @@ impl ChatViaClaudeFanout {
     pub async fn prepare_stream_with_capabilities<S: StateStore, R: ResourceAccess>(
         input: h::GenerateContentRequestBody,
         target: FanoutTarget,
-        contexts: Vec<ch::ClaudeToChatContext>,
+        mut context: impl FnMut(usize) -> ch::ClaudeToChatContext,
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
     ) -> Result<FanoutStream<ch::ClaudeToChatStream>, TransformError> {
         let input = input.into_declared();
-        validate(&target, input.n.flatten().unwrap_or(1), settings)?;
-        if contexts.len() != target.identities.len() {
-            return Err(TransformError::shape(
-                "fanout.contexts",
-                "each child requires its factual response context",
-            ));
-        }
+
         let original = crate::codec::encode_json(&input, settings.codec)
             .map_err(codec_error)?
             .to_vec();
         let mut children = Vec::new();
-        for (identities, context) in target.identities.into_iter().zip(contexts) {
+        for index in 0..input.n.flatten().unwrap_or(1) {
+            let identities = target.options.child_identity(index, crate::Dialect::Claude);
+            let context = context(index as usize);
             let mut request = input.clone();
             request.n = Some(Some(1));
             children.push(
                 ChatViaClaude::prepare_stream_with_capabilities(
                     request,
                     StreamTarget {
-                        model: target.model.clone(),
                         endpoint: target.endpoint.clone(),
                         identities,
                     },
@@ -127,19 +100,19 @@ impl ChatViaResponsesFanout {
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<FanoutStream<hr::ResponsesToChatStream>, TransformError> {
         let input = input.into_declared();
-        validate(&target, input.n.flatten().unwrap_or(1), settings)?;
+
         let original = crate::codec::encode_json(&input, settings.codec)
             .map_err(codec_error)?
             .to_vec();
         let mut children = Vec::new();
-        for identities in target.identities {
+        for index in 0..input.n.flatten().unwrap_or(1) {
+            let identities = target.options.child_identity(index, crate::Dialect::OpenAi);
             let mut request = input.clone();
             request.n = Some(Some(1));
             children.push(
                 ChatViaResponses::prepare_stream(
                     request,
                     StreamTarget {
-                        model: target.model.clone(),
                         endpoint: target.endpoint.clone(),
                         identities,
                     },
@@ -159,19 +132,19 @@ impl ChatViaResponsesFanout {
         resources: &GenerationResources<'_, R>,
     ) -> Result<FanoutStream<hr::ResponsesToChatStream>, TransformError> {
         let input = input.into_declared();
-        validate(&target, input.n.flatten().unwrap_or(1), settings)?;
+
         let original = crate::codec::encode_json(&input, settings.codec)
             .map_err(codec_error)?
             .to_vec();
         let mut children = Vec::new();
-        for identities in target.identities {
+        for index in 0..input.n.flatten().unwrap_or(1) {
+            let identities = target.options.child_identity(index, crate::Dialect::OpenAi);
             let mut request = input.clone();
             request.n = Some(Some(1));
             children.push(
                 ChatViaResponses::prepare_stream_with_capabilities(
                     request,
                     StreamTarget {
-                        model: target.model.clone(),
                         endpoint: target.endpoint.clone(),
                         identities,
                     },
@@ -189,31 +162,24 @@ impl GeminiViaClaudeFanout {
     pub async fn prepare_stream<S: StateStore>(
         input: g::GenerateContentRequestBody,
         target: FanoutTarget,
-        contexts: Vec<GeminiViaClaudeStreamFacts>,
+        mut context: impl FnMut(usize) -> GeminiViaClaudeStreamFacts,
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<FanoutStream<cg::ClaudeToGeminiStream>, TransformError> {
         let input = input.into_declared();
-        validate(
-            &target,
-            input
-                .generation_config
-                .as_ref()
-                .and_then(|c| c.candidate_count)
-                .unwrap_or(1),
-            settings,
-        )?;
-        if contexts.len() != target.identities.len() {
-            return Err(TransformError::shape(
-                "fanout.contexts",
-                "each child requires its factual response context",
-            ));
-        }
+
         let original = crate::codec::encode_json(&input, settings.codec)
             .map_err(codec_error)?
             .to_vec();
         let mut children = Vec::new();
-        for (identities, context) in target.identities.into_iter().zip(contexts) {
+        for index in 0..input
+            .generation_config
+            .as_ref()
+            .and_then(|v| v.candidate_count)
+            .unwrap_or(1)
+        {
+            let identities = target.options.child_identity(index, crate::Dialect::Claude);
+            let context = context(index as usize);
             let mut request = input.clone();
             request
                 .generation_config
@@ -223,7 +189,6 @@ impl GeminiViaClaudeFanout {
                 GeminiViaClaude::prepare_stream(
                     request,
                     StreamTarget {
-                        model: target.model.clone(),
                         endpoint: target.endpoint.clone(),
                         identities,
                     },
@@ -239,32 +204,25 @@ impl GeminiViaClaudeFanout {
     pub async fn prepare_stream_with_capabilities<S: StateStore, R: ResourceAccess>(
         input: g::GenerateContentRequestBody,
         target: FanoutTarget,
-        contexts: Vec<GeminiViaClaudeStreamFacts>,
+        mut context: impl FnMut(usize) -> GeminiViaClaudeStreamFacts,
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
     ) -> Result<FanoutStream<cg::ClaudeToGeminiStream>, TransformError> {
         let input = input.into_declared();
-        validate(
-            &target,
-            input
-                .generation_config
-                .as_ref()
-                .and_then(|c| c.candidate_count)
-                .unwrap_or(1),
-            settings,
-        )?;
-        if contexts.len() != target.identities.len() {
-            return Err(TransformError::shape(
-                "fanout.contexts",
-                "each child requires its factual response context",
-            ));
-        }
+
         let original = crate::codec::encode_json(&input, settings.codec)
             .map_err(codec_error)?
             .to_vec();
         let mut children = Vec::new();
-        for (identities, context) in target.identities.into_iter().zip(contexts) {
+        for index in 0..input
+            .generation_config
+            .as_ref()
+            .and_then(|v| v.candidate_count)
+            .unwrap_or(1)
+        {
+            let identities = target.options.child_identity(index, crate::Dialect::Claude);
+            let context = context(index as usize);
             let mut request = input.clone();
             request
                 .generation_config
@@ -274,7 +232,6 @@ impl GeminiViaClaudeFanout {
                 GeminiViaClaude::prepare_stream_with_capabilities(
                     request,
                     StreamTarget {
-                        model: target.model.clone(),
                         endpoint: target.endpoint.clone(),
                         identities,
                     },
@@ -293,31 +250,24 @@ impl GeminiViaResponsesFanout {
     pub async fn prepare_stream<S: StateStore>(
         input: g::GenerateContentRequestBody,
         target: FanoutTarget,
-        contexts: Vec<gr::ResponsesToGeminiContext>,
+        mut context: impl FnMut(usize) -> gr::ResponsesToGeminiContext,
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<FanoutStream<gr::ResponsesToGeminiStream>, TransformError> {
         let input = input.into_declared();
-        validate(
-            &target,
-            input
-                .generation_config
-                .as_ref()
-                .and_then(|c| c.candidate_count)
-                .unwrap_or(1),
-            settings,
-        )?;
-        if contexts.len() != target.identities.len() {
-            return Err(TransformError::shape(
-                "fanout.contexts",
-                "each child requires its factual response context",
-            ));
-        }
+
         let original = crate::codec::encode_json(&input, settings.codec)
             .map_err(codec_error)?
             .to_vec();
         let mut children = Vec::new();
-        for (identities, context) in target.identities.into_iter().zip(contexts) {
+        for index in 0..input
+            .generation_config
+            .as_ref()
+            .and_then(|v| v.candidate_count)
+            .unwrap_or(1)
+        {
+            let identities = target.options.child_identity(index, crate::Dialect::OpenAi);
+            let context = context(index as usize);
             let mut request = input.clone();
             request
                 .generation_config
@@ -327,7 +277,6 @@ impl GeminiViaResponsesFanout {
                 GeminiViaResponses::prepare_stream(
                     request,
                     StreamTarget {
-                        model: target.model.clone(),
                         endpoint: target.endpoint.clone(),
                         identities,
                     },
@@ -343,32 +292,25 @@ impl GeminiViaResponsesFanout {
     pub async fn prepare_stream_with_capabilities<S: StateStore, R: ResourceAccess>(
         input: g::GenerateContentRequestBody,
         target: FanoutTarget,
-        contexts: Vec<gr::ResponsesToGeminiContext>,
+        mut context: impl FnMut(usize) -> gr::ResponsesToGeminiContext,
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
     ) -> Result<FanoutStream<gr::ResponsesToGeminiStream>, TransformError> {
         let input = input.into_declared();
-        validate(
-            &target,
-            input
-                .generation_config
-                .as_ref()
-                .and_then(|c| c.candidate_count)
-                .unwrap_or(1),
-            settings,
-        )?;
-        if contexts.len() != target.identities.len() {
-            return Err(TransformError::shape(
-                "fanout.contexts",
-                "each child requires its factual response context",
-            ));
-        }
+
         let original = crate::codec::encode_json(&input, settings.codec)
             .map_err(codec_error)?
             .to_vec();
         let mut children = Vec::new();
-        for (identities, context) in target.identities.into_iter().zip(contexts) {
+        for index in 0..input
+            .generation_config
+            .as_ref()
+            .and_then(|v| v.candidate_count)
+            .unwrap_or(1)
+        {
+            let identities = target.options.child_identity(index, crate::Dialect::OpenAi);
+            let context = context(index as usize);
             let mut request = input.clone();
             request
                 .generation_config
@@ -378,7 +320,6 @@ impl GeminiViaResponsesFanout {
                 GeminiViaResponses::prepare_stream_with_capabilities(
                     request,
                     StreamTarget {
-                        model: target.model.clone(),
                         endpoint: target.endpoint.clone(),
                         identities,
                     },

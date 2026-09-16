@@ -133,71 +133,6 @@ impl IdentityStateRecord {
             opaque_signature: None,
         }
     }
-
-    pub fn validate_for(&self, expected: &IdentityTarget) -> Result<(), IdentityError> {
-        if self.target.model.trim().is_empty()
-            || self
-                .target
-                .origin
-                .as_ref()
-                .is_some_and(|origin| origin.trim().is_empty())
-        {
-            return Err(IdentityError::InvalidIdentity(
-                "invalid state target binding".into(),
-            ));
-        }
-        if self.schema != STATE_SCHEMA {
-            return Err(IdentityError::InvalidIdentity(
-                "unsupported identity state schema".into(),
-            ));
-        }
-        if &self.target != expected {
-            return Err(IdentityError::InvalidIdentity(format!(
-                "state target {} / {} does not match {} / {}",
-                self.target.dialect.id(),
-                self.target.model,
-                expected.dialect.id(),
-                expected.model
-            )));
-        }
-        for value in [
-            &self.original_item_id,
-            &self.original_call_id,
-            &self.client_item_id,
-            &self.client_call_id,
-            &self.response_id,
-            &self.conversation_id,
-        ]
-        .into_iter()
-        .flatten()
-        {
-            if value.is_empty() {
-                return Err(IdentityError::InvalidIdentity(
-                    "identity state id is invalid".into(),
-                ));
-            }
-        }
-        if let Some(name) = &self.tool_name
-            && name.is_empty()
-        {
-            return Err(IdentityError::InvalidIdentity(
-                "tool name is invalid".into(),
-            ));
-        }
-        if let Some(signature) = &self.opaque_signature
-            && (signature.value.is_empty()
-                || signature.origin.trim().is_empty()
-                || signature.model.trim().is_empty()
-                || self.target.origin.as_deref() != Some(signature.origin.as_str())
-                || signature.model != self.target.model
-                || signature.field.dialect() != self.target.dialect)
-        {
-            return Err(IdentityError::InvalidIdentity(
-                "opaque signature origin/model/field does not match its target".into(),
-            ));
-        }
-        Ok(())
-    }
 }
 
 /// Fields that may be learned after the first stream event. Existing values
@@ -306,7 +241,6 @@ impl<S: StateStore> IdentityStateStore<S> {
         &self,
         scope: &S::Scope,
         key: &str,
-        target: &IdentityTarget,
     ) -> Result<IdentityStateSnapshot, IdentityError> {
         let Some(entry) = self
             .store
@@ -316,7 +250,7 @@ impl<S: StateStore> IdentityStateStore<S> {
         else {
             return Err(IdentityError::MissingState);
         };
-        decode_entry(entry, target)
+        decode_entry(entry)
     }
 
     /// Save a record with compare-and-exchange. `expected = None` creates a
@@ -329,7 +263,6 @@ impl<S: StateStore> IdentityStateStore<S> {
         record: &IdentityStateRecord,
         expires_at: Option<SystemTime>,
     ) -> Result<Version, IdentityError> {
-        record.validate_for(&record.target)?;
         let payload = serde_json::to_vec(record).map_err(IdentityError::StateEncoding)?;
         let result = self
             .store
@@ -357,16 +290,15 @@ impl<S: StateStore> IdentityStateStore<S> {
         scope: &S::Scope,
         key: &str,
         expected: Version,
-        target: &IdentityTarget,
         facts: LateIdentityFacts,
     ) -> Result<IdentityStateSnapshot, IdentityError> {
-        let current = self.read(scope, key, target).await?;
+        let current = self.read(scope, key).await?;
         if current.version != expected {
             return Err(IdentityError::Conflict);
         }
         let mut record = current.record;
         facts.apply(&mut record)?;
-        record.validate_for(target)?;
+
         let version = self
             .save(scope, key, Some(expected), &record, current.expires_at)
             .await?;
@@ -378,15 +310,12 @@ impl<S: StateStore> IdentityStateStore<S> {
     }
 }
 
-fn decode_entry(
-    entry: StateEntry,
-    target: &IdentityTarget,
-) -> Result<IdentityStateSnapshot, IdentityError> {
+fn decode_entry(entry: StateEntry) -> Result<IdentityStateSnapshot, IdentityError> {
     // Expiration is enforced atomically by StateStore::get. Do not introduce
     // a second clock (or native-only SystemTime::now) at the protocol layer.
     let record: IdentityStateRecord =
         serde_json::from_slice(&entry.payload).map_err(IdentityError::StateEncoding)?;
-    record.validate_for(target)?;
+
     Ok(IdentityStateSnapshot {
         record,
         version: entry.version,

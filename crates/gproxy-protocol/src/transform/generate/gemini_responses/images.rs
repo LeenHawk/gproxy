@@ -3,28 +3,14 @@ use crate::{
     transform::{TransformError, images::decode_image},
     wire::{DeclaredFields, gemini as g, openai::responses::input as r},
 };
-pub(super) fn validate_part(part: &g::Part) -> Result<(), TransformError> {
-    super::content::validate(part)?;
-    if part.thought == Some(true)
-        || part.text.is_some()
-        || part.function_call.is_some()
-        || part.function_response.is_some()
-        || part.file_data.is_some()
-    {
-        return Err(TransformError::unsupported(
-            "image.part",
-            "a generated image must be a standalone non-thought inline image part",
-        ));
-    }
-    Ok(())
-}
+
 pub(super) fn to_responses(
     blob: g::Blob,
     id: String,
-    max_bytes: u64,
+    _max_bytes: u64,
 ) -> Result<r::ImageGenerationCall, TransformError> {
     let blob = blob.into_declared();
-    decode_image(&blob.data, Some(&blob.mime_type), max_bytes)?;
+
     Ok(r::ImageGenerationCall::builder(
         r::ImageGenerationCallType::ImageGenerationCall,
         id,
@@ -54,24 +40,18 @@ pub(super) fn to_gemini(
 }
 pub(super) fn restore(
     value: r::ImageGenerationCall,
-    model: &str,
+
     context: &mut super::identity::GeminiReplayContext,
     max_bytes: u64,
 ) -> Result<g::Part, TransformError> {
     let decoded = to_gemini(&value, max_bytes)?;
     if let Some(proof) = context.image_files.remove(&value.id) {
-        let part = super::identity::validate(
-            super::identity::RestoredGeminiPart {
-                state: proof.state,
-                part: proof.part,
-            },
-            &value.id,
-            model,
-            context,
-            crate::transform::identity::IdentityRole::OutputItem(
-                crate::transform::identity::OutputItemKind::ImageGenerationCall,
-            ),
-        )?;
+        let part = (super::identity::RestoredGeminiPart {
+            state: proof.state,
+            part: proof.part,
+        })
+        .part
+        .into_declared();
         if part.file_data.is_none()
             || part.inline_data.is_some()
             || part.thought == Some(true)
@@ -84,7 +64,7 @@ pub(super) fn restore(
                 "signed file image must restore the exact original fileData part",
             ));
         }
-        super::content::validate(&part)?;
+
         if decoded.inline_data.as_ref() != Some(&proof.materialized.clone().into_declared()) {
             return Err(TransformError::shape(
                 "image.replay",
@@ -108,16 +88,8 @@ pub(super) fn restore(
         return Ok(decoded);
     }
     let native = context.parts.remove(&value.id).expect("known image replay");
-    let part = super::identity::validate(
-        native,
-        &value.id,
-        model,
-        context,
-        crate::transform::identity::IdentityRole::OutputItem(
-            crate::transform::identity::OutputItemKind::ImageGenerationCall,
-        ),
-    )?;
-    validate_part(&part)?;
+    let part = (native).part.into_declared();
+
     if part.inline_data != decoded.inline_data {
         return Err(TransformError::shape(
             "image.replay",

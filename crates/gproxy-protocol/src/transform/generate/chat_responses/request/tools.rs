@@ -44,6 +44,7 @@ pub(super) fn to_responses(tools: Vec<c::ChatTool>) -> Result<Vec<r::Tool>, Tran
                 }
             })
         })
+        .filter_map(|value| crate::transform::optional(value).transpose())
         .collect()
 }
 pub(super) fn to_chat(tools: Vec<r::Tool>) -> Result<Vec<c::ChatTool>, TransformError> {
@@ -52,18 +53,6 @@ pub(super) fn to_chat(tools: Vec<r::Tool>) -> Result<Vec<c::ChatTool>, Transform
         .map(|tool| {
             Ok(match tool {
                 r::Tool::Function(tool) => {
-                    if tool.allowed_callers.flatten().is_some_and(|callers| {
-                        callers
-                            .iter()
-                            .any(|caller| matches!(caller, r::AllowedCaller::Programmatic))
-                    }) || tool.defer_loading == Some(true)
-                        || tool.output_schema.is_some()
-                    {
-                        return Err(TransformError::unsupported(
-                            "tools",
-                            "Chat lacks execution constraints/deferred loading/output schema",
-                        ));
-                    }
                     let mut function = c::FunctionDefinition::builder(tool.name).build();
                     function.parameters = tool.parameters;
                     function.description = tool.description.flatten();
@@ -73,17 +62,6 @@ pub(super) fn to_chat(tools: Vec<r::Tool>) -> Result<Vec<c::ChatTool>, Transform
                     )
                 }
                 r::Tool::Custom(tool) => {
-                    if tool.allowed_callers.flatten().is_some_and(|callers| {
-                        callers
-                            .iter()
-                            .any(|caller| matches!(caller, r::AllowedCaller::Programmatic))
-                    }) || tool.defer_loading == Some(true)
-                    {
-                        return Err(TransformError::unsupported(
-                            "tools",
-                            "Chat lacks execution constraints/deferred loading",
-                        ));
-                    }
                     let mut out = c::CustomTool::builder(tool.name).build();
                     out.description = tool.description;
                     out.format = tool.format.map(|format| match format {
@@ -133,6 +111,7 @@ pub(super) fn to_chat(tools: Vec<r::Tool>) -> Result<Vec<c::ChatTool>, Transform
                 }
             })
         })
+        .filter_map(|value| crate::transform::optional(value).transpose())
         .collect()
 }
 pub(super) fn choice_to_responses(choice: c::ToolChoice) -> Result<i::ToolChoice, TransformError> {
@@ -252,6 +231,7 @@ fn selectors(
             }
             Ok(output)
         })
+        .filter_map(|value| crate::transform::optional(value).transpose())
         .collect()
 }
 

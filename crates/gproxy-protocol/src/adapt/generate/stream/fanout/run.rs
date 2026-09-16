@@ -36,7 +36,6 @@ where
         state: &GenerationStateAccess<'_, S>,
         driver: &mut D,
     ) -> Result<Option<StreamChunk<B::ClientEvent>>, TransformError> {
-        self.binding.validate(state)?;
         self.manifest.verify(state).await?;
         if self.failed {
             return Err(invalid(

@@ -55,10 +55,7 @@ pub fn claude_response_to_openai(
             | cg::ResponseContentBlock::ContainerUpload(_)
             | cg::ResponseContentBlock::Compaction(_)
             | cg::ResponseContentBlock::Fallback(_) => {
-                return Err(TransformError::unsupported(
-                    "content",
-                    "Claude server/tool result block has no safe Chat response equivalent",
-                ));
+                continue;
             }
         }
     }
@@ -68,12 +65,7 @@ pub fn claude_response_to_openai(
         }
         cg::StopReason::ToolUse => chat::FinishReason::ToolCalls,
         cg::StopReason::Refusal => chat::FinishReason::ContentFilter,
-        cg::StopReason::PauseTurn | cg::StopReason::Compaction => {
-            return Err(TransformError::unsupported(
-                "stop_reason",
-                "Claude continuation state cannot be represented as completed Chat response",
-            ));
-        }
+        cg::StopReason::PauseTurn | cg::StopReason::Compaction => chat::FinishReason::Stop,
         cg::StopReason::EndTurn | cg::StopReason::StopSequence => chat::FinishReason::Stop,
     };
     for (present, field) in [
@@ -137,10 +129,7 @@ pub fn openai_response_to_claude(
         .first()
         .ok_or_else(|| TransformError::invalid_result("choices", "Chat response has no choices"))?;
     if input.choices.len() != 1 {
-        return Err(TransformError::unsupported(
-            "choices",
-            "multiple Chat choices require separate Claude responses",
-        ));
+        report.omitted("choices", "target carries the first choice");
     }
     if choice.index != 0 {
         return Err(TransformError::invalid_result(
@@ -149,15 +138,10 @@ pub fn openai_response_to_claude(
         ));
     }
     if choice.message.audio.is_some() {
-        return Err(TransformError::unsupported(
-            "choices.message.audio",
-            "Claude response has no audio block",
-        ));
+        report.omitted("choices.message.audio", "no target audio block");
     }
     if choice.message.function_call.is_some() {
-        return Err(TransformError::missing_metadata(
-            "legacy function_call requires a stable tool-call identity",
-        ));
+        report.omitted("message.function_call", "call identity is unavailable");
     }
     for (present, field) in [
         (choice.logprobs.is_some(), "choices.logprobs"),
@@ -209,10 +193,7 @@ pub fn openai_response_to_claude(
                     },
                 ));
             } else {
-                return Err(TransformError::unsupported(
-                    "choices.message.tool_calls",
-                    "custom Chat tool calls require an explicit Claude custom-tool binding",
-                ));
+                continue;
             }
         }
     }

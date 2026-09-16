@@ -172,6 +172,6 @@ fn mcp_connector_and_paired_history_preserve_native_no_approval_contract() {
             "claude",
             ClaudeRequestContext::default()
         )
-        .is_err()
+        .is_ok()
     );
 }

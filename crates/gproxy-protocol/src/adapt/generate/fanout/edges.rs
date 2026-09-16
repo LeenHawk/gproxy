@@ -24,7 +24,7 @@ pub(super) trait Edge {
     fn request(&self) -> &Self::Request;
     fn identities(&self) -> &GenerationIdentity;
     fn report(&self) -> &Report;
-    fn model(&self) -> &str;
+
     fn convert(
         &mut self,
         native: Self::Native,
@@ -46,9 +46,6 @@ macro_rules! edge {
             }
             fn report(&self) -> &Report {
                 self.report()
-            }
-            fn model(&self) -> &str {
-                self.selected_model()
             }
             fn convert(
                 &mut self,
@@ -95,9 +92,7 @@ impl Edge for GeminiViaResponses {
     fn report(&self) -> &Report {
         self.report()
     }
-    fn model(&self) -> &str {
-        self.selected_model()
-    }
+
     fn signed_bindings(&self) -> Option<&super::super::request_ids::SignedToolBindings> {
         Some(self.signed_tool_bindings())
     }

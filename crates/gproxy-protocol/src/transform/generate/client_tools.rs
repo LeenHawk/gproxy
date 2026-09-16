@@ -128,7 +128,7 @@ impl Bindings {
             .chain(discovered)
             .collect();
         for tool in all_tools.iter().cloned() {
-            out.add(tool.into_declared(), &active)?;
+            crate::transform::optional(out.add(tool.into_declared(), &active))?;
         }
         let mut definitions = BTreeMap::new();
         for tool in std::mem::take(&mut out.tools) {
@@ -169,9 +169,7 @@ impl Bindings {
                 }
                 for tool in ns.tools {
                     let r::NamespaceToolDefinition::Function(tool) = tool else {
-                        return Err(unsupported(
-                            "namespaced custom tools require a native custom-call transport",
-                        ));
+                        continue;
                     };
                     direct(&tool.allowed_callers)?;
                     if tool.name.is_empty() {
@@ -211,7 +209,9 @@ impl Bindings {
                                 unsupported("namespace function schema must be an object")
                             })
                         })
-                        .transpose()?;
+                        .map(crate::transform::optional)
+                        .transpose()?
+                        .flatten();
                     let mut target =
                         r::FunctionTool::builder(alias, parameters, tool.strict.flatten()).build();
                     target.output_schema = tool.output_schema.filter(Option::is_some);
@@ -305,99 +305,109 @@ impl Bindings {
             report.changed("tools.defer_loading", "undiscovered deferred tools stay out of the target catalog until declared discovery output activates them");
         }
         self.history(history, report)?;
-        if let Some(choice) = choice {
-            if matches!(choice, r::ToolChoice::Function(tool) if self.hidden.contains(&tool.name)) {
-                return Err(unsupported(
-                    "selected deferred tool has not been discovered",
-                ));
-            }
-            if let r::ToolChoice::Allowed(allowed) = choice {
-                for selector in &mut allowed.tools {
-                    let alias = match selector.get("type").and_then(Value::as_str) {
-                        Some("shell") => Some(SHELL.to_owned()),
-                        Some("apply_patch") => Some(PATCH.to_owned()),
-                        Some("tool_search") => Some(SEARCH.to_owned()),
-                        Some("function") => match (
-                            selector.get("namespace").and_then(Value::as_str),
-                            selector.get("name").and_then(Value::as_str),
-                        ) {
-                            (Some(namespace), Some(name)) => {
-                                Some(self.namespace_name(namespace, name)?)
-                            }
-                            _ => None,
-                        },
-                        _ => None,
-                    };
-                    if let Some(alias) = alias {
-                        if !self
-                            .tools
-                            .iter()
-                            .any(|tool| matches!(tool, r::Tool::Function(t) if t.name == alias))
-                        {
-                            return Err(unsupported(
-                                "selected tool is not active in the declared catalog",
-                            ));
-                        }
-                        *selector = serde_json::Map::from_iter([
-                            ("type".into(), json!("function")),
-                            ("name".into(), json!(alias)),
-                        ]);
-                    }
+        let selection = (|| -> Result<(), TransformError> {
+            if let Some(choice) = choice {
+                if matches!(choice, r::ToolChoice::Function(tool) if self.hidden.contains(&tool.name))
+                {
+                    return Err(unsupported(
+                        "selected deferred tool has not been discovered",
+                    ));
                 }
-                if self.target == Some(crate::Dialect::Claude) {
-                    let names = allowed
-                        .tools
-                        .iter()
-                        .map(|selector| {
-                            if selector.get("type").and_then(Value::as_str) != Some("function") {
-                                return Err(unsupported(
-                                    "selected subset contains a non-function tool",
-                                ));
-                            }
-                            selector
-                                .get("name")
-                                .and_then(Value::as_str)
-                                .map(str::to_owned)
-                                .ok_or_else(|| unsupported("selected function name required"))
-                        })
-                        .collect::<Result<BTreeSet<_>, _>>()?;
-                    if names.is_empty()
-                        || names.iter().any(|name| {
-                            !self
+                if let r::ToolChoice::Allowed(allowed) = choice {
+                    for selector in &mut allowed.tools {
+                        let alias = match selector.get("type").and_then(Value::as_str) {
+                            Some("shell") => Some(SHELL.to_owned()),
+                            Some("apply_patch") => Some(PATCH.to_owned()),
+                            Some("tool_search") => Some(SEARCH.to_owned()),
+                            Some("function") => match (
+                                selector.get("namespace").and_then(Value::as_str),
+                                selector.get("name").and_then(Value::as_str),
+                            ) {
+                                (Some(namespace), Some(name)) => {
+                                    Some(self.namespace_name(namespace, name)?)
+                                }
+                                _ => None,
+                            },
+                            _ => None,
+                        };
+                        if let Some(alias) = alias {
+                            if !self
                                 .tools
                                 .iter()
-                                .any(|tool| matches!(tool, r::Tool::Function(t) if &t.name == name))
-                        })
-                    {
-                        return Err(unsupported(
-                            "selected function is not active in the catalog",
-                        ));
+                                .any(|tool| matches!(tool, r::Tool::Function(t) if t.name == alias))
+                            {
+                                return Err(unsupported(
+                                    "selected tool is not active in the declared catalog",
+                                ));
+                            }
+                            *selector = serde_json::Map::from_iter([
+                                ("type".into(), json!("function")),
+                                ("name".into(), json!(alias)),
+                            ]);
+                        }
                     }
-                    *tools = Some(self.tools.iter().filter(|tool| matches!(tool, r::Tool::Function(t) if names.contains(&t.name))).cloned().collect());
-                    *choice = r::ToolChoice::Mode(match allowed.mode {
-                        r::AllowedToolChoiceMode::Auto => r::ToolChoiceMode::Auto,
-                        r::AllowedToolChoiceMode::Required => r::ToolChoiceMode::Required,
-                    });
-                    report.changed("tool_choice.allowed_tools", "target catalog restricted to the selected functions; selection mode preserved");
+                    if self.target == Some(crate::Dialect::Claude) {
+                        let names = allowed
+                            .tools
+                            .iter()
+                            .map(|selector| {
+                                if selector.get("type").and_then(Value::as_str) != Some("function")
+                                {
+                                    return Err(unsupported(
+                                        "selected subset contains a non-function tool",
+                                    ));
+                                }
+                                selector
+                                    .get("name")
+                                    .and_then(Value::as_str)
+                                    .map(str::to_owned)
+                                    .ok_or_else(|| unsupported("selected function name required"))
+                            })
+                            .filter_map(|value| crate::transform::optional(value).transpose())
+                            .collect::<Result<BTreeSet<_>, _>>()?;
+                        if names.is_empty()
+                            || names.iter().any(|name| {
+                                !self.tools.iter().any(
+                                    |tool| matches!(tool, r::Tool::Function(t) if &t.name == name),
+                                )
+                            })
+                        {
+                            return Err(unsupported(
+                                "selected function is not active in the catalog",
+                            ));
+                        }
+                        *tools = Some(self.tools.iter().filter(|tool| matches!(tool, r::Tool::Function(t) if names.contains(&t.name))).cloned().collect());
+                        *choice = r::ToolChoice::Mode(match allowed.mode {
+                            r::AllowedToolChoiceMode::Auto => r::ToolChoiceMode::Auto,
+                            r::AllowedToolChoiceMode::Required => r::ToolChoiceMode::Required,
+                        });
+                        report.changed("tool_choice.allowed_tools", "target catalog restricted to the selected functions; selection mode preserved");
+                    }
+                }
+                let alias = match choice {
+                    r::ToolChoice::Shell(_) => Some(SHELL),
+                    r::ToolChoice::ApplyPatch(_) => Some(PATCH),
+                    _ => None,
+                };
+                if let Some(alias) = alias {
+                    if !self.entries.contains_key(alias) {
+                        return Err(unsupported("selected client tool was not declared"));
+                    }
+                    *choice = r::ToolChoice::Function(
+                        r::ToolChoiceFunction::builder(
+                            r::ToolChoiceFunctionType::ToolChoiceFunction,
+                            alias.into(),
+                        )
+                        .build(),
+                    );
                 }
             }
-            let alias = match choice {
-                r::ToolChoice::Shell(_) => Some(SHELL),
-                r::ToolChoice::ApplyPatch(_) => Some(PATCH),
-                _ => None,
-            };
-            if let Some(alias) = alias {
-                if !self.entries.contains_key(alias) {
-                    return Err(unsupported("selected client tool was not declared"));
-                }
-                *choice = r::ToolChoice::Function(
-                    r::ToolChoiceFunction::builder(
-                        r::ToolChoiceFunctionType::ToolChoiceFunction,
-                        alias.into(),
-                    )
-                    .build(),
-                );
-            }
+            Ok(())
+        })();
+        if crate::transform::optional(selection)?.is_none() {
+            *choice = None;
+            *tools = Some(self.tools.clone());
+            report.omitted("tool_choice", "selection has no target representation");
         }
         if !self.entries.is_empty() {
             report.changed("tools", "client-executed tools use bound functions; original call types are restored on return");

@@ -114,12 +114,7 @@ pub(super) fn chat_finish(reason: c::StopReason) -> Result<o::FinishReason, Tran
         }
         c::StopReason::ToolUse => o::FinishReason::ToolCalls,
         c::StopReason::Refusal => o::FinishReason::ContentFilter,
-        c::StopReason::PauseTurn | c::StopReason::Compaction => {
-            return Err(TransformError::unsupported(
-                "stop_reason",
-                "Claude continuation requires a stateful invocation adapter",
-            ));
-        }
+        c::StopReason::PauseTurn | c::StopReason::Compaction => o::FinishReason::Stop,
     })
 }
 pub(super) fn claude_finish(reason: o::FinishReason, refusal: bool) -> c::StopReason {

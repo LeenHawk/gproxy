@@ -23,15 +23,8 @@ impl GeminiToResponsesStream {
         }
         let logical = self.part_index as u64;
         self.part_index += 1;
-        super::super::content::validate(&part)?;
-        if part.file_data.is_some() || part.function_response.is_some() {
-            return Err(TransformError::unsupported(
-                "candidate.part",
-                "native media/server result requires invocation adapter",
-            ));
-        }
+
         if let Some(blob) = &part.inline_data {
-            super::super::images::validate_part(&part)?;
             super::super::images::requested_format(blob, &self.context.response.request)?;
             let id = super::super::identity::id(
                 &mut self.flow,

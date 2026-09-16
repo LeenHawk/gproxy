@@ -15,7 +15,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
         &mut self,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<super::super::GenerationOutcome<super::invoke::ClientFull<B>>, TransformError> {
-        self.state_binding.validate(state)?;
         self.preparation.verify(state).await?;
         if let Some(raw) = &self.rejected {
             return Ok(super::super::GenerationOutcome::Rejected(
@@ -86,7 +85,7 @@ impl<B: StreamBridge> StreamInvocation<B> {
                 "continue this invocation with its image resource progress",
             ));
         }
-        self.state_binding.validate(state)?;
+
         self.preparation.verify(state).await?;
         if mapping
             .as_ref()
@@ -282,13 +281,10 @@ impl<B: StreamBridge> StreamInvocation<B> {
             let result = match next {
                 Err(error) => Err(error),
                 Ok(Some(NativeFrame::Done)) => self.source_done(),
-                Ok(Some(NativeFrame::Event { name, value })) => {
+                Ok(Some(NativeFrame::Event { value, .. })) => {
                     self.last_native_event = Some(value.clone());
-                    let result = value.validate_name(name.as_deref());
-                    if result.is_ok() {
-                        self.pending_native = Some(value);
-                    }
-                    result
+                    self.pending_native = Some(value);
+                    Ok(())
                 }
                 Ok(None) => self.finish_source(),
             };

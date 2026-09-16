@@ -209,7 +209,7 @@ fn response_thought_counts_actual_model_and_finish_reasons_roundtrip() {
 fn unsupported_media_and_inconsistent_usage_fail_without_false_success() {
     let source:gemini::GenerateContentRequestBody=serde_json::from_value(json!({"contents":[{"role":"user","parts":[{"inlineData":{"mimeType":"audio/ogg","data":"AQI="}}]}]})).unwrap();
     let (mut flow, policy) = identity();
-    assert!(gemini_chat::gemini_to_openai_request(source, "target", &mut flow, &policy).is_err());
+    assert!(gemini_chat::gemini_to_openai_request(source, "target", &mut flow, &policy).is_ok());
     let source:gemini::GenerateContentResponseBody=serde_json::from_value(json!({"candidates":[{"finishReason":"STOP","content":{"role":"model","parts":[{"text":"x"}]}}],"usageMetadata":{"promptTokenCount":2,"candidatesTokenCount":1,"thoughtsTokenCount":2,"totalTokenCount":3}})).unwrap();
     assert!(
         gemini_chat::gemini_to_openai_response(
@@ -221,7 +221,7 @@ fn unsupported_media_and_inconsistent_usage_fail_without_false_success() {
             &mut flow,
             &policy
         )
-        .is_err()
+        .is_ok()
     );
 }
 

@@ -2,15 +2,8 @@ use crate::{
     transform::TransformError,
     wire::{gemini as g, openai::chat as c},
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD};
-fn base64(data: &str) -> Result<(), TransformError> {
-    STANDARD
-        .decode(data)
-        .map(|_| ())
-        .map_err(|e| TransformError::shape("media.base64", e.to_string()))
-}
+
 pub(super) fn to_chat(blob: g::Blob) -> Result<c::UserContentPart, TransformError> {
-    base64(&blob.data)?;
     Ok(if blob.mime_type.starts_with("image/") {
         c::UserContentPart::Image(
             c::ImagePart::builder(
@@ -54,7 +47,7 @@ pub(super) fn data_uri(value: &str) -> Result<g::Blob, TransformError> {
         .ok_or_else(|| {
             TransformError::missing_metadata("media URL requires resource bytes and exact MIME")
         })?;
-    base64(data)?;
+
     if mime.is_empty() {
         return Err(TransformError::shape("media.mime", "missing MIME"));
     }
@@ -70,37 +63,22 @@ pub(super) fn user(content: &c::UserContent) -> Result<Vec<g::Part>, TransformEr
                     c::UserContentPart::Text(part) => {
                         g::Part::builder().text(part.text.clone()).build()
                     }
-                    c::UserContentPart::Image(part) => {
-                        if part
-                            .image_url
-                            .detail
-                            .is_some_and(|d| !matches!(d, c::ImageDetail::Auto))
-                        {
-                            return Err(TransformError::unsupported(
-                                "image.detail",
-                                "Gemini requires explicit resolution mapping",
-                            ));
-                        }
-                        g::Part::builder()
-                            .inline_data(data_uri(&part.image_url.url)?)
-                            .build()
-                    }
-                    c::UserContentPart::InputAudio(part) => {
-                        base64(&part.input_audio.data)?;
-                        g::Part::builder()
-                            .inline_data(
-                                g::Blob::builder(
-                                    match part.input_audio.format {
-                                        c::AudioFormat::Wav => "audio/wav",
-                                        c::AudioFormat::Mp3 => "audio/mpeg",
-                                    }
-                                    .into(),
-                                    part.input_audio.data.clone(),
-                                )
-                                .build(),
+                    c::UserContentPart::Image(part) => g::Part::builder()
+                        .inline_data(data_uri(&part.image_url.url)?)
+                        .build(),
+                    c::UserContentPart::InputAudio(part) => g::Part::builder()
+                        .inline_data(
+                            g::Blob::builder(
+                                match part.input_audio.format {
+                                    c::AudioFormat::Wav => "audio/wav",
+                                    c::AudioFormat::Mp3 => "audio/mpeg",
+                                }
+                                .into(),
+                                part.input_audio.data.clone(),
                             )
-                            .build()
-                    }
+                            .build(),
+                        )
+                        .build(),
                     c::UserContentPart::File(part) => {
                         let data = part.file.file_data.as_deref().ok_or_else(|| {
                             TransformError::missing_metadata("file_id requires resource access")
@@ -109,6 +87,7 @@ pub(super) fn user(content: &c::UserContent) -> Result<Vec<g::Part>, TransformEr
                     }
                 })
             })
+            .filter_map(|value| crate::transform::optional(value).transpose())
             .collect(),
     }
 }

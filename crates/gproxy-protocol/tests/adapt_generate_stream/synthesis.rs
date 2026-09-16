@@ -49,8 +49,7 @@ fn roundtrip<C: CompleteResponse>(body: C) {
     );
     while let Some(frame) = ready(reader.next::<C::Event>()).unwrap() {
         match frame {
-            NativeFrame::Event { name, value } => {
-                value.validate_name(name.as_deref()).unwrap();
+            NativeFrame::Event { value, .. } => {
                 C::Event::collect(&mut collector, value).unwrap();
             }
             NativeFrame::Done => C::Event::collect_done(&mut collector).unwrap(),
@@ -98,7 +97,6 @@ fn buffered_post_synthesis(include_usage: bool) {
     let selected = selected();
     let mut prepared = ready(ChatViaClaude::prepare_for_stream_synthesis(
         input,
-        selected.model,
         selected.endpoint,
         selected.identities,
         &access,

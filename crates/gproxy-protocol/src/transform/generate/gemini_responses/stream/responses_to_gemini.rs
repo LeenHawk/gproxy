@@ -245,12 +245,7 @@ impl ResponsesToGeminiStream {
                 return Err(invalid("native source failure"));
             }
             _ if self.image_only => {}
-            _ => {
-                return Err(TransformError::unsupported(
-                    "response.event",
-                    "native execution/media/custom events require invocation adapter",
-                ));
-            }
+            _ => {}
         }
         self.flush(&mut out)?;
         Ok(Converted {

@@ -24,20 +24,8 @@ impl Endpoint {
             query: None,
             headers: Default::default(),
         };
-        value.validate()?;
+
         Ok(value)
-    }
-    pub fn validate(&self) -> Result<(), TransformError> {
-        if !self.path.starts_with('/')
-            || self.path.starts_with("//")
-            || self.path.contains(['?', '#', '\\', '\r', '\n'])
-        {
-            return Err(TransformError::shape(
-                "endpoint.path",
-                "expected an origin-relative path with separate query",
-            ));
-        }
-        Ok(())
     }
 }
 /// Distinct invocation namespaces prevent request-history identities from colliding
@@ -68,22 +56,6 @@ impl GenerationIdentity {
             request_policy: generation_policy(upstream),
             response_policy: generation_policy(client),
         })
-    }
-    pub(super) fn validate(
-        &self,
-        client: Dialect,
-        upstream: Dialect,
-    ) -> Result<(), TransformError> {
-        if self.request.namespace() == self.response.namespace()
-            || self.request_policy.dialect != upstream
-            || self.response_policy.dialect != client
-        {
-            return Err(TransformError::shape(
-                "identity",
-                "generation edge policy or namespace mismatch",
-            ));
-        }
-        Ok(())
     }
 }
 /// Kept by the caller if an await is cancelled or response conversion fails.
@@ -141,7 +113,7 @@ pub(super) async fn send<
             "progress already records a send; recover its result instead of replaying",
         ));
     }
-    endpoint.validate()?;
+
     let host = upstream.limits();
     let bytes = codec::encode_json(&body.into_declared(), bound(limits, host.write_bytes))
         .map_err(|e| {
@@ -295,6 +267,12 @@ pub(super) fn bind<
     progress: &mut GenerationProgress<N>,
     recovery: bool,
 ) -> Result<(), TransformError> {
+    if recovery && state.now >= state.expires_at {
+        return Err(TransformError::shape(
+            "generation.recovery",
+            "invocation state expired",
+        ));
+    }
     let (endpoint, model) = endpoint;
     let (original, prepared) = requests;
     let value = InvocationBinding {
@@ -355,7 +333,7 @@ pub(super) fn recover_native<N: DeserializeOwned + DeclaredFields + Clone>(
     Ok(native)
 }
 
-fn generation_policy(dialect: Dialect) -> TargetIdPolicy {
+pub(super) fn generation_policy(dialect: Dialect) -> TargetIdPolicy {
     let policy = TargetIdPolicy::new(dialect);
     if dialect == Dialect::Claude {
         policy

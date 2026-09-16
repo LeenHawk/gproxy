@@ -102,7 +102,6 @@ fn invalid_materialized_mime_releases_live_native_stream_immediately() {
     let mut call = ready(ResponsesViaGemini::prepare_stream(
         request.clone(),
         StreamTarget {
-            model: "selected".into(),
             endpoint: Endpoint::new("/streamGenerateContent").unwrap(),
             identities: ids(Dialect::OpenAi, Dialect::Gemini),
         },
@@ -196,7 +195,6 @@ fn signed_file_history_rejects_resource_expiry_before_identity_state_expiry() {
     access.now = UNIX_EPOCH + Duration::from_secs(4);
     let prepared = ready(ResponsesViaGemini::prepare_with_state(
         input.clone(),
-        "selected",
         Endpoint::new("/generateContent").unwrap(),
         ids(Dialect::OpenAi, Dialect::Gemini),
         &access,
@@ -215,7 +213,6 @@ fn signed_file_history_rejects_resource_expiry_before_identity_state_expiry() {
         access.now = UNIX_EPOCH + Duration::from_secs(now);
         let error = ready(ResponsesViaGemini::prepare_with_state(
             input.clone(),
-            "selected",
             Endpoint::new("/generateContent").unwrap(),
             ids(Dialect::OpenAi, Dialect::Gemini),
             &access,

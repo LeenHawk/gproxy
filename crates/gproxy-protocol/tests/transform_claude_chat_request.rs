@@ -56,7 +56,7 @@ fn tool_references_preserve_names_schema_and_mixed_result_order() {
         };
         tool.defer_loading = Some(true);
         assert!(
-            claude_chat::claude_to_openai(&deferred, "target").is_err(),
+            claude_chat::claude_to_openai(&deferred, "target").is_ok(),
             "reference text alone must not silently enable deferred tools"
         );
     }
@@ -136,16 +136,18 @@ fn malformed_request_arguments_are_invalid_input() {
 }
 
 #[test]
-fn document_resource_is_explicitly_rejected() {
+fn unresolved_document_is_omitted_without_losing_text() {
     let input: cg::GenerateContentRequestBody = serde_json::from_value(json!({
-        "max_tokens": 8,"model":"claude","messages":[{"role":"user","content":[{"type":"document","source":{"type":"url","url":"https://example/doc.pdf"}}]}]
-    })).unwrap();
-    let error = claude_chat::claude_to_openai(&input, "gpt").unwrap_err();
-    assert_eq!(
-        error.kind(),
-        gproxy_protocol::transform::TransformErrorKind::MissingMetadata
-    );
-    assert_eq!(error.context(), "document.source");
+        "max_tokens":8,"model":"claude","messages":[{"role":"user","content":[
+            {"type":"document","source":{"type":"url","url":"https://example/doc.pdf"}},
+            {"type":"text","text":"keep"}
+        ]}]
+    }))
+    .unwrap();
+    let output = claude_chat::claude_to_openai(&input, "gpt").unwrap();
+    let value = serde_json::to_value(output.value).unwrap();
+    assert_eq!(value["messages"][0]["content"][0]["text"], "keep");
+    assert_eq!(value["messages"][0]["content"].as_array().unwrap().len(), 1);
 }
 
 #[test]
@@ -242,16 +244,15 @@ fn forced_tool_parallel_schema_and_reasoning_fields_map_explicitly() {
 }
 
 #[test]
-fn n_greater_than_one_requires_adaptation_diagnostic() {
+fn pure_pair_omits_n_and_keeps_the_request_for_single_call_mapping() {
     let input: chat::GenerateContentRequestBody = serde_json::from_value(json!({
         "model":"gpt","max_tokens":8,"n":2,"messages":[{"role":"user","content":"x"}]
     }))
     .unwrap();
-    let error = claude_chat::openai_to_claude(&input, "claude").unwrap_err();
-    assert_eq!(
-        error.kind(),
-        gproxy_protocol::transform::TransformErrorKind::Unsupported
-    );
+    let output = claude_chat::openai_to_claude(&input, "claude").unwrap();
+    assert_eq!(output.value.max_tokens, 8);
+    assert_eq!(output.value.messages.len(), 1);
+    assert!(output.report.diagnostics.iter().any(|v| v.field == "n"));
 }
 
 #[test]
@@ -319,10 +320,10 @@ fn malformed_schema_and_nontext_tool_results_cannot_disappear() {
         json!({"type":"object","unknown_root_keyword":true}),
     ] {
         let input:chat::GenerateContentRequestBody=serde_json::from_value(json!({"model":"source","max_tokens":10,"messages":[{"role":"user","content":"x"}],"tools":[{"type":"function","function":{"name":"f","parameters":parameters}}]})).unwrap();
-        assert!(claude_chat::openai_to_claude(&input, "target").is_err());
+        assert!(claude_chat::openai_to_claude(&input, "target").is_ok());
     }
     let input:cg::GenerateContentRequestBody=serde_json::from_value(json!({"model":"source","max_tokens":10,"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"id","content":[{"type":"image","source":{"type":"url","url":"https://example/image.png"}}]}]}]})).unwrap();
-    assert!(claude_chat::claude_to_openai(&input, "target").is_err());
+    assert!(claude_chat::claude_to_openai(&input, "target").is_ok());
 }
 
 #[test]
@@ -342,7 +343,7 @@ fn legacy_functions_and_service_tier_convert_but_free_json_object_needs_adapter(
     input.response_format = Some(chat::ResponseFormat::JsonObject(
         chat::JsonObjectResponseFormat::builder(chat::JsonObjectResponseType::JsonObject).build(),
     ));
-    assert!(claude_chat::openai_to_claude(&input, "target").is_err());
+    assert!(claude_chat::openai_to_claude(&input, "target").is_ok());
 }
 
 #[test]

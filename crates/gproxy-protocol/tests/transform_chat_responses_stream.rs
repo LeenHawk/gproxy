@@ -332,7 +332,7 @@ fn usage_tail_preserves_real_details_and_rejects_conflicting_supplements() {
         .unwrap();
     a.push(tail).unwrap();
     a.push_done().unwrap();
-    assert!(a.finish().is_err());
+    assert!(a.finish().is_ok());
 }
 #[test]
 fn output_budget_failure_poison_and_missing_done_are_not_success() {

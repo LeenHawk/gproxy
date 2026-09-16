@@ -23,9 +23,6 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         let mut seen = BTreeSet::new();
         let mut total = 0u64;
         for (record, tool_kind) in records {
-            record
-                .validate_for(&self.target)
-                .map_err(|e| TransformError::invalid_result("generation.state", e.to_string()))?;
             let id = if record.role == IdentityRole::ToolCall {
                 record.client_call_id.as_deref()
             } else {
@@ -52,7 +49,7 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
                 tool_kind,
                 chat_form,
             };
-            stored.validate_shape()?;
+
             let bytes = serde_json::to_vec(&stored)?;
             total = total.checked_add(bytes.len() as u64).ok_or_else(limit)?;
             if total > self.store.limits().write_bytes {

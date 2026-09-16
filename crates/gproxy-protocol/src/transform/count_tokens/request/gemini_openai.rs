@@ -29,12 +29,16 @@ pub fn gemini_to_openai(
     out.tools = input
         .tools
         .map(|tools| pair::tools::to_responses(tools, validated, &mut report))
+        .map(crate::transform::optional)
         .transpose()?
+        .flatten()
         .map(Some);
     out.tool_choice = input
         .tool_config
         .map(pair::tools::choice_to_responses)
+        .map(crate::transform::optional)
         .transpose()?
+        .flatten()
         .flatten()
         .map(Some);
     let mut image_tools = out.tools.take().flatten();
@@ -49,18 +53,6 @@ pub fn gemini_to_openai(
     if let Some(system) = input.system_instruction {
         let mut text = String::new();
         for part in system.parts.unwrap_or_default() {
-            pair::content::validate(&part)?;
-            if part.inline_data.is_some()
-                || part.file_data.is_some()
-                || part.function_call.is_some()
-                || part.function_response.is_some()
-                || part.thought == Some(true)
-            {
-                return Err(TransformError::unsupported(
-                    "system_instruction",
-                    "count instructions require plain text",
-                ));
-            }
             text.push_str(part.text.as_deref().unwrap_or(""));
         }
         out.instructions = Some(Some(text));

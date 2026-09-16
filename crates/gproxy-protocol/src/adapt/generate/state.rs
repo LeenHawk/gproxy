@@ -24,38 +24,6 @@ pub struct GenerationStateAccess<'a, S: StateStore> {
     pub max_records: usize,
 }
 impl<S: StateStore> GenerationStateAccess<'_, S> {
-    pub fn validate(&self) -> Result<(), TransformError> {
-        if self.conversation_key.is_empty()
-            || self
-                .target
-                .origin
-                .as_ref()
-                .is_none_or(|v| v.trim().is_empty())
-            || self.target.model.trim().is_empty()
-            || self.expires_at <= self.now
-            || self.max_records == 0
-        {
-            return Err(TransformError::shape(
-                "generation.state",
-                "nonempty scope binding, future expiry and positive record limit required",
-            ));
-        }
-        Ok(())
-    }
-    pub(super) fn validate_target(
-        &self,
-        dialect: Dialect,
-        model: &str,
-    ) -> Result<(), TransformError> {
-        self.validate()?;
-        if self.target.dialect != dialect || self.target.model != model {
-            return Err(TransformError::shape(
-                "generation.state.target",
-                "state binding differs from selected generation target",
-            ));
-        }
-        Ok(())
-    }
     pub(super) fn key(&self, role: IdentityRole, id: &str) -> Result<String, TransformError> {
         if id.is_empty() {
             return Err(TransformError::invalid_result(
@@ -89,7 +57,6 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         role: IdentityRole,
         client_id: &str,
     ) -> Result<Option<StoredIdentity>, TransformError> {
-        self.validate()?;
         let key = self.key(role, client_id)?;
         let entry = match self.store.get(self.scope, &key).await? {
             Some(entry) => entry,
@@ -110,11 +77,9 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         }
         let stored: StoredIdentity = serde_json::from_slice(&entry.payload)
             .map_err(|e| TransformError::invalid_result("generation.state", e.to_string()))?;
-        stored.validate_shape()?;
+
         let record = &stored.identity;
-        record
-            .validate_for(&self.target)
-            .map_err(|e| TransformError::invalid_result("generation.state", e.to_string()))?;
+
         if record.role != role
             || if role == IdentityRole::ToolCall {
                 record.client_call_id.as_deref() != Some(client_id)
@@ -157,7 +122,6 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         signed_ids: &super::request_ids::SignedToolBindings,
         progress: &mut GenerationProgress<N>,
     ) -> Result<(), TransformError> {
-        self.validate()?;
         if native.dialect() != self.target.dialect {
             return Err(TransformError::invalid_result(
                 "generation.state",
@@ -355,7 +319,6 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         history_names: &BTreeMap<String, String>,
         require_names: bool,
     ) -> Result<GenerationToolReplay, TransformError> {
-        self.validate()?;
         if client_ids.len() > self.max_records || history_names.len() > self.max_records {
             return Err(limit());
         }

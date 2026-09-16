@@ -48,8 +48,7 @@ impl GuardianPreparedRequest {
                 .effort
                 .as_deref()
                 .filter(|v| *v != "model_defined")
-                .map(super::responses_effort)
-                .transpose()?
+                .and_then(super::responses_effort)
                 .map(Some);
             config.context = reasoning.context.as_ref().map(|v| {
                 Some(match v {
@@ -107,22 +106,9 @@ impl GuardianPreparedRequest {
                     }
                 }))
             })
-            .transpose()?;
+            .map(crate::transform::optional)
+            .transpose()?
+            .flatten();
         Ok(body)
-    }
-    pub(crate) fn validate_response_request(
-        &self,
-        body: &r::GenerateContentRequestBody,
-    ) -> Result<(), TransformError> {
-        let expected = self.response_request()?;
-        // The context template never needs a fabricated public input history.
-        // Exact declared equality also rejects injected user/state/tool fields.
-        if body != &expected {
-            return Err(TransformError::shape(
-                "guardian.stream.source",
-                "return controls differ from the prepared source; use response_request()",
-            ));
-        }
-        Ok(())
     }
 }

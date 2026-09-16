@@ -16,14 +16,13 @@ impl<A: Edge> Fanout<A> {
         state: &GenerationStateAccess<'_, S>,
         limits: CodecLimits,
     ) -> Result<Journal, TransformError> {
-        self.endpoint.validate()?;
         if self.children.len() > self.options.max_children || self.children.len() < 2 {
             return Err(limit());
         }
         let mut children = Vec::new();
         for child in &self.children {
             let ids = child.identities();
-            state.validate_target(ids.request_policy.dialect, child.model())?;
+
             children.push(ChildBinding {
                 request: encode(child.request(), limits)?,
                 namespaces: (ids.request.namespace(), ids.response.namespace()),

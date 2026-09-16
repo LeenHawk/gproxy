@@ -88,7 +88,7 @@ impl Blocks {
                 if self.tool_count >= self.limits.max_tools {
                     return Err(limit());
                 }
-                super::super::results::direct_caller(v.caller.flatten())?;
+
                 let id =
                     self.calls
                         .call(Some(v.id), &v.name, crate::Dialect::Claude, flow, policy)?;
@@ -107,12 +107,7 @@ impl Blocks {
                     n,
                 )
             }
-            _ => {
-                return Err(TransformError::unsupported(
-                    "content_block",
-                    "native execution, resources and continuation require an invocation adapter",
-                ));
-            }
+            _ => (Payload::Omitted, 0),
         };
         let pending = self.pending_bytes.checked_add(bytes).ok_or_else(limit)?;
         if (event.index != self.cursor || matches!(payload, Payload::Tool { .. }))
@@ -136,6 +131,9 @@ impl Blocks {
             .values
             .get_mut(&event.index)
             .ok_or_else(|| invalid("content_block_delta", "unknown block"))?;
+        if matches!(block.payload, Payload::Omitted) {
+            return Ok(());
+        }
         let bytes = match &event.delta {
             s::ContentBlockDelta::Text(v) => v.text.len(),
             s::ContentBlockDelta::Thinking(v) => v.thinking.len(),

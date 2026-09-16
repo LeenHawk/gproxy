@@ -129,7 +129,6 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         &self,
         request: &r::GenerateContentRequestBody,
     ) -> Result<ClaudeRequestContext, TransformError> {
-        self.validate()?;
         if self.target.dialect != Dialect::Claude {
             return Err(TransformError::shape(
                 "signature.target",
@@ -182,7 +181,6 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         &self,
         request: &r::GenerateContentRequestBody,
     ) -> Result<GeminiReplayContext, TransformError> {
-        self.validate()?;
         if self.target.dialect != Dialect::Gemini {
             return Err(TransformError::shape(
                 "signature.target",

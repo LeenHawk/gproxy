@@ -40,7 +40,7 @@ where
         mut headers,
         body,
     } = request;
-    validate_path(&path)?;
+
     let host_limits = upstream.limits();
     let write_limits = bound_limits(limits, host_limits.write_bytes);
     let body = codec::encode_json(&body.into_declared(), write_limits)
@@ -85,7 +85,6 @@ where
     U: Upstream,
     O: DeserializeOwned + DeclaredFields,
 {
-    validate_path(&request.path)?;
     let WireRequest {
         method,
         path,
@@ -152,19 +151,6 @@ async fn receive_json<O: DeserializeOwned + DeclaredFields>(
         headers,
         body: body.into_declared(),
     }))
-}
-
-fn validate_path(path: &str) -> Result<(), TransformError> {
-    if !path.starts_with('/')
-        || path.starts_with("//")
-        || path.contains(['?', '#', '\\', '\r', '\n'])
-    {
-        return Err(TransformError::shape(
-            "request.path",
-            "expected an origin-relative path with a separate query",
-        ));
-    }
-    Ok(())
 }
 
 fn bound_limits(mut limits: CodecLimits, host_bytes: u64) -> CodecLimits {

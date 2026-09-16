@@ -11,6 +11,7 @@ pub struct ClaudeToChatContext {
     pub created: i64,
 }
 enum Block {
+    Omitted,
     Text {
         pending: Option<String>,
         closed: bool,
@@ -230,15 +231,20 @@ impl ClaudeToChatStream {
                         self.report.omitted("content.reasoning","Chat has no declared reasoning delta; opaque replay needs original-bound state");
                     }
                     _ => {
-                        return Err(TransformError::unsupported(
-                            "content_block",
-                            "Claude hosted tools, resources and fallback need a state/resource adapter",
-                        ));
+                        self.blocks.insert(v.index, Block::Omitted);
+                        self.report
+                            .omitted("content_block", "block has no target representation");
                     }
                 }
             }
             s::StreamEvent::ContentBlockDelta(v) => {
                 let index = v.index;
+                if matches!(self.blocks.get(&index), Some(Block::Omitted)) {
+                    return Ok(Converted {
+                        value: out,
+                        report: Report::default(),
+                    });
+                }
                 match v.delta {
                     s::ContentBlockDelta::Text(text) => {
                         let Some(Block::Text { pending, .. }) = self.blocks.get_mut(&index) else {
@@ -268,10 +274,8 @@ impl ClaudeToChatStream {
                         .report
                         .omitted("content.citations", "Chat has no typed citation delta"),
                     s::ContentBlockDelta::Compaction(_) => {
-                        return Err(TransformError::unsupported(
-                            "content.compaction",
-                            "opaque compaction requires original-bound continuation state",
-                        ));
+                        self.report
+                            .omitted("content.compaction", "block has no target representation");
                     }
                 }
             }

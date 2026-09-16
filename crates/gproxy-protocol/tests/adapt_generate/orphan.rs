@@ -34,7 +34,6 @@ fn truncated_chat_results_restore_real_function_or_custom_output_kind() {
             json!([{"role":"tool","tool_call_id":"native-call","content":"actual result"}]);
         let p = ready(ChatViaResponses::prepare_with_state(
             serde_json::from_value(next).unwrap(),
-            "selected",
             endpoint(),
             ids(Dialect::OpenAiChat, Dialect::OpenAi),
             &state,
@@ -82,7 +81,6 @@ fn declared_call_kind_conflicting_with_saved_kind_is_rejected() {
     next["messages"] = json!([{"role":"assistant","tool_calls":[{"id":"native-call","type":"custom","custom":{"name":"lookup","input":"{}"}}]},{"role":"tool","tool_call_id":"native-call","content":"result"}]);
     let error = ready(ChatViaResponses::prepare_with_state(
         serde_json::from_value(next).unwrap(),
-        "selected",
         endpoint(),
         ids(Dialect::OpenAiChat, Dialect::OpenAi),
         &state,

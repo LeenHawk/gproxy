@@ -21,17 +21,8 @@ pub(super) fn prepare_openai_chat_plan(
     limits: CodecLimits,
     attach: bool,
 ) -> Result<Converted<GuardianPreparedRequest>, TransformError> {
-    validate(&context)?;
     let input = input.into_declared();
-    validate_input(&input)?;
-    if context.operation == GuardianOperation::Classify
-        && input.text.as_ref().is_some_and(|v| v.format.is_some())
-    {
-        return Err(TransformError::unsupported(
-            "guardian.text.format",
-            "classification requires the bare high/low label",
-        ));
-    }
+
     bound_source(&input, limits)?;
     let payload = task_payload(&input, context.operation, limits)?;
     let mut body = o::GenerateContentRequestBody::builder(
@@ -52,7 +43,7 @@ pub(super) fn prepare_openai_chat_plan(
     .build();
     body.max_completion_tokens = Some(Some(context.max_tokens));
     body.stream = Some(Some(false));
-    non_responses_controls(&input)?;
+
     body.service_tier = input
         .service_tier
         .as_deref()
@@ -72,7 +63,9 @@ pub(super) fn prepare_openai_chat_plan(
                 }
             }))
         })
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     body.store = Some(Some(input.store));
     body.prompt_cache_key = input.prompt_cache_key.clone().map(Some);
     body.verbosity = input
@@ -86,7 +79,7 @@ pub(super) fn prepare_openai_chat_plan(
                 source::ClientVerbosity::High => o::Verbosity::High,
             })
         });
-    body.reasoning_effort = effort(&input).map(chat_effort).transpose()?.map(Some);
+    body.reasoning_effort = effort(&input).and_then(chat_effort).map(Some);
     if context.operation == GuardianOperation::Review {
         let (name, output_schema, strict) = review_schema(&input)?;
         body.response_format = Some(o::ResponseFormat::JsonSchema(
@@ -107,7 +100,7 @@ pub(super) fn prepare_openai_chat_plan(
     }
     let mut target = GuardianDialectRequest::OpenAiChat(request("/v1/chat/completions", body));
     let media = media(&input)?;
-    validate_media(&target, &media)?;
+
     if attach {
         attach_media(&mut target, &media)?;
     }

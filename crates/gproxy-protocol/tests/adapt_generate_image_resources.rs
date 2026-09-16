@@ -167,7 +167,6 @@ fn signed_file_output_uses_actual_read_and_replays_the_original_file_part() {
     )]));
     let prepared = ready(ResponsesViaGemini::prepare_with_state(
         input.clone(),
-        "selected",
         Endpoint::new("/generateContent").unwrap(),
         ids(Dialect::OpenAi, Dialect::Gemini),
         &state,
@@ -209,7 +208,6 @@ fn uri_publication_cancellation_queries_receipt_and_never_repeats_post_or_publis
     let host = host(store.clone(), &native);
     let mut call = ready(GeminiViaResponses::prepare_with_image_resources(
         grequest(),
-        "selected",
         Endpoint::new("/responses").unwrap(),
         ids(Dialect::Gemini, Dialect::OpenAi),
         &state,
@@ -308,7 +306,6 @@ fn file_image_stream_exposes_validated_bytes_before_eof_and_saves_original_proof
     let mut call = ready(ResponsesViaGemini::prepare_stream(
         request.clone(),
         StreamTarget {
-            model: "selected".into(),
             endpoint: Endpoint::new("/streamGenerateContent").unwrap(),
             identities: ids(Dialect::OpenAi, Dialect::Gemini),
         },
@@ -408,7 +405,6 @@ fn uri_stream_retains_pending_client_event_across_uncertain_publication() {
     let mut call = ready(GeminiViaResponses::prepare_stream_with_capabilities(
         grequest(),
         StreamTarget {
-            model: "selected".into(),
             endpoint: Endpoint::new("/responses").unwrap(),
             identities: ids(Dialect::Gemini, Dialect::OpenAi),
         },

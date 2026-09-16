@@ -25,7 +25,6 @@ impl GeminiViaResponses {
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<StreamInvocation<p::ResponsesToGeminiStream>, TransformError> {
-        settings.validate::<p::ResponsesToGeminiStream>()?;
         let original = input.into_declared();
         context.response_modalities = original
             .generation_config
@@ -39,7 +38,6 @@ impl GeminiViaResponses {
             .and_then(|v| v.mime_type.clone());
         let prepared = Self::prepare_with_state(
             original.clone().buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,
@@ -74,7 +72,6 @@ impl GeminiViaResponses {
         state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
     ) -> Result<StreamInvocation<p::ResponsesToGeminiStream>, TransformError> {
-        settings.validate::<p::ResponsesToGeminiStream>()?;
         let original = input.into_declared();
         context.response_modalities = original
             .generation_config
@@ -88,7 +85,6 @@ impl GeminiViaResponses {
             .and_then(|v| v.mime_type.clone());
         let prepared = Self::prepare_with_capabilities(
             original.clone().buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,
@@ -146,7 +142,6 @@ impl ResponsesViaGemini {
         state: &GenerationStateAccess<'_, S>,
         history_cache: Option<&super::super::ResponsesHistoryCache>,
     ) -> Result<StreamInvocation<p::GeminiToResponsesStream>, TransformError> {
-        settings.validate::<p::GeminiToResponsesStream>()?;
         let original = input.into_declared();
         let (history, expanded) = super::super::history::History::prepare_with_cache(
             &original,
@@ -158,11 +153,10 @@ impl ResponsesViaGemini {
         context.response.response.request = original.clone();
         context.response.response.request.input = expanded.input.clone();
         if context.response.actual_model.is_none() {
-            context.response.actual_model = Some(target.model.clone());
+            context.response.actual_model = Some(state.target.model.clone());
         }
         let prepared = Self::prepare_with_state(
             expanded.buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,
@@ -235,7 +229,6 @@ impl ResponsesViaGemini {
         resources: &GenerationResources<'_, R>,
         history_cache: Option<&super::super::ResponsesHistoryCache>,
     ) -> Result<StreamInvocation<p::GeminiToResponsesStream>, TransformError> {
-        settings.validate::<p::GeminiToResponsesStream>()?;
         let original = input.into_declared();
         let (history, expanded) = super::super::history::History::prepare_with_cache(
             &original,
@@ -247,11 +240,10 @@ impl ResponsesViaGemini {
         context.response.response.request = original.clone();
         context.response.response.request.input = expanded.input.clone();
         if context.response.actual_model.is_none() {
-            context.response.actual_model = Some(target.model.clone());
+            context.response.actual_model = Some(state.target.model.clone());
         }
         let prepared = Self::prepare_with_capabilities(
             expanded.buffered(),
-            target.model.clone(),
             target.endpoint.clone(),
             target.identities.clone(),
             state,

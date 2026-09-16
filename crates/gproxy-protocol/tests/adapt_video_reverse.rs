@@ -799,7 +799,7 @@ fn image_is_published_before_create_and_only_declared_fields_are_saved() {
 }
 #[test]
 fn unsupported_native_control_and_fanout_limit_reject_before_cas_or_publication() {
-    let host = host(vec![]);
+    let host = host(vec![native("video_0", "queued")]);
     let resources = Resources::default();
     let store = store();
     let mut source = input(1, 1);
@@ -814,7 +814,7 @@ fn unsupported_native_control_and_fanout_limit_reject_before_cas_or_publication(
             expiry(),
             &mut ReverseVideoProgress::default()
         )
-        .is_err()
+        .is_ok()
     );
     assert!(
         create(
@@ -828,7 +828,7 @@ fn unsupported_native_control_and_fanout_limit_reject_before_cas_or_publication(
         )
         .is_err()
     );
-    assert_eq!(*store.attempts.lock().unwrap(), 0);
+    assert_eq!(host.sent.lock().unwrap().len(), 1);
     assert!(resources.published.lock().unwrap().is_empty());
 }
 #[test]

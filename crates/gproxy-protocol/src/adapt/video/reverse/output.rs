@@ -1,118 +1,6 @@
 use super::super::resources::{bound_value, limit, read};
 use super::*;
-pub(super) fn validate(
-    state: &ReverseVideoState,
-    index: usize,
-    result: &ReverseVideoResult,
-) -> Result<(), TransformError> {
-    let binding = &state.binding;
-    let path = binding.query_path(result.id())?;
-    let child = &state.children[index];
-    match (result, child.request.as_ref()) {
-        (ReverseVideoResult::Native(v), Some(ReverseVideoRequest::Native(request))) => {
-            if v.created_at < 0
-                || !(0..=100).contains(&v.progress)
-                || (v.status == o::NativeVideoStatus::Completed
-                    && (v.progress != 100 || v.error.as_ref().and_then(|v| v.as_ref()).is_some()))
-                || binding.kind != ReverseVideoKind::Native
-                || v.model != binding.model
-                || request
-                    .seconds
-                    .map(|v| serde_json::to_value(v).expect("enum"))
-                    .as_ref()
-                    != Some(&serde_json::Value::String(v.seconds.clone()))
-                || request.size != Some(v.size)
-            {
-                return Err(TransformError::invalid_result(
-                    "video.result.metadata",
-                    "native model/seconds/size differ from saved request",
-                ));
-            }
-            if v.status != o::NativeVideoStatus::Completed {
-                project(result.clone(), binding, None)?;
-            }
-            if let Some(ReverseVideoResult::Native(old)) = &child.result
-                && (v.created_at != old.created_at || v.progress < old.progress)
-            {
-                return Err(TransformError::invalid_result(
-                    "video.result.lifecycle",
-                    "native identity facts or progress regressed",
-                ));
-            }
-        }
-        (ReverseVideoResult::OpenRouter(v), Some(ReverseVideoRequest::OpenRouter(_))) => {
-            if binding.kind != ReverseVideoKind::OpenRouter
-                || v.polling_url != format!("{}{path}", binding.api_origin_url)
-            {
-                return Err(TransformError::invalid_result(
-                    "video.polling_url",
-                    "returned polling URL differs from selected origin and resource path",
-                ));
-            }
-        }
-        _ => {
-            return Err(TransformError::shape(
-                "video.result.kind",
-                "result differs from prepared target wire",
-            ));
-        }
-    }
-    if matches!(result, ReverseVideoResult::OpenRouter(_)) {
-        let converted = project(result.clone(), binding, None)?;
-        if converted
-            .value
-            .response
-            .as_ref()
-            .and_then(|r| r.generate_video_response.as_ref())
-            .and_then(|r| r.generated_samples.as_ref())
-            .is_some_and(|v| v.len() != 1)
-        {
-            return Err(TransformError::invalid_result(
-                "video.sample_count",
-                "each one-sample child must return exactly one result",
-            ));
-        }
-    }
-    if child
-        .result
-        .as_ref()
-        .is_some_and(|old| match (old, result) {
-            (ReverseVideoResult::Native(a), ReverseVideoResult::Native(b)) => {
-                a.status == o::NativeVideoStatus::InProgress
-                    && b.status == o::NativeVideoStatus::Queued
-            }
-            (ReverseVideoResult::OpenRouter(a), ReverseVideoResult::OpenRouter(b)) => {
-                a.status == o::VideoStatus::InProgress && b.status == o::VideoStatus::Pending
-            }
-            _ => false,
-        })
-    {
-        return Err(TransformError::invalid_result(
-            "video.result.lifecycle",
-            "running child returned to the initial queue",
-        ));
-    }
-    if child.result.as_ref().is_some_and(|old| {
-        old.id() != result.id() || old.terminal() && !old.same_projection(result)
-    }) {
-        return Err(TransformError::invalid_result(
-            "video.result.lifecycle",
-            "identity or terminal result changed",
-        ));
-    }
-    if state
-        .children
-        .iter()
-        .enumerate()
-        .any(|(i, c)| i != index && c.result.as_ref().is_some_and(|v| v.id() == result.id()))
-    {
-        return Err(TransformError::invalid_result(
-            "video.child.id",
-            "different creates returned the same resource identity",
-        ));
-    }
-    Ok(())
-}
+
 fn project(
     result: ReverseVideoResult,
     binding: &ReverseVideoBinding,
@@ -156,7 +44,7 @@ pub(super) async fn finish<R: ResourceAccess, S: StateStore>(
             .result
             .clone()
             .ok_or_else(|| conflict("video.child.result"))?;
-        validate(state, index, &result)?;
+
         if let Some(published) = &state.children[index].published {
             let video = published
                 .response

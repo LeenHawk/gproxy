@@ -67,7 +67,9 @@ pub fn chat_to_responses_response(
     let usage = input
         .usage
         .map(|value| usage::to_responses(value, context.usage, &mut report))
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     let id = content::identity(
         &mut ids,
         policy,
@@ -105,7 +107,9 @@ pub fn chat_to_responses_response(
             v.map(|v| moderation::to_responses(v, &mut report))
                 .transpose()
         })
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     if input.system_fingerprint.is_some() {
         report.omitted("system_fingerprint", "Responses has no fingerprint field");
     }
@@ -241,11 +245,19 @@ pub fn responses_to_chat_response(
         object: c::CompletionObject::ChatCompletion,
         service_tier: input.service_tier.map(|v| v.map(tier_to_chat)),
         system_fingerprint: None,
-        usage: input.usage.flatten().map(usage::to_chat).transpose()?,
+        usage: input
+            .usage
+            .flatten()
+            .map(usage::to_chat)
+            .map(crate::transform::optional)
+            .transpose()?
+            .flatten(),
         moderation: input
             .moderation
             .map(|v| v.map(moderation::to_chat).transpose())
-            .transpose()?,
+            .map(crate::transform::optional)
+            .transpose()?
+            .flatten(),
         rest: Default::default(),
     };
     *flow = ids;

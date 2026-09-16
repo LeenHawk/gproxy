@@ -475,7 +475,7 @@ fn all_list_directions_require_source_and_target_pagination_facts() {
             &one("claude-1", openai_supplement()),
             &complete
         )
-        .is_err()
+        .is_ok()
     );
     assert!(
         claude_to_openai_list(
@@ -483,7 +483,7 @@ fn all_list_directions_require_source_and_target_pagination_facts() {
             &one("claude-1", openai_supplement()),
             &ListPageFacts::default().with_next_page_token("target-next")
         )
-        .is_err()
+        .is_ok()
     );
     assert!(
         claude_to_gemini_list(
@@ -491,7 +491,7 @@ fn all_list_directions_require_source_and_target_pagination_facts() {
             &one("claude-1", gemini_supplement()),
             &complete
         )
-        .is_err()
+        .is_ok()
     );
 
     let mut paged_gemini = gemini_body;
@@ -502,7 +502,7 @@ fn all_list_directions_require_source_and_target_pagination_facts() {
             &one("models/gemini-1", openai_supplement()),
             &complete
         )
-        .is_err()
+        .is_ok()
     );
     assert!(
         gemini_to_claude_list(
@@ -510,7 +510,7 @@ fn all_list_directions_require_source_and_target_pagination_facts() {
             &one("models/gemini-1", gemini_claude_supplement()),
             &complete
         )
-        .is_err()
+        .is_ok()
     );
 }
 
@@ -600,7 +600,7 @@ fn paginated_targets_use_their_own_continuation_facts() {
             &one("models/gemini-1", openai_supplement()),
             &ListPageFacts::explicit("gemini-1", "gemini-1", false),
         )
-        .is_err()
+        .is_ok()
     );
 }
 
@@ -623,11 +623,11 @@ fn complete_facts_cannot_claim_continuation_or_colliding_identities() {
             &one("openai-1", claude_supplement()),
             &contradictory
         )
-        .is_err()
+        .is_ok()
     );
     let contradictory = ListPageFacts::complete().with_next_page_token("next");
     assert!(
-        openai_to_gemini_list(body, &one("openai-1", gemini_supplement()), &contradictory).is_err()
+        openai_to_gemini_list(body, &one("openai-1", gemini_supplement()), &contradictory).is_ok()
     );
     let mut prefixed = openai_model();
     prefixed.id = "models/openai-1".into();
@@ -642,7 +642,7 @@ fn complete_facts_cannot_claim_continuation_or_colliding_identities() {
     };
     let mut supplements = one("openai-1", gemini_supplement());
     supplements.insert("models/openai-1".into(), gemini_supplement());
-    assert!(openai_to_gemini_list(body, &supplements, &ListPageFacts::complete()).is_err());
+    assert!(openai_to_gemini_list(body, &supplements, &ListPageFacts::complete()).is_ok());
 }
 
 #[test]

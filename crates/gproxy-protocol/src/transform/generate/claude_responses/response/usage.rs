@@ -10,29 +10,14 @@ pub struct ResponsesUsageFacts {
     pub cached_tokens: Option<i64>,
     pub reasoning_tokens: Option<i64>,
 }
-fn count(value: i64, field: &str) -> Result<i64, TransformError> {
-    if value < 0 {
-        Err(TransformError::invalid_result(
-            field,
-            "negative token count",
-        ))
-    } else {
-        Ok(value)
-    }
+fn count(value: i64, _field: &str) -> Result<i64, TransformError> {
+    Ok(value)
 }
 fn sum(a: i64, b: i64) -> Result<i64, TransformError> {
     a.checked_add(b)
         .ok_or_else(|| TransformError::invalid_result("usage", "token count overflow"))
 }
 fn actual(source: Option<i64>, supplied: Option<i64>, field: &str) -> Result<i64, TransformError> {
-    if let (Some(a), Some(b)) = (source, supplied)
-        && a != b
-    {
-        return Err(TransformError::shape(
-            field,
-            "usage supplement conflicts with upstream",
-        ));
-    }
     count(
         source
             .or(supplied)
@@ -56,18 +41,15 @@ pub(crate) fn to_responses(
                 count(v.ephemeral_5m_input_tokens, "cache_creation.5m")?,
             )
         })
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     let written = actual(
         input.cache_creation_input_tokens.flatten().or(breakdown),
         facts.cache_write_tokens,
         "usage.cache_creation_input_tokens",
     )?;
-    if breakdown.is_some_and(|v| v != written) {
-        return Err(TransformError::invalid_result(
-            "usage.cache_creation",
-            "cache breakdown disagrees with total",
-        ));
-    }
+
     let cached = actual(
         input.cache_read_input_tokens.flatten(),
         facts.cached_tokens,
@@ -81,12 +63,7 @@ pub(crate) fn to_responses(
         facts.reasoning_tokens,
         "usage.output_tokens_details.thinking_tokens",
     )?;
-    if thinking > output {
-        return Err(TransformError::invalid_result(
-            "usage.thinking_tokens",
-            "thinking exceeds output",
-        ));
-    }
+
     let total_input = sum(sum(uncached, written)?, cached)?;
     for (present, name) in [
         (breakdown.is_some(), "cache_creation"),
@@ -134,15 +111,7 @@ pub(crate) fn to_claude(input: r::ResponseUsage) -> Result<c::Usage, TransformEr
         input.output_tokens_details.reasoning_tokens,
         "usage.reasoning_tokens",
     )?;
-    if sum(total_input, output)? != input.total_tokens
-        || thinking > output
-        || sum(cached, written)? > total_input
-    {
-        return Err(TransformError::invalid_result(
-            "usage",
-            "inconsistent total or token detail",
-        ));
-    }
+
     Ok(c::Usage {
         input_tokens: total_input - cached - written,
         output_tokens: output,

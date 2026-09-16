@@ -28,10 +28,7 @@ pub(super) fn claude(
         ),
     ] {
         if present {
-            return Err(TransformError::unsupported(
-                field,
-                "requested Claude behavior needs a target capability with equivalent semantics",
-            ));
+            report.omitted(field, "field has no target representation");
         }
     }
     for (present, field) in [
@@ -42,12 +39,7 @@ pub(super) fn claude(
             report.omitted(field, "Chat has no equivalent advisory field");
         }
     }
-    if input.max_tokens <= 0 {
-        return Err(TransformError::shape(
-            "max_tokens",
-            "positive token budget required",
-        ));
-    }
+
     Ok(())
 }
 
@@ -101,10 +93,7 @@ pub(super) fn chat(
         (input.verbosity.flatten().is_some(), "verbosity"),
     ] {
         if present {
-            return Err(TransformError::unsupported(
-                field,
-                "requested Chat behavior has no equivalent Claude field without host adaptation",
-            ));
+            report.omitted(field, "field has no target representation");
         }
     }
     if let Some(modalities) = input.modalities.as_ref().and_then(Option::as_ref)
@@ -113,10 +102,7 @@ pub(super) fn chat(
                 .iter()
                 .any(|mode| !matches!(mode, chat::Modality::Text)))
     {
-        return Err(TransformError::unsupported(
-            "modalities",
-            "Claude supports text output on this wire",
-        ));
+        report.omitted("modalities", "field has no target representation");
     }
     for (present, field) in [
         (

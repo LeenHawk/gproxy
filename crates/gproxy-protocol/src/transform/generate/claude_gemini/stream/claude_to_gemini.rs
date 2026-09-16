@@ -2,7 +2,7 @@ use super::super::ClaudeGeminiUsageFacts;
 use super::{
     claude_blocks::Blocks,
     common::{Budget, StreamEnd, StreamLimits, bound, invalid, normalize_gemini, response_id},
-    usage::{ClaudeUsageProgress, validate_facts},
+    usage::ClaudeUsageProgress,
 };
 use crate::transform::generate::stream::{
     claude::{ClaudeStreamCollector, ClaudeStreamLimits},
@@ -60,7 +60,6 @@ impl ClaudeToGeminiStream {
             ));
         }
 
-        validate_facts(context.usage)?;
         Ok(Self {
             source: Some(ClaudeStreamCollector::new(ClaudeStreamLimits {
                 max_events: limits.max_events,

@@ -21,17 +21,8 @@ pub(super) fn prepare_gemini_plan(
     limits: CodecLimits,
     attach: bool,
 ) -> Result<Converted<GuardianPreparedRequest>, TransformError> {
-    validate(&context)?;
     let input = input.into_declared();
-    validate_input(&input)?;
-    if context.operation == GuardianOperation::Classify
-        && input.text.as_ref().is_some_and(|v| v.format.is_some())
-    {
-        return Err(TransformError::unsupported(
-            "guardian.text.format",
-            "classification requires the bare high/low label",
-        ));
-    }
+
     bound_source(&input, limits)?;
     let payload = task_payload(&input, context.operation, limits)?;
     let model = context
@@ -68,14 +59,10 @@ pub(super) fn prepare_gemini_plan(
                 }
             })
         })
-        .transpose()?;
-    if input.text.as_ref().is_some_and(|v| v.verbosity.is_some()) {
-        return Err(TransformError::unsupported(
-            "guardian.text.verbosity",
-            "selected target lacks requested verbosity control",
-        ));
-    }
-    non_responses_controls(&input)?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
+
     if let Some(level) = effort(&input) {
         let mut thinking = g::ThinkingConfig::builder().build();
         match level {
@@ -84,12 +71,7 @@ pub(super) fn prepare_gemini_plan(
             "low" => thinking.thinking_level = Some(g::ThinkingLevel::Low),
             "medium" => thinking.thinking_level = Some(g::ThinkingLevel::Medium),
             "high" => thinking.thinking_level = Some(g::ThinkingLevel::High),
-            _ => {
-                return Err(TransformError::unsupported(
-                    "guardian.reasoning.effort",
-                    "Gemini lacks requested effort",
-                ));
-            }
+            _ => {}
         }
         generation.thinking_config = Some(thinking);
     }
@@ -123,7 +105,7 @@ pub(super) fn prepare_gemini_plan(
         body,
     ));
     let media = media(&input)?;
-    validate_media(&target, &media)?;
+
     if attach {
         attach_media(&mut target, &media)?;
     }

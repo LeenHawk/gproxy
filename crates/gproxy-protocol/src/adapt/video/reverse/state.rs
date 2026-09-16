@@ -72,38 +72,7 @@ impl ReverseVideoBinding {
             self.operation_name
         )
     }
-    pub(super) fn validate(&self) -> Result<(), TransformError> {
-        let binding = super::super::VideoBinding {
-            client_id: self.operation_name.clone(),
-            origin: self.origin.clone(),
-            model: self.model.clone(),
-            polling_url: self.api_origin_url.clone(),
-            operation_prefix: "/".into(),
-        };
-        binding.validate()?;
-        binding.query_path(&self.operation_name)?;
-        let uri: http::Uri = self
-            .api_origin_url
-            .parse()
-            .map_err(|_| TransformError::shape("video.origin", "invalid origin"))?;
-        if uri.path_and_query().is_some_and(|p| p.as_str() != "/")
-            || self.api_origin_url.ends_with('/')
-        {
-            return Err(TransformError::shape(
-                "video.origin",
-                "HTTP origin without trailing slash or path required",
-            ));
-        }
-        safe_path(&self.create_path)?;
-        safe_path(&self.query_prefix)?;
-        if !self.query_prefix.ends_with('/') {
-            return Err(TransformError::shape(
-                "video.query_prefix",
-                "trailing slash required",
-            ));
-        }
-        Ok(())
-    }
+
     pub(super) fn query_path(&self, id: &str) -> Result<String, TransformError> {
         if id.is_empty() || id.chars().any(char::is_control) {
             return Err(TransformError::shape(
@@ -126,38 +95,12 @@ impl ReverseVideoBinding {
         Ok(format!("{}{encoded}", self.query_prefix))
     }
 }
-fn safe_path(path: &str) -> Result<(), TransformError> {
-    if !path.starts_with('/')
-        || path.starts_with("//")
-        || path.split('/').any(|s| matches!(s, "." | ".."))
-        || !path
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.' | '~' | ':'))
-    {
-        return Err(TransformError::shape(
-            "video.path",
-            "safe origin-relative path required",
-        ));
-    }
-    Ok(())
-}
+
 impl ReverseVideoResult {
     pub(super) fn id(&self) -> &str {
         match self {
             Self::Native(v) => &v.id,
             Self::OpenRouter(v) => &v.id,
-        }
-    }
-    pub(super) fn terminal(&self) -> bool {
-        match self {
-            Self::Native(v) => matches!(
-                v.status,
-                o::NativeVideoStatus::Completed | o::NativeVideoStatus::Failed
-            ),
-            Self::OpenRouter(v) => !matches!(
-                v.status,
-                o::VideoStatus::Pending | o::VideoStatus::InProgress
-            ),
         }
     }
     pub(super) fn same_projection(&self, other: &Self) -> bool {
@@ -208,7 +151,6 @@ pub(super) async fn load<S: StateStore>(
     binding: &ReverseVideoBinding,
     limits: VideoLimits,
 ) -> Result<(ReverseVideoState, Version), TransformError> {
-    binding.validate()?;
     let entry = store
         .get(scope, &binding.key())
         .await?

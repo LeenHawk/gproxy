@@ -43,17 +43,24 @@ pub(crate) fn claude_message_to_openai(
                         }))
                     }
                     c::ContentBlock::Image(block) => {
+                        let Some(image_url) = crate::transform::optional(image_url(&block.source))?
+                        else {
+                            continue;
+                        };
                         parts.push(chat::UserContentPart::Image(chat::ImagePart {
                             type_: chat::ImagePartType::ImageUrl,
-                            image_url: image_url(&block.source)?,
+                            image_url,
                             prompt_cache_breakpoint: None,
                             rest: Rest::new(),
                         }))
                     }
                     c::ContentBlock::Document(block) => {
+                        let Some(file) = crate::transform::optional(document_file(block))? else {
+                            continue;
+                        };
                         parts.push(chat::UserContentPart::File(chat::FilePart {
                             type_: chat::FilePartType::File,
-                            file: document_file(block)?,
+                            file,
                             prompt_cache_breakpoint: None,
                             rest: Rest::new(),
                         }))
@@ -75,9 +82,12 @@ pub(crate) fn claude_message_to_openai(
                                         }
                                         Ok(serde_json::json!({"type":"tool_reference","tool_name":reference.tool_name}).to_string())
                                     }
-                                    c::ToolResultContentBlock::Image(_) | c::ToolResultContentBlock::SearchResult(_) | c::ToolResultContentBlock::Document(_) => Err(TransformError::unsupported("tool_result.content", "Chat tool messages cannot represent non-text result blocks")),
+                                    c::ToolResultContentBlock::Image(_) | c::ToolResultContentBlock::SearchResult(_) | c::ToolResultContentBlock::Document(_) => {
+                                        report.omitted("tool_result.content", "Chat tool messages have no non-text part");
+                                        Ok(String::new())
+                                    },
                                 })
-                                .collect::<Result<Vec<_>, _>>()?
+                                .filter_map(|value| crate::transform::optional(value).transpose()).collect::<Result<Vec<_>, _>>()?
                                 .join(""),
                             None => String::new(),
                         };
@@ -111,10 +121,8 @@ pub(crate) fn claude_message_to_openai(
                             .as_ref()
                             .is_some_and(|config| config.enabled == Some(true))
                         {
-                            return Err(TransformError::unsupported(
-                                "search_result.citations",
-                                "Chat has no Claude search-result citation control",
-                            ));
+                            report
+                                .omitted("search_result.citations", "Chat has no citation control");
                         }
                         report.changed(
                             "search_result",
@@ -151,10 +159,10 @@ pub(crate) fn claude_message_to_openai(
                     | c::ContentBlock::BashCodeExecutionToolResult(_)
                     | c::ContentBlock::TextEditorCodeExecutionToolResult(_)
                     | c::ContentBlock::ToolSearchToolResult(_) => {
-                        return Err(TransformError::unsupported(
+                        report.omitted(
                             "messages.user.content",
-                            "Claude tool block requires an explicit Chat binding",
-                        ));
+                            "block has no target representation",
+                        );
                     }
                     c::ContentBlock::ContainerUpload(_)
                     | c::ContentBlock::Compaction(_)
@@ -162,10 +170,10 @@ pub(crate) fn claude_message_to_openai(
                     | c::ContentBlock::ToolAddition(_)
                     | c::ContentBlock::ToolRemoval(_)
                     | c::ContentBlock::Fallback(_) => {
-                        return Err(TransformError::unsupported(
+                        report.omitted(
                             "messages.user.content",
-                            "Claude state-changing or opaque block requires a host adapter",
-                        ));
+                            "block has no target representation",
+                        );
                     }
                 }
             }
@@ -220,10 +228,10 @@ pub(crate) fn claude_message_to_openai(
                     | c::ContentBlock::BashCodeExecutionToolResult(_)
                     | c::ContentBlock::TextEditorCodeExecutionToolResult(_)
                     | c::ContentBlock::ToolSearchToolResult(_) => {
-                        return Err(TransformError::unsupported(
+                        report.omitted(
                             "messages.assistant.content",
-                            "Claude tool result block has no safe Chat assistant equivalent",
-                        ));
+                            "block has no target representation",
+                        );
                     }
                     c::ContentBlock::Image(_)
                     | c::ContentBlock::Document(_)
@@ -234,10 +242,10 @@ pub(crate) fn claude_message_to_openai(
                     | c::ContentBlock::ToolAddition(_)
                     | c::ContentBlock::ToolRemoval(_)
                     | c::ContentBlock::Fallback(_) => {
-                        return Err(TransformError::unsupported(
+                        report.omitted(
                             "messages.assistant.content",
-                            "Claude non-text or state-changing block has no Chat assistant field",
-                        ));
+                            "block has no target representation",
+                        );
                     }
                 }
             }
@@ -289,16 +297,19 @@ pub(crate) fn openai_message_to_claude(
             )]),
             rest: Rest::new(),
         }]),
-        chat::ChatMessage::Function(_message) => Err(TransformError::unsupported(
-            "messages.function",
-            "legacy function messages have no call id",
-        )),
+        chat::ChatMessage::Function(_) => {
+            report.omitted(
+                "messages.function",
+                "legacy message has no recoverable call identity",
+            );
+            Ok(Vec::new())
+        }
         chat::ChatMessage::Assistant(message) => {
             if message.audio.as_ref().and_then(Option::as_ref).is_some() {
-                return Err(TransformError::unsupported(
+                report.omitted(
                     "messages.assistant.audio",
-                    "Claude has no audio-history reference",
-                ));
+                    "field has no target representation",
+                );
             }
             if message
                 .function_call
@@ -306,9 +317,10 @@ pub(crate) fn openai_message_to_claude(
                 .and_then(Option::as_ref)
                 .is_some()
             {
-                return Err(TransformError::missing_metadata(
-                    "messages.assistant.function_call requires stable tool-call identity",
-                ));
+                report.omitted(
+                    "messages.assistant.function_call",
+                    "no recoverable call identity",
+                );
             }
             let mut blocks = Vec::new();
             if let Some(Some(content)) = &message.content {
@@ -344,10 +356,7 @@ pub(crate) fn openai_message_to_claude(
                             rest: Rest::new(),
                         }));
                     } else {
-                        return Err(TransformError::unsupported(
-                            "tool_calls.custom",
-                            "custom Chat tool calls require an explicit Claude custom-tool binding",
-                        ));
+                        report.omitted("tool_calls.custom", "call has no target representation");
                     }
                 }
             }
@@ -368,36 +377,14 @@ fn claude_text(content: &c::MessageContent) -> Result<chat::TextContent, Transfo
         c::MessageContent::Text(text) => text.clone(),
         c::MessageContent::Blocks(blocks) => blocks
             .iter()
-            .map(|block| match block {
-                c::ContentBlock::Text(text) => Ok(text.text.clone()),
-                c::ContentBlock::Image(_)
-                | c::ContentBlock::Document(_)
-                | c::ContentBlock::Thinking(_)
-                | c::ContentBlock::RedactedThinking(_)
-                | c::ContentBlock::ToolUse(_)
-                | c::ContentBlock::ToolResult(_)
-                | c::ContentBlock::ServerToolUse(_)
-                | c::ContentBlock::SearchResult(_)
-                | c::ContentBlock::WebSearchToolResult(_)
-                | c::ContentBlock::WebFetchToolResult(_)
-                | c::ContentBlock::AdvisorToolResult(_)
-                | c::ContentBlock::CodeExecutionToolResult(_)
-                | c::ContentBlock::BashCodeExecutionToolResult(_)
-                | c::ContentBlock::TextEditorCodeExecutionToolResult(_)
-                | c::ContentBlock::ToolSearchToolResult(_)
-                | c::ContentBlock::McpToolUse(_)
-                | c::ContentBlock::McpToolResult(_)
-                | c::ContentBlock::ContainerUpload(_)
-                | c::ContentBlock::Compaction(_)
-                | c::ContentBlock::MidConversationSystem(_)
-                | c::ContentBlock::ToolAddition(_)
-                | c::ContentBlock::ToolRemoval(_)
-                | c::ContentBlock::Fallback(_) => Err(TransformError::unsupported(
-                    "messages.system",
-                    "Chat system messages cannot represent non-text blocks",
-                )),
+            .filter_map(|block| {
+                if let c::ContentBlock::Text(text) = block {
+                    Some(text.text.as_str())
+                } else {
+                    None
+                }
             })
-            .collect::<Result<Vec<_>, _>>()?
+            .collect::<Vec<_>>()
             .join(""),
     }))
 }

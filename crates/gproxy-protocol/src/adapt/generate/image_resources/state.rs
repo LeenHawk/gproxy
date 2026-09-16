@@ -29,7 +29,6 @@ impl<S: StateStore> super::super::GenerationStateAccess<'_, S> {
         flow: &IdentityFlow,
         progress: &mut GenerationProgress<()>,
     ) -> Result<(), TransformError> {
-        self.validate()?;
         let mut payloads = Vec::new();
         for image in images
             .iter()
@@ -96,7 +95,6 @@ impl<S: StateStore> super::super::GenerationStateAccess<'_, S> {
         state: IdentityStateRecord,
         part: g::Part,
     ) -> Result<RestoredGeminiImage, TransformError> {
-        self.validate()?;
         let key = format!("{}:gemini-image-file", self.key(image_role(), id)?);
         let entry =
             self.store.get(self.scope, &key).await?.ok_or_else(|| {
@@ -129,9 +127,7 @@ impl<S: StateStore> super::super::GenerationStateAccess<'_, S> {
                 "signed fileData image proof differs from original identity or Part",
             ));
         }
-        state
-            .validate_for(&self.target)
-            .map_err(|e| invalid(e.to_string()))?;
+
         let materialized = proof.materialized.into_declared();
         crate::transform::images::decode_image(
             &materialized.data,

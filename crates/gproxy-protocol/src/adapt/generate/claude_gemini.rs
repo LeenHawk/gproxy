@@ -3,7 +3,6 @@ use crate::transform::generate::claude_gemini as p;
 use crate::wire::claude::generate_content as c;
 use crate::wire::gemini as g;
 use crate::{
-    Dialect,
     capability::Upstream,
     codec::CodecLimits,
     transform::{Converted, Report, TransformError},
@@ -27,8 +26,6 @@ impl ClaudeViaGemini {
         mut identities: GenerationIdentity,
         context: p::ClaudeGeminiRequestContext,
     ) -> Result<Self, TransformError> {
-        identities.validate(Dialect::Claude, Dialect::Gemini)?;
-        endpoint.validate()?;
         let selected_model = selected_model.into();
         if selected_model.trim().is_empty() {
             return Err(TransformError::missing_metadata("selected_model"));
@@ -59,14 +56,14 @@ impl ClaudeViaGemini {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: c::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
         context: p::ClaudeGeminiRequestContext,
     ) -> Result<Self, TransformError> {
-        let selected_model = selected_model.into();
-        state.validate_target(Dialect::Gemini, &selected_model)?;
+        let selected_model = state.target.model.clone();
+
         let original = input.into_declared();
         let (restored, names) = super::history::claude(original.clone(), state).await?;
         let mut context = context;
@@ -88,7 +85,7 @@ impl ClaudeViaGemini {
         R: crate::capability::ResourceAccess,
     >(
         input: c::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
@@ -96,19 +93,10 @@ impl ClaudeViaGemini {
         context: p::ClaudeGeminiRequestContext,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
-        let selected_model = selected_model.into();
-        state.validate_target(identities.request_policy.dialect, &selected_model)?;
-        endpoint.validate()?;
+
         let materialized = resources.claude(original.clone()).await?;
-        let mut prepared = Self::prepare_with_state(
-            materialized,
-            selected_model,
-            endpoint,
-            identities,
-            state,
-            context,
-        )
-        .await?;
+        let mut prepared =
+            Self::prepare_with_state(materialized, endpoint, identities, state, context).await?;
         prepared.original_request = original;
         Ok(prepared)
     }
@@ -155,7 +143,6 @@ impl ClaudeViaGemini {
             &g::GenerateContentResponseBody,
         ) -> Result<p::ClaudeGeminiUsageFacts, TransformError>,
     ) -> Result<GenerationOutcome<c::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(self.identities.request_policy.dialect, &self.selected_model)?;
         transport::bind(
             (&self.endpoint, &self.selected_model),
             &self.identities,
@@ -189,7 +176,6 @@ impl ClaudeViaGemini {
             &g::GenerateContentResponseBody,
         ) -> Result<p::ClaudeGeminiUsageFacts, TransformError>,
     ) -> Result<GenerationOutcome<c::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(self.identities.request_policy.dialect, &self.selected_model)?;
         transport::bind(
             (&self.endpoint, &self.selected_model),
             &self.identities,
@@ -241,8 +227,6 @@ impl GeminiViaClaude {
         mut identities: GenerationIdentity,
         max_tokens: Option<i64>,
     ) -> Result<Self, TransformError> {
-        identities.validate(Dialect::Gemini, Dialect::Claude)?;
-        endpoint.validate()?;
         let selected_model = selected_model.into();
         if selected_model.trim().is_empty() {
             return Err(TransformError::missing_metadata("selected_model"));
@@ -268,14 +252,14 @@ impl GeminiViaClaude {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: g::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
         max_tokens: Option<i64>,
     ) -> Result<Self, TransformError> {
-        let selected_model = selected_model.into();
-        state.validate_target(Dialect::Claude, &selected_model)?;
+        let selected_model = state.target.model.clone();
+
         let original = input.into_declared();
         let (restored, names) = super::history::gemini(original.clone(), state).await?;
         let _ = names;
@@ -290,7 +274,7 @@ impl GeminiViaClaude {
         R: crate::capability::ResourceAccess,
     >(
         input: g::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
@@ -298,19 +282,10 @@ impl GeminiViaClaude {
         max_tokens: Option<i64>,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
-        let selected_model = selected_model.into();
-        state.validate_target(identities.request_policy.dialect, &selected_model)?;
-        endpoint.validate()?;
+
         let materialized = resources.gemini(original.clone()).await?;
-        let mut prepared = Self::prepare_with_state(
-            materialized,
-            selected_model,
-            endpoint,
-            identities,
-            state,
-            max_tokens,
-        )
-        .await?;
+        let mut prepared =
+            Self::prepare_with_state(materialized, endpoint, identities, state, max_tokens).await?;
         prepared.original_request = original;
         Ok(prepared)
     }
@@ -356,7 +331,6 @@ impl GeminiViaClaude {
             &c::GenerateContentResponseBody,
         ) -> Result<p::ClaudeGeminiUsageFacts, TransformError>,
     ) -> Result<GenerationOutcome<g::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(self.identities.request_policy.dialect, &self.selected_model)?;
         transport::bind(
             (&self.endpoint, &self.selected_model),
             &self.identities,
@@ -390,7 +364,6 @@ impl GeminiViaClaude {
             &c::GenerateContentResponseBody,
         ) -> Result<p::ClaudeGeminiUsageFacts, TransformError>,
     ) -> Result<GenerationOutcome<g::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(self.identities.request_policy.dialect, &self.selected_model)?;
         transport::bind(
             (&self.endpoint, &self.selected_model),
             &self.identities,

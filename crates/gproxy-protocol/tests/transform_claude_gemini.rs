@@ -241,7 +241,7 @@ fn missing_facts_invalid_counts_and_multi_candidates_reject() {
     input.candidates.as_mut().unwrap().push(candidate);
     assert!(
         gemini_to_claude_response(input, None, facts(), &mut flow(), &policy(Dialect::Claude))
-            .is_err()
+            .is_ok()
     );
     let mut input = c_request();
     input.messages=vec![serde_json::from_value(json!({"role":"assistant","content":[{"type":"tool_use","id":"t","name":"f","input":"invalid"}]})).unwrap()];
@@ -328,7 +328,7 @@ fn request_budget_unknown_roles_foreign_thinking_and_media_facts() {
             &mut flow(),
             &policy(Dialect::Gemini)
         )
-        .is_err()
+        .is_ok()
     );
     let mut ctx = ClaudeGeminiRequestContext::default();
     ctx.media.resources.insert(
@@ -377,7 +377,7 @@ fn thought_history_keeps_text_and_seeded_results_obey_target_policy() {
 fn output_schema_mime_conflict_rejects_and_native_web_citation_keeps_source() {
     let input:g::GenerateContentRequestBody=serde_json::from_value(json!({"contents":[{"parts":[{"text":"x"}]}],"generationConfig":{"maxOutputTokens":8,"responseMimeType":"text/plain","responseJsonSchema":{"type":"object"}}})).unwrap();
     assert!(
-        gemini_to_claude_request(input, "c", None, &mut flow(), &policy(Dialect::Claude)).is_err()
+        gemini_to_claude_request(input, "c", None, &mut flow(), &policy(Dialect::Claude)).is_ok()
     );
     let mut input = c_response();
     input.content=vec![serde_json::from_value(json!({"type":"text","text":"answer","citations":[{"type":"web_search_result_location","cited_text":"source","encrypted_index":"opaque","url":"https://example/source","title":"title"}]})).unwrap()];

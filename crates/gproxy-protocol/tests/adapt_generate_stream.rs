@@ -51,7 +51,6 @@ fn selected() -> StreamTarget {
         .response_policy
         .with_syntax(IdSyntax::AsciiIdentifier);
     StreamTarget {
-        model: "selected".into(),
         endpoint: Endpoint::new("/messages").unwrap(),
         identities,
     }

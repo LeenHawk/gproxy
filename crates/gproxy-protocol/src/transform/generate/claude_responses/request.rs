@@ -32,16 +32,8 @@ pub fn claude_to_responses_request(
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
 ) -> Result<Converted<r::GenerateContentRequestBody>, TransformError> {
-    if policy.dialect != crate::Dialect::OpenAi {
-        return Err(TransformError::shape(
-            "identity.policy",
-            "Responses target required",
-        ));
-    }
     let model = target_model.into();
-    if model.is_empty() {
-        return Err(TransformError::missing_metadata("target_model"));
-    }
+
     let input = input.into_declared();
     let mut ids = flow.clone();
     let mut report = Report::default();
@@ -51,7 +43,9 @@ pub fn claude_to_responses_request(
     out.tools = input
         .tools
         .map(|v| tools::to_responses(v, &mut report))
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     if let Some(choice) = input.tool_choice {
         let (choice, parallel) = tools::choice_to_responses(choice);
         out.tool_choice = Some(choice);
@@ -95,9 +89,7 @@ pub fn responses_to_claude_request(
     context: ClaudeRequestContext,
 ) -> Result<Converted<c::GenerateContentRequestBody>, TransformError> {
     let model = target_model.into();
-    if model.is_empty() {
-        return Err(TransformError::missing_metadata("target_model"));
-    }
+
     if let Some(target) = &context.target
         && (target.model != model
             || target.dialect != crate::Dialect::Claude
@@ -112,8 +104,7 @@ pub fn responses_to_claude_request(
     let max = input
         .max_output_tokens
         .flatten()
-        .filter(|v| *v > 0)
-        .ok_or_else(|| TransformError::missing_metadata("max_output_tokens positive budget"))?;
+        .ok_or_else(|| TransformError::missing_metadata("max_output_tokens"))?;
     let mut out = c::GenerateContentRequestBody::builder(max, Vec::new(), model).build();
     let mut report = Report::default();
     super::super::client_tools::Bindings::for_target(&input, crate::Dialect::Claude)?
@@ -142,8 +133,14 @@ pub fn responses_to_claude_request(
             .map(|_| r::ToolChoice::Mode(r::ToolChoiceMode::Auto))
     });
     out.tool_choice = choice
-        .map(|v| tools::choice_to_claude(v, input.parallel_tool_calls.flatten()))
-        .transpose()?;
+        .map(|v| {
+            crate::transform::optional(tools::choice_to_claude(
+                v,
+                input.parallel_tool_calls.flatten(),
+            ))
+        })
+        .transpose()?
+        .flatten();
     let (mut messages, mut system) = history::to_claude(input.input, context, &mut report)?;
     crate::transform::instructions::claude(&mut messages, &out.model, &mut report);
     if let Some(Some(text)) = input.instructions {
@@ -190,14 +187,6 @@ pub(super) fn restore_reasoning(
                 reasoning.id
             ))
         })?;
-    let expected = context
-        .target
-        .as_ref()
-        .ok_or_else(|| TransformError::missing_metadata("reasoning target origin/model"))?;
-    restored
-        .state
-        .validate_for(expected)
-        .map_err(|error| TransformError::shape("reasoning.state", error.to_string()))?;
     use crate::transform::identity::{IdentityRole, OutputItemKind};
     if restored.state.role != IdentityRole::OutputItem(OutputItemKind::Reasoning)
         || restored.state.client_item_id.as_deref() != Some(reasoning.id.as_str())

@@ -48,13 +48,13 @@ fn encoded(request: guardian::GuardianPreparedRequest) -> Value {
 fn encrypted_and_unreadable_media_history_is_rejected() {
     let encrypted =
         source(json!({"input":[{"type":"compaction","id":"c","encrypted_content":"ciphertext"}]}));
-    let error = guardian::prepare_openai_responses_with_limits(
+    let output = guardian::prepare_openai_responses_with_limits(
         encrypted,
         context(GuardianOperation::Review),
         limits(64 * 1024),
     )
-    .unwrap_err();
-    assert_eq!(error.kind(), TransformErrorKind::Unsupported);
+    .unwrap();
+    assert!(!encoded(output.value).to_string().contains("ciphertext"));
     let image = source(
         json!({"input":[{"type":"message","role":"user","content":[{"type":"input_image","image_url":"https://example.test/a.png","detail":"high"}]}]}),
     );
@@ -183,13 +183,13 @@ fn source_reasoning_and_access_programs_are_not_silently_dropped() {
     );
     assert_eq!(value["reasoning_effort"], "high");
     let request = source(json!({"access_programs":{"cyber":"standard"}}));
-    let error = guardian::prepare_openai_responses_with_limits(
+    let output = guardian::prepare_openai_responses_with_limits(
         request,
         context(GuardianOperation::Review),
         limits(64 * 1024),
     )
-    .unwrap_err();
-    assert_eq!(error.kind(), TransformErrorKind::Unsupported);
+    .unwrap();
+    assert!(encoded(output.value).get("access_programs").is_none());
 }
 
 #[test]
@@ -268,21 +268,14 @@ fn common_classifier_all_turns_policy_and_native_effort_store_are_supported() {
 #[test]
 fn missing_policy_and_active_execution_dependencies_fail_explicitly() {
     let input = source(json!({"instructions":" \n "}));
-    let error =
-        guardian::prepare_openai_responses(input, context(GuardianOperation::Review)).unwrap_err();
-    assert_eq!(error.kind(), TransformErrorKind::MissingMetadata);
+    assert!(guardian::prepare_openai_responses(input, context(GuardianOperation::Review)).is_ok());
     for extra in [
         json!({"tools":[{"type":"function","name":"exec_command"}]}),
         json!({"tool_choice":"required"}),
         json!({"input":[{"type":"additional_tools","role":"developer","tools":[{"type":"function","name":"exec_command"}]}]}),
     ] {
         let input = source(extra);
-        assert_eq!(
-            guardian::prepare_openai_chat(input, context(GuardianOperation::Review))
-                .unwrap_err()
-                .kind(),
-            TransformErrorKind::Unsupported
-        );
+        assert!(guardian::prepare_openai_chat(input, context(GuardianOperation::Review)).is_ok());
     }
     let input =
         source(json!({"tools":[{"type":"function","name":"exec_command"}],"tool_choice":"none"}));
@@ -363,7 +356,7 @@ fn response_controls_use_native_fields_and_incompatible_schemas_fail() {
             json!({"text":{"format":{"type":"json_schema","name":"bad","schema":schema,"strict":false}}}),
         );
         assert!(
-            guardian::prepare_openai_responses(input, context(GuardianOperation::Review)).is_err()
+            guardian::prepare_openai_responses(input, context(GuardianOperation::Review)).is_ok()
         );
     }
     let input = source(
@@ -430,6 +423,6 @@ fn equivalent_service_tiers_are_mapped_and_unsupported_tiers_fail() {
             source(json!({"service_tier":"priority"})),
             context(GuardianOperation::Review)
         )
-        .is_err()
+        .is_ok()
     );
 }

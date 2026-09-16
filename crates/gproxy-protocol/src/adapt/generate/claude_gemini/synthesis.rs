@@ -5,7 +5,7 @@ impl ClaudeViaGemini {
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis<S: crate::capability::StateStore>(
         input: c::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -14,15 +14,8 @@ impl ClaudeViaGemini {
         let original = input.into_declared();
         let mut buffered = original.clone();
         buffered.stream = Some(false);
-        let mut prepared = Self::prepare_with_state(
-            buffered,
-            selected_model,
-            endpoint,
-            identities,
-            state,
-            context,
-        )
-        .await?;
+        let mut prepared =
+            Self::prepare_with_state(buffered, endpoint, identities, state, context).await?;
         prepared.original_request = original;
         Ok(prepared)
     }
@@ -36,7 +29,7 @@ impl ClaudeViaGemini {
         R: crate::capability::ResourceAccess,
     >(
         input: c::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -47,13 +40,7 @@ impl ClaudeViaGemini {
         let mut buffered = original.clone();
         buffered.stream = Some(false);
         let mut prepared = Self::prepare_with_capabilities(
-            buffered,
-            selected_model,
-            endpoint,
-            identities,
-            state,
-            resources,
-            context,
+            buffered, endpoint, identities, state, resources, context,
         )
         .await?;
         prepared.original_request = original;
@@ -66,7 +53,7 @@ impl GeminiViaClaude {
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis<S: crate::capability::StateStore>(
         input: g::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -74,15 +61,8 @@ impl GeminiViaClaude {
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
         let buffered = original.clone();
-        let mut prepared = Self::prepare_with_state(
-            buffered,
-            selected_model,
-            endpoint,
-            identities,
-            state,
-            max_tokens,
-        )
-        .await?;
+        let mut prepared =
+            Self::prepare_with_state(buffered, endpoint, identities, state, max_tokens).await?;
         prepared.original_request = original;
         prepared.target_request.stream = Some(false);
         Ok(prepared)
@@ -97,7 +77,7 @@ impl GeminiViaClaude {
         R: crate::capability::ResourceAccess,
     >(
         input: g::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -107,13 +87,7 @@ impl GeminiViaClaude {
         let original = input.into_declared();
         let buffered = original.clone();
         let mut prepared = Self::prepare_with_capabilities(
-            buffered,
-            selected_model,
-            endpoint,
-            identities,
-            state,
-            resources,
-            max_tokens,
+            buffered, endpoint, identities, state, resources, max_tokens,
         )
         .await?;
         prepared.original_request = original;

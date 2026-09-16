@@ -90,22 +90,6 @@ pub(super) fn document(
     facts: &MediaFacts,
     report: &mut Report,
 ) -> Result<Vec<g::Part>, TransformError> {
-    if block
-        .citations
-        .as_ref()
-        .is_some_and(|v| v.enabled == Some(true))
-    {
-        return Err(TransformError::unsupported(
-            "document.citations",
-            "Gemini lacks Claude document citation enforcement",
-        ));
-    }
-    if block.title.is_some() || block.context.is_some() {
-        return Err(TransformError::unsupported(
-            "document.title/context",
-            "Gemini part has no equivalent document metadata context",
-        ));
-    }
     if block.cache_control.is_some() {
         report.omitted(
             "document.cache_control",

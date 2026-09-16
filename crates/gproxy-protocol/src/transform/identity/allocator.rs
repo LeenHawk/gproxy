@@ -395,7 +395,6 @@ impl IdentityFlow {
         handle: &IdentityHandle,
         source_id: impl Into<String>,
     ) -> Result<IdentityHandle, IdentityError> {
-        self.validate_handle(handle)?;
         let source_id = source_id.into();
         if source_id.is_empty() {
             return Err(IdentityError::InvalidIdentity(
@@ -502,31 +501,11 @@ impl IdentityFlow {
         self.lookup_source(source, role)
     }
 
-    fn validate_handle(&self, handle: &IdentityHandle) -> Result<(), IdentityError> {
-        let found = self.lookup_emitted_as(handle.role, &handle.emitted_id);
-        if handle.namespace != self.namespace
-            || found.as_ref().is_none_or(|found| {
-                found.source.dialect != handle.source.dialect
-                    || found.source.logical_index != handle.source.logical_index
-                    || found.source_role != handle.source_role
-            })
-        {
-            return Err(IdentityError::InvalidIdentity(
-                "handle does not belong to this identity flow".into(),
-            ));
-        }
-        Ok(())
-    }
-
     pub fn link_call_result(
         &self,
         call: &IdentityHandle,
         result: Option<&IdentityHandle>,
     ) -> Result<CallResultLink, IdentityError> {
-        self.validate_handle(call)?;
-        if let Some(result) = result {
-            self.validate_handle(result)?;
-        }
         if call.role != IdentityRole::ToolCall {
             return Err(IdentityError::InvalidIdentity(
                 "call-result link requires a ToolCall".into(),

@@ -331,9 +331,13 @@ impl GeminiToChatStream {
             let logs = candidate
                 .logprobs_result
                 .map(|v| super::super::logs::to_chat(v, &mut self.report))
+                .map(crate::transform::optional)
                 .transpose()?
+                .flatten()
                 .map(chat::logs::synthesize)
-                .transpose()?;
+                .map(crate::transform::optional)
+                .transpose()?
+                .flatten();
             let mut choice = s::StreamChoice::builder(
                 index,
                 s::Delta::builder().role(s::DeltaRole::Assistant).build(),

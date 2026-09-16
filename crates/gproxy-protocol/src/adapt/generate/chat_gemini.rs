@@ -27,8 +27,6 @@ impl ChatViaGemini {
         mut identities: GenerationIdentity,
         function_names: &std::collections::BTreeMap<String, String>,
     ) -> Result<Self, TransformError> {
-        identities.validate(Dialect::OpenAiChat, Dialect::Gemini)?;
-        endpoint.validate()?;
         let selected_model = selected_model.into();
         if selected_model.trim().is_empty() {
             return Err(TransformError::missing_metadata("selected_model"));
@@ -59,14 +57,14 @@ impl ChatViaGemini {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: h::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
         function_names: &std::collections::BTreeMap<String, String>,
     ) -> Result<Self, TransformError> {
-        let selected_model = selected_model.into();
-        state.validate_target(Dialect::Gemini, &selected_model)?;
+        let selected_model = state.target.model.clone();
+
         let original = input.into_declared();
         let (restored, names) = super::history::chat(original.clone(), state).await?;
         let mut merged_names = function_names.clone();
@@ -94,7 +92,7 @@ impl ChatViaGemini {
         R: crate::capability::ResourceAccess,
     >(
         input: h::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
@@ -102,19 +100,11 @@ impl ChatViaGemini {
         function_names: &std::collections::BTreeMap<String, String>,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
-        let selected_model = selected_model.into();
-        state.validate_target(identities.request_policy.dialect, &selected_model)?;
-        endpoint.validate()?;
+
         let materialized = resources.chat(original.clone()).await?;
-        let mut prepared = Self::prepare_with_state(
-            materialized,
-            selected_model,
-            endpoint,
-            identities,
-            state,
-            function_names,
-        )
-        .await?;
+        let mut prepared =
+            Self::prepare_with_state(materialized, endpoint, identities, state, function_names)
+                .await?;
         prepared.original_request = original;
         Ok(prepared)
     }
@@ -161,7 +151,6 @@ impl ChatViaGemini {
             &g::GenerateContentResponseBody,
         ) -> Result<p::GeminiChatResponseSupplement, TransformError>,
     ) -> Result<GenerationOutcome<h::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(self.identities.request_policy.dialect, &self.selected_model)?;
         transport::bind(
             (&self.endpoint, &self.selected_model),
             &self.identities,
@@ -195,7 +184,6 @@ impl ChatViaGemini {
             &g::GenerateContentResponseBody,
         ) -> Result<p::GeminiChatResponseSupplement, TransformError>,
     ) -> Result<GenerationOutcome<h::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(self.identities.request_policy.dialect, &self.selected_model)?;
         transport::bind(
             (&self.endpoint, &self.selected_model),
             &self.identities,
@@ -261,8 +249,6 @@ impl GeminiViaChat {
         mut identities: GenerationIdentity,
         replay: &super::GenerationToolReplay,
     ) -> Result<Self, TransformError> {
-        identities.validate(Dialect::Gemini, Dialect::OpenAiChat)?;
-        endpoint.validate()?;
         let selected_model = selected_model.into();
         if selected_model.trim().is_empty() {
             return Err(TransformError::missing_metadata("selected_model"));
@@ -289,13 +275,13 @@ impl GeminiViaChat {
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
     pub async fn prepare_with_state<S: crate::capability::StateStore>(
         input: g::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
     ) -> Result<Self, TransformError> {
-        let selected_model = selected_model.into();
-        state.validate_target(Dialect::OpenAiChat, &selected_model)?;
+        let selected_model = state.target.model.clone();
+
         let original = input.into_declared();
         let (restored, names) = super::history::gemini(original.clone(), state).await?;
         let mut prepared =
@@ -309,20 +295,17 @@ impl GeminiViaChat {
         R: crate::capability::ResourceAccess,
     >(
         input: g::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::GenerationStateAccess<'_, S>,
         resources: &super::GenerationResources<'_, R>,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
-        let selected_model = selected_model.into();
-        state.validate_target(identities.request_policy.dialect, &selected_model)?;
-        endpoint.validate()?;
+
         let materialized = resources.gemini(original.clone()).await?;
         let mut prepared =
-            Self::prepare_with_state(materialized, selected_model, endpoint, identities, state)
-                .await?;
+            Self::prepare_with_state(materialized, endpoint, identities, state).await?;
         prepared.original_request = original;
         Ok(prepared)
     }
@@ -363,7 +346,6 @@ impl GeminiViaChat {
         progress: &mut GenerationProgress<h::GenerateContentResponseBody>,
         facts: impl FnOnce(&h::GenerateContentResponseBody) -> Result<(), TransformError>,
     ) -> Result<GenerationOutcome<g::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(self.identities.request_policy.dialect, &self.selected_model)?;
         transport::bind(
             (&self.endpoint, &self.selected_model),
             &self.identities,
@@ -395,7 +377,6 @@ impl GeminiViaChat {
         progress: &mut GenerationProgress<h::GenerateContentResponseBody>,
         facts: impl FnOnce(&h::GenerateContentResponseBody) -> Result<(), TransformError>,
     ) -> Result<GenerationOutcome<g::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(self.identities.request_policy.dialect, &self.selected_model)?;
         transport::bind(
             (&self.endpoint, &self.selected_model),
             &self.identities,

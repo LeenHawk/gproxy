@@ -144,6 +144,15 @@ impl ResponsesToGeminiStream {
                     held,
                 )
             }
+            r::ResponseOutputItem::FunctionCall(v)
+                if v.namespace.is_some()
+                    || v.caller
+                        .as_ref()
+                        .and_then(Option::as_ref)
+                        .is_some_and(|v| matches!(v, i::Caller::Program(_))) =>
+            {
+                (v.id, Kind::Excluded, 0)
+            }
             r::ResponseOutputItem::FunctionCall(v) => {
                 if self.tools >= self.limits.max_tools {
                     return Err(limit());
@@ -154,17 +163,6 @@ impl ResponsesToGeminiStream {
                     || !self.native_calls.insert(v.call_id.clone())
                 {
                     return Err(invalid("empty/duplicate actual function identity"));
-                }
-                if v.namespace.is_some()
-                    || v.caller
-                        .as_ref()
-                        .and_then(Option::as_ref)
-                        .is_some_and(|v| matches!(v, i::Caller::Program(_)))
-                {
-                    return Err(TransformError::unsupported(
-                        "function.scope",
-                        "native program/namespace requires invocation adapter",
-                    ));
                 }
                 let held = measure(&v, self.limits.max_pending)?;
                 (
@@ -177,12 +175,7 @@ impl ResponsesToGeminiStream {
                     held,
                 )
             }
-            _ => {
-                return Err(TransformError::unsupported(
-                    "output",
-                    "hosted/custom execution or media requires invocation adapter",
-                ));
-            }
+            _ => (None, Kind::Excluded, 0),
         };
         self.reserve(held)?;
         if self

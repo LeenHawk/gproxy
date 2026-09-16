@@ -121,5 +121,5 @@ pub use json::{
     JsonArrayDecoder, JsonArrayEncoder, JsonDecoder, NdjsonDecoder, NdjsonEncoder, decode_json,
     encode_json,
 };
-pub use multipart::{MultipartDecoder, MultipartEncoder, validate_boundary};
+pub use multipart::{MultipartDecoder, MultipartEncoder};
 pub use sse::{SseDecoder, SseEncoder, SseEvent, SseFrame, encode_sse_done, encode_sse_event};

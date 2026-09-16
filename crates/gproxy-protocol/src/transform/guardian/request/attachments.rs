@@ -13,26 +13,19 @@ pub(crate) fn attach_media(
                     detail: selector,
                 },
             ) => {
-                let detail = match detail(selector) {
-                    r::ImageDetail::Auto => o::ImageDetail::Auto,
-                    r::ImageDetail::Low => o::ImageDetail::Low,
-                    r::ImageDetail::High => o::ImageDetail::High,
-                    r::ImageDetail::Original => {
-                        return Err(TransformError::unsupported(
-                            "guardian.image.detail",
-                            "Chat lacks original resolution",
-                        ));
-                    }
+                let selector = match detail(selector) {
+                    r::ImageDetail::Auto => Some(o::ImageDetail::Auto),
+                    r::ImageDetail::Low => Some(o::ImageDetail::Low),
+                    r::ImageDetail::High => Some(o::ImageDetail::High),
+                    r::ImageDetail::Original => None,
                 };
+                let mut image = o::ImageUrl::builder(url.clone()).build();
+                image.detail = selector;
                 request.body.messages.push(o::ChatMessage::User(
                     o::UserMessage::builder(
                         o::UserRole::User,
                         o::UserContent::Parts(vec![o::UserContentPart::Image(
-                            o::ImagePart::builder(
-                                o::ImagePartType::ImageUrl,
-                                o::ImageUrl::builder(url.clone()).detail(detail).build(),
-                            )
-                            .build(),
+                            o::ImagePart::builder(o::ImagePartType::ImageUrl, image).build(),
                         )]),
                     )
                     .build(),
@@ -76,15 +69,9 @@ pub(crate) fn attach_media(
                 GuardianDialectRequest::Claude(request),
                 Media::Image {
                     url,
-                    detail: selector,
+                    detail: _selector,
                 },
             ) => {
-                if detail(selector) != r::ImageDetail::Auto {
-                    return Err(TransformError::unsupported(
-                        "guardian.image.detail",
-                        "Claude requires auto image detail",
-                    ));
-                }
                 let source = if url.starts_with("data:") {
                     let (mime, data) = data_uri(url)?;
                     cc::ImageSource::Base64(
@@ -96,10 +83,7 @@ pub(crate) fn attach_media(
                                 "image/gif" => cc::ImageMediaType::Gif,
                                 "image/webp" => cc::ImageMediaType::Webp,
                                 _ => {
-                                    return Err(TransformError::unsupported(
-                                        "guardian.image.mime",
-                                        "unsupported Claude MIME",
-                                    ));
+                                    continue;
                                 }
                             },
                         )
@@ -122,15 +106,9 @@ pub(crate) fn attach_media(
                 GuardianDialectRequest::Gemini(request),
                 Media::Image {
                     url,
-                    detail: selector,
+                    detail: _selector,
                 },
             ) => {
-                if detail(selector) != r::ImageDetail::Auto {
-                    return Err(TransformError::unsupported(
-                        "guardian.image.detail",
-                        "Gemini requires auto image detail",
-                    ));
-                }
                 let (mime, data) = data_uri(url)?;
                 request.body.contents.push(
                     g::Content::builder()
@@ -149,10 +127,7 @@ pub(crate) fn attach_media(
                     "audio/wav" => o::AudioFormat::Wav,
                     "audio/mpeg" | "audio/mp3" => o::AudioFormat::Mp3,
                     _ => {
-                        return Err(TransformError::unsupported(
-                            "guardian.audio.mime",
-                            "Chat supports WAV/MP3",
-                        ));
+                        continue;
                     }
                 };
                 request.body.messages.push(o::ChatMessage::User(
@@ -183,10 +158,7 @@ pub(crate) fn attach_media(
                 );
             }
             (_, Media::Audio { .. }) => {
-                return Err(TransformError::unsupported(
-                    "guardian.audio",
-                    "selected target requires an audio transcription capability",
-                ));
+                continue;
             }
         }
     }

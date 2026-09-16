@@ -21,17 +21,8 @@ pub(super) fn prepare_claude_plan(
     limits: CodecLimits,
     attach: bool,
 ) -> Result<Converted<GuardianPreparedRequest>, TransformError> {
-    validate(&context)?;
     let input = input.into_declared();
-    validate_input(&input)?;
-    if context.operation == GuardianOperation::Classify
-        && input.text.as_ref().is_some_and(|v| v.format.is_some())
-    {
-        return Err(TransformError::unsupported(
-            "guardian.text.format",
-            "classification requires the bare high/low label",
-        ));
-    }
+
     bound_source(&input, limits)?;
     let payload = task_payload(&input, context.operation, limits)?;
     let mut body = cg::GenerateContentRequestBody::builder(
@@ -60,20 +51,10 @@ pub(super) fn prepare_claude_plan(
                 }
             })
         })
-        .transpose()?;
-    if input.text.as_ref().is_some_and(|v| v.verbosity.is_some()) {
-        return Err(TransformError::unsupported(
-            "guardian.text.verbosity",
-            "selected target lacks requested verbosity control",
-        ));
-    }
-    non_responses_controls(&input)?;
-    if input.store {
-        return Err(TransformError::unsupported(
-            "guardian.store",
-            "Claude requires host stored-response state",
-        ));
-    }
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
+
     match effort(&input) {
         None => {}
         Some("none") => {
@@ -81,7 +62,7 @@ pub(super) fn prepare_claude_plan(
                 ct::ThinkingDisabled::builder().build(),
             ))
         }
-        Some(level) => {
+        Some(level @ ("low" | "medium" | "high" | "xhigh" | "max")) => {
             let level = match level {
                 "low" => ct::Effort::Low,
                 "medium" => ct::Effort::Medium,
@@ -100,6 +81,7 @@ pub(super) fn prepare_claude_plan(
             ));
             body.output_config = Some(ct::OutputConfig::builder().effort(level).build());
         }
+        Some(_) => {}
     }
     if context.operation == GuardianOperation::Review {
         let (_, output_schema, _) = review_schema(&input)?;
@@ -110,7 +92,7 @@ pub(super) fn prepare_claude_plan(
     }
     let mut target = GuardianDialectRequest::Claude(request("/v1/messages", body));
     let media = media(&input)?;
-    validate_media(&target, &media)?;
+
     if attach {
         attach_media(&mut target, &media)?;
     }

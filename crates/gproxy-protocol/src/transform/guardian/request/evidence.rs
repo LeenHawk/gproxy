@@ -10,6 +10,7 @@ pub(super) fn task_payload(
         .input
         .iter()
         .map(|v| item(v, &mut attachment_index))
+        .filter_map(|value| crate::transform::optional(value).transpose())
         .collect::<Result<Vec<_>, _>>()?;
     let (operation, task) = match operation {
         GuardianOperation::Review => (
@@ -92,7 +93,7 @@ pub(super) fn output_body(
                         ))
                     }
                 })
-                .collect::<Result<Vec<_>, _>>()?,
+                .filter_map(|value| crate::transform::optional(value).transpose()).collect::<Result<Vec<_>, _>>()?,
         )),
     }
 }
@@ -144,10 +145,10 @@ pub(super) fn item(
 ) -> Result<Value, TransformError> {
     let value = match value {
         source::ClientResponseItem::Message(v) => {
-            json!({"type":"message","id":v.id,"role":v.role,"phase":v.phase,"internal_chat_message_metadata_passthrough":v.internal_chat_message_metadata_passthrough,"content":v.content.iter().map(|v| content_item(v, index)).collect::<Result<Vec<_>, _>>()?})
+            json!({"type":"message","id":v.id,"role":v.role,"phase":v.phase,"internal_chat_message_metadata_passthrough":v.internal_chat_message_metadata_passthrough,"content":v.content.iter().map(|v| content_item(v, index)).filter_map(|value| crate::transform::optional(value).transpose()).collect::<Result<Vec<_>, _>>()?})
         }
         source::ClientResponseItem::AgentMessage(v) => {
-            json!({"type":"agent_message","internal_chat_message_metadata_passthrough":v.internal_chat_message_metadata_passthrough,"id":v.id,"author":v.author,"recipient":v.recipient,"content":v.content.iter().map(|part| match part { source::AgentMessageInputContent::InputText(x) => Ok(json!({"type":"input_text","text":x.text})), source::AgentMessageInputContent::EncryptedContent(_) => Err(TransformError::unsupported("guardian.agent_message.encrypted_content", "encrypted content cannot be interpreted by this adapter")) }).collect::<Result<Vec<_>, _>>()?})
+            json!({"type":"agent_message","internal_chat_message_metadata_passthrough":v.internal_chat_message_metadata_passthrough,"id":v.id,"author":v.author,"recipient":v.recipient,"content":v.content.iter().map(|part| match part { source::AgentMessageInputContent::InputText(x) => Ok(json!({"type":"input_text","text":x.text})), source::AgentMessageInputContent::EncryptedContent(_) => Err(TransformError::unsupported("guardian.agent_message.encrypted_content", "encrypted content cannot be interpreted by this adapter")) }).filter_map(|value| crate::transform::optional(value).transpose()).collect::<Result<Vec<_>, _>>()?})
         }
         source::ClientResponseItem::Reasoning(v) => {
             if v.encrypted_content.is_some()

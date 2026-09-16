@@ -5,10 +5,10 @@ use super::{
     ledger::StreamLedger,
     output,
     reader::{NativeReader, SourceFraming},
-    reservation::{Reservation, StateBinding},
+    reservation::Reservation,
 };
 use crate::{
-    Dialect, HttpBody, WireRequest, WireResponse,
+    HttpBody, WireRequest, WireResponse,
     capability::{StateStore, Upstream},
     codec::{self, CodecLimits},
     transform::{
@@ -24,7 +24,6 @@ pub(super) type ClientFull<B> = <<B as StreamBridge>::ClientEvent as NativeEvent
 
 /// Selected operation and per-invocation identity namespaces, supplied by the host.
 pub struct StreamTarget {
-    pub model: String,
     pub endpoint: Endpoint,
     pub identities: GenerationIdentity,
 }
@@ -35,23 +34,7 @@ pub struct StreamSettings {
     pub source_framing: SourceFraming,
     pub client_framing: SourceFraming,
 }
-impl StreamSettings {
-    pub(super) fn validate<B: StreamBridge>(&self) -> Result<(), TransformError> {
-        self.events.validate()?;
-        for (dialect, framing) in [
-            (B::NativeEvent::DIALECT, self.source_framing),
-            (B::ClientEvent::DIALECT, self.client_framing),
-        ] {
-            if dialect != Dialect::Gemini && framing != SourceFraming::Sse {
-                return Err(TransformError::unsupported(
-                    "generation.stream.framing",
-                    "this native dialect requires SSE",
-                ));
-            }
-        }
-        Ok(())
-    }
-}
+impl StreamSettings {}
 #[derive(Debug)]
 pub enum StreamStart {
     Streaming(WireResponse<()>),
@@ -81,7 +64,6 @@ pub struct StreamInvocation<B: StreamBridge> {
     pub(super) target: B::NativeRequest,
     pub(super) selected: StreamTarget,
     pub(super) settings: StreamSettings,
-    pub(super) state_binding: StateBinding,
     pub(super) reservation: Reservation,
     pub(super) preparation: Reservation,
     pub(super) bridge: Option<B>,
@@ -122,12 +104,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
         report: Report,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<Self, TransformError> {
-        settings.validate::<B>()?;
-        selected.endpoint.validate()?;
-        selected
-            .identities
-            .validate(B::ClientEvent::DIALECT, B::NativeEvent::DIALECT)?;
-        state.validate_target(B::NativeEvent::DIALECT, &selected.model)?;
         let original = original.into_declared();
         let target = target.into_declared();
         let reservation = Reservation::new(
@@ -164,7 +140,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
             target,
             selected,
             settings,
-            state_binding: StateBinding::new(state)?,
             reservation,
             preparation,
             bridge: Some(bridge),
@@ -233,7 +208,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
         target: &U::Target,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<StreamStart, TransformError> {
-        self.state_binding.validate(state)?;
         self.preparation.verify(state).await?;
         if self.sent || self.failed || self.reservation.is_websocket() {
             return Err(super::conflict(

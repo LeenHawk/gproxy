@@ -68,7 +68,6 @@ impl StreamLedger {
         state: &GenerationStateAccess<'_, S>,
         signed: Option<&crate::transform::generate::gemini_responses::stream::SignedToolBindings>,
     ) -> Result<(), TransformError> {
-        state.validate()?;
         if self.failed {
             return Err(conflict("stream ledger failed"));
         }
@@ -122,9 +121,7 @@ impl StreamLedger {
                 _ => return Err(invalid("nongeneration identity in stream flow")),
             }
             record.tool_name = declaration.and_then(|d| d.name.clone());
-            record
-                .validate_for(&state.target)
-                .map_err(|e| invalid(e.to_string()))?;
+
             self.prepare_record(
                 state,
                 record,
@@ -190,9 +187,6 @@ impl StreamLedger {
         records: &mut BTreeMap<String, (String, Vec<u8>)>,
         total: &mut u64,
     ) -> Result<(), TransformError> {
-        record
-            .validate_for(&state.target)
-            .map_err(|e| invalid(e.to_string()))?;
         let id = if record.role == IdentityRole::ToolCall {
             record.client_call_id.as_ref()
         } else {

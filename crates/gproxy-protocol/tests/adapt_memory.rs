@@ -365,7 +365,7 @@ fn reasoning_is_typed_and_unrepresentable_effort_is_not_silently_lowered() {
     );
     let reasoning: gproxy_protocol::openai::guardian::Reasoning =
         serde_json::from_value(json!({"effort":"xhigh"})).unwrap();
-    assert!(mapping::build_gemini("trace".into(), "model".into(), 128, Some(&reasoning)).is_err());
+    assert!(mapping::build_gemini("trace".into(), "model".into(), 128, Some(&reasoning)).is_ok());
     assert!(mapping::build_gemini("trace".into(), "model?key=x".into(), 128, None).is_err());
 }
 

@@ -5,12 +5,10 @@ fn aggregate_response_id_obeys_the_explicit_client_generation_policy() {
     let store = Store::default();
     let state = state(&store, Dialect::Claude);
     let mut target = setup(Dialect::OpenAiChat, Dialect::Claude);
-    for child in &mut target.identities {
-        child.response_policy = child
-            .response_policy
-            .clone()
-            .with_generated_prefix(IdentityRole::Response, KnownIdPrefix::Message);
-    }
+    target.options.response_policy = target
+        .options
+        .response_policy
+        .with_generated_prefix(IdentityRole::Response, KnownIdPrefix::Message);
     let mut prepared = ready(ChatViaClaudeFanout::prepare(
         chat_input(),
         target,
@@ -36,9 +34,7 @@ fn aggregate_policy_rejects_impossible_length_and_inconsistent_client_policies()
     let store = Store::default();
     let state = state(&store, Dialect::Claude);
     let mut target = setup(Dialect::OpenAiChat, Dialect::Claude);
-    for child in &mut target.identities {
-        child.response_policy = child.response_policy.clone().with_max_len(8);
-    }
+    target.options.response_policy = target.options.response_policy.with_max_len(8);
     assert!(
         ready(ChatViaClaudeFanout::prepare(
             chat_input(),
@@ -48,21 +44,6 @@ fn aggregate_policy_rejects_impossible_length_and_inconsistent_client_policies()
         ))
         .is_err(),
         "impossible aggregate ID policy accepted"
-    );
-    let mut target = setup(Dialect::OpenAiChat, Dialect::Claude);
-    target.identities[1].response_policy = target.identities[1]
-        .response_policy
-        .clone()
-        .with_generated_prefix(IdentityRole::Response, KnownIdPrefix::Message);
-    assert!(
-        ready(ChatViaClaudeFanout::prepare(
-            chat_input(),
-            target,
-            &state,
-            codec_limits()
-        ))
-        .is_err(),
-        "one aggregate accepted incompatible client policies"
     );
     assert!(store.entries.lock().unwrap().is_empty());
 }

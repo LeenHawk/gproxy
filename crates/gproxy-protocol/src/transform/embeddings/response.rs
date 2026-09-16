@@ -32,8 +32,8 @@ impl EmbeddingResponseContext {
         input: gemini::embeddings::EmbedContentResponseBody,
         usage: Option<OpenAiUsageFacts>,
     ) -> Result<Converted<openai::embeddings::CreateEmbeddingResponseBody>, TransformError> {
-        let embeddings: Vec<_> = input.embedding.iter().collect();
-        self.validate_vectors(&embeddings)?;
+        let _embeddings: Vec<_> = input.embedding.iter().collect();
+
         gemini_single_response_to_openai(input, &self.supplement(usage))
     }
 
@@ -42,8 +42,8 @@ impl EmbeddingResponseContext {
         input: gemini::embeddings::BatchEmbedContentsResponseBody,
         usage: Option<OpenAiUsageFacts>,
     ) -> Result<Converted<openai::embeddings::CreateEmbeddingResponseBody>, TransformError> {
-        let embeddings: Vec<_> = input.embeddings.iter().flatten().collect();
-        self.validate_vectors(&embeddings)?;
+        let _embeddings: Vec<_> = input.embeddings.iter().flatten().collect();
+
         gemini_batch_response_to_openai(input, &self.supplement(usage))
     }
 
@@ -54,53 +54,23 @@ impl EmbeddingResponseContext {
             usage,
         }
     }
-
-    fn validate_vectors(
-        &self,
-        embeddings: &[&gemini::embeddings::ContentEmbedding],
-    ) -> Result<(), TransformError> {
-        if embeddings.len() != self.expected_count {
-            return Err(TransformError::invalid_result(
-                "embedding.count",
-                "response sample count differs from request",
-            ));
-        }
-        if let Some(expected) = self.expected_dimensions {
-            for embedding in embeddings {
-                let actual = embedding.values.as_ref().map(Vec::len);
-                if actual.and_then(|actual| i64::try_from(actual).ok()) != Some(expected) {
-                    return Err(TransformError::invalid_result(
-                        "embedding.dimensions",
-                        "response vector dimension differs from request",
-                    ));
-                }
-            }
-        }
-        Ok(())
-    }
 }
 
 pub fn openai_single_response_to_gemini(
     input: openai::embeddings::CreateEmbeddingResponseBody,
 ) -> Result<Converted<gemini::embeddings::EmbedContentResponseBody>, TransformError> {
-    if input.data.len() != 1 {
-        return Err(TransformError::unsupported(
-            "embedding.data",
-            "single Gemini response requires exactly one OpenAI embedding",
-        ));
-    }
-    let item = input.data.into_iter().next().expect("one embedding");
-    if item.index != 0 {
-        return Err(TransformError::invalid_result(
-            "embedding.index",
-            "single response index must be zero",
-        ));
-    }
-    let embedding = gemini_embedding(item)?;
+    let embedding = input
+        .data
+        .into_iter()
+        .next()
+        .map(gemini_embedding)
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     let report = openai_response_report(&input.usage);
     Ok(common::converted(
         gemini::embeddings::EmbedContentResponseBody {
-            embedding: Some(embedding),
+            embedding,
             usage_metadata: Some(gemini_usage(input.usage)?),
             rest: Default::default(),
         },
@@ -200,6 +170,7 @@ pub fn gemini_batch_response_to_openai(
             })?;
             openai_embedding(index, embedding, supplement.encoding_format)
         })
+        .filter_map(|value| crate::transform::optional(value).transpose())
         .collect::<Result<Vec<_>, _>>()?;
     let mut report = gemini_response_report(input.usage_metadata.as_ref());
     let usage = openai_usage(input.usage_metadata, supplement.usage)?;
@@ -228,7 +199,7 @@ fn gemini_embedding(
     input: openai::embeddings::OpenAiEmbedding,
 ) -> Result<gemini::embeddings::ContentEmbedding, TransformError> {
     let values = common::vector_values(input.embedding)?;
-    validate_shape(&values, None)?;
+
     let dimension = i64::try_from(values.len()).map_err(|_| {
         TransformError::invalid_result("embedding.dimension", "vector length exceeds integer range")
     })?;
@@ -247,7 +218,7 @@ fn openai_embedding(
     let values = input
         .values
         .ok_or_else(|| TransformError::invalid_result("embedding.values", "values are absent"))?;
-    validate_shape(&values, input.shape.as_deref())?;
+
     let embedding = match format {
         openai::embeddings::EmbeddingEncodingFormat::Float => {
             openai::embeddings::EmbeddingVector::Floats(values)
@@ -262,49 +233,6 @@ fn openai_embedding(
         object_: openai::embeddings::EmbeddingObject::Embedding,
         rest: Default::default(),
     })
-}
-
-fn validate_shape(
-    values: &[serde_json::Number],
-    shape: Option<&[i64]>,
-) -> Result<(), TransformError> {
-    if values.is_empty() {
-        return Err(TransformError::invalid_result(
-            "embedding.values",
-            "vector is empty",
-        ));
-    }
-    let Some(shape) = shape else { return Ok(()) };
-    if shape.len() > 1 {
-        return Err(TransformError::unsupported(
-            "embedding.shape",
-            "multidimensional embeddings have no OpenAI vector equivalent",
-        ));
-    }
-    if shape.is_empty() || shape.iter().any(|value| *value <= 0) {
-        return Err(TransformError::invalid_result(
-            "embedding.shape",
-            "shape dimensions must be positive",
-        ));
-    }
-    let product = shape
-        .iter()
-        .try_fold(1_i64, |product, value| {
-            product.checked_mul(*value).ok_or(())
-        })
-        .map_err(|_| {
-            TransformError::invalid_result("embedding.shape", "shape exceeds integer range")
-        })?;
-    let actual = i64::try_from(values.len()).map_err(|_| {
-        TransformError::invalid_result("embedding.shape", "vector length exceeds integer range")
-    })?;
-    if product != actual {
-        return Err(TransformError::invalid_result(
-            "embedding.shape",
-            "shape does not match vector length",
-        ));
-    }
-    Ok(())
 }
 
 fn gemini_usage(

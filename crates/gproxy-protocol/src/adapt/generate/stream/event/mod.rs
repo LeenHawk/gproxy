@@ -27,24 +27,7 @@ pub struct EventLimits {
     pub max_parts: usize,
     pub max_choices: usize,
 }
-impl EventLimits {
-    pub fn validate(self) -> Result<(), TransformError> {
-        if [
-            self.max_events,
-            self.max_bytes,
-            self.max_pending_bytes,
-            self.max_items,
-            self.max_tools,
-            self.max_parts,
-            self.max_choices,
-        ]
-        .contains(&0)
-        {
-            return Err(invalid("positive stream event limits required"));
-        }
-        Ok(())
-    }
-}
+impl EventLimits {}
 #[derive(Debug, Clone)]
 pub struct Collected<T> {
     pub value: T,
@@ -135,14 +118,6 @@ pub trait NativeEvent:
         &self,
         complete_tool_names: bool,
     ) -> Vec<(String, ToolCallKind, Option<String>)>;
-    fn validate_name(&self, name: Option<&str>) -> Result<(), TransformError> {
-        if let Some(name) = name.filter(|v| !v.is_empty())
-            && name != self.event_name().unwrap_or("message")
-        {
-            return Err(invalid("SSE event name disagrees with native payload"));
-        }
-        Ok(())
-    }
 }
 fn invalid(message: impl Into<String>) -> TransformError {
     TransformError::invalid_result("generation.stream.event", message)

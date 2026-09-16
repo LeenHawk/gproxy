@@ -70,6 +70,7 @@ pub(super) fn user_message(
                         ))
                     }
                 })
+                .filter_map(|value| crate::transform::optional(value).transpose())
                 .collect::<Result<Vec<_>, _>>()?,
         ),
     };

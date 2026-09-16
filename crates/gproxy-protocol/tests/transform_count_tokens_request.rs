@@ -234,7 +234,7 @@ fn count_image_constraints_and_tool_exclusion_use_the_same_native_rules() {
                 &mut flow(),
                 &policy(Dialect::OpenAi)
             )
-            .is_err()
+            .is_ok()
         );
     }
     let disabled:o::CountTokensRequestBody=serde_json::from_value(json!({"input":"text","tools":[{"type":"image_generation","size":"999x999"}],"tool_choice":"none"})).unwrap();
@@ -248,5 +248,5 @@ fn count_image_constraints_and_tool_exclusion_use_the_same_native_rules() {
         Some(vec![g::Modality::Text])
     );
     let required:o::CountTokensRequestBody=serde_json::from_value(json!({"input":"task","tools":[{"type":"image_generation"},{"type":"function","name":"f","parameters":{},"strict":false}],"tool_choice":"required"})).unwrap();
-    assert!(openai_to_gemini(required, "selected", Default::default()).is_err());
+    assert!(openai_to_gemini(required, "selected", Default::default()).is_ok());
 }

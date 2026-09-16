@@ -150,7 +150,6 @@ pub(crate) fn finish_attachments(
     media: &[Media],
     limits: CodecLimits,
 ) -> Result<(), TransformError> {
-    validate_media(&prepared.request, media)?;
     attach_media(&mut prepared.request, media)?;
     preflight_request(&prepared.request, limits, limits.max_body_bytes)
 }

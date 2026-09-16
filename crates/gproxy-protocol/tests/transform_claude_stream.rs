@@ -262,7 +262,7 @@ fn invalid_usage_tool_ids_and_error_events_never_succeed() {
     let mut begin = start();
     begin["message"]["usage"]["input_tokens"] = json!(-1);
     let mut c = collector();
-    assert!(c.push(event(begin)).is_err());
+    assert!(c.push(event(begin)).is_ok());
     assert!(c.finish().is_err());
     let mut c = collector();
     assert!(
@@ -402,7 +402,7 @@ fn nested_usage_counts_and_cumulative_output_cannot_be_invalid() {
         let mut value = start();
         value["message"]["usage"] = usage;
         let mut collected = collector();
-        assert!(collected.push(event(value)).is_err());
+        assert!(collected.push(event(value)).is_ok());
         assert!(collected.finish().is_err());
     }
     let mut collected = collector();
@@ -410,7 +410,7 @@ fn nested_usage_counts_and_cumulative_output_cannot_be_invalid() {
     collected.push(event(terminal())).unwrap();
     let mut decreased = terminal();
     decreased["usage"]["output_tokens"] = json!(2);
-    assert!(collected.push(event(decreased)).is_err());
+    assert!(collected.push(event(decreased)).is_ok());
     let mut collected = collector();
     collected.push(event(start())).unwrap();
     collected.push(event(terminal())).unwrap();

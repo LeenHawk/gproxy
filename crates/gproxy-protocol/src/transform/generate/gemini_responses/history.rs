@@ -4,7 +4,7 @@ use crate::{
 };
 pub(crate) fn to_gemini(
     input: Option<r::Input>,
-    model: &str,
+    _model: &str,
     context: &mut super::identity::GeminiReplayContext,
     report: &mut Report,
 ) -> Result<(Vec<g::Content>, Vec<g::Part>), TransformError> {
@@ -42,6 +42,7 @@ pub(crate) fn to_gemini(
                     .content
                     .into_iter()
                     .map(super::media::to_gemini)
+                    .filter_map(|value| crate::transform::optional(value).transpose())
                     .collect::<Result<Vec<_>, _>>()?,
             ),
             r::InputItem::OutputMessage(message) => {
@@ -67,7 +68,7 @@ pub(crate) fn to_gemini(
             }
             r::InputItem::FunctionCall(call) => (
                 r::MessageRole::Assistant,
-                vec![super::identity::function(call, model, context)?],
+                vec![super::identity::function(call, context)?],
             ),
             r::InputItem::FunctionCallOutput(output) => {
                 let name = names
@@ -81,10 +82,7 @@ pub(crate) fn to_gemini(
                         .flatten()
                         .is_some_and(|v| matches!(v, r::Caller::Program(_)))
                 {
-                    return Err(TransformError::unsupported(
-                        "function_output.scope",
-                        "Gemini needs host program binding",
-                    ));
+                    continue;
                 }
                 (
                     r::MessageRole::User,
@@ -99,12 +97,12 @@ pub(crate) fn to_gemini(
                 let max = image.result.as_ref().map_or(0, |v| v.len() as u64);
                 (
                     r::MessageRole::Assistant,
-                    vec![super::images::restore(image, model, context, max)?],
+                    vec![super::images::restore(image, context, max)?],
                 )
             }
             r::InputItem::Reasoning(reasoning) => (
                 r::MessageRole::Assistant,
-                vec![super::identity::reasoning(reasoning, model, context)?],
+                vec![super::identity::reasoning(reasoning, context)?],
             ),
             r::InputItem::ItemReference(_) => {
                 return Err(TransformError::missing_metadata(
@@ -135,10 +133,7 @@ pub(crate) fn to_gemini(
             | r::InputItem::CompactionTrigger(_)
             | r::InputItem::Program(_)
             | r::InputItem::ProgramOutput(_) => {
-                return Err(TransformError::unsupported(
-                    "input.item",
-                    "Responses hosted/custom/opaque execution requires native Gemini adapter",
-                ));
+                continue;
             }
         };
         let leading = position.leading(matches!(

@@ -42,7 +42,9 @@ pub fn gemini_to_openai_response(
         .usage_metadata
         .as_ref()
         .map(|usage| super::usage::to_chat(usage, &mut report))
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     let candidates = input
         .candidates
         .filter(|candidates| !candidates.is_empty())
@@ -186,7 +188,9 @@ pub fn gemini_to_openai_response(
         let logs = candidate
             .logprobs_result
             .map(|logs| super::logs::to_chat(logs, &mut report))
-            .transpose()?;
+            .map(crate::transform::optional)
+            .transpose()?
+            .flatten();
         choices.push(c::Choice::builder(finish, index, logs, message).build());
     }
     let id = ids
@@ -223,7 +227,9 @@ pub fn openai_to_gemini_response(
         .usage
         .as_ref()
         .map(|usage| super::usage::to_gemini(usage, &mut report))
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     let mut candidates = Vec::new();
     let mut seen = std::collections::BTreeSet::new();
     if input.choices.is_empty() {
@@ -312,10 +318,7 @@ pub fn openai_to_gemini_response(
                     );
                 }
                 c::MessageToolCall::Custom(_) => {
-                    return Err(TransformError::unsupported(
-                        "custom_tool",
-                        "Gemini functions require JSON-object input",
-                    ));
+                    continue;
                 }
             }
         }
@@ -333,7 +336,9 @@ pub fn openai_to_gemini_response(
             .logprobs
             .as_ref()
             .map(|logs| super::logs::to_gemini(logs, &mut report))
-            .transpose()?;
+            .map(crate::transform::optional)
+            .transpose()?
+            .flatten();
         if let Some(annotations) = &choice.message.annotations {
             let mut sources = Vec::new();
             for annotation in annotations {

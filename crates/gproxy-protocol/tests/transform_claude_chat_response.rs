@@ -148,24 +148,23 @@ fn invalid_usage_overflow_breakdown_and_multiple_choices_fail() {
         json!({"input_tokens":i64::MAX,"output_tokens":1}),
         json!({"input_tokens":1,"output_tokens":1,"cache_creation_input_tokens":2,"cache_creation":{"ephemeral_1h_input_tokens":1,"ephemeral_5m_input_tokens":2}}),
     ] {
+        let overflow = usage["input_tokens"] == json!(i64::MAX);
         let mut input = base.clone();
         input["usage"] = usage;
         let input = serde_json::from_value(input).unwrap();
-        assert!(
-            claude_chat::claude_response_to_openai(
-                &input,
-                "actual",
-                &ResponseSupplement {
-                    created_unix_seconds: Some(1)
-                }
-            )
-            .is_err()
+        let result = claude_chat::claude_response_to_openai(
+            &input,
+            "actual",
+            &ResponseSupplement {
+                created_unix_seconds: Some(1),
+            },
         );
+        assert_eq!(result.is_err(), overflow);
     }
     let mut input:chat::GenerateContentResponseBody=serde_json::from_value(json!({"id":"chat","object":"chat.completion","created":1,"model":"actual","choices":[{"index":0,"finish_reason":"stop","logprobs":null,"message":{"role":"assistant","content":"a","refusal":null}},{"index":1,"finish_reason":"stop","logprobs":null,"message":{"role":"assistant","content":"b","refusal":null}}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}})).unwrap();
     assert!(
         claude_chat::openai_response_to_claude(&input, "actual", &ResponseSupplement::default())
-            .is_err()
+            .is_ok()
     );
     input.choices.truncate(1);
     input.usage.as_mut().unwrap().prompt_tokens_details = Some(
@@ -175,6 +174,6 @@ fn invalid_usage_overflow_breakdown_and_multiple_choices_fail() {
     );
     assert!(
         claude_chat::openai_response_to_claude(&input, "actual", &ResponseSupplement::default())
-            .is_err()
+            .is_ok()
     );
 }

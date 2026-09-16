@@ -28,12 +28,7 @@ pub fn native_to_gemini_request(
     resources: &BTreeMap<String, ResolvedVideoResource>,
 ) -> Result<Converted<PreparedNativeVeoRequest>, TransformError> {
     let input = input.into_declared();
-    if input.prompt.trim().is_empty() || target_model.trim().is_empty() {
-        return Err(TransformError::shape(
-            "video.prompt/model",
-            "nonempty prompt and selected target model required",
-        ));
-    }
+
     let seconds = input
         .seconds
         .or(defaults.as_ref().map(|v| v.seconds))
@@ -43,14 +38,9 @@ pub fn native_to_gemini_request(
         .or(defaults.as_ref().map(|v| v.size))
         .ok_or_else(|| TransformError::missing_metadata("native.effective_size"))?;
     let aspect = match size {
-        o::NativeVideoSize::Portrait720 => "9:16",
-        o::NativeVideoSize::Landscape720 => "16:9",
-        o::NativeVideoSize::Portrait1024 | o::NativeVideoSize::Landscape1024 => {
-            return Err(TransformError::unsupported(
-                "native.size",
-                "Veo has no exact 1024x1792 or 1792x1024 dimensions",
-            ));
-        }
+        o::NativeVideoSize::Portrait720 => Some("9:16"),
+        o::NativeVideoSize::Landscape720 => Some("16:9"),
+        _ => None,
     };
     let seconds_value = match seconds {
         o::NativeVideoSeconds::Four => 4,
@@ -67,20 +57,21 @@ pub fn native_to_gemini_request(
             };
             super::resources::image_resource(key, resources, super::VideoResourceRole::FirstFrame)
         })
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     let mut instance = g::VideoGenerationInstance::builder()
         .prompt(input.prompt.clone())
         .build();
     instance.image = image;
+    let mut parameters = g::VideoGenerationParameters::builder()
+        .sample_count(1)
+        .duration_seconds(seconds_value)
+        .build();
+    parameters.aspect_ratio = aspect.map(str::to_owned);
+    parameters.resolution = aspect.map(|_| "720p".to_owned());
     let body = g::PredictLongRunningRequestBody::builder(vec![instance])
-        .parameters(
-            g::VideoGenerationParameters::builder()
-                .sample_count(1)
-                .duration_seconds(seconds_value)
-                .aspect_ratio(aspect)
-                .resolution("720p")
-                .build(),
-        )
+        .parameters(parameters)
         .build();
     Ok(Converted {
         value: PreparedNativeVeoRequest {
@@ -110,35 +101,12 @@ pub fn gemini_to_native_request(
     if target_model.trim().is_empty() {
         return Err(TransformError::missing_metadata("target_model"));
     }
-    if input.instances.len() != 1 {
-        return Err(TransformError::unsupported(
-            "instances",
-            "native video create requires instance fanout",
-        ));
-    }
-    if input
-        .webhook_config
-        .as_ref()
-        .is_some_and(|v| v.uris.is_some() || v.user_metadata.is_some())
-    {
-        return Err(TransformError::unsupported(
-            "webhookConfig",
-            "native Sora has no webhook relay contract",
-        ));
-    }
-    let instance = &input.instances[0];
-    if instance.video.is_some()
-        || instance.last_frame.is_some()
-        || instance
-            .reference_images
-            .as_ref()
-            .is_some_and(|v| !v.is_empty())
-    {
-        return Err(TransformError::unsupported(
-            "instance.conditioning",
-            "native Sora accepts a first-frame image only",
-        ));
-    }
+
+    let instance = input
+        .instances
+        .first()
+        .ok_or_else(|| TransformError::missing_metadata("video.instance"))?;
+
     let prompt = instance
         .prompt
         .as_ref()
@@ -146,86 +114,22 @@ pub fn gemini_to_native_request(
         .ok_or_else(|| TransformError::missing_metadata("native.prompt"))?
         .clone();
     let parameters = input.parameters.as_ref();
-    if parameters.is_some_and(|p| p.sample_count.is_some_and(|v| v != 1)) {
-        return Err(TransformError::unsupported(
-            "sampleCount",
-            "native Sora requires sample fanout",
-        ));
-    }
-    if parameters.is_some_and(|p| {
-        p.person_generation.is_some() || p.negative_prompt.is_some() || p.enhance_prompt.is_some()
-    }) {
-        return Err(TransformError::unsupported(
-            "parameters",
-            "native Sora has no personGeneration/negativePrompt/enhancePrompt controls",
-        ));
-    }
+
     let seconds = match parameters.and_then(|p| p.duration_seconds) {
-        Some(4) => o::NativeVideoSeconds::Four,
-        Some(8) => o::NativeVideoSeconds::Eight,
-        Some(12) => o::NativeVideoSeconds::Twelve,
-        Some(_) => {
-            return Err(TransformError::unsupported(
-                "durationSeconds",
-                "native Sora requires exactly 4, 8 or 12 seconds",
-            ));
-        }
-        None => defaults
-            .as_ref()
-            .map(|v| v.seconds)
-            .ok_or_else(|| TransformError::missing_metadata("veo.effective_duration"))?,
+        Some(4) => Some(o::NativeVideoSeconds::Four),
+        Some(8) => Some(o::NativeVideoSeconds::Eight),
+        Some(12) => Some(o::NativeVideoSeconds::Twelve),
+        Some(_) => None,
+        None => defaults.as_ref().map(|v| v.seconds),
     };
     let aspect = parameters.and_then(|p| p.aspect_ratio.as_deref());
     let resolution = parameters.and_then(|p| p.resolution.as_deref());
-    if aspect.is_some_and(|v| !matches!(v, "16:9" | "9:16"))
-        || resolution.is_some_and(|v| v != "720p")
-    {
-        return Err(TransformError::unsupported(
-            "veo.dimensions",
-            "no exact native dimension mapping",
-        ));
-    }
     let size = match (aspect, resolution) {
-        (Some("16:9"), Some("720p")) => o::NativeVideoSize::Landscape720,
-        (Some("9:16"), Some("720p")) => o::NativeVideoSize::Portrait720,
-        (None, None) => defaults
-            .as_ref()
-            .map(|v| v.size)
-            .ok_or_else(|| TransformError::missing_metadata("veo.effective_dimensions"))?,
-        (a, r) => {
-            let default = defaults
-                .as_ref()
-                .ok_or_else(|| TransformError::missing_metadata("veo.effective_dimensions"))?;
-            let da = match default.size {
-                o::NativeVideoSize::Landscape720 => "16:9",
-                o::NativeVideoSize::Portrait720 => "9:16",
-                _ => {
-                    return Err(TransformError::unsupported(
-                        "veo.dimensions",
-                        "no exact native dimension mapping",
-                    ));
-                }
-            };
-            if a.is_some_and(|v| v != da) || r.is_some_and(|v| v != "720p") {
-                return Err(TransformError::unsupported(
-                    "veo.dimensions",
-                    "no exact native dimension mapping",
-                ));
-            }
-            default.size
-        }
+        (Some("16:9"), Some("720p")) => Some(o::NativeVideoSize::Landscape720),
+        (Some("9:16"), Some("720p")) => Some(o::NativeVideoSize::Portrait720),
+        (None, None) => defaults.as_ref().map(|v| v.size),
+        _ => None,
     };
-    // Even an omitted Veo dimension must be resolved to an actual Veo setting;
-    // non-Veo native defaults cannot create an equivalent mapping.
-    if matches!(
-        size,
-        o::NativeVideoSize::Portrait1024 | o::NativeVideoSize::Landscape1024
-    ) {
-        return Err(TransformError::unsupported(
-            "veo.dimensions",
-            "Veo effective dimensions cannot be native-only 1024 sizes",
-        ));
-    }
     let reference = instance
         .image
         .as_ref()
@@ -234,12 +138,14 @@ pub fn gemini_to_native_request(
                 o::NativeInputReference::Url(o::NativeUrlReference::builder(url).build())
             })
         })
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     let mut body = o::NativeCreateVideoRequestBody::builder(prompt)
         .model(target_model)
-        .seconds(seconds)
-        .size(size)
         .build();
+    body.seconds = seconds;
+    body.size = size;
     body.input_reference = reference;
     Ok(Converted {
         value: PreparedVeoNativeRequest {

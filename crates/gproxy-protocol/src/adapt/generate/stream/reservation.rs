@@ -2,38 +2,10 @@ use super::super::{Endpoint, GenerationIdentity, GenerationStateAccess};
 use crate::{
     capability::{CasResult, StateStore, StateWrite, Version},
     codec::{self, CodecLimits},
-    transform::{TransformError, identity::IdentityTarget},
+    transform::TransformError,
     wire::DeclaredFields,
 };
 use serde::Serialize;
-use std::time::SystemTime;
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct StateBinding {
-    target: IdentityTarget,
-    conversation: String,
-    expiry: SystemTime,
-}
-impl StateBinding {
-    pub fn new<S: StateStore>(
-        state: &GenerationStateAccess<'_, S>,
-    ) -> Result<Self, TransformError> {
-        state.validate()?;
-        Ok(Self {
-            target: state.target.clone(),
-            conversation: state.conversation_key.clone(),
-            expiry: state.expires_at,
-        })
-    }
-    pub fn validate<S: StateStore>(
-        &self,
-        state: &GenerationStateAccess<'_, S>,
-    ) -> Result<(), TransformError> {
-        if self != &Self::new(state)? {
-            return Err(super::conflict("stream state binding changed"));
-        }
-        Ok(())
-    }
-}
 #[derive(Clone)]
 pub(super) struct Reservation {
     key: String,
@@ -97,7 +69,6 @@ impl Reservation {
         payload: Vec<u8>,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<Self, TransformError> {
-        state.validate()?;
         if payload.len() as u64 > state.store.limits().write_bytes {
             return Err(super::limit("journal record exceeds state budget"));
         }
@@ -115,7 +86,6 @@ impl Reservation {
         request: &crate::WireRequest<()>,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<Self, TransformError> {
-        state.validate()?;
         let headers: Vec<_> = request
             .headers
             .iter()
@@ -195,7 +165,6 @@ impl Reservation {
         &self,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<(), TransformError> {
-        state.validate()?;
         let expected = self
             .version
             .as_ref()

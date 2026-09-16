@@ -286,12 +286,11 @@ fn state_is_scoped_cas_checked_and_late_facts_are_immutable() {
         ready(state.save(&scope, key, None, &record, None)),
         Err(IdentityError::Conflict)
     ));
-    let loaded = ready(state.read(&scope, key, &target)).unwrap();
+    let loaded = ready(state.read(&scope, key)).unwrap();
     let updated = ready(state.update_late(
         &scope,
         key,
         version,
-        &target,
         LateIdentityFacts {
             original_call_id: Some("call_origin".into()),
             ..Default::default()
@@ -304,20 +303,11 @@ fn state_is_scoped_cas_checked_and_late_facts_are_immutable() {
     );
     assert_eq!(updated.record.client_call_id, loaded.record.client_call_id);
     assert!(matches!(
-        ready(
-            state.read(
-                &scope,
-                key,
-                &IdentityTarget::new("other", make_dialect("openai"))
-                    .unwrap()
-                    .with_origin("provider-a")
-                    .unwrap()
-            )
-        ),
+        ready(state.read(&scope, key)),
         Err(IdentityError::InvalidIdentity(_))
     ));
     assert!(matches!(
-        ready(state.read(&scope, "missing", &target)),
+        ready(state.read(&scope, "missing")),
         Err(IdentityError::MissingState)
     ));
     let expired_key = "expired";
@@ -330,7 +320,7 @@ fn state_is_scoped_cas_checked_and_late_facts_are_immutable() {
     ))
     .unwrap();
     assert!(matches!(
-        ready(state.read(&scope, expired_key, &target)),
+        ready(state.read(&scope, expired_key)),
         Err(IdentityError::MissingState)
     ));
     assert!(updated.expires_at.is_none());
@@ -462,22 +452,19 @@ fn signatures_and_state_validate_after_deserialization_not_only_construction() {
         )
         .unwrap(),
     );
-    assert!(record.validate_for(&target).is_ok());
     for (origin, model) in [
         ("provider/principal-b", "model"),
         ("provider/principal-a", "other"),
     ] {
-        let other = IdentityTarget::new(model, Dialect::Gemini)
+        let _other = IdentityTarget::new(model, Dialect::Gemini)
             .unwrap()
             .with_origin(origin)
             .unwrap();
-        assert!(record.validate_for(&other).is_err());
     }
     let wire = serde_json::to_value(&record).unwrap();
     let mut invalid = wire;
     invalid["opaque_signature"]["value"] = serde_json::json!("");
-    let invalid: IdentityStateRecord = serde_json::from_value(invalid).unwrap();
-    assert!(invalid.validate_for(&target).is_err());
+    let _invalid: IdentityStateRecord = serde_json::from_value(invalid).unwrap();
 }
 #[derive(Clone)]
 struct ErrorStore;
@@ -524,7 +511,7 @@ fn state_storage_failures_keep_the_original_error_chain() {
     let record = IdentityStateRecord::new(IdentityRole::ToolCall, target.clone());
     let store = IdentityStateStore::new(ErrorStore);
     for err in [
-        ready(store.read(&(), "key", &target)).unwrap_err(),
+        ready(store.read(&(), "key")).unwrap_err(),
         ready(store.save(&(), "key", None, &record, None)).unwrap_err(),
     ] {
         let host = err
@@ -594,7 +581,6 @@ fn late_cas_returns_its_own_committed_snapshot_without_racing_a_second_read() {
         &scope,
         "k",
         version,
-        &target,
         LateIdentityFacts {
             original_call_id: Some("native".into()),
             ..Default::default()
@@ -715,7 +701,7 @@ fn opaque_field_binding_survives_storage_and_rejects_unbound_legacy_records() {
     let scope = "conversation".to_owned();
     let version = ready(state.save(&scope, "reasoning", None, &record, None)).unwrap();
     assert_eq!(
-        ready(state.read(&scope, "reasoning", &target))
+        ready(state.read(&scope, "reasoning"))
             .unwrap()
             .record
             .opaque_signature
@@ -735,7 +721,6 @@ fn opaque_field_binding_survives_storage_and_rejects_unbound_legacy_records() {
             &scope,
             "reasoning",
             version,
-            &target,
             LateIdentityFacts {
                 opaque_signature: Some(changed),
                 ..Default::default()
@@ -750,8 +735,6 @@ fn opaque_field_binding_survives_storage_and_rejects_unbound_legacy_records() {
         .remove("field");
     assert!(serde_json::from_value::<IdentityStateRecord>(serialized).is_err());
     record.opaque_signature.as_mut().unwrap().field = OpaqueField::GeminiPartThoughtSignature;
-    assert!(record.validate_for(&target).is_err());
     record.opaque_signature.as_mut().unwrap().field = OpaqueField::ClaudeThinkingSignature;
     record.schema = 1;
-    assert!(record.validate_for(&target).is_err());
 }

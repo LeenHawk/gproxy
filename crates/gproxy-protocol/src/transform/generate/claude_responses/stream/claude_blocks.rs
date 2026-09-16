@@ -77,21 +77,14 @@ impl ClaudeToResponsesStream {
                     return Err(invalid("empty tool name"));
                 }
                 deferred = self.client_tools.kind(&v.name) != OutputItemKind::FunctionCall;
-                let caller = v
-                    .caller
-                    .map(|v| {
-                        v.map(|v| match v {
-                            cc::Caller::Direct(_) => Ok(i::Caller::Direct(i::DirectCaller {
-                                rest: Default::default(),
-                            })),
-                            _ => Err(TransformError::unsupported(
-                                "tool.caller",
-                                "program identity requires invocation mapping",
-                            )),
-                        })
-                        .transpose()
+                let caller = v.caller.map(|caller| {
+                    caller.and_then(|caller| match caller {
+                        cc::Caller::Direct(_) => Some(i::Caller::Direct(i::DirectCaller {
+                            rest: Default::default(),
+                        })),
+                        _ => None,
                     })
-                    .transpose()?;
+                });
                 let call_id = id(
                     &mut self.flow,
                     &self.policy,
@@ -157,12 +150,7 @@ impl ClaudeToResponsesStream {
                 (None, None)
             }
             c::ResponseContentBlock::RedactedThinking(_) => (None, None),
-            _ => {
-                return Err(TransformError::unsupported(
-                    "content_block",
-                    "native execution/resources/continuation require an invocation adapter",
-                ));
-            }
+            _ => (None, None),
         };
         if !deferred {
             item = item
@@ -170,7 +158,9 @@ impl ClaudeToResponsesStream {
                     r::ResponseOutputItem::FunctionCall(call) => self.client_tools.restore(call),
                     other => Ok(other),
                 })
-                .transpose()?;
+                .map(crate::transform::optional)
+                .transpose()?
+                .flatten();
         }
         let output_index = if let Some(value) = &mut item {
             if self.output_items >= self.limits.max_items {
@@ -237,9 +227,9 @@ impl ClaudeToResponsesStream {
             .blocks
             .get_mut(&index)
             .ok_or_else(|| invalid("missing block"))?;
-        let output = block
-            .output_index
-            .ok_or_else(|| invalid("payload on omitted block"))?;
+        let Some(output) = block.output_index else {
+            return Ok(());
+        };
         let item = block.item.as_mut().unwrap();
         let id = item_id(item).unwrap().to_owned();
         let (arguments, mcp, reasoning) = match item {

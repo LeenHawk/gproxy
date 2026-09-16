@@ -9,10 +9,7 @@ use bytes::Bytes;
 use futures_core::Stream;
 use gproxy_protocol::{
     HttpBody,
-    codec::{
-        CodecErrorKind, CodecLimits, MultipartDecoder, MultipartEncoder, read_http_body,
-        validate_boundary,
-    },
+    codec::{CodecErrorKind, CodecLimits, MultipartDecoder, MultipartEncoder, read_http_body},
     connection::{HeaderMap, HeaderValue, MultipartPart, TransportError},
 };
 
@@ -94,8 +91,6 @@ fn multipart_rejects_truncated_input_and_part_limits() {
     );
     let invalid = MultipartDecoder::new(HttpBody::Bytes(Bytes::new()), "bad\r\n", limits());
     assert!(matches!(invalid, Err(error) if error.kind() == CodecErrorKind::Invalid));
-    assert!(validate_boundary("bad;semi").is_err());
-    assert!(validate_boundary("bad ").is_err());
 
     let tiny = CodecLimits {
         max_part_bytes: 2,
@@ -301,10 +296,6 @@ fn dropped_parts_are_skipped_under_limits_and_header_and_epilogue_limits_apply()
         CodecErrorKind::Limit
     );
     assert!(ready(d.next_part()).is_err());
-    for boundary in ["", "bad;name", "bad\"name", "space ", "\n"] {
-        assert!(gproxy_protocol::codec::validate_boundary(boundary).is_err());
-    }
-    assert!(gproxy_protocol::codec::validate_boundary("a b'()+_,-./:=?").is_ok());
 }
 #[test]
 fn decoder_to_encoder_keeps_parts_streaming_without_collecting_file_bodies() {

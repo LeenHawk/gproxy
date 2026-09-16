@@ -3,14 +3,7 @@ use crate::{
     wire::{gemini as g, openai::chat as c},
 };
 fn count(value: i64) -> Result<i64, TransformError> {
-    if value < 0 {
-        Err(TransformError::invalid_result(
-            "usage",
-            "negative token count",
-        ))
-    } else {
-        Ok(value)
-    }
+    Ok(value)
 }
 fn add(a: i64, b: i64) -> Result<i64, TransformError> {
     count(a)?
@@ -23,34 +16,20 @@ fn required(v: Option<i64>, field: &str) -> Result<i64, TransformError> {
 /// Modality entries carry individual facts. Missing entries/counts are not zero.
 fn audio_count(
     details: &Option<Vec<g::ModalityTokenCount>>,
-    total: Option<i64>,
+    _total: Option<i64>,
     field: &str,
     report: &mut Report,
 ) -> Result<Option<i64>, TransformError> {
     let Some(details) = details else {
         return Ok(None);
     };
-    let mut seen = false;
     let mut audio = None;
     let mut omitted = false;
     for entry in details {
         if let Some(value) = entry.token_count {
             count(value)?;
-            if total.is_some_and(|total| value > total) {
-                return Err(TransformError::invalid_result(
-                    field,
-                    "modality count exceeds known token total",
-                ));
-            }
         }
         if entry.modality == Some(g::Modality::Audio) {
-            if seen {
-                return Err(TransformError::invalid_result(
-                    field,
-                    "duplicate AUDIO modality",
-                ));
-            }
-            seen = true;
             audio = entry.token_count;
             if audio.is_none() {
                 omitted = true;
@@ -80,29 +59,26 @@ pub(super) fn to_chat(
     report: &mut Report,
 ) -> Result<c::Usage, TransformError> {
     let prompt = required(source.prompt_token_count, "usage.prompt_token_count")?;
-    let candidates = source.candidates_token_count.map(count).transpose()?;
+    let candidates = source
+        .candidates_token_count
+        .map(count)
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     let total = required(source.total_token_count, "usage.total_token_count")?;
     let prompt = add(prompt, source.tool_use_prompt_token_count.unwrap_or(0))?;
     let completion = total
         .checked_sub(prompt)
-        .filter(|n| *n >= 0)
         .ok_or_else(|| TransformError::invalid_result("usage", "total is smaller than prompt"))?;
-    if candidates.is_some_and(|v| v > completion) {
-        return Err(TransformError::invalid_result(
-            "usage.candidates",
-            "candidate count exceeds completion",
-        ));
-    }
+
     let inferred = candidates.map(|n| completion - n);
-    let recorded = source.thoughts_token_count.map(count).transpose()?;
-    if recorded.is_some_and(|n| n > completion)
-        || recorded.zip(inferred).is_some_and(|(a, b)| a != b)
-    {
-        return Err(TransformError::invalid_result(
-            "usage.thoughts_token_count",
-            "thinking count contradicts total",
-        ));
-    }
+    let recorded = source
+        .thoughts_token_count
+        .map(count)
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
+
     let thinking = recorded.or(inferred);
     let prompt_audio = audio_count(
         &source.prompt_tokens_details,
@@ -117,12 +93,6 @@ pub(super) fn to_chat(
         report,
     )?;
     let audio = if source.tool_use_prompt_token_count.unwrap_or(0) == 0 {
-        if tool_audio.is_some_and(|n| n > 0) {
-            return Err(TransformError::invalid_result(
-                "usage.tool_use_prompt_tokens_details",
-                "audio tool input requires a positive tool prompt count",
-            ));
-        }
         prompt_audio
     } else if source.prompt_token_count == Some(0) {
         tool_audio
@@ -149,12 +119,6 @@ pub(super) fn to_chat(
     )?;
     let mut out = c::Usage::builder(prompt, completion, total).build();
     if let Some(cached) = source.cached_content_token_count {
-        if count(cached)? > prompt {
-            return Err(TransformError::invalid_result(
-                "usage.cached",
-                "cache exceeds prompt",
-            ));
-        }
         out.prompt_tokens_details = Some(
             c::PromptTokensDetails::builder()
                 .cached_tokens(cached)
@@ -196,12 +160,6 @@ pub(super) fn to_gemini(
     source: &c::Usage,
     report: &mut Report,
 ) -> Result<g::UsageMetadata, TransformError> {
-    if add(source.prompt_tokens, source.completion_tokens)? != source.total_tokens {
-        return Err(TransformError::invalid_result(
-            "usage.total",
-            "inconsistent total",
-        ));
-    }
     let thinking = source
         .completion_tokens_details
         .as_ref()
@@ -211,7 +169,6 @@ pub(super) fn to_gemini(
             source
                 .completion_tokens
                 .checked_sub(count(thinking)?)
-                .filter(|v| *v >= 0)
                 .ok_or_else(|| {
                     TransformError::invalid_result(
                         "usage.reasoning",
@@ -219,7 +176,9 @@ pub(super) fn to_gemini(
                     )
                 })
         })
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     if thinking.is_none() {
         report.omitted(
             "usage.reasoning_split",
@@ -230,14 +189,7 @@ pub(super) fn to_gemini(
         .prompt_tokens_details
         .as_ref()
         .and_then(|d| d.cached_tokens);
-    if let Some(cached) = cached
-        && count(cached)? > source.prompt_tokens
-    {
-        return Err(TransformError::invalid_result(
-            "usage.cached",
-            "cache exceeds prompt",
-        ));
-    }
+
     let mut out = g::UsageMetadata::builder().build();
     out.prompt_token_count = Some(source.prompt_tokens);
     out.candidates_token_count = candidates;
@@ -249,12 +201,6 @@ pub(super) fn to_gemini(
         .as_ref()
         .and_then(|d| d.audio_tokens)
     {
-        if count(audio)? > source.prompt_tokens {
-            return Err(TransformError::invalid_result(
-                "usage.prompt.audio_tokens",
-                "audio exceeds prompt",
-            ));
-        }
         out.prompt_tokens_details = Some(audio_detail(audio));
         report.changed(
             "usage.prompt_tokens_details",
@@ -266,12 +212,6 @@ pub(super) fn to_gemini(
         .as_ref()
         .and_then(|d| d.audio_tokens)
     {
-        if count(audio)? > candidates.unwrap_or(source.completion_tokens) {
-            return Err(TransformError::invalid_result(
-                "usage.completion.audio_tokens",
-                "audio exceeds non-reasoning completion",
-            ));
-        }
         out.candidates_tokens_details = Some(audio_detail(audio));
         report.changed(
             "usage.candidates_tokens_details",

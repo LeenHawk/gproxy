@@ -5,15 +5,14 @@ impl GeminiViaResponses {
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis<S: crate::capability::StateStore>(
         input: g::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
         let buffered = original.clone();
-        let mut prepared =
-            Self::prepare_with_state(buffered, selected_model, endpoint, identities, state).await?;
+        let mut prepared = Self::prepare_with_state(buffered, endpoint, identities, state).await?;
         prepared.original_request = original;
         prepared.target_request.stream = Some(Some(false));
         Ok(prepared)
@@ -28,7 +27,7 @@ impl GeminiViaResponses {
         R: crate::capability::ResourceAccess,
     >(
         input: g::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -36,15 +35,9 @@ impl GeminiViaResponses {
     ) -> Result<Self, TransformError> {
         let original = input.into_declared();
         let buffered = original.clone();
-        let mut prepared = Self::prepare_with_capabilities(
-            buffered,
-            selected_model,
-            endpoint,
-            identities,
-            state,
-            resources,
-        )
-        .await?;
+        let mut prepared =
+            Self::prepare_with_capabilities(buffered, endpoint, identities, state, resources)
+                .await?;
         prepared.original_request = original;
         prepared.target_request.stream = Some(Some(false));
         Ok(prepared)
@@ -56,7 +49,7 @@ impl ResponsesViaGemini {
     /// retaining the original client stream flag and all declared controls.
     pub async fn prepare_for_stream_synthesis<S: crate::capability::StateStore>(
         input: r::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -65,15 +58,8 @@ impl ResponsesViaGemini {
         let original = input.into_declared();
         let mut buffered = original.clone();
         buffered.stream = Some(Some(false));
-        let mut prepared = Self::prepare_with_state(
-            buffered,
-            selected_model,
-            endpoint,
-            identities,
-            state,
-            context,
-        )
-        .await?;
+        let mut prepared =
+            Self::prepare_with_state(buffered, endpoint, identities, state, context).await?;
         prepared.original_request = original;
         Ok(prepared)
     }
@@ -87,7 +73,7 @@ impl ResponsesViaGemini {
         R: crate::capability::ResourceAccess,
     >(
         input: r::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &super::super::GenerationStateAccess<'_, S>,
@@ -98,13 +84,7 @@ impl ResponsesViaGemini {
         let mut buffered = original.clone();
         buffered.stream = Some(Some(false));
         let mut prepared = Self::prepare_with_capabilities(
-            buffered,
-            selected_model,
-            endpoint,
-            identities,
-            state,
-            resources,
-            context,
+            buffered, endpoint, identities, state, resources, context,
         )
         .await?;
         prepared.original_request = original;

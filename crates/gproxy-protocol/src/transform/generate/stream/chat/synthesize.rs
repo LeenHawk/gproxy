@@ -133,7 +133,9 @@ pub fn synthesize_chat_stream(
             .logprobs
             .clone()
             .map(super::logs::synthesize)
+            .map(crate::transform::optional)
             .transpose()?
+            .flatten()
             .map(Some);
         push(&mut out, &mut bytes, base(&input, vec![event]), limits)?;
         let mut finish =

@@ -14,7 +14,6 @@ pub async fn recover_created_result<R: ResourceAccess, S: StateStore>(
     progress: &mut VideoProgress,
     limits: VideoLimits,
 ) -> Result<JsonInvocation<Converted<o::VideoGenerationResponseBody>>, TransformError> {
-    binding.validate()?;
     if expires_at <= SystemTime::now() {
         return Err(TransformError::shape(
             "video.expiry",

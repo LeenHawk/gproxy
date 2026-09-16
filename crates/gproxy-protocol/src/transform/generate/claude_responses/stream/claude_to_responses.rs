@@ -234,12 +234,7 @@ impl ClaudeToResponsesStream {
                     self.payload(v.index, vv.partial_json, out)?
                 }
                 cs::ContentBlockDelta::Signature(_) | cs::ContentBlockDelta::Citations(_) => {}
-                cs::ContentBlockDelta::Compaction(_) => {
-                    return Err(TransformError::unsupported(
-                        "compaction",
-                        "replacement history requires an invocation adapter",
-                    ));
-                }
+                cs::ContentBlockDelta::Compaction(_) => {}
             },
             cs::StreamEvent::ContentBlockStop(v) => self.stop_block(v.index, out)?,
             cs::StreamEvent::MessageDelta(v) => self.usage.delta(&v.usage)?,

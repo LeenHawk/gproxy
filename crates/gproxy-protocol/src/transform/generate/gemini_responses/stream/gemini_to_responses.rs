@@ -145,10 +145,7 @@ impl GeminiToResponsesStream {
         self.start(&mut out)?;
         for candidate in chunk.candidates.into_iter().flatten() {
             if candidate.index.is_some_and(|n| n != 0) {
-                return Err(TransformError::unsupported(
-                    "candidate.index",
-                    "Responses represents one candidate; fanout required",
-                ));
+                continue;
             }
             if let Some(content) = candidate.content {
                 if content.role.as_deref().is_some_and(|r| r != "model") {

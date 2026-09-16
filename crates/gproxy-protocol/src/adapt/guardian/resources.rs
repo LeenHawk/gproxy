@@ -128,7 +128,7 @@ pub async fn prepare_with_resources<A: ResourceAccess>(
                 "host metadata differs from actual bytes",
             ));
         }
-        part.validate_bytes(&mime, &bytes)?;
+
         let uri = format!("data:{mime};base64,{}", STANDARD.encode(&bytes));
         total += len;
         resolved.insert(original, (uri.clone(), len));

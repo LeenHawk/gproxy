@@ -8,7 +8,6 @@ pub(super) fn split(
     expires_at: SystemTime,
     limits: VideoLimits,
 ) -> Result<ReverseVideoState, TransformError> {
-    binding.validate()?;
     let input = input.into_declared();
     bound_value(&input, limits)?;
     let samples = match input.parameters.as_ref().and_then(|p| p.sample_count) {

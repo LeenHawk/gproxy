@@ -26,28 +26,15 @@ pub(crate) fn append(
     Ok(())
 }
 fn collect(source: s::ChunkTokenLogprob) -> Result<r::TokenLogprob, TransformError> {
-    validate(
-        source.logprob,
-        source.bytes.as_ref().and_then(Option::as_ref),
-    )?;
     let mut top = Vec::new();
     for value in source.top_logprobs {
-        validate(value.logprob, value.bytes.as_ref().and_then(Option::as_ref))?;
         top.push(
             r::TokenLogprobTop::builder(value.token, value.bytes.flatten(), value.logprob).build(),
         );
     }
     Ok(r::TokenLogprob::builder(source.token, source.bytes.flatten(), source.logprob, top).build())
 }
-fn validate(logprob: f64, bytes: Option<&Vec<i64>>) -> Result<(), TransformError> {
-    if !logprob.is_finite() || bytes.is_some_and(|b| b.iter().any(|v| !(0..=255).contains(v))) {
-        return Err(TransformError::invalid_result(
-            "logprobs",
-            "invalid probability or token bytes",
-        ));
-    }
-    Ok(())
-}
+
 pub(crate) fn synthesize(input: r::Logprobs) -> Result<s::ChunkLogprobs, TransformError> {
     let content = input
         .content
@@ -56,7 +43,9 @@ pub(crate) fn synthesize(input: r::Logprobs) -> Result<s::ChunkLogprobs, Transfo
                 .map(synthesize_token)
                 .collect::<Result<Vec<_>, _>>()
         })
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     let refusal = input
         .refusal
         .map(|v| {
@@ -64,17 +53,17 @@ pub(crate) fn synthesize(input: r::Logprobs) -> Result<s::ChunkLogprobs, Transfo
                 .map(synthesize_token)
                 .collect::<Result<Vec<_>, _>>()
         })
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     let mut out = s::ChunkLogprobs::builder().build();
     out.content = content.map(Some);
     out.refusal = refusal.map(Some);
     Ok(out)
 }
 fn synthesize_token(input: r::TokenLogprob) -> Result<s::ChunkTokenLogprob, TransformError> {
-    validate(input.logprob, input.bytes.as_ref())?;
     let mut top = Vec::new();
     for v in input.top_logprobs {
-        validate(v.logprob, v.bytes.as_ref())?;
         let mut item = s::ChunkTopLogprob::builder(v.token, v.logprob).build();
         item.bytes = Some(v.bytes);
         top.push(item);

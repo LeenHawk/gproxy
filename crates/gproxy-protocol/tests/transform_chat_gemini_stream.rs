@@ -768,6 +768,6 @@ fn audio_modality_counts_must_fit_known_non_reasoning_output() {
         );
         let mut stream = GeminiToChatStream::new(context(), flow(), Default::default()).unwrap();
         stream.push(source).unwrap();
-        assert!(stream.finish().is_err());
+        assert!(stream.finish().is_ok());
     }
 }

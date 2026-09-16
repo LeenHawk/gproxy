@@ -75,10 +75,7 @@ fn convert(
             "required" => out.required = Some(decode(value, &field)?),
             "enum" => {
                 if out.type_ != SchemaType::String {
-                    return Err(TransformError::unsupported(
-                        field,
-                        "typed Gemini enum supports only strings",
-                    ));
+                    continue;
                 }
                 let values: Vec<String> = decode(value, &field)?;
                 if values.is_empty() {
@@ -149,10 +146,7 @@ fn convert(
                 out.any_of = Some(variants);
             }
             _ => {
-                return Err(TransformError::unsupported(
-                    field,
-                    "keyword has no exact typed Gemini schema representation",
-                ));
+                continue;
             }
         }
     }

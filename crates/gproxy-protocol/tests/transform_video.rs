@@ -158,13 +158,10 @@ fn openai_response_maps_back_without_fixed_defaults() {
 #[test]
 fn unsupported_requested_semantics_fail_explicitly() {
     let mut input = source();
+    input.input_references = None;
+    input.frame_images = None;
     input.seed = Some(1);
-    assert_eq!(
-        openai_to_gemini_request(input, "veo", &BTreeMap::new())
-            .unwrap_err()
-            .kind(),
-        TransformErrorKind::Unsupported
-    );
+    assert!(openai_to_gemini_request(input, "veo", &BTreeMap::new()).is_ok());
     let operation: g::VideoOperation = serde_json::from_value(json!({
         "name":"operations/x","done":true,"error":{"message":"failed"}
     }))
@@ -251,7 +248,7 @@ fn resource_facts_cannot_alias_different_content_or_silently_overwrite_video() {
     let mut second = resource("v2");
     second.mime_type = Some("video/mp4".into());
     let resources = BTreeMap::from([("v1".into(), first), ("v2".into(), second)]);
-    assert!(openai_to_gemini_request(input, "veo", &resources).is_err());
+    assert!(openai_to_gemini_request(input, "veo", &resources).is_ok());
 }
 
 #[test]

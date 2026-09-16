@@ -2,15 +2,13 @@
 use super::super::GenerationStateAccess;
 use crate::{
     capability::{CasResult, StateStore, StateWrite, Version},
-    transform::{TransformError, identity::IdentityTarget},
+    transform::TransformError,
     wire::{DeclaredFields, openai::responses as r},
 };
 use serde::{Deserialize, Serialize};
 #[derive(Clone, Serialize, Deserialize)]
 struct Snapshot {
     schema: u16,
-    target: IdentityTarget,
-    conversation: String,
     response_id: String,
     input: Vec<r::input::InputItem>,
     output: Vec<r::response::ResponseOutputItem>,
@@ -31,46 +29,20 @@ pub(super) struct History {
 pub struct ResponsesHistoryCache(std::sync::Arc<std::sync::Mutex<Cache>>);
 struct Cache {
     preparation: Option<(super::reservation::Reservation, std::time::SystemTime)>,
-    target: IdentityTarget,
-    conversation: String,
     max_entries: usize,
     max_bytes: usize,
     bytes: usize,
     entries: std::collections::VecDeque<(Snapshot, std::time::SystemTime, usize)>,
 }
 impl ResponsesHistoryCache {
-    pub fn new<S: StateStore>(
-        state: &GenerationStateAccess<'_, S>,
-        max_entries: usize,
-        max_bytes: usize,
-    ) -> Result<Self, TransformError> {
-        state.validate()?;
-        if max_entries == 0 || max_bytes == 0 {
-            return Err(super::limit(
-                "positive Responses connection cache limits required",
-            ));
-        }
-        Ok(Self(std::sync::Arc::new(std::sync::Mutex::new(Cache {
+    pub fn new(max_entries: usize, max_bytes: usize) -> Self {
+        Self(std::sync::Arc::new(std::sync::Mutex::new(Cache {
             preparation: None,
-            target: state.target.clone(),
-            conversation: state.conversation_key.clone(),
             max_entries,
             max_bytes,
             bytes: 0,
             entries: Default::default(),
-        }))))
-    }
-    fn validate<S: StateStore>(
-        cache: &Cache,
-        state: &GenerationStateAccess<'_, S>,
-    ) -> Result<(), TransformError> {
-        state.validate()?;
-        if cache.target != state.target || cache.conversation != state.conversation_key {
-            return Err(super::conflict(
-                "Responses connection history cache scope changed",
-            ));
-        }
-        Ok(())
+        })))
     }
     async fn verify_binding<S: StateStore>(
         binding: &(super::reservation::Reservation, std::time::SystemTime),
@@ -97,7 +69,7 @@ impl ResponsesHistoryCache {
                 .0
                 .lock()
                 .map_err(|_| super::invalid("Responses history cache lock poisoned"))?;
-            Self::validate(&cache, state)?;
+
             cache
                 .preparation
                 .get_or_insert_with(|| (marker.clone(), state.expires_at))
@@ -115,7 +87,7 @@ impl ResponsesHistoryCache {
                 .0
                 .lock()
                 .map_err(|_| super::invalid("Responses history cache lock poisoned"))?;
-            Self::validate(&cache, state)?;
+
             cache.preparation.clone()
         };
         // A never-bound empty cache has no content. Do not re-read it after
@@ -144,7 +116,7 @@ impl ResponsesHistoryCache {
             .0
             .lock()
             .map_err(|_| super::invalid("Responses history cache lock poisoned"))?;
-        Self::validate(&cache, state)?;
+
         if cache.preparation.is_none() {
             return Err(super::missing(
                 "Responses cache has no acknowledged scope binding",
@@ -247,7 +219,6 @@ impl History {
         limits: crate::codec::CodecLimits,
         cache: Option<&ResponsesHistoryCache>,
     ) -> Result<(Self, r::GenerateContentRequestBody), TransformError> {
-        state.validate()?;
         if let Some(cache) = cache {
             cache.get("", state).await?;
         }
@@ -293,15 +264,6 @@ impl History {
                 let snapshot: Snapshot = serde_json::from_slice(&entry.payload)?;
                 snapshot
             };
-            if snapshot.schema != 1
-                || snapshot.target != state.target
-                || snapshot.conversation != state.conversation_key
-                || snapshot.response_id != *id
-            {
-                return Err(super::conflict(
-                    "Responses history scope or identity mismatch",
-                ));
-            }
             input = snapshot
                 .input
                 .into_iter()
@@ -354,8 +316,6 @@ impl History {
         }
         let snapshot = Snapshot {
             schema: 1,
-            target: state.target.clone(),
-            conversation: state.conversation_key.clone(),
             response_id: response.id.clone(),
             input: self.input.clone(),
             output: response.clone().into_declared().output,

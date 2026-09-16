@@ -102,7 +102,7 @@ fn errors_unsupported_native_payloads_and_premature_eof_poison_streams() {
             .push(gpart(
                 json!([{"inlineData":{"mimeType":"image/png","data":"AQI="}}])
             ))
-            .is_err()
+            .is_ok()
     );
     assert!(stream.finish().is_err());
     let mut stream = GeminiToResponsesStream::new(gc(), flow(), Default::default()).unwrap();

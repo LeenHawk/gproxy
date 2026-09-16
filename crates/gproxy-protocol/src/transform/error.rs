@@ -127,10 +127,8 @@ impl From<crate::capability::CapabilityError> for TransformError {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum DiagnosticKind {
-    /// An informational field with no equivalent target representation. Rust
-    /// `Option` alone does not make a requested behavior safe to omit: tools,
-    /// masks, output constraints, and other necessary semantics must instead
-    /// be mapped, supplied by a capability, or rejected explicitly.
+    /// A source field or content block omitted because it has no target
+    /// representation. Other supported parts of the conversion are retained.
     OmittedOptional,
     RepresentationChanged,
 }

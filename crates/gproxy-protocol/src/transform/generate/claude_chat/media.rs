@@ -10,7 +10,6 @@ pub(super) fn image_url(source: &c::ImageSource) -> Result<chat::ImageUrl, Trans
     let url = match source {
         c::ImageSource::Url(source) => source.url.clone(),
         c::ImageSource::Base64(source) => {
-            validate_base64(&source.data, "messages.image")?;
             format!(
                 "data:{};base64,{}",
                 media_type(source.media_type),
@@ -61,21 +60,28 @@ pub(super) fn openai_user_blocks(
         match part {
             chat::UserContentPart::Text(text) => output.push(text_block(text.text.clone())),
             chat::UserContentPart::Image(image) => {
+                let Some(source) =
+                    crate::transform::optional(claude_image_source(image.image_url.url.clone()))?
+                else {
+                    continue;
+                };
                 output.push(c::ContentBlock::Image(c::ImageBlock {
                     type_: c::ImageBlockType::Tag,
-                    source: claude_image_source(image.image_url.url.clone())?,
+                    source,
                     cache_control: None,
                     rest: Rest::new(),
                 }))
             }
             chat::UserContentPart::File(file) => {
-                output.push(c::ContentBlock::Document(file_document(file)?))
+                if let Some(document) = crate::transform::optional(file_document(file))? {
+                    output.push(c::ContentBlock::Document(document));
+                }
             }
             chat::UserContentPart::InputAudio(_) => {
-                return Err(TransformError::unsupported(
+                report.omitted(
                     "messages.user.content",
-                    "audio has no Claude Messages equivalent",
-                ));
+                    "audio has no target representation",
+                );
             }
         }
     }
@@ -99,7 +105,7 @@ fn claude_image_source(url: String) -> Result<c::ImageSource, TransformError> {
                 ));
             }
         };
-        validate_base64(data, "messages.image")?;
+
         Ok(c::ImageSource::Base64(c::Base64Source {
             data: data.into(),
             media_type,
@@ -114,20 +120,8 @@ fn claude_image_source(url: String) -> Result<c::ImageSource, TransformError> {
 }
 
 pub(super) fn document_file(block: &c::DocumentBlock) -> Result<chat::FileRef, TransformError> {
-    if block.context.is_some()
-        || block
-            .citations
-            .as_ref()
-            .is_some_and(|config| config.enabled == Some(true))
-    {
-        return Err(TransformError::unsupported(
-            "document.context/citations",
-            "Chat file parts cannot preserve document context or citation controls",
-        ));
-    }
     let file_data = match &block.source {
         c::DocumentSource::Base64(source) => {
-            validate_base64(&source.data, "document.source")?;
             Some(format!("data:application/pdf;base64,{}", source.data))
         }
         c::DocumentSource::Text(source) => Some(format!(
@@ -140,13 +134,10 @@ pub(super) fn document_file(block: &c::DocumentBlock) -> Result<chat::FileRef, T
                 c::DocumentContent::Blocks(blocks) => blocks
                     .iter()
                     .map(|block| match block {
-                        c::DocumentContentBlock::Text(text) => Ok(text.text.as_str()),
-                        c::DocumentContentBlock::Image(_) => Err(TransformError::unsupported(
-                            "document.source.content",
-                            "mixed image document requires resource conversion",
-                        )),
+                        c::DocumentContentBlock::Text(text) => text.text.as_str(),
+                        c::DocumentContentBlock::Image(_) => "",
                     })
-                    .collect::<Result<Vec<_>, _>>()?
+                    .collect::<Vec<_>>()
                     .join(""),
             };
             Some(format!(
@@ -155,7 +146,10 @@ pub(super) fn document_file(block: &c::DocumentBlock) -> Result<chat::FileRef, T
             ))
         }
         c::DocumentSource::Url(_) | c::DocumentSource::File(_) => {
-            return Err(TransformError::missing_metadata("document.source"));
+            return Err(TransformError::unsupported(
+                "document.source",
+                "source needs resource materialization",
+            ));
         }
     };
     Ok(chat::FileRef {
@@ -167,13 +161,10 @@ pub(super) fn document_file(block: &c::DocumentBlock) -> Result<chat::FileRef, T
 }
 
 fn file_document(file: &chat::FilePart) -> Result<c::DocumentBlock, TransformError> {
-    let source = file
-        .file
-        .file_data
-        .as_ref()
-        .ok_or_else(|| TransformError::missing_metadata("file.file_id"))?;
+    let source = file.file.file_data.as_ref().ok_or_else(|| {
+        TransformError::unsupported("file.file_id", "file needs resource materialization")
+    })?;
     let source = if let Some(data) = source.strip_prefix("data:application/pdf;base64,") {
-        validate_base64(data, "file.file_data")?;
         c::DocumentSource::Base64(c::PdfBase64Source {
             data: data.into(),
             media_type: c::PdfMediaType::Pdf,
@@ -195,7 +186,10 @@ fn file_document(file: &chat::FilePart) -> Result<c::DocumentBlock, TransformErr
             rest: Rest::new(),
         })
     } else {
-        return Err(TransformError::missing_metadata("file.file_data"));
+        return Err(TransformError::unsupported(
+            "file.file_data",
+            "no matching document source",
+        ));
     };
     Ok(c::DocumentBlock {
         type_: c::DocumentBlockType::Tag,
@@ -206,11 +200,4 @@ fn file_document(file: &chat::FilePart) -> Result<c::DocumentBlock, TransformErr
         title: file.file.filename.clone(),
         rest: Rest::new(),
     })
-}
-
-fn validate_base64(value: &str, field: &str) -> Result<(), TransformError> {
-    STANDARD
-        .decode(value)
-        .map(|_| ())
-        .map_err(|error| TransformError::shape(field, format!("invalid base64: {error}")))
 }

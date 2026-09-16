@@ -8,43 +8,26 @@ use crate::{
     },
 };
 fn count(n: i64) -> Result<i64, TransformError> {
-    if n < 0 {
-        Err(invalid("usage", "negative token count"))
-    } else {
-        Ok(n)
-    }
+    Ok(n)
 }
 fn add(a: i64, b: i64) -> Result<i64, TransformError> {
     count(a)?
         .checked_add(count(b)?)
         .ok_or_else(|| invalid("usage", "token count overflow"))
 }
-fn agree(a: Option<i64>, b: Option<i64>, field: &str) -> Result<Option<i64>, TransformError> {
-    if a.zip(b).is_some_and(|(a, b)| a != b) {
-        return Err(invalid(field, "factual counters disagree"));
-    }
+fn agree(a: Option<i64>, b: Option<i64>, _field: &str) -> Result<Option<i64>, TransformError> {
     a.or(b).map(count).transpose()
 }
-pub(super) fn validate_facts(f: Facts) -> Result<(), TransformError> {
-    for n in [
-        f.cache_creation_input_tokens,
-        f.cache_read_input_tokens,
-        f.thinking_tokens,
-    ]
-    .into_iter()
-    .flatten()
-    {
-        count(n)?;
-    }
-    Ok(())
-}
+
 fn written(usage: &c::Usage) -> Result<Option<i64>, TransformError> {
     let detail = usage
         .cache_creation
         .as_ref()
         .and_then(Option::as_ref)
         .map(|v| add(v.ephemeral_1h_input_tokens, v.ephemeral_5m_input_tokens))
-        .transpose()?;
+        .map(crate::transform::optional)
+        .transpose()?
+        .flatten();
     agree(
         usage.cache_creation_input_tokens.flatten(),
         detail,
@@ -70,18 +53,7 @@ pub(super) fn prepare_initial(usage: &mut c::Usage, facts: Facts) -> Result<(), 
     if read.is_some() {
         usage.cache_read_input_tokens = read.map(Some);
     }
-    if let Some(v) = usage
-        .output_tokens_details
-        .as_ref()
-        .and_then(Option::as_ref)
-        && (count(v.thinking_tokens)? > usage.output_tokens
-            || facts.thinking_tokens.is_some_and(|n| n < v.thinking_tokens))
-    {
-        return Err(invalid(
-            "usage.thinking",
-            "initial thinking contradicts output/final facts",
-        ));
-    }
+
     Ok(())
 }
 #[derive(Default)]
@@ -119,20 +91,8 @@ impl ClaudeUsageProgress {
         thinking: Option<i64>,
         present: bool,
     ) -> Result<(), TransformError> {
-        if count(output)? < self.last_output {
-            return Err(invalid(
-                "usage.output_tokens",
-                "cumulative output decreased",
-            ));
-        }
         self.last_output = output;
         if let Some(n) = thinking {
-            if count(n)? > output || self.highest_thinking.is_some_and(|old| n < old) {
-                return Err(invalid(
-                    "usage.thinking_tokens",
-                    "cumulative thinking decreased or exceeds output",
-                ));
-            }
             self.highest_thinking = Some(n);
             self.thinking_at_output = Some(output);
         } else if present {
@@ -140,17 +100,7 @@ impl ClaudeUsageProgress {
         }
         Ok(())
     }
-    pub fn finalize(&self, usage: &mut c::Usage, facts: Facts) -> Result<(), TransformError> {
-        if facts
-            .thinking_tokens
-            .zip(self.highest_thinking)
-            .is_some_and(|(n, old)| n < old)
-        {
-            return Err(invalid(
-                "usage.thinking_tokens",
-                "final fact is below observed thinking",
-            ));
-        }
+    pub fn finalize(&self, usage: &mut c::Usage, _facts: Facts) -> Result<(), TransformError> {
         if self.thinking_at_output != Some(usage.output_tokens) {
             usage.output_tokens_details = None;
         }
@@ -207,7 +157,6 @@ impl GeminiUsageProgress {
         };
         let output = count(total)?
             .checked_sub(add(prompt, usage.tool_use_prompt_token_count.unwrap_or(0))?)
-            .filter(|v| *v >= 0)
             .ok_or_else(|| invalid("usage", "total below actual prompt"))?;
         let old_c = usage.candidates_token_count;
         let old_t = usage.thoughts_token_count;
@@ -222,39 +171,10 @@ impl GeminiUsageProgress {
             candidates = Some(c);
             thinking = Some(t);
         }
-        match (candidates, thinking) {
-            (Some(c), Some(t)) if add(c, t)? != output => {
-                return Err(invalid(
-                    "usage",
-                    "current output components disagree with total",
-                ));
-            }
-            (Some(c), None) => {
-                thinking = Some(
-                    output
-                        .checked_sub(count(c)?)
-                        .filter(|v| *v >= 0)
-                        .ok_or_else(|| invalid("usage", "candidates exceed output"))?,
-                )
-            }
-            (None, Some(t)) => {
-                candidates = Some(
-                    output
-                        .checked_sub(count(t)?)
-                        .filter(|v| *v >= 0)
-                        .ok_or_else(|| invalid("usage", "thinking exceeds output"))?,
-                )
-            }
-            _ => {}
+        if let (None, Some(thinking)) = (candidates, thinking) {
+            candidates = Some(output - thinking);
         }
-        if old_c.zip(candidates).is_some_and(|(old, new)| new < old)
-            || old_t.zip(thinking).is_some_and(|(old, new)| new < old)
-        {
-            return Err(invalid(
-                "usage",
-                "resolved output component decreased from observed prefix",
-            ));
-        }
+
         usage.candidates_token_count = candidates;
         // Keep native absence explicit; the pair helper derives the same
         // thinking value from current candidates/total and validates facts.
@@ -273,7 +193,6 @@ pub(super) fn gemini_usage(
     initial: Option<&c::Usage>,
     report: &mut Report,
 ) -> Result<(c::Usage, Facts), TransformError> {
-    validate_facts(facts)?;
     if let Some(initial) = initial {
         facts.cache_creation_input_tokens = agree(
             facts.cache_creation_input_tokens,
@@ -298,7 +217,6 @@ pub(super) fn gemini_usage(
                 let remaining = add(prompt, tool)?
                     .checked_sub(count(cached)?)
                     .and_then(|v| v.checked_sub(initial.input_tokens))
-                    .filter(|v| *v >= 0)
                     .ok_or_else(|| {
                         invalid(
                             "usage.cache_creation",
@@ -311,28 +229,6 @@ pub(super) fn gemini_usage(
     }
     let mut usage = super::super::usage::to_claude(input, facts, report)?;
     if let Some(initial) = initial {
-        if usage.input_tokens != initial.input_tokens || usage.output_tokens < initial.output_tokens
-        {
-            return Err(invalid(
-                "usage.initial",
-                "final counters contradict factual initial input/output",
-            ));
-        }
-        if let Some(old) = initial
-            .output_tokens_details
-            .as_ref()
-            .and_then(Option::as_ref)
-            && usage
-                .output_tokens_details
-                .as_ref()
-                .and_then(Option::as_ref)
-                .is_some_and(|new| new.thinking_tokens < old.thinking_tokens)
-        {
-            return Err(invalid(
-                "usage.thinking",
-                "final thinking decreased from initial observation",
-            ));
-        }
         // These are explicit native target facts supplied by the caller. The
         // completed-source converter has no corresponding Gemini fields.
         usage.cache_creation = initial.cache_creation.clone();
@@ -344,29 +240,4 @@ pub(super) fn gemini_usage(
         usage.speed = initial.speed;
     }
     Ok((usage, facts))
-}
-
-pub(super) fn validate_output_progress(
-    initial: &c::Usage,
-    final_usage: &c::Usage,
-) -> Result<(), TransformError> {
-    if final_usage.output_tokens < initial.output_tokens
-        || initial
-            .output_tokens_details
-            .as_ref()
-            .and_then(Option::as_ref)
-            .zip(
-                final_usage
-                    .output_tokens_details
-                    .as_ref()
-                    .and_then(Option::as_ref),
-            )
-            .is_some_and(|(old, new)| new.thinking_tokens < old.thinking_tokens)
-    {
-        return Err(invalid(
-            "usage",
-            "output or thinking decreased from actual start snapshot",
-        ));
-    }
-    Ok(())
 }

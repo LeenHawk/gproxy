@@ -4,7 +4,7 @@ impl GeminiViaResponses {
     /// mapped request uses inline delivery; original_request remains unchanged.
     pub async fn prepare_with_image_resources<S: StateStore, R: ResourceAccess>(
         input: g::GenerateContentRequestBody,
-        selected_model: impl Into<String>,
+
         endpoint: Endpoint,
         identities: GenerationIdentity,
         state: &GenerationStateAccess<'_, S>,
@@ -13,7 +13,6 @@ impl GeminiViaResponses {
         let original = input.into_declared();
         let mut prepared = Self::prepare_with_capabilities(
             inline_request(original.clone()),
-            selected_model,
             endpoint,
             identities,
             state,
@@ -33,7 +32,6 @@ impl GeminiViaResponses {
         resources: &GenerationResources<'_, R>,
         progress: &mut ImageResourceProgress<r::GenerateContentResponseBody, R::PublishedHandle>,
     ) -> Result<Converted<g::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(Dialect::OpenAi, &self.selected_model)?;
         let native = native.into_declared();
         let mut converted = self.convert_response_inline(native.clone(), facts)?;
         if wants_uri(&self.original_request) {
@@ -71,7 +69,6 @@ impl GeminiViaResponses {
             &r::GenerateContentResponseBody,
         ) -> Result<p::GeminiReplayContext, TransformError>,
     ) -> Result<GenerationOutcome<g::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(Dialect::OpenAi, &self.selected_model)?;
         transport::bind(
             (&self.endpoint, &self.selected_model),
             &self.identities,
@@ -106,7 +103,6 @@ impl GeminiViaResponses {
             &r::GenerateContentResponseBody,
         ) -> Result<p::GeminiReplayContext, TransformError>,
     ) -> Result<GenerationOutcome<g::GenerateContentResponseBody>, TransformError> {
-        state.validate_target(Dialect::OpenAi, &self.selected_model)?;
         transport::bind(
             (&self.endpoint, &self.selected_model),
             &self.identities,

@@ -80,7 +80,7 @@ pub async fn native_to_gemini_create_composed<
     limits: VideoLimits,
 ) -> Result<JsonInvocation<Converted<o::NativeVideo>>, TransformError> {
     super::composed::fresh(progress)?;
-    binding.validate()?;
+
     direct::check_template(&template, http::Method::POST)?;
     if template.path != binding.create_path()? {
         return Err(TransformError::shape(
@@ -248,7 +248,7 @@ pub async fn native_to_gemini_query_composed<
     limits: VideoLimits,
 ) -> Result<JsonInvocation<Converted<o::NativeVideo>>, TransformError> {
     super::composed::fresh(progress)?;
-    binding.validate()?;
+
     direct::check_template(&template, http::Method::GET)?;
     let (mut state, version) = load(store, state_scope, &binding, limits).await?;
     if !matches!(state.original, VideoOriginalRequest::Native(_)) {
@@ -323,7 +323,6 @@ pub async fn recover_native_result<
     progress: &mut VideoProgress,
     limits: VideoLimits,
 ) -> Result<JsonInvocation<Converted<o::NativeVideo>>, TransformError> {
-    binding.validate()?;
     if progress.binding.as_ref() != Some(&binding) || !progress.send_started {
         return Err(TransformError::shape(
             "native.recovery",
@@ -369,7 +368,6 @@ pub async fn native_content<R: ResourceAccess, S: StateStore>(
     binding: VideoBinding,
     limits: VideoLimits,
 ) -> Result<ResourceRead, TransformError> {
-    binding.validate()?;
     let (state, _) = load(store, state_scope, &binding, limits).await?;
     if !matches!(state.original, VideoOriginalRequest::Native(_)) {
         return Err(TransformError::shape(

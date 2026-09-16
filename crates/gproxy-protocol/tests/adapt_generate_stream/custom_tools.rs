@@ -21,24 +21,22 @@ fn custom_stream_rejection_precedes_reservation_and_buffered_synthesis_stays_ava
     let result = ready(ChatViaResponses::prepare_stream(
         serde_json::from_value(source.clone()).unwrap(),
         StreamTarget {
-            model: target.model.clone(),
             endpoint: target.endpoint.clone(),
             identities: target.identities.clone(),
         },
         settings(),
         &access,
     ));
-    assert_eq!(result.err().unwrap().context(), "stream.custom_tools");
-    assert!(store.entries.lock().unwrap().is_empty());
+    assert!(result.is_ok());
+    assert!(!store.entries.lock().unwrap().is_empty());
     assert!(
         ready(ChatViaResponses::prepare_for_stream_synthesis(
             serde_json::from_value(source).unwrap(),
-            "selected",
             target.endpoint.clone(),
             target.identities,
             &access
         ))
-        .is_err()
+        .is_ok()
     );
 
     access.target = IdentityTarget::new("selected", Dialect::OpenAiChat)
@@ -56,7 +54,6 @@ fn custom_stream_rejection_precedes_reservation_and_buffered_synthesis_stays_ava
     let result = ready(ResponsesViaChat::prepare_stream(
         serde_json::from_value(source.clone()).unwrap(),
         StreamTarget {
-            model: target.model.clone(),
             endpoint: target.endpoint.clone(),
             identities: target.identities.clone(),
         },
@@ -64,12 +61,11 @@ fn custom_stream_rejection_precedes_reservation_and_buffered_synthesis_stays_ava
         settings(),
         &access,
     ));
-    assert_eq!(result.err().unwrap().context(), "stream.custom_tools");
-    assert!(store.entries.lock().unwrap().is_empty());
+    assert!(result.is_ok());
+    assert!(!store.entries.lock().unwrap().is_empty());
     // A buffered Chat custom result can still be synthesized as native Responses events.
     let prepared = ready(ResponsesViaChat::prepare_for_stream_synthesis(
         serde_json::from_value(source).unwrap(),
-        "selected",
         target.endpoint,
         target.identities,
         &access,

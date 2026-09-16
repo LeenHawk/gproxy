@@ -145,12 +145,6 @@ pub fn openai_to_gemini_request(
                     rest: Rest::new(),
                 }),
                 o::InputReference::Video(value) => {
-                    if instance.video.is_some() {
-                        return Err(TransformError::shape(
-                            "input_references.video",
-                            "Veo supports only one extension video",
-                        ));
-                    }
                     let resource =
                         super::resources::bound(&value.video_url.url, resources, "video/")?;
                     let encoded = resource.bytes_base64_encoded.clone().ok_or_else(|| {
@@ -198,7 +192,9 @@ pub fn openai_to_gemini_request(
                 i32::try_from(value)
                     .map_err(|_| TransformError::shape("duration", "overflows Gemini"))
             })
-            .transpose()?,
+            .map(crate::transform::optional)
+            .transpose()?
+            .flatten(),
         aspect_ratio,
         resolution,
         person_generation: None,
@@ -207,46 +203,7 @@ pub fn openai_to_gemini_request(
         rest: Rest::new(),
     };
     super::options::to_gemini(input.provider.as_ref(), &mut parameters)?;
-    if parameters
-        .aspect_ratio
-        .as_deref()
-        .is_some_and(|v| !matches!(v, "16:9" | "9:16"))
-        || parameters
-            .resolution
-            .as_deref()
-            .is_some_and(|v| !matches!(v, "720p" | "1080p" | "4K"))
-    {
-        return Err(TransformError::unsupported(
-            "provider dimensions",
-            "no exact supported Veo dimensions",
-        ));
-    }
-    if instance.prompt.as_ref().is_none_or(|v| v.is_empty())
-        && instance.image.is_none()
-        && instance.video.is_none()
-        && instance
-            .reference_images
-            .as_ref()
-            .is_none_or(|v| v.is_empty())
-    {
-        return Err(TransformError::shape(
-            "instances",
-            "prompt or conditioning media required",
-        ));
-    }
 
-    if parameters.duration_seconds.is_some_and(|v| v <= 0) {
-        return Err(TransformError::shape(
-            "duration",
-            "positive duration required",
-        ));
-    }
-    if input.callback_url.is_some() {
-        return Err(TransformError::unsupported(
-            "callback_url",
-            "Gemini webhook delivery needs an explicit host relay contract",
-        ));
-    }
     let body = g::PredictLongRunningRequestBody {
         instances: vec![instance],
         parameters: Some(parameters),
@@ -275,12 +232,7 @@ pub fn gemini_to_openai_request(
     let input = input.into_declared();
     let target_model = non_empty(target_model, "target_model")?;
     let source_veo_request = input.clone();
-    if input.instances.len() != 1 {
-        return Err(TransformError::unsupported(
-            "instances",
-            "OpenRouter CreateVideo accepts exactly one instance",
-        ));
-    }
+
     let instance = input.instances.into_iter().next().expect("length checked");
     let mut frame_images = Vec::new();
     if let Some(image) = instance.image {
@@ -308,12 +260,6 @@ pub fn gemini_to_openai_request(
         }));
     }
     for reference in instance.reference_images.unwrap_or_default() {
-        if reference.reference_type != Some(g::VideoReferenceType::Asset) {
-            return Err(TransformError::unsupported(
-                "referenceImages.referenceType",
-                "only ASSET is accepted by Developer API Veo",
-            ));
-        }
         let image = reference
             .image
             .ok_or_else(|| TransformError::missing_metadata("referenceImages[].image"))?;
@@ -336,28 +282,9 @@ pub fn gemini_to_openai_request(
         enhance_prompt: None,
         rest: Rest::new(),
     });
-    if parameters.duration_seconds.is_some_and(|value| value <= 0) {
-        return Err(TransformError::shape(
-            "durationSeconds",
-            "positive duration required",
-        ));
-    }
-    if parameters.sample_count.is_some_and(|value| value <= 0) {
-        return Err(TransformError::shape(
-            "parameters.sampleCount",
-            "positive sample count required",
-        ));
-    }
+
     let provider = super::options::to_openrouter(&parameters);
-    if input
-        .webhook_config
-        .is_some_and(|value| value.uris.is_some() || value.user_metadata.is_some())
-    {
-        return Err(TransformError::unsupported(
-            "webhookConfig.uris",
-            "OpenRouter callback delivery needs an explicit host relay contract",
-        ));
-    }
+
     let body = o::CreateVideoRequestBody {
         model: target_model.clone(),
         prompt: instance.prompt,
@@ -401,19 +328,7 @@ pub struct PreparedOpenAiRequest {
     pub context: VeoRequestContext,
 }
 
-fn reject_openai_only(input: &o::CreateVideoRequestBody) -> Result<(), TransformError> {
-    if input.seed.is_some() {
-        return Err(TransformError::unsupported(
-            "seed",
-            "Developer API Veo has no seed",
-        ));
-    }
-    if input.generate_audio.is_some() {
-        return Err(TransformError::unsupported(
-            "generate_audio",
-            "Developer API Veo has no audio output control",
-        ));
-    }
+fn reject_openai_only(_input: &o::CreateVideoRequestBody) -> Result<(), TransformError> {
     Ok(())
 }
 

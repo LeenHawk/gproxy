@@ -16,36 +16,8 @@ use crate::{
 };
 #[derive(Debug)]
 pub struct FanoutTarget {
-    pub model: String,
     pub endpoint: Endpoint,
-    pub identities: Vec<GenerationIdentity>,
     pub options: FanoutOptions,
-}
-fn validate(target: &FanoutTarget, count: i64) -> Result<String, TransformError> {
-    target.endpoint.validate()?;
-    if usize::try_from(count).ok() != Some(target.identities.len()) {
-        return Err(TransformError::shape(
-            "fanout.count",
-            "candidate count must match distinct prepared child identities",
-        ));
-    }
-    group_id(target.options, &target.identities)
-}
-fn chat_count(input: &h::GenerateContentRequestBody) -> Result<i64, TransformError> {
-    if input.stream.flatten() == Some(true) {
-        return Err(TransformError::unsupported(
-            "stream",
-            "use incremental fanout invocation",
-        ));
-    }
-    Ok(input.n.flatten().unwrap_or(1))
-}
-fn gemini_count(input: &g::GenerateContentRequestBody) -> Result<i64, TransformError> {
-    Ok(input
-        .generation_config
-        .as_ref()
-        .and_then(|c| c.candidate_count)
-        .unwrap_or(1))
 }
 
 mod chat_claude;

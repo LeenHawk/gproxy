@@ -52,7 +52,6 @@ pub async fn connect<U: Upstream>(
     request: WireRequest<()>,
     limits: ResponsesWsLimits,
 ) -> Result<ResponsesWsConnect, ResponsesWsConnectError> {
-    validate_request(&request)?;
     let bounds = bound(limits, upstream.limits())?;
     // Even an empty typed response.create must fit before opening a connection.
     codec::encode_json(
@@ -85,38 +84,7 @@ pub async fn connect<U: Upstream>(
         }
     }
 }
-fn validate_request(request: &WireRequest<()>) -> Result<(), TransformError> {
-    if request.method != http::Method::GET && request.method != http::Method::CONNECT {
-        return Err(TransformError::shape(
-            "responses.websocket.method",
-            "GET upgrade or CONNECT handshake required",
-        ));
-    }
-    if !request.path.starts_with('/')
-        || request.path.starts_with("//")
-        || request.path.contains(['?', '#', '\\'])
-        || request
-            .path
-            .chars()
-            .any(|c| c.is_control() || c.is_whitespace())
-    {
-        return Err(TransformError::shape(
-            "responses.websocket.path",
-            "origin-relative encoded path and separate query required",
-        ));
-    }
-    if request.query.as_ref().is_some_and(|q| {
-        q.starts_with('?')
-            || q.contains('#')
-            || q.chars().any(|c| c.is_control() || c.is_whitespace())
-    }) {
-        return Err(TransformError::shape(
-            "responses.websocket.query",
-            "query excludes the leading separator, fragments, and unencoded whitespace",
-        ));
-    }
-    Ok(())
-}
+
 fn host_usize(value: u64) -> usize {
     usize::try_from(value).unwrap_or(usize::MAX)
 }
