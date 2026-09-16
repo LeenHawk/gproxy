@@ -7,6 +7,7 @@
 pub mod config;
 pub mod identity;
 pub mod limits;
+pub mod oauth;
 pub mod pricing;
 pub mod resource;
 pub mod routing;

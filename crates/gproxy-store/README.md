@@ -13,6 +13,7 @@ with one entity per file:
 | `upstream` | Provider, Credential, Model, ProviderModel, OperationRule |
 | `routing` | ExposedModel, Route, RouteMember |
 | `identity` | Organization, Team, OrganizationMember, TeamMember, User, ApiKey, UserSession, Permission |
+| `oauth` | Client, Grant, Code, Token, Device |
 | `limits` | RateLimit, Quota, QuotaWindow, QuotaSettlement, CredentialQuotaCycle |
 | `pricing` | PriceRule, PriceRate, PriceTier |
 | `usage` | UsageRecord, CaptureRecord, CaptureLink, CaptureEvent |
@@ -59,8 +60,8 @@ Review decisions currently expressed in the code:
 - Amounts use `Decimal(28,12)` as a proposed business representation. The current
   D1 adapter does not implement that mapping; decimal storage and precision must
   be settled before these entities are used for D1 data operations.
-- OAuth issuer tables, reusable mutation rule sets, audit events, and derived
-  usage rollups are outside this first entity draft.
+- Reusable mutation rule sets, audit events, and derived usage rollups are outside
+  this first entity draft.
 
 ## Routing structure
 
@@ -185,3 +186,49 @@ charges.
 
 These remain entity definitions. Capture integration, WS turn identification,
 shared-call settlement and log query APIs are not implemented here.
+
+## OAuth
+
+[`oauth`](src/entity/oauth/mod.rs) models GProxy issuing authorization to downstream
+clients, separately from logging in to upstream accounts:
+
+| Entity | Contents |
+|---|---|
+| Client | Public client_id, name, redirect URIs, enabled/soft-deleted state; no client secret |
+| Grant | User, internal API key, client, scopes, ID-token identity, revocation and login/refresh history |
+| Code | Authorization-code SHA-256 hash, redirect URI, PKCE S256 challenge, expiry and consumption receipt |
+| Token | Access/refresh token hashes, grant, expiry, rotation receipts and revocation |
+| Device | Secret device-code hash, user code, client/scopes, grant, approval/denial/consumption and optional sealed Codex result |
+
+Client.id is the public OAuth client_id. Grants bind GProxy users and one internal
+API key of kind oauth, not a provider/credential. Internal keys carry policy/usage
+identity but cannot authenticate/export as ordinary API keys. OAuth requests use
+the normal admission, routing, settlement and capture path with current user
+permissions intersected with granted scopes; they grant no Console admin access.
+UserSession remains a separate Console login session.
+
+Code/refresh consumption, token insertion and session statistics must commit in
+one atomic operation. consumed_by is the replacement refresh-token hash used as
+a consumption receipt. Writers must check key owner/kind and device/grant
+client/scope consistency. Each request and new WS turn must recheck expiry,
+revocation, client/grant/user/key state. Entities do not implement these checks.
+
+Use revoked_at/deleted_at for revocation and client deletion to retain history;
+reactivating a client must not restore old grants. Physical user/key/client deletion
+cascades through grants to codes/tokens/devices for final cleanup. Issued bearer
+tokens are stored only as hashes. Compatibility ID tokens are produced by the issuer;
+signing keys remain host configuration. The authorize endpoint echoes state; the
+ordinary authorization-code table stores a challenge, not the PKCE verifier.
+
+Upstream OAuth stays in [`Credential`](src/entity/upstream/credential.rs).
+OAuthCredentialSecret defines common plaintext inside its host-sealed secret:
+access/refresh/ID tokens, type, scopes, refresh expiry and provider-specific fields.
+expires_at_ms tracks access expiry. Refresh conditionally replaces secret/expiry
+against version and increments it, avoiding stale overwrites. Encryption and provider
+refresh adapters are not implemented. Short-lived upstream state/verifier/device
+transactions belong in an expiring cache bound to initiator and provider; credential
+ownership rules and the three-level proxy configuration continue to apply.
+
+Only entities and the serialized credential shape are implemented. OAuth endpoints,
+key management, atomic rotation, upstream login/refresh and client integration remain
+future work.

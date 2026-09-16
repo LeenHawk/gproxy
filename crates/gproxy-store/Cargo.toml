@@ -9,3 +9,4 @@ repository.workspace = true
 
 [dependencies]
 sea-orm = { workspace = true, features = ["with-rust_decimal"] }
+serde = { workspace = true }

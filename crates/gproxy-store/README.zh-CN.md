@@ -12,6 +12,7 @@ GPROXY v4 的 SeaORM 2 entity 定义。**当前是实体审查稿**，尚未实�
 | `upstream` 上游 | Provider、Credential、Model、ProviderModel、OperationRule |
 | `routing` 路由 | ExposedModel、Route、RouteMember |
 | `identity` 身份 | Organization、Team、OrganizationMember、TeamMember、User、ApiKey、UserSession、Permission |
+| `oauth` 下游授权 | Client、Grant、Code、Token、Device |
 | `limits` 额度 | RateLimit、Quota、QuotaWindow、QuotaSettlement、CredentialQuotaCycle |
 | `pricing` 定价 | PriceRule、PriceRate、PriceTier |
 | `usage` 用量 | UsageRecord、CaptureRecord、CaptureLink、CaptureEvent |
@@ -45,7 +46,7 @@ GPROXY v4 的 SeaORM 2 entity 定义。**当前是实体审查稿**，尚未实�
 - 文件内容留在 file/S3，文件实体只保存位置和元数据；模型自定义词表引用 FileObject。
 - 金额／数量暂按 `Decimal(28,12)` 表达业务类型。当前 D1 适配器尚未实现该映射；实际接入
   D1 数据读写前，需要确认精度和存储表示。
-- OAuth 签发记录、可复用修改规则集、审计和派生用量汇总不在首轮实体草案中。
+- 可复用修改规则集、审计和派生用量汇总不在首轮实体草案中。
 
 ## 路由结构
 
@@ -148,3 +149,42 @@ ping、pong、close 和无法归属轮次的消息不填写 turn_id。每条消�
 分摊费用由结算层明确决定，关联本身不规定等分或全额重复扣费。
 
 当前仍是实体草稿，尚未接入日志采集、WS 轮次识别、聚合分摊或日志查询接口。
+
+## OAuth
+
+[`oauth`](src/entity/oauth/mod.rs) 表示 GProxy 向下游客户端签发授权，不是登录上游账号：
+
+| 实体 | 记录内容 |
+|---|---|
+| Client | 公共 client_id、名称、回调地址、启用及软删除状态；不使用 client secret |
+| Grant | 用户、内部 API Key、客户端、授权 scopes、ID token 身份字段、撤销及登录／刷新记录 |
+| Code | 授权码 SHA-256 摘要、回调地址、PKCE S256 challenge、过期和一次性消费记录 |
+| Token | access／refresh token 摘要、所属授权、过期、轮换消费凭据、撤销时间 |
+| Device | 设备码摘要、用户短码、客户端、scopes、授权归属、批准／拒绝／消费时间，以及兼容 Codex 的密文结果 |
+
+Client.id 就是公开的 OAuth client_id；Grant 关联 GProxy 用户及一个 `kind = oauth`
+的内部 API Key，不绑定 Provider／Credential。内部 key 承载权限、用量归属，不能作为
+普通 API Key 登录或导出。OAuth 身份仍走统一准入、路由、结算、日志路径，并取当前用户权限
+与授权 scopes 的交集；不能获得控制台管理权限。UserSession 继续独立表示控制台会话。
+
+授权码与 refresh token 的消费、令牌插入、登录／刷新统计必须在同一原子操作内提交。
+`consumed_by` 保存新 refresh token 的摘要作为消费凭据；不能先消费再单独插入令牌。
+API Key 的用户／类型、设备与授权的客户端／scopes 一致性需要写入层校验。
+每次访问及 WS 新轮次都要验证 token 过期、撤销、Grant、Client、用户和内部 key 状态。
+实体只承载这些数据，不会自动完成鉴权或并发刷新控制。
+
+撤销授权使用 revoked_at，客户端删除使用 deleted_at，保留会话历史；重新启用客户端
+不得恢复旧授权。物理删除用户、内部 key 或客户端会级联清理授权及其码、token 和设备记录，
+只用于最终清理。访问／刷新 token 不存明文；兼容 ID token 由签发层生成，签名密钥属于
+宿主配置。state 由授权端点原样回传，PKCE verifier 不保存在普通授权码表。
+
+上游 OAuth 仍属于 [`Credential`](src/entity/upstream/credential.rs)：密文 `secret` 的公共
+内容结构为 `OAuthCredentialSecret`（access／refresh／ID token、类型、scopes、refresh
+过期时间和供应商扩展字段）。`expires_at_ms` 表示 access token 到期；刷新需要按 version
+条件更新密文及到期时间并递增版本，避免覆盖较新的凭证。加密封装及供应商刷新适配尚未实现。
+上游登录过程的 state／PKCE verifier／device code 使用有过期时间、绑定发起人及 Provider
+的缓存事务。交互式登录和凭证替换遵循归属管理权限；自动刷新由宿主执行，不改变普通
+成员对共享凭证的使用权。上游登录／刷新均使用三级代理配置。
+
+当前完成的是实体和序列化结构，未实现 OAuth HTTP 端点、密钥管理、token 轮换事务、
+上游登录／刷新和客户端集成验证。
