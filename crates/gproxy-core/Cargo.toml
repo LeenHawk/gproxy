@@ -1,0 +1,24 @@
+[package]
+name = "gproxy-core"
+description = "Runtime data and request context contracts for the GPROXY engine"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+arc-swap = { workspace = true }
+gproxy-cache = { workspace = true }
+gproxy-channel = { workspace = true }
+gproxy-protocol = { workspace = true }
+gproxy-store = { workspace = true }
+http = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio-util = { workspace = true }
+web-time = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+gproxy-cache = { workspace = true, features = ["memory"] }

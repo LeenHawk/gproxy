@@ -1,53 +1,61 @@
-//! Draft core data structures.
+//! Engine data contracts. No HTTP routing, request execution, configuration
+//! compilation or background workers are started by these types.
+//! Store owns durable facts, Cache owns shared transient state, and CoreData
+//! holds each instance's immutable configuration snapshot.
 
-use std::{collections::HashMap, sync::Arc};
+#![forbid(unsafe_code)]
 
-use gproxy_channel::{BaseChannel, OutboundClient};
-use gproxy_store::entity::upstream::{
-    credential, provider, provider_rewrite_rule_set, rewrite_rule, rewrite_rule_set,
-};
-use serde_json::Value;
+pub mod context;
+pub mod data;
+pub mod runtime;
 
-/// The execution core owned by the application.
-///
-/// Request order: protocol conversion -> regex rewriting at selected JSON paths
-/// -> channel-specific upstream shaping and invocation.
-/// With no applicable rewrite rules, the rewrite stage passes through the
-/// original body or stream without decoding, buffering, or re-encoding it.
-pub struct Core {
-    pub data: CoreData,
+pub use context::*;
+pub use data::*;
+pub use runtime::*;
+
+use arc_swap::ArcSwap;
+use gproxy_cache::Cache;
+use gproxy_store::Store;
+use std::sync::Arc;
+
+/// Assembled engine dependencies. Construction performs no I/O. SDK/app supplies
+/// the Store, shared Cache and prepared snapshot; there is no implicit backend.
+pub struct Core<C> {
+    store: Arc<Store<C>>,
+    cache: Arc<dyn Cache>,
+    data: ArcSwap<CoreData>,
 }
-
-/// Loaded upstream runtime data, indexed by provider ID.
-///
-/// Rewrite rule sets are shared by their provider attachments.
-pub struct CoreData {
-    pub providers: HashMap<String, ProviderData>,
-    /// Indexed by rule-set ID.
-    pub rewrite_rule_sets: HashMap<String, RewriteRuleSetData>,
-}
-
-/// A provider configuration, its channel, and its credential pool.
-pub struct ProviderData {
-    pub entity: provider::Model,
-    pub channel: Arc<dyn BaseChannel>,
-    /// Indexed by credential ID.
-    pub credentials: HashMap<String, CredentialData>,
-    /// Ordered by (sort_order, id); references CoreData.rewrite_rule_sets.
-    pub rewrite_rule_sets: Vec<provider_rewrite_rule_set::Model>,
-}
-
-pub struct RewriteRuleSetData {
-    pub entity: rewrite_rule_set::Model,
-    /// Ordered by (sort_order, id).
-    pub rules: Vec<rewrite_rule::Model>,
-}
-
-/// A persisted credential entity and its assembled runtime data.
-pub struct CredentialData {
-    pub entity: credential::Model,
-    /// Decrypted channel input; entity.secret contains the sealed representation.
-    pub secret: Value,
-    /// The client selected by connection configuration; credentials may share it.
-    pub client: Arc<dyn OutboundClient>,
+impl<C> Core<C> {
+    pub fn new(store: Arc<Store<C>>, cache: Arc<dyn Cache>, data: Arc<CoreData>) -> Self {
+        Self {
+            store,
+            cache,
+            data: ArcSwap::from(data),
+        }
+    }
+    /// Pin one immutable configuration snapshot for the logical request.
+    pub fn snapshot(&self) -> Arc<CoreData> {
+        self.data.load_full()
+    }
+    pub fn cache(&self) -> &Arc<dyn Cache> {
+        &self.cache
+    }
+    /// Publish an already-validated snapshot with a durable configuration
+    /// revision. Delayed reloads cannot overwrite a newer revision. This does
+    /// not persist revisions, compile data or authorize configuration changes.
+    pub fn publish_snapshot(&self, next: Arc<CoreData>) -> bool {
+        let previous = self.data.rcu(|current| {
+            if next.revision > current.revision {
+                next.clone()
+            } else {
+                current.clone()
+            }
+        });
+        next.revision > previous.revision
+    }
+    /// Recover ownership when dismantling an engine without exposing a live
+    /// writable Store accessor that bypasses future management coordination.
+    pub fn into_parts(self) -> (Arc<Store<C>>, Arc<dyn Cache>, Arc<CoreData>) {
+        (self.store, self.cache, self.data.into_inner())
+    }
 }

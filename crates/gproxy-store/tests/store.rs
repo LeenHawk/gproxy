@@ -1018,3 +1018,78 @@ async fn concurrent_settlement_and_credential_cas_have_one_winner() {
         1
     );
 }
+
+#[tokio::test]
+async fn rewrite_targets_roundtrip_and_old_rows_sync_to_body() {
+    use gproxy_store::entity::upstream::rewrite_rule::RewriteTarget;
+    use sea_orm::ConnectionTrait;
+    let store = database().await;
+    store
+        .rewrite_rule_sets()
+        .create_many(vec![rewrite_rule_set::ActiveModel {
+            id: Set("targets".into()),
+            name: Set("targets".into()),
+            created_at_ms: Set(0),
+            updated_at_ms: Set(0),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    store
+        .rewrite_rules()
+        .create_many(vec![rule("old", "targets", 0)])
+        .await
+        .unwrap();
+    // Simulate a persisted pre-target schema, retaining a real old rule row.
+    store
+        .connection()
+        .execute_unprepared("ALTER TABLE rewrite_rules DROP COLUMN target")
+        .await
+        .unwrap();
+    store
+        .connection()
+        .execute_unprepared("ALTER TABLE rewrite_rules DROP COLUMN target_name")
+        .await
+        .unwrap();
+    store.sync().await.unwrap();
+    let old = store
+        .rewrite_rules()
+        .get_many(&["old".into()])
+        .await
+        .unwrap()
+        .remove(0)
+        .unwrap();
+    assert_eq!(old.target, RewriteTarget::Body);
+    assert!(old.target_name.is_none());
+    assert_eq!(old.pattern, "hello");
+    let mut header = rule("header", "targets", 1);
+    header.target = Set(RewriteTarget::Header);
+    header.target_name = Set(Some("X-Client-Tag".into()));
+    let mut query = rule("query", "targets", 2);
+    query.target = Set(RewriteTarget::Query);
+    query.target_name = Set(Some("api-version".into()));
+    let result = store
+        .rewrite_rule_sets()
+        .replace_rules_many(vec![RuleSetReplacement {
+            id: "targets".into(),
+            rules: vec![rule("body", "targets", 0), header, query],
+        }])
+        .await
+        .unwrap()
+        .remove(0)
+        .unwrap();
+    assert_eq!(
+        result.rules.iter().map(|r| r.target).collect::<Vec<_>>(),
+        [
+            RewriteTarget::Body,
+            RewriteTarget::Header,
+            RewriteTarget::Query
+        ]
+    );
+    assert_eq!(result.rules[1].target_name.as_deref(), Some("X-Client-Tag"));
+    assert_eq!(result.rules[2].target_name.as_deref(), Some("api-version"));
+    assert_eq!(
+        store.load_control_data().await.unwrap().rewrite_rules.len(),
+        3
+    );
+}

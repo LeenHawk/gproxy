@@ -152,6 +152,11 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
   删除规则及绑定；删除供应商只删除其绑定。已实现原子规则替换和有序加载；改写执行仍由 core 完成。
 - 审计和派生用量汇总不在当前持久化层中。
 
+改写规则新增 `target`（默认 `body`，另有 `header`／`query`）及可空 `target_name`。
+Header／Query 选择已存在字段的值进行替换，保留重复项；Query 仅限 request。
+`paths` 和事件筛选只属于 Body。目标／phase／名称合法性由规则编译阶段检查，Store CRUD
+不执行改写。详见[改写设计](../../design/core-rewrite.md)。sync 新增 target 列时旧规则默认 Body。
+
 ## 路由结构
 
 [`ExposedModel`](src/entity/routing/exposed_model.rs) 将全局唯一的对外模型名精确映射到
