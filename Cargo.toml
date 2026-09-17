@@ -9,6 +9,7 @@ members = [
     "crates/gproxy-store",
     "crates/gproxy-client",
     "crates/gproxy-channel",
+    "crates/gproxy-cache",
 ]
 
 [workspace.package]
@@ -34,6 +35,7 @@ gproxy-channels = { path = "crates/gproxy-channels", version = "=3.0.13" }
 gproxy-core = { path = "crates/gproxy-core", version = "=3.0.13" }
 gproxy-channel = { path = "crates/gproxy-channel", version = "=4.0.0-dev", default-features = false }
 gproxy-client = { path = "crates/gproxy-client", version = "=4.0.0-dev", default-features = false }
+gproxy-cache = { path = "crates/gproxy-cache", version = "=4.0.0-dev", default-features = false }
 gproxy-file = { path = "crates/gproxy-file", version = "=4.0.0-dev", default-features = false }
 gproxy-protocol = { path = "crates/gproxy-protocol", version = "=4.0.0-dev", features = ["exhaustive"] }
 gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=4.0.0-dev" }
