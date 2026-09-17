@@ -12,6 +12,8 @@ request execution and credential selection are not wired yet.
 | `data` | Provider/credential execution snapshot, channel/client handles, prepared rewrite matchers |
 | `runtime` | Atomic credential material, credential affinity/rotation, health and execution-data invalidation |
 | `context` | Resolved execution target, opaque caller scope/session, request/attempt/exchange, usage reports |
+| `observe` | Host-implemented settlement/capture/trace funnel with a pre-work policy query |
+| `capability` | Core implementations of protocol's Upstream, StateStore and ResourceAccess, bound to an attempt or scope |
 
 `CoreData` contains providers, credentials and reusable rewrite sets. It does not
 contain routes, exposed-model aliases, identity tables, permissions, OAuth client
@@ -35,10 +37,12 @@ by the caller isolation scope and Provider; do not share them across callers.
 Concurrent first requests for the same session must converge on one binding. This
 is a selection contract only: persistence and the selector are still pending.
 
-`Core<C>` owns an `Arc<Store<C>>`, injected `Arc<dyn Cache>`, and `ArcSwap<CoreData>`.
-Construction does no I/O. `publish_snapshot` accepts only a newer revision of an
-already-validated execution snapshot. Requests pin their own Arc. Durable revision
-allocation, data assembly and notification handling remain upper-layer integration.
+`Core<C>` owns an `Arc<Store<C>>`, injected `Arc<dyn Cache>`, injected `Arc<dyn Observer>`
+and `ArcSwap<CoreData>`. Construction does no I/O and there is no default observer:
+a host that wants no settlement must say so explicitly. `publish_snapshot` accepts only
+a newer revision of an already-validated execution snapshot. Requests pin their own Arc.
+Core load/reload prototypes own execution-data assembly from Store; durable revision
+allocation and notification coordination remain upper-layer integration.
 
 `CredentialData` holds execution configuration, resolved client and a shared
 `CredentialState`. Secret, expiry and Store version publish atomically; each
@@ -52,8 +56,10 @@ provided by ingress; RequestFallback is not cross-request stable. Protocol reque
 response and stream types remain in gproxy-protocol. `NormalizedUsage` is reused
 from gproxy-channel: one request can have multiple attempts, each with multiple
 physical exchanges. Capture IDs belong to physical exchanges, not stream chunks.
-`UsageReport` returns observed usage to upper-layer logging/pricing/settlement;
-it contains no charges, subscription allocations or admission reservations.
+`UsageReport` reaches the host's Observer funnel and, as the same value, the caller's
+`UsageCompletion`; it contains no charges, subscription allocations or admission
+reservations. `UsageState::Skipped` means the request's policy disabled usage, which
+is distinct from an upstream that reported nothing.
 
 `RewriteTarget` represents Body (owning optional JSON paths), Header (a typed
 HeaderName), or Query (a decoded parameter name). Header/Query operate on repeated
@@ -66,29 +72,95 @@ validated override prepared from Store OperationEndpoint rows; None means use
 provider/channel defaults. Applying the URL during channel execution remains
 pending with the other execution prototypes.
 
-## Function prototypes
+## Public API
 
-[`src/api.rs`](src/api.rs) defines the next implementation surface. All newly
-introduced functions currently return `CoreError::NotImplemented`, with no
-outbound calls, cache writes or credential refresh. They are reviewable signatures,
-not a functional execution pipeline.
+The operation facade is declared in [api/operations.rs](src/api/operations.rs):
+30 named HTTP methods and 3 named WS methods match BaseChannel, with generic
+`send`/`connect` dispatchers. Named methods reject a mismatched context operation;
+they never silently replace an operation already authorized by the upper layer.
+The HTTP match is exhaustive, so adding a protocol operation requires review of
+its core entry point. Transport payloads retain the existing protocol types.
 
-| Entry point | Contract |
+| Group | Named entry points |
 |---|---|
-| `send` | Already-routed HTTP invocation, including streaming responses |
-| `connect` | Already-routed WS invocation, preserving rejected HTTP responses |
-| `select_credential` | Select only from the supplied permitted set, with attempted IDs excluded |
-| `refresh_credential` | Shared lease, durable full-replacement CAS, then publication |
-| `rewrite_request` | Body/Header/Query before channel shaping |
-| `rewrite_response` | Body/Header after original usage observation |
-| `record_outcome` | Credential health/affinity from a completed attempt |
-| `compile_rewrite_rule` | Free function for validating/preparing one persisted rule |
+| Models/counting | `list_models`, `get_model`, `count_tokens` |
+| Generation | `generate_content`, `stream_generate_content` |
+| Review/context | `guardian_review`, `guardian_classify`, `compact_content`, `summarize_memory`, `create_conversation` |
+| Embedding/retrieval | `create_embedding`, `batch_create_embedding`, `rerank`, `web_search` |
+| Images/audio | `create_image`, `edit_image`, `create_speech`, `create_transcription`, `create_translation` |
+| Files | `create_file`, `list_files`, `retrieve_file`, `retrieve_file_content`, `delete_file` |
+| Video | `create_video`, `retrieve_video`, `list_videos`, `delete_video`, `download_video_content` |
+| Realtime/WS | `create_realtime_call` (HTTP), `connect_realtime`, `generate_content_websocket`, `stream_generate_content_websocket` |
 
-`Execution<T>` retains the exact protocol transport result plus `UsageCompletion`.
-The completion future is distinct from response headers and must eventually finish
-when the stream/socket finishes or is dropped. `RewriteLimits` requires a positive
-per-unit byte limit. These lifecycle contracts are not implemented by the stubs.
-Prototype validation is native/WASM Clippy; no pretend upstream-execution tests.
+[api/lifecycle.rs](src/api/lifecycle.rs) declares the Store/account surface:
+
+| Method | Contract |
+|---|---|
+| `load_data` | Read a consistent execution-only Store snapshot, bind channels/clients, open credential material and compile rules; return unpublished CoreData |
+| `reload_data` | Load then publish monotonically; report loaded/active revision and whether publication won |
+| `reload_credentials` | Reload specified persisted credentials in input order, retire deleted slots; no upstream refresh |
+| `refresh_credential` | Explicit provider/credential IDs plus IfNeeded/Force; lease, current Store read, channel refresh, seal/CAS persistence, publication |
+| `query_credential_quota` | Upstream account observations via the assigned channel/client; no subscription aggregation or quota reset |
+
+Credential methods return secret-free `CredentialStatus` or existing channel
+`QuotaSnapshot`, not decrypted material. The trusted upper layer authorizes IDs.
+`load_data` does not load route, identity, permission, subscription or price tables;
+it neither opens the database nor calls schema sync. Channel/client registration,
+secret codecs and durable revision integration remain prerequisites for assembly.
+
+This is still a public prototype surface: actual HTTP/WS execution, Store loading,
+credential reload/refresh and quota queries return `CoreError::NotImplemented`.
+`reload_data` has a load/publish shell but currently propagates load_data's error.
+No fake Store I/O or upstream calls are performed. `Execution<T>` holds the
+protocol response and eventual `UsageCompletion`; stream lifecycle implementation
+remains pending.
+
+Removed public placeholders: `select_credential`, `compile_rewrite_rule`,
+`rewrite_request`, `rewrite_response`, `record_outcome`. Internal selection,
+attempt preparation, rewriting, health/affinity updates, continuation/resource
+persistence and capture writes will be added with their implementations, not as
+public phase hooks or duplicate CRUD. `AttemptOutcome` survives only as trace data
+delivered to the Observer. Cancellation already uses RequestContext's token/deadline;
+there is no unused shutdown/background-worker API. Routing, policy, OAuth login,
+billing and management CRUD stay outside core.
+
+## Observation
+
+[observe.rs](src/observe.rs) is the extension point behind the settlement, capture
+and telemetry switches from [crate boundaries](../../design/crates.md). Core
+guarantees every execution path reaches it; the host persists, redacts, prices
+and retains. The contract is ask-first: `Observer::policy` answers once per
+request, before any attempt, and disabled work is never performed and discarded.
+
+| Item | Contract |
+|---|---|
+| `ObservationPolicy` | `usage`, `capture` (`Off`/`Metadata`/`Full`) and `trace`, decided per opaque scope, provider and operation; no Default |
+| `Observer::capture` | Opens one `CaptureSink` per physical exchange when capture is on; events borrow heads, chunks and WS frames, sequenced across both directions |
+| `Observer::usage` | Called exactly once per request with usage enabled, including cancelled and failed ones, after the stream/socket finished |
+| `Observer::trace` | Borrowed `TraceEvent`s for attempt/exchange start and finish and credential refresh; nothing is formatted when trace is off |
+
+Recording never rewrites, reorders or delays the delivered stream, and a sink
+failure is the host's problem rather than the request's. Downstream capture and
+linking to these upstream exchanges stay with the host, correlated by request,
+attempt and capture IDs. Core does not yet call any of these methods.
+
+## Protocol capabilities
+
+[capability.rs](src/capability.rs) implements the host capability traits that
+`gproxy-protocol` adaptation flows are generic over, so a multi-call adaptation
+never receives a raw client:
+
+| Type | Trait | Binding |
+|---|---|---|
+| `AttemptUpstream` | `Upstream<Target = OperationKey>` | One attempt's provider, pinned credential version and client; the target is only the native operation to dispatch |
+| `ProtocolState` | `StateStore<Scope = StateScope>` | Store ProtocolState rows; scope is caller scope + provider + optional conversation key, serialized by core |
+| `Resources` | `ResourceAccess<Scope = ResourceScope, PublishedHandle = PublishedHandle>` | Store ResourceBinding/FileObject rows and the file backend; the scope carries the permitted `ExecutionTarget`, which may name a source provider other than the request target |
+
+Each instance takes explicit `CapabilityLimits` from the execution path that
+constructs it; there is no unlimited default. `AttemptUpstream::send/connect` must
+apply the provider's operation URL, reject absolute URLs and source authentication,
+and route through the observation wrapper. All methods currently return a
+`CapabilityError` of kind `Unsupported` stating that the function is not implemented.
 
 ```sh
 cargo test -p gproxy-core

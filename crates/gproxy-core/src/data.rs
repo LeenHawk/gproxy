@@ -110,7 +110,7 @@ pub enum PathSegment {
     Index(usize),
     Wildcard,
 }
-/// Compiled target shape. Upper-layer rule compilation must reject Query with
+/// Compiled target shape. Execution-data compilation must reject Query with
 /// Response/Both phase and reject event filters on Header/Query targets.
 pub enum RewriteTarget {
     Body {

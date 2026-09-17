@@ -88,8 +88,10 @@ pub struct ExchangeContext {
     pub started_at_ms: i64,
 }
 
-/// Observations returned to upper-layer logging/pricing/settlement. No financial
-/// policy, subscription allocation or pre-admission counters live here.
+/// Observations delivered to the Observer funnel and to the caller's completion
+/// future. No financial policy, subscription allocation or pre-admission
+/// counters live here.
+#[derive(Clone, Debug)]
 pub struct UsageReport {
     pub request_id: String,
     pub downstream_usage: Option<NormalizedUsage>,
@@ -98,6 +100,7 @@ pub struct UsageReport {
     pub exchanges: Vec<ExchangeUsage>,
     pub state: UsageState,
 }
+#[derive(Clone, Debug)]
 pub struct ExchangeUsage {
     pub capture_id: String,
     pub provider_id: String,
@@ -112,4 +115,7 @@ pub enum UsageState {
     Completed,
     Cancelled,
     Failed,
+    /// The request's ObservationPolicy disabled usage: nothing was extracted
+    /// and the Observer funnel was not called. Distinct from upstream absence.
+    Skipped,
 }
