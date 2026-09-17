@@ -1540,6 +1540,7 @@ dependencies = [
  "rust_decimal",
  "sea-orm",
  "sea-orm-migration",
+ "sea-schema",
  "send_wrapper",
  "serde",
  "serde-wasm-bindgen",

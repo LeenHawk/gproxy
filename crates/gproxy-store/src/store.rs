@@ -1,6 +1,6 @@
 //! Database-backed operations; runtime compilation and cache invalidation stay in core.
 use crate::repository::Repository;
-use gproxy_seaorm::BatchConnectionTrait;
+use gproxy_seaorm::{BatchConnectionTrait, SchemaSyncConnectionTrait, SyncReport};
 
 pub struct Store<C> {
     pub(crate) db: C,
@@ -14,6 +14,17 @@ impl<C> Store<C> {
     }
     pub fn into_connection(self) -> C {
         self.db
+    }
+}
+
+impl<C: SchemaSyncConnectionTrait> Store<C> {
+    /// Create missing tables or incrementally synchronize the complete entity
+    /// registry. Call explicitly during startup before serving requests, with
+    /// one schema writer. Does not seed application data or run migrations.
+    /// Existing types/data transformations still require versioned migrations.
+    pub async fn sync(&self) -> crate::Result<SyncReport> {
+        let registry = crate::register_entities(self.db.schema_registry());
+        Ok(self.db.sync_schema(registry).await?)
     }
 }
 macro_rules! repositories {

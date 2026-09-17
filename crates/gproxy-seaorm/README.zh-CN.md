@@ -194,6 +194,26 @@ SQL 存整数，文本参数和查询转换保持 D1 完整 i64 精度。SeaORM 
 解析拒绝超出精度；需要舍入时对计算完成的整笔费用调用 `FixedDecimal::rounded` 一次。
 已验证 SQLite 与本地 D1 执行；PostgreSQL／MySQL 仅检查转换 SQL 生成，未运行真实数据库。
 
+## 统一 schema 同步接口
+
+`SchemaSyncConnectionTrait` 提供 `schema_registry()` 与 `sync_schema(registry).await`，
+返回 `SyncReport`。关联 builder 实现 `EntityRegistry`，同一个注册函数可用于原生
+SeaORM `SchemaBuilder` 与 D1 `SchemaSync`：
+
+```rust
+use gproxy_seaorm::{EntityRegistry, SchemaSyncConnectionTrait};
+
+fn entities<R: EntityRegistry>(registry: R) -> R {
+    registry.register(provider::Entity).register(credential::Entity)
+}
+let report = connection.sync_schema(entities(connection.schema_registry())).await?;
+```
+
+原生连接实现 SeaORM／sea-schema 连接 trait，使用上游 `schema-sync`；数据库驱动仍由
+调用方选择。D1 复用下述结构发现／规划／原子 batch 路径。D1 警告返回在 `report.warnings`，
+原生 SeaORM 诊断通过日志输出。同步须显式执行、由单个 schema 写入者协调，不初始化业务
+数据，也不替代数据迁移；原有 D1 plan/apply 及 migration API 继续可用。
+
 ## Entity-first sync
 
 ```rust

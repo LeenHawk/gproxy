@@ -49,6 +49,29 @@ SQL 错误回滚事务写入；条件更新零行只返回冲突／行数，不�
 客户端退役，以及 agent 分配预留／启用／失败／当前目标读取。设备轮询及结果交付由签发层
 负责，可用通用查询读取持久状态；订阅发放与价格计算仍由 core 完成。
 
+## 首次初始化与增量 schema 同步
+
+```rust
+let store = Store::new(connection);
+let report = store.sync().await?;
+// 将 report.warnings 交给宿主日志，再初始化业务数据。
+```
+
+`Store::sync` 与 `schema(backend)` 共用一份实体注册清单。空库自动建表，已有库增量同步，
+重复调用保留数据。由 `gproxy-seaorm::SchemaSyncConnectionTrait` 分别调用原生 SeaORM
+schema sync 或 D1 的结构发现／规划／batch 执行。适配器已启用原生 `schema-sync`；
+应用仍需选择 SeaORM 数据库驱动及运行时，D1 不链接原生驱动。
+
+在启动阶段、开始接收请求前显式调用，由一个 schema 写入者执行。构造 Store 不做 I/O；
+sync 不创建默认设置／管理员，也不自动运行版本化迁移。支持补充缺少的列和索引，改名／
+索引调整遵循后端 sync 规则。类型修改、数据转换、已有外键变化等不支持的改动仍需显式
+migration；不承诺原生所有后端的一次 sync 都是单个原子事务。
+`SyncReport.warnings` 返回 D1 列类型差异；原生 SeaORM 的诊断通过日志输出。空列表不表示
+所有结构变化都已完成；启动成功前应处理错误和诊断。
+
+原有 `schema(backend).apply(&db)` 保留为一次性建表入口，已有表时会失败，不能每次启动
+都调用。只有宿主显式调用这些 API 才会修改数据库，本次没有更新任何既有数据库。
+
 ## 精确金额与 schema 变更
 
 `FixedDecimal` 固定 9 位小数，USD 最小单位为 `$0.000000001`，范围为

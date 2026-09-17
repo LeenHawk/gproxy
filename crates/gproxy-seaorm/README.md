@@ -234,6 +234,29 @@ round the complete calculated charge once with `FixedDecimal::rounded` when that
 is the caller's policy. SQLite and local D1 execution are verified; PostgreSQL
 and MySQL cast generation is checked without live database validation.
 
+## Portable schema synchronization
+
+`SchemaSyncConnectionTrait` exposes `schema_registry()` and
+`sync_schema(registry).await`, returning `SyncReport`. Its `EntityRegistry`
+associated builder lets applications reuse one registration function for native
+SeaORM `SchemaBuilder` and D1 `SchemaSync`:
+
+```rust
+use gproxy_seaorm::{EntityRegistry, SchemaSyncConnectionTrait};
+
+fn entities<R: EntityRegistry>(registry: R) -> R {
+    registry.register(provider::Entity).register(credential::Entity)
+}
+let report = connection.sync_schema(entities(connection.schema_registry())).await?;
+```
+
+Native connections implement SeaORM/sea-schema connection traits and use the
+upstream `schema-sync` feature; drivers remain caller-selected. D1 uses the
+existing discovery/planning/atomic-batch path below. D1 warnings are returned in
+`report.warnings`; native SeaORM diagnostics go to logging. Sync is explicit,
+requires a single schema writer, does not seed data, and does not replace data
+migrations. Existing D1 plan/apply and migration APIs remain available.
+
 ## Entity-first schema sync
 
 ```rust

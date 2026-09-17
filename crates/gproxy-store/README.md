@@ -58,6 +58,35 @@ approval/client retirement, and agent assignment reserve/activate/fail/current r
 OAuth device polling/result delivery remains issuer work; generic queries can read
 its persisted state. Subscription provisioning and price calculation remain core work.
 
+## Initialization and incremental schema sync
+
+```rust
+let store = Store::new(connection);
+let report = store.sync().await?;
+// Surface report.warnings with the host logger, then initialize application data.
+```
+
+`Store::sync` and `schema(backend)` share one entity registry. Sync creates missing
+tables for a new database and incrementally synchronizes an existing schema;
+repeat calls preserve rows. `gproxy-seaorm::SchemaSyncConnectionTrait` dispatches
+to native SeaORM schema sync or the D1 discovery/planner/batch implementation.
+Native `schema-sync` is enabled by the adapter; applications still select their
+SeaORM database driver and runtime. D1 does not link native drivers.
+
+Run explicitly during startup, before serving requests, with one schema writer.
+Store construction does no I/O; sync neither creates default settings/admins nor
+runs versioned migrations. It adds supported missing columns/indexes and follows
+backend sync rules for renamed columns/indexes. Types, data conversions, existing
+foreign-key changes and other unsupported changes require explicit migrations;
+there is no promise of one atomic migration transaction across native backends.
+`SyncReport.warnings` carries D1 type-difference warnings; native SeaORM emits its
+diagnostics through logging. An empty list is not proof that every schema change
+was applied. Handle errors and diagnostics before considering startup complete.
+
+The older `schema(backend).apply(&db)` remains a one-shot create operation; it
+fails when tables already exist and should not be called on every startup.
+No existing database is updated unless the caller explicitly invokes these APIs.
+
 ## Exact amounts and schema changes
 
 `FixedDecimal` stores units at scale 9: one USD atom is `$0.000000001`, with range

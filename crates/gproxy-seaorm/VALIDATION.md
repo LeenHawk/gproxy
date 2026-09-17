@@ -1,5 +1,20 @@
 # 独立 crate 验证记录
 
+## Store 统一 sync（本地验证）
+
+2026-09-17：新增 `SchemaSyncConnectionTrait`／`EntityRegistry`，原生 SeaORM builder 与
+D1 SchemaSync 共用 Store 实体清单。两个 crate 共 45 项原生测试、原生及 WASM all-targets
+Clippy `-D warnings` 通过。原生 SQLite 新增两组测试：空库完整建表并与一次性 apply 的
+表集合比较；重复同步保留业务行；已有数据的 schema 缺少四个白名单列时自动补齐，旧值、
+其他表及同步后写入的新列值均保留。
+
+同两组场景通过实际 WASM `Store<D1Connection>::sync` + Miniflare 本地 D1 执行，覆盖
+完整注册表及多次同步、已有数据补列。Native 使用上游 schema-sync；D1 保留现有结构发现、
+规划和 batch 执行。类型差异仍需显式迁移，D1 警告通过 SyncReport 返回，原生诊断走日志。
+本轮没有运行 PostgreSQL／MySQL 实库，也未部署云端 Worker、更新既有数据库或初始化管理员。
+临时 harness 使用 CLI 对应的 wasm-bindgen 0.2.127，workspace WASM 检查为 0.2.128；
+验证后删除临时 harness 和其构建目录，保留两项 Store 回归测试。
+
 ## OAuth 分层白名单与 JSON 匹配（本地验证）
 
 2026-09-17：两个 crate 共 43 项原生测试通过；原生及 WASM all-targets Clippy

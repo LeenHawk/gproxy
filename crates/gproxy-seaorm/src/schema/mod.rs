@@ -13,8 +13,10 @@ use sea_orm::{
 };
 use std::collections::BTreeMap;
 
+mod connection;
 #[cfg(target_arch = "wasm32")]
 mod discover;
+pub use connection::{EntityRegistry, SchemaSyncConnectionTrait, SyncReport};
 #[cfg(test)]
 mod tests;
 
