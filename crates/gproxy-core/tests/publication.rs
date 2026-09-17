@@ -1,13 +1,37 @@
 #![cfg(not(target_arch = "wasm32"))]
 
-use gproxy_core::{ConfigRevision, Core, CoreData, CredentialState, CredentialVersion};
+use gproxy_core::{
+    CapturePolicy, CaptureSink, ConfigRevision, Core, CoreData, CredentialState, CredentialVersion,
+    ExchangeContext, ObservationPolicy, Observer, RequestContext, TraceEvent, UsageReport,
+};
+use gproxy_protocol::capability::CapabilityFuture;
 use std::sync::{Arc, Barrier};
+
+/// An explicit host choice to observe nothing; core provides no such default.
+struct ObserveNothing;
+impl Observer for ObserveNothing {
+    fn policy(&self, _: &RequestContext) -> ObservationPolicy {
+        ObservationPolicy {
+            usage: false,
+            capture: CapturePolicy::Off,
+            trace: false,
+        }
+    }
+    fn capture(&self, _: &ExchangeContext, _: CapturePolicy) -> Box<dyn CaptureSink> {
+        unreachable!("capture is never opened under CapturePolicy::Off")
+    }
+    fn usage<'a>(&'a self, _: &'a UsageReport) -> CapabilityFuture<'a, ()> {
+        Box::pin(async {})
+    }
+    fn trace(&self, _: TraceEvent<'_>) {}
+}
 
 #[test]
 fn concurrent_reload_never_regresses_and_inflight_snapshot_stays_pinned() {
     let core = Arc::new(Core::new(
         Arc::new(gproxy_store::Store::new(())),
         Arc::new(gproxy_cache::MemoryCache::default()),
+        Arc::new(ObserveNothing),
         Arc::new(CoreData::default()),
     ));
     let pinned = core.snapshot();
