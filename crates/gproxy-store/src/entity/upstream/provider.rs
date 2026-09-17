@@ -37,6 +37,8 @@ pub struct Model {
     #[sea_orm(has_many)]
     pub operation_rules: HasMany<super::operation_rule::Entity>,
     #[sea_orm(has_many)]
+    pub operation_endpoints: HasMany<super::operation_endpoint::Entity>,
+    #[sea_orm(has_many)]
     pub rewrite_rule_sets: HasMany<super::provider_rewrite_rule_set::Entity>,
     #[sea_orm(has_many)]
     pub price_rules: HasMany<crate::entity::pricing::price_rule::Entity>,

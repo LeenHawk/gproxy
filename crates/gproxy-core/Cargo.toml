@@ -17,6 +17,7 @@ http = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+thiserror = { workspace = true }
 tokio-util = { workspace = true }
 web-time = { workspace = true }
 

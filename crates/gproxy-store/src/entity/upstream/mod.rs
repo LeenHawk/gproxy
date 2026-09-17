@@ -2,6 +2,7 @@
 
 pub mod credential;
 pub mod model;
+pub mod operation_endpoint;
 pub mod operation_rule;
 pub mod provider;
 pub mod provider_model;

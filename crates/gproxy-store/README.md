@@ -128,7 +128,7 @@ with one entity per file:
 
 | Directory | Entities |
 |---|---|
-| `upstream` | Provider, Credential, Model, ProviderModel, OperationRule, RewriteRuleSet, RewriteRule, ProviderRewriteRuleSet |
+| `upstream` | Provider, Credential, Model, ProviderModel, OperationRule, OperationEndpoint, RewriteRuleSet, RewriteRule, ProviderRewriteRuleSet |
 | `routing` | ExposedModel, Route, RouteMember |
 | `identity` | Organization, Team, OrganizationMember, TeamMember, User, ApiKey, UserSession, Permission |
 | `oauth` | Client, Grant, Code, Token, Device |
@@ -193,6 +193,28 @@ rewritten, preserving duplicates; Query is request-only. `paths` and event filte
 are Body-only. Target/phase/name validation belongs to rule compilation; Store
 CRUD is not the rewrite executor. See [rewrite design](../../design/core-rewrite.md).
 The added defaulted target column preserves old rules as Body during schema sync.
+
+## Per-method URLs
+
+`operation_endpoints()` provides ordinary batch CRUD for a provider's method URL.
+Each row has `provider_id`, native `operation`, `dialect`, `transport` (`http` or
+`websocket`), complete `url`, and `enabled`. The four selector fields form a unique
+key. A provider can therefore use different URLs for OpenAI/Claude generation,
+and separate HTTP/WS URLs for the same OperationKey. Streaming generation is a
+separate operation and gets its own entry when needed.
+
+URL overrides are independent of `OperationRule` action/remapping settings. The
+new table is registered for schema sync and included in `load_control_data`;
+deleting a provider cascades its endpoint rows. No existing operation-rule unique
+constraint is changed. Delete/disable an endpoint to restore URL defaults.
+
+Execution-data assembly validates operation/dialect and method URL requirements,
+then builds ProviderData.operation_urls from enabled rows. Effective precedence:
+method URL -> Provider base_url with the channel's path -> channel default URL.
+A method URL is a complete address, not a base to append the default path to;
+channel-defined path parameters remain that method's responsibility. Dynamic
+returned download URLs and OAuth/service helper requests are not blindly replaced
+by this setting. Core/channel execution wiring remains pending.
 
 ## Routing structure
 

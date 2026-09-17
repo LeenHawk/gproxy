@@ -12,6 +12,7 @@ pub struct ControlData {
     pub models: Vec<entity::upstream::model::Model>,
     pub provider_models: Vec<entity::upstream::provider_model::Model>,
     pub operation_rules: Vec<entity::upstream::operation_rule::Model>,
+    pub operation_endpoints: Vec<entity::upstream::operation_endpoint::Model>,
     pub rewrite_rule_sets: Vec<entity::upstream::rewrite_rule_set::Model>,
     pub rewrite_rules: Vec<entity::upstream::rewrite_rule::Model>,
     pub provider_rewrite_rule_sets: Vec<entity::upstream::provider_rewrite_rule_set::Model>,
@@ -56,6 +57,7 @@ impl<C: BatchConnectionTrait> Store<C> {
             ordered::<entity::upstream::model::Entity>().batch_query(backend)?,
             ordered::<entity::upstream::provider_model::Entity>().batch_query(backend)?,
             ordered::<entity::upstream::operation_rule::Entity>().batch_query(backend)?,
+            ordered::<entity::upstream::operation_endpoint::Entity>().batch_query(backend)?,
             ordered::<entity::upstream::rewrite_rule_set::Entity>().batch_query(backend)?,
             ordered::<entity::upstream::rewrite_rule::Entity>().batch_query(backend)?,
             ordered::<entity::upstream::provider_rewrite_rule_set::Entity>()
@@ -126,6 +128,12 @@ impl<C: BatchConnectionTrait> Store<C> {
                 .ok_or(StoreError::UnexpectedResult)?
                 .iter()
                 .map(|r| entity::upstream::operation_rule::Model::from_query_result(r, ""))
+                .collect::<std::result::Result<_, _>>()?,
+            operation_endpoints: sets
+                .next()
+                .ok_or(StoreError::UnexpectedResult)?
+                .iter()
+                .map(|r| entity::upstream::operation_endpoint::Model::from_query_result(r, ""))
                 .collect::<std::result::Result<_, _>>()?,
             rewrite_rule_sets: sets
                 .next()
