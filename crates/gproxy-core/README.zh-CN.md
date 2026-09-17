@@ -8,7 +8,7 @@ Provider 执行层的数据结构。上层先完成路由／模型别名解析�
 | 模块 | 数据结构 |
 |---|---|
 | `data` | Provider／Credential 执行快照、channel/client 引用、预编译改写匹配器 |
-| `runtime` | 原子凭证版本、凭证亲和／轮换进度、健康状态、执行数据失效通知 |
+| `runtime` | 原子凭证版本、凭证亲和／轮换进度、按范围的可用性 block、Counted 维度计数 key、执行数据失效通知 |
 | `context` | 已解析执行目标、不透明调用方 scope／session、请求／尝试／交互、用量报告 |
 | `observe` | 宿主实现的结算／capture／trace 漏斗，先问策略再干活 |
 | `capability` | protocol 的 Upstream／StateStore／ResourceAccess 在 core 侧的实现，绑定 attempt 或 scope |
@@ -37,6 +37,19 @@ Arc。执行数据组装由 core 的加载／重载入口负责；持久 revisio
 到期时间、Store version 整体原子发布，每次尝试固定一份版本。仅在 Store CAS 成功或
 权威读取后发布，拒绝相同／旧版本。仍存在的凭证复用 slot，删除后摘除，重新创建用新 slot。
 发布方法不隐式获取刷新租约或写库，刷新不需要替换整个执行配置快照。
+
+凭证可用性是每个凭证一份 `CredentialBlocks` cache 载荷，不是配额账本；每条 block 同时是
+Store `credential_blocks` 的一行，"部分受限"跨重启保留，加载时从 Store 重建 cache。每条
+`CredentialBlock` 带渠道 `QuotaScope`（全部／模型列表／模型族前缀）、可选操作、`until_ms`
+和 `BlockSource`：Reported 维度观测到耗尽（关联已落库 `CredentialQuotaCycle`）、Counted
+维度窗口用完、限速、连续失败。连续失败按 scope／操作分别记为 `FailureStreak`，坏掉的模型
+既不会被健康模型掩盖，也不会拖累它。选凭证时调 `blocked_by(model, operation, now)`；没有模型
+的请求只受凭证级 block 影响，`Unknown` 范围 block 整个凭证。core 不把模型族前缀展开成
+模型列表。持久生命周期另算：`CredentialData.status` 对应 Store 列，`Dead` 不选也不刷新，
+`status_reason` 说明原因。刷新在确定性拒绝时写 `Dead`，`CoreError::CredentialDead` 告诉
+调用方需要人来重新登录。`CredentialData.quota` 是组装时渠道 `QuotaModel` 为该凭证声明的
+`QuotaDimension` 列表；Counted 维度在 cache 里按 `CountedWindowKey` 计数。剩余额度本身
+留在渠道 `QuotaSnapshot` 和 Store 周期记录；见[凭证可用性设计](../../design/core-credential-availability.md)。
 
 CoreData 和解密凭证不实现 Debug／Serialize。session 由入站层提供，RequestFallback
 不具有跨请求稳定性。请求、响应和流继续复用 protocol 类型；用量复用 channel 的
@@ -81,7 +94,7 @@ Provider／渠道默认值。实际 channel 调用时应用该地址仍需后续
 | `refresh_credential` | 显式 Provider／凭证 ID＋IfNeeded/Force；租约、当前 Store 读取、channel 刷新、密封/CAS 持久化、发布 |
 | `query_credential_quota` | 调用指定凭证的上游额度能力，不做订阅聚合或额度重置 |
 
-凭证入口返回不含 secret 的 `CredentialStatus` 或现有 channel `QuotaSnapshot`，由可信上层
+凭证入口返回不含 secret 的 `CredentialSummary`（版本、到期、持久 `CredentialStatus`）或现有 channel `QuotaSnapshot`，由可信上层
 授权这些 ID。`load_data` 只加载执行相关数据，不读路由、身份、权限、订阅、价格表；也不
 负责打开数据库或 sync。组装所需 channel/client 注册、secret codec 和持久 revision 接线
 仍待实现。

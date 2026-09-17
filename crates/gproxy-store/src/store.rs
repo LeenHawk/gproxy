@@ -44,6 +44,7 @@ repositories! {
     team_members => crate::entity::identity::team_member::Entity,
     users => crate::entity::identity::user::Entity,
     user_sessions => crate::entity::identity::user_session::Entity,
+    credential_blocks => crate::entity::limits::credential_block::Entity,
     credential_quota_cycles => crate::entity::limits::credential_quota_cycle::Entity,
     quotas => crate::entity::limits::quota::Entity,
     quota_settlements => crate::entity::limits::quota_settlement::Entity,

@@ -1,4 +1,4 @@
-use super::{CoreError, CoreResult, CredentialStatus, RefreshMode, ReloadOutcome};
+use super::{CoreError, CoreResult, CredentialSummary, RefreshMode, ReloadOutcome};
 use crate::{Core, CoreData};
 use gproxy_channel::channel::QuotaSnapshot;
 use std::sync::Arc;
@@ -35,7 +35,7 @@ impl<C> Core<C> {
     pub async fn reload_credentials(
         &self,
         credential_ids: &[String],
-    ) -> CoreResult<Vec<Option<CredentialStatus>>> {
+    ) -> CoreResult<Vec<Option<CredentialSummary>>> {
         let _ = credential_ids;
         Err(CoreError::NotImplemented("reload_credentials"))
     }
@@ -44,13 +44,16 @@ impl<C> Core<C> {
     /// provider ownership, coordinate a shared refresh lease, read current Store
     /// material, invoke the channel capability, then seal and CAS-persist before
     /// publishing. A peer's newer durable version may satisfy IfNeeded.
+    /// A definitive rejection (invalid_grant, refresh token expired) is persisted
+    /// as Dead with its reason by status CAS and returned as `CredentialDead`; a
+    /// Dead credential is not refreshed again, even with Force.
     /// The upper layer must authorize this account operation.
     pub async fn refresh_credential(
         &self,
         provider_id: &str,
         credential_id: &str,
         mode: RefreshMode,
-    ) -> CoreResult<CredentialStatus> {
+    ) -> CoreResult<CredentialSummary> {
         let _ = (provider_id, credential_id, mode);
         Err(CoreError::NotImplemented("refresh_credential"))
     }

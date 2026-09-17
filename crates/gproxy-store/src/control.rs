@@ -37,6 +37,8 @@ pub struct ControlData {
     pub plan_limits: Vec<entity::subscription::plan_limit::Model>,
     pub subscriptions: Vec<entity::subscription::user_subscription::Model>,
     pub oauth_clients: Vec<entity::oauth::client::Model>,
+    /// Availability blocks, including expired ones; core filters by until_ms.
+    pub credential_blocks: Vec<entity::limits::credential_block::Model>,
 }
 
 fn ordered<E: EntityTrait>() -> sea_orm::Select<E> {
@@ -83,6 +85,7 @@ impl<C: BatchConnectionTrait> Store<C> {
             ordered::<entity::subscription::plan_limit::Entity>().batch_query(backend)?,
             ordered::<entity::subscription::user_subscription::Entity>().batch_query(backend)?,
             ordered::<entity::oauth::client::Entity>().batch_query(backend)?,
+            ordered::<entity::limits::credential_block::Entity>().batch_query(backend)?,
         ];
         let mut sets = self.db.query_batch(&queries).await?.into_iter();
         let settings = sets
@@ -280,6 +283,12 @@ impl<C: BatchConnectionTrait> Store<C> {
                 .ok_or(StoreError::UnexpectedResult)?
                 .iter()
                 .map(|r| entity::oauth::client::Model::from_query_result(r, ""))
+                .collect::<std::result::Result<_, _>>()?,
+            credential_blocks: sets
+                .next()
+                .ok_or(StoreError::UnexpectedResult)?
+                .iter()
+                .map(|r| entity::limits::credential_block::Model::from_query_result(r, ""))
                 .collect::<std::result::Result<_, _>>()?,
         };
         data.rewrite_rules
