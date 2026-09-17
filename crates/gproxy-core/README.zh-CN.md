@@ -20,6 +20,12 @@ Provider 执行层的数据结构。上层先完成路由／模型别名解析�
 尝试预算和完成鉴权的不透明隔离 scope；core 不解析用户／key 权限。已绑定远程资源应传入
 原目标和受限凭证，assignment 关联信息仅作归属记录，不代表可以迁移资源。
 
+新增 `CredentialStrategy::RoundRobinAffinity`，序列化为 `round_robin_affinity`。
+新会话／未绑定会话按轮询分配凭证，后续请求复用同一份仍可用且被允许的凭证，命中绑定
+不推进轮询游标。绑定缺失、过期或原凭证不可用／不再被允许时，在给定集合内重新分配。
+没有稳定会话标识时退化为普通逐请求轮询。绑定按调用方隔离 scope 和 Provider 区分；
+同一会话并发首次请求需要收敛到同一个绑定。目前只定义策略契约，持久化及选择器尚未实现。
+
 `Core<C>` 持有 `Arc<Store<C>>`、注入的 `Arc<dyn Cache>` 和 `ArcSwap<CoreData>`。
 构造不做 I/O，`publish_snapshot` 只接受更新 revision 的已验证执行快照；请求持有自己的
 Arc。持久 revision、数据组装和通知接线仍由上层完成。

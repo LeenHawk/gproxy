@@ -109,6 +109,8 @@ impl<C> Core<C> {
     /// Selection is confined to request.target.credentials, excluding attempted
     /// IDs and unusable candidates. Empty means NoUsableCredential, never a scan
     /// of the global provider pool or an upper-layer policy decision.
+    /// RoundRobinAffinity advances rotation for an unbound session, not for a
+    /// valid pin hit; unstable/request-scoped identities use ordinary rotation.
     pub async fn select_credential(
         &self,
         request: &RequestContext,

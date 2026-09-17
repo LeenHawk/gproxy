@@ -26,6 +26,15 @@ opaque isolation scope. Core does not interpret user/key roles. Bound remote
 resources must be passed with their original target and restricted credentials;
 assignment references are attribution, not permission to move a resource.
 
+`CredentialStrategy::RoundRobinAffinity` serializes as `round_robin_affinity`.
+New/unbound sessions receive credentials in round-robin order; subsequent requests
+reuse the same eligible credential without advancing the rotation cursor. A missing,
+expired or unusable/disallowed pin triggers reassignment within the supplied set.
+Without a stable session identity, use ordinary per-request round-robin. Scope pins
+by the caller isolation scope and Provider; do not share them across callers.
+Concurrent first requests for the same session must converge on one binding. This
+is a selection contract only: persistence and the selector are still pending.
+
 `Core<C>` owns an `Arc<Store<C>>`, injected `Arc<dyn Cache>`, and `ArcSwap<CoreData>`.
 Construction does no I/O. `publish_snapshot` accepts only a newer revision of an
 already-validated execution snapshot. Requests pin their own Arc. Durable revision
