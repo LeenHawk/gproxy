@@ -187,6 +187,13 @@ Review decisions currently expressed in the code:
   and attachments; deleting a provider removes only its attachments. Atomic rule replacement and ordered loading are implemented; rewrite execution stays in core.
 - Audit events and derived usage rollups are outside this persistence layer.
 
+Rewrite rules now persist `target` (`body` by default, `header`, `query`) and
+optional `target_name`. Header/Query name existing fields whose values are
+rewritten, preserving duplicates; Query is request-only. `paths` and event filters
+are Body-only. Target/phase/name validation belongs to rule compilation; Store
+CRUD is not the rewrite executor. See [rewrite design](../../design/core-rewrite.md).
+The added defaulted target column preserves old rules as Body during schema sync.
+
 ## Routing structure
 
 [`ExposedModel`](src/entity/routing/exposed_model.rs) maps a globally unique public

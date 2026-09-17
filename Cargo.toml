@@ -10,6 +10,7 @@ members = [
     "crates/gproxy-client",
     "crates/gproxy-channel",
     "crates/gproxy-cache",
+    "crates/gproxy-core",
 ]
 
 [workspace.package]
@@ -32,7 +33,7 @@ gproxy-app = { path = "crates/gproxy-app", version = "=3.0.13" }
 gproxy-admin = { path = "crates/gproxy-admin", version = "=3.0.13" }
 gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "=3.0.13" }
 gproxy-channels = { path = "crates/gproxy-channels", version = "=3.0.13" }
-gproxy-core = { path = "crates/gproxy-core", version = "=3.0.13" }
+gproxy-core = { path = "crates/gproxy-core", version = "=4.0.0-dev" }
 gproxy-channel = { path = "crates/gproxy-channel", version = "=4.0.0-dev", default-features = false }
 gproxy-client = { path = "crates/gproxy-client", version = "=4.0.0-dev", default-features = false }
 gproxy-cache = { path = "crates/gproxy-cache", version = "=4.0.0-dev", default-features = false }
@@ -94,6 +95,7 @@ thiserror = "2"
 time = { version = "0.3", features = ["parsing"] }
 tiktoken-rs = "0.12"
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-util = { version = "0.7", default-features = false, features = ["rt"] }
 tokio-tungstenite = { version = "0.29", default-features = false, features = ["handshake"] }
 tokio-postgres = "0.7"
 tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
