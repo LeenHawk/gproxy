@@ -1,12 +1,15 @@
 //! Account quota queries and observations, independent of per-call token usage.
 
-use gproxy_protocol::OperationKey;
+use gproxy_protocol::{Operation, OperationKey};
 use http::{HeaderMap, StatusCode};
 use rust_decimal::Decimal;
 
-use super::{ChannelError, CredentialContext, OperationFuture};
+use super::{ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+/// Serialized as `"all"`, `{"models":[..]}`, `{"model_prefixes":[..]}` or
+/// `"unknown"`; this is the JSON shape persisted by the host for scopes.
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum QuotaScope {
     All,
     Models(Vec<String>),
@@ -14,6 +17,24 @@ pub enum QuotaScope {
     ModelPrefixes(Vec<String>),
     #[default]
     Unknown,
+}
+
+impl QuotaScope {
+    /// Whether the scope positively covers `model`. `Unknown` never matches;
+    /// the host decides separately how to treat an unknown-scope observation.
+    pub fn matches(&self, model: &str) -> bool {
+        match self {
+            Self::All => true,
+            Self::Models(models) => models.iter().any(|m| m == model),
+            Self::ModelPrefixes(prefixes) => prefixes.iter().any(|prefix| {
+                model == prefix
+                    || model
+                        .strip_prefix(prefix.as_str())
+                        .is_some_and(|rest| rest.starts_with('-'))
+            }),
+            Self::Unknown => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -83,6 +104,75 @@ pub struct QuotaSnapshot {
 /// handles any provider-specific pagination through the assigned client.
 pub trait QuotaQuery: Send + Sync {
     fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QuotaMetric {
+    Requests,
+    Tokens,
+    Cost,
+    /// A provider-specific unit named by the channel.
+    Unit(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QuotaWindow {
+    /// Resets a fixed interval after first use or after the last reset the
+    /// upstream reports, e.g. Codex's 5h/7d windows.
+    Rolling {
+        seconds: i64,
+    },
+    /// Fixed windows aligned to an anchor; None anchors to credential creation.
+    Fixed {
+        seconds: i64,
+        anchor_at_ms: Option<i64>,
+    },
+    CalendarDay,
+    CalendarWeek,
+    CalendarMonth,
+    /// Never resets, e.g. a prepaid balance.
+    Total,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuotaTracking {
+    /// The upstream reports it through headers, a query endpoint or exhaustion
+    /// replies; observed entries match this dimension by `source_id == id`.
+    Reported,
+    /// The upstream reports nothing; the host counts consumption itself. A
+    /// counted dimension needs a known `limit`.
+    Counted,
+}
+
+/// One quota dimension a credential has, declared by the channel from the
+/// credential's auth kind and plan fields. This is the shape, not a reading:
+/// values arrive later as `QuotaEntry`s whose `source_id` equals `id`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuotaDimension {
+    /// Stable key, e.g. `primary`, `secondary`, `spark`, `seven_day_sonnet`.
+    pub id: String,
+    pub label: Option<String>,
+    pub scope: QuotaScope,
+    /// None applies to every operation.
+    pub operations: Option<Vec<Operation>>,
+    pub metric: QuotaMetric,
+    pub window: QuotaWindow,
+    /// Known statically from the plan; None means the upstream reports it.
+    pub limit: Option<Decimal>,
+    pub tracking: QuotaTracking,
+}
+
+/// Which quota dimensions this channel's credentials have. Synchronous and
+/// pure: plan information the channel learns during login or refresh must be
+/// written into the credential's metadata by the host, not fetched here.
+/// An empty list means the credential has no modelled quota; the host then
+/// relies on exhaustion replies alone.
+pub trait QuotaModel: Send + Sync {
+    fn dimensions(
+        &self,
+        provider: ProviderView<'_>,
+        credential: CredentialView<'_>,
+    ) -> Vec<QuotaDimension>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

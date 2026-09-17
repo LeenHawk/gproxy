@@ -2,7 +2,7 @@
 //! routing, caller policy and assembly of the permitted execution target.
 
 use crate::runtime::CredentialState;
-use gproxy_channel::{BaseChannel, OutboundClient};
+use gproxy_channel::{BaseChannel, OutboundClient, channel::QuotaDimension};
 use gproxy_protocol::OperationKey;
 use gproxy_store::entity::upstream;
 use regex::Regex;
@@ -13,6 +13,7 @@ use std::{
 };
 
 pub type EntityMap<M> = HashMap<String, Arc<M>>;
+pub use upstream::credential::CredentialStatus;
 pub use upstream::operation_endpoint::EndpointTransport;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -87,11 +88,20 @@ pub struct CredentialData {
     pub label: Option<String>,
     pub auth_kind: String,
     pub enabled: bool,
+    /// Durable lifecycle. Dead is never selected and never refreshed: a person
+    /// must log in again. Temporary limits are blocks, not status.
+    pub status: CredentialStatus,
+    pub status_reason: Option<String>,
     pub metadata: serde_json::Value,
     /// Already resolved effective client, shared by equal connection parameters.
     pub client: Arc<dyn OutboundClient>,
     /// Reuse across configuration reloads for the same live credential.
     pub state: Arc<CredentialState>,
+    /// Declared once at assembly by the channel's `QuotaModel` from this
+    /// credential's auth kind and metadata. Reported dimensions receive their
+    /// values from observations; Counted ones are metered in the cache. Empty
+    /// when the channel models no quota.
+    pub quota: Vec<QuotaDimension>,
 }
 
 pub struct RewriteRuleSetData {

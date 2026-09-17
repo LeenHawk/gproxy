@@ -37,6 +37,14 @@ pub struct Model {
     pub metadata: Json,
     /// Access-token expiry for OAuth; updated atomically with secret/version.
     pub expires_at_ms: Option<i64>,
+    /// Lifecycle, distinct from the operator's `enabled` switch. Core sets Dead
+    /// on a definitive refresh rejection; a successful refresh or login sets
+    /// Active again. Temporary limits are CredentialBlock rows, not a status.
+    #[sea_orm(default_value = "active")]
+    pub status: CredentialStatus,
+    /// Why it is Dead, for people: e.g. `invalid_grant`, `refresh_token_expired`,
+    /// `revoked`, `operator`. Cleared when the credential returns to Active.
+    pub status_reason: Option<String>,
     #[sea_orm(default_value = true)]
     pub enabled: bool,
     #[sea_orm(
@@ -59,6 +67,34 @@ pub struct Model {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
+
+/// Whether the credential can still be used at all. Selection only needs this
+/// bit; the reason is a separate column for people.
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Hash,
+    EnumIter,
+    DeriveActiveEnum,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(16))")]
+#[serde(rename_all = "snake_case")]
+pub enum CredentialStatus {
+    #[default]
+    #[sea_orm(string_value = "active")]
+    Active,
+    /// Refresh was rejected definitively, the upstream revoked it, or an
+    /// operator retired it. Waiting does not help; never selected until a
+    /// person logs in again.
+    #[sea_orm(string_value = "dead")]
+    Dead,
+}
 
 /// Common plaintext inside an upstream OAuth credential's sealed secret blob.
 /// Kept out of Debug output; this is a data contract, not an encryption codec.

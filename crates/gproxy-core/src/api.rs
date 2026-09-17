@@ -6,7 +6,7 @@
 mod lifecycle;
 mod operations;
 
-use crate::{ConfigRevision, UsageReport};
+use crate::{ConfigRevision, CredentialStatus, UsageReport};
 use gproxy_channel::ChannelError;
 use gproxy_protocol::{
     HttpBody, Operation, WireResponse,
@@ -28,6 +28,13 @@ pub enum CoreError {
     },
     #[error("no usable credential in the supplied candidate set")]
     NoUsableCredential,
+    /// The credential is persisted as Dead. Waiting or retrying does not help;
+    /// a person must log in again. `reason` is the Store's status_reason.
+    #[error("credential `{credential_id}` is dead: {}", reason.as_deref().unwrap_or("unknown"))]
+    CredentialDead {
+        credential_id: String,
+        reason: Option<String>,
+    },
     #[error("request cancelled")]
     Cancelled,
     #[error("execution deadline exceeded")]
@@ -65,12 +72,14 @@ pub struct ReloadOutcome {
     pub published: bool,
 }
 
-/// Public credential status contains no decrypted or sealed secret.
+/// Public credential summary; contains no decrypted or sealed secret.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CredentialStatus {
+pub struct CredentialSummary {
     pub credential_id: String,
     pub version: i64,
     pub expires_at_ms: Option<i64>,
+    pub status: CredentialStatus,
+    pub status_reason: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

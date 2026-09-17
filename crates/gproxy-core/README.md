@@ -10,7 +10,7 @@ request execution and credential selection are not wired yet.
 | Module | Structures |
 |---|---|
 | `data` | Provider/credential execution snapshot, channel/client handles, prepared rewrite matchers |
-| `runtime` | Atomic credential material, credential affinity/rotation, health and execution-data invalidation |
+| `runtime` | Atomic credential material, credential affinity/rotation, scoped availability blocks, counted-dimension window keys and execution-data invalidation |
 | `context` | Resolved execution target, opaque caller scope/session, request/attempt/exchange, usage reports |
 | `observe` | Host-implemented settlement/capture/trace funnel with a pre-work policy query |
 | `capability` | Core implementations of protocol's Upstream, StateStore and ResourceAccess, bound to an attempt or scope |
@@ -50,6 +50,26 @@ attempt pins one version. Publish only after Store CAS or authoritative loading.
 Equal/older versions are rejected. Reuse a slot for a still-live credential, retire
 it on deletion, and create a new slot for a recreated credential. There is no
 implicit refresh lease or persistence in the publication method.
+
+Credential availability is one `CredentialBlocks` cache payload per credential, not a
+quota ledger; each block is also a Store `credential_blocks` row, so the partially
+limited state survives restarts and the cache is rebuilt from Store on load. Each `CredentialBlock` names a channel `QuotaScope` (all, model list or
+family prefix), an optional operation, an `until_ms` and a `BlockSource`: a Reported
+dimension observed exhausted (tied to a persisted `CredentialQuotaCycle`), a Counted
+dimension's window used up, rate limiting, or consecutive failures. Failure streaks are
+kept per scope/operation as `FailureStreak`, so a broken model neither hides behind nor
+poisons a healthy one. Selection asks
+`blocked_by(model, operation, now)`; a request without a model is only affected by
+credential-wide blocks, and an `Unknown` scope blocks the whole credential. Core never
+expands a family prefix into a model list. Durable lifecycle is separate:
+`CredentialData.status` mirrors the Store column, `Dead` is never selected or refreshed,
+and `status_reason` says why. Refresh writes `Dead` on a definitive rejection;
+`CoreError::CredentialDead` tells the caller a person must log in again.
+`CredentialData.quota` holds the
+`QuotaDimension`s the channel's `QuotaModel` declared for this credential at assembly;
+Counted dimensions are metered in the cache under `CountedWindowKey`. Remaining
+capacity itself stays in the channel's `QuotaSnapshot` and Store cycles; see
+[credential availability](../../design/core-credential-availability.md).
 
 CoreData and decrypted material are not Debug/Serialize. Session identity is
 provided by ingress; RequestFallback is not cross-request stable. Protocol request,
@@ -102,7 +122,8 @@ its core entry point. Transport payloads retain the existing protocol types.
 | `refresh_credential` | Explicit provider/credential IDs plus IfNeeded/Force; lease, current Store read, channel refresh, seal/CAS persistence, publication |
 | `query_credential_quota` | Upstream account observations via the assigned channel/client; no subscription aggregation or quota reset |
 
-Credential methods return secret-free `CredentialStatus` or existing channel
+Credential methods return secret-free `CredentialSummary` (version, expiry, durable
+`CredentialStatus`) or existing channel
 `QuotaSnapshot`, not decrypted material. The trusted upper layer authorizes IDs.
 `load_data` does not load route, identity, permission, subscription or price tables;
 it neither opens the database nor calls schema sync. Channel/client registration,

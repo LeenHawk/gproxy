@@ -1020,6 +1020,95 @@ async fn concurrent_settlement_and_credential_cas_have_one_winner() {
 }
 
 #[tokio::test]
+async fn status_cas_marks_dead_with_reason_and_refresh_restores_active() {
+    use gproxy_store::{
+        entity::{
+            limits::credential_block,
+            upstream::credential::{self, CredentialStatus},
+        },
+        operations::{
+            CasOutcome,
+            credentials::{CredentialRefresh, CredentialStatusUpdate},
+        },
+    };
+    let store = database().await;
+    user_and_credentials(&store).await;
+    async fn current(store: &Store<DatabaseConnection>) -> credential::Model {
+        store.credentials().get_many(&["c1".into()]).await.unwrap()[0]
+            .clone()
+            .unwrap()
+    }
+    assert_eq!(current(&store).await.status, CredentialStatus::Active);
+    let outcomes = store
+        .credentials()
+        .set_status_many(vec![
+            CredentialStatusUpdate {
+                id: "c1".into(),
+                expected_version: 0,
+                status: CredentialStatus::Dead,
+                reason: Some("invalid_grant".into()),
+            },
+            CredentialStatusUpdate {
+                id: "c1".into(),
+                expected_version: 0,
+                status: CredentialStatus::Dead,
+                reason: Some("revoked".into()),
+            },
+        ])
+        .await
+        .unwrap();
+    assert_eq!(outcomes, [CasOutcome::Applied, CasOutcome::Conflict]);
+    let row = current(&store).await;
+    assert_eq!(row.status, CredentialStatus::Dead);
+    assert_eq!(row.status_reason.as_deref(), Some("invalid_grant"));
+    assert_eq!(row.version, 1);
+    store
+        .credentials()
+        .refresh_many(vec![CredentialRefresh {
+            id: "c1".into(),
+            expected_version: 1,
+            secret: b"relogin".to_vec(),
+            expires_at_ms: None,
+        }])
+        .await
+        .unwrap();
+    let row = current(&store).await;
+    assert_eq!(row.status, CredentialStatus::Active);
+    assert_eq!(row.status_reason, None);
+    assert_eq!(row.version, 2);
+
+    store
+        .credential_blocks()
+        .create_many(vec![credential_block::ActiveModel {
+            id: Set("b1".into()),
+            credential_id: Set("c1".into()),
+            scope: Set(json!({"model_prefixes": ["claude-sonnet-4"]})),
+            operation: Set(None),
+            until_ms: Set(500),
+            source: Set(json!({"kind": "quota_exhausted", "dimension": "seven_day_sonnet", "cycle_id": null})),
+            observed_at_ms: Set(1),
+        }])
+        .await
+        .unwrap();
+    let loaded = store.load_control_data().await.unwrap().credential_blocks;
+    assert_eq!(loaded.len(), 1);
+    assert_eq!(loaded[0].until_ms, 500);
+    store
+        .credentials()
+        .delete_many(&["c1".into()])
+        .await
+        .unwrap();
+    assert!(
+        store
+            .load_control_data()
+            .await
+            .unwrap()
+            .credential_blocks
+            .is_empty()
+    );
+}
+
+#[tokio::test]
 async fn rewrite_targets_roundtrip_and_old_rows_sync_to_body() {
     use gproxy_store::entity::upstream::rewrite_rule::RewriteTarget;
     use sea_orm::ConnectionTrait;

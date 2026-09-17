@@ -44,7 +44,8 @@ SQL 错误回滚事务写入；条件更新零行只返回冲突／行数，不�
 持久状态。CRUD 不运行 SeaORM ActiveModel hooks，也不负责宿主鉴权、全部业务字段校验、
 加密、调度及网络操作；受保护的状态转换应使用领域方法，避免通过 CRUD 绕过约束。
 
-[`operations`](src/operations/mod.rs) 仅包含原子领域操作：凭证刷新 CAS、改写规则替换及
+[`operations`](src/operations/mod.rs) 仅包含原子领域操作：凭证刷新 CAS 与带版本检查的
+状态变更、改写规则替换及
 有序加载、额度幂等结算、带过期语义的协议状态 CAS、OAuth 签发／轮换／撤销／设备批准／
 客户端退役，以及 agent 分配预留／启用／失败／当前目标读取。设备轮询及结果交付由签发层
 负责，可用通用查询读取持久状态；订阅发放与价格计算仍由 core 完成。
@@ -111,7 +112,7 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
 | `identity` 身份 | Organization、Team、OrganizationMember、TeamMember、User、ApiKey、UserSession、Permission |
 | `oauth` 下游授权 | Client、Grant、Code、Token、Device |
 | `subscription` 订阅 | Pool、PoolMember、Plan、PlanLimit、Subscription |
-| `limits` 额度 | RateLimit、Quota、QuotaWindow、QuotaSettlement、CredentialQuotaCycle |
+| `limits` 额度 | RateLimit、Quota、QuotaWindow、QuotaSettlement、CredentialQuotaCycle、CredentialBlock |
 | `pricing` 定价 | PriceRule、PriceRate、PriceTier |
 | `usage` 用量 | UsageRecord、CaptureRecord、CaptureLink、CaptureEvent |
 | `resource` 资源 | FileObject、AgentSession、AgentAssignment、ResourceBinding、ProtocolState |
@@ -128,7 +129,12 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
 - 业务 ID 使用调用方生成的字符串；时间戳使用 Unix 毫秒。全局设置使用 `id = 1` 的记录，
   明确列出网络、执行、词表、日志、存储选择、维护和用户门户字段。
 - Provider 为全局配置。Credential 引用 Provider，同时归属组织、团队、用户三者之一；
-  凭证归属与供应商配置分别建模。
+  凭证归属与供应商配置分别建模。`status`（`active`／`dead`）加 `status_reason` 是持久
+  生命周期，与运营的 `enabled` 开关分开：`set_status_many` 在版本 CAS 下记录确定性的刷新
+  拒绝及原因，`refresh_many` 成功后回到 `active`。选择器只看这一位，原因是给人看的。
+- 临时受限是 `CredentialBlock` 行：一行一个 block，含渠道 `QuotaScope` JSON、可选操作、
+  `until_ms` 和 core 的 `BlockSource` JSON。core 的 cache 是热副本，Store 跨重启权威；
+  过期行由 core 懒惰清理。删除凭证级联删除其 block。
 - 独立 ConnectionProfile 保存后端、代理模式／URL、wreq 模拟参数、解压开关、重定向、重试和连接池参数。
   三层可空 `connection_profile_id` 按凭证 → Provider → 全局 → 内置 reqwest／直连选择。
   `None` 继承整份配置；直连／系统代理是配置中的明确模式，不使用空 URL 表示。

@@ -52,7 +52,7 @@ validation of every business field, cryptography, scheduling or network operatio
 Use domain methods for protected transitions instead of bypassing them with CRUD.
 
 [`operations`](src/operations/mod.rs) contains only atomic domain transitions:
-credential refresh CAS, rewrite replacement/ordered loading, idempotent quota
+credential refresh CAS and version-checked status changes, rewrite replacement/ordered loading, idempotent quota
 settlement, expiring protocol-state CAS, OAuth issuance/rotation/revocation/device
 approval/client retirement, and agent assignment reserve/activate/fail/current reads.
 OAuth device polling/result delivery remains issuer work; generic queries can read
@@ -133,7 +133,7 @@ with one entity per file:
 | `identity` | Organization, Team, OrganizationMember, TeamMember, User, ApiKey, UserSession, Permission |
 | `oauth` | Client, Grant, Code, Token, Device |
 | `subscription` | Pool, PoolMember, Plan, PlanLimit, Subscription |
-| `limits` | RateLimit, Quota, QuotaWindow, QuotaSettlement, CredentialQuotaCycle |
+| `limits` | RateLimit, Quota, QuotaWindow, QuotaSettlement, CredentialQuotaCycle, CredentialBlock |
 | `pricing` | PriceRule, PriceRate, PriceTier |
 | `usage` | UsageRecord, CaptureRecord, CaptureLink, CaptureEvent |
 | `resource` | FileObject, AgentSession, AgentAssignment, ResourceBinding, ProtocolState |
@@ -154,6 +154,14 @@ Review decisions currently expressed in the code:
   logging, storage-selection, maintenance and portal fields.
 - Providers are global. Each credential references a provider and has one owner:
   an organization, a team, or a user. The owner IDs are separate from provider configuration.
+  `status` (`active` / `dead`) plus `status_reason` is the durable lifecycle, distinct
+  from the operator's `enabled` switch: `set_status_many` records a definitive refresh
+  rejection with its reason under version CAS, and `refresh_many` returns the row to
+  `active`. Selection needs only the bit; the reason is for people.
+- Temporary limits are `CredentialBlock` rows: one per block with a channel `QuotaScope`
+  JSON, optional operation, `until_ms` and a core `BlockSource` JSON. Core's cache is the
+  hot copy and Store is authoritative across restarts; expired rows are pruned lazily.
+  Deleting the credential drops its blocks.
 - Named connection profiles hold backend, proxy mode/URL, wreq emulation and
   decompression, redirect, retry and connection-pool parameters. Optional `connection_profile_id` references resolve
   Credential → Provider → Setting → built-in reqwest/direct defaults. `None`
