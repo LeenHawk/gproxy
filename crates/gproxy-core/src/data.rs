@@ -70,9 +70,14 @@ impl ProviderData {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CredentialStrategy {
+    /// Rotate on each selection, without a session pin.
     #[default]
     RoundRobin,
     Sticky,
+    /// Rotate when assigning an unbound session; reuse its eligible credential
+    /// on later requests. Reassign when the pin is missing, expired or no longer
+    /// usable/allowed. Without a stable session, use ordinary round-robin.
+    RoundRobinAffinity,
 }
 /// Immutable credential execution configuration, separate from mutable secret
 /// material. No stale second copy of secret/version/expiry in a Store Model.
