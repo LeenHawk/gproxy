@@ -30,6 +30,7 @@ pub use sea_orm_migration;
 mod migration_support;
 pub mod schema;
 pub use migration_support::D1SchemaManagerExt;
+pub use schema::{EntityRegistry, SchemaSyncConnectionTrait, SyncReport};
 
 #[cfg(any(target_arch = "wasm32", test))]
 mod codec;

@@ -1,8 +1,8 @@
 //! GPROXY v4 entities, batch repositories and atomic persistence operations.
 //!
 //! Store accepts an existing batch connection. It does not open a database or perform
-//! schema changes during construction. Callers can obtain [`schema`] to inspect
-//! or initialize the registered entities through SeaORM.
+//! schema changes during construction. Call [`Store::sync`] explicitly to initialize
+//! or incrementally synchronize all entities; [`schema`] retains one-shot DDL access.
 
 pub mod entity;
 mod error;
@@ -22,7 +22,11 @@ use sea_orm::{DbBackend, Schema, SchemaBuilder};
 
 /// Register the entities; SeaORM determines the foreign-key creation order.
 pub fn schema(backend: DbBackend) -> SchemaBuilder {
-    SchemaBuilder::new(Schema::new(backend))
+    register_entities(SchemaBuilder::new(Schema::new(backend)))
+}
+
+fn register_entities<R: gproxy_seaorm::EntityRegistry>(registry: R) -> R {
+    registry
         .register(entity::config::connection_profile::Entity)
         .register(entity::upstream::provider::Entity)
         .register(entity::upstream::credential::Entity)

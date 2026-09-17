@@ -25,8 +25,9 @@ wasm-bindgen-futures = { workspace = true }
 time = { workspace = true, features = ["wasm-bindgen"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-# Used only to acknowledge recorded schema-planning statements, not for data I/O.
-sea-orm = { workspace = true, features = ["mock"] }
+# mock acknowledges recorded D1 planning DDL; schema-sync uses native discovery.
+sea-orm = { workspace = true, features = ["mock", "schema-sync"] }
+sea-schema = { version = "0.18.1", default-features = false }
 
 [dev-dependencies]
 futures-executor = "0.3"
