@@ -1093,3 +1093,87 @@ async fn rewrite_targets_roundtrip_and_old_rows_sync_to_body() {
         3
     );
 }
+
+#[tokio::test]
+async fn operation_endpoints_are_scoped_by_provider_operation_dialect_and_transport() {
+    use gproxy_store::entity::upstream::operation_endpoint::{self, EndpointTransport};
+    use sea_orm::ConnectionTrait;
+    let store = database().await;
+    store
+        .providers()
+        .create_many(vec![provider("p")])
+        .await
+        .unwrap();
+    // Older stores have the provider but not the additive endpoint table.
+    store
+        .connection()
+        .execute_unprepared("DROP TABLE operation_endpoints")
+        .await
+        .unwrap();
+    store.sync().await.unwrap();
+    let endpoint =
+        |id: &str, dialect: &str, transport, url: &str| operation_endpoint::ActiveModel {
+            id: Set(id.into()),
+            provider_id: Set("p".into()),
+            operation: Set("generate_content".into()),
+            dialect: Set(dialect.into()),
+            transport: Set(transport),
+            url: Set(url.into()),
+            ..Default::default()
+        };
+    let rows = store
+        .operation_endpoints()
+        .create_many(vec![
+            endpoint(
+                "responses",
+                "openai",
+                EndpointTransport::Http,
+                "https://responses.example/v1/responses",
+            ),
+            endpoint(
+                "messages",
+                "claude",
+                EndpointTransport::Http,
+                "https://messages.example/v1/messages",
+            ),
+            endpoint(
+                "socket",
+                "openai",
+                EndpointTransport::WebSocket,
+                "wss://socket.example/v1/responses",
+            ),
+        ])
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 3);
+    assert_eq!(rows[2].transport, EndpointTransport::WebSocket);
+    assert_eq!(
+        serde_json::to_value(rows[2].transport).unwrap(),
+        json!("websocket")
+    );
+    assert!(
+        store
+            .operation_endpoints()
+            .create_many(vec![endpoint(
+                "duplicate",
+                "openai",
+                EndpointTransport::Http,
+                "https://duplicate.example/responses"
+            ),])
+            .await
+            .is_err()
+    );
+    let data = store.load_control_data().await.unwrap();
+    assert_eq!(data.operation_endpoints.len(), 3);
+    assert!(data.operation_rules.is_empty());
+    store.providers().delete_many(&["p".into()]).await.unwrap();
+    assert!(
+        store
+            .operation_endpoints()
+            .get_many(&["responses".into(), "messages".into(), "socket".into()])
+            .await
+            .unwrap()
+            .iter()
+            .all(Option::is_none)
+    );
+}

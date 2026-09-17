@@ -51,6 +51,36 @@ HeaderName), or Query (a decoded parameter name). Header/Query operate on repeat
 values without flattening them; Query is request-only. Compiler validation and
 actual mutations are pending; see [rewrite design](../../design/core-rewrite.md).
 
+ProviderData also carries `operation_urls`, keyed by the destination
+`OperationKey` and HTTP/WS transport. `operation_url` looks up the enabled,
+validated override prepared from Store OperationEndpoint rows; None means use
+provider/channel defaults. Applying the URL during channel execution remains
+pending with the other execution prototypes.
+
+## Function prototypes
+
+[`src/api.rs`](src/api.rs) defines the next implementation surface. All newly
+introduced functions currently return `CoreError::NotImplemented`, with no
+outbound calls, cache writes or credential refresh. They are reviewable signatures,
+not a functional execution pipeline.
+
+| Entry point | Contract |
+|---|---|
+| `send` | Already-routed HTTP invocation, including streaming responses |
+| `connect` | Already-routed WS invocation, preserving rejected HTTP responses |
+| `select_credential` | Select only from the supplied permitted set, with attempted IDs excluded |
+| `refresh_credential` | Shared lease, durable full-replacement CAS, then publication |
+| `rewrite_request` | Body/Header/Query before channel shaping |
+| `rewrite_response` | Body/Header after original usage observation |
+| `record_outcome` | Credential health/affinity from a completed attempt |
+| `compile_rewrite_rule` | Free function for validating/preparing one persisted rule |
+
+`Execution<T>` retains the exact protocol transport result plus `UsageCompletion`.
+The completion future is distinct from response headers and must eventually finish
+when the stream/socket finishes or is dropped. `RewriteLimits` requires a positive
+per-unit byte limit. These lifecycle contracts are not implemented by the stubs.
+Prototype validation is native/WASM Clippy; no pretend upstream-execution tests.
+
 ```sh
 cargo test -p gproxy-core
 cargo clippy -p gproxy-core --all-targets -- -D warnings

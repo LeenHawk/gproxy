@@ -5,10 +5,12 @@
 
 #![forbid(unsafe_code)]
 
+pub mod api;
 pub mod context;
 pub mod data;
 pub mod runtime;
 
+pub use api::*;
 pub use context::*;
 pub use data::*;
 pub use runtime::*;

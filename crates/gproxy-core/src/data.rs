@@ -13,6 +13,13 @@ use std::{
 };
 
 pub type EntityMap<M> = HashMap<String, Arc<M>>;
+pub use upstream::operation_endpoint::EndpointTransport;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct OperationEndpointKey {
+    pub operation: OperationKey,
+    pub transport: EndpointTransport,
+}
 
 /// Instance-wide durable configuration revision, not a per-profile version.
 /// Persistence and transactional revision allocation remain to be implemented.
@@ -36,10 +43,28 @@ pub struct ProviderData {
     pub credential_ids: Vec<String>,
     pub models: Vec<Arc<upstream::provider_model::Model>>,
     pub operation_rules: Vec<Arc<upstream::operation_rule::Model>>,
+    /// Enabled, validated per-method URLs keyed by the destination OperationKey
+    /// and transport. Absent entries use provider/channel URL defaults.
+    pub operation_urls: HashMap<OperationEndpointKey, String>,
     /// Ordered by sort_order then ID; shared compiled sets live in CoreData.
     pub rewrite_rule_sets: Vec<Arc<upstream::provider_rewrite_rule_set::Model>>,
     /// Runtime contract only: persistence for selection strategy is still pending.
     pub credential_strategy: CredentialStrategy,
+}
+
+impl ProviderData {
+    pub fn operation_url(
+        &self,
+        operation: OperationKey,
+        transport: EndpointTransport,
+    ) -> Option<&str> {
+        self.operation_urls
+            .get(&OperationEndpointKey {
+                operation,
+                transport,
+            })
+            .map(String::as_str)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

@@ -39,6 +39,32 @@ CoreData 和解密凭证不实现 Debug／Serialize。session 由入站层提供
 Query（解码后的参数名称）。Header／Query 面向重复字段值，Query 仅限 request；
 编译校验和实际修改尚未接入，见[改写设计](../../design/core-rewrite.md)。
 
+ProviderData 增加 `operation_urls`，按目标原生 `OperationKey`＋HTTP/WS 区分；
+`operation_url` 返回从 Store OperationEndpoint 组装的启用地址，None 表示沿用
+Provider／渠道默认值。实际 channel 调用时应用该地址仍需后续接线。
+
+## 函数原型
+
+[`src/api.rs`](src/api.rs) 已定义后续实现入口。新增函数目前统一返回
+`CoreError::NotImplemented`，不发上游请求、不修改 cache、不刷新凭证；这是可检查的
+签名和生命周期约定，尚不是可执行流水线。
+
+| 入口 | 约定 |
+|---|---|
+| `send` | 上层已选目标的 HTTP 调用，包含流式响应 |
+| `connect` | 上层已选目标的 WS 调用，保留被拒绝的 HTTP 响应 |
+| `select_credential` | 仅在给定允许集合内选择，排除已尝试 ID |
+| `refresh_credential` | 共享租约、Store 完整替换 CAS、成功后发布 |
+| `rewrite_request` | channel shaping 前处理 Body/Header/Query |
+| `rewrite_response` | 原始用量观测后处理 Body/Header |
+| `record_outcome` | 根据完成的尝试更新凭证健康／亲和 |
+| `compile_rewrite_rule` | 校验和预编译单条持久规则的独立函数 |
+
+`Execution<T>` 保留原有 protocol 传输结果，另携带 `UsageCompletion`。完成 future 与
+响应头分离，后续实现须在流／socket 结束或丢弃时收敛。`RewriteLimits` 显式要求正数的
+单元字节上限。占位函数尚未执行这些生命周期行为；本轮通过原生/WASM Clippy 检查签名，
+没有声称执行器实测已通过。
+
 ```sh
 cargo test -p gproxy-core
 cargo clippy -p gproxy-core --all-targets -- -D warnings

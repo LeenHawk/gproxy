@@ -106,7 +106,7 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
 
 | 目录 | 实体 |
 |---|---|
-| `upstream` 上游 | Provider、Credential、Model、ProviderModel、OperationRule、RewriteRuleSet、RewriteRule、ProviderRewriteRuleSet |
+| `upstream` 上游 | Provider、Credential、Model、ProviderModel、OperationRule、OperationEndpoint、RewriteRuleSet、RewriteRule、ProviderRewriteRuleSet |
 | `routing` 路由 | ExposedModel、Route、RouteMember |
 | `identity` 身份 | Organization、Team、OrganizationMember、TeamMember、User、ApiKey、UserSession、Permission |
 | `oauth` 下游授权 | Client、Grant、Code、Token、Device |
@@ -156,6 +156,23 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
 Header／Query 选择已存在字段的值进行替换，保留重复项；Query 仅限 request。
 `paths` 和事件筛选只属于 Body。目标／phase／名称合法性由规则编译阶段检查，Store CRUD
 不执行改写。详见[改写设计](../../design/core-rewrite.md)。sync 新增 target 列时旧规则默认 Body。
+
+## 方法级 URL
+
+`operation_endpoints()` 提供 Provider 方法地址的通用批量 CRUD。每行保存 `provider_id`、
+原生 `operation`、`dialect`、`transport`（`http`／`websocket`）、完整 `url` 和 `enabled`。
+前四项构成唯一键，同一 Provider 的 OpenAI／Claude 生成方法可设不同 URL，同一 OperationKey
+的 HTTP／WS 也可独立配置；流式生成是独立 operation，需要覆盖时单独设置。
+
+地址配置由独立的 OperationEndpoint 保存，OperationRule 继续负责动作／操作映射。
+新表已加入 sync 与 `load_control_data`；删除 Provider 会级联删除地址配置，不改变旧的
+operation-rule 唯一约束。删除／停用一条地址即可回退默认值。
+
+组装执行数据时校验 operation／dialect 及方法 URL 要求，将启用项加入
+`ProviderData.operation_urls`。优先级为：方法 URL → Provider base_url＋渠道路径 → 渠道默认 URL。
+方法 URL 是完整地址，不再追加默认路径；渠道定义的路径参数仍由对应方法处理。
+动态返回的下载 URL，以及 OAuth／厂商 service 的辅助请求，不被这个设置统一覆盖。
+当前完成持久化和 core 数据接口，调用接线仍未实现。
 
 ## 路由结构
 

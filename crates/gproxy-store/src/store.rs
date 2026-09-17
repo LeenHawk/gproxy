@@ -73,6 +73,7 @@ repositories! {
     credentials => crate::entity::upstream::credential::Entity,
     models => crate::entity::upstream::model::Entity,
     operation_rules => crate::entity::upstream::operation_rule::Entity,
+    operation_endpoints => crate::entity::upstream::operation_endpoint::Entity,
     providers => crate::entity::upstream::provider::Entity,
     provider_models => crate::entity::upstream::provider_model::Entity,
     provider_rewrite_rule_sets => crate::entity::upstream::provider_rewrite_rule_set::Entity,
