@@ -38,6 +38,8 @@ pub(crate) struct Exchange {
     /// Ending this exchange's body ends the request.
     terminal: AtomicBool,
     finished: AtomicBool,
+    /// The caller let go of the body/socket before it ended.
+    dropped: AtomicBool,
 }
 
 impl Exchange {
@@ -74,6 +76,7 @@ impl Exchange {
             usage_observer: Mutex::new(None),
             terminal: AtomicBool::new(false),
             finished: AtomicBool::new(false),
+            dropped: AtomicBool::new(false),
         })
     }
 
@@ -180,7 +183,9 @@ impl Exchange {
             let state = match end {
                 UsageStreamEnd::Complete => UsageState::Completed,
                 UsageStreamEnd::Interrupted => {
-                    if self.context.attempt.request.cancellation.is_cancelled() {
+                    if self.dropped.load(Ordering::SeqCst)
+                        || self.context.attempt.request.cancellation.is_cancelled()
+                    {
                         UsageState::Cancelled
                     } else {
                         UsageState::Failed
@@ -191,11 +196,13 @@ impl Exchange {
         }
     }
 
-    /// Drop path: cannot await, so hand the work to the runtime.
+    /// Drop path: cannot await, so hand the work to the runtime. A dropped
+    /// terminal exchange settles as Cancelled: the caller went away.
     pub fn finish_detached(self: Arc<Self>, end: UsageStreamEnd, now_ms: i64) {
         if self.finished.load(Ordering::SeqCst) {
             return;
         }
+        self.dropped.store(true, Ordering::SeqCst);
         if let Ok(handle) = tokio::runtime::Handle::try_current() {
             handle.spawn(async move {
                 self.finish(end, None, None, None, now_ms).await;
@@ -314,24 +321,35 @@ impl OutboundClient for ObservedClient<'_> {
                 headers: &parts.headers,
             });
             let request = http::Request::from_parts(parts, ());
-            let connection = self.inner.connect(request).await?;
-            match &connection {
-                UpstreamConnection::Connected { handshake, .. } => {
+            match self.inner.connect(request).await? {
+                UpstreamConnection::Connected { handshake, socket } => {
                     self.exchange.record(CaptureEvent::ResponseHead {
                         status: handshake.status,
                         headers: &handshake.headers,
                     });
+                    Ok(UpstreamConnection::Connected { handshake, socket })
                 }
                 UpstreamConnection::Rejected(response) => {
                     self.exchange.record(CaptureEvent::ResponseHead {
                         status: response.status,
                         headers: &response.headers,
                     });
+                    let status = response.status;
+                    let headers = response.headers.clone();
+                    let body = observed_body(
+                        self.exchange.clone(),
+                        response.body,
+                        None,
+                        status,
+                        headers.clone(),
+                    );
+                    Ok(UpstreamConnection::Rejected(WireResponse {
+                        status,
+                        headers,
+                        body: HttpBody::Stream(body),
+                    }))
                 }
             }
-            // Frame observation and rejected-body observation arrive with the
-            // WebSocket execution path.
-            Ok(connection)
         })
     }
 }

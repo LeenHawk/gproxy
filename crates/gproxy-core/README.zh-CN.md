@@ -120,8 +120,12 @@ Active、未摘除、对该模型/操作未被 block；Sticky／RoundRobinAffini
 预算或候选耗尽时返回最后一次上游应答而不是报错。交给调用方的响应体是观测流：capture
 chunk、用量观测（流观察器或对累积 body 的抽取器）、逐单元响应改写、读上限、空闲超时和
 取消，结束或被丢弃都恰好结算一次。`Execution` 只能通过漏斗的 `Settled` 证明构造。
-WebSocket 执行、凭证刷新、额度查询和协议转换仍返回 `CoreError::NotImplemented`；wasm32 上
-`load_data` 与 `send` 也是，因为那里还没有出站传输。`Execution<T>` 保留原始响应和后续
+WebSocket 操作用同一个循环做握手：被拒的 upgrade 保留完整响应（body 同样被观测），建立
+的 socket 被包装：入站 frame 被 capture、计量并用响应 Body 规则改写，出站 frame 被 capture
+并用请求 Body 规则改写，超限 frame 被拒绝，socket 结束或被丢弃时结算（调用方先放手则为
+Cancelled）。会话只受取消和帧上限约束，不受 HTTP 超时约束。
+凭证刷新、额度查询和协议转换仍返回 `CoreError::NotImplemented`；wasm32 上 `load_data`、
+`send` 与 `connect` 也是，因为那里还没有出站传输。`Execution<T>` 保留原始响应和后续
 `UsageCompletion`，流生命周期尚未接入。
 
 已移除对外占位函数：`select_credential`、`compile_rewrite_rule`、`rewrite_request`、

@@ -159,9 +159,16 @@ stream: capture chunks, usage observation (stream observer or extractor over the
 accumulated body), response rewriting per unit, read cap, idle timeout and
 cancellation, and ending or dropping it settles the request exactly once.
 `Execution` can only be built through the funnel's `Settled` proof.
-WebSocket execution, credential refresh, quota queries and protocol conversion
-still return `CoreError::NotImplemented`; on wasm32 `load_data` and `send` do
-too, because there is no outbound transport there yet. `Execution<T>` holds the
+WebSocket operations run the same loop for the handshake: a rejected upgrade
+keeps its full response (body observed like any other), and an established
+socket is wrapped so inbound frames are captured, metered and rewritten with
+response Body rules, outbound frames are captured and rewritten with request
+Body rules, oversized frames are refused, and the request settles when the
+socket ends or is dropped (as Cancelled when the caller let go first). Sessions
+are bounded by cancellation and the frame cap, not by the HTTP timeouts.
+Credential refresh, quota queries and protocol conversion still return
+`CoreError::NotImplemented`; on wasm32 `load_data`, `send` and `connect` do too,
+because there is no outbound transport there yet. `Execution<T>` holds the
 protocol response and eventual `UsageCompletion`; stream lifecycle implementation
 remains pending.
 

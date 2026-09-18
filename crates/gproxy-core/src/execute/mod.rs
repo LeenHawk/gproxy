@@ -7,7 +7,9 @@ mod exchange;
 mod funnel;
 mod prepare;
 mod stream;
+mod websocket;
 
 pub(crate) use attempt::run_http;
 pub(crate) use exchange::{Exchange, ObservedClient};
 pub(crate) use funnel::Funnel;
+pub(crate) use websocket::run_websocket;

@@ -1,5 +1,6 @@
 #![cfg(not(target_arch = "wasm32"))]
 
+use futures_util::SinkExt;
 use futures_util::StreamExt;
 use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
@@ -12,8 +13,8 @@ use gproxy_core::{
 };
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
-    capability::{CapabilityError, CapabilityFuture},
-    connection::Bytes,
+    capability::{CapabilityError, CapabilityFuture, UpstreamConnection},
+    connection::{Bytes, TransportError, WebSocket, WsFrame},
 };
 use gproxy_store::{
     Store,
@@ -147,6 +148,31 @@ impl BaseChannel for TestChannel {
             .body(ctx.request.body)
             .map_err(|_| ChannelError::InvalidCredential)
     }
+    fn prepare_connect(
+        &self,
+        ctx: PrepareContext<'_, ()>,
+    ) -> Result<http::Request<()>, ChannelError> {
+        let mut builder = http::Request::builder()
+            .method(ctx.request.method)
+            .uri(format!(
+                "{}{}",
+                ctx.provider.base_url.unwrap(),
+                ctx.request.path
+            ))
+            .header(
+                "authorization",
+                format!(
+                    "Bearer {}",
+                    ctx.credential.secret["api_key"].as_str().unwrap()
+                ),
+            );
+        for (name, value) in &ctx.request.headers {
+            builder = builder.header(name, value);
+        }
+        builder
+            .body(())
+            .map_err(|_| ChannelError::InvalidCredential)
+    }
     fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
         Some(self)
     }
@@ -168,9 +194,15 @@ impl UsageExtractor for TestChannel {
 }
 
 type Reply = (StatusCode, Vec<(&'static str, &'static str)>, Vec<Bytes>);
+enum WsReply {
+    Rejected(StatusCode, &'static str),
+    Connected(Vec<WsFrame>),
+}
 #[derive(Default)]
 struct ScriptClient {
     replies: Mutex<VecDeque<Reply>>,
+    ws_replies: Mutex<VecDeque<WsReply>>,
+    sent_frames: Arc<Mutex<Vec<WsFrame>>>,
     seen: Arc<Log>,
 }
 impl OutboundClient for ScriptClient {
@@ -218,6 +250,59 @@ impl OutboundClient for ScriptClient {
                 body: HttpBody::Stream(Box::pin(futures_util::stream::iter(
                     chunks.into_iter().map(Ok),
                 ))),
+            })
+        })
+    }
+
+    fn connect<'a>(
+        &'a self,
+        request: http::Request<()>,
+    ) -> CapabilityFuture<'a, Result<UpstreamConnection, CapabilityError>> {
+        Box::pin(async move {
+            self.seen.push(format!(
+                "WS {} auth={} tag={}",
+                request.uri(),
+                request.headers()["authorization"].to_str().unwrap(),
+                request
+                    .headers()
+                    .get("x-client-tag")
+                    .map(|v| v.to_str().unwrap().to_owned())
+                    .unwrap_or_default(),
+            ));
+            let reply = self
+                .ws_replies
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("scripted ws reply");
+            Ok(match reply {
+                WsReply::Rejected(status, body) => UpstreamConnection::Rejected(WireResponse {
+                    status,
+                    headers: HeaderMap::new(),
+                    body: HttpBody::Bytes(Bytes::from_static(body.as_bytes())),
+                }),
+                WsReply::Connected(frames) => {
+                    let sent = self.sent_frames.clone();
+                    UpstreamConnection::Connected {
+                        handshake: WireResponse {
+                            status: StatusCode::SWITCHING_PROTOCOLS,
+                            headers: HeaderMap::new(),
+                            body: (),
+                        },
+                        socket: WebSocket {
+                            incoming: Box::pin(futures_util::stream::iter(
+                                frames.into_iter().map(Ok),
+                            )),
+                            outgoing: Box::pin(futures_util::sink::unfold(
+                                sent,
+                                |sent, frame: WsFrame| async move {
+                                    sent.lock().unwrap().push(frame);
+                                    Ok::<_, TransportError>(sent)
+                                },
+                            )),
+                        },
+                    }
+                }
             })
         })
     }
@@ -424,6 +509,12 @@ fn request(body: &str) -> WireRequest<HttpBody> {
         query: None,
         headers,
         body: HttpBody::Bytes(Bytes::from(body.to_owned())),
+    }
+}
+
+impl Harness {
+    fn script_ws(&self, replies: Vec<WsReply>) {
+        *self.client.ws_replies.lock().unwrap() = replies.into();
     }
 }
 
@@ -794,4 +885,124 @@ async fn cancellation_before_dispatch_settles_as_cancelled() {
     let report = h.observer.reports.lock().unwrap().pop().unwrap();
     assert_eq!(report.state, UsageState::Cancelled);
     assert!(h.client.seen.lines().is_empty());
+}
+
+#[tokio::test]
+async fn websocket_handshake_fails_over_and_the_socket_is_observed_in_both_directions() {
+    let h = harness(full(), "round_robin").await;
+    h.script_ws(vec![
+        WsReply::Rejected(StatusCode::TOO_MANY_REQUESTS, "busy"),
+        WsReply::Connected(vec![
+            WsFrame::Text("{\"type\":\"delta\",\"delta\":\"a secret\"}".into()),
+            WsFrame::Binary(Bytes::from_static(b"\x01")),
+        ]),
+    ]);
+    let ctx = Arc::new(RequestContext {
+        operation: OperationKey {
+            operation: Operation::ConnectRealtime,
+            dialect: Dialect::OpenAi,
+        },
+        ..Arc::try_unwrap(h.context("r1", 3, None)).ok().unwrap()
+    });
+    let mut headers = HeaderMap::new();
+    headers.insert("x-client-tag", HeaderValue::from_static("old"));
+    let execution = h
+        .core
+        .connect_realtime(
+            ctx,
+            WireRequest {
+                method: Method::GET,
+                path: "/v1/realtime".into(),
+                query: None,
+                headers,
+                body: (),
+            },
+        )
+        .await
+        .unwrap();
+    let (connection, completion) = execution.into_parts();
+    let UpstreamConnection::Connected { handshake, socket } = connection else {
+        panic!("second credential connects");
+    };
+    assert_eq!(handshake.status, StatusCode::SWITCHING_PROTOCOLS);
+    let seen = h.client.seen.lines();
+    assert!(seen[0].contains("auth=Bearer ka tag=new"), "{}", seen[0]);
+    assert!(seen[1].contains("auth=Bearer kb tag=new"), "{}", seen[1]);
+    let WebSocket {
+        mut incoming,
+        mut outgoing,
+    } = socket;
+    assert_eq!(
+        incoming.next().await.unwrap().unwrap(),
+        WsFrame::Text("{\"type\":\"delta\",\"delta\":\"a ***\"}".into())
+    );
+    assert_eq!(
+        incoming.next().await.unwrap().unwrap(),
+        WsFrame::Binary(Bytes::from_static(b"\x01"))
+    );
+    outgoing
+        .send(WsFrame::Text("{\"type\":\"client\"}".into()))
+        .await
+        .unwrap();
+    assert_eq!(h.client.sent_frames.lock().unwrap().len(), 1);
+    assert!(incoming.next().await.is_none());
+    let report = completion.await.unwrap();
+    assert_eq!(report.state, UsageState::Completed);
+    // The dropped 429 body finishes on a detached task.
+    tokio::task::yield_now().await;
+    let log = h.observer.log.lines();
+    assert_eq!(
+        log.iter().filter(|l| l.contains(" frame")).count(),
+        3,
+        "{log:?}"
+    );
+    assert!(
+        log.iter().any(|l| l == "r1-1 finish Interrupted"),
+        "{log:?}"
+    );
+    assert!(log.iter().any(|l| l == "r1-2 finish Complete"), "{log:?}");
+    let rows = h
+        .core
+        .store()
+        .load_control_data()
+        .await
+        .unwrap()
+        .credential_blocks;
+    assert_eq!(rows[0].credential_id, "a");
+}
+
+#[tokio::test]
+async fn dropping_a_body_early_settles_as_cancelled() {
+    let h = harness(full(), "round_robin").await;
+    h.script(vec![(
+        StatusCode::OK,
+        vec![("content-type", "text/event-stream")],
+        vec![
+            Bytes::from_static(b"data: 1\n\n"),
+            Bytes::from_static(b"data: 2\n\n"),
+        ],
+    )]);
+    let execution = h
+        .core
+        .stream_generate_content(h.context("r1", 1, None), request("{}"))
+        .await
+        .unwrap();
+    let (response, completion) = execution.into_parts();
+    let HttpBody::Stream(mut body) = response.body else {
+        panic!()
+    };
+    assert_eq!(body.next().await.unwrap().unwrap().as_ref(), b"data: 1\n\n");
+    drop(body);
+    let report = tokio::time::timeout(std::time::Duration::from_secs(2), completion)
+        .await
+        .expect("drop settles")
+        .unwrap();
+    assert_eq!(report.state, UsageState::Cancelled);
+    assert!(
+        h.observer
+            .log
+            .lines()
+            .iter()
+            .any(|l| l == "r1-1 finish Interrupted")
+    );
 }
