@@ -32,10 +32,13 @@ web-time = { workspace = true }
 zeroize = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gproxy-file = { workspace = true }
 tokio = { workspace = true, features = ["sync", "time"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 gproxy-cache = { workspace = true, features = ["memory"] }
 gproxy-client = { workspace = true, features = ["reqwest"] }
+gproxy-file = { workspace = true, features = ["fs"] }
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
+tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
