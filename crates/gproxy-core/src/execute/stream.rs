@@ -20,14 +20,25 @@ use std::sync::Arc;
 struct Guard {
     exchange: Arc<Exchange>,
     finished: bool,
+    status: http::StatusCode,
+    headers: http::HeaderMap,
+    /// Whole response so far, when the channel's extractor needs it.
+    accumulated: Option<Vec<u8>>,
 }
 
 impl Drop for Guard {
     fn drop(&mut self) {
         if !self.finished {
-            self.exchange
-                .clone()
-                .finish_detached(UsageStreamEnd::Interrupted, now_ms());
+            // A conversion may let go of a native body right after its terminal
+            // event; what was read is still the usage evidence.
+            let accumulated = self.accumulated.take();
+            self.exchange.clone().finish_detached(
+                UsageStreamEnd::Interrupted,
+                self.status,
+                std::mem::take(&mut self.headers),
+                accumulated,
+                now_ms(),
+            );
         }
     }
 }
@@ -43,10 +54,7 @@ struct State {
     inner: Option<ByteStream>,
     guard: Guard,
     rewrite: Rewrite,
-    accumulated: Option<Vec<u8>>,
     read: u64,
-    status: http::StatusCode,
-    headers: http::HeaderMap,
     /// Bytes ready to yield before touching the inner stream again.
     pending: Vec<Bytes>,
     ended: bool,
@@ -85,12 +93,12 @@ pub(crate) fn observed_body(
         guard: Guard {
             exchange,
             finished: false,
+            status,
+            headers,
+            accumulated,
         },
         rewrite,
-        accumulated,
         read: 0,
-        status,
-        headers,
         pending: Vec::new(),
         ended: false,
     };
@@ -166,7 +174,7 @@ async fn step(mut state: State) -> Option<(Result<Bytes, TransportError>, State)
                     exchange.record(CaptureEvent::ResponseChunk(&chunk));
                 }
                 exchange.observe_chunk(&chunk);
-                if let Some(buffer) = state.accumulated.as_mut() {
+                if let Some(buffer) = state.guard.accumulated.as_mut() {
                     buffer.extend_from_slice(&chunk);
                 }
                 match &mut state.rewrite {
@@ -197,14 +205,14 @@ async fn end(mut state: State, how: UsageStreamEnd) -> State {
     state.inner = None;
     if !state.guard.finished {
         state.guard.finished = true;
-        let accumulated = state.accumulated.take();
+        let accumulated = state.guard.accumulated.take();
         state
             .guard
             .exchange
             .finish(
                 how,
-                Some(state.status),
-                Some(&state.headers),
+                Some(state.guard.status),
+                Some(&state.guard.headers),
                 accumulated.as_deref(),
                 now_ms(),
             )

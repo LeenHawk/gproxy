@@ -642,6 +642,12 @@ async fn chat_client_stream_is_converted_from_a_claude_sse_upstream() {
 
     let report = completion.await.unwrap();
     assert_eq!(report.state, UsageState::Completed);
+    assert_eq!(
+        report.exchanges.len(),
+        1,
+        "the native body released after its terminal event still reports usage"
+    );
+    assert_eq!(report.exchanges[0].usage.tokens.input_tokens, Some(4));
     let seen = h.client.seen.lines();
     assert_eq!(seen.len(), 1);
     assert!(
@@ -650,4 +656,197 @@ async fn chat_client_stream_is_converted_from_a_claude_sse_upstream() {
         "{}",
         seen[0]
     );
+}
+
+fn chat_stream_request(body: &'static str) -> WireRequest<HttpBody> {
+    WireRequest {
+        method: Method::POST,
+        path: "/v1/chat/completions".into(),
+        query: None,
+        headers: HeaderMap::new(),
+        body: HttpBody::Bytes(Bytes::from_static(body.as_bytes())),
+    }
+}
+
+/// Parse a Chat SSE body into (per-choice content, finish reasons, usage chunk).
+fn parse_chat_sse(text: &str) -> (Vec<String>, Vec<Option<String>>, Option<serde_json::Value>) {
+    let mut content: Vec<String> = Vec::new();
+    let mut finish: Vec<Option<String>> = Vec::new();
+    let mut usage = None;
+    let frames: Vec<&str> = text.split("\n\n").filter(|f| !f.is_empty()).collect();
+    assert_eq!(frames.last().copied(), Some("data: [DONE]"), "{text}");
+    for frame in &frames {
+        let data = frame
+            .strip_prefix("data: ")
+            .unwrap_or_else(|| panic!("frame {frame:?}"));
+        if data == "[DONE]" {
+            continue;
+        }
+        let chunk: serde_json::Value = serde_json::from_str(data).unwrap();
+        assert_eq!(chunk["object"], "chat.completion.chunk", "{data}");
+        if !chunk["usage"].is_null() {
+            usage = Some(chunk["usage"].clone());
+        }
+        for choice in chunk["choices"].as_array().into_iter().flatten() {
+            let index = choice["index"].as_u64().unwrap() as usize;
+            while content.len() <= index {
+                content.push(String::new());
+                finish.push(None);
+            }
+            if let Some(piece) = choice["delta"]["content"].as_str() {
+                content[index].push_str(piece);
+            }
+            if let Some(reason) = choice["finish_reason"].as_str() {
+                finish[index] = Some(reason.to_owned());
+            }
+        }
+    }
+    (content, finish, usage)
+}
+
+fn claude_message(text: &str) -> serde_json::Value {
+    json!({
+        "id": "msg_native", "type": "message", "role": "assistant", "model": "gpt-x",
+        "content": [{"type": "text", "text": text}], "stop_reason": "end_turn",
+        "usage": {"input_tokens": 4, "output_tokens": 2}
+    })
+}
+
+#[tokio::test]
+async fn chat_stream_is_synthesized_when_the_upstream_only_generates_buffered() {
+    let h = harness(full(), "round_robin").await;
+    h.script(vec![json_reply(StatusCode::OK, claude_message("answer"))]);
+    let ctx = h.context_for(
+        "claude-buffered",
+        OperationKey {
+            operation: Operation::StreamGenerateContent,
+            dialect: Dialect::OpenAiChat,
+        },
+        "r1",
+        1,
+        None,
+    );
+    let wire = chat_stream_request(
+        "{\"model\":\"alias\",\"stream\":true,\"stream_options\":{\"include_usage\":true},\"max_completion_tokens\":32,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+    );
+    let execution = h.core.stream_generate_content(ctx, wire).await.unwrap();
+    let (response, completion) = execution.into_parts();
+    assert_eq!(response.status, StatusCode::OK);
+    assert_eq!(
+        response.headers.get("content-type").unwrap(),
+        "text/event-stream"
+    );
+    let (content, finish, usage) = parse_chat_sse(&read(response.body).await);
+    assert_eq!(content, vec!["answer".to_owned()]);
+    assert_eq!(finish, vec![Some("stop".to_owned())]);
+    assert_eq!(usage.unwrap()["prompt_tokens"], 4);
+    let report = completion.await.unwrap();
+    assert_eq!(report.state, UsageState::Completed);
+    let seen = h.client.seen.lines();
+    assert_eq!(seen.len(), 1);
+    assert!(
+        seen[0].starts_with("POST https://buffered.example/v1/messages auth=Bearer kb1")
+            && seen[0].contains("\"stream\":false"),
+        "the upstream is asked for a buffered result: {}",
+        seen[0]
+    );
+}
+
+#[tokio::test]
+async fn chat_two_candidates_fan_out_into_two_buffered_claude_calls() {
+    let h = harness(full(), "round_robin").await;
+    h.script(vec![
+        json_reply(StatusCode::OK, claude_message("one")),
+        json_reply(StatusCode::OK, claude_message("two")),
+    ]);
+    let ctx = h.context_for(
+        "claude",
+        OperationKey {
+            operation: Operation::GenerateContent,
+            dialect: Dialect::OpenAiChat,
+        },
+        "r1",
+        1,
+        None,
+    );
+    let wire = chat_stream_request(
+        "{\"model\":\"alias\",\"n\":2,\"max_completion_tokens\":32,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+    );
+    let execution = h.core.generate_content(ctx, wire).await.unwrap();
+    let (response, completion) = execution.into_parts();
+    assert_eq!(response.status, StatusCode::OK);
+    let body: serde_json::Value = serde_json::from_str(&read(response.body).await).unwrap();
+    assert_eq!(body["object"], "chat.completion");
+    let choices = body["choices"].as_array().unwrap();
+    assert_eq!(choices.len(), 2);
+    assert_eq!(choices[0]["index"], 0);
+    assert_eq!(choices[0]["message"]["content"], "one");
+    assert_eq!(choices[1]["index"], 1);
+    assert_eq!(choices[1]["message"]["content"], "two");
+    assert_eq!(
+        body["usage"]["prompt_tokens"], 8,
+        "per-call charges are summed"
+    );
+    let report = completion.await.unwrap();
+    assert_eq!(report.state, UsageState::Completed);
+    assert_eq!(report.exchanges.len(), 2, "both child calls report usage");
+    let seen = h.client.seen.lines();
+    assert_eq!(seen.len(), 2);
+    assert!(
+        seen.iter().all(
+            |line| line.starts_with("POST https://claude.example/v1/messages")
+                && !line.contains("\"n\":")
+        ),
+        "{seen:?}"
+    );
+}
+
+#[tokio::test]
+async fn chat_two_candidates_stream_through_two_claude_sse_calls() {
+    let h = harness(full(), "round_robin").await;
+    let sse = |text: &str| -> Vec<Bytes> {
+        vec![
+            Bytes::from_static(b"event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"gpt-x\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":4,\"output_tokens\":0}}}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n"),
+            Bytes::from(format!("event: content_block_delta\ndata: {{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{{\"type\":\"text_delta\",\"text\":\"{text}\"}}}}\n\n")),
+            Bytes::from_static(b"event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":2}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"),
+        ]
+    };
+    h.script(vec![
+        (
+            StatusCode::OK,
+            vec![("content-type", "text/event-stream")],
+            sse("one"),
+        ),
+        (
+            StatusCode::OK,
+            vec![("content-type", "text/event-stream")],
+            sse("two"),
+        ),
+    ]);
+    let ctx = h.context_for(
+        "claude",
+        OperationKey {
+            operation: Operation::StreamGenerateContent,
+            dialect: Dialect::OpenAiChat,
+        },
+        "r1",
+        1,
+        None,
+    );
+    let wire = chat_stream_request(
+        "{\"model\":\"alias\",\"n\":2,\"stream\":true,\"max_completion_tokens\":32,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+    );
+    let execution = h.core.stream_generate_content(ctx, wire).await.unwrap();
+    let (response, completion) = execution.into_parts();
+    assert_eq!(response.status, StatusCode::OK);
+    let (content, finish, _) = parse_chat_sse(&read(response.body).await);
+    assert_eq!(content, vec!["one".to_owned(), "two".to_owned()]);
+    assert_eq!(
+        finish,
+        vec![Some("stop".to_owned()), Some("stop".to_owned())]
+    );
+    let report = completion.await.unwrap();
+    assert_eq!(report.state, UsageState::Completed);
+    assert_eq!(report.exchanges.len(), 2);
+    assert_eq!(h.client.seen.lines().len(), 2);
 }

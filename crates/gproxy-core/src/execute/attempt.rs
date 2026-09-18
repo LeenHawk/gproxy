@@ -144,7 +144,7 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
     let request_rules = select_rules(&snapshot, &provider, Phase::Request, &rewrite_context);
     let response_rules = select_rules(&snapshot, &provider, Phase::Response, &rewrite_context);
 
-    let converting = matches!(route, Route::Convert { .. });
+    let converting = matches!(route, Route::Convert { .. } | Route::Synthesize { .. });
     if converting && convert::is_websocket(operation) {
         funnel.finish(UsageState::Failed).await;
         return Err(CoreError::Transform(TransformError::unsupported(
@@ -290,9 +290,8 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                     }
                 }
             }
-            Route::Convert { upstream } => {
+            Route::Convert { upstream } | Route::Synthesize { upstream } => {
                 let upstream_host = AttemptUpstream::new(
-                    core,
                     funnel.clone(),
                     attempt.clone(),
                     inbound_headers.clone(),
@@ -324,6 +323,7 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                     conversation_key: &conversation_key,
                     provider_id: &provider.entity.id,
                     now_ms: now,
+                    synthesize: matches!(route, Route::Synthesize { .. }),
                 };
                 let converted = tokio::select! {
                     biased;

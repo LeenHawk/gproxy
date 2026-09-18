@@ -77,23 +77,21 @@ fn invalid(message: String) -> CapabilityError {
 /// dispatch; provider and credential are never chosen per call. Every call
 /// allocates one observed exchange, applies the request rules selected for
 /// that native operation, and routes through the channel binding.
-pub struct AttemptUpstream<'a, C> {
-    core: &'a Core<C>,
+#[derive(Clone)]
+pub struct AttemptUpstream {
     funnel: Arc<Funnel>,
     attempt: Arc<AttemptContext>,
     inbound_headers: HeaderMap,
     limits: CapabilityLimits,
 }
-impl<'a, C> AttemptUpstream<'a, C> {
+impl AttemptUpstream {
     pub(crate) fn new(
-        core: &'a Core<C>,
         funnel: Arc<Funnel>,
         attempt: Arc<AttemptContext>,
         inbound_headers: HeaderMap,
         limits: CapabilityLimits,
     ) -> Self {
         Self {
-            core,
             funnel,
             attempt,
             inbound_headers,
@@ -103,11 +101,8 @@ impl<'a, C> AttemptUpstream<'a, C> {
     pub fn attempt(&self) -> &Arc<AttemptContext> {
         &self.attempt
     }
-    pub fn core(&self) -> &'a Core<C> {
-        self.core
-    }
 }
-impl<C: Send + Sync> Upstream for AttemptUpstream<'_, C> {
+impl Upstream for AttemptUpstream {
     type Target = OperationKey;
 
     fn send<'a>(

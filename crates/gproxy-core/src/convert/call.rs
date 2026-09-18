@@ -17,7 +17,7 @@ const STATE_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 const STATE_MAX_RECORDS: usize = 64;
 
 pub(crate) struct Call<'a, C> {
-    pub upstream: &'a AttemptUpstream<'a, C>,
+    pub upstream: &'a AttemptUpstream,
     /// The client's operation and dialect.
     pub client: OperationKey,
     /// The upstream's native dialect this call converts to.
@@ -32,6 +32,9 @@ pub(crate) struct Call<'a, C> {
     pub conversation_key: &'a str,
     pub provider_id: &'a str,
     pub now_ms: i64,
+    /// The client asked for a stream but the upstream is invoked buffered;
+    /// the driver synthesizes the client's native stream lifecycle.
+    pub synthesize: bool,
 }
 
 impl<'a, C: BatchConnectionTrait + Send + Sync> Call<'a, C> {

@@ -343,9 +343,13 @@ struct Guard(Arc<Exchange>, bool);
 impl Drop for Guard {
     fn drop(&mut self) {
         if !self.1 {
-            self.0
-                .clone()
-                .finish_detached(UsageStreamEnd::Interrupted, now_ms());
+            self.0.clone().finish_detached(
+                UsageStreamEnd::Interrupted,
+                http::StatusCode::SWITCHING_PROTOCOLS,
+                http::HeaderMap::new(),
+                None,
+                now_ms(),
+            );
         }
     }
 }

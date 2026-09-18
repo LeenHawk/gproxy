@@ -124,19 +124,19 @@ impl Exchange {
         });
     }
 
-    /// End of this exchange: finish usage (stream observer or extractor over
-    /// the accumulated body), close capture, and settle the request if this
-    /// exchange was terminal. Idempotent.
-    pub async fn finish(
+    /// Usage and trace for the end of this exchange, synchronously: the drop
+    /// path must record usage before anything else can settle the request.
+    /// Returns the capture sink still to be closed, or None when already done.
+    fn settle_sync(
         &self,
         end: UsageStreamEnd,
         status: Option<http::StatusCode>,
         headers: Option<&http::HeaderMap>,
         accumulated: Option<&[u8]>,
         now_ms: i64,
-    ) {
+    ) -> Option<Option<Box<dyn CaptureSink>>> {
         if self.finished.swap(true, Ordering::SeqCst) {
-            return;
+            return None;
         }
         let observer = self.usage_observer.lock().unwrap().take();
         match observer {
@@ -166,7 +166,33 @@ impl Exchange {
                 }
             }
         }
-        let sink = self.capture.lock().unwrap().take();
+        self.funnel.trace(TraceEvent::ExchangeFinished {
+            exchange: &self.context,
+            status,
+            finished_at_ms: now_ms,
+        });
+        Some(self.capture.lock().unwrap().take())
+    }
+
+    fn terminal_state(&self, end: UsageStreamEnd) -> Option<UsageState> {
+        if !self.terminal.load(Ordering::SeqCst) {
+            return None;
+        }
+        Some(match end {
+            UsageStreamEnd::Complete => UsageState::Completed,
+            UsageStreamEnd::Interrupted => {
+                if self.dropped.load(Ordering::SeqCst)
+                    || self.context.attempt.request.cancellation.is_cancelled()
+                {
+                    UsageState::Cancelled
+                } else {
+                    UsageState::Failed
+                }
+            }
+        })
+    }
+
+    async fn close(&self, sink: Option<Box<dyn CaptureSink>>, end: UsageStreamEnd) {
         if let Some(sink) = sink {
             sink.finish(match end {
                 UsageStreamEnd::Complete => crate::CaptureEnd::Complete,
@@ -174,43 +200,60 @@ impl Exchange {
             })
             .await;
         }
-        self.funnel.trace(TraceEvent::ExchangeFinished {
-            exchange: &self.context,
-            status,
-            finished_at_ms: now_ms,
-        });
-        if self.terminal.load(Ordering::SeqCst) {
-            let state = match end {
-                UsageStreamEnd::Complete => UsageState::Completed,
-                UsageStreamEnd::Interrupted => {
-                    if self.dropped.load(Ordering::SeqCst)
-                        || self.context.attempt.request.cancellation.is_cancelled()
-                    {
-                        UsageState::Cancelled
-                    } else {
-                        UsageState::Failed
-                    }
-                }
-            };
+        if let Some(state) = self.terminal_state(end) {
             self.funnel.finish(state).await;
         }
     }
 
-    /// Drop path: cannot await, so hand the work to the runtime. A dropped
-    /// terminal exchange settles as Cancelled: the caller went away.
-    pub fn finish_detached(self: Arc<Self>, end: UsageStreamEnd, now_ms: i64) {
+    /// End of this exchange: finish usage (stream observer or extractor over
+    /// the accumulated body), close capture, and settle the request if this
+    /// exchange was terminal. Idempotent.
+    pub async fn finish(
+        &self,
+        end: UsageStreamEnd,
+        status: Option<http::StatusCode>,
+        headers: Option<&http::HeaderMap>,
+        accumulated: Option<&[u8]>,
+        now_ms: i64,
+    ) {
+        if let Some(sink) = self.settle_sync(end, status, headers, accumulated, now_ms) {
+            self.close(sink, end).await;
+        }
+    }
+
+    /// Drop path: usage is recorded right here, so a native body a conversion
+    /// let go of after its terminal event still counts even when the client
+    /// stream settles a moment later. Closing capture and settling a terminal
+    /// exchange need awaits and go to the runtime; a dropped terminal exchange
+    /// settles as Cancelled: the caller went away.
+    pub fn finish_detached(
+        self: Arc<Self>,
+        end: UsageStreamEnd,
+        status: http::StatusCode,
+        headers: http::HeaderMap,
+        accumulated: Option<Vec<u8>>,
+        now_ms: i64,
+    ) {
         if self.finished.load(Ordering::SeqCst) {
             return;
         }
         self.dropped.store(true, Ordering::SeqCst);
+        let Some(sink) = self.settle_sync(
+            end,
+            Some(status),
+            Some(&headers),
+            accumulated.as_deref(),
+            now_ms,
+        ) else {
+            return;
+        };
         if let Ok(handle) = tokio::runtime::Handle::try_current() {
             handle.spawn(async move {
-                self.finish(end, None, None, None, now_ms).await;
+                self.close(sink, end).await;
             });
-        } else if self.terminal.load(Ordering::SeqCst) {
+        } else if let Some(state) = self.terminal_state(end) {
             // No runtime to run the funnel on; at least resolve the completion.
-            self.finished.store(true, Ordering::SeqCst);
-            self.funnel.clone().finish_detached(UsageState::Cancelled);
+            self.funnel.clone().finish_detached(state);
         }
     }
 
