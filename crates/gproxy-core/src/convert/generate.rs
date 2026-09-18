@@ -2,11 +2,11 @@
 //! prepare the directed edge with continuation state, POST once through the
 //! attempt-bound upstream, and encode the client-dialect response.
 
-use crate::{AttemptUpstream, ProtocolState};
+use super::{Call, Converted};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireResponse,
     adapt::generate::{
-        GenerationIdentity, GenerationOutcome, GenerationProgress, GenerationStateAccess,
+        GenerationIdentity, GenerationOutcome, GenerationProgress,
         chat_claude::{ChatViaClaude, ClaudeViaChat},
         chat_gemini::{ChatViaGemini, GeminiViaChat},
         chat_responses::{ChatReturnFacts, ChatViaResponses, ResponsesViaChat},
@@ -24,11 +24,6 @@ use gproxy_protocol::{
 };
 use gproxy_seaorm::BatchConnectionTrait;
 use serde::{Serialize, de::DeserializeOwned};
-
-pub(crate) enum Converted {
-    Success(WireResponse<HttpBody>),
-    Rejected(WireResponse<HttpBody>),
-}
 
 fn codec(error: gproxy_protocol::codec::CodecError) -> TransformError {
     TransformError::with_source(
@@ -85,26 +80,39 @@ fn responses_settings(input: &r::GenerateContentRequestBody) -> (bool, r::input:
     )
 }
 
-/// One buffered generation on `upstream` for `client -> target`. The
-/// upstream model comes from `state.target.model`; `now_ms` supplies the
-/// creation timestamps some client dialects require and the upstream omits.
-#[allow(clippy::too_many_arguments)]
-pub(crate) async fn buffered<C: BatchConnectionTrait + Send + Sync>(
-    upstream: &AttemptUpstream<'_, C>,
-    client: Dialect,
-    target: Dialect,
-    body: &[u8],
-    limits: CodecLimits,
-    state: &GenerationStateAccess<'_, ProtocolState<'_, C>>,
-    now_ms: i64,
+/// Incremental generation is not converted yet; the buffered family lands
+/// first so the stream driver can reuse its endpoint and identity plumbing.
+pub(crate) async fn streamed<C: BatchConnectionTrait + Send + Sync>(
+    call: &Call<'_, C>,
 ) -> Result<Converted, TransformError> {
+    Err(TransformError::unsupported(
+        "generate.stream",
+        format!(
+            "streaming from {:?} to {:?} is not converted yet",
+            call.client.dialect, call.target
+        ),
+    ))
+}
+
+/// One buffered generation for `client -> target`. The upstream model comes
+/// from the continuation state target; `now_ms` supplies the creation
+/// timestamps some client dialects require and the upstream omits.
+pub(crate) async fn buffered<C: BatchConnectionTrait + Send + Sync>(
+    call: &Call<'_, C>,
+) -> Result<Converted, TransformError> {
+    let client = call.client.dialect;
+    let target = call.target;
+    let upstream = call.upstream;
+    let body = call.body();
+    let limits = call.limits;
+    let state = &call.generation_state()?;
     let key = OperationKey {
         operation: Operation::GenerateContent,
         dialect: target,
     };
     let endpoint = super::generate_endpoint(target, &state.target.model, false)?;
     let identities = GenerationIdentity::new(namespace(), namespace(), client, target)?;
-    let created = now_ms.div_euclid(1000);
+    let created = call.now_ms.div_euclid(1000);
     macro_rules! run {
         ($pair:ty, $input:ty, [$($extra:expr),*], $facts:expr) => {{
             let input: $input = decode(body, limits)?;

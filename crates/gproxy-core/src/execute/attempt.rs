@@ -14,24 +14,15 @@ use crate::{
 };
 use gproxy_channel::{ChannelBinding, channel::UsageStreamEnd};
 use gproxy_protocol::{
-    Dialect, HttpBody, Operation, WireRequest, WireResponse,
-    adapt::generate::GenerationStateAccess,
-    connection::Bytes,
-    transform::{TransformError, TransformErrorKind, identity::IdentityTarget},
+    HttpBody, WireRequest, WireResponse,
+    connection::{ByteStream, Bytes},
+    transform::{TransformError, TransformErrorKind},
 };
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::entity::upstream::operation_endpoint::EndpointTransport;
 use http::StatusCode;
-use std::{
-    collections::HashSet,
-    sync::Arc,
-    time::{Duration, SystemTime},
-};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 use web_time::Instant;
-
-/// How long continuation state written for a conversion stays valid.
-const STATE_TTL: Duration = Duration::from_secs(24 * 60 * 60);
-const STATE_MAX_RECORDS: usize = 64;
 
 fn remaining(request: &RequestContext) -> Option<Duration> {
     request
@@ -45,20 +36,29 @@ enum Answer {
     Streamed(WireResponse<HttpBody>, Arc<Exchange>),
     /// Every exchange already finished; settle before returning.
     Complete(WireResponse<HttpBody>),
+    /// A converted client stream still being driven; the funnel settles when
+    /// the driver's stream ends or is dropped.
+    Driven(WireResponse<ByteStream>),
 }
 
 impl Answer {
     fn status(&self) -> StatusCode {
         match self {
             Self::Streamed(r, _) | Self::Complete(r) => r.status,
+            Self::Driven(r) => r.status,
         }
     }
     fn headers(&self) -> &http::HeaderMap {
         match self {
             Self::Streamed(r, _) | Self::Complete(r) => &r.headers,
+            Self::Driven(r) => &r.headers,
         }
     }
-    async fn deliver(self, funnel: &Funnel, completion: crate::UsageCompletion) -> HttpExecution {
+    async fn deliver(
+        self,
+        funnel: &Arc<Funnel>,
+        completion: crate::UsageCompletion,
+    ) -> HttpExecution {
         match self {
             Self::Streamed(response, exchange) => {
                 exchange.make_terminal();
@@ -68,6 +68,19 @@ impl Answer {
             Self::Complete(response) => {
                 let settled = funnel.finish(UsageState::Completed).await;
                 Execution::new(response, completion, settled)
+            }
+            Self::Driven(response) => {
+                let body = super::stream::settling(funnel.clone(), response.body);
+                let settled = funnel.arm();
+                Execution::new(
+                    WireResponse {
+                        status: response.status,
+                        headers: response.headers,
+                        body: HttpBody::Stream(body),
+                    },
+                    completion,
+                    settled,
+                )
             }
         }
     }
@@ -119,22 +132,6 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync>(
             return Err(error.into());
         }
     };
-    if let Route::Convert { upstream } = route {
-        let supported = operation.operation == Operation::GenerateContent
-            && !matches!(operation.dialect, Dialect::OpenAiResponsesWebSocket)
-            && upstream_model.is_some();
-        if !supported {
-            funnel.finish(UsageState::Failed).await;
-            return Err(CoreError::Transform(TransformError::unsupported(
-                "route",
-                format!(
-                    "{:?} from {:?} to {:?} is not convertible here",
-                    operation.operation, operation.dialect, upstream
-                ),
-            )));
-        }
-    }
-
     let inbound_headers = wire.headers.clone();
     let rewrite_context = RewriteContext {
         operation,
@@ -148,6 +145,13 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync>(
     let response_rules = select_rules(&snapshot, &provider, Phase::Response, &rewrite_context);
 
     let converting = matches!(route, Route::Convert { .. });
+    if converting && convert::is_websocket(operation) {
+        funnel.finish(UsageState::Failed).await;
+        return Err(CoreError::Transform(TransformError::unsupported(
+            "route",
+            "WebSocket operations are passthrough only over HTTP",
+        )));
+    }
     let want_replay =
         converting || request.max_attempts.get() > 1 || !request_rules.body.is_empty();
     let (mut wire, replayable) =
@@ -287,10 +291,6 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync>(
                 }
             }
             Route::Convert { upstream } => {
-                let HttpBody::Bytes(body) = &this_wire.body else {
-                    unreachable!("conversion buffered the body")
-                };
-                let model = upstream_model.clone().expect("checked above");
                 let upstream_host = AttemptUpstream::new(
                     core,
                     funnel.clone(),
@@ -308,56 +308,40 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync>(
                         .filter(|s| s.is_stable())
                         .map(|s| s.id.clone()),
                 };
-                let now_time = SystemTime::UNIX_EPOCH + Duration::from_millis(now.max(0) as u64);
-                let target = IdentityTarget::new(model.clone(), upstream)
-                    .and_then(|t| t.with_origin(provider.entity.id.clone()))
-                    .map_err(|e| TransformError::shape("identity.target", e.to_string()));
-                match target {
-                    Err(error) => Err(Fault::Client(error.into())),
-                    Ok(target) => {
-                        let state = GenerationStateAccess {
-                            store: &state_store,
-                            scope: &scope,
-                            target,
-                            conversation_key: scope
-                                .conversation
-                                .clone()
-                                .unwrap_or_else(|| request.request_id.clone()),
-                            expires_at: now_time + STATE_TTL,
-                            now: now_time,
-                            max_records: STATE_MAX_RECORDS,
-                        };
-                        let converted = tokio::select! {
-                            biased;
-                            () = cancellation.cancelled() => Err(Fault::Cancelled),
-                            result = tokio::time::timeout(
-                                capability.operation_total,
-                                convert::generate::buffered(
-                                    &upstream_host,
-                                    operation.dialect,
-                                    upstream,
-                                    body,
-                                    limits.codec(),
-                                    &state,
-                                    now,
-                                ),
-                            ) => match result {
-                                Ok(Ok(converted)) => Ok(converted),
-                                Ok(Err(error)) => Err(match error.kind() {
-                                    TransformErrorKind::Host => Fault::Failed(error.into()),
-                                    _ => Fault::Client(error.into()),
-                                }),
-                                Err(_) => Err(Fault::DeadlineExceeded),
-                            },
-                        };
-                        converted.map(|converted| match converted {
-                            convert::generate::Converted::Success(response)
-                            | convert::generate::Converted::Rejected(response) => {
-                                Answer::Complete(response)
-                            }
-                        })
-                    }
-                }
+                let conversation_key = scope
+                    .conversation
+                    .clone()
+                    .unwrap_or_else(|| request.request_id.clone());
+                let call = convert::Call {
+                    upstream: &upstream_host,
+                    client: operation,
+                    target: upstream,
+                    model: upstream_model.as_deref(),
+                    request: &this_wire,
+                    limits: limits.codec(),
+                    state_store: &state_store,
+                    state_scope: &scope,
+                    conversation_key: &conversation_key,
+                    provider_id: &provider.entity.id,
+                    now_ms: now,
+                };
+                let converted = tokio::select! {
+                    biased;
+                    () = cancellation.cancelled() => Err(Fault::Cancelled),
+                    result = tokio::time::timeout(capability.operation_total, convert::dispatch(&call)) => match result {
+                        Ok(Ok(converted)) => Ok(converted),
+                        Ok(Err(error)) => Err(match error.kind() {
+                            TransformErrorKind::Host => Fault::Failed(error.into()),
+                            _ => Fault::Client(error.into()),
+                        }),
+                        Err(_) => Err(Fault::DeadlineExceeded),
+                    },
+                };
+                converted.map(|converted| match converted {
+                    convert::Converted::Success(response)
+                    | convert::Converted::Rejected(response) => Answer::Complete(response),
+                    convert::Converted::Stream(response) => Answer::Driven(response),
+                })
             }
         };
         let finished_at = now_ms();

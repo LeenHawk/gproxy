@@ -212,3 +212,57 @@ async fn end(mut state: State, how: UsageStreamEnd) -> State {
     }
     state
 }
+
+/// Wrap a converted client stream so the request settles exactly once when it
+/// ends (Completed), errors (Failed) or is dropped (Cancelled). The upstream
+/// exchanges behind it are observed by AttemptUpstream already.
+pub(crate) fn settling(funnel: Arc<super::Funnel>, inner: ByteStream) -> ByteStream {
+    struct Guard {
+        funnel: Arc<super::Funnel>,
+        done: bool,
+    }
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            if !self.done {
+                self.funnel
+                    .clone()
+                    .finish_detached(crate::UsageState::Cancelled);
+            }
+        }
+    }
+    struct State {
+        inner: Option<ByteStream>,
+        guard: Guard,
+    }
+    Box::pin(futures_util::stream::unfold(
+        State {
+            inner: Some(inner),
+            guard: Guard {
+                funnel,
+                done: false,
+            },
+        },
+        |mut state| async move {
+            let inner = state.inner.as_mut()?;
+            match inner.next().await {
+                Some(Ok(chunk)) => Some((Ok(chunk), state)),
+                Some(Err(error)) => {
+                    state.inner = None;
+                    state.guard.done = true;
+                    state.guard.funnel.finish(crate::UsageState::Failed).await;
+                    Some((Err(error), state))
+                }
+                None => {
+                    state.inner = None;
+                    state.guard.done = true;
+                    state
+                        .guard
+                        .funnel
+                        .finish(crate::UsageState::Completed)
+                        .await;
+                    None
+                }
+            }
+        },
+    ))
+}
