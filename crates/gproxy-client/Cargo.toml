@@ -13,11 +13,14 @@ reqwest = ["dep:reqwest", "dep:reqwest-websocket"]
 wreq = ["dep:wreq", "dep:wreq-util"]
 
 [dependencies]
+gproxy-protocol = { workspace = true }
+http = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 url = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+futures-util = { workspace = true, features = ["sink"] }
 moka = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }
 reqwest = { workspace = true, optional = true, features = ["gzip", "brotli", "deflate", "zstd", "multipart"] }

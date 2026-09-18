@@ -3,7 +3,9 @@
 [English](README.md) | 简体中文
 
 GPROXY v4 原生出站 Client 复用库。默认启用 `reqwest` feature；`wreq` feature
-提供 TLS／HTTP 指纹模拟，可同时启用两者。该 crate 不依赖 store、protocol，
+提供 TLS／HTTP 指纹模拟，可同时启用两者。该 crate 依赖 protocol 只为定义传输契约
+`OutboundClient`（`Client` 已实现：send 返回流式响应，connect 返回双向连接或被拒的握手响应；
+wreq 后端被拒时不保留 body），不依赖 store，
 不负责选路、凭证选择或数据库读取。
 
 ```rust,no_run

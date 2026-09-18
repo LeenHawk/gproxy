@@ -42,6 +42,10 @@ pub enum CoreError {
     #[error("rewrite failed: {0}")]
     Rewrite(String),
     #[error(transparent)]
+    Secret(#[from] crate::SecretError),
+    #[error(transparent)]
+    Limits(#[from] crate::LimitsError),
+    #[error(transparent)]
     Channel(#[from] ChannelError),
     #[error(transparent)]
     Cache(#[from] gproxy_cache::CacheError),

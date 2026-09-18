@@ -5,7 +5,7 @@ use gproxy_protocol::{
 };
 
 use super::{BaseChannel, ChannelError, CredentialView, OperationContext, ProviderView};
-use crate::client::OutboundClient;
+use gproxy_client::OutboundClient;
 
 /// One explicit channel + provider + credential + client binding.
 /// An operation can perform multiple exchanges, all through its assigned client.

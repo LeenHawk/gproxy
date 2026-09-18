@@ -6,46 +6,48 @@
 #![forbid(unsafe_code)]
 
 pub mod api;
+pub mod builder;
 pub mod capability;
 pub mod context;
 pub mod data;
+pub mod limits;
 pub mod observe;
 pub mod runtime;
+pub mod secret;
 
 pub use api::*;
+pub use builder::*;
 pub use capability::*;
 pub use context::*;
 pub use data::*;
+pub use limits::*;
 pub use observe::*;
 pub use runtime::*;
+pub use secret::*;
 
 use arc_swap::ArcSwap;
 use gproxy_cache::Cache;
+use gproxy_channel::ChannelRegistry;
 use gproxy_store::Store;
 use std::sync::Arc;
 
-/// Assembled engine dependencies. Construction performs no I/O. SDK/app supplies
-/// the Store, shared Cache, Observer and prepared snapshot; there is no implicit
-/// backend and no default observer that silently drops settlement.
+/// Assembled engine dependencies, built through `CoreBuilder`. Construction
+/// performs no I/O. The host supplies Store, shared Cache, Observer, secret
+/// codec and channel registry; core owns the outbound client pool. There is no
+/// implicit backend and no default observer that silently drops settlement.
 pub struct Core<C> {
     store: Arc<Store<C>>,
     cache: Arc<dyn Cache>,
     observer: Arc<dyn Observer>,
+    codec: Arc<dyn SecretCodec>,
+    channels: Arc<ChannelRegistry>,
+    #[cfg(not(target_arch = "wasm32"))]
+    clients: gproxy_client::ClientPool,
     data: ArcSwap<CoreData>,
 }
 impl<C> Core<C> {
-    pub fn new(
-        store: Arc<Store<C>>,
-        cache: Arc<dyn Cache>,
-        observer: Arc<dyn Observer>,
-        data: Arc<CoreData>,
-    ) -> Self {
-        Self {
-            store,
-            cache,
-            observer,
-            data: ArcSwap::from(data),
-        }
+    pub fn builder(store: Arc<Store<C>>) -> CoreBuilder<C> {
+        CoreBuilder::new(store)
     }
     /// Pin one immutable configuration snapshot for the logical request.
     pub fn snapshot(&self) -> Arc<CoreData> {
@@ -56,6 +58,16 @@ impl<C> Core<C> {
     }
     pub fn observer(&self) -> &Arc<dyn Observer> {
         &self.observer
+    }
+    pub fn secret_codec(&self) -> &Arc<dyn SecretCodec> {
+        &self.codec
+    }
+    pub fn channels(&self) -> &Arc<ChannelRegistry> {
+        &self.channels
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn clients(&self) -> &gproxy_client::ClientPool {
+        &self.clients
     }
     /// Publish an already-validated snapshot with a durable configuration
     /// revision. Delayed reloads cannot overwrite a newer revision. This does
@@ -73,19 +85,24 @@ impl<C> Core<C> {
     /// Recover ownership when dismantling an engine without exposing a live
     /// writable Store accessor that bypasses future management coordination.
     pub fn into_parts(self) -> CoreParts<C> {
-        (
-            self.store,
-            self.cache,
-            self.observer,
-            self.data.into_inner(),
-        )
+        CoreParts {
+            store: self.store,
+            cache: self.cache,
+            observer: self.observer,
+            codec: self.codec,
+            channels: self.channels,
+            data: self.data.into_inner(),
+        }
     }
 }
 
-/// Ownership recovered by `Core::into_parts`, in constructor order.
-pub type CoreParts<C> = (
-    Arc<Store<C>>,
-    Arc<dyn Cache>,
-    Arc<dyn Observer>,
-    Arc<CoreData>,
-);
+/// Ownership recovered by `Core::into_parts`. The client pool is dropped with
+/// the engine; live sockets already handed out are unaffected.
+pub struct CoreParts<C> {
+    pub store: Arc<Store<C>>,
+    pub cache: Arc<dyn Cache>,
+    pub observer: Arc<dyn Observer>,
+    pub codec: Arc<dyn SecretCodec>,
+    pub channels: Arc<ChannelRegistry>,
+    pub data: Arc<CoreData>,
+}

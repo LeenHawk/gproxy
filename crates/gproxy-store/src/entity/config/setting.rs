@@ -46,6 +46,30 @@ pub struct Model {
     /// Persist request usage records independently of settlement.
     #[sea_orm(default_value = true)]
     pub enable_usage: bool,
+    /// Incremented in the same transaction as any execution-configuration
+    /// write. Core publishes snapshots monotonically by this value.
+    #[sea_orm(default_value = 0)]
+    pub config_revision: i64,
+
+    // Execution limits. Core derives its capability and codec limits from
+    // these; there is no unlimited mode. Connect timeout lives on the profile.
+    /// Whole-operation wall clock including body transfer.
+    #[sea_orm(default_value = 600000)]
+    pub request_timeout_ms: u32,
+    /// Maximum silence between stream progress events.
+    #[sea_orm(default_value = 60000)]
+    pub stream_idle_timeout_ms: u32,
+    #[sea_orm(default_value = 67108864)]
+    pub max_request_body_bytes: i64,
+    #[sea_orm(default_value = 67108864)]
+    pub max_response_body_bytes: i64,
+    /// One decoded SSE event, JSON array element, NDJSON record or JSON value.
+    #[sea_orm(default_value = 1048576)]
+    pub max_stream_event_bytes: i64,
+    #[sea_orm(default_value = 16777216)]
+    pub max_ws_frame_bytes: i64,
+    #[sea_orm(default_value = 64)]
+    pub max_multipart_parts: u32,
 
     // Token counting
     #[sea_orm(default_value = true)]

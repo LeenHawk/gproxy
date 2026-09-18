@@ -3,7 +3,7 @@ use std::{collections::VecDeque, sync::Mutex};
 use futures_util::{StreamExt, stream};
 use gproxy_channel::channel::*;
 use gproxy_channel::{BaseChannel, ChannelError, OutboundClient};
-use gproxy_protocol::capability::CapabilityFuture;
+use gproxy_protocol::capability::{CapabilityError, CapabilityFuture};
 use gproxy_protocol::connection::{Bytes, StreamFraming, WsFrame};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
 use http::{HeaderMap, Method, StatusCode};
@@ -31,7 +31,7 @@ impl OutboundClient for ScriptClient {
     fn send<'a>(
         &'a self,
         request: http::Request<HttpBody>,
-    ) -> CapabilityFuture<'a, Result<WireResponse, ChannelError>> {
+    ) -> CapabilityFuture<'a, Result<WireResponse, CapabilityError>> {
         Box::pin(async move {
             self.requests.lock().unwrap().push(request);
             Ok(self
@@ -93,6 +93,7 @@ async fn login_call(
                 .unwrap(),
         )
         .await
+        .map_err(ChannelError::from)
 }
 async fn account_call(
     ctx: CredentialContext<'_>,
@@ -115,6 +116,7 @@ async fn account_call(
                 .unwrap(),
         )
         .await
+        .map_err(ChannelError::from)
 }
 
 struct Bare;
@@ -705,6 +707,7 @@ impl ChannelServices for Demo {
                         .unwrap(),
                 )
                 .await
+                .map_err(ChannelError::from)
         })
     }
 }

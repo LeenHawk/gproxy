@@ -7,6 +7,7 @@ mod oauth;
 mod operations;
 mod quota;
 mod refresh;
+mod registry;
 mod service;
 mod usage;
 
@@ -22,6 +23,7 @@ pub use quota::{
     QuotaResetOutcome, QuotaResetResult, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking,
     QuotaValue, QuotaWindow,
 };
+pub use registry::{ChannelRegistry, RegistryError};
 pub use service::{ChannelServices, ServiceContext, ServiceRoute, ServiceTransport};
 pub use usage::{
     NormalizedUsage, ResponseView, TokenUsage, UsageAttempt, UsageCompleteness, UsageContext,
@@ -31,8 +33,9 @@ pub use usage::{
 
 pub use refresh::{CredentialRefresh, CredentialUpdate, RefreshContext};
 
+use gproxy_client::OutboundClient;
 use gproxy_protocol::{
-    HttpBody, Operation, OperationKey, WireRequest, WireResponse,
+    Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
     capability::{CapabilityError, UpstreamConnection},
 };
 use serde_json::Value;
@@ -52,12 +55,16 @@ pub enum ChannelError {
     UnsupportedOperation(OperationKey),
     #[error("wrong transport for operation: {0:?}")]
     WrongTransport(OperationKey),
-    #[error("the assigned client does not support WebSocket connections")]
-    WebSocketUnavailable,
     #[error("invalid channel configuration: {0}")]
     InvalidConfig(String),
     #[error("invalid credential")]
     InvalidCredential,
+    /// The upstream definitively refused to refresh this credential
+    /// (invalid_grant, revoked or expired refresh token). Retrying later does
+    /// not help; the host marks the credential dead until a person logs in again.
+    /// Transient transport or 5xx failures must not use this variant.
+    #[error("credential refresh rejected: {0}")]
+    RefreshRejected(String),
     #[error(transparent)]
     Transport(#[from] CapabilityError),
 }
@@ -91,7 +98,7 @@ pub struct CredentialView<'a> {
 pub struct CredentialContext<'a> {
     pub provider: ProviderView<'a>,
     pub credential: CredentialView<'a>,
-    pub client: &'a dyn crate::OutboundClient,
+    pub client: &'a dyn OutboundClient,
 }
 
 pub struct PrepareContext<'a, B = HttpBody> {
@@ -110,6 +117,15 @@ pub struct PrepareContext<'a, B = HttpBody> {
 /// Optional abilities outside protocol operations retain default-None accessors.
 pub trait BaseChannel: Send + Sync {
     fn id(&self) -> &'static str;
+
+    /// The wire dialects this channel's upstream accepts natively for an
+    /// operation, in preference order. The host uses it to choose between
+    /// passthrough and conversion; a per-provider OperationRule may override it.
+    /// Empty means the channel declares nothing and configuration must decide.
+    fn native_dialects(&self, operation: Operation) -> &'static [Dialect] {
+        let _ = operation;
+        &[]
+    }
 
     /// Common HTTP preparation used by the default operation implementations.
     /// Remove source authentication, inject the assigned credential, and filter

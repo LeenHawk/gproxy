@@ -127,7 +127,8 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
 代码中目前采用的待审设计：
 
 - 业务 ID 使用调用方生成的字符串；时间戳使用 Unix 毫秒。全局设置使用 `id = 1` 的记录，
-  明确列出网络、执行、词表、日志、存储选择、维护和用户门户字段。
+  明确列出网络、执行、执行限额（core 派生有限 limits 的超时与字节上限）、`config_revision`、
+  词表、日志、存储选择、维护和用户门户字段。
 - Provider 为全局配置。Credential 引用 Provider，同时归属组织、团队、用户三者之一；
   凭证归属与供应商配置分别建模。`status`（`active`／`dead`）加 `status_reason` 是持久
   生命周期，与运营的 `enabled` 开关分开：`set_status_many` 在版本 CAS 下记录确定性的刷新

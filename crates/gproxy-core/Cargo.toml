@@ -8,9 +8,12 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+aes-gcm = { workspace = true }
 arc-swap = { workspace = true }
+getrandom = { workspace = true }
 gproxy-cache = { workspace = true }
 gproxy-channel = { workspace = true }
+gproxy-client = { workspace = true }
 gproxy-protocol = { workspace = true }
 gproxy-store = { workspace = true }
 http = { workspace = true }
@@ -20,6 +23,8 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio-util = { workspace = true }
 web-time = { workspace = true }
+zeroize = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 gproxy-cache = { workspace = true, features = ["memory"] }
+gproxy-client = { workspace = true, features = ["reqwest"] }
