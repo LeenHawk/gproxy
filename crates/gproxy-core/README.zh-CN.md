@@ -13,7 +13,7 @@ Provider 执行层的数据结构。上层先完成路由／模型别名解析�
 | `observe` | 宿主实现的结算／capture／trace 漏斗，先问策略再干活 |
 | `capability` | protocol 的 Upstream／StateStore／ResourceAccess 在 core 侧的实现，绑定 attempt 或 scope |
 | `assemble` | ControlData 行装配成 CoreData：profile 解析成 client、渠道查找、解密、规则编译、额度维度、在效 block |
-| `rewrite` | 规则编译（正则、点路径、筛选），执行改写设计里的 target／phase／name 校验 |
+| `rewrite` | 规则编译、按 phase／操作／模型／头选择、Body／Header／Query 应用，以及保留原字节的逐单元流改写（SSE、JSON 数组、NDJSON） |
 | `keys` | core 所有读写方共用的唯一一套 cache key 语法 |
 
 `CoreData` 只保存 providers、credentials、可复用 rewrite_rule_sets。路由、对外模型别名、

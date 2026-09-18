@@ -15,7 +15,7 @@ request execution and credential selection are not wired yet.
 | `observe` | Host-implemented settlement/capture/trace funnel with a pre-work policy query |
 | `capability` | Core implementations of protocol's Upstream, StateStore and ResourceAccess, bound to an attempt or scope |
 | `assemble` | ControlData rows into a CoreData snapshot: profiles to clients, channel lookup, secret opening, rule compilation, quota dimensions, live blocks |
-| `rewrite` | Rule compilation (regex, dot paths, filters) with the target/phase/name rules from the rewrite design |
+| `rewrite` | Rule compilation, selection by phase/operation/model/headers, Body/Header/Query application and a raw-preserving per-unit stream rewriter (SSE, JSON array, NDJSON) |
 | `keys` | The one cache key grammar every core reader and writer shares |
 
 `CoreData` contains providers, credentials and reusable rewrite sets. It does not

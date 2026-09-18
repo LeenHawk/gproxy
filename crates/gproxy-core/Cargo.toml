@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 aes-gcm = { workspace = true }
 arc-swap = { workspace = true }
+form_urlencoded = { workspace = true }
 getrandom = { workspace = true }
 gproxy-cache = { workspace = true }
 gproxy-channel = { workspace = true }
@@ -18,6 +19,7 @@ gproxy-protocol = { workspace = true }
 gproxy-seaorm = { workspace = true }
 gproxy-store = { workspace = true }
 http = { workspace = true }
+percent-encoding = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

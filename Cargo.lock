@@ -1610,6 +1610,7 @@ version = "4.0.0-dev"
 dependencies = [
  "aes-gcm",
  "arc-swap",
+ "form_urlencoded",
  "getrandom 0.4.3",
  "gproxy-cache",
  "gproxy-channel",
@@ -1618,6 +1619,7 @@ dependencies = [
  "gproxy-seaorm",
  "gproxy-store",
  "http",
+ "percent-encoding",
  "regex",
  "sea-orm",
  "serde",
