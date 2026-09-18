@@ -2,59 +2,10 @@
 //! speaks another dialect, driven through `Core::send`.
 
 mod support;
-use gproxy_core::{PlaintextCodec, SecretCodec};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes};
-use gproxy_store::entity::{
-    config::setting,
-    upstream::{credential, provider},
-};
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
-use sea_orm::Set;
 use serde_json::{Value, json};
 use support::*;
-
-/// A provider that only speaks `dialect`, with one API-key credential.
-async fn seed_provider(h: &Harness, id: &str, base_url: &str, dialect: &str) {
-    let store = h.core.store();
-    store
-        .providers()
-        .create_many(vec![provider::ActiveModel {
-            id: Set(id.into()),
-            name: Set(id.into()),
-            channel: Set("test".into()),
-            base_url: Set(Some(base_url.into())),
-            config: Set(json!({"dialects": [dialect]})),
-            created_at_ms: Set(0),
-            ..Default::default()
-        }])
-        .await
-        .unwrap();
-    let cred_id = format!("{id}-key");
-    store
-        .credentials()
-        .create_many(vec![credential::ActiveModel {
-            id: Set(cred_id.clone()),
-            provider_id: Set(id.into()),
-            user_id: Set(Some("u".into())),
-            auth_kind: Set("api_key".into()),
-            secret: Set(PlaintextCodec
-                .seal(&cred_id, &json!({"api_key": format!("k-{id}")}))
-                .unwrap()),
-            metadata: Set(json!({})),
-            ..Default::default()
-        }])
-        .await
-        .unwrap();
-    store
-        .settings()
-        .update(setting::ActiveModel {
-            config_revision: Set(2),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-    h.core.reload_data().await.unwrap();
-}
 
 fn key(operation: Operation, dialect: Dialect) -> OperationKey {
     OperationKey { operation, dialect }

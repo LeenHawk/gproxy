@@ -494,6 +494,51 @@ pub async fn harness_with_storage(
     }
 }
 
+/// Add a provider that only speaks `dialect`, with one API-key credential
+/// `{id}-key` whose key is `k-{id}`, and publish the new snapshot.
+pub async fn seed_provider(h: &Harness, id: &str, base_url: &str, dialect: &str) {
+    let store = h.core.store();
+    store
+        .providers()
+        .create_many(vec![provider::ActiveModel {
+            id: Set(id.into()),
+            name: Set(id.into()),
+            channel: Set("test".into()),
+            base_url: Set(Some(base_url.into())),
+            config: Set(json!({"dialects": [dialect]})),
+            created_at_ms: Set(0),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    let cred_id = format!("{id}-key");
+    store
+        .credentials()
+        .create_many(vec![credential::ActiveModel {
+            id: Set(cred_id.clone()),
+            provider_id: Set(id.into()),
+            user_id: Set(Some("u".into())),
+            auth_kind: Set("api_key".into()),
+            secret: Set(PlaintextCodec
+                .seal(&cred_id, &json!({"api_key": format!("k-{id}")}))
+                .unwrap()),
+            metadata: Set(json!({})),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    let revision = h.core.snapshot().revision.0 + 1;
+    store
+        .settings()
+        .update(setting::ActiveModel {
+            config_revision: Set(i64::try_from(revision).unwrap()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    h.core.reload_data().await.unwrap();
+}
+
 impl Harness {
     pub fn script(&self, replies: Vec<Reply>) {
         *self.client.replies.lock().unwrap() = replies.into();
