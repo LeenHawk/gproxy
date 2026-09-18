@@ -17,7 +17,7 @@ fn require_operation(context: &RequestContext, expected: Operation) -> CoreResul
 // A newly added protocol operation forces review of its core transport binding.
 macro_rules! http_operations {
     ($($method:ident => $operation:ident),+ $(,)?) => {
-        impl<C: BatchConnectionTrait> Core<C> {
+        impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             /// Generic HTTP entry point, preserving native streaming/multipart
             /// bodies. Targets and permitted credentials are supplied by the
             /// upper layer; no route or policy selection is performed here.
@@ -72,7 +72,7 @@ http_operations! {
 
 macro_rules! websocket_operations {
     ($($method:ident => $operation:ident),+ $(,)?) => {
-        impl<C: BatchConnectionTrait> Core<C> {
+        impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             /// Generic WS entry point. Rejected upgrades retain their complete
             /// HTTP response; connected sockets remain native duplex streams.
             pub async fn connect(&self, context: Arc<RequestContext>, request: WireRequest<()>) -> CoreResult<WebSocketExecution> {
@@ -97,10 +97,9 @@ websocket_operations! {
     connect_realtime => ConnectRealtime,
 }
 
-impl<C: BatchConnectionTrait> Core<C> {
-    /// Same-dialect passthrough with credential selection, request/response
-    /// rewriting, observation and settlement. Conversion arrives with the
-    /// convert phase; wasm has no outbound transport yet.
+impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
+    /// Passthrough or conversion with credential selection, request/response
+    /// rewriting, observation and settlement; wasm has no outbound transport yet.
     #[cfg(not(target_arch = "wasm32"))]
     async fn execute_http(
         &self,

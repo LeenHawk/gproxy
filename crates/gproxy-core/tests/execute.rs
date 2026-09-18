@@ -4,7 +4,7 @@ use futures_util::SinkExt;
 use futures_util::StreamExt;
 use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
-    channel::{NormalizedUsage, PrepareContext, UsageContext, UsageExtractor},
+    channel::{NormalizedUsage, PrepareContext, ProviderView, UsageContext, UsageExtractor},
 };
 use gproxy_core::{
     BlockSource, CaptureEnd, CaptureEvent, CapturePolicy, CaptureSink, Core, CoreError,
@@ -125,6 +125,24 @@ struct TestChannel;
 impl BaseChannel for TestChannel {
     fn id(&self) -> &'static str {
         "test"
+    }
+    fn native_dialects(&self, provider: ProviderView<'_>, _: Operation) -> Vec<Dialect> {
+        let configured: Vec<Dialect> = provider
+            .config
+            .get("dialects")
+            .cloned()
+            .map(|v| serde_json::from_value(v).unwrap())
+            .unwrap_or_default();
+        if configured.is_empty() {
+            vec![
+                Dialect::OpenAi,
+                Dialect::OpenAiChat,
+                Dialect::Claude,
+                Dialect::Gemini,
+            ]
+        } else {
+            configured
+        }
     }
     fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
         let url = match ctx.endpoint_override {
@@ -344,20 +362,31 @@ async fn harness(policy: ObservationPolicy, strategy: &str) -> Harness {
         .unwrap();
     store
         .providers()
-        .create_many(vec![provider::ActiveModel {
-            id: Set("p".into()),
-            name: Set("p".into()),
-            channel: Set("test".into()),
-            base_url: Set(Some("https://up.example".into())),
-            config: Set(json!({"credential_strategy": strategy})),
-            created_at_ms: Set(0),
-            ..Default::default()
-        }])
+        .create_many(vec![
+            provider::ActiveModel {
+                id: Set("p".into()),
+                name: Set("p".into()),
+                channel: Set("test".into()),
+                base_url: Set(Some("https://up.example".into())),
+                config: Set(json!({"credential_strategy": strategy})),
+                created_at_ms: Set(0),
+                ..Default::default()
+            },
+            provider::ActiveModel {
+                id: Set("claude".into()),
+                name: Set("claude".into()),
+                channel: Set("test".into()),
+                base_url: Set(Some("https://claude.example".into())),
+                config: Set(json!({"dialects": ["claude"]})),
+                created_at_ms: Set(0),
+                ..Default::default()
+            },
+        ])
         .await
         .unwrap();
     let cred = |id: &str, key: &str| credential::ActiveModel {
         id: Set(id.into()),
-        provider_id: Set("p".into()),
+        provider_id: Set(if id.starts_with("cl") { "claude" } else { "p" }.into()),
         user_id: Set(Some("u".into())),
         auth_kind: Set("api_key".into()),
         secret: Set(PlaintextCodec.seal(id, &json!({"api_key": key})).unwrap()),
@@ -366,7 +395,12 @@ async fn harness(policy: ObservationPolicy, strategy: &str) -> Harness {
     };
     store
         .credentials()
-        .create_many(vec![cred("a", "ka"), cred("b", "kb")])
+        .create_many(vec![
+            cred("a", "ka"),
+            cred("b", "kb"),
+            cred("cl1", "k1"),
+            cred("cl2", "k2"),
+        ])
         .await
         .unwrap();
     store
@@ -456,8 +490,18 @@ impl Harness {
     }
     /// Swap the pooled clients for the scripted one, keeping everything else.
     fn context(&self, id: &str, attempts: u32, session: Option<&str>) -> Arc<RequestContext> {
+        self.context_for("p", KEY, id, attempts, session)
+    }
+    fn context_for(
+        &self,
+        provider_id: &str,
+        operation: OperationKey,
+        id: &str,
+        attempts: u32,
+        session: Option<&str>,
+    ) -> Arc<RequestContext> {
         let snapshot = self.core.snapshot();
-        let provider = snapshot.providers["p"].clone();
+        let provider = snapshot.providers[provider_id].clone();
         let credentials = provider
             .credential_ids
             .iter()
@@ -486,7 +530,7 @@ impl Harness {
                 source: SessionSource::Gateway,
                 field: None,
             }),
-            operation: KEY,
+            operation,
             target: ExecutionTarget {
                 provider,
                 upstream_model: Some("gpt-x".into()),
@@ -1004,5 +1048,101 @@ async fn dropping_a_body_early_settles_as_cancelled() {
             .lines()
             .iter()
             .any(|l| l == "r1-1 finish Interrupted")
+    );
+}
+
+#[tokio::test]
+async fn chat_client_is_converted_to_a_claude_upstream_with_failover_inside_the_conversion() {
+    let h = harness(full(), "round_robin").await;
+    let claude_message = json!({
+        "id": "msg_native", "type": "message", "role": "assistant", "model": "gpt-x",
+        "content": [{"type": "text", "text": "answer"}], "stop_reason": "end_turn",
+        "usage": {"input_tokens": 4, "output_tokens": 2}
+    });
+    h.script(vec![
+        (
+            StatusCode::TOO_MANY_REQUESTS,
+            vec![("retry-after", "5")],
+            vec![Bytes::from_static(b"{\"error\":\"busy\"}")],
+        ),
+        json_reply(StatusCode::OK, claude_message),
+    ]);
+    let ctx = h.context_for(
+        "claude",
+        OperationKey {
+            operation: Operation::GenerateContent,
+            dialect: Dialect::OpenAiChat,
+        },
+        "r1",
+        3,
+        Some("session-1"),
+    );
+    let mut headers = HeaderMap::new();
+    headers.insert("x-client-tag", HeaderValue::from_static("old"));
+    let wire = WireRequest {
+        method: Method::POST,
+        path: "/v1/chat/completions".into(),
+        query: None,
+        headers,
+        body: HttpBody::Bytes(Bytes::from_static(
+            b"{\"model\":\"alias\",\"max_completion_tokens\":64,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+        )),
+    };
+    let execution = h.core.generate_content(ctx, wire).await.unwrap();
+    let (response, completion) = execution.into_parts();
+    assert_eq!(response.status, StatusCode::OK);
+    let body: serde_json::Value = serde_json::from_str(&read(response.body).await).unwrap();
+    assert_eq!(body["object"], "chat.completion");
+    assert_eq!(body["choices"][0]["message"]["content"], "answer");
+    assert_eq!(body["usage"]["prompt_tokens"], 4);
+    let report = completion.await.unwrap();
+    assert_eq!(report.state, UsageState::Completed);
+    assert_eq!(
+        report.exchanges.len(),
+        1,
+        "the successful native exchange reports usage"
+    );
+    assert_eq!(report.exchanges[0].credential_id, "cl2");
+    assert_eq!(report.exchanges[0].usage.tokens.input_tokens, Some(4));
+
+    let seen = h.client.seen.lines();
+    assert_eq!(seen.len(), 2);
+    assert!(
+        seen[0].starts_with("POST https://claude.example/v1/messages auth=Bearer k1"),
+        "{}",
+        seen[0]
+    );
+    assert!(
+        seen[1].starts_with("POST https://claude.example/v1/messages auth=Bearer k2"),
+        "{}",
+        seen[1]
+    );
+    assert!(
+        seen[1].contains("\"messages\":[{\"role\":\"user\"")
+            && seen[1].contains("\"max_tokens\":64"),
+        "native Claude body: {}",
+        seen[1]
+    );
+    let rows = h
+        .core
+        .store()
+        .load_control_data()
+        .await
+        .unwrap()
+        .credential_blocks;
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].credential_id, "cl1");
+    let states = h.core.store().load_control_data().await.unwrap();
+    let _ = states;
+    let log = h.observer.log.lines();
+    assert!(
+        log.iter()
+            .any(|l| l.starts_with("trace r1-1 cl1 Rejected { status: 429")),
+        "{log:?}"
+    );
+    assert!(
+        log.iter()
+            .any(|l| l.starts_with("trace r1-2 cl2 Succeeded")),
+        "{log:?}"
     );
 }

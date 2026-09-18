@@ -5,7 +5,7 @@
 mod attempt;
 mod exchange;
 mod funnel;
-mod prepare;
+pub(crate) mod prepare;
 mod stream;
 mod websocket;
 

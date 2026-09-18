@@ -1,27 +1,76 @@
-//! The attempt loop for HTTP operations: select, prepare, dispatch, classify,
-//! and either return the response through the funnel or move to the next
-//! eligible credential inside the permitted set.
+//! The attempt loop for HTTP operations: select, prepare, dispatch (passthrough
+//! or conversion), classify, and either return the answer through the funnel
+//! or move to the next eligible credential inside the permitted set.
 
 use super::{Exchange, Funnel, ObservedClient, prepare};
 use crate::{
-    AttemptContext, AttemptOutcome, BlockSource, Core, CoreError, CoreResult, CredentialBlock,
-    Execution, HttpExecution, RequestContext, TraceEvent, UsageState,
+    AttemptContext, AttemptOutcome, AttemptUpstream, BlockSource, Core, CoreError, CoreResult,
+    CredentialBlock, Execution, HttpExecution, ProtocolState, RequestContext, StateScope,
+    TraceEvent, UsageState,
     api::lifecycle::now_ms,
     availability::{DEFAULT_RATE_LIMIT_MS, retry_after_ms},
+    convert::{self, Route},
     rewrite::{Phase, RewriteContext, apply_body, apply_headers, apply_query, select_rules},
 };
-use gproxy_channel::ChannelBinding;
-use gproxy_protocol::{HttpBody, WireRequest, WireResponse, connection::Bytes};
+use gproxy_channel::{ChannelBinding, channel::UsageStreamEnd};
+use gproxy_protocol::{
+    Dialect, HttpBody, Operation, WireRequest, WireResponse,
+    adapt::generate::GenerationStateAccess,
+    connection::Bytes,
+    transform::{TransformError, TransformErrorKind, identity::IdentityTarget},
+};
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::entity::upstream::operation_endpoint::EndpointTransport;
 use http::StatusCode;
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{
+    collections::HashSet,
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 use web_time::Instant;
+
+/// How long continuation state written for a conversion stays valid.
+const STATE_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+const STATE_MAX_RECORDS: usize = 64;
 
 fn remaining(request: &RequestContext) -> Option<Duration> {
     request
         .deadline
         .map(|deadline| deadline.saturating_duration_since(Instant::now()))
+}
+
+/// What one attempt produced for the caller.
+enum Answer {
+    /// The upstream body streams through an observed exchange; ending it settles.
+    Streamed(WireResponse<HttpBody>, Arc<Exchange>),
+    /// Every exchange already finished; settle before returning.
+    Complete(WireResponse<HttpBody>),
+}
+
+impl Answer {
+    fn status(&self) -> StatusCode {
+        match self {
+            Self::Streamed(r, _) | Self::Complete(r) => r.status,
+        }
+    }
+    fn headers(&self) -> &http::HeaderMap {
+        match self {
+            Self::Streamed(r, _) | Self::Complete(r) => &r.headers,
+        }
+    }
+    async fn deliver(self, funnel: &Funnel, completion: crate::UsageCompletion) -> HttpExecution {
+        match self {
+            Self::Streamed(response, exchange) => {
+                exchange.make_terminal();
+                let settled = funnel.arm();
+                Execution::new(response, completion, settled)
+            }
+            Self::Complete(response) => {
+                let settled = funnel.finish(UsageState::Completed).await;
+                Execution::new(response, completion, settled)
+            }
+        }
+    }
 }
 
 enum Classified {
@@ -41,7 +90,17 @@ fn classify(status: StatusCode, refreshable: bool, refreshed: bool) -> Classifie
     }
 }
 
-pub(crate) async fn run_http<C: BatchConnectionTrait>(
+/// What went wrong before any upstream answer arrived.
+enum Fault {
+    Cancelled,
+    DeadlineExceeded,
+    /// Transport or channel failure: counts against the credential's streak.
+    Failed(CoreError),
+    /// Conversion refused the request itself; no credential is at fault.
+    Client(CoreError),
+}
+
+pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync>(
     core: &Core<C>,
     request: Arc<RequestContext>,
     wire: WireRequest<HttpBody>,
@@ -53,6 +112,29 @@ pub(crate) async fn run_http<C: BatchConnectionTrait>(
     let operation = request.operation;
     let upstream_model = request.target.upstream_model.clone();
 
+    let route = match convert::route(&provider, operation) {
+        Ok(route) => route,
+        Err(error) => {
+            funnel.finish(UsageState::Failed).await;
+            return Err(error.into());
+        }
+    };
+    if let Route::Convert { upstream } = route {
+        let supported = operation.operation == Operation::GenerateContent
+            && !matches!(operation.dialect, Dialect::OpenAiResponsesWebSocket)
+            && upstream_model.is_some();
+        if !supported {
+            funnel.finish(UsageState::Failed).await;
+            return Err(CoreError::Transform(TransformError::unsupported(
+                "route",
+                format!(
+                    "{:?} from {:?} to {:?} is not convertible here",
+                    operation.operation, operation.dialect, upstream
+                ),
+            )));
+        }
+    }
+
     let inbound_headers = wire.headers.clone();
     let rewrite_context = RewriteContext {
         operation,
@@ -60,26 +142,39 @@ pub(crate) async fn run_http<C: BatchConnectionTrait>(
         requested_model: None,
         request_headers: &inbound_headers,
     };
+    // Passthrough rules apply to the client's request once; conversion applies
+    // rules per native call inside AttemptUpstream.
     let request_rules = select_rules(&snapshot, &provider, Phase::Request, &rewrite_context);
     let response_rules = select_rules(&snapshot, &provider, Phase::Response, &rewrite_context);
 
-    let want_replay = request.max_attempts.get() > 1 || !request_rules.body.is_empty();
+    let converting = matches!(route, Route::Convert { .. });
+    let want_replay =
+        converting || request.max_attempts.get() > 1 || !request_rules.body.is_empty();
     let (mut wire, replayable) =
         prepare::buffer_request(wire, want_replay, limits.max_request_body_bytes).await;
-    // Request rules run once: they do not depend on the credential.
-    if !request_rules.headers.is_empty() {
-        apply_headers(&request_rules.headers, &mut wire.headers)?;
+    if converting && !replayable {
+        funnel.finish(UsageState::Failed).await;
+        return Err(CoreError::Transform(TransformError::new(
+            TransformErrorKind::Limit,
+            "client.body",
+            "request body exceeds the buffering limit required for conversion",
+        )));
     }
-    if !request_rules.query.is_empty()
-        && let Some(query) = apply_query(&request_rules.query, wire.query.as_deref())?
-    {
-        wire.query = Some(query);
-    }
-    if !request_rules.body.is_empty()
-        && let HttpBody::Bytes(bytes) = &wire.body
-        && let Some(rewritten) = apply_body(&request_rules.body, bytes)?
-    {
-        wire.body = HttpBody::Bytes(Bytes::from(rewritten));
+    if !converting {
+        if !request_rules.headers.is_empty() {
+            apply_headers(&request_rules.headers, &mut wire.headers)?;
+        }
+        if !request_rules.query.is_empty()
+            && let Some(query) = apply_query(&request_rules.query, wire.query.as_deref())?
+        {
+            wire.query = Some(query);
+        }
+        if !request_rules.body.is_empty()
+            && let HttpBody::Bytes(bytes) = &wire.body
+            && let Some(rewritten) = apply_body(&request_rules.body, bytes)?
+        {
+            wire.body = HttpBody::Bytes(Bytes::from(rewritten));
+        }
     }
     let attempts = if replayable {
         request.max_attempts.get()
@@ -93,26 +188,26 @@ pub(crate) async fn run_http<C: BatchConnectionTrait>(
     let mut ordinal = 0u32;
     // The most recent rejected upstream answer, kept alive so it can be
     // returned if no further credential is usable.
-    let mut held: Option<(WireResponse<HttpBody>, Arc<Exchange>)> = None;
+    let mut held: Option<Answer> = None;
     while ordinal < attempts {
         ordinal += 1;
         let now = now_ms();
         if request.cancellation.is_cancelled() {
+            drop(held.take());
             funnel.finish(UsageState::Cancelled).await;
             return Err(CoreError::Cancelled);
         }
         let budget = remaining(&request);
         if budget.is_some_and(|left| left.is_zero()) {
+            drop(held.take());
             funnel.finish(UsageState::Failed).await;
             return Err(CoreError::DeadlineExceeded);
         }
         let selection = match core.select_credential(&request, &excluded, now).await {
             Ok(selection) => selection,
             Err(CoreError::NoUsableCredential) if held.is_some() => {
-                let (response, exchange) = held.take().expect("held");
-                exchange.make_terminal();
-                let settled = funnel.arm();
-                return Ok(Execution::new(response, completion, settled));
+                let answer = held.take().expect("held");
+                return Ok(answer.deliver(&funnel, completion).await);
             }
             Err(error) => {
                 drop(held.take());
@@ -142,37 +237,133 @@ pub(crate) async fn run_http<C: BatchConnectionTrait>(
         } else {
             wire.take().expect("request present")
         };
-        let exchange = Exchange::new(
-            funnel.clone(),
-            attempt.clone(),
-            operation,
-            provider.channel.clone(),
-            response_rules.body.clone(),
-            limits.capability(budget),
-            now,
-        );
-        let observed = ObservedClient::new(credential.client.as_ref(), exchange.clone());
-        let endpoint = provider.operation_url(operation, EndpointTransport::Http);
-        let binding = ChannelBinding::new(
-            provider.channel.as_ref(),
-            prepare::provider_view(&provider),
-            prepare::credential_view(&credential, &version),
-            &observed,
-        )
-        .endpoint(endpoint);
+        let capability = limits.capability(budget);
         let cancellation = request.cancellation.clone();
-        let sent = tokio::select! {
-            biased;
-            () = cancellation.cancelled() => Err(None),
-            result = tokio::time::timeout(limits.capability(budget).operation_total, binding.send(operation, this_wire)) => match result {
-                Ok(result) => result.map_err(Some),
-                Err(_) => Err(None),
-            },
+        let dispatched: Result<Answer, Fault> = match route {
+            Route::Passthrough => {
+                let exchange = Exchange::new(
+                    funnel.clone(),
+                    attempt.clone(),
+                    operation,
+                    provider.channel.clone(),
+                    response_rules.body.clone(),
+                    capability,
+                    now,
+                );
+                let observed = ObservedClient::new(credential.client.as_ref(), exchange.clone());
+                let binding = ChannelBinding::new(
+                    provider.channel.as_ref(),
+                    prepare::provider_view(&provider),
+                    prepare::credential_view(&credential, &version),
+                    &observed,
+                )
+                .endpoint(provider.operation_url(operation, EndpointTransport::Http));
+                let sent = tokio::select! {
+                    biased;
+                    () = cancellation.cancelled() => Err(Fault::Cancelled),
+                    result = tokio::time::timeout(capability.operation_total, binding.send(operation, this_wire)) => match result {
+                        Ok(Ok(response)) => Ok(response),
+                        Ok(Err(error)) => Err(Fault::Failed(CoreError::Channel(error))),
+                        Err(_) => Err(Fault::DeadlineExceeded),
+                    },
+                };
+                match sent {
+                    Ok(mut response) => {
+                        if !response_rules.headers.is_empty()
+                            && let Err(error) =
+                                apply_headers(&response_rules.headers, &mut response.headers)
+                        {
+                            Err(Fault::Client(error.into()))
+                        } else {
+                            Ok(Answer::Streamed(response, exchange))
+                        }
+                    }
+                    Err(fault) => {
+                        exchange
+                            .finish(UsageStreamEnd::Interrupted, None, None, None, now_ms())
+                            .await;
+                        Err(fault)
+                    }
+                }
+            }
+            Route::Convert { upstream } => {
+                let HttpBody::Bytes(body) = &this_wire.body else {
+                    unreachable!("conversion buffered the body")
+                };
+                let model = upstream_model.clone().expect("checked above");
+                let upstream_host = AttemptUpstream::new(
+                    core,
+                    funnel.clone(),
+                    attempt.clone(),
+                    inbound_headers.clone(),
+                    capability,
+                );
+                let state_store = ProtocolState::new(core, capability);
+                let scope = StateScope {
+                    scope: request.scope.clone(),
+                    provider_id: provider.entity.id.clone(),
+                    conversation: request
+                        .session
+                        .as_ref()
+                        .filter(|s| s.is_stable())
+                        .map(|s| s.id.clone()),
+                };
+                let now_time = SystemTime::UNIX_EPOCH + Duration::from_millis(now.max(0) as u64);
+                let target = IdentityTarget::new(model.clone(), upstream)
+                    .and_then(|t| t.with_origin(provider.entity.id.clone()))
+                    .map_err(|e| TransformError::shape("identity.target", e.to_string()));
+                match target {
+                    Err(error) => Err(Fault::Client(error.into())),
+                    Ok(target) => {
+                        let state = GenerationStateAccess {
+                            store: &state_store,
+                            scope: &scope,
+                            target,
+                            conversation_key: scope
+                                .conversation
+                                .clone()
+                                .unwrap_or_else(|| request.request_id.clone()),
+                            expires_at: now_time + STATE_TTL,
+                            now: now_time,
+                            max_records: STATE_MAX_RECORDS,
+                        };
+                        let converted = tokio::select! {
+                            biased;
+                            () = cancellation.cancelled() => Err(Fault::Cancelled),
+                            result = tokio::time::timeout(
+                                capability.operation_total,
+                                convert::generate::buffered(
+                                    &upstream_host,
+                                    operation.dialect,
+                                    upstream,
+                                    body,
+                                    limits.codec(),
+                                    &state,
+                                    now,
+                                ),
+                            ) => match result {
+                                Ok(Ok(converted)) => Ok(converted),
+                                Ok(Err(error)) => Err(match error.kind() {
+                                    TransformErrorKind::Host => Fault::Failed(error.into()),
+                                    _ => Fault::Client(error.into()),
+                                }),
+                                Err(_) => Err(Fault::DeadlineExceeded),
+                            },
+                        };
+                        converted.map(|converted| match converted {
+                            convert::generate::Converted::Success(response)
+                            | convert::generate::Converted::Rejected(response) => {
+                                Answer::Complete(response)
+                            }
+                        })
+                    }
+                }
+            }
         };
         let finished_at = now_ms();
-        let mut response = match sent {
-            Ok(response) => response,
-            Err(None) => {
+        let answer = match dispatched {
+            Ok(answer) => answer,
+            Err(Fault::Cancelled) | Err(Fault::DeadlineExceeded) => {
                 let cancelled = request.cancellation.is_cancelled();
                 let outcome = if cancelled {
                     AttemptOutcome::Cancelled
@@ -184,15 +375,6 @@ pub(crate) async fn run_http<C: BatchConnectionTrait>(
                     outcome: &outcome,
                     finished_at_ms: finished_at,
                 });
-                exchange
-                    .finish(
-                        gproxy_channel::channel::UsageStreamEnd::Interrupted,
-                        None,
-                        None,
-                        None,
-                        finished_at,
-                    )
-                    .await;
                 funnel
                     .finish(if cancelled {
                         UsageState::Cancelled
@@ -206,22 +388,30 @@ pub(crate) async fn run_http<C: BatchConnectionTrait>(
                     CoreError::DeadlineExceeded
                 });
             }
-            Err(Some(error)) => {
-                let outcome = AttemptOutcome::Failed(error);
+            Err(Fault::Client(error)) => {
+                let outcome = AttemptOutcome::Failed(
+                    gproxy_channel::ChannelError::InvalidResponse(error.to_string()),
+                );
                 funnel.trace(TraceEvent::AttemptFinished {
                     attempt: &attempt,
                     outcome: &outcome,
                     finished_at_ms: finished_at,
                 });
-                exchange
-                    .finish(
-                        gproxy_channel::channel::UsageStreamEnd::Interrupted,
-                        None,
-                        None,
-                        None,
-                        finished_at,
-                    )
-                    .await;
+                funnel.finish(UsageState::Failed).await;
+                return Err(error);
+            }
+            Err(Fault::Failed(error)) => {
+                let outcome = AttemptOutcome::Failed(match &error {
+                    CoreError::Channel(channel) => {
+                        gproxy_channel::ChannelError::InvalidResponse(channel.to_string())
+                    }
+                    other => gproxy_channel::ChannelError::InvalidResponse(other.to_string()),
+                });
+                funnel.trace(TraceEvent::AttemptFinished {
+                    attempt: &attempt,
+                    outcome: &outcome,
+                    finished_at_ms: finished_at,
+                });
                 if core
                     .record_failure(
                         &credential.provider_id,
@@ -235,33 +425,25 @@ pub(crate) async fn run_http<C: BatchConnectionTrait>(
                 {
                     excluded.insert(credential.id.clone());
                 }
-                let AttemptOutcome::Failed(error) = outcome else {
-                    unreachable!()
-                };
                 if ordinal >= attempts || wire.is_none() {
                     funnel.finish(UsageState::Failed).await;
-                    return Err(CoreError::Channel(error));
+                    return Err(error);
                 }
                 continue;
             }
         };
 
+        let status = answer.status();
         let refreshable = provider.channel.credential_refresh().is_some();
-        match classify(
-            response.status,
-            refreshable,
-            refreshed.contains(&credential.id),
-        ) {
+        match classify(status, refreshable, refreshed.contains(&credential.id)) {
             Classified::Final => {
-                let outcome = AttemptOutcome::Succeeded {
-                    status: response.status,
-                };
+                let outcome = AttemptOutcome::Succeeded { status };
                 funnel.trace(TraceEvent::AttemptFinished {
                     attempt: &attempt,
                     outcome: &outcome,
                     finished_at_ms: finished_at,
                 });
-                if response.status.is_success() {
+                if status.is_success() {
                     core.record_success(
                         &credential.provider_id,
                         &credential.id,
@@ -273,16 +455,11 @@ pub(crate) async fn run_http<C: BatchConnectionTrait>(
                     core.pin_affinity(&request, &credential.id, finished_at)
                         .await?;
                 }
-                if !response_rules.headers.is_empty() {
-                    apply_headers(&response_rules.headers, &mut response.headers)?;
-                }
-                exchange.make_terminal();
-                let settled = funnel.arm();
-                return Ok(Execution::new(response, completion, settled));
+                return Ok(answer.deliver(&funnel, completion).await);
             }
             Classified::Refresh => {
                 refreshed.insert(credential.id.clone());
-                drop(response);
+                drop(answer);
                 match core
                     .refresh_credential(
                         &credential.provider_id,
@@ -292,10 +469,8 @@ pub(crate) async fn run_http<C: BatchConnectionTrait>(
                     .await
                 {
                     Ok(_) => {
-                        // Same credential, fresh material: do not count the
-                        // attempt against the budget for a different credential.
                         let outcome = AttemptOutcome::Rejected {
-                            status: StatusCode::UNAUTHORIZED,
+                            status,
                             retry_after: None,
                         };
                         funnel.trace(TraceEvent::AttemptFinished {
@@ -318,7 +493,7 @@ pub(crate) async fn run_http<C: BatchConnectionTrait>(
                             &credential,
                             upstream_model.as_deref(),
                             operation.operation,
-                            StatusCode::UNAUTHORIZED,
+                            status,
                             None,
                             finished_at,
                         )
@@ -328,8 +503,7 @@ pub(crate) async fn run_http<C: BatchConnectionTrait>(
                 }
             }
             Classified::Exclude => {
-                let status = response.status;
-                let retry_after = retry_after_ms(&response.headers);
+                let retry_after = retry_after_ms(answer.headers());
                 let block = (status == StatusCode::TOO_MANY_REQUESTS).then(|| CredentialBlock {
                     scope: gproxy_channel::channel::QuotaScope::All,
                     operation: None,
@@ -337,39 +511,6 @@ pub(crate) async fn run_http<C: BatchConnectionTrait>(
                     source: BlockSource::RateLimited,
                     observed_at_ms: finished_at,
                 });
-                if ordinal >= attempts || wire.is_none() {
-                    // Budget spent: the last upstream answer is the answer.
-                    let outcome = AttemptOutcome::Rejected {
-                        status,
-                        retry_after: retry_after.map(|ms| Duration::from_millis(ms as u64)),
-                    };
-                    funnel.trace(TraceEvent::AttemptFinished {
-                        attempt: &attempt,
-                        outcome: &outcome,
-                        finished_at_ms: finished_at,
-                    });
-                    if let Some(block) = block {
-                        core.record_block(
-                            &credential.provider_id,
-                            &credential.id,
-                            block,
-                            finished_at,
-                        )
-                        .await?;
-                    } else {
-                        core.record_failure(
-                            &credential.provider_id,
-                            &credential.id,
-                            upstream_model.as_deref(),
-                            operation.operation,
-                            finished_at,
-                        )
-                        .await?;
-                    }
-                    exchange.make_terminal();
-                    let settled = funnel.arm();
-                    return Ok(Execution::new(response, completion, settled));
-                }
                 let blocked = exclude(
                     core,
                     &funnel,
@@ -385,14 +526,16 @@ pub(crate) async fn run_http<C: BatchConnectionTrait>(
                 if blocked {
                     excluded.insert(credential.id.clone());
                 }
-                held = Some((response, exchange));
+                if ordinal >= attempts || wire.is_none() {
+                    // Budget spent: the last upstream answer is the answer.
+                    return Ok(answer.deliver(&funnel, completion).await);
+                }
+                held = Some(answer);
             }
         }
     }
-    if let Some((response, exchange)) = held.take() {
-        exchange.make_terminal();
-        let settled = funnel.arm();
-        return Ok(Execution::new(response, completion, settled));
+    if let Some(answer) = held.take() {
+        return Ok(answer.deliver(&funnel, completion).await);
     }
     funnel.finish(UsageState::Failed).await;
     Err(CoreError::NoUsableCredential)

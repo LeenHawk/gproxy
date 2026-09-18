@@ -35,7 +35,7 @@ use std::{
     task::{Context, Poll},
 };
 
-pub(crate) async fn run_websocket<C: BatchConnectionTrait>(
+pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync>(
     core: &Core<C>,
     request: Arc<RequestContext>,
     mut wire: WireRequest<()>,

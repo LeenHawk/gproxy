@@ -10,6 +10,7 @@ pub mod assemble;
 #[cfg(not(target_arch = "wasm32"))]
 mod availability;
 pub mod builder;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod capability;
 pub mod context;
 pub mod convert;
@@ -30,6 +31,7 @@ mod select;
 pub use api::*;
 pub use assemble::AssemblyError;
 pub use builder::*;
+#[cfg(not(target_arch = "wasm32"))]
 pub use capability::*;
 pub use context::*;
 pub use data::*;
