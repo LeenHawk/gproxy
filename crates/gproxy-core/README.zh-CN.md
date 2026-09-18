@@ -15,6 +15,8 @@ Provider 执行层的数据结构。上层先完成路由／模型别名解析�
 | `assemble` | ControlData 行装配成 CoreData：profile 解析成 client、渠道查找、解密、规则编译、额度维度、在效 block |
 | `rewrite` | 规则编译、按 phase／操作／模型／头选择、Body／Header／Query 应用，以及保留原字节的逐单元流改写（SSE、JSON 数组、NDJSON） |
 | `keys` | core 所有读写方共用的唯一一套 cache key 语法 |
+| `execute`（私有） | attempt 循环、观测包装的 client/body、请求缓冲、带 `Settled` 证明的结算漏斗 |
+| `convert` | 操作 spec 查询（响应 framing、WebSocket 判定）；转换路线下一阶段接入 |
 
 `CoreData` 只保存 providers、credentials、可复用 rewrite_rule_sets。路由、对外模型别名、
 身份表、权限、OAuth client 白名单、订阅、计价和准入规则属于上层，路由亲和以及跨 Provider
@@ -109,8 +111,17 @@ Provider／渠道默认值。实际 channel 调用时应用该地址仍需后续
 负责打开数据库或 sync。组装所需 channel/client 注册、secret codec 和持久 revision 接线
 仍待实现。
 
-实际 HTTP／WS 执行、凭证刷新及额度查询仍返回 `CoreError::NotImplemented`；wasm32 上
-`load_data` 也是，因为那里还没有出站传输。不伪造上游调用。`Execution<T>` 保留原始响应和后续
+同 dialect 直通的 HTTP 执行已实现：`send` 和各命名 HTTP 方法在允许集合内选凭证（启用、
+Active、未摘除、对该模型/操作未被 block；Sticky／RoundRobinAffinity 先看会话绑定，否则走
+共享轮询计数器），把流式请求体缓冲到上限以便重试重放（超限降为单次尝试），请求规则只
+应用一次，经 `ChannelBinding` 带 Provider 的方法 URL 分派，然后分类：2xx 和客户端 4xx
+直接返回；429 写 `RateLimited` block（Retry-After 或 30s）后换凭证；可刷新凭证的 401/403
+强制刷新一次；5xx 和传输错误按 scope 记连续失败并重试，三次写 `Failures` cooldown block。
+预算或候选耗尽时返回最后一次上游应答而不是报错。交给调用方的响应体是观测流：capture
+chunk、用量观测（流观察器或对累积 body 的抽取器）、逐单元响应改写、读上限、空闲超时和
+取消，结束或被丢弃都恰好结算一次。`Execution` 只能通过漏斗的 `Settled` 证明构造。
+WebSocket 执行、凭证刷新、额度查询和协议转换仍返回 `CoreError::NotImplemented`；wasm32 上
+`load_data` 与 `send` 也是，因为那里还没有出站传输。`Execution<T>` 保留原始响应和后续
 `UsageCompletion`，流生命周期尚未接入。
 
 已移除对外占位函数：`select_credential`、`compile_rewrite_rule`、`rewrite_request`、

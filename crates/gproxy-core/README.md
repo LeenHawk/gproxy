@@ -17,6 +17,8 @@ request execution and credential selection are not wired yet.
 | `assemble` | ControlData rows into a CoreData snapshot: profiles to clients, channel lookup, secret opening, rule compilation, quota dimensions, live blocks |
 | `rewrite` | Rule compilation, selection by phase/operation/model/headers, Body/Header/Query application and a raw-preserving per-unit stream rewriter (SSE, JSON array, NDJSON) |
 | `keys` | The one cache key grammar every core reader and writer shares |
+| `execute` (private) | Attempt loop, observed client/body wrappers, request buffering and the settlement funnel with its `Settled` proof |
+| `convert` | Operation spec lookups (response framing, WebSocket detection); conversion routes arrive next |
 
 `CoreData` contains providers, credentials and reusable rewrite sets. It does not
 contain routes, exposed-model aliases, identity tables, permissions, OAuth client
@@ -141,9 +143,25 @@ Credential methods return secret-free `CredentialSummary` (version, expiry, dura
 it neither opens the database nor calls schema sync. Channel/client registration,
 secret codecs and durable revision integration remain prerequisites for assembly.
 
-Actual HTTP/WS execution, credential refresh and quota queries still return
-`CoreError::NotImplemented`; on wasm32 `load_data` does too, because there is no
-outbound transport there yet. No fake upstream calls are performed. `Execution<T>` holds the
+HTTP execution is implemented for same-dialect passthrough: `send` and the named
+HTTP methods select a credential inside the permitted set (enabled, Active, not
+retired, not blocked for the model/operation; Sticky/RoundRobinAffinity honour a
+session pin, otherwise a shared rotation counter), buffer a streaming request body
+up to the limit so retries can replay it (over the limit the request becomes
+single-attempt), apply request rules once, dispatch through `ChannelBinding` with
+the provider's operation URL, and classify the answer: 2xx and client 4xx are
+returned; 429 writes a `RateLimited` block (Retry-After or 30s) and moves on;
+401/403 on a refreshable credential forces one refresh; 5xx and transport errors
+bump the per-scope failure streak and retry, writing a `Failures` cooldown block
+at three. When the budget or the candidates run out the last upstream answer is
+returned rather than an error. Every response body handed back is an observed
+stream: capture chunks, usage observation (stream observer or extractor over the
+accumulated body), response rewriting per unit, read cap, idle timeout and
+cancellation, and ending or dropping it settles the request exactly once.
+`Execution` can only be built through the funnel's `Settled` proof.
+WebSocket execution, credential refresh, quota queries and protocol conversion
+still return `CoreError::NotImplemented`; on wasm32 `load_data` and `send` do
+too, because there is no outbound transport there yet. `Execution<T>` holds the
 protocol response and eventual `UsageCompletion`; stream lifecycle implementation
 remains pending.
 

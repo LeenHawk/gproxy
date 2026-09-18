@@ -3,7 +3,7 @@
 //! and account capabilities still return NotImplemented. No internal selection,
 //! rewrite, attempt preparation or outcome hook is exposed as a public prototype.
 
-mod lifecycle;
+pub(crate) mod lifecycle;
 mod operations;
 
 use crate::{ConfigRevision, CredentialStatus, UsageReport};
@@ -60,11 +60,37 @@ pub enum CoreError {
 /// protocol's native future contract. The producer is not implemented yet.
 pub type UsageCompletion = CapabilityFuture<'static, CoreResult<UsageReport>>;
 
+/// Proof that a response has been armed for settlement. Only the execution
+/// funnel constructs it, so an `Execution` cannot exist without a funnel.
+pub struct Settled(pub(crate) ());
+
 /// Transport response and eventual observed usage are separate. Returning
-/// response headers is not completion of a streaming invocation.
+/// response headers is not completion of a streaming invocation. Only the
+/// funnel can construct one: every path that yields an Execution has armed
+/// settlement for the response it carries.
 pub struct Execution<T> {
-    pub response: T,
-    pub usage: UsageCompletion,
+    response: T,
+    usage: UsageCompletion,
+}
+impl<T: std::fmt::Debug> std::fmt::Debug for Execution<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Execution")
+            .field("response", &self.response)
+            .field("usage", &"UsageCompletion { .. }")
+            .finish()
+    }
+}
+impl<T> Execution<T> {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn new(response: T, usage: UsageCompletion, _settled: Settled) -> Self {
+        Self { response, usage }
+    }
+    pub fn response(&self) -> &T {
+        &self.response
+    }
+    pub fn into_parts(self) -> (T, UsageCompletion) {
+        (self.response, self.usage)
+    }
 }
 pub type HttpExecution = Execution<WireResponse<HttpBody>>;
 pub type WebSocketExecution = Execution<UpstreamConnection>;

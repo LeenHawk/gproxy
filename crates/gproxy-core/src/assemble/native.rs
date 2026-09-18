@@ -44,12 +44,12 @@ pub async fn assemble(
             .iter()
             .filter(|rule| rule.enabled && rule.rule_set_id == set.id)
         {
-            rules.push(compile_rule(Arc::new(rule.clone())).map_err(|source| {
-                AssemblyError::Rewrite {
+            rules.push(Arc::new(compile_rule(Arc::new(rule.clone())).map_err(
+                |source| AssemblyError::Rewrite {
                     rule_id: rule.id.clone(),
                     source,
-                }
-            })?);
+                },
+            )?));
         }
         rule_sets.insert(
             set.id.clone(),

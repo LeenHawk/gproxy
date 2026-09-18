@@ -3,6 +3,7 @@
 use crate::{CoreData, ProviderData, RewritePhase, RewriteRuleData, RewriteTarget};
 use gproxy_protocol::OperationKey;
 use http::HeaderMap;
+use std::sync::Arc;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Phase {
@@ -23,13 +24,13 @@ pub struct RewriteContext<'a> {
 
 /// Rules partitioned by target, each in attachment then rule order.
 #[derive(Default)]
-pub struct SelectedRules<'a> {
-    pub body: Vec<&'a RewriteRuleData>,
-    pub headers: Vec<&'a RewriteRuleData>,
-    pub query: Vec<&'a RewriteRuleData>,
+pub struct SelectedRules {
+    pub body: Vec<Arc<RewriteRuleData>>,
+    pub headers: Vec<Arc<RewriteRuleData>>,
+    pub query: Vec<Arc<RewriteRuleData>>,
 }
 
-impl SelectedRules<'_> {
+impl SelectedRules {
     pub fn is_empty(&self) -> bool {
         self.body.is_empty() && self.headers.is_empty() && self.query.is_empty()
     }
@@ -38,12 +39,12 @@ impl SelectedRules<'_> {
 /// Walk the provider's enabled attachments in `(sort_order, id)` order and
 /// their compiled sets' rules in the same order. Event filters are not
 /// evaluated here; they need the decoded unit and stay with `apply_unit`.
-pub fn select_rules<'a>(
-    data: &'a CoreData,
-    provider: &'a ProviderData,
+pub fn select_rules(
+    data: &CoreData,
+    provider: &ProviderData,
     phase: Phase,
     context: &RewriteContext<'_>,
-) -> SelectedRules<'a> {
+) -> SelectedRules {
     let mut selected = SelectedRules::default();
     for attachment in &provider.rewrite_rule_sets {
         let Some(set) = data.rewrite_rule_sets.get(&attachment.rule_set_id) else {
@@ -54,9 +55,9 @@ pub fn select_rules<'a>(
                 continue;
             }
             match rule.target {
-                RewriteTarget::Body { .. } => selected.body.push(rule),
-                RewriteTarget::Header { .. } => selected.headers.push(rule),
-                RewriteTarget::Query { .. } => selected.query.push(rule),
+                RewriteTarget::Body { .. } => selected.body.push(rule.clone()),
+                RewriteTarget::Header { .. } => selected.headers.push(rule.clone()),
+                RewriteTarget::Query { .. } => selected.query.push(rule.clone()),
             }
         }
     }

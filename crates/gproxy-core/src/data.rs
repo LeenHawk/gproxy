@@ -108,7 +108,7 @@ pub struct CredentialData {
 
 pub struct RewriteRuleSetData {
     pub entity: Arc<upstream::rewrite_rule_set::Model>,
-    pub rules: Vec<RewriteRuleData>,
+    pub rules: Vec<Arc<RewriteRuleData>>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RewritePhase {

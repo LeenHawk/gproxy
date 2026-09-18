@@ -107,6 +107,9 @@ pub struct PrepareContext<'a, B = HttpBody> {
     /// The native operation after any host-owned protocol adaptation.
     pub operation: OperationKey,
     pub request: WireRequest<B>,
+    /// Complete method URL configured for this provider/operation; see
+    /// `OperationContext::endpoint_override`.
+    pub endpoint_override: Option<&'a str>,
 }
 
 /// Channel identity plus independently overridable operation methods.
