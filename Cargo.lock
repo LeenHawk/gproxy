@@ -1610,6 +1610,7 @@ version = "4.0.0-dev"
 dependencies = [
  "aes-gcm",
  "arc-swap",
+ "base64 0.23.1",
  "form_urlencoded",
  "futures-core",
  "futures-util",
