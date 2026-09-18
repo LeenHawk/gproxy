@@ -22,8 +22,10 @@ macro_rules! http_operations {
             /// bodies. Targets and permitted credentials are supplied by the
             /// upper layer; no route or policy selection is performed here.
             pub async fn send(&self, context: Arc<RequestContext>, request: WireRequest<HttpBody>) -> CoreResult<HttpExecution> {
+                // Boxed per arm: one frame holding every operation's execution
+                // future overflows small stacks.
                 match context.operation.operation {
-                    $(Operation::$operation => self.$method(context, request).await,)+
+                    $(Operation::$operation => Box::pin(self.$method(context, request)).await,)+
                     Operation::ConnectRealtime => Err(ChannelError::WrongTransport(context.operation).into()),
                 }
             }

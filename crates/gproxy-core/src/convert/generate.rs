@@ -13,11 +13,18 @@ use gproxy_protocol::{
         chat_responses::{ChatReturnFacts, ChatViaResponses, ResponsesViaChat},
         claude_gemini::{ClaudeViaGemini, GeminiViaClaude},
         claude_responses::{ClaudeReturnFacts, ClaudeViaResponses, ResponsesViaClaude},
+        fanout::{
+            ChatViaClaudeFanout, ChatViaResponsesFanout, FanoutOptions, FanoutProgress,
+            FanoutTarget, GeminiViaClaudeFanout, GeminiViaResponsesFanout,
+        },
         gemini_responses::{GeminiReturnFacts, GeminiViaResponses, ResponsesViaGemini},
         stream::{
             ChatViaGeminiStreamFacts, ClaudeViaGeminiStreamFacts, GeminiViaClaudeStreamFacts,
             ResponsesViaClaudeStreamFacts, ResponsesViaGeminiStreamFacts, StreamSettings,
-            StreamStart, StreamTarget, event::EventLimits, reader::SourceFraming,
+            StreamStart, StreamTarget,
+            event::EventLimits,
+            reader::SourceFraming,
+            synthesize::{CompleteResponse, GenerationStreamOutcome, synthesize},
         },
     },
     codec::{CodecLimits, decode_json, encode_json},
@@ -28,12 +35,12 @@ use gproxy_protocol::{
             chat_responses, claude_chat, claude_gemini, claude_responses, gemini_chat,
             gemini_responses,
         },
-        identity::{IdNamespace, IdentityTarget},
+        identity::{IdNamespace, IdentityTarget, TargetIdPolicy},
     },
     wire::{claude::generate_content as c, gemini as g, openai::chat as h, openai::responses as r},
 };
 use gproxy_seaorm::BatchConnectionTrait;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::time::SystemTime;
 
 fn codec(error: gproxy_protocol::codec::CodecError) -> TransformError {
@@ -208,6 +215,18 @@ pub(crate) async fn streamed<C: BatchConnectionTrait + Send + Sync + 'static>(
     let upstream = call.upstream;
     let body = call.body();
     let limits = call.limits;
+    let settings = stream_settings(limits, client, call.request.query.as_deref());
+    if call.synthesize {
+        return invoke_complete(
+            call,
+            Completion::Synthesize {
+                framing: settings.client_framing,
+                events: settings.events,
+                include_usage: client != Dialect::OpenAiChat || chat_includes_usage(body),
+            },
+        )
+        .await;
+    }
     let state = &call.generation_state()?;
     let key = OperationKey {
         operation: Operation::StreamGenerateContent,
@@ -219,9 +238,83 @@ pub(crate) async fn streamed<C: BatchConnectionTrait + Send + Sync + 'static>(
         endpoint,
         identities,
     };
-    let settings = stream_settings(limits, client, call.request.query.as_deref());
     let created = call.now_ms.div_euclid(1000);
     let model = state.target.model.clone();
+
+    if candidate_count(client, body) >= 2 {
+        let fanout_target = FanoutTarget {
+            endpoint: super::generate_endpoint(target, &model, true)?,
+            options: fanout_options(client),
+        };
+        let client_framing = settings.client_framing;
+        // Children start lazily on each poll, so the driven stream owns a
+        // copy of the attempt-bound upstream. A child rejected after the head
+        // went out surfaces as a transport error on the client stream.
+        macro_rules! fan {
+            ($pair:ty, $input:ty $(, |$index:ident| $ctx:expr)?) => {{
+                let input: $input = decode(body, limits)?;
+                Box::pin(async move {
+                    let fanout = <$pair>::prepare_stream(
+                        input,
+                        fanout_target,
+                        $(|$index: usize| $ctx,)?
+                        settings,
+                        state,
+                    )
+                    .await?;
+                    let owned = OwnedState::capture(call, state);
+                    let upstream = upstream.clone();
+                    let stream: ByteStream = Box::pin(futures_util::stream::unfold(
+                        Some((fanout, owned, upstream)),
+                        move |slot| async move {
+                            let (mut fanout, owned, upstream) = slot?;
+                            let next = fanout.next(&upstream, &key, &owned.access()).await;
+                            match next {
+                                Ok(Some(chunk)) => {
+                                    Some((Ok(chunk.bytes), Some((fanout, owned, upstream))))
+                                }
+                                Ok(None) => None,
+                                Err(error) => Some((Err(transport(error)), None)),
+                            }
+                        },
+                    ));
+                    Ok(Converted::Stream(WireResponse {
+                        status: http::StatusCode::OK,
+                        headers: stream_headers(client_framing),
+                        body: stream,
+                    }))
+                })
+                .await
+            }};
+        }
+        match (client, target) {
+            (Dialect::OpenAiChat, Dialect::Claude) => {
+                return fan!(ChatViaClaudeFanout, h::GenerateContentRequestBody, |_i| {
+                    claude_chat::stream::ClaudeToChatContext { created }
+                });
+            }
+            (Dialect::OpenAiChat, Dialect::OpenAi) => {
+                return fan!(ChatViaResponsesFanout, h::GenerateContentRequestBody);
+            }
+            (Dialect::Gemini, Dialect::Claude) => {
+                return fan!(GeminiViaClaudeFanout, g::GenerateContentRequestBody, |_i| {
+                    GeminiViaClaudeStreamFacts {
+                        max_tokens: None,
+                        response: claude_gemini::stream::ClaudeToGeminiContext::default(),
+                    }
+                });
+            }
+            (Dialect::Gemini, Dialect::OpenAi) => {
+                return fan!(
+                    GeminiViaResponsesFanout,
+                    g::GenerateContentRequestBody,
+                    |_i| { gemini_responses::stream::ResponsesToGeminiContext::default() }
+                );
+            }
+            _ => {}
+        }
+    }
+
     macro_rules! run {
         ($pair:ty, $input:ty, |$input_name:ident| $ctx:expr) => {{
             let $input_name: $input = decode(body, limits)?;
@@ -376,11 +469,164 @@ pub(crate) async fn streamed<C: BatchConnectionTrait + Send + Sync + 'static>(
     }
 }
 
-/// One buffered generation for `client -> target`. The upstream model comes
-/// from the continuation state target; `now_ms` supplies the creation
-/// timestamps some client dialects require and the upstream omits.
+/// Peek the requested candidate count; Chat `n` and Gemini
+/// `generationConfig.candidateCount`. Anything else is one candidate.
+fn candidate_count(client: Dialect, body: &[u8]) -> i64 {
+    #[derive(Deserialize)]
+    struct Chat {
+        n: Option<i64>,
+    }
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Gemini {
+        generation_config: Option<GeminiConfig>,
+    }
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct GeminiConfig {
+        candidate_count: Option<i64>,
+    }
+    match client {
+        Dialect::OpenAiChat => serde_json::from_slice::<Chat>(body)
+            .ok()
+            .and_then(|chat| chat.n),
+        Dialect::Gemini => serde_json::from_slice::<Gemini>(body)
+            .ok()
+            .and_then(|gemini| gemini.generation_config)
+            .and_then(|config| config.candidate_count),
+        _ => None,
+    }
+    .unwrap_or(1)
+}
+
+/// Chat `stream_options.include_usage`; only Chat clients opt into a usage
+/// chunk on a synthesized stream.
+fn chat_includes_usage(body: &[u8]) -> bool {
+    #[derive(Deserialize)]
+    struct Chat {
+        stream_options: Option<StreamOptions>,
+    }
+    #[derive(Deserialize)]
+    struct StreamOptions {
+        include_usage: Option<bool>,
+    }
+    serde_json::from_slice::<Chat>(body)
+        .ok()
+        .and_then(|chat| chat.stream_options)
+        .and_then(|options| options.include_usage)
+        == Some(true)
+}
+
+/// Candidate fanout keeps every child journaled; this bounds the journal.
+const MAX_CANDIDATES: usize = 8;
+
+fn fanout_options(client: Dialect) -> FanoutOptions {
+    FanoutOptions {
+        namespace: namespace(),
+        max_children: MAX_CANDIDATES,
+        response_policy: TargetIdPolicy::new(client),
+    }
+}
+
+fn stream_headers(framing: SourceFraming) -> http::HeaderMap {
+    let mut headers = http::HeaderMap::new();
+    headers.insert(
+        http::header::CONTENT_TYPE,
+        http::HeaderValue::from_static(match framing {
+            SourceFraming::Sse => "text/event-stream",
+            _ => "application/json",
+        }),
+    );
+    headers
+}
+
+fn json_headers() -> http::HeaderMap {
+    let mut headers = http::HeaderMap::new();
+    headers.insert(
+        http::header::CONTENT_TYPE,
+        http::HeaderValue::from_static("application/json"),
+    );
+    headers
+}
+
+/// A complete client DTO that can also be replayed as its native stream.
+trait SynthesizedClient: CompleteResponse {
+    fn strip_usage(&mut self) {}
+}
+impl SynthesizedClient for c::GenerateContentResponseBody {}
+impl SynthesizedClient for g::GenerateContentResponseBody {}
+impl SynthesizedClient for r::GenerateContentResponseBody {}
+impl SynthesizedClient for h::GenerateContentResponseBody {
+    fn strip_usage(&mut self) {
+        self.usage = None;
+    }
+}
+
+/// How a complete upstream result is handed to the client.
+#[derive(Clone, Copy)]
+enum Completion {
+    /// Encode the client DTO once.
+    Buffered,
+    /// Replay the client DTO as its native stream lifecycle.
+    Synthesize {
+        framing: SourceFraming,
+        events: EventLimits,
+        include_usage: bool,
+    },
+}
+
+fn complete<Cl: SynthesizedClient>(
+    mut outcome: GenerationOutcome<Cl>,
+    completion: Completion,
+    limits: CodecLimits,
+) -> Result<Converted, TransformError> {
+    match completion {
+        Completion::Buffered => finish(outcome, limits),
+        Completion::Synthesize {
+            framing,
+            events,
+            include_usage,
+        } => {
+            if !include_usage && let GenerationOutcome::Success { response, .. } = &mut outcome {
+                response.body.strip_usage();
+            }
+            Ok(
+                match synthesize(outcome, namespace(), framing, limits, events)? {
+                    GenerationStreamOutcome::Success { response, .. } => match response.body {
+                        HttpBody::Stream(stream) => Converted::Stream(WireResponse {
+                            status: response.status,
+                            headers: response.headers,
+                            body: stream,
+                        }),
+                        body @ HttpBody::Bytes(_) => Converted::Success(WireResponse {
+                            status: response.status,
+                            headers: response.headers,
+                            body,
+                        }),
+                    },
+                    GenerationStreamOutcome::Rejected(raw) => rejected(raw),
+                },
+            )
+        }
+    }
+}
+
+/// One buffered generation for `client -> target`.
 pub(crate) async fn buffered<C: BatchConnectionTrait + Send + Sync>(
     call: &Call<'_, C>,
+) -> Result<Converted, TransformError> {
+    invoke_complete(call, Completion::Buffered).await
+}
+
+/// One complete generation for `client -> target`: decode the client's
+/// request, prepare the directed edge with continuation state, POST once
+/// through the attempt-bound upstream, and hand the client DTO back either
+/// encoded once or replayed as its native stream. Chat `n` / Gemini
+/// `candidateCount` of two or more against a single-result upstream fan out
+/// into journaled child calls.
+async fn invoke_complete<C: BatchConnectionTrait + Send + Sync>(
+    call: &Call<'_, C>,
+    completion: Completion,
 ) -> Result<Converted, TransformError> {
     let client = call.client.dialect;
     let target = call.target;
@@ -395,22 +641,111 @@ pub(crate) async fn buffered<C: BatchConnectionTrait + Send + Sync>(
     let endpoint = super::generate_endpoint(target, &state.target.model, false)?;
     let identities = GenerationIdentity::new(namespace(), namespace(), client, target)?;
     let created = call.now_ms.div_euclid(1000);
+    let synthesizing = matches!(completion, Completion::Synthesize { .. });
+
+    if candidate_count(client, body) >= 2 {
+        let fanout_target = || FanoutTarget {
+            endpoint: endpoint.clone(),
+            options: fanout_options(client),
+        };
+        macro_rules! fan {
+            ($pair:ty, $input:ty, [$($extra:expr),*], $facts:expr) => {{
+                if synthesizing {
+                    return Err(TransformError::unsupported(
+                        "generate.synthesis",
+                        "multi-candidate synthesis is not supported",
+                    ));
+                }
+                let input: $input = decode(body, limits)?;
+                let fanout_target = fanout_target();
+                return Box::pin(async move {
+                    let mut prepared =
+                        <$pair>::prepare(input, fanout_target, state, limits $(, $extra)*)
+                            .await?;
+                    let mut progress = FanoutProgress::default();
+                    let converted = prepared
+                        .invoke(upstream, &key, limits, state, &mut progress, $facts)
+                        .await?;
+                    let body = encode_json(&converted.value, limits).map_err(codec)?;
+                    Ok(Converted::Success(WireResponse {
+                        status: http::StatusCode::OK,
+                        headers: json_headers(),
+                        body: HttpBody::Bytes(body),
+                    }))
+                })
+                .await;
+            }};
+        }
+        match (client, target) {
+            (Dialect::OpenAiChat, Dialect::Claude) => fan!(
+                ChatViaClaudeFanout,
+                h::GenerateContentRequestBody,
+                [],
+                |_, _: &c::GenerateContentResponseBody| Ok(claude_chat::ResponseSupplement {
+                    created_unix_seconds: Some(created),
+                })
+            ),
+            (Dialect::OpenAiChat, Dialect::OpenAi) => fan!(
+                ChatViaResponsesFanout,
+                h::GenerateContentRequestBody,
+                [],
+                |_, _: &r::GenerateContentResponseBody| Ok(())
+            ),
+            (Dialect::Gemini, Dialect::Claude) => fan!(
+                GeminiViaClaudeFanout,
+                g::GenerateContentRequestBody,
+                [None],
+                |_, native: &c::GenerateContentResponseBody| Ok(
+                    claude_gemini::ClaudeGeminiUsageFacts {
+                        cache_creation_input_tokens: native
+                            .usage
+                            .cache_creation_input_tokens
+                            .flatten(),
+                        cache_read_input_tokens: native.usage.cache_read_input_tokens.flatten(),
+                        thinking_tokens: None,
+                    }
+                )
+            ),
+            (Dialect::Gemini, Dialect::OpenAi) => fan!(
+                GeminiViaResponsesFanout,
+                g::GenerateContentRequestBody,
+                [],
+                |_, _: &r::GenerateContentResponseBody| Ok(
+                    gemini_responses::GeminiReplayContext::default()
+                )
+            ),
+            // Chat <-> Gemini carry their native count; other clients have none.
+            _ => {}
+        }
+    }
+
     macro_rules! run {
-        ($pair:ty, $input:ty, [$($extra:expr),*], $facts:expr) => {{
+        ($pair:ty, $input:ty, [$($extra:expr),*], [$($synth_extra:expr),*], $facts:expr) => {{
             let input: $input = decode(body, limits)?;
-            let mut prepared =
-                <$pair>::prepare_with_state(input, endpoint, identities, state $(, $extra)*).await?;
-            let mut progress = GenerationProgress::default();
-            let outcome = prepared
-                .invoke(upstream, &key, limits, state, &mut progress, $facts)
-                .await?;
-            finish(outcome, limits)
+            // Boxed per pair to keep the dispatch frame small.
+            Box::pin(async move {
+                let mut prepared = if synthesizing {
+                    <$pair>::prepare_for_stream_synthesis(
+                        input, endpoint, identities, state $(, $synth_extra)*
+                    ).await?
+                } else {
+                    <$pair>::prepare_with_state(input, endpoint, identities, state $(, $extra)*)
+                        .await?
+                };
+                let mut progress = GenerationProgress::default();
+                let outcome = prepared
+                    .invoke(upstream, &key, limits, state, &mut progress, $facts)
+                    .await?;
+                complete(outcome, completion, limits)
+            })
+            .await
         }};
     }
     match (client, target) {
         (Dialect::OpenAiChat, Dialect::Claude) => run!(
             ChatViaClaude,
             h::GenerateContentRequestBody,
+            [],
             [],
             |_: &c::GenerateContentResponseBody| Ok(claude_chat::ResponseSupplement {
                 created_unix_seconds: Some(created),
@@ -420,6 +755,7 @@ pub(crate) async fn buffered<C: BatchConnectionTrait + Send + Sync>(
             ClaudeViaChat,
             c::GenerateContentRequestBody,
             [],
+            [],
             |_: &h::GenerateContentResponseBody| Ok(claude_chat::ResponseSupplement {
                 created_unix_seconds: Some(created),
             })
@@ -427,6 +763,7 @@ pub(crate) async fn buffered<C: BatchConnectionTrait + Send + Sync>(
         (Dialect::OpenAiChat, Dialect::Gemini) => run!(
             ChatViaGemini,
             h::GenerateContentRequestBody,
+            [&Default::default()],
             [&Default::default()],
             |_: &g::GenerateContentResponseBody| Ok(gemini_chat::GeminiChatResponseSupplement {
                 created_unix_seconds: Some(created),
@@ -436,35 +773,36 @@ pub(crate) async fn buffered<C: BatchConnectionTrait + Send + Sync>(
             GeminiViaChat,
             g::GenerateContentRequestBody,
             [],
+            [],
             |_: &h::GenerateContentResponseBody| Ok(())
         ),
         (Dialect::OpenAiChat, Dialect::OpenAi) => run!(
             ChatViaResponses,
             h::GenerateContentRequestBody,
             [],
+            [],
             |_: &r::GenerateContentResponseBody| Ok(())
         ),
         (Dialect::OpenAi, Dialect::OpenAiChat) => {
             let input: r::GenerateContentRequestBody = decode(body, limits)?;
             let (parallel_tool_calls, tool_choice) = responses_settings(&input);
-            let mut prepared =
-                ResponsesViaChat::prepare_with_state(input, endpoint, identities, state).await?;
-            let mut progress = GenerationProgress::default();
-            let outcome = prepared
-                .invoke(upstream, &key, limits, state, &mut progress, move |_| {
-                    Ok(ChatReturnFacts {
-                        parallel_tool_calls,
-                        tool_choice,
-                        prompt_cache_options: None,
-                        usage: Default::default(),
-                    })
+            run!(
+                ResponsesViaChat,
+                r::GenerateContentRequestBody,
+                [],
+                [],
+                move |_| Ok(ChatReturnFacts {
+                    parallel_tool_calls,
+                    tool_choice,
+                    prompt_cache_options: None,
+                    usage: Default::default(),
                 })
-                .await?;
-            finish(outcome, limits)
+            )
         }
         (Dialect::Claude, Dialect::Gemini) => run!(
             ClaudeViaGemini,
             c::GenerateContentRequestBody,
+            [Default::default()],
             [Default::default()],
             |native: &g::GenerateContentResponseBody| {
                 let usage = native.usage_metadata.as_ref();
@@ -479,6 +817,7 @@ pub(crate) async fn buffered<C: BatchConnectionTrait + Send + Sync>(
             GeminiViaClaude,
             g::GenerateContentRequestBody,
             [None],
+            [None],
             |native: &c::GenerateContentResponseBody| Ok(claude_gemini::ClaudeGeminiUsageFacts {
                 cache_creation_input_tokens: native.usage.cache_creation_input_tokens.flatten(),
                 cache_read_input_tokens: native.usage.cache_read_input_tokens.flatten(),
@@ -489,6 +828,7 @@ pub(crate) async fn buffered<C: BatchConnectionTrait + Send + Sync>(
             ClaudeViaResponses,
             c::GenerateContentRequestBody,
             [],
+            [],
             |_: &r::GenerateContentResponseBody| Ok(
                 claude_responses::ClaudeRequestContext::default()
             )
@@ -496,45 +836,28 @@ pub(crate) async fn buffered<C: BatchConnectionTrait + Send + Sync>(
         (Dialect::OpenAi, Dialect::Claude) => {
             let input: r::GenerateContentRequestBody = decode(body, limits)?;
             let (parallel_tool_calls, tool_choice) = responses_settings(&input);
-            let mut prepared = ResponsesViaClaude::prepare_with_state(
-                input,
-                endpoint,
-                identities,
-                state,
-                Default::default(),
-            )
-            .await?;
-            let mut progress = GenerationProgress::default();
-            let outcome = prepared
-                .invoke(
-                    upstream,
-                    &key,
-                    limits,
-                    state,
-                    &mut progress,
-                    move |native| {
-                        Ok(ClaudeReturnFacts {
-                            parallel_tool_calls,
-                            tool_choice,
-                            prompt_cache_options: None,
-                            usage: claude_responses::ResponsesUsageFacts {
-                                cache_write_tokens: native
-                                    .usage
-                                    .cache_creation_input_tokens
-                                    .flatten(),
-                                cached_tokens: native.usage.cache_read_input_tokens.flatten(),
-                                reasoning_tokens: None,
-                            },
-                            created_at: created,
-                        })
+            run!(
+                ResponsesViaClaude,
+                r::GenerateContentRequestBody,
+                [Default::default()],
+                [Default::default()],
+                move |native: &c::GenerateContentResponseBody| Ok(ClaudeReturnFacts {
+                    parallel_tool_calls,
+                    tool_choice: tool_choice.clone(),
+                    prompt_cache_options: None,
+                    usage: claude_responses::ResponsesUsageFacts {
+                        cache_write_tokens: native.usage.cache_creation_input_tokens.flatten(),
+                        cached_tokens: native.usage.cache_read_input_tokens.flatten(),
+                        reasoning_tokens: None,
                     },
-                )
-                .await?;
-            finish(outcome, limits)
+                    created_at: created,
+                })
+            )
         }
         (Dialect::Gemini, Dialect::OpenAi) => run!(
             GeminiViaResponses,
             g::GenerateContentRequestBody,
+            [],
             [],
             |_: &r::GenerateContentResponseBody| Ok(
                 gemini_responses::GeminiReplayContext::default()
@@ -543,40 +866,25 @@ pub(crate) async fn buffered<C: BatchConnectionTrait + Send + Sync>(
         (Dialect::OpenAi, Dialect::Gemini) => {
             let input: r::GenerateContentRequestBody = decode(body, limits)?;
             let (parallel_tool_calls, tool_choice) = responses_settings(&input);
-            let mut prepared = ResponsesViaGemini::prepare_with_state(
-                input,
-                endpoint,
-                identities,
-                state,
-                Default::default(),
-            )
-            .await?;
-            let mut progress = GenerationProgress::default();
-            let outcome = prepared
-                .invoke(
-                    upstream,
-                    &key,
-                    limits,
-                    state,
-                    &mut progress,
-                    move |native| {
-                        Ok(GeminiReturnFacts {
-                            parallel_tool_calls,
-                            tool_choice,
-                            prompt_cache_options: None,
-                            usage: gemini_responses::GeminiUsageFacts {
-                                cache_write_tokens: None,
-                                cached_tokens: native
-                                    .usage_metadata
-                                    .as_ref()
-                                    .and_then(|u| u.cached_content_token_count),
-                            },
-                            created_at: created,
-                        })
+            run!(
+                ResponsesViaGemini,
+                r::GenerateContentRequestBody,
+                [Default::default()],
+                [Default::default()],
+                move |native: &g::GenerateContentResponseBody| Ok(GeminiReturnFacts {
+                    parallel_tool_calls,
+                    tool_choice: tool_choice.clone(),
+                    prompt_cache_options: None,
+                    usage: gemini_responses::GeminiUsageFacts {
+                        cache_write_tokens: None,
+                        cached_tokens: native
+                            .usage_metadata
+                            .as_ref()
+                            .and_then(|u| u.cached_content_token_count),
                     },
-                )
-                .await?;
-            finish(outcome, limits)
+                    created_at: created,
+                })
+            )
         }
         (client, target) => Err(TransformError::unsupported(
             "generate",

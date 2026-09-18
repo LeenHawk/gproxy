@@ -20,6 +20,9 @@ pub enum Route {
     Passthrough,
     /// Convert to the upstream's preferred native dialect and back.
     Convert { upstream: Dialect },
+    /// The client streams but the upstream only generates buffered: convert,
+    /// invoke once, then synthesize the client's native stream.
+    Synthesize { upstream: Dialect },
 }
 
 /// Native dialects come from the channel's declaration for this provider; an
@@ -27,11 +30,37 @@ pub enum Route {
 /// IDs in `target` overrides it for that operation. The client's dialect wins
 /// when native; otherwise the first declared dialect is the conversion target.
 pub fn route(provider: &ProviderData, key: OperationKey) -> Result<Route, RouteError> {
+    match natives(provider, key.operation)? {
+        natives if natives.contains(&key.dialect) => Ok(Route::Passthrough),
+        natives if !natives.is_empty() => Ok(Route::Convert {
+            upstream: natives[0],
+        }),
+        _ if key.operation == Operation::StreamGenerateContent => {
+            match natives(provider, Operation::GenerateContent)? {
+                buffered if buffered.is_empty() || buffered.contains(&key.dialect) => {
+                    Err(RouteError::Undeclared {
+                        provider_id: provider.entity.id.clone(),
+                        operation: key.operation,
+                    })
+                }
+                buffered => Ok(Route::Synthesize {
+                    upstream: buffered[0],
+                }),
+            }
+        }
+        _ => Err(RouteError::Undeclared {
+            provider_id: provider.entity.id.clone(),
+            operation: key.operation,
+        }),
+    }
+}
+
+fn natives(provider: &ProviderData, operation: Operation) -> Result<Vec<Dialect>, RouteError> {
     let mut natives: Vec<Dialect> = Vec::new();
     for rule in provider
         .operation_rules
         .iter()
-        .filter(|rule| rule.action == "dialects" && rule.operation == key.operation.id())
+        .filter(|rule| rule.action == "dialects" && rule.operation == operation.id())
     {
         let ids: Vec<String> = rule
             .target
@@ -56,18 +85,7 @@ pub fn route(provider: &ProviderData, key: OperationKey) -> Result<Route, RouteE
     if natives.is_empty() {
         natives = provider
             .channel
-            .native_dialects(provider_view(&provider.entity), key.operation);
+            .native_dialects(provider_view(&provider.entity), operation);
     }
-    if natives.is_empty() {
-        return Err(RouteError::Undeclared {
-            provider_id: provider.entity.id.clone(),
-            operation: key.operation,
-        });
-    }
-    if natives.contains(&key.dialect) {
-        return Ok(Route::Passthrough);
-    }
-    Ok(Route::Convert {
-        upstream: natives[0],
-    })
+    Ok(natives)
 }

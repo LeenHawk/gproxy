@@ -126,7 +126,12 @@ impl BaseChannel for TestChannel {
     fn id(&self) -> &'static str {
         "test"
     }
-    fn native_dialects(&self, provider: ProviderView<'_>, _: Operation) -> Vec<Dialect> {
+    fn native_dialects(&self, provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
+        if operation == Operation::StreamGenerateContent
+            && provider.config.get("buffered_only") == Some(&json!(true))
+        {
+            return Vec::new();
+        }
         let configured: Vec<Dialect> = provider
             .config
             .get("dialects")
@@ -196,18 +201,35 @@ impl BaseChannel for TestChannel {
     }
 }
 impl UsageExtractor for TestChannel {
+    /// JSON bodies read `usage` directly; SSE bodies (Claude events) take
+    /// input tokens from `message_start` and output tokens from the last
+    /// `usage` seen.
     fn extract(&self, ctx: UsageContext<'_>) -> Result<Option<NormalizedUsage>, ChannelError> {
-        let value: serde_json::Value = match serde_json::from_slice(ctx.response.body) {
-            Ok(value) => value,
-            Err(_) => return Ok(None),
+        let values: Vec<serde_json::Value> = match serde_json::from_slice(ctx.response.body) {
+            Ok(value) => vec![value],
+            Err(_) => std::str::from_utf8(ctx.response.body)
+                .unwrap_or_default()
+                .lines()
+                .filter_map(|line| line.strip_prefix("data: "))
+                .filter_map(|data| serde_json::from_str(data).ok())
+                .collect(),
         };
-        if value.get("usage").is_none() {
-            return Ok(None);
-        }
         let mut usage = NormalizedUsage::default();
-        usage.tokens.input_tokens = value["usage"]["input_tokens"].as_u64();
-        usage.tokens.output_tokens = value["usage"]["output_tokens"].as_u64();
-        Ok(Some(usage))
+        let mut seen = false;
+        for value in &values {
+            for candidate in [&value["usage"], &value["message"]["usage"]] {
+                if candidate.is_object() {
+                    seen = true;
+                    if let Some(input) = candidate["input_tokens"].as_u64() {
+                        usage.tokens.input_tokens = Some(input);
+                    }
+                    if let Some(output) = candidate["output_tokens"].as_u64() {
+                        usage.tokens.output_tokens = Some(output);
+                    }
+                }
+            }
+        }
+        Ok(seen.then_some(usage))
     }
 }
 
@@ -381,12 +403,28 @@ pub async fn harness(policy: ObservationPolicy, strategy: &str) -> Harness {
                 created_at_ms: Set(0),
                 ..Default::default()
             },
+            provider::ActiveModel {
+                id: Set("claude-buffered".into()),
+                name: Set("claude-buffered".into()),
+                channel: Set("test".into()),
+                base_url: Set(Some("https://buffered.example".into())),
+                config: Set(json!({"dialects": ["claude"], "buffered_only": true})),
+                created_at_ms: Set(0),
+                ..Default::default()
+            },
         ])
         .await
         .unwrap();
     let cred = |id: &str, key: &str| credential::ActiveModel {
         id: Set(id.into()),
-        provider_id: Set(if id.starts_with("cl") { "claude" } else { "p" }.into()),
+        provider_id: Set(if id.starts_with("cb") {
+            "claude-buffered"
+        } else if id.starts_with("cl") {
+            "claude"
+        } else {
+            "p"
+        }
+        .into()),
         user_id: Set(Some("u".into())),
         auth_kind: Set("api_key".into()),
         secret: Set(PlaintextCodec.seal(id, &json!({"api_key": key})).unwrap()),
@@ -400,6 +438,7 @@ pub async fn harness(policy: ObservationPolicy, strategy: &str) -> Harness {
             cred("b", "kb"),
             cred("cl1", "k1"),
             cred("cl2", "k2"),
+            cred("cb1", "kb1"),
         ])
         .await
         .unwrap();
