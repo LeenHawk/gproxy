@@ -43,3 +43,41 @@ pub fn generate_endpoint(
         )),
     }
 }
+
+/// The count-tokens endpoint for `dialect`. OpenAI is deliberately not a
+/// count-tokens target: the Responses input-token endpoint is not converted to.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn count_tokens_endpoint(dialect: Dialect, model: &str) -> Result<Endpoint, TransformError> {
+    match dialect {
+        Dialect::Claude => Endpoint::new("/v1/messages/count_tokens"),
+        Dialect::Gemini => {
+            let model = utf8_percent_encode(model, PATH_SEGMENT);
+            Endpoint::new(format!("/v1beta/models/{model}:countTokens"))
+        }
+        other => Err(TransformError::unsupported(
+            "endpoint",
+            format!("{other:?} is not a count-tokens conversion target"),
+        )),
+    }
+}
+
+/// The model directory path for `dialect`.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn list_models_path(dialect: Dialect) -> Result<&'static str, TransformError> {
+    match dialect {
+        Dialect::OpenAi | Dialect::OpenAiChat | Dialect::Claude => Ok("/v1/models"),
+        Dialect::Gemini => Ok("/v1beta/models"),
+        Dialect::OpenAiResponsesWebSocket => Err(TransformError::unsupported(
+            "endpoint",
+            "the Responses WebSocket dialect has no model directory path",
+        )),
+    }
+}
+
+/// The single-model path for `dialect`; `id` is the bare model id without a
+/// Gemini `models/` resource prefix.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn get_model_path(dialect: Dialect, id: &str) -> Result<String, TransformError> {
+    let base = list_models_path(dialect)?;
+    Ok(format!("{base}/{}", utf8_percent_encode(id, PATH_SEGMENT)))
+}
