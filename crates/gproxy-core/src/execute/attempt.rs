@@ -113,7 +113,7 @@ enum Fault {
     Client(CoreError),
 }
 
-pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync>(
+pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
     core: &Core<C>,
     request: Arc<RequestContext>,
     wire: WireRequest<HttpBody>,

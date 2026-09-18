@@ -297,20 +297,29 @@ fn time_to_ms(time: SystemTime) -> i64 {
 
 /// StateStore over Store's ProtocolState rows. Versions are host-generated
 /// receipts and never reused across delete/recreate; expired rows read as
-/// absent in both reads and CAS.
-pub struct ProtocolState<'a, C> {
-    core: &'a Core<C>,
+/// absent in both reads and CAS. Owns its Store handle so a driven client
+/// stream can keep writing continuation state after the attempt returned.
+pub struct ProtocolState<C> {
+    store: Arc<gproxy_store::Store<C>>,
     limits: CapabilityLimits,
 }
-impl<'a, C> ProtocolState<'a, C> {
-    pub fn new(core: &'a Core<C>, limits: CapabilityLimits) -> Self {
-        Self { core, limits }
-    }
-    pub fn core(&self) -> &'a Core<C> {
-        self.core
+impl<C> Clone for ProtocolState<C> {
+    fn clone(&self) -> Self {
+        Self {
+            store: self.store.clone(),
+            limits: self.limits,
+        }
     }
 }
-impl<C: BatchConnectionTrait + Send + Sync> StateStore for ProtocolState<'_, C> {
+impl<C> ProtocolState<C> {
+    pub fn new(core: &Core<C>, limits: CapabilityLimits) -> Self {
+        Self {
+            store: core.store().clone(),
+            limits,
+        }
+    }
+}
+impl<C: BatchConnectionTrait + Send + Sync> StateStore for ProtocolState<C> {
     type Scope = StateScope;
 
     fn get<'a>(
@@ -320,8 +329,7 @@ impl<C: BatchConnectionTrait + Send + Sync> StateStore for ProtocolState<'_, C> 
     ) -> CapabilityFuture<'a, Result<Option<StateEntry>, CapabilityError>> {
         Box::pin(async move {
             let rows = self
-                .core
-                .store()
+                .store
                 .protocol_states()
                 .get_live_many(&[(scope.column(), key.to_owned())], now_ms())
                 .await
@@ -343,8 +351,7 @@ impl<C: BatchConnectionTrait + Send + Sync> StateStore for ProtocolState<'_, C> 
     ) -> CapabilityFuture<'a, Result<CasResult, CapabilityError>> {
         Box::pin(async move {
             let outcomes = self
-                .core
-                .store()
+                .store
                 .protocol_states()
                 .compare_exchange_many(
                     vec![StateChange {

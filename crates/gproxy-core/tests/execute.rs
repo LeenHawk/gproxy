@@ -573,3 +573,81 @@ async fn chat_client_is_converted_to_a_claude_upstream_with_failover_inside_the_
         "{log:?}"
     );
 }
+
+#[tokio::test]
+async fn chat_client_stream_is_converted_from_a_claude_sse_upstream() {
+    let h = harness(full(), "round_robin").await;
+    let events = [
+        "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\"gpt-x\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,\"usage\":{\"input_tokens\":4,\"output_tokens\":0}}}\n\n",
+        "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"hel\"}}\n\n",
+        "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"lo\"}}\n\n",
+        "event: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\n",
+        "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null},\"usage\":{\"output_tokens\":2}}\n\n",
+        "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+    ];
+    h.script(vec![(
+        StatusCode::OK,
+        vec![("content-type", "text/event-stream")],
+        events
+            .iter()
+            .map(|e| Bytes::from_static(e.as_bytes()))
+            .collect(),
+    )]);
+    let ctx = h.context_for(
+        "claude",
+        OperationKey {
+            operation: Operation::StreamGenerateContent,
+            dialect: Dialect::OpenAiChat,
+        },
+        "r1",
+        2,
+        None,
+    );
+    let wire = WireRequest {
+        method: Method::POST,
+        path: "/v1/chat/completions".into(),
+        query: None,
+        headers: HeaderMap::new(),
+        body: HttpBody::Bytes(Bytes::from_static(
+            b"{\"model\":\"alias\",\"stream\":true,\"max_completion_tokens\":32,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}",
+        )),
+    };
+    let execution = h.core.stream_generate_content(ctx, wire).await.unwrap();
+    let (response, completion) = execution.into_parts();
+    assert_eq!(response.status, StatusCode::OK);
+    let text = read(response.body).await;
+    let frames: Vec<&str> = text.split("\n\n").filter(|f| !f.is_empty()).collect();
+    let mut content = String::new();
+    let mut finish = None;
+    for frame in &frames {
+        let data = frame
+            .strip_prefix("data: ")
+            .unwrap_or_else(|| panic!("frame {frame:?}"));
+        if data == "[DONE]" {
+            continue;
+        }
+        let chunk: serde_json::Value = serde_json::from_str(data).unwrap();
+        assert_eq!(chunk["object"], "chat.completion.chunk", "{data}");
+        if let Some(piece) = chunk["choices"][0]["delta"]["content"].as_str() {
+            content.push_str(piece);
+        }
+        if let Some(reason) = chunk["choices"][0]["finish_reason"].as_str() {
+            finish = Some(reason.to_owned());
+        }
+    }
+    assert_eq!(content, "hello");
+    assert_eq!(finish.as_deref(), Some("stop"));
+    assert_eq!(frames.last().copied(), Some("data: [DONE]"));
+
+    let report = completion.await.unwrap();
+    assert_eq!(report.state, UsageState::Completed);
+    let seen = h.client.seen.lines();
+    assert_eq!(seen.len(), 1);
+    assert!(
+        seen[0].starts_with("POST https://claude.example/v1/messages auth=Bearer k1")
+            && seen[0].contains("\"stream\":true"),
+        "{}",
+        seen[0]
+    );
+}

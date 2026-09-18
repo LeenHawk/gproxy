@@ -4,7 +4,7 @@ use super::{Call, Converted};
 use gproxy_protocol::{Operation, transform::TransformError};
 use gproxy_seaorm::BatchConnectionTrait;
 
-pub(crate) async fn dispatch<C: BatchConnectionTrait + Send + Sync>(
+pub(crate) async fn dispatch<C: BatchConnectionTrait + Send + Sync + 'static>(
     call: &Call<'_, C>,
 ) -> Result<Converted, TransformError> {
     match call.client.operation {

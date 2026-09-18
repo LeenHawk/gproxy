@@ -27,7 +27,7 @@ pub(crate) struct Call<'a, C> {
     /// The client's request with its body already buffered.
     pub request: &'a WireRequest<HttpBody>,
     pub limits: CodecLimits,
-    pub state_store: &'a ProtocolState<'a, C>,
+    pub state_store: &'a ProtocolState<C>,
     pub state_scope: &'a StateScope,
     pub conversation_key: &'a str,
     pub provider_id: &'a str,
@@ -54,7 +54,7 @@ impl<'a, C: BatchConnectionTrait + Send + Sync> Call<'a, C> {
     /// Continuation state bound to this scope, upstream and model.
     pub fn generation_state(
         &self,
-    ) -> Result<GenerationStateAccess<'a, ProtocolState<'a, C>>, TransformError> {
+    ) -> Result<GenerationStateAccess<'a, ProtocolState<C>>, TransformError> {
         let target = IdentityTarget::new(self.model()?, self.target)
             .and_then(|t| t.with_origin(self.provider_id))
             .map_err(|e| TransformError::shape("identity.target", e.to_string()))?;
