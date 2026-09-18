@@ -46,6 +46,8 @@ pub enum CoreError {
     #[error(transparent)]
     Limits(#[from] crate::LimitsError),
     #[error(transparent)]
+    Assembly(#[from] crate::AssemblyError),
+    #[error(transparent)]
     Channel(#[from] ChannelError),
     #[error(transparent)]
     Cache(#[from] gproxy_cache::CacheError),

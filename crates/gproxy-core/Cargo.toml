@@ -15,6 +15,7 @@ gproxy-cache = { workspace = true }
 gproxy-channel = { workspace = true }
 gproxy-client = { workspace = true }
 gproxy-protocol = { workspace = true }
+gproxy-seaorm = { workspace = true }
 gproxy-store = { workspace = true }
 http = { workspace = true }
 regex = { workspace = true }
@@ -28,3 +29,5 @@ zeroize = { workspace = true }
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 gproxy-cache = { workspace = true, features = ["memory"] }
 gproxy-client = { workspace = true, features = ["reqwest"] }
+sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

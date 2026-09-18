@@ -14,6 +14,9 @@ request execution and credential selection are not wired yet.
 | `context` | Resolved execution target, opaque caller scope/session, request/attempt/exchange, usage reports |
 | `observe` | Host-implemented settlement/capture/trace funnel with a pre-work policy query |
 | `capability` | Core implementations of protocol's Upstream, StateStore and ResourceAccess, bound to an attempt or scope |
+| `assemble` | ControlData rows into a CoreData snapshot: profiles to clients, channel lookup, secret opening, rule compilation, quota dimensions, live blocks |
+| `rewrite` | Rule compilation (regex, dot paths, filters) with the target/phase/name rules from the rewrite design |
+| `keys` | The one cache key grammar every core reader and writer shares |
 
 `CoreData` contains providers, credentials and reusable rewrite sets. It does not
 contain routes, exposed-model aliases, identity tables, permissions, OAuth client
@@ -52,9 +55,10 @@ a newer revision of an already-validated execution snapshot. Requests pin their 
 Core load/reload prototypes own execution-data assembly from Store; durable revision
 allocation and notification coordination remain upper-layer integration.
 
-`CredentialData` holds execution configuration, resolved client and a shared
-`CredentialState`. Secret, expiry and Store version publish atomically; each
-attempt pins one version. Publish only after Store CAS or authoritative loading.
+`CredentialData` holds execution configuration, the resolved HTTP client, the same
+profile forced to HTTP/1.1 for WebSocket upgrades, and a shared `CredentialState`.
+Secret, expiry, lifecycle status and Store version publish atomically as one
+`CredentialVersion`; each attempt pins one version. Publish only after Store CAS or authoritative loading.
 Equal/older versions are rejected. Reuse a slot for a still-live credential, retire
 it on deletion, and create a new slot for a recreated credential. There is no
 implicit refresh lease or persistence in the publication method.
@@ -124,9 +128,9 @@ its core entry point. Transport payloads retain the existing protocol types.
 
 | Method | Contract |
 |---|---|
-| `load_data` | Read a consistent execution-only Store snapshot, bind channels/clients, open credential material and compile rules; return unpublished CoreData |
-| `reload_data` | Load then publish monotonically; report loaded/active revision and whether publication won |
-| `reload_credentials` | Reload specified persisted credentials in input order, retire deleted slots; no upstream refresh |
+| `load_data` | Implemented: one `load_control_data` batch → `assemble` (enabled providers to registered channels, credential → provider → setting profile resolved to a pooled client, secrets opened, endpoints validated, rules compiled, `QuotaModel` dimensions declared, `config_revision` and limits read) → live `credential_blocks` warmed into the cache; any invalid row fails the whole load |
+| `reload_data` | Implemented: load then publish monotonically; a failed load keeps the previous snapshot active |
+| `reload_credentials` | Implemented: rows re-read in input order, material published into the existing `CredentialState` slot, missing rows return None and retire the slot; a row created after the last reload is reported but needs `reload_data` |
 | `refresh_credential` | Explicit provider/credential IDs plus IfNeeded/Force; lease, current Store read, channel refresh, seal/CAS persistence, publication |
 | `query_credential_quota` | Upstream account observations via the assigned channel/client; no subscription aggregation or quota reset |
 
@@ -137,10 +141,9 @@ Credential methods return secret-free `CredentialSummary` (version, expiry, dura
 it neither opens the database nor calls schema sync. Channel/client registration,
 secret codecs and durable revision integration remain prerequisites for assembly.
 
-This is still a public prototype surface: actual HTTP/WS execution, Store loading,
-credential reload/refresh and quota queries return `CoreError::NotImplemented`.
-`reload_data` has a load/publish shell but currently propagates load_data's error.
-No fake Store I/O or upstream calls are performed. `Execution<T>` holds the
+Actual HTTP/WS execution, credential refresh and quota queries still return
+`CoreError::NotImplemented`; on wasm32 `load_data` does too, because there is no
+outbound transport there yet. No fake upstream calls are performed. `Execution<T>` holds the
 protocol response and eventual `UsageCompletion`; stream lifecycle implementation
 remains pending.
 

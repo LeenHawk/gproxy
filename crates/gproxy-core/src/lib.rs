@@ -6,22 +6,27 @@
 #![forbid(unsafe_code)]
 
 pub mod api;
+pub mod assemble;
 pub mod builder;
 pub mod capability;
 pub mod context;
 pub mod data;
+pub mod keys;
 pub mod limits;
 pub mod observe;
+pub mod rewrite;
 pub mod runtime;
 pub mod secret;
 
 pub use api::*;
+pub use assemble::AssemblyError;
 pub use builder::*;
 pub use capability::*;
 pub use context::*;
 pub use data::*;
 pub use limits::*;
 pub use observe::*;
+pub use rewrite::RewriteCompileError;
 pub use runtime::*;
 pub use secret::*;
 
@@ -52,6 +57,11 @@ impl<C> Core<C> {
     /// Pin one immutable configuration snapshot for the logical request.
     pub fn snapshot(&self) -> Arc<CoreData> {
         self.data.load_full()
+    }
+    /// The Store this engine reads and writes. Management writes go through the
+    /// upper layer's coordinator; this accessor exists for tests and diagnostics.
+    pub fn store(&self) -> &Arc<Store<C>> {
+        &self.store
     }
     pub fn cache(&self) -> &Arc<dyn Cache> {
         &self.cache

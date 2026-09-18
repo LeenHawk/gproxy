@@ -1,32 +1,50 @@
 //! Mutable credential material and serializable shared-cache payloads. These
 //! types do not acquire locks, choose targets, refresh tokens or publish events.
 
-use crate::{ConfigRevision, SessionSource};
+use crate::{ConfigRevision, CredentialStatus, SessionSource};
 use arc_swap::ArcSwap;
 use gproxy_channel::channel::QuotaScope;
 use gproxy_protocol::Operation;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
-/// One coherent decrypted version. Never Debug/Serialize and never a cache
-/// notification payload. Persist the whole replacement before publishing it.
+/// One coherent decrypted version: everything the Store changes under the
+/// credential's version CAS (secret, expiry, lifecycle status). Never
+/// Debug/Serialize and never a cache notification payload. Persist the whole
+/// replacement before publishing it.
 pub struct CredentialVersion {
     pub version: i64,
     pub expires_at_ms: Option<i64>,
     pub secret: serde_json::Value,
+    /// Dead is never selected and never refreshed: a person must log in again.
+    pub status: CredentialStatus,
+    pub status_reason: Option<String>,
 }
 pub struct CredentialState {
     current: ArcSwap<CredentialVersion>,
+    retired: AtomicBool,
 }
 impl CredentialState {
     pub fn new(current: Arc<CredentialVersion>) -> Self {
         Self {
             current: ArcSwap::from(current),
+            retired: AtomicBool::new(false),
         }
     }
     /// Each attempt pins this Arc; a concurrent refresh cannot change it in place.
     pub fn load(&self) -> Arc<CredentialVersion> {
         self.current.load_full()
+    }
+    /// The Store row is gone. In-flight attempts keep their pinned version;
+    /// selection stops offering this slot until a reload replaces it.
+    pub fn retire(&self) {
+        self.retired.store(true, Ordering::SeqCst);
+    }
+    pub fn is_retired(&self) -> bool {
+        self.retired.load(Ordering::SeqCst)
     }
     /// Only use after successful Store CAS or an authoritative Store read.
     /// No refresh lease is acquired and no persistence is performed here.
@@ -89,6 +107,23 @@ pub enum BlockSource {
     Failures { consecutive: u32 },
 }
 
+impl BlockSource {
+    /// Same kind and, for quota blocks, the same dimension: a fresh observation
+    /// replaces the previous block for that origin rather than stacking.
+    pub fn same_origin(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::QuotaExhausted { dimension: a, .. },
+                Self::QuotaExhausted { dimension: b, .. },
+            )
+            | (Self::Counted { dimension: a }, Self::Counted { dimension: b }) => a == b,
+            (Self::RateLimited, Self::RateLimited)
+            | (Self::Failures { .. }, Self::Failures { .. }) => true,
+            _ => false,
+        }
+    }
+}
+
 /// One reason a credential is unusable for part of its model/operation space.
 /// Persisted one row per block in Store `credential_blocks` (scope and source
 /// as JSON); the cache copy is the hot path and is rebuilt from Store on load.
@@ -147,6 +182,17 @@ pub struct CredentialBlocks {
     pub last_success_at_ms: Option<i64>,
 }
 impl CredentialBlocks {
+    /// Insert or replace the block for the same scope, operation and origin,
+    /// dropping blocks that already expired.
+    pub fn upsert(&mut self, block: CredentialBlock, now_ms: i64) {
+        self.blocks.retain(|existing| {
+            existing.until_ms > now_ms
+                && !(existing.scope == block.scope
+                    && existing.operation == block.operation
+                    && existing.source.same_origin(&block.source))
+        });
+        self.blocks.push(block);
+    }
     /// The longest-lasting block covering this model/operation at `now_ms`.
     pub fn blocked_by(
         &self,
