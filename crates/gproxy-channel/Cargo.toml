@@ -8,6 +8,8 @@ repository.workspace = true
 
 [features]
 default = []
+# API-key upstreams speaking one or more native dialects verbatim.
+custom = []
 
 [dependencies]
 gproxy-client.workspace = true
