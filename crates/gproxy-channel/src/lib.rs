@@ -9,6 +9,8 @@
 //! methods preserve streaming bodies; WebSocket methods return duplex connections.
 
 pub mod channel;
+/// Concrete channels, each behind its own Cargo feature.
+pub mod channels;
 
 pub use channel::{
     BaseChannel, ChannelBinding, ChannelError, ChannelRegistry, OperationContext, OperationFuture,

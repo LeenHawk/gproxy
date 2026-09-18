@@ -121,13 +121,13 @@ pub struct PrepareContext<'a, B = HttpBody> {
 pub trait BaseChannel: Send + Sync {
     fn id(&self) -> &'static str;
 
-    /// The wire dialects this channel's upstream accepts natively for an
+    /// The wire dialects this provider's upstream accepts natively for an
     /// operation, in preference order. The host uses it to choose between
     /// passthrough and conversion; a per-provider OperationRule may override it.
     /// Empty means the channel declares nothing and configuration must decide.
-    fn native_dialects(&self, operation: Operation) -> &'static [Dialect] {
-        let _ = operation;
-        &[]
+    fn native_dialects(&self, provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
+        let _ = (provider, operation);
+        Vec::new()
     }
 
     /// Common HTTP preparation used by the default operation implementations.
