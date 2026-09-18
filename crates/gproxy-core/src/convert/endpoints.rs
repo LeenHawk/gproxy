@@ -81,3 +81,39 @@ pub fn get_model_path(dialect: Dialect, id: &str) -> Result<String, TransformErr
     let base = list_models_path(dialect)?;
     Ok(format!("{base}/{}", utf8_percent_encode(id, PATH_SEGMENT)))
 }
+
+/// The embeddings endpoint for `dialect` as a body-less request template.
+/// Gemini carries the model in the path and distinguishes single from batch
+/// by method name; OpenAI has one path whose body carries the model.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn embedding_template(
+    dialect: Dialect,
+    model: &str,
+    batch: bool,
+) -> Result<gproxy_protocol::WireRequest<()>, TransformError> {
+    let path = match dialect {
+        Dialect::OpenAi | Dialect::OpenAiChat => "/v1/embeddings".to_owned(),
+        Dialect::Gemini => {
+            let model = utf8_percent_encode(model, PATH_SEGMENT);
+            let method = if batch {
+                "batchEmbedContents"
+            } else {
+                "embedContent"
+            };
+            format!("/v1beta/models/{model}:{method}")
+        }
+        Dialect::Claude | Dialect::OpenAiResponsesWebSocket => {
+            return Err(TransformError::unsupported(
+                "endpoint",
+                format!("{dialect:?} has no embeddings path"),
+            ));
+        }
+    };
+    Ok(gproxy_protocol::WireRequest {
+        method: http::Method::POST,
+        path,
+        query: None,
+        headers: http::HeaderMap::new(),
+        body: (),
+    })
+}
