@@ -120,12 +120,25 @@ impl<C: BatchConnectionTrait> Core<C> {
             "send: no outbound transport on wasm32 yet",
         ))
     }
+    /// Handshake through the attempt loop; an established socket is observed
+    /// in both directions and settles when it closes or is dropped.
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn execute_websocket(
+        &self,
+        context: Arc<RequestContext>,
+        request: WireRequest<()>,
+    ) -> CoreResult<WebSocketExecution> {
+        crate::execute::run_websocket(self, context, request).await
+    }
+    #[cfg(target_arch = "wasm32")]
     async fn execute_websocket(
         &self,
         context: Arc<RequestContext>,
         request: WireRequest<()>,
     ) -> CoreResult<WebSocketExecution> {
         let _ = (context, request);
-        Err(CoreError::NotImplemented("connect"))
+        Err(CoreError::NotImplemented(
+            "connect: no outbound transport on wasm32 yet",
+        ))
     }
 }
