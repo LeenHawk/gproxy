@@ -3,27 +3,38 @@
 //! attempt-bound upstream, and encode the client-dialect response.
 
 use super::{Call, Converted};
+use crate::{ProtocolState, StateScope};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireResponse,
     adapt::generate::{
-        GenerationIdentity, GenerationOutcome, GenerationProgress,
+        GenerationIdentity, GenerationOutcome, GenerationProgress, GenerationStateAccess,
         chat_claude::{ChatViaClaude, ClaudeViaChat},
         chat_gemini::{ChatViaGemini, GeminiViaChat},
         chat_responses::{ChatReturnFacts, ChatViaResponses, ResponsesViaChat},
         claude_gemini::{ClaudeViaGemini, GeminiViaClaude},
         claude_responses::{ClaudeReturnFacts, ClaudeViaResponses, ResponsesViaClaude},
         gemini_responses::{GeminiReturnFacts, GeminiViaResponses, ResponsesViaGemini},
+        stream::{
+            ChatViaGeminiStreamFacts, ClaudeViaGeminiStreamFacts, GeminiViaClaudeStreamFacts,
+            ResponsesViaClaudeStreamFacts, ResponsesViaGeminiStreamFacts, StreamSettings,
+            StreamStart, StreamTarget, event::EventLimits, reader::SourceFraming,
+        },
     },
     codec::{CodecLimits, decode_json, encode_json},
+    connection::{ByteStream, TransportError},
     transform::{
         TransformError, TransformErrorKind,
-        generate::{claude_chat, claude_gemini, claude_responses, gemini_chat, gemini_responses},
-        identity::IdNamespace,
+        generate::{
+            chat_responses, claude_chat, claude_gemini, claude_responses, gemini_chat,
+            gemini_responses,
+        },
+        identity::{IdNamespace, IdentityTarget},
     },
     wire::{claude::generate_content as c, gemini as g, openai::chat as h, openai::responses as r},
 };
 use gproxy_seaorm::BatchConnectionTrait;
 use serde::{Serialize, de::DeserializeOwned};
+use std::time::SystemTime;
 
 fn codec(error: gproxy_protocol::codec::CodecError) -> TransformError {
     TransformError::with_source(
@@ -80,18 +91,289 @@ fn responses_settings(input: &r::GenerateContentRequestBody) -> (bool, r::input:
     )
 }
 
-/// Incremental generation is not converted yet; the buffered family lands
-/// first so the stream driver can reuse its endpoint and identity plumbing.
-pub(crate) async fn streamed<C: BatchConnectionTrait + Send + Sync>(
+/// Finite per-stream event budgets; the codec limits already bound bytes.
+const MAX_STREAM_EVENTS: usize = 65_536;
+const MAX_STREAM_ITEMS: usize = 256;
+const MAX_STREAM_TOOLS: usize = 256;
+const MAX_STREAM_PARTS: usize = 256;
+const MAX_STREAM_CHOICES: usize = 8;
+
+fn stream_settings(
+    limits: CodecLimits,
+    client: Dialect,
+    client_query: Option<&str>,
+) -> StreamSettings {
+    let client_framing = match client {
+        Dialect::Gemini if !client_query.is_some_and(|q| q.split('&').any(|p| p == "alt=sse")) => {
+            SourceFraming::JsonArray
+        }
+        _ => SourceFraming::Sse,
+    };
+    StreamSettings {
+        codec: limits,
+        events: EventLimits {
+            max_events: MAX_STREAM_EVENTS,
+            max_bytes: usize::try_from(limits.max_body_bytes).unwrap_or(usize::MAX),
+            max_pending_bytes: usize::try_from(limits.max_value_bytes).unwrap_or(usize::MAX),
+            max_items: MAX_STREAM_ITEMS,
+            max_tools: MAX_STREAM_TOOLS,
+            max_parts: MAX_STREAM_PARTS,
+            max_choices: MAX_STREAM_CHOICES,
+        },
+        // Upstream streams are always requested as SSE (Gemini via `alt=sse`).
+        source_framing: SourceFraming::Sse,
+        client_framing,
+    }
+}
+
+/// Continuation-state pieces a driven client stream carries by value so it
+/// can rebuild `GenerationStateAccess` on every poll.
+struct OwnedState<C> {
+    store: ProtocolState<C>,
+    scope: StateScope,
+    target: IdentityTarget,
+    conversation_key: String,
+    expires_at: SystemTime,
+    max_records: usize,
+}
+
+impl<C: BatchConnectionTrait + Send + Sync> OwnedState<C> {
+    fn capture(call: &Call<'_, C>, state: &GenerationStateAccess<'_, ProtocolState<C>>) -> Self {
+        Self {
+            store: call.state_store.clone(),
+            scope: call.state_scope.clone(),
+            target: state.target.clone(),
+            conversation_key: state.conversation_key.clone(),
+            expires_at: state.expires_at,
+            max_records: state.max_records,
+        }
+    }
+
+    fn access(&self) -> GenerationStateAccess<'_, ProtocolState<C>> {
+        GenerationStateAccess {
+            store: &self.store,
+            scope: &self.scope,
+            target: self.target.clone(),
+            conversation_key: self.conversation_key.clone(),
+            expires_at: self.expires_at,
+            now: SystemTime::now(),
+            max_records: self.max_records,
+        }
+    }
+}
+
+fn rejected(response: WireResponse<gproxy_protocol::connection::Bytes>) -> Converted {
+    Converted::Rejected(WireResponse {
+        status: response.status,
+        headers: response.headers,
+        body: HttpBody::Bytes(response.body),
+    })
+}
+
+fn transport(error: TransformError) -> TransportError {
+    Box::new(std::io::Error::other(error.to_string()))
+}
+
+/// Drive one started invocation as a client byte stream. A macro rather than
+/// a generic function: `StreamInvocation::next` is only `Send` per concrete
+/// bridge, which a generic bound cannot express.
+macro_rules! drive {
+    ($invocation:expr, $owned:expr) => {{
+        let invocation = $invocation;
+        let owned = $owned;
+        let stream: ByteStream = Box::pin(futures_util::stream::unfold(
+            Some((invocation, owned)),
+            |slot| async move {
+                let (mut invocation, owned) = slot?;
+                let next = invocation.next(&owned.access()).await;
+                match next {
+                    Ok(Some(chunk)) => Some((Ok(chunk.bytes), Some((invocation, owned)))),
+                    Ok(None) => None,
+                    Err(error) => Some((Err(transport(error)), None)),
+                }
+            },
+        ));
+        stream
+    }};
+}
+
+/// One incremental generation for `client -> target`: prepare the streaming
+/// edge with continuation state, POST once, and hand back a client-dialect
+/// stream that is driven chunk by chunk; the request settles when it ends.
+pub(crate) async fn streamed<C: BatchConnectionTrait + Send + Sync + 'static>(
     call: &Call<'_, C>,
 ) -> Result<Converted, TransformError> {
-    Err(TransformError::unsupported(
-        "generate.stream",
-        format!(
-            "streaming from {:?} to {:?} is not converted yet",
-            call.client.dialect, call.target
-        ),
-    ))
+    let client = call.client.dialect;
+    let target = call.target;
+    let upstream = call.upstream;
+    let body = call.body();
+    let limits = call.limits;
+    let state = &call.generation_state()?;
+    let key = OperationKey {
+        operation: Operation::StreamGenerateContent,
+        dialect: target,
+    };
+    let endpoint = super::generate_endpoint(target, &state.target.model, true)?;
+    let identities = GenerationIdentity::new(namespace(), namespace(), client, target)?;
+    let stream_target = StreamTarget {
+        endpoint,
+        identities,
+    };
+    let settings = stream_settings(limits, client, call.request.query.as_deref());
+    let created = call.now_ms.div_euclid(1000);
+    let model = state.target.model.clone();
+    macro_rules! run {
+        ($pair:ty, $input:ty, |$input_name:ident| $ctx:expr) => {{
+            let $input_name: $input = decode(body, limits)?;
+            let context = $ctx;
+            // Boxed per pair: twelve inlined stream state machines would
+            // otherwise sit side by side in one oversized frame.
+            Box::pin(async move {
+                let invocation =
+                    <$pair>::prepare_stream($input_name, stream_target, context, settings, state)
+                        .await?;
+                run!(@start invocation)
+            })
+            .await
+        }};
+        ($pair:ty, $input:ty) => {{
+            let input: $input = decode(body, limits)?;
+            Box::pin(async move {
+                let invocation =
+                    <$pair>::prepare_stream(input, stream_target, settings, state).await?;
+                run!(@start invocation)
+            })
+            .await
+        }};
+        (@start $invocation:expr) => {{
+            let mut invocation = $invocation;
+            match invocation.start(upstream, &key, state).await? {
+                StreamStart::Rejected(response) => Ok(rejected(response)),
+                StreamStart::Streaming(head) => {
+                    let owned = OwnedState::capture(call, state);
+                    Ok(Converted::Stream(WireResponse {
+                        status: head.status,
+                        headers: head.headers,
+                        body: drive!(invocation, owned),
+                    }))
+                }
+            }
+        }};
+    }
+    match (client, target) {
+        (Dialect::OpenAiChat, Dialect::Claude) => {
+            run!(ChatViaClaude, h::GenerateContentRequestBody, |input| {
+                claude_chat::stream::ClaudeToChatContext { created }
+            })
+        }
+        (Dialect::Claude, Dialect::OpenAiChat) => {
+            run!(ClaudeViaChat, c::GenerateContentRequestBody, |input| {
+                claude_chat::stream::ChatToClaudeContext::default()
+            })
+        }
+        (Dialect::OpenAiChat, Dialect::OpenAi) => {
+            run!(ChatViaResponses, h::GenerateContentRequestBody)
+        }
+        (Dialect::OpenAi, Dialect::OpenAiChat) => {
+            run!(ResponsesViaChat, r::GenerateContentRequestBody, |input| {
+                let (parallel_tool_calls, tool_choice) = responses_settings(&input);
+                let context: chat_responses::stream::ChatToResponsesContext =
+                    chat_responses::ResponsesResponseContext {
+                        request: input.clone(),
+                        effective_parallel_tool_calls: parallel_tool_calls,
+                        effective_tool_choice: tool_choice,
+                        usage: Default::default(),
+                        effective_prompt_cache_options: None,
+                    }
+                    .into();
+                context
+            })
+        }
+        (Dialect::Gemini, Dialect::OpenAiChat) => {
+            run!(GeminiViaChat, g::GenerateContentRequestBody)
+        }
+        (Dialect::OpenAiChat, Dialect::Gemini) => {
+            run!(ChatViaGemini, h::GenerateContentRequestBody, |input| {
+                ChatViaGeminiStreamFacts {
+                    function_names: Default::default(),
+                    response: gemini_chat::stream::GeminiToChatContext {
+                        created,
+                        model: Some(model.clone()),
+                    },
+                }
+            })
+        }
+        (Dialect::Claude, Dialect::Gemini) => {
+            run!(ClaudeViaGemini, c::GenerateContentRequestBody, |input| {
+                ClaudeViaGeminiStreamFacts {
+                    request: Default::default(),
+                    response: claude_gemini::stream::GeminiToClaudeContext {
+                        model: Some(model.clone()),
+                        ..Default::default()
+                    },
+                }
+            })
+        }
+        (Dialect::Gemini, Dialect::Claude) => {
+            run!(GeminiViaClaude, g::GenerateContentRequestBody, |input| {
+                GeminiViaClaudeStreamFacts {
+                    max_tokens: None,
+                    response: claude_gemini::stream::ClaudeToGeminiContext::default(),
+                }
+            })
+        }
+        (Dialect::Claude, Dialect::OpenAi) => {
+            run!(ClaudeViaResponses, c::GenerateContentRequestBody, |input| {
+                claude_responses::stream::ResponsesToClaudeContext::default()
+            })
+        }
+        (Dialect::OpenAi, Dialect::Claude) => {
+            run!(ResponsesViaClaude, r::GenerateContentRequestBody, |input| {
+                let (parallel_tool_calls, tool_choice) = responses_settings(&input);
+                ResponsesViaClaudeStreamFacts {
+                    request: Default::default(),
+                    response: claude_responses::ClaudeResponseContext {
+                        request: input.clone(),
+                        effective_parallel_tool_calls: parallel_tool_calls,
+                        effective_tool_choice: tool_choice,
+                        usage: Default::default(),
+                        created_at: created,
+                        effective_prompt_cache_options: None,
+                    }
+                    .into(),
+                }
+            })
+        }
+        (Dialect::Gemini, Dialect::OpenAi) => {
+            run!(GeminiViaResponses, g::GenerateContentRequestBody, |input| {
+                gemini_responses::stream::ResponsesToGeminiContext::default()
+            })
+        }
+        (Dialect::OpenAi, Dialect::Gemini) => {
+            run!(ResponsesViaGemini, r::GenerateContentRequestBody, |input| {
+                let (parallel_tool_calls, tool_choice) = responses_settings(&input);
+                ResponsesViaGeminiStreamFacts {
+                    request: Default::default(),
+                    response: gemini_responses::stream::GeminiToResponsesContext {
+                        response: gemini_responses::GeminiResponseContext {
+                            request: input.clone(),
+                            effective_parallel_tool_calls: parallel_tool_calls,
+                            effective_tool_choice: tool_choice,
+                            usage: Default::default(),
+                            created_at: created,
+                            effective_prompt_cache_options: None,
+                        },
+                        actual_model: Some(model.clone()),
+                        final_thinking_tokens: None,
+                    },
+                }
+            })
+        }
+        (client, target) => Err(TransformError::unsupported(
+            "generate.stream",
+            format!("no streaming conversion from {client:?} to {target:?}"),
+        )),
+    }
 }
 
 /// One buffered generation for `client -> target`. The upstream model comes
