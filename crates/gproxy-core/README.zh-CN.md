@@ -16,7 +16,7 @@ Provider 执行层的数据结构。上层先完成路由／模型别名解析�
 | `rewrite` | 规则编译、按 phase／操作／模型／头选择、Body／Header／Query 应用，以及保留原字节的逐单元流改写（SSE、JSON 数组、NDJSON） |
 | `keys` | core 所有读写方共用的唯一一套 cache key 语法 |
 | `execute`（私有） | attempt 循环、观测包装的 client/body、请求缓冲、带 `Settled` 证明的结算漏斗 |
-| `convert` | 操作 spec 查询（响应 framing、WebSocket 判定）；转换路线下一阶段接入 |
+| `convert` | 直通／转换选路、原生端点路径、spec 查询，以及覆盖 12 条 dialect 边的缓冲 generate 驱动 |
 
 `CoreData` 只保存 providers、credentials、可复用 rewrite_rule_sets。路由、对外模型别名、
 身份表、权限、OAuth client 白名单、订阅、计价和准入规则属于上层，路由亲和以及跨 Provider
@@ -165,9 +165,19 @@ trait，多次调用的适配不会拿到裸 client：
 | `Resources` | `ResourceAccess<Scope = ResourceScope, PublishedHandle = PublishedHandle>` | Store 的 ResourceBinding／FileObject 行和文件后端；scope 携带允许的 `ExecutionTarget`，来源 Provider 可以不同于本次请求目标 |
 
 每个实例由构造它的执行路径显式传入 `CapabilityLimits`，没有无限默认值。
-`AttemptUpstream::send/connect` 需应用 Provider 的方法 URL、拒绝绝对 URL 和来源鉴权，
-并经过观测包装层。当前所有方法返回 kind 为 `Unsupported`、说明函数未实现的
-`CapabilityError`。
+`AttemptUpstream::send/connect` 已实现：每次调用按原生操作选改写规则、开一个观测交互、
+带 attempt 固定的凭证和 Provider 方法 URL 经 `ChannelBinding` 分派，所以多次调用的适配
+流程每一次都被 capture 和计量。`ProtocolState` 落在 Store 的 ProtocolState 行上
+（`get_live_many`／`compare_exchange_many`，宿主签发版本，过期视为不存在）。`Resources`
+仍返回 `Unsupported`。
+
+选路（`convert::route`）问渠道该 Provider 原生说哪些 dialect（`action = "dialects"` 的
+`OperationRule` 按操作覆盖）：客户端 dialect 是原生的就直通，否则第一个声明的 dialect
+是转换目标。缓冲 `GenerateContent` 由 `convert::generate::buffered` 转换全部 12 条边：解码
+客户端 body、带续接状态准备有向边（`prepare_with_state`）、经 `AttemptUpstream` POST 一次、
+编码回客户端 dialect；上游拒绝的应答进入与直通相同的 429／401／5xx 分类。流式转换、模型
+列表、count tokens、embeddings、files、video、images、guardian、compact、memory 尚未转换，
+返回 kind 为 `Unsupported` 的 `Transform` 错误。
 
 ```sh
 cargo test -p gproxy-core

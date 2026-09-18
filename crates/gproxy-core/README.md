@@ -18,7 +18,7 @@ request execution and credential selection are not wired yet.
 | `rewrite` | Rule compilation, selection by phase/operation/model/headers, Body/Header/Query application and a raw-preserving per-unit stream rewriter (SSE, JSON array, NDJSON) |
 | `keys` | The one cache key grammar every core reader and writer shares |
 | `execute` (private) | Attempt loop, observed client/body wrappers, request buffering and the settlement funnel with its `Settled` proof |
-| `convert` | Operation spec lookups (response framing, WebSocket detection); conversion routes arrive next |
+| `convert` | Passthrough-or-convert routing, native endpoint paths, spec lookups, and the buffered generate driver over all twelve dialect pairs |
 
 `CoreData` contains providers, credentials and reusable rewrite sets. It does not
 contain routes, exposed-model aliases, identity tables, permissions, OAuth client
@@ -214,10 +214,25 @@ never receives a raw client:
 | `Resources` | `ResourceAccess<Scope = ResourceScope, PublishedHandle = PublishedHandle>` | Store ResourceBinding/FileObject rows and the file backend; the scope carries the permitted `ExecutionTarget`, which may name a source provider other than the request target |
 
 Each instance takes explicit `CapabilityLimits` from the execution path that
-constructs it; there is no unlimited default. `AttemptUpstream::send/connect` must
-apply the provider's operation URL, reject absolute URLs and source authentication,
-and route through the observation wrapper. All methods currently return a
-`CapabilityError` of kind `Unsupported` stating that the function is not implemented.
+constructs it; there is no unlimited default. `AttemptUpstream::send/connect` are
+implemented: every call selects the rewrite rules for the native operation, opens
+one observed exchange, and dispatches through `ChannelBinding` with the attempt's
+pinned credential and the provider's method URL, so adaptation flows that make
+several calls are captured and metered per call. `ProtocolState` is implemented
+over the Store's ProtocolState rows (`get_live_many`/`compare_exchange_many`,
+host-issued versions, expiry as absence). `Resources` still returns `Unsupported`.
+
+Routing (`convert::route`) asks the channel which dialects the provider speaks
+natively (an `OperationRule` with `action = "dialects"` overrides it per
+operation): a native client dialect passes through, otherwise the first declared
+dialect is the conversion target. Buffered `GenerateContent` is converted across
+all twelve pairs by `convert::generate::buffered`, which decodes the client body,
+prepares the directed edge with continuation state (`prepare_with_state`), posts
+once through `AttemptUpstream`, and encodes the client-dialect response; a
+rejected upstream answer re-enters the same 429/401/5xx classification as
+passthrough. Streaming conversion, model lists, count tokens, embeddings, files,
+video, images, guardian, compact and memory are not converted yet and return a
+`Transform` error of kind `Unsupported`.
 
 ```sh
 cargo test -p gproxy-core

@@ -42,6 +42,12 @@ pub enum CoreError {
     #[error("rewrite failed: {0}")]
     Rewrite(String),
     #[error(transparent)]
+    Route(#[from] crate::convert::RouteError),
+    /// Protocol conversion or adaptation failed. `kind()` distinguishes a bad
+    /// client request from an unsupported pair or a host/transport fault.
+    #[error(transparent)]
+    Transform(#[from] gproxy_protocol::transform::TransformError),
+    #[error(transparent)]
     Secret(#[from] crate::SecretError),
     #[error(transparent)]
     Limits(#[from] crate::LimitsError),
