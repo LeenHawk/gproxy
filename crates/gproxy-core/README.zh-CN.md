@@ -12,6 +12,9 @@ Provider 执行层的数据结构。上层先完成路由／模型别名解析�
 | `context` | 已解析执行目标、不透明调用方 scope／session、请求／尝试／交互、用量报告 |
 | `observe` | 宿主实现的结算／capture／trace 漏斗，先问策略再干活 |
 | `capability` | protocol 的 Upstream／StateStore／ResourceAccess 在 core 侧的实现，绑定 attempt 或 scope |
+| `assemble` | ControlData 行装配成 CoreData：profile 解析成 client、渠道查找、解密、规则编译、额度维度、在效 block |
+| `rewrite` | 规则编译（正则、点路径、筛选），执行改写设计里的 target／phase／name 校验 |
+| `keys` | core 所有读写方共用的唯一一套 cache key 语法 |
 
 `CoreData` 只保存 providers、credentials、可复用 rewrite_rule_sets。路由、对外模型别名、
 身份表、权限、OAuth client 白名单、订阅、计价和准入规则属于上层，路由亲和以及跨 Provider
@@ -39,8 +42,9 @@ Provider 执行层的数据结构。上层先完成路由／模型别名解析�
 `publish_snapshot` 只接受更新 revision 的已验证执行快照；请求持有自己的
 Arc。执行数据组装由 core 的加载／重载入口负责；持久 revision 分配及通知协调由上层接线。
 
-`CredentialData` 保存执行配置、已解析的 client 和共享 `CredentialState`。解密 secret、
-到期时间、Store version 整体原子发布，每次尝试固定一份版本。仅在 Store CAS 成功或
+`CredentialData` 保存执行配置、已解析的 HTTP client、同一 profile 强制 HTTP/1.1 的
+WebSocket client，以及共享 `CredentialState`。解密 secret、到期时间、生命周期 status 和
+Store version 作为一份 `CredentialVersion` 整体原子发布，每次尝试固定一份版本。仅在 Store CAS 成功或
 权威读取后发布，拒绝相同／旧版本。仍存在的凭证复用 slot，删除后摘除，重新创建用新 slot。
 发布方法不隐式获取刷新租约或写库，刷新不需要替换整个执行配置快照。
 
@@ -94,9 +98,9 @@ Provider／渠道默认值。实际 channel 调用时应用该地址仍需后续
 
 | 方法 | 契约 |
 |---|---|
-| `load_data` | 一致读取 Store 执行数据，绑定 channel/client、解密凭证、编译规则，返回尚未发布的 CoreData |
-| `reload_data` | 加载后按 revision 发布，返回读取／当前版本以及是否成功替换 |
-| `reload_credentials` | 按输入顺序重新读取指定凭证，删除项摘除旧 slot；不请求上游刷新 |
+| `load_data` | 已实现：一次 `load_control_data` → `assemble`（启用的 provider 找注册渠道、凭证→Provider→Setting 的 profile 解析成池化 client、解密、endpoint 校验、规则编译、`QuotaModel` 声明维度、读 `config_revision` 与 limits）→ 在效 `credential_blocks` 预热进 cache；任一行无效整次失败 |
+| `reload_data` | 已实现：加载后按 revision 单调发布，加载失败保留旧快照 |
+| `reload_credentials` | 已实现：按输入顺序重读，材料发布进已有 `CredentialState` slot，缺失行返回 None 并摘除 slot；上次 reload 之后新建的凭证只报告不安装，需要 `reload_data` |
 | `refresh_credential` | 显式 Provider／凭证 ID＋IfNeeded/Force；租约、当前 Store 读取、channel 刷新、密封/CAS 持久化、发布 |
 | `query_credential_quota` | 调用指定凭证的上游额度能力，不做订阅聚合或额度重置 |
 
@@ -105,9 +109,8 @@ Provider／渠道默认值。实际 channel 调用时应用该地址仍需后续
 负责打开数据库或 sync。组装所需 channel/client 注册、secret codec 和持久 revision 接线
 仍待实现。
 
-当前仍是 public 原型：实际 HTTP／WS 执行、Store 加载、凭证重载／刷新及额度查询返回
-`CoreError::NotImplemented`；`reload_data` 已串起加载与发布，但目前会传播 load_data 的
-未实现错误。不伪造数据库读写或上游调用。`Execution<T>` 保留原始响应和后续
+实际 HTTP／WS 执行、凭证刷新及额度查询仍返回 `CoreError::NotImplemented`；wasm32 上
+`load_data` 也是，因为那里还没有出站传输。不伪造上游调用。`Execution<T>` 保留原始响应和后续
 `UsageCompletion`，流生命周期尚未接入。
 
 已移除对外占位函数：`select_credential`、`compile_rewrite_rule`、`rewrite_request`、

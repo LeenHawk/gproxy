@@ -1,9 +1,9 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use gproxy_core::{
-    CapturePolicy, CaptureSink, ConfigRevision, Core, CoreData, CredentialState, CredentialVersion,
-    ExchangeContext, ObservationPolicy, Observer, PlaintextCodec, RequestContext, TraceEvent,
-    UsageReport,
+    CapturePolicy, CaptureSink, ConfigRevision, Core, CoreData, CredentialState, CredentialStatus,
+    CredentialVersion, ExchangeContext, ObservationPolicy, Observer, PlaintextCodec,
+    RequestContext, TraceEvent, UsageReport,
 };
 use gproxy_protocol::capability::CapabilityFuture;
 use std::sync::{Arc, Barrier};
@@ -74,6 +74,8 @@ fn refreshed_material_is_atomic_and_old_attempt_cannot_observe_half_a_version() 
             version,
             expires_at_ms: Some(version * 100),
             secret: serde_json::json!({"version": version}),
+            status: CredentialStatus::Active,
+            status_reason: None,
         })
     };
     let state = Arc::new(CredentialState::new(material(0)));

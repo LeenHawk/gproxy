@@ -50,17 +50,18 @@ pub trait OutboundClient: ClientBounds {
     }
 }
 
-#[cfg(all(
-    not(target_arch = "wasm32"),
-    any(feature = "reqwest", feature = "wreq")
-))]
+#[cfg(not(target_arch = "wasm32"))]
 mod native {
     use super::*;
     use crate::Client;
+    #[cfg(any(feature = "reqwest", feature = "wreq"))]
     use futures_util::{SinkExt, StreamExt};
+    #[cfg(any(feature = "reqwest", feature = "wreq"))]
     use gproxy_protocol::connection::{TransportError, WebSocket, WsClose, WsFrame};
+    #[cfg(any(feature = "reqwest", feature = "wreq"))]
     use http::{HeaderMap, HeaderValue, StatusCode, header};
 
+    #[cfg(any(feature = "reqwest", feature = "wreq"))]
     fn start_error(source: impl std::error::Error + Send + Sync + 'static) -> CapabilityError {
         CapabilityError::with_source(
             CapabilityErrorKind::Transport,
@@ -69,12 +70,14 @@ mod native {
             source,
         )
     }
+    #[cfg(any(feature = "reqwest", feature = "wreq"))]
     fn boxed(source: impl std::error::Error + Send + Sync + 'static) -> TransportError {
         Box::new(source)
     }
 
     /// The upgrade layers own the handshake headers; a caller-supplied copy would
     /// be duplicated or contradict the generated key.
+    #[cfg(any(feature = "reqwest", feature = "wreq"))]
     fn split_handshake_headers(headers: &mut HeaderMap) -> Vec<String> {
         let protocols = headers
             .get_all(header::SEC_WEBSOCKET_PROTOCOL)
@@ -97,6 +100,7 @@ mod native {
         protocols
     }
 
+    #[cfg(any(feature = "reqwest", feature = "wreq"))]
     fn handshake(status: StatusCode, headers: &HeaderMap<HeaderValue>) -> WireResponse<()> {
         WireResponse {
             status,
@@ -111,6 +115,7 @@ mod native {
             request: http::Request<HttpBody>,
         ) -> CapabilityFuture<'a, Result<WireResponse<HttpBody>, CapabilityError>> {
             Box::pin(async move {
+                #[allow(unused_variables)]
                 let (parts, body) = request.into_parts();
                 match self {
                     #[cfg(feature = "reqwest")]
@@ -126,6 +131,7 @@ mod native {
             request: http::Request<()>,
         ) -> CapabilityFuture<'a, Result<UpstreamConnection, CapabilityError>> {
             Box::pin(async move {
+                #[allow(unused_variables)]
                 let (parts, ()) = request.into_parts();
                 match self {
                     #[cfg(feature = "reqwest")]

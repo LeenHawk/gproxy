@@ -51,7 +51,8 @@ pub struct ProviderData {
     pub operation_urls: HashMap<OperationEndpointKey, String>,
     /// Ordered by sort_order then ID; shared compiled sets live in CoreData.
     pub rewrite_rule_sets: Vec<Arc<upstream::provider_rewrite_rule_set::Model>>,
-    /// Runtime contract only: persistence for selection strategy is still pending.
+    /// Read from the provider config JSON field `credential_strategy`; absent
+    /// means round-robin.
     pub credential_strategy: CredentialStrategy,
 }
 
@@ -90,14 +91,13 @@ pub struct CredentialData {
     pub label: Option<String>,
     pub auth_kind: String,
     pub enabled: bool,
-    /// Durable lifecycle. Dead is never selected and never refreshed: a person
-    /// must log in again. Temporary limits are blocks, not status.
-    pub status: CredentialStatus,
-    pub status_reason: Option<String>,
     pub metadata: serde_json::Value,
     /// Already resolved effective client, shared by equal connection parameters.
     pub client: Arc<dyn OutboundClient>,
-    /// Reuse across configuration reloads for the same live credential.
+    /// Same profile forced to HTTP/1.1 for RFC 6455 upgrades.
+    pub websocket_client: Arc<dyn OutboundClient>,
+    /// Secret, expiry and lifecycle status, versioned together. Reused across
+    /// configuration reloads for the same live credential.
     pub state: Arc<CredentialState>,
     /// Declared once at assembly by the channel's `QuotaModel` from this
     /// credential's auth kind and metadata. Reported dimensions receive their
