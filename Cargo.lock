@@ -1627,6 +1627,7 @@ dependencies = [
  "sea-orm",
  "serde",
  "serde_json",
+ "serde_urlencoded",
  "tempfile",
  "thiserror 2.0.20",
  "tokio",
