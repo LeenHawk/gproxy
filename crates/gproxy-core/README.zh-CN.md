@@ -28,8 +28,14 @@ Provider 执行层的数据结构。上层先完成路由／模型别名解析�
 没有稳定会话标识时退化为普通逐请求轮询。绑定按调用方隔离 scope 和 Provider 区分；
 同一会话并发首次请求需要收敛到同一个绑定。目前只定义策略契约，持久化及选择器尚未实现。
 
-`Core<C>` 持有 `Arc<Store<C>>`、注入的 `Arc<dyn Cache>`、注入的 `Arc<dyn Observer>` 和
-`ArcSwap<CoreData>`。构造不做 I/O，也没有默认 observer：不想结算的宿主必须显式声明。
+`Core<C>` 通过 `Core::builder(store)` 装配：`cache`、`observer`、`secret_codec` 必填，
+`channel`／`channels` 把 `BaseChannel` 实现注册进 `ChannelRegistry`（重复 ID 拒绝），
+`client_pool` 可覆盖 core 自持的 `gproxy_client::ClientPool`。构造不做 I/O，没有任何
+默认的空实现：不想结算、不想加密的宿主必须显式声明。`SecretCodec` 负责凭证 secret 的
+落库密封：`AesGcmCodec`（AES-256-GCM 信封，每凭证数据密钥由主密钥包裹，AAD 绑定凭证 ID）
+是默认选择，`PlaintextCodec` 是显式放弃加密；两者互不接受对方的信封。`ExecutionLimits`
+来自 Setting 行（请求／流空闲超时、body／事件／帧字节上限、multipart 分片数），派生所有
+`CapabilityLimits` 与 `CodecLimits`；没有无限模式，请求 deadline 只能收紧。
 `publish_snapshot` 只接受更新 revision 的已验证执行快照；请求持有自己的
 Arc。执行数据组装由 core 的加载／重载入口负责；持久 revision 分配及通知协调由上层接线。
 

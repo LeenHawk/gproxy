@@ -10,6 +10,7 @@ repository.workspace = true
 default = []
 
 [dependencies]
+gproxy-client.workspace = true
 gproxy-protocol.workspace = true
 http.workspace = true
 rust_decimal.workspace = true

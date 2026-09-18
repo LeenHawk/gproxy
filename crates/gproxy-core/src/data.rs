@@ -1,7 +1,7 @@
 //! Provider execution data and prepared rewrite matchers. The upper layer owns
 //! routing, caller policy and assembly of the permitted execution target.
 
-use crate::runtime::CredentialState;
+use crate::{limits::ExecutionLimits, runtime::CredentialState};
 use gproxy_channel::{BaseChannel, OutboundClient, channel::QuotaDimension};
 use gproxy_protocol::OperationKey;
 use gproxy_store::entity::upstream;
@@ -32,6 +32,8 @@ pub struct ConfigRevision(pub u64);
 #[derive(Default)]
 pub struct CoreData {
     pub revision: ConfigRevision,
+    /// Finite execution bounds from the Setting row of this revision.
+    pub limits: ExecutionLimits,
     pub providers: EntityMap<ProviderData>,
     pub credentials: EntityMap<CredentialData>,
     pub rewrite_rule_sets: EntityMap<RewriteRuleSetData>,

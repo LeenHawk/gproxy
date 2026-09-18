@@ -2,15 +2,18 @@
 //! parameters and reuses clients with identical parameters. Requests, authentication,
 //! routing, concurrency limits and profile inheritance belong to the caller.
 //!
-//! Native backends expose their original streaming/request APIs through [`Client`].
-//! On WASM only configuration types are available; native proxies and TLS emulation
-//! cannot be implemented by browser Fetch.
+//! Native backends expose their original streaming/request APIs through [`Client`],
+//! which also implements the [`OutboundClient`] transport contract that channels
+//! and core call. On WASM only configuration types and the contract are available;
+//! native proxies and TLS emulation cannot be implemented by browser Fetch.
 
 mod config;
 mod error;
+mod outbound;
 
 pub use config::{Backend, ConnectionConfig, EmulationConfig, ProxyConfig, RetryPolicy};
 pub use error::Error;
+pub use outbound::{ClientBounds, OutboundClient};
 
 #[cfg(not(target_arch = "wasm32"))]
 mod client;

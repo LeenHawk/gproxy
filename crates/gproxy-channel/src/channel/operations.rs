@@ -6,7 +6,7 @@ use gproxy_protocol::{
 };
 
 use super::{BaseChannel, ChannelError, CredentialView, PrepareContext, ProviderView};
-use crate::client::OutboundClient;
+use gproxy_client::OutboundClient;
 
 pub type OperationFuture<'a, T> = CapabilityFuture<'a, Result<T, ChannelError>>;
 
@@ -38,7 +38,7 @@ pub(super) fn http<'a>(
             operation: key,
             request: context.request,
         })?;
-        context.client.send(request).await
+        Ok(context.client.send(request).await?)
     })
 }
 
@@ -58,6 +58,6 @@ pub(super) fn websocket<'a>(
             operation: key,
             request: context.request,
         })?;
-        context.client.connect(request).await
+        Ok(context.client.connect(request).await?)
     })
 }

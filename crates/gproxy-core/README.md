@@ -37,9 +37,17 @@ by the caller isolation scope and Provider; do not share them across callers.
 Concurrent first requests for the same session must converge on one binding. This
 is a selection contract only: persistence and the selector are still pending.
 
-`Core<C>` owns an `Arc<Store<C>>`, injected `Arc<dyn Cache>`, injected `Arc<dyn Observer>`
-and `ArcSwap<CoreData>`. Construction does no I/O and there is no default observer:
-a host that wants no settlement must say so explicitly. `publish_snapshot` accepts only
+`Core<C>` is assembled through `Core::builder(store)`: `cache`, `observer` and
+`secret_codec` are required, `channel`/`channels` register `BaseChannel` implementations
+into a `ChannelRegistry` (duplicate IDs rejected), `client_pool` overrides the owned
+`gproxy_client::ClientPool`. Construction does no I/O and nothing defaults to a no-op:
+a host that wants no settlement or unencrypted secrets must say so explicitly.
+`SecretCodec` seals credential secrets at rest; `AesGcmCodec` (AES-256-GCM envelope,
+per-credential data key wrapped by the master key, credential ID in the AAD) is the
+default choice and `PlaintextCodec` the explicit opt-out; each refuses the other's
+envelopes. `ExecutionLimits` come from the Setting row (request/stream-idle timeouts,
+body/event/frame byte caps, multipart parts) and derive every `CapabilityLimits` and
+`CodecLimits`; there is no unlimited mode, and a request deadline can only shorten them. `publish_snapshot` accepts only
 a newer revision of an already-validated execution snapshot. Requests pin their own Arc.
 Core load/reload prototypes own execution-data assembly from Store; durable revision
 allocation and notification coordination remain upper-layer integration.

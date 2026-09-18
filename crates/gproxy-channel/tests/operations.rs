@@ -5,7 +5,9 @@ use gproxy_channel::channel::{
     CredentialView, OperationContext, OperationFuture, PrepareContext, ProviderView,
 };
 use gproxy_channel::{BaseChannel, ChannelBinding, ChannelError, OutboundClient};
-use gproxy_protocol::capability::{CapabilityFuture, UpstreamConnection};
+use gproxy_protocol::capability::{
+    CapabilityError, CapabilityErrorKind, CapabilityFuture, UpstreamConnection,
+};
 use gproxy_protocol::connection::{Bytes, TransportError, WsFrame};
 use gproxy_protocol::spec::{OPERATION_SPECS, OperationTransport};
 use gproxy_protocol::{
@@ -57,7 +59,7 @@ impl OutboundClient for Client {
     fn send<'a>(
         &'a self,
         request: http::Request<HttpBody>,
-    ) -> CapabilityFuture<'a, Result<WireResponse, ChannelError>> {
+    ) -> CapabilityFuture<'a, Result<WireResponse, CapabilityError>> {
         Box::pin(async move {
             self.urls.lock().unwrap().push(request.uri().to_string());
             Ok(response(request.uri().path().to_owned()))
@@ -251,6 +253,7 @@ impl BaseChannel for TwoPages {
                         .unwrap(),
                 )
                 .await
+                .map_err(ChannelError::from)
         })
     }
 }
@@ -285,13 +288,13 @@ impl OutboundClient for DuplexClient {
     fn send<'a>(
         &'a self,
         _: http::Request<HttpBody>,
-    ) -> CapabilityFuture<'a, Result<WireResponse, ChannelError>> {
+    ) -> CapabilityFuture<'a, Result<WireResponse, CapabilityError>> {
         panic!("WebSocket must not use HTTP send")
     }
     fn connect<'a>(
         &'a self,
         request: http::Request<()>,
-    ) -> CapabilityFuture<'a, Result<UpstreamConnection, ChannelError>> {
+    ) -> CapabilityFuture<'a, Result<UpstreamConnection, CapabilityError>> {
         Box::pin(async move {
             self.auth
                 .lock()
@@ -407,7 +410,7 @@ async fn dispatch_uses_method_shape_and_leaves_dialect_support_to_channel() {
     ));
     assert!(matches!(
         binding.connect(ws, request(())).await,
-        Err(ChannelError::WebSocketUnavailable)
+        Err(ChannelError::Transport(error)) if error.kind() == CapabilityErrorKind::Unsupported
     ));
     let channel_defined_pair = OperationKey {
         operation: Operation::ListModels,

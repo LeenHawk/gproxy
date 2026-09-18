@@ -21,6 +21,16 @@ if let Client::Reqwest(http) = client.as_ref() {
 # }
 ```
 
+`Client` also implements the [`OutboundClient`] transport contract that channels and
+core call: `send` takes a prepared absolute `http::Request<HttpBody>` and returns the
+response with a streaming body (non-2xx included); `connect` performs the WebSocket
+upgrade and returns either the duplex socket or the rejected handshake response.
+The upgrade layer owns the handshake headers, so caller-supplied `Upgrade`,
+`Connection`, `Sec-WebSocket-Key/Version/Extensions` are dropped and
+`Sec-WebSocket-Protocol` is turned into the protocol list. With the wreq backend a
+rejected handshake keeps status and headers but not its body. The trait itself is
+available on every target; only the implementation is native.
+
 `Client` exposes the native backend handles, including streaming multipart APIs.
 Reqwest WebSockets use the re-exported `reqwest_websocket` extension; wreq provides
 its native WebSocket API. There is no second buffering or wire-protocol abstraction here.

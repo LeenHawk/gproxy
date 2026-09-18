@@ -53,7 +53,7 @@ impl OutboundClient for RecordingClient {
     fn send<'a>(
         &'a self,
         request: http::Request<HttpBody>,
-    ) -> CapabilityFuture<'a, Result<WireResponse, ChannelError>> {
+    ) -> CapabilityFuture<'a, Result<WireResponse, CapabilityError>> {
         Box::pin(async move {
             self.calls.fetch_add(1, Ordering::SeqCst);
             self.auth.lock().unwrap().push(
@@ -230,14 +230,13 @@ impl OutboundClient for FailingClient {
     fn send<'a>(
         &'a self,
         _: http::Request<HttpBody>,
-    ) -> CapabilityFuture<'a, Result<WireResponse, ChannelError>> {
+    ) -> CapabilityFuture<'a, Result<WireResponse, CapabilityError>> {
         Box::pin(async {
             Err(CapabilityError::new(
                 CapabilityErrorKind::Transport,
                 CapabilityErrorStage::Start,
                 "connection failed",
-            )
-            .into())
+            ))
         })
     }
 }

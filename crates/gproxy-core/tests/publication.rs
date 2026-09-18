@@ -2,7 +2,8 @@
 
 use gproxy_core::{
     CapturePolicy, CaptureSink, ConfigRevision, Core, CoreData, CredentialState, CredentialVersion,
-    ExchangeContext, ObservationPolicy, Observer, RequestContext, TraceEvent, UsageReport,
+    ExchangeContext, ObservationPolicy, Observer, PlaintextCodec, RequestContext, TraceEvent,
+    UsageReport,
 };
 use gproxy_protocol::capability::CapabilityFuture;
 use std::sync::{Arc, Barrier};
@@ -28,12 +29,14 @@ impl Observer for ObserveNothing {
 
 #[test]
 fn concurrent_reload_never_regresses_and_inflight_snapshot_stays_pinned() {
-    let core = Arc::new(Core::new(
-        Arc::new(gproxy_store::Store::new(())),
-        Arc::new(gproxy_cache::MemoryCache::default()),
-        Arc::new(ObserveNothing),
-        Arc::new(CoreData::default()),
-    ));
+    let core = Arc::new(
+        Core::builder(Arc::new(gproxy_store::Store::new(())))
+            .cache(Arc::new(gproxy_cache::MemoryCache::default()))
+            .observer(Arc::new(ObserveNothing))
+            .secret_codec(Arc::new(PlaintextCodec))
+            .build()
+            .unwrap(),
+    );
     let pinned = core.snapshot();
     let barrier = Arc::new(Barrier::new(16));
     std::thread::scope(|scope| {
