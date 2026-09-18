@@ -7,9 +7,10 @@
 use super::{RewriteError, apply_unit};
 use crate::RewriteRuleData;
 use gproxy_protocol::connection::StreamFraming;
+use std::sync::Arc;
 
-pub struct StreamRewriter<'a> {
-    rules: Vec<&'a RewriteRuleData>,
+pub struct StreamRewriter {
+    rules: Vec<Arc<RewriteRuleData>>,
     framing: StreamFraming,
     max_unit_bytes: u64,
     buffer: Vec<u8>,
@@ -28,11 +29,11 @@ struct ArrayState {
     element_start: Option<usize>,
 }
 
-impl<'a> StreamRewriter<'a> {
+impl StreamRewriter {
     /// `rules` are the body rules already selected for this response; an empty
     /// list is the caller's cue not to construct a rewriter at all.
     pub fn new(
-        rules: Vec<&'a RewriteRuleData>,
+        rules: Vec<Arc<RewriteRuleData>>,
         framing: StreamFraming,
         max_unit_bytes: u64,
     ) -> Self {
@@ -246,7 +247,10 @@ fn json_type(text: &str) -> Option<String> {
 
 /// One complete frame including its terminator. Only `data:` lines are ever
 /// replaced; a non-UTF-8 frame or a `[DONE]` marker passes through untouched.
-fn rewrite_sse_frame(rules: &[&RewriteRuleData], frame: &[u8]) -> Result<Vec<u8>, RewriteError> {
+fn rewrite_sse_frame(
+    rules: &[Arc<RewriteRuleData>],
+    frame: &[u8],
+) -> Result<Vec<u8>, RewriteError> {
     let Ok(text) = std::str::from_utf8(frame) else {
         return Ok(frame.to_vec());
     };

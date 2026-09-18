@@ -20,6 +20,10 @@ pub struct OperationContext<'a, B = HttpBody> {
     pub dialect: Dialect,
     pub request: WireRequest<B>,
     pub client: &'a dyn OutboundClient,
+    /// Complete method URL configured for this provider/operation. When set,
+    /// preparation must use it as the final URL instead of base_url plus the
+    /// channel's default path; channel-defined path parameters still apply.
+    pub endpoint_override: Option<&'a str>,
 }
 
 pub(super) fn http<'a>(
@@ -37,6 +41,7 @@ pub(super) fn http<'a>(
             credential: context.credential,
             operation: key,
             request: context.request,
+            endpoint_override: context.endpoint_override,
         })?;
         Ok(context.client.send(request).await?)
     })
@@ -57,6 +62,7 @@ pub(super) fn websocket<'a>(
             credential: context.credential,
             operation: key,
             request: context.request,
+            endpoint_override: context.endpoint_override,
         })?;
         Ok(context.client.connect(request).await?)
     })

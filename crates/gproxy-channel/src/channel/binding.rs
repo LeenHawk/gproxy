@@ -16,6 +16,7 @@ pub struct ChannelBinding<'a> {
     provider: ProviderView<'a>,
     credential: CredentialView<'a>,
     client: &'a dyn OutboundClient,
+    endpoint_override: Option<&'a str>,
 }
 
 impl<'a> ChannelBinding<'a> {
@@ -30,7 +31,14 @@ impl<'a> ChannelBinding<'a> {
             provider,
             credential,
             client,
+            endpoint_override: None,
         }
+    }
+
+    /// Use a configured complete method URL for the dispatched operation.
+    pub fn endpoint(mut self, url: Option<&'a str>) -> Self {
+        self.endpoint_override = url;
+        self
     }
 
     /// Dispatch an HTTP operation to its named method, preserving streaming bodies.
@@ -45,6 +53,7 @@ impl<'a> ChannelBinding<'a> {
             dialect: operation.dialect,
             request,
             client: self.client,
+            endpoint_override: self.endpoint_override,
         };
         match operation.operation {
             Operation::ListModels => self.channel.list_models(context).await,
@@ -94,6 +103,7 @@ impl<'a> ChannelBinding<'a> {
             dialect: operation.dialect,
             request,
             client: self.client,
+            endpoint_override: self.endpoint_override,
         };
         match operation.operation {
             Operation::ConnectRealtime => self.channel.connect_realtime(context).await,

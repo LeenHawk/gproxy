@@ -4,12 +4,12 @@
 use super::{RewriteError, json_path::rewrite_at_paths};
 use crate::{RewriteRuleData, RewriteTarget};
 use http::{HeaderMap, HeaderValue};
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::Arc};
 
 /// Replace within every value of each rule's header. Repeated values keep
 /// their count and order. Returns whether anything changed.
 pub fn apply_headers(
-    rules: &[&RewriteRuleData],
+    rules: &[Arc<RewriteRuleData>],
     headers: &mut HeaderMap,
 ) -> Result<bool, RewriteError> {
     let mut changed_any = false;
@@ -52,7 +52,7 @@ pub fn apply_headers(
 /// untouched raw segments are preserved byte for byte; only rewritten values
 /// are encoded again. Returns the new query when anything changed.
 pub fn apply_query(
-    rules: &[&RewriteRuleData],
+    rules: &[Arc<RewriteRuleData>],
     query: Option<&str>,
 ) -> Result<Option<String>, RewriteError> {
     let Some(query) = query else {
@@ -97,7 +97,7 @@ fn form_decode(raw: &str) -> String {
 /// to whole bodies. Returns the new bytes only when something changed, so an
 /// untouched body keeps its original representation.
 pub fn apply_body(
-    rules: &[&RewriteRuleData],
+    rules: &[Arc<RewriteRuleData>],
     body: &[u8],
 ) -> Result<Option<Vec<u8>>, RewriteError> {
     if rules.is_empty() {
@@ -111,17 +111,17 @@ pub fn apply_body(
 /// (falling back to the JSON `type`) or the WS JSON `type`; units without a
 /// type only match rules without an event filter.
 pub fn apply_unit(
-    rules: &[&RewriteRuleData],
+    rules: &[Arc<RewriteRuleData>],
     event_type: Option<&str>,
     data: &str,
 ) -> Result<Option<String>, RewriteError> {
-    let applicable: Vec<&RewriteRuleData> = rules
+    let applicable: Vec<Arc<RewriteRuleData>> = rules
         .iter()
-        .copied()
         .filter(|rule| match &rule.event_matcher {
             None => true,
             Some(matcher) => event_type.is_some_and(|event| matcher.is_match(event)),
         })
+        .cloned()
         .collect();
     if applicable.is_empty() {
         return Ok(None);
@@ -134,7 +134,7 @@ pub fn apply_unit(
 /// never parsed into a tree or re-serialized, so an untouched key, number or
 /// whitespace run keeps its original bytes. A non-JSON payload makes path
 /// rules no-ops.
-fn apply_text(rules: &[&RewriteRuleData], input: &str) -> Result<Option<String>, RewriteError> {
+fn apply_text(rules: &[Arc<RewriteRuleData>], input: &str) -> Result<Option<String>, RewriteError> {
     let mut current: Cow<'_, str> = Cow::Borrowed(input);
     let mut changed = false;
     for rule in rules {

@@ -7,16 +7,25 @@
 
 pub mod api;
 pub mod assemble;
+#[cfg(not(target_arch = "wasm32"))]
+mod availability;
 pub mod builder;
 pub mod capability;
 pub mod context;
+pub mod convert;
 pub mod data;
+#[cfg(not(target_arch = "wasm32"))]
+mod execute;
+#[cfg(not(target_arch = "wasm32"))]
+mod ids;
 pub mod keys;
 pub mod limits;
 pub mod observe;
 pub mod rewrite;
 pub mod runtime;
 pub mod secret;
+#[cfg(not(target_arch = "wasm32"))]
+mod select;
 
 pub use api::*;
 pub use assemble::AssemblyError;

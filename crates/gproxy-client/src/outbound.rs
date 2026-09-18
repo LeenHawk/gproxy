@@ -109,19 +109,35 @@ mod native {
         }
     }
 
+    #[cfg(not(any(feature = "reqwest", feature = "wreq")))]
+    fn no_backend() -> CapabilityError {
+        CapabilityError::new(
+            CapabilityErrorKind::Unsupported,
+            CapabilityErrorStage::Start,
+            "gproxy-client was built without a transport backend feature",
+        )
+    }
+
     impl OutboundClient for Client {
         fn send<'a>(
             &'a self,
             request: http::Request<HttpBody>,
         ) -> CapabilityFuture<'a, Result<WireResponse<HttpBody>, CapabilityError>> {
             Box::pin(async move {
-                #[allow(unused_variables)]
-                let (parts, body) = request.into_parts();
-                match self {
-                    #[cfg(feature = "reqwest")]
-                    Client::Reqwest(client) => reqwest_send(client, parts, body).await,
-                    #[cfg(feature = "wreq")]
-                    Client::Wreq(client) => wreq_send(client, parts, body).await,
+                #[cfg(any(feature = "reqwest", feature = "wreq"))]
+                {
+                    let (parts, body) = request.into_parts();
+                    match self {
+                        #[cfg(feature = "reqwest")]
+                        Client::Reqwest(client) => reqwest_send(client, parts, body).await,
+                        #[cfg(feature = "wreq")]
+                        Client::Wreq(client) => wreq_send(client, parts, body).await,
+                    }
+                }
+                #[cfg(not(any(feature = "reqwest", feature = "wreq")))]
+                {
+                    let _ = request;
+                    Err(no_backend())
                 }
             })
         }
@@ -131,13 +147,20 @@ mod native {
             request: http::Request<()>,
         ) -> CapabilityFuture<'a, Result<UpstreamConnection, CapabilityError>> {
             Box::pin(async move {
-                #[allow(unused_variables)]
-                let (parts, ()) = request.into_parts();
-                match self {
-                    #[cfg(feature = "reqwest")]
-                    Client::Reqwest(client) => reqwest_connect(client, parts).await,
-                    #[cfg(feature = "wreq")]
-                    Client::Wreq(client) => wreq_connect(client, parts).await,
+                #[cfg(any(feature = "reqwest", feature = "wreq"))]
+                {
+                    let (parts, ()) = request.into_parts();
+                    match self {
+                        #[cfg(feature = "reqwest")]
+                        Client::Reqwest(client) => reqwest_connect(client, parts).await,
+                        #[cfg(feature = "wreq")]
+                        Client::Wreq(client) => wreq_connect(client, parts).await,
+                    }
+                }
+                #[cfg(not(any(feature = "reqwest", feature = "wreq")))]
+                {
+                    let _ = request;
+                    Err(no_backend())
                 }
             })
         }

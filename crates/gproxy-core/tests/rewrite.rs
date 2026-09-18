@@ -42,26 +42,28 @@ impl Default for Rule {
         }
     }
 }
-fn rule(id: &str, spec: Rule) -> RewriteRuleData {
-    compile_rule(Arc::new(rewrite_rule::Model {
-        id: id.into(),
-        rule_set_id: "set".into(),
-        phase: spec.phase.into(),
-        target: spec.target,
-        target_name: spec.name.map(str::to_owned),
-        paths: spec.paths,
-        pattern: spec.pattern.into(),
-        replacement: spec.replacement.into(),
-        filter_operation_keys: spec.operations,
-        filter_model_pattern: spec.model.map(str::to_owned),
-        filter_header_pattern: spec.header.map(str::to_owned),
-        filter_event_pattern: spec.event.map(str::to_owned),
-        sort_order: 0,
-        enabled: true,
-        created_at_ms: 0,
-        updated_at_ms: 0,
-    }))
-    .unwrap()
+fn rule(id: &str, spec: Rule) -> Arc<RewriteRuleData> {
+    Arc::new(
+        compile_rule(Arc::new(rewrite_rule::Model {
+            id: id.into(),
+            rule_set_id: "set".into(),
+            phase: spec.phase.into(),
+            target: spec.target,
+            target_name: spec.name.map(str::to_owned),
+            paths: spec.paths,
+            pattern: spec.pattern.into(),
+            replacement: spec.replacement.into(),
+            filter_operation_keys: spec.operations,
+            filter_model_pattern: spec.model.map(str::to_owned),
+            filter_header_pattern: spec.header.map(str::to_owned),
+            filter_event_pattern: spec.event.map(str::to_owned),
+            sort_order: 0,
+            enabled: true,
+            created_at_ms: 0,
+            updated_at_ms: 0,
+        }))
+        .unwrap(),
+    )
 }
 fn body(
     paths: Option<serde_json::Value>,
@@ -88,7 +90,7 @@ fn path_rules_select_strings_in_order_and_untouched_bodies_stay_identical() {
     );
     let second = rule("2", body(Some(json!(["tools.*.name"])), "__", "::"));
     let text_rule = rule("3", body(None, "\"temperature\":1", "\"temperature\":0"));
-    let rules = [&first, &second, &text_rule];
+    let rules = [first, second, text_rule];
     let input = json!({"tools":[{"name":"mcp_a"},{"name":"plain"},{"name":42}],"tool_choice":{"name":"mcp_b"},"temperature":1});
     let out = apply_body(&rules, &serde_json::to_vec(&input).unwrap())
         .unwrap()
@@ -133,7 +135,7 @@ fn header_rules_keep_repeated_values_and_reject_injection() {
     headers.append("x-client-tag", HeaderValue::from_static("keep"));
     headers.append("x-client-tag", HeaderValue::from_static("old"));
     headers.insert("other", HeaderValue::from_static("old"));
-    assert!(apply_headers(&[&tag], &mut headers).unwrap());
+    assert!(apply_headers(std::slice::from_ref(&tag), &mut headers).unwrap());
     let values: Vec<_> = headers
         .get_all("x-client-tag")
         .iter()
@@ -141,7 +143,7 @@ fn header_rules_keep_repeated_values_and_reject_injection() {
         .collect();
     assert_eq!(values, ["new", "keep", "new"]);
     assert_eq!(headers["other"], "old");
-    assert!(!apply_headers(&[&tag], &mut headers).unwrap());
+    assert!(!apply_headers(std::slice::from_ref(&tag), &mut headers).unwrap());
 
     let inject = rule(
         "i",
@@ -153,10 +155,10 @@ fn header_rules_keep_repeated_values_and_reject_injection() {
             ..Rule::default()
         },
     );
-    assert!(apply_headers(&[&inject], &mut headers).is_err());
+    assert!(apply_headers(std::slice::from_ref(&inject), &mut headers).is_err());
     let mut binary = HeaderMap::new();
     binary.insert("x-client-tag", HeaderValue::from_bytes(&[0xff]).unwrap());
-    assert!(apply_headers(&[&tag], &mut binary).is_err());
+    assert!(apply_headers(std::slice::from_ref(&tag), &mut binary).is_err());
 }
 
 #[test]
@@ -173,17 +175,23 @@ fn query_rules_preserve_order_repeats_and_raw_untouched_segments() {
         },
     );
     let query = "b=%2A&api-version=preview&flag&api%2Dversion=preview&a=1+2&api-version=ga";
-    let out = apply_query(&[&version], Some(query)).unwrap().unwrap();
+    let out = apply_query(std::slice::from_ref(&version), Some(query))
+        .unwrap()
+        .unwrap();
     assert_eq!(
         out,
         "b=%2A&api-version=stable+%26+sound&flag&api%2Dversion=stable+%26+sound&a=1+2&api-version=ga"
     );
     assert!(
-        apply_query(&[&version], Some("api-version=ga"))
+        apply_query(std::slice::from_ref(&version), Some("api-version=ga"))
             .unwrap()
             .is_none()
     );
-    assert!(apply_query(&[&version], None).unwrap().is_none());
+    assert!(
+        apply_query(std::slice::from_ref(&version), None)
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[test]
@@ -207,7 +215,8 @@ fn sse_units_keep_metadata_comments_done_and_split_frames() {
             ..Rule::default()
         },
     );
-    let mut rewriter = StreamRewriter::new(vec![&greeting, &typed], StreamFraming::Sse, 1 << 20);
+    let mut rewriter =
+        StreamRewriter::new(vec![greeting.clone(), typed], StreamFraming::Sse, 1 << 20);
     let stream = concat!(
         ": keep-alive\n\n",
         "id: 7\nretry: 500\nevent: message\ndata: hello\ndata: hello again\n\n",
@@ -231,17 +240,17 @@ fn sse_units_keep_metadata_comments_done_and_split_frames() {
             "data: trailing hello"
         )
     );
-    let mut crlf = StreamRewriter::new(vec![&greeting], StreamFraming::Sse, 1 << 20);
+    let mut crlf = StreamRewriter::new(vec![greeting.clone()], StreamFraming::Sse, 1 << 20);
     let out = crlf.push(b"event: message\r\ndata: hello\r\n\r\n").unwrap();
     assert_eq!(out, b"event: message\r\ndata: bye\r\n\r\n");
-    let mut tiny = StreamRewriter::new(vec![&greeting], StreamFraming::Sse, 8);
+    let mut tiny = StreamRewriter::new(vec![greeting], StreamFraming::Sse, 8);
     assert!(tiny.push(b"data: this frame never ends").is_err());
 }
 
 #[test]
 fn json_array_and_ndjson_units_are_rewritten_individually() {
     let redact = rule("r", body(Some(json!(["text"])), "secret", "***"));
-    let mut array = StreamRewriter::new(vec![&redact], StreamFraming::JsonArray, 1 << 20);
+    let mut array = StreamRewriter::new(vec![redact.clone()], StreamFraming::JsonArray, 1 << 20);
     let mut out = array
         .push(b"[ {\"text\":\"a secret\", \"k\":\"]\"}")
         .unwrap();
@@ -256,7 +265,7 @@ fn json_array_and_ndjson_units_are_rewritten_individually() {
         "[{\"text\":\"a ***\", \"k\":\"]\"},{\"text\":\"plain\"},7,\"str,\"]tail"
     );
 
-    let mut ndjson = StreamRewriter::new(vec![&redact], StreamFraming::NdJson, 1 << 20);
+    let mut ndjson = StreamRewriter::new(vec![redact], StreamFraming::NdJson, 1 << 20);
     let mut out = ndjson
         .push(b"{\"text\":\"secret\"}\r\n{\"text\":\"ok\"}\n\n{\"te")
         .unwrap();
@@ -275,7 +284,7 @@ impl BaseChannel for Channel {
     }
 }
 
-fn snapshot(rules: Vec<RewriteRuleData>) -> (CoreData, ProviderData) {
+fn snapshot(rules: Vec<Arc<RewriteRuleData>>) -> (CoreData, ProviderData) {
     let set = RewriteRuleSetData {
         entity: Arc::new(rewrite_rule_set::Model {
             id: "set".into(),
@@ -369,7 +378,7 @@ fn selection_filters_by_phase_operation_model_and_inbound_headers() {
     ]);
     let mut headers = HeaderMap::new();
     headers.insert("X-Debug", HeaderValue::from_static("ON"));
-    let ids = |selected: &gproxy_core::rewrite::SelectedRules<'_>| {
+    let ids = |selected: &gproxy_core::rewrite::SelectedRules| {
         selected
             .body
             .iter()

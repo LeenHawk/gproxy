@@ -1611,6 +1611,8 @@ dependencies = [
  "aes-gcm",
  "arc-swap",
  "form_urlencoded",
+ "futures-core",
+ "futures-util",
  "getrandom 0.4.3",
  "gproxy-cache",
  "gproxy-channel",

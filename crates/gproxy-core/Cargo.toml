@@ -11,6 +11,8 @@ repository.workspace = true
 aes-gcm = { workspace = true }
 arc-swap = { workspace = true }
 form_urlencoded = { workspace = true }
+futures-core = { workspace = true }
+futures-util = { workspace = true }
 getrandom = { workspace = true }
 gproxy-cache = { workspace = true }
 gproxy-channel = { workspace = true }
@@ -21,12 +23,16 @@ gproxy-store = { workspace = true }
 http = { workspace = true }
 percent-encoding = { workspace = true }
 regex = { workspace = true }
+sea-orm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio-util = { workspace = true }
 web-time = { workspace = true }
 zeroize = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { workspace = true, features = ["sync", "time"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 gproxy-cache = { workspace = true, features = ["memory"] }

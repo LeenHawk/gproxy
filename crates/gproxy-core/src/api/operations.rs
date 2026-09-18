@@ -2,6 +2,7 @@ use super::{CoreError, CoreResult, HttpExecution, WebSocketExecution};
 use crate::{Core, RequestContext};
 use gproxy_channel::ChannelError;
 use gproxy_protocol::{HttpBody, Operation, WireRequest};
+use gproxy_seaorm::BatchConnectionTrait;
 use std::sync::Arc;
 
 fn require_operation(context: &RequestContext, expected: Operation) -> CoreResult<()> {
@@ -16,7 +17,7 @@ fn require_operation(context: &RequestContext, expected: Operation) -> CoreResul
 // A newly added protocol operation forces review of its core transport binding.
 macro_rules! http_operations {
     ($($method:ident => $operation:ident),+ $(,)?) => {
-        impl<C> Core<C> {
+        impl<C: BatchConnectionTrait> Core<C> {
             /// Generic HTTP entry point, preserving native streaming/multipart
             /// bodies. Targets and permitted credentials are supplied by the
             /// upper layer; no route or policy selection is performed here.
@@ -71,7 +72,7 @@ http_operations! {
 
 macro_rules! websocket_operations {
     ($($method:ident => $operation:ident),+ $(,)?) => {
-        impl<C> Core<C> {
+        impl<C: BatchConnectionTrait> Core<C> {
             /// Generic WS entry point. Rejected upgrades retain their complete
             /// HTTP response; connected sockets remain native duplex streams.
             pub async fn connect(&self, context: Arc<RequestContext>, request: WireRequest<()>) -> CoreResult<WebSocketExecution> {
@@ -96,16 +97,28 @@ websocket_operations! {
     connect_realtime => ConnectRealtime,
 }
 
-impl<C> Core<C> {
-    // Private shared execution boundaries only. Internal selection, refresh,
-    // rewrite and outcome steps will be added when their implementations exist.
+impl<C: BatchConnectionTrait> Core<C> {
+    /// Same-dialect passthrough with credential selection, request/response
+    /// rewriting, observation and settlement. Conversion arrives with the
+    /// convert phase; wasm has no outbound transport yet.
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn execute_http(
+        &self,
+        context: Arc<RequestContext>,
+        request: WireRequest<HttpBody>,
+    ) -> CoreResult<HttpExecution> {
+        crate::execute::run_http(self, context, request).await
+    }
+    #[cfg(target_arch = "wasm32")]
     async fn execute_http(
         &self,
         context: Arc<RequestContext>,
         request: WireRequest<HttpBody>,
     ) -> CoreResult<HttpExecution> {
         let _ = (context, request);
-        Err(CoreError::NotImplemented("send"))
+        Err(CoreError::NotImplemented(
+            "send: no outbound transport on wasm32 yet",
+        ))
     }
     async fn execute_websocket(
         &self,

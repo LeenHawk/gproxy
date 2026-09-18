@@ -80,13 +80,6 @@ pub struct CredentialAffinity {
     pub anchored_at_ms: i64,
     pub last_success_at_ms: i64,
 }
-/// Credential rotation progress for the permitted candidate set only.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct CredentialSelectionState {
-    pub candidate_signature: String,
-    pub next: u64,
-}
-
 /// Where a block came from. Quota blocks end at the dimension's reset; failure
 /// and rate-limit blocks end at a cooldown chosen by core.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
