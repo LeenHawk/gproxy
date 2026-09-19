@@ -10,8 +10,13 @@ repository.workspace = true
 default = []
 # API-key upstreams speaking one or more native dialects verbatim.
 custom = []
+# OpenAI Codex (ChatGPT account) upstream: OAuth login/refresh, Responses over
+# HTTP and WebSocket, x-codex rate-limit headers and /wham/usage.
+codex = ["dep:base64", "dep:futures-util"]
 
 [dependencies]
+base64 = { workspace = true, optional = true }
+futures-util = { workspace = true, optional = true }
 gproxy-client.workspace = true
 gproxy-protocol.workspace = true
 http.workspace = true
