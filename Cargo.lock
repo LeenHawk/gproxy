@@ -1587,6 +1587,7 @@ version = "4.0.0-dev"
 dependencies = [
  "base64 0.23.1",
  "futures-util",
+ "getrandom 0.4.3",
  "gproxy-client",
  "gproxy-protocol",
  "http",
@@ -1594,7 +1595,9 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.20",
+ "time",
  "tokio",
+ "web-time",
 ]
 
 [[package]]
