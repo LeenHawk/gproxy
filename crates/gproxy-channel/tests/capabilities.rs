@@ -1,5 +1,7 @@
 use std::{collections::VecDeque, sync::Mutex};
 
+mod support;
+
 use futures_util::{StreamExt, stream};
 use gproxy_channel::channel::*;
 use gproxy_channel::{BaseChannel, ChannelError, OutboundClient};
@@ -679,6 +681,8 @@ static ROUTES: [ServiceRoute; 1] = [ServiceRoute {
     method: Method::GET,
     path_template: "/profiles/me",
     transport: ServiceTransport::Http,
+    idempotent: true,
+    class: ServiceClass::Catalog,
 }];
 impl ChannelServices for Demo {
     fn routes(&self) -> &[ServiceRoute] {
@@ -728,6 +732,7 @@ async fn cli_service_uses_assigned_client_and_keeps_response_streaming() {
         credential: credential(&secret),
         client: &client,
     };
+    let caller = support::ScriptCaller::member("m");
     let request = || WireRequest {
         method: Method::GET,
         path: "/vendor-specific".into(),
@@ -740,6 +745,9 @@ async fn cli_service_uses_assigned_client_and_keeps_response_streaming() {
             &Bare,
             ServiceContext {
                 account: ctx,
+                accounts: &[],
+                caller: &caller,
+                view: ServiceView::Caller,
                 request: request()
             }
         )
@@ -752,6 +760,9 @@ async fn cli_service_uses_assigned_client_and_keeps_response_streaming() {
     let response = services
         .call(ServiceContext {
             account: ctx,
+            accounts: &[],
+            caller: &caller,
+            view: ServiceView::Caller,
             request: request(),
         })
         .await
@@ -772,6 +783,9 @@ async fn cli_service_uses_assigned_client_and_keeps_response_streaming() {
         services
             .connect(ServiceContext {
                 account: ctx,
+                accounts: &[],
+                caller: &caller,
+                view: ServiceView::Caller,
                 request: handshake
             })
             .await,

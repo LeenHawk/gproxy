@@ -28,7 +28,11 @@ pub use quota::{
     QuotaValue, QuotaWindow,
 };
 pub use registry::{ChannelRegistry, RegistryError};
-pub use service::{ChannelServices, ServiceContext, ServiceRoute, ServiceTransport};
+pub use service::{
+    CallerIdentity, CallerRole, CallerUsage, CallerUsageWindow, ChannelServices, ResourceAccess,
+    ResourceBindingRecord, ServiceCaller, ServiceClass, ServiceContext, ServiceRoute,
+    ServiceTransport, ServiceView, match_template,
+};
 pub use state::{ChannelState, NoState};
 pub use usage::{
     NormalizedUsage, ResponseView, TokenUsage, UsageAttempt, UsageCompleteness, UsageContext,
@@ -75,6 +79,9 @@ pub enum ChannelError {
     /// to that instance; nothing about the credential is wrong.
     #[error("continuation is held by instance `{instance_id}`")]
     ContinuationElsewhere { instance_id: String },
+    /// The host's caller facts (`ServiceCaller`) could not be read or written.
+    #[error("host service failed: {0}")]
+    Host(String),
     #[error(transparent)]
     Transport(#[from] CapabilityError),
 }

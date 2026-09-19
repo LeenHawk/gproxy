@@ -11,7 +11,9 @@
 //! CLI's identity headers and its request hygiene (billing system block,
 //! `metadata.user_id`, cache-control repair, sampling and prefill fixes),
 //! account windows at `{base}/api/oauth/usage` and in the
-//! `anthropic-ratelimit-unified-*` response headers.
+//! `anthropic-ratelimit-unified-*` response headers. The CLI's other OAuth
+//! calls (`/api/oauth/**`, bootstrap, policy limits, organization
+//! resources) are `ChannelServices` in `services.rs`.
 //!
 //! The credential secret is an `OAuthCredential`; account facts a login
 //! discovers (`account_uuid`, `device_id`, plan tiers, email) travel in
@@ -23,15 +25,18 @@
 mod cookie;
 mod hygiene;
 mod quota;
+mod services;
 mod usage;
+
+pub use services::{KIND_FILE, KIND_PLUGIN, KIND_SKILL, service_routes};
 
 use crate::OutboundClient;
 use crate::channel::{
     AuthorizationCode, AuthorizationRequest, AuthorizationStart, BaseChannel, ChannelError,
-    CookieLogin, CredentialRefresh, CredentialUpdate, CredentialView, HeaderAllowlist,
-    LoginContext, OAuthAuthorizationCode, OAuthCredential, OperationFuture, PrepareContext,
-    ProviderView, QuotaHeaders, QuotaModel, QuotaQuery, RefreshContext, UsageExtractor,
-    UsageStream, forwardable,
+    ChannelServices, CookieLogin, CredentialRefresh, CredentialUpdate, CredentialView,
+    HeaderAllowlist, LoginContext, OAuthAuthorizationCode, OAuthCredential, OperationFuture,
+    PrepareContext, ProviderView, QuotaHeaders, QuotaModel, QuotaQuery, RefreshContext,
+    UsageExtractor, UsageStream, forwardable,
 };
 use futures_util::StreamExt;
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireRequest, WireResponse, connection::Bytes};
@@ -585,6 +590,9 @@ impl BaseChannel for Claudecode {
         Some(self)
     }
     fn usage_stream(&self) -> Option<&dyn UsageStream> {
+        Some(self)
+    }
+    fn services(&self) -> Option<&dyn ChannelServices> {
         Some(self)
     }
 }

@@ -1,18 +1,21 @@
 #![cfg(feature = "codex")]
 
+mod support;
+
 use base64::Engine;
 use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
     channel::{
-        AuthorizationRequest, CredentialContext, CredentialView, DevicePoll, LoginContext,
-        PrepareContext, ProviderView, QuotaHeaderContext, QuotaValue, ResponseView, UsageContext,
-        UsageFrame, UsageStreamContext, UsageStreamEnd, UsageTransport,
+        AuthorizationRequest, CallerUsage, CallerUsageWindow, CredentialContext, CredentialView,
+        DevicePoll, LoginContext, PrepareContext, ProviderView, QuotaHeaderContext, QuotaValue,
+        ResponseView, ServiceContext, ServiceView, UsageContext, UsageFrame, UsageStreamContext,
+        UsageStreamEnd, UsageTransport,
     },
-    channels::codex::{Codex, DEFAULT_CLIENT_ID},
+    channels::codex::{Codex, DEFAULT_CLIENT_ID, KIND_FILE, KIND_PLUGIN, KIND_TASK},
 };
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
-    capability::{CapabilityError, CapabilityFuture},
+    capability::{CapabilityError, CapabilityFuture, UpstreamConnection},
     connection::{Bytes, StreamFraming},
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
@@ -21,6 +24,7 @@ use std::{
     collections::VecDeque,
     sync::{Arc, Mutex},
 };
+use support::ScriptCaller;
 
 fn jwt(claims: Value) -> String {
     let b64 = |v: &[u8]| base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(v);
@@ -72,6 +76,28 @@ impl OutboundClient for ScriptClient {
                 .unwrap()
                 .pop_front()
                 .expect("unexpected upstream call"))
+        })
+    }
+
+    /// Records the handshake as a CONNECT and rejects it, which is enough to
+    /// see the URL and headers a WebSocket service would use.
+    fn connect<'a>(
+        &'a self,
+        request: http::Request<()>,
+    ) -> CapabilityFuture<'a, Result<UpstreamConnection, CapabilityError>> {
+        Box::pin(async move {
+            let (parts, ()) = request.into_parts();
+            self.requests.lock().unwrap().push((
+                Method::CONNECT,
+                parts.uri.to_string(),
+                parts.headers,
+                Vec::new(),
+            ));
+            Ok(UpstreamConnection::Rejected(WireResponse {
+                status: StatusCode::UNAUTHORIZED,
+                headers: HeaderMap::new(),
+                body: HttpBody::Bytes(Bytes::new()),
+            }))
         })
     }
 }
@@ -614,4 +640,597 @@ fn allowed_headers_applies_to_codex_too() {
         "channel identity headers are never client-supplied"
     );
     assert_eq!(h["authorization"], "Bearer at-1");
+}
+
+// ------------------------------------------------------------ services
+
+fn service_request(method: Method, path: &str, query: Option<&str>, body: &str) -> WireRequest {
+    let mut headers = HeaderMap::new();
+    headers.insert("authorization", HeaderValue::from_static("Bearer client"));
+    headers.insert("chatgpt-account-id", HeaderValue::from_static("spoof"));
+    headers.insert("content-type", HeaderValue::from_static("application/json"));
+    headers.insert("accept", HeaderValue::from_static("text/event-stream"));
+    headers.insert("mcp-session-id", HeaderValue::from_static("mcp-1"));
+    headers.insert("x-codex-foo", HeaderValue::from_static("bar"));
+    WireRequest {
+        method,
+        path: path.into(),
+        query: query.map(str::to_owned),
+        headers,
+        body: HttpBody::Bytes(Bytes::from(body.to_owned())),
+    }
+}
+
+fn account<'a>(
+    config: &'a Value,
+    secret: &'a Value,
+    metadata: &'a Value,
+    client: &'a ScriptClient,
+) -> CredentialContext<'a> {
+    CredentialContext {
+        provider: provider(config, None),
+        credential: credential(secret, metadata),
+        client,
+    }
+}
+
+fn context<'a>(
+    accounts: &'a [CredentialContext<'a>],
+    caller: &'a ScriptCaller,
+    view: ServiceView,
+    request: WireRequest,
+) -> ServiceContext<'a> {
+    ServiceContext {
+        account: accounts[0],
+        accounts,
+        caller,
+        view,
+        request,
+    }
+}
+
+async fn body_json(response: WireResponse) -> Value {
+    let HttpBody::Bytes(bytes) = response.body else {
+        panic!("local answers are buffered");
+    };
+    serde_json::from_slice(&bytes).unwrap()
+}
+
+fn views() -> [ServiceView; 3] {
+    [
+        ServiceView::Caller,
+        ServiceView::Pool,
+        ServiceView::Credential("c".into()),
+    ]
+}
+
+#[tokio::test]
+async fn catalog_routes_forward_under_every_view_with_the_credential_identity() {
+    let config = json!({});
+    let secret = secret("at-1");
+    let metadata = json!({"chatgpt_account_id": "acct-meta"});
+    let client = ScriptClient::new(vec![
+        reply(StatusCode::OK, json!({})),
+        reply(StatusCode::OK, json!({})),
+        reply(
+            StatusCode::TOO_MANY_REQUESTS,
+            json!({"detail": "slow down"}),
+        ),
+    ]);
+    let accounts = [account(&config, &secret, &metadata, &client)];
+    let member = ScriptCaller::member("m");
+    let admin = ScriptCaller::admin("a");
+    let services = Codex.services().expect("codex exposes services");
+    for (view, caller) in views().into_iter().zip([&member, &admin, &admin]) {
+        let response = services
+            .call(context(
+                &accounts,
+                caller,
+                view,
+                service_request(
+                    Method::GET,
+                    "/ps/plugins/search",
+                    Some("key=leaked&q=deploy"),
+                    "",
+                ),
+            ))
+            .await
+            .unwrap();
+        assert!(
+            response.status == StatusCode::OK || response.status == StatusCode::TOO_MANY_REQUESTS
+        );
+    }
+    let sent = client.sent();
+    assert_eq!(sent.len(), 3, "forwarded under Caller, Pool and Credential");
+    assert_eq!(
+        sent[0].1, "https://chatgpt.com/backend-api/ps/plugins/search?q=deploy",
+        "the bare mount maps onto the backend, `key` is stripped"
+    );
+    let h = &sent[0].2;
+    assert_eq!(h["authorization"], "Bearer at-1");
+    assert_eq!(h["chatgpt-account-id"], "acct-meta");
+    assert_eq!(h["originator"], "codex_cli_rs");
+    assert_eq!(h["content-type"], "application/json");
+    assert_eq!(h["accept"], "text/event-stream");
+    assert_eq!(h["mcp-session-id"], "mcp-1");
+    assert_eq!(h["x-codex-foo"], "bar");
+    assert_eq!(h.get_all("authorization").iter().count(), 1);
+}
+
+#[tokio::test]
+async fn identity_is_synthesized_for_caller_and_pool_and_real_for_credential() {
+    let config = json!({});
+    let secret = secret("at-1");
+    let metadata = json!({"chatgpt_account_id": "acct-meta", "plan_type": "team"});
+    let client = ScriptClient::new(Vec::new());
+    let accounts = [account(&config, &secret, &metadata, &client)];
+    let member = ScriptCaller::member("m");
+    let pool_admin = ScriptCaller::admin("pool:codex");
+    let services = Codex.services().unwrap();
+    let whoami = |caller, view| {
+        services.call(context(
+            &accounts,
+            caller,
+            view,
+            service_request(Method::GET, "/v1/user-auth-credential/whoami", None, ""),
+        ))
+    };
+    let caller = body_json(whoami(&member, ServiceView::Caller).await.unwrap()).await;
+    assert_eq!(caller["email"], "m@gproxy.invalid");
+    assert_eq!(
+        caller["chatgpt_plan_type"], "team",
+        "the tier is not identifying"
+    );
+    assert_eq!(caller["chatgpt_account_is_fedramp"], false);
+    let account_id = caller["chatgpt_account_id"].as_str().unwrap().to_owned();
+    assert!(account_id.starts_with("gproxy-account-") && account_id != "acct-meta");
+    assert_ne!(caller["chatgpt_user_id"], account_id);
+    let again = body_json(whoami(&member, ServiceView::Caller).await.unwrap()).await;
+    assert_eq!(
+        again["chatgpt_account_id"], account_id,
+        "stable across calls"
+    );
+
+    let pool = body_json(whoami(&pool_admin, ServiceView::Pool).await.unwrap()).await;
+    assert_ne!(
+        pool["chatgpt_account_id"], account_id,
+        "the pool identity core supplies renders as a different account"
+    );
+
+    let real = body_json(
+        whoami(&pool_admin, ServiceView::Credential("c".into()))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(real["chatgpt_account_id"], "acct-meta");
+    assert_eq!(real["email"], Value::Null, "unknown facts stay null");
+    assert!(client.sent().is_empty(), "whoami never reaches the backend");
+
+    let check = body_json(
+        services
+            .call(context(
+                &accounts,
+                &member,
+                ServiceView::Caller,
+                service_request(Method::GET, "/api/codex/accounts/check", None, ""),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(check["default_account_id"], account_id);
+    assert_eq!(check["accounts"][0]["name"], "m");
+}
+
+#[tokio::test]
+async fn usage_is_synthesized_from_caller_usage_and_raw_for_credential() {
+    let config = json!({});
+    let secret = secret("at-1");
+    let metadata = Value::Null;
+    let client = ScriptClient::new(vec![reply(StatusCode::OK, json!({"plan_type": "pro"}))]);
+    let accounts = [account(&config, &secret, &metadata, &client)];
+    let allotted = ScriptCaller::member("m").with_usage(CallerUsage {
+        input_tokens: 10,
+        output_tokens: 5,
+        cost: Some("0.25".into()),
+        windows: vec![CallerUsageWindow {
+            key: "primary".into(),
+            used_percent: Some(50.0),
+            period_start_ms: Some(0),
+            reset_at_ms: Some(18_000_000),
+        }],
+    });
+    let bare = ScriptCaller::admin("a");
+    let services = Codex.services().unwrap();
+    let usage = |caller, view| {
+        services.call(context(
+            &accounts,
+            caller,
+            view,
+            service_request(Method::GET, "/backend-api/wham/usage", None, ""),
+        ))
+    };
+    let value = body_json(usage(&allotted, ServiceView::Caller).await.unwrap()).await;
+    assert_eq!(value["local_usage"]["input_tokens"], 10);
+    assert_eq!(value["local_usage"]["cost"], "0.25");
+    assert_eq!(value["rate_limit"]["primary_window"]["used_percent"], 50);
+    assert_eq!(value["rate_limit"]["primary_window"]["reset_at"], 18_000);
+    assert_eq!(
+        value["rate_limit"]["primary_window"]["limit_window_seconds"],
+        18_000
+    );
+    assert!(value["rate_limit"].get("secondary_window").is_none());
+    assert_eq!(value["rate_limit_reset_credits"]["available_count"], 0);
+    assert_eq!(value["plan_type"], "pro");
+
+    let value = body_json(usage(&bare, ServiceView::Pool).await.unwrap()).await;
+    assert!(
+        value.get("rate_limit").is_none(),
+        "no windows allotted: no window fields"
+    );
+    assert!(client.sent().is_empty());
+
+    let credits = body_json(
+        services
+            .call(context(
+                &accounts,
+                &allotted,
+                ServiceView::Caller,
+                service_request(
+                    Method::POST,
+                    "/backend-api/wham/rate-limit-reset-credits/consume",
+                    None,
+                    "{}",
+                ),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(credits["code"], "no_credit");
+
+    usage(&bare, ServiceView::Credential("c".into()))
+        .await
+        .unwrap();
+    assert_eq!(
+        client.sent()[0].1,
+        "https://chatgpt.com/backend-api/wham/usage"
+    );
+}
+
+#[tokio::test]
+async fn settings_are_neutral_defaults_overridable_from_config() {
+    let config = json!({"codex_virtual_settings": {"commit_attribution_enabled": true}});
+    let plain = json!({});
+    let secret = secret("at-1");
+    let metadata = Value::Null;
+    let client = ScriptClient::new(vec![reply(StatusCode::OK, json!({}))]);
+    let member = ScriptCaller::member("m");
+    let services = Codex.services().unwrap();
+    let request = || service_request(Method::GET, "/api/codex/settings/user", None, "");
+    let accounts = [account(&plain, &secret, &metadata, &client)];
+    let value = body_json(
+        services
+            .call(context(&accounts, &member, ServiceView::Caller, request()))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(value, json!({"commit_attribution_enabled": false}));
+    let accounts = [account(&config, &secret, &metadata, &client)];
+    let value = body_json(
+        services
+            .call(context(&accounts, &member, ServiceView::Pool, request()))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(value["commit_attribution_enabled"], true);
+    services
+        .call(context(
+            &accounts,
+            &member,
+            ServiceView::Credential("c".into()),
+            request(),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        client.sent()[0].1,
+        "https://chatgpt.com/backend-api/wham/settings/user",
+        "the Codex-API spelling maps onto wham"
+    );
+}
+
+#[tokio::test]
+async fn resources_are_bound_on_creation_and_gated_by_bindings() {
+    let config = json!({});
+    let secret_main = secret("at-1");
+    let other_secret = secret("at-2");
+    let metadata = Value::Null;
+    let client = ScriptClient::new(vec![
+        reply(StatusCode::OK, json!({"file_id": "f1", "bytes": 3})),
+        reply(StatusCode::OK, json!({"ok": true})),
+        reply(StatusCode::OK, json!({})),
+    ]);
+    let other = ScriptClient::new(Vec::new());
+    let mut second = credential(&other_secret, &metadata);
+    second.id = "c2";
+    let accounts = [
+        account(&config, &secret_main, &metadata, &client),
+        CredentialContext {
+            provider: provider(&config, None),
+            credential: second,
+            client: &other,
+        },
+    ];
+    let caller = ScriptCaller::member("m")
+        .with_binding(KIND_TASK, "t1", "c", json!({"id": "t1", "title": "mine"}))
+        .with_binding(KIND_PLUGIN, "p1", "c", json!({"id": "p1"}));
+    let services = Codex.services().unwrap();
+
+    // Create: forwarded with the selected credential, the returned id bound.
+    let created = services
+        .call(context(
+            &accounts,
+            &caller,
+            ServiceView::Caller,
+            service_request(Method::POST, "/backend-api/files", None, "bin"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(created.status, StatusCode::OK);
+    let bound = caller.bound();
+    let file = bound.iter().find(|b| b.kind == KIND_FILE).unwrap();
+    assert_eq!(
+        (file.upstream_id.as_str(), file.credential_id.as_str()),
+        ("f1", "c")
+    );
+    assert_eq!(file.summary["bytes"], 3);
+
+    // List: the caller's bindings in the vendor envelope, no upstream call.
+    let tasks = body_json(
+        services
+            .call(context(
+                &accounts,
+                &caller,
+                ServiceView::Pool,
+                service_request(Method::GET, "/backend-api/wham/tasks/list", None, ""),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(
+        tasks,
+        json!({"tasks": [{"id": "t1", "title": "mine"}], "cursor": null})
+    );
+
+    // Item: forwarded with the binding's credential; a foreign id is 404.
+    services
+        .call(context(
+            &accounts,
+            &caller,
+            ServiceView::Caller,
+            service_request(Method::POST, "/backend-api/files/f1/uploaded", None, ""),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        client.sent()[1].1,
+        "https://chatgpt.com/backend-api/files/f1/uploaded"
+    );
+    let foreign = services
+        .call(context(
+            &accounts,
+            &caller,
+            ServiceView::Caller,
+            service_request(Method::GET, "/backend-api/wham/tasks/t9", None, ""),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(foreign.status, StatusCode::NOT_FOUND);
+    assert_eq!(body_json(foreign).await, json!({"detail": "Not found"}));
+    assert_eq!(
+        client.sent().len(),
+        2,
+        "the foreign id never reaches upstream"
+    );
+
+    // Delete: forwarded, then the binding is gone.
+    services
+        .call(context(
+            &accounts,
+            &caller,
+            ServiceView::Caller,
+            service_request(
+                Method::POST,
+                "/backend-api/ps/plugins/p1/uninstall",
+                None,
+                "",
+            ),
+        ))
+        .await
+        .unwrap();
+    assert!(!caller.bound().iter().any(|b| b.kind == KIND_PLUGIN));
+    assert!(
+        other.sent().is_empty(),
+        "the second credential was never used"
+    );
+}
+
+#[tokio::test]
+async fn item_routes_use_the_credential_named_by_the_binding() {
+    let config = json!({});
+    let secret_main = secret("at-1");
+    let other_secret = secret("at-2");
+    let metadata = Value::Null;
+    let client = ScriptClient::new(Vec::new());
+    let other = ScriptClient::new(vec![reply(StatusCode::OK, json!({}))]);
+    let mut second = credential(&other_secret, &metadata);
+    second.id = "c2";
+    let accounts = [
+        account(&config, &secret_main, &metadata, &client),
+        CredentialContext {
+            provider: provider(&config, None),
+            credential: second,
+            client: &other,
+        },
+    ];
+    let caller = ScriptCaller::admin("a").with_binding(KIND_TASK, "t2", "c2", json!({"id": "t2"}));
+    Codex
+        .services()
+        .unwrap()
+        .call(context(
+            &accounts,
+            &caller,
+            ServiceView::Pool,
+            service_request(Method::GET, "/backend-api/wham/tasks/t2", None, ""),
+        ))
+        .await
+        .unwrap();
+    assert!(client.sent().is_empty());
+    assert_eq!(other.sent()[0].2["authorization"], "Bearer at-2");
+}
+
+#[tokio::test]
+async fn restricted_telemetry_and_unknown_routes_depend_on_the_view() {
+    let config = json!({});
+    let secret = secret("at-1");
+    let metadata = Value::Null;
+    let client = ScriptClient::new(vec![
+        reply(StatusCode::OK, json!({})),
+        reply(StatusCode::OK, json!({})),
+        reply(StatusCode::OK, json!({})),
+    ]);
+    let accounts = [account(&config, &secret, &metadata, &client)];
+    let member = ScriptCaller::member("m");
+    let services = Codex.services().unwrap();
+    let routes = [
+        (
+            Method::POST,
+            "/backend-api/wham/accounts/send_add_credits_nudge_email",
+            StatusCode::FORBIDDEN,
+        ),
+        (
+            Method::POST,
+            "/backend-api/codex/analytics-events/events",
+            StatusCode::OK,
+        ),
+        (
+            Method::GET,
+            "/backend-api/wham/brand-new/endpoint",
+            StatusCode::NOT_FOUND,
+        ),
+    ];
+    for (method, path, expected) in &routes {
+        for view in [ServiceView::Caller, ServiceView::Pool] {
+            let response = services
+                .call(context(
+                    &accounts,
+                    &member,
+                    view,
+                    service_request(method.clone(), path, None, "{}"),
+                ))
+                .await
+                .unwrap();
+            assert_eq!(response.status, *expected, "{path}");
+        }
+    }
+    assert!(client.sent().is_empty(), "nothing left the gateway");
+    for (method, path, _) in &routes {
+        services
+            .call(context(
+                &accounts,
+                &member,
+                ServiceView::Credential("c".into()),
+                service_request(method.clone(), path, None, "{}"),
+            ))
+            .await
+            .unwrap();
+    }
+    assert_eq!(client.sent().len(), 3, "the Credential view forwards them");
+
+    let error = services
+        .call(context(
+            &accounts,
+            &member,
+            ServiceView::Credential("c".into()),
+            service_request(Method::POST, "/v1/responses", None, "{}"),
+        ))
+        .await
+        .unwrap_err();
+    assert!(matches!(error, ChannelError::UnsupportedService));
+}
+
+#[tokio::test]
+async fn remote_control_is_credential_only() {
+    let config = json!({});
+    let secret = secret("at-1");
+    let metadata = Value::Null;
+    let client = ScriptClient::new(Vec::new());
+    let accounts = [account(&config, &secret, &metadata, &client)];
+    let admin = ScriptCaller::admin("a");
+    let services = Codex.services().unwrap();
+    let path = "/backend-api/wham/remote/control/server";
+    let response = services
+        .call(context(
+            &accounts,
+            &admin,
+            ServiceView::Pool,
+            service_request(Method::GET, path, None, ""),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status, StatusCode::FORBIDDEN);
+    let response = services
+        .call(context(
+            &accounts,
+            &admin,
+            ServiceView::Credential("c".into()),
+            service_request(Method::GET, path, None, ""),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status, StatusCode::UPGRADE_REQUIRED);
+    assert_eq!(response.headers["upgrade"], "websocket");
+
+    let handshake = |view| ServiceContext {
+        account: accounts[0],
+        accounts: &accounts,
+        caller: &admin,
+        view,
+        request: WireRequest {
+            method: Method::GET,
+            path: path.into(),
+            query: None,
+            headers: HeaderMap::new(),
+            body: (),
+        },
+    };
+    let rejected = services
+        .connect(handshake(ServiceView::Pool))
+        .await
+        .unwrap();
+    assert!(
+        matches!(rejected, UpstreamConnection::Rejected(r) if r.status == StatusCode::FORBIDDEN)
+    );
+    assert!(client.sent().is_empty());
+    let connection = services
+        .connect(handshake(ServiceView::Credential("c".into())))
+        .await
+        .unwrap();
+    assert!(matches!(connection, UpstreamConnection::Rejected(_)));
+    let sent = client.sent();
+    assert_eq!(
+        sent[0].0,
+        Method::CONNECT,
+        "recorded by the scripted connect"
+    );
+    assert_eq!(
+        sent[0].1,
+        "wss://chatgpt.com/backend-api/wham/remote/control/server"
+    );
+    assert_eq!(sent[0].2["authorization"], "Bearer at-1");
 }

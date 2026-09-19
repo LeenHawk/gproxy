@@ -30,6 +30,7 @@ mod rt;
 pub mod runtime;
 pub mod secret;
 mod select;
+mod service;
 mod session;
 
 pub use api::*;
@@ -43,6 +44,7 @@ pub use observe::*;
 pub use rewrite::RewriteCompileError;
 pub use runtime::*;
 pub use secret::*;
+pub use service::{CallerRole, ServiceRequest, ServiceView, TargetCaller};
 
 use arc_swap::ArcSwap;
 use gproxy_cache::Cache;
