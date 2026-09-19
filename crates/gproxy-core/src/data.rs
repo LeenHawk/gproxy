@@ -39,7 +39,6 @@ pub struct CoreData {
     pub rewrite_rule_sets: EntityMap<RewriteRuleSetData>,
     /// Local token estimation for exchanges without reported usage; None when
     /// the Setting row disables usage.
-    #[cfg(not(target_arch = "wasm32"))]
     pub estimation: Option<Arc<crate::estimate::Estimator>>,
 }
 

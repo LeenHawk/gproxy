@@ -17,7 +17,6 @@ pub mod capability;
 pub mod context;
 pub mod convert;
 pub mod data;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod estimate;
 mod execute;
 mod ids;
@@ -62,7 +61,6 @@ pub struct Core<C> {
     codec: Arc<dyn SecretCodec>,
     channels: Arc<ChannelRegistry>,
     clients: gproxy_client::ClientPool,
-    #[cfg(not(target_arch = "wasm32"))]
     files: Option<gproxy_file::Operator>,
     data: ArcSwap<CoreData>,
 }
@@ -86,7 +84,6 @@ impl<C> Core<C> {
         &self.observer
     }
     /// Object storage for locally published bodies, when configured.
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn file_storage(&self) -> Option<&gproxy_file::Operator> {
         self.files.as_ref()
     }

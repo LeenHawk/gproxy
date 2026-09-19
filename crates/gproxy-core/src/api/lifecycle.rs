@@ -52,7 +52,6 @@ impl<C: BatchConnectionTrait> Core<C> {
     /// reused, the rest are read from file storage. Missing storage or an
     /// unreadable file leaves that vocabulary out; counting then falls back
     /// to the bundled encoders.
-    #[cfg(not(target_arch = "wasm32"))]
     async fn load_vocabularies(
         &self,
         control: &gproxy_store::ControlData,
@@ -101,15 +100,6 @@ impl<C: BatchConnectionTrait> Core<C> {
             }
         }
         Ok(out)
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    async fn load_vocabularies(
-        &self,
-        _control: &gproxy_store::ControlData,
-        _previous: &CoreData,
-    ) -> CoreResult<crate::assemble::VocabularyMap> {
-        Ok(Default::default())
     }
 
     /// Load/assemble through Store, then monotonically publish. Failure leaves
