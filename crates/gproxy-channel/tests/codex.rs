@@ -579,3 +579,39 @@ fn responses_usage_is_read_from_the_terminal_event_and_from_json() {
     assert_eq!(extracted.tokens.input_tokens, Some(5));
     let _ = Arc::new(());
 }
+
+#[test]
+fn allowed_headers_applies_to_codex_too() {
+    let config = json!({"allowed_headers": ["session-id"]});
+    let secret = secret("at-1");
+    let mut headers = HeaderMap::new();
+    headers.insert("session-id", HeaderValue::from_static("sess-1"));
+    headers.insert("x-client-request-id", HeaderValue::from_static("thread"));
+    headers.insert("openai-beta", HeaderValue::from_static("spoof"));
+    let request = Codex
+        .prepare(PrepareContext {
+            provider: provider(&config, None),
+            credential: credential(&secret, &Value::Null),
+            operation: OperationKey {
+                operation: Operation::StreamGenerateContent,
+                dialect: Dialect::OpenAi,
+            },
+            request: WireRequest {
+                method: Method::POST,
+                path: "/v1/responses".into(),
+                query: None,
+                headers,
+                body: HttpBody::Bytes(Bytes::new()),
+            },
+            endpoint_override: None,
+        })
+        .unwrap();
+    let h = request.headers();
+    assert_eq!(h["session-id"], "sess-1");
+    assert!(h.get("x-client-request-id").is_none());
+    assert!(
+        h.get("openai-beta").is_none(),
+        "channel identity headers are never client-supplied"
+    );
+    assert_eq!(h["authorization"], "Bearer at-1");
+}

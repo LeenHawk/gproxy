@@ -203,3 +203,58 @@ fn config_overrides_auth_and_adds_headers_and_declares_dialects() {
     );
     assert_eq!(ws.headers()["authorization"], "Bearer k");
 }
+
+#[test]
+fn allowed_headers_restricts_forwarding_to_the_named_set() {
+    let config = json!({"allowed_headers": ["x-multi", "Anthropic-Beta"]});
+    let secret = json!({"api_key": "sk"});
+    let mut extra = request("/v1/messages", None);
+    extra
+        .headers
+        .insert("x-leaky", HeaderValue::from_static("secret"));
+    extra
+        .headers
+        .insert("content-type", HeaderValue::from_static("application/json"));
+    let prepared = prepare(
+        &config,
+        Some("https://api.example"),
+        &secret,
+        Dialect::Claude,
+        extra,
+        None,
+    )
+    .unwrap();
+    let headers = prepared.headers();
+    assert!(headers.get("x-leaky").is_none(), "not on the list");
+    assert_eq!(
+        headers.get_all("x-multi").iter().count(),
+        2,
+        "listed, repeats kept"
+    );
+    assert_eq!(
+        headers["anthropic-beta"], "files-api",
+        "names match case-insensitively"
+    );
+    assert_eq!(
+        headers["content-type"], "application/json",
+        "always forwarded"
+    );
+    assert_eq!(
+        headers["x-api-key"], "sk",
+        "channel-injected headers are not subject to the list"
+    );
+    assert!(headers.get("anthropic-version").is_some());
+
+    let bad = json!({"allowed_headers": ["not a header"]});
+    assert!(matches!(
+        prepare(
+            &bad,
+            Some("https://api.example"),
+            &secret,
+            Dialect::Claude,
+            request("/v1/messages", None),
+            None
+        ),
+        Err(ChannelError::InvalidConfig(_))
+    ));
+}
