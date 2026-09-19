@@ -21,6 +21,7 @@ pub struct ChannelBinding<'a> {
     credential: CredentialView<'a>,
     client: Arc<dyn OutboundClient>,
     state: Arc<dyn ChannelState>,
+    instance_id: Arc<str>,
     endpoint_override: Option<&'a str>,
 }
 
@@ -37,8 +38,15 @@ impl<'a> ChannelBinding<'a> {
             credential,
             client,
             state: Arc::new(NoState::default()),
+            instance_id: Arc::from("local"),
             endpoint_override: None,
         }
+    }
+
+    /// The host process identity handed to channels; `"local"` by default.
+    pub fn instance(mut self, instance_id: Arc<str>) -> Self {
+        self.instance_id = instance_id;
+        self
     }
 
     /// Cross-request memory the host keeps for this provider and credential.
@@ -67,6 +75,7 @@ impl<'a> ChannelBinding<'a> {
             request,
             client: self.client.clone(),
             state: self.state.clone(),
+            instance_id: self.instance_id.clone(),
             endpoint_override: self.endpoint_override,
         };
         match operation.operation {
@@ -118,6 +127,7 @@ impl<'a> ChannelBinding<'a> {
             request,
             client: self.client.clone(),
             state: self.state.clone(),
+            instance_id: self.instance_id.clone(),
             endpoint_override: self.endpoint_override,
         };
         match operation.operation {

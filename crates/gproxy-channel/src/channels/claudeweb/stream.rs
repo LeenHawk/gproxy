@@ -37,6 +37,9 @@ pub struct SessionState {
     pub model: String,
     pub message_id: String,
     pub input_tokens: u64,
+    /// The host process holding the parked completion connection.
+    #[serde(default)]
+    pub instance: String,
 }
 
 pub(super) struct Output {

@@ -32,6 +32,11 @@ pub enum CoreError {
     /// newer durable version appeared.
     #[error("credential `{credential_id}` is being refreshed elsewhere")]
     RefreshContended { credential_id: String },
+    /// The request continues an earlier one whose live upstream connection is
+    /// held by another host process. Route it there; the credential is fine
+    /// and nothing was retried.
+    #[error("continuation is held by instance `{instance_id}`")]
+    ContinuationElsewhere { instance_id: String },
     /// The credential is persisted as Dead. Waiting or retrying does not help;
     /// a person must log in again. `reason` is the Store's status_reason.
     #[error("credential `{credential_id}` is dead: {}", reason.as_deref().unwrap_or("unknown"))]

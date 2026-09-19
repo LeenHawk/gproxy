@@ -225,6 +225,7 @@ fn context<'a>(
         },
         client,
         state,
+        instance_id: Arc::from("local"),
         endpoint_override: None,
     }
 }
@@ -788,6 +789,7 @@ async fn cookie_login_bootstraps_the_account() {
             },
             client: client.clone(),
             state: MemoryState::new(),
+            instance_id: Arc::from("local"),
             endpoint_override: None,
         })
         .await
@@ -1116,4 +1118,70 @@ async fn allowed_headers_and_channel_headers_are_enforced() {
             .native_dialects(provider(&config, None), Operation::CreateEmbedding)
             .is_empty()
     );
+}
+
+#[tokio::test]
+async fn a_continuation_held_by_another_instance_is_named_not_expired() {
+    let config = json!({});
+    let secret = secret();
+    let metadata = json!({});
+    let client = ScriptClient::new(vec![
+        reply(StatusCode::CREATED, json!({})),
+        reply(StatusCode::OK, json!({})),
+        sse(StatusCode::OK, TOOL_STREAM),
+    ]);
+    let state = MemoryState::new();
+    let channel = ClaudeWeb::new();
+    let request = json!({
+        "model": "claude-sonnet-4-6",
+        "messages": [{"role": "user", "content": "weather in Oslo?"}],
+        "tools": [{"name": "weather", "input_schema": {"type": "object"}}]
+    });
+    let mut first = context(
+        provider(&config, None),
+        credential(&secret, &metadata),
+        client.clone(),
+        state.clone(),
+        HeaderMap::new(),
+        request,
+    );
+    first.instance_id = Arc::from("instance-a");
+    let response = channel.stream_generate_content(first).await.unwrap();
+    drain(response).await;
+    assert_eq!(state.keys(), vec!["tool:toolu-1".to_owned()]);
+    let sent_before = client.sent().len();
+
+    // The tool result reaches another process: it must not touch the
+    // conversation or the record, and it says who holds the continuation.
+    let mut second = context(
+        provider(&config, None),
+        credential(&secret, &metadata),
+        client.clone(),
+        state.clone(),
+        HeaderMap::new(),
+        json!({
+            "model": "claude-sonnet-4-6",
+            "messages": [{"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu-1", "content": "sunny"}]}]
+        }),
+    );
+    second.instance_id = Arc::from("instance-b");
+    let error = channel
+        .stream_generate_content(second)
+        .await
+        .expect_err("held elsewhere");
+    assert!(
+        matches!(&error, ChannelError::ContinuationElsewhere { instance_id } if instance_id == "instance-a"),
+        "{error}"
+    );
+    assert_eq!(
+        client.sent().len(),
+        sent_before,
+        "no upstream call was made"
+    );
+    assert_eq!(
+        state.keys(),
+        vec!["tool:toolu-1".to_owned()],
+        "the record stays"
+    );
+    assert_eq!(channel.registry().len(), 1, "the connection stays parked");
 }

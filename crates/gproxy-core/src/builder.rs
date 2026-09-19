@@ -28,6 +28,7 @@ pub struct CoreBuilder<C> {
     channels: ChannelRegistry,
     clients: Option<gproxy_client::ClientPool>,
     files: Option<gproxy_file::Operator>,
+    instance_id: Option<Arc<str>>,
     data: Option<Arc<CoreData>>,
 }
 
@@ -41,8 +42,15 @@ impl<C> CoreBuilder<C> {
             channels: ChannelRegistry::new(),
             clients: None,
             files: None,
+            instance_id: None,
             data: None,
         }
+    }
+    /// A stable identity for this process (hostname, pod name, isolate id).
+    /// Random when not supplied, which is right for a single instance.
+    pub fn instance_id(mut self, instance_id: impl Into<String>) -> Self {
+        self.instance_id = Some(Arc::from(instance_id.into()));
+        self
     }
     pub fn cache(mut self, cache: Arc<dyn Cache>) -> Self {
         self.cache = Some(cache);
@@ -94,6 +102,9 @@ impl<C> CoreBuilder<C> {
             channels: Arc::new(self.channels),
             clients: self.clients.unwrap_or_default(),
             files: self.files,
+            instance_id: self
+                .instance_id
+                .unwrap_or_else(|| Arc::from(crate::ids::random_id())),
             data: ArcSwap::from(self.data.unwrap_or_default()),
         })
     }

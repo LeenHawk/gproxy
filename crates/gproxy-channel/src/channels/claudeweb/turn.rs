@@ -148,20 +148,26 @@ pub(super) async fn start(
     let scope = format!("{}/{}", context.provider.id, context.credential.id);
     let client = context.client;
     let state = context.state;
+    let instance = context.instance_id.to_string();
     let registry = channel.registry.clone();
     if results.is_empty() {
-        new_turn(client, state, registry, scope, requests, &config, &value).await
+        new_turn(
+            client, state, registry, scope, requests, instance, &config, &value,
+        )
+        .await
     } else {
-        resume_turn(client, state, registry, scope, requests, results).await
+        resume_turn(client, state, registry, scope, requests, instance, results).await
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn new_turn(
     client: Arc<dyn OutboundClient>,
     state: Arc<dyn ChannelState>,
     registry: Arc<Registry>,
     scope: String,
     requests: Requests,
+    instance: String,
     config: &ClaudeWebConfig,
     value: &Value,
 ) -> Result<Turn, ChannelError> {
@@ -230,6 +236,7 @@ async fn new_turn(
         model: web.model,
         message_id: id::fresh("msg")?,
         input_tokens: web.input_tokens,
+        instance,
     };
     Ok(Turn {
         client,
@@ -250,6 +257,7 @@ async fn resume_turn(
     registry: Arc<Registry>,
     scope: String,
     requests: Requests,
+    instance: String,
     results: Vec<Value>,
 ) -> Result<Turn, ChannelError> {
     let tool_use_id = results
@@ -277,6 +285,13 @@ async fn resume_turn(
             .sum::<u64>(),
     );
     let conversation = session.conversation.clone();
+    if session.instance != instance {
+        // The parked connection lives in another process; it and the
+        // continuation record stay intact for the request to be routed there.
+        return Err(ChannelError::ContinuationElsewhere {
+            instance_id: session.instance,
+        });
+    }
     let now = now_ms()?;
     let Some(parked) = registry.take(&format!("{scope}/{tool_use_id}"), now) else {
         // Another instance (or an expired window) holds the connection; the

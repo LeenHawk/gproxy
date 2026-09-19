@@ -148,6 +148,13 @@ exchange 与刷新事件。记录不会改写、重排或延迟交付的流。
 | `AttemptUpstream` | `Upstream<Target = OperationKey>` | 一次 attempt 的 Provider、固定的凭证版本与 client；自持且可克隆，惰性启动的 fanout 子调用可超出 attempt 栈帧存活 |
 | `ProtocolState` | `StateStore<Scope = StateScope>` | Store 的 ProtocolState 行；scope 是调用方 scope、Provider 与可选会话 |
 | `Resources` | `ResourceAccess<Scope = ResourceScope>` | 经文件存储落 `resource_bindings` 与 `file_objects` 的发布；`Id` 先解析同 scope 的发布，再走 scope Provider 的 files API；`Url` 不支持 |
+| `ChannelStateStore` | `gproxy_channel::ChannelState` | 同一批 ProtocolState 行，限定到一个 Provider 与一个凭证，作为 `OperationContext.state` 交给渠道；渠道只选 key，看不到 scope |
+
+每次渠道调用还带 `OperationContext.instance_id`，即宿主进程的身份（`CoreBuilder::instance_id`，
+缺省随机）。必须在两次请求之间保持上游活连接的渠道（claudeweb 在 `tool_use` 处停放
+completion 流）把持有者记在续接记录里。之后的请求落到另一个进程时，attempt 以
+`CoreError::ContinuationElsewhere { instance_id }` 失败：不重试、不给凭证记失败、续接原地
+保留。多实例宿主要么把会话转发到那个实例，要么一开始就把会话粘住；单实例永远不会看到它。
 
 ## wasm32
 
