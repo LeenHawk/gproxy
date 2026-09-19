@@ -29,6 +29,10 @@ pub struct SessionIdentity {
     pub source: SessionSource,
     /// Diagnostic header/body path only, not part of canonical affinity scope.
     pub field: Option<String>,
+    /// The `agent_sessions` row the upper layer created for this identity,
+    /// when it is a long-lived agent session whose credential binding core
+    /// manages as assignments. None for ordinary affinity-only sessions.
+    pub agent_session_id: Option<String>,
 }
 impl SessionIdentity {
     pub fn is_stable(&self) -> bool {
@@ -71,7 +75,9 @@ pub struct AttemptContext {
     pub ordinal: u32,
     pub credential: Arc<CredentialData>,
     pub credential_version: Arc<CredentialVersion>,
-    /// Upper-layer association only; core does not select or migrate assignments.
+    /// The agent session assignment this attempt runs under, when the
+    /// request named an agent session: the active one, or the generation this
+    /// request reserved and is preparing.
     pub agent_assignment: Option<AgentAssignmentRef>,
 }
 #[derive(Clone, Debug)]
