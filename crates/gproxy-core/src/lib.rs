@@ -4,42 +4,38 @@
 //! holds each instance's immutable configuration snapshot.
 
 #![forbid(unsafe_code)]
+// wasm32-unknown-unknown is single-threaded and the JS transport handles held
+// through `dyn OutboundClient` are thread-bound; shared ownership still goes
+// through Arc so the engine's API is identical on every target.
+#![cfg_attr(target_arch = "wasm32", allow(clippy::arc_with_non_send_sync))]
 
 pub mod api;
 pub mod assemble;
-#[cfg(not(target_arch = "wasm32"))]
 mod availability;
 pub mod builder;
-#[cfg(not(target_arch = "wasm32"))]
 pub mod capability;
 pub mod context;
 pub mod convert;
 pub mod data;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod estimate;
-#[cfg(not(target_arch = "wasm32"))]
 mod execute;
-#[cfg(not(target_arch = "wasm32"))]
 mod ids;
 pub mod keys;
 pub mod limits;
 pub mod observe;
-#[cfg(not(target_arch = "wasm32"))]
 mod quota;
-#[cfg(not(target_arch = "wasm32"))]
 mod refresh;
 pub mod rewrite;
+mod rt;
 pub mod runtime;
 pub mod secret;
-#[cfg(not(target_arch = "wasm32"))]
 mod select;
-#[cfg(not(target_arch = "wasm32"))]
 mod session;
 
 pub use api::*;
 pub use assemble::AssemblyError;
 pub use builder::*;
-#[cfg(not(target_arch = "wasm32"))]
 pub use capability::*;
 pub use context::*;
 pub use data::*;
@@ -65,7 +61,6 @@ pub struct Core<C> {
     observer: Arc<dyn Observer>,
     codec: Arc<dyn SecretCodec>,
     channels: Arc<ChannelRegistry>,
-    #[cfg(not(target_arch = "wasm32"))]
     clients: gproxy_client::ClientPool,
     #[cfg(not(target_arch = "wasm32"))]
     files: Option<gproxy_file::Operator>,
@@ -101,7 +96,6 @@ impl<C> Core<C> {
     pub fn channels(&self) -> &Arc<ChannelRegistry> {
         &self.channels
     }
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn clients(&self) -> &gproxy_client::ClientPool {
         &self.clients
     }

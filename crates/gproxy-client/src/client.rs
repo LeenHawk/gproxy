@@ -1,5 +1,10 @@
-use crate::{Backend, ConnectionConfig, Error};
-#[cfg(any(feature = "reqwest", feature = "wreq"))]
+#[cfg(not(target_arch = "wasm32"))]
+use crate::Backend;
+use crate::{ConnectionConfig, Error};
+#[cfg(all(
+    any(feature = "reqwest", feature = "wreq"),
+    not(target_arch = "wasm32")
+))]
 use {
     crate::{ProxyConfig, RetryPolicy},
     std::time::Duration,
@@ -7,6 +12,7 @@ use {
 
 /// Shared clients retain the backends' native request, response and streaming APIs.
 /// Cloning either backend handle shares its internal socket pool.
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Clone)]
 pub enum Client {
     #[cfg(feature = "reqwest")]
@@ -15,12 +21,44 @@ pub enum Client {
     Wreq(wreq::Client),
 }
 
+/// wasm32 transports. `Backend` in the profile is a native choice; here every
+/// profile resolves to the JS host's fetch (`Fetch` when the feature is on,
+/// else the reqwest fallback) unless the host injected its own transport.
+#[cfg(target_arch = "wasm32")]
+#[derive(Clone)]
+pub enum Client {
+    #[cfg(feature = "fetch")]
+    Fetch(crate::FetchClient),
+    #[cfg(feature = "reqwest")]
+    Reqwest(reqwest::Client),
+    Host(std::sync::Arc<dyn crate::OutboundClient>),
+}
+
 impl std::fmt::Debug for Client {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Client").finish_non_exhaustive()
     }
 }
 
+#[cfg(target_arch = "wasm32")]
+impl Client {
+    #[cfg(feature = "fetch")]
+    pub(crate) fn build(config: &ConnectionConfig, http1_only: bool) -> Result<Self, Error> {
+        let _ = (config, http1_only);
+        crate::FetchClient::new().map(Self::Fetch)
+    }
+    #[cfg(all(feature = "reqwest", not(feature = "fetch")))]
+    pub(crate) fn build(config: &ConnectionConfig, http1_only: bool) -> Result<Self, Error> {
+        build_reqwest(config, http1_only).map(Self::Reqwest)
+    }
+    #[cfg(not(any(feature = "fetch", feature = "reqwest")))]
+    pub(crate) fn build(config: &ConnectionConfig, http1_only: bool) -> Result<Self, Error> {
+        let _ = http1_only;
+        Err(Error::BackendUnavailable(config.backend))
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 impl Client {
     pub(crate) fn build(config: &ConnectionConfig, http1_only: bool) -> Result<Self, Error> {
         #[cfg(not(any(feature = "reqwest", feature = "wreq")))]
@@ -50,7 +88,14 @@ impl Client {
     }
 }
 
-#[cfg(feature = "reqwest")]
+/// Fetch decides transport details on WASM: only the client handle is built.
+#[cfg(all(feature = "reqwest", not(feature = "fetch"), target_arch = "wasm32"))]
+fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest::Client, Error> {
+    let _ = (config, http1_only);
+    reqwest::Client::builder().build().map_err(Error::Reqwest)
+}
+
+#[cfg(all(feature = "reqwest", not(target_arch = "wasm32")))]
 fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest::Client, Error> {
     let mut builder = reqwest::Client::builder()
         .connect_timeout(Duration::from_millis(config.connect_timeout_ms.into()))
@@ -82,7 +127,7 @@ fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest:
     builder.build().map_err(Error::Reqwest)
 }
 
-#[cfg(feature = "wreq")]
+#[cfg(all(feature = "wreq", not(target_arch = "wasm32")))]
 fn build_wreq(config: &ConnectionConfig, http1_only: bool) -> Result<wreq::Client, Error> {
     let mut builder = wreq::Client::builder();
     if let Some(emulation) = &config.emulation {

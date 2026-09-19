@@ -94,7 +94,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         // One refresher per credential across instances. While waiting, a peer
         // may finish first; its durable version then answers this call.
         let lease_key = keys::refresh_lease(credential_id);
-        let waited_from = std::time::Instant::now();
+        let waited_from = web_time::Instant::now();
         let lease = loop {
             if let Some(lease) = self.cache().acquire_lease(&lease_key, LEASE_TTL).await? {
                 break lease;
@@ -110,7 +110,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
                     credential_id: credential_id.to_owned(),
                 });
             }
-            tokio::time::sleep(LEASE_POLL).await;
+            crate::rt::sleep(LEASE_POLL).await;
         };
         let result = self
             .refresh_under_lease(&provider, &credential, &current, mode, refresher)

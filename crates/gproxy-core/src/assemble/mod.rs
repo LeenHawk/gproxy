@@ -2,7 +2,6 @@
 //! lookup, secret opening, rule compilation, quota dimension declaration.
 //! Any invalid row fails the whole assembly so the previous snapshot stays.
 
-#[cfg(not(target_arch = "wasm32"))]
 use crate::CredentialStrategy;
 use crate::{
     BlockSource, CoreData, CredentialBlock, LimitsError, RewriteCompileError, SecretError,
@@ -13,14 +12,17 @@ use gproxy_store::entity::{
     limits::credential_block,
     upstream::{credential, provider},
 };
-#[cfg(not(target_arch = "wasm32"))]
 use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc};
 
-#[cfg(not(target_arch = "wasm32"))]
 mod native;
-#[cfg(not(target_arch = "wasm32"))]
 pub use native::assemble;
+
+/// Custom vocabularies parsed for estimation; wasm32 has no estimation.
+#[cfg(not(target_arch = "wasm32"))]
+pub type VocabularyMap = HashMap<String, gproxy_tokenizer::Vocabulary>;
+#[cfg(target_arch = "wasm32")]
+pub type VocabularyMap = HashMap<String, ()>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AssemblyError {
@@ -72,7 +74,6 @@ pub struct Assembly {
 
 /// Provider-level knobs read from the `config` JSON column. Unknown keys are
 /// the channel's business and are left alone.
-#[cfg(not(target_arch = "wasm32"))]
 #[derive(Deserialize, Default)]
 pub(super) struct ProviderConfig {
     #[serde(default)]

@@ -144,6 +144,7 @@ impl Exchange {
             return None;
         }
         let observer = self.usage_observer.lock().unwrap().take();
+        #[cfg_attr(target_arch = "wasm32", allow(unused_mut))]
         let mut usage = match observer {
             Some(observer) => observer.finish(end).ok().flatten(),
             None => {
@@ -171,6 +172,7 @@ impl Exchange {
         };
         // What the upstream did not report is estimated locally, for answers
         // that were served: a rejected call consumed nothing to meter.
+        #[cfg(not(target_arch = "wasm32"))]
         if self.funnel.policy().usage
             && status.is_some_and(|s| s.is_success())
             && let Some(estimator) = self.context.attempt.request.snapshot.estimation.as_ref()
@@ -267,11 +269,11 @@ impl Exchange {
         ) else {
             return;
         };
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            handle.spawn(async move {
-                self.close(sink, end).await;
-            });
-        } else if let Some(state) = self.terminal_state(end) {
+        let this = self.clone();
+        if !crate::rt::spawn(async move {
+            this.close(sink, end).await;
+        }) && let Some(state) = self.terminal_state(end)
+        {
             // No runtime to run the funnel on; at least resolve the completion.
             self.funnel.clone().finish_detached(state);
         }

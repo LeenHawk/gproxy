@@ -1,4 +1,4 @@
-//! Native assembly: needs the outbound client pool, which has no wasm form yet.
+//! Assembly proper: profiles resolve to pooled clients on every target.
 
 use super::{Assembly, AssemblyError, LiveBlocks, ProviderConfig, block_from_row, provider_view};
 use crate::{
@@ -15,7 +15,7 @@ pub async fn assemble(
     channels: &ChannelRegistry,
     codec: &dyn SecretCodec,
     clients: &gproxy_client::ClientPool,
-    vocabularies: HashMap<String, gproxy_tokenizer::Vocabulary>,
+    vocabularies: super::VocabularyMap,
     previous: Option<&CoreData>,
     now_ms: i64,
 ) -> Result<Assembly, AssemblyError> {
@@ -227,6 +227,7 @@ pub async fn assemble(
             .push(block_from_row(row)?);
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     // Which custom vocabulary each provider model counts with: the catalog
     // model's file, else the Setting default; tokenizer selection is lazy.
     let estimation = control
@@ -260,10 +261,13 @@ pub async fn assemble(
                 models,
             ))
         });
+    #[cfg(target_arch = "wasm32")]
+    let _ = vocabularies;
     Ok(Assembly {
         data: CoreData {
             revision,
             limits,
+            #[cfg(not(target_arch = "wasm32"))]
             estimation,
             providers: providers
                 .into_iter()

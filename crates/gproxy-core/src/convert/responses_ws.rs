@@ -128,7 +128,7 @@ pub(crate) async fn over_websocket<C: BatchConnectionTrait + Send + Sync + 'stat
                 // owns all three and feeds the client stream through a queue.
                 // The caller dropping the stream closes the queue, which ends
                 // the task and releases the socket.
-                tokio::spawn(async move {
+                crate::rt::spawn(async move {
                     let mut invocation = invocation;
                     let mut session = session;
                     let access = owned.access();
@@ -348,7 +348,7 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
     let (to_task, mut from_client) = mpsc::channel::<WsFrame>(FRAME_QUEUE);
     let task_funnel = funnel.clone();
     let cancellation = request.cancellation.clone();
-    tokio::spawn(async move {
+    crate::rt::spawn(async move {
         let out = to_client;
         let mut alive = true;
         loop {

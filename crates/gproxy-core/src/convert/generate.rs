@@ -243,7 +243,8 @@ impl<C: BatchConnectionTrait + Send + Sync> OwnedState<C> {
             target: self.target.clone(),
             conversation_key: self.conversation_key.clone(),
             expires_at: self.expires_at,
-            now: SystemTime::now(),
+            now: SystemTime::UNIX_EPOCH
+                + std::time::Duration::from_millis(crate::api::lifecycle::now_ms().max(0) as u64),
             max_records: self.max_records,
         }
     }

@@ -91,7 +91,6 @@ impl<T: std::fmt::Debug> std::fmt::Debug for Execution<T> {
     }
 }
 impl<T> Execution<T> {
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn new(response: T, usage: UsageCompletion, _settled: Settled) -> Self {
         Self { response, usage }
     }

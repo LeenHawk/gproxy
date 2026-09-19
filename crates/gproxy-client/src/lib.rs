@@ -4,8 +4,16 @@
 //!
 //! Native backends expose their original streaming/request APIs through [`Client`],
 //! which also implements the [`OutboundClient`] transport contract that channels
-//! and core call. On WASM only configuration types and the contract are available;
-//! native proxies and TLS emulation cannot be implemented by browser Fetch.
+//! and core call. On wasm32 the same [`Client`] and [`ClientPool`] exist, organised
+//! by feature: `fetch` drives the JS host's global fetch through web-sys with
+//! streaming bodies, `workers` adds Cloudflare Workers WebSocket upgrades, the
+//! `reqwest` feature is a buffered HTTP-only fallback, and a host can inject its
+//! own transport with `ClientPool::with_client`/`with_factory`. Proxies, TLS
+//! emulation and socket pools are native concerns and do not apply there.
+
+// wasm32-unknown-unknown is single-threaded and JS handles are thread-bound;
+// shared ownership still goes through Arc so the API is the same on every target.
+#![cfg_attr(target_arch = "wasm32", allow(clippy::arc_with_non_send_sync))]
 
 mod config;
 mod error;
@@ -15,15 +23,19 @@ pub use config::{Backend, ConnectionConfig, EmulationConfig, ProxyConfig, RetryP
 pub use error::Error;
 pub use outbound::{ClientBounds, OutboundClient};
 
-#[cfg(not(target_arch = "wasm32"))]
 mod client;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(target_arch = "wasm32", feature = "fetch"))]
+mod fetch;
 mod pool;
-#[cfg(not(target_arch = "wasm32"))]
 pub use client::Client;
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(target_arch = "wasm32", feature = "fetch"))]
+pub use fetch::FetchClient;
+#[cfg(target_arch = "wasm32")]
+pub use pool::ClientFactory;
 pub use pool::ClientPool;
 
+#[cfg(all(feature = "reqwest", target_arch = "wasm32"))]
+pub use reqwest;
 #[cfg(all(feature = "reqwest", not(target_arch = "wasm32")))]
 pub use {reqwest, reqwest_websocket};
 #[cfg(all(feature = "wreq", not(target_arch = "wasm32")))]
