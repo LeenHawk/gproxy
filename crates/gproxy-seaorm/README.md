@@ -180,11 +180,33 @@ dispatch does not prove rollback. Recover durable operations before retrying.
 `DatabaseConnection`; interactive transactions and ORM cascading writes requiring
 that trait remain unavailable. Schema/migration behavior is unchanged.
 
+## libSQL / Turso
+
+Feature `libsql` adds `LibsqlConnection`: the same `ConnectionTrait`,
+`BatchConnectionTrait` and schema sync over the Hrana HTTP pipeline
+(`POST {base}/v2/pipeline`) of a libSQL server or Turso database. The
+connection encodes the protocol; the HTTP leg is a caller-supplied
+`LibsqlTransport` (gproxy-client implements it for its `Client` behind its own
+`libsql` feature), so it runs natively and on wasm32 alike, including hosts
+without D1 such as Deno or Netlify Edge.
+
+```rust
+let db = LibsqlConnection::new(transport, "libsql://db.turso.io", Some(token))?;
+let store = Store::new(db);
+```
+
+Writes are one pipeline batch: `BEGIN`, each statement conditioned on the
+previous one succeeding, `COMMIT` conditioned on the last, and a `ROLLBACK`
+conditioned on its failure, so the server never keeps a partial batch. Integers
+travel as exact decimal text, blobs as base64, and results decode through the
+same projections as D1. Interactive transactions are not offered.
+
 ## Native and WASM feature boundary
 
-SeaORM's `proxy` feature is enabled only on WASM, where D1 needs it. Native schema
-planning uses SeaORM mock acknowledgements for its DDL recorder; native application
-queries/batches still use the real driver. This avoids SeaORM 2.0.3's incompatible
+SeaORM's `proxy` feature is enabled only on WASM, where D1 and libSQL need it. Native
+schema planning uses SeaORM mock acknowledgements for its DDL recorder, and the native
+libSQL connection materialises rows through the same mock driver; native application
+queries/batches on SQLx use the real driver. This avoids SeaORM 2.0.3's incompatible
 SQLx-to-Proxy row conversion code. Native integration tests enable SQLx SQLite and
 Tokio only as target-specific dev dependencies, without linking them into Workers.
 

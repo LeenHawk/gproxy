@@ -26,6 +26,8 @@ pub use outbound::{ClientBounds, OutboundClient};
 mod client;
 #[cfg(all(target_arch = "wasm32", feature = "fetch"))]
 mod fetch;
+#[cfg(feature = "libsql")]
+mod libsql;
 mod pool;
 pub use client::Client;
 #[cfg(all(target_arch = "wasm32", feature = "fetch"))]

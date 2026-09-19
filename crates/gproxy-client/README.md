@@ -54,6 +54,9 @@ proxies or CAs, or a `wasi:http` shim on other targets) implements
 `ClientPool::with_factory`; core then never touches the built-in transports.
 `wasm32-wasip2` has no JS `fetch` and is not covered by these features.
 
+Feature `libsql` (any target) makes `Client` the HTTP leg of gproxy-seaorm's
+libSQL/Turso connection, so the database shares the outbound transport.
+
 ## Multipart and WebSocket
 
 Both backends enable `multipart` and `stream`. Use their `multipart::Form` and

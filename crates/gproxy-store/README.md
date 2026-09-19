@@ -66,6 +66,8 @@ let report = store.sync().await?;
 // Surface report.warnings with the host logger, then initialize application data.
 ```
 
+The connection may be any `BatchConnectionTrait`: a native SeaORM connection,
+Workers D1, or gproxy-seaorm's libSQL/Turso connection on every target.
 `Store::sync` and `schema(backend)` share one entity registry. Sync creates missing
 tables for a new database and incrementally synchronizes an existing schema;
 repeat calls preserve rows. `gproxy-seaorm::SchemaSyncConnectionTrait` dispatches

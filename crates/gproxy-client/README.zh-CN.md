@@ -44,6 +44,9 @@ binding 与 `cf` 选项、Deno 的 `createHttpClient` 带代理或 CA、其他�
 `ClientPool::with_factory` 注入，core 就不会碰内置传输。`wasm32-wasip2` 没有 JS `fetch`，
 不在这些 feature 覆盖范围内。
 
+feature `libsql`（任意目标）让 `Client` 充当 gproxy-seaorm 的 libSQL／Turso 连接的 HTTP
+一段，数据库与其余出站共用传输。
+
 ## Multipart 与 WebSocket
 
 两种后端都开启 `multipart`／`stream`。通过缓存的句柄使用对应的 `multipart::Form`

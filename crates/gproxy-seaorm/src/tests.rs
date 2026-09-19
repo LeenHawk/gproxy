@@ -3,6 +3,8 @@ use serde_json::json;
 
 use crate::{D1Type, Projection, codec};
 
+#[cfg(feature = "libsql")]
+mod libsql;
 mod relations;
 
 fn query_result(row: codec::DecodedRow) -> QueryResult {
