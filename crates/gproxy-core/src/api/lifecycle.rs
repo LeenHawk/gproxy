@@ -1,19 +1,12 @@
-#[cfg(target_arch = "wasm32")]
-use super::RefreshMode;
 use super::{CoreError, CoreResult, CredentialSummary, ReloadOutcome};
-#[cfg(not(target_arch = "wasm32"))]
 use crate::keys;
 use crate::{Core, CoreData, CredentialVersion};
-#[cfg(target_arch = "wasm32")]
-use gproxy_channel::channel::QuotaSnapshot;
 use gproxy_seaorm::BatchConnectionTrait;
 use std::sync::Arc;
 
 /// Seven days; blocks live longer than this are re-warmed on reload.
-#[cfg(not(target_arch = "wasm32"))]
 const MAX_BLOCK_CACHE_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1000;
 
-#[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn now_ms() -> i64 {
     web_time::SystemTime::now()
         .duration_since(web_time::UNIX_EPOCH)
@@ -29,7 +22,6 @@ impl<C: BatchConnectionTrait> Core<C> {
     /// routing/identity/policy/pricing tables and no schema sync. Live
     /// credential blocks are warmed into the cache as a side effect so the
     /// snapshot can be served immediately after publication.
-    #[cfg(not(target_arch = "wasm32"))]
     pub async fn load_data(&self) -> CoreResult<Arc<CoreData>> {
         let control = self.store.load_control_data().await?;
         let previous = self.snapshot();
@@ -65,7 +57,7 @@ impl<C: BatchConnectionTrait> Core<C> {
         &self,
         control: &gproxy_store::ControlData,
         previous: &CoreData,
-    ) -> CoreResult<std::collections::HashMap<String, gproxy_tokenizer::Vocabulary>> {
+    ) -> CoreResult<crate::assemble::VocabularyMap> {
         let mut wanted: Vec<String> = control
             .models
             .iter()
@@ -112,10 +104,12 @@ impl<C: BatchConnectionTrait> Core<C> {
     }
 
     #[cfg(target_arch = "wasm32")]
-    pub async fn load_data(&self) -> CoreResult<Arc<CoreData>> {
-        Err(CoreError::NotImplemented(
-            "load_data: no outbound transport on wasm32 yet",
-        ))
+    async fn load_vocabularies(
+        &self,
+        _control: &gproxy_store::ControlData,
+        _previous: &CoreData,
+    ) -> CoreResult<crate::assemble::VocabularyMap> {
+        Ok(Default::default())
     }
 
     /// Load/assemble through Store, then monotonically publish. Failure leaves
@@ -176,32 +170,8 @@ impl<C: BatchConnectionTrait> Core<C> {
         }
         Ok(out)
     }
-
-    /// See `refresh.rs`; wasm has no outbound transport yet.
-    #[cfg(target_arch = "wasm32")]
-    pub async fn refresh_credential(
-        &self,
-        provider_id: &str,
-        credential_id: &str,
-        mode: RefreshMode,
-    ) -> CoreResult<CredentialSummary> {
-        let _ = (provider_id, credential_id, mode);
-        Err(CoreError::NotImplemented("refresh_credential"))
-    }
-
-    /// See `quota.rs`; wasm has no outbound transport yet.
-    #[cfg(target_arch = "wasm32")]
-    pub async fn query_credential_quota(
-        &self,
-        provider_id: &str,
-        credential_id: &str,
-    ) -> CoreResult<QuotaSnapshot> {
-        let _ = (provider_id, credential_id);
-        Err(CoreError::NotImplemented("query_credential_quota"))
-    }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl<C> Core<C> {
     pub(crate) async fn warm_blocks(
         &self,
@@ -216,7 +186,6 @@ impl<C> Core<C> {
 
 /// Merge persisted blocks into the cache copy with a CAS loop. The TTL is
 /// the longest remaining block; readers still compare `until_ms`.
-#[cfg(not(target_arch = "wasm32"))]
 pub(crate) async fn warm_blocks(
     cache: &Arc<dyn gproxy_cache::Cache>,
     provider_id: &str,

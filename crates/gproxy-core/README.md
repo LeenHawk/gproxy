@@ -188,9 +188,13 @@ Recording never rewrites, reorders or delays the delivered stream.
 
 ## wasm32
 
-The data contracts compile on wasm32; `load_data`, `send`, `connect`,
-`refresh_credential` and `query_credential_quota` return
-`CoreError::NotImplemented` there because there is no outbound transport yet.
+The engine runs on wasm32-unknown-unknown with the same API: timers and
+background tasks come from the JS event loop, outbound transport from
+gproxy-client's `fetch`/`workers` features or a host-injected `OutboundClient`
+(see the client README). Two things stay native-only: file storage, so
+`Resources` answers `Unsupported` and image/video/file publications are
+refused before any side effect; and local token estimation, so exchanges
+without reported usage report nothing there. Tests run natively only.
 
 ```sh
 cargo test -p gproxy-core

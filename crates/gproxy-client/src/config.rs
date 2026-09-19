@@ -2,7 +2,6 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-#[cfg(not(target_arch = "wasm32"))]
 use crate::Error;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -122,7 +121,6 @@ impl Default for ConnectionConfig {
 }
 
 impl ConnectionConfig {
-    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn normalized(mut self) -> Result<Self, Error> {
         if let ProxyConfig::Explicit { url } = &mut self.proxy {
             // Normalize proxy URLs to authority form without imposing additional

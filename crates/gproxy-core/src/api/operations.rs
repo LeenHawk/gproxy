@@ -101,8 +101,7 @@ websocket_operations! {
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
     /// Passthrough or conversion with credential selection, request/response
-    /// rewriting, observation and settlement; wasm has no outbound transport yet.
-    #[cfg(not(target_arch = "wasm32"))]
+    /// rewriting, observation and settlement.
     async fn execute_http(
         &self,
         context: Arc<RequestContext>,
@@ -110,36 +109,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
     ) -> CoreResult<HttpExecution> {
         crate::execute::run_http(self, context, request).await
     }
-    #[cfg(target_arch = "wasm32")]
-    async fn execute_http(
-        &self,
-        context: Arc<RequestContext>,
-        request: WireRequest<HttpBody>,
-    ) -> CoreResult<HttpExecution> {
-        let _ = (context, request);
-        Err(CoreError::NotImplemented(
-            "send: no outbound transport on wasm32 yet",
-        ))
-    }
     /// Handshake through the attempt loop; an established socket is observed
     /// in both directions and settles when it closes or is dropped.
-    #[cfg(not(target_arch = "wasm32"))]
     async fn execute_websocket(
         &self,
         context: Arc<RequestContext>,
         request: WireRequest<()>,
     ) -> CoreResult<WebSocketExecution> {
         crate::execute::run_websocket(self, context, request).await
-    }
-    #[cfg(target_arch = "wasm32")]
-    async fn execute_websocket(
-        &self,
-        context: Arc<RequestContext>,
-        request: WireRequest<()>,
-    ) -> CoreResult<WebSocketExecution> {
-        let _ = (context, request);
-        Err(CoreError::NotImplemented(
-            "connect: no outbound transport on wasm32 yet",
-        ))
     }
 }

@@ -34,7 +34,25 @@ available on every target; only the implementation is native.
 `Client` exposes the native backend handles, including streaming multipart APIs.
 Reqwest WebSockets use the re-exported `reqwest_websocket` extension; wreq provides
 its native WebSocket API. There is no second buffering or wire-protocol abstraction here.
-WASM builds expose configuration types only; Fetch integration is not implemented.
+## wasm32
+
+The same `Client`, `ClientPool` and `OutboundClient` exist on wasm32, organised
+by feature rather than by platform crate:
+
+| Feature | Transport | Bodies | WebSocket |
+|---|---|---|---|
+| `fetch` | The JS host's global `fetch` through web-sys (Cloudflare Workers, Deno, Netlify Edge, browsers) | Streams both ways (`duplex: half`) | Needs `workers` or a host client |
+| `workers` (implies `fetch`) | Same, plus Cloudflare Workers upgrades: `fetch` with `Upgrade: websocket`, then `response.webSocket` is accepted and exposed as the protocol socket | Streams | Yes, with upstream authentication headers |
+| `reqwest` (default) | reqwest's own Fetch fallback | Request bodies are buffered | No |
+
+When more than one is enabled `fetch` wins. Profiles still select clients, but
+proxies, TLS emulation, redirects and socket pools are native concerns and are
+ignored: the JS host decides them. A host with its own transport (Workers
+`Fetch` with service bindings and `cf` options, Deno `createHttpClient` with
+proxies or CAs, or a `wasi:http` shim on other targets) implements
+`OutboundClient` and installs it with `ClientPool::with_client` or a per-profile
+`ClientPool::with_factory`; core then never touches the built-in transports.
+`wasm32-wasip2` has no JS `fetch` and is not covered by these features.
 
 ## Multipart and WebSocket
 

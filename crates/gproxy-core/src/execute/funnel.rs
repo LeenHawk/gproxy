@@ -108,10 +108,8 @@ impl Funnel {
         if self.finished.load(Ordering::SeqCst) {
             return;
         }
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            handle.spawn(async move {
-                self.finish(state).await;
-            });
-        }
+        crate::rt::spawn(async move {
+            self.finish(state).await;
+        });
     }
 }

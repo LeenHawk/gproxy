@@ -46,7 +46,6 @@ pub fn generate_endpoint(
 
 /// The count-tokens endpoint for `dialect`. OpenAI is deliberately not a
 /// count-tokens target: the Responses input-token endpoint is not converted to.
-#[cfg(not(target_arch = "wasm32"))]
 pub fn count_tokens_endpoint(dialect: Dialect, model: &str) -> Result<Endpoint, TransformError> {
     match dialect {
         Dialect::Claude => Endpoint::new("/v1/messages/count_tokens"),
@@ -62,7 +61,6 @@ pub fn count_tokens_endpoint(dialect: Dialect, model: &str) -> Result<Endpoint, 
 }
 
 /// The model directory path for `dialect`.
-#[cfg(not(target_arch = "wasm32"))]
 pub fn list_models_path(dialect: Dialect) -> Result<&'static str, TransformError> {
     match dialect {
         Dialect::OpenAi | Dialect::OpenAiChat | Dialect::Claude => Ok("/v1/models"),
@@ -76,7 +74,6 @@ pub fn list_models_path(dialect: Dialect) -> Result<&'static str, TransformError
 
 /// The single-model path for `dialect`; `id` is the bare model id without a
 /// Gemini `models/` resource prefix.
-#[cfg(not(target_arch = "wasm32"))]
 pub fn get_model_path(dialect: Dialect, id: &str) -> Result<String, TransformError> {
     let base = list_models_path(dialect)?;
     Ok(format!("{base}/{}", utf8_percent_encode(id, PATH_SEGMENT)))
@@ -85,7 +82,6 @@ pub fn get_model_path(dialect: Dialect, id: &str) -> Result<String, TransformErr
 /// The embeddings endpoint for `dialect` as a body-less request template.
 /// Gemini carries the model in the path and distinguishes single from batch
 /// by method name; OpenAI has one path whose body carries the model.
-#[cfg(not(target_arch = "wasm32"))]
 pub fn embedding_template(
     dialect: Dialect,
     model: &str,
@@ -120,7 +116,6 @@ pub fn embedding_template(
 
 /// The files collection for `dialect`: list and multipart upload post here,
 /// retrieve/delete append the file id.
-#[cfg(not(target_arch = "wasm32"))]
 pub fn files_endpoint(dialect: Dialect) -> Result<Endpoint, TransformError> {
     match dialect {
         Dialect::OpenAi | Dialect::OpenAiChat | Dialect::Claude => Endpoint::new("/v1/files"),
@@ -133,13 +128,11 @@ pub fn files_endpoint(dialect: Dialect) -> Result<Endpoint, TransformError> {
 }
 
 /// Gemini's resumable upload start path; the session URL comes from upstream.
-#[cfg(not(target_arch = "wasm32"))]
 pub fn gemini_upload_endpoint() -> Result<Endpoint, TransformError> {
     Endpoint::new("/upload/v1beta/files")
 }
 
 /// One file's own path (retrieve/delete): the collection plus the bare id.
-#[cfg(not(target_arch = "wasm32"))]
 pub fn file_endpoint(dialect: Dialect, id: &str) -> Result<Endpoint, TransformError> {
     let collection = files_endpoint(dialect)?;
     let id = utf8_percent_encode(id, PATH_SEGMENT);
@@ -147,7 +140,6 @@ pub fn file_endpoint(dialect: Dialect, id: &str) -> Result<Endpoint, TransformEr
 }
 
 /// One file's content download. Gemini files are input-only upstream.
-#[cfg(not(target_arch = "wasm32"))]
 pub fn file_content_endpoint(dialect: Dialect, id: &str) -> Result<Endpoint, TransformError> {
     match dialect {
         Dialect::OpenAi | Dialect::OpenAiChat | Dialect::Claude => {

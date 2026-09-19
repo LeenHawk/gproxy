@@ -24,7 +24,25 @@ if let Client::Reqwest(http) = client.as_ref() {
 
 `Client` 暴露对应后端的原生请求／流式 multipart API。reqwest 的 WS 使用重导出的
 `reqwest_websocket` 扩展，wreq 使用原生 WebSocket API。
-这里不另造缓冲或协议适配层。WASM 目前只暴露配置类型，尚未实现 Fetch 接线。
+这里不另造缓冲或协议适配层。
+
+## wasm32
+
+wasm32 上有同样的 `Client`、`ClientPool` 与 `OutboundClient`，按 feature 而不是按平台
+crate 组织：
+
+| feature | 传输 | body | WebSocket |
+|---|---|---|---|
+| `fetch` | 经 web-sys 调用 JS 宿主的全局 `fetch`（Cloudflare Workers、Deno、Netlify Edge、浏览器） | 双向流式（`duplex: half`） | 需要 `workers` 或宿主 client |
+| `workers`（隐含 `fetch`） | 同上，加 Cloudflare Workers 升级：带 `Upgrade: websocket` 的 `fetch`，取 `response.webSocket` 后 `accept()` 暴露为协议 socket | 流式 | 支持，且带上游鉴权头 |
+| `reqwest`（默认） | reqwest 自带的 Fetch 兜底 | 请求体先缓冲 | 不支持 |
+
+同时启用时 `fetch` 优先。profile 仍用于选择 client，但代理、TLS 指纹、重定向和连接池
+是原生概念，这里忽略，由 JS 宿主决定。宿主自己有传输时（Workers 的 `Fetch` 带 service
+binding 与 `cf` 选项、Deno 的 `createHttpClient` 带代理或 CA、其他目标上的 `wasi:http`
+封装）实现 `OutboundClient`，用 `ClientPool::with_client` 或按 profile 的
+`ClientPool::with_factory` 注入，core 就不会碰内置传输。`wasm32-wasip2` 没有 JS `fetch`，
+不在这些 feature 覆盖范围内。
 
 ## Multipart 与 WebSocket
 

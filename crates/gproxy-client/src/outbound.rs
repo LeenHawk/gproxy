@@ -345,3 +345,104 @@ mod native {
         })
     }
 }
+
+#[cfg(target_arch = "wasm32")]
+mod wasm {
+    use super::*;
+    use crate::Client;
+    #[cfg(feature = "reqwest")]
+    use futures_util::StreamExt;
+    #[cfg(feature = "reqwest")]
+    use gproxy_protocol::connection::{Bytes, TransportError};
+
+    #[cfg(feature = "reqwest")]
+    fn unsupported(message: &'static str) -> CapabilityError {
+        CapabilityError::new(
+            CapabilityErrorKind::Unsupported,
+            CapabilityErrorStage::Start,
+            message,
+        )
+    }
+
+    impl OutboundClient for Client {
+        fn send<'a>(
+            &'a self,
+            request: http::Request<HttpBody>,
+        ) -> CapabilityFuture<'a, Result<WireResponse<HttpBody>, CapabilityError>> {
+            match self {
+                #[cfg(feature = "fetch")]
+                Client::Fetch(client) => client.send(request),
+                #[cfg(feature = "reqwest")]
+                Client::Reqwest(client) => Box::pin(reqwest_send(client, request)),
+                Client::Host(client) => client.send(request),
+            }
+        }
+
+        fn connect<'a>(
+            &'a self,
+            request: http::Request<()>,
+        ) -> CapabilityFuture<'a, Result<UpstreamConnection, CapabilityError>> {
+            match self {
+                #[cfg(feature = "fetch")]
+                Client::Fetch(client) => client.connect(request),
+                #[cfg(feature = "reqwest")]
+                Client::Reqwest(_) => Box::pin(async {
+                    Err(unsupported(
+                        "the reqwest Fetch fallback cannot upgrade to WebSocket; enable `fetch`/`workers` or inject a host client",
+                    ))
+                }),
+                Client::Host(client) => client.connect(request),
+            }
+        }
+    }
+
+    /// reqwest on Fetch takes a complete body: a streaming request body is
+    /// collected first. Response bodies stream as on native.
+    #[cfg(feature = "reqwest")]
+    async fn reqwest_send(
+        client: &reqwest::Client,
+        request: http::Request<HttpBody>,
+    ) -> Result<WireResponse<HttpBody>, CapabilityError> {
+        let (parts, body) = request.into_parts();
+        let bytes = match body {
+            HttpBody::Bytes(bytes) => bytes,
+            HttpBody::Stream(mut stream) => {
+                let mut out = Vec::new();
+                while let Some(chunk) = stream.next().await {
+                    let chunk = chunk.map_err(|e| {
+                        CapabilityError::new(
+                            CapabilityErrorKind::Transport,
+                            CapabilityErrorStage::BodyTransfer,
+                            e.to_string(),
+                        )
+                    })?;
+                    out.extend_from_slice(&chunk);
+                }
+                Bytes::from(out)
+            }
+        };
+        let response = client
+            .request(parts.method, parts.uri.to_string())
+            .headers(parts.headers)
+            .body(bytes)
+            .send()
+            .await
+            .map_err(|e| {
+                CapabilityError::with_source(
+                    CapabilityErrorKind::Transport,
+                    CapabilityErrorStage::Start,
+                    "upstream request failed before a response arrived",
+                    e,
+                )
+            })?;
+        Ok(WireResponse {
+            status: response.status(),
+            headers: response.headers().clone(),
+            body: HttpBody::Stream(Box::pin(
+                response
+                    .bytes_stream()
+                    .map(|chunk| chunk.map_err(|e| Box::new(e) as TransportError)),
+            )),
+        })
+    }
+}

@@ -26,7 +26,6 @@ pub struct CoreBuilder<C> {
     observer: Option<Arc<dyn Observer>>,
     codec: Option<Arc<dyn SecretCodec>>,
     channels: ChannelRegistry,
-    #[cfg(not(target_arch = "wasm32"))]
     clients: Option<gproxy_client::ClientPool>,
     #[cfg(not(target_arch = "wasm32"))]
     files: Option<gproxy_file::Operator>,
@@ -41,7 +40,6 @@ impl<C> CoreBuilder<C> {
             observer: None,
             codec: None,
             channels: ChannelRegistry::new(),
-            #[cfg(not(target_arch = "wasm32"))]
             clients: None,
             #[cfg(not(target_arch = "wasm32"))]
             files: None,
@@ -70,7 +68,6 @@ impl<C> CoreBuilder<C> {
         self
     }
     /// Outbound client cache. Defaults to `ClientPool::default()`.
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn client_pool(mut self, clients: gproxy_client::ClientPool) -> Self {
         self.clients = Some(clients);
         self
@@ -98,7 +95,6 @@ impl<C> CoreBuilder<C> {
             observer: self.observer.ok_or(BuildError::MissingObserver)?,
             codec: self.codec.ok_or(BuildError::MissingSecretCodec)?,
             channels: Arc::new(self.channels),
-            #[cfg(not(target_arch = "wasm32"))]
             clients: self.clients.unwrap_or_default(),
             #[cfg(not(target_arch = "wasm32"))]
             files: self.files,

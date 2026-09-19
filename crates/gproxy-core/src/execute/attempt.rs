@@ -320,10 +320,10 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                 let sent = tokio::select! {
                     biased;
                     () = cancellation.cancelled() => Err(Fault::Cancelled),
-                    result = tokio::time::timeout(capability.operation_total, binding.send(operation, this_wire)) => match result {
-                        Ok(Ok(response)) => Ok(response),
-                        Ok(Err(error)) => Err(Fault::Failed(CoreError::Channel(error))),
-                        Err(_) => Err(Fault::DeadlineExceeded),
+                    result = crate::rt::timeout(capability.operation_total, binding.send(operation, this_wire)) => match result {
+                        Some(Ok(response)) => Ok(response),
+                        Some(Err(error)) => Err(Fault::Failed(CoreError::Channel(error))),
+                        None => Err(Fault::DeadlineExceeded),
                     },
                 };
                 match sent {
@@ -384,13 +384,13 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                 let converted = tokio::select! {
                     biased;
                     () = cancellation.cancelled() => Err(Fault::Cancelled),
-                    result = tokio::time::timeout(capability.operation_total, convert::dispatch(&call)) => match result {
-                        Ok(Ok(converted)) => Ok(converted),
-                        Ok(Err(error)) => Err(match error.kind() {
+                    result = crate::rt::timeout(capability.operation_total, convert::dispatch(&call)) => match result {
+                        Some(Ok(converted)) => Ok(converted),
+                        Some(Err(error)) => Err(match error.kind() {
                             TransformErrorKind::Host => Fault::Failed(error.into()),
                             _ => Fault::Client(error.into()),
                         }),
-                        Err(_) => Err(Fault::DeadlineExceeded),
+                        None => Err(Fault::DeadlineExceeded),
                     },
                 };
                 converted.map(|converted| match converted {

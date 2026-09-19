@@ -8,7 +8,7 @@ pub enum Error {
     InvalidProxy(#[source] url::ParseError),
     #[error("backend {0:?} is not available in this build")]
     BackendUnavailable(Backend),
-    #[cfg(all(feature = "reqwest", not(target_arch = "wasm32")))]
+    #[cfg(feature = "reqwest")]
     #[error("reqwest client construction failed")]
     Reqwest(#[source] reqwest::Error),
     #[cfg(all(feature = "wreq", not(target_arch = "wasm32")))]
@@ -17,4 +17,8 @@ pub enum Error {
     #[cfg(not(target_arch = "wasm32"))]
     #[error("client construction task failed")]
     BuildTask(#[source] tokio::task::JoinError),
+    /// The JS host exposes no usable global `fetch`.
+    #[cfg(target_arch = "wasm32")]
+    #[error("JS host error: {0}")]
+    Host(String),
 }

@@ -120,9 +120,9 @@ async fn step(mut state: State) -> Option<(Result<Bytes, TransportError>, State)
         let next = tokio::select! {
             biased;
             () = cancellation.cancelled() => Err(transport_error("request cancelled")),
-            next = tokio::time::timeout(exchange.limits.stream_idle, inner.next()) => match next {
-                Ok(item) => Ok(item),
-                Err(_) => Err(transport_error("upstream stream idle timeout")),
+            next = crate::rt::timeout(exchange.limits.stream_idle, inner.next()) => match next {
+                Some(item) => Ok(item),
+                None => Err(transport_error("upstream stream idle timeout")),
             },
         };
         match next {
