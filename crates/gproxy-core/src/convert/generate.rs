@@ -56,7 +56,10 @@ fn codec(error: gproxy_protocol::codec::CodecError) -> TransformError {
     )
 }
 
-fn decode<T: DeserializeOwned>(body: &[u8], limits: CodecLimits) -> Result<T, TransformError> {
+pub(super) fn decode<T: DeserializeOwned>(
+    body: &[u8],
+    limits: CodecLimits,
+) -> Result<T, TransformError> {
     decode_json(body, limits).map_err(codec)
 }
 
@@ -81,7 +84,7 @@ fn finish<Cl: Serialize>(
     })
 }
 
-fn namespace() -> IdNamespace {
+pub(super) fn namespace() -> IdNamespace {
     let mut bytes = [0u8; 16];
     let _ = getrandom::fill(&mut bytes);
     IdNamespace(bytes)
@@ -91,11 +94,85 @@ fn auto() -> r::input::ToolChoice {
     r::input::ToolChoice::Mode(r::input::ToolChoiceMode::Auto)
 }
 
-fn responses_settings(input: &r::GenerateContentRequestBody) -> (bool, r::input::ToolChoice) {
+pub(super) fn responses_settings(
+    input: &r::GenerateContentRequestBody,
+) -> (bool, r::input::ToolChoice) {
     (
         input.parallel_tool_calls.flatten().unwrap_or(true),
         input.tool_choice.clone().unwrap_or_else(auto),
     )
+}
+
+/// Responses client over a Chat upstream: the response context echoes the
+/// client's effective controls.
+pub(super) fn responses_over_chat_context(
+    input: &r::GenerateContentRequestBody,
+) -> chat_responses::stream::ChatToResponsesContext {
+    let (parallel_tool_calls, tool_choice) = responses_settings(input);
+    chat_responses::ResponsesResponseContext {
+        request: input.clone(),
+        effective_parallel_tool_calls: parallel_tool_calls,
+        effective_tool_choice: tool_choice,
+        usage: Default::default(),
+        effective_prompt_cache_options: None,
+    }
+    .into()
+}
+
+/// Claude reports thinking tokens only when extended thinking ran. A client
+/// that asked for no reasoning had none: zero is a fact, not a guess.
+pub(super) fn reasoning_tokens_fact(input: &r::GenerateContentRequestBody) -> Option<i64> {
+    input
+        .reasoning
+        .as_ref()
+        .and_then(Option::as_ref)
+        .is_none()
+        .then_some(0)
+}
+
+pub(super) fn responses_over_claude_facts(
+    input: &r::GenerateContentRequestBody,
+    created: i64,
+) -> ResponsesViaClaudeStreamFacts {
+    let (parallel_tool_calls, tool_choice) = responses_settings(input);
+    ResponsesViaClaudeStreamFacts {
+        request: Default::default(),
+        response: claude_responses::ClaudeResponseContext {
+            request: input.clone(),
+            effective_parallel_tool_calls: parallel_tool_calls,
+            effective_tool_choice: tool_choice,
+            usage: claude_responses::ResponsesUsageFacts {
+                reasoning_tokens: reasoning_tokens_fact(input),
+                ..Default::default()
+            },
+            created_at: created,
+            effective_prompt_cache_options: None,
+        }
+        .into(),
+    }
+}
+
+pub(super) fn responses_over_gemini_facts(
+    input: &r::GenerateContentRequestBody,
+    created: i64,
+    model: &str,
+) -> ResponsesViaGeminiStreamFacts {
+    let (parallel_tool_calls, tool_choice) = responses_settings(input);
+    ResponsesViaGeminiStreamFacts {
+        request: Default::default(),
+        response: gemini_responses::stream::GeminiToResponsesContext {
+            response: gemini_responses::GeminiResponseContext {
+                request: input.clone(),
+                effective_parallel_tool_calls: parallel_tool_calls,
+                effective_tool_choice: tool_choice,
+                usage: Default::default(),
+                created_at: created,
+                effective_prompt_cache_options: None,
+            },
+            actual_model: Some(model.to_owned()),
+            final_thinking_tokens: None,
+        },
+    }
 }
 
 /// Finite per-stream event budgets; the codec limits already bound bytes.
@@ -105,7 +182,7 @@ const MAX_STREAM_TOOLS: usize = 256;
 const MAX_STREAM_PARTS: usize = 256;
 const MAX_STREAM_CHOICES: usize = 8;
 
-fn stream_settings(
+pub(super) fn stream_settings(
     limits: CodecLimits,
     client: Dialect,
     client_query: Option<&str>,
@@ -135,17 +212,20 @@ fn stream_settings(
 
 /// Continuation-state pieces a driven client stream carries by value so it
 /// can rebuild `GenerationStateAccess` on every poll.
-struct OwnedState<C> {
-    store: ProtocolState<C>,
-    scope: StateScope,
-    target: IdentityTarget,
-    conversation_key: String,
-    expires_at: SystemTime,
-    max_records: usize,
+pub(super) struct OwnedState<C> {
+    pub store: ProtocolState<C>,
+    pub scope: StateScope,
+    pub target: IdentityTarget,
+    pub conversation_key: String,
+    pub expires_at: SystemTime,
+    pub max_records: usize,
 }
 
 impl<C: BatchConnectionTrait + Send + Sync> OwnedState<C> {
-    fn capture(call: &Call<'_, C>, state: &GenerationStateAccess<'_, ProtocolState<C>>) -> Self {
+    pub(super) fn capture(
+        call: &Call<'_, C>,
+        state: &GenerationStateAccess<'_, ProtocolState<C>>,
+    ) -> Self {
         Self {
             store: call.state_store.clone(),
             scope: call.state_scope.clone(),
@@ -156,7 +236,7 @@ impl<C: BatchConnectionTrait + Send + Sync> OwnedState<C> {
         }
     }
 
-    fn access(&self) -> GenerationStateAccess<'_, ProtocolState<C>> {
+    pub(super) fn access(&self) -> GenerationStateAccess<'_, ProtocolState<C>> {
         GenerationStateAccess {
             store: &self.store,
             scope: &self.scope,
@@ -169,7 +249,7 @@ impl<C: BatchConnectionTrait + Send + Sync> OwnedState<C> {
     }
 }
 
-fn rejected(response: WireResponse<gproxy_protocol::connection::Bytes>) -> Converted {
+pub(super) fn rejected(response: WireResponse<gproxy_protocol::connection::Bytes>) -> Converted {
     Converted::Rejected(WireResponse {
         status: response.status,
         headers: response.headers,
@@ -177,7 +257,7 @@ fn rejected(response: WireResponse<gproxy_protocol::connection::Bytes>) -> Conve
     })
 }
 
-fn transport(error: TransformError) -> TransportError {
+pub(super) fn transport(error: TransformError) -> TransportError {
     Box::new(std::io::Error::other(error.to_string()))
 }
 
@@ -226,6 +306,9 @@ pub(crate) async fn streamed<C: BatchConnectionTrait + Send + Sync + 'static>(
             },
         )
         .await;
+    }
+    if target == Dialect::OpenAiResponsesWebSocket {
+        return super::responses_ws::over_websocket(call, settings).await;
     }
     let state = &call.generation_state()?;
     let key = OperationKey {
@@ -369,17 +452,7 @@ pub(crate) async fn streamed<C: BatchConnectionTrait + Send + Sync + 'static>(
         }
         (Dialect::OpenAi, Dialect::OpenAiChat) => {
             run!(ResponsesViaChat, r::GenerateContentRequestBody, |input| {
-                let (parallel_tool_calls, tool_choice) = responses_settings(&input);
-                let context: chat_responses::stream::ChatToResponsesContext =
-                    chat_responses::ResponsesResponseContext {
-                        request: input.clone(),
-                        effective_parallel_tool_calls: parallel_tool_calls,
-                        effective_tool_choice: tool_choice,
-                        usage: Default::default(),
-                        effective_prompt_cache_options: None,
-                    }
-                    .into();
-                context
+                responses_over_chat_context(&input)
             })
         }
         (Dialect::Gemini, Dialect::OpenAiChat) => {
@@ -422,19 +495,7 @@ pub(crate) async fn streamed<C: BatchConnectionTrait + Send + Sync + 'static>(
         }
         (Dialect::OpenAi, Dialect::Claude) => {
             run!(ResponsesViaClaude, r::GenerateContentRequestBody, |input| {
-                let (parallel_tool_calls, tool_choice) = responses_settings(&input);
-                ResponsesViaClaudeStreamFacts {
-                    request: Default::default(),
-                    response: claude_responses::ClaudeResponseContext {
-                        request: input.clone(),
-                        effective_parallel_tool_calls: parallel_tool_calls,
-                        effective_tool_choice: tool_choice,
-                        usage: Default::default(),
-                        created_at: created,
-                        effective_prompt_cache_options: None,
-                    }
-                    .into(),
-                }
+                responses_over_claude_facts(&input, created)
             })
         }
         (Dialect::Gemini, Dialect::OpenAi) => {
@@ -444,22 +505,7 @@ pub(crate) async fn streamed<C: BatchConnectionTrait + Send + Sync + 'static>(
         }
         (Dialect::OpenAi, Dialect::Gemini) => {
             run!(ResponsesViaGemini, r::GenerateContentRequestBody, |input| {
-                let (parallel_tool_calls, tool_choice) = responses_settings(&input);
-                ResponsesViaGeminiStreamFacts {
-                    request: Default::default(),
-                    response: gemini_responses::stream::GeminiToResponsesContext {
-                        response: gemini_responses::GeminiResponseContext {
-                            request: input.clone(),
-                            effective_parallel_tool_calls: parallel_tool_calls,
-                            effective_tool_choice: tool_choice,
-                            usage: Default::default(),
-                            created_at: created,
-                            effective_prompt_cache_options: None,
-                        },
-                        actual_model: Some(model.clone()),
-                        final_thinking_tokens: None,
-                    },
-                }
+                responses_over_gemini_facts(&input, created, &model)
             })
         }
         (client, target) => Err(TransformError::unsupported(
@@ -528,7 +574,7 @@ fn fanout_options(client: Dialect) -> FanoutOptions {
     }
 }
 
-fn stream_headers(framing: SourceFraming) -> http::HeaderMap {
+pub(super) fn stream_headers(framing: SourceFraming) -> http::HeaderMap {
     let mut headers = http::HeaderMap::new();
     headers.insert(
         http::header::CONTENT_TYPE,
@@ -836,6 +882,7 @@ async fn invoke_complete<C: BatchConnectionTrait + Send + Sync>(
         (Dialect::OpenAi, Dialect::Claude) => {
             let input: r::GenerateContentRequestBody = decode(body, limits)?;
             let (parallel_tool_calls, tool_choice) = responses_settings(&input);
+            let reasoning_tokens = reasoning_tokens_fact(&input);
             run!(
                 ResponsesViaClaude,
                 r::GenerateContentRequestBody,
@@ -848,7 +895,7 @@ async fn invoke_complete<C: BatchConnectionTrait + Send + Sync>(
                     usage: claude_responses::ResponsesUsageFacts {
                         cache_write_tokens: native.usage.cache_creation_input_tokens.flatten(),
                         cached_tokens: native.usage.cache_read_input_tokens.flatten(),
-                        reasoning_tokens: None,
+                        reasoning_tokens,
                     },
                     created_at: created,
                 })

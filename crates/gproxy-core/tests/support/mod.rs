@@ -404,6 +404,15 @@ pub async fn harness(policy: ObservationPolicy, strategy: &str) -> Harness {
                 ..Default::default()
             },
             provider::ActiveModel {
+                id: Set("ws".into()),
+                name: Set("ws".into()),
+                channel: Set("test".into()),
+                base_url: Set(Some("https://ws.example".into())),
+                config: Set(json!({"dialects": ["openai_responses_websocket"]})),
+                created_at_ms: Set(0),
+                ..Default::default()
+            },
+            provider::ActiveModel {
                 id: Set("claude-buffered".into()),
                 name: Set("claude-buffered".into()),
                 channel: Set("test".into()),
@@ -419,6 +428,8 @@ pub async fn harness(policy: ObservationPolicy, strategy: &str) -> Harness {
         id: Set(id.into()),
         provider_id: Set(if id.starts_with("cb") {
             "claude-buffered"
+        } else if id.starts_with("ws") {
+            "ws"
         } else if id.starts_with("cl") {
             "claude"
         } else {
@@ -439,6 +450,7 @@ pub async fn harness(policy: ObservationPolicy, strategy: &str) -> Harness {
             cred("cl1", "k1"),
             cred("cl2", "k2"),
             cred("cb1", "kb1"),
+            cred("ws1", "kws"),
         ])
         .await
         .unwrap();

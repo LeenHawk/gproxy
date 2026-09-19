@@ -29,6 +29,8 @@ mod memory;
 #[cfg(not(target_arch = "wasm32"))]
 mod models;
 #[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod responses_ws;
+#[cfg(not(target_arch = "wasm32"))]
 mod video;
 
 #[cfg(not(target_arch = "wasm32"))]
