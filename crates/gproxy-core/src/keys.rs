@@ -6,6 +6,9 @@ use crate::{CountedWindowKey, CredentialAffinityKey};
 
 const PREFIX: &str = "gproxy-core:v1";
 
+/// Notification topic for `Invalidation` payloads.
+pub const INVALIDATION_TOPIC: &str = "gproxy-core:v1:invalidation";
+
 pub fn credential_blocks(provider_id: &str, credential_id: &str) -> String {
     format!("{PREFIX}:blocks:{provider_id}:{credential_id}")
 }

@@ -4,7 +4,10 @@
 use futures_util::StreamExt;
 use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
-    channel::{NormalizedUsage, PrepareContext, ProviderView, UsageContext, UsageExtractor},
+    channel::{
+        CredentialRefresh, CredentialUpdate, NormalizedUsage, PrepareContext, ProviderView,
+        RefreshContext, UsageContext, UsageExtractor,
+    },
 };
 use gproxy_core::{
     CaptureEnd, CaptureEvent, CapturePolicy, CaptureSink, Core, ExchangeContext, ExecutionTarget,
@@ -121,10 +124,26 @@ impl Observer for Recorder {
     }
 }
 
-pub struct TestChannel;
+pub enum RefreshReply {
+    Rotated {
+        api_key: &'static str,
+        expires_at_ms: Option<i64>,
+    },
+    Rejected(&'static str),
+    Failed,
+}
+
+#[derive(Default)]
+pub struct TestChannel {
+    pub refreshes: Mutex<VecDeque<RefreshReply>>,
+    pub refresh_calls: Mutex<Vec<(String, i64)>>,
+}
 impl BaseChannel for TestChannel {
     fn id(&self) -> &'static str {
         "test"
+    }
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
     }
     fn native_dialects(&self, provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         if operation == Operation::StreamGenerateContent
@@ -198,6 +217,36 @@ impl BaseChannel for TestChannel {
     }
     fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
         Some(self)
+    }
+}
+impl CredentialRefresh for TestChannel {
+    fn refresh<'a>(
+        &'a self,
+        context: RefreshContext<'a>,
+    ) -> CapabilityFuture<'a, Result<CredentialUpdate, ChannelError>> {
+        self.refresh_calls
+            .lock()
+            .unwrap()
+            .push((context.credential.id.to_owned(), context.credential.version));
+        let reply = self
+            .refreshes
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("scripted refresh reply");
+        Box::pin(async move {
+            match reply {
+                RefreshReply::Rotated {
+                    api_key,
+                    expires_at_ms,
+                } => Ok(CredentialUpdate {
+                    secret: json!({"api_key": api_key}),
+                    expires_at_ms,
+                }),
+                RefreshReply::Rejected(reason) => Err(ChannelError::RefreshRejected(reason.into())),
+                RefreshReply::Failed => Err(ChannelError::InvalidResponse("upstream down".into())),
+            }
+        })
     }
 }
 impl UsageExtractor for TestChannel {
@@ -352,6 +401,7 @@ pub struct Harness {
     pub core: Core<DatabaseConnection>,
     pub observer: Arc<Recorder>,
     pub client: Arc<ScriptClient>,
+    pub channel: Arc<TestChannel>,
 }
 
 pub async fn harness(policy: ObservationPolicy, strategy: &str) -> Harness {
@@ -528,11 +578,12 @@ pub async fn harness_with_storage(
         .await
         .unwrap();
     let observer = Recorder::new(policy);
+    let channel = Arc::new(TestChannel::default());
     let core = Core::builder(Arc::new(store))
         .cache(Arc::new(gproxy_cache::MemoryCache::default()))
         .observer(observer.clone())
         .secret_codec(Arc::new(PlaintextCodec))
-        .channel(Arc::new(TestChannel))
+        .channel(channel.clone())
         .unwrap()
         .file_storage(storage)
         .build()
@@ -542,6 +593,7 @@ pub async fn harness_with_storage(
         core,
         observer,
         client: Arc::new(ScriptClient::default()),
+        channel,
     }
 }
 

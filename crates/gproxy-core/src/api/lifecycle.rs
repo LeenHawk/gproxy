@@ -1,4 +1,6 @@
-use super::{CoreError, CoreResult, CredentialSummary, RefreshMode, ReloadOutcome};
+#[cfg(target_arch = "wasm32")]
+use super::RefreshMode;
+use super::{CoreError, CoreResult, CredentialSummary, ReloadOutcome};
 #[cfg(not(target_arch = "wasm32"))]
 use crate::keys;
 use crate::{Core, CoreData, CredentialVersion};
@@ -116,14 +118,8 @@ impl<C: BatchConnectionTrait> Core<C> {
         Ok(out)
     }
 
-    /// Explicit account operation, not an internal AttemptContext hook. Validate
-    /// provider ownership, coordinate a shared refresh lease, read current Store
-    /// material, invoke the channel capability, then seal and CAS-persist before
-    /// publishing. A peer's newer durable version may satisfy IfNeeded.
-    /// A definitive rejection (invalid_grant, refresh token expired) is persisted
-    /// as Dead with its reason by status CAS and returned as `CredentialDead`; a
-    /// Dead credential is not refreshed again, even with Force.
-    /// The upper layer must authorize this account operation.
+    /// See `refresh.rs`; wasm has no outbound transport yet.
+    #[cfg(target_arch = "wasm32")]
     pub async fn refresh_credential(
         &self,
         provider_id: &str,
