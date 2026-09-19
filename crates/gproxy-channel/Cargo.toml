@@ -24,6 +24,17 @@ claudecode = [
     "dep:time",
     "dep:web-time",
 ]
+# Claude Web (claude.ai browser session) upstream: cookie login against
+# /api/bootstrap, multi-call conversation turns translated into Claude
+# Messages SSE, /api/organizations/{org}/usage quota windows.
+claudeweb = [
+    "dep:send_wrapper",
+    "dep:base64",
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:time",
+    "dep:web-time",
+]
 
 [dependencies]
 base64 = { workspace = true, optional = true }
@@ -39,6 +50,9 @@ sha2 = { workspace = true, optional = true }
 thiserror.workspace = true
 time = { workspace = true, optional = true }
 web-time = { workspace = true, optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+send_wrapper = { workspace = true, optional = true }
 
 [dev-dependencies]
 futures-util = { workspace = true, features = ["sink"] }
