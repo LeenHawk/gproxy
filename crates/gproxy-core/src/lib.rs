@@ -62,6 +62,7 @@ pub struct Core<C> {
     channels: Arc<ChannelRegistry>,
     clients: gproxy_client::ClientPool,
     files: Option<gproxy_file::Operator>,
+    instance_id: Arc<str>,
     data: ArcSwap<CoreData>,
 }
 impl<C> Core<C> {
@@ -89,6 +90,13 @@ impl<C> Core<C> {
     }
     pub fn secret_codec(&self) -> &Arc<dyn SecretCodec> {
         &self.codec
+    }
+    /// This host process, as channels see it. A channel that keeps a live
+    /// upstream connection between two requests records the holder with the
+    /// continuation, so a later request served by another process fails with
+    /// `CoreError::ContinuationElsewhere` naming that holder.
+    pub fn instance_id(&self) -> &Arc<str> {
+        &self.instance_id
     }
     pub fn channels(&self) -> &Arc<ChannelRegistry> {
         &self.channels

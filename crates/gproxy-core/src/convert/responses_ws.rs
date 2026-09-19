@@ -311,6 +311,7 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
         wire.headers.clone(),
         capability,
         channel_state,
+        core.instance_id().clone(),
     );
     let Some(model) = request.target.upstream_model.clone() else {
         funnel.finish(UsageState::Failed).await;

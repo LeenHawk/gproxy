@@ -71,6 +71,7 @@ pub struct AttemptUpstream {
     inbound_headers: HeaderMap,
     limits: CapabilityLimits,
     channel_state: Arc<dyn ChannelState>,
+    instance_id: Arc<str>,
 }
 impl AttemptUpstream {
     pub(crate) fn new(
@@ -79,6 +80,7 @@ impl AttemptUpstream {
         inbound_headers: HeaderMap,
         limits: CapabilityLimits,
         channel_state: Arc<dyn ChannelState>,
+        instance_id: Arc<str>,
     ) -> Self {
         Self {
             funnel,
@@ -86,6 +88,7 @@ impl AttemptUpstream {
             inbound_headers,
             limits,
             channel_state,
+            instance_id,
         }
     }
     pub fn attempt(&self) -> &Arc<AttemptContext> {
@@ -156,6 +159,7 @@ impl Upstream for AttemptUpstream {
                 Arc::new(observed),
             )
             .state(self.channel_state.clone())
+            .instance(self.instance_id.clone())
             .endpoint(provider.operation_url(*target, EndpointTransport::Http));
             let mut response = binding
                 .send(*target, request)
@@ -223,6 +227,7 @@ impl Upstream for AttemptUpstream {
                 Arc::new(observed),
             )
             .state(self.channel_state.clone())
+            .instance(self.instance_id.clone())
             .endpoint(provider.operation_url(*target, EndpointTransport::WebSocket));
             binding
                 .connect(*target, request)

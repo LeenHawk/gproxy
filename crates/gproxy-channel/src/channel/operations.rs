@@ -27,6 +27,10 @@ pub struct OperationContext<'a, B = HttpBody> {
     pub client: Arc<dyn OutboundClient>,
     /// Cross-request memory scoped to this provider and credential.
     pub state: Arc<dyn ChannelState>,
+    /// The host process serving this call. A channel that must keep a live
+    /// connection between two requests records it, so a later request served
+    /// elsewhere can say where the continuation lives instead of failing.
+    pub instance_id: Arc<str>,
     /// Complete method URL configured for this provider/operation. When set,
     /// preparation must use it as the final URL instead of base_url plus the
     /// channel's default path; channel-defined path parameters still apply.

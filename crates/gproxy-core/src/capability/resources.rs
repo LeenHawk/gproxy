@@ -185,6 +185,7 @@ impl<C: Send + Sync> Upstream for ScopeUpstream<'_, C> {
                 prepare::credential_view(credential, &version),
                 credential.client.clone(),
             )
+            .instance(self.core.instance_id().clone())
             .endpoint(provider.operation_url(*target, EndpointTransport::Http));
             let mut response = binding
                 .send(*target, request)

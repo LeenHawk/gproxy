@@ -323,6 +323,7 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                     Arc::new(observed),
                 )
                 .state(channel_state.clone())
+                .instance(core.instance_id().clone())
                 .endpoint(provider.operation_url(operation, EndpointTransport::Http));
                 let sent = tokio::select! {
                     biased;
@@ -359,6 +360,7 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                     inbound_headers.clone(),
                     capability,
                     channel_state.clone(),
+                    core.instance_id().clone(),
                 );
                 let state_store = ProtocolState::new(core, capability);
                 let scope = StateScope {
@@ -454,6 +456,30 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                 let _ = settle(core, &mut assignment, failed(false, "client"), finished_at).await;
                 funnel.finish(UsageState::Failed).await;
                 return Err(error);
+            }
+            Err(Fault::Failed(CoreError::Channel(
+                gproxy_channel::ChannelError::ContinuationElsewhere { instance_id },
+            ))) => {
+                // Not this credential's fault and not retryable here: the
+                // caller has to reach the process holding the continuation.
+                let outcome =
+                    AttemptOutcome::Failed(gproxy_channel::ChannelError::ContinuationElsewhere {
+                        instance_id: instance_id.clone(),
+                    });
+                funnel.trace(TraceEvent::AttemptFinished {
+                    attempt: &attempt,
+                    outcome: &outcome,
+                    finished_at_ms: finished_at,
+                });
+                settle(
+                    core,
+                    &mut assignment,
+                    failed(false, "continuation elsewhere"),
+                    finished_at,
+                )
+                .await?;
+                funnel.finish(UsageState::Failed).await;
+                return Err(CoreError::ContinuationElsewhere { instance_id });
             }
             Err(Fault::Failed(error)) => {
                 let outcome = AttemptOutcome::Failed(match &error {

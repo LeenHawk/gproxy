@@ -164,6 +164,7 @@ pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'stati
             Arc::new(observed),
         )
         .state(channel_state)
+        .instance(core.instance_id().clone())
         .endpoint(provider.operation_url(operation, EndpointTransport::WebSocket));
         let handshake = WireRequest {
             method: wire.method.clone(),

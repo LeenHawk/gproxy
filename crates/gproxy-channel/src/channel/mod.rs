@@ -70,6 +70,11 @@ pub enum ChannelError {
     /// Transient transport or 5xx failures must not use this variant.
     #[error("credential refresh rejected: {0}")]
     RefreshRejected(String),
+    /// A continuation of an earlier request is held by another host process
+    /// (a live upstream connection cannot move). The host routes the request
+    /// to that instance; nothing about the credential is wrong.
+    #[error("continuation is held by instance `{instance_id}`")]
+    ContinuationElsewhere { instance_id: String },
     #[error(transparent)]
     Transport(#[from] CapabilityError),
 }

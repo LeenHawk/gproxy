@@ -187,6 +187,16 @@ Recording never rewrites, reorders or delays the delivered stream.
 | `AttemptUpstream` | `Upstream<Target = OperationKey>` | One attempt's provider, pinned credential version and client; owned and cloneable so lazily started fanout children outlive the attempt frame |
 | `ProtocolState` | `StateStore<Scope = StateScope>` | Store ProtocolState rows; scope is caller scope, provider and optional conversation |
 | `Resources` | `ResourceAccess<Scope = ResourceScope>` | Publications in `resource_bindings` and `file_objects` through file storage; `Id` reads resolve a same-scope publication first, then the scope provider's files API; `Url` is unsupported |
+| `ChannelStateStore` | `gproxy_channel::ChannelState` | The same ProtocolState rows, scoped to one provider and one credential, handed to the channel as `OperationContext.state`; the channel picks keys and never sees the scope |
+
+Every channel call also carries `OperationContext.instance_id`, the identity of this
+host process (`CoreBuilder::instance_id`, random by default). A channel that must keep a
+live upstream connection between two requests (claudeweb parks the completion stream at
+`tool_use`) records the holder with the continuation. When a later request lands on
+another process the attempt fails with `CoreError::ContinuationElsewhere { instance_id }`:
+nothing is retried, no failure is recorded against the credential, and the continuation
+stays where it is. A multi-instance host either routes the conversation to that instance
+or keeps the conversation sticky in the first place; a single instance never sees it.
 
 ## wasm32
 
