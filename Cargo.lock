@@ -1587,14 +1587,18 @@ version = "4.0.0-dev"
 dependencies = [
  "base64 0.23.1",
  "futures-util",
+ "getrandom 0.4.3",
  "gproxy-client",
  "gproxy-protocol",
  "http",
  "rust_decimal",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "thiserror 2.0.20",
+ "time",
  "tokio",
+ "web-time",
 ]
 
 [[package]]
