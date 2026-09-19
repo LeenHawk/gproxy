@@ -1066,3 +1066,63 @@ async fn chat_stream_client_is_served_over_a_responses_websocket_upstream() {
     assert_eq!(create["type"], "response.create");
     assert!(create.get("stream").is_none(), "{text}");
 }
+
+#[tokio::test]
+async fn a_channel_keeps_state_across_requests_scoped_to_its_credential() {
+    let h = harness(full(), "sticky").await;
+    h.script(vec![
+        json_reply(StatusCode::OK, json!({"ok": 1})),
+        json_reply(StatusCode::OK, json!({"ok": 2})),
+    ]);
+    for id in ["r1", "r2"] {
+        let ctx = h.context_for(
+            "p",
+            OperationKey {
+                operation: Operation::CompactContent,
+                dialect: Dialect::OpenAi,
+            },
+            id,
+            1,
+            Some("s-state"),
+        );
+        let execution = h
+            .core
+            .compact_content(
+                ctx,
+                WireRequest {
+                    method: Method::POST,
+                    path: "/v1/responses/compact".into(),
+                    query: None,
+                    headers: HeaderMap::new(),
+                    body: HttpBody::Bytes(Bytes::from_static(b"{}")),
+                },
+            )
+            .await
+            .unwrap();
+        read(execution.into_parts().0.body).await;
+    }
+    let seen = h.client.seen.lines();
+    assert_eq!(seen.len(), 2);
+    let credential = if seen[0].contains("Bearer ka") {
+        "a"
+    } else {
+        "b"
+    };
+    assert!(
+        seen[1].contains(&format!("Bearer k{credential}")),
+        "sticky: {seen:?}"
+    );
+    let row = h
+        .core
+        .store()
+        .protocol_states()
+        .get_many(&[(
+            format!("channel\u{1f}p\u{1f}{credential}"),
+            "turns".to_owned(),
+        )])
+        .await
+        .unwrap()
+        .remove(0)
+        .expect("the channel's key lives under its credential scope");
+    assert_eq!(row.payload, b"2", "two turns counted through CAS");
+}
