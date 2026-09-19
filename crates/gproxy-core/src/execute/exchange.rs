@@ -178,6 +178,7 @@ impl Exchange {
             let request_body = self.request_body.lock().unwrap().clone();
             let attempt = &self.context.attempt;
             usage = estimator.complete(
+                self.context.operation,
                 &attempt.credential.provider_id,
                 attempt.request.target.upstream_model.as_deref(),
                 request_body.as_deref(),
