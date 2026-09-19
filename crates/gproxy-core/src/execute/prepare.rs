@@ -111,6 +111,7 @@ pub(crate) fn credential_view<'a>(
         provider_id: &credential.provider_id,
         auth_kind: &credential.auth_kind,
         secret: &version.secret,
+        metadata: &credential.metadata,
         version: version.version,
         expires_at_ms: version.expires_at_ms,
     }

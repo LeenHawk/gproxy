@@ -88,6 +88,9 @@ pub struct CredentialView<'a> {
     pub provider_id: &'a str,
     pub auth_kind: &'a str,
     pub secret: &'a Value,
+    /// Public, non-secret facts the host recorded for this credential, such
+    /// as the plan a login discovered; `QuotaModel` reads its dimensions here.
+    pub metadata: &'a Value,
     pub version: i64,
     pub expires_at_ms: Option<i64>,
 }

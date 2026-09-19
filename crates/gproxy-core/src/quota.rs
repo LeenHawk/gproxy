@@ -1,0 +1,530 @@
+//! Account quota observation and self-counted consumption.
+//!
+//! Reported dimensions get their values from `QuotaHeaders` after every
+//! upstream answer and from `QuotaQuery` on demand; each entry is persisted
+//! as a `credential_quota_cycles` row and an exhausted entry becomes a
+//! `QuotaExhausted` block until the upstream's period end (or one window
+//! derived from the dimension). Counted dimensions are metered here in the
+//! cache: requests before the exchange, tokens after usage settles.
+
+use crate::{
+    BlockSource, Core, CoreError, CoreResult, CountedWindowKey, CredentialBlock, CredentialData,
+    RequestContext, UsageReport, api::lifecycle::now_ms, ids, keys,
+};
+use gproxy_cache::{Cache, IncrementOutcome};
+use gproxy_channel::{
+    ChannelError,
+    channel::{
+        CredentialContext, QuotaAllowance, QuotaDimension, QuotaEntry, QuotaHeaderContext,
+        QuotaMetric, QuotaScope, QuotaSnapshot, QuotaTracking, QuotaValue, QuotaWindow,
+    },
+};
+use gproxy_protocol::{Operation, OperationKey, capability::CapabilityFuture};
+use gproxy_seaorm::BatchConnectionTrait;
+use gproxy_store::{Store, entity::limits::credential_quota_cycle};
+use rust_decimal::{Decimal, prelude::ToPrimitive};
+use sea_orm::Set;
+use std::{sync::Arc, time::Duration};
+use time::{Duration as TimeDuration, OffsetDateTime};
+
+/// `Total` windows never reset; the counter still needs a cache TTL.
+const TOTAL_WINDOW_TTL_MS: i64 = 30 * 24 * 60 * 60 * 1000;
+
+fn dimension_applies(
+    dimension: &QuotaDimension,
+    operation: Operation,
+    model: Option<&str>,
+) -> bool {
+    let operation_ok = dimension
+        .operations
+        .as_ref()
+        .is_none_or(|ops| ops.contains(&operation));
+    let scope_ok = match &dimension.scope {
+        QuotaScope::All => true,
+        QuotaScope::Unknown => false,
+        scoped => model.is_some_and(|m| scoped.matches(m)),
+    };
+    operation_ok && scope_ok
+}
+
+fn allowance(value: &QuotaValue) -> Option<&QuotaAllowance> {
+    match value {
+        QuotaValue::Window(a) | QuotaValue::RateLimit(a) | QuotaValue::Budget(a) => Some(a),
+        QuotaValue::Balance(_) => None,
+    }
+}
+
+/// Exhaustion is a positive statement from the upstream: zero remaining, used
+/// at or over a known limit, or 100%. Unreported values never count as zero.
+fn exhausted(value: &QuotaValue) -> bool {
+    match value {
+        QuotaValue::Balance(balance) => balance.remaining.is_some_and(|r| r <= Decimal::ZERO),
+        other => {
+            let Some(a) = allowance(other) else {
+                return false;
+            };
+            if a.unlimited == Some(true) {
+                return false;
+            }
+            a.remaining.is_some_and(|r| r <= Decimal::ZERO)
+                || matches!((a.used, a.limit), (Some(used), Some(limit)) if used >= limit)
+                || a.used_percent.is_some_and(|p| p >= Decimal::ONE_HUNDRED)
+        }
+    }
+}
+
+fn datetime(ms: i64) -> OffsetDateTime {
+    OffsetDateTime::from_unix_timestamp_nanos(i128::from(ms) * 1_000_000)
+        .unwrap_or(OffsetDateTime::UNIX_EPOCH)
+}
+
+fn millis(at: OffsetDateTime) -> i64 {
+    i64::try_from(at.unix_timestamp_nanos() / 1_000_000).unwrap_or(i64::MAX)
+}
+
+/// `[start, end)` of the window containing `now`. Rolling windows without an
+/// upstream reset time are aligned like fixed epoch windows; the design leaves
+/// their true start open and this keeps counting deterministic across peers.
+pub(crate) fn window_bounds(window: &QuotaWindow, now_ms: i64) -> (i64, i64) {
+    match window {
+        QuotaWindow::Rolling { seconds } => aligned(*seconds, 0, now_ms),
+        QuotaWindow::Fixed {
+            seconds,
+            anchor_at_ms,
+        } => aligned(*seconds, anchor_at_ms.unwrap_or(0), now_ms),
+        QuotaWindow::CalendarDay => {
+            let start = datetime(now_ms).replace_time(time::Time::MIDNIGHT);
+            (millis(start), millis(start + TimeDuration::days(1)))
+        }
+        QuotaWindow::CalendarWeek => {
+            let today = datetime(now_ms).replace_time(time::Time::MIDNIGHT);
+            let back = today.weekday().number_days_from_monday();
+            let start = today - TimeDuration::days(i64::from(back));
+            (millis(start), millis(start + TimeDuration::weeks(1)))
+        }
+        QuotaWindow::CalendarMonth => {
+            let now = datetime(now_ms);
+            let start = now
+                .replace_day(1)
+                .unwrap_or(now)
+                .replace_time(time::Time::MIDNIGHT);
+            let next = if start.month() == time::Month::December {
+                start
+                    .replace_year(start.year() + 1)
+                    .and_then(|d| d.replace_month(time::Month::January))
+            } else {
+                start.replace_month(start.month().next())
+            }
+            .unwrap_or(start + TimeDuration::days(31));
+            (millis(start), millis(next))
+        }
+        QuotaWindow::Total => (0, now_ms.saturating_add(TOTAL_WINDOW_TTL_MS)),
+    }
+}
+
+fn aligned(seconds: i64, anchor_ms: i64, now_ms: i64) -> (i64, i64) {
+    let length = seconds.max(1).saturating_mul(1000);
+    let offset = (now_ms - anchor_ms).rem_euclid(length);
+    let start = now_ms - offset;
+    (start, start.saturating_add(length))
+}
+
+fn decimal_json(value: Option<Decimal>) -> serde_json::Value {
+    value.map_or(serde_json::Value::Null, |d| {
+        serde_json::Value::String(d.to_string())
+    })
+}
+
+/// A stable JSON rendering of an observation for the cycle row.
+fn snapshot_json(entry: &QuotaEntry) -> serde_json::Value {
+    let (kind, a) = match &entry.value {
+        QuotaValue::Window(a) => ("window", Some(a)),
+        QuotaValue::RateLimit(a) => ("rate_limit", Some(a)),
+        QuotaValue::Budget(a) => ("budget", Some(a)),
+        QuotaValue::Balance(b) => {
+            return serde_json::json!({
+                "id": entry.id,
+                "source_id": entry.source_id,
+                "label": entry.label,
+                "subject": format!("{:?}", entry.subject).to_lowercase(),
+                "kind": "balance",
+                "remaining": decimal_json(b.remaining),
+                "unit": b.unit,
+            });
+        }
+    };
+    let a = a.expect("allowance");
+    serde_json::json!({
+        "id": entry.id,
+        "source_id": entry.source_id,
+        "label": entry.label,
+        "subject": format!("{:?}", entry.subject).to_lowercase(),
+        "kind": kind,
+        "used": decimal_json(a.used),
+        "limit": decimal_json(a.limit),
+        "remaining": decimal_json(a.remaining),
+        "used_percent": decimal_json(a.used_percent),
+        "unlimited": a.unlimited,
+        "unit": a.unit,
+        "period_start_ms": a.period_start_ms,
+        "period_end_ms": a.period_end_ms,
+        "reset_behavior": format!("{:?}", a.reset_behavior).to_lowercase(),
+    })
+}
+
+/// Blocks derived from one exhausted entry: one per declared operation, or a
+/// single operation-wide block. The scope is the dimension's declaration; an
+/// entry's own scope stands in when the dimension does not know its models.
+fn exhaustion_blocks(
+    dimension: &QuotaDimension,
+    entry: &QuotaEntry,
+    cycle_id: &str,
+    now_ms: i64,
+) -> Vec<CredentialBlock> {
+    let until = allowance(&entry.value)
+        .and_then(|a| a.period_end_ms)
+        .filter(|end| *end > now_ms)
+        .unwrap_or_else(|| window_bounds(&dimension.window, now_ms).1);
+    let scope = match &dimension.scope {
+        QuotaScope::Unknown => entry.model_scope.clone(),
+        scope => scope.clone(),
+    };
+    let source = BlockSource::QuotaExhausted {
+        dimension: dimension.id.clone(),
+        cycle_id: Some(cycle_id.to_owned()),
+    };
+    let block = |operation| CredentialBlock {
+        scope: scope.clone(),
+        operation,
+        until_ms: until,
+        source: source.clone(),
+        observed_at_ms: now_ms,
+    };
+    match &dimension.operations {
+        Some(ops) if !ops.is_empty() => ops.iter().map(|op| block(Some(*op))).collect(),
+        _ => vec![block(None)],
+    }
+}
+
+impl<C: BatchConnectionTrait> Core<C> {
+    /// Persist every entry as a quota cycle and block on the exhausted ones
+    /// that match a Reported dimension. Returns the blocks written.
+    pub(crate) async fn observe_quota(
+        &self,
+        credential: &CredentialData,
+        entries: &[QuotaEntry],
+        now_ms: i64,
+    ) -> CoreResult<Vec<CredentialBlock>> {
+        if entries.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut rows = Vec::with_capacity(entries.len());
+        let mut blocks = Vec::new();
+        for entry in entries {
+            let cycle_id = ids::random_id();
+            let period = allowance(&entry.value);
+            rows.push(credential_quota_cycle::ActiveModel {
+                id: Set(cycle_id.clone()),
+                credential_id: Set(credential.id.clone()),
+                scope: Set(serde_json::to_value(&entry.model_scope)
+                    .map_err(|e| CoreError::Rewrite(e.to_string()))?),
+                snapshot: Set(snapshot_json(entry)),
+                observed_at_ms: Set(now_ms),
+                starts_at_ms: Set(period.and_then(|a| a.period_start_ms)),
+                resets_at_ms: Set(period.and_then(|a| a.period_end_ms)),
+            });
+            let dimension = credential
+                .quota
+                .iter()
+                .find(|d| d.tracking == QuotaTracking::Reported && d.id == entry.source_id);
+            if let Some(dimension) = dimension
+                && exhausted(&entry.value)
+            {
+                blocks.extend(exhaustion_blocks(dimension, entry, &cycle_id, now_ms));
+            }
+        }
+        self.store()
+            .credential_quota_cycles()
+            .create_many(rows)
+            .await?;
+        for block in &blocks {
+            self.record_block(
+                &credential.provider_id,
+                &credential.id,
+                block.clone(),
+                now_ms,
+            )
+            .await?;
+        }
+        Ok(blocks)
+    }
+
+    /// Hand one upstream answer's headers to the channel; returns the blocks
+    /// written when the observation reported exhaustion.
+    pub(crate) async fn observe_answer_headers(
+        &self,
+        credential: &CredentialData,
+        operation: OperationKey,
+        upstream_model: Option<&str>,
+        status: http::StatusCode,
+        headers: &http::HeaderMap,
+        now_ms: i64,
+    ) -> CoreResult<Vec<CredentialBlock>> {
+        let snapshot = self.snapshot();
+        let Some(provider) = snapshot.providers.get(&credential.provider_id) else {
+            return Ok(Vec::new());
+        };
+        let Some(observer) = provider.channel.quota_headers() else {
+            return Ok(Vec::new());
+        };
+        let entries = observer
+            .observe(QuotaHeaderContext {
+                operation,
+                upstream_model: upstream_model.unwrap_or_default(),
+                status,
+                headers,
+            })
+            .map_err(CoreError::Channel)?;
+        self.observe_quota(credential, &entries, now_ms).await
+    }
+
+    /// Charge one request against every Counted request dimension covering
+    /// this operation and model, before anything goes out. A window already
+    /// at its limit blocks the credential until the window ends; that block
+    /// is returned so the attempt moves on without sending.
+    pub(crate) async fn charge_request(
+        &self,
+        credential: &CredentialData,
+        operation: Operation,
+        upstream_model: Option<&str>,
+        now_ms: i64,
+    ) -> CoreResult<Option<CredentialBlock>> {
+        meter(
+            self.store(),
+            self.cache(),
+            credential,
+            operation,
+            upstream_model,
+            QuotaMetric::Requests,
+            1,
+            now_ms,
+        )
+        .await
+    }
+
+    /// Query upstream account observations through the assigned channel and
+    /// client, persist them and block on exhaustion. Does not aggregate
+    /// subscription pools, change quotas or redeem reset credits. The upper
+    /// layer must authorize this account operation.
+    pub async fn query_credential_quota(
+        &self,
+        provider_id: &str,
+        credential_id: &str,
+    ) -> CoreResult<QuotaSnapshot> {
+        let snapshot = self.snapshot();
+        let credential = snapshot
+            .credentials
+            .get(credential_id)
+            .filter(|c| c.provider_id == provider_id)
+            .cloned()
+            .ok_or_else(|| {
+                CoreError::InvalidTarget(format!(
+                    "credential `{credential_id}` is not part of provider `{provider_id}`"
+                ))
+            })?;
+        let provider = snapshot
+            .providers
+            .get(provider_id)
+            .cloned()
+            .ok_or_else(|| {
+                CoreError::InvalidTarget(format!("provider `{provider_id}` is not loaded"))
+            })?;
+        let Some(query) = provider.channel.quota_query() else {
+            return Err(CoreError::Channel(ChannelError::UnsupportedService));
+        };
+        let version = credential.state.load();
+        let observed = query
+            .query(CredentialContext {
+                provider: crate::assemble::provider_view(&provider.entity),
+                credential: crate::execute::prepare::credential_view(&credential, &version),
+                client: credential.client.as_ref(),
+            })
+            .await
+            .map_err(CoreError::Channel)?;
+        self.observe_quota(&credential, &observed.entries, now_ms())
+            .await?;
+        Ok(observed)
+    }
+}
+
+impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
+    /// The post-usage meter for the funnel.
+    pub(crate) fn usage_meter(&self) -> Arc<dyn UsageMeter> {
+        Arc::new(CountedMeter {
+            store: self.store().clone(),
+            cache: self.cache().clone(),
+        })
+    }
+}
+
+/// Charges settled usage against Counted token dimensions. Runs inside the
+/// funnel, so it owns its handles rather than borrowing the engine.
+pub(crate) trait UsageMeter: Send + Sync {
+    fn charge<'a>(
+        &'a self,
+        request: &'a RequestContext,
+        report: &'a UsageReport,
+    ) -> CapabilityFuture<'a, ()>;
+}
+
+struct CountedMeter<C> {
+    store: Arc<Store<C>>,
+    cache: Arc<dyn Cache>,
+}
+
+impl<C: BatchConnectionTrait + Send + Sync> UsageMeter for CountedMeter<C> {
+    fn charge<'a>(
+        &'a self,
+        request: &'a RequestContext,
+        report: &'a UsageReport,
+    ) -> CapabilityFuture<'a, ()> {
+        Box::pin(async move {
+            let now = now_ms();
+            for exchange in &report.exchanges {
+                let Some(credential) = request
+                    .target
+                    .credentials
+                    .iter()
+                    .find(|c| c.id == exchange.credential_id)
+                else {
+                    continue;
+                };
+                let tokens = &exchange.usage.tokens;
+                let total: u64 = [
+                    tokens.input_tokens,
+                    tokens.output_tokens,
+                    tokens.cached_input_tokens,
+                    tokens.cache_creation_5m_tokens,
+                    tokens.cache_creation_30m_tokens,
+                    tokens.cache_creation_1h_tokens,
+                ]
+                .into_iter()
+                .flatten()
+                .fold(0u64, u64::saturating_add);
+                if total == 0 {
+                    continue;
+                }
+                // Metering failures only lose counting; the request is done.
+                let _ = meter(
+                    &self.store,
+                    &self.cache,
+                    credential,
+                    request.operation.operation,
+                    exchange.upstream_model.as_deref(),
+                    QuotaMetric::Tokens,
+                    total,
+                    now,
+                )
+                .await;
+            }
+        })
+    }
+}
+
+/// Meter `amount` against every Counted dimension of `metric` covering this
+/// operation and model. Returns the block written when a window reached its
+/// limit before this charge could be applied (the charge is refused), so the
+/// caller can skip the credential; a charge that lands exactly on the limit
+/// blocks the window for later calls but still counts as applied.
+#[allow(clippy::too_many_arguments)]
+async fn meter<C: BatchConnectionTrait>(
+    store: &Store<C>,
+    cache: &Arc<dyn Cache>,
+    credential: &CredentialData,
+    operation: Operation,
+    upstream_model: Option<&str>,
+    metric: QuotaMetric,
+    amount: u64,
+    now_ms: i64,
+) -> CoreResult<Option<CredentialBlock>> {
+    if amount == 0 {
+        return Ok(None);
+    }
+    for dimension in &credential.quota {
+        if dimension.tracking != QuotaTracking::Counted
+            || dimension.metric != metric
+            || !dimension_applies(dimension, operation, upstream_model)
+        {
+            continue;
+        }
+        // A Counted dimension without a limit cannot be enforced.
+        let Some(limit) = dimension.limit.and_then(|l| l.to_u64()) else {
+            continue;
+        };
+        let (start, end) = window_bounds(&dimension.window, now_ms);
+        let key = keys::counted_window(&CountedWindowKey {
+            credential_id: credential.id.clone(),
+            dimension: dimension.id.clone(),
+            window_start_ms: start,
+        });
+        let ttl = Duration::from_millis(u64::try_from(end - now_ms).unwrap_or(1).max(1));
+        let outcome = cache.increment(&key, amount, limit, ttl).await?;
+        let at_limit = match outcome {
+            IncrementOutcome::Applied(counter) => counter.value >= limit,
+            IncrementOutcome::Limited { .. } => true,
+        };
+        if at_limit {
+            let block = CredentialBlock {
+                scope: dimension.scope.clone(),
+                operation: None,
+                until_ms: end,
+                source: BlockSource::Counted {
+                    dimension: dimension.id.clone(),
+                },
+                observed_at_ms: now_ms,
+            };
+            crate::availability::persist_block(
+                store,
+                cache,
+                &credential.provider_id,
+                &credential.id,
+                block.clone(),
+                now_ms,
+            )
+            .await?;
+            if matches!(outcome, IncrementOutcome::Limited { .. }) {
+                return Ok(Some(block));
+            }
+        }
+    }
+    Ok(None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn calendar_windows_are_utc_aligned() {
+        // 2026-09-19T10:00:00Z
+        let now = 1_789_812_000_000;
+        let (start, end) = window_bounds(&QuotaWindow::CalendarDay, now);
+        assert_eq!(
+            datetime(start).to_string(),
+            "2026-09-19 0:00:00.0 +00:00:00"
+        );
+        assert_eq!(end - start, 86_400_000);
+        let (start, end) = window_bounds(&QuotaWindow::CalendarWeek, now);
+        assert_eq!(datetime(start).weekday(), time::Weekday::Monday);
+        assert_eq!(end - start, 7 * 86_400_000);
+        let (start, end) = window_bounds(&QuotaWindow::CalendarMonth, now);
+        assert_eq!(
+            datetime(start).to_string(),
+            "2026-09-01 0:00:00.0 +00:00:00"
+        );
+        assert_eq!(datetime(end).to_string(), "2026-10-01 0:00:00.0 +00:00:00");
+        let (start, end) = window_bounds(&QuotaWindow::Rolling { seconds: 3600 }, now);
+        assert_eq!(now - start, 0);
+        assert_eq!(end - start, 3_600_000);
+    }
+}

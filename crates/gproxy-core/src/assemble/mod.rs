@@ -97,6 +97,7 @@ pub fn credential_view<'a>(
         provider_id: &row.provider_id,
         auth_kind: &row.auth_kind,
         secret,
+        metadata: &row.metadata,
         version: row.version,
         expires_at_ms: row.expires_at_ms,
     }

@@ -172,6 +172,7 @@ pub async fn assemble(
                         provider_id: &row.provider_id,
                         auth_kind: &row.auth_kind,
                         secret: &secret,
+                        metadata: &row.metadata,
                         version: row.version,
                         expires_at_ms: row.expires_at_ms,
                     },
