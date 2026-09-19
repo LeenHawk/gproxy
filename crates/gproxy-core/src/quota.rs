@@ -4,14 +4,15 @@
 //! upstream answer and from `QuotaQuery` on demand; each entry is persisted
 //! as a `credential_quota_cycles` row and an exhausted entry becomes a
 //! `QuotaExhausted` block until the upstream's period end (or one window
-//! derived from the dimension). Counted dimensions are metered here in the
-//! cache: requests before the exchange, tokens after usage settles.
+//! derived from the dimension). Counted dimensions are metered in Store's
+//! `counted_windows` rows: requests before the exchange, tokens after usage
+//! settles.
 
 use crate::{
-    BlockSource, Core, CoreError, CoreResult, CountedWindowKey, CredentialBlock, CredentialData,
-    RequestContext, UsageReport, api::lifecycle::now_ms, ids, keys,
+    BlockSource, Core, CoreError, CoreResult, CredentialBlock, CredentialData, RequestContext,
+    UsageReport, api::lifecycle::now_ms, ids,
 };
-use gproxy_cache::{Cache, IncrementOutcome};
+use gproxy_cache::Cache;
 use gproxy_channel::{
     ChannelError,
     channel::{
@@ -21,10 +22,14 @@ use gproxy_channel::{
 };
 use gproxy_protocol::{Operation, OperationKey, capability::CapabilityFuture};
 use gproxy_seaorm::BatchConnectionTrait;
-use gproxy_store::{Store, entity::limits::credential_quota_cycle};
+use gproxy_store::{
+    Store,
+    entity::limits::credential_quota_cycle,
+    operations::counted::{CountedCharge, CountedOutcome},
+};
 use rust_decimal::{Decimal, prelude::ToPrimitive};
 use sea_orm::Set;
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 use time::{Duration as TimeDuration, OffsetDateTime};
 
 /// `Total` windows never reset; the counter still needs a cache TTL.
@@ -432,10 +437,12 @@ impl<C: BatchConnectionTrait + Send + Sync> UsageMeter for CountedMeter<C> {
 }
 
 /// Meter `amount` against every Counted dimension of `metric` covering this
-/// operation and model. Returns the block written when a window reached its
-/// limit before this charge could be applied (the charge is refused), so the
-/// caller can skip the credential; a charge that lands exactly on the limit
-/// blocks the window for later calls but still counts as applied.
+/// operation and model. The window rows in Store are the record and the
+/// arbiter: a charge lands only while it fits under the limit, atomically per
+/// row, so every instance sees the same count and a restart loses nothing.
+/// Returns the block written when a window refused the charge, so the caller
+/// can skip the credential; a charge that lands exactly on the limit blocks
+/// the window for later calls but still counts as applied.
 #[allow(clippy::too_many_arguments)]
 async fn meter<C: BatchConnectionTrait>(
     store: &Store<C>,
@@ -450,6 +457,7 @@ async fn meter<C: BatchConnectionTrait>(
     if amount == 0 {
         return Ok(None);
     }
+    let amount = i64::try_from(amount).unwrap_or(i64::MAX);
     for dimension in &credential.quota {
         if dimension.tracking != QuotaTracking::Counted
             || dimension.metric != metric
@@ -458,22 +466,28 @@ async fn meter<C: BatchConnectionTrait>(
             continue;
         }
         // A Counted dimension without a limit cannot be enforced.
-        let Some(limit) = dimension.limit.and_then(|l| l.to_u64()) else {
+        let Some(limit) = dimension.limit.and_then(|l| l.to_i64()) else {
             continue;
         };
         let (start, end) = window_bounds(&dimension.window, now_ms);
-        let key = keys::counted_window(&CountedWindowKey {
-            credential_id: credential.id.clone(),
-            dimension: dimension.id.clone(),
-            window_start_ms: start,
-        });
-        let ttl = Duration::from_millis(u64::try_from(end - now_ms).unwrap_or(1).max(1));
-        let outcome = cache.increment(&key, amount, limit, ttl).await?;
-        let at_limit = match outcome {
-            IncrementOutcome::Applied(counter) => counter.value >= limit,
-            IncrementOutcome::Limited { .. } => true,
-        };
-        if at_limit {
+        let outcome = store
+            .counted_windows()
+            .charge_many(vec![CountedCharge {
+                credential_id: credential.id.clone(),
+                dimension: dimension.id.clone(),
+                window_start_ms: start,
+                window_end_ms: end,
+                amount,
+                limit,
+            }])
+            .await?
+            .into_iter()
+            .next()
+            .unwrap_or(CountedOutcome {
+                applied: false,
+                used: 0,
+            });
+        if !outcome.applied || outcome.used >= limit {
             let block = CredentialBlock {
                 scope: dimension.scope.clone(),
                 operation: None,
@@ -492,7 +506,7 @@ async fn meter<C: BatchConnectionTrait>(
                 now_ms,
             )
             .await?;
-            if matches!(outcome, IncrementOutcome::Limited { .. }) {
+            if !outcome.applied {
                 return Ok(Some(block));
             }
         }

@@ -2,7 +2,7 @@
 //! module is the only place that composes those strings, so every reader and
 //! writer agrees. Values are JSON of the `runtime` payload types.
 
-use crate::{CountedWindowKey, CredentialAffinityKey};
+use crate::CredentialAffinityKey;
 
 const PREFIX: &str = "gproxy-core:v1";
 
@@ -26,11 +26,4 @@ pub fn credential_selection(provider_id: &str, candidate_signature: &str) -> Str
 
 pub fn refresh_lease(credential_id: &str) -> String {
     format!("{PREFIX}:refresh:{credential_id}")
-}
-
-pub fn counted_window(key: &CountedWindowKey) -> String {
-    format!(
-        "{PREFIX}:counted:{}:{}:{}",
-        key.credential_id, key.dimension, key.window_start_ms
-    )
 }

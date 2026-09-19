@@ -4,6 +4,7 @@
 //! Configuration relations declare database FKs. Historical references are documented at each entity.
 //! Decimal fields use exact nine-place FixedDecimal integer storage, with textual D1 transport.
 
+pub mod cache;
 pub mod config;
 pub mod identity;
 pub mod limits;

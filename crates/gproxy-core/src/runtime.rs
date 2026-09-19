@@ -210,16 +210,6 @@ impl CredentialBlocks {
     }
 }
 
-/// Fixed-window counter for one Counted QuotaDimension, kept in the cache via
-/// `Cache::increment` with the window's remaining TTL. `window_start_ms` is
-/// derived from the dimension's QuotaWindow; Total uses 0.
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct CountedWindowKey {
-    pub credential_id: String,
-    pub dimension: String,
-    pub window_start_ms: i64,
-}
-
 /// Application notification payloads; cache remains generic bytes. Consumers
 /// must reconcile with durable state on subscribe, lag, reconnect and polling.
 #[derive(Clone, Debug, Serialize, Deserialize)]

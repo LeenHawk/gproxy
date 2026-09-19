@@ -21,7 +21,7 @@
 | `convert` | 直通或转换的路由、原生端点、每个协议族一个驱动，在 attempt 绑定的 upstream 上运行 protocol 的适配流程 |
 | `capability` | core 的 `AttemptUpstream`、`ProtocolState`、`Resources`，即 protocol 适配所依赖的宿主能力 |
 | `refresh` | 显式凭证刷新：跨实例租约、渠道 `CredentialRefresh`、密封、版本 CAS、发布，确定性拒绝写 `Dead` |
-| `quota` | `QuotaHeaders`／`QuotaQuery` 观测写入 `credential_quota_cycles` 与耗尽 block；Counted 维度在 cache 计数 |
+| `quota` | `QuotaHeaders`／`QuotaQuery` 观测写入 `credential_quota_cycles` 与耗尽 block；Counted 维度落 Store `counted_windows` 行计数 |
 | `session` | agent 会话 assignment：可用时保持绑定，持久性失效时预留新代，由准备它的 attempt 激活或标记失败 |
 | `estimate` | 上游未计量的交换的本地 token 估算 |
 | `observe` | 宿主的结算／capture／trace 漏斗，先问 policy 再做事 |
@@ -114,8 +114,9 @@ capture、计量与改写，原生的拒绝回答重新进入同一分类。
 
 `refresh_credential` 是显式账号操作；attempt 循环在固定即将到期的材料前以 `IfNeeded`
 调用，401/403 后以 `Force` 调用。额度分两条线：Reported 维度的值来自头、查询或耗尽
-回复，block 到上游周期结束（或按维度推一个窗口）；Counted 维度在 cache 里按
-`CountedWindowKey` 计数，请求在交换前、token 在用量结算后，block 到窗口结束。对不上
+回复，block 到上游周期结束（或按维度推一个窗口）；Counted 维度落 Store 的 `counted_windows`
+行，用"装得下才加"的原子更新计数，请求在交换前（被拒绝就不发请求换凭证）、token 在用量
+结算后，block 到窗口结束；各实例看同一个数，重启不丢。对不上
 任何声明维度的 entry 仍持久化为周期记录。
 
 `SessionIdentity` 指向 `agent_sessions` 行的请求是 agent 会话：core 在可用时把它保持在
