@@ -31,6 +31,8 @@ pub mod runtime;
 pub mod secret;
 #[cfg(not(target_arch = "wasm32"))]
 mod select;
+#[cfg(not(target_arch = "wasm32"))]
+mod session;
 
 pub use api::*;
 pub use assemble::AssemblyError;

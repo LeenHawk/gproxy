@@ -282,6 +282,12 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
     let limits = snapshot.limits;
     let provider = request.target.provider.clone();
     let credential = selection.credential;
+    // The socket is fabricated locally; binding the session is the whole
+    // preparation, so a reservation is active as soon as it exists.
+    if let Some(handle) = &selection.assignment {
+        core.settle_assignment(handle, crate::session::AssignmentOutcome::Activated, now)
+            .await?;
+    }
     let version = credential.state.load();
     let attempt = Arc::new(AttemptContext {
         attempt_id: format!("{}-1", request.request_id),
@@ -289,7 +295,7 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
         ordinal: 1,
         credential: credential.clone(),
         credential_version: version,
-        agent_assignment: None,
+        agent_assignment: selection.assignment.as_ref().map(|h| h.reference.clone()),
     });
     funnel.trace(TraceEvent::AttemptStarted(&attempt));
     let capability = limits.capability(None);

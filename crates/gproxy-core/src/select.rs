@@ -16,6 +16,9 @@ const ROTATION_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 
 pub(crate) struct Selection {
     pub credential: Arc<CredentialData>,
+    /// Present when the request named an agent session that is or becomes
+    /// bound to this credential.
+    pub assignment: Option<crate::session::AssignmentHandle>,
 }
 
 impl<C> Core<C> {
@@ -31,7 +34,9 @@ impl<C> Core<C> {
             .and_then(|entry| serde_json::from_slice(&entry.value).ok())
             .unwrap_or_default())
     }
+}
 
+impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
     /// Pick one credential from `request.target.credentials` minus `excluded`.
     /// Eligibility: enabled, Active, not retired, not blocked for this
     /// model/operation now. Strategy then orders the eligible set: Sticky and
@@ -139,8 +144,18 @@ impl<C> Core<C> {
                     .expect("chosen id is eligible")
             }
         };
+        // An agent session overrides the strategy: it stays on its assigned
+        // credential while usable, and reserves the strategy's pick otherwise.
+        let (index, assignment) = match self.session_pick(request, &eligible, index, now_ms).await?
+        {
+            Some((index, handle)) => (index, Some(handle)),
+            None => (index, None),
+        };
         let (credential, _) = eligible.swap_remove(index);
-        Ok(Selection { credential })
+        Ok(Selection {
+            credential,
+            assignment,
+        })
     }
 
     /// Record that this session should keep using this credential. Called

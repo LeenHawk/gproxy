@@ -5,6 +5,7 @@
 //! HTTP idle/total timeouts: a realtime session legitimately waits on a user.
 
 use super::{Exchange, Funnel, ObservedClient, prepare};
+use crate::session::{AssignmentHandle, AssignmentOutcome};
 use crate::{
     AttemptContext, AttemptOutcome, BlockSource, CaptureDirection, CaptureEvent, Core, CoreError,
     CoreResult, CredentialBlock, Execution, RequestContext, TraceEvent, UsageState,
@@ -92,6 +93,7 @@ pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'stati
     let mut refreshed: HashSet<String> = HashSet::new();
     let mut held: Option<(UpstreamConnection, Arc<Exchange>)> = None;
     let mut ordinal = 0u32;
+    let mut carried: Option<AssignmentHandle> = None;
     while ordinal < attempts {
         ordinal += 1;
         let now = now_ms();
@@ -116,6 +118,19 @@ pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'stati
         };
         drop(held.take());
         let credential = selection.credential;
+        let mut assignment = match (selection.assignment, carried.take()) {
+            (Some(handle), Some(previous))
+                if previous.reference.assignment_id == handle.reference.assignment_id =>
+            {
+                Some(previous)
+            }
+            (handle, Some(previous)) => {
+                core.settle_assignment(&previous, failed(false, "superseded"), now)
+                    .await?;
+                handle
+            }
+            (handle, None) => handle,
+        };
         let version = credential.state.load();
         let attempt = Arc::new(AttemptContext {
             attempt_id: format!("{}-{ordinal}", request.request_id),
@@ -123,7 +138,7 @@ pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'stati
             ordinal,
             credential: credential.clone(),
             credential_version: version.clone(),
-            agent_assignment: None,
+            agent_assignment: assignment.as_ref().map(|h| h.reference.clone()),
         });
         funnel.trace(TraceEvent::AttemptStarted(&attempt));
         let exchange = Exchange::new(
@@ -168,6 +183,11 @@ pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'stati
                 exchange
                     .finish(UsageStreamEnd::Interrupted, None, None, None, finished_at)
                     .await;
+                if let Some(handle) = assignment.take() {
+                    let _ = core
+                        .settle_assignment(&handle, failed(true, "cancelled"), finished_at)
+                        .await;
+                }
                 funnel.finish(UsageState::Cancelled).await;
                 return Err(CoreError::Cancelled);
             }
@@ -181,6 +201,10 @@ pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'stati
                 exchange
                     .finish(UsageStreamEnd::Interrupted, None, None, None, finished_at)
                     .await;
+                if let Some(handle) = assignment.take() {
+                    core.settle_assignment(&handle, failed(true, "transport"), finished_at)
+                        .await?;
+                }
                 if core
                     .record_failure(
                         &credential.provider_id,
@@ -225,6 +249,10 @@ pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'stati
                 .await?;
                 core.pin_affinity(&request, &credential.id, finished_at)
                     .await?;
+                if let Some(handle) = assignment.take() {
+                    core.settle_assignment(&handle, AssignmentOutcome::Activated, finished_at)
+                        .await?;
+                }
                 exchange.start_ws_usage_observer(&handshake);
                 exchange.make_terminal();
                 let socket =
@@ -250,6 +278,10 @@ pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'stati
                         outcome: &outcome,
                         finished_at_ms: finished_at,
                     });
+                    if let Some(handle) = assignment.take() {
+                        core.settle_assignment(&handle, AssignmentOutcome::Activated, finished_at)
+                            .await?;
+                    }
                     exchange.make_terminal();
                     let settled = funnel.arm();
                     return Ok(Execution::new(
@@ -279,6 +311,10 @@ pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'stati
                         .await
                         .is_err()
                     {
+                        if let Some(handle) = assignment.take() {
+                            core.settle_assignment(&handle, failed(false, "refresh"), finished_at)
+                                .await?;
+                        }
                         excluded.insert(credential.id.clone());
                         core.record_failure(
                             &credential.provider_id,
@@ -316,6 +352,16 @@ pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'stati
                     .is_some()
                 {
                     excluded.insert(credential.id.clone());
+                }
+                if retry_same && !excluded.contains(&credential.id) {
+                    carried = assignment.take();
+                } else if let Some(handle) = assignment.take() {
+                    core.settle_assignment(
+                        &handle,
+                        failed(status.is_server_error(), status.as_str()),
+                        finished_at,
+                    )
+                    .await?;
                 }
                 held = Some((UpstreamConnection::Rejected(response), exchange));
             }
@@ -545,5 +591,12 @@ impl Exchange {
         if let Ok(observer) = observer {
             *self.usage_observer.lock().unwrap() = Some(observer);
         }
+    }
+}
+
+fn failed(uncertain: bool, error: &str) -> AssignmentOutcome {
+    AssignmentOutcome::Failed {
+        uncertain,
+        error: error.to_owned(),
     }
 }

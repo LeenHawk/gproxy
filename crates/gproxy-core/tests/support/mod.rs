@@ -780,6 +780,7 @@ impl Harness {
                 id: s.into(),
                 source: SessionSource::Gateway,
                 field: None,
+                agent_session_id: None,
             }),
             operation,
             target,

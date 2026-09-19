@@ -3,6 +3,7 @@
 //! or move to the next eligible credential inside the permitted set.
 
 use super::{Exchange, Funnel, ObservedClient, prepare};
+use crate::session::{AssignmentHandle, AssignmentOutcome};
 use crate::{
     AttemptContext, AttemptOutcome, AttemptUpstream, BlockSource, Core, CoreError, CoreResult,
     CredentialBlock, Execution, HttpExecution, ProtocolState, RequestContext, StateScope,
@@ -194,6 +195,8 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
     // The most recent rejected upstream answer, kept alive so it can be
     // returned if no further credential is usable.
     let mut held: Option<Answer> = None;
+    // A reservation carried over a same-credential retry (401 -> refresh).
+    let mut carried: Option<AssignmentHandle> = None;
     while ordinal < attempts {
         ordinal += 1;
         let now = now_ms();
@@ -223,6 +226,18 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
         // A new attempt supersedes the previous rejected answer.
         drop(held.take());
         let credential = selection.credential;
+        let mut assignment = match (selection.assignment, carried.take()) {
+            (Some(handle), Some(previous))
+                if previous.reference.assignment_id == handle.reference.assignment_id =>
+            {
+                Some(previous)
+            }
+            (handle, Some(previous)) => {
+                settle(core, &mut Some(previous), failed(false, "superseded"), now).await?;
+                handle
+            }
+            (handle, None) => handle,
+        };
         // Material about to expire is refreshed before it is pinned; a failed
         // refresh still lets this attempt try the current material.
         if crate::refresh::needs_refresh(&credential.state.load(), now)
@@ -248,6 +263,13 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
             .await?
             .is_some()
         {
+            settle(
+                core,
+                &mut assignment,
+                failed(false, "counted window full"),
+                now,
+            )
+            .await?;
             excluded.insert(credential.id.clone());
             ordinal -= 1;
             if excluded.len() >= request.target.credentials.len() {
@@ -262,7 +284,7 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
             ordinal,
             credential: credential.clone(),
             credential_version: version.clone(),
-            agent_assignment: None,
+            agent_assignment: assignment.as_ref().map(|h| h.reference.clone()),
         });
         funnel.trace(TraceEvent::AttemptStarted(&attempt));
 
@@ -393,6 +415,13 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                     outcome: &outcome,
                     finished_at_ms: finished_at,
                 });
+                let _ = settle(
+                    core,
+                    &mut assignment,
+                    failed(true, if cancelled { "cancelled" } else { "deadline" }),
+                    finished_at,
+                )
+                .await;
                 funnel
                     .finish(if cancelled {
                         UsageState::Cancelled
@@ -415,6 +444,7 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                     outcome: &outcome,
                     finished_at_ms: finished_at,
                 });
+                let _ = settle(core, &mut assignment, failed(false, "client"), finished_at).await;
                 funnel.finish(UsageState::Failed).await;
                 return Err(error);
             }
@@ -430,6 +460,13 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                     outcome: &outcome,
                     finished_at_ms: finished_at,
                 });
+                settle(
+                    core,
+                    &mut assignment,
+                    failed(true, "transport"),
+                    finished_at,
+                )
+                .await?;
                 if core
                     .record_failure(
                         &credential.provider_id,
@@ -489,6 +526,15 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                     core.pin_affinity(&request, &credential.id, finished_at)
                         .await?;
                 }
+                // The upstream answered on this credential: the target stands,
+                // whatever it said about the request itself.
+                settle(
+                    core,
+                    &mut assignment,
+                    AssignmentOutcome::Activated,
+                    finished_at,
+                )
+                .await?;
                 return Ok(answer.deliver(&funnel, completion).await);
             }
             Classified::Refresh => {
@@ -513,12 +559,24 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                             finished_at_ms: finished_at,
                         });
                         if wire.is_none() {
+                            let _ = settle(
+                                core,
+                                &mut assignment,
+                                failed(false, "unauthorized"),
+                                finished_at,
+                            )
+                            .await;
                             funnel.finish(UsageState::Failed).await;
                             return Err(CoreError::NoUsableCredential);
                         }
+                        // Same credential again with fresh material: the
+                        // reservation is still being prepared.
+                        carried = assignment.take();
                         continue;
                     }
                     Err(_) => {
+                        settle(core, &mut assignment, failed(false, "refresh"), finished_at)
+                            .await?;
                         // Refresh failed: this credential is out for the request.
                         exclude(
                             core,
@@ -572,6 +630,13 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                     });
                     true
                 };
+                settle(
+                    core,
+                    &mut assignment,
+                    failed(status.is_server_error(), status.as_str()),
+                    finished_at,
+                )
+                .await?;
                 if blocked {
                     excluded.insert(credential.id.clone());
                 }
@@ -632,4 +697,24 @@ async fn exclude<C: BatchConnectionTrait>(
             .await?
             .is_some()),
     }
+}
+
+fn failed(uncertain: bool, error: &str) -> AssignmentOutcome {
+    AssignmentOutcome::Failed {
+        uncertain,
+        error: error.to_owned(),
+    }
+}
+
+/// Settle the attempt's assignment once; later calls find nothing to settle.
+async fn settle<C: BatchConnectionTrait + Send + Sync>(
+    core: &Core<C>,
+    assignment: &mut Option<AssignmentHandle>,
+    outcome: AssignmentOutcome,
+    now_ms: i64,
+) -> CoreResult<()> {
+    if let Some(handle) = assignment.take() {
+        core.settle_assignment(&handle, outcome, now_ms).await?;
+    }
+    Ok(())
 }
