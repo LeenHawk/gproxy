@@ -130,9 +130,14 @@ capture、计量与改写，原生的拒绝回答重新进入同一分类。
 `NormalizedUsage` 复用 gproxy-channel：一个请求可有多个 attempt，每个 attempt 有多次物理
 交换，按 capture ID 各报告一次。上游已服务但未报告用量（或缺 token 数）的交换，在
 Setting 开启用量时本地估算：输入 token 由请求的提示文本按上游模型的 tokenizer（目录
-词表文件、Setting 默认、或内置编码器）计数，输出 token 取响应字节的一半。估算标记为
-`Partial` 并带 `dimensions["estimated"] = "true"`；已报告的值绝不覆盖，被拒绝的回答不
-估算。`UsageState::Skipped` 表示请求策略关闭了用量，区别于上游没有报告。
+词表文件、Setting 默认、或内置编码器）计数，输出 token 取响应字节的一半。提示文本通过
+交换原生 `(operation, dialect)` 对的协议 wire 类型读取——系统提示、消息、工具调用与结果、
+工具声明——覆盖 Claude Messages、OpenAI Chat、OpenAI Responses（HTTP 与 websocket 信封）、
+OpenAI count-tokens、guardian、compaction、memory 与 embeddings，以及 Gemini generate、
+count-tokens 与 embeddings。base64 媒体、文件 id、URL 与加密数据一律不计。没有按键名
+兜底：没有提取器的对，或 wire 类型拒绝的请求体，完全不做输入估算（输出估算仍然生效）。
+估算标记为 `Partial` 并带 `dimensions["estimated"] = "true"`；已报告的值绝不覆盖，
+被拒绝的回答不估算。`UsageState::Skipped` 表示请求策略关闭了用量，区别于上游没有报告。
 
 ## 观测
 
