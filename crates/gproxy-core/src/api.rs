@@ -28,6 +28,10 @@ pub enum CoreError {
     },
     #[error("no usable credential in the supplied candidate set")]
     NoUsableCredential,
+    /// The caller's role does not permit what it asked for (an admin-only
+    /// service view). The host authenticates; core only checks the pairing.
+    #[error("forbidden: {0}")]
+    Forbidden(&'static str),
     /// Another instance held the refresh lease for the whole wait and no
     /// newer durable version appeared.
     #[error("credential `{credential_id}` is being refreshed elsewhere")]

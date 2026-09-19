@@ -5,21 +5,29 @@
 //! under `/api/accounts/deviceauth`), refresh at `/oauth/token`, generation
 //! at `{base}/responses` over HTTP SSE or WebSocket, account limits in the
 //! `x-<limit>-primary/secondary-*` header families and at
-//! `/backend-api/wham/usage`. The credential secret is an `OAuthCredential`;
+//! `/backend-api/wham/usage`. The CLI's other backend calls (plugins, MCP,
+//! settings, files, remote control, `whoami`) are `ChannelServices` in
+//! `services.rs`. The credential secret is an `OAuthCredential`;
 //! the account id and plan discovered at login travel in `provider_fields`
 //! and, once the host persists them, in the credential's metadata.
+
+mod services;
+
+pub use services::{
+    KIND_ENVIRONMENT, KIND_FILE, KIND_PLUGIN, KIND_REMOTE_SERVER, KIND_TASK, service_routes,
+};
 
 use crate::OutboundClient;
 use crate::channel::{
     AuthorizationCode, AuthorizationRequest, AuthorizationStart, BaseChannel, ChannelError,
-    CredentialContext, CredentialRefresh, CredentialUpdate, CredentialView, DeviceAuthorization,
-    DevicePoll, HeaderAllowlist, LoginContext, NormalizedUsage, OAuthAuthorizationCode,
-    OAuthCredential, OAuthDeviceCode, OperationFuture, PrepareContext, ProviderView,
-    QuotaAllowance, QuotaBalance, QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders,
-    QuotaMetric, QuotaModel, QuotaQuery, QuotaResetBehavior, QuotaScope, QuotaSnapshot,
-    QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow, RefreshContext, ResponseView,
-    UsageCompleteness, UsageContext, UsageExtractor, UsageFrame, UsageObserver, UsageStream,
-    UsageStreamContext, UsageStreamEnd, UsageTransport, forwardable,
+    ChannelServices, CredentialContext, CredentialRefresh, CredentialUpdate, CredentialView,
+    DeviceAuthorization, DevicePoll, HeaderAllowlist, LoginContext, NormalizedUsage,
+    OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode, OperationFuture, PrepareContext,
+    ProviderView, QuotaAllowance, QuotaBalance, QuotaDimension, QuotaEntry, QuotaHeaderContext,
+    QuotaHeaders, QuotaMetric, QuotaModel, QuotaQuery, QuotaResetBehavior, QuotaScope,
+    QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow, RefreshContext,
+    ResponseView, UsageCompleteness, UsageContext, UsageExtractor, UsageFrame, UsageObserver,
+    UsageStream, UsageStreamContext, UsageStreamEnd, UsageTransport, forwardable,
 };
 use base64::Engine;
 use futures_util::StreamExt;
@@ -330,6 +338,9 @@ impl BaseChannel for Codex {
         Some(self)
     }
     fn usage_stream(&self) -> Option<&dyn UsageStream> {
+        Some(self)
+    }
+    fn services(&self) -> Option<&dyn ChannelServices> {
         Some(self)
     }
 }

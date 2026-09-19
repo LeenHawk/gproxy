@@ -5,11 +5,11 @@ use futures_util::StreamExt;
 use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
     channel::{
-        CredentialContext, CredentialRefresh, CredentialUpdate, CredentialView, NormalizedUsage,
-        OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaAllowance,
-        QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel,
-        QuotaQuery, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
-        QuotaWindow, RefreshContext, UsageContext, UsageExtractor,
+        ChannelServices, CredentialContext, CredentialRefresh, CredentialUpdate, CredentialView,
+        NormalizedUsage, OperationContext, OperationFuture, PrepareContext, ProviderView,
+        QuotaAllowance, QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaMetric,
+        QuotaModel, QuotaQuery, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
+        QuotaWindow, RefreshContext, ServiceContext, UsageContext, UsageExtractor,
     },
 };
 use gproxy_core::{
@@ -38,7 +38,10 @@ use serde_json::json;
 use std::{
     collections::VecDeque,
     num::NonZeroU32,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 use tokio_util::sync::CancellationToken;
 
@@ -141,10 +144,20 @@ pub struct TestChannel {
     pub refreshes: Mutex<VecDeque<RefreshReply>>,
     pub refresh_calls: Mutex<Vec<(String, i64)>>,
     pub quota_snapshots: Mutex<VecDeque<QuotaSnapshot>>,
+    /// When set, the channel exposes `ChannelServices`; off by default so the
+    /// "channel without services" path is the one most tests see.
+    pub expose_services: AtomicBool,
+    /// Credential ids the service calls ran with, in order.
+    pub service_calls: Mutex<Vec<String>>,
 }
 impl BaseChannel for TestChannel {
     fn id(&self) -> &'static str {
         "test"
+    }
+    fn services(&self) -> Option<&dyn ChannelServices> {
+        self.expose_services
+            .load(Ordering::Relaxed)
+            .then_some(self as &dyn ChannelServices)
     }
     fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
         Some(self)
@@ -343,6 +356,67 @@ impl QuotaHeaders for TestChannel {
                 ..Default::default()
             }),
         }])
+    }
+}
+/// A scripted service surface: `/bindings/{kind}` lists the caller's
+/// bindings, `POST /bind/{kind}/{id}` saves one for the selected credential,
+/// anything else is forwarded to the provider base with the credential's
+/// key. Every call records `credential:role:identity`.
+impl ChannelServices for TestChannel {
+    fn call<'a>(
+        &'a self,
+        context: ServiceContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        Box::pin(async move {
+            self.service_calls.lock().unwrap().push(format!(
+                "{}:{:?}:{}",
+                context.account.credential.id,
+                context.caller.role(),
+                context.caller.identity().id
+            ));
+            let path = context.request.path.clone();
+            if let Some(kind) = path.strip_prefix("/bindings/") {
+                let ids: Vec<String> = context
+                    .caller
+                    .list_bindings(kind)
+                    .await?
+                    .into_iter()
+                    .map(|b| format!("{}@{}", b.upstream_id, b.credential_id))
+                    .collect();
+                let mut headers = HeaderMap::new();
+                headers.insert("content-type", HeaderValue::from_static("application/json"));
+                return Ok(WireResponse {
+                    status: StatusCode::OK,
+                    headers,
+                    body: HttpBody::Bytes(Bytes::from(serde_json::to_vec(&ids).unwrap())),
+                });
+            }
+            if let Some(rest) = path.strip_prefix("/bind/") {
+                let (kind, id) = rest.split_once('/').unwrap();
+                context
+                    .caller
+                    .save_binding(gproxy_channel::channel::ResourceBindingRecord {
+                        kind: kind.to_owned(),
+                        upstream_id: id.to_owned(),
+                        credential_id: context.account.credential.id.to_owned(),
+                        summary: json!({"id": id}),
+                    })
+                    .await?;
+                return Ok(WireResponse {
+                    status: StatusCode::CREATED,
+                    headers: HeaderMap::new(),
+                    body: HttpBody::Bytes(Bytes::new()),
+                });
+            }
+            let request = self.prepare(PrepareContext {
+                provider: context.account.provider,
+                credential: context.account.credential,
+                operation: KEY,
+                request: context.request,
+                endpoint_override: None,
+            })?;
+            Ok(context.account.client.send(request).await?)
+        })
     }
 }
 impl QuotaQuery for TestChannel {

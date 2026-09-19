@@ -70,6 +70,7 @@ context 操作。每个方法返回 `Execution<T>`：protocol 响应或连接，
 | `reload_credentials` | 按输入顺序重读行并发布到既有槽位；缺失行返回 None 并摘除槽位 |
 | `refresh_credential` | Provider 归属校验、每凭证 cache 租约（其他实例等待，更新的持久版本可直接满足调用）、权威 Store 读取、渠道刷新、密封、`refresh_many` CAS、发布并发出 `CredentialChanged` 通知；`RefreshRejected` 写入带原因的 `Dead` |
 | `query_credential_quota` | 通过指派 client 调用渠道 `QuotaQuery`；每条 entry 写一行 `credential_quota_cycles`，已声明维度耗尽则打 block |
+| `call_service` / `connect_service` | [service.rs](src/service.rs)：按 `ServiceView` 调用渠道的 `ChannelServices`（没有 `OperationKey` 的厂商 CLI 接口）。`Caller`（任何角色）只用网关对 `scope` 的记账和绑定到该 scope 的资源渲染调用方自己的画面——Member 永远看不到任何凭证的状态；`Pool`（仅 admin）把 target 内的凭证合成为一个账号；`Credential(id)`（仅 admin）用该凭证自己的鉴权原样转发。core 不判断谁是谁的管理员：宿主通过选择 `target.credentials` 表达组织边界，`CallerRole::Admin` 指对这个集合的管理员。core 提供事实来源（`TargetCaller`：按 scope 的 usage 行、target 凭证的额度周期、`resource_bindings`），取第一个可用凭证（或指名的那条），单项资源路由沿用绑定记录的凭证。角色不符返回 `Forbidden`，渠道没有 services 返回 `Channel(UnsupportedService)`。运行在**漏斗之外**：没有 attempt、usage、capture 和重试 |
 
 ## 执行
 

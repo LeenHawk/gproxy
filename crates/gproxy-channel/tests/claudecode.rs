@@ -1,13 +1,18 @@
 #![cfg(feature = "claudecode")]
 
+mod support;
+
 use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
     channel::{
-        AuthorizationCode, AuthorizationRequest, CredentialContext, CredentialView, LoginContext,
-        PrepareContext, ProviderView, QuotaHeaderContext, QuotaScope, QuotaValue, QuotaWindow,
-        ResponseView, UsageContext, UsageFrame, UsageStreamContext, UsageStreamEnd, UsageTransport,
+        AuthorizationCode, AuthorizationRequest, CallerUsage, CallerUsageWindow, CredentialContext,
+        CredentialView, LoginContext, PrepareContext, ProviderView, QuotaHeaderContext, QuotaScope,
+        QuotaValue, QuotaWindow, ResponseView, ServiceContext, ServiceView, UsageContext,
+        UsageFrame, UsageStreamContext, UsageStreamEnd, UsageTransport,
     },
-    channels::claudecode::{CLI_USER_AGENT, Claudecode, DEFAULT_CLIENT_ID, DEFAULT_REDIRECT_URI},
+    channels::claudecode::{
+        CLI_USER_AGENT, Claudecode, DEFAULT_CLIENT_ID, DEFAULT_REDIRECT_URI, KIND_FILE, KIND_SKILL,
+    },
 };
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
@@ -21,6 +26,7 @@ use std::{
     sync::Mutex,
     time::{SystemTime, UNIX_EPOCH},
 };
+use support::ScriptCaller;
 
 type Sent = (Method, String, HeaderMap, Vec<u8>);
 
@@ -1007,4 +1013,477 @@ fn messages_usage_is_read_from_sse_and_from_json() {
             })
             .is_err()
     );
+}
+
+// ------------------------------------------------------------ services
+
+fn service_request(method: Method, path: &str, query: Option<&str>, body: &str) -> WireRequest {
+    let mut headers = HeaderMap::new();
+    headers.insert("authorization", HeaderValue::from_static("Bearer client"));
+    headers.insert("cookie", HeaderValue::from_static("sessionKey=leaked"));
+    headers.insert("x-api-key", HeaderValue::from_static("sk-leaked"));
+    headers.insert("cache-control", HeaderValue::from_static("no-cache"));
+    headers.insert("x-organization-uuid", HeaderValue::from_static("org-1"));
+    headers.insert(
+        "user-agent",
+        HeaderValue::from_static("claude-cli/2.1.258 (external, sdk-cli)"),
+    );
+    WireRequest {
+        method,
+        path: path.into(),
+        query: query.map(str::to_owned),
+        headers,
+        body: HttpBody::Bytes(Bytes::from(body.to_owned())),
+    }
+}
+
+fn account<'a>(
+    config: &'a Value,
+    secret: &'a Value,
+    client: &'a ScriptClient,
+) -> CredentialContext<'a> {
+    CredentialContext {
+        provider: provider(config, None),
+        credential: credential(secret, &Value::Null),
+        client,
+    }
+}
+
+fn context<'a>(
+    accounts: &'a [CredentialContext<'a>],
+    caller: &'a ScriptCaller,
+    view: ServiceView,
+    request: WireRequest,
+) -> ServiceContext<'a> {
+    ServiceContext {
+        account: accounts[0],
+        accounts,
+        caller,
+        view,
+        request,
+    }
+}
+
+async fn body_json(response: WireResponse) -> Value {
+    let HttpBody::Bytes(bytes) = response.body else {
+        panic!("local answers are buffered");
+    };
+    serde_json::from_slice(&bytes).unwrap()
+}
+
+#[tokio::test]
+async fn catalog_routes_forward_under_every_view_with_the_cli_identity() {
+    let config = json!({});
+    let s = secret("at");
+    let client = ScriptClient::new(vec![
+        reply(StatusCode::OK, json!({})),
+        reply(StatusCode::OK, json!({})),
+        reply(StatusCode::NOT_FOUND, json!({"type": "error"})),
+    ]);
+    let accounts = [account(&config, &s, &client)];
+    let member = ScriptCaller::member("m");
+    let admin = ScriptCaller::admin("a");
+    let services = Claudecode.services().expect("claudecode exposes services");
+    for (view, caller) in [
+        ServiceView::Caller,
+        ServiceView::Pool,
+        ServiceView::Credential("c".into()),
+    ]
+    .into_iter()
+    .zip([&member, &admin, &admin])
+    {
+        services
+            .call(context(
+                &accounts,
+                caller,
+                view,
+                service_request(Method::GET, "/api/hello", Some("key=leaked&x=1"), ""),
+            ))
+            .await
+            .unwrap();
+    }
+    let sent = client.sent();
+    assert_eq!(sent.len(), 3);
+    assert_eq!(sent[0].1, "https://api.anthropic.com/api/hello?x=1");
+    let h = &sent[0].2;
+    assert_eq!(h["authorization"], "Bearer at");
+    assert_eq!(h["anthropic-beta"], "oauth-2025-04-20");
+    assert_eq!(h["anthropic-version"], "2023-06-01");
+    assert_eq!(h["user-agent"], "claude-cli/2.1.258 (external, sdk-cli)");
+    assert_eq!(h["x-app"], "cli");
+    assert_eq!(h["cache-control"], "no-cache");
+    assert_eq!(h["x-organization-uuid"], "org-1");
+    assert!(h.get("cookie").is_none(), "claude.ai cookies never leave");
+    assert!(h.get("x-api-key").is_none());
+    assert_eq!(h.get_all("authorization").iter().count(), 1);
+}
+
+#[tokio::test]
+async fn identity_is_synthesized_unless_the_view_is_a_credential() {
+    let config = json!({});
+    let s = secret("at");
+    let client = ScriptClient::new(vec![reply(
+        StatusCode::OK,
+        json!({"account": {"uuid": "real"}}),
+    )]);
+    let accounts = [account(&config, &s, &client)];
+    let member = ScriptCaller::member("m");
+    let admin = ScriptCaller::admin("a");
+    let services = Claudecode.services().unwrap();
+    let profile = |caller, view| {
+        services.call(context(
+            &accounts,
+            caller,
+            view,
+            service_request(Method::GET, "/api/oauth/profile", None, ""),
+        ))
+    };
+    let mine = body_json(profile(&member, ServiceView::Caller).await.unwrap()).await;
+    assert_eq!(mine["account"]["email"], "m@gproxy.invalid");
+    assert_eq!(mine["organization"]["name"], "cc");
+    let uuid = mine["account"]["uuid"].as_str().unwrap().to_owned();
+    assert!(uuid.starts_with("gproxy-account-"));
+    let pool = body_json(profile(&admin, ServiceView::Pool).await.unwrap()).await;
+    assert_ne!(pool["account"]["uuid"], uuid);
+    assert!(client.sent().is_empty());
+
+    let roles = body_json(
+        services
+            .call(context(
+                &accounts,
+                &admin,
+                ServiceView::Pool,
+                service_request(Method::GET, "/api/oauth/claude_cli/roles", None, ""),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(roles["organization_role"], "admin");
+
+    let bootstrap = body_json(
+        services
+            .call(context(
+                &accounts,
+                &member,
+                ServiceView::Caller,
+                service_request(Method::GET, "/api/claude_cli/bootstrap", None, ""),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(bootstrap["oauth_account"]["account_uuid"], uuid);
+
+    let real = body_json(
+        profile(&admin, ServiceView::Credential("c".into()))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(real["account"]["uuid"], "real");
+    assert_eq!(
+        client.sent()[0].1,
+        "https://api.anthropic.com/api/oauth/profile"
+    );
+}
+
+#[tokio::test]
+async fn usage_reflects_the_host_allotment() {
+    let config = json!({});
+    let s = secret("at");
+    let client = ScriptClient::new(vec![reply(StatusCode::OK, json!({}))]);
+    let accounts = [account(&config, &s, &client)];
+    let allotted = ScriptCaller::member("m").with_usage(CallerUsage {
+        windows: vec![CallerUsageWindow {
+            key: "5h".into(),
+            used_percent: Some(34.5),
+            period_start_ms: None,
+            reset_at_ms: Some(1_788_188_400_000),
+        }],
+        ..CallerUsage::default()
+    });
+    let bare = ScriptCaller::admin("a");
+    let services = Claudecode.services().unwrap();
+    let usage = |caller, view| {
+        services.call(context(
+            &accounts,
+            caller,
+            view,
+            service_request(Method::GET, "/api/oauth/usage", None, ""),
+        ))
+    };
+    let value = body_json(usage(&allotted, ServiceView::Caller).await.unwrap()).await;
+    assert_eq!(value["five_hour"]["utilization"], 34.5);
+    assert_eq!(value["five_hour"]["resets_at"], "2026-08-31T15:00:00Z");
+    assert!(value.get("seven_day").is_none());
+    assert_eq!(value["extra_usage"]["is_enabled"], false);
+    let value = body_json(usage(&bare, ServiceView::Pool).await.unwrap()).await;
+    assert!(
+        value.get("five_hour").is_none(),
+        "no windows: no window fields"
+    );
+    assert!(client.sent().is_empty());
+    usage(&bare, ServiceView::Credential("c".into()))
+        .await
+        .unwrap();
+    assert_eq!(
+        client.sent()[0].1,
+        "https://api.anthropic.com/api/oauth/usage"
+    );
+}
+
+#[tokio::test]
+async fn settings_are_neutral_and_policy_limits_are_unrestricted() {
+    let config = json!({"claudecode_fast_mode": {"enabled": true}});
+    let s = secret("at");
+    let client = ScriptClient::new(vec![reply(StatusCode::OK, json!({}))]);
+    let accounts = [account(&config, &s, &client)];
+    let member = ScriptCaller::member("m");
+    let services = Claudecode.services().unwrap();
+    let limits = services
+        .call(context(
+            &accounts,
+            &member,
+            ServiceView::Caller,
+            service_request(Method::GET, "/api/claude_code/policy_limits", None, ""),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(limits.status, StatusCode::NOT_FOUND);
+    assert_eq!(body_json(limits).await["error"]["type"], "not_found_error");
+    let fast = body_json(
+        services
+            .call(context(
+                &accounts,
+                &member,
+                ServiceView::Pool,
+                service_request(Method::GET, "/api/claude_code_penguin_mode", None, ""),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(
+        fast["enabled"], true,
+        "provider config overrides the default"
+    );
+    services
+        .call(context(
+            &accounts,
+            &member,
+            ServiceView::Credential("c".into()),
+            service_request(Method::GET, "/api/claude_code/policy_limits", None, ""),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(client.sent().len(), 1);
+}
+
+#[tokio::test]
+async fn resources_are_bound_on_creation_and_listed_from_bindings() {
+    let config = json!({"claudecode_shared_skills": [{"id": "shared", "name": "Shared deploy"}]});
+    let s = secret("at");
+    let client = ScriptClient::new(vec![
+        raw_reply(StatusCode::CREATED, br#"{"file_uuid":"f1"}"#.to_vec()),
+        raw_reply(StatusCode::OK, b"bytes".to_vec()),
+        raw_reply(StatusCode::OK, b"PK".to_vec()),
+    ]);
+    let accounts = [account(&config, &s, &client)];
+    let caller = ScriptCaller::member("m").with_binding(
+        KIND_SKILL,
+        "s1",
+        "c",
+        json!({"id": "s1", "name": "Deploy helper", "organization_uuid": "real-org"}),
+    );
+    let services = Claudecode.services().unwrap();
+
+    let created = services
+        .call(context(
+            &accounts,
+            &caller,
+            ServiceView::Caller,
+            service_request(Method::POST, "/api/oauth/file_upload", None, "multipart"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(created.status, StatusCode::CREATED);
+    let bound = caller.bound();
+    let file = bound.iter().find(|b| b.kind == KIND_FILE).unwrap();
+    assert_eq!(file.upstream_id, "f1");
+    assert_eq!(file.credential_id, "c");
+
+    services
+        .call(context(
+            &accounts,
+            &caller,
+            ServiceView::Caller,
+            service_request(Method::GET, "/api/oauth/files/f1/content", None, ""),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        client.sent()[1].1,
+        "https://api.anthropic.com/api/oauth/files/f1/content"
+    );
+    let foreign = services
+        .call(context(
+            &accounts,
+            &caller,
+            ServiceView::Caller,
+            service_request(Method::GET, "/api/oauth/files/f9/content", None, ""),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(foreign.status, StatusCode::NOT_FOUND);
+    assert_eq!(client.sent().len(), 2);
+
+    let skills = body_json(
+        services
+            .call(context(
+                &accounts,
+                &caller,
+                ServiceView::Pool,
+                service_request(
+                    Method::GET,
+                    "/api/oauth/organizations/any-org/skills/list-skills",
+                    None,
+                    "",
+                ),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(
+        skills["skills"].as_array().unwrap().len(),
+        2,
+        "bindings plus shared config"
+    );
+    let found = body_json(
+        services
+            .call(context(
+                &accounts,
+                &caller,
+                ServiceView::Caller,
+                service_request(
+                    Method::POST,
+                    "/api/oauth/organizations/any-org/skills/search",
+                    None,
+                    r#"{"keywords":["shared"]}"#,
+                ),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(found["results"].as_array().unwrap().len(), 1);
+    assert_eq!(found["results"][0]["id"], "shared");
+
+    services
+        .call(context(
+            &accounts,
+            &caller,
+            ServiceView::Caller,
+            service_request(
+                Method::GET,
+                "/api/oauth/organizations/synthetic-org/skills/s1/download",
+                None,
+                "",
+            ),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        client.sent()[2].1,
+        "https://api.anthropic.com/api/oauth/organizations/real-org/skills/s1/download",
+        "the item route follows the organization recorded in the binding"
+    );
+}
+
+#[tokio::test]
+async fn key_minting_is_refused_everywhere_and_other_classes_follow_the_view() {
+    let config = json!({});
+    let s = secret("at");
+    let client = ScriptClient::new(vec![
+        reply(StatusCode::OK, json!({})),
+        reply(StatusCode::OK, json!({})),
+        reply(StatusCode::OK, json!({})),
+    ]);
+    let accounts = [account(&config, &s, &client)];
+    let admin = ScriptCaller::admin("a");
+    let services = Claudecode.services().unwrap();
+    for view in [
+        ServiceView::Caller,
+        ServiceView::Pool,
+        ServiceView::Credential("c".into()),
+    ] {
+        let response = services
+            .call(context(
+                &accounts,
+                &admin,
+                view,
+                service_request(
+                    Method::POST,
+                    "/api/oauth/claude_cli/create_api_key",
+                    None,
+                    "null",
+                ),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status, StatusCode::FORBIDDEN);
+        assert_eq!(
+            body_json(response).await["error"]["type"],
+            "permission_error"
+        );
+    }
+    let routes = [
+        (
+            Method::GET,
+            "/api/oauth/organizations/o/payment_method",
+            StatusCode::FORBIDDEN,
+        ),
+        (Method::POST, "/api/claude_code/metrics", StatusCode::OK),
+        (
+            Method::GET,
+            "/api/oauth/brand_new_in_a_later_cli",
+            StatusCode::NOT_FOUND,
+        ),
+    ];
+    for (method, path, expected) in &routes {
+        let response = services
+            .call(context(
+                &accounts,
+                &admin,
+                ServiceView::Pool,
+                service_request(method.clone(), path, None, "{}"),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status, *expected, "{path}");
+    }
+    assert!(client.sent().is_empty(), "nothing left the gateway");
+    for (method, path, _) in &routes {
+        services
+            .call(context(
+                &accounts,
+                &admin,
+                ServiceView::Credential("c".into()),
+                service_request(method.clone(), path, None, "{}"),
+            ))
+            .await
+            .unwrap();
+    }
+    assert_eq!(client.sent().len(), 3, "the Credential view forwards them");
+    let error = services
+        .call(context(
+            &accounts,
+            &admin,
+            ServiceView::Credential("c".into()),
+            service_request(Method::POST, "/v1/messages", None, "{}"),
+        ))
+        .await
+        .unwrap_err();
+    assert!(matches!(error, ChannelError::UnsupportedService));
 }
