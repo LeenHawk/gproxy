@@ -355,6 +355,15 @@ pub struct Harness {
 }
 
 pub async fn harness(policy: ObservationPolicy, strategy: &str) -> Harness {
+    harness_with_storage(policy, strategy, None).await
+}
+
+/// Same seed as `harness`, plus an optional file backend for published bodies.
+pub async fn harness_with_storage(
+    policy: ObservationPolicy,
+    strategy: &str,
+    storage: Option<gproxy_file::Operator>,
+) -> Harness {
     let mut options = ConnectOptions::new("sqlite::memory:");
     options.max_connections(1).sqlx_logging(false);
     let db = Database::connect(options).await.unwrap();
@@ -525,6 +534,7 @@ pub async fn harness(policy: ObservationPolicy, strategy: &str) -> Harness {
         .secret_codec(Arc::new(PlaintextCodec))
         .channel(Arc::new(TestChannel))
         .unwrap()
+        .file_storage(storage)
         .build()
         .unwrap();
     core.reload_data().await.unwrap();
@@ -535,6 +545,51 @@ pub async fn harness(policy: ObservationPolicy, strategy: &str) -> Harness {
     }
 }
 
+/// Add a provider that only speaks `dialect`, with one API-key credential
+/// `{id}-key` whose key is `k-{id}`, and publish the new snapshot.
+pub async fn seed_provider(h: &Harness, id: &str, base_url: &str, dialect: &str) {
+    let store = h.core.store();
+    store
+        .providers()
+        .create_many(vec![provider::ActiveModel {
+            id: Set(id.into()),
+            name: Set(id.into()),
+            channel: Set("test".into()),
+            base_url: Set(Some(base_url.into())),
+            config: Set(json!({"dialects": [dialect]})),
+            created_at_ms: Set(0),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    let cred_id = format!("{id}-key");
+    store
+        .credentials()
+        .create_many(vec![credential::ActiveModel {
+            id: Set(cred_id.clone()),
+            provider_id: Set(id.into()),
+            user_id: Set(Some("u".into())),
+            auth_kind: Set("api_key".into()),
+            secret: Set(PlaintextCodec
+                .seal(&cred_id, &json!({"api_key": format!("k-{id}")}))
+                .unwrap()),
+            metadata: Set(json!({})),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    let revision = h.core.snapshot().revision.0 + 1;
+    store
+        .settings()
+        .update(setting::ActiveModel {
+            config_revision: Set(i64::try_from(revision).unwrap()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    h.core.reload_data().await.unwrap();
+}
+
 impl Harness {
     pub fn script(&self, replies: Vec<Reply>) {
         *self.client.replies.lock().unwrap() = replies.into();
@@ -543,14 +598,8 @@ impl Harness {
     pub fn context(&self, id: &str, attempts: u32, session: Option<&str>) -> Arc<RequestContext> {
         self.context_for("p", KEY, id, attempts, session)
     }
-    pub fn context_for(
-        &self,
-        provider_id: &str,
-        operation: OperationKey,
-        id: &str,
-        attempts: u32,
-        session: Option<&str>,
-    ) -> Arc<RequestContext> {
+    /// The provider and all its credentials, each wired to the scripted client.
+    pub fn target(&self, provider_id: &str) -> ExecutionTarget {
         let snapshot = self.core.snapshot();
         let provider = snapshot.providers[provider_id].clone();
         let credentials = provider
@@ -572,6 +621,22 @@ impl Harness {
                 })
             })
             .collect();
+        ExecutionTarget {
+            provider,
+            upstream_model: Some("gpt-x".into()),
+            credentials,
+        }
+    }
+    pub fn context_for(
+        &self,
+        provider_id: &str,
+        operation: OperationKey,
+        id: &str,
+        attempts: u32,
+        session: Option<&str>,
+    ) -> Arc<RequestContext> {
+        let snapshot = self.core.snapshot();
+        let target = self.target(provider_id);
         Arc::new(RequestContext {
             request_id: id.into(),
             snapshot: snapshot.clone(),
@@ -582,11 +647,7 @@ impl Harness {
                 field: None,
             }),
             operation,
-            target: ExecutionTarget {
-                provider,
-                upstream_model: Some("gpt-x".into()),
-                credentials,
-            },
+            target,
             max_attempts: NonZeroU32::new(attempts).unwrap(),
             started_at_ms: 0,
             deadline: None,

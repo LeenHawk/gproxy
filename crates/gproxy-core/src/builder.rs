@@ -28,6 +28,8 @@ pub struct CoreBuilder<C> {
     channels: ChannelRegistry,
     #[cfg(not(target_arch = "wasm32"))]
     clients: Option<gproxy_client::ClientPool>,
+    #[cfg(not(target_arch = "wasm32"))]
+    files: Option<gproxy_file::Operator>,
     data: Option<Arc<CoreData>>,
 }
 
@@ -41,6 +43,8 @@ impl<C> CoreBuilder<C> {
             channels: ChannelRegistry::new(),
             #[cfg(not(target_arch = "wasm32"))]
             clients: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            files: None,
             data: None,
         }
     }
@@ -71,6 +75,15 @@ impl<C> CoreBuilder<C> {
         self.clients = Some(clients);
         self
     }
+    /// Object storage for bodies core publishes itself (generated images,
+    /// downloaded video output). Without it, publishing or reading a locally
+    /// stored body fails with `Unsupported` before any side effect; upstream
+    /// file reads by ID still work.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn file_storage(mut self, operator: Option<gproxy_file::Operator>) -> Self {
+        self.files = operator;
+        self
+    }
     /// Initial snapshot, e.g. one assembled before construction. Defaults to an
     /// empty snapshot at revision 0 until `load_data` runs.
     pub fn snapshot(mut self, data: Arc<CoreData>) -> Self {
@@ -87,6 +100,8 @@ impl<C> CoreBuilder<C> {
             channels: Arc::new(self.channels),
             #[cfg(not(target_arch = "wasm32"))]
             clients: self.clients.unwrap_or_default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            files: self.files,
             data: ArcSwap::from(self.data.unwrap_or_default()),
         })
     }

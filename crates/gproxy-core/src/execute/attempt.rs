@@ -312,6 +312,7 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                     .clone()
                     .unwrap_or_else(|| request.request_id.clone());
                 let call = convert::Call {
+                    core,
                     upstream: &upstream_host,
                     client: operation,
                     target: upstream,
