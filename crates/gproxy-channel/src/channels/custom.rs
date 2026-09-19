@@ -5,11 +5,14 @@
 //! the host's conversion), so the final URL is `base_url + path` unless the
 //! host supplies a complete method URL. Authentication is injected per target
 //! wire family from the credential's `api_key`; source authentication in
-//! headers and query is always removed. No protocol conversion happens here.
+//! headers and query is always removed, and `config.allowed_headers` can
+//! restrict forwarding to a named set. No protocol conversion happens here.
 
-use crate::channel::{BaseChannel, ChannelError, PrepareContext, ProviderView};
+use crate::channel::{
+    BaseChannel, ChannelError, HeaderAllowlist, PrepareContext, ProviderView, forwardable,
+};
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireFamily, WireRequest};
-use http::{HeaderMap, HeaderName, HeaderValue, header};
+use http::{HeaderName, HeaderValue, header};
 use serde::Deserialize;
 
 pub const ID: &str = "custom";
@@ -77,7 +80,8 @@ impl Custom {
             Some(q) => format!("{url}?{q}"),
             None => url,
         };
-        let mut headers = forwardable(&request.headers);
+        let allowlist = HeaderAllowlist::from_view(ctx.provider)?;
+        let mut headers = forwardable(&request.headers, allowlist.as_ref(), &[]);
         let family = ctx.operation.dialect.family();
         match (&config.auth_header, family) {
             (Some(name), _) => {
@@ -166,35 +170,6 @@ impl BaseChannel for Custom {
             .body(())
             .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
     }
-}
-
-/// Drop hop-by-hop headers, the source host/length and any source
-/// authentication; keep every vendor header (betas, versions, tracing).
-fn forwardable(source: &HeaderMap) -> HeaderMap {
-    const DROP: &[&str] = &[
-        "connection",
-        "keep-alive",
-        "proxy-authenticate",
-        "proxy-authorization",
-        "te",
-        "trailer",
-        "transfer-encoding",
-        "upgrade",
-        "host",
-        "content-length",
-        "authorization",
-        "x-api-key",
-        "x-goog-api-key",
-        "api-key",
-    ];
-    let mut out = HeaderMap::with_capacity(source.len());
-    for (name, value) in source {
-        if DROP.contains(&name.as_str()) {
-            continue;
-        }
-        out.append(name.clone(), value.clone());
-    }
-    out
 }
 
 /// Remove `key`, `access_token` and `api_key` parameters, keeping the rest

@@ -13,13 +13,13 @@ use crate::OutboundClient;
 use crate::channel::{
     AuthorizationCode, AuthorizationRequest, AuthorizationStart, BaseChannel, ChannelError,
     CredentialContext, CredentialRefresh, CredentialUpdate, CredentialView, DeviceAuthorization,
-    DevicePoll, LoginContext, NormalizedUsage, OAuthAuthorizationCode, OAuthCredential,
-    OAuthDeviceCode, OperationFuture, PrepareContext, ProviderView, QuotaAllowance, QuotaBalance,
-    QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel,
-    QuotaQuery, QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking,
-    QuotaValue, QuotaWindow, RefreshContext, ResponseView, UsageCompleteness, UsageContext,
-    UsageExtractor, UsageFrame, UsageObserver, UsageStream, UsageStreamContext, UsageStreamEnd,
-    UsageTransport,
+    DevicePoll, HeaderAllowlist, LoginContext, NormalizedUsage, OAuthAuthorizationCode,
+    OAuthCredential, OAuthDeviceCode, OperationFuture, PrepareContext, ProviderView,
+    QuotaAllowance, QuotaBalance, QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders,
+    QuotaMetric, QuotaModel, QuotaQuery, QuotaResetBehavior, QuotaScope, QuotaSnapshot,
+    QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow, RefreshContext, ResponseView,
+    UsageCompleteness, UsageContext, UsageExtractor, UsageFrame, UsageObserver, UsageStream,
+    UsageStreamContext, UsageStreamEnd, UsageTransport, forwardable,
 };
 use base64::Engine;
 use futures_util::StreamExt;
@@ -163,37 +163,22 @@ fn plan_type(credential: &CredentialView<'_>) -> Option<String> {
 }
 
 /// Headers every backend call carries: bearer token, account, originator,
-/// static config headers. Source authentication is never forwarded.
+/// static config headers. Source authentication and the channel's own
+/// identity headers are never forwarded; `config.allowed_headers` narrows
+/// the rest.
 fn backend_headers(
     config: &CodexConfig,
     account: &Account<'_>,
-    source: Option<&HeaderMap>,
+    source: Option<(&HeaderMap, Option<&HeaderAllowlist>)>,
 ) -> Result<HeaderMap, ChannelError> {
-    const DROP: &[&str] = &[
-        "connection",
-        "keep-alive",
-        "proxy-authenticate",
-        "proxy-authorization",
-        "te",
-        "trailer",
-        "transfer-encoding",
-        "upgrade",
-        "host",
-        "content-length",
-        "authorization",
-        "chatgpt-account-id",
-        "originator",
-        "x-api-key",
-        "api-key",
-    ];
-    let mut headers = HeaderMap::new();
-    if let Some(source) = source {
-        for (name, value) in source {
-            if !DROP.contains(&name.as_str()) {
-                headers.append(name.clone(), value.clone());
-            }
-        }
-    }
+    let mut headers = match source {
+        Some((source, allowlist)) => forwardable(
+            source,
+            allowlist,
+            &["chatgpt-account-id", "originator", "openai-beta"],
+        ),
+        None => HeaderMap::new(),
+    };
     headers.insert(
         header::AUTHORIZATION,
         header_value(&format!("Bearer {}", account.access_token))?,
@@ -267,7 +252,12 @@ impl Codex {
             Some(q) => format!("{url}?{q}"),
             None => url,
         };
-        let mut headers = backend_headers(&config, &account, Some(&request.headers))?;
+        let allowlist = HeaderAllowlist::from_view(ctx.provider)?;
+        let mut headers = backend_headers(
+            &config,
+            &account,
+            Some((&request.headers, allowlist.as_ref())),
+        )?;
         if websocket {
             headers.insert(
                 HeaderName::from_static("openai-beta"),

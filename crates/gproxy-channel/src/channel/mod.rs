@@ -3,6 +3,7 @@
 //! and a client. Neither channel identity nor credentials are global enums.
 
 mod binding;
+mod headers;
 mod oauth;
 mod operations;
 mod quota;
@@ -12,6 +13,7 @@ mod service;
 mod usage;
 
 pub use binding::ChannelBinding;
+pub use headers::{HeaderAllowlist, forwardable};
 pub use oauth::{
     AuthorizationCode, AuthorizationRequest, AuthorizationStart, CookieLogin, DeviceAuthorization,
     DevicePoll, LoginContext, OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode,
