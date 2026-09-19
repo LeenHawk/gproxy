@@ -1730,7 +1730,9 @@ dependencies = [
 name = "gproxy-store"
 version = "4.0.0-dev"
 dependencies = [
+ "async-trait",
  "getrandom 0.4.3",
+ "gproxy-cache",
  "gproxy-seaorm",
  "rust_decimal",
  "sea-orm",
@@ -1738,6 +1740,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.20",
  "tokio",
+ "web-time",
 ]
 
 [[package]]

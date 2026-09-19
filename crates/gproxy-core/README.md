@@ -25,7 +25,7 @@ extraction and local token estimation.
 | `convert` | Passthrough-or-convert routing, native endpoints, and one driver per protocol family running protocol's adaptation flows over the attempt-bound upstream |
 | `capability` | Core's `AttemptUpstream`, `ProtocolState` and `Resources`, the host capabilities protocol adaptations are generic over |
 | `refresh` | Explicit credential refresh: cross-instance lease, channel `CredentialRefresh`, seal, version CAS, publication, `Dead` on definitive rejection |
-| `quota` | `QuotaHeaders`/`QuotaQuery` observations into `credential_quota_cycles` and exhaustion blocks; Counted dimensions metered in the cache |
+| `quota` | `QuotaHeaders`/`QuotaQuery` observations into `credential_quota_cycles` and exhaustion blocks; Counted dimensions metered in Store `counted_windows` rows |
 | `session` | Agent session assignments: stay bound while usable, reserve a new generation on durable failure, activate or fail from the preparing attempt |
 | `estimate` | Local token estimation for exchanges the upstream did not meter |
 | `observe` | The host's settlement/capture/trace funnel with a pre-work policy query |
@@ -142,9 +142,11 @@ call, and a rejected native answer re-enters the same classification.
 it `IfNeeded` before pinning expiring material and `Force` after a 401/403.
 Quota has two tracks: Reported dimensions receive values from headers, queries
 or exhaustion replies and block until the upstream period end (or one window
-derived from the dimension); Counted dimensions are metered in the cache under
-`CountedWindowKey`, requests before the exchange and tokens after usage settles,
-and block until the window ends. Entries that match no declared dimension are
+derived from the dimension); Counted dimensions are metered in Store's
+`counted_windows` rows with an atomic fits-under-the-limit update, requests
+before the exchange (a refused charge skips the credential without sending)
+and tokens after usage settles, and block until the window ends. Counts are
+shared by every instance and survive restarts. Entries that match no declared dimension are
 still persisted as cycles.
 
 A request whose `SessionIdentity` names an `agent_sessions` row is an agent

@@ -1,6 +1,7 @@
 //! Explicit state transitions. Inputs are trusted core/manage requests; each
 //! method retains database preconditions needed against concurrent changes.
 pub mod agents;
+pub mod counted;
 pub mod credentials;
 pub mod oauth;
 mod oauth_policy;

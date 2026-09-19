@@ -16,7 +16,9 @@ pub use gproxy_seaorm::FixedDecimal;
 pub use settings::Settings;
 mod control;
 pub use control::ControlData;
+mod cache;
 pub mod operations;
+pub use cache::StoreCache;
 
 use sea_orm::{DbBackend, Schema, SchemaBuilder};
 
@@ -77,4 +79,8 @@ fn register_entities<R: gproxy_seaorm::EntityRegistry>(registry: R) -> R {
         .register(entity::resource::resource_binding::Entity)
         .register(entity::resource::protocol_state::Entity)
         .register(entity::config::setting::Entity)
+        .register(entity::limits::counted_window::Entity)
+        .register(entity::cache::cache_entry::Entity)
+        .register(entity::cache::cache_counter::Entity)
+        .register(entity::cache::cache_permit::Entity)
 }

@@ -8,7 +8,10 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+async-trait = { workspace = true }
+gproxy-cache = { workspace = true, default-features = false }
 sea-orm = { workspace = true, features = ["with-rust_decimal"] }
+web-time = { workspace = true }
 serde = { workspace = true }
 gproxy-seaorm = { workspace = true }
 serde_json = { workspace = true }

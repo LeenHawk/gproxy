@@ -58,6 +58,24 @@ approval/client retirement, and agent assignment reserve/activate/fail/current r
 OAuth device polling/result delivery remains issuer work; generic queries can read
 its persisted state. Subscription provisioning and price calculation remain core work.
 
+## Counted windows and the database-backed cache
+
+`counted_windows` rows record what core itself counts for a channel-declared
+Counted quota dimension: one row per credential, dimension and window.
+`Repository::charge_many` adds a charge only while `used + amount <= limit`,
+atomically per row, and reports the usage either way.
+
+`StoreCache` implements `gproxy_cache::Cache` over three tables
+(`cache_entries`, `cache_counters`, `cache_permits`) for hosts that have no
+memory-resident process and no Redis, such as edge isolates on D1 or libSQL.
+Expiry is compared in SQL, so peers on one database agree on what is live.
+It carries no notification transport: `subscribe` yields the initial
+`ResyncRequired` and then nothing, so such a host reloads on its own schedule.
+
+```rust
+let cache: Arc<dyn Cache> = Arc::new(StoreCache::new(store.clone()));
+```
+
 ## Initialization and incremental schema sync
 
 ```rust
