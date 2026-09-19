@@ -6,10 +6,10 @@ use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
     channel::{
         CredentialContext, CredentialRefresh, CredentialUpdate, CredentialView, NormalizedUsage,
-        OperationFuture, PrepareContext, ProviderView, QuotaAllowance, QuotaDimension, QuotaEntry,
-        QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel, QuotaQuery, QuotaScope,
-        QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow, RefreshContext,
-        UsageContext, UsageExtractor,
+        OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaAllowance,
+        QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel,
+        QuotaQuery, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
+        QuotaWindow, RefreshContext, UsageContext, UsageExtractor,
     },
 };
 use gproxy_core::{
@@ -180,6 +180,60 @@ impl BaseChannel for TestChannel {
         } else {
             configured
         }
+    }
+    /// Compaction counts its turns in the channel's scoped state and tells the
+    /// upstream which turn this is: the multi-request memory claudeweb-style
+    /// channels rely on.
+    fn compact_content<'a>(
+        &'a self,
+        mut context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        Box::pin(async move {
+            let entry = context.state.get("turns").await?;
+            let (turn, expected) = match &entry {
+                Some(entry) => (
+                    String::from_utf8_lossy(&entry.payload)
+                        .parse::<u32>()
+                        .unwrap_or(0)
+                        + 1,
+                    Some(entry.version.clone()),
+                ),
+                None => (1, None),
+            };
+            let outcome = context
+                .state
+                .compare_exchange(
+                    "turns",
+                    expected,
+                    Some(gproxy_protocol::capability::StateWrite {
+                        payload: Bytes::from(turn.to_string()),
+                        expires_at: Some(
+                            std::time::SystemTime::UNIX_EPOCH
+                                + std::time::Duration::from_secs(4_102_444_800),
+                        ),
+                    }),
+                )
+                .await?;
+            assert!(matches!(
+                outcome,
+                gproxy_protocol::capability::CasResult::Applied(_)
+            ));
+            context
+                .request
+                .headers
+                .insert("x-turn", HeaderValue::from_str(&turn.to_string()).unwrap());
+            let request = self.prepare(PrepareContext {
+                provider: context.provider,
+                credential: context.credential,
+                operation: OperationKey {
+                    operation: Operation::CompactContent,
+                    dialect: context.dialect,
+                },
+                request: context.request,
+                endpoint_override: context.endpoint_override,
+            })?;
+            Ok(context.client.send(request).await?)
+        })
     }
     fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
         let url = match ctx.endpoint_override {
