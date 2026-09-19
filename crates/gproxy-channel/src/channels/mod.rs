@@ -3,6 +3,8 @@
 
 #[cfg(feature = "claudecode")]
 pub mod claudecode;
+#[cfg(feature = "claudeweb")]
+pub mod claudeweb;
 #[cfg(feature = "codex")]
 pub mod codex;
 #[cfg(feature = "custom")]
