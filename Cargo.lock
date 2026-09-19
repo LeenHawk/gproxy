@@ -1573,6 +1573,7 @@ dependencies = [
 name = "gproxy-channel"
 version = "4.0.0-dev"
 dependencies = [
+ "base64 0.23.1",
  "futures-util",
  "gproxy-client",
  "gproxy-protocol",
