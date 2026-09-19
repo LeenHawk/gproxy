@@ -16,6 +16,8 @@ futures-core = { workspace = true }
 futures-util = { workspace = true }
 getrandom = { workspace = true }
 gproxy-cache = { workspace = true }
+gproxy-file = { workspace = true }
+gproxy-tokenizer = { workspace = true, default-features = false, features = ["tiktoken", "huggingface"] }
 gproxy-channel = { workspace = true }
 gproxy-client = { workspace = true }
 gproxy-protocol = { workspace = true }
@@ -35,9 +37,13 @@ tokio-util = { workspace = true }
 web-time = { workspace = true }
 zeroize = { workspace = true }
 
+[features]
+default = ["bundled-vocabulary"]
+# Ship DeepSeek's vocabulary for models without a catalog vocabulary file
+# (about 4 MiB in the binary). Off, such models use the character estimate.
+bundled-vocabulary = ["gproxy-tokenizer/bundled-deepseek"]
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-gproxy-file = { workspace = true }
-gproxy-tokenizer = { workspace = true }
 tokio = { workspace = true, features = ["sync", "time", "macros"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]

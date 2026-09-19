@@ -18,11 +18,8 @@ use std::{collections::HashMap, sync::Arc};
 mod native;
 pub use native::assemble;
 
-/// Custom vocabularies parsed for estimation; wasm32 has no estimation.
-#[cfg(not(target_arch = "wasm32"))]
+/// Custom vocabularies parsed for estimation, by file id.
 pub type VocabularyMap = HashMap<String, gproxy_tokenizer::Vocabulary>;
-#[cfg(target_arch = "wasm32")]
-pub type VocabularyMap = HashMap<String, ()>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AssemblyError {

@@ -6,7 +6,7 @@
 #![doc = include_str!("../README.md")]
 
 mod error;
-#[cfg(feature = "local")]
+#[cfg(feature = "tiktoken")]
 mod model;
 #[cfg(feature = "huggingface")]
 mod vocabulary;
@@ -33,16 +33,34 @@ enum Backend {
 impl Tokenizer {
     /// GPT family: tiktoken. Otherwise: supplied vocabulary, then bundled DeepSeek V4.
     /// The supplied vocabulary is shared, never reparsed or deep-cloned here.
-    #[cfg(feature = "local")]
-    pub fn for_model(model: &str, vocabulary: Option<&Vocabulary>) -> Result<Self, CountError> {
+    /// Whatever the enabled features cannot cover falls back to the character
+    /// estimate rather than failing, so a slim build still counts.
+    pub fn for_model(
+        model: &str,
+        #[cfg(feature = "huggingface")] vocabulary: Option<&Vocabulary>,
+        #[cfg(not(feature = "huggingface"))] vocabulary: Option<&()>,
+    ) -> Result<Self, CountError> {
+        #[cfg(feature = "tiktoken")]
         if let Some(encoder) = model::gpt_encoding(model) {
             return Ok(Self {
                 backend: Backend::Tiktoken(encoder),
             });
         }
-        match vocabulary {
-            Some(vocabulary) => Ok(Self::from_vocabulary(vocabulary)),
-            None => Self::deepseek_v4_pro(),
+        #[cfg(not(feature = "tiktoken"))]
+        let _ = model;
+        #[cfg(feature = "huggingface")]
+        if let Some(vocabulary) = vocabulary {
+            return Ok(Self::from_vocabulary(vocabulary));
+        }
+        #[cfg(not(feature = "huggingface"))]
+        let _ = vocabulary;
+        #[cfg(feature = "bundled-deepseek")]
+        {
+            Self::deepseek_v4_pro()
+        }
+        #[cfg(not(feature = "bundled-deepseek"))]
+        {
+            Ok(Self::character_estimate())
         }
     }
 

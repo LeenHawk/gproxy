@@ -42,7 +42,7 @@ gproxy-protocol = { path = "crates/gproxy-protocol", version = "=4.0.0-dev", fea
 gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=4.0.0-dev" }
 gproxy-seaorm = { path = "crates/gproxy-seaorm", version = "=4.0.0-dev" }
 gproxy-store = { path = "crates/gproxy-store", version = "=4.0.0-dev" }
-gproxy-tokenizer = { path = "crates/gproxy-tokenizer", version = "=4.0.0-dev" }
+gproxy-tokenizer = { path = "crates/gproxy-tokenizer", version = "=4.0.0-dev", default-features = false }
 gproxy-transform = { path = "crates/gproxy-transform", version = "=3.0.13", features = ["exhaustive"] }
 gproxy-upstream = { path = "crates/gproxy-upstream", version = "=3.0.13" }
 getrandom = { version = "0.4", features = ["wasm_js"] }

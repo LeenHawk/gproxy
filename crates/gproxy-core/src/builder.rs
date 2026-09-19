@@ -27,7 +27,6 @@ pub struct CoreBuilder<C> {
     codec: Option<Arc<dyn SecretCodec>>,
     channels: ChannelRegistry,
     clients: Option<gproxy_client::ClientPool>,
-    #[cfg(not(target_arch = "wasm32"))]
     files: Option<gproxy_file::Operator>,
     data: Option<Arc<CoreData>>,
 }
@@ -41,7 +40,6 @@ impl<C> CoreBuilder<C> {
             codec: None,
             channels: ChannelRegistry::new(),
             clients: None,
-            #[cfg(not(target_arch = "wasm32"))]
             files: None,
             data: None,
         }
@@ -76,7 +74,6 @@ impl<C> CoreBuilder<C> {
     /// downloaded video output). Without it, publishing or reading a locally
     /// stored body fails with `Unsupported` before any side effect; upstream
     /// file reads by ID still work.
-    #[cfg(not(target_arch = "wasm32"))]
     pub fn file_storage(mut self, operator: Option<gproxy_file::Operator>) -> Self {
         self.files = operator;
         self
@@ -96,7 +93,6 @@ impl<C> CoreBuilder<C> {
             codec: self.codec.ok_or(BuildError::MissingSecretCodec)?,
             channels: Arc::new(self.channels),
             clients: self.clients.unwrap_or_default(),
-            #[cfg(not(target_arch = "wasm32"))]
             files: self.files,
             data: ArcSwap::from(self.data.unwrap_or_default()),
         })

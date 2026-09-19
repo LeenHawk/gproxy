@@ -152,9 +152,10 @@ exchange 与刷新事件。记录不会改写、重排或延迟交付的流。
 
 引擎在 wasm32-unknown-unknown 上以同一套 API 运行：定时器与后台任务来自 JS 事件循环，
 出站传输来自 gproxy-client 的 `fetch`／`workers` feature 或宿主注入的 `OutboundClient`
-（见 client README）。两处仍只在原生可用：文件存储，因此 `Resources` 返回
-`Unsupported`，图像／视频／文件的本地发布在任何副作用前被拒绝；本地 token 估算，因此
-没有上游用量的交换在那里不产生报告。测试只在原生运行。
+（见 client README），文件存储来自 gproxy-file 的 `s3` feature（R2 或任何 S3 兼容存储，
+经 fetch；本地文件系统后端只在原生），估算用同一套 tokenizer。内置的 DeepSeek 词表是
+`bundled-vocabulary` feature（默认开启，约 4 MiB 进二进制）；关闭后没有目录词表文件的
+模型退回字符估算。测试只在原生运行。
 
 ```sh
 cargo test -p gproxy-core

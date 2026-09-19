@@ -1,6 +1,6 @@
 //! Publications and upstream file reads behind `ResourceAccess`, backed by
-//! Store rows and the configured file storage. Native only: file storage has
-//! no wasm backend yet.
+//! Store rows and the configured file storage (local filesystem natively,
+//! S3-compatible storage such as R2 on every target).
 
 use super::*;
 use gproxy_store::entity::resource::{file_object, resource_binding};

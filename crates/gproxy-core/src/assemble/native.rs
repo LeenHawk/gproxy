@@ -227,7 +227,6 @@ pub async fn assemble(
             .push(block_from_row(row)?);
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     // Which custom vocabulary each provider model counts with: the catalog
     // model's file, else the Setting default; tokenizer selection is lazy.
     let estimation = control
@@ -261,13 +260,10 @@ pub async fn assemble(
                 models,
             ))
         });
-    #[cfg(target_arch = "wasm32")]
-    let _ = vocabularies;
     Ok(Assembly {
         data: CoreData {
             revision,
             limits,
-            #[cfg(not(target_arch = "wasm32"))]
             estimation,
             providers: providers
                 .into_iter()

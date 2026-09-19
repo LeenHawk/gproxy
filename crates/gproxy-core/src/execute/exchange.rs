@@ -144,7 +144,6 @@ impl Exchange {
             return None;
         }
         let observer = self.usage_observer.lock().unwrap().take();
-        #[cfg_attr(target_arch = "wasm32", allow(unused_mut))]
         let mut usage = match observer {
             Some(observer) => observer.finish(end).ok().flatten(),
             None => {
@@ -172,7 +171,6 @@ impl Exchange {
         };
         // What the upstream did not report is estimated locally, for answers
         // that were served: a rejected call consumed nothing to meter.
-        #[cfg(not(target_arch = "wasm32"))]
         if self.funnel.policy().usage
             && status.is_some_and(|s| s.is_success())
             && let Some(estimator) = self.context.attempt.request.snapshot.estimation.as_ref()
