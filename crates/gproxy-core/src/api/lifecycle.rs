@@ -4,6 +4,7 @@ use super::{CoreError, CoreResult, CredentialSummary, ReloadOutcome};
 #[cfg(not(target_arch = "wasm32"))]
 use crate::keys;
 use crate::{Core, CoreData, CredentialVersion};
+#[cfg(target_arch = "wasm32")]
 use gproxy_channel::channel::QuotaSnapshot;
 use gproxy_seaorm::BatchConnectionTrait;
 use std::sync::Arc;
@@ -130,9 +131,8 @@ impl<C: BatchConnectionTrait> Core<C> {
         Err(CoreError::NotImplemented("refresh_credential"))
     }
 
-    /// Query upstream account observations through the assigned channel/client.
-    /// Does not aggregate subscription pools, change quotas or redeem reset credits.
-    /// The upper layer must authorize this account operation.
+    /// See `quota.rs`; wasm has no outbound transport yet.
+    #[cfg(target_arch = "wasm32")]
     pub async fn query_credential_quota(
         &self,
         provider_id: &str,
@@ -145,8 +145,6 @@ impl<C: BatchConnectionTrait> Core<C> {
 
 #[cfg(not(target_arch = "wasm32"))]
 impl<C> Core<C> {
-    /// Merge persisted blocks into the cache copy with a CAS loop. The TTL is
-    /// the longest remaining block; readers still compare `until_ms`.
     pub(crate) async fn warm_blocks(
         &self,
         provider_id: &str,
@@ -154,42 +152,52 @@ impl<C> Core<C> {
         blocks: Vec<crate::CredentialBlock>,
         now_ms: i64,
     ) -> CoreResult<()> {
-        use gproxy_cache::{CasOutcome, Replacement};
-        let key = keys::credential_blocks(provider_id, credential_id);
-        loop {
-            let entry = self.cache.get(&key).await?;
-            let (expected, mut current) = match &entry {
-                Some(entry) => (
-                    Some(entry.version),
-                    serde_json::from_slice::<crate::CredentialBlocks>(&entry.value)
-                        .unwrap_or_default(),
-                ),
-                None => (None, crate::CredentialBlocks::default()),
-            };
-            for block in blocks.iter().cloned() {
-                current.upsert(block, now_ms);
-            }
-            let Some(until) = current.blocks.iter().map(|b| b.until_ms).max() else {
-                return Ok(());
-            };
-            // Cache entries are a hot copy, not the record: cap the TTL so a
-            // far-future block still expires from the cache and is re-warmed
-            // from Store by the next reload. Readers compare `until_ms` anyway.
-            let ttl = std::time::Duration::from_millis(
-                u64::try_from(until - now_ms)
-                    .unwrap_or(1)
-                    .clamp(1, MAX_BLOCK_CACHE_TTL_MS),
-            );
-            let value =
-                serde_json::to_vec(&current).map_err(|e| CoreError::Rewrite(e.to_string()))?;
-            match self
-                .cache
-                .compare_exchange(&key, expected, Some(Replacement { value, ttl }))
-                .await?
-            {
-                CasOutcome::Applied(_) => return Ok(()),
-                CasOutcome::Conflict => continue,
-            }
+        warm_blocks(&self.cache, provider_id, credential_id, blocks, now_ms).await
+    }
+}
+
+/// Merge persisted blocks into the cache copy with a CAS loop. The TTL is
+/// the longest remaining block; readers still compare `until_ms`.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) async fn warm_blocks(
+    cache: &Arc<dyn gproxy_cache::Cache>,
+    provider_id: &str,
+    credential_id: &str,
+    blocks: Vec<crate::CredentialBlock>,
+    now_ms: i64,
+) -> CoreResult<()> {
+    use gproxy_cache::{CasOutcome, Replacement};
+    let key = keys::credential_blocks(provider_id, credential_id);
+    loop {
+        let entry = cache.get(&key).await?;
+        let (expected, mut current) = match &entry {
+            Some(entry) => (
+                Some(entry.version),
+                serde_json::from_slice::<crate::CredentialBlocks>(&entry.value).unwrap_or_default(),
+            ),
+            None => (None, crate::CredentialBlocks::default()),
+        };
+        for block in blocks.iter().cloned() {
+            current.upsert(block, now_ms);
+        }
+        let Some(until) = current.blocks.iter().map(|b| b.until_ms).max() else {
+            return Ok(());
+        };
+        // Cache entries are a hot copy, not the record: cap the TTL so a
+        // far-future block still expires from the cache and is re-warmed
+        // from Store by the next reload. Readers compare `until_ms` anyway.
+        let ttl = std::time::Duration::from_millis(
+            u64::try_from(until - now_ms)
+                .unwrap_or(1)
+                .clamp(1, MAX_BLOCK_CACHE_TTL_MS),
+        );
+        let value = serde_json::to_vec(&current).map_err(|e| CoreError::Rewrite(e.to_string()))?;
+        match cache
+            .compare_exchange(&key, expected, Some(Replacement { value, ttl }))
+            .await?
+        {
+            CasOutcome::Applied(_) => return Ok(()),
+            CasOutcome::Conflict => continue,
         }
     }
 }

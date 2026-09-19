@@ -154,6 +154,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
                 provider_id: &credential.provider_id,
                 auth_kind: &credential.auth_kind,
                 secret: &row_version.secret,
+                metadata: &credential.metadata,
                 version: row_version.version,
                 expires_at_ms: row_version.expires_at_ms,
             },

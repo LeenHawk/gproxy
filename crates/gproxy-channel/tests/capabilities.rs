@@ -70,6 +70,7 @@ fn credential(secret: &Value) -> CredentialView<'_> {
         provider_id: "selected-provider",
         auth_kind: "oauth",
         secret,
+        metadata: &serde_json::Value::Null,
         version: 7,
         expires_at_ms: None,
     }

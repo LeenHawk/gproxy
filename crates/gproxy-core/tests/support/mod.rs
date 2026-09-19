@@ -5,8 +5,11 @@ use futures_util::StreamExt;
 use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
     channel::{
-        CredentialRefresh, CredentialUpdate, NormalizedUsage, PrepareContext, ProviderView,
-        RefreshContext, UsageContext, UsageExtractor,
+        CredentialContext, CredentialRefresh, CredentialUpdate, CredentialView, NormalizedUsage,
+        OperationFuture, PrepareContext, ProviderView, QuotaAllowance, QuotaDimension, QuotaEntry,
+        QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel, QuotaQuery, QuotaScope,
+        QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow, RefreshContext,
+        UsageContext, UsageExtractor,
     },
 };
 use gproxy_core::{
@@ -137,12 +140,22 @@ pub enum RefreshReply {
 pub struct TestChannel {
     pub refreshes: Mutex<VecDeque<RefreshReply>>,
     pub refresh_calls: Mutex<Vec<(String, i64)>>,
+    pub quota_snapshots: Mutex<VecDeque<QuotaSnapshot>>,
 }
 impl BaseChannel for TestChannel {
     fn id(&self) -> &'static str {
         "test"
     }
     fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+    fn quota_model(&self) -> Option<&dyn QuotaModel> {
+        Some(self)
+    }
+    fn quota_headers(&self) -> Option<&dyn QuotaHeaders> {
+        Some(self)
+    }
+    fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }
     fn native_dialects(&self, provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
@@ -217,6 +230,76 @@ impl BaseChannel for TestChannel {
     }
     fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
         Some(self)
+    }
+}
+/// Dimensions come from credential metadata:
+/// `{"quota":[{"id","metric":"requests"|"tokens","window_seconds":N,"limit":N,
+/// "tracking":"counted"|"reported"}]}`. Scope is always `All`.
+impl QuotaModel for TestChannel {
+    fn dimensions(
+        &self,
+        _: ProviderView<'_>,
+        credential: CredentialView<'_>,
+    ) -> Vec<QuotaDimension> {
+        credential
+            .metadata
+            .get("quota")
+            .and_then(|q| q.as_array())
+            .into_iter()
+            .flatten()
+            .map(|d| QuotaDimension {
+                id: d["id"].as_str().unwrap().to_owned(),
+                label: None,
+                scope: QuotaScope::All,
+                operations: None,
+                metric: match d["metric"].as_str() {
+                    Some("tokens") => QuotaMetric::Tokens,
+                    _ => QuotaMetric::Requests,
+                },
+                window: QuotaWindow::Rolling {
+                    seconds: d["window_seconds"].as_i64().unwrap_or(3600),
+                },
+                limit: d["limit"].as_u64().map(rust_decimal::Decimal::from),
+                tracking: match d["tracking"].as_str() {
+                    Some("reported") => QuotaTracking::Reported,
+                    _ => QuotaTracking::Counted,
+                },
+            })
+            .collect()
+    }
+}
+/// `x-test-quota: <dimension>=<remaining>[;reset=<unix ms>]`, one entry.
+impl QuotaHeaders for TestChannel {
+    fn observe(&self, context: QuotaHeaderContext<'_>) -> Result<Vec<QuotaEntry>, ChannelError> {
+        let Some(value) = context.headers.get("x-test-quota") else {
+            return Ok(Vec::new());
+        };
+        let text = value.to_str().unwrap_or_default();
+        let (dimension, rest) = text.split_once('=').unwrap_or((text, "0"));
+        let (remaining, reset) = rest.split_once(";reset=").unwrap_or((rest, ""));
+        Ok(vec![QuotaEntry {
+            id: dimension.to_owned(),
+            source_id: dimension.to_owned(),
+            label: None,
+            subject: QuotaSubject::Account,
+            model_scope: QuotaScope::All,
+            value: QuotaValue::Window(QuotaAllowance {
+                remaining: remaining.parse().ok(),
+                period_end_ms: reset.parse().ok(),
+                ..Default::default()
+            }),
+        }])
+    }
+}
+impl QuotaQuery for TestChannel {
+    fn query<'a>(&'a self, _: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+        let reply = self
+            .quota_snapshots
+            .lock()
+            .unwrap()
+            .pop_front()
+            .expect("scripted quota snapshot");
+        Box::pin(async move { Ok(reply) })
     }
 }
 impl CredentialRefresh for TestChannel {
@@ -669,7 +752,7 @@ impl Harness {
                     client: self.client.clone(),
                     websocket_client: self.client.clone(),
                     state: c.state.clone(),
-                    quota: Vec::new(),
+                    quota: c.quota.clone(),
                 })
             })
             .collect();

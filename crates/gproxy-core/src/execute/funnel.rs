@@ -18,6 +18,8 @@ pub(crate) struct Funnel {
     exchanges: Mutex<Vec<ExchangeUsage>>,
     finished: AtomicBool,
     sender: Mutex<Option<oneshot::Sender<crate::CoreResult<UsageReport>>>>,
+    /// Charges settled usage against Counted dimensions before the report leaves.
+    meter: Mutex<Option<Arc<dyn crate::quota::UsageMeter>>>,
 }
 
 impl Funnel {
@@ -34,10 +36,15 @@ impl Funnel {
             exchanges: Mutex::new(Vec::new()),
             finished: AtomicBool::new(false),
             sender: Mutex::new(Some(sender)),
+            meter: Mutex::new(None),
         });
         let completion: UsageCompletion =
             Box::pin(async move { receiver.await.unwrap_or(Err(crate::CoreError::Cancelled)) });
         (funnel, completion)
+    }
+
+    pub fn set_meter(&self, meter: Arc<dyn crate::quota::UsageMeter>) {
+        *self.meter.lock().unwrap() = Some(meter);
     }
 
     pub fn policy(&self) -> ObservationPolicy {
@@ -81,6 +88,12 @@ impl Funnel {
             },
         };
         if self.policy.usage {
+            let meter = self.meter.lock().unwrap().clone();
+            if let Some(meter) = meter
+                && !report.exchanges.is_empty()
+            {
+                meter.charge(&self.request, &report).await;
+            }
             self.observer.usage(&report).await;
         }
         if let Some(sender) = self.sender.lock().unwrap().take() {

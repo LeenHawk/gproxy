@@ -94,22 +94,15 @@ impl<C: BatchConnectionTrait> Core<C> {
         block: CredentialBlock,
         now_ms: i64,
     ) -> CoreResult<()> {
-        self.store
-            .credential_blocks()
-            .create_many(vec![credential_block::ActiveModel {
-                id: Set(ids::random_id()),
-                credential_id: Set(credential_id.to_owned()),
-                scope: Set(serde_json::to_value(&block.scope)
-                    .map_err(|e| crate::CoreError::Rewrite(e.to_string()))?),
-                operation: Set(block.operation.map(|op| op.id().to_owned())),
-                until_ms: Set(block.until_ms),
-                source: Set(serde_json::to_value(&block.source)
-                    .map_err(|e| crate::CoreError::Rewrite(e.to_string()))?),
-                observed_at_ms: Set(block.observed_at_ms),
-            }])
-            .await?;
-        self.warm_blocks(provider_id, credential_id, vec![block], now_ms)
-            .await
+        persist_block(
+            &self.store,
+            &self.cache,
+            provider_id,
+            credential_id,
+            block,
+            now_ms,
+        )
+        .await
     }
 
     /// Bump the streak for this scope; at the threshold write a cooldown block
@@ -163,4 +156,31 @@ impl<C: BatchConnectionTrait> Core<C> {
             .await?;
         Ok(Some(block))
     }
+}
+
+/// Persist one block, then refresh the cache copy. Store first: the row is
+/// the record, the cache is the hot copy.
+pub(crate) async fn persist_block<C: BatchConnectionTrait>(
+    store: &gproxy_store::Store<C>,
+    cache: &std::sync::Arc<dyn gproxy_cache::Cache>,
+    provider_id: &str,
+    credential_id: &str,
+    block: CredentialBlock,
+    now_ms: i64,
+) -> CoreResult<()> {
+    store
+        .credential_blocks()
+        .create_many(vec![credential_block::ActiveModel {
+            id: Set(ids::random_id()),
+            credential_id: Set(credential_id.to_owned()),
+            scope: Set(serde_json::to_value(&block.scope)
+                .map_err(|e| crate::CoreError::Rewrite(e.to_string()))?),
+            operation: Set(block.operation.map(|op| op.id().to_owned())),
+            until_ms: Set(block.until_ms),
+            source: Set(serde_json::to_value(&block.source)
+                .map_err(|e| crate::CoreError::Rewrite(e.to_string()))?),
+            observed_at_ms: Set(block.observed_at_ms),
+        }])
+        .await?;
+    crate::api::lifecycle::warm_blocks(cache, provider_id, credential_id, vec![block], now_ms).await
 }

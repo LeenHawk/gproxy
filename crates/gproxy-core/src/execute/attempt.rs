@@ -119,6 +119,7 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
     wire: WireRequest<HttpBody>,
 ) -> CoreResult<HttpExecution> {
     let (funnel, completion) = Funnel::new(request.clone(), core.observer().clone());
+    funnel.set_meter(core.usage_meter());
     let snapshot = request.snapshot.clone();
     let limits = snapshot.limits;
     let provider = request.target.provider.clone();
@@ -234,6 +235,25 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                     crate::RefreshMode::IfNeeded,
                 )
                 .await;
+        }
+        // Self-counted request quota is charged before anything goes out; a
+        // window at its limit blocks the credential and the next one is tried.
+        if core
+            .charge_request(
+                &credential,
+                operation.operation,
+                upstream_model.as_deref(),
+                now,
+            )
+            .await?
+            .is_some()
+        {
+            excluded.insert(credential.id.clone());
+            ordinal -= 1;
+            if excluded.len() >= request.target.credentials.len() {
+                break;
+            }
+            continue;
         }
         let version = credential.state.load();
         let attempt = Arc::new(AttemptContext {
@@ -432,6 +452,22 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
         };
 
         let status = answer.status();
+
+        // Every answer's headers may carry account quota; exhaustion recorded
+
+        // here replaces the generic rate-limit block below.
+
+        let quota_blocks = core
+            .observe_answer_headers(
+                &credential,
+                operation,
+                upstream_model.as_deref(),
+                status,
+                answer.headers(),
+                finished_at,
+            )
+            .await
+            .unwrap_or_default();
         let refreshable = provider.channel.credential_refresh().is_some();
         match classify(status, refreshable, refreshed.contains(&credential.id)) {
             Classified::Final => {
@@ -502,25 +538,40 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
             }
             Classified::Exclude => {
                 let retry_after = retry_after_ms(answer.headers());
-                let block = (status == StatusCode::TOO_MANY_REQUESTS).then(|| CredentialBlock {
-                    scope: gproxy_channel::channel::QuotaScope::All,
-                    operation: None,
-                    until_ms: finished_at + retry_after.unwrap_or(DEFAULT_RATE_LIMIT_MS),
-                    source: BlockSource::RateLimited,
-                    observed_at_ms: finished_at,
-                });
-                let blocked = exclude(
-                    core,
-                    &funnel,
-                    &attempt,
-                    &credential,
-                    upstream_model.as_deref(),
-                    operation.operation,
-                    status,
-                    block,
-                    finished_at,
-                )
-                .await?;
+                let block = (status == StatusCode::TOO_MANY_REQUESTS && quota_blocks.is_empty())
+                    .then(|| CredentialBlock {
+                        scope: gproxy_channel::channel::QuotaScope::All,
+                        operation: None,
+                        until_ms: finished_at + retry_after.unwrap_or(DEFAULT_RATE_LIMIT_MS),
+                        source: BlockSource::RateLimited,
+                        observed_at_ms: finished_at,
+                    });
+                let blocked = if quota_blocks.is_empty() {
+                    exclude(
+                        core,
+                        &funnel,
+                        &attempt,
+                        &credential,
+                        upstream_model.as_deref(),
+                        operation.operation,
+                        status,
+                        block,
+                        finished_at,
+                    )
+                    .await?
+                } else {
+                    let outcome = AttemptOutcome::Rejected {
+                        status,
+                        retry_after: retry_after
+                            .map(|ms| std::time::Duration::from_millis(ms as u64)),
+                    };
+                    funnel.trace(TraceEvent::AttemptFinished {
+                        attempt: &attempt,
+                        outcome: &outcome,
+                        finished_at_ms: finished_at,
+                    });
+                    true
+                };
                 if blocked {
                     excluded.insert(credential.id.clone());
                 }

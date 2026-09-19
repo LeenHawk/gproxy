@@ -23,6 +23,8 @@ pub mod keys;
 pub mod limits;
 pub mod observe;
 #[cfg(not(target_arch = "wasm32"))]
+mod quota;
+#[cfg(not(target_arch = "wasm32"))]
 mod refresh;
 pub mod rewrite;
 pub mod runtime;

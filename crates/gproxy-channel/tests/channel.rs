@@ -86,6 +86,7 @@ fn credential(secret: &Value) -> CredentialView<'_> {
         provider_id: "p1",
         auth_kind: "api_key",
         secret,
+        metadata: &serde_json::Value::Null,
         version: 0,
         expires_at_ms: None,
     }
