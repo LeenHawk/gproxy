@@ -222,6 +222,19 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
         // A new attempt supersedes the previous rejected answer.
         drop(held.take());
         let credential = selection.credential;
+        // Material about to expire is refreshed before it is pinned; a failed
+        // refresh still lets this attempt try the current material.
+        if crate::refresh::needs_refresh(&credential.state.load(), now)
+            && provider.channel.credential_refresh().is_some()
+        {
+            let _ = core
+                .refresh_credential(
+                    &credential.provider_id,
+                    &credential.id,
+                    crate::RefreshMode::IfNeeded,
+                )
+                .await;
+        }
         let version = credential.state.load();
         let attempt = Arc::new(AttemptContext {
             attempt_id: format!("{}-{ordinal}", request.request_id),

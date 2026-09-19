@@ -28,6 +28,10 @@ pub enum CoreError {
     },
     #[error("no usable credential in the supplied candidate set")]
     NoUsableCredential,
+    /// Another instance held the refresh lease for the whole wait and no
+    /// newer durable version appeared.
+    #[error("credential `{credential_id}` is being refreshed elsewhere")]
+    RefreshContended { credential_id: String },
     /// The credential is persisted as Dead. Waiting or retrying does not help;
     /// a person must log in again. `reason` is the Store's status_reason.
     #[error("credential `{credential_id}` is dead: {}", reason.as_deref().unwrap_or("unknown"))]
