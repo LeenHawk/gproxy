@@ -16,6 +16,8 @@ pub mod context;
 pub mod convert;
 pub mod data;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod estimate;
+#[cfg(not(target_arch = "wasm32"))]
 mod execute;
 #[cfg(not(target_arch = "wasm32"))]
 mod ids;

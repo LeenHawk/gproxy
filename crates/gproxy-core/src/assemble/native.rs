@@ -15,6 +15,7 @@ pub async fn assemble(
     channels: &ChannelRegistry,
     codec: &dyn SecretCodec,
     clients: &gproxy_client::ClientPool,
+    vocabularies: HashMap<String, gproxy_tokenizer::Vocabulary>,
     previous: Option<&CoreData>,
     now_ms: i64,
 ) -> Result<Assembly, AssemblyError> {
@@ -226,10 +227,44 @@ pub async fn assemble(
             .push(block_from_row(row)?);
     }
 
+    // Which custom vocabulary each provider model counts with: the catalog
+    // model's file, else the Setting default; tokenizer selection is lazy.
+    let estimation = control
+        .settings
+        .as_ref()
+        .is_none_or(|settings| settings.enable_usage)
+        .then(|| {
+            let files: HashMap<&str, &str> = control
+                .models
+                .iter()
+                .filter_map(|m| Some((m.id.as_str(), m.vocabulary_file_id.as_deref()?)))
+                .collect();
+            let models = control
+                .provider_models
+                .iter()
+                .filter(|pm| pm.enabled)
+                .filter_map(|pm| {
+                    let file = files.get(pm.model_id.as_deref()?)?;
+                    Some((
+                        (pm.provider_id.clone(), pm.upstream_name.clone()),
+                        (*file).to_owned(),
+                    ))
+                })
+                .collect();
+            Arc::new(crate::estimate::Estimator::new(
+                vocabularies,
+                control
+                    .settings
+                    .as_ref()
+                    .and_then(|s| s.default_vocabulary_file_id.clone()),
+                models,
+            ))
+        });
     Ok(Assembly {
         data: CoreData {
             revision,
             limits,
+            estimation,
             providers: providers
                 .into_iter()
                 .map(|(id, provider)| (id, Arc::new(provider)))
