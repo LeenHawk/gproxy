@@ -11,6 +11,7 @@ use crate::{
     WebSocketExecution,
     api::lifecycle::now_ms,
     availability::{DEFAULT_RATE_LIMIT_MS, retry_after_ms},
+    convert::{self, Route},
     rewrite::{
         Phase, RewriteContext, SelectedRules, apply_headers, apply_query, apply_unit, select_rules,
     },
@@ -21,9 +22,10 @@ use gproxy_channel::{
     channel::{UsageFrame, UsageStreamContext, UsageStreamEnd, UsageTransport},
 };
 use gproxy_protocol::{
-    WireRequest,
+    Dialect, WireRequest,
     capability::UpstreamConnection,
     connection::{TransportError, WebSocket, WsFrame, WsReceiver, WsSender},
+    transform::TransformError,
 };
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::entity::upstream::operation_endpoint::EndpointTransport;
@@ -35,7 +37,7 @@ use std::{
     task::{Context, Poll},
 };
 
-pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync>(
+pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'static>(
     core: &Core<C>,
     request: Arc<RequestContext>,
     mut wire: WireRequest<()>,
@@ -47,6 +49,26 @@ pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync>(
     let operation = request.operation;
     let upstream_model = request.target.upstream_model.clone();
 
+    match convert::route(&provider, operation) {
+        Ok(Route::Passthrough) => {}
+        Ok(Route::Convert { upstream } | Route::Synthesize { upstream }) => {
+            if operation.dialect != Dialect::OpenAiResponsesWebSocket {
+                funnel.finish(UsageState::Failed).await;
+                return Err(CoreError::Transform(TransformError::unsupported(
+                    "route",
+                    format!("{:?} over WebSocket is passthrough only", operation.dialect),
+                )));
+            }
+            return convert::responses_ws::serve(
+                core, request, &wire, funnel, completion, upstream,
+            )
+            .await;
+        }
+        Err(error) => {
+            funnel.finish(UsageState::Failed).await;
+            return Err(error.into());
+        }
+    }
     let inbound_headers = wire.headers.clone();
     let rewrite_context = RewriteContext {
         operation,

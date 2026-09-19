@@ -13,8 +13,8 @@ use gproxy_seaorm::BatchConnectionTrait;
 use std::time::{Duration, SystemTime};
 
 /// How long continuation state written for a conversion stays valid.
-const STATE_TTL: Duration = Duration::from_secs(24 * 60 * 60);
-const STATE_MAX_RECORDS: usize = 64;
+pub(super) const STATE_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+pub(super) const STATE_MAX_RECORDS: usize = 64;
 
 pub(crate) struct Call<'a, C> {
     pub upstream: &'a AttemptUpstream,
@@ -58,7 +58,16 @@ impl<'a, C: BatchConnectionTrait + Send + Sync> Call<'a, C> {
     pub fn generation_state(
         &self,
     ) -> Result<GenerationStateAccess<'a, ProtocolState<C>>, TransformError> {
-        let target = IdentityTarget::new(self.model()?, self.target)
+        self.generation_state_for(self.target)
+    }
+
+    /// Same, for an identity dialect other than the routed target (the
+    /// Responses WebSocket upstream carries Responses identities).
+    pub fn generation_state_for(
+        &self,
+        dialect: Dialect,
+    ) -> Result<GenerationStateAccess<'a, ProtocolState<C>>, TransformError> {
+        let target = IdentityTarget::new(self.model()?, dialect)
             .and_then(|t| t.with_origin(self.provider_id))
             .map_err(|e| TransformError::shape("identity.target", e.to_string()))?;
         Ok(GenerationStateAccess {
