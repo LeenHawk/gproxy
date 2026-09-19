@@ -59,6 +59,8 @@ pub struct Core<C> {
     channels: Arc<ChannelRegistry>,
     #[cfg(not(target_arch = "wasm32"))]
     clients: gproxy_client::ClientPool,
+    #[cfg(not(target_arch = "wasm32"))]
+    files: Option<gproxy_file::Operator>,
     data: ArcSwap<CoreData>,
 }
 impl<C> Core<C> {
@@ -79,6 +81,11 @@ impl<C> Core<C> {
     }
     pub fn observer(&self) -> &Arc<dyn Observer> {
         &self.observer
+    }
+    /// Object storage for locally published bodies, when configured.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn file_storage(&self) -> Option<&gproxy_file::Operator> {
+        self.files.as_ref()
     }
     pub fn secret_codec(&self) -> &Arc<dyn SecretCodec> {
         &self.codec
