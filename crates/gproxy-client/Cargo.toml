@@ -26,9 +26,12 @@ fetch = [
 # wasm32: Cloudflare Workers WebSocket upgrades (`fetch` with `Upgrade:
 # websocket`, then `response.webSocket`), on top of `fetch`.
 workers = ["fetch"]
+# `Client` as the HTTP leg of gproxy-seaorm's libSQL/Turso connection.
+libsql = ["dep:gproxy-seaorm"]
 
 [dependencies]
 gproxy-protocol = { workspace = true }
+gproxy-seaorm = { workspace = true, optional = true, features = ["libsql"] }
 http = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }

@@ -49,6 +49,23 @@ impl<C: ConnectionTrait + sea_schema::Connection> SchemaSyncConnectionTrait for 
     }
 }
 
+#[cfg(feature = "libsql")]
+#[async_trait::async_trait]
+impl SchemaSyncConnectionTrait for crate::LibsqlConnection {
+    type Registry = super::SchemaSync;
+
+    fn schema_registry(&self) -> Self::Registry {
+        super::SchemaSync::new()
+    }
+
+    async fn sync_schema(&self, registry: Self::Registry) -> Result<SyncReport, DbErr> {
+        let plan = registry.sync(self).await?;
+        Ok(SyncReport {
+            warnings: plan.warnings,
+        })
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 #[async_trait::async_trait]
 impl SchemaSyncConnectionTrait for crate::D1Connection {

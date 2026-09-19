@@ -49,6 +49,37 @@ impl From<DecodedExecution> for sea_orm::ExecResult {
     }
 }
 
+/// Natively the libSQL connection has no SeaORM driver of its own: decoded
+/// rows and execution results are materialised through the mock driver,
+/// which is the only public constructor for `QueryResult`/`ExecResult`
+/// outside sqlx (SeaORM 2.0.3's `proxy` feature does not build next to
+/// `sqlx-sqlite`).
+#[cfg(all(not(target_arch = "wasm32"), feature = "libsql"))]
+impl From<DecodedRow> for sea_orm::QueryResult {
+    fn from(row: DecodedRow) -> Self {
+        use sea_orm::{DbBackend, MockDatabase, MockDatabaseTrait, Statement};
+        MockDatabase::new(DbBackend::Sqlite)
+            .append_query_results([[row.values]])
+            .query(0, Statement::from_string(DbBackend::Sqlite, ""))
+            .expect("one appended mock row")
+            .remove(0)
+    }
+}
+
+#[cfg(all(not(target_arch = "wasm32"), feature = "libsql"))]
+impl From<DecodedExecution> for sea_orm::ExecResult {
+    fn from(result: DecodedExecution) -> Self {
+        use sea_orm::{DbBackend, MockDatabase, MockDatabaseTrait, MockExecResult, Statement};
+        MockDatabase::new(DbBackend::Sqlite)
+            .append_exec_results([MockExecResult {
+                rows_affected: result.rows_affected,
+                last_insert_id: result.last_insert_id,
+            }])
+            .execute(0, Statement::from_string(DbBackend::Sqlite, ""))
+            .expect("one appended mock result")
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub(crate) enum Parameter {
     Null,
@@ -254,6 +285,7 @@ pub(crate) fn rows(raw: &Json, projection: &Projection) -> Result<Vec<DecodedRow
         .collect()
 }
 
+#[cfg(any(target_arch = "wasm32", test))]
 pub(crate) fn execution(result: &Json) -> Result<DecodedExecution, DbErr> {
     if result["success"].as_bool() != Some(true) {
         return Err(error("D1 operation reported failure"));
@@ -273,6 +305,7 @@ pub(crate) fn execution(result: &Json) -> Result<DecodedExecution, DbErr> {
 /// D1 batch returns named objects rather than raw rows/column metadata.
 /// Query aliases must be distinct: duplicate SQL aliases are lost by D1 before
 /// decoding and cannot be recovered or validated here. Empty results have no schema.
+#[cfg(any(target_arch = "wasm32", test))]
 pub(crate) fn batch_rows(result: &Json, projection: &Projection) -> Result<Vec<DecodedRow>, DbErr> {
     if projection.positional {
         return Err(error("D1 batch results have no positional column metadata"));

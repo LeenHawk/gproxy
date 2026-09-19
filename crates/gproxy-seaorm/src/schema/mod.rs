@@ -14,9 +14,11 @@ use sea_orm::{
 use std::collections::BTreeMap;
 
 mod connection;
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", feature = "libsql"))]
 mod discover;
 pub use connection::{EntityRegistry, SchemaSyncConnectionTrait, SyncReport};
+#[cfg(any(target_arch = "wasm32", feature = "libsql"))]
+pub use discover::ProjectedConnection;
 #[cfg(test)]
 mod tests;
 
@@ -256,7 +258,7 @@ fn type_sql(column: &ColumnDef) -> Result<String, DbErr> {
     );
     Ok(sql)
 }
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", feature = "libsql"))]
 fn sql(text: &str, values: Vec<sea_orm::Value>) -> Statement {
     Statement::from_sql_and_values(DbBackend::Sqlite, text, values)
 }

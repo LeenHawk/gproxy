@@ -1,4 +1,5 @@
-//! SeaORM 2 entity queries and atomic writes over a Cloudflare D1 binding.
+//! SeaORM 2 entity queries and atomic writes over a Cloudflare D1 binding or a
+//! libSQL/Turso database reached through the Hrana HTTP pipeline.
 //!
 //! [`BatchConnectionTrait`] unifies ordered atomic writes and named queries on
 //! native SeaORM connections and D1. [`Projection`] derives D1 result types.
@@ -32,8 +33,12 @@ pub mod schema;
 pub use migration_support::D1SchemaManagerExt;
 pub use schema::{EntityRegistry, SchemaSyncConnectionTrait, SyncReport};
 
-#[cfg(any(target_arch = "wasm32", test))]
+#[cfg(any(target_arch = "wasm32", test, feature = "libsql"))]
 mod codec;
+#[cfg(feature = "libsql")]
+mod libsql;
+#[cfg(feature = "libsql")]
+pub use libsql::{LibsqlConnection, LibsqlFuture, LibsqlRequest, LibsqlResponse, LibsqlTransport};
 #[cfg(target_arch = "wasm32")]
 mod connection;
 #[cfg(target_arch = "wasm32")]

@@ -1603,6 +1603,7 @@ version = "4.0.0-dev"
 dependencies = [
  "futures-util",
  "gproxy-protocol",
+ "gproxy-seaorm",
  "http",
  "js-sys",
  "moka",
@@ -1708,6 +1709,7 @@ name = "gproxy-seaorm"
 version = "4.0.0-dev"
 dependencies = [
  "async-trait",
+ "base64 0.23.1",
  "futures-executor",
  "js-sys",
  "rust_decimal",
