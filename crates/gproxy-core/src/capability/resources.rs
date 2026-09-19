@@ -183,7 +183,7 @@ impl<C: Send + Sync> Upstream for ScopeUpstream<'_, C> {
                 provider.channel.as_ref(),
                 prepare::provider_view(provider),
                 prepare::credential_view(credential, &version),
-                credential.client.as_ref(),
+                credential.client.clone(),
             )
             .endpoint(provider.operation_url(*target, EndpointTransport::Http));
             let mut response = binding

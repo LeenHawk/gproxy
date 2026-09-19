@@ -287,6 +287,12 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
             agent_assignment: assignment.as_ref().map(|h| h.reference.clone()),
         });
         funnel.trace(TraceEvent::AttemptStarted(&attempt));
+        let channel_state: Arc<dyn gproxy_channel::channel::ChannelState> =
+            Arc::new(crate::ChannelStateStore::new(
+                ProtocolState::new(core, limits.capability(budget)),
+                &provider.entity.id,
+                &credential.id,
+            ));
 
         let this_wire = if ordinal < attempts {
             match prepare::clone_request(wire.as_ref().expect("request present")) {
@@ -309,13 +315,14 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                     capability,
                     now,
                 );
-                let observed = ObservedClient::new(credential.client.as_ref(), exchange.clone());
+                let observed = ObservedClient::new(credential.client.clone(), exchange.clone());
                 let binding = ChannelBinding::new(
                     provider.channel.as_ref(),
                     prepare::provider_view(&provider),
                     prepare::credential_view(&credential, &version),
-                    &observed,
+                    Arc::new(observed),
                 )
+                .state(channel_state.clone())
                 .endpoint(provider.operation_url(operation, EndpointTransport::Http));
                 let sent = tokio::select! {
                     biased;
@@ -351,6 +358,7 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                     attempt.clone(),
                     inbound_headers.clone(),
                     capability,
+                    channel_state.clone(),
                 );
                 let state_store = ProtocolState::new(core, capability);
                 let scope = StateScope {

@@ -299,7 +299,19 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
     });
     funnel.trace(TraceEvent::AttemptStarted(&attempt));
     let capability = limits.capability(None);
-    let upstream = AttemptUpstream::new(funnel.clone(), attempt, wire.headers.clone(), capability);
+    let channel_state: Arc<dyn gproxy_channel::channel::ChannelState> =
+        Arc::new(crate::ChannelStateStore::new(
+            ProtocolState::new(core, capability),
+            &provider.entity.id,
+            &credential.id,
+        ));
+    let upstream = AttemptUpstream::new(
+        funnel.clone(),
+        attempt,
+        wire.headers.clone(),
+        capability,
+        channel_state,
+    );
     let Some(model) = request.target.upstream_model.clone() else {
         funnel.finish(UsageState::Failed).await;
         return Err(CoreError::Transform(TransformError::missing_metadata(

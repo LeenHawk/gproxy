@@ -10,13 +10,15 @@ mod quota;
 mod refresh;
 mod registry;
 mod service;
+mod state;
 mod usage;
 
 pub use binding::ChannelBinding;
 pub use headers::{HeaderAllowlist, forwardable};
 pub use oauth::{
-    AuthorizationCode, AuthorizationRequest, AuthorizationStart, CookieLogin, DeviceAuthorization,
-    DevicePoll, LoginContext, OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode,
+    AcquiredCredential, AuthorizationCode, AuthorizationRequest, AuthorizationStart, CookieLogin,
+    DeviceAuthorization, DevicePoll, LoginContext, OAuthAuthorizationCode, OAuthCredential,
+    OAuthDeviceCode,
 };
 pub use operations::{OperationContext, OperationFuture};
 pub use quota::{
@@ -27,6 +29,7 @@ pub use quota::{
 };
 pub use registry::{ChannelRegistry, RegistryError};
 pub use service::{ChannelServices, ServiceContext, ServiceRoute, ServiceTransport};
+pub use state::{ChannelState, NoState};
 pub use usage::{
     NormalizedUsage, ResponseView, TokenUsage, UsageAttempt, UsageCompleteness, UsageContext,
     UsageExtractor, UsageFrame, UsageObserver, UsageStream, UsageStreamContext, UsageStreamEnd,
