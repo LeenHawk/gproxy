@@ -13,17 +13,32 @@ custom = []
 # OpenAI Codex (ChatGPT account) upstream: OAuth login/refresh, Responses over
 # HTTP and WebSocket, x-codex rate-limit headers and /wham/usage.
 codex = ["dep:base64", "dep:futures-util"]
+# Claude Code (Claude.ai subscription) upstream: PKCE and cookie login,
+# refresh, Messages over HTTP with the CLI's request hygiene, unified
+# rate-limit headers and /api/oauth/usage.
+claudecode = [
+    "dep:base64",
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:sha2",
+    "dep:time",
+    "dep:web-time",
+]
 
 [dependencies]
 base64 = { workspace = true, optional = true }
 futures-util = { workspace = true, optional = true }
+getrandom = { workspace = true, optional = true }
 gproxy-client.workspace = true
 gproxy-protocol.workspace = true
 http.workspace = true
 rust_decimal.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2 = { workspace = true, optional = true }
 thiserror.workspace = true
+time = { workspace = true, optional = true }
+web-time = { workspace = true, optional = true }
 
 [dev-dependencies]
 futures-util = { workspace = true, features = ["sink"] }
