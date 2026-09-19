@@ -108,8 +108,26 @@ async fn rate_limit_blocks_the_credential_persistently_and_fails_over() {
     let report = completion.await.unwrap();
     assert_eq!(
         report.exchanges.len(),
-        0,
-        "a JSON body without usage reports nothing"
+        1,
+        "a served answer without reported usage is estimated locally"
+    );
+    let estimated = &report.exchanges[0].usage;
+    assert_eq!(
+        estimated.dimensions.get("estimated").map(String::as_str),
+        Some("true")
+    );
+    assert_eq!(
+        estimated.completeness,
+        gproxy_channel::channel::UsageCompleteness::Partial
+    );
+    assert_eq!(
+        estimated.tokens.input_tokens, None,
+        "`{{}}` carries no prompt text: nothing to count"
+    );
+    assert_eq!(
+        estimated.tokens.output_tokens,
+        Some(6),
+        "half the 11 bytes of `{{\"ok\":true}}`, rounded up"
     );
     let seen = h.client.seen.lines();
     assert!(seen[0].contains("auth=Bearer ka"));

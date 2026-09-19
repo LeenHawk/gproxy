@@ -40,6 +40,8 @@ pub(crate) struct Exchange {
     finished: AtomicBool,
     /// The caller let go of the body/socket before it ended.
     dropped: AtomicBool,
+    /// Response body bytes seen so far, for output estimation.
+    response_bytes: AtomicU64,
 }
 
 impl Exchange {
@@ -77,6 +79,7 @@ impl Exchange {
             terminal: AtomicBool::new(false),
             finished: AtomicBool::new(false),
             dropped: AtomicBool::new(false),
+            response_bytes: AtomicU64::new(0),
         })
     }
 
@@ -97,6 +100,8 @@ impl Exchange {
     }
 
     pub fn observe_chunk(&self, chunk: &[u8]) {
+        self.response_bytes
+            .fetch_add(chunk.len() as u64, Ordering::Relaxed);
         if let Some(observer) = self.usage_observer.lock().unwrap().as_mut() {
             // A failing observer only loses metering; the stream is untouched.
             let _ = observer.observe(gproxy_channel::channel::UsageFrame::HttpChunk(chunk));
@@ -139,33 +144,48 @@ impl Exchange {
             return None;
         }
         let observer = self.usage_observer.lock().unwrap().take();
-        match observer {
-            Some(observer) => {
-                if let Ok(usage) = observer.finish(end) {
-                    self.report_usage(usage);
-                }
-            }
+        let mut usage = match observer {
+            Some(observer) => observer.finish(end).ok().flatten(),
             None => {
                 if let (Some(body), Some(status), Some(headers), Some(extractor)) =
                     (accumulated, status, headers, self.channel.usage_extractor())
                     && self.funnel.policy().usage
                 {
                     let request_body = self.request_body.lock().unwrap().clone();
-                    let usage = extractor.extract(UsageContext {
-                        operation: self.context.operation,
-                        request_body: request_body.as_deref(),
-                        response: ResponseView {
-                            status,
-                            headers,
-                            body,
-                        },
-                    });
-                    if let Ok(usage) = usage {
-                        self.report_usage(usage);
-                    }
+                    extractor
+                        .extract(UsageContext {
+                            operation: self.context.operation,
+                            request_body: request_body.as_deref(),
+                            response: ResponseView {
+                                status,
+                                headers,
+                                body,
+                            },
+                        })
+                        .ok()
+                        .flatten()
+                } else {
+                    None
                 }
             }
+        };
+        // What the upstream did not report is estimated locally, for answers
+        // that were served: a rejected call consumed nothing to meter.
+        if self.funnel.policy().usage
+            && status.is_some_and(|s| s.is_success())
+            && let Some(estimator) = self.context.attempt.request.snapshot.estimation.as_ref()
+        {
+            let request_body = self.request_body.lock().unwrap().clone();
+            let attempt = &self.context.attempt;
+            usage = estimator.complete(
+                &attempt.credential.provider_id,
+                attempt.request.target.upstream_model.as_deref(),
+                request_body.as_deref(),
+                self.response_bytes.load(Ordering::Relaxed),
+                usage,
+            );
         }
+        self.report_usage(usage);
         self.funnel.trace(TraceEvent::ExchangeFinished {
             exchange: &self.context,
             status,

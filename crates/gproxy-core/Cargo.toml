@@ -37,6 +37,7 @@ zeroize = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gproxy-file = { workspace = true }
+gproxy-tokenizer = { workspace = true }
 tokio = { workspace = true, features = ["sync", "time"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]

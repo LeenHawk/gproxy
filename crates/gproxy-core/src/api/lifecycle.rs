@@ -34,11 +34,13 @@ impl<C: BatchConnectionTrait> Core<C> {
         let control = self.store.load_control_data().await?;
         let previous = self.snapshot();
         let now = now_ms();
+        let vocabularies = self.load_vocabularies(&control, &previous).await?;
         let assembly = crate::assemble::assemble(
             &control,
             &self.channels,
             self.codec.as_ref(),
             &self.clients,
+            vocabularies,
             Some(&previous),
             now,
         )
@@ -51,6 +53,62 @@ impl<C: BatchConnectionTrait> Core<C> {
                 .await?;
         }
         Ok(Arc::new(assembly.data))
+    }
+
+    /// Custom vocabularies referenced by the catalog or the Setting default,
+    /// parsed once: a file already parsed for the previous snapshot is
+    /// reused, the rest are read from file storage. Missing storage or an
+    /// unreadable file leaves that vocabulary out; counting then falls back
+    /// to the bundled encoders.
+    #[cfg(not(target_arch = "wasm32"))]
+    async fn load_vocabularies(
+        &self,
+        control: &gproxy_store::ControlData,
+        previous: &CoreData,
+    ) -> CoreResult<std::collections::HashMap<String, gproxy_tokenizer::Vocabulary>> {
+        let mut wanted: Vec<String> = control
+            .models
+            .iter()
+            .filter_map(|m| m.vocabulary_file_id.clone())
+            .chain(
+                control
+                    .settings
+                    .as_ref()
+                    .and_then(|s| s.default_vocabulary_file_id.clone()),
+            )
+            .collect();
+        wanted.sort();
+        wanted.dedup();
+        let mut out = std::collections::HashMap::new();
+        let mut missing = Vec::new();
+        for id in wanted {
+            match previous
+                .estimation
+                .as_ref()
+                .and_then(|e| e.vocabulary(&id).cloned())
+            {
+                Some(vocabulary) => {
+                    out.insert(id, vocabulary);
+                }
+                None => missing.push(id),
+            }
+        }
+        if missing.is_empty() {
+            return Ok(out);
+        }
+        let Some(files) = self.file_storage() else {
+            return Ok(out);
+        };
+        let rows = self.store.file_objects().get_many(&missing).await?;
+        for row in rows.into_iter().flatten() {
+            let Ok(bytes) = files.read(&row.object_key).await else {
+                continue;
+            };
+            if let Ok(vocabulary) = gproxy_tokenizer::Vocabulary::from_bytes(&bytes.to_bytes()) {
+                out.insert(row.id, vocabulary);
+            }
+        }
+        Ok(out)
     }
 
     #[cfg(target_arch = "wasm32")]
