@@ -150,13 +150,20 @@ pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'stati
             limits.capability(None),
             now,
         );
-        let observed = ObservedClient::new(credential.websocket_client.as_ref(), exchange.clone());
+        let observed = ObservedClient::new(credential.websocket_client.clone(), exchange.clone());
+        let channel_state: Arc<dyn gproxy_channel::channel::ChannelState> =
+            Arc::new(crate::ChannelStateStore::new(
+                crate::ProtocolState::new(core, limits.capability(None)),
+                &provider.entity.id,
+                &credential.id,
+            ));
         let binding = ChannelBinding::new(
             provider.channel.as_ref(),
             prepare::provider_view(&provider),
             prepare::credential_view(&credential, &version),
-            &observed,
+            Arc::new(observed),
         )
+        .state(channel_state)
         .endpoint(provider.operation_url(operation, EndpointTransport::WebSocket));
         let handshake = WireRequest {
             method: wire.method.clone(),

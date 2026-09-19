@@ -1,5 +1,5 @@
 use std::sync::{
-    Mutex,
+    Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
 };
 
@@ -107,11 +107,12 @@ async fn explicit_bindings_keep_credentials_and_clients_separate() {
     let config = json!({});
     let first = json!({"api_key": "first"});
     let second = json!({"api_key": "second"});
-    let a = RecordingClient::default();
-    let b = RecordingClient::default();
+    let a = Arc::new(RecordingClient::default());
+    let b = Arc::new(RecordingClient::default());
     assert!(Minimal.credential_refresh().is_none());
-    let binding_a = ChannelBinding::new(&Minimal, provider(&config), credential(&first), &a);
-    let binding_b = ChannelBinding::new(&Minimal, provider(&config), credential(&second), &b);
+    let binding_a = ChannelBinding::new(&Minimal, provider(&config), credential(&first), a.clone());
+    let binding_b =
+        ChannelBinding::new(&Minimal, provider(&config), credential(&second), b.clone());
     for binding in [binding_a, binding_b] {
         let response = binding
             .send(KEY, request(HttpBody::Bytes(Bytes::from_static(b"body"))))
@@ -131,12 +132,12 @@ async fn explicit_bindings_keep_credentials_and_clients_separate() {
 async fn invalid_credentials_do_not_reach_client() {
     let config = json!({});
     let invalid_secret = json!({});
-    let client = RecordingClient::default();
+    let client = Arc::new(RecordingClient::default());
     let binding = ChannelBinding::new(
         &Minimal,
         provider(&config),
         credential(&invalid_secret),
-        &client,
+        client.clone(),
     );
     assert!(matches!(
         binding
@@ -151,7 +152,7 @@ async fn invalid_credentials_do_not_reach_client() {
 async fn body_stays_lazy_and_preserves_late_transfer_failure() {
     let config = json!({});
     let secret = json!({"api_key": "key"});
-    let client = RecordingClient::default();
+    let client = Arc::new(RecordingClient::default());
     let polls = std::sync::Arc::new(AtomicUsize::new(0));
     let observed = polls.clone();
     let body = HttpBody::Stream(Box::pin(
@@ -163,7 +164,12 @@ async fn body_stays_lazy_and_preserves_late_transfer_failure() {
             observed.fetch_add(1, Ordering::SeqCst);
         }),
     ));
-    let binding = ChannelBinding::new(&Minimal, provider(&config), credential(&secret), &client);
+    let binding = ChannelBinding::new(
+        &Minimal,
+        provider(&config),
+        credential(&secret),
+        client.clone(),
+    );
     let response = binding.send(KEY, request(body)).await.unwrap();
     assert_eq!(polls.load(Ordering::SeqCst), 0);
     let HttpBody::Stream(mut body) = response.body else {
@@ -209,7 +215,7 @@ impl CredentialRefresh for Refreshable {
 async fn optional_trait_is_available_through_base_trait_object() {
     let config = json!({});
     let secret = json!({"api_key": "key"});
-    let client = RecordingClient::default();
+    let client = Arc::new(RecordingClient::default());
     let channel: &dyn BaseChannel = &Refreshable;
     let update = channel
         .credential_refresh()
@@ -217,7 +223,7 @@ async fn optional_trait_is_available_through_base_trait_object() {
         .refresh(RefreshContext {
             provider: provider(&config),
             credential: credential(&secret),
-            client: &client,
+            client: client.as_ref(),
         })
         .await
         .unwrap();
@@ -250,7 +256,7 @@ async fn transport_failure_remains_distinct_from_http_error_response() {
         &Minimal,
         provider(&config),
         credential(&secret),
-        &FailingClient,
+        Arc::new(FailingClient),
     );
     let Err(ChannelError::Transport(error)) = binding
         .send(KEY, request(HttpBody::Bytes(Bytes::new())))

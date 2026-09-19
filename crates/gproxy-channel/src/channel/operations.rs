@@ -5,21 +5,28 @@ use gproxy_protocol::{
     capability::{CapabilityFuture, UpstreamConnection},
 };
 
-use super::{BaseChannel, ChannelError, CredentialView, PrepareContext, ProviderView};
+use super::{
+    BaseChannel, ChannelError, ChannelState, CredentialView, PrepareContext, ProviderView,
+};
 use gproxy_client::OutboundClient;
+use std::sync::Arc;
 
 pub type OperationFuture<'a, T> = CapabilityFuture<'a, Result<T, ChannelError>>;
 
 /// The exact provider, credential and client chosen by the caller. The named
 /// method determines the operation; dialect selects its wire format. Overrides
-/// may implement local responses or multiple calls through the assigned client.
-/// They must not secretly create clients, select credentials or retry side effects.
+/// may implement local responses or multiple calls through the assigned client,
+/// and may keep the client (it is owned) to finish work after the response
+/// stream ends, such as releasing a vendor-side conversation. They must not
+/// secretly create clients, select credentials or retry side effects.
 pub struct OperationContext<'a, B = HttpBody> {
     pub provider: ProviderView<'a>,
     pub credential: CredentialView<'a>,
     pub dialect: Dialect,
     pub request: WireRequest<B>,
-    pub client: &'a dyn OutboundClient,
+    pub client: Arc<dyn OutboundClient>,
+    /// Cross-request memory scoped to this provider and credential.
+    pub state: Arc<dyn ChannelState>,
     /// Complete method URL configured for this provider/operation. When set,
     /// preparation must use it as the final URL instead of base_url plus the
     /// channel's default path; channel-defined path parameters still apply.

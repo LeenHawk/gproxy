@@ -244,12 +244,13 @@ impl CookieLogin for Demo {
         &'a self,
         ctx: LoginContext<'a>,
         cookie: &'a str,
-    ) -> OperationFuture<'a, OAuthCredential> {
+    ) -> OperationFuture<'a, AcquiredCredential> {
         Box::pin(async move {
-            Ok(serde_json::from_value(payload(
+            let credential: OAuthCredential = serde_json::from_value(payload(
                 login_call(ctx, "/cookie", json!({"cookie":cookie})).await?,
             ))
-            .unwrap())
+            .unwrap();
+            Ok(credential.into())
         })
     }
 }
@@ -340,7 +341,7 @@ async fn oauth_flows_preserve_pkce_state_tokens_and_host_driven_device_polling()
             .exchange_cookie(ctx, "test-cookie")
             .await
             .unwrap()
-            .access_token,
+            .secret["access_token"],
         "test-access"
     );
     let requests = client.requests.lock().unwrap();

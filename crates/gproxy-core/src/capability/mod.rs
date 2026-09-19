@@ -11,7 +11,7 @@ use crate::{
     execute::{Exchange, Funnel, ObservedClient, prepare},
     rewrite::{Phase, RewriteContext, apply_body, apply_headers, apply_query, select_rules},
 };
-use gproxy_channel::{ChannelBinding, ChannelError};
+use gproxy_channel::{ChannelBinding, ChannelError, channel::ChannelState};
 use gproxy_protocol::{
     HttpBody, OperationKey, WireRequest, WireResponse,
     capability::{
@@ -70,6 +70,7 @@ pub struct AttemptUpstream {
     attempt: Arc<AttemptContext>,
     inbound_headers: HeaderMap,
     limits: CapabilityLimits,
+    channel_state: Arc<dyn ChannelState>,
 }
 impl AttemptUpstream {
     pub(crate) fn new(
@@ -77,12 +78,14 @@ impl AttemptUpstream {
         attempt: Arc<AttemptContext>,
         inbound_headers: HeaderMap,
         limits: CapabilityLimits,
+        channel_state: Arc<dyn ChannelState>,
     ) -> Self {
         Self {
             funnel,
             attempt,
             inbound_headers,
             limits,
+            channel_state,
         }
     }
     pub fn attempt(&self) -> &Arc<AttemptContext> {
@@ -145,13 +148,14 @@ impl Upstream for AttemptUpstream {
                 self.limits,
                 now_ms(),
             );
-            let observed = ObservedClient::new(credential.client.as_ref(), exchange);
+            let observed = ObservedClient::new(credential.client.clone(), exchange);
             let binding = ChannelBinding::new(
                 provider.channel.as_ref(),
                 prepare::provider_view(provider),
                 prepare::credential_view(credential, &self.attempt.credential_version),
-                &observed,
+                Arc::new(observed),
             )
+            .state(self.channel_state.clone())
             .endpoint(provider.operation_url(*target, EndpointTransport::Http));
             let mut response = binding
                 .send(*target, request)
@@ -211,13 +215,14 @@ impl Upstream for AttemptUpstream {
                 self.limits,
                 now_ms(),
             );
-            let observed = ObservedClient::new(credential.websocket_client.as_ref(), exchange);
+            let observed = ObservedClient::new(credential.websocket_client.clone(), exchange);
             let binding = ChannelBinding::new(
                 provider.channel.as_ref(),
                 prepare::provider_view(provider),
                 prepare::credential_view(credential, &self.attempt.credential_version),
-                &observed,
+                Arc::new(observed),
             )
+            .state(self.channel_state.clone())
             .endpoint(provider.operation_url(*target, EndpointTransport::WebSocket));
             binding
                 .connect(*target, request)
@@ -360,6 +365,46 @@ impl<C: BatchConnectionTrait + Send + Sync> StateStore for ProtocolState<C> {
 
     fn limits(&self) -> CapabilityLimits {
         self.limits
+    }
+}
+
+/// A channel's cross-request memory: protocol state rows under a scope core
+/// fixes to one provider and one credential, so a channel can only ever read
+/// and write its own account's keys. Built per binding by the execution path.
+pub struct ChannelStateStore<C> {
+    state: ProtocolState<C>,
+    scope: StateScope,
+}
+impl<C> ChannelStateStore<C> {
+    pub(crate) fn new(state: ProtocolState<C>, provider_id: &str, credential_id: &str) -> Self {
+        Self {
+            state,
+            scope: StateScope {
+                scope: "channel".to_owned(),
+                provider_id: provider_id.to_owned(),
+                conversation: Some(credential_id.to_owned()),
+            },
+        }
+    }
+}
+impl<C: BatchConnectionTrait + Send + Sync> ChannelState for ChannelStateStore<C> {
+    fn get<'a>(
+        &'a self,
+        key: &'a str,
+    ) -> CapabilityFuture<'a, Result<Option<StateEntry>, CapabilityError>> {
+        self.state.get(&self.scope, key)
+    }
+    fn compare_exchange<'a>(
+        &'a self,
+        key: &'a str,
+        expected: Option<Version>,
+        replacement: Option<StateWrite>,
+    ) -> CapabilityFuture<'a, Result<CasResult, CapabilityError>> {
+        self.state
+            .compare_exchange(&self.scope, key, expected, replacement)
+    }
+    fn limits(&self) -> CapabilityLimits {
+        self.state.limits()
     }
 }
 

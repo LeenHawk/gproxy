@@ -4,8 +4,12 @@ use gproxy_protocol::{
     HttpBody, Operation, OperationKey, WireRequest, WireResponse, capability::UpstreamConnection,
 };
 
-use super::{BaseChannel, ChannelError, CredentialView, OperationContext, ProviderView};
+use super::{
+    BaseChannel, ChannelError, ChannelState, CredentialView, NoState, OperationContext,
+    ProviderView,
+};
 use gproxy_client::OutboundClient;
+use std::sync::Arc;
 
 /// One explicit channel + provider + credential + client binding.
 /// An operation can perform multiple exchanges, all through its assigned client.
@@ -15,7 +19,8 @@ pub struct ChannelBinding<'a> {
     channel: &'a dyn BaseChannel,
     provider: ProviderView<'a>,
     credential: CredentialView<'a>,
-    client: &'a dyn OutboundClient,
+    client: Arc<dyn OutboundClient>,
+    state: Arc<dyn ChannelState>,
     endpoint_override: Option<&'a str>,
 }
 
@@ -24,15 +29,23 @@ impl<'a> ChannelBinding<'a> {
         channel: &'a dyn BaseChannel,
         provider: ProviderView<'a>,
         credential: CredentialView<'a>,
-        client: &'a dyn OutboundClient,
+        client: Arc<dyn OutboundClient>,
     ) -> Self {
         Self {
             channel,
             provider,
             credential,
             client,
+            state: Arc::new(NoState::default()),
             endpoint_override: None,
         }
+    }
+
+    /// Cross-request memory the host keeps for this provider and credential.
+    /// Without it the channel sees no state and cannot write any.
+    pub fn state(mut self, state: Arc<dyn ChannelState>) -> Self {
+        self.state = state;
+        self
     }
 
     /// Use a configured complete method URL for the dispatched operation.
@@ -52,7 +65,8 @@ impl<'a> ChannelBinding<'a> {
             credential: self.credential,
             dialect: operation.dialect,
             request,
-            client: self.client,
+            client: self.client.clone(),
+            state: self.state.clone(),
             endpoint_override: self.endpoint_override,
         };
         match operation.operation {
@@ -102,7 +116,8 @@ impl<'a> ChannelBinding<'a> {
             credential: self.credential,
             dialect: operation.dialect,
             request,
-            client: self.client,
+            client: self.client.clone(),
+            state: self.state.clone(),
             endpoint_override: self.endpoint_override,
         };
         match operation.operation {

@@ -100,11 +100,42 @@ pub trait OAuthDeviceCode: Send + Sync {
     ) -> OperationFuture<'a, DevicePoll>;
 }
 
-/// ClaudeCode can acquire an OAuth credential from an existing browser cookie.
+/// A credential a login produced, in the channel's own secret shape: OAuth
+/// tokens for ClaudeCode, a session cookie plus organization for Claude Web.
+/// `metadata` holds public facts the host persists on the credential row
+/// (plan, account id, model list), readable later through `CredentialView`.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct AcquiredCredential {
+    pub secret: Value,
+    pub expires_at_ms: Option<i64>,
+    #[serde(default)]
+    pub metadata: Value,
+}
+
+impl From<OAuthCredential> for AcquiredCredential {
+    fn from(credential: OAuthCredential) -> Self {
+        let expires_at_ms = credential.expires_at_ms;
+        let metadata = Value::Object(
+            credential
+                .provider_fields
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+        );
+        Self {
+            secret: serde_json::to_value(&credential).unwrap_or(Value::Null),
+            expires_at_ms,
+            metadata,
+        }
+    }
+}
+
+/// ClaudeCode and Claude Web acquire a credential from an existing browser
+/// cookie; what comes back is the channel's own secret shape.
 pub trait CookieLogin: Send + Sync {
     fn exchange_cookie<'a>(
         &'a self,
         context: LoginContext<'a>,
         cookie: &'a str,
-    ) -> OperationFuture<'a, OAuthCredential>;
+    ) -> OperationFuture<'a, AcquiredCredential>;
 }

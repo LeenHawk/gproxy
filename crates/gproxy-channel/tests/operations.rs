@@ -78,10 +78,15 @@ impl BaseChannel for Empty {
 async fn all_declared_surfaces_default_to_unsupported_without_io() {
     let config = json!({});
     let secret = json!({});
-    let client = Client::default();
+    let client = Arc::new(Client::default());
     {
         let channel: &dyn BaseChannel = &Empty;
-        let binding = ChannelBinding::new(channel, provider(&config), credential(&secret), &client);
+        let binding = ChannelBinding::new(
+            channel,
+            provider(&config),
+            credential(&secret),
+            client.clone(),
+        );
         for spec in OPERATION_SPECS {
             let error = match spec.transport {
                 OperationTransport::Http { .. } => binding
@@ -147,8 +152,13 @@ impl BaseChannel for Overrides {
 async fn every_operation_dispatches_to_its_independent_override_without_prepare() {
     let config = json!({});
     let secret = json!({});
-    let client = Client::default();
-    let binding = ChannelBinding::new(&Overrides, provider(&config), credential(&secret), &client);
+    let client = Arc::new(Client::default());
+    let binding = ChannelBinding::new(
+        &Overrides,
+        provider(&config),
+        credential(&secret),
+        client.clone(),
+    );
     for spec in OPERATION_SPECS {
         let response = match spec.transport {
             OperationTransport::Http { .. } => binding
@@ -208,12 +218,12 @@ impl BaseChannel for PassThrough {
 async fn common_http_preparation_receives_the_correct_operation() {
     let config = json!({});
     let secret = json!({});
-    let client = Client::default();
+    let client = Arc::new(Client::default());
     let binding = ChannelBinding::new(
         &PassThrough,
         provider(&config),
         credential(&secret),
-        &client,
+        client.clone(),
     );
     for spec in OPERATION_SPECS
         .iter()
@@ -263,13 +273,18 @@ impl BaseChannel for TwoPages {
 async fn operation_override_can_make_multiple_calls_with_assigned_client() {
     let config = json!({});
     let secret = json!({});
-    let client = Client::default();
+    let client = Arc::new(Client::default());
     let key = OperationKey {
         operation: Operation::ListModels,
         dialect: Dialect::OpenAi,
     };
     let channel = TwoPages;
-    let binding = ChannelBinding::new(&channel, provider(&config), credential(&secret), &client);
+    let binding = ChannelBinding::new(
+        &channel,
+        provider(&config),
+        credential(&secret),
+        client.clone(),
+    );
     binding
         .send(key, request(HttpBody::Bytes(Bytes::new())))
         .await
@@ -330,16 +345,16 @@ async fn websocket_preserves_duplex_frames_rejected_bodies_and_assigned_auth() {
     let config = json!({});
     let secret = json!({"api_key": "selected"});
     for rejected in [false, true] {
-        let client = DuplexClient {
+        let client = Arc::new(DuplexClient {
             rejected,
             sent: Arc::new(Mutex::new(Vec::new())),
             auth: Mutex::new(Vec::new()),
-        };
+        });
         let binding = ChannelBinding::new(
             &PassThrough,
             provider(&config),
             credential(&secret),
-            &client,
+            client.clone(),
         );
         for spec in OPERATION_SPECS
             .iter()
@@ -384,12 +399,12 @@ async fn websocket_preserves_duplex_frames_rejected_bodies_and_assigned_auth() {
 async fn dispatch_uses_method_shape_and_leaves_dialect_support_to_channel() {
     let config = json!({});
     let secret = json!({});
-    let client = Client::default();
+    let client = Arc::new(Client::default());
     let binding = ChannelBinding::new(
         &PassThrough,
         provider(&config),
         credential(&secret),
-        &client,
+        client.clone(),
     );
     let ws = OperationKey {
         operation: Operation::ConnectRealtime,

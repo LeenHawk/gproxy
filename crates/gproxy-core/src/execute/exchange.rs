@@ -305,18 +305,18 @@ impl Exchange {
 
 /// Wraps the credential's client for one exchange. Every request the channel
 /// issues through it is captured; every response body is observed.
-pub(crate) struct ObservedClient<'a> {
-    inner: &'a dyn OutboundClient,
+pub(crate) struct ObservedClient {
+    inner: Arc<dyn OutboundClient>,
     exchange: Arc<Exchange>,
 }
 
-impl<'a> ObservedClient<'a> {
-    pub fn new(inner: &'a dyn OutboundClient, exchange: Arc<Exchange>) -> Self {
+impl ObservedClient {
+    pub fn new(inner: Arc<dyn OutboundClient>, exchange: Arc<Exchange>) -> Self {
         Self { inner, exchange }
     }
 }
 
-impl OutboundClient for ObservedClient<'_> {
+impl OutboundClient for ObservedClient {
     fn send<'b>(
         &'b self,
         request: http::Request<HttpBody>,
