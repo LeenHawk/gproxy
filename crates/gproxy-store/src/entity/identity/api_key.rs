@@ -36,8 +36,6 @@ pub struct Model {
     pub permissions: HasMany<super::permission::Entity>,
     #[sea_orm(has_many)]
     pub rate_limits: HasMany<crate::entity::limits::rate_limit::Entity>,
-    #[sea_orm(has_many)]
-    pub quotas: HasMany<crate::entity::limits::quota::Entity>,
     #[sea_orm(has_one)]
     pub oauth_grant: HasOne<crate::entity::oauth::grant::Entity>,
 }

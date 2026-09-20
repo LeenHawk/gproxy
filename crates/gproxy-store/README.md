@@ -201,8 +201,9 @@ Review decisions currently expressed in the code:
 - Public model names map to routes containing provider/upstream-model members.
   Routing definitions have no organization, team or user ownership.
 - Permissions/rate limits currently target users or API keys. A quota targets
-  exactly one user, API key, subscription or subscription pool; the host write
-  layer must enforce ownership consistency.
+  one owner `(owner_kind, owner_id)`; kinds are host-defined strings (suggested:
+  `user`, `api_key`, `subscription`, `pool`, `team`, `org`) with no foreign key,
+  so the host write layer must enforce ownership consistency and clean up.
 - Configuration-owned rows use the declared delete actions. Historical identity
   references have no configuration foreign keys. Quota settlements refer to quota
   windows, independently of removable usage detail records.
@@ -463,20 +464,20 @@ automatically.
 
 ```text
 Credential -> PoolMember -> Pool -> Plan -> Subscription -> API keys / OAuth sessions
-                                      PlanLimit -> subscription-owned Quota
+                                      PlanLimit -> Quota (owner_kind subscription)
 Pool/subscription Quota -> QuotaWindow -> QuotaSettlement
 ```
 
 PoolMember binds a credential and a channel-defined canonical source_key for the
 real upstream subscription. A source contributes to one pool only; downstream
 allocations split its capacity. Token refresh does not create a new source, and
-membership does not change credential ownership. Pool-owned quotas are provisioned
+membership does not change credential ownership. Pool-owned quotas (owner_kind `pool`) are provisioned
 budgets; actual available capacity comes from member CredentialQuotaCycle observations.
 Configured budgets are not upstream-reported remaining capacity.
 
 Plans define gateway display names and Codex/Claude Code presentation fields.
 PlanLimit defines default windows, dollar allowances (limit, in USD) and model scopes.
-Issuance copies these into subscription-owned Quota rows with metric = cost and
+Issuance copies these into Quota rows owned by the subscription with metric = cost and
 unit = USD, optionally adjusting the dollar allocation.
 Template edits do not retroactively resize/reset issued limits; changed terms use a
 new plan. Subscriptions bind users and plans with start/expiry/enabled state. API

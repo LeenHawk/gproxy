@@ -185,12 +185,22 @@ policy disabled usage, distinct from an upstream that reported nothing.
 
 ## Budgets and pricing
 
-A budget is a `quotas` row with metric `cost` and unit `USD`, owned by exactly
-one user, API key, subscription or pool. The host names the owners a request
-spends for in `RequestContext::budgets` (and `ServiceRequest::budgets` for the
-`Caller` service view); core resolves them to the enabled budgets of those
-owners whose `model_pattern` (a `*`/`?` glob over the whole upstream model
-name, blank for all) covers the target model. Every applicable budget must have
+A budget is a `quotas` row with metric `cost` and unit `USD`, owned by one
+`(owner_kind, owner_id)`. Kinds are strings the host defines (suggested:
+`user`, `api_key`, `subscription`, `pool`, `team`, `org`, but any level of the
+host's organisation works); core matches them verbatim and knows no hierarchy
+between them. The host passes the chain of owners a request spends for as
+`BudgetOwner { kind, id }` values in `RequestContext::budgets` (and
+`ServiceRequest::budgets` for the `Caller` service view), and the request
+charges the whole chain: a personal key passes `[api_key:k1, user:u]`; a team
+key passes `[api_key:k2, user:u, team:t, org:o]` and is rejected when any of
+the four is exhausted, naming that quota; the same user's key in a second org
+passes `[api_key:k3, user:u, team:t2, org:o2]`, which shares nothing with `t`
+and `o`. Whether team-key usage also counts against the user is the host's
+choice: it does when the host includes `user:u` in the chain. Core resolves
+the chain to the enabled budgets of those owners whose `model_pattern` (a
+`*`/`?` glob over the whole upstream model name, blank for all) covers the
+target model. Every applicable budget must have
 room (AND): before the first attempt each one's current window is loaded — or
 opened lazily as a `quota_windows` row keyed by `(quota_id, starts_at_ms)`,
 carrying a snapshot of the quota — and a window with `used >= limit_value`
@@ -218,9 +228,9 @@ million, other metrics by their rate row, conditions matched against the usage
 dimensions (see [pricing.rs](src/pricing.rs) for the mapping). The result lands
 on `ExchangeUsage::cost` and `UsageReport::cost` for the Observer. An exchange
 no rule covers costs 0 and carries `dimensions["unpriced"] = "true"`. The
-request's cost is then settled once per applicable budget window, idempotent by
-`request_id` (`quota_settlements`), only into budgets whose unit is the cost's
-currency. Because cost is known only after the exchange, a budget can be
+request's cost is then settled once per applicable budget window — one
+settlement per owner in the chain — idempotent by `request_id`
+(`quota_settlements`), only into budgets whose unit is the cost's currency. Because cost is known only after the exchange, a budget can be
 overrun by at most one request.
 
 ## Observation
