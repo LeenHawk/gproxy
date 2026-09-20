@@ -65,7 +65,7 @@ pub struct Choice {
     pub finish_reason: FinishReason,
     pub index: i64,
     #[wire(required)]
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(default, deserialize_with = "required_nullable")]
     pub logprobs: Option<Logprobs>,
     pub message: ResponseMessage,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -91,11 +91,31 @@ pub enum FinishReason {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseMessage {
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reasoning_details: Option<Option<Vec<super::reasoning::ReasoningDetail>>>,
+    /// Plain-text reasoning returned by compatible providers (for example DeepSeek).
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reasoning_content: Option<Option<String>>,
+    /// Alternative compatible-provider spelling. Kept separately on the wire.
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reasoning: Option<Option<String>>,
     #[wire(required)]
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(default, deserialize_with = "required_nullable")]
     pub content: Option<String>,
     #[wire(required)]
-    #[serde(deserialize_with = "required_nullable")]
+    #[serde(default, deserialize_with = "required_nullable")]
     pub refusal: Option<String>,
     pub role: ResponseRole,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -83,7 +83,28 @@ impl ResponsesToChatStream {
                 return Ok(());
             }
             r::ResponseOutputItem::Reasoning(v) => {
-                self.report.omitted("response.reasoning", "Chat stream has no native reasoning field; opaque replay requires scoped state");
+                let text = v
+                    .summary
+                    .iter()
+                    .map(|p| p.text.as_str())
+                    .chain(v.content.iter().flatten().map(|p| p.text.as_str()))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                if !text.is_empty() {
+                    let mut delta = cs::Delta::builder().build();
+                    delta.reasoning_content = Some(Some(text));
+                    self.emit_delta(delta, out)?;
+                }
+                if v.encrypted_content
+                    .as_ref()
+                    .and_then(Option::as_ref)
+                    .is_some()
+                {
+                    self.report.omitted(
+                        "response.reasoning.encrypted_content",
+                        "opaque replay requires original-bound state",
+                    );
+                }
                 (Some(v.id), ItemKind::Reasoning)
             }
             _ => {

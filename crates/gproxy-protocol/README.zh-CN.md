@@ -200,3 +200,15 @@ assert!("unknown".parse::<Dialect>().is_err());
 
 OpenAI 模型对象沿用 v3 固定的 GPROXY 模型元数据扩展；兼容服务未提供创建时间或归属时，
 对应字段可以缺省。协议层与 Codex 渠道均不根据 UA 切换模型目录的输出格式。
+
+## 兼容服务的推理内容
+
+Chat 的 assistant 历史消息、响应及流式 delta 显式声明 DeepSeek 的 `reasoning_content`，
+以及 OpenRouter 的 `reasoning` / `reasoning_details`（文本、摘要和加密内容变体）。
+同协议序列化与反序列化保留各字段名称、空值/null 和结构化明细。流聚合按 index 或 ID
+拼接明细片段，拆流时输出聚合后的明细。跨方言转换可见推理时，优先选择一个文本字段，
+缺失时再使用明细中的文本/摘要，避免服务同时返回两种表达时重复输出。
+Claude thinking、Gemini thought 文本及 Responses reasoning 映射为 `reasoning_content`；
+Chat 明文推理映射为这些协议对应的响应/流式内容类型。
+加密明细与厂商签名不被解释为文本，也不会在缺少原始来源绑定状态时回放到另一个服务。
+由 Chat 明文推理合成的 Claude 响应使用空签名，不是可以进行签名回放的原始内容。

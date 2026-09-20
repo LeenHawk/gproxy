@@ -226,9 +226,6 @@ fn optional_nullable_fields_preserve_missing_null_and_values() {
 #[test]
 fn required_nullable_fields_reject_missing_and_keep_null() {
     for path in [
-        "/choices/0/logprobs",
-        "/choices/0/message/content",
-        "/choices/0/message/refusal",
         "/choices/0/logprobs/content",
         "/choices/0/logprobs/refusal",
         "/choices/0/logprobs/content/0/bytes",

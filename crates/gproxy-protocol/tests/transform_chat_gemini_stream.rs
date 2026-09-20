@@ -425,7 +425,7 @@ fn malformed_tool_json_is_not_defaulted_and_foreign_rest_never_becomes_output() 
     let mut marked = serde_json::to_value(&plain).unwrap();
     marked["x-unknown"] = json!("DROP");
     marked["choices"][0]["x-unknown"] = json!("DROP");
-    marked["choices"][0]["delta"]["reasoning_content"] = json!("DROP");
+    marked["choices"][0]["delta"]["future_reasoning"] = json!("DROP");
     let run = |chunk| {
         let mut stream = ChatToGeminiStream::new(flow(), Default::default());
         let mut out = stream.push(chunk).unwrap().value;
@@ -507,13 +507,16 @@ fn refusal_and_reasoning_flags_preserve_representable_payloads() {
     );
     let mut stream = GeminiToChatStream::new(context(), flow(), Default::default()).unwrap();
     let first = stream.push(source.clone()).unwrap();
-    assert!(!first.report.diagnostics.is_empty());
     let mut out = first.value;
     out.extend(stream.finish().unwrap().chunks);
     let actual = c_collected(out);
     assert_eq!(
         actual.choices[0].message.content.as_deref(),
         Some("visible")
+    );
+    assert_eq!(
+        actual.choices[0].message.reasoning_content,
+        Some(Some("private reasoning".into()))
     );
     assert_eq!(
         actual.choices[0].message.tool_calls.as_ref().unwrap().len(),

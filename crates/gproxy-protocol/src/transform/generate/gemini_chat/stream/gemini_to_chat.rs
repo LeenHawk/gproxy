@@ -210,6 +210,14 @@ impl GeminiToChatStream {
                 };
                 let mut delta = s::Delta::builder().role(s::DeltaRole::Assistant).build();
                 let mut has_content = false;
+                if let Some(text) = c::visible_reasoning(
+                    &message.reasoning_content,
+                    &message.reasoning,
+                    &message.reasoning_details,
+                ) {
+                    delta.reasoning_content = Some(Some(text));
+                    has_content = true;
+                }
                 if let Some(content) = message.content.flatten() {
                     let mut text = String::new();
                     match content {

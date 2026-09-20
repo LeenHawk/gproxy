@@ -177,3 +177,34 @@ fn invalid_usage_overflow_breakdown_and_multiple_choices_fail() {
             .is_ok()
     );
 }
+
+#[test]
+fn visible_thinking_roundtrips_without_becoming_answer_text() {
+    let source:cg::GenerateContentResponseBody=serde_json::from_value(json!({"type":"message","id":"msg","role":"assistant","model":"m","content":[{"type":"thinking","thinking":"plan","signature":"source-signature"},{"type":"text","text":"answer"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":3,"output_tokens":4}})).unwrap();
+    let chat = claude_chat::claude_response_to_openai(
+        &source,
+        "m",
+        &ResponseSupplement {
+            created_unix_seconds: Some(1),
+        },
+    )
+    .unwrap()
+    .value;
+    assert_eq!(chat.choices[0].message.content.as_deref(), Some("answer"));
+    assert_eq!(
+        chat.choices[0].message.reasoning_content,
+        Some(Some("plan".into()))
+    );
+    let restored =
+        claude_chat::openai_response_to_claude(&chat, "m", &ResponseSupplement::default())
+            .unwrap()
+            .value;
+    let cg::ResponseContentBlock::Thinking(thinking) = &restored.content[0] else {
+        panic!("thinking")
+    };
+    assert_eq!(thinking.thinking, "plan");
+    assert!(
+        thinking.signature.is_empty(),
+        "never invent a replay signature"
+    );
+}

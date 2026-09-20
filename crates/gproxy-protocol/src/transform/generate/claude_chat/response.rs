@@ -13,6 +13,7 @@ pub fn claude_response_to_openai(
 ) -> Result<Converted<chat::GenerateContentResponseBody>, TransformError> {
     let mut report = Report::default();
     let mut text = Vec::new();
+    let mut reasoning = Vec::new();
     let mut tool_calls = Vec::new();
     for block in &input.content {
         match block {
@@ -37,8 +38,8 @@ pub fn claude_response_to_openai(
                     rest: Rest::new(),
                 }))
             }
-            cg::ResponseContentBlock::Thinking(_)
-            | cg::ResponseContentBlock::RedactedThinking(_) => report.changed(
+            cg::ResponseContentBlock::Thinking(block) => reasoning.push(block.thinking.clone()),
+            cg::ResponseContentBlock::RedactedThinking(_) => report.changed(
                 "content.reasoning",
                 "Claude reasoning has no Chat response block equivalent",
             ),
@@ -91,6 +92,9 @@ pub fn claude_response_to_openai(
                 index: 0,
                 logprobs: None,
                 message: chat::ResponseMessage {
+                    reasoning_details: None,
+                    reasoning_content: (!reasoning.is_empty()).then(|| Some(reasoning.join(""))),
+                    reasoning: None,
                     content: (!text.is_empty()
                         && !matches!(input.stop_reason, cg::StopReason::Refusal))
                     .then_some(text.join("")),
@@ -158,6 +162,25 @@ pub fn openai_response_to_claude(
         }
     }
     let mut content = Vec::new();
+    if let Some(text) = chat::visible_reasoning(
+        &choice.message.reasoning_content,
+        &choice.message.reasoning,
+        &choice.message.reasoning_details,
+    ) {
+        content.push(cg::ResponseContentBlock::Thinking(
+            crate::wire::claude::content::ThinkingBlock::builder(
+                crate::wire::claude::content::ThinkingBlockType::Tag,
+                String::new(),
+                text,
+            )
+            .build(),
+        ));
+        report.changed(
+            "message.reasoning_content",
+            "plain reasoning has no replayable Claude signature",
+        );
+    }
+
     if let Some(text) = &choice.message.content {
         content.push(cg::ResponseContentBlock::Text(cg::ResponseTextBlock {
             type_: cg::ResponseTextBlockType::Tag,

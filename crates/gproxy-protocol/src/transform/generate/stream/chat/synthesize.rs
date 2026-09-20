@@ -67,6 +67,9 @@ pub fn synthesize_chat_stream(
         let mut delta = s::Delta::builder().build();
         delta.role = Some(Some(s::DeltaRole::Assistant));
         delta.content = choice.message.content.clone().map(Some);
+        delta.reasoning_details = choice.message.reasoning_details.clone();
+        delta.reasoning_content = choice.message.reasoning_content.clone();
+        delta.reasoning = choice.message.reasoning.clone();
         delta.refusal = choice.message.refusal.clone().map(Some);
         if let Some(call) = &choice.message.function_call {
             if call.name.is_empty() {

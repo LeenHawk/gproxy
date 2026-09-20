@@ -285,7 +285,7 @@ fn late_claude_refusal_keeps_streamed_text_and_reports_content_filter() {
     assert!(v.choices[0].message.refusal.is_none());
 }
 #[test]
-fn reasoning_and_nested_rest_do_not_become_chat_content_or_extensions() {
+fn visible_reasoning_is_typed_and_opaque_signatures_and_rest_are_not_text() {
     let response = source_reply(
         json!([{"type":"thinking","thinking":"secret","signature":"opaque","x-extension":"DROP"},{"type":"text","text":"visible","x-extension":"DROP"},{"type":"tool_use","id":"tool","name":"f","input":{"x-formal":"KEEP"},"x-extension":"DROP"}]),
         "tool_use",
@@ -308,8 +308,20 @@ fn reasoning_and_nested_rest_do_not_become_chat_content_or_extensions() {
     }
     out.extend(stream.finish().unwrap().chunks);
     assert!(!diagnostics.is_empty());
-    let json = serde_json::to_string(&collect_q(out)).unwrap();
-    assert!(!json.contains("secret"));
+    let collected = collect_q(out);
+    assert_eq!(
+        collected.choices[0].message.reasoning_content,
+        Some(Some("secret".into()))
+    );
+    assert!(
+        !collected.choices[0]
+            .message
+            .content
+            .as_deref()
+            .unwrap_or("")
+            .contains("secret")
+    );
+    let json = serde_json::to_string(&collected).unwrap();
     assert!(!json.contains("opaque"));
     assert!(!json.contains("DROP"));
     assert!(json.contains("KEEP"));

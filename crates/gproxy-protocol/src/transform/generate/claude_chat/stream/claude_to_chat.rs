@@ -229,8 +229,15 @@ impl ClaudeToChatStream {
                                 .omitted("tool.caller", "Chat stream has no Claude caller field");
                         }
                     }
-                    c::ResponseContentBlock::Thinking(_)
-                    | c::ResponseContentBlock::RedactedThinking(_) => {
+                    c::ResponseContentBlock::Thinking(block) => {
+                        self.blocks.insert(v.index, Block::Reasoning);
+                        if !block.thinking.is_empty() {
+                            let mut delta = q::Delta::builder().build();
+                            delta.reasoning_content = Some(Some(block.thinking));
+                            self.emit(&mut out, delta)?;
+                        }
+                    }
+                    c::ResponseContentBlock::RedactedThinking(_) => {
                         self.blocks.insert(v.index, Block::Reasoning);
                         self.report.omitted("content.reasoning","Chat has no declared reasoning delta; opaque replay needs original-bound state");
                     }
@@ -268,12 +275,15 @@ impl ClaudeToChatStream {
                         *has |= !json.partial_json.is_empty();
                         self.emit(&mut out, arguments(tool, json.partial_json))?;
                     }
-                    s::ContentBlockDelta::Thinking(_) | s::ContentBlockDelta::Signature(_) => {
-                        self.report.omitted(
-                            "content.reasoning_delta",
-                            "Chat has no declared reasoning/signature delta",
-                        )
+                    s::ContentBlockDelta::Thinking(block) => {
+                        let mut delta = q::Delta::builder().build();
+                        delta.reasoning_content = Some(Some(block.thinking));
+                        self.emit(&mut out, delta)?;
                     }
+                    s::ContentBlockDelta::Signature(_) => self.report.omitted(
+                        "content.reasoning_delta",
+                        "Chat has no declared reasoning/signature delta",
+                    ),
                     s::ContentBlockDelta::Citations(_) => self
                         .report
                         .omitted("content.citations", "Chat has no typed citation delta"),

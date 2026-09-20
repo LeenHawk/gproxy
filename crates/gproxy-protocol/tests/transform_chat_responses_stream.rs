@@ -722,3 +722,29 @@ fn shared_v2_v3_v4_fixtures_keep_tool_links_and_reject_missing_framing_terminato
         }
     }
 }
+
+#[test]
+fn chat_reasoning_deltas_have_complete_responses_lifecycle() {
+    let mut adapter = ChatToResponsesStream::new(context(), ids(), StreamLimits::default());
+    let first=adapter.push(chat(json!({"id":"r","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"reasoning_content":"think","reasoning":"think"}}]}))).unwrap();
+    assert_eq!(
+        first
+            .value
+            .iter()
+            .filter(|e| matches!(
+                e,
+                gproxy_protocol::wire::openai::responses::stream::StreamEvent::ReasoningTextDelta(
+                    _
+                )
+            ))
+            .count(),
+        1
+    );
+    let finish=adapter.push(chat(json!({"id":"r","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"content":"answer"},"finish_reason":"stop"}]}))).unwrap();
+    assert!(finish.value.iter().any(|e| matches!(
+        e,
+        gproxy_protocol::wire::openai::responses::stream::StreamEvent::ReasoningTextDone(_)
+    )));
+    adapter.push_done().unwrap();
+    adapter.finish().unwrap();
+}
