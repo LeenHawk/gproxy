@@ -318,6 +318,96 @@ would therefore never be reached, so it is refused at write time rather than
 left to fail silently. Anything else is fine: `coding/fast` is a perfectly good
 public name.
 
+## Queries
+
+`gproxy.query()` is the read side of the same rows: three families over what
+the engine left behind. Nothing here writes, so nothing here moves the
+revision.
+
+| Family | Answers |
+|---|---|
+| `usage()` | `records(UsageRecordQuery)`, `summary(UsageQuery)`, `group(UsageGroupQuery)`, `trend(UsageTrendQuery)` |
+| `quota()` | `windows`, `settlements(window_id)`, `credential_cycles(credential_id)`, `counted_windows(credential_id, now)`, `budget_status(owners, now)` |
+| `logs()` | `list(LogQuery)`, `detail(request_id)` |
+
+Usage records and quota windows use the offset `Page<T>` the management
+families use; request logs use a cursor. That is not a style choice: a
+management list is a bounded set a person pages through, while a request log is
+an append-only stream whose head keeps moving as it is read, and an offset page
+over that repeats or skips rows.
+
+### Aggregation happens in Rust, over a scan cap
+
+`usage_records.metrics` is one JSON document per request — normalized token
+counts, the per-exchange breakdown behind them, the settlement state, the
+priced cost. No backend this crate supports can sum inside it, so `summary`,
+`group` and `trend` read the matching rows and fold them here, in key-ordered
+chunks rather than all at once.
+
+That is bounded. Every aggregate takes `maxScanRows`, defaulting to and clamped
+by `query::MAX_SCAN_ROWS` (50 000), and an aggregation that reached its budget
+comes back with `truncated: true` and the `scanned` count rather than a smaller
+number presented as the whole truth. `trend` is bounded a second way: a zero or
+negative `bucketMs`, a backwards range, and a range that would produce more than
+`query::MAX_TREND_BUCKETS` (5 000) buckets are all refused outright.
+
+Two numbers do not come out of the document. Cost is read from the indexed
+`cost` column, written once at settlement — only the per-provider cut reads the
+priced amounts inside `metrics`, because that is the only place the breakdown
+exists. And `currency` is `None` when the scanned records disagreed about it:
+summing dollars and euros into one number would not be a total.
+
+Grouping by `provider` is therefore per-exchange rather than per-row: a request
+that failed over from one provider to another counts under both, each with that
+attempt's own tokens and price, and `requests` counts the record once per
+distinct provider. A record that reached no upstream at all lands under the
+empty key, so the groups still sum to the summary.
+
+A token count on one record is `Option<u64>` — an upstream that did not report
+a field did not measure zero — while every total is a plain `u64`, because a
+sum of "nothing reported" really is zero.
+
+### The log cursor
+
+`logs().list` returns `nextCursor` and `nextCursorId`; handing both back
+unchanged is the next page. Both halves are needed. The cursor is ordered on
+`(started_at_ms, id)` descending, and two requests can start in the same
+millisecond: a timestamp-only cursor either repeats that pair forever or skips
+past it. `nextCursor` is `null` at the end of the list, and that is a fact —
+the query reads one row past the page rather than guessing from a full one.
+
+Only `side = downstream` rows are listed. An upstream attempt is not a request;
+it is something a request did, and `detail(request_id)` returns it, resolved
+through `capture_links` rather than through the provenance columns, so a
+retried request shows every attempt and an upstream call shared by two
+downstream ones is not duplicated.
+
+Bodies are capped at `query::MAX_BODY_BYTES` (64 KiB) and events at
+`query::MAX_DETAIL_EVENTS` (2 000); both cuts are reported. Every body travels
+as a `LogBodyDto` carrying the record's own `body_state`, because a body that
+was never captured must not read as a body that was empty — `notCaptured` with
+zero bytes and `complete` with zero bytes are different facts. Text stays text;
+anything else comes back base64.
+
+### Redaction happened at write time
+
+Nothing in `logs()` redacts. Core's observer applied the deployment's logging
+redaction policy as it wrote these rows — headers, query parameters and secret
+fragments in the stream — so what is stored is already what may be shown. A
+host must not assume a second pass happens on read: if a secret is in the
+database, it is because the policy allowed it there, and filtering on read
+could not undo that.
+
+### What the read side does not duplicate
+
+Live status stays where it is computed. `manage().quotas()` owns
+`budget_status`, `reset_budget`, `limit_status` and `reset_limit`;
+`query().quota().budget_status` is the same core call with the clock passed in,
+and `counted_windows` reads the raw meter rows for the dimensions core has no
+status for — for a `limit:{quota_id}` dimension, `limit_status` is the
+authoritative answer, because it knows the quota row and reports a normalized
+decimal instead of the fixed-point atoms a cost meter counts in.
+
 ## What is not here
 
 - **Identity.** Users, API keys, organizations, teams, permissions,

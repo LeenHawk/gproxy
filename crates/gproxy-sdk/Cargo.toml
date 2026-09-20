@@ -55,6 +55,7 @@ gproxy-protocol = { workspace = true }
 gproxy-seaorm = { workspace = true }
 gproxy-store = { workspace = true }
 http = { workspace = true }
+rust_decimal = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -78,6 +79,7 @@ tokio = { version = "1", default-features = false, features = ["macros", "sync"]
 wasm-bindgen-futures = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+async-trait = { workspace = true }
 futures-util = { workspace = true, features = ["sink"] }
 gproxy-cache = { workspace = true, features = ["memory"] }
 http = { workspace = true }

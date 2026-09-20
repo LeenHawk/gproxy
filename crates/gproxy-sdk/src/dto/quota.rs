@@ -15,7 +15,9 @@ use gproxy_channel::channel::{
     QuotaAllowance, QuotaBalance, QuotaEntry, QuotaResetBehavior, QuotaResetOutcome,
     QuotaResetResult, QuotaSnapshot, QuotaSubject, QuotaValue,
 };
-use gproxy_store::entity::limits::{credential_block, credential_quota_cycle, quota};
+use gproxy_store::entity::limits::{
+    counted_window, credential_block, credential_quota_cycle, quota, quota_settlement,
+};
 
 /// One configured budget or operator limit. `owner_kind` is a free string:
 /// `user`, `api_key`, `team`, `org` and `pool` are caller budgets the host
@@ -402,4 +404,104 @@ impl From<QuotaResetResult> for QuotaResetDto {
             windows_reset: result.windows_reset,
         }
     }
+}
+
+/// One historical window of a configured budget or limit, joined to the
+/// `quotas` row it belongs to.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuotaWindowDto {
+    pub id: String,
+    pub quota_id: String,
+    /// The window's own consumption, as its settlements left it.
+    pub used: String,
+    pub starts_at_ms: i64,
+    /// None for a permanent (`total`) window.
+    pub ends_at_ms: Option<i64>,
+    /// Whether the window covers the instant the query was asked about.
+    pub active: bool,
+    /// The quota row as it is *now*. All None when the quota has been
+    /// deleted: a window keeps a historical reference, not a foreign key.
+    pub owner_kind: Option<String>,
+    pub owner_id: Option<String>,
+    pub window_key: Option<String>,
+    pub metric: Option<String>,
+    pub unit: Option<String>,
+    pub limit_value: Option<String>,
+    pub period: Option<String>,
+    /// The quota as it was when this window opened, which is what the window
+    /// was actually metered against if the row has changed since.
+    pub quota_snapshot: Value,
+}
+
+/// One request's contribution to a window.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuotaSettlementDto {
+    pub window_id: String,
+    /// A downstream request id for a caller budget, an upstream capture id
+    /// for a pool budget.
+    pub request_id: String,
+    pub amount: String,
+    pub settled_at_ms: i64,
+}
+
+impl From<quota_settlement::Model> for QuotaSettlementDto {
+    fn from(row: quota_settlement::Model) -> Self {
+        Self {
+            window_id: row.window_id,
+            request_id: row.request_id,
+            amount: row.amount.to_string(),
+            settled_at_ms: row.settled_at_ms,
+        }
+    }
+}
+
+/// One fixed window of a counted dimension on a credential: what the meter
+/// itself recorded, in the meter's own units.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CountedWindowDto {
+    pub credential_id: String,
+    /// A channel-declared dimension, or `limit:{quota_id}` for the synthetic
+    /// dimension an operator limit meters through.
+    pub dimension: String,
+    pub window_start_ms: i64,
+    pub window_end_ms: i64,
+    /// Raw meter units: requests for a request dimension, fixed-point atoms
+    /// for a cost one. [`CredentialLimitStatusDto`] carries the same window
+    /// as a normalized decimal.
+    pub used: i64,
+    pub limit: i64,
+}
+
+impl From<counted_window::Model> for CountedWindowDto {
+    fn from(row: counted_window::Model) -> Self {
+        Self {
+            credential_id: row.credential_id,
+            dimension: row.dimension,
+            window_start_ms: row.window_start_ms,
+            window_end_ms: row.window_end_ms,
+            used: row.used,
+            limit: row.limit,
+        }
+    }
+}
+
+/// What a window listing filters on.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuotaWindowQuery {
+    pub quota_id: Option<String>,
+    /// Both owner fields select the quotas first; a kind without an id is a
+    /// valid filter on its own.
+    pub owner_kind: Option<String>,
+    pub owner_id: Option<String>,
+    /// Keep only the window covering `now`, dropping the closed history.
+    #[serde(default)]
+    pub active_only: bool,
+    /// 1-based. Zero and absent both mean the first page.
+    pub page: Option<u64>,
+    /// Clamped to 1..=500; absent means 50.
+    pub page_size: Option<u64>,
 }

@@ -1827,6 +1827,7 @@ name = "gproxy-sdk"
 version = "4.0.0-dev"
 dependencies = [
  "arc-swap",
+ "async-trait",
  "base64 0.23.1",
  "futures-util",
  "getrandom 0.4.3",
