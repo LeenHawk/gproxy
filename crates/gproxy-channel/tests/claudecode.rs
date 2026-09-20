@@ -3,12 +3,12 @@
 mod support;
 
 use gproxy_channel::{
-    BaseChannel, ChannelError, OutboundClient,
+    BaseChannel, ChannelError, OperationContext, OutboundClient,
     channel::{
-        AuthorizationCode, AuthorizationRequest, CallerUsage, CallerUsageWindow, CredentialContext,
-        CredentialView, LoginContext, PrepareContext, ProviderView, QuotaHeaderContext, QuotaScope,
-        QuotaValue, QuotaWindow, ResponseView, ServiceContext, ServiceView, UsageContext,
-        UsageFrame, UsageStreamContext, UsageStreamEnd, UsageTransport,
+        AuthorizationCode, AuthorizationRequest, CallerUsage, CallerUsageWindow, ChannelState,
+        CredentialContext, CredentialView, LoginContext, NoState, PrepareContext, ProviderView,
+        QuotaHeaderContext, QuotaScope, QuotaValue, QuotaWindow, ResponseView, ServiceContext,
+        ServiceView, UsageContext, UsageFrame, UsageStreamContext, UsageStreamEnd, UsageTransport,
     },
     channels::claudecode::{
         CLI_USER_AGENT, Claudecode, DEFAULT_CLIENT_ID, DEFAULT_REDIRECT_URI, KIND_FILE, KIND_SKILL,
@@ -16,14 +16,20 @@ use gproxy_channel::{
 };
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
-    capability::{CapabilityError, CapabilityFuture},
+    capability::{
+        CapabilityError, CapabilityFuture, CapabilityLimits, CasResult, StateEntry, StateWrite,
+        Version,
+    },
     connection::{Bytes, StreamFraming},
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
 use std::{
-    collections::VecDeque,
-    sync::Mutex,
+    collections::{HashMap, VecDeque},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{SystemTime, UNIX_EPOCH},
 };
 use support::ScriptCaller;
@@ -234,10 +240,14 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
     assert_eq!(shaped["messages"][1]["role"], "user", "prefill coerced");
     assert_eq!(shaped["system"][1]["text"], "policy");
     assert_eq!(shaped["system"][1]["cache_control"]["type"], "ephemeral");
+    let billing = shaped["system"][0]["text"].as_str().unwrap();
+    let (fixed, prompt) = billing.split_once(" cc_prompt_id=").unwrap();
     assert_eq!(
-        shaped["system"][0]["text"],
+        fixed,
         "x-anthropic-billing-header: cc_version=2.1.258.5e8; cc_entrypoint=sdk-cli; cch=00000;"
     );
+    assert_eq!(prompt.len(), 37, "a derived prompt UUID: {prompt}");
+    assert!(prompt.ends_with(';'));
     let ids: Value = serde_json::from_str(shaped["metadata"]["user_id"].as_str().unwrap()).unwrap();
     assert_eq!(ids["device_id"], "device-meta", "metadata over secret");
     assert_eq!(ids["account_uuid"], "account-meta");
@@ -325,6 +335,245 @@ fn prepares_messages_with_cli_identity_and_request_hygiene() {
         Claudecode
             .native_dialects(provider(&config, None), Operation::CreateImage)
             .is_empty()
+    );
+}
+
+#[test]
+fn billing_block_keeps_valid_client_fragments_in_cli_order() {
+    let config = json!({});
+    let secret = secret("at-1");
+    let metadata = json!({"device_id": "device-1", "account_uuid": "account-1"});
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "x-claude-code-session-id",
+        HeaderValue::from_static("session-1"),
+    );
+    let billing = |text: &str| {
+        let body = json!({
+            "model": "claude-opus-4-8",
+            "system": [{"type": "text", "text": text}],
+            "messages": [{"role": "user", "content": "aaaa😀 reply with exactly: ok"}]
+        });
+        let request = Claudecode
+            .prepare(PrepareContext {
+                provider: provider(&config, None),
+                credential: credential(&secret, &metadata),
+                operation: key(Operation::GenerateContent),
+                request: messages_request(headers.clone(), body),
+                endpoint_override: None,
+            })
+            .unwrap();
+        let HttpBody::Bytes(bytes) = request.into_body() else {
+            panic!("buffered");
+        };
+        let shaped: Value = serde_json::from_slice(&bytes).unwrap();
+        shaped["system"][0]["text"].as_str().unwrap().to_owned()
+    };
+
+    // Every fragment present, out of order, with one that fails the CLI's
+    // regex and one the CLI never emits.
+    assert_eq!(
+        billing(concat!(
+            "x-anthropic-billing-header: cc_prompt_id=0B1C2D3E-4F50-4A6B-8C7D-8E9F0A1B2C3D; ",
+            "cc_version=2.1.200.zzz; cc_prev_req=req_0123abc-XYZ_; cc_is_subagent=true; ",
+            "cc_workload=agent_run; cc_entrypoint=sdk-ts; cc_secret=leak; cch=11111;"
+        )),
+        concat!(
+            "x-anthropic-billing-header: cc_version=2.1.258.5e8; cc_entrypoint=sdk-ts; cch=00000; ",
+            "cc_workload=agent_run; cc_is_subagent=true; cc_prev_req=req_0123abc-XYZ_; ",
+            "cc_prompt_id=0B1C2D3E-4F50-4A6B-8C7D-8E9F0A1B2C3D;"
+        )
+    );
+    // Invalid values are dropped rather than forwarded: a prev_req without
+    // the CLI shape, a subagent flag that is not `true`, a workload with a
+    // space, an entrypoint with a slash, and a prompt id that is not a UUID
+    // (which is then derived instead).
+    let derived = billing(concat!(
+        "x-anthropic-billing-header: cc_version=2.1.200.zzz; cc_entrypoint=sdk/ts; ",
+        "cc_workload=agent run; cc_is_subagent=false; cc_prev_req=nope; cc_prompt_id=prompt-1;"
+    ));
+    let (fixed, prompt) = derived.split_once(" cc_prompt_id=").unwrap();
+    assert_eq!(
+        fixed,
+        "x-anthropic-billing-header: cc_version=2.1.258.5e8; cc_entrypoint=cli; cch=00000;"
+    );
+    assert_eq!(prompt.len(), 37);
+    // The same device, session and prompt derive the same id.
+    assert_eq!(
+        billing("x-anthropic-billing-header: cc_version=2.1.200.zzz; cc_entrypoint=cli;"),
+        derived
+    );
+}
+
+type Entry = (Bytes, Version, Option<SystemTime>);
+
+/// A tiny CAS store: expired entries read as absent, versions never repeat.
+#[derive(Default)]
+struct MemoryState {
+    entries: Mutex<HashMap<String, Entry>>,
+    counter: AtomicU64,
+}
+impl ChannelState for MemoryState {
+    fn get<'a>(
+        &'a self,
+        key: &'a str,
+    ) -> CapabilityFuture<'a, Result<Option<StateEntry>, CapabilityError>> {
+        Box::pin(async move {
+            let entries = self.entries.lock().unwrap();
+            Ok(entries
+                .get(key)
+                .filter(|(_, _, expires)| expires.is_none_or(|at| at > SystemTime::now()))
+                .map(|(payload, version, expires_at)| StateEntry {
+                    payload: payload.clone(),
+                    version: version.clone(),
+                    expires_at: *expires_at,
+                }))
+        })
+    }
+    fn compare_exchange<'a>(
+        &'a self,
+        key: &'a str,
+        expected: Option<Version>,
+        replacement: Option<StateWrite>,
+    ) -> CapabilityFuture<'a, Result<CasResult, CapabilityError>> {
+        Box::pin(async move {
+            let mut entries = self.entries.lock().unwrap();
+            let current = entries.get(key).map(|(_, version, _)| version.clone());
+            if current != expected {
+                return Ok(CasResult::Conflict);
+            }
+            match replacement {
+                Some(write) => {
+                    let version = Version::from_bytes(
+                        self.counter
+                            .fetch_add(1, Ordering::SeqCst)
+                            .to_be_bytes()
+                            .to_vec(),
+                    );
+                    entries.insert(
+                        key.to_owned(),
+                        (write.payload, version.clone(), write.expires_at),
+                    );
+                    Ok(CasResult::Applied(Some(version)))
+                }
+                None => {
+                    entries.remove(key);
+                    Ok(CasResult::Applied(None))
+                }
+            }
+        })
+    }
+    fn limits(&self) -> CapabilityLimits {
+        NoState::default().limits
+    }
+}
+
+#[tokio::test]
+async fn prev_req_follows_the_session_and_prompt_id_follows_user_text() {
+    let config = json!({});
+    let secret = secret("at-1");
+    let metadata = json!({"device_id": "device-1", "account_uuid": "account-1"});
+    let state = Arc::new(MemoryState::default());
+    let reply_with_id = |id: &'static str| {
+        let mut headers = HeaderMap::new();
+        headers.insert("request-id", HeaderValue::from_static(id));
+        WireResponse {
+            status: StatusCode::OK,
+            headers,
+            body: HttpBody::Bytes(Bytes::from_static(b"{}")),
+        }
+    };
+    let client = Arc::new(ScriptClient::new(vec![
+        reply_with_id("req_first"),
+        reply_with_id("req_second"),
+        reply_with_id("req_third"),
+        reply_with_id("req_other"),
+    ]));
+    let call = |session: &'static str, messages: Value| {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-claude-code-session-id",
+            HeaderValue::from_static(session),
+        );
+        Claudecode.generate_content(OperationContext {
+            provider: provider(&config, None),
+            credential: credential(&secret, &metadata),
+            dialect: Dialect::Claude,
+            request: messages_request(
+                headers,
+                json!({"model": "claude-opus-4-8", "messages": messages}),
+            ),
+            client: client.clone(),
+            state: state.clone(),
+            instance_id: Arc::from("i"),
+            endpoint_override: None,
+        })
+    };
+    let billing = |index: usize| -> (Option<String>, String) {
+        let sent = client.sent();
+        let body: Value = serde_json::from_slice(&sent[index].3).unwrap();
+        let text = body["system"][0]["text"].as_str().unwrap();
+        let fields: Vec<(&str, &str)> = text
+            .trim_start_matches("x-anthropic-billing-header:")
+            .split(';')
+            .filter_map(|field| field.trim().split_once('='))
+            .collect();
+        let get = |name: &str| {
+            fields
+                .iter()
+                .find(|(k, _)| *k == name)
+                .map(|(_, v)| (*v).to_owned())
+        };
+        (get("cc_prev_req"), get("cc_prompt_id").unwrap())
+    };
+
+    let prompt = json!([{"role": "user", "content": "first prompt"}]);
+    call("session-a", prompt.clone()).await.unwrap();
+    let (prev, prompt_a) = billing(0);
+    assert_eq!(
+        prev, None,
+        "the first call of a session has no previous request"
+    );
+
+    // The tool loop of the same prompt: a tool_result continuation.
+    let continued = json!([
+        {"role": "user", "content": "first prompt"},
+        {"role": "assistant", "content": [{"type": "tool_use", "id": "t1", "name": "ls", "input": {}}]},
+        {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t1", "content": "ok"}]}
+    ]);
+    call("session-a", continued).await.unwrap();
+    let (prev, prompt_b) = billing(1);
+    assert_eq!(prev.as_deref(), Some("req_first"));
+    assert_eq!(prompt_b, prompt_a, "one prompt id across the tool loop");
+
+    // A new user message is a new prompt.
+    let next = json!([
+        {"role": "user", "content": "first prompt"},
+        {"role": "assistant", "content": "done"},
+        {"role": "user", "content": [{"type": "text", "text": "second prompt"}]}
+    ]);
+    call("session-a", next).await.unwrap();
+    let (prev, prompt_c) = billing(2);
+    assert_eq!(prev.as_deref(), Some("req_second"));
+    assert_ne!(prompt_c, prompt_a);
+
+    // Another session knows nothing about the first.
+    call("session-b", prompt).await.unwrap();
+    let (prev, prompt_d) = billing(3);
+    assert_eq!(prev, None);
+    assert_ne!(prompt_d, prompt_a, "prompt ids are per session");
+    assert_eq!(
+        String::from_utf8(
+            state
+                .get("session:session-a:prev_req")
+                .await
+                .unwrap()
+                .unwrap()
+                .payload
+                .to_vec()
+        )
+        .unwrap(),
+        "req_third"
     );
 }
 

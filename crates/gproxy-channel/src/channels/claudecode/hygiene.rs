@@ -72,14 +72,41 @@ pub(super) fn count_tokens(body: &Value, headers: &mut HeaderMap) {
 
 // --------------------------------------------------------------- billing
 
+/// How long a session's last upstream `request-id` is remembered for
+/// `cc_prev_req`.
+pub(super) const PREV_REQ_TTL_MS: i64 = 60 * 60 * 1000;
+
+const BILLING_PREFIX: &str = "x-anthropic-billing-header:";
+
 /// The CLI's `x-anthropic-billing-header` system block and the
 /// `metadata.user_id` JSON the backend correlates it with (v3 `cch.rs`;
 /// captured in `samples/claude-code-2.1.252/messages-oauth-wire.json`).
-pub(super) fn inject_billing(body: &mut Value, device_id: &str, account_uuid: &str, session: &str) {
+///
+/// The block is rebuilt in the CLI's own order (2.1.252 `KUt`):
+/// `cc_version` (ours, with the computed suffix), `cc_entrypoint` (the
+/// client's, default `cli`), `cch=00000`, then the optional fragments the
+/// client sent when they pass the CLI's own validation: `cc_workload`,
+/// `cc_is_subagent=true`, `cc_prev_req`, `cc_prompt_id`. Unknown keys and
+/// invalid values are dropped; they would only fingerprint the proxy. Two
+/// fragments the CLI always sends on the OAuth path are synthesized when the
+/// client left them out: `cc_prev_req` from `prev_req`, the `request-id` of
+/// the session's previous upstream call, and `cc_prompt_id`, a UUID derived
+/// from the device, the session and the count of user text turns, so it
+/// stays fixed across the tool loop of one prompt and changes with the next
+/// user message; this approximates the CLI's per-prompt id. `cc_workload`
+/// and `cc_is_subagent` stay absent unless sent: absence is the main session.
+pub(super) fn inject_billing(
+    body: &mut Value,
+    device_id: &str,
+    account_uuid: &str,
+    session: &str,
+    prev_req: Option<&str>,
+) {
     if has_fallback_credit(body) {
         return;
     }
     let suffix = version_suffix(first_user_text(body));
+    let prompt_index = user_text_turns(body);
     let Some(root) = body.as_object_mut() else {
         return;
     };
@@ -113,37 +140,106 @@ pub(super) fn inject_billing(body: &mut Value, device_id: &str, account_uuid: &s
         block
             .get("text")
             .and_then(Value::as_str)
-            .is_some_and(|text| text.starts_with("x-anthropic-billing-header:"))
+            .is_some_and(|text| text.starts_with(BILLING_PREFIX))
     });
-    let entrypoint = existing
+    let sent = existing
         .and_then(|index| blocks[index].get("text"))
         .and_then(Value::as_str)
-        .and_then(|text| billing_field(text, "cc_entrypoint"))
-        .filter(|value| {
-            value
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-        })
+        .map(billing_fields)
+        .unwrap_or_default();
+    let field = |name: &str| {
+        sent.iter()
+            .find(|(key, _)| *key == name)
+            .map(|(_, value)| *value)
+    };
+
+    let entrypoint = field("cc_entrypoint")
+        .filter(|value| is_token(value))
         .unwrap_or("cli");
-    let billing = json!({
-        "type": "text",
-        "text": format!(
-            "x-anthropic-billing-header: cc_version={}.{suffix}; cc_entrypoint={entrypoint}; cch=00000;",
-            super::CLI_VERSION,
-        ),
-    });
+    let mut text = format!(
+        "{BILLING_PREFIX} cc_version={}.{suffix}; cc_entrypoint={entrypoint}; cch=00000;",
+        super::CLI_VERSION,
+    );
+    if let Some(workload) = field("cc_workload").filter(|value| is_token(value)) {
+        text.push_str(&format!(" cc_workload={workload};"));
+    }
+    if field("cc_is_subagent") == Some("true") {
+        text.push_str(" cc_is_subagent=true;");
+    }
+    if let Some(request) = field("cc_prev_req")
+        .filter(|value| is_request_id(value))
+        .or_else(|| prev_req.filter(|value| is_request_id(value)))
+    {
+        text.push_str(&format!(" cc_prev_req={request};"));
+    }
+    let prompt = match field("cc_prompt_id").filter(|value| is_uuid(value)) {
+        Some(prompt) => prompt.to_owned(),
+        None => super::derived_uuid(&format!(
+            "claudecode-prompt:{device_id}:{session}:{prompt_index}"
+        )),
+    };
+    text.push_str(&format!(" cc_prompt_id={prompt};"));
+
+    let billing = json!({"type": "text", "text": text});
     match existing {
         Some(index) => blocks[index] = billing,
         None => blocks.insert(0, billing),
     }
 }
 
-fn billing_field<'a>(text: &'a str, name: &str) -> Option<&'a str> {
-    text.split(';')
-        .map(str::trim)
-        .find_map(|field| field.strip_prefix(name)?.strip_prefix('='))
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
+/// The `key=value;` fragments of a billing block, in order.
+fn billing_fields(text: &str) -> Vec<(&str, &str)> {
+    text.strip_prefix(BILLING_PREFIX)
+        .unwrap_or(text)
+        .split(';')
+        .filter_map(|field| field.trim().split_once('='))
+        .map(|(key, value)| (key.trim(), value.trim()))
+        .filter(|(key, value)| !key.is_empty() && !value.is_empty())
+        .collect()
+}
+
+/// `[A-Za-z0-9_-]+`, the CLI's charset for entrypoints and workloads.
+fn is_token(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
+/// `^req_[A-Za-z0-9_-]{1,36}$` (2.1.252 `KUt`).
+pub(super) fn is_request_id(value: &str) -> bool {
+    value
+        .strip_prefix("req_")
+        .is_some_and(|rest| (1..=36).contains(&rest.len()) && is_token(rest))
+}
+
+/// `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i`.
+fn is_uuid(value: &str) -> bool {
+    let groups: Vec<&str> = value.split('-').collect();
+    groups.len() == 5
+        && groups
+            .iter()
+            .zip([8, 4, 4, 4, 12])
+            .all(|(group, len)| group.len() == len && group.bytes().all(|b| b.is_ascii_hexdigit()))
+}
+
+/// How many user turns carry text (a string, or a `text` block) rather than
+/// only tool results: the ordinal of the prompt the request belongs to.
+fn user_text_turns(body: &Value) -> usize {
+    let Some(messages) = body.get("messages").and_then(Value::as_array) else {
+        return 0;
+    };
+    messages
+        .iter()
+        .filter(|message| message.get("role").and_then(Value::as_str) == Some("user"))
+        .filter(|message| match message.get("content") {
+            Some(Value::String(text)) => !text.is_empty(),
+            Some(Value::Array(blocks)) => blocks
+                .iter()
+                .any(|block| block.get("type").and_then(Value::as_str) == Some("text")),
+            _ => false,
+        })
+        .count()
 }
 
 fn first_user_text(body: &Value) -> &str {
