@@ -32,9 +32,10 @@ pub use services::{KIND_FILE, KIND_PLUGIN, KIND_SKILL, service_routes};
 
 use crate::OutboundClient;
 use crate::channel::{
-    AuthorizationCode, AuthorizationRequest, AuthorizationStart, BaseChannel, ChannelError,
-    ChannelHeaders, ChannelServices, CookieLogin, CredentialRefresh, CredentialUpdate,
-    CredentialView, HeaderAllowlist, LoginContext, OAuthAuthorizationCode, OAuthCredential,
+    AuthorizationCode, AuthorizationRequest, AuthorizationStart, BaseChannel, ChannelCapabilities,
+    ChannelDescriptor, ChannelError, ChannelHeaders, ChannelServices, ConfigKey, ConfigKeyKind,
+    CookieLogin, CredentialRefresh, CredentialUpdate, CredentialView, HOST_CONFIG_KEYS,
+    HeaderAllowlist, LoginContext, LoginMode, OAuthAuthorizationCode, OAuthCredential,
     OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaHeaders, QuotaModel,
     QuotaQuery, RefreshContext, UsageExtractor, UsageStream, forwardable,
 };
@@ -568,6 +569,69 @@ fn client_header<'a>(
 impl BaseChannel for Claudecode {
     fn id(&self) -> &'static str {
         ID
+    }
+
+    /// A Claude.ai subscription through the CLI: PKCE or a claude.ai cookie to
+    /// log in, a refreshable token, unified rate-limit windows, and the CLI's
+    /// own non-protocol endpoints.
+    fn descriptor(&self) -> ChannelDescriptor {
+        ChannelDescriptor {
+            id: ID,
+            display_name: "Claude Code (Claude.ai)",
+            login_modes: vec![LoginMode::AuthorizationCode, LoginMode::Cookie],
+            capabilities: ChannelCapabilities {
+                refresh: true,
+                quota_query: true,
+                quota_reset: false,
+                services: true,
+                websocket: false,
+            },
+            config_keys: [
+                ConfigKey::optional(
+                    "base_url",
+                    ConfigKeyKind::String,
+                    "Anthropic API origin; defaults to https://api.anthropic.com. Provider column, not config JSON.",
+                ),
+                ConfigKey::optional(
+                    "authorize_url",
+                    ConfigKeyKind::String,
+                    "OAuth authorization endpoint for the browser step.",
+                ),
+                ConfigKey::optional(
+                    "token_url",
+                    ConfigKeyKind::String,
+                    "OAuth token endpoint used by the code exchange and by refresh.",
+                ),
+                ConfigKey::optional(
+                    "client_id",
+                    ConfigKeyKind::String,
+                    "OAuth client id; defaults to the Claude Code CLI's.",
+                ),
+                ConfigKey::optional(
+                    "claude_ai_url",
+                    ConfigKeyKind::String,
+                    "The claude.ai origin the cookie login talks to.",
+                ),
+                ConfigKey::optional(
+                    "user_agent",
+                    ConfigKeyKind::String,
+                    "Replaces the CLI user agent on every backend request.",
+                ),
+                ConfigKey::optional(
+                    "headers",
+                    ConfigKeyKind::HeaderList,
+                    "Static headers added to every backend request.",
+                ),
+                ConfigKey::optional(
+                    "enable_claude_magic_cache",
+                    ConfigKeyKind::Bool,
+                    "Turn a client's magic cache string in a Messages or count_tokens body into cache_control.",
+                ),
+            ]
+            .into_iter()
+            .chain(HOST_CONFIG_KEYS)
+            .collect(),
+        }
     }
 
     fn default_connection(&self) -> Option<ConnectionConfig> {

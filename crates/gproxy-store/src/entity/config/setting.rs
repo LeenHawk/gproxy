@@ -79,6 +79,9 @@ pub struct Model {
     /// Default custom vocabulary when the model has no vocabulary file selected.
     /// The tokenizer's fixed GPT selection still takes precedence.
     pub default_vocabulary_file_id: Option<String>,
+    /// Host-sealed access token for the vocabulary source (a Hugging Face
+    /// token for gated repositories). None downloads anonymously.
+    pub tokenizer_auth_token: Option<Vec<u8>>,
 
     // Logging and capture
     #[sea_orm(default_value = true)]

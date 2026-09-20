@@ -9,7 +9,8 @@
 //! restrict forwarding to a named set. No protocol conversion happens here.
 
 use crate::channel::{
-    BaseChannel, ChannelError, HeaderAllowlist, PrepareContext, ProviderView, forwardable,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
+    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView, forwardable,
 };
 use crate::channels::shared::cache;
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireFamily, WireRequest};
@@ -145,6 +146,56 @@ impl Custom {
 impl BaseChannel for Custom {
     fn id(&self) -> &'static str {
         ID
+    }
+
+    /// An API key and a base URL; nothing to refresh, no account to query.
+    fn descriptor(&self) -> ChannelDescriptor {
+        ChannelDescriptor {
+            id: ID,
+            display_name: "Custom (API key)",
+            login_modes: vec![LoginMode::ApiKey],
+            capabilities: ChannelCapabilities::default(),
+            config_keys: [
+                ConfigKey::required(
+                    "base_url",
+                    ConfigKeyKind::String,
+                    "Upstream origin, optionally with a path prefix; the native request path is appended. Provider column, not config JSON.",
+                ),
+                ConfigKey::optional(
+                    "dialects",
+                    ConfigKeyKind::Json,
+                    "Wire dialects the upstream accepts natively, in preference order. Empty accepts openai, openai_chat, claude and gemini.",
+                ),
+                ConfigKey::optional(
+                    "auth_header",
+                    ConfigKeyKind::String,
+                    "Header carrying the API key instead of each family's own, e.g. `api-key`.",
+                ),
+                ConfigKey::optional(
+                    "auth_prefix",
+                    ConfigKeyKind::String,
+                    "Prefix written before the key when auth_header is set.",
+                ),
+                ConfigKey::optional(
+                    "headers",
+                    ConfigKeyKind::HeaderList,
+                    "Static headers added to every upstream request.",
+                ),
+                ConfigKey::optional(
+                    "enable_claude_magic_cache",
+                    ConfigKeyKind::Bool,
+                    "Turn a client's magic cache string in a Claude-dialect body into cache_control. The strings are stripped either way.",
+                ),
+                ConfigKey::optional(
+                    "enable_openai_magic_cache",
+                    ConfigKeyKind::Bool,
+                    "Turn a client's magic cache string in an OpenAI Chat or Responses body into prompt_cache_breakpoint.",
+                ),
+            ]
+            .into_iter()
+            .chain(HOST_CONFIG_KEYS)
+            .collect(),
+        }
     }
 
     fn native_dialects(&self, provider: ProviderView<'_>, _operation: Operation) -> Vec<Dialect> {

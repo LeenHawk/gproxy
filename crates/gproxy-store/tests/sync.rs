@@ -66,7 +66,7 @@ async fn sync_initializes_the_full_registry_and_is_repeatable() {
             .name,
         "kept"
     );
-    assert_eq!(store.load_control_data().await.unwrap().users.len(), 1);
+    assert_eq!(store.load_identity_data().await.unwrap().users.len(), 1);
 }
 
 #[tokio::test]
@@ -125,7 +125,7 @@ async fn sync_adds_allowlist_columns_to_populated_schema_without_losing_data() {
     let settings = store.settings().get().await.unwrap().unwrap();
     assert_eq!(settings.max_attempts, 7);
     assert!(settings.oauth_client_allowlist.is_none());
-    store.load_control_data().await.unwrap();
+    store.load_all_data().await.unwrap();
     store
         .settings()
         .update(setting::ActiveModel {

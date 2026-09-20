@@ -16,7 +16,7 @@ use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc};
 
 mod native;
-pub use native::assemble;
+pub use native::{assemble, connection_config};
 
 /// Custom vocabularies parsed for estimation, by file id.
 pub type VocabularyMap = HashMap<String, gproxy_tokenizer::Vocabulary>;
@@ -37,6 +37,14 @@ pub enum AssemblyError {
     #[error("outbound client for credential `{credential_id}` could not be built")]
     Client {
         credential_id: String,
+        #[source]
+        source: Arc<gproxy_client::Error>,
+    },
+    /// The provider-level client, resolved without a credential for a login
+    /// flow or a connectivity probe.
+    #[error("outbound client for provider `{provider_id}` could not be built")]
+    ProviderClient {
+        provider_id: String,
         #[source]
         source: Arc<gproxy_client::Error>,
     },

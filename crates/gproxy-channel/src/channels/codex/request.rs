@@ -7,9 +7,11 @@ use super::{
     CLI_HEADERS, Codex, CodexConfig, ID, default_connection, identity, models, realtime, shape, sse,
 };
 use crate::channel::{
-    BaseChannel, ChannelError, ChannelServices, ChannelState, CredentialRefresh, HeaderAllowlist,
-    OAuthAuthorizationCode, OAuthDeviceCode, OperationContext, OperationFuture, PrepareContext,
-    ProviderView, QuotaHeaders, QuotaModel, QuotaQuery, UsageExtractor, UsageStream,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelServices,
+    ChannelState, ConfigKey, ConfigKeyKind, CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist,
+    LoginMode, OAuthAuthorizationCode, OAuthDeviceCode, OperationContext, OperationFuture,
+    PrepareContext, ProviderView, QuotaHeaders, QuotaModel, QuotaQuery, UsageExtractor,
+    UsageStream,
 };
 use crate::channels::shared::cache;
 use crate::channels::shared::services_common::unix_now_ms;
@@ -454,6 +456,69 @@ impl Codex {
 impl BaseChannel for Codex {
     fn id(&self) -> &'static str {
         ID
+    }
+
+    /// A ChatGPT account: both OAuth flows, a refreshable token, account
+    /// limits at `/wham/usage`, the CLI's own backend endpoints, and Responses
+    /// over a WebSocket as well as HTTP.
+    fn descriptor(&self) -> ChannelDescriptor {
+        ChannelDescriptor {
+            id: ID,
+            display_name: "OpenAI Codex (ChatGPT)",
+            login_modes: vec![LoginMode::AuthorizationCode, LoginMode::DeviceCode],
+            capabilities: ChannelCapabilities {
+                refresh: true,
+                quota_query: true,
+                quota_reset: false,
+                services: true,
+                websocket: true,
+            },
+            config_keys: [
+                ConfigKey::optional(
+                    "base_url",
+                    ConfigKeyKind::String,
+                    "Codex backend origin and prefix; defaults to https://chatgpt.com/backend-api/codex. Provider column, not config JSON.",
+                ),
+                ConfigKey::optional(
+                    "issuer",
+                    ConfigKeyKind::String,
+                    "OAuth issuer used for login and refresh; defaults to https://auth.openai.com.",
+                ),
+                ConfigKey::optional(
+                    "client_id",
+                    ConfigKeyKind::String,
+                    "OAuth client id; defaults to the Codex CLI's.",
+                ),
+                ConfigKey::optional(
+                    "originator",
+                    ConfigKeyKind::String,
+                    "The `originator` the backend sees; defaults to codex_cli_rs.",
+                ),
+                ConfigKey::optional(
+                    "user_agent",
+                    ConfigKeyKind::String,
+                    "Replaces the CLI-shaped User-Agent.",
+                ),
+                ConfigKey::optional(
+                    "headers",
+                    ConfigKeyKind::HeaderList,
+                    "Static headers added to every backend request.",
+                ),
+                ConfigKey::optional(
+                    "enable_openai_magic_cache",
+                    ConfigKeyKind::Bool,
+                    "Turn a client's magic cache string in a Responses body into prompt_cache_breakpoint.",
+                ),
+                ConfigKey::optional(
+                    "synthesize_cli_identity",
+                    ConfigKeyKind::Bool,
+                    "Give non-CLI clients the CLI's session, thread, window and turn identity headers. On by default.",
+                ),
+            ]
+            .into_iter()
+            .chain(HOST_CONFIG_KEYS)
+            .collect(),
+        }
     }
 
     fn default_connection(&self) -> Option<ConnectionConfig> {

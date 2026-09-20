@@ -17,11 +17,13 @@ pub(crate) fn now_ms() -> i64 {
 impl<C: BatchConnectionTrait> Core<C> {
     /// Read provider execution configuration from this Core's Store and assemble
     /// a new snapshot without publishing it. Rows and durable revision come from
-    /// one `load_control_data` batch. Providers, credentials, connection data,
-    /// model metadata, endpoint overrides and compiled rewrite sets only; no
-    /// routing/identity/policy/pricing tables and no schema sync. Live
-    /// credential blocks are warmed into the cache as a side effect so the
-    /// snapshot can be served immediately after publication.
+    /// one `load_control_data` batch, which is the execution subset only:
+    /// settings, connection profiles, providers, credentials, model metadata,
+    /// endpoint overrides, rewrite sets, quotas, pricing and credential blocks.
+    /// Routing and identity rows live in their own sets and belong to the layer
+    /// above; no schema sync happens here either. Live credential blocks are
+    /// warmed into the cache as a side effect so the snapshot can be served
+    /// immediately after publication.
     pub async fn load_data(&self) -> CoreResult<Arc<CoreData>> {
         let control = self.store.load_control_data().await?;
         let previous = self.snapshot();
@@ -113,6 +115,66 @@ impl<C: BatchConnectionTrait> Core<C> {
             active_revision: self.snapshot().revision,
             published,
         })
+    }
+
+    /// The outbound client a provider-level call should use when no credential
+    /// has been chosen yet — a login flow, a connectivity probe. It is the same
+    /// chain assembly walks for a credential, minus the credential level:
+    /// provider profile → the channel's own default client → the Setting
+    /// default profile → the built-in defaults. Clients are pooled by effective
+    /// configuration, so this is the very client the provider's credentials get
+    /// when they name no profile of their own. The provider is resolved in the
+    /// active snapshot, so it must be enabled and already loaded.
+    pub async fn provider_client(
+        &self,
+        provider_id: &str,
+    ) -> CoreResult<Arc<dyn gproxy_client::OutboundClient>> {
+        let snapshot = self.snapshot();
+        let provider = snapshot.providers.get(provider_id).ok_or_else(|| {
+            CoreError::InvalidTarget(format!("unknown or disabled provider `{provider_id}`"))
+        })?;
+        let config = match provider.entity.connection_profile_id.as_deref() {
+            Some(id) => self.connection_profile_config(id).await?,
+            None => match provider.channel.default_connection() {
+                Some(config) => config,
+                None => match self
+                    .store
+                    .settings()
+                    .get()
+                    .await?
+                    .and_then(|settings| settings.connection_profile_id)
+                {
+                    Some(id) => self.connection_profile_config(&id).await?,
+                    None => gproxy_client::ConnectionConfig::default(),
+                },
+            },
+        };
+        let client: Arc<dyn gproxy_client::OutboundClient> =
+            self.clients.get(&config).await.map_err(|source| {
+                crate::AssemblyError::ProviderClient {
+                    provider_id: provider_id.to_owned(),
+                    source,
+                }
+            })?;
+        Ok(client)
+    }
+
+    /// One persisted connection profile as a client configuration. A profile
+    /// named by a provider or by the Setting default must exist.
+    async fn connection_profile_config(
+        &self,
+        id: &str,
+    ) -> CoreResult<gproxy_client::ConnectionConfig> {
+        let row = self
+            .store
+            .connection_profiles()
+            .get_many(&[id.to_owned()])
+            .await?
+            .into_iter()
+            .next()
+            .flatten()
+            .ok_or_else(|| crate::AssemblyError::MissingConnectionProfile(id.to_owned()))?;
+        Ok(crate::assemble::connection_config(&row)?)
     }
 
     /// Reload persisted credential material after a peer's update, without an

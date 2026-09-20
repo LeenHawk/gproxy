@@ -217,6 +217,12 @@ impl CredentialBlocks {
 pub enum Invalidation {
     ConfigurationChanged {
         revision: ConfigRevision,
+        /// Which configuration families the writer touched, as free host
+        /// strings (`"providers"`, `"identity"`, …). A subscriber may use them
+        /// to reload only what it owns; an empty list means "anything", which
+        /// is what a publisher that does not classify its writes sends.
+        #[serde(default)]
+        scopes: Vec<String>,
     },
     CredentialChanged {
         credential_id: String,

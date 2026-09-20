@@ -13,7 +13,8 @@ pub mod channel;
 pub mod channels;
 
 pub use channel::{
-    BaseChannel, ChannelBinding, ChannelError, ChannelRegistry, OperationContext, OperationFuture,
-    RegistryError,
+    BaseChannel, ChannelBinding, ChannelCapabilities, ChannelDescriptor, ChannelError,
+    ChannelRegistry, ConfigKey, ConfigKeyKind, HOST_CONFIG_KEYS, LoginMode, OperationContext,
+    OperationFuture, RegistryError,
 };
 pub use gproxy_client::{ClientBounds, OutboundClient};

@@ -3,6 +3,7 @@
 //! and a client. Neither channel identity nor credentials are global enums.
 
 mod binding;
+mod descriptor;
 mod headers;
 mod oauth;
 mod operations;
@@ -14,6 +15,9 @@ mod state;
 mod usage;
 
 pub use binding::ChannelBinding;
+pub use descriptor::{
+    ChannelCapabilities, ChannelDescriptor, ConfigKey, ConfigKeyKind, HOST_CONFIG_KEYS, LoginMode,
+};
 pub use headers::{ChannelHeaders, HeaderAllowlist, forwardable};
 pub use oauth::{
     AcquiredCredential, AuthorizationCode, AuthorizationRequest, AuthorizationStart, CookieLogin,
@@ -140,6 +144,39 @@ pub struct PrepareContext<'a, B = HttpBody> {
 /// Optional abilities outside protocol operations retain default-None accessors.
 pub trait BaseChannel: Send + Sync {
     fn id(&self) -> &'static str;
+
+    /// This channel as configuration data: identity, login flows, optional
+    /// abilities, provider configuration keys. The default answers from the
+    /// capability accessors below, names the channel after its id and declares
+    /// no configuration keys, which is correct for a channel whose provider
+    /// rows carry nothing but the common host keys. Concrete channels override
+    /// it to add a display name and the keys they decode.
+    fn descriptor(&self) -> ChannelDescriptor {
+        let mut login_modes = Vec::new();
+        if self.oauth_authorization_code().is_some() {
+            login_modes.push(LoginMode::AuthorizationCode);
+        }
+        if self.oauth_device_code().is_some() {
+            login_modes.push(LoginMode::DeviceCode);
+        }
+        if self.cookie_login().is_some() {
+            login_modes.push(LoginMode::Cookie);
+        }
+        ChannelDescriptor {
+            id: self.id(),
+            display_name: self.id(),
+            login_modes,
+            capabilities: ChannelCapabilities {
+                refresh: self.credential_refresh().is_some(),
+                quota_query: self.quota_query().is_some(),
+                quota_reset: self.quota_reset().is_some(),
+                services: self.services().is_some(),
+                // No accessor describes transport; a socket channel says so itself.
+                websocket: false,
+            },
+            config_keys: Vec::new(),
+        }
+    }
 
     /// The outbound client this channel's upstream expects when nothing names
     /// one: the host resolves credential profile → provider profile → this →

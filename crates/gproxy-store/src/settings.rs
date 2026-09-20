@@ -2,6 +2,7 @@ use crate::{
     Result, Store, StoreError, entity::config::setting, error::invalid, repository::models,
 };
 use gproxy_seaorm::{BatchConnectionTrait, BatchStatement, SelectProjection};
+use sea_orm::Statement;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait, Iterable, QueryTrait, Set};
 
@@ -25,9 +26,10 @@ impl<C: BatchConnectionTrait> Settings<'_, C> {
             .map(|r| sea_orm::FromQueryResult::from_query_result(r, "").map_err(Into::into))
             .transpose()
     }
-    /// Upsert the singleton, changing only explicitly Set fields. No implicit
-    /// database initialization is performed by Store::new.
-    pub async fn update(&self, mut patch: setting::ActiveModel) -> Result<setting::Model> {
+    /// The upsert `update` would run, for callers that need the settings write
+    /// inside their own revision batch (`Store::commit_revision`). Same
+    /// validation and same SQL; the read-back is the caller's.
+    pub fn update_statement(&self, mut patch: setting::ActiveModel) -> Result<Statement> {
         if patch
             .max_database_size_mb
             .try_as_ref()
@@ -52,9 +54,14 @@ impl<C: BatchConnectionTrait> Settings<'_, C> {
         } else {
             conflict.update_columns(columns);
         }
-        let insert = setting::Entity::insert(patch)
+        Ok(setting::Entity::insert(patch)
             .on_conflict(conflict.to_owned())
-            .build(self.db.get_database_backend());
+            .build(self.db.get_database_backend()))
+    }
+    /// Upsert the singleton, changing only explicitly Set fields. No implicit
+    /// database initialization is performed by Store::new.
+    pub async fn update(&self, patch: setting::ActiveModel) -> Result<setting::Model> {
+        let insert = self.update_statement(patch)?;
         let query = setting::Entity::find_by_id(setting::GLOBAL_SETTINGS_ID)
             .batch_query(self.db.get_database_backend())?;
         let result = self

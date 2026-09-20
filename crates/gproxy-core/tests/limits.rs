@@ -26,6 +26,7 @@ fn settings() -> setting::Model {
         enable_tokenizer_vocabs: true,
         enable_tokenizer_download: false,
         default_vocabulary_file_id: None,
+        tokenizer_auth_token: None,
         enable_downstream_log: true,
         enable_downstream_log_body: false,
         enable_upstream_log: true,

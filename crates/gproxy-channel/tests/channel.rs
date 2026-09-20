@@ -5,10 +5,13 @@ use std::sync::{
 
 use futures_util::{StreamExt, stream};
 use gproxy_channel::channel::{
-    CredentialRefresh, CredentialUpdate, CredentialView, PrepareContext, ProviderView,
-    RefreshContext,
+    AcquiredCredential, CookieLogin, CredentialRefresh, CredentialUpdate, CredentialView,
+    LoginContext, OperationFuture, PrepareContext, ProviderView, RefreshContext,
 };
-use gproxy_channel::{BaseChannel, ChannelBinding, ChannelError, OutboundClient};
+use gproxy_channel::{
+    BaseChannel, ChannelBinding, ChannelCapabilities, ChannelError, ConfigKeyKind, LoginMode,
+    OutboundClient,
+};
 use gproxy_protocol::capability::{
     CapabilityError, CapabilityErrorKind, CapabilityErrorStage, CapabilityFuture,
 };
@@ -266,4 +269,170 @@ async fn transport_failure_remains_distinct_from_http_error_response() {
     };
     assert_eq!(error.kind(), CapabilityErrorKind::Transport);
     assert_eq!(error.stage(), CapabilityErrorStage::Start);
+}
+
+/// A cookie channel that can also renew itself: two capabilities the default
+/// descriptor has to find on its own.
+struct Cookied;
+impl BaseChannel for Cookied {
+    fn id(&self) -> &'static str {
+        "cookied"
+    }
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(&Refreshable)
+    }
+    fn cookie_login(&self) -> Option<&dyn CookieLogin> {
+        Some(self)
+    }
+}
+impl CookieLogin for Cookied {
+    fn exchange_cookie<'a>(
+        &'a self,
+        _: LoginContext<'a>,
+        _: &'a str,
+    ) -> OperationFuture<'a, AcquiredCredential> {
+        Box::pin(async {
+            Ok(AcquiredCredential {
+                secret: json!({"session_key": "s"}),
+                expires_at_ms: None,
+                metadata: Value::Null,
+            })
+        })
+    }
+}
+
+#[test]
+fn the_default_descriptor_is_derived_from_the_capability_accessors() {
+    let minimal = Minimal.descriptor();
+    assert_eq!(minimal.id, "minimal");
+    assert_eq!(
+        minimal.display_name, "minimal",
+        "a channel that says nothing is named after its id"
+    );
+    assert!(minimal.login_modes.is_empty());
+    assert_eq!(minimal.capabilities, ChannelCapabilities::default());
+    assert!(minimal.config_keys.is_empty());
+
+    let refreshable = Refreshable.descriptor();
+    assert!(refreshable.capabilities.refresh);
+    assert!(!refreshable.capabilities.quota_query);
+    assert!(
+        refreshable.login_modes.is_empty(),
+        "refreshing is not a way to log in"
+    );
+
+    let cookied = Cookied.descriptor();
+    assert_eq!(cookied.login_modes, [LoginMode::Cookie]);
+    assert!(cookied.capabilities.refresh);
+    assert!(!cookied.capabilities.services);
+    assert!(
+        !cookied.capabilities.websocket,
+        "no accessor describes transport"
+    );
+}
+
+/// Each real channel names itself, declares its login flows and lists the keys
+/// it decodes out of the provider row. Spot-checked, not enumerated: the point
+/// is that the descriptor is written from the channel's own `*Config`.
+#[cfg(feature = "custom")]
+#[test]
+fn custom_describes_an_api_key_upstream() {
+    let descriptor = gproxy_channel::channels::custom::Custom.descriptor();
+    assert_eq!(descriptor.id, "custom");
+    assert_eq!(descriptor.login_modes, [LoginMode::ApiKey]);
+    assert_eq!(descriptor.capabilities, ChannelCapabilities::default());
+    let base_url = descriptor.config_key("base_url").unwrap();
+    assert!(base_url.required, "custom cannot build a URL without it");
+    assert_eq!(base_url.kind, ConfigKeyKind::String);
+    assert_eq!(
+        descriptor.config_key("dialects").unwrap().kind,
+        ConfigKeyKind::Json
+    );
+    assert!(
+        !descriptor
+            .config_key("enable_claude_magic_cache")
+            .unwrap()
+            .required
+    );
+    // The host's own keys ride along on every channel.
+    assert!(descriptor.config_key("credential_strategy").is_some());
+    assert_eq!(
+        descriptor.config_key("allowed_headers").unwrap().kind,
+        ConfigKeyKind::HeaderList
+    );
+}
+
+#[cfg(feature = "codex")]
+#[test]
+fn codex_describes_both_oauth_flows_and_its_websocket() {
+    let descriptor = gproxy_channel::channels::codex::Codex.descriptor();
+    assert_eq!(descriptor.id, "codex");
+    assert_eq!(
+        descriptor.login_modes,
+        [LoginMode::AuthorizationCode, LoginMode::DeviceCode]
+    );
+    assert_eq!(
+        descriptor.capabilities,
+        ChannelCapabilities {
+            refresh: true,
+            quota_query: true,
+            quota_reset: false,
+            services: true,
+            websocket: true,
+        }
+    );
+    assert!(!descriptor.config_key("base_url").unwrap().required);
+    assert_eq!(
+        descriptor.config_key("issuer").unwrap().kind,
+        ConfigKeyKind::String
+    );
+    assert_eq!(
+        descriptor
+            .config_key("synthesize_cli_identity")
+            .unwrap()
+            .kind,
+        ConfigKeyKind::Bool
+    );
+}
+
+#[cfg(feature = "claudecode")]
+#[test]
+fn claudecode_describes_pkce_and_cookie_login() {
+    let descriptor = gproxy_channel::channels::claudecode::Claudecode.descriptor();
+    assert_eq!(descriptor.id, "claudecode");
+    assert_eq!(
+        descriptor.login_modes,
+        [LoginMode::AuthorizationCode, LoginMode::Cookie]
+    );
+    assert!(descriptor.capabilities.services);
+    assert!(!descriptor.capabilities.websocket);
+    assert_eq!(
+        descriptor.config_key("claude_ai_url").unwrap().kind,
+        ConfigKeyKind::String
+    );
+    assert_eq!(
+        descriptor.config_key("headers").unwrap().kind,
+        ConfigKeyKind::HeaderList
+    );
+}
+
+#[cfg(feature = "claudeweb")]
+#[test]
+fn claudeweb_describes_a_cookie_only_session() {
+    let descriptor = gproxy_channel::channels::claudeweb::ClaudeWeb::default().descriptor();
+    assert_eq!(descriptor.id, "claudeweb");
+    assert_eq!(descriptor.login_modes, [LoginMode::Cookie]);
+    assert!(descriptor.capabilities.quota_query);
+    assert!(
+        !descriptor.capabilities.services,
+        "claude.ai has no CLI service surface here"
+    );
+    assert_eq!(
+        descriptor.config_key("timezone").unwrap().kind,
+        ConfigKeyKind::String
+    );
+    assert_eq!(
+        descriptor.config_key("endpoints").unwrap().kind,
+        ConfigKeyKind::Json
+    );
 }
