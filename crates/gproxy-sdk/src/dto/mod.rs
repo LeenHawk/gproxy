@@ -18,12 +18,14 @@ mod common;
 mod control;
 mod endpoints;
 mod login;
+mod logs;
 mod pricing;
 mod profiles;
 mod quota;
 mod rewrite;
 mod routing;
 mod settings;
+mod usage;
 
 pub use common::{BatchItem, BatchPatch, ListQuery, Page, double_option};
 pub use control::{
@@ -39,15 +41,20 @@ pub use login::{
     AuthCodeComplete, AuthCodeStart, AuthCodeStarted, CookieExchange, CredentialCreated,
     CredentialOwner, DevicePollOutcome, DeviceStart, DeviceStarted,
 };
+pub use logs::{
+    CaptureEventDto, CaptureRecordDto, LogBodyDto, LogBodyEncoding, LogDetailDto, LogEntryDto,
+    LogPageDto, LogQuery,
+};
 pub use pricing::{
     PriceRateDto, PriceRatePatch, PriceRateWrite, PriceRuleDto, PriceRulePatch, PriceRuleWrite,
     PriceTierDto, PriceTierPatch, PriceTierWrite,
 };
 pub use profiles::{ConnectionProfileDto, ConnectionProfilePatch, ConnectionProfileWrite};
 pub use quota::{
-    BudgetStatusDto, CredentialBlockDto, CredentialCycleDto, CredentialLimitStatusDto,
-    CredentialQuotaDto, QuotaAllowanceDto, QuotaBalanceDto, QuotaDto, QuotaEntryDto, QuotaPatch,
-    QuotaResetDto, QuotaSnapshotDto, QuotaWrite,
+    BudgetStatusDto, CountedWindowDto, CredentialBlockDto, CredentialCycleDto,
+    CredentialLimitStatusDto, CredentialQuotaDto, QuotaAllowanceDto, QuotaBalanceDto, QuotaDto,
+    QuotaEntryDto, QuotaPatch, QuotaResetDto, QuotaSettlementDto, QuotaSnapshotDto, QuotaWindowDto,
+    QuotaWindowQuery, QuotaWrite,
 };
 pub use rewrite::{
     ProviderRuleSetDto, ProviderRuleSetPatch, ProviderRuleSetWrite, RewriteRuleDto,
@@ -60,4 +67,9 @@ pub use routing::{
 pub use settings::{
     InstanceSettingsDto, InstanceSettingsPatch, LoggingSettingsDto, LoggingSettingsPatch,
     SettingsDto, SettingsPatch,
+};
+pub(crate) use usage::money;
+pub use usage::{
+    UsageExchangeDto, UsageGroupBy, UsageGroupDto, UsageGroupQuery, UsageQuery, UsageRecordDto,
+    UsageRecordQuery, UsageSummaryDto, UsageTokensDto, UsageTrendPointDto, UsageTrendQuery,
 };

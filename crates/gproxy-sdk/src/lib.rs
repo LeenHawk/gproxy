@@ -55,6 +55,7 @@ pub use dto::{ListQuery, Page};
 pub use error::{SdkError, SdkResult};
 pub use handle::Gproxy;
 pub use manage::Scope;
+pub use query::Query;
 pub use resolve::{Plan, ResolveRequest, RoutingTable, Target};
 pub use session::GATEWAY_SESSION_HEADER;
 pub use sync::{INVALIDATION_TOPIC, SyncMode};

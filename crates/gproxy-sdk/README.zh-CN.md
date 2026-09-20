@@ -263,6 +263,75 @@ publish  Invalidation::ConfigurationChanged { revision, scopes }
 远走不到自己的路由，写入时即被拒绝，而不是留到运行期静默失效。其余都没问题：
 `coding/fast` 就是个好名字。
 
+## 查询
+
+`gproxy.query()` 是同一批行的读侧：三个家族，读引擎留下来的东西。这里没有任何写入，
+因此也不动 revision。
+
+| 家族 | 回答 |
+|---|---|
+| `usage()` | `records(UsageRecordQuery)`、`summary(UsageQuery)`、`group(UsageGroupQuery)`、`trend(UsageTrendQuery)` |
+| `quota()` | `windows`、`settlements(window_id)`、`credential_cycles(credential_id)`、`counted_windows(credential_id, now)`、`budget_status(owners, now)` |
+| `logs()` | `list(LogQuery)`、`detail(request_id)` |
+
+用量记录与配额窗口用管理面那套 offset 分页 `Page<T>`，请求日志用游标。这不是风格选
+择：管理列表是人翻的有界集合，请求日志则是一边被读一边在增长的追加流，offset 分页
+在它上面会重复或漏掉行。
+
+### 聚合在 Rust 侧完成，且有扫描上限
+
+`usage_records.metrics` 是每个请求一份 JSON 文档——归一化的 token 计数、它们背后的
+按 exchange 明细、结算状态、定价成本。本 crate 支持的任何后端都无法在其内部求和，
+因此 `summary`、`group`、`trend` 读出匹配的行在这里折叠，按键序分块读取而不是一次
+全部载入。
+
+这是有界的。每个聚合都接受 `maxScanRows`，缺省即 `query::MAX_SCAN_ROWS`（50 000）
+并被它钳住；用满预算的聚合会带着 `truncated: true` 与 `scanned` 计数返回，而不是把
+一个更小的数字当成全部事实。`trend` 还有第二重边界：`bucketMs` 为零或负、区间反向、
+以及会产生超过 `query::MAX_TREND_BUCKETS`（5 000）个桶的区间，一律直接拒绝。
+
+有两个数不来自文档。成本读自带索引的 `cost` 列——结算时写一次；只有按 Provider 的
+切分会去读 `metrics` 里的定价金额，因为明细只存在于那里。而当被扫描的记录对币种不
+一致时 `currency` 为 `None`：把美元和欧元加进同一个数字不叫合计。
+
+因此按 `provider` 分组是按 exchange 而不是按行的：一个从某 Provider 失败转移到另一
+个的请求会同时计入两者，各自带着那次尝试自己的 token 与价格，`requests` 对每个不同
+的 Provider 只计一次。完全没有到达上游的记录落在空键下，这样各组仍然能加回总计。
+
+单条记录上的 token 计数是 `Option<u64>`——上游没报告某个字段不等于它测得零——而所有
+合计都是普通 `u64`，因为“什么都没报告”的和确实是零。
+
+### 日志游标
+
+`logs().list` 返回 `nextCursor` 与 `nextCursorId`，原样传回去就是下一页。两半都需
+要：游标按 `(started_at_ms, id)` 降序，而两个请求可能起始于同一毫秒，只有时间戳的
+游标要么永远在这一对上打转，要么直接跳过它。列表到头时 `nextCursor` 为 `null`，这
+是事实而非猜测——查询多读一行，而不是从“这一页是满的”去推断。
+
+只列出 `side = downstream` 的行。上游尝试不是一个请求，而是某个请求做过的事，由
+`detail(request_id)` 通过 `capture_links` 解析出来——不走来源列，因此重试过的请求能
+看到每一次尝试，被两个下游请求共享的上游调用也不会被复制成两条。
+
+响应体上限 `query::MAX_BODY_BYTES`（64 KiB），事件上限
+`query::MAX_DETAIL_EVENTS`（2 000），两处截断都会如实汇报。每个 body 都以
+`LogBodyDto` 传输并带上该行自己的 `body_state`，因为从未被捕获的 body 不能读起来像
+一个空 body——`notCaptured` 且零字节与 `complete` 且零字节是两件不同的事。文本仍是
+文本，其余一律 base64。
+
+### 脱敏发生在写入时
+
+`logs()` 不做任何脱敏。这些行是 core 的 observer 按部署的日志脱敏策略写下的——
+header、查询参数、流里的密钥片段——所以存下来的已经就是可以展示的。宿主不能假定读取
+时还有第二遍：密钥若在库里，是因为策略允许它在那儿，读时过滤也挽回不了。
+
+### 读侧不重复的东西
+
+实时状态留在计算它的地方。`manage().quotas()` 拥有 `budget_status`、`reset_budget`、
+`limit_status` 与 `reset_limit`；`query().quota().budget_status` 就是同一个 core 调
+用、只是把时钟作为参数传入，而 `counted_windows` 读的是 core 没有对应状态的那些维度
+的原始计量行——对 `limit:{quota_id}` 维度，权威答案是 `limit_status`，它知道背后的
+quota 行，并以归一化小数而不是成本计量器所用的定点原子单位报告用量。
+
 ## 不在这里的东西
 
 - **身份**：用户、API key、组织、团队、权限、订阅、限流与 OAuth issuer 属于上层

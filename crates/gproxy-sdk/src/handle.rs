@@ -114,6 +114,11 @@ impl<C> Gproxy<C> {
     pub fn login(&self) -> crate::login::Login<'_, C> {
         crate::login::Login::new(&self.0)
     }
+    /// The read families: usage, quota windows and request logs. Nothing here
+    /// writes, so none of it moves the revision.
+    pub fn query(&self) -> crate::query::Query<'_, C> {
+        crate::query::Query::new(&self.0)
+    }
     /// Every compiled-in channel as data, ordered by id: what a management UI
     /// renders its provider forms from.
     pub fn channels(&self) -> Vec<ChannelDescriptor> {
