@@ -283,11 +283,15 @@ Rows come from the snapshot, counters from the cache, because several
 instances share one limit and a per-process counter would multiply every limit
 by the number of instances. Windows are fixed and aligned to the epoch —
 `now - now % (period_seconds × 1000)` — so every instance agrees on the
-boundary from the clock alone, and the key is `rl/{row_id}/{window_start}`.
+boundary from the clock alone, and a counter's key is
+`rl/{row_id}/{window_start}`.
 
 `metric = "concurrency"` takes a cache permit held for the life of the
 request; every other metric increments a counter with the limit as its
-ceiling, by exactly 1. A limit that wants to cap *tokens* is a budget, not a
+ceiling, by exactly 1. A permit is **not** keyed by window — its key is
+`rl/{row_id}/live` — because it measures requests in flight, which no window
+boundary divides; the period is only how long the cache waits before
+reclaiming a permit from a request that died without releasing. A limit that wants to cap *tokens* is a budget, not a
 rate limit: the token count does not exist until the upstream has answered.
 
 **A cache that cannot answer refuses the request** (`429`, with no retry

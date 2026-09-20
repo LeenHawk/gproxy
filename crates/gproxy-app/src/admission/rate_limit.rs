@@ -6,7 +6,7 @@
 //! the cache, because several instances share one limit and a per-process
 //! counter would multiply every limit by the number of instances.
 //!
-//! Two shapes, one key.
+//! Two shapes, two keys: a counter is per window, a permit is not.
 //!
 //! - **`concurrency`** takes a cache permit and holds it for the life of the
 //!   request: it measures requests in flight.
@@ -259,9 +259,26 @@ async fn charge(
         );
         return Ok(None);
     };
-    let key = format!("rl/{}/{}", row.id, window.start_ms);
+    let concurrency = row.metric.trim().eq_ignore_ascii_case(CONCURRENCY_METRIC);
+    // A counter belongs to its window and must vanish when the window rolls
+    // over. A permit measures requests in flight *now*, which no window
+    // divides: keying it by window would let a request started before a
+    // boundary and one started after it hold a slot each, admitting twice the
+    // limit for as long as the first is running.
+    let key = if concurrency {
+        format!("rl/{}/live", row.id)
+    } else {
+        format!("rl/{}/{}", row.id, window.start_ms)
+    };
     let limit = limit_of(row);
-    let ttl = window.remaining(now_ms);
+    // For a permit the TTL is only the reclaim bound for a request that dies
+    // without releasing, so it is the whole period rather than what is left
+    // of the current one.
+    let ttl = if concurrency {
+        window.span()
+    } else {
+        window.remaining(now_ms)
+    };
     let rejected = || AppError::RateLimited {
         retry_after_ms: Some(window.end_ms - now_ms),
     };
@@ -272,7 +289,7 @@ async fn charge(
     if limit == 0 {
         return Err(rejected());
     }
-    let charge = if row.metric.trim().eq_ignore_ascii_case(CONCURRENCY_METRIC) {
+    let charge = if concurrency {
         // A concurrency limit above the cache's `max_permits_per_key` (10 000
         // by default) is not representable; the cache refuses it, and the
         // fail-closed rule below then refuses every request. Keep such limits
@@ -337,13 +354,15 @@ impl Window {
         })
     }
 
-    /// What is left of the window, which is how long the charge lives.
-    ///
-    /// For a counter this is exactly right: the count must vanish when the
-    /// window rolls over. For a permit it is the reclaim bound for a request
-    /// that dies without releasing — a permit taken just before a boundary is
-    /// not counted against the new window, so a concurrency limit's period
-    /// should be at least as long as the requests it guards.
+    /// The whole period: how long a permit may be held before the cache
+    /// reclaims it from a request that died without releasing. A concurrency
+    /// limit's period is therefore the longest request it expects to guard.
+    fn span(&self) -> Duration {
+        Duration::from_millis((self.end_ms - self.start_ms).max(1) as u64)
+    }
+
+    /// What is left of the window, which is how long a counter lives: the
+    /// count must vanish when the window rolls over.
     fn remaining(&self, now_ms: i64) -> Duration {
         let ms = (self.end_ms - now_ms).max(1);
         Duration::from_millis(ms as u64)
