@@ -155,6 +155,58 @@ core 已经在单个 Provider 的凭证之间重试。`send` 是另一个维度�
 会话。网关 header 在请求发往上游前被摘掉。完整规则、每个字段的调查依据与否定清单见
 [`design/session-identity.md`](../../design/session-identity.md)。
 
+## 管理面
+
+`gproxy.manage()` 是写侧：每个配置家族一个入口，全部走同一个写原语。
+
+| 家族 | 表 | CRUD 之外 |
+|---|---|---|
+| `providers()` | `providers` | `reset_routing_defaults(provider_id)` 一次提交清掉该 Provider 的操作规则与 URL |
+| `credentials()` | `credentials` | `reveal_secret`、`set_status`、`refresh`、`quota_probe`、`quota_read`、`quota_reset`、`health_reset`、`limit_status` |
+| `models()` / `provider_models()` | `models`、`provider_models` | |
+| `routes()` / `route_members()` / `exposed_models()` | `routes`、`route_members`、`exposed_models` | |
+| `connection_profiles()` | `connection_profiles` | |
+| `settings()` | 唯一的 `settings` 行 | 只有 `get` / `update`；分实例组与日志组两组 |
+| `rewrite()` | `rewrite_rule_sets`、`rewrite_rules`、`provider_rewrite_rule_sets` | `replace_rules(set_id, rules)` 整体替换一个规则集 |
+| `endpoints()` | `operation_rules`、`operation_endpoints` | |
+| `quotas()` | `quotas` | `budget_status`、`reset_budget`、`limit_status`、`reset_limit` |
+| `pricing()` | `price_rules`、`price_rates`、`price_tiers` | |
+
+每个家族都有 `list(ListQuery) -> Page<Dto>`、`get(id)`、`create(Write)`、
+`update(id, Patch)`、`delete(id)` 与 `batch(Vec<BatchItem>)`。id 给了就用、没给就
+生成，时间戳一律 Unix 毫秒，小数以字符串传输，`credentials.secret` 永不出现在任何
+DTO 里——只有 `hasSecret`，外加单独的 `reveal_secret`。
+
+### 一次写入，一个 revision
+
+```
+commit_revision([语句…, 自增, 读回])   同一个事务
+      ↓
+reload   整体重载；仅动凭证状态的写入走 `reload_credentials`
+      ↓
+publish  Invalidation::ConfigurationChanged { revision, scopes }
+```
+
+行与 `config_revision` 自增在同一个事务里，因此落库的写入不会对同伴不可见，自增也
+不会凭空发生。`batch` 无论涉及多少行都是这样一个事务；被拒绝的写入根本到不了数据
+库——校验在前，revision 不动。
+
+重载在通知之前，绝不在之后：不能让同伴收到一个本实例还服务不了的 revision。通知本
+身是尽力而为：cache 拒绝发布只让部署多等一个轮询周期，记日志而不报错。
+
+写入自己声明 `Scope`，这是调用方唯一的选择。`Scope::CredentialState` 走便宜的
+`reload_credentials`，且**仅**适用于只改密钥、过期时间与生命周期状态的写入：凭证的
+其余部分——标签、auth kind、metadata、连接配置、归属——在装配时就冻进了
+`CredentialData`，必须整体重载。`Credentials::update` 会依据 patch 自行选择。
+
+### 暴露模型名的保留前缀
+
+暴露名按精确匹配，但带 `/` 的名字并不自由：解析时会把未知名字的第一段读作收窄前
+缀。`codex/gpt-5` 意为“`codex` 渠道上的该模型”，`my-openai/gpt-5` 意为“`my-openai`
+这个 Provider 上的该模型”。因此第一段是已注册渠道 id 或现有 Provider 名的暴露名永
+远走不到自己的路由，写入时即被拒绝，而不是留到运行期静默失效。其余都没问题：
+`coding/fast` 就是个好名字。
+
 ## 不在这里的东西
 
 - **身份**：用户、API key、组织、团队、权限、订阅、限流与 OAuth issuer 属于上层

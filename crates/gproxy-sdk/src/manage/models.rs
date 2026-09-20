@@ -1,0 +1,312 @@
+//! The model catalog: global model metadata, and what each provider calls it.
+
+use gproxy_seaorm::BatchConnectionTrait;
+use gproxy_store::{
+    Repository,
+    entity::upstream::{model, provider_model},
+};
+use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, Select, Set};
+
+use super::{
+    Scope, Writer,
+    crud::{self, Shape},
+};
+use crate::{
+    SdkResult,
+    dto::{
+        BatchItem, ListQuery, ModelDto, ModelPatch, ModelWrite, Page, ProviderModelDto,
+        ProviderModelPatch, ProviderModelWrite,
+    },
+};
+
+/// Global model metadata. Routing can name a model that is not in here; the
+/// catalog exists for vocabularies, pricing patterns and presentation.
+pub struct Models<'a, C> {
+    writer: Writer<'a, C>,
+}
+
+impl<'a, C> Models<'a, C> {
+    pub(crate) fn new(writer: Writer<'a, C>) -> Self {
+        Self { writer }
+    }
+}
+
+impl<C: BatchConnectionTrait + Send + Sync + 'static> Models<'_, C> {
+    pub async fn list(&self, query: ListQuery) -> SdkResult<Page<ModelDto>> {
+        crud::list(self, query).await
+    }
+    pub async fn get(&self, id: &str) -> SdkResult<ModelDto> {
+        crud::get(self, id).await
+    }
+    pub async fn create(&self, write: ModelWrite) -> SdkResult<ModelDto> {
+        crud::create(self, write).await
+    }
+    pub async fn update(&self, id: &str, patch: ModelPatch) -> SdkResult<ModelDto> {
+        crud::update(self, id, patch).await
+    }
+    pub async fn delete(&self, id: &str) -> SdkResult<()> {
+        crud::delete(self, id).await
+    }
+    pub async fn batch(
+        &self,
+        items: Vec<BatchItem<ModelWrite, ModelPatch>>,
+    ) -> SdkResult<Vec<Option<ModelDto>>> {
+        crud::batch(self, items).await
+    }
+
+    async fn name(&self, name: &str, exclude: Option<&str>) -> SdkResult<String> {
+        let name = crud::text(name, "name")?;
+        crud::unique(
+            self.writer.store().models(),
+            Condition::all().add(model::Column::Name.eq(&name)),
+            exclude,
+            || format!("a model named `{name}` already exists"),
+        )
+        .await?;
+        Ok(name)
+    }
+
+    async fn vocabulary(&self, id: Option<String>) -> SdkResult<Option<String>> {
+        let Some(id) = crud::optional_text(id) else {
+            return Ok(None);
+        };
+        crud::require_rows(
+            self.writer.store().file_objects(),
+            "file object",
+            std::slice::from_ref(&id),
+        )
+        .await?;
+        Ok(Some(id))
+    }
+}
+
+impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Models<'_, C> {
+    type Entity = model::Entity;
+    type Dto = ModelDto;
+    type Write = ModelWrite;
+    type Patch = ModelPatch;
+
+    const ENTITY: &'static str = "model";
+
+    fn writer(&self) -> Writer<'_, C> {
+        self.writer
+    }
+    fn repository(&self) -> Repository<'_, C, Self::Entity> {
+        self.writer.store().models()
+    }
+    fn scopes(&self) -> Vec<Scope> {
+        vec![Scope::Models]
+    }
+    fn select(&self, query: &ListQuery) -> Select<Self::Entity> {
+        let mut select = model::Entity::find();
+        if let Some(search) = crud::optional_text(query.search.clone()) {
+            select = select.filter(model::Column::Name.contains(&search));
+        }
+        select
+    }
+
+    async fn build(&self, write: ModelWrite) -> SdkResult<(model::ActiveModel, String)> {
+        let id = crud::id_or_new(write.id.as_deref());
+        let row = model::ActiveModel {
+            id: Set(id.clone()),
+            name: Set(self.name(&write.name, None).await?),
+            metadata: Set(crud::object(write.metadata, "metadata")?),
+            vocabulary_file_id: Set(self.vocabulary(write.vocabulary_file_id).await?),
+        };
+        Ok((row, id))
+    }
+
+    async fn change(
+        &self,
+        current: &model::Model,
+        patch: ModelPatch,
+    ) -> SdkResult<model::ActiveModel> {
+        let mut row = model::ActiveModel {
+            id: Set(current.id.clone()),
+            ..Default::default()
+        };
+        if let Some(name) = patch.name {
+            row.name = Set(self.name(&name, Some(&current.id)).await?);
+        }
+        if let Some(metadata) = patch.metadata {
+            row.metadata = Set(crud::object(Some(metadata), "metadata")?);
+        }
+        if let Some(vocabulary) = patch.vocabulary_file_id {
+            row.vocabulary_file_id = Set(self.vocabulary(vocabulary).await?);
+        }
+        Ok(row)
+    }
+}
+
+/// What one provider's upstream answers to, optionally mapped to a catalog
+/// entry. `(provider_id, upstream_name)` is unique: one provider cannot offer
+/// the same upstream model twice.
+pub struct ProviderModels<'a, C> {
+    writer: Writer<'a, C>,
+}
+
+impl<'a, C> ProviderModels<'a, C> {
+    pub(crate) fn new(writer: Writer<'a, C>) -> Self {
+        Self { writer }
+    }
+}
+
+impl<C: BatchConnectionTrait + Send + Sync + 'static> ProviderModels<'_, C> {
+    pub async fn list(&self, query: ListQuery) -> SdkResult<Page<ProviderModelDto>> {
+        crud::list(self, query).await
+    }
+    pub async fn get(&self, id: &str) -> SdkResult<ProviderModelDto> {
+        crud::get(self, id).await
+    }
+    pub async fn create(&self, write: ProviderModelWrite) -> SdkResult<ProviderModelDto> {
+        crud::create(self, write).await
+    }
+    pub async fn update(&self, id: &str, patch: ProviderModelPatch) -> SdkResult<ProviderModelDto> {
+        crud::update(self, id, patch).await
+    }
+    pub async fn delete(&self, id: &str) -> SdkResult<()> {
+        crud::delete(self, id).await
+    }
+    pub async fn batch(
+        &self,
+        items: Vec<BatchItem<ProviderModelWrite, ProviderModelPatch>>,
+    ) -> SdkResult<Vec<Option<ProviderModelDto>>> {
+        crud::batch(self, items).await
+    }
+
+    async fn provider(&self, id: &str) -> SdkResult<String> {
+        let id = crud::text(id, "providerId")?;
+        crud::require_rows(
+            self.writer.store().providers(),
+            "provider",
+            std::slice::from_ref(&id),
+        )
+        .await?;
+        Ok(id)
+    }
+
+    async fn catalog_model(&self, id: Option<String>) -> SdkResult<Option<String>> {
+        let Some(id) = crud::optional_text(id) else {
+            return Ok(None);
+        };
+        crud::require_rows(
+            self.writer.store().models(),
+            "model",
+            std::slice::from_ref(&id),
+        )
+        .await?;
+        Ok(Some(id))
+    }
+
+    async fn unique_pair(
+        &self,
+        provider_id: &str,
+        upstream_name: &str,
+        exclude: Option<&str>,
+    ) -> SdkResult<()> {
+        crud::unique(
+            self.writer.store().provider_models(),
+            Condition::all()
+                .add(provider_model::Column::ProviderId.eq(provider_id))
+                .add(provider_model::Column::UpstreamName.eq(upstream_name)),
+            exclude,
+            || format!("provider `{provider_id}` already offers upstream model `{upstream_name}`"),
+        )
+        .await
+    }
+}
+
+impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for ProviderModels<'_, C> {
+    type Entity = provider_model::Entity;
+    type Dto = ProviderModelDto;
+    type Write = ProviderModelWrite;
+    type Patch = ProviderModelPatch;
+
+    const ENTITY: &'static str = "provider model";
+
+    fn writer(&self) -> Writer<'_, C> {
+        self.writer
+    }
+    fn repository(&self) -> Repository<'_, C, Self::Entity> {
+        self.writer.store().provider_models()
+    }
+    fn scopes(&self) -> Vec<Scope> {
+        vec![Scope::Models]
+    }
+    fn select(&self, query: &ListQuery) -> Select<Self::Entity> {
+        let mut select = provider_model::Entity::find();
+        if let Some(provider_id) = crud::optional_text(query.provider_id.clone()) {
+            select = select.filter(provider_model::Column::ProviderId.eq(provider_id));
+        }
+        if let Some(model_id) = crud::optional_text(query.model_id.clone()) {
+            select = select.filter(provider_model::Column::ModelId.eq(model_id));
+        }
+        if let Some(search) = crud::optional_text(query.search.clone()) {
+            select = select.filter(provider_model::Column::UpstreamName.contains(&search));
+        }
+        if let Some(enabled) = query.enabled {
+            select = select.filter(provider_model::Column::Enabled.eq(enabled));
+        }
+        select
+    }
+
+    async fn build(
+        &self,
+        write: ProviderModelWrite,
+    ) -> SdkResult<(provider_model::ActiveModel, String)> {
+        let id = crud::id_or_new(write.id.as_deref());
+        let provider_id = self.provider(&write.provider_id).await?;
+        let upstream_name = crud::text(&write.upstream_name, "upstreamName")?;
+        self.unique_pair(&provider_id, &upstream_name, None).await?;
+        let row = provider_model::ActiveModel {
+            id: Set(id.clone()),
+            provider_id: Set(provider_id),
+            upstream_name: Set(upstream_name),
+            model_id: Set(self.catalog_model(write.model_id).await?),
+            metadata: Set(crud::object(write.metadata, "metadata")?),
+            enabled: Set(write.enabled.unwrap_or(true)),
+        };
+        Ok((row, id))
+    }
+
+    async fn change(
+        &self,
+        current: &provider_model::Model,
+        patch: ProviderModelPatch,
+    ) -> SdkResult<provider_model::ActiveModel> {
+        let mut row = provider_model::ActiveModel {
+            id: Set(current.id.clone()),
+            ..Default::default()
+        };
+        let provider_id = match patch.provider_id {
+            Some(provider_id) => {
+                let provider_id = self.provider(&provider_id).await?;
+                row.provider_id = Set(provider_id.clone());
+                provider_id
+            }
+            None => current.provider_id.clone(),
+        };
+        let upstream_name = match patch.upstream_name {
+            Some(name) => {
+                let name = crud::text(&name, "upstreamName")?;
+                row.upstream_name = Set(name.clone());
+                name
+            }
+            None => current.upstream_name.clone(),
+        };
+        if provider_id != current.provider_id || upstream_name != current.upstream_name {
+            self.unique_pair(&provider_id, &upstream_name, Some(&current.id))
+                .await?;
+        }
+        if let Some(model_id) = patch.model_id {
+            row.model_id = Set(self.catalog_model(model_id).await?);
+        }
+        if let Some(metadata) = patch.metadata {
+            row.metadata = Set(crud::object(Some(metadata), "metadata")?);
+        }
+        if let Some(enabled) = patch.enabled {
+            row.enabled = Set(enabled);
+        }
+        Ok(row)
+    }
+}

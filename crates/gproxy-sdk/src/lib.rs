@@ -49,8 +49,12 @@ pub mod sync;
 
 pub use builder::{GproxyBuilder, LoginTtl};
 pub use call::{CallBuilder, ConnectBuilder};
+/// How every family asks for a list and answers with one. The rest of the
+/// DTOs stay behind `dto::` so a host's own names cannot collide with them.
+pub use dto::{ListQuery, Page};
 pub use error::{SdkError, SdkResult};
 pub use handle::Gproxy;
+pub use manage::Scope;
 pub use resolve::{Plan, ResolveRequest, RoutingTable, Target};
 pub use session::GATEWAY_SESSION_HEADER;
 pub use sync::{INVALIDATION_TOPIC, SyncMode};
@@ -68,10 +72,11 @@ pub use gproxy_channel::{
 };
 pub use gproxy_client::{ClientPool, OutboundClient};
 pub use gproxy_core::{
-    AesGcmCodec, ConfigRevision, Core, CoreData, CoreError, CoreResult, CredentialSummary,
-    FetchPolicy, Invalidation, Observer, PlaintextCodec, PublicationUrl, RefreshMode,
-    ReloadOutcome, RequestContext, SecretCodec, SessionIdentity, SessionSource,
+    AesGcmCodec, BudgetOwner, ConfigRevision, Core, CoreData, CoreError, CoreResult,
+    CredentialStatus, CredentialSummary, FetchPolicy, Invalidation, Observer, PlaintextCodec,
+    PublicationUrl, RefreshMode, ReloadOutcome, RequestContext, SecretCodec, SessionIdentity,
+    SessionSource,
 };
 pub use gproxy_file::Operator;
 pub use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
-pub use gproxy_store::{Page, Store};
+pub use gproxy_store::Store;

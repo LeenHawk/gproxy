@@ -104,6 +104,11 @@ impl<C> Gproxy<C> {
     pub fn routing(&self) -> Arc<RoutingTable> {
         self.0.routing.load_full()
     }
+    /// The configuration write families. Every write through them is one
+    /// revision commit followed by a local reload and a peer notification.
+    pub fn manage(&self) -> crate::manage::Manage<'_, C> {
+        crate::manage::Manage::new(&self.0)
+    }
     /// Every compiled-in channel as data, ordered by id: what a management UI
     /// renders its provider forms from.
     pub fn channels(&self) -> Vec<ChannelDescriptor> {
