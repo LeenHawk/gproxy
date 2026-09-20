@@ -32,6 +32,7 @@ pub struct ConfigRevision(pub u64);
 #[derive(Default)]
 pub struct CoreData {
     pub revision: ConfigRevision,
+    pub observation: crate::ObservationSettings,
     /// Finite execution bounds from the Setting row of this revision.
     pub limits: ExecutionLimits,
     pub providers: EntityMap<ProviderData>,

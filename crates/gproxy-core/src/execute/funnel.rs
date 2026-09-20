@@ -17,6 +17,8 @@ pub(crate) struct Funnel {
     observer: Arc<dyn Observer>,
     exchanges: Mutex<Vec<ExchangeUsage>>,
     finished: AtomicBool,
+    handed_off: AtomicBool,
+    exchanges_closed: Mutex<Vec<oneshot::Receiver<()>>>,
     sender: Mutex<Option<oneshot::Sender<crate::CoreResult<UsageReport>>>>,
     /// Charges settled usage against Counted dimensions before the report leaves.
     meter: Mutex<Option<Arc<dyn crate::quota::UsageMeter>>>,
@@ -36,6 +38,8 @@ impl Funnel {
             observer,
             exchanges: Mutex::new(Vec::new()),
             finished: AtomicBool::new(false),
+            handed_off: AtomicBool::new(false),
+            exchanges_closed: Mutex::new(Vec::new()),
             sender: Mutex::new(Some(sender)),
             meter: Mutex::new(None),
             realtime_dedup: Mutex::new(None),
@@ -43,6 +47,23 @@ impl Funnel {
         let completion: UsageCompletion =
             Box::pin(async move { receiver.await.unwrap_or(Err(crate::CoreError::Cancelled)) });
         (funnel, completion)
+    }
+
+    pub fn open_exchange(&self) -> oneshot::Sender<()> {
+        let (tx, rx) = oneshot::channel();
+        self.exchanges_closed.lock().unwrap().push(rx);
+        tx
+    }
+    pub fn handed_off(&self) -> bool {
+        self.handed_off.load(Ordering::SeqCst)
+    }
+
+    pub fn interrupted_state(&self) -> UsageState {
+        if self.request.cancellation.is_cancelled() {
+            UsageState::Cancelled
+        } else {
+            UsageState::Failed
+        }
     }
 
     pub fn set_meter(&self, meter: Arc<dyn crate::quota::UsageMeter>) {
@@ -74,14 +95,36 @@ impl Funnel {
     /// ends. Minting the proof here keeps "returned to caller" and "will
     /// settle" the same event.
     pub fn arm(&self) -> Settled {
+        self.handed_off.store(true, Ordering::SeqCst);
         Settled(())
+    }
+
+    pub fn guard(self: &Arc<Self>) -> RequestGuard {
+        RequestGuard(self.clone())
     }
 
     /// Exactly once per request. Later calls are no-ops, so a body ending
     /// after an explicit failure does not settle twice.
-    pub async fn finish(&self, state: UsageState) -> Settled {
+    pub async fn finish(self: &Arc<Self>, state: UsageState) -> Settled {
+        // Once settlement starts, dropping its waiter must not cancel DB writes.
+        let this = self.clone();
+        let (tx, rx) = oneshot::channel();
+        crate::rt::spawn(async move {
+            this.finish_inner(state).await;
+            let _ = tx.send(());
+        });
+        let _ = rx.await;
+        Settled(())
+    }
+    async fn finish_inner(&self, state: UsageState) {
         if self.finished.swap(true, Ordering::SeqCst) {
-            return Settled(());
+            return;
+        }
+        // Capture flush and synchronous usage observation for every physical
+        // call precede the single request summary, including dropped bodies.
+        let pending = std::mem::take(&mut *self.exchanges_closed.lock().unwrap());
+        for closed in pending {
+            let _ = closed.await;
         }
         let mut report = UsageReport {
             request_id: self.request.request_id.clone(),
@@ -103,31 +146,32 @@ impl Funnel {
                 // aggregate whose response ownership could not be established.
                 report.exchanges.clear();
                 report.state = UsageState::Failed;
-                self.observer.usage(&report).await;
+                self.observer.usage(&self.request, &report).await;
                 if let Some(sender) = self.sender.lock().unwrap().take() {
                     let _ = sender.send(Err(error));
                 }
-                return Settled(());
+                return;
             }
             // Cost is computed here, once, so the meter's budget settlement
             // and the Observer's record agree on the number.
-            crate::pricing::price_report(
-                &self.request.snapshot.pricing,
-                self.request.operation.operation,
-                &mut report,
-            );
-            let meter = self.meter.lock().unwrap().clone();
-            if let Some(meter) = meter
-                && !report.exchanges.is_empty()
-            {
-                meter.charge(&self.request, &report).await;
+            if self.request.snapshot.observation.settlement {
+                crate::pricing::price_report(
+                    &self.request.snapshot.pricing,
+                    self.request.operation.operation,
+                    &mut report,
+                );
+                let meter = self.meter.lock().unwrap().clone();
+                if let Some(meter) = meter
+                    && !report.exchanges.is_empty()
+                {
+                    meter.charge(&self.request, &report).await;
+                }
             }
-            self.observer.usage(&report).await;
+            self.observer.usage(&self.request, &report).await;
         }
         if let Some(sender) = self.sender.lock().unwrap().take() {
             let _ = sender.send(Ok(report));
         }
-        Settled(())
     }
 
     /// From Drop paths, where nothing can be awaited. Requires a Tokio runtime;
@@ -139,5 +183,15 @@ impl Funnel {
         crate::rt::spawn(async move {
             self.finish(state).await;
         });
+    }
+}
+
+/// Covers cancellation by dropping the execution future before response handoff.
+pub(crate) struct RequestGuard(Arc<Funnel>);
+impl Drop for RequestGuard {
+    fn drop(&mut self) {
+        if !self.0.handed_off.load(Ordering::SeqCst) {
+            self.0.clone().finish_detached(UsageState::Cancelled);
+        }
     }
 }

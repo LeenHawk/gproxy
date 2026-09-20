@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 //! Vendor service dispatch: views validated against the caller's role, one
 //! usable credential (or the named one), bindings limited to the caller's
 //! scope or the target's credentials, nothing observed.
@@ -38,6 +40,7 @@ fn request(
 ) -> ServiceRequest {
     ServiceRequest {
         scope: scope.into(),
+        user_id: None,
         caller,
         view,
         target: h.target("p"),
@@ -309,6 +312,7 @@ async fn bindings_are_scoped_to_the_caller_or_to_the_targets_credentials() {
             let response = core
                 .call_service(ServiceRequest {
                     scope,
+                    user_id: None,
                     caller,
                     view,
                     target,

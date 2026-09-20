@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 //! Caller budgets: pricing at settlement, pre-attempt rejection, lazy
 //! windows, calendar and permanent periods, manual reset and model scoping.
 mod support;
@@ -122,6 +124,7 @@ fn context(h: &Harness, id: &str, owners: Vec<BudgetOwner>, model: &str) -> Arc<
     Arc::new(RequestContext {
         target,
         request_id: ctx.request_id.clone(),
+        attribution: ctx.attribution.clone(),
         snapshot: ctx.snapshot.clone(),
         scope: ctx.scope.clone(),
         session: None,
@@ -615,6 +618,7 @@ async fn the_caller_service_view_renders_budget_windows() {
     let call = |budgets: Vec<BudgetOwner>| {
         h.core.call_service(ServiceRequest {
             scope: "tenant".into(),
+            user_id: Some("u".into()),
             caller: CallerRole::Member,
             view: ServiceView::Caller,
             target: h.target("p"),

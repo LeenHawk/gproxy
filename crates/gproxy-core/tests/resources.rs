@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 //! `Resources`: publications over Store rows and the file backend, upstream
 //! reads by id through the scope's provider, and the contract's edge cases.
 

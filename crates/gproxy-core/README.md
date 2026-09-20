@@ -4,7 +4,7 @@ English | [简体中文](README.zh-CN.md)
 
 The provider execution engine, without downstream concerns. The upper layer
 resolves routes and model aliases, authenticates callers, evaluates policies and
-admits requests; it then hands core a Store, a Cache, an Observer and one
+admits requests; it then hands core a Store, a Cache and one
 `ExecutionTarget` (provider, upstream model, permitted credentials). Core does
 protocol conversion, request/response rewriting, credential selection, refresh
 and availability, upstream calls over HTTP and WebSocket, stream forwarding,
@@ -14,7 +14,7 @@ extraction and local token estimation.
 
 | Module | Role |
 |---|---|
-| `builder` | `Core::builder(store)`: cache, observer and secret codec required; channels registered into a `ChannelRegistry`; optional client pool and file storage |
+| `builder` | `Core::builder(store)`: cache and secret codec required; Store-backed observer by default, explicit override supported; channels registered into a `ChannelRegistry`; optional client pool and file storage |
 | `data` / `runtime` / `context` | Execution snapshot, atomic credential material, blocks and window keys, resolved target and request/attempt/exchange contexts, usage reports |
 | `secret` | `SecretCodec`: `AesGcmCodec` (AES-256-GCM envelope, per-credential data key, credential ID in the AAD) by default, `PlaintextCodec` as the explicit opt-out |
 | `limits` | `ExecutionLimits` from the Setting row, deriving every `CapabilityLimits` and `CodecLimits`; no unlimited mode |
@@ -94,7 +94,7 @@ returns an `Execution<T>`: the protocol response or connection and a
 | `reload_credentials` | Re-read rows in input order and publish into the existing slot; missing rows return None and retire the slot |
 | `refresh_credential` | Provider ownership check, per-credential cache lease (peers wait, a newer durable version satisfies the call), authoritative Store read, channel refresh, seal, `refresh_many` CAS, publication and a `CredentialChanged` notification; `RefreshRejected` persists `Dead` with its reason |
 | `query_credential_quota` | The channel's `QuotaQuery` through the assigned client; every entry becomes a `credential_quota_cycles` row, exhausted declared dimensions become blocks |
-| `call_service` / `connect_service` | [service.rs](src/service.rs): the channel's `ChannelServices` (vendor CLI calls without an `OperationKey`) under a `ServiceView`. `Caller` (any role) renders the caller's own picture from the gateway's accounting for `scope` and the resources bound to it — a member never sees any credential's state; `Pool` (admin) merges the target's credentials into one synthesized account; `Credential(id)` (admin) forwards raw with that credential's auth. Core never decides who is an admin of what: the host expresses the org boundary by choosing `target.credentials`, and `CallerRole::Admin` means admin over that set. Core supplies the facts (`TargetCaller`: usage rows keyed by scope, the current windows of the budgets named in `ServiceRequest::budgets`, quota cycles of the target's credentials, `resource_bindings`), picks the first usable credential (or the named one) and item routes follow the credential recorded in the binding. A wrong role is `Forbidden`, a channel without services is `Channel(UnsupportedService)`. Runs **outside the funnel**: no attempt, usage, capture or retry |
+| `call_service` / `connect_service` | [service.rs](src/service.rs): the channel's `ChannelServices` (vendor CLI calls without an `OperationKey`) under a `ServiceView`. `Caller` (any role) renders the caller's own picture from the gateway's accounting for explicit `ServiceRequest::user_id` and the resources bound to `scope` — a member never sees any credential's state; `Pool` (admin) merges the target's credentials into one synthesized account; `Credential(id)` (admin) forwards raw with that credential's auth. Core never decides who is an admin of what: the host expresses the org boundary by choosing `target.credentials`, and `CallerRole::Admin` means admin over that set. Core supplies the facts (`TargetCaller`: usage rows keyed by the explicit user ID, the current windows of the budgets named in `ServiceRequest::budgets`, quota cycles of the target's credentials, `resource_bindings`), picks the first usable credential (or the named one) and item routes follow the credential recorded in the binding. A wrong role is `Forbidden`, a channel without services is `Channel(UnsupportedService)`. Runs **outside the funnel**: no attempt, usage, capture or retry |
 
 ## Execution
 
@@ -242,12 +242,22 @@ overrun by at most one request.
 
 ## Observation
 
-[observe.rs](src/observe.rs) is the host's funnel. `Observer::policy` answers
-once per request before any attempt; disabled work is never performed and
-discarded. `capture` opens one `CaptureSink` per physical exchange; `usage` is
-called exactly once per request with usage enabled, including cancelled and
-failed ones; `trace` receives borrowed attempt, exchange and refresh events.
-Recording never rewrites, reorders or delays the delivered stream.
+Core defaults to `StoreObserver`. The snapshot's `observation` settings separately
+control upstream metadata/body capture, usage retention, and pricing/settlement.
+`enable_usage = false` disables request usage rows without disabling settlement;
+`enable_settlement = false` disables pricing and quota charges while usage may
+still be recorded. Settings take effect on configuration reload for new requests.
+Supplying `.observer(...)` replaces the built-in persistence implementation.
+
+Each physical exchange is persisted independently, including retries and multiple
+HTTP sends inside one channel invocation. Stream chunks and WebSocket messages
+are ordered `capture_events`; response errors and interruptions keep their prior
+bytes and partial usage. A request writes one usage summary after every exchange
+has closed, even if its response body, execution future or completion waiter is
+dropped. Request attribution is explicitly supplied by the host, never inferred
+from the opaque scope. Downstream capture/link creation remains a host concern.
+See [the observation contract](../../design/core-observation.md) for the switch
+matrix, storage representation and process-crash boundary.
 
 ## Protocol capabilities
 
@@ -281,6 +291,10 @@ stays where it is. A multi-instance host either routes the conversation to that 
 or keeps the conversation sticky in the first place; a single instance never sees it.
 
 ## wasm32
+
+SQLite/filesystem integration tests run on native targets only, matching their
+platform-specific dev dependencies. The wasm check includes the library and
+portable test targets; it does not execute tests in a browser.
 
 The engine runs on wasm32-unknown-unknown with the same API: timers and
 background tasks come from the JS event loop, outbound transport from

@@ -54,6 +54,7 @@ pub struct ExecutionTarget {
 #[derive(Clone)]
 pub struct RequestContext {
     pub request_id: String,
+    pub attribution: UsageAttribution,
     pub snapshot: Arc<CoreData>,
     /// Opaque isolation scope supplied after upper-layer authentication/admission.
     /// Core uses this for credential affinity; it does not interpret user/key roles.
@@ -120,6 +121,8 @@ pub struct UsageReport {
 #[derive(Clone, Debug)]
 pub struct ExchangeUsage {
     pub capture_id: String,
+    pub attempt_id: String,
+    pub attempt_ordinal: u32,
     pub provider_id: String,
     pub credential_id: String,
     pub upstream_model: Option<String>,
@@ -138,4 +141,13 @@ pub enum UsageState {
     /// The request's ObservationPolicy disabled usage: nothing was extracted
     /// and the Observer funnel was not called. Distinct from upstream absence.
     Skipped,
+}
+
+/// Historical caller facts supplied by the host; never inferred from opaque scope.
+#[derive(Clone, Debug, Default)]
+pub struct UsageAttribution {
+    pub user_id: Option<String>,
+    pub api_key_id: Option<String>,
+    pub subscription_id: Option<String>,
+    pub model: Option<String>,
 }

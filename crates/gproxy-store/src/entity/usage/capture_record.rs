@@ -13,6 +13,12 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: String,
+    /// Initiating request/attempt, retained even when downstream logging is off.
+    /// Provenance only: sharing is represented by CaptureLink, not these fields.
+    #[sea_orm(indexed)]
+    pub initiator_request_id: Option<String>,
+    pub attempt_id: Option<String>,
+    pub attempt_ordinal: Option<i32>,
     pub side: CaptureSide,
     pub kind: CaptureKind,
     /// WsTurn -> same-side WsConnection. HTTP/connection records leave it unset.

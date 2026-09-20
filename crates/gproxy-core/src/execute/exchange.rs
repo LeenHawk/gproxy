@@ -21,7 +21,7 @@ use gproxy_protocol::{
 };
 use std::sync::{
     Arc, Mutex,
-    atomic::{AtomicBool, AtomicU64, Ordering},
+    atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering},
 };
 
 pub(crate) struct Exchange {
@@ -42,6 +42,9 @@ pub(crate) struct Exchange {
     dropped: AtomicBool,
     /// Response body bytes seen so far, for output estimation.
     response_bytes: AtomicU64,
+    status: AtomicU16,
+    claimed: AtomicBool,
+    closed: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
 }
 
 impl Exchange {
@@ -60,19 +63,13 @@ impl Exchange {
             operation,
             started_at_ms: now_ms,
         });
-        let policy = funnel.policy().capture;
-        let capture = match policy {
-            CapturePolicy::Off => None,
-            policy => Some(funnel.observer().capture(&context, policy)),
-        };
-        funnel.trace(TraceEvent::ExchangeStarted(&context));
         Arc::new(Self {
             context,
             funnel,
             channel,
             limits,
             response_rules,
-            capture: Mutex::new(capture),
+            capture: Mutex::new(None),
             sequence: AtomicU64::new(0),
             request_body: Mutex::new(None),
             usage_observer: Mutex::new(None),
@@ -80,7 +77,27 @@ impl Exchange {
             finished: AtomicBool::new(false),
             dropped: AtomicBool::new(false),
             response_bytes: AtomicU64::new(0),
+            status: AtomicU16::new(0),
+            claimed: AtomicBool::new(false),
+            closed: Mutex::new(None),
         })
+    }
+
+    /// Channels may issue several real sends during one operation invocation.
+    /// Reuse the first context, then give each additional call its own identity.
+    fn for_send(self: &Arc<Self>) -> Arc<Self> {
+        if !self.claimed.swap(true, Ordering::SeqCst) {
+            return self.clone();
+        }
+        Self::new(
+            self.funnel.clone(),
+            self.context.attempt.clone(),
+            self.context.operation,
+            self.channel.clone(),
+            self.response_rules.clone(),
+            self.limits,
+            crate::api::lifecycle::now_ms(),
+        )
     }
 
     /// Mark that the caller receives this exchange's body: its end settles the request.
@@ -93,6 +110,19 @@ impl Exchange {
     }
 
     pub fn record(&self, event: CaptureEvent<'_>) {
+        if matches!(&event, CaptureEvent::RequestHead { .. }) {
+            *self.closed.lock().unwrap() = Some(self.funnel.open_exchange());
+            let policy = self.funnel.policy().capture;
+            if policy != CapturePolicy::Off {
+                *self.capture.lock().unwrap() =
+                    Some(self.funnel.observer().capture(&self.context, policy));
+            }
+            self.funnel
+                .trace(TraceEvent::ExchangeStarted(&self.context));
+        }
+        if let CaptureEvent::ResponseHead { status, .. } = &event {
+            self.status.store(status.as_u16(), Ordering::Relaxed);
+        }
         if let Some(sink) = self.capture.lock().unwrap().as_mut() {
             let sequence = self.sequence.fetch_add(1, Ordering::SeqCst);
             sink.record(sequence, event);
@@ -122,6 +152,8 @@ impl Exchange {
         let attempt = &self.context.attempt;
         self.funnel.record_exchange_usage(ExchangeUsage {
             capture_id: self.context.capture_id.clone(),
+            attempt_id: attempt.attempt_id.clone(),
+            attempt_ordinal: attempt.ordinal,
             provider_id: attempt.credential.provider_id.clone(),
             credential_id: attempt.credential.id.clone(),
             upstream_model: attempt.request.target.upstream_model.clone(),
@@ -187,6 +219,16 @@ impl Exchange {
                 usage,
             );
         }
+        if end == UsageStreamEnd::Interrupted
+            && let Some(usage) = usage.as_mut()
+        {
+            usage.completeness = gproxy_channel::channel::UsageCompleteness::Partial;
+        }
+        if let Some(usage) = usage.as_ref()
+            && let Some(sink) = self.capture.lock().unwrap().as_mut()
+        {
+            sink.usage(usage);
+        }
         self.report_usage(usage);
         self.funnel.trace(TraceEvent::ExchangeFinished {
             exchange: &self.context,
@@ -201,6 +243,9 @@ impl Exchange {
             return None;
         }
         Some(match end {
+            UsageStreamEnd::Complete if self.status.load(Ordering::Relaxed) >= 400 => {
+                UsageState::Failed
+            }
             UsageStreamEnd::Complete => UsageState::Completed,
             UsageStreamEnd::Interrupted => {
                 if self.dropped.load(Ordering::SeqCst)
@@ -215,16 +260,33 @@ impl Exchange {
     }
 
     async fn close(&self, sink: Option<Box<dyn CaptureSink>>, end: UsageStreamEnd) {
-        if let Some(sink) = sink {
-            sink.finish(match end {
-                UsageStreamEnd::Complete => crate::CaptureEnd::Complete,
-                UsageStreamEnd::Interrupted => crate::CaptureEnd::Interrupted,
-            })
-            .await;
-        }
-        if let Some(state) = self.terminal_state(end) {
-            self.funnel.finish(state).await;
-        }
+        let capture_end = match end {
+            UsageStreamEnd::Complete => crate::CaptureEnd::Complete,
+            UsageStreamEnd::Interrupted
+                if (self.dropped.load(Ordering::SeqCst) && self.funnel.handed_off())
+                    || self.context.attempt.request.cancellation.is_cancelled() =>
+            {
+                crate::CaptureEnd::Cancelled
+            }
+            UsageStreamEnd::Interrupted => crate::CaptureEnd::Interrupted,
+        };
+        let closed = self.closed.lock().unwrap().take();
+        let state = self.terminal_state(end);
+        let funnel = self.funnel.clone();
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        crate::rt::spawn(async move {
+            if let Some(sink) = sink {
+                sink.finish(capture_end).await;
+            }
+            if let Some(closed) = closed {
+                let _ = closed.send(());
+            }
+            if let Some(state) = state {
+                funnel.finish(state).await;
+            }
+            let _ = tx.send(());
+        });
+        let _ = rx.await;
     }
 
     /// End of this exchange: finish usage (stream observer or extractor over
@@ -324,7 +386,7 @@ impl OutboundClient for ObservedClient {
         request: http::Request<HttpBody>,
     ) -> CapabilityFuture<'b, Result<WireResponse<HttpBody>, CapabilityError>> {
         Box::pin(async move {
-            let exchange = self.exchange.clone();
+            let exchange = self.exchange.for_send();
             let (parts, body) = request.into_parts();
             exchange.record(CaptureEvent::RequestHead {
                 method: &parts.method,
@@ -356,7 +418,21 @@ impl OutboundClient for ObservedClient {
                 }
             };
             let request = http::Request::from_parts(parts, body);
-            let response = self.inner.send(request).await?;
+            let response = match self.inner.send(request).await {
+                Ok(response) => response,
+                Err(error) => {
+                    exchange
+                        .finish(
+                            UsageStreamEnd::Interrupted,
+                            None,
+                            None,
+                            None,
+                            crate::api::lifecycle::now_ms(),
+                        )
+                        .await;
+                    return Err(error);
+                }
+            };
             exchange.record(CaptureEvent::ResponseHead {
                 status: response.status,
                 headers: &response.headers,
@@ -386,7 +462,22 @@ impl OutboundClient for ObservedClient {
                 headers: &parts.headers,
             });
             let request = http::Request::from_parts(parts, ());
-            match self.inner.connect(request).await? {
+            let connection = match self.inner.connect(request).await {
+                Ok(connection) => connection,
+                Err(error) => {
+                    self.exchange
+                        .finish(
+                            UsageStreamEnd::Interrupted,
+                            None,
+                            None,
+                            None,
+                            crate::api::lifecycle::now_ms(),
+                        )
+                        .await;
+                    return Err(error);
+                }
+            };
+            match connection {
                 UpstreamConnection::Connected { handshake, socket } => {
                     self.exchange.record(CaptureEvent::ResponseHead {
                         status: handshake.status,
@@ -416,5 +507,30 @@ impl OutboundClient for ObservedClient {
                 }
             }
         })
+    }
+}
+
+impl Drop for Exchange {
+    fn drop(&mut self) {
+        // Covers a dropped send/handshake future before any response body guard.
+        if let Some(sink) = self.settle_sync(
+            UsageStreamEnd::Interrupted,
+            None,
+            None,
+            None,
+            crate::api::lifecycle::now_ms(),
+        ) {
+            let closed = self.closed.lock().unwrap().take();
+            if sink.is_some() || closed.is_some() {
+                crate::rt::spawn(async move {
+                    if let Some(sink) = sink {
+                        sink.finish(crate::CaptureEnd::Cancelled).await;
+                    }
+                    if let Some(closed) = closed {
+                        let _ = closed.send(());
+                    }
+                });
+            }
+        }
     }
 }

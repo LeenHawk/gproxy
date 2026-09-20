@@ -21,7 +21,7 @@ impl Observer for ObserveNothing {
     fn capture(&self, _: &ExchangeContext, _: CapturePolicy) -> Box<dyn CaptureSink> {
         unreachable!("capture is never opened under CapturePolicy::Off")
     }
-    fn usage<'a>(&'a self, _: &'a UsageReport) -> CapabilityFuture<'a, ()> {
+    fn usage<'a>(&'a self, _: &'a RequestContext, _: &'a UsageReport) -> CapabilityFuture<'a, ()> {
         Box::pin(async {})
     }
     fn trace(&self, _: TraceEvent<'_>) {}
@@ -30,12 +30,14 @@ impl Observer for ObserveNothing {
 #[test]
 fn concurrent_reload_never_regresses_and_inflight_snapshot_stays_pinned() {
     let core = Arc::new(
-        Core::builder(Arc::new(gproxy_store::Store::new(())))
-            .cache(Arc::new(gproxy_cache::MemoryCache::default()))
-            .observer(Arc::new(ObserveNothing))
-            .secret_codec(Arc::new(PlaintextCodec))
-            .build()
-            .unwrap(),
+        Core::builder(Arc::new(gproxy_store::Store::new(
+            sea_orm::DatabaseConnection::default(),
+        )))
+        .cache(Arc::new(gproxy_cache::MemoryCache::default()))
+        .observer(Arc::new(ObserveNothing))
+        .secret_codec(Arc::new(PlaintextCodec))
+        .build()
+        .unwrap(),
     );
     let pinned = core.snapshot();
     let barrier = Arc::new(Barrier::new(16));

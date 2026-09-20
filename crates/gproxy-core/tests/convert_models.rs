@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 //! Model directory and token counting conversions driven end to end through
 //! Core against a Claude-only provider seeded with per-model supplements.
 

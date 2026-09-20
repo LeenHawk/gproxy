@@ -224,10 +224,15 @@ async fn end(mut state: State, how: UsageStreamEnd) -> State {
 /// Wrap a converted client stream so the request settles exactly once when it
 /// ends (Completed), errors (Failed) or is dropped (Cancelled). The upstream
 /// exchanges behind it are observed by AttemptUpstream already.
-pub(crate) fn settling(funnel: Arc<super::Funnel>, inner: ByteStream) -> ByteStream {
+pub(crate) fn settling(
+    funnel: Arc<super::Funnel>,
+    inner: ByteStream,
+    completed: crate::UsageState,
+) -> ByteStream {
     struct Guard {
         funnel: Arc<super::Funnel>,
         done: bool,
+        completed: crate::UsageState,
     }
     impl Drop for Guard {
         fn drop(&mut self) {
@@ -248,6 +253,7 @@ pub(crate) fn settling(funnel: Arc<super::Funnel>, inner: ByteStream) -> ByteStr
             guard: Guard {
                 funnel,
                 done: false,
+                completed,
             },
         },
         |mut state| async move {
@@ -257,20 +263,34 @@ pub(crate) fn settling(funnel: Arc<super::Funnel>, inner: ByteStream) -> ByteStr
                 Some(Err(error)) => {
                     state.inner = None;
                     state.guard.done = true;
-                    state.guard.funnel.finish(crate::UsageState::Failed).await;
+                    state
+                        .guard
+                        .funnel
+                        .finish(state.guard.funnel.interrupted_state())
+                        .await;
                     Some((Err(error), state))
                 }
                 None => {
                     state.inner = None;
                     state.guard.done = true;
-                    state
-                        .guard
-                        .funnel
-                        .finish(crate::UsageState::Completed)
-                        .await;
+                    state.guard.funnel.finish(state.guard.completed).await;
                     None
                 }
             }
         },
     ))
+}
+
+/// Consume superseded rejection bodies through their observation wrapper.
+pub(super) async fn drain(body: HttpBody, timeout: std::time::Duration) {
+    if let HttpBody::Stream(mut stream) = body {
+        let _ = crate::rt::timeout(timeout, async {
+            while let Some(chunk) = stream.next().await {
+                if chunk.is_err() {
+                    break;
+                }
+            }
+        })
+        .await;
+    }
 }

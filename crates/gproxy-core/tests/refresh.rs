@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 mod support;
 use support::*;
 
@@ -74,6 +76,7 @@ async fn force_refresh_rotates_the_secret_persists_by_cas_and_publishes() {
             credentials: vec![ctx.target.credentials[0].clone()],
         },
         request_id: ctx.request_id.clone(),
+        attribution: ctx.attribution.clone(),
         snapshot: ctx.snapshot.clone(),
         scope: ctx.scope.clone(),
         session: None,
@@ -229,6 +232,7 @@ async fn unauthorized_upstream_forces_one_refresh_and_retries_the_same_credentia
             credentials: vec![ctx.target.credentials[0].clone()],
         },
         request_id: ctx.request_id.clone(),
+        attribution: ctx.attribution.clone(),
         snapshot: ctx.snapshot.clone(),
         scope: ctx.scope.clone(),
         session: ctx.session.clone(),
@@ -296,6 +300,7 @@ async fn material_near_expiry_is_refreshed_before_the_attempt_pins_it() {
             credentials: vec![ctx.target.credentials[0].clone()],
         },
         request_id: ctx.request_id.clone(),
+        attribution: ctx.attribution.clone(),
         snapshot: ctx.snapshot.clone(),
         scope: ctx.scope.clone(),
         session: None,
