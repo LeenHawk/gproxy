@@ -105,6 +105,7 @@ async fn multipart_stream_uploads_work_through_the_configured_proxy() {
             match client.as_ref() {
                 #[cfg(feature = "reqwest-native")]
                 Client::ReqwestNative(_) => unreachable!("not exercised here"),
+                Client::Host(_) => unreachable!("this pool builds its own clients"),
                 #[cfg(feature = "reqwest")]
                 Client::Reqwest(client) => {
                     use gproxy_client::reqwest::{
@@ -192,6 +193,7 @@ async fn websocket_upgrade_and_duplex_frames_use_the_profile_and_survive_cache_c
                 match client.as_ref() {
                     #[cfg(feature = "reqwest-native")]
                     Client::ReqwestNative(_) => unreachable!("not exercised here"),
+                    Client::Host(_) => unreachable!("this pool builds its own clients"),
                     #[cfg(feature = "reqwest")]
                     Client::Reqwest(client) => {
                         use gproxy_client::reqwest_websocket::{Upgrade, Message, CloseCode};

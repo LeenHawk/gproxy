@@ -11,6 +11,7 @@ members = [
     "crates/gproxy-channel",
     "crates/gproxy-cache",
     "crates/gproxy-core",
+    "crates/gproxy-sdk",
 ]
 
 [workspace.package]
@@ -33,13 +34,14 @@ gproxy-app = { path = "crates/gproxy-app", version = "=3.0.13" }
 gproxy-admin = { path = "crates/gproxy-admin", version = "=3.0.13" }
 gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "=3.0.13" }
 gproxy-channels = { path = "crates/gproxy-channels", version = "=3.0.13" }
-gproxy-core = { path = "crates/gproxy-core", version = "=4.0.0-dev" }
+gproxy-core = { path = "crates/gproxy-core", version = "=4.0.0-dev", default-features = false }
 gproxy-channel = { path = "crates/gproxy-channel", version = "=4.0.0-dev", default-features = false }
 gproxy-client = { path = "crates/gproxy-client", version = "=4.0.0-dev", default-features = false }
 gproxy-cache = { path = "crates/gproxy-cache", version = "=4.0.0-dev", default-features = false }
 gproxy-file = { path = "crates/gproxy-file", version = "=4.0.0-dev", default-features = false }
 gproxy-protocol = { path = "crates/gproxy-protocol", version = "=4.0.0-dev", features = ["exhaustive"] }
 gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=4.0.0-dev" }
+gproxy-sdk = { path = "crates/gproxy-sdk", version = "=4.0.0-dev", default-features = false }
 gproxy-seaorm = { path = "crates/gproxy-seaorm", version = "=4.0.0-dev" }
 gproxy-store = { path = "crates/gproxy-store", version = "=4.0.0-dev" }
 gproxy-tokenizer = { path = "crates/gproxy-tokenizer", version = "=4.0.0-dev", default-features = false }

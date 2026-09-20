@@ -21,6 +21,10 @@ pub enum Client {
     Wreq(wreq::Client),
     #[cfg(feature = "reqwest-native")]
     ReqwestNative(reqwest_native::Client),
+    /// A transport the host built itself, handed to the pool through
+    /// `ClientPool::with_client`. No profile setting applies to it: the host
+    /// already decided what this client does.
+    Host(std::sync::Arc<dyn crate::OutboundClient>),
 }
 
 /// wasm32 transports. `Backend` in the profile is a native choice; here every

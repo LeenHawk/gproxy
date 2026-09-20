@@ -52,6 +52,7 @@ async fn try_get(
         Client::Wreq(client) => Response::Wreq(client.get(url).send().await?),
         #[cfg(feature = "reqwest-native")]
         Client::ReqwestNative(_) => unreachable!("not exercised here"),
+        Client::Host(_) => unreachable!("this pool builds its own clients"),
     })
 }
 
@@ -573,6 +574,7 @@ async fn tunneled_client_hello(mut config: ConnectionConfig, websocket: bool) ->
             .send()
             .await
             .is_err(),
+        Client::Host(_) => unreachable!("this pool builds its own clients"),
     };
     assert!(failed, "the capture server closes before completing TLS");
     server.await.unwrap()
