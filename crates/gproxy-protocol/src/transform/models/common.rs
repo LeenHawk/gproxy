@@ -105,13 +105,13 @@ pub(crate) fn bare_gemini_id(value: &str) -> Result<String, TransformError> {
 }
 
 pub(crate) fn openai_model(id: String, created: i64, owned_by: String) -> openai_models::Model {
-    openai_models::Model {
+    openai_models::Model::builder(
         id,
-        created,
-        object: openai_models::ModelObject::Model,
-        owned_by,
-        rest: Default::default(),
-    }
+        Some(created),
+        openai_models::ModelObject::Model,
+        Some(owned_by),
+    )
+    .build()
 }
 
 pub(crate) fn claude_model(
@@ -152,14 +152,6 @@ pub(crate) fn report_claude_loss(report: &mut Report) {
         "model.allowed_fallback_models",
         "target dialect has no fallback list",
     );
-    report.omitted(
-        "model.max_input_tokens",
-        "target dialect has no input-token limit",
-    );
-    report.omitted(
-        "model.max_tokens",
-        "target dialect has no output-token limit",
-    );
 }
 
 pub(crate) fn report_gemini_loss(report: &mut Report) {
@@ -171,27 +163,6 @@ pub(crate) fn report_gemini_loss(report: &mut Report) {
         "model.version",
         "OpenAI model objects have no model version",
     );
-    report.omitted(
-        "model.display_name",
-        "OpenAI model objects have no display name",
-    );
-    report.omitted(
-        "model.description",
-        "OpenAI model objects have no description",
-    );
-    report.omitted(
-        "model.input_token_limit",
-        "OpenAI model objects have no input limit",
-    );
-    report.omitted(
-        "model.output_token_limit",
-        "OpenAI model objects have no output limit",
-    );
-    report.omitted(
-        "model.supported_generation_methods",
-        "OpenAI model objects have no generation-method list",
-    );
-    report.omitted("model.thinking", "target dialect has no thinking field");
     report.omitted(
         "model.temperature",
         "OpenAI model objects have no temperature field",

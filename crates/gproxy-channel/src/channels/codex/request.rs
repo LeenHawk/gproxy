@@ -4,7 +4,7 @@ use super::common::invalid_config;
 use super::headers::{Account, account, backend_headers, base_urls};
 use super::identity::{Identity, RequestKind};
 use super::{
-    CLI_HEADERS, Codex, CodexConfig, ID, default_connection, identity, realtime, shape, sse,
+    CLI_HEADERS, Codex, CodexConfig, ID, default_connection, identity, models, realtime, shape, sse,
 };
 use crate::channel::{
     BaseChannel, ChannelError, ChannelServices, ChannelState, CredentialRefresh, HeaderAllowlist,
@@ -465,7 +465,9 @@ impl BaseChannel for Codex {
             Operation::GenerateContent | Operation::StreamGenerateContent => {
                 vec![Dialect::OpenAi, Dialect::OpenAiResponsesWebSocket]
             }
-            Operation::CompactContent
+            Operation::ListModels
+            | Operation::GetModel
+            | Operation::CompactContent
             | Operation::SummarizeMemory
             | Operation::CreateRealtimeCall
             | Operation::ConnectRealtime
@@ -481,6 +483,12 @@ impl BaseChannel for Codex {
     /// Plain preparation is stateless and synthesizes no identity; the
     /// Responses operations below read and write channel state around it.
     fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+        if matches!(
+            ctx.operation.operation,
+            Operation::ListModels | Operation::GetModel
+        ) {
+            return models::prepare(ctx);
+        }
         self.prepare_with(ctx, None).map(|(request, _)| request)
     }
 
@@ -495,6 +503,19 @@ impl BaseChannel for Codex {
         builder
             .body(())
             .map_err(|error| invalid_config(error.to_string()))
+    }
+
+    fn list_models<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        Box::pin(models::invoke(Operation::ListModels, context))
+    }
+    fn get_model<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        Box::pin(models::invoke(Operation::GetModel, context))
     }
 
     fn generate_content<'a>(

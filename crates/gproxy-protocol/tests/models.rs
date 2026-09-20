@@ -138,9 +138,9 @@ fn model_queries_and_headers_are_separate_from_response_json() {
         headers: http::HeaderMap::new(),
         body: openai::models::Model::builder(
             "gpt-5".into(),
-            0,
+            Some(0),
             openai::models::ModelObject::Model,
-            "openai".into(),
+            Some("openai".into()),
         )
         .build(),
     };

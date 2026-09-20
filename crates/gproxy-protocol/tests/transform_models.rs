@@ -199,9 +199,9 @@ fn openai_model() -> openai_models::Model {
     {
         let mut fixture = openai_models::Model::builder(
             "openai-1".into(),
-            1_704_067_200,
+            Some(1_704_067_200),
             openai_models::ModelObject::Model,
-            "owner".into(),
+            Some("owner".into()),
         )
         .build();
         fixture.rest = rest();
@@ -259,7 +259,7 @@ fn all_six_get_directions_map_known_fields() {
         .unwrap()
         .value;
     assert_eq!(claude_to_openai.id, "claude-1");
-    assert_eq!(claude_to_openai.created, 1_704_067_200);
+    assert_eq!(claude_to_openai.created, Some(1_704_067_200));
     let claude_to_gemini = claude_to_gemini(claude_model(), &gemini_supplement())
         .unwrap()
         .value;

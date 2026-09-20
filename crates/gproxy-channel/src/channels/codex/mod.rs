@@ -16,6 +16,7 @@ mod common;
 mod config;
 mod headers;
 mod identity;
+mod models;
 mod oauth;
 mod quota;
 mod realtime;
