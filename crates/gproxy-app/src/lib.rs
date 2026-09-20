@@ -13,13 +13,15 @@
 //! authentication produces a caller, admission turns it into an allowed
 //! provider set, an allowed credential set, a budget owner chain, a scope and
 //! a session identity, and the sdk executes with exactly those. The identity
-//! snapshot, the configuration type and authentication exist at this point;
-//! the remaining modules are declared so later phases fill them in place.
+//! snapshot, the configuration type, authentication and admission exist at
+//! this point; the remaining modules are declared so later phases fill them
+//! in place.
 
 mod error;
 pub use error::AppError;
 
 mod hex;
+mod rt;
 
 pub mod config;
 pub use config::AppConfig;
@@ -28,6 +30,8 @@ pub mod snapshot;
 pub use snapshot::{AppData, AppSnapshot};
 
 pub mod admission;
+pub use admission::{Admission, AdmissionRequest, Admitted};
+
 pub mod audit;
 pub mod auth;
 pub use auth::{Authenticator, Caller, CallerKind, GrantContext};

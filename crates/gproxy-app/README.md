@@ -27,7 +27,7 @@ transport (host)
 Each step narrows, and nothing below re-opens what was narrowed above: the
 engine is handed a provider set and a credential set, not a caller to
 interpret. The sdk bridge itself (`call.rs`, `service.rs`, `publication.rs`)
-lands once `gproxy-sdk` exists; today this crate stops after the caller.
+lands next; today this crate stops after the `Admitted`.
 
 ## What exists now
 
@@ -36,11 +36,12 @@ lands once `gproxy-sdk` exists; today this crate stops after the caller.
 | `config` | `AppConfig`: plain serde, shared by both hosts, no filesystem or environment access |
 | `snapshot` | `AppData`, the compiled identity of one configuration revision, and `AppSnapshot`, its monotonic publication |
 | `auth` | the three ways a request names a caller, and the `Caller` all three produce |
+| `admission` | `Caller` → `Admitted`: providers, credentials, budget owners, scope, session, rate-limit charges |
 | `error` | `AppError`, with `status_code()` and a stable `code()` for the API envelope |
 
-Everything else (`admission`, `call`, `service`, `capture`, `publication`,
-`operations`, `audit`, `dto`) is declared with the contract it will hold, so a
-later phase fills it in place rather than reshaping the crate.
+Everything else (`call`, `service`, `capture`, `publication`, `operations`,
+`audit`, `dto`) is declared with the contract it will hold, so a later phase
+fills it in place rather than reshaping the crate.
 
 ## The snapshot
 
@@ -182,6 +183,127 @@ a maximum of 1024 bytes. No composition rule beyond that: mandatory character
 classes push users towards `Password1!` and forbid long passphrases. A
 `password_hash` that does not parse is a user who cannot log in, never a panic
 and never an accidental success.
+
+## Admission
+
+`Admission::admit` takes a `Caller` and a request and produces the `Admitted`
+the engine runs with. Six steps, in this order:
+
+| # | Step | Produces | Can refuse with |
+|---|---|---|---|
+| 1 | permissions | the allowed provider set | `403 forbidden` |
+| 2 | credential visibility | the allowed credential set | — |
+| 3 | the budget chain | who this request is charged to | — |
+| 4 | the scope | whose traffic it counts as, for affinity | — |
+| 5 | the session identity | which conversation it continues | — |
+| 6 | rate limits | the charges it is holding | `429 rate_limited` |
+
+Steps 1–5 are pure functions of the snapshot and the request. **Step 6 is
+last because it is the only one that consumes something.** A request rejected
+for permissions must not move a shared counter, or an unauthorized client
+could exhaust a legitimate caller's window by sending requests it was never
+going to be allowed to make.
+
+### What an instance administrator bypasses
+
+`users.role = "admin"` **bypasses the permission filter** (every provider) and
+**credential visibility** (every credential). That role already grants the
+operations that write the `permissions` table, so a rule that refused an admin
+a provider would be a rule they could delete; making the bypass explicit keeps
+a mis-scoped deny from locking the operator out of their own instance.
+
+It bypasses nothing else. Rate limits still apply, budgets still apply, and —
+deliberately — **the OAuth baseline below still applies**. That restriction
+protects the account holder from the client they authorized, and an admin's
+account is exactly the one where a third-party token must not become an
+administrative credential.
+
+### Credential visibility follows the key, not the person
+
+A credential is visible when it is unowned (`Shared`), or when its owner
+matches the **calling key's binding**: `api_keys.user_id`, `api_keys.team_id`,
+or the key's effective organization — its own `organization_id`, or the parent
+of the team it is bound to.
+
+It is the key's binding rather than the holder's memberships because a user
+can belong to two organizations while a key belongs to one. If membership
+decided it, every key of a multi-org user would reach every organization's
+subscriptions, and no key could ever be narrower than its holder. The binding
+is on the row: the client does not send it and cannot choose it, and it is the
+same value the budget chain and the permission subject read, so what a request
+may see, what it may spend and who pays cannot disagree.
+
+Visibility narrows the engine's live credential set; it never adds to it. An
+empty result is **not** an error here — "permitted nothing" and "nothing
+exists to permit" are different failures, and the second is resolution's
+`NoTarget`, a configuration problem rather than an entitlement one.
+
+### The budget chain
+
+`[api_key?, user, subscription?, team?, org?]`, skipping the parts that are
+not set, with the bare kind strings `api_key` / `user` / `subscription` /
+`team` / `org`. Core matches those verbatim against `quotas.owner_kind` and
+knows no hierarchy between them: **every** enabled budget of **any** owner in
+the chain applies, so the order is what a log reports, not a precedence.
+
+`org` is the key's `organization_id` exactly as stored. Unlike credential
+visibility, a team-bound key does not also charge the team's parent
+organization: reaching a shared credential is what a team is for, but a budget
+is a row an operator wrote against one named owner.
+
+An OAuth grant has the same chain as the key behind it — a grant spends the
+account it was issued against, not a budget of its own. A console/portal
+session has no key, so its chain starts at `user`.
+
+### The scope, and why a grant gets its own
+
+`user:{user_id}`, except for an OAuth grant, which is `grant:{grant_id}`. Core
+uses the scope for credential affinity and never parses it.
+
+Every key of one user shares a scope: keys are the same person's credentials
+by construction, and isolation between them is credential visibility's job.
+A grant is a *different program* acting for that person, and mixing it with
+their own traffic would hand the user a continuation belonging to a program
+they are not running, let one client reference upstream resources another
+created, and leave a revoked client's bindings attached to the user after the
+grant that made them is gone.
+
+### The OAuth operation baseline
+
+An access token is a credential a user handed to somebody else's binary.
+Unless its `client_id` is listed in `AppConfig.oauth.cli_client_ids` (empty by
+default), it may only perform `ListModels`, `GetModel`, `CountTokens`,
+`GenerateContent`, `StreamGenerateContent` and `CompactContent`; anything else
+is `403`. Naming a client there is an operator accepting that it speaks for
+the user across the whole API.
+
+### Rate limits fail closed
+
+Rows come from the snapshot, counters from the cache, because several
+instances share one limit and a per-process counter would multiply every limit
+by the number of instances. Windows are fixed and aligned to the epoch —
+`now - now % (period_seconds × 1000)` — so every instance agrees on the
+boundary from the clock alone, and the key is `rl/{row_id}/{window_start}`.
+
+`metric = "concurrency"` takes a cache permit held for the life of the
+request; every other metric increments a counter with the limit as its
+ceiling, by exactly 1. A limit that wants to cap *tokens* is a budget, not a
+rate limit: the token count does not exist until the upstream has answered.
+
+**A cache that cannot answer refuses the request** (`429`, with no retry
+hint). `design/cache.md` is explicit that a failing cache must not fall back
+to local state; the same reasoning applies here, because passing the request
+turns a cache outage into "every limit on the instance is off" — the one
+moment an attacker wants and an operator cannot see.
+
+Charges are returned when they should be. A row that rejects gives back
+everything earlier rows in the same request took. `Admitted::finish()` says the
+request ran, which keeps a window counter but still returns a concurrency
+permit — the permit measures requests in flight, not requests made. Dropping a
+lease returns whatever is still outstanding; because the cache is async and
+`Drop` cannot await, the release is spawned, and a host that can await should
+call `Admitted::release()` instead. Every charge expires with its window, so
+even a lost release self-heals at the boundary.
 
 ## A cascade that only exists on new databases
 

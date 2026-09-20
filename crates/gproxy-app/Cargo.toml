@@ -19,6 +19,10 @@ getrandom = { workspace = true }
 gproxy-cache = { workspace = true }
 gproxy-core = { workspace = true }
 gproxy-protocol = { workspace = true }
+# The session ladder of `design/session-identity.md` has exactly one
+# implementation, and it lives in the sdk; `admission::session` wraps it rather
+# than growing a second one that could drift.
+gproxy-sdk = { workspace = true }
 gproxy-seaorm = { workspace = true }
 gproxy-store = { workspace = true }
 http = { workspace = true }
@@ -30,6 +34,17 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 web-time = { workspace = true }
 
+# A rate-limit charge has to be given back from a `Drop`, where nothing can be
+# awaited, so the release is spawned. This is the whole of the runtime this
+# crate touches: no server, no timers, no task management.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1", default-features = false, features = ["rt"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = { workspace = true }
+
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+async-trait = { workspace = true }
+gproxy-cache = { workspace = true, features = ["memory"] }
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
