@@ -9,7 +9,7 @@ repository.workspace = true
 
 [dependencies]
 arc-swap = { workspace = true }
-# Pure Rust password hashing; the console/portal login lands in P2.
+# Pure Rust password hashing for the console/portal login.
 argon2 = { workspace = true }
 base64 = { workspace = true }
 bytes = { workspace = true }
@@ -19,8 +19,10 @@ getrandom = { workspace = true }
 gproxy-cache = { workspace = true }
 gproxy-core = { workspace = true }
 gproxy-protocol = { workspace = true }
+gproxy-seaorm = { workspace = true }
 gproxy-store = { workspace = true }
 http = { workspace = true }
+sea-orm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }

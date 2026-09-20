@@ -24,7 +24,7 @@ Cloudflare Worker 里——本 crate 能为 `wasm32-unknown-unknown` 构建，�
 
 每一步都在收窄，下面不会重新打开上面已经收窄的东西：交给引擎的是一个 Provider 集和
 一个凭证集，而不是一个待解释的调用方。sdk 桥接本身（`call.rs`、`service.rs`、
-`publication.rs`）要等 `gproxy-sdk` 存在之后才落地；当前本 crate 到快照与配置为止。
+`publication.rs`）要等 `gproxy-sdk` 存在之后才落地；当前本 crate 到调用方为止。
 
 ## 现在有什么
 
@@ -32,9 +32,10 @@ Cloudflare Worker 里——本 crate 能为 `wasm32-unknown-unknown` 构建，�
 |---|---|
 | `config` | `AppConfig`：纯 serde，两个宿主共用，不碰文件系统也不读环境变量 |
 | `snapshot` | `AppData`——某个配置 revision 编译后的身份，以及单调发布它的 `AppSnapshot` |
+| `auth` | 请求指认调用方的三条路径，以及三者产出的同一个 `Caller` |
 | `error` | `AppError`，带 `status_code()` 与用于 API 信封的稳定 `code()` |
 
-其余模块（`auth`、`admission`、`call`、`service`、`capture`、`publication`、
+其余模块（`admission`、`call`、`service`、`capture`、`publication`、
 `operations`、`audit`、`dto`）都已声明并写明各自将承担的契约，后续阶段就地填充，
 不需要再改 crate 的形状。
 
@@ -85,6 +86,69 @@ OAuth client 允许列表在这里评估，同时也在 SQL 里评估。
 快路径：尽早拒绝、列出 client、渲染门户，全都不需要一次往返。SQL 那份是权威，两者
 必须一致。有一层这里加不上——全局允许列表在 `settings` 上，属于 `ControlData` 而不是
 `IdentityData`。
+
+## 认证
+
+三种调用方，一个 `Caller`。这一层之上不会再重新推导谁在调用。
+
+| 种类 | 凭证 | 绑定 |
+|---|---|---|
+| `ApiKey` | `Authorization: Bearer`、`x-api-key` 或 `x-goog-api-key` 里的网关 key | key 行上的组织、团队与订阅 |
+| `OAuthGrant` | 已签发的 access token，经 `resolve_access_many` 解析 | grant 的内部 key 行，外加一个 `GrantContext` |
+| `Session` | 由 `user_sessions` 支撑的控制台／门户 cookie | 没有：会话就是这个人本身 |
+
+查询串里的 key（`?key=`，Gemini 的形状）刻意不从 header map 里读。查询串属于传输层；
+接受这种形式的宿主自己取出来，再调用 `authenticate_token`。
+
+### 摘要阶梯，以及为什么要去掉 `sk-`/`at-`
+
+出示的 token 会按这个顺序用**两个**摘要查找：
+
+1. `SHA-256(token)`——`generate_api_key` 写入的形式，即 v4 的 key 存的是整串
+   `sk-…` 文本的摘要；
+2. `SHA-256(载荷)`，其中载荷是去掉一个前导 `sk-` 或 `at-` 之后的 token——v3 写入的形式。
+
+`sk-` 与 `at-` 是展示前缀，不是密钥的一部分。有些渠道拒绝不像 PAT 的 token，于是同一个
+key 会以 `at-…` 交给一个上游、以 `sk-…` 交给另一个。对载荷做摘要让三种写法——`sk-X`、
+`at-X`、裸 `X`——保持同一个身份，配额与用量因此跟着 key 走，而不是跟着拼写走。没有前缀的
+token 只产生一个摘要，不是两个。
+
+### 三条路径共同遵守的规则
+
+- **OAuth key 绝不能直接认证。** `api_keys.kind = oauth` 标记的是某个 grant 的内部 key：
+  它承载该 grant 的绑定与用量身份，把它的文本当作 bearer key 出示会被拒绝，而不是当成
+  未命中；也不会因此落到 access token 那条路径上。
+- **所有失败一律 401，绝不 403。** 被禁用的 key、过期的 key、已撤销的 grant 与根本不存在的
+  key，从外面看必须无法区分；`Forbidden` 等于说"这个凭证是真的，只是没有权限"，而这正是
+  探测者想确认的事实。`AppError::Unauthorized` 带着给运维日志用的原因，对外只呈现
+  `unauthorized` 一个词。403 属于准入，在身份确定之后。
+- **过期按请求时钟复查。** key 索引在装配时会排除已过期的行，但一个 key 完全可能在这份
+  快照仍然生效的期间过期。
+- **token 只以哈希形式存储。** `api_keys.key_hash`、`user_sessions.token_hash` 与
+  `oauth_tokens.token_hash` 存的都是文本的 SHA-256。明文只在创建时返回一次，实例无法
+  再次产出它。两个字符串列共用 `encode_key_hash`，因此这里只有一种编码。
+- **grant 的有效性不在这里重新实现。** `resolve_access_many` 在读取 token 的同一条语句里
+  检查 token、grant、client、用户、内部 key、订阅与 client 允许列表，因此并发的撤销无法
+  从「检查」和「使用」之间溜过去。
+
+### CSRF 在哪里生效
+
+`verify_same_origin` 是一个独立函数而不是阶梯中的一步，因为它**只对 cookie 认证的请求
+生效**。cookie 会被浏览器附加到任何到达该 origin 的请求上，包括由外站页面引发的请求；
+放在头里的 API key 不会，外站页面也读不到它。对 API key 调用方跑这个检查只会让所有非浏览器
+客户端失效而毫无收益。宿主在认证之后、对 `Session` 调用方、在操作执行之前调用它。
+
+安全方法（`GET`、`HEAD`、`OPTIONS`）一律通过。其余方法都要求一个与请求自身 `Host` 相符、
+或位于 `cors_origins` 之中的 `Origin`。与 v3 不同，不安全方法上缺失 `Origin` 会被拒绝：
+浏览器一定会发这个头，缺了就说明对面不是浏览器，把它当作可信等于留下一个任何攻击者都能
+选择的豁免口。
+
+### 密码
+
+argon2id，每次哈希一份全新的 16 字节盐，存成完整的 PHC 串，因此日后调高参数不会让已有
+密码全部失效。策略沿用 v3——密码不能为空——再加上最少 8 个字符、最多 1024 字节。除此之外
+没有任何组合规则：强制字符类别只会把用户推向 `Password1!`，并且挡住长口令。解析不了的
+`password_hash` 意味着这个用户无法登录，绝不是 panic，也绝不会意外通过。
 
 ## 只在新建数据库上存在的级联
 
