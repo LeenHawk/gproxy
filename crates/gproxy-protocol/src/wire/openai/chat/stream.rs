@@ -108,6 +108,26 @@ pub struct Delta {
         deserialize_with = "present_nullable",
         skip_serializing_if = "Option::is_none"
     )]
+    pub reasoning_details: Option<Option<Vec<super::reasoning::ReasoningDetail>>>,
+    /// Plain-text reasoning returned by compatible providers (for example DeepSeek).
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reasoning_content: Option<Option<String>>,
+    /// Alternative compatible-provider spelling. Kept separately on the wire.
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reasoning: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub role: Option<Option<DeltaRole>>,
     #[serde(
         default,

@@ -82,10 +82,18 @@ pub fn gemini_to_openai_response(
         )?;
         let mut text = String::new();
         let mut has_text = false;
+        let mut reasoning = String::new();
         let mut tool_calls = Vec::new();
         for message in mapped {
             match message {
                 c::ChatMessage::Assistant(message) => {
+                    if let Some(text) = c::visible_reasoning(
+                        &message.reasoning_content,
+                        &message.reasoning,
+                        &message.reasoning_details,
+                    ) {
+                        reasoning.push_str(&text);
+                    }
                     if let Some(Some(content)) = message.content {
                         match content {
                             c::AssistantContent::Text(value) => {
@@ -186,6 +194,9 @@ pub fn gemini_to_openai_response(
         let mut message =
             c::ResponseMessage::builder(has_text.then_some(text), None, c::ResponseRole::Assistant)
                 .build();
+        if !reasoning.is_empty() {
+            message.reasoning_content = Some(Some(reasoning));
+        }
         message.tool_calls = (!tool_calls.is_empty()).then_some(tool_calls);
         let logs = candidate
             .logprobs_result
@@ -257,6 +268,13 @@ pub fn openai_to_gemini_response(
             ));
         }
         let mut parts = Vec::new();
+        if let Some(text) = c::visible_reasoning(
+            &choice.message.reasoning_content,
+            &choice.message.reasoning,
+            &choice.message.reasoning_details,
+        ) {
+            parts.push(g::Part::builder().text(text).thought(true).build());
+        }
         if let Some(text) = &choice.message.content {
             parts.push(g::Part::builder().text(text.clone()).build());
         }

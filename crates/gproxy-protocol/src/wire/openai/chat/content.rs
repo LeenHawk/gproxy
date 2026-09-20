@@ -21,6 +21,8 @@ where
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+// Keep the public wire variants inline, as with the Claude content unions.
+#[allow(clippy::large_enum_variant)]
 pub enum ChatMessage {
     Developer(DeveloperMessage),
     System(SystemMessage),
@@ -95,6 +97,26 @@ pub enum UserRole {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct AssistantMessage {
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reasoning_details: Option<Option<Vec<super::reasoning::ReasoningDetail>>>,
+    /// Plain-text reasoning returned by compatible providers (for example DeepSeek).
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reasoning_content: Option<Option<String>>,
+    /// Alternative compatible-provider spelling. Kept separately on the wire.
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub reasoning: Option<Option<String>>,
     pub role: AssistantRole,
     #[serde(
         default,

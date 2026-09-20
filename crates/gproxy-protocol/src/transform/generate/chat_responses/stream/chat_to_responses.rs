@@ -59,6 +59,7 @@ pub struct ChatToResponsesStream {
     created: Option<i64>,
     base: Option<r::GenerateContentResponseBody>,
     message: Option<MessageState>,
+    reasoning: Option<(i64, String, String)>,
     tools: BTreeMap<i64, ToolState>,
     client_tools: super::super::client_tools::Bindings,
     next_output: i64,
@@ -138,6 +139,7 @@ impl ChatToResponsesStream {
             created: None,
             base: None,
             message: None,
+            reasoning: None,
             tools: BTreeMap::new(),
             client_tools,
             next_output: 0,
@@ -284,6 +286,14 @@ impl ChatToResponsesStream {
             )?;
         }
         let d = choice.delta;
+        if let Some(text) = crate::wire::openai::chat::visible_reasoning(
+            &d.reasoning_content,
+            &d.reasoning,
+            &d.reasoning_details,
+        ) {
+            self.reasoning_text(text)?;
+        }
+
         if let Some(Some(role)) = d.role
             && role != cs::DeltaRole::Assistant
         {

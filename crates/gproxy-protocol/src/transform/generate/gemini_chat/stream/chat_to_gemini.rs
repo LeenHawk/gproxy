@@ -107,6 +107,16 @@ impl ChatToGeminiStream {
         for choice in chunk.choices {
             let index = choice.index;
             let d = choice.delta;
+            if let Some(text) = crate::wire::openai::chat::visible_reasoning(
+                &d.reasoning_content,
+                &d.reasoning,
+                &d.reasoning_details,
+            ) {
+                output.push(candidate(
+                    index,
+                    vec![g::Part::builder().text(text).thought(true).build()],
+                ));
+            }
             if !self.choices.contains_key(&index) && self.choices.len() >= self.limits.max_choices {
                 return Err(limit());
             }

@@ -219,3 +219,17 @@ may require updates to your matches when upgrading.
 OpenAI model objects expose the fixed v3 GPROXY model metadata extensions; creation time
 and ownership may be absent for compatible catalogs. No UA-dependent catalog projection
 is performed by the protocol or Codex channel.
+
+## Compatible-provider reasoning
+
+Chat assistant history, responses and stream deltas declare DeepSeek `reasoning_content`
+and OpenRouter `reasoning` / `reasoning_details` (text, summary and encrypted variants).
+Native round trips retain their spellings, empty/null values and structured details.
+Stream collection joins detail fragments by index or ID and stream synthesis emits the
+collected details. Cross-dialect visible reasoning chooses one text spelling before
+falling back to text/summary details, avoiding duplicate text when providers send both.
+Claude thinking, Gemini thought text and Responses reasoning map to `reasoning_content`;
+plain Chat reasoning maps to their corresponding response/stream content types.
+Encrypted details and provider signatures are not interpreted as text or replayed into
+another provider without original-bound state. A Claude response synthesized from plain
+Chat reasoning has an empty signature and is not a signed replay artifact.

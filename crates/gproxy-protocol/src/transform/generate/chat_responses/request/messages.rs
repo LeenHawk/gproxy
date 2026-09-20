@@ -119,6 +119,36 @@ pub(super) fn to_responses(
                 items.push(super::media::user_message(message.content)?)
             }
             c::ChatMessage::Assistant(message) => {
+                if let Some(text) = c::visible_reasoning(
+                    &message.reasoning_content,
+                    &message.reasoning,
+                    &message.reasoning_details,
+                ) {
+                    use crate::transform::identity::OutputItemKind;
+                    let id = flow
+                        .resolve_or_allocate(
+                            IdentityRole::OutputItem(OutputItemKind::Reasoning),
+                            SourceIdentity::new(
+                                crate::Dialect::OpenAiChat,
+                                None,
+                                items.len() as u64,
+                            ),
+                            policy,
+                        )
+                        .map_err(|e| TransformError::shape("reasoning.id", e.to_string()))?
+                        .emitted_id;
+                    let mut item = r::ReasoningItem::builder(
+                        r::ReasoningItemType::ReasoningItem,
+                        id,
+                        Vec::new(),
+                    )
+                    .build();
+                    item.content = Some(vec![
+                        r::ReasoningContent::builder(r::ReasoningTextType::ReasoningText, text)
+                            .build(),
+                    ]);
+                    items.push(r::InputItem::Reasoning(item));
+                }
                 if message.audio.flatten().is_some() {
                     continue;
                 }

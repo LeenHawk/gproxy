@@ -167,12 +167,19 @@ pub(super) fn gemini_content_to_chat(
     }
     let mut user = Vec::new();
     let mut assistant = Vec::new();
+    let mut reasoning = String::new();
     let mut call_messages: Vec<c::AssistantMessage> = Vec::new();
     let mut result = Vec::new();
     for mut part in content.parts.unwrap_or_default() {
         if part.thought == Some(true) {
-            report.omitted("parts.thought", "Chat has no typed reasoning replay block");
-            part.text = None;
+            if role == "model" {
+                if let Some(text) = part.text.take() {
+                    reasoning.push_str(&text);
+                }
+            } else {
+                report.omitted("parts.thought", "reasoning requires assistant role");
+                part.text = None;
+            }
         }
         if part.thought_signature.is_some() {
             report.omitted(
@@ -297,6 +304,9 @@ pub(super) fn gemini_content_to_chat(
         if call_messages.is_empty() {
             call_messages.push(c::AssistantMessage::builder(c::AssistantRole::Assistant).build());
         }
+        if !reasoning.is_empty() {
+            call_messages[0].reasoning_content = Some(Some(reasoning));
+        }
         if !assistant.is_empty() {
             call_messages[0].content = Some(Some(c::AssistantContent::Parts(assistant)));
         }
@@ -352,6 +362,13 @@ pub(super) fn assistant(
     report: &mut Report,
 ) -> Result<Vec<g::Part>, TransformError> {
     let mut parts = Vec::new();
+    if let Some(text) = c::visible_reasoning(
+        &message.reasoning_content,
+        &message.reasoning,
+        &message.reasoning_details,
+    ) {
+        parts.push(g::Part::builder().text(text).thought(true).build());
+    }
     if message.audio.as_ref().and_then(Option::as_ref).is_some() {
         return Err(TransformError::missing_metadata(
             "assistant audio/legacy-call requires replay binding",

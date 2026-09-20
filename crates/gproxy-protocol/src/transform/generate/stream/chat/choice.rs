@@ -35,6 +35,9 @@ impl FunctionAccum {
 pub(super) struct ChoiceAccum {
     role: Option<s::DeltaRole>,
     content: Option<String>,
+    reasoning_content: Option<Option<String>>,
+    reasoning: Option<Option<String>>,
+    reasoning_details: Option<Option<Vec<crate::wire::openai::chat::ReasoningDetail>>>,
     refusal: Option<String>,
     legacy: Option<FunctionAccum>,
     tools: BTreeMap<i64, FunctionAccum>,
@@ -65,6 +68,63 @@ impl ChoiceAccum {
                 ));
             }
             self.role = Some(role);
+        }
+        for (target, source) in [
+            (&mut self.reasoning_content, d.reasoning_content),
+            (&mut self.reasoning, d.reasoning),
+        ] {
+            match source {
+                Some(Some(text)) => target
+                    .get_or_insert(None)
+                    .get_or_insert_with(String::new)
+                    .push_str(&text),
+                Some(None) if target.is_none() => *target = Some(None),
+                _ => {}
+            }
+        }
+        if let Some(details) = d.reasoning_details {
+            match details {
+                Some(details) => {
+                    let target = self
+                        .reasoning_details
+                        .get_or_insert(None)
+                        .get_or_insert_default();
+                    for detail in details {
+                        let existing = target.iter_mut().find(|v| {
+                            v.type_ == detail.type_
+                                && ((detail.index.is_some() && v.index == detail.index)
+                                    || (detail.index.is_none()
+                                        && detail.id.as_ref().and_then(Option::as_ref).is_some()
+                                        && v.id == detail.id))
+                        });
+                        if let Some(existing) = existing {
+                            fn append(out: &mut Option<String>, text: Option<String>) {
+                                if let Some(text) = text {
+                                    out.get_or_insert_default().push_str(&text);
+                                }
+                            }
+                            if let Some(text) = detail.text {
+                                append(existing.text.get_or_insert(None), text);
+                            }
+                            if let Some(signature) = detail.signature {
+                                append(existing.signature.get_or_insert(None), signature);
+                            }
+                            append(&mut existing.summary, detail.summary);
+                            append(&mut existing.data, detail.data);
+                            if detail.id.is_some() {
+                                existing.id = detail.id;
+                            }
+                            if detail.format.is_some() {
+                                existing.format = detail.format;
+                            }
+                        } else {
+                            target.push(detail);
+                        }
+                    }
+                }
+                None if self.reasoning_details.is_none() => self.reasoning_details = Some(None),
+                None => {}
+            }
         }
         if let Some(Some(text)) = d.content {
             self.content.get_or_insert_with(String::new).push_str(&text);
@@ -159,6 +219,9 @@ impl ChoiceAccum {
         let mut message =
             r::ResponseMessage::builder(self.content, self.refusal, r::ResponseRole::Assistant)
                 .build();
+        message.reasoning_details = self.reasoning_details;
+        message.reasoning_content = self.reasoning_content;
+        message.reasoning = self.reasoning;
         message.function_call = self
             .legacy
             .map(FunctionAccum::finish)

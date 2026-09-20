@@ -143,11 +143,14 @@ pub(crate) fn claude_message_to_openai(
                             chat::TextPart::builder(chat::TextPartType::Text, text).build(),
                         ));
                     }
-                    c::ContentBlock::Thinking(_) | c::ContentBlock::RedactedThinking(_) => report
-                        .changed(
-                            "messages.user.content",
-                            "Claude reasoning/search block has no Chat user-part equivalent",
-                        ),
+                    c::ContentBlock::Thinking(_) => report.omitted(
+                        "messages.user.thinking",
+                        "reasoning requires assistant role",
+                    ),
+                    c::ContentBlock::RedactedThinking(_) => report.changed(
+                        "messages.user.content",
+                        "Claude reasoning/search block has no Chat user-part equivalent",
+                    ),
                     c::ContentBlock::ToolUse(_)
                     | c::ContentBlock::ServerToolUse(_)
                     | c::ContentBlock::McpToolUse(_)
@@ -188,6 +191,7 @@ pub(crate) fn claude_message_to_openai(
             Ok(output)
         }
         c::Role::Assistant => {
+            let mut reasoning = Vec::new();
             let mut parts = Vec::new();
             let mut calls = Vec::new();
             for block in claude_blocks(&message.content)?.iter() {
@@ -212,11 +216,11 @@ pub(crate) fn claude_message_to_openai(
                             rest: Rest::new(),
                         }))
                     }
-                    c::ContentBlock::Thinking(_) | c::ContentBlock::RedactedThinking(_) => report
-                        .changed(
-                            "messages.assistant.content",
-                            "Claude reasoning block has no Chat assistant equivalent",
-                        ),
+                    c::ContentBlock::Thinking(block) => reasoning.push(block.thinking.clone()),
+                    c::ContentBlock::RedactedThinking(_) => report.changed(
+                        "messages.assistant.content",
+                        "Claude reasoning block has no Chat assistant equivalent",
+                    ),
                     c::ContentBlock::ToolResult(_)
                     | c::ContentBlock::ServerToolUse(_)
                     | c::ContentBlock::McpToolUse(_)
@@ -250,6 +254,9 @@ pub(crate) fn claude_message_to_openai(
                 }
             }
             Ok(vec![chat::ChatMessage::Assistant(chat::AssistantMessage {
+                reasoning_details: None,
+                reasoning_content: (!reasoning.is_empty()).then(|| Some(reasoning.join(""))),
+                reasoning: None,
                 role: chat::AssistantRole::Assistant,
                 content: (!parts.is_empty()).then_some(Some(chat::AssistantContent::Parts(parts))),
                 audio: None,

@@ -32,6 +32,7 @@ pub struct ChatToClaudeStream {
     failed: bool,
     closed_blocks: bool,
     text: Option<i64>,
+    reasoning: Option<i64>,
     refusal_text: Option<String>,
     next_block: i64,
     tools: BTreeMap<i64, Tool>,
@@ -97,6 +98,7 @@ impl ChatToClaudeStream {
             failed: false,
             closed_blocks: false,
             text: None,
+            reasoning: None,
             refusal_text: None,
             next_block: 0,
             tools: BTreeMap::new(),
@@ -235,6 +237,48 @@ impl ChatToClaudeStream {
         }
         for choice in chunk.choices {
             let delta = choice.delta;
+            if let Some(text) = crate::wire::openai::chat::visible_reasoning(
+                &delta.reasoning_content,
+                &delta.reasoning,
+                &delta.reasoning_details,
+            ) {
+                let index = match self.reasoning {
+                    Some(index) => index,
+                    None => {
+                        let index = self.allocate_block()?;
+                        self.reasoning = Some(index);
+                        self.emit(
+                            out,
+                            s::StreamEvent::ContentBlockStart(
+                                s::ContentBlockStartEvent::builder(
+                                    index,
+                                    c::ResponseContentBlock::Thinking(
+                                        crate::wire::claude::content::ThinkingBlock::builder(
+                                            crate::wire::claude::content::ThinkingBlockType::Tag,
+                                            String::new(),
+                                            String::new(),
+                                        )
+                                        .build(),
+                                    ),
+                                )
+                                .build(),
+                            ),
+                        )?;
+                        index
+                    }
+                };
+                self.emit(
+                    out,
+                    s::StreamEvent::ContentBlockDelta(
+                        s::ContentBlockDeltaEvent::builder(
+                            index,
+                            s::ContentBlockDelta::Thinking(s::ThinkingDelta::builder(text).build()),
+                        )
+                        .build(),
+                    ),
+                )?;
+            }
+
             if let Some(text) = delta.content.flatten() {
                 let index = self.text_block(out)?;
                 self.emit(out, chat_blocks::text_delta(index, text))?;
@@ -292,6 +336,9 @@ impl ChatToClaudeStream {
     fn close_blocks(&mut self, out: &mut Vec<s::StreamEvent>) -> Result<(), TransformError> {
         if self.closed_blocks {
             return Err(invalid("duplicate choice finish"));
+        }
+        if let Some(index) = self.reasoning {
+            self.emit(out, chat_blocks::block_stop(index))?;
         }
         if let Some(index) = self.text {
             self.emit(out, chat_blocks::block_stop(index))?;

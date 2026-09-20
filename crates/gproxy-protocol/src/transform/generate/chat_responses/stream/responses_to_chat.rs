@@ -243,9 +243,17 @@ impl ResponsesToChatStream {
                 "response.annotations",
                 "Chat stream Delta has no annotation field",
             ),
-            rs::StreamEvent::ReasoningTextDelta(_)
-            | rs::StreamEvent::ReasoningSummaryTextDelta(_)
-            | rs::StreamEvent::ReasoningTextDone(_)
+            rs::StreamEvent::ReasoningTextDelta(v) => {
+                let mut delta = cs::Delta::builder().build();
+                delta.reasoning_content = Some(Some(v.delta));
+                self.emit_delta(delta, &mut out)?;
+            }
+            rs::StreamEvent::ReasoningSummaryTextDelta(v) => {
+                let mut delta = cs::Delta::builder().build();
+                delta.reasoning_content = Some(Some(v.delta));
+                self.emit_delta(delta, &mut out)?;
+            }
+            rs::StreamEvent::ReasoningTextDone(_)
             | rs::StreamEvent::ReasoningSummaryTextDone(_)
             | rs::StreamEvent::ReasoningSummaryPartAdded(_)
             | rs::StreamEvent::ReasoningSummaryPartDone(_) => {}

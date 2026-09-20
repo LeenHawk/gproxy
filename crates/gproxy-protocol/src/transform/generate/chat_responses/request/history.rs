@@ -229,8 +229,28 @@ pub(super) fn to_chat(
                     "input.item_reference history",
                 ));
             }
-            r::InputItem::Reasoning(_)
-            | r::InputItem::Compaction(_)
+            r::InputItem::Reasoning(item) => {
+                let text = item
+                    .summary
+                    .into_iter()
+                    .map(|p| p.text)
+                    .chain(item.content.into_iter().flatten().map(|p| p.text))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                if !text.is_empty() {
+                    let mut message =
+                        c::AssistantMessage::builder(c::AssistantRole::Assistant).build();
+                    message.reasoning_content = Some(Some(text));
+                    messages.push(c::ChatMessage::Assistant(message));
+                }
+                if item.encrypted_content.flatten().is_some() {
+                    report.omitted(
+                        "input.reasoning.encrypted_content",
+                        "opaque replay requires original-bound state",
+                    );
+                }
+            }
+            r::InputItem::Compaction(_)
             | r::InputItem::ComputerCall(_)
             | r::InputItem::ComputerCallOutput(_)
             | r::InputItem::WebSearchCall(_)
