@@ -108,7 +108,7 @@ capture、计量与改写，原生的拒绝回答重新进入同一分类。
 | Embeddings | OpenAI ↔ Gemini，单条与批量 |
 | Guardian、compact、memory | 四种目标任一；guardian 流式拒绝 |
 | Files | 获取、列表、删除、内容与 multipart 上传，含 Gemini 可续传协议 |
-| Images | OpenAI create/edit 经 Gemini 或 Responses 图像工具；URL 交付拒绝 |
+| Images | OpenAI create/edit 经 Gemini 或 Responses 图像工具；URL 交付经宿主的 `PublicationUrl`，未配置时在任何调用前拒绝 |
 | Video | OpenAI 原生视频经 Veo，任务状态存 `ProtocolState` |
 
 ## 凭证生命周期、额度与会话
@@ -153,8 +153,17 @@ exchange 与刷新事件。记录不会改写、重排或延迟交付的流。
 |---|---|---|
 | `AttemptUpstream` | `Upstream<Target = OperationKey>` | 一次 attempt 的 Provider、固定的凭证版本与 client；自持且可克隆，惰性启动的 fanout 子调用可超出 attempt 栈帧存活 |
 | `ProtocolState` | `StateStore<Scope = StateScope>` | Store 的 ProtocolState 行；scope 是调用方 scope、Provider 与可选会话 |
-| `Resources` | `ResourceAccess<Scope = ResourceScope>` | 经文件存储落 `resource_bindings` 与 `file_objects` 的发布；`Id` 先解析同 scope 的发布，再走 scope Provider 的 files API；`Url` 不支持 |
+| `Resources` | `ResourceAccess<Scope = ResourceScope>` | 经文件存储落 `resource_bindings` 与 `file_objects` 的发布；`Id` 先解析同 scope 的发布，再走 scope Provider 的 files API；按 `Url` 读取不支持（没有宿主 allow-list） |
 | `ChannelStateStore` | `gproxy_channel::ChannelState` | 同一批 ProtocolState 行，限定到一个 Provider 与一个凭证，作为 `OperationContext.state` 交给渠道；渠道只选 key，看不到 scope |
+
+URL 形态的发布（images 的 `response_format: url`）需要宿主提供链接构造器
+`CoreBuilder::publication_url(Arc<dyn PublicationUrl>)`。core 没有公开 HTTP 面，所以
+它只持有字节与绑定 id，链接由宿主签发：`url_for` 在任何写入之前用 core 即将记录的 id
+调用，返回 `None`（或根本没配构造器）就以 `Unsupported` 拒绝，不留行也不留对象。宿主在
+自己的路由上调用 `Core::read_publication(id)` 提供下载：对任何仍有效的发布返回元数据与
+存储的字节，不检查 scope（路由已经认证了持链接者），过期或已释放时返回 `None`；
+`Core::delete_publication` 可提前墓碑化。images 族在第一次上游调用前就检查构造器，
+没有构造器的宿主不会为无法交付的图片付费。
 
 每次渠道调用还带 `OperationContext.instance_id`，即宿主进程的身份（`CoreBuilder::instance_id`，
 缺省随机）。必须在两次请求之间保持上游活连接的渠道（claudeweb 在 `tool_use` 处停放

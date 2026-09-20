@@ -173,6 +173,7 @@ async fn multipart_edit_sends_the_input_image_inline() {
 async fn url_delivery_and_claude_targets_are_refused_before_any_call() {
     let h = harness(full(), "round_robin").await;
     seed_provider(&h, "gemini", "https://gemini.example", "gemini").await;
+    // No `PublicationUrl` on this core: URL delivery is refused up front.
     let Err(error) = send(
         &h,
         "gemini",
@@ -187,6 +188,7 @@ async fn url_delivery_and_claude_targets_are_refused_before_any_call() {
         panic!("url delivery must be refused")
     };
     assert!(error.to_string().contains("b64_json"), "{error}");
+    assert!(error.to_string().contains("PublicationUrl"), "{error}");
 
     let Err(error) = send(
         &h,
@@ -200,6 +202,58 @@ async fn url_delivery_and_claude_targets_are_refused_before_any_call() {
     };
     assert!(error.to_string().contains("image generation"), "{error}");
     assert!(h.client.seen.lines().is_empty());
+}
+
+#[tokio::test]
+async fn url_delivery_publishes_through_the_host_link_builder() {
+    let dir = tempfile::tempdir().unwrap();
+    let operator = gproxy_file::filesystem(dir.path().to_str().unwrap()).unwrap();
+    let h = harness_with_publication(
+        full(),
+        "round_robin",
+        Some(operator),
+        Some(std::sync::Arc::new(FixedLinks(Some(
+            "https://files.example",
+        )))),
+    )
+    .await;
+    seed_provider(&h, "gemini", "https://gemini.example", "gemini").await;
+    h.script(vec![gemini_image_reply(), gemini_image_reply()]);
+    let (status, body) = run(
+        &h,
+        "gemini",
+        Operation::CreateImage,
+        json_request(
+            "/v1/images/generations",
+            json!({"prompt": "draw", "n": 2, "response_format": "url"}),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let data = body["data"].as_array().unwrap();
+    assert_eq!(data.len(), 2);
+    let mut ids = Vec::new();
+    for image in data {
+        assert!(image["b64_json"].is_null());
+        let url = image["url"].as_str().unwrap();
+        let id = url
+            .strip_prefix("https://files.example/")
+            .unwrap_or_else(|| panic!("host link expected: {url}"));
+        ids.push(id.to_owned());
+    }
+    assert_ne!(ids[0], ids[1]);
+    // The host's download route serves what the link names.
+    for id in &ids {
+        let publication = h.core.read_publication(id).await.unwrap().unwrap();
+        assert_eq!(publication.metadata.mime.as_deref(), Some("image/png"));
+        assert_eq!(publication.metadata.length, Some(png_bytes().len() as u64));
+        let bytes = match publication.body {
+            HttpBody::Bytes(bytes) => bytes,
+            _ => panic!("stored body is buffered"),
+        };
+        assert_eq!(bytes.as_ref(), png_bytes().as_slice());
+    }
+    assert_eq!(h.client.seen.lines().len(), 2);
 }
 
 #[tokio::test]
