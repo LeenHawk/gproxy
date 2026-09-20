@@ -101,7 +101,9 @@ impl<'a, C> Manage<'a, C> {
         Self { inner }
     }
 
-    fn writer(&self) -> Writer<'a, C> {
+    /// Also the login families' write path: a login ends in an ordinary
+    /// credential insert, and there is exactly one commit primitive.
+    pub(crate) fn writer(&self) -> Writer<'a, C> {
         Writer { inner: self.inner }
     }
 

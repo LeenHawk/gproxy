@@ -189,6 +189,72 @@ header is stripped before the request goes upstream. The full rules, the
 evidence behind each field and the negative list are in
 [`design/session-identity.md`](../../design/session-identity.md).
 
+## Credential login
+
+`gproxy.login()` turns a person's browser session into a credential row. Three
+flows, whichever ones the provider's channel implements — `Gproxy::channels()`
+reports each channel's `login_modes`, and asking for one a channel does not
+offer is `SdkError::Unsupported`.
+
+| Flow | Steps | For |
+|---|---|---|
+| Authorization code | `authcode_start` → `authcode_complete` | A browser redirect with PKCE |
+| Device code | `device_start` → `device_poll`, repeatedly | A code typed on another device |
+| Cookie exchange | `cookie_exchange` | A session cookie the person already has |
+
+The SDK owns everything that is not the upstream's business. **PKCE**: the
+verifier is 32 random bytes minted here, never sent, and only its S256 digest
+reaches the authorize URL — an intercepted authorization code is useless
+without it. **CSRF state**: minted here and compared here. `authcode_complete`
+takes either the whole `callbackUrl` or a bare `code`, never both, and a state
+that does not match the one the session was started with is refused *and*
+destroys the session, so a replay cannot be retried into success.
+
+The pending session lives in the shared cache under `gproxy-sdk:v1:login:{id}`
+with its own TTL, never in this process. That is what lets any instance of a
+deployment finish a login another one started — behind a load balancer it
+usually is another one — and what makes an abandoned login cost nothing: the key
+expires, and an expired key is `SdkError::LoginExpired`, exactly like an id that
+was never issued.
+
+**Polling is the caller's job.** `device_poll` performs one step and returns;
+nothing here sleeps or loops. `Pending` carries the interval to wait, and an
+upstream `slow_down` raises that interval for every later poll. `Denied` and
+`Expired` are final and drop the session.
+
+```rust
+use gproxy_sdk::{Gproxy, SdkError, dto::{AuthCodeComplete, AuthCodeStart}};
+
+# async fn example<C>(gproxy: &Gproxy<C>, callback_url: String) -> Result<(), SdkError>
+# where C: gproxy_seaorm::BatchConnectionTrait + Send + Sync + 'static {
+let started = gproxy
+    .login()
+    .authcode_start(AuthCodeStart { provider_id: "p-1".into(), ..Default::default() })
+    .await?;
+// send the person to `started.authorize_url`, then, when they come back:
+let created = gproxy
+    .login()
+    .authcode_complete(AuthCodeComplete {
+        login_session_id: started.login_session_id,
+        callback_url: Some(callback_url),
+        ..Default::default()
+    })
+    .await?;
+println!("credential {}", created.credential_id);
+# Ok(())
+# }
+```
+
+A successful login is one ordinary credential insert through the same commit
+primitive a management write uses: one revision, one reload, one notification.
+The secret is sealed with the configured codec **before** the statement is
+built, so nothing between the channel and the database sees it in the clear and
+nothing sends it back — the answer is the credential's id and nothing else.
+`auth_kind` is `oauth` for the two OAuth flows and `cookie` for the cookie
+exchange, the owner columns are copied through untouched, and a caller that
+supplied no label gets one derived from the channel and whatever account the
+upstream named, made unique among that provider's labels.
+
 ## Management
 
 `gproxy.manage()` is the write side: one accessor per configuration family, all
