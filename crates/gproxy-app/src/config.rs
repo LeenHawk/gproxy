@@ -253,6 +253,17 @@ pub struct OAuthIssuerConfig {
     pub refresh_ttl_secs: u64,
     pub code_ttl_secs: u64,
     pub device_ttl_secs: u64,
+    /// Clients whose access tokens may perform *any* operation their
+    /// permissions allow, rather than only the coding-agent baseline
+    /// admission holds every other OAuth client to.
+    ///
+    /// Empty by default, which is the safe end: an access token is a
+    /// credential a user handed to somebody else's program, so it starts able
+    /// to list models, count tokens, generate, stream and compact, and nothing
+    /// more. An operator names a first-party CLI here once they accept that it
+    /// speaks for the user across the whole API. See
+    /// [`admission::permission`](crate::admission::permission).
+    pub cli_client_ids: Vec<String>,
 }
 
 impl Default for OAuthIssuerConfig {
@@ -262,6 +273,7 @@ impl Default for OAuthIssuerConfig {
             refresh_ttl_secs: THIRTY_DAYS_SECS,
             code_ttl_secs: 300,
             device_ttl_secs: 900,
+            cli_client_ids: Vec::new(),
         }
     }
 }
@@ -281,6 +293,7 @@ mod tests {
         assert_eq!(config.oauth.refresh_ttl_secs, 2_592_000);
         assert_eq!(config.oauth.code_ttl_secs, 300);
         assert_eq!(config.oauth.device_ttl_secs, 900);
+        assert!(config.oauth.cli_client_ids.is_empty());
         assert!(config.console.enabled);
         assert_eq!(
             config.store,
@@ -332,6 +345,7 @@ mod tests {
                 refresh_ttl_secs: 120,
                 code_ttl_secs: 30,
                 device_ttl_secs: 45,
+                cli_client_ids: vec!["codex".into()],
             },
         };
         let text = serde_json::to_string(&config).unwrap();

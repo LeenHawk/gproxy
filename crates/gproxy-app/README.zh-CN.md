@@ -24,7 +24,7 @@ Cloudflare Worker 里——本 crate 能为 `wasm32-unknown-unknown` 构建，�
 
 每一步都在收窄，下面不会重新打开上面已经收窄的东西：交给引擎的是一个 Provider 集和
 一个凭证集，而不是一个待解释的调用方。sdk 桥接本身（`call.rs`、`service.rs`、
-`publication.rs`）要等 `gproxy-sdk` 存在之后才落地；当前本 crate 到调用方为止。
+`publication.rs`）是下一步；当前本 crate 到 `Admitted` 为止。
 
 ## 现在有什么
 
@@ -33,11 +33,11 @@ Cloudflare Worker 里——本 crate 能为 `wasm32-unknown-unknown` 构建，�
 | `config` | `AppConfig`：纯 serde，两个宿主共用，不碰文件系统也不读环境变量 |
 | `snapshot` | `AppData`——某个配置 revision 编译后的身份，以及单调发布它的 `AppSnapshot` |
 | `auth` | 请求指认调用方的三条路径，以及三者产出的同一个 `Caller` |
+| `admission` | `Caller` → `Admitted`：Provider 集、凭证集、预算 owner 链、scope、会话、限流扣减 |
 | `error` | `AppError`，带 `status_code()` 与用于 API 信封的稳定 `code()` |
 
-其余模块（`admission`、`call`、`service`、`capture`、`publication`、
-`operations`、`audit`、`dto`）都已声明并写明各自将承担的契约，后续阶段就地填充，
-不需要再改 crate 的形状。
+其余模块（`call`、`service`、`capture`、`publication`、`operations`、`audit`、`dto`）
+都已声明并写明各自将承担的契约，后续阶段就地填充，不需要再改 crate 的形状。
 
 ## 快照
 
@@ -149,6 +149,103 @@ argon2id，每次哈希一份全新的 16 字节盐，存成完整的 PHC 串，
 密码全部失效。策略沿用 v3——密码不能为空——再加上最少 8 个字符、最多 1024 字节。除此之外
 没有任何组合规则：强制字符类别只会把用户推向 `Password1!`，并且挡住长口令。解析不了的
 `password_hash` 意味着这个用户无法登录，绝不是 panic，也绝不会意外通过。
+
+## 准入
+
+`Admission::admit` 接收一个 `Caller` 和一个请求，产出引擎将要据以执行的 `Admitted`。
+六步，顺序固定：
+
+| # | 步骤 | 产出 | 可能拒绝为 |
+|---|---|---|---|
+| 1 | 权限 | 允许的 Provider 集 | `403 forbidden` |
+| 2 | 凭证可见性 | 允许的凭证集 | — |
+| 3 | 预算链 | 这次请求记在谁头上 | — |
+| 4 | scope | 它算作谁的流量（用于亲和） | — |
+| 5 | 会话身份 | 它延续的是哪段对话 | — |
+| 6 | 限流 | 它正持有的扣减 | `429 rate_limited` |
+
+1–5 步都是快照与请求的纯函数。**第 6 步放在最后，因为只有它会消耗东西。**
+因权限被拒的请求不能拨动共享计数器，否则未授权的客户端只要不断发送它本来就不会被
+放行的请求，就能耗尽合法调用方的窗口。
+
+### 实例管理员绕过什么
+
+`users.role = "admin"` **绕过权限过滤**（拿到全部 Provider）与**凭证可见性**
+（看到全部凭证）。这个角色本来就拥有写 `permissions` 表的操作权，一条拒绝管理员某个
+Provider 的规则是他自己就能删掉的规则；把这条绕过写明，可以避免一条写歪的 deny 把
+运维锁在自己的实例外面。
+
+它不绕过别的。限流照样生效，预算照样生效，而且**下面那条 OAuth 基线也照样生效**——
+这条限制保护的是账号持有者不被他授权的客户端伤害，而管理员的账号恰恰是第三方 token
+最不能变成管理凭证的那一个。
+
+### 凭证可见性跟着 key 走，不跟着人走
+
+一个凭证在以下情况下可见：它没有 owner（`Shared`），或者它的 owner 与**调用 key 的
+绑定**一致——`api_keys.user_id`、`api_keys.team_id`，或该 key 的有效组织（它自己的
+`organization_id`，或它所绑定团队的父组织）。
+
+之所以取 key 的绑定而不是持有者的成员关系：一个用户可以同时属于两个组织，而一个 key
+只属于一个。如果由成员关系决定，多组织用户的每一个 key 都能够到每个组织的订阅，也就
+永远无法发出一个比持有者更窄的 key。绑定写在行上：客户端既不发送它也无法选择它，而且
+预算链与权限主体读的是同一个值，因此"能看到什么""能花什么""谁付钱"不可能互相矛盾。
+
+可见性只收窄引擎的存活凭证集，从不扩大它。结果为空**不是**错误——"什么都不允许"和
+"没有东西可允许"是两种不同的失败，后者是解析阶段的 `NoTarget`，属于配置问题而不是
+权限问题。
+
+### 预算链
+
+`[api_key?, user, subscription?, team?, org?]`，缺失的部分跳过，kind 就是裸字符串
+`api_key` / `user` / `subscription` / `team` / `org`。core 拿它们逐字匹配
+`quotas.owner_kind`，且不认为它们之间有任何层级：链上**任意** owner 的**每一条**启用
+预算都会生效，所以这个顺序是日志里的呈现顺序，不是优先级。
+
+`org` 就是 key 行上的 `organization_id` 原样。与凭证可见性不同，绑定到团队的 key 不会
+顺带记到该团队的父组织头上：够到共享凭证正是团队的用途，而预算是运维针对某个具名
+owner 写下的一行。
+
+OAuth grant 的链与它背后的 key 完全相同——grant 花的是它被签发时所针对的那个账号，
+而不是它自己的预算。控制台／门户会话没有 key，因此它的链从 `user` 开始。
+
+### scope，以及 grant 为什么单独一份
+
+`user:{user_id}`，只有 OAuth grant 例外，它是 `grant:{grant_id}`。core 把 scope 用于
+凭证亲和，并且从不解析它。
+
+同一个用户的每个 key 共用一个 scope：key 按构造就是同一个人的凭证，key 之间的隔离是
+凭证可见性的职责。而 grant 是**另一个程序**在替这个人行事，把它和这个人自己的流量混在
+一起，会让用户拿到一个属于他并没有在运行的程序的续写、让一个客户端引用另一个客户端
+创建的上游资源，并在 grant 被撤销之后仍把该客户端的绑定留在这个用户身上。
+
+### OAuth 操作基线
+
+access token 是用户交给别人程序的凭证。除非它的 `client_id` 列在
+`AppConfig.oauth.cli_client_ids`（默认为空）里，否则它只能执行 `ListModels`、
+`GetModel`、`CountTokens`、`GenerateContent`、`StreamGenerateContent` 与
+`CompactContent`，其余一律 `403`。把某个 client 写进那份名单，等于运维接受它可以在
+整个 API 范围内代表该用户说话。
+
+### 限流失败即关闭
+
+行来自快照，计数来自 cache——多个实例共用同一条限制，按进程计数会把每条限制乘上实例
+数。窗口固定且对齐到 epoch：`now - now % (period_seconds × 1000)`，因此每个实例只凭
+时钟就能对齐边界，key 是 `rl/{row_id}/{window_start}`。
+
+`metric = "concurrency"` 取一个 cache permit 并持有到请求结束；其余 metric 以限额为
+上限对计数器 +1，每次恰好 1。想限制 **token** 的限制其实是预算而不是限流：token 数在
+上游应答之前根本不存在。
+
+**cache 答不上来就拒绝请求**（`429`，且不带重试提示）。`design/cache.md` 明确要求
+cache 故障不得降级到本地状态；这里同理——放行会把一次 cache 故障变成"实例上所有限制
+全部失效"，那正是攻击者想要、而运维看不见的时刻。
+
+该还的扣减都会还。某一行拒绝时，会把同一次请求中更早的行已经拿走的全部退回。
+`Admitted::finish()` 表示请求确实跑过了：窗口计数因此保留，但并发 permit 仍会归还——
+permit 度量的是在途请求数，不是已发生请求数。丢弃一个 lease 会归还其上尚未结清的部分；
+由于 cache 是异步的而 `Drop` 不能 await，归还是 spawn 出去的，能够 await 的宿主应改
+调用 `Admitted::release()`。每份扣减都随窗口过期，所以即便一次归还丢了，也会在边界处
+自愈。
 
 ## 只在新建数据库上存在的级联
 

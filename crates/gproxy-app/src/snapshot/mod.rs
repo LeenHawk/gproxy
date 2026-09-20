@@ -15,7 +15,9 @@
 //! snapshot is published without them.
 
 mod credentials;
-mod glob;
+// Shared with `admission::rate_limit`, which matches a limit's `model_pattern`
+// under the same grammar a permission rule uses.
+pub(crate) mod glob;
 mod keys;
 mod membership;
 mod oauth_policy;
