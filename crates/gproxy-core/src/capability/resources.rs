@@ -300,9 +300,14 @@ fn file_content_path(
 ///   file backend every publish is `Unsupported` before side effects.
 /// * `ResourceReference::Id` first resolves to a publication in the same scope;
 ///   any other id is read from the scope's provider through its channel with
-///   the first usable credential of the scope target. `Url` references are
-///   rejected as `Unsupported`: there is no host allow-list to authorise them,
-///   and core never fetches its own published links back through HTTP.
+///   the first usable credential of the scope target.
+/// * `ResourceReference::Url` is fetched under the host's `FetchPolicy`
+///   (`CoreBuilder::fetch_policy`, `DefaultFetchPolicy` unless set): `resolve`
+///   is the policy check alone, `read` is the GET. The fetch goes through a
+///   plain client of the core pool's default profile, never the scope's
+///   credential client, so no provider auth leaks to an arbitrary origin;
+///   redirects are followed up to `MAX_REDIRECT_HOPS` with the policy asked
+///   again for every hop, and the body is bounded by the read limit.
 pub struct Resources<'a, C> {
     core: &'a Core<C>,
     limits: CapabilityLimits,
@@ -627,6 +632,208 @@ fn httpdate_rfc3339(value: &str) -> Option<SystemTime> {
         .map(|s| SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(s))
 }
 
+/// Redirect hops followed for one URL read. The policy is asked again for
+/// every hop, so a public link cannot bounce the fetch onto a private one.
+const MAX_REDIRECT_HOPS: usize = 3;
+
+fn unknown_reference() -> CapabilityError {
+    resource_error(CapabilityErrorKind::Unsupported, "unknown reference kind")
+}
+
+fn parse_url(raw: &str) -> Result<url::Url, CapabilityError> {
+    url::Url::parse(raw).map_err(|e| {
+        resource_error(
+            CapabilityErrorKind::Invalid,
+            format!("URL resource is not a valid URL: {e}"),
+        )
+    })
+}
+
+fn transport(message: impl Into<String>) -> CapabilityError {
+    resource_error(CapabilityErrorKind::Transport, message)
+}
+
+/// The addresses the runtime resolver returns for the URL's host name; empty
+/// for a literal IP host (the policy reads that from the URL itself) and on
+/// wasm32, which has no resolver. Natively a name that resolves to nothing
+/// is a transport failure before any policy decision: there is nothing to
+/// connect to.
+#[cfg(not(target_arch = "wasm32"))]
+async fn resolve_host(url: &url::Url) -> Result<Vec<std::net::IpAddr>, CapabilityError> {
+    let Some(url::Host::Domain(name)) = url.host() else {
+        return Ok(Vec::new());
+    };
+    let port = url.port_or_known_default().unwrap_or(443);
+    let addrs: Vec<_> = tokio::net::lookup_host((name, port))
+        .await
+        .map_err(|e| transport(format!("URL host {name} did not resolve: {e}")))?
+        .map(|addr| addr.ip())
+        .collect();
+    if addrs.is_empty() {
+        return Err(transport(format!("URL host {name} resolved to no address")));
+    }
+    Ok(addrs)
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn resolve_host(_: &url::Url) -> Result<Vec<std::net::IpAddr>, CapabilityError> {
+    Ok(Vec::new())
+}
+
+/// `Content-Type` without its parameters, the exact form adapters require.
+fn mime_of(headers: &HeaderMap) -> Option<String> {
+    let value = headers.get(http::header::CONTENT_TYPE)?.to_str().ok()?;
+    let mime = value.split(';').next()?.trim();
+    (!mime.is_empty()).then(|| mime.to_owned())
+}
+
+/// The file name a `Content-Disposition` header carries: the RFC 5987
+/// `filename*` form when present, else the plain `filename` parameter.
+fn filename_of(headers: &HeaderMap) -> Option<String> {
+    let value = headers
+        .get(http::header::CONTENT_DISPOSITION)?
+        .to_str()
+        .ok()?;
+    let mut plain = None;
+    for param in value.split(';').skip(1) {
+        let Some((name, raw)) = param.split_once('=') else {
+            continue;
+        };
+        let raw = raw.trim();
+        match name.trim().to_ascii_lowercase().as_str() {
+            "filename*" => {
+                // charset'language'percent-encoded
+                let encoded = raw.rsplit('\'').next().unwrap_or(raw);
+                let decoded = percent_encoding::percent_decode_str(encoded)
+                    .decode_utf8()
+                    .ok()?;
+                if !decoded.is_empty() {
+                    return Some(decoded.into_owned());
+                }
+            }
+            "filename" => {
+                let name = raw.trim_matches('"').trim();
+                if !name.is_empty() {
+                    plain = Some(name.to_owned());
+                }
+            }
+            _ => {}
+        }
+    }
+    plain
+}
+
+impl<C: BatchConnectionTrait + Send + Sync> Resources<'_, C> {
+    /// Ask the host's fetch policy about `url`, resolving its host first so
+    /// the policy sees where the connection would go.
+    async fn authorise(&self, url: &url::Url) -> Result<(), CapabilityError> {
+        let resolved = resolve_host(url).await?;
+        match self.core.fetch_policy().decide(url, &resolved) {
+            crate::FetchDecision::Allow => Ok(()),
+            crate::FetchDecision::Deny(reason) => Err(resource_error(
+                CapabilityErrorKind::Unsupported,
+                format!(
+                    "URL resource refused by the fetch policy ({reason}): {}",
+                    url.host_str().unwrap_or("no host")
+                ),
+            )),
+        }
+    }
+
+    /// GET `raw` as an anonymous client: no credential, no provider rewrite
+    /// rules, no observation. Every hop, including the first, passes the
+    /// policy before a connection is made. The whole exchange is bounded by
+    /// the operation deadline and the body by the read limit.
+    async fn fetch_url(&self, raw: &str) -> Result<ResourceRead, CapabilityError> {
+        let url = parse_url(raw)?;
+        crate::rt::timeout(self.limits.operation_total, self.fetch_hops(url))
+            .await
+            .unwrap_or_else(|| Err(transport("URL resource fetch timed out")))
+    }
+
+    async fn fetch_hops(&self, mut url: url::Url) -> Result<ResourceRead, CapabilityError> {
+        use gproxy_client::OutboundClient;
+        let limit = self.codec.max_body_bytes.min(self.limits.read_bytes);
+        let mut hops = 0;
+        loop {
+            self.authorise(&url).await?;
+            let client = self
+                .core
+                .clients()
+                .get(&gproxy_client::ConnectionConfig::default())
+                .await
+                .map_err(|e| transport(format!("outbound client unavailable: {e}")))?;
+            let request = http::Request::builder()
+                .method(http::Method::GET)
+                .uri(url.as_str())
+                .header(http::header::ACCEPT, "*/*")
+                .body(HttpBody::Bytes(Bytes::new()))
+                .map_err(|e| invalid(format!("URL resource request: {e}")))?;
+            let response = client.send(request).await?;
+            if response.status.is_redirection() {
+                let location = response
+                    .headers
+                    .get(http::header::LOCATION)
+                    .and_then(|v| v.to_str().ok())
+                    .ok_or_else(|| rejected(response.status))?;
+                if hops == MAX_REDIRECT_HOPS {
+                    return Err(transport(format!(
+                        "URL resource redirected more than {MAX_REDIRECT_HOPS} times"
+                    )));
+                }
+                hops += 1;
+                url = url.join(location).map_err(|e| {
+                    resource_error(
+                        CapabilityErrorKind::Invalid,
+                        format!("URL resource redirect target is not a valid URL: {e}"),
+                    )
+                })?;
+                continue;
+            }
+            if !response.status.is_success() {
+                return Err(rejected(response.status));
+            }
+            let declared = response
+                .headers
+                .get(http::header::CONTENT_LENGTH)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.trim().parse::<u64>().ok());
+            if declared.is_some_and(|length| length > limit) {
+                return Err(CapabilityError::new(
+                    CapabilityErrorKind::Limit,
+                    CapabilityErrorStage::Start,
+                    "URL resource declares a body beyond the read limit",
+                ));
+            }
+            let mut read_limits = self.codec;
+            read_limits.max_body_bytes = limit;
+            let bytes = gproxy_protocol::codec::read_http_body(response.body, read_limits)
+                .await
+                .map_err(|error| {
+                    let kind = match error.kind() {
+                        gproxy_protocol::codec::CodecErrorKind::Limit => CapabilityErrorKind::Limit,
+                        _ => CapabilityErrorKind::Transport,
+                    };
+                    CapabilityError::with_source(
+                        kind,
+                        CapabilityErrorStage::BodyTransfer,
+                        "URL resource body could not be read",
+                        error,
+                    )
+                })?;
+            return Ok(ResourceRead {
+                metadata: ResourceMetadata {
+                    mime: mime_of(&response.headers),
+                    length: Some(bytes.len() as u64),
+                    filename: filename_of(&response.headers),
+                    expires_at: None,
+                },
+                body: HttpBody::Bytes(bytes),
+            });
+        }
+    }
+}
+
 impl<C: BatchConnectionTrait + Send + Sync> ResourceAccess for Resources<'_, C> {
     type Scope = ResourceScope;
     type PublishedHandle = PublishedHandle;
@@ -637,11 +844,20 @@ impl<C: BatchConnectionTrait + Send + Sync> ResourceAccess for Resources<'_, C> 
         reference: &'a ResourceReference,
     ) -> CapabilityFuture<'a, Result<ResourceMetadata, CapabilityError>> {
         Box::pin(async move {
-            let ResourceReference::Id(id) = reference else {
-                return Err(resource_error(
-                    CapabilityErrorKind::Unsupported,
-                    "URL resources are not authorised: core has no host allow-list",
-                ));
+            let id = match reference {
+                ResourceReference::Id(id) => id,
+                ResourceReference::Url(url) => {
+                    let url = parse_url(url)?;
+                    self.authorise(&url).await?;
+                    return Ok(ResourceMetadata {
+                        mime: None,
+                        length: None,
+                        filename: None,
+                        expires_at: None,
+                    });
+                }
+                #[allow(unreachable_patterns)]
+                _ => return Err(unknown_reference()),
             };
             if let Some((_, metadata)) = self.local_metadata(scope, id).await? {
                 return Ok(metadata);
@@ -656,11 +872,11 @@ impl<C: BatchConnectionTrait + Send + Sync> ResourceAccess for Resources<'_, C> 
         reference: &'a ResourceReference,
     ) -> CapabilityFuture<'a, Result<ResourceRead, CapabilityError>> {
         Box::pin(async move {
-            let ResourceReference::Id(id) = reference else {
-                return Err(resource_error(
-                    CapabilityErrorKind::Unsupported,
-                    "URL resources are not authorised: core has no host allow-list",
-                ));
+            let id = match reference {
+                ResourceReference::Id(id) => id,
+                ResourceReference::Url(url) => return self.fetch_url(url).await,
+                #[allow(unreachable_patterns)]
+                _ => return Err(unknown_reference()),
             };
             if let Some((row, metadata)) = self.local_metadata(scope, id).await? {
                 let backend = self.backend()?;

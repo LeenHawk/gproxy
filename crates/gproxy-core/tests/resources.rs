@@ -388,9 +388,10 @@ async fn preflight_rejections_leave_no_row_and_url_kind_needs_a_link_builder() {
         );
     }
 
-    // URL references are never read: core has no allow-list.
+    // URL references pass the fetch policy first; the default one refuses a
+    // loopback name before any lookup or connection.
     let err = r
-        .resolve(&s, &ResourceReference::Url("https://x.example/a".into()))
+        .resolve(&s, &ResourceReference::Url("http://localhost/a".into()))
         .await
         .unwrap_err();
     assert_eq!(err.kind(), CapabilityErrorKind::Unsupported);
@@ -642,4 +643,428 @@ async fn upstream_ids_resolve_and_read_through_the_scope_provider() {
         .await
         .unwrap_err();
     assert_eq!(err.kind(), CapabilityErrorKind::NotFound);
+}
+
+// ---- URL reads under the fetch policy ----------------------------------
+
+use gproxy_core::{
+    AllowAllFetchPolicy, AllowlistFetchPolicy, Core, DefaultFetchPolicy, FetchDecision, FetchPolicy,
+};
+use std::{
+    net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr},
+    sync::{Arc, Mutex},
+};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+/// The same seeded engine with another fetch policy. `into_parts` drops file
+/// storage and the link builder, which URL reads never touch.
+fn with_policy(h: Harness, policy: Arc<dyn FetchPolicy>) -> Harness {
+    let Harness {
+        core,
+        observer,
+        client,
+        channel,
+    } = h;
+    let parts = core.into_parts();
+    let core = Core::builder(parts.store)
+        .cache(parts.cache)
+        .observer(parts.observer)
+        .secret_codec(parts.codec)
+        .channel(channel.clone())
+        .unwrap()
+        .fetch_policy(policy)
+        .snapshot(parts.data)
+        .build()
+        .unwrap();
+    Harness {
+        core,
+        observer,
+        client,
+        channel,
+    }
+}
+
+fn url(raw: &str) -> url::Url {
+    url::Url::parse(raw).unwrap()
+}
+
+fn v4(a: u8, b: u8, c: u8, d: u8) -> IpAddr {
+    IpAddr::V4(Ipv4Addr::new(a, b, c, d))
+}
+
+#[test]
+fn default_fetch_policy_denies_internal_addresses_and_allows_public_ones() {
+    let policy = DefaultFetchPolicy;
+    let public = url("https://files.example/a.png");
+    assert_eq!(
+        policy.decide(&public, &[v4(93, 184, 216, 34)]),
+        FetchDecision::Allow
+    );
+    // No resolver (wasm32): a name alone is allowed, a loopback name is not.
+    assert_eq!(policy.decide(&public, &[]), FetchDecision::Allow);
+    assert!(matches!(
+        policy.decide(&url("http://localhost:8080/x"), &[]),
+        FetchDecision::Deny(_)
+    ));
+    assert!(matches!(
+        policy.decide(&url("http://svc.localhost/x"), &[]),
+        FetchDecision::Deny(_)
+    ));
+    // One internal answer among the resolved addresses denies the whole URL.
+    assert_eq!(
+        policy.decide(&public, &[v4(93, 184, 216, 34), v4(10, 0, 0, 5)]),
+        FetchDecision::Deny("private address")
+    );
+    for (raw, reason) in [
+        ("http://127.0.0.1/x", "loopback address"),
+        ("http://[::1]/x", "loopback address"),
+        ("http://10.1.2.3/x", "private address"),
+        ("http://172.16.0.9/x", "private address"),
+        ("http://192.168.1.1/x", "private address"),
+        ("http://[fd00::1]/x", "private address"),
+        ("http://169.254.169.254/latest", "link-local address"),
+        ("http://[fe80::1]/x", "link-local address"),
+        ("http://0.0.0.0/x", "unspecified address"),
+        ("http://[::]/x", "unspecified address"),
+        ("http://224.0.0.1/x", "multicast address"),
+        ("http://[::ffff:127.0.0.1]/x", "loopback address"),
+        ("http://[::ffff:192.168.0.1]/x", "private address"),
+    ] {
+        assert_eq!(
+            policy.decide(&url(raw), &[]),
+            FetchDecision::Deny(reason),
+            "{raw}"
+        );
+    }
+    // Mapped forms arriving from the resolver are checked as IPv4 too.
+    let mapped = IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0xffff, 0x0a00, 0x0001));
+    assert_eq!(
+        policy.decide(&public, &[mapped]),
+        FetchDecision::Deny("private address")
+    );
+    // Only web schemes are fetched, whatever the address.
+    assert!(matches!(
+        policy.decide(&url("ftp://files.example/a"), &[v4(93, 184, 216, 34)]),
+        FetchDecision::Deny(_)
+    ));
+    assert!(matches!(
+        policy.decide(&url("file:///etc/passwd"), &[]),
+        FetchDecision::Deny(_)
+    ));
+
+    // The allow-list matches exact names and `*.suffix`, nothing else.
+    let list = AllowlistFetchPolicy::new(["cdn.example", "*.media.example"]);
+    assert_eq!(
+        list.decide(&url("https://CDN.example/a"), &[]),
+        FetchDecision::Allow
+    );
+    assert_eq!(
+        list.decide(&url("https://a.b.media.example/a"), &[v4(10, 0, 0, 1)]),
+        FetchDecision::Allow
+    );
+    assert!(matches!(
+        list.decide(&url("https://media.example/a"), &[]),
+        FetchDecision::Deny(_)
+    ));
+    assert!(matches!(
+        list.decide(&url("https://notcdn.example/a"), &[]),
+        FetchDecision::Deny(_)
+    ));
+    assert!(matches!(
+        list.decide(&url("ftp://cdn.example/a"), &[]),
+        FetchDecision::Deny(_)
+    ));
+    assert_eq!(
+        AllowAllFetchPolicy.decide(&url("http://127.0.0.1/x"), &[]),
+        FetchDecision::Allow
+    );
+    assert!(matches!(
+        AllowAllFetchPolicy.decide(&url("gopher://127.0.0.1/x"), &[]),
+        FetchDecision::Deny(_)
+    ));
+}
+
+/// One scripted HTTP/1.1 reply of the local server.
+struct Reply {
+    status: u16,
+    headers: Vec<(&'static str, String)>,
+    body: Vec<u8>,
+    /// Omit `Content-Length` and end the body by closing the connection.
+    close_delimited: bool,
+}
+
+fn ok(mime: &str, body: &[u8]) -> Reply {
+    Reply {
+        status: 200,
+        headers: vec![("content-type", mime.to_owned())],
+        body: body.to_vec(),
+        close_delimited: false,
+    }
+}
+
+fn redirect(location: &str) -> Reply {
+    Reply {
+        status: 302,
+        headers: vec![("location", location.to_owned())],
+        body: Vec::new(),
+        close_delimited: false,
+    }
+}
+
+/// A one-request-per-connection HTTP/1.1 server on 127.0.0.1 that answers
+/// its scripted replies in order (404 afterwards) and records request lines.
+struct LocalServer {
+    addr: SocketAddr,
+    hits: Arc<Mutex<Vec<String>>>,
+}
+
+impl LocalServer {
+    async fn start(replies: Vec<Reply>) -> Self {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let hits = Arc::new(Mutex::new(Vec::new()));
+        let replies = Arc::new(Mutex::new(std::collections::VecDeque::from(replies)));
+        let seen = hits.clone();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut socket, _)) = listener.accept().await else {
+                    break;
+                };
+                let mut head = Vec::new();
+                let mut buf = [0u8; 1024];
+                while !head.windows(4).any(|w| w == b"\r\n\r\n") {
+                    let Ok(n) = socket.read(&mut buf).await else {
+                        break;
+                    };
+                    if n == 0 {
+                        break;
+                    }
+                    head.extend_from_slice(&buf[..n]);
+                }
+                let line = String::from_utf8_lossy(&head)
+                    .lines()
+                    .next()
+                    .unwrap_or_default()
+                    .to_owned();
+                seen.lock().unwrap().push(line);
+                let reply = replies.lock().unwrap().pop_front().unwrap_or(Reply {
+                    status: 404,
+                    headers: Vec::new(),
+                    body: Vec::new(),
+                    close_delimited: false,
+                });
+                let mut out = format!("HTTP/1.1 {} X\r\nconnection: close\r\n", reply.status);
+                for (name, value) in &reply.headers {
+                    out.push_str(&format!("{name}: {value}\r\n"));
+                }
+                if !reply.close_delimited {
+                    out.push_str(&format!("content-length: {}\r\n", reply.body.len()));
+                }
+                out.push_str("\r\n");
+                let _ = socket.write_all(out.as_bytes()).await;
+                let _ = socket.write_all(&reply.body).await;
+                let _ = socket.shutdown().await;
+            }
+        });
+        Self { addr, hits }
+    }
+
+    fn url(&self, path: &str) -> String {
+        format!("http://{}{path}", self.addr)
+    }
+
+    fn hits(&self) -> Vec<String> {
+        self.hits.lock().unwrap().clone()
+    }
+}
+
+#[tokio::test]
+async fn allow_all_policy_reads_a_url_with_its_metadata() {
+    let server = LocalServer::start(vec![
+        Reply {
+            status: 200,
+            headers: vec![
+                ("content-type", "image/png; charset=binary".into()),
+                (
+                    "content-disposition",
+                    "attachment; filename=\"plain.png\"; filename*=UTF-8''sm%C3%B6rg%C3%A5s.png"
+                        .into(),
+                ),
+            ],
+            body: b"png-bytes".to_vec(),
+            close_delimited: false,
+        },
+        ok("text/plain", b"second"),
+    ])
+    .await;
+    let h = with_policy(
+        harness(full(), "round_robin").await,
+        Arc::new(AllowAllFetchPolicy),
+    );
+    let r = resources(&h);
+    let s = scope(&h, "tenant", "p");
+    let reference = ResourceReference::Url(server.url("/a.png"));
+
+    // `resolve` is the policy check alone: nothing is fetched.
+    let metadata = r.resolve(&s, &reference).await.unwrap();
+    assert_eq!(
+        metadata,
+        ResourceMetadata {
+            mime: None,
+            length: None,
+            filename: None,
+            expires_at: None,
+        }
+    );
+    assert!(server.hits().is_empty());
+
+    let read = r.read(&s, &reference).await.unwrap();
+    assert_eq!(read.metadata.mime.as_deref(), Some("image/png"));
+    assert_eq!(read.metadata.filename.as_deref(), Some("smörgås.png"));
+    assert_eq!(read.metadata.length, Some(9));
+    assert_eq!(read.metadata.expires_at, None);
+    assert_eq!(support::read(read.body).await, "png-bytes");
+    assert_eq!(server.hits(), vec!["GET /a.png HTTP/1.1"]);
+    // The anonymous fetch never went through the scope's credential client.
+    assert!(h.client.seen.lines().is_empty());
+
+    let read = r
+        .read(&s, &ResourceReference::Url(server.url("/second")))
+        .await
+        .unwrap();
+    assert_eq!(support::read(read.body).await, "second");
+    // A non-2xx answer is a rejection, not a body.
+    let err = r
+        .read(&s, &ResourceReference::Url(server.url("/missing")))
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind(), CapabilityErrorKind::NotFound);
+    let err = r
+        .read(&s, &ResourceReference::Url("not a url".into()))
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind(), CapabilityErrorKind::Invalid);
+}
+
+#[tokio::test]
+async fn default_policy_denies_a_loopback_url_before_any_connection() {
+    let server = LocalServer::start(vec![ok("text/plain", b"never")]).await;
+    let h = harness(full(), "round_robin").await;
+    let r = resources(&h);
+    let s = scope(&h, "tenant", "p");
+    let reference = ResourceReference::Url(server.url("/a"));
+    for result in [
+        r.read(&s, &reference).await.map(|_| ()),
+        r.resolve(&s, &reference).await.map(|_| ()),
+    ] {
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), CapabilityErrorKind::Unsupported);
+        assert!(err.to_string().contains("loopback address"), "{err}");
+    }
+    assert!(server.hits().is_empty());
+}
+
+/// Trusts the local test server itself and defers to the default policy for
+/// everything else, so a redirect off the server is judged by the default.
+struct LocalThenDefault(SocketAddr);
+impl FetchPolicy for LocalThenDefault {
+    fn decide(&self, url: &url::Url, resolved: &[IpAddr]) -> FetchDecision {
+        if url.host_str() == Some(&self.0.ip().to_string()) && url.port() == Some(self.0.port()) {
+            FetchDecision::Allow
+        } else {
+            DefaultFetchPolicy.decide(url, resolved)
+        }
+    }
+}
+
+#[tokio::test]
+async fn redirects_are_followed_under_the_policy_and_bounded() {
+    let server = LocalServer::start(vec![
+        redirect("/hop"),
+        ok("text/plain", b"landed"),
+        redirect("http://192.168.0.1/internal"),
+        redirect("/1"),
+        redirect("/2"),
+        redirect("/3"),
+        redirect("/4"),
+    ])
+    .await;
+    let h = with_policy(
+        harness(full(), "round_robin").await,
+        Arc::new(LocalThenDefault(server.addr)),
+    );
+    let r = resources(&h);
+    let s = scope(&h, "tenant", "p");
+
+    // A relative redirect to the same allowed origin is followed.
+    let read = r
+        .read(&s, &ResourceReference::Url(server.url("/start")))
+        .await
+        .unwrap();
+    assert_eq!(support::read(read.body).await, "landed");
+    assert_eq!(
+        server.hits(),
+        vec!["GET /start HTTP/1.1", "GET /hop HTTP/1.1"]
+    );
+
+    // A redirect onto a private address is refused mid-chain, unconnected.
+    let err = r
+        .read(&s, &ResourceReference::Url(server.url("/bounce")))
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind(), CapabilityErrorKind::Unsupported);
+    assert!(err.to_string().contains("private address"), "{err}");
+    assert_eq!(server.hits().len(), 3);
+
+    // More than three hops is a transport failure.
+    let err = r
+        .read(&s, &ResourceReference::Url(server.url("/loop")))
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind(), CapabilityErrorKind::Transport);
+    assert!(err.to_string().contains("redirected"), "{err}");
+    assert_eq!(server.hits().len(), 7);
+}
+
+#[tokio::test]
+async fn url_reads_are_bounded_by_the_read_limit() {
+    let server = LocalServer::start(vec![
+        ok("text/plain", b"too large"),
+        Reply {
+            status: 200,
+            headers: vec![("content-type", "text/plain".into())],
+            body: b"too large".to_vec(),
+            close_delimited: true,
+        },
+        ok("text/plain", b"ok"),
+    ])
+    .await;
+    let h = with_policy(
+        harness(full(), "round_robin").await,
+        Arc::new(AllowAllFetchPolicy),
+    );
+    let limits = ExecutionLimits::default();
+    let mut caps = limits.capability(None);
+    caps.read_bytes = 4;
+    let r = Resources::new(&h.core, caps, limits.codec());
+    let s = scope(&h, "tenant", "p");
+
+    // Declared up front: refused before the body is read.
+    let err = r
+        .read(&s, &ResourceReference::Url(server.url("/declared")))
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind(), CapabilityErrorKind::Limit);
+    // Undeclared: refused while reading.
+    let err = r
+        .read(&s, &ResourceReference::Url(server.url("/streamed")))
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind(), CapabilityErrorKind::Limit);
+    let read = r
+        .read(&s, &ResourceReference::Url(server.url("/small")))
+        .await
+        .unwrap();
+    assert_eq!(read.metadata.length, Some(2));
+    assert_eq!(support::read(read.body).await, "ok");
 }
