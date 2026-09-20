@@ -1847,6 +1847,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "ts-rs",
+ "url",
  "wasm-bindgen-futures",
  "web-time",
 ]

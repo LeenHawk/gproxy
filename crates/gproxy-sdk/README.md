@@ -189,6 +189,69 @@ header is stripped before the request goes upstream. The full rules, the
 evidence behind each field and the negative list are in
 [`design/session-identity.md`](../../design/session-identity.md).
 
+## Management
+
+`gproxy.manage()` is the write side: one accessor per configuration family, all
+of them over the same primitive.
+
+| Family | Rows | Beyond CRUD |
+|---|---|---|
+| `providers()` | `providers` | `reset_routing_defaults(provider_id)` drops the provider's operation rules and URLs in one commit |
+| `credentials()` | `credentials` | `reveal_secret`, `set_status`, `refresh`, `quota_probe`, `quota_read`, `quota_reset`, `health_reset`, `limit_status` |
+| `models()` / `provider_models()` | `models`, `provider_models` | |
+| `routes()` / `route_members()` / `exposed_models()` | `routes`, `route_members`, `exposed_models` | |
+| `connection_profiles()` | `connection_profiles` | |
+| `settings()` | the single `settings` row | `get` / `update` only; split into an instance group and a logging group |
+| `rewrite()` | `rewrite_rule_sets`, `rewrite_rules`, `provider_rewrite_rule_sets` | `replace_rules(set_id, rules)` replaces a whole set |
+| `endpoints()` | `operation_rules`, `operation_endpoints` | |
+| `quotas()` | `quotas` | `budget_status`, `reset_budget`, `limit_status`, `reset_limit` |
+| `pricing()` | `price_rules`, `price_rates`, `price_tiers` | |
+
+Every family has `list(ListQuery) -> Page<Dto>`, `get(id)`, `create(Write)`,
+`update(id, Patch)`, `delete(id)` and `batch(Vec<BatchItem>)`. Ids are
+caller-supplied when given and minted otherwise, timestamps are Unix
+milliseconds, decimals travel as strings, and `credentials.secret` is never in a
+DTO — only `hasSecret`, plus the separate `reveal_secret` call.
+
+### One write, one revision
+
+```
+commit_revision([statements…, bump, read])   one transaction
+      ↓
+reload   full, or `reload_credentials` when the write only touched credential state
+      ↓
+publish  Invalidation::ConfigurationChanged { revision, scopes }
+```
+
+The rows and the `config_revision` bump are the same transaction, so a write
+that lands is never invisible to peers and a bump never happens without one. A
+`batch` is one such transaction however many rows it names, and a refused write
+never reaches the database at all: validation runs first, so the revision does
+not move.
+
+The reload happens before the notification, never after — a peer must not be
+told about a revision this instance cannot serve yet. The notification itself is
+best effort: a cache that refuses it costs the deployment one revision-poll
+interval and is logged, not returned as an error.
+
+A write names its `Scope`s, and that is the only thing the caller chooses.
+`Scope::CredentialState` takes the cheap `reload_credentials` path, and it is
+valid **only** for a write limited to the secret, its expiry and the lifecycle
+status: everything else about a credential — label, auth kind, metadata,
+connection profile, owner — is frozen into `CredentialData` at assembly and
+needs a full reload. `Credentials::update` picks the right one from the patch.
+
+### Reserved exposed-model prefixes
+
+An exposed model name is matched exactly, but a name with a `/` in it is not
+free: resolution reads the first segment of an unknown name as a narrowing
+prefix. `codex/gpt-5` means "that model on the `codex` channel" and
+`my-openai/gpt-5` means "that model on the `my-openai` provider". An exposed
+name whose first segment is a registered channel id or an existing provider name
+would therefore never be reached, so it is refused at write time rather than
+left to fail silently. Anything else is fine: `coding/fast` is a perfectly good
+public name.
+
 ## What is not here
 
 - **Identity.** Users, API keys, organizations, teams, permissions,

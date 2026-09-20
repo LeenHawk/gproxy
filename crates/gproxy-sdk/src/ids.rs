@@ -1,8 +1,5 @@
 //! Opaque identifiers for rows the handle creates itself, byte-for-byte the
 //! same generator core uses for the ids it mints.
-// Login and the management families are the callers; they arrive in later
-// phases, so nothing in this build reaches it yet.
-#![allow(dead_code)]
 
 pub(crate) fn random_id() -> String {
     let mut bytes = [0u8; 16];
