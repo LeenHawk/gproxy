@@ -260,11 +260,27 @@ pub async fn assemble(
                 models,
             ))
         });
+    // Caller budgets and pricing: an unusable row is skipped, never fatal,
+    // so one bad price rule cannot keep a snapshot from publishing.
+    let mut budgets = Vec::new();
+    for row in control.quotas.iter().filter(|q| q.enabled) {
+        match crate::budget::BudgetData::compile(row) {
+            Ok(budget) => budgets.push(Arc::new(budget)),
+            Err(reason) => tracing::warn!(quota = %row.id, %reason, "budget skipped"),
+        }
+    }
+    let pricing = Arc::new(crate::pricing::PriceBook::compile(
+        &control.price_rules,
+        &control.price_rates,
+        &control.price_tiers,
+    ));
     Ok(Assembly {
         data: CoreData {
             revision,
             limits,
             estimation,
+            budgets,
+            pricing,
             providers: providers
                 .into_iter()
                 .map(|(id, provider)| (id, Arc::new(provider)))

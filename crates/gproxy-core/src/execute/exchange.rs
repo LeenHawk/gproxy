@@ -126,6 +126,7 @@ impl Exchange {
             credential_id: attempt.credential.id.clone(),
             upstream_model: attempt.request.target.upstream_model.clone(),
             usage,
+            cost: None,
         });
     }
 

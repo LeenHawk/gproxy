@@ -113,6 +113,14 @@ pub enum TraceEvent<'a> {
         attempt: &'a AttemptContext,
         version: i64,
     },
+    /// A caller budget was already spent before the first attempt: the
+    /// request was rejected without touching any credential.
+    BudgetRejected {
+        request: &'a RequestContext,
+        quota_id: &'a str,
+        window_key: &'a str,
+        resets_at_ms: Option<i64>,
+    },
 }
 
 /// The host side of the funnel. Core consults `policy` first, then reports

@@ -59,6 +59,11 @@ pub struct RequestContext {
     pub session: Option<SessionIdentity>,
     pub operation: OperationKey,
     pub target: ExecutionTarget,
+    /// The owners this request spends for, decided by the host after
+    /// admission. Core checks every enabled budget of these owners that
+    /// covers the upstream model before the first attempt and settles the
+    /// priced cost into their windows afterwards. Empty means no budget.
+    pub budgets: Vec<crate::budget::BudgetOwner>,
     /// Final budget supplied by the upper layer after applying its constraints.
     pub max_attempts: NonZeroU32,
     pub started_at_ms: i64,
@@ -104,6 +109,10 @@ pub struct UsageReport {
     /// Physical upstream usage is reported once per capture ID, without allocating
     /// it repeatedly across downstream consumers. None remains unknown, not zero.
     pub exchanges: Vec<ExchangeUsage>,
+    /// The priced cost of the request: the sum of every priced exchange in
+    /// the first priced exchange's currency. None when no exchange was
+    /// priced (no usage, or no price rule matched).
+    pub cost: Option<crate::pricing::Cost>,
     pub state: UsageState,
 }
 #[derive(Clone, Debug)]
@@ -113,6 +122,9 @@ pub struct ExchangeUsage {
     pub credential_id: String,
     pub upstream_model: Option<String>,
     pub usage: NormalizedUsage,
+    /// Set at settlement from the snapshot's price book. None means no rule
+    /// matched; `usage.dimensions["unpriced"]` is then `"true"`.
+    pub cost: Option<crate::pricing::Cost>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UsageState {

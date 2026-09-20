@@ -1661,6 +1661,7 @@ dependencies = [
  "time",
  "tokio",
  "tokio-util",
+ "tracing",
  "wasm-bindgen-futures",
  "web-time",
  "zeroize",

@@ -54,6 +54,7 @@ fn agent_context(
             agent_session_id: Some(session_id.into()),
         }),
         operation: ctx.operation,
+        budgets: Vec::new(),
         max_attempts: ctx.max_attempts,
         started_at_ms: 0,
         deadline: None,

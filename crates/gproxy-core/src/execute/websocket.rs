@@ -44,6 +44,8 @@ pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'stati
     mut wire: WireRequest<()>,
 ) -> CoreResult<WebSocketExecution> {
     let (funnel, completion) = Funnel::new(request.clone(), core.observer().clone());
+    funnel.set_meter(core.usage_meter());
+    super::attempt::reject_when_over_budget(core, &request, &funnel).await?;
     let snapshot = request.snapshot.clone();
     let limits = snapshot.limits;
     let provider = request.target.provider.clone();

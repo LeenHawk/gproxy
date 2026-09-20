@@ -77,10 +77,11 @@ impl Funnel {
         if self.finished.swap(true, Ordering::SeqCst) {
             return Settled(());
         }
-        let report = UsageReport {
+        let mut report = UsageReport {
             request_id: self.request.request_id.clone(),
             downstream_usage: None,
             exchanges: std::mem::take(&mut *self.exchanges.lock().unwrap()),
+            cost: None,
             state: if self.policy.usage {
                 state
             } else {
@@ -88,6 +89,13 @@ impl Funnel {
             },
         };
         if self.policy.usage {
+            // Cost is computed here, once, so the meter's budget settlement
+            // and the Observer's record agree on the number.
+            crate::pricing::price_report(
+                &self.request.snapshot.pricing,
+                self.request.operation.operation,
+                &mut report,
+            );
             let meter = self.meter.lock().unwrap().clone();
             if let Some(meter) = meter
                 && !report.exchanges.is_empty()

@@ -34,6 +34,7 @@ serde_urlencoded = { workspace = true }
 thiserror = { workspace = true }
 time = { workspace = true }
 tokio-util = { workspace = true }
+tracing = { workspace = true }
 web-time = { workspace = true }
 zeroize = { workspace = true }
 

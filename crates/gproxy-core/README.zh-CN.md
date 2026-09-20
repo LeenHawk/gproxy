@@ -22,6 +22,8 @@
 | `capability` | core 的 `AttemptUpstream`、`ProtocolState`、`Resources`，即 protocol 适配所依赖的宿主能力 |
 | `refresh` | 显式凭证刷新：跨实例租约、渠道 `CredentialRefresh`、密封、版本 CAS、发布，确定性拒绝写 `Dead` |
 | `quota` | `QuotaHeaders`／`QuotaQuery` 观测写入 `credential_quota_cycles` 与耗尽 block；Counted 维度落 Store `counted_windows` 行计数 |
+| `budget` | 调用方 USD 预算：宿主指定 owner，懒开 `quota_windows`，attempt 前拒绝、结算、手动重置与状态 |
+| `pricing` | `PriceBook`：每快照编译 Store 的价格规则、费率与档位；每次交换在结算时定价 |
 | `session` | agent 会话 assignment：可用时保持绑定，持久性失效时预留新代，由准备它的 attempt 激活或标记失败 |
 | `estimate` | 上游未计量的交换的本地 token 估算 |
 | `observe` | 宿主的结算／capture／trace 漏斗，先问 policy 再做事 |
@@ -29,8 +31,9 @@
 
 ## 快照与数据
 
-`CoreData` 保存 Provider、凭证、共享改写规则集、执行限额和估算器。不保存路由、对外
-模型别名、身份表、权限、OAuth client 白名单、订阅、计价或准入规则；这些连同路由亲和
+`CoreData` 保存 Provider、凭证、共享改写规则集、执行限额、估算器、启用的调用方预算和
+价格本。不保存路由、对外模型别名、身份表、权限、OAuth client 白名单、订阅或准入规则；
+这些连同路由亲和
 与跨 Provider 均衡都属于上层。`publish_snapshot` 只接受更新的 revision；请求各自
 持有 `Arc`，重载不会中途改变请求。
 
@@ -70,7 +73,7 @@ context 操作。每个方法返回 `Execution<T>`：protocol 响应或连接，
 | `reload_credentials` | 按输入顺序重读行并发布到既有槽位；缺失行返回 None 并摘除槽位 |
 | `refresh_credential` | Provider 归属校验、每凭证 cache 租约（其他实例等待，更新的持久版本可直接满足调用）、权威 Store 读取、渠道刷新、密封、`refresh_many` CAS、发布并发出 `CredentialChanged` 通知；`RefreshRejected` 写入带原因的 `Dead` |
 | `query_credential_quota` | 通过指派 client 调用渠道 `QuotaQuery`；每条 entry 写一行 `credential_quota_cycles`，已声明维度耗尽则打 block |
-| `call_service` / `connect_service` | [service.rs](src/service.rs)：按 `ServiceView` 调用渠道的 `ChannelServices`（没有 `OperationKey` 的厂商 CLI 接口）。`Caller`（任何角色）只用网关对 `scope` 的记账和绑定到该 scope 的资源渲染调用方自己的画面——Member 永远看不到任何凭证的状态；`Pool`（仅 admin）把 target 内的凭证合成为一个账号；`Credential(id)`（仅 admin）用该凭证自己的鉴权原样转发。core 不判断谁是谁的管理员：宿主通过选择 `target.credentials` 表达组织边界，`CallerRole::Admin` 指对这个集合的管理员。core 提供事实来源（`TargetCaller`：按 scope 的 usage 行、target 凭证的额度周期、`resource_bindings`），取第一个可用凭证（或指名的那条），单项资源路由沿用绑定记录的凭证。角色不符返回 `Forbidden`，渠道没有 services 返回 `Channel(UnsupportedService)`。运行在**漏斗之外**：没有 attempt、usage、capture 和重试 |
+| `call_service` / `connect_service` | [service.rs](src/service.rs)：按 `ServiceView` 调用渠道的 `ChannelServices`（没有 `OperationKey` 的厂商 CLI 接口）。`Caller`（任何角色）只用网关对 `scope` 的记账和绑定到该 scope 的资源渲染调用方自己的画面——Member 永远看不到任何凭证的状态；`Pool`（仅 admin）把 target 内的凭证合成为一个账号；`Credential(id)`（仅 admin）用该凭证自己的鉴权原样转发。core 不判断谁是谁的管理员：宿主通过选择 `target.credentials` 表达组织边界，`CallerRole::Admin` 指对这个集合的管理员。core 提供事实来源（`TargetCaller`：按 scope 的 usage 行、`ServiceRequest::budgets` 指定的预算的当前窗口、target 凭证的额度周期、`resource_bindings`），取第一个可用凭证（或指名的那条），单项资源路由沿用绑定记录的凭证。角色不符返回 `Forbidden`，渠道没有 services 返回 `Channel(UnsupportedService)`。运行在**漏斗之外**：没有 attempt、usage、capture 和重试 |
 
 ## 执行
 
@@ -139,6 +142,35 @@ count-tokens 与 embeddings。base64 媒体、文件 id、URL 与加密数据一
 兜底：没有提取器的对，或 wire 类型拒绝的请求体，完全不做输入估算（输出估算仍然生效）。
 估算标记为 `Partial` 并带 `dimensions["estimated"] = "true"`；已报告的值绝不覆盖，
 被拒绝的回答不估算。`UsageState::Skipped` 表示请求策略关闭了用量，区别于上游没有报告。
+
+## 预算与计价
+
+预算是 metric 为 `cost`、unit 为 `USD` 的 `quotas` 行，owner 恰好一个：用户、API key、
+订阅或池。宿主在 `RequestContext::budgets`（服务 `Caller` 视图用 `ServiceRequest::budgets`）
+列出本次请求花的是谁的钱；core 解析为这些 owner 的启用预算中 `model_pattern`（对整个
+上游模型名的 `*`／`?` glob，空则全部）覆盖目标模型的那些。所有适用预算都必须有余量
+（AND）：第一个 attempt 之前逐个读取当前窗口——没有就按 `(quota_id, starts_at_ms)`
+懒开一行 `quota_windows`，带上额度行的快照——`used >= limit_value` 的窗口让请求以
+`CoreError::BudgetExhausted { quota_id, window_key, resets_at_ms }` 失败，不碰任何凭证；
+漏斗仍交付 `Failed` 的用量报告，开启 trace 时还有 `TraceEvent::BudgetRejected`。
+
+周期有 `5h`、`1d`、`7d`（按 `anchor_at_ms` 对齐的固定窗口，未设则以 epoch 0 对齐；
+其他周期名配 `period_seconds` 同理）、`1m`（UTC 自然月）和 `total`（唯一的永久窗口，
+`ends_at_ms = None`）。过期窗口留作历史，下一次请求开下一个。
+`Core::reset_budget(quota_id, now)` 在 `now` 关闭打开的窗口，把额度行的 `anchor_at_ms`
+改为 `now`，再从 `now` 开一个新窗口（固定周期开整整一个周期，`1m` 到月末，`total`
+永久）；新的 anchor 在重载快照发布后决定之后的窗口。`Core::budget_status(owners, now)`
+向宿主与控制台报告 owner 的每个预算及其窗口、`used`、`limit` 和 `resets_at_ms`。
+
+定价是 core 的事。结算时每次交换按快照的 `PriceBook`（`price_rules` 及其
+`price_rates`、`price_tiers`）计价：Provider 规则先于全局规则，在 `model_pattern` glob
+与可选操作都匹配的规则里 `(priority, id)` 最小者胜；档位按 `actual_service_tier` 与
+`min_prompt_tokens` 选择；token 类按每百万计价，其他 metric 按费率行，条件对用量
+dimensions 匹配（映射见 [pricing.rs](src/pricing.rs)）。结果写在 `ExchangeUsage::cost`
+与 `UsageReport::cost` 上给 Observer。没有规则覆盖的交换计 0，并带
+`dimensions["unpriced"] = "true"`。请求的费用随后按 `request_id` 幂等地
+（`quota_settlements`）结算进每个适用预算的窗口，只结算 unit 与费用币种相同的预算。
+费用要交换结束才知道，所以预算最多被超出一个请求。
 
 ## 观测
 
