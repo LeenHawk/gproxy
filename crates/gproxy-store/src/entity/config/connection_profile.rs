@@ -72,6 +72,10 @@ pub enum Backend {
     Reqwest,
     #[sea_orm(string_value = "wreq")]
     Wreq,
+    /// reqwest 0.12 over the platform's native TLS (gproxy-client feature
+    /// `reqwest-native`); the Codex CLI's HTTP stack.
+    #[sea_orm(string_value = "reqwest_native")]
+    ReqwestNative,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum)]

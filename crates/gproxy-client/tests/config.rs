@@ -217,6 +217,50 @@ async fn custom_fingerprints_build_on_wreq() {
     ));
 }
 
+#[cfg(all(feature = "reqwest-native", not(target_arch = "wasm32")))]
+#[tokio::test]
+async fn reqwest_native_builds_and_refuses_what_the_cli_never_enables() {
+    let pool = ClientPool::default();
+    let config = ConnectionConfig {
+        backend: Backend::ReqwestNative,
+        ..Default::default()
+    };
+    assert!(matches!(
+        pool.get(&config).await.unwrap().as_ref(),
+        gproxy_client::Client::ReqwestNative(_)
+    ));
+    assert!(
+        matches!(
+            pool.get_websocket(&config).await.unwrap().as_ref(),
+            gproxy_client::Client::Reqwest(_)
+        ),
+        "WebSocket profiles of this backend are the rustls client"
+    );
+    for bad in [
+        ConnectionConfig {
+            gzip: true,
+            ..config.clone()
+        },
+        ConnectionConfig {
+            retry: gproxy_client::RetryPolicy::Default,
+            ..config.clone()
+        },
+        ConnectionConfig {
+            emulation: Some(custom_fingerprint()),
+            ..config.clone()
+        },
+    ] {
+        assert!(matches!(
+            pool.get(&bad).await.unwrap_err().as_ref(),
+            gproxy_client::Error::InvalidConfig(_)
+        ));
+    }
+    assert_eq!(
+        serde_json::to_value(Backend::ReqwestNative).unwrap(),
+        "reqwest_native"
+    );
+}
+
 #[cfg(all(feature = "reqwest", not(target_arch = "wasm32")))]
 #[tokio::test]
 async fn reqwest_rejects_any_emulation() {

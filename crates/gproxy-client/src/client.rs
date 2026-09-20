@@ -2,7 +2,7 @@
 use crate::Backend;
 use crate::{ConnectionConfig, Error};
 #[cfg(all(
-    any(feature = "reqwest", feature = "wreq"),
+    any(feature = "reqwest", feature = "wreq", feature = "reqwest-native"),
     not(target_arch = "wasm32")
 ))]
 use {
@@ -19,6 +19,8 @@ pub enum Client {
     Reqwest(reqwest::Client),
     #[cfg(feature = "wreq")]
     Wreq(wreq::Client),
+    #[cfg(feature = "reqwest-native")]
+    ReqwestNative(reqwest_native::Client),
 }
 
 /// wasm32 transports. `Backend` in the profile is a native choice; here every
@@ -64,6 +66,23 @@ impl Client {
         #[cfg(not(any(feature = "reqwest", feature = "wreq")))]
         let _ = http1_only;
         match config.backend {
+            // The native-TLS backend has no WebSocket layer; its HTTP/1.1
+            // (WebSocket) variant is the rustls reqwest client, like the
+            // Codex CLI pairs native TLS for HTTP with rustls for WebSocket.
+            Backend::ReqwestNative => {
+                #[cfg(feature = "reqwest-native")]
+                {
+                    if http1_only {
+                        build_reqwest(config, true).map(Self::Reqwest)
+                    } else {
+                        build_reqwest_native(config).map(Self::ReqwestNative)
+                    }
+                }
+                #[cfg(not(feature = "reqwest-native"))]
+                {
+                    Err(Error::BackendUnavailable(Backend::ReqwestNative))
+                }
+            }
             Backend::Reqwest => {
                 #[cfg(feature = "reqwest")]
                 {
@@ -130,6 +149,44 @@ fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest:
             .proxy(reqwest::Proxy::all(url).map_err(Error::Reqwest)?),
     };
     builder.build().map_err(Error::Reqwest)
+}
+
+/// reqwest 0.12 as the Codex CLI builds it: native TLS, no decompression
+/// (the CLI enables none of reqwest's codec features) and no retry layer,
+/// so a profile asking for either is refused rather than quietly ignored.
+#[cfg(all(feature = "reqwest-native", not(target_arch = "wasm32")))]
+fn build_reqwest_native(config: &ConnectionConfig) -> Result<reqwest_native::Client, Error> {
+    if config.emulation.is_some() {
+        return Err(Error::InvalidConfig("emulation requires the wreq backend"));
+    }
+    if config.gzip || config.brotli || config.deflate || config.zstd {
+        return Err(Error::InvalidConfig(
+            "the reqwest_native backend has no response decompression",
+        ));
+    }
+    if config.retry != RetryPolicy::Never {
+        return Err(Error::InvalidConfig(
+            "the reqwest_native backend has no retry policy",
+        ));
+    }
+    let mut builder = reqwest_native::Client::builder()
+        .use_native_tls()
+        .connect_timeout(Duration::from_millis(config.connect_timeout_ms.into()))
+        .pool_idle_timeout(Duration::from_millis(config.pool_idle_timeout_ms.into()))
+        .pool_max_idle_per_host(config.pool_max_idle_per_host as usize)
+        .redirect(if config.redirect_max_hops == 0 {
+            reqwest_native::redirect::Policy::none()
+        } else {
+            reqwest_native::redirect::Policy::limited(config.redirect_max_hops as usize)
+        });
+    builder = match &config.proxy {
+        ProxyConfig::Direct => builder.no_proxy(),
+        ProxyConfig::System => builder,
+        ProxyConfig::Explicit { url } => builder
+            .no_proxy()
+            .proxy(reqwest_native::Proxy::all(url).map_err(Error::ReqwestNative)?),
+    };
+    builder.build().map_err(Error::ReqwestNative)
 }
 
 #[cfg(all(feature = "wreq", not(target_arch = "wasm32")))]

@@ -252,6 +252,28 @@ fn events(sse: &str) -> Vec<Value> {
 
 const TEXT_STREAM: &str = "data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-up\",\"content\":[]}}\n\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello there\"}}\n\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null}}\n\ndata: {\"type\":\"message_stop\"}\n\n";
 
+#[test]
+fn default_connection_is_a_chrome_preset_over_wreq() {
+    use gproxy_client::{Backend, EmulationConfig};
+    let config = ClaudeWeb::new()
+        .default_connection()
+        .expect("channel default");
+    assert_eq!(config.backend, Backend::Wreq);
+    assert!(config.gzip && config.brotli && config.deflate && config.zstd);
+    let Some(EmulationConfig::Preset {
+        profile,
+        platform,
+        http2,
+        headers,
+    }) = &config.emulation
+    else {
+        panic!("preset expected: {:?}", config.emulation);
+    };
+    assert_eq!(profile, "chrome_149");
+    assert!(["linux", "macos", "windows"].contains(&platform.as_str()));
+    assert!(*http2 && *headers);
+}
+
 #[tokio::test]
 async fn new_turn_uploads_creates_configures_completes_and_deletes() {
     let config = json!({"prompt": "be brief", "timezone": "Europe/Berlin"});

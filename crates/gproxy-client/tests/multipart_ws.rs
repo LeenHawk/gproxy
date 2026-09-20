@@ -103,6 +103,8 @@ async fn multipart_stream_uploads_work_through_the_configured_proxy() {
             let chunks =
                 stream::iter([Ok::<_, std::io::Error>(&b"first-"[..]), Ok(&b"second"[..])]);
             match client.as_ref() {
+                #[cfg(feature = "reqwest-native")]
+                Client::ReqwestNative(_) => unreachable!("not exercised here"),
                 #[cfg(feature = "reqwest")]
                 Client::Reqwest(client) => {
                     use gproxy_client::reqwest::{
@@ -188,6 +190,8 @@ async fn websocket_upgrade_and_duplex_frames_use_the_profile_and_survive_cache_c
                 assert!(!Arc::ptr_eq(&client, &pool.get(&config).await.unwrap()));
                 let url = if proxied { "ws://origin.invalid/chat".to_owned() } else { format!("ws://{address}/chat") };
                 match client.as_ref() {
+                    #[cfg(feature = "reqwest-native")]
+                    Client::ReqwestNative(_) => unreachable!("not exercised here"),
                     #[cfg(feature = "reqwest")]
                     Client::Reqwest(client) => {
                         use gproxy_client::reqwest_websocket::{Upgrade, Message, CloseCode};

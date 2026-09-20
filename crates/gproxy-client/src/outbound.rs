@@ -132,6 +132,10 @@ mod native {
                         Client::Reqwest(client) => reqwest_send(client, parts, body).await,
                         #[cfg(feature = "wreq")]
                         Client::Wreq(client) => wreq_send(client, parts, body).await,
+                        #[cfg(feature = "reqwest-native")]
+                        Client::ReqwestNative(client) => {
+                            reqwest_native_send(client, parts, body).await
+                        }
                     }
                 }
                 #[cfg(not(any(feature = "reqwest", feature = "wreq")))]
@@ -155,6 +159,18 @@ mod native {
                         Client::Reqwest(client) => reqwest_connect(client, parts).await,
                         #[cfg(feature = "wreq")]
                         Client::Wreq(client) => wreq_connect(client, parts).await,
+                        // The pool hands out the rustls reqwest client for
+                        // WebSocket profiles of this backend; a direct call
+                        // on the HTTP client has no upgrade layer.
+                        #[cfg(feature = "reqwest-native")]
+                        Client::ReqwestNative(_) => {
+                            let _ = parts;
+                            Err(CapabilityError::new(
+                                CapabilityErrorKind::Unsupported,
+                                CapabilityErrorStage::Start,
+                                "the reqwest_native client does not upgrade to WebSocket; use the pool's WebSocket client",
+                            ))
+                        }
                     }
                 }
                 #[cfg(not(any(feature = "reqwest", feature = "wreq")))]
@@ -254,6 +270,32 @@ mod native {
                 incoming: Box::pin(incoming),
                 outgoing: Box::pin(outgoing),
             },
+        })
+    }
+
+    #[cfg(feature = "reqwest-native")]
+    async fn reqwest_native_send(
+        client: &reqwest_native::Client,
+        parts: http::request::Parts,
+        body: HttpBody,
+    ) -> Result<WireResponse<HttpBody>, CapabilityError> {
+        let body = match body {
+            HttpBody::Bytes(bytes) => reqwest_native::Body::from(bytes),
+            HttpBody::Stream(stream) => reqwest_native::Body::wrap_stream(stream),
+        };
+        let response = client
+            .request(parts.method, parts.uri.to_string())
+            .headers(parts.headers)
+            .body(body)
+            .send()
+            .await
+            .map_err(start_error)?;
+        Ok(WireResponse {
+            status: response.status(),
+            headers: response.headers().clone(),
+            body: HttpBody::Stream(Box::pin(
+                response.bytes_stream().map(|chunk| chunk.map_err(boxed)),
+            )),
         })
     }
 

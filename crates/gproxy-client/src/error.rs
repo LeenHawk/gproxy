@@ -14,6 +14,9 @@ pub enum Error {
     #[cfg(all(feature = "wreq", not(target_arch = "wasm32")))]
     #[error("wreq client construction failed")]
     Wreq(#[source] wreq::Error),
+    #[cfg(all(feature = "reqwest-native", not(target_arch = "wasm32")))]
+    #[error("reqwest (native TLS) client construction failed")]
+    ReqwestNative(#[source] reqwest_native::Error),
     #[cfg(not(target_arch = "wasm32"))]
     #[error("client construction task failed")]
     BuildTask(#[source] tokio::task::JoinError),

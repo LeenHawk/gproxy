@@ -183,9 +183,9 @@ Review decisions currently expressed in the code:
   JSON, optional operation, `until_ms` and a core `BlockSource` JSON. Core's cache is the
   hot copy and Store is authoritative across restarts; expired rows are pruned lazily.
   Deleting the credential drops its blocks.
-- Named connection profiles hold backend, proxy mode/URL, wreq emulation and
+- Named connection profiles hold backend (`reqwest`, `wreq`, `reqwest_native`), proxy mode/URL, wreq emulation and
   decompression, redirect, retry and connection-pool parameters. Optional `connection_profile_id` references resolve
-  Credential → Provider → Setting → built-in reqwest/direct defaults. `None`
+  Credential → Provider → the channel's default connection → Setting → built-in reqwest/direct defaults. `None`
   inherits the complete next profile; explicit direct/system modes belong to a
   profile, not to a nullable URL. Referenced profiles use `ON DELETE RESTRICT`.
   There is no profile version. `gproxy-client` caches by effective parameters;

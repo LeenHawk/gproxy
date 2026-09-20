@@ -10,6 +10,10 @@ pub enum Backend {
     #[default]
     Reqwest,
     Wreq,
+    /// reqwest 0.12 over the platform's native TLS (feature `reqwest-native`,
+    /// native targets only): the Codex CLI's HTTP stack. WebSocket upgrades
+    /// for this backend use the rustls `Reqwest` client, as the CLI does.
+    ReqwestNative,
 }
 
 /// Native transport retries. Default restores each backend's safe protocol-NACK

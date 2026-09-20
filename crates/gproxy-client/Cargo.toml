@@ -13,6 +13,19 @@ default = ["reqwest"]
 # buffered request bodies).
 reqwest = ["dep:reqwest", "dep:reqwest-websocket"]
 wreq = ["dep:wreq", "dep:wreq-util"]
+# Native only: reqwest 0.12 over the platform's native TLS (OpenSSL on Linux,
+# Secure Transport on macOS, SChannel on Windows), the Codex CLI's HTTP stack.
+# WebSocket upgrades for this backend go through the rustls `reqwest` client,
+# as the CLI's own WebSocket does. On Linux OpenSSL is built from source and
+# wreq's BoringSSL gets prefixed symbols, the only way both TLS libraries link
+# into one binary (their archives share names and symbols; the system
+# libssl.so cannot be picked over BoringSSL's static libssl.a).
+reqwest-native = [
+    "dep:reqwest_native",
+    "dep:openssl-sys",
+    "reqwest",
+    "wreq?/prefix-symbols",
+]
 # wasm32: the JS host's global `fetch` through web-sys, with streaming bodies
 # in both directions. Works wherever a JS runtime exposes fetch: Cloudflare
 # Workers, Deno, Netlify Edge, browsers.
@@ -45,6 +58,13 @@ reqwest = { workspace = true, optional = true, features = ["gzip", "brotli", "de
 reqwest-websocket = { workspace = true, optional = true }
 wreq = { workspace = true, optional = true, features = ["system-proxy", "multipart", "ws"] }
 wreq-util = { workspace = true, optional = true, features = ["emulation-serde"] }
+reqwest_native = { workspace = true, optional = true }
+
+# The Codex CLI links the system OpenSSL on glibc targets and builds it from
+# source on musl; here it is always built from source on Linux so it can share
+# a binary with wreq's BoringSSL (see the `reqwest-native` feature).
+[target.'cfg(target_os = "linux")'.dependencies]
+openssl-sys = { version = "0.9", optional = true, features = ["vendored"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 futures-util = { workspace = true, features = ["sink"] }

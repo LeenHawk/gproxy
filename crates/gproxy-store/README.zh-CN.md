@@ -136,8 +136,8 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
 - 临时受限是 `CredentialBlock` 行：一行一个 block，含渠道 `QuotaScope` JSON、可选操作、
   `until_ms` 和 core 的 `BlockSource` JSON。core 的 cache 是热副本，Store 跨重启权威；
   过期行由 core 懒惰清理。删除凭证级联删除其 block。
-- 独立 ConnectionProfile 保存后端、代理模式／URL、wreq 模拟参数、解压开关、重定向、重试和连接池参数。
-  三层可空 `connection_profile_id` 按凭证 → Provider → 全局 → 内置 reqwest／直连选择。
+- 独立 ConnectionProfile 保存后端（`reqwest`、`wreq`、`reqwest_native`）、代理模式／URL、wreq 模拟参数、解压开关、重定向、重试和连接池参数。
+  三层可空 `connection_profile_id` 按凭证 → Provider → 渠道默认连接 → 全局 → 内置 reqwest／直连选择。
   `None` 继承整份配置；直连／系统代理是配置中的明确模式，不使用空 URL 表示。
   被引用的配置禁止删除（`ON DELETE RESTRICT`），没有 profile version。
   `gproxy-client` 按有效参数缓存 Client；已提供仓储 CRUD；宿主校验、继承和执行接线仍由 core 实现。

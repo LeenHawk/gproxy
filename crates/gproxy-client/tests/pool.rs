@@ -50,6 +50,8 @@ async fn try_get(
         Client::Reqwest(client) => Response::Reqwest(client.get(url).send().await?),
         #[cfg(feature = "wreq")]
         Client::Wreq(client) => Response::Wreq(client.get(url).send().await?),
+        #[cfg(feature = "reqwest-native")]
+        Client::ReqwestNative(_) => unreachable!("not exercised here"),
     })
 }
 
@@ -555,6 +557,12 @@ async fn tunneled_client_hello(mut config: ConnectionConfig, websocket: bool) ->
     let failed = match client.as_ref() {
         #[cfg(feature = "reqwest")]
         Client::Reqwest(client) => client
+            .get("https://origin.invalid/test")
+            .send()
+            .await
+            .is_err(),
+        #[cfg(feature = "reqwest-native")]
+        Client::ReqwestNative(client) => client
             .get("https://origin.invalid/test")
             .send()
             .await
