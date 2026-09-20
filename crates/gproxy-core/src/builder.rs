@@ -1,7 +1,7 @@
 //! Explicit assembly of an engine. Every dependency that shapes behaviour
 //! (cache, observer, secret codec) is required; nothing defaults to a no-op.
 
-use crate::{Core, CoreData, Observer, SecretCodec};
+use crate::{Core, CoreData, Observer, PublicationUrl, SecretCodec};
 use arc_swap::ArcSwap;
 use gproxy_cache::Cache;
 use gproxy_channel::{BaseChannel, ChannelRegistry, RegistryError};
@@ -28,6 +28,7 @@ pub struct CoreBuilder<C> {
     channels: ChannelRegistry,
     clients: Option<gproxy_client::ClientPool>,
     files: Option<gproxy_file::Operator>,
+    publication_url: Option<Arc<dyn PublicationUrl>>,
     instance_id: Option<Arc<str>>,
     data: Option<Arc<CoreData>>,
 }
@@ -42,6 +43,7 @@ impl<C> CoreBuilder<C> {
             channels: ChannelRegistry::new(),
             clients: None,
             files: None,
+            publication_url: None,
             instance_id: None,
             data: None,
         }
@@ -86,6 +88,14 @@ impl<C> CoreBuilder<C> {
         self.files = operator;
         self
     }
+    /// Link builder for `PublicationKind::Url`: the host mints the public URL
+    /// for a body core stores and serves `Core::read_publication` on that
+    /// route. Without it, URL publication (images `response_format: url`) is
+    /// refused before any side effect; `Id` publication is unaffected.
+    pub fn publication_url(mut self, builder: Arc<dyn PublicationUrl>) -> Self {
+        self.publication_url = Some(builder);
+        self
+    }
     /// Initial snapshot, e.g. one assembled before construction. Defaults to an
     /// empty snapshot at revision 0 until `load_data` runs.
     pub fn snapshot(mut self, data: Arc<CoreData>) -> Self {
@@ -102,6 +112,7 @@ impl<C> CoreBuilder<C> {
             channels: Arc::new(self.channels),
             clients: self.clients.unwrap_or_default(),
             files: self.files,
+            publication_url: self.publication_url,
             instance_id: self
                 .instance_id
                 .unwrap_or_else(|| Arc::from(crate::ids::random_id())),

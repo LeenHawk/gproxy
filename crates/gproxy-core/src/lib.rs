@@ -23,6 +23,7 @@ mod ids;
 pub mod keys;
 pub mod limits;
 pub mod observe;
+pub mod publication;
 mod quota;
 mod refresh;
 pub mod rewrite;
@@ -41,6 +42,7 @@ pub use context::*;
 pub use data::*;
 pub use limits::*;
 pub use observe::*;
+pub use publication::*;
 pub use rewrite::RewriteCompileError;
 pub use runtime::*;
 pub use secret::*;
@@ -64,6 +66,7 @@ pub struct Core<C> {
     channels: Arc<ChannelRegistry>,
     clients: gproxy_client::ClientPool,
     files: Option<gproxy_file::Operator>,
+    publication_url: Option<Arc<dyn PublicationUrl>>,
     instance_id: Arc<str>,
     data: ArcSwap<CoreData>,
 }
@@ -89,6 +92,11 @@ impl<C> Core<C> {
     /// Object storage for locally published bodies, when configured.
     pub fn file_storage(&self) -> Option<&gproxy_file::Operator> {
         self.files.as_ref()
+    }
+    /// The host's link builder for `PublicationKind::Url`, when configured.
+    /// Without one, URL publication is refused before any side effect.
+    pub fn publication_url(&self) -> Option<&Arc<dyn PublicationUrl>> {
+        self.publication_url.as_ref()
     }
     pub fn secret_codec(&self) -> &Arc<dyn SecretCodec> {
         &self.codec

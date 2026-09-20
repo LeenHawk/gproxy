@@ -32,6 +32,10 @@ struct PublicationSummary {
     filename: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     length: Option<u64>,
+    /// The host-built link of a `PublicationKind::Url` publication, so a
+    /// replay by operation id returns the same reference.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    url: Option<String>,
 }
 
 type BindingRow = resource_binding::Model;
@@ -99,6 +103,22 @@ fn row_expired(row: &BindingRow, now: i64) -> bool {
     row.expires_at_ms.is_some_and(|at| at <= now)
 }
 
+fn metadata_of(row: &BindingRow, summary: &PublicationSummary) -> ResourceMetadata {
+    ResourceMetadata {
+        mime: summary.mime.clone(),
+        length: summary.length,
+        filename: summary.filename.clone(),
+        expires_at: row.expires_at_ms.map(ms_to_time),
+    }
+}
+
+fn reference_of(row: &BindingRow, summary: &PublicationSummary) -> ResourceReference {
+    match &summary.url {
+        Some(url) => ResourceReference::Url(url.clone()),
+        None => ResourceReference::Id(row.id.clone()),
+    }
+}
+
 fn published_of(
     row: &BindingRow,
     summary: &PublicationSummary,
@@ -107,13 +127,8 @@ fn published_of(
         handle: PublishedHandle {
             binding_id: row.id.clone(),
         },
-        reference: ResourceReference::Id(row.id.clone()),
-        metadata: ResourceMetadata {
-            mime: summary.mime.clone(),
-            length: summary.length,
-            filename: summary.filename.clone(),
-            expires_at: row.expires_at_ms.map(ms_to_time),
-        },
+        reference: reference_of(row, summary),
+        metadata: metadata_of(row, summary),
     }
 }
 
@@ -273,14 +288,18 @@ fn file_content_path(
 /// configured file backend.
 ///
 /// * `publish` stores the body through `Core::file_storage` and records one
-///   `publication` binding per `(scope, operation_id)`. Only
-///   `PublicationKind::Id` is supported: core has no public URL surface, so a
-///   `Url` publication is rejected before the body is touched. Without a file
-///   backend every publish is `Unsupported` before side effects.
+///   `publication` binding per `(scope, operation_id)`. `PublicationKind::Id`
+///   returns the binding id. `PublicationKind::Url` needs the host's
+///   `PublicationUrl` (`CoreBuilder::publication_url`): the link is built for
+///   the id core is about to record, before anything is written, so a host
+///   refusal or a missing builder is `Unsupported` without side effects. The
+///   host serves the bytes back through `Core::read_publication`. Without a
+///   file backend every publish is `Unsupported` before side effects.
 /// * `ResourceReference::Id` first resolves to a publication in the same scope;
 ///   any other id is read from the scope's provider through its channel with
 ///   the first usable credential of the scope target. `Url` references are
-///   rejected as `Unsupported`: there is no host allow-list to authorise them.
+///   rejected as `Unsupported`: there is no host allow-list to authorise them,
+///   and core never fetches its own published links back through HTTP.
 pub struct Resources<'a, C> {
     core: &'a Core<C>,
     limits: CapabilityLimits,
@@ -682,6 +701,7 @@ impl<C: BatchConnectionTrait + Send + Sync> ResourceAccess for Resources<'_, C> 
                         if matches!(
                             (&published.reference, kind),
                             (ResourceReference::Id(_), PublicationKind::Id)
+                                | (ResourceReference::Url(_), PublicationKind::Url)
                         ) {
                             Ok(published)
                         } else {
@@ -701,14 +721,14 @@ impl<C: BatchConnectionTrait + Send + Sync> ResourceAccess for Resources<'_, C> 
                     )),
                 };
             }
-            match kind {
-                PublicationKind::Id => {}
-                PublicationKind::Url => {
-                    return Err(resource_error(
+            let link_builder = match kind {
+                PublicationKind::Id => None,
+                PublicationKind::Url => Some(self.core.publication_url().ok_or_else(|| {
+                    resource_error(
                         CapabilityErrorKind::Unsupported,
-                        "core publishes by id only: there is no public URL surface",
-                    ));
-                }
+                        "core publishes no URLs: host configured no PublicationUrl",
+                    )
+                })?),
                 #[allow(unreachable_patterns)]
                 _ => {
                     return Err(resource_error(
@@ -716,7 +736,7 @@ impl<C: BatchConnectionTrait + Send + Sync> ResourceAccess for Resources<'_, C> 
                         "unknown publication kind",
                     ));
                 }
-            }
+            };
             let backend = self.backend()?;
             let Some(expires_at) = metadata.expires_at.filter(|at| time_to_ms(*at) > now) else {
                 return Err(resource_error(
@@ -726,11 +746,33 @@ impl<C: BatchConnectionTrait + Send + Sync> ResourceAccess for Resources<'_, C> 
             };
             let expires_at_ms = time_to_ms(expires_at);
             let binding_id = crate::ids::random_id();
+            // The link is built for the id about to be recorded, before any
+            // write: a host refusal leaves no row and no object behind.
+            let url = match link_builder {
+                None => None,
+                Some(builder) => Some(
+                    builder
+                        .url_for(&crate::PublicationRef {
+                            id: &binding_id,
+                            scope: &column,
+                            mime: metadata.mime.as_deref(),
+                            expires_at_ms: Some(expires_at_ms),
+                        })
+                        .filter(|url| !url.trim().is_empty())
+                        .ok_or_else(|| {
+                            resource_error(
+                                CapabilityErrorKind::Unsupported,
+                                "host cannot expose this publication as a URL",
+                            )
+                        })?,
+                ),
+            };
             let mut summary = PublicationSummary {
                 state: PublicationState::Pending,
                 mime: metadata.mime.clone(),
                 filename: metadata.filename.clone(),
                 length: metadata.length,
+                url,
             };
             let credential_id = scope
                 .target
@@ -839,7 +881,10 @@ impl<C: BatchConnectionTrait + Send + Sync> ResourceAccess for Resources<'_, C> 
                 handle: PublishedHandle {
                     binding_id: binding_id.clone(),
                 },
-                reference: ResourceReference::Id(binding_id),
+                reference: match summary.url {
+                    Some(url) => ResourceReference::Url(url),
+                    None => ResourceReference::Id(binding_id),
+                },
                 metadata: ResourceMetadata {
                     mime: metadata.mime,
                     length: Some(length),
@@ -909,5 +954,104 @@ impl<C: BatchConnectionTrait + Send + Sync> ResourceAccess for Resources<'_, C> 
 
     fn limits(&self) -> CapabilityLimits {
         self.limits
+    }
+}
+
+/// A capability failure surfaced through the engine API. There is no dedicated
+/// `CoreError` variant for the file backend; the transform mapping keeps the
+/// kind and message.
+fn core_error(error: CapabilityError) -> crate::CoreError {
+    crate::CoreError::Transform(error.into())
+}
+
+/// Publications by binding id for the host's download route.
+impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
+    /// The row behind `id` when it is a publication whose body is stored and
+    /// whose expiry has not passed, regardless of scope: the host's route has
+    /// already authenticated whoever holds the link.
+    async fn live_publication(
+        &self,
+        id: &str,
+        now: i64,
+    ) -> Result<Option<(BindingRow, PublicationSummary)>, crate::CoreError> {
+        let row = self
+            .store()
+            .resource_bindings()
+            .get_many(&[id.to_owned()])
+            .await?
+            .into_iter()
+            .next()
+            .flatten()
+            .filter(|row| row.kind == PUBLICATION_KIND);
+        let Some(row) = row else {
+            return Ok(None);
+        };
+        let summary = summary_of(&row).map_err(core_error)?;
+        if summary.state != PublicationState::Published || row_expired(&row, now) {
+            return Ok(None);
+        }
+        Ok(Some((row, summary)))
+    }
+
+    /// The publication behind `id`: its metadata and stored bytes. `None` when
+    /// the id names no published body, the body was released, or its expiry
+    /// has passed. Needs file storage; the scope is not checked.
+    pub async fn read_publication(
+        &self,
+        id: &str,
+    ) -> Result<Option<crate::Publication>, crate::CoreError> {
+        let Some((row, summary)) = self.live_publication(id, now_ms()).await? else {
+            return Ok(None);
+        };
+        let backend = self.file_storage().ok_or_else(|| {
+            core_error(resource_error(
+                CapabilityErrorKind::Unsupported,
+                "no file storage configured for locally published resources",
+            ))
+        })?;
+        let bytes = match backend.read(&object_key(&row.id)).await {
+            Ok(buffer) => buffer.to_bytes(),
+            Err(error) if error.kind() == gproxy_file::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(core_error(file_backend(error))),
+        };
+        Ok(Some(crate::Publication {
+            id: row.id.clone(),
+            scope: row.scope.clone(),
+            metadata: metadata_of(&row, &summary),
+            body: HttpBody::Bytes(bytes),
+        }))
+    }
+
+    /// Tombstone the publication behind `id` and delete its stored body, the
+    /// way `ResourceAccess::release` does but without a scope. `Ok(false)`
+    /// when nothing is published under that id.
+    pub async fn delete_publication(&self, id: &str) -> Result<bool, crate::CoreError> {
+        let now = now_ms();
+        let Some((row, mut summary)) = self.live_publication(id, now).await? else {
+            return Ok(false);
+        };
+        summary.state = PublicationState::Expired;
+        let value = serde_json::to_value(&summary).map_err(|e| {
+            core_error(resource_error(
+                CapabilityErrorKind::Storage,
+                format!("summary encode: {e}"),
+            ))
+        })?;
+        self.store()
+            .resource_bindings()
+            .update_many(vec![resource_binding::ActiveModel {
+                id: Set(row.id.clone()),
+                summary: Set(value),
+                updated_at_ms: Set(now),
+                ..Default::default()
+            }])
+            .await?;
+        if let Some(backend) = self.file_storage()
+            && let Err(error) = backend.delete(&object_key(&row.id)).await
+            && error.kind() != gproxy_file::ErrorKind::NotFound
+        {
+            return Err(core_error(file_backend(error)));
+        }
+        Ok(true)
     }
 }

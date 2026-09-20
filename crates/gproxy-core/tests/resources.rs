@@ -48,6 +48,171 @@ async fn with_storage() -> (Harness, tempfile::TempDir) {
     (h, dir)
 }
 
+async fn with_links(base: Option<&'static str>) -> (Harness, tempfile::TempDir) {
+    let dir = tempfile::tempdir().unwrap();
+    let operator = gproxy_file::filesystem(dir.path().to_str().unwrap()).unwrap();
+    let h = harness_with_publication(
+        full(),
+        "round_robin",
+        Some(operator),
+        Some(std::sync::Arc::new(FixedLinks(base))),
+    )
+    .await;
+    (h, dir)
+}
+
+fn stored_objects(dir: &tempfile::TempDir) -> usize {
+    walkdir(dir.path())
+}
+
+fn walkdir(path: &std::path::Path) -> usize {
+    std::fs::read_dir(path)
+        .map(|entries| {
+            entries
+                .flatten()
+                .map(|e| {
+                    if e.path().is_dir() {
+                        walkdir(&e.path())
+                    } else {
+                        1
+                    }
+                })
+                .sum()
+        })
+        .unwrap_or(0)
+}
+
+#[tokio::test]
+async fn url_publication_stores_the_body_and_reads_back_through_core() {
+    let (h, dir) = with_links(Some("https://files.example")).await;
+    let r = resources(&h);
+    let s = scope(&h, "tenant", "p");
+
+    let published = r
+        .publish(
+            &s,
+            "op-url",
+            PublicationKind::Url,
+            metadata(),
+            body("png-bytes"),
+        )
+        .await
+        .unwrap();
+    let id = published.handle.binding_id.clone();
+    assert_eq!(
+        published.reference,
+        ResourceReference::Url(format!("https://files.example/{id}"))
+    );
+    assert_eq!(published.metadata.length, Some(9));
+    assert_eq!(published.metadata.mime.as_deref(), Some("image/png"));
+    assert_eq!(stored_objects(&dir), 1);
+
+    // The binding row records the publication and its link for replays.
+    let row = h
+        .core
+        .store()
+        .resource_bindings()
+        .get_many(std::slice::from_ref(&id))
+        .await
+        .unwrap()[0]
+        .clone()
+        .unwrap();
+    assert_eq!(row.kind, "publication");
+    assert_eq!(row.public_id, "op-url");
+    assert!(row.file_id.is_some());
+    let again = r
+        .publish(
+            &s,
+            "op-url",
+            PublicationKind::Url,
+            metadata(),
+            body("ignored"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(again, published);
+    let err = r
+        .publish(&s, "op-url", PublicationKind::Id, metadata(), body("x"))
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind(), CapabilityErrorKind::Conflict);
+
+    // The host's download route reads the bytes back by id, without a scope.
+    let read = h.core.read_publication(&id).await.unwrap().unwrap();
+    assert_eq!(read.id, id);
+    assert_eq!(read.scope, s.column());
+    assert_eq!(read.metadata, published.metadata);
+    assert_eq!(support::read(read.body).await, "png-bytes");
+    assert!(h.core.read_publication("nope").await.unwrap().is_none());
+
+    // Deleting tombstones the row and removes the object.
+    assert!(h.core.delete_publication(&id).await.unwrap());
+    assert!(!h.core.delete_publication(&id).await.unwrap());
+    assert!(h.core.read_publication(&id).await.unwrap().is_none());
+    assert_eq!(stored_objects(&dir), 0);
+    assert_eq!(
+        r.publication_status(&s, "op-url").await.unwrap(),
+        PublicationStatus::Expired
+    );
+    assert!(h.client.seen.lines().is_empty());
+}
+
+#[tokio::test]
+async fn url_publication_refused_by_the_host_leaves_nothing_behind() {
+    let (h, dir) = with_links(None).await;
+    let r = resources(&h);
+    let s = scope(&h, "tenant", "p");
+    let err = r
+        .publish(&s, "op-url", PublicationKind::Url, metadata(), body("x"))
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind(), CapabilityErrorKind::Unsupported);
+    assert_eq!(stored_objects(&dir), 0);
+    assert_eq!(
+        r.publication_status(&s, "op-url").await.unwrap(),
+        PublicationStatus::Missing
+    );
+    let rows = h
+        .core
+        .store()
+        .resource_bindings()
+        .query(<gproxy_store::entity::resource::resource_binding::Entity as sea_orm::EntityTrait>::find())
+        .await
+        .unwrap();
+    assert!(rows.is_empty());
+    // Id publication is unaffected by the host's refusal of URLs.
+    r.publish(&s, "op-id", PublicationKind::Id, metadata(), body("x"))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn expired_publication_reads_as_none_through_core() {
+    let (h, _dir) = with_links(Some("https://files.example")).await;
+    let r = resources(&h);
+    let s = scope(&h, "tenant", "p");
+    let published = r
+        .publish(&s, "op-url", PublicationKind::Url, metadata(), body("x"))
+        .await
+        .unwrap();
+    let id = published.handle.binding_id.clone();
+    assert!(h.core.read_publication(&id).await.unwrap().is_some());
+    h.core
+        .store()
+        .resource_bindings()
+        .update_many(vec![
+            gproxy_store::entity::resource::resource_binding::ActiveModel {
+                id: sea_orm::Set(id.clone()),
+                expires_at_ms: sea_orm::Set(Some(1)),
+                ..Default::default()
+            },
+        ])
+        .await
+        .unwrap();
+    assert!(h.core.read_publication(&id).await.unwrap().is_none());
+    assert!(!h.core.delete_publication(&id).await.unwrap());
+}
+
 #[tokio::test]
 async fn publish_is_idempotent_by_operation_id_and_reads_back_the_stored_body() {
     let (h, _dir) = with_storage().await;
@@ -137,16 +302,18 @@ async fn publish_is_idempotent_by_operation_id_and_reads_back_the_stored_body() 
 }
 
 #[tokio::test]
-async fn preflight_rejections_leave_no_row_and_url_kind_is_unsupported() {
+async fn preflight_rejections_leave_no_row_and_url_kind_needs_a_link_builder() {
     let (h, _dir) = with_storage().await;
     let r = resources(&h);
     let s = scope(&h, "tenant", "p");
 
+    // Without a `PublicationUrl` the URL kind is refused before side effects.
     let url = r
         .publish(&s, "url", PublicationKind::Url, metadata(), body("x"))
         .await
         .unwrap_err();
     assert_eq!(url.kind(), CapabilityErrorKind::Unsupported);
+    assert!(url.to_string().contains("PublicationUrl"), "{url}");
 
     let mut none = metadata();
     none.expires_at = None;

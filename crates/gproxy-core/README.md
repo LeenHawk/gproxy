@@ -134,7 +134,7 @@ call, and a rejected native answer re-enters the same classification.
 | Embeddings | OpenAI ↔ Gemini, single and batch |
 | Guardian, compact, memory | Any of the four targets; guardian streams are refused |
 | Files | Retrieve, list, delete, content and multipart upload including Gemini's resumable protocol |
-| Images | OpenAI create/edit over Gemini or the Responses image tool; URL delivery refused |
+| Images | OpenAI create/edit over Gemini or the Responses image tool; URL delivery through the host's `PublicationUrl`, refused before any call without one |
 | Video | OpenAI native video over Veo with job state in `ProtocolState` |
 
 ## Credential lifecycle, quota and sessions
@@ -195,8 +195,20 @@ Recording never rewrites, reorders or delays the delivered stream.
 |---|---|---|
 | `AttemptUpstream` | `Upstream<Target = OperationKey>` | One attempt's provider, pinned credential version and client; owned and cloneable so lazily started fanout children outlive the attempt frame |
 | `ProtocolState` | `StateStore<Scope = StateScope>` | Store ProtocolState rows; scope is caller scope, provider and optional conversation |
-| `Resources` | `ResourceAccess<Scope = ResourceScope>` | Publications in `resource_bindings` and `file_objects` through file storage; `Id` reads resolve a same-scope publication first, then the scope provider's files API; `Url` is unsupported |
+| `Resources` | `ResourceAccess<Scope = ResourceScope>` | Publications in `resource_bindings` and `file_objects` through file storage; `Id` reads resolve a same-scope publication first, then the scope provider's files API; reads by `Url` are unsupported (no host allow-list) |
 | `ChannelStateStore` | `gproxy_channel::ChannelState` | The same ProtocolState rows, scoped to one provider and one credential, handed to the channel as `OperationContext.state`; the channel picks keys and never sees the scope |
+
+Publishing by URL (images `response_format: url`) needs the host's link builder,
+`CoreBuilder::publication_url(Arc<dyn PublicationUrl>)`. Core has no public HTTP
+surface, so it owns the bytes and the binding id while the host mints the link:
+`url_for` is called with the id core is about to record, before anything is written,
+so a `None` answer (or a core without a builder) is `Unsupported` with no row and no
+object behind it. The host serves the link on its own route by calling
+`Core::read_publication(id)`, which returns the metadata and stored bytes for any
+live publication regardless of scope (the route has already authenticated whoever
+holds the link) and `None` once it expired or was released; `Core::delete_publication`
+tombstones it early. The images family checks for the builder before the first
+upstream call, so a host without one never pays for images it cannot deliver.
 
 Every channel call also carries `OperationContext.instance_id`, the identity of this
 host process (`CoreBuilder::instance_id`, random by default). A channel that must keep a

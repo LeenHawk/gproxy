@@ -625,6 +625,26 @@ pub async fn harness_with_storage(
     strategy: &str,
     storage: Option<gproxy_file::Operator>,
 ) -> Harness {
+    harness_with_publication(policy, strategy, storage, None).await
+}
+
+/// A host link builder that maps every publication to `{base}/{id}`, or
+/// refuses everything when `base` is `None`.
+pub struct FixedLinks(pub Option<&'static str>);
+impl gproxy_core::PublicationUrl for FixedLinks {
+    fn url_for(&self, publication: &gproxy_core::PublicationRef<'_>) -> Option<String> {
+        self.0.map(|base| format!("{base}/{}", publication.id))
+    }
+}
+
+/// Same seed as `harness_with_storage`, plus an optional host link builder
+/// for URL publications.
+pub async fn harness_with_publication(
+    policy: ObservationPolicy,
+    strategy: &str,
+    storage: Option<gproxy_file::Operator>,
+    links: Option<Arc<dyn gproxy_core::PublicationUrl>>,
+) -> Harness {
     let mut options = ConnectOptions::new("sqlite::memory:");
     options.max_connections(1).sqlx_logging(false);
     let db = Database::connect(options).await.unwrap();
@@ -796,9 +816,13 @@ pub async fn harness_with_storage(
         .secret_codec(Arc::new(PlaintextCodec))
         .channel(channel.clone())
         .unwrap()
-        .file_storage(storage)
-        .build()
-        .unwrap();
+        .file_storage(storage);
+    let core = match links {
+        Some(links) => core.publication_url(links),
+        None => core,
+    }
+    .build()
+    .unwrap();
     core.reload_data().await.unwrap();
     Harness {
         core,
