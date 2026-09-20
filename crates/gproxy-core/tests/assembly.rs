@@ -268,12 +268,10 @@ async fn core(store: Store<DatabaseConnection>) -> Core<DatabaseConnection> {
         .unwrap()
 }
 
-/// Credential profile → provider profile → channel default → Setting default
-/// → built-in default. Clients are pooled by effective configuration, so
-/// pointer identity tells which configuration a credential resolved to.
-#[tokio::test]
-async fn channel_default_connection_sits_between_provider_profile_and_setting_default() {
-    let store = database().await;
+/// Three providers covering the whole profile chain: one that inherits the
+/// Setting default, one that takes its channel's own client, and one that
+/// names a profile of its own.
+async fn connection_chain(store: &Store<DatabaseConnection>) {
     store
         .connection_profiles()
         .create_many(vec![connection_profile::ActiveModel {
@@ -333,6 +331,15 @@ async fn channel_default_connection_sits_between_provider_profile_and_setting_de
         ])
         .await
         .unwrap();
+}
+
+/// Credential profile → provider profile → channel default → Setting default
+/// → built-in default. Clients are pooled by effective configuration, so
+/// pointer identity tells which configuration a credential resolved to.
+#[tokio::test]
+async fn channel_default_connection_sits_between_provider_profile_and_setting_default() {
+    let store = database().await;
+    connection_chain(&store).await;
     let core = core(store).await;
     core.reload_data().await.unwrap();
     let data = core.snapshot();
@@ -353,6 +360,44 @@ async fn channel_default_connection_sits_between_provider_profile_and_setting_de
         Arc::ptr_eq(&client("plain_1"), &client("fp_profiled_1")),
         "both resolve to the `slow` profile"
     );
+}
+
+/// The provider-level client a login flow gets walks the same chain without
+/// the credential level, so it is literally the pooled client the provider's
+/// profile-less credentials already hold.
+#[tokio::test]
+async fn provider_client_resolves_the_chain_without_a_credential() {
+    let store = database().await;
+    connection_chain(&store).await;
+    let core = core(store).await;
+    core.reload_data().await.unwrap();
+    let data = core.snapshot();
+    let credential_client = |id: &str| data.credentials[id].client.clone();
+
+    let fingerprinted = core.provider_client("fp").await.unwrap();
+    assert!(
+        Arc::ptr_eq(&fingerprinted, &credential_client("fp_1")),
+        "the channel's default_connection built this client"
+    );
+    assert!(
+        Arc::ptr_eq(
+            &core.provider_client("plain").await.unwrap(),
+            &credential_client("plain_1")
+        ),
+        "no provider profile and no channel default: the Setting default"
+    );
+    assert!(
+        Arc::ptr_eq(
+            &core.provider_client("fp_profiled").await.unwrap(),
+            &credential_client("fp_profiled_1")
+        ),
+        "a provider profile beats the channel default here too"
+    );
+    assert!(
+        !Arc::ptr_eq(&fingerprinted, &credential_client("plain_1")),
+        "the two chains must not collapse onto one client"
+    );
+    assert!(core.provider_client("absent").await.is_err());
 }
 
 #[tokio::test]

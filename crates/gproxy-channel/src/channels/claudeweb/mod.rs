@@ -49,7 +49,8 @@ use http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use serde::Deserialize;
 
 use crate::channel::{
-    BaseChannel, ChannelError, CookieLogin, CredentialRefresh, OperationContext, OperationFuture,
+    BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
+    CookieLogin, CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OperationContext, OperationFuture,
     ProviderView, QuotaModel, QuotaQuery, UsageExtractor, UsageStream,
 };
 use gproxy_client::{Backend, ConnectionConfig, EmulationConfig};
@@ -218,6 +219,54 @@ fn host_platform() -> &'static str {
 impl BaseChannel for ClaudeWeb {
     fn id(&self) -> &'static str {
         ID
+    }
+
+    /// A claude.ai browser session: the only way in is the `sessionKey`
+    /// cookie, revalidated at `/api/bootstrap` rather than refreshed against a
+    /// token endpoint. Account limits come from the organization usage call.
+    fn descriptor(&self) -> ChannelDescriptor {
+        ChannelDescriptor {
+            id: ID,
+            display_name: "Claude Web (claude.ai session)",
+            login_modes: vec![LoginMode::Cookie],
+            capabilities: ChannelCapabilities {
+                refresh: true,
+                quota_query: true,
+                quota_reset: false,
+                services: false,
+                websocket: false,
+            },
+            config_keys: [
+                ConfigKey::optional(
+                    "base_url",
+                    ConfigKeyKind::String,
+                    "claude.ai origin; defaults to https://claude.ai. Provider column, not config JSON.",
+                ),
+                ConfigKey::optional(
+                    "prompt",
+                    ConfigKeyKind::String,
+                    "Text placed before the flattened conversation in every prompt.",
+                ),
+                ConfigKey::optional(
+                    "timezone",
+                    ConfigKeyKind::String,
+                    "The timezone the web request declares; defaults to UTC.",
+                ),
+                ConfigKey::optional(
+                    "endpoints",
+                    ConfigKeyKind::Json,
+                    "Per-step URL overrides keyed claudeweb_upload, claudeweb_completion, claudeweb_bootstrap and friends; the organization and conversation placeholders are substituted.",
+                ),
+                ConfigKey::optional(
+                    "headers",
+                    ConfigKeyKind::HeaderList,
+                    "Static headers added to every claude.ai request.",
+                ),
+            ]
+            .into_iter()
+            .chain(HOST_CONFIG_KEYS)
+            .collect(),
+        }
     }
 
     fn default_connection(&self) -> Option<ConnectionConfig> {

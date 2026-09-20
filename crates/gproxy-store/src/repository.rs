@@ -146,6 +146,47 @@ where
         }
         Ok(ids.iter().map(|id| found.get(id).cloned()).collect())
     }
+    /// The write each `*_many` method would perform, for callers that compose
+    /// their own batch (see `Store::commit_revision`). Same validation, same
+    /// SQL; only the read-back and the batching are left to the caller.
+    pub fn insert_statement(&self, item: E::ActiveModel) -> Result<sea_orm::Statement> {
+        active_key::<E>(&item)?;
+        Ok(E::insert(item).build(self.db.get_database_backend()))
+    }
+    /// None when the patch sets no non-key column: there is nothing to write,
+    /// which is not an error.
+    pub fn update_statement(&self, patch: E::ActiveModel) -> Result<Option<sea_orm::Statement>> {
+        let key = active_key::<E>(&patch)?;
+        let pk = E::PrimaryKey::iter()
+            .map(|k| k.into_column().as_str())
+            .collect::<Vec<_>>();
+        let mut update = Query::update();
+        update.table(E::default().table_ref());
+        let mut changes = false;
+        for column in E::Column::iter() {
+            if !pk.contains(&column.as_str())
+                && let ActiveValue::Set(value) = patch.get(column)
+            {
+                update.value(column, column.save_as(Expr::val(value)));
+                changes = true;
+            }
+        }
+        if !changes {
+            return Ok(None);
+        }
+        update.cond_where(key_condition::<E>(key.into_value_tuple()));
+        Ok(Some(self.db.get_database_backend().build(&update)))
+    }
+    pub fn delete_statement(&self, id: Key<E>) -> sea_orm::Statement {
+        E::delete_by_id(id).build(self.db.get_database_backend())
+    }
+    pub fn update_where_statement(&self, query: sea_orm::UpdateMany<E>) -> sea_orm::Statement {
+        query.build(self.db.get_database_backend())
+    }
+    pub fn delete_where_statement(&self, query: sea_orm::DeleteMany<E>) -> sea_orm::Statement {
+        query.build(self.db.get_database_backend())
+    }
+
     /// Caller-assigned keys; database defaults are read back in the same transaction.
     pub async fn create_many(&self, items: Vec<E::ActiveModel>) -> Result<Vec<E::Model>> {
         let keys = items
@@ -154,10 +195,8 @@ where
             .collect::<Result<Vec<_>>>()?;
         let mut batch = items
             .into_iter()
-            .map(|item| {
-                BatchStatement::Execute(E::insert(item).build(self.db.get_database_backend()))
-            })
-            .collect::<Vec<_>>();
+            .map(|item| self.insert_statement(item).map(BatchStatement::Execute))
+            .collect::<Result<Vec<_>>>()?;
         for id in keys {
             batch.push(BatchStatement::Query(
                 E::find_by_id(id).batch_query(self.db.get_database_backend())?,
@@ -184,27 +223,10 @@ where
             .iter()
             .map(active_key::<E>)
             .collect::<Result<Vec<_>>>()?;
-        let pk = E::PrimaryKey::iter()
-            .map(|k| k.into_column().as_str())
-            .collect::<Vec<_>>();
         let mut batch = Vec::new();
-        for (patch, key) in patches.into_iter().zip(&keys) {
-            let mut update = Query::update();
-            update.table(E::default().table_ref());
-            let mut changes = false;
-            for column in E::Column::iter() {
-                if !pk.contains(&column.as_str())
-                    && let ActiveValue::Set(value) = patch.get(column)
-                {
-                    update.value(column, column.save_as(Expr::val(value)));
-                    changes = true;
-                }
-            }
-            if changes {
-                update.cond_where(key_condition::<E>(key.clone().into_value_tuple()));
-                batch.push(BatchStatement::Execute(
-                    self.db.get_database_backend().build(&update),
-                ));
+        for patch in patches {
+            if let Some(statement) = self.update_statement(patch)? {
+                batch.push(BatchStatement::Execute(statement));
             }
         }
         let writes = batch.len();
@@ -224,7 +246,7 @@ where
     pub async fn delete_many(&self, ids: &[Key<E>]) -> Result<Vec<u64>> {
         let statements = ids
             .iter()
-            .map(|id| E::delete_by_id(id.clone()).build(self.db.get_database_backend()))
+            .map(|id| self.delete_statement(id.clone()))
             .collect::<Vec<_>>();
         Ok(self
             .db
@@ -243,7 +265,7 @@ where
     ) -> Result<Vec<u64>> {
         let statements = queries
             .into_iter()
-            .map(|q| q.build(self.db.get_database_backend()))
+            .map(|q| self.update_where_statement(q))
             .collect::<Vec<_>>();
         Ok(self
             .db
@@ -259,7 +281,7 @@ where
     ) -> Result<Vec<u64>> {
         let statements = queries
             .into_iter()
-            .map(|q| q.build(self.db.get_database_backend()))
+            .map(|q| self.delete_where_statement(q))
             .collect::<Vec<_>>();
         Ok(self
             .db

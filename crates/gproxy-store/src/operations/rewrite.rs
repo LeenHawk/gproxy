@@ -25,17 +25,16 @@ pub struct ProviderRules {
     pub rule_sets: Vec<RuleSetData>,
 }
 impl<C: BatchConnectionTrait> Repository<'_, C, rewrite_rule_set::Entity> {
-    /// Entire replacement is one SQL transaction. A missing set with no new
-    /// rules yields None; inserting into a missing set fails its FK and rolls back.
-    pub async fn replace_rules_many(
+    /// One delete plus the new inserts per rule set, for callers composing a
+    /// larger batch (`Store::commit_revision`). Rules are validated exactly as
+    /// `replace_rules_many` validates them.
+    pub fn replace_rules_statements(
         &self,
         replacements: Vec<RuleSetReplacement>,
-    ) -> Result<Vec<Option<RuleSetData>>> {
+    ) -> Result<Vec<BatchStatement>> {
         let backend = self.db.get_database_backend();
         let mut batch = Vec::new();
-        let mut ids = Vec::new();
         for replacement in replacements {
-            ids.push(replacement.id.clone());
             batch.push(BatchStatement::Execute(
                 rewrite_rule::Entity::delete_many()
                     .filter(rewrite_rule::Column::RuleSetId.eq(&replacement.id))
@@ -55,6 +54,20 @@ impl<C: BatchConnectionTrait> Repository<'_, C, rewrite_rule_set::Entity> {
                 ));
             }
         }
+        Ok(batch)
+    }
+    /// Entire replacement is one SQL transaction. A missing set with no new
+    /// rules yields None; inserting into a missing set fails its FK and rolls back.
+    pub async fn replace_rules_many(
+        &self,
+        replacements: Vec<RuleSetReplacement>,
+    ) -> Result<Vec<Option<RuleSetData>>> {
+        let backend = self.db.get_database_backend();
+        let ids = replacements
+            .iter()
+            .map(|r| r.id.clone())
+            .collect::<Vec<_>>();
+        let mut batch = self.replace_rules_statements(replacements)?;
         let writes = batch.len();
         for id in &ids {
             batch.push(BatchStatement::Query(

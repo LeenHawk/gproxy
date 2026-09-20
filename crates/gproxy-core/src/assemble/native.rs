@@ -329,7 +329,7 @@ pub async fn assemble(
     })
 }
 
-fn connection_config(
+pub fn connection_config(
     profile: &connection_profile::Model,
 ) -> Result<gproxy_client::ConnectionConfig, AssemblyError> {
     use connection_profile::{Backend, ProxyMode, RetryPolicy};
