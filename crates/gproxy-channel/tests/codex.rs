@@ -6,23 +6,30 @@ use base64::Engine;
 use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
     channel::{
-        AuthorizationRequest, CallerUsage, CallerUsageWindow, CredentialContext, CredentialView,
-        DevicePoll, LoginContext, PrepareContext, ProviderView, QuotaHeaderContext, QuotaValue,
-        ResponseView, ServiceContext, ServiceView, UsageContext, UsageFrame, UsageStreamContext,
-        UsageStreamEnd, UsageTransport,
+        AuthorizationRequest, CallerUsage, CallerUsageWindow, ChannelState, CredentialContext,
+        CredentialView, DevicePoll, LoginContext, OperationContext, PrepareContext, ProviderView,
+        QuotaHeaderContext, QuotaValue, ResponseView, ServiceContext, ServiceView, UsageContext,
+        UsageFrame, UsageStreamContext, UsageStreamEnd, UsageTransport,
     },
     channels::codex::{CLI_VERSION, Codex, DEFAULT_CLIENT_ID, KIND_FILE, KIND_PLUGIN, KIND_TASK},
 };
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
-    capability::{CapabilityError, CapabilityFuture, UpstreamConnection},
+    capability::{
+        CapabilityError, CapabilityFuture, CapabilityLimits, CasResult, StateEntry, StateWrite,
+        UpstreamConnection, Version,
+    },
     connection::{Bytes, StreamFraming},
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
 use std::{
-    collections::VecDeque,
-    sync::{Arc, Mutex},
+    collections::{HashMap, VecDeque},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::{Duration, SystemTime},
 };
 use support::ScriptCaller;
 
@@ -107,6 +114,84 @@ fn reply(status: StatusCode, value: Value) -> WireResponse {
         status,
         headers: HeaderMap::new(),
         body: HttpBody::Bytes(Bytes::from(serde_json::to_vec(&value).unwrap())),
+    }
+}
+
+type Entry = (Bytes, Version, Option<SystemTime>);
+
+/// A tiny CAS store: expired entries read as absent, versions never repeat.
+#[derive(Default)]
+struct MemoryState {
+    entries: Mutex<HashMap<String, Entry>>,
+    counter: AtomicU64,
+}
+impl MemoryState {
+    fn text(&self, key: &str) -> Option<String> {
+        self.entries
+            .lock()
+            .unwrap()
+            .get(key)
+            .map(|(payload, _, _)| String::from_utf8(payload.to_vec()).unwrap())
+    }
+}
+impl ChannelState for MemoryState {
+    fn get<'a>(
+        &'a self,
+        key: &'a str,
+    ) -> CapabilityFuture<'a, Result<Option<StateEntry>, CapabilityError>> {
+        Box::pin(async move {
+            let entries = self.entries.lock().unwrap();
+            Ok(entries
+                .get(key)
+                .filter(|(_, _, expires)| expires.is_none_or(|at| at > SystemTime::now()))
+                .map(|(payload, version, expires_at)| StateEntry {
+                    payload: payload.clone(),
+                    version: version.clone(),
+                    expires_at: *expires_at,
+                }))
+        })
+    }
+    fn compare_exchange<'a>(
+        &'a self,
+        key: &'a str,
+        expected: Option<Version>,
+        replacement: Option<StateWrite>,
+    ) -> CapabilityFuture<'a, Result<CasResult, CapabilityError>> {
+        Box::pin(async move {
+            let mut entries = self.entries.lock().unwrap();
+            let current = entries.get(key).map(|(_, version, _)| version.clone());
+            if current != expected {
+                return Ok(CasResult::Conflict);
+            }
+            match replacement {
+                Some(write) => {
+                    let version = Version::from_bytes(
+                        self.counter
+                            .fetch_add(1, Ordering::SeqCst)
+                            .to_be_bytes()
+                            .to_vec(),
+                    );
+                    entries.insert(
+                        key.to_owned(),
+                        (write.payload, version.clone(), write.expires_at),
+                    );
+                    Ok(CasResult::Applied(Some(version)))
+                }
+                None => {
+                    entries.remove(key);
+                    Ok(CasResult::Applied(None))
+                }
+            }
+        })
+    }
+    fn limits(&self) -> CapabilityLimits {
+        CapabilityLimits {
+            operation_total: Duration::from_secs(600),
+            stream_idle: Duration::from_secs(60),
+            read_bytes: 0,
+            write_bytes: 0,
+            ws_frame_bytes: 0,
+        }
     }
 }
 
@@ -1379,5 +1464,450 @@ fn magic_cache_strings_shape_responses_bodies_only_when_enabled() {
         shaped(&enabled, Operation::SummarizeMemory, other.clone()),
         other,
         "only Responses operations are shaped"
+    );
+}
+
+// ------------------------------------------------------------ identity
+
+/// The identity headers `identity.rs` synthesizes for a non-CLI request.
+const IDENTITY_HEADERS: &[&str] = &[
+    "version",
+    "session-id",
+    "thread-id",
+    "x-client-request-id",
+    "x-codex-installation-id",
+    "x-codex-window-id",
+    "x-codex-turn-metadata",
+    "x-codex-routing-hint",
+];
+
+fn reply_with_turn_state(token: Option<&'static str>) -> WireResponse {
+    let mut headers = HeaderMap::new();
+    if let Some(token) = token {
+        headers.insert("x-codex-turn-state", HeaderValue::from_static(token));
+    }
+    WireResponse {
+        status: StatusCode::OK,
+        headers,
+        body: HttpBody::Bytes(Bytes::from_static(b"{}")),
+    }
+}
+
+/// A Responses call the way core issues it for a converted client.
+async fn responses_call(
+    config: &Value,
+    client: &Arc<ScriptClient>,
+    state: &Arc<MemoryState>,
+    operation: Operation,
+    headers: HeaderMap,
+    body: Value,
+) -> WireResponse {
+    let secret = secret("at-1");
+    let metadata = json!({"chatgpt_account_id": "acct-1"});
+    let ctx = OperationContext {
+        provider: provider(config, None),
+        credential: credential(&secret, &metadata),
+        dialect: Dialect::OpenAi,
+        request: WireRequest {
+            method: Method::POST,
+            path: "/v1/responses".into(),
+            query: None,
+            headers,
+            body: HttpBody::Bytes(Bytes::from(body.to_string())),
+        },
+        client: client.clone(),
+        state: state.clone(),
+        instance_id: Arc::from("i"),
+        endpoint_override: None,
+    };
+    match operation {
+        Operation::GenerateContent => Codex.generate_content(ctx).await.unwrap(),
+        Operation::StreamGenerateContent => Codex.stream_generate_content(ctx).await.unwrap(),
+        Operation::CompactContent => Codex.compact_content(ctx).await.unwrap(),
+        other => panic!("{other:?}"),
+    }
+}
+
+fn header(sent: &Sent, name: &str) -> Option<String> {
+    sent.2.get(name).map(|v| v.to_str().unwrap().to_owned())
+}
+
+fn turn_metadata(sent: &Sent) -> Value {
+    serde_json::from_str(&header(sent, "x-codex-turn-metadata").expect("turn metadata")).unwrap()
+}
+
+fn prompt(key: &str, input: Value) -> Value {
+    json!({"model": "gpt-5.3-codex", "prompt_cache_key": key, "stream": true, "input": input})
+}
+
+#[tokio::test]
+async fn converted_bodies_get_the_cli_session_window_and_turn_identity() {
+    let config = json!({});
+    let state = Arc::new(MemoryState::default());
+    let client = Arc::new(ScriptClient::new(
+        (0..5).map(|_| reply(StatusCode::OK, json!({}))).collect(),
+    ));
+    let user = |text: &str| json!({"type": "message", "role": "user", "content": text});
+    let call = |operation: Operation, body: Value| {
+        responses_call(&config, &client, &state, operation, HeaderMap::new(), body)
+    };
+
+    call(
+        Operation::StreamGenerateContent,
+        prompt("conv-1", json!([user("first prompt")])),
+    )
+    .await;
+    let first = &client.sent()[0];
+    for name in IDENTITY_HEADERS {
+        assert!(first.2.contains_key(*name), "synthesized: {name}");
+    }
+    assert_eq!(header(first, "version").unwrap(), CLI_VERSION);
+    assert_eq!(header(first, "accept").unwrap(), "text/event-stream");
+    let session = header(first, "session-id").unwrap();
+    let thread = header(first, "thread-id").unwrap();
+    assert_eq!(session, thread, "a plain thread shares the session id");
+    assert_eq!(
+        header(first, "x-client-request-id").unwrap(),
+        thread,
+        "the CLI's request id is its thread id"
+    );
+    assert_eq!(
+        header(first, "x-codex-window-id").unwrap(),
+        format!("{thread}:0")
+    );
+    assert_eq!(
+        header(first, "x-codex-routing-hint").unwrap(),
+        "model=gpt-5.3-codex"
+    );
+    assert!(header(first, "x-codex-turn-state").is_none());
+    for absent in [
+        "x-openai-subagent",
+        "x-codex-parent-thread-id",
+        "x-oai-attestation",
+        "x-codex-beta-features",
+    ] {
+        assert!(first.2.get(absent).is_none(), "never synthesized: {absent}");
+    }
+    let metadata = turn_metadata(first);
+    let installation = header(first, "x-codex-installation-id").unwrap();
+    assert_eq!(metadata["installation_id"], installation);
+    assert_eq!(metadata["session_id"], session);
+    assert_eq!(metadata["thread_id"], thread);
+    assert_eq!(metadata["agent_name"], "/root");
+    assert_eq!(metadata["window_id"], format!("{thread}:0"));
+    assert_eq!(metadata["window_number"], 0);
+    assert!(metadata["context_window_id"].is_string());
+    assert_eq!(metadata["request_kind"], "turn");
+    assert_eq!(metadata["thread_source"], "user");
+    assert!(metadata.get("compaction").is_none());
+    assert!(metadata.get("workspaces").is_none());
+    assert!(metadata.get("sandbox").is_none());
+    let turn_a = metadata["turn_id"].as_str().unwrap().to_owned();
+    assert_eq!(
+        state.text("installation_id").as_deref(),
+        Some(installation.as_str()),
+        "the installation id is persisted"
+    );
+
+    // The tool loop of the same prompt keeps the turn.
+    call(
+        Operation::GenerateContent,
+        prompt(
+            "conv-1",
+            json!([
+                user("first prompt"),
+                {"type": "function_call", "call_id": "c1", "name": "ls", "arguments": "{}"},
+                {"type": "function_call_output", "call_id": "c1", "output": "ok"}
+            ]),
+        ),
+    )
+    .await;
+    let second = &client.sent()[1];
+    assert_eq!(header(second, "session-id").unwrap(), session);
+    assert_eq!(
+        header(second, "x-codex-installation-id").unwrap(),
+        installation
+    );
+    assert_eq!(turn_metadata(second)["turn_id"], turn_a);
+    assert!(
+        header(second, "accept").is_none(),
+        "a buffered generate does not ask for an event stream"
+    );
+
+    // A new user message is a new turn in the same thread.
+    call(
+        Operation::GenerateContent,
+        prompt(
+            "conv-1",
+            json!([
+                user("first prompt"),
+                {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "done"}]},
+                {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "second prompt"}]}
+            ]),
+        ),
+    )
+    .await;
+    let third = &client.sent()[2];
+    assert_eq!(header(third, "session-id").unwrap(), session);
+    assert_ne!(turn_metadata(third)["turn_id"], turn_a);
+
+    // Another session key is another thread; the installation stays.
+    call(
+        Operation::GenerateContent,
+        prompt("conv-2", json!([user("first prompt")])),
+    )
+    .await;
+    let fourth = &client.sent()[3];
+    assert_ne!(header(fourth, "session-id").unwrap(), session);
+    assert_eq!(
+        header(fourth, "x-codex-installation-id").unwrap(),
+        installation
+    );
+
+    // Without a cache key the first user text identifies the conversation.
+    call(
+        Operation::GenerateContent,
+        json!({"model": "gpt-5.3-codex", "service_tier": "fast", "input": [user("first prompt")]}),
+    )
+    .await;
+    let fifth = &client.sent()[4];
+    assert_ne!(header(fifth, "session-id").unwrap(), session);
+    assert_eq!(
+        header(fifth, "x-codex-routing-hint").unwrap(),
+        "model=gpt-5.3-codex;tier=fast"
+    );
+}
+
+#[tokio::test]
+async fn client_supplied_identity_is_kept_verbatim() {
+    let config = json!({});
+    let state = Arc::new(MemoryState::default());
+    let client = Arc::new(ScriptClient::new(vec![
+        reply(StatusCode::OK, json!({})),
+        reply(StatusCode::OK, json!({})),
+    ]));
+    let body = prompt("conv-1", json!([{"role": "user", "content": "hi"}]));
+
+    // A real CLI session: its own turn metadata, nothing synthesized.
+    let mut headers = HeaderMap::new();
+    headers.insert("session-id", HeaderValue::from_static("cli-session"));
+    headers.insert("thread-id", HeaderValue::from_static("cli-thread"));
+    headers.insert(
+        "x-codex-turn-metadata",
+        HeaderValue::from_static("{\"request_kind\":\"turn\"}"),
+    );
+    responses_call(
+        &config,
+        &client,
+        &state,
+        Operation::StreamGenerateContent,
+        headers,
+        body.clone(),
+    )
+    .await;
+    let sent = &client.sent()[0];
+    assert_eq!(header(sent, "session-id").unwrap(), "cli-session");
+    assert_eq!(header(sent, "thread-id").unwrap(), "cli-thread");
+    assert_eq!(
+        header(sent, "x-codex-turn-metadata").unwrap(),
+        "{\"request_kind\":\"turn\"}"
+    );
+    for name in ["x-codex-window-id", "x-codex-installation-id", "version"] {
+        assert!(sent.2.get(name).is_none(), "{name}: a CLI manages itself");
+    }
+
+    // Only a session id: kept, and the rest is derived around it.
+    let mut headers = HeaderMap::new();
+    headers.insert("session-id", HeaderValue::from_static("client-session"));
+    responses_call(
+        &config,
+        &client,
+        &state,
+        Operation::StreamGenerateContent,
+        headers,
+        body,
+    )
+    .await;
+    let sent = &client.sent()[1];
+    assert_eq!(header(sent, "session-id").unwrap(), "client-session");
+    assert_eq!(header(sent, "thread-id").unwrap(), "client-session");
+    let metadata = turn_metadata(sent);
+    assert_eq!(metadata["session_id"], "client-session");
+    assert_eq!(metadata["window_id"], "client-session:0");
+}
+
+#[tokio::test]
+async fn turn_state_is_replayed_within_a_turn_only() {
+    let config = json!({});
+    let state = Arc::new(MemoryState::default());
+    let client = Arc::new(ScriptClient::new(vec![
+        reply_with_turn_state(Some("tok-1")),
+        reply_with_turn_state(Some("tok-1")),
+        reply_with_turn_state(None),
+        reply_with_turn_state(Some("tok-2")),
+    ]));
+    let user = |text: &str| json!({"role": "user", "content": text});
+    let call = |body: Value| {
+        responses_call(
+            &config,
+            &client,
+            &state,
+            Operation::StreamGenerateContent,
+            HeaderMap::new(),
+            body,
+        )
+    };
+
+    call(prompt("conv-1", json!([user("first")]))).await;
+    let first = &client.sent()[0];
+    assert!(header(first, "x-codex-turn-state").is_none());
+    let thread = header(first, "thread-id").unwrap();
+    let turn = turn_metadata(first)["turn_id"].as_str().unwrap().to_owned();
+    assert_eq!(
+        state
+            .text(&format!("thread:{thread}:turn:{turn}:state"))
+            .as_deref(),
+        Some("tok-1")
+    );
+
+    // Same turn, a tool output appended: the token comes back.
+    call(prompt(
+        "conv-1",
+        json!([user("first"), {"type": "function_call_output", "call_id": "c", "output": "o"}]),
+    ))
+    .await;
+    assert_eq!(
+        header(&client.sent()[1], "x-codex-turn-state").unwrap(),
+        "tok-1"
+    );
+
+    // A new turn starts without one.
+    call(prompt("conv-1", json!([user("first"), user("second")]))).await;
+    let third = &client.sent()[2];
+    assert!(header(third, "x-codex-turn-state").is_none());
+    assert_ne!(turn_metadata(third)["turn_id"], turn);
+
+    // A client-managed session is never read or written.
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "x-codex-turn-metadata",
+        HeaderValue::from_static("{\"request_kind\":\"turn\"}"),
+    );
+    let before = state.entries.lock().unwrap().len();
+    responses_call(
+        &config,
+        &client,
+        &state,
+        Operation::StreamGenerateContent,
+        headers,
+        prompt("conv-1", json!([user("first")])),
+    )
+    .await;
+    assert_eq!(state.entries.lock().unwrap().len(), before);
+}
+
+#[tokio::test]
+async fn compaction_opens_the_next_window() {
+    let config = json!({});
+    let state = Arc::new(MemoryState::default());
+    let client = Arc::new(ScriptClient::new(vec![
+        reply(StatusCode::OK, json!({})),
+        reply(StatusCode::OK, json!({"output": []})),
+        reply(StatusCode::OK, json!({})),
+        reply(StatusCode::BAD_GATEWAY, json!({})),
+        reply(StatusCode::OK, json!({})),
+    ]));
+    let body = prompt("conv-1", json!([{"role": "user", "content": "hi"}]));
+    let call = |operation: Operation| {
+        responses_call(
+            &config,
+            &client,
+            &state,
+            operation,
+            HeaderMap::new(),
+            body.clone(),
+        )
+    };
+
+    call(Operation::GenerateContent).await;
+    let first = &client.sent()[0];
+    let thread = header(first, "thread-id").unwrap();
+    let window_0 = turn_metadata(first)["context_window_id"].clone();
+
+    call(Operation::CompactContent).await;
+    let compact = &client.sent()[1];
+    assert!(compact.1.ends_with("/responses/compact"));
+    assert_eq!(
+        header(compact, "x-codex-window-id").unwrap(),
+        format!("{thread}:0")
+    );
+    let metadata = turn_metadata(compact);
+    assert_eq!(metadata["request_kind"], "compaction");
+    assert_eq!(
+        metadata["compaction"],
+        json!({
+            "trigger": "manual",
+            "reason": "user_requested",
+            "implementation": "responses_compact",
+            "phase": "standalone_turn",
+            "strategy": "memento"
+        })
+    );
+    assert_eq!(
+        state.text(&format!("thread:{thread}:window")).as_deref(),
+        Some("1")
+    );
+
+    call(Operation::GenerateContent).await;
+    let third = &client.sent()[2];
+    assert_eq!(
+        header(third, "x-codex-window-id").unwrap(),
+        format!("{thread}:1")
+    );
+    let metadata = turn_metadata(third);
+    assert_eq!(metadata["window_number"], 1);
+    assert_ne!(metadata["context_window_id"], window_0);
+
+    // A failed compaction leaves the window alone.
+    call(Operation::CompactContent).await;
+    call(Operation::GenerateContent).await;
+    assert_eq!(
+        header(&client.sent()[4], "x-codex-window-id").unwrap(),
+        format!("{thread}:1")
+    );
+}
+
+#[tokio::test]
+async fn identity_synthesis_can_be_switched_off() {
+    let config = json!({"synthesize_cli_identity": false});
+    let state = Arc::new(MemoryState::default());
+    let client = Arc::new(ScriptClient::new(vec![reply_with_turn_state(Some("tok"))]));
+    let mut headers = HeaderMap::new();
+    headers.insert("session-id", HeaderValue::from_static("mine"));
+    responses_call(
+        &config,
+        &client,
+        &state,
+        Operation::StreamGenerateContent,
+        headers,
+        prompt("conv-1", json!([{"role": "user", "content": "hi"}])),
+    )
+    .await;
+    let sent = &client.sent()[0];
+    assert_eq!(
+        header(sent, "session-id").unwrap(),
+        "mine",
+        "passthrough is unaffected"
+    );
+    for name in IDENTITY_HEADERS
+        .iter()
+        .filter(|name| **name != "session-id")
+    {
+        assert!(sent.2.get(*name).is_none(), "{name}");
+    }
+    assert!(sent.2.get("accept").is_none());
+    assert!(
+        state.entries.lock().unwrap().is_empty(),
+        "nothing remembered"
     );
 }
