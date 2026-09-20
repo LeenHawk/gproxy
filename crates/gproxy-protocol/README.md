@@ -230,6 +230,15 @@ collected details. Cross-dialect visible reasoning chooses one text spelling bef
 falling back to text/summary details, avoiding duplicate text when providers send both.
 Claude thinking, Gemini thought text and Responses reasoning map to `reasoning_content`;
 plain Chat reasoning maps to their corresponding response/stream content types.
-Encrypted details and provider signatures are not interpreted as text or replayed into
-another provider without original-bound state. A Claude response synthesized from plain
-Chat reasoning has an empty signature and is not a signed replay artifact.
+Responses reasoning IDs, summary/text parts and ciphertext travel in `reasoning_details`
+with `format=openai-responses-v1`; Claude thinking text/signatures and redacted blocks use
+`format=anthropic-claude-v1`. Request and response conversions restore matching formats,
+never reinterpret another format's ciphertext. The format tag is a wire discriminator,
+not cryptographic verification; the caller must route replay to the original provider/model.
+Streaming retains complete reasoning details until the block/response is complete; when
+converting Chat back to native formats, reasoning is emitted at choice completion so late
+IDs/signatures cannot change an already emitted item. Ordinary answer text remains incremental.
+Text/summary fragments append; encrypted data and signatures are snapshots, so repeated
+snapshots do not concatenate ciphertext. Plain Chat reasoning without matching signed details
+still produces an empty Claude signature. Direct Responses/Claude conversions keep their
+existing original-bound state restoration path.

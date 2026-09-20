@@ -1,5 +1,6 @@
 use super::media::{document_file, image_url, openai_user_blocks};
 use super::util::parse_tool_arguments;
+use crate::transform::generate::reasoning_details as rd;
 use std::borrow::Cow;
 
 use crate::{
@@ -192,9 +193,10 @@ pub(crate) fn claude_message_to_openai(
         }
         c::Role::Assistant => {
             let mut reasoning = Vec::new();
+            let mut details = Vec::new();
             let mut parts = Vec::new();
             let mut calls = Vec::new();
-            for block in claude_blocks(&message.content)?.iter() {
+            for (index, block) in claude_blocks(&message.content)?.iter().enumerate() {
                 match block {
                     c::ContentBlock::Text(block) => {
                         parts.push(chat::AssistantContentPart::Text(chat::TextPart {
@@ -216,11 +218,13 @@ pub(crate) fn claude_message_to_openai(
                             rest: Rest::new(),
                         }))
                     }
-                    c::ContentBlock::Thinking(block) => reasoning.push(block.thinking.clone()),
-                    c::ContentBlock::RedactedThinking(_) => report.changed(
-                        "messages.assistant.content",
-                        "Claude reasoning block has no Chat assistant equivalent",
-                    ),
+                    c::ContentBlock::Thinking(block) => {
+                        reasoning.push(block.thinking.clone());
+                        details.push(rd::from_thinking(block, index as i64));
+                    }
+                    c::ContentBlock::RedactedThinking(block) => {
+                        details.push(rd::from_redacted(block, index as i64))
+                    }
                     c::ContentBlock::ToolResult(_)
                     | c::ContentBlock::ServerToolUse(_)
                     | c::ContentBlock::McpToolUse(_)
@@ -254,7 +258,7 @@ pub(crate) fn claude_message_to_openai(
                 }
             }
             Ok(vec![chat::ChatMessage::Assistant(chat::AssistantMessage {
-                reasoning_details: None,
+                reasoning_details: (!details.is_empty()).then_some(Some(details)),
                 reasoning_content: (!reasoning.is_empty()).then(|| Some(reasoning.join(""))),
                 reasoning: None,
                 role: chat::AssistantRole::Assistant,
@@ -329,7 +333,13 @@ pub(crate) fn openai_message_to_claude(
                     "no recoverable call identity",
                 );
             }
-            let mut blocks = Vec::new();
+            let mut blocks = rd::to_claude(
+                message
+                    .reasoning_details
+                    .as_ref()
+                    .and_then(Option::as_deref)
+                    .unwrap_or(&[]),
+            );
             if let Some(Some(content)) = &message.content {
                 match content {
                     chat::AssistantContent::Text(text) => blocks.push(text_block(text.clone())),

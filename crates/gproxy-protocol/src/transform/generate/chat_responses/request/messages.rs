@@ -1,3 +1,4 @@
+use crate::transform::generate::reasoning_details as rd;
 use crate::{
     transform::{Report, TransformError},
     wire::openai::{chat as c, responses::input as r},
@@ -119,11 +120,22 @@ pub(super) fn to_responses(
                 items.push(super::media::user_message(message.content)?)
             }
             c::ChatMessage::Assistant(message) => {
-                if let Some(text) = c::visible_reasoning(
-                    &message.reasoning_content,
-                    &message.reasoning,
-                    &message.reasoning_details,
-                ) {
+                let restored = rd::to_responses(
+                    message
+                        .reasoning_details
+                        .as_ref()
+                        .and_then(Option::as_deref)
+                        .unwrap_or(&[]),
+                )?;
+                let has_restored = !restored.is_empty();
+                items.extend(restored.into_iter().map(r::InputItem::Reasoning));
+                if !has_restored
+                    && let Some(text) = c::visible_reasoning(
+                        &message.reasoning_content,
+                        &message.reasoning,
+                        &message.reasoning_details,
+                    )
+                {
                     use crate::transform::identity::OutputItemKind;
                     let id = flow
                         .resolve_or_allocate(

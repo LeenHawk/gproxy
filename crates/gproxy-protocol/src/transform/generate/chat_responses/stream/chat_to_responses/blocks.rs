@@ -111,33 +111,45 @@ impl ChatToResponsesStream {
     }
 
     pub(super) fn finish_choice(&mut self) -> Result<(), TransformError> {
-        if let Some((index, id, text)) = self.reasoning.take() {
-            self.emit(rs::StreamEvent::ReasoningTextDone(rs::ReasoningTextDone {
+        let mut reasoning = rd::to_responses(&self.reasoning_details)?;
+        if reasoning.is_empty() {
+            let text = crate::wire::openai::chat::visible_reasoning(
+                &Some(Some(std::mem::take(&mut self.reasoning_text))),
+                &None,
+                &Some(Some(std::mem::take(&mut self.reasoning_details))),
+            );
+            if let Some(text) = text.filter(|s| !s.is_empty()) {
+                let id = self
+                    .flow
+                    .resolve_or_allocate(
+                        IdentityRole::OutputItem(OutputItemKind::Reasoning),
+                        SourceIdentity::new(Dialect::OpenAiChat, None, 0),
+                        &self.target_policy,
+                    )
+                    .map_err(|e| invalid_owned(e.to_string()))?
+                    .emitted_id;
+                let mut item =
+                    i::ReasoningItem::builder(i::ReasoningItemType::ReasoningItem, id, Vec::new())
+                        .build();
+                item.content = Some(vec![
+                    i::ReasoningContent::builder(i::ReasoningTextType::ReasoningText, text).build(),
+                ]);
+                reasoning.push(item);
+            }
+        }
+        for mut item in reasoning {
+            if self.next_output as usize >= self.limits.max_items {
+                return Err(limit());
+            }
+            let index = self.next_output;
+            self.next_output += 1;
+            item.status = Some(i::ReasoningStatus::InProgress);
+            self.emit(rs::StreamEvent::OutputItemAdded(rs::OutputItemEvent {
                 sequence_number: self.sequence,
-                item_id: id.clone(),
                 output_index: index,
-                content_index: 0,
-                text: text.clone(),
+                item: r::ResponseOutputItem::Reasoning(item.clone()),
                 rest: Default::default(),
             }))?;
-            self.emit(rs::StreamEvent::ContentPartDone(rs::ContentPartEvent {
-                sequence_number: self.sequence,
-                item_id: id.clone(),
-                output_index: index,
-                content_index: 0,
-                part: rs::OutputContentPart::Reasoning(rs::ReasoningText {
-                    type_: rs::ReasoningTextType::ReasoningText,
-                    text: text.clone(),
-                    rest: Default::default(),
-                }),
-                rest: Default::default(),
-            }))?;
-            let mut item =
-                i::ReasoningItem::builder(i::ReasoningItemType::ReasoningItem, id, Vec::new())
-                    .build();
-            item.content = Some(vec![
-                i::ReasoningContent::builder(i::ReasoningTextType::ReasoningText, text).build(),
-            ]);
             item.status = Some(if self.finish == Some(c::FinishReason::Length) {
                 i::ReasoningStatus::Incomplete
             } else {
@@ -152,7 +164,6 @@ impl ChatToResponsesStream {
                 rest: Default::default(),
             }))?;
         }
-
         let incomplete = matches!(
             self.finish,
             Some(c::FinishReason::Length | c::FinishReason::ContentFilter)
@@ -419,66 +430,5 @@ impl ChatToResponsesStream {
             }))?;
         }
         Ok(())
-    }
-}
-
-impl ChatToResponsesStream {
-    pub(super) fn reasoning_text(&mut self, text: String) -> Result<(), TransformError> {
-        if self.reasoning.is_none() {
-            if self.next_output as usize >= self.limits.max_items {
-                return Err(limit());
-            }
-            let index = self.next_output;
-            self.next_output += 1;
-            let id = self
-                .flow
-                .resolve_or_allocate(
-                    IdentityRole::OutputItem(OutputItemKind::Reasoning),
-                    SourceIdentity::new(Dialect::OpenAiChat, None, 0),
-                    &self.target_policy,
-                )
-                .map_err(|e| invalid_owned(e.to_string()))?
-                .emitted_id;
-            let mut item = i::ReasoningItem::builder(
-                i::ReasoningItemType::ReasoningItem,
-                id.clone(),
-                Vec::new(),
-            )
-            .build();
-            item.status = Some(i::ReasoningStatus::InProgress);
-            self.reasoning = Some((index, id, String::new()));
-            self.emit(rs::StreamEvent::OutputItemAdded(rs::OutputItemEvent {
-                sequence_number: self.sequence,
-                output_index: index,
-                item: r::ResponseOutputItem::Reasoning(item),
-                rest: Default::default(),
-            }))?;
-            let id = self.reasoning.as_ref().unwrap().1.clone();
-            self.emit(rs::StreamEvent::ContentPartAdded(rs::ContentPartEvent {
-                sequence_number: self.sequence,
-                item_id: id,
-                output_index: index,
-                content_index: 0,
-                part: rs::OutputContentPart::Reasoning(rs::ReasoningText {
-                    type_: rs::ReasoningTextType::ReasoningText,
-                    text: String::new(),
-                    rest: Default::default(),
-                }),
-                rest: Default::default(),
-            }))?;
-        }
-        let (index, id, value) = self.reasoning.as_mut().unwrap();
-        value.push_str(&text);
-        let (index, id) = (*index, id.clone());
-        self.emit(rs::StreamEvent::ReasoningTextDelta(
-            rs::ReasoningTextDelta {
-                sequence_number: self.sequence,
-                item_id: id,
-                output_index: index,
-                content_index: 0,
-                delta: text,
-                rest: Default::default(),
-            },
-        ))
     }
 }

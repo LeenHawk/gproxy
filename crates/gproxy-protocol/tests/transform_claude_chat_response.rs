@@ -203,8 +203,8 @@ fn visible_thinking_roundtrips_without_becoming_answer_text() {
         panic!("thinking")
     };
     assert_eq!(thinking.thinking, "plan");
-    assert!(
-        thinking.signature.is_empty(),
-        "never invent a replay signature"
+    assert_eq!(
+        thinking.signature, "source-signature",
+        "the native signature travels in formal reasoning details"
     );
 }

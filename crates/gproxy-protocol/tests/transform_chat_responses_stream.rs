@@ -726,25 +726,25 @@ fn shared_v2_v3_v4_fixtures_keep_tool_links_and_reject_missing_framing_terminato
 #[test]
 fn chat_reasoning_deltas_have_complete_responses_lifecycle() {
     let mut adapter = ChatToResponsesStream::new(context(), ids(), StreamLimits::default());
-    let first=adapter.push(chat(json!({"id":"r","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"reasoning_content":"think","reasoning":"think"}}]}))).unwrap();
-    assert_eq!(
-        first
-            .value
-            .iter()
-            .filter(|e| matches!(
-                e,
-                gproxy_protocol::wire::openai::responses::stream::StreamEvent::ReasoningTextDelta(
-                    _
-                )
-            ))
-            .count(),
-        1
-    );
+    adapter.push(chat(json!({"id":"r","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"reasoning_content":"think","reasoning":"think"}}]}))).unwrap();
     let finish=adapter.push(chat(json!({"id":"r","object":"chat.completion.chunk","created":1,"model":"m","choices":[{"index":0,"delta":{"content":"answer"},"finish_reason":"stop"}]}))).unwrap();
-    assert!(finish.value.iter().any(|e| matches!(
-        e,
-        gproxy_protocol::wire::openai::responses::stream::StreamEvent::ReasoningTextDone(_)
-    )));
+    let items = finish
+        .value
+        .iter()
+        .filter_map(|event| match event {
+            gproxy_protocol::wire::openai::responses::stream::StreamEvent::OutputItemDone(v) => {
+                match &v.item {
+                    gproxy_protocol::wire::openai::responses::ResponseOutputItem::Reasoning(
+                        item,
+                    ) => Some(item),
+                    _ => None,
+                }
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].content.as_ref().unwrap()[0].text, "think");
     adapter.push_done().unwrap();
     adapter.finish().unwrap();
 }

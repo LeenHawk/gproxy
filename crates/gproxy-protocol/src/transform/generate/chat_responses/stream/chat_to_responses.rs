@@ -1,3 +1,4 @@
+use crate::transform::generate::reasoning_details as rd;
 mod blocks;
 use super::common::{Budget, StreamEnd, StreamLimits, declared, invalid, limit};
 use crate::transform::generate::stream::{
@@ -59,7 +60,8 @@ pub struct ChatToResponsesStream {
     created: Option<i64>,
     base: Option<r::GenerateContentResponseBody>,
     message: Option<MessageState>,
-    reasoning: Option<(i64, String, String)>,
+    reasoning_text: String,
+    reasoning_details: Vec<crate::wire::openai::chat::ReasoningDetail>,
     tools: BTreeMap<i64, ToolState>,
     client_tools: super::super::client_tools::Bindings,
     next_output: i64,
@@ -139,7 +141,8 @@ impl ChatToResponsesStream {
             created: None,
             base: None,
             message: None,
-            reasoning: None,
+            reasoning_text: String::new(),
+            reasoning_details: Vec::new(),
             tools: BTreeMap::new(),
             client_tools,
             next_output: 0,
@@ -286,12 +289,13 @@ impl ChatToResponsesStream {
             )?;
         }
         let d = choice.delta;
-        if let Some(text) = crate::wire::openai::chat::visible_reasoning(
-            &d.reasoning_content,
-            &d.reasoning,
-            &d.reasoning_details,
-        ) {
-            self.reasoning_text(text)?;
+        if let Some(text) =
+            crate::wire::openai::chat::reasoning_text(&d.reasoning_content, &d.reasoning)
+        {
+            self.reasoning_text.push_str(text);
+        }
+        if let Some(Some(details)) = d.reasoning_details {
+            rd::merge(&mut self.reasoning_details, details)?;
         }
 
         if let Some(Some(role)) = d.role
