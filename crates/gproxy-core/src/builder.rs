@@ -1,5 +1,5 @@
 //! Explicit assembly of an engine. Every dependency that shapes behaviour
-//! (cache, observer, secret codec) is required; nothing defaults to a no-op.
+//! (cache, secret codec) is required. Observation defaults to Store persistence.
 
 use crate::{Core, CoreData, Observer, PublicationUrl, SecretCodec};
 use arc_swap::ArcSwap;
@@ -12,8 +12,6 @@ use std::sync::Arc;
 pub enum BuildError {
     #[error("a cache is required")]
     MissingCache,
-    #[error("an observer is required; observe nothing explicitly if that is intended")]
-    MissingObserver,
     #[error("a secret codec is required; PlaintextCodec must be chosen explicitly")]
     MissingSecretCodec,
     #[error(transparent)]
@@ -58,6 +56,7 @@ impl<C> CoreBuilder<C> {
         self.cache = Some(cache);
         self
     }
+    /// Replace built-in Store persistence with a host implementation.
     pub fn observer(mut self, observer: Arc<dyn Observer>) -> Self {
         self.observer = Some(observer);
         self
@@ -103,11 +102,17 @@ impl<C> CoreBuilder<C> {
         self
     }
 
-    pub fn build(self) -> Result<Core<C>, BuildError> {
+    pub fn build(self) -> Result<Core<C>, BuildError>
+    where
+        C: gproxy_seaorm::BatchConnectionTrait + Send + Sync + 'static,
+    {
+        let observer = self
+            .observer
+            .unwrap_or_else(|| Arc::new(crate::StoreObserver::new(self.store.clone())));
         Ok(Core {
             store: self.store,
             cache: self.cache.ok_or(BuildError::MissingCache)?,
-            observer: self.observer.ok_or(BuildError::MissingObserver)?,
+            observer,
             codec: self.codec.ok_or(BuildError::MissingSecretCodec)?,
             channels: Arc::new(self.channels),
             clients: self.clients.unwrap_or_default(),

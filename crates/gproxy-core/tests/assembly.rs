@@ -41,7 +41,7 @@ impl Observer for ObserveNothing {
     fn capture(&self, _: &ExchangeContext, _: CapturePolicy) -> Box<dyn CaptureSink> {
         unreachable!()
     }
-    fn usage<'a>(&'a self, _: &'a UsageReport) -> CapabilityFuture<'a, ()> {
+    fn usage<'a>(&'a self, _: &'a RequestContext, _: &'a UsageReport) -> CapabilityFuture<'a, ()> {
         Box::pin(async {})
     }
     fn trace(&self, _: TraceEvent<'_>) {}

@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 use gproxy_cache::{Cache, CacheError, CasOutcome, IncrementOutcome, Notification, Replacement};
 use gproxy_store::{Store, StoreCache, operations::counted::CountedCharge};
 use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbBackend};

@@ -1,5 +1,4 @@
-//! Engine data contracts. No HTTP routing, request execution, configuration
-//! compilation or background workers are started by these types.
+//! Server-independent upstream execution, configuration snapshots and observation.
 //! Store owns durable facts, Cache owns shared transient state, and CoreData
 //! holds each instance's immutable configuration snapshot.
 
@@ -24,6 +23,8 @@ mod ids;
 pub mod keys;
 pub mod limits;
 pub mod observe;
+mod store_observer;
+pub use store_observer::StoreObserver;
 pub mod pricing;
 pub mod publication;
 mod quota;
@@ -60,9 +61,9 @@ use gproxy_store::Store;
 use std::sync::Arc;
 
 /// Assembled engine dependencies, built through `CoreBuilder`. Construction
-/// performs no I/O. The host supplies Store, shared Cache, Observer, secret
-/// codec and channel registry; core owns the outbound client pool. There is no
-/// implicit backend and no default observer that silently drops settlement.
+/// performs no I/O. The host supplies Store, shared Cache, secret codec and
+/// channel registry; core owns the outbound client pool. Observation defaults
+/// to Store persistence and can be replaced with an explicit host Observer.
 pub struct Core<C> {
     store: Arc<Store<C>>,
     cache: Arc<dyn Cache>,

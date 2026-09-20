@@ -8,7 +8,7 @@
 //!
 //! Three views (`ServiceView`):
 //! * `Caller` — the caller's own picture from the gateway's accounting for
-//!   `scope` and the resources bound to that scope. Never reflects any
+//!   the explicit user ID and the resources bound to `scope`. Never reflects any
 //!   credential's real state; the only view a `Member` may use.
 //! * `Pool` — the target's credentials as one synthesized account: usage
 //!   merged across them, resources bound to any of them, a synthetic
@@ -50,9 +50,14 @@ use std::{collections::BTreeMap, sync::Arc};
 /// One vendor service call. `B` is `HttpBody` for `call_service` and `()`
 /// for `connect_service`; a socket is never an HTTP body.
 pub struct ServiceRequest<B = HttpBody> {
-    /// The caller's isolation scope, as for `RequestContext::scope`. The
-    /// `Caller` view is rendered from what the host recorded under it.
+    /// Opaque isolation scope, as for `RequestContext::scope`; used for
+    /// resource bindings and the synthesized identity, never as a user ID.
     pub scope: String,
+    /// Authenticated user whose historical usage the Caller view may read.
+    /// Supply the same ID as `RequestContext::attribution.user_id` on model
+    /// requests. None returns no token/cost history; budget windows still work.
+    /// Ignored by Pool and Credential views.
+    pub user_id: Option<String>,
     /// The caller's role over `target.credentials`, decided by the host.
     pub caller: CallerRole,
     pub view: ServiceView,
@@ -83,10 +88,11 @@ fn host_error(error: impl std::fmt::Display) -> ChannelError {
 
 /// Which facts back a synthesized view.
 enum Facts {
-    /// `resource_bindings.scope`, usage rows attributed to the scope, and
+    /// `resource_bindings.scope`, usage rows attributed to the user, and
     /// the budgets of the named owners.
     Scope {
         scope: String,
+        user_id: Option<String>,
         budgets: Vec<BudgetOwner>,
     },
     /// Bindings and quota cycles of the target's credentials.
@@ -124,6 +130,7 @@ impl<'a, C> TargetCaller<'a, C> {
                 },
                 Facts::Scope {
                     scope: request.scope.clone(),
+                    user_id: request.user_id.clone(),
                     budgets: request.budgets.clone(),
                 },
             ),
@@ -189,23 +196,26 @@ impl<C: BatchConnectionTrait + Send + Sync> TargetCaller<'_, C> {
         }
     }
 
-    /// The caller's own accounting: token totals and settled cost from the
-    /// usage rows the host attributed to the scope (rows carry no scope
-    /// column; by convention the host records the scope as `user_id`), and
-    /// one window per budget of the request's owners, keyed by the quota's
-    /// `window_key`, with `used_percent` from the current window.
-    async fn scope_usage(
+    /// User-wide token totals and settled cost use the same explicit user ID
+    /// as StoreObserver attribution. The opaque scope only partitions resources.
+    /// Budget windows are independently selected by the request's owner chain.
+    async fn caller_usage(
         &self,
-        scope: &str,
+        user_id: Option<&str>,
         budgets: &[BudgetOwner],
     ) -> Result<CallerUsage, ChannelError> {
-        let rows = self
-            .core
-            .store()
-            .usage_records()
-            .query(usage_record::Entity::find().filter(usage_record::Column::UserId.eq(scope)))
-            .await
-            .map_err(host_error)?;
+        let rows = match user_id {
+            Some(user_id) => self
+                .core
+                .store()
+                .usage_records()
+                .query(
+                    usage_record::Entity::find().filter(usage_record::Column::UserId.eq(user_id)),
+                )
+                .await
+                .map_err(host_error)?,
+            None => Vec::new(),
+        };
         let mut usage = CallerUsage::default();
         let mut cost = Decimal::ZERO;
         let mut costed = false;
@@ -311,7 +321,9 @@ impl<C: BatchConnectionTrait + Send + Sync> ServiceCaller for TargetCaller<'_, C
     fn usage<'a>(&'a self) -> OperationFuture<'a, CallerUsage> {
         Box::pin(async move {
             match &self.facts {
-                Facts::Scope { scope, budgets } => self.scope_usage(scope, budgets).await,
+                Facts::Scope {
+                    user_id, budgets, ..
+                } => self.caller_usage(user_id.as_deref(), budgets).await,
                 Facts::Pool => self.pool_usage().await,
             }
         })

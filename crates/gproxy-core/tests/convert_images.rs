@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 //! images family: OpenAI Images requests converted to Gemini `generateContent`
 //! or the Responses image tool, driven through the per-operation entry points.
 

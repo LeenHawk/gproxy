@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 //! video family: the OpenAI native video API converted to Veo long-running
 //! operations on a Gemini provider, with job state in the protocol state store.
 

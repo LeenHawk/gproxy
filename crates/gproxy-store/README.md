@@ -317,7 +317,10 @@ settlement. Adding a metric does not imply every upstream reports its quantity.
 
 `UpstreamCall` is merged into [`CaptureRecord`](src/entity/usage/capture_record.rs).
 One row holds a physical exchange on one side, including call metadata and both
-request and response. `side` distinguishes downstream from upstream.
+request and response. `side` distinguishes downstream from upstream. Optional
+`initiator_request_id`, `attempt_id` and `attempt_ordinal` preserve the initiating
+request and retry even without downstream capture; they are provenance, not
+exclusive ownership of a shared upstream exchange.
 
 | Entity | Responsibility |
 |---|---|

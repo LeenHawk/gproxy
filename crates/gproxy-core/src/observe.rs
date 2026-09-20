@@ -1,7 +1,7 @@
-//! Host-implemented observation extension point: settlement, capture and
-//! tracing. Core guarantees every execution path reaches these hooks; the host
-//! decides before any work happens which of them it wants and owns persistence,
-//! redaction, pricing and retention. Nothing here is a public pipeline hook.
+//! Observation extension point: capture, usage and tracing. StoreObserver is
+//! the default implementation; hosts can replace it explicitly. The policy is
+//! queried before work starts. Core owns pricing/settlement; the observer owns
+//! persistence and redaction. Nothing here is a public pipeline hook.
 
 use crate::{AttemptContext, ExchangeContext, RequestContext, UsageReport};
 use gproxy_channel::ChannelError;
@@ -65,6 +65,8 @@ pub enum CaptureEnd {
     Complete,
     /// Transport error, cancellation or deadline before the exchange finished.
     Interrupted,
+    /// The caller dropped the body/socket or explicitly cancelled.
+    Cancelled,
 }
 
 /// Per-exchange capture state opened by the Observer. `sequence` is monotonic
@@ -73,6 +75,8 @@ pub enum CaptureEnd {
 /// Recording failures are the host's concern and must not fail the request.
 pub trait CaptureSink: Send {
     fn record(&mut self, sequence: u64, event: CaptureEvent<'_>);
+    /// Native usage for this physical exchange, independent of body logging.
+    fn usage(&mut self, _usage: &gproxy_channel::channel::NormalizedUsage) {}
     /// Flush and close. Awaited off the response path.
     fn finish(self: Box<Self>, end: CaptureEnd) -> CapabilityFuture<'static, ()>;
 }
@@ -140,8 +144,51 @@ pub trait Observer: Send + Sync {
     /// including cancelled and failed requests, after the response stream or
     /// socket finished. The same report resolves the caller's `UsageCompletion`;
     /// dropping that future does not skip this call.
-    fn usage<'a>(&'a self, report: &'a UsageReport) -> CapabilityFuture<'a, ()>;
+    fn usage<'a>(
+        &'a self,
+        request: &'a RequestContext,
+        report: &'a UsageReport,
+    ) -> CapabilityFuture<'a, ()>;
 
     /// Called only when the request's policy enabled tracing.
     fn trace(&self, event: TraceEvent<'_>);
+}
+
+/// Snapshot-pinned switches for the built-in Store observer.
+#[derive(Clone, Copy, Debug)]
+pub struct ObservationSettings {
+    pub settlement: bool,
+    pub usage: bool,
+    pub upstream_log: bool,
+    pub upstream_log_body: bool,
+    pub redact: bool,
+    pub trace: bool,
+}
+impl Default for ObservationSettings {
+    fn default() -> Self {
+        Self {
+            settlement: true,
+            usage: true,
+            upstream_log: true,
+            upstream_log_body: false,
+            redact: true,
+            trace: true,
+        }
+    }
+}
+impl ObservationSettings {
+    pub(crate) fn from_setting(
+        setting: Option<&gproxy_store::entity::config::setting::Model>,
+    ) -> Self {
+        setting
+            .map(|s| Self {
+                settlement: s.enable_settlement,
+                usage: s.enable_usage,
+                upstream_log: s.enable_upstream_log,
+                upstream_log_body: s.enable_upstream_log_body,
+                redact: !s.disable_log_redaction,
+                trace: s.enable_tracing,
+            })
+            .unwrap_or_default()
+    }
 }

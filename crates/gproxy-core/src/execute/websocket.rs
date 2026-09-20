@@ -41,9 +41,29 @@ use std::{
 pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'static>(
     core: &Core<C>,
     request: Arc<RequestContext>,
-    mut wire: WireRequest<()>,
+    wire: WireRequest<()>,
 ) -> CoreResult<WebSocketExecution> {
     let (funnel, completion) = Funnel::new(request.clone(), core.observer().clone());
+    let _request_guard = funnel.guard();
+    let result = run_websocket_inner(core, request, wire, funnel.clone(), completion).await;
+    if let Err(error) = &result {
+        let state = if matches!(error, CoreError::Cancelled) {
+            UsageState::Cancelled
+        } else {
+            UsageState::Failed
+        };
+        funnel.finish(state).await;
+    }
+    result
+}
+
+async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
+    core: &Core<C>,
+    request: Arc<RequestContext>,
+    mut wire: WireRequest<()>,
+    funnel: Arc<Funnel>,
+    completion: crate::UsageCompletion,
+) -> CoreResult<WebSocketExecution> {
     funnel.set_meter(core.usage_meter());
     super::attempt::reject_when_over_budget(core, &request, &funnel).await?;
     let snapshot = request.snapshot.clone();
@@ -134,7 +154,9 @@ pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'stati
                 return Err(error);
             }
         };
-        drop(held.take());
+        if let Some((UpstreamConnection::Rejected(response), exchange)) = held.take() {
+            super::stream::drain(response.body, exchange.limits.operation_total).await;
+        }
         let credential = selection.credential;
         let mut assignment = match (selection.assignment, carried.take()) {
             (Some(handle), Some(previous))

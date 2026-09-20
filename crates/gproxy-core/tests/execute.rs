@@ -157,8 +157,8 @@ async fn rate_limit_blocks_the_credential_persistently_and_fails_over() {
     assert!(cached.blocks[0].until_ms - cached.blocks[0].observed_at_ms == 120_000);
     let log = h.observer.log.lines();
     assert!(
-        log.iter().any(|l| l == "r1-1 finish Interrupted"),
-        "dropped 429 body still closes capture: {log:?}"
+        log.iter().any(|l| l == "r1-1 finish Complete"),
+        "superseded 429 body is drained and captured: {log:?}"
     );
 
     let third = h
@@ -190,6 +190,7 @@ async fn repeated_server_errors_trip_a_failure_block_and_the_last_answer_is_retu
             credentials: vec![ctx.target.credentials[0].clone()],
         },
         request_id: ctx.request_id.clone(),
+        attribution: ctx.attribution.clone(),
         snapshot: ctx.snapshot.clone(),
         scope: ctx.scope.clone(),
         session: ctx.session.clone(),
@@ -212,7 +213,7 @@ async fn repeated_server_errors_trip_a_failure_block_and_the_last_answer_is_retu
         "{\"e\":3}",
         "three attempts, then the third failure is credential-blocked"
     );
-    assert_eq!(completion.await.unwrap().state, UsageState::Completed);
+    assert_eq!(completion.await.unwrap().state, UsageState::Failed);
     let cached: gproxy_core::CredentialBlocks = serde_json::from_slice(
         &h.core
             .cache()
@@ -438,7 +439,7 @@ async fn websocket_handshake_fails_over_and_the_socket_is_observed_in_both_direc
     assert!(incoming.next().await.is_none());
     let report = completion.await.unwrap();
     assert_eq!(report.state, UsageState::Completed);
-    // The dropped 429 body finishes on a detached task.
+    // The superseded handshake rejection has been drained and captured.
     tokio::task::yield_now().await;
     let log = h.observer.log.lines();
     assert_eq!(
@@ -446,10 +447,7 @@ async fn websocket_handshake_fails_over_and_the_socket_is_observed_in_both_direc
         3,
         "{log:?}"
     );
-    assert!(
-        log.iter().any(|l| l == "r1-1 finish Interrupted"),
-        "{log:?}"
-    );
+    assert!(log.iter().any(|l| l == "r1-1 finish Complete"), "{log:?}");
     assert!(log.iter().any(|l| l == "r1-2 finish Complete"), "{log:?}");
     let rows = h
         .core
@@ -493,7 +491,7 @@ async fn dropping_a_body_early_settles_as_cancelled() {
             .log
             .lines()
             .iter()
-            .any(|l| l == "r1-1 finish Interrupted")
+            .any(|l| l == "r1-1 finish Cancelled")
     );
 }
 

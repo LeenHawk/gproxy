@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 mod support;
 use support::*;
 
@@ -45,6 +47,7 @@ fn agent_context(
             credentials: ctx.target.credentials.clone(),
         },
         request_id: ctx.request_id.clone(),
+        attribution: ctx.attribution.clone(),
         snapshot: ctx.snapshot.clone(),
         scope: ctx.scope.clone(),
         session: Some(SessionIdentity {

@@ -1,3 +1,5 @@
+#![cfg(not(target_arch = "wasm32"))]
+
 mod support;
 use support::*;
 
@@ -76,6 +78,7 @@ fn only(h: &Harness, credential_id: &str, request_id: &str, attempts: u32) -> Ar
             ..target
         },
         request_id: ctx.request_id.clone(),
+        attribution: ctx.attribution.clone(),
         snapshot: ctx.snapshot.clone(),
         scope: ctx.scope.clone(),
         session: None,

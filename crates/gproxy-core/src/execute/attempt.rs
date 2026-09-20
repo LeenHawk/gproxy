@@ -16,7 +16,7 @@ use crate::{
 use gproxy_channel::{ChannelBinding, channel::UsageStreamEnd};
 use gproxy_protocol::{
     HttpBody, WireRequest, WireResponse,
-    connection::{ByteStream, Bytes},
+    connection::Bytes,
     transform::{TransformError, TransformErrorKind},
 };
 use gproxy_seaorm::BatchConnectionTrait;
@@ -32,58 +32,43 @@ fn remaining(request: &RequestContext) -> Option<Duration> {
 }
 
 /// What one attempt produced for the caller.
-enum Answer {
-    /// The upstream body streams through an observed exchange; ending it settles.
-    Streamed(WireResponse<HttpBody>, Arc<Exchange>),
-    /// Every exchange already finished; settle before returning.
-    Complete(WireResponse<HttpBody>),
-    /// A converted client stream still being driven; the funnel settles when
-    /// the driver's stream ends or is dropped.
-    Driven(WireResponse<ByteStream>),
-}
+struct Answer(WireResponse<HttpBody>);
 
 impl Answer {
+    /// Drain a superseded rejection through observation before retrying. The
+    /// observed stream retains its byte/idle/cancellation limits; a total cap
+    /// prevents a slow rejection from holding retries indefinitely.
+    async fn discard(self, timeout: Duration) {
+        let body = self.0.body;
+        super::stream::drain(body, timeout).await;
+    }
+
     fn status(&self) -> StatusCode {
-        match self {
-            Self::Streamed(r, _) | Self::Complete(r) => r.status,
-            Self::Driven(r) => r.status,
-        }
+        self.0.status
     }
     fn headers(&self) -> &http::HeaderMap {
-        match self {
-            Self::Streamed(r, _) | Self::Complete(r) => &r.headers,
-            Self::Driven(r) => &r.headers,
-        }
+        &self.0.headers
     }
     async fn deliver(
         self,
         funnel: &Arc<Funnel>,
         completion: crate::UsageCompletion,
     ) -> HttpExecution {
-        match self {
-            Self::Streamed(response, exchange) => {
-                exchange.make_terminal();
-                let settled = funnel.arm();
-                Execution::new(response, completion, settled)
+        let mut response = self.0;
+        let state = if response.status.is_client_error() || response.status.is_server_error() {
+            UsageState::Failed
+        } else {
+            UsageState::Completed
+        };
+        let settled = match response.body {
+            HttpBody::Bytes(_) => funnel.finish(state).await,
+            HttpBody::Stream(body) => {
+                response.body =
+                    HttpBody::Stream(super::stream::settling(funnel.clone(), body, state));
+                funnel.arm()
             }
-            Self::Complete(response) => {
-                let settled = funnel.finish(UsageState::Completed).await;
-                Execution::new(response, completion, settled)
-            }
-            Self::Driven(response) => {
-                let body = super::stream::settling(funnel.clone(), response.body);
-                let settled = funnel.arm();
-                Execution::new(
-                    WireResponse {
-                        status: response.status,
-                        headers: response.headers,
-                        body: HttpBody::Stream(body),
-                    },
-                    completion,
-                    settled,
-                )
-            }
-        }
+        };
+        Execution::new(response, completion, settled)
     }
 }
 
@@ -120,6 +105,26 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
     wire: WireRequest<HttpBody>,
 ) -> CoreResult<HttpExecution> {
     let (funnel, completion) = Funnel::new(request.clone(), core.observer().clone());
+    let _request_guard = funnel.guard();
+    let result = run_http_inner(core, request, wire, funnel.clone(), completion).await;
+    if let Err(error) = &result {
+        let state = if matches!(error, CoreError::Cancelled) {
+            UsageState::Cancelled
+        } else {
+            UsageState::Failed
+        };
+        funnel.finish(state).await;
+    }
+    result
+}
+
+async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
+    core: &Core<C>,
+    request: Arc<RequestContext>,
+    wire: WireRequest<HttpBody>,
+    funnel: Arc<Funnel>,
+    completion: crate::UsageCompletion,
+) -> CoreResult<HttpExecution> {
     funnel.set_meter(core.usage_meter());
     reject_when_over_budget(core, &request, &funnel).await?;
     let snapshot = request.snapshot.clone();
@@ -225,7 +230,11 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
             }
         };
         // A new attempt supersedes the previous rejected answer.
-        drop(held.take());
+        if let Some(answer) = held.take() {
+            answer
+                .discard(limits.capability(remaining(&request)).operation_total)
+                .await;
+        }
         let credential = selection.credential;
         let mut assignment = match (selection.assignment, carried.take()) {
             (Some(handle), Some(previous))
@@ -343,7 +352,7 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                         {
                             Err(Fault::Client(error.into()))
                         } else {
-                            Ok(Answer::Streamed(response, exchange))
+                            Ok(Answer(response))
                         }
                     }
                     Err(fault) => {
@@ -406,8 +415,12 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                 };
                 converted.map(|converted| match converted {
                     convert::Converted::Success(response)
-                    | convert::Converted::Rejected(response) => Answer::Complete(response),
-                    convert::Converted::Stream(response) => Answer::Driven(response),
+                    | convert::Converted::Rejected(response) => Answer(response),
+                    convert::Converted::Stream(response) => Answer(WireResponse {
+                        status: response.status,
+                        headers: response.headers,
+                        body: HttpBody::Stream(response.body),
+                    }),
                 })
             }
         };
@@ -576,7 +589,9 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
             }
             Classified::Refresh => {
                 refreshed.insert(credential.id.clone());
-                drop(answer);
+                answer
+                    .discard(limits.capability(remaining(&request)).operation_total)
+                    .await;
                 match core
                     .refresh_credential(
                         &credential.provider_id,
@@ -698,8 +713,11 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
 pub(crate) async fn reject_when_over_budget<C: BatchConnectionTrait>(
     core: &Core<C>,
     request: &Arc<RequestContext>,
-    funnel: &Funnel,
+    funnel: &Arc<Funnel>,
 ) -> CoreResult<()> {
+    if !request.snapshot.observation.settlement {
+        return Ok(());
+    }
     match core.check_budgets(request, now_ms()).await {
         Ok(()) => Ok(()),
         Err(error) => {

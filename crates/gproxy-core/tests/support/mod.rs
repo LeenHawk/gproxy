@@ -113,7 +113,11 @@ impl Observer for Recorder {
     fn capture(&self, exchange: &ExchangeContext, _: CapturePolicy) -> Box<dyn CaptureSink> {
         Box::new(Sink(self.log.clone(), exchange.attempt.attempt_id.clone()))
     }
-    fn usage<'a>(&'a self, report: &'a UsageReport) -> CapabilityFuture<'a, ()> {
+    fn usage<'a>(
+        &'a self,
+        _: &'a RequestContext,
+        report: &'a UsageReport,
+    ) -> CapabilityFuture<'a, ()> {
         self.reports.lock().unwrap().push(report.clone());
         Box::pin(async {})
     }
@@ -1000,6 +1004,7 @@ impl Harness {
         let target = self.target(provider_id);
         Arc::new(RequestContext {
             request_id: id.into(),
+            attribution: Default::default(),
             snapshot: snapshot.clone(),
             scope: "tenant".into(),
             session: session.map(|s| SessionIdentity {

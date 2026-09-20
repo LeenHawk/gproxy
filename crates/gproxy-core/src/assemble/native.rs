@@ -242,7 +242,7 @@ pub async fn assemble(
     let estimation = control
         .settings
         .as_ref()
-        .is_none_or(|settings| settings.enable_usage)
+        .is_none_or(|settings| settings.enable_usage || settings.enable_settlement)
         .then(|| {
             let files: HashMap<&str, &str> = control
                 .models
@@ -287,6 +287,7 @@ pub async fn assemble(
     Ok(Assembly {
         data: CoreData {
             revision,
+            observation: crate::ObservationSettings::from_setting(control.settings.as_ref()),
             limits,
             estimation,
             budgets,

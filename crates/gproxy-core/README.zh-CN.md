@@ -3,14 +3,14 @@
 [English](README.md) | 简体中文
 
 不含下游职责的 Provider 执行引擎。上层完成路由与模型别名解析、调用方认证、策略与
-准入，然后把 Store、Cache、Observer 和一个 `ExecutionTarget`（Provider、上游模型、
+准入，然后把 Store、Cache 和一个 `ExecutionTarget`（Provider、上游模型、
 允许的凭证集合）交给 core。core 负责协议转换、请求／响应改写、凭证选择／刷新／可用
 性、HTTP 与 WebSocket 上游调用、流式转发、观测与结算、多次调用适配所需的续接状态与
 资源、agent 会话 assignment、账号额度观测、用量抽取和本地 token 估算。
 
 | 模块 | 职责 |
 |---|---|
-| `builder` | `Core::builder(store)`：cache、observer、secret codec 必填；渠道注册进 `ChannelRegistry`；可选 client 池与文件存储 |
+| `builder` | `Core::builder(store)`：cache、secret codec 必填；默认使用 Store 落库 observer，可显式替换；渠道注册进 `ChannelRegistry`；可选 client 池与文件存储 |
 | `data` / `runtime` / `context` | 执行快照、原子凭证材料、block 与窗口 key、已解析目标与请求／attempt／exchange 上下文、用量报告 |
 | `secret` | `SecretCodec`：默认 `AesGcmCodec`（AES-256-GCM 信封，每凭证数据密钥，凭证 ID 进 AAD），`PlaintextCodec` 需显式选择 |
 | `limits` | 由 Setting 行得到 `ExecutionLimits`，派生所有 `CapabilityLimits` 与 `CodecLimits`；没有无限模式 |
@@ -78,7 +78,7 @@ context 操作。每个方法返回 `Execution<T>`：protocol 响应或连接，
 | `reload_credentials` | 按输入顺序重读行并发布到既有槽位；缺失行返回 None 并摘除槽位 |
 | `refresh_credential` | Provider 归属校验、每凭证 cache 租约（其他实例等待，更新的持久版本可直接满足调用）、权威 Store 读取、渠道刷新、密封、`refresh_many` CAS、发布并发出 `CredentialChanged` 通知；`RefreshRejected` 写入带原因的 `Dead` |
 | `query_credential_quota` | 通过指派 client 调用渠道 `QuotaQuery`；每条 entry 写一行 `credential_quota_cycles`，已声明维度耗尽则打 block |
-| `call_service` / `connect_service` | [service.rs](src/service.rs)：按 `ServiceView` 调用渠道的 `ChannelServices`（没有 `OperationKey` 的厂商 CLI 接口）。`Caller`（任何角色）只用网关对 `scope` 的记账和绑定到该 scope 的资源渲染调用方自己的画面——Member 永远看不到任何凭证的状态；`Pool`（仅 admin）把 target 内的凭证合成为一个账号；`Credential(id)`（仅 admin）用该凭证自己的鉴权原样转发。core 不判断谁是谁的管理员：宿主通过选择 `target.credentials` 表达组织边界，`CallerRole::Admin` 指对这个集合的管理员。core 提供事实来源（`TargetCaller`：按 scope 的 usage 行、`ServiceRequest::budgets` 指定的预算的当前窗口、target 凭证的额度周期、`resource_bindings`），取第一个可用凭证（或指名的那条），单项资源路由沿用绑定记录的凭证。角色不符返回 `Forbidden`，渠道没有 services 返回 `Channel(UnsupportedService)`。运行在**漏斗之外**：没有 attempt、usage、capture 和重试 |
+| `call_service` / `connect_service` | [service.rs](src/service.rs)：按 `ServiceView` 调用渠道的 `ChannelServices`（没有 `OperationKey` 的厂商 CLI 接口）。`Caller`（任何角色）只用网关对显式 `ServiceRequest::user_id` 的记账和绑定到 `scope` 的资源渲染调用方自己的画面——Member 永远看不到任何凭证的状态；`Pool`（仅 admin）把 target 内的凭证合成为一个账号；`Credential(id)`（仅 admin）用该凭证自己的鉴权原样转发。core 不判断谁是谁的管理员：宿主通过选择 `target.credentials` 表达组织边界，`CallerRole::Admin` 指对这个集合的管理员。core 提供事实来源（`TargetCaller`：按显式 user_id 的 usage 行、`ServiceRequest::budgets` 指定的预算的当前窗口、target 凭证的额度周期、`resource_bindings`），取第一个可用凭证（或指名的那条），单项资源路由沿用绑定记录的凭证。角色不符返回 `Forbidden`，渠道没有 services 返回 `Channel(UnsupportedService)`。运行在**漏斗之外**：没有 attempt、usage、capture 和重试 |
 
 ## 执行
 
@@ -186,10 +186,19 @@ dimensions 匹配（映射见 [pricing.rs](src/pricing.rs)）。结果写在 `Ex
 
 ## 观测
 
-[observe.rs](src/observe.rs) 是宿主的漏斗。`Observer::policy` 在任何 attempt 前每请求
-回答一次；关闭的工作不会做了再丢。`capture` 为每次物理交换开一个 `CaptureSink`；
-`usage` 在开启用量时每请求恰好调用一次，包括取消与失败；`trace` 收到借用的 attempt、
-exchange 与刷新事件。记录不会改写、重排或延迟交付的流。
+Core 默认使用 `StoreObserver`，把上游日志写入 `capture_records` / `capture_events`，
+每个请求的用量汇总写入 `usage_records`。`.observer(...)` 显式替换默认落库实现。
+
+Setting 的 `enable_upstream_log`、`enable_upstream_log_body` 控制头信息与正文记录；
+`enable_usage` 控制用量记录留存，`enable_settlement` 控制提取、计价与额度结算。
+两个 usage/settlement 开关都关才停止提取；只关记录仍结算，只关结算仍可记录用量。
+配置重载后对新请求生效，已有请求保持自己的快照。
+
+每次真实上游调用独立落日志，包括重试与同一渠道调用内的多次 send。流 chunk 和 WS 帧
+按序存入事件表；中断保留已收到的字节与部分用量。所有交换关闭并刷写后，请求只写一份
+用量汇总。丢弃响应 body/socket、执行 future 或 `UsageCompletion` 都不会跳过收尾。
+历史用户/key/订阅归属由宿主通过 `RequestContext.attribution` 提供，不从 scope 推断。
+下游日志及 CaptureLink 由宿主负责。详见[观测契约](../../design/core-observation.md)。
 
 ## protocol 能力
 
@@ -217,6 +226,9 @@ completion 流）把持有者记在续接记录里。之后的请求落到另一
 保留。多实例宿主要么把会话转发到那个实例，要么一开始就把会话粘住；单实例永远不会看到它。
 
 ## wasm32
+
+依赖 SQLite／文件系统的集成测试只在原生平台运行，与 dev-dependencies 的平台限定一致。
+wasm 检查包含库与可移植的测试目标，不表示已经在浏览器中执行测试。
 
 引擎在 wasm32-unknown-unknown 上以同一套 API 运行：定时器与后台任务来自 JS 事件循环，
 出站传输来自 gproxy-client 的 `fetch`／`workers` feature 或宿主注入的 `OutboundClient`
