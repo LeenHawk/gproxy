@@ -27,3 +27,29 @@ pub fn credential_selection(provider_id: &str, candidate_signature: &str) -> Str
 pub fn refresh_lease(credential_id: &str) -> String {
     format!("{PREFIX}:refresh:{credential_id}")
 }
+
+/// Length-prefix isolation components to keep opaque caller scopes distinct.
+pub fn realtime_call(provider: &str, scope: &str, call_id: &str) -> String {
+    format!(
+        "{PREFIX}:rtc:{}:{provider}:{}:{scope}:{call_id}",
+        provider.len(),
+        scope.len()
+    )
+}
+
+pub fn realtime_response(
+    provider: &str,
+    scope: &str,
+    credential: &str,
+    call: Option<&str>,
+    response: &str,
+) -> String {
+    let call = call.unwrap_or("");
+    format!(
+        "{PREFIX}:rtc-usage:{}:{provider}:{}:{scope}:{}:{credential}:{}:{call}:{response}",
+        provider.len(),
+        scope.len(),
+        credential.len(),
+        call.len()
+    )
+}

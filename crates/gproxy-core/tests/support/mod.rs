@@ -158,6 +158,7 @@ pub struct TestChannel {
     pub expose_services: AtomicBool,
     /// Credential ids the service calls ran with, in order.
     pub service_calls: Mutex<Vec<String>>,
+    pub response_usages: Mutex<VecDeque<NormalizedUsage>>,
 }
 impl BaseChannel for TestChannel {
     fn id(&self) -> &'static str {
@@ -306,6 +307,41 @@ impl BaseChannel for TestChannel {
     }
     fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
         Some(self)
+    }
+    fn usage_stream(&self) -> Option<&dyn gproxy_channel::channel::UsageStream> {
+        Some(self)
+    }
+}
+impl gproxy_channel::channel::UsageStream for TestChannel {
+    fn start(
+        &self,
+        _: gproxy_channel::channel::UsageStreamContext<'_>,
+    ) -> Result<Box<dyn gproxy_channel::channel::UsageObserver>, ChannelError> {
+        struct FixedUsage(Option<NormalizedUsage>);
+        impl gproxy_channel::channel::UsageObserver for FixedUsage {
+            fn observe(
+                &mut self,
+                _: gproxy_channel::channel::UsageFrame<'_>,
+            ) -> Result<(), ChannelError> {
+                Ok(())
+            }
+            fn snapshot(&self) -> Option<NormalizedUsage> {
+                self.0.clone()
+            }
+            fn finish(
+                self: Box<Self>,
+                _: gproxy_channel::channel::UsageStreamEnd,
+            ) -> Result<Option<NormalizedUsage>, ChannelError> {
+                Ok(self.0)
+            }
+        }
+        let usage = self
+            .response_usages
+            .lock()
+            .unwrap()
+            .pop_front()
+            .ok_or(ChannelError::UnsupportedService)?;
+        Ok(Box::new(FixedUsage(Some(usage))))
     }
 }
 /// Dimensions come from credential metadata:

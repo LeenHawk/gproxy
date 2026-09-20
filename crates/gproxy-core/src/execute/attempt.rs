@@ -550,6 +550,8 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
                     finished_at_ms: finished_at,
                 });
                 if status.is_success() {
+                    core.remember_realtime_call(&request, &credential.id, answer.headers())
+                        .await?;
                     core.record_success(
                         &credential.provider_id,
                         &credential.id,

@@ -116,6 +116,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
         context: Arc<RequestContext>,
         request: WireRequest<()>,
     ) -> CoreResult<WebSocketExecution> {
+        let context = self.bind_realtime_continuation(context, &request).await?;
         crate::execute::run_websocket(self, context, request).await
     }
 }

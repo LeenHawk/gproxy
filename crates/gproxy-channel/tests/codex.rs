@@ -2501,3 +2501,138 @@ async fn realtime_websocket_uses_api_routes_without_responses_identity() {
         assert!(!sent.2.contains_key("x-codex-turn-state"));
     }
 }
+
+#[test]
+fn live_endpoint_override_keeps_call_id_and_backend_detection_uses_url_path() {
+    let config = json!({});
+    let secret = secret("at");
+    let prepared = Codex
+        .prepare_connect(PrepareContext {
+            provider: provider(&config, None),
+            credential: credential(&secret, &Value::Null),
+            operation: OperationKey {
+                operation: Operation::ConnectRealtime,
+                dialect: Dialect::OpenAi,
+            },
+            request: WireRequest {
+                method: Method::GET,
+                path: "/v1/live/rtc_bound".into(),
+                query: None,
+                headers: HeaderMap::new(),
+                body: (),
+            },
+            endpoint_override: Some("https://example.test/custom/live?deployment=x"),
+        })
+        .unwrap();
+    assert_eq!(
+        prepared.uri(),
+        "wss://example.test/custom/live/rtc_bound?deployment=x"
+    );
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "content-type",
+        HeaderValue::from_static("multipart/form-data; boundary=rtc"),
+    );
+    let original = realtime_multipart();
+    let prepared = Codex
+        .prepare(PrepareContext {
+            provider: provider(&config, None),
+            credential: credential(&secret, &Value::Null),
+            operation: OperationKey {
+                operation: Operation::CreateRealtimeCall,
+                dialect: Dialect::OpenAi,
+            },
+            request: WireRequest {
+                method: Method::POST,
+                path: "/v1/realtime/calls".into(),
+                query: None,
+                headers,
+                body: HttpBody::Bytes(original.clone()),
+            },
+            endpoint_override: Some("https://example.test/v1/realtime/calls?label=/backend-api"),
+        })
+        .unwrap();
+    let HttpBody::Bytes(actual) = prepared.into_body() else {
+        panic!("buffered")
+    };
+    assert_eq!(actual, original);
+}
+
+#[tokio::test]
+async fn realtime_multipart_read_failures_are_transport_errors_with_sources() {
+    let config = json!({});
+    let secret = secret("at");
+    let client = Arc::new(ScriptClient::new(vec![]));
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "content-type",
+        HeaderValue::from_static("multipart/form-data; boundary=rtc"),
+    );
+    let error = Codex
+        .create_realtime_call(OperationContext {
+            provider: provider(&config, None),
+            credential: credential(&secret, &Value::Null),
+            dialect: Dialect::OpenAi,
+            request: WireRequest {
+                method: Method::POST,
+                path: "/v1/realtime/calls".into(),
+                query: None,
+                headers,
+                body: HttpBody::Stream(Box::pin(futures_util::stream::once(async {
+                    Err(std::io::Error::other("socket interrupted").into())
+                }))),
+            },
+            client: client.clone(),
+            state: Arc::new(MemoryState::default()),
+            instance_id: Arc::from("i"),
+            endpoint_override: None,
+        })
+        .await
+        .unwrap_err();
+    let ChannelError::Transport(error) = error else {
+        panic!("transport error: {error}")
+    };
+    assert_eq!(
+        error.kind(),
+        gproxy_protocol::capability::CapabilityErrorKind::Transport
+    );
+    assert!(std::error::Error::source(&error).is_some());
+    assert!(client.sent().is_empty());
+}
+
+#[test]
+fn image_sse_usage_observer_handles_split_frames() {
+    let headers = HeaderMap::new();
+    for (operation, kind) in [
+        (Operation::CreateImage, "image_generation.completed"),
+        (Operation::EditImage, "image_edit.completed"),
+    ] {
+        let mut observer = Codex
+            .usage_stream()
+            .unwrap()
+            .start(UsageStreamContext {
+                operation: OperationKey {
+                    operation,
+                    dialect: Dialect::OpenAi,
+                },
+                request_body: None,
+                status: StatusCode::OK,
+                headers: &headers,
+                transport: UsageTransport::Http {
+                    framing: Some(StreamFraming::Sse),
+                },
+            })
+            .unwrap();
+        let value = json!({"type":kind,"generation_id":"g","quality":"high","size":"1024x1024","usage":{"input_tokens":15,"output_tokens":10,"input_tokens_details":{"image_tokens":12,"text_tokens":3}}});
+        let wire = format!("event: {kind}\ndata: {value}\n\n");
+        for chunk in wire.as_bytes().chunks(7) {
+            observer.observe(UsageFrame::HttpChunk(chunk)).unwrap();
+        }
+        let usage = observer.finish(UsageStreamEnd::Complete).unwrap().unwrap();
+        assert_eq!(usage.tokens.input_tokens, Some(15));
+        assert_eq!(usage.tokens.output_tokens, Some(10));
+        assert_eq!(usage.metrics["image_outputs"], 1.into());
+        assert_eq!(usage.metrics["image_input_tokens"], 12.into());
+        assert_eq!(usage.dimensions["quality"], "high");
+    }
+}

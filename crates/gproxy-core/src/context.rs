@@ -44,12 +44,14 @@ impl SessionIdentity {
 /// identity or policy lookup occurs here. Future execution must select/retry only
 /// within credentials; an empty list means no usable credential, never the whole
 /// provider pool. Every credential must belong to this provider.
+#[derive(Clone)]
 pub struct ExecutionTarget {
     pub provider: Arc<ProviderData>,
     /// None for operations such as listing models that have no selected model.
     pub upstream_model: Option<String>,
     pub credentials: Vec<Arc<CredentialData>>,
 }
+#[derive(Clone)]
 pub struct RequestContext {
     pub request_id: String,
     pub snapshot: Arc<CoreData>,

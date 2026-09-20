@@ -27,6 +27,7 @@ pub mod observe;
 pub mod pricing;
 pub mod publication;
 mod quota;
+pub mod realtime;
 mod refresh;
 pub mod rewrite;
 mod rt;
