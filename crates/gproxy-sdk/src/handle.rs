@@ -109,6 +109,11 @@ impl<C> Gproxy<C> {
     pub fn manage(&self) -> crate::manage::Manage<'_, C> {
         crate::manage::Manage::new(&self.0)
     }
+    /// The credential login flows. Each one ends in a sealed credential row,
+    /// written through the same revision commit a management write uses.
+    pub fn login(&self) -> crate::login::Login<'_, C> {
+        crate::login::Login::new(&self.0)
+    }
     /// Every compiled-in channel as data, ordered by id: what a management UI
     /// renders its provider forms from.
     pub fn channels(&self) -> Vec<ChannelDescriptor> {
