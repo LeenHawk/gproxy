@@ -259,8 +259,9 @@ so a `None` answer (or a core without a builder) is `Unsupported` with no row an
 object behind it. The host serves the link on its own route by calling
 `Core::read_publication(id)`, which returns the metadata and stored bytes for any
 live publication regardless of scope (the route has already authenticated whoever
-holds the link) and `None` once it expired or was released; `Core::delete_publication`
-tombstones it early. The images family checks for the builder before the first
+holds the link) and `None` once it expired, was released, or the object is gone
+from the backend; any other backend failure is `CoreError::File` with the opendal
+error inside. `Core::delete_publication` tombstones it early. The images family checks for the builder before the first
 upstream call, so a host without one never pays for images it cannot deliver.
 
 Every channel call also carries `OperationContext.instance_id`, the identity of this
