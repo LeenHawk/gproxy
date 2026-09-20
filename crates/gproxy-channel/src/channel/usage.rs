@@ -46,6 +46,76 @@ pub struct NormalizedUsage {
     pub completeness: UsageCompleteness,
     /// When present, per-attempt usage replaces aggregate usage for billing.
     pub attempts: Vec<UsageAttempt>,
+    /// Independently identified upstream responses inside a long-lived call.
+    /// Their sum is the aggregate above; the settlement layer may deduplicate
+    /// these across connections before pricing. IDs are upstream identities.
+    pub responses: Vec<ResponseUsage>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResponseUsage {
+    pub id: String,
+    pub usage: Box<NormalizedUsage>,
+}
+
+impl NormalizedUsage {
+    /// Sum reported response quantities. Missing values remain unknown rather
+    /// than becoming invented zeros. Qualifiers survive only when all agree.
+    pub fn aggregate<'a>(values: impl IntoIterator<Item = &'a NormalizedUsage>) -> Self {
+        let mut total = Self {
+            completeness: UsageCompleteness::Complete,
+            ..Default::default()
+        };
+        let mut first = true;
+        fn add(target: &mut Option<u64>, value: Option<u64>) {
+            if let Some(v) = value {
+                *target = Some(target.unwrap_or(0).saturating_add(v));
+            }
+        }
+        for value in values {
+            add(&mut total.tokens.input_tokens, value.tokens.input_tokens);
+            add(&mut total.tokens.output_tokens, value.tokens.output_tokens);
+            add(
+                &mut total.tokens.cached_input_tokens,
+                value.tokens.cached_input_tokens,
+            );
+            add(
+                &mut total.tokens.reasoning_tokens,
+                value.tokens.reasoning_tokens,
+            );
+            add(
+                &mut total.tokens.cache_creation_5m_tokens,
+                value.tokens.cache_creation_5m_tokens,
+            );
+            add(
+                &mut total.tokens.cache_creation_30m_tokens,
+                value.tokens.cache_creation_30m_tokens,
+            );
+            add(
+                &mut total.tokens.cache_creation_1h_tokens,
+                value.tokens.cache_creation_1h_tokens,
+            );
+            for (key, count) in &value.metrics {
+                *total.metrics.entry(key.clone()).or_default() += count;
+            }
+            if first {
+                total.dimensions = value.dimensions.clone();
+                total.actual_service_tier = value.actual_service_tier.clone();
+                first = false;
+            } else {
+                total
+                    .dimensions
+                    .retain(|key, v| value.dimensions.get(key) == Some(v));
+                if total.actual_service_tier != value.actual_service_tier {
+                    total.actual_service_tier = None;
+                }
+            }
+            if value.completeness != UsageCompleteness::Complete {
+                total.completeness = UsageCompleteness::Partial;
+            }
+        }
+        total
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

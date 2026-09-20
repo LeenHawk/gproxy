@@ -20,6 +20,7 @@ pub(crate) struct Funnel {
     sender: Mutex<Option<oneshot::Sender<crate::CoreResult<UsageReport>>>>,
     /// Charges settled usage against Counted dimensions before the report leaves.
     meter: Mutex<Option<Arc<dyn crate::quota::UsageMeter>>>,
+    realtime_dedup: Mutex<Option<crate::realtime::SettlementDedup>>,
 }
 
 impl Funnel {
@@ -37,6 +38,7 @@ impl Funnel {
             finished: AtomicBool::new(false),
             sender: Mutex::new(Some(sender)),
             meter: Mutex::new(None),
+            realtime_dedup: Mutex::new(None),
         });
         let completion: UsageCompletion =
             Box::pin(async move { receiver.await.unwrap_or(Err(crate::CoreError::Cancelled)) });
@@ -45,6 +47,10 @@ impl Funnel {
 
     pub fn set_meter(&self, meter: Arc<dyn crate::quota::UsageMeter>) {
         *self.meter.lock().unwrap() = Some(meter);
+    }
+
+    pub fn set_realtime_dedup(&self, dedup: crate::realtime::SettlementDedup) {
+        *self.realtime_dedup.lock().unwrap() = Some(dedup);
     }
 
     pub fn policy(&self) -> ObservationPolicy {
@@ -89,6 +95,20 @@ impl Funnel {
             },
         };
         if self.policy.usage {
+            let dedup = self.realtime_dedup.lock().unwrap().clone();
+            if let Some(dedup) = dedup
+                && let Err(error) = dedup.filter(&self.request, &mut report).await
+            {
+                // Fail closed on shared-ledger errors: do not charge an
+                // aggregate whose response ownership could not be established.
+                report.exchanges.clear();
+                report.state = UsageState::Failed;
+                self.observer.usage(&report).await;
+                if let Some(sender) = self.sender.lock().unwrap().take() {
+                    let _ = sender.send(Err(error));
+                }
+                return Settled(());
+            }
             // Cost is computed here, once, so the meter's budget settlement
             // and the Observer's record agree on the number.
             crate::pricing::price_report(

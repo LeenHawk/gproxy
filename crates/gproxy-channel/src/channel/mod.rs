@@ -35,9 +35,9 @@ pub use service::{
 };
 pub use state::{ChannelState, NoState};
 pub use usage::{
-    NormalizedUsage, ResponseView, TokenUsage, UsageAttempt, UsageCompleteness, UsageContext,
-    UsageExtractor, UsageFrame, UsageObserver, UsageStream, UsageStreamContext, UsageStreamEnd,
-    UsageTransport,
+    NormalizedUsage, ResponseUsage, ResponseView, TokenUsage, UsageAttempt, UsageCompleteness,
+    UsageContext, UsageExtractor, UsageFrame, UsageObserver, UsageStream, UsageStreamContext,
+    UsageStreamEnd, UsageTransport,
 };
 
 pub use refresh::{CredentialRefresh, CredentialUpdate, RefreshContext};

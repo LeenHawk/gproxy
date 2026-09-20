@@ -90,6 +90,22 @@ pub(crate) async fn run_websocket<C: BatchConnectionTrait + Send + Sync + 'stati
         wire.query = Some(query);
     }
 
+    // Request rules may change the query; validate the final continuation too,
+    // before selecting any credential or emitting an upstream handshake.
+    let request = match core.bind_realtime_continuation(request, &wire).await {
+        Ok(request) => request,
+        Err(error) => {
+            funnel.finish(UsageState::Failed).await;
+            return Err(error);
+        }
+    };
+
+    if operation.operation == gproxy_protocol::Operation::ConnectRealtime {
+        funnel.set_realtime_dedup(crate::realtime::SettlementDedup::new(
+            core.cache().clone(),
+            crate::realtime::call_id(&wire)?,
+        ));
+    }
     let attempts = request.max_attempts.get();
     let mut excluded: HashSet<String> = HashSet::new();
     let mut refreshed: HashSet<String> = HashSet::new();

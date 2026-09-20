@@ -411,7 +411,29 @@ impl PriceRule {
 
     /// The charge of `usage` under this rule, in the rule's currency.
     pub fn cost(&self, usage: &NormalizedUsage) -> Decimal {
-        let quantity = |kind: TokenKind| kind.quantity(usage);
+        let modalities_included = usage
+            .dimensions
+            .get("token_modalities_in_totals")
+            .is_some_and(|v| v == "true");
+        let quantity = |kind: TokenKind| {
+            let amount = kind.quantity(usage);
+            if !modalities_included {
+                return amount;
+            }
+            match kind {
+                TokenKind::AudioInput => {
+                    (amount - TokenKind::CachedAudioInput.quantity(usage)).max(Decimal::ZERO)
+                }
+                TokenKind::ImageInput => (amount
+                    - usage
+                        .metrics
+                        .get("cached_image_input_tokens")
+                        .copied()
+                        .unwrap_or_default())
+                .max(Decimal::ZERO),
+                _ => amount,
+            }
+        };
         let prompt = quantity(TokenKind::Input)
             + quantity(TokenKind::CacheRead)
             + quantity(TokenKind::Cache5m)
@@ -449,6 +471,19 @@ impl PriceRule {
             let mut amount = quantity(kind);
             if kind == TokenKind::Output && reasoning_price.is_some() {
                 amount = (amount - quantity(TokenKind::Reasoning)).max(Decimal::ZERO);
+            }
+            if modalities_included {
+                let subsets: &[TokenKind] = match kind {
+                    TokenKind::Input => &[TokenKind::AudioInput, TokenKind::ImageInput],
+                    TokenKind::Output => &[TokenKind::AudioOutput, TokenKind::ImageOutput],
+                    TokenKind::CacheRead => &[TokenKind::CachedAudioInput],
+                    _ => &[],
+                };
+                for subset in subsets {
+                    if price(*subset).is_some() {
+                        amount = (amount - quantity(*subset)).max(Decimal::ZERO);
+                    }
+                }
             }
             if amount.is_zero() {
                 continue;
@@ -856,5 +891,35 @@ mod tests {
         let rule = book.find("p", "abc", Operation::GenerateContent).unwrap();
         assert_eq!(rule.id, "ok");
         assert_eq!(rule.cost(&usage(1_000_000, 1_000_000)), Decimal::from(3));
+    }
+    #[test]
+    fn modality_subsets_do_not_charge_total_tokens_twice() {
+        let rules = vec![rule("audio", None, "*", 0)];
+        let rates = vec![
+            rate(
+                "in",
+                "audio",
+                metric::INPUT_TOKENS,
+                PriceUnit::Token,
+                "1000000",
+                "1",
+            ),
+            rate(
+                "audio",
+                "audio",
+                metric::AUDIO_INPUT_TOKENS,
+                PriceUnit::Token,
+                "1000000",
+                "10",
+            ),
+        ];
+        let book = PriceBook::compile(&rules, &rates, &[]);
+        let mut usage = usage(100, 0);
+        usage.metrics.insert("audio_input_tokens".into(), 80.into());
+        usage
+            .dimensions
+            .insert("token_modalities_in_totals".into(), "true".into());
+        let cost = book.rules()[0].cost(&usage);
+        assert_eq!(cost, Decimal::new(820, 6));
     }
 }

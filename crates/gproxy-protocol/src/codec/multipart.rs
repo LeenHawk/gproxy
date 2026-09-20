@@ -39,6 +39,7 @@ fn map_error(source: multer::Error) -> CodecError {
         multer::Error::FieldSizeExceeded { .. } | multer::Error::StreamSizeExceeded { .. } => {
             CodecErrorKind::Limit
         }
+        multer::Error::StreamReadFailed(_) => CodecErrorKind::Transport,
         multer::Error::IncompleteStream
         | multer::Error::IncompleteFieldData { .. }
         | multer::Error::IncompleteHeaders => CodecErrorKind::UnexpectedEof,

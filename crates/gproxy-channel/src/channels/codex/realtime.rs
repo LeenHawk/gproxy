@@ -9,8 +9,10 @@ use crate::channel::{
 use futures_util::{FutureExt, StreamExt};
 use gproxy_protocol::{
     HttpBody, Operation, OperationKey, WireResponse,
-    codec::{CodecLimits, MultipartDecoder},
+    capability::{CapabilityError, CapabilityErrorKind, CapabilityErrorStage},
+    codec::{CodecError, CodecErrorKind, CodecLimits, MultipartDecoder},
     connection::Bytes,
+    wire::openai::realtime::RealtimeRoute,
 };
 use http::{HeaderMap, HeaderValue, header};
 use serde_json::{Value, json};
@@ -20,11 +22,19 @@ fn error(error: impl std::fmt::Display) -> ChannelError {
     invalid_config(format!("Codex realtime: {error}"))
 }
 
+fn request_error(cause: impl std::fmt::Display) -> ChannelError {
+    ChannelError::Transport(CapabilityError::new(
+        CapabilityErrorKind::Invalid,
+        CapabilityErrorStage::BodyTransfer,
+        format!("invalid realtime request: {cause}"),
+    ))
+}
+
 fn boundary(headers: &HeaderMap) -> Result<Option<String>, ChannelError> {
     let Some(value) = headers.get(header::CONTENT_TYPE) else {
         return Ok(None);
     };
-    let value = value.to_str().map_err(error)?;
+    let value = value.to_str().map_err(request_error)?;
     let mut parts = value.split(';');
     if !parts
         .next()
@@ -40,17 +50,48 @@ fn boundary(headers: &HeaderMap) -> Result<Option<String>, ChannelError> {
         })
         .filter(|v| !v.is_empty())
         .map(Some)
-        .ok_or_else(|| error("multipart boundary missing"))
+        .ok_or_else(|| request_error("multipart boundary missing"))
 }
 
-fn backend(provider: crate::channel::ProviderView<'_>, endpoint: Option<&str>) -> bool {
-    endpoint
-        .unwrap_or_else(|| provider.base_url.unwrap_or(super::DEFAULT_BASE_URL))
-        .contains("/backend-api")
+fn backend(
+    provider: crate::channel::ProviderView<'_>,
+    endpoint: Option<&str>,
+) -> Result<bool, ChannelError> {
+    let url = Url::parse(
+        endpoint.unwrap_or_else(|| provider.base_url.unwrap_or(super::DEFAULT_BASE_URL)),
+    )
+    .map_err(error)?;
+    let path = url.path();
+    Ok(path == "/backend-api" || path.starts_with("/backend-api/"))
+}
+
+fn codec_error(cause: CodecError) -> ChannelError {
+    let kind = match cause.kind() {
+        CodecErrorKind::Transport => CapabilityErrorKind::Transport,
+        CodecErrorKind::Limit => CapabilityErrorKind::Limit,
+        _ => CapabilityErrorKind::Invalid,
+    };
+    ChannelError::Transport(CapabilityError::with_source(
+        kind,
+        CapabilityErrorStage::BodyTransfer,
+        "realtime multipart decoding failed",
+        cause,
+    ))
+}
+fn body_error(cause: gproxy_protocol::connection::TransportError) -> ChannelError {
+    match cause.downcast::<CodecError>() {
+        Ok(cause) => codec_error(*cause),
+        Err(cause) => ChannelError::Transport(CapabilityError::with_source(
+            CapabilityErrorKind::Transport,
+            CapabilityErrorStage::BodyTransfer,
+            "realtime body read failed",
+            cause,
+        )),
+    }
 }
 
 pub(super) fn prepare_buffered(ctx: &mut PrepareContext<'_>) -> Result<(), ChannelError> {
-    if !backend(ctx.provider, ctx.endpoint_override) {
+    if !backend(ctx.provider, ctx.endpoint_override)? {
         return Ok(());
     }
     if let HttpBody::Bytes(bytes) = &ctx.request.body
@@ -77,7 +118,7 @@ pub(super) async fn create_call(
     channel: &Codex,
     mut ctx: OperationContext<'_>,
 ) -> Result<WireResponse, ChannelError> {
-    if backend(ctx.provider, ctx.endpoint_override)
+    if backend(ctx.provider, ctx.endpoint_override)?
         && let Some(boundary) = boundary(&ctx.request.headers)?
     {
         ctx.request.body = HttpBody::Bytes(multipart(ctx.request.body, boundary).await?);
@@ -110,9 +151,9 @@ async fn multipart(body: HttpBody, boundary: String) -> Result<Bytes, ChannelErr
             max_parts: 32,
         },
     )
-    .map_err(error)?;
+    .map_err(codec_error)?;
     let mut output = serde_json::Map::new();
-    while let Some(part) = decoder.next_part().await.map_err(error)? {
+    while let Some(part) = decoder.next_part().await.map_err(codec_error)? {
         let name = part
             .headers
             .get(header::CONTENT_DISPOSITION)
@@ -124,29 +165,29 @@ async fn multipart(body: HttpBody, boundary: String) -> Result<Bytes, ChannelErr
                         .then(|| value.trim().trim_matches('"').to_owned())
                 })
             })
-            .ok_or_else(|| error("multipart field name missing"))?;
+            .ok_or_else(|| request_error("multipart field name missing"))?;
         let bytes = match part.body {
             HttpBody::Bytes(bytes) => bytes.to_vec(),
             HttpBody::Stream(mut stream) => {
                 let mut bytes = Vec::new();
                 while let Some(chunk) = stream.next().await {
-                    bytes.extend_from_slice(&chunk.map_err(error)?);
+                    bytes.extend_from_slice(&chunk.map_err(body_error)?);
                 }
                 bytes
             }
         };
         let value = if name == "session" {
-            serde_json::from_slice::<Value>(&bytes).map_err(error)?
+            serde_json::from_slice::<Value>(&bytes).map_err(request_error)?
         } else {
-            json!(String::from_utf8(bytes).map_err(error)?)
+            json!(String::from_utf8(bytes).map_err(request_error)?)
         };
         output.insert(name, value);
     }
     if !output.get("sdp").is_some_and(Value::is_string) {
-        return Err(error("multipart sdp missing"));
+        return Err(request_error("multipart sdp missing"));
     }
     if output.get("session").is_some_and(|s| !s.is_object()) {
-        return Err(error("session must be an object"));
+        return Err(request_error("session must be an object"));
     }
     serde_json::to_vec(&output).map(Bytes::from).map_err(error)
 }
@@ -157,28 +198,45 @@ pub(super) fn prepare_connect(
     let config = CodexConfig::from_view(ctx.provider)?;
     // Realtime uses the API host even with a ChatGPT credential. Existing-call
     // sidebands use that same credential; the host must bind call continuations.
-    let live_path = ctx.request.path.trim_end_matches('/');
-    let segments: Vec<_> = live_path.split('/').collect();
-    let live = segments.iter().rposition(|p| *p == "live");
+    let route = RealtimeRoute::from_path(&ctx.request.path);
+    let live = match route {
+        Some(RealtimeRoute::Live { call_id }) => Some(call_id),
+        _ => None,
+    };
     let mut url = Url::parse(
         ctx.endpoint_override
             .unwrap_or("https://api.openai.com/v1/realtime"),
     )
     .map_err(error)?;
-    if ctx.endpoint_override.is_none()
-        && let Some(index) = live
-    {
-        url.set_path("/v1/live");
-        if let Some(id) = segments.get(index + 1) {
-            if index + 2 != segments.len() || matches!(*id, "." | ".." | "") {
-                return Err(error("invalid live call path"));
-            }
-            // The incoming path segment is already percent-encoded.
-            url.set_path(&format!("/v1/live/{id}"));
-            if !url.path().starts_with("/v1/live/") {
+    if let Some(call_id) = live {
+        if ctx.endpoint_override.is_none() {
+            url.set_path("/v1/live");
+        }
+        if let Some(id) = call_id {
+            let id_path = format!("{}/{id}", url.path().trim_end_matches('/'));
+            // The host supplied an encoded path segment, not a URL.
+            let prefix = format!("{}/", url.path().trim_end_matches('/'));
+            url.set_path(&id_path);
+            if !url.path().starts_with(&prefix) {
                 return Err(error("invalid live call path"));
             }
         }
+    }
+    let configured_call = url
+        .query_pairs()
+        .find(|(key, _)| key == "call_id")
+        .map(|(_, v)| v.into_owned());
+    let requested_call = ctx.request.query.as_deref().and_then(|query| {
+        url::form_urlencoded::parse(query.as_bytes())
+            .find(|(key, _)| key == "call_id")
+            .map(|(_, v)| v.into_owned())
+    });
+    if configured_call
+        .as_ref()
+        .zip(requested_call.as_ref())
+        .is_some_and(|(a, b)| a != b)
+    {
+        return Err(error("endpoint call_id conflicts with the request"));
     }
     if let Some(query) = &ctx.request.query {
         url.query_pairs_mut()
