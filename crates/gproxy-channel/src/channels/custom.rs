@@ -11,6 +11,7 @@
 use crate::channel::{
     BaseChannel, ChannelError, HeaderAllowlist, PrepareContext, ProviderView, forwardable,
 };
+use crate::channels::shared::cache;
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireFamily, WireRequest};
 use http::{HeaderName, HeaderValue, header};
 use serde::Deserialize;
@@ -33,6 +34,14 @@ pub struct CustomConfig {
     pub auth_prefix: Option<String>,
     /// Static headers added to every upstream request.
     pub headers: std::collections::BTreeMap<String, String>,
+    /// Place `cache_control` where a client embeds a magic cache string in
+    /// a Claude-dialect body (`channels::shared::cache`). Off by default;
+    /// the strings are stripped either way.
+    pub enable_claude_magic_cache: bool,
+    /// Place `prompt_cache_breakpoint` where a client embeds a magic cache
+    /// string in an OpenAI Chat or Responses body. Off by default; the
+    /// strings are stripped either way.
+    pub enable_openai_magic_cache: bool,
 }
 
 impl CustomConfig {
@@ -154,10 +163,22 @@ impl BaseChannel for Custom {
         }
     }
 
+    /// Buffered JSON bodies are shaped for the magic cache strings by the
+    /// operation's native dialect; a streamed request body passes through.
     fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+        let config = CustomConfig::from_view(ctx.provider)?;
+        let rules = cache::rules_for(
+            ctx.operation.dialect,
+            config.enable_claude_magic_cache,
+            config.enable_openai_magic_cache,
+        );
         let (builder, request) = self.build(ctx)?;
+        let body = match request.body {
+            HttpBody::Bytes(bytes) => HttpBody::Bytes(cache::shape(bytes, rules)),
+            other => other,
+        };
         builder
-            .body(request.body)
+            .body(body)
             .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
     }
 

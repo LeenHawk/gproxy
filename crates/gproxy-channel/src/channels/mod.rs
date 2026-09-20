@@ -9,5 +9,10 @@ pub mod claudeweb;
 pub mod codex;
 #[cfg(feature = "custom")]
 pub mod custom;
-#[cfg(any(feature = "codex", feature = "claudecode"))]
-mod services_common;
+#[cfg(any(
+    feature = "codex",
+    feature = "claudecode",
+    feature = "claudeweb",
+    feature = "custom"
+))]
+mod shared;

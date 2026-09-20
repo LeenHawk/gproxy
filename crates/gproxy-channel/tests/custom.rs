@@ -258,3 +258,84 @@ fn allowed_headers_restricts_forwarding_to_the_named_set() {
         Err(ChannelError::InvalidConfig(_))
     ));
 }
+
+// ----------------------------------------------------------- magic cache
+
+const MAGIC_AUTO: &str =
+    "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH";
+const MAGIC_5M: &str =
+    "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_49VA1S5V19GR4G89W2V695G9W9GV52W95V198WV5W2FC9DF";
+const MAGIC_PREFIX: &str = "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_";
+
+#[test]
+fn magic_cache_strings_follow_the_operation_dialect() {
+    let secret = json!({"api_key": "sk-upstream"});
+    let shaped = |config: &Value, dialect: Dialect, body: &[u8]| -> Vec<u8> {
+        let mut request = request("/v1/x", None);
+        request.body = HttpBody::Bytes(Bytes::copy_from_slice(body));
+        let prepared = prepare(
+            config,
+            Some("https://api.example"),
+            &secret,
+            dialect,
+            request,
+            None,
+        )
+        .unwrap();
+        let HttpBody::Bytes(bytes) = prepared.into_body() else {
+            panic!("buffered");
+        };
+        bytes.to_vec()
+    };
+    let enabled = json!({"enable_claude_magic_cache": true, "enable_openai_magic_cache": true});
+    let disabled = json!({});
+    let parse = |bytes: Vec<u8>| serde_json::from_slice::<Value>(&bytes).unwrap();
+
+    let claude = format!(r#"{{"messages":[{{"role":"user","content":"ctx {MAGIC_5M}"}}]}}"#);
+    assert_eq!(
+        parse(shaped(&enabled, Dialect::Claude, claude.as_bytes()))["messages"][0]["content"],
+        json!([{"type": "text", "text": "ctx", "cache_control": {"type": "ephemeral", "ttl": "5m"}}])
+    );
+    let chat = format!(
+        r#"{{"messages":[{{"role":"user","content":"ctx {MAGIC_AUTO}"}},{{"role":"user","content":[{{"type":"text","text":"pinned","prompt_cache_breakpoint":{{"mode":"explicit"}}}}]}}]}}"#
+    );
+    assert_eq!(
+        parse(shaped(&enabled, Dialect::OpenAiChat, chat.as_bytes()))["messages"][0]["content"],
+        json!([{"type": "text", "text": "ctx ", "prompt_cache_breakpoint": {"mode": "explicit"}}])
+    );
+    let responses = format!(r#"{{"input":"ctx {MAGIC_AUTO}"}}"#);
+    assert_eq!(
+        parse(shaped(&enabled, Dialect::OpenAi, responses.as_bytes()))["input"],
+        json!([{"type": "message", "role": "user", "content": [
+            {"type": "input_text", "text": "ctx ", "prompt_cache_breakpoint": {"mode": "explicit"}}
+        ]}])
+    );
+    let gemini = format!(r#"{{"contents":[{{"parts":[{{"text":"ctx {MAGIC_AUTO}"}}]}}]}}"#);
+    assert_eq!(
+        parse(shaped(&enabled, Dialect::Gemini, gemini.as_bytes())),
+        json!({"contents": [{"parts": [{"text": "ctx "}]}]}),
+        "Gemini has no breakpoint; the token is only stripped"
+    );
+
+    let bytes = shaped(&disabled, Dialect::OpenAiChat, chat.as_bytes());
+    assert!(!String::from_utf8_lossy(&bytes).contains(MAGIC_PREFIX));
+    assert_eq!(
+        bytes,
+        serde_json::to_vec(&json!({"messages": [
+            {"role": "user", "content": "ctx "},
+            {"role": "user", "content": [
+                {"type": "text", "text": "pinned", "prompt_cache_breakpoint": {"mode": "explicit"}}
+            ]}
+        ]}))
+        .unwrap(),
+        "disabled: stripped, the client's breakpoint stays"
+    );
+    assert_eq!(
+        parse(shaped(&disabled, Dialect::Claude, claude.as_bytes())),
+        json!({"messages": [{"role": "user", "content": "ctx "}]}),
+        "disabled: no canonicalization"
+    );
+    let plain = br#"{"input":  "x", "prompt_cache_breakpoint": {"mode": "explicit"}}"#;
+    assert_eq!(shaped(&enabled, Dialect::OpenAi, plain), plain.to_vec());
+    assert_eq!(shaped(&disabled, Dialect::OpenAi, plain), plain.to_vec());
+}

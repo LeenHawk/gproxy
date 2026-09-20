@@ -1262,3 +1262,106 @@ async fn remote_control_is_credential_only() {
     );
     assert_eq!(sent[0].2["authorization"], "Bearer at-1");
 }
+
+// ----------------------------------------------------------- magic cache
+
+const MAGIC_AUTO: &str =
+    "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH";
+const MAGIC_1H: &str =
+    "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_1FAS5GV9R5H29T5Y2J9584K6O95M2NBVW52C95CX984FRJY";
+const MAGIC_PREFIX: &str = "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_";
+
+#[test]
+fn magic_cache_strings_shape_responses_bodies_only_when_enabled() {
+    let secret = secret("at-1");
+    let shaped = |config: &Value, operation: Operation, body: Vec<u8>| -> Vec<u8> {
+        let request = Codex
+            .prepare(PrepareContext {
+                provider: provider(config, None),
+                credential: credential(&secret, &Value::Null),
+                operation: OperationKey {
+                    operation,
+                    dialect: Dialect::OpenAi,
+                },
+                request: WireRequest {
+                    method: Method::POST,
+                    path: "/v1/responses".into(),
+                    query: None,
+                    headers: HeaderMap::new(),
+                    body: HttpBody::Bytes(Bytes::from(body)),
+                },
+                endpoint_override: None,
+            })
+            .unwrap();
+        let HttpBody::Bytes(bytes) = request.into_body() else {
+            panic!("buffered");
+        };
+        bytes.to_vec()
+    };
+    let body = |instruction_token: &str, user_token: &str| {
+        json!({
+            "model": "gpt-5.3-codex",
+            "instructions": format!("rules {instruction_token}"),
+            "input": [
+                {"type": "message", "role": "user", "content": format!("hi {user_token}")},
+                {"type": "message", "role": "user", "content": [
+                    {"type": "input_text", "text": "pinned", "prompt_cache_breakpoint": {"mode": "explicit"}}
+                ]}
+            ]
+        })
+    };
+    let enabled = json!({"enable_openai_magic_cache": true});
+    let disabled = json!({});
+
+    for operation in [
+        Operation::GenerateContent,
+        Operation::StreamGenerateContent,
+        Operation::CompactContent,
+    ] {
+        let bytes = shaped(
+            &enabled,
+            operation,
+            body(MAGIC_1H, MAGIC_AUTO).to_string().into_bytes(),
+        );
+        assert!(!String::from_utf8_lossy(&bytes).contains(MAGIC_PREFIX));
+        let value: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(value["instructions"], "rules ");
+        let input = value["input"].as_array().unwrap();
+        assert_eq!(input.len(), 3, "{operation:?}: anchor prepended");
+        assert_eq!(
+            input[0],
+            json!({"type": "message", "role": "developer", "content": [
+                {"type": "input_text", "text": " ", "prompt_cache_breakpoint": {"mode": "explicit"}}
+            ]})
+        );
+        assert_eq!(
+            input[1]["content"],
+            json!([{"type": "input_text", "text": "hi ", "prompt_cache_breakpoint": {"mode": "explicit"}}])
+        );
+        assert_eq!(input[2], body("", "")["input"][1]);
+    }
+
+    let with_tokens = shaped(
+        &disabled,
+        Operation::GenerateContent,
+        body(MAGIC_1H, MAGIC_AUTO).to_string().into_bytes(),
+    );
+    assert!(!String::from_utf8_lossy(&with_tokens).contains(MAGIC_PREFIX));
+    assert_eq!(
+        with_tokens,
+        serde_json::to_vec(&body("", "")).unwrap(),
+        "disabled: tokens stripped, the client's breakpoint and everything else untouched"
+    );
+    let plain = br#"{"model":"gpt-5.3-codex",  "input":"x"}"#.to_vec();
+    assert_eq!(
+        shaped(&enabled, Operation::GenerateContent, plain.clone()),
+        plain,
+        "no token, no rewrite"
+    );
+    let other = format!(r#"{{"input":"{MAGIC_AUTO}"}}"#).into_bytes();
+    assert_eq!(
+        shaped(&enabled, Operation::SummarizeMemory, other.clone()),
+        other,
+        "only Responses operations are shaped"
+    );
+}

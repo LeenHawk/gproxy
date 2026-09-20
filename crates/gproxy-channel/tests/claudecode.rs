@@ -1760,3 +1760,127 @@ async fn key_minting_is_refused_everywhere_and_other_classes_follow_the_view() {
         .unwrap_err();
     assert!(matches!(error, ChannelError::UnsupportedService));
 }
+
+// ----------------------------------------------------------- magic cache
+
+const MAGIC_AUTO: &str =
+    "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH";
+const MAGIC_5M: &str =
+    "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_49VA1S5V19GR4G89W2V695G9W9GV52W95V198WV5W2FC9DF";
+const MAGIC_1H: &str =
+    "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_1FAS5GV9R5H29T5Y2J9584K6O95M2NBVW52C95CX984FRJY";
+const MAGIC_PREFIX: &str = "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_";
+
+#[test]
+fn magic_cache_strings_place_cache_control_only_when_enabled() {
+    let secret = secret("at-1");
+    let shaped = |config: &Value, operation: Operation, body: Vec<u8>| -> Vec<u8> {
+        let request = Claudecode
+            .prepare(PrepareContext {
+                provider: provider(config, None),
+                credential: credential(&secret, &Value::Null),
+                operation: key(operation),
+                request: WireRequest {
+                    method: Method::POST,
+                    path: "/v1/messages".into(),
+                    query: None,
+                    headers: HeaderMap::new(),
+                    body: HttpBody::Bytes(Bytes::from(body)),
+                },
+                endpoint_override: None,
+            })
+            .unwrap();
+        let HttpBody::Bytes(bytes) = request.into_body() else {
+            panic!("buffered");
+        };
+        bytes.to_vec()
+    };
+    let body = |system_token: &str, user_token: &str| {
+        json!({
+            "model": "claude-sonnet-4-6",
+            "system": format!("policy {system_token}"),
+            "messages": [
+                {"role": "user", "content": [
+                    {"type": "text", "text": "pinned", "cache_control": {"type": "ephemeral"}},
+                    {"type": "text", "text": format!("hello {user_token}")}
+                ]}
+            ]
+        })
+        .to_string()
+        .into_bytes()
+    };
+    let enabled = json!({"enable_claude_magic_cache": true});
+    let disabled = json!({});
+
+    let bytes = shaped(
+        &enabled,
+        Operation::GenerateContent,
+        body(MAGIC_1H, MAGIC_AUTO),
+    );
+    assert!(!String::from_utf8_lossy(&bytes).contains(MAGIC_PREFIX));
+    let value: Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(
+        value["system"][0]["text"]
+            .as_str()
+            .unwrap()
+            .starts_with("x-anthropic-billing-header:")
+    );
+    assert_eq!(
+        value["system"][1],
+        json!({"type": "text", "text": "policy", "cache_control": {"type": "ephemeral", "ttl": "1h"}}),
+        "the string system is canonicalized and marked with the token's ttl"
+    );
+    assert_eq!(
+        value["messages"][0]["content"],
+        json!([
+            {"type": "text", "text": "pinned", "cache_control": {"type": "ephemeral"}},
+            {"type": "text", "text": "hello", "cache_control": {"type": "ephemeral"}}
+        ])
+    );
+
+    let with_tokens = shaped(
+        &disabled,
+        Operation::GenerateContent,
+        body(MAGIC_1H, MAGIC_AUTO),
+    );
+    let without = shaped(&disabled, Operation::GenerateContent, body("", ""));
+    assert!(!String::from_utf8_lossy(&with_tokens).contains(MAGIC_PREFIX));
+    assert_eq!(
+        with_tokens, without,
+        "disabled: tokens stripped, nothing else changes"
+    );
+    let value: Value = serde_json::from_slice(&with_tokens).unwrap();
+    assert_eq!(
+        value["messages"][0]["content"][0]["cache_control"],
+        json!({"type": "ephemeral"}),
+        "the client's own breakpoint stays"
+    );
+    assert!(
+        value["messages"][0]["content"][1]
+            .get("cache_control")
+            .is_none()
+    );
+
+    let count = format!(
+        r#"{{"model":"claude-sonnet-4-6","messages":[{{"role":"user","content":"count {MAGIC_5M}"}}]}}"#
+    );
+    let bytes = shaped(&enabled, Operation::CountTokens, count.clone().into_bytes());
+    let value: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        value["messages"][0]["content"],
+        json!([{"type": "text", "text": "count", "cache_control": {"type": "ephemeral", "ttl": "5m"}}]),
+        "count_tokens bodies take breakpoints too"
+    );
+    let bytes = shaped(&disabled, Operation::CountTokens, count.into_bytes());
+    assert_eq!(
+        serde_json::from_slice::<Value>(&bytes).unwrap(),
+        json!({"model": "claude-sonnet-4-6", "messages": [{"role": "user", "content": "count "}]}),
+        "disabled count_tokens: stripped, not canonicalized"
+    );
+    let plain = br#"{"model":"claude-sonnet-4-6",  "messages":[]}"#.to_vec();
+    assert_eq!(
+        shaped(&enabled, Operation::CountTokens, plain.clone()),
+        plain,
+        "no token, no rewrite, even with magic cache enabled"
+    );
+}

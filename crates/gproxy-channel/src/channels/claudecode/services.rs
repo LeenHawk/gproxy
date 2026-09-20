@@ -31,7 +31,7 @@ use crate::channel::{
     CredentialView, HeaderAllowlist, OperationFuture, ResourceAccess, ServiceClass, ServiceContext,
     ServiceRoute, ServiceTransport,
 };
-use crate::channels::services_common::{
+use crate::channels::shared::services_common::{
     classify, create_bound, json_of, json_response, keyword_filter, keywords, param, read_body,
     stable_id,
 };

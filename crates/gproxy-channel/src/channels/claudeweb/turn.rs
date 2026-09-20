@@ -142,7 +142,10 @@ pub(super) async fn start(
     );
     config.static_headers(&mut headers)?;
     let body = read_body(context.request.body, MAX_REQUEST_BODY).await?;
-    let value = request::parse(&body)?;
+    let mut value = request::parse(&body)?;
+    // claude.ai has no cache control: the magic cache strings are only
+    // stripped so they never reach the prompt.
+    crate::channels::shared::cache::strip_tokens(&mut value);
     let results = request::tool_results(&value);
     let requests = Requests::new(auth, base, &config, headers, context.endpoint_override);
     let scope = format!("{}/{}", context.provider.id, context.credential.id);

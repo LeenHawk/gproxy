@@ -1207,3 +1207,58 @@ async fn a_continuation_held_by_another_instance_is_named_not_expired() {
     );
     assert_eq!(channel.registry().len(), 1, "the connection stays parked");
 }
+
+// ----------------------------------------------------------- magic cache
+
+const MAGIC_AUTO: &str =
+    "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH";
+const MAGIC_5M: &str =
+    "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_49VA1S5V19GR4G89W2V695G9W9GV52W95V198WV5W2FC9DF";
+const MAGIC_1H: &str =
+    "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_1FAS5GV9R5H29T5Y2J9584K6O95M2NBVW52C95CX984FRJY";
+const MAGIC_PREFIX: &str = "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_";
+
+#[tokio::test]
+async fn magic_cache_strings_are_stripped_from_the_prompt() {
+    let config = json!({});
+    let secret = secret();
+    let metadata = json!({});
+    let client = ScriptClient::new(vec![
+        reply(StatusCode::CREATED, json!({"uuid": "ignored"})),
+        reply(StatusCode::OK, json!({})),
+        sse(StatusCode::OK, TEXT_STREAM),
+        reply(StatusCode::NO_CONTENT, json!({})),
+    ]);
+    let state = MemoryState::new();
+    let request = json!({
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 64,
+        "system": [{"type": "text", "text": format!("You are terse.{MAGIC_1H}"), "cache_control": {"type": "ephemeral"}}],
+        "messages": [
+            {"role": "user", "content": format!("{MAGIC_AUTO}hello {MAGIC_5M}")}
+        ]
+    });
+    let response = ClaudeWeb::new()
+        .stream_generate_content(context(
+            provider(&config, Some("https://claude.example/")),
+            credential(&secret, &metadata),
+            client.clone(),
+            state.clone(),
+            HeaderMap::new(),
+            request,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status, StatusCode::OK);
+    drain(response).await;
+    let sent = client.sent();
+    let completion: Value = serde_json::from_slice(&sent[2].3).unwrap();
+    assert_eq!(
+        completion["prompt"].as_str().unwrap(),
+        "You are terse.\n\nHuman: hello"
+    );
+    assert!(
+        !String::from_utf8_lossy(&sent[2].3).contains(MAGIC_PREFIX),
+        "no token reaches claude.ai"
+    );
+}

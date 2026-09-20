@@ -31,7 +31,7 @@ use crate::channel::{
     CredentialView, HeaderAllowlist, OperationFuture, ResourceAccess, ServiceClass, ServiceContext,
     ServiceRoute, ServiceTransport,
 };
-use crate::channels::services_common::{
+use crate::channels::shared::services_common::{
     classify, create_bound, json_response, param, stable_id, unix_now_ms,
 };
 use gproxy_protocol::{HttpBody, WireRequest, WireResponse, capability::UpstreamConnection};
