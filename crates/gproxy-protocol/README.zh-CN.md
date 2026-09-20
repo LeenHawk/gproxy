@@ -195,3 +195,8 @@ assert!("unknown".parse::<Dialect>().is_err());
 ## 许可证
 
 [AGPL-3.0-or-later](https://www.gnu.org/licenses/agpl-3.0.html)。
+
+## 兼容服务的模型元数据
+
+OpenAI 模型对象沿用 v3 固定的 GPROXY 模型元数据扩展；兼容服务未提供创建时间或归属时，
+对应字段可以缺省。协议层与 Codex 渠道均不根据 UA 切换模型目录的输出格式。

@@ -31,19 +31,23 @@ pub fn claude_to_openai(
             "OpenAI model timestamps have whole-second precision",
         );
     }
-    report.omitted(
-        "model.display_name",
-        "OpenAI model objects have no display name",
-    );
     common::report_claude_loss(&mut report);
-    Ok(common::converted(
-        common::openai_model(
-            common::openai_model_id(&input.id)?,
-            created,
-            supplement.owned_by.clone(),
-        ),
-        report,
-    ))
+    let mut value = common::openai_model(
+        common::openai_model_id(&input.id)?,
+        created,
+        supplement.owned_by.clone(),
+    );
+    value.display_name = Some(input.display_name);
+    value.context_window = Some(
+        u64::try_from(input.max_input_tokens)
+            .map_err(|_| TransformError::shape("model.max_input_tokens", "negative limit"))?,
+    );
+    value.max_output_tokens = Some(
+        u64::try_from(input.max_tokens)
+            .map_err(|_| TransformError::shape("model.max_tokens", "negative limit"))?,
+    );
+    value.thinking_supported = Some(input.capabilities.thinking.supported);
+    Ok(common::converted(value, report))
 }
 
 pub fn claude_to_gemini(
@@ -119,20 +123,47 @@ pub fn openai_to_claude(
     input: openai_models::Model,
     supplement: &ClaudeModelSupplement,
 ) -> Result<Converted<claude_models::ModelInfo>, TransformError> {
-    let created_at = common::epoch_to_iso(input.created)?;
-    if let Some(supplied) = &supplement.created_at
-        && common::parse_iso(supplied)?.unix_timestamp_nanos()
-            != input.created as i128 * 1_000_000_000
-    {
-        return Err(TransformError::new(
-            crate::transform::TransformErrorKind::Conflict,
-            "model.created_at",
-            "source and supplied metadata disagree",
-        ));
-    }
-    let display_name = common::require(supplement.display_name.clone(), "model.display_name")?;
-    let max_input_tokens = common::require(supplement.max_input_tokens, "model.max_input_tokens")?;
-    let max_tokens = common::require(supplement.max_tokens, "model.max_tokens")?;
+    let created_at = match input.created {
+        Some(created) => {
+            if let Some(supplied) = &supplement.created_at
+                && common::parse_iso(supplied)?.unix_timestamp_nanos()
+                    != created as i128 * 1_000_000_000
+            {
+                return Err(TransformError::new(
+                    crate::transform::TransformErrorKind::Conflict,
+                    "model.created_at",
+                    "source and supplied metadata disagree",
+                ));
+            }
+            common::epoch_to_iso(created)?
+        }
+        None => {
+            let supplied = common::require(supplement.created_at.clone(), "model.created_at")?;
+            common::parse_iso(&supplied)?;
+            supplied
+        }
+    };
+    let display_name = common::choose(
+        input.display_name.clone(),
+        supplement.display_name.clone(),
+        "model.display_name",
+    )?;
+    let source_input = input
+        .context_window
+        .map(i64::try_from)
+        .transpose()
+        .map_err(|e| TransformError::shape("model.context_window", e.to_string()))?;
+    let source_output = input
+        .max_output_tokens
+        .map(i64::try_from)
+        .transpose()
+        .map_err(|e| TransformError::shape("model.max_output_tokens", e.to_string()))?;
+    let max_input_tokens = common::choose(
+        source_input,
+        supplement.max_input_tokens,
+        "model.max_input_tokens",
+    )?;
+    let max_tokens = common::choose(source_output, supplement.max_tokens, "model.max_tokens")?;
     let mut report = Report::default();
     common::report_openai_loss(&mut report);
     report.omitted(
@@ -166,12 +197,20 @@ pub fn openai_to_gemini(
         name: common::gemini_name(&input.id)?,
         base_model_id,
         version,
-        display_name: None,
-        description: None,
-        input_token_limit: None,
-        output_token_limit: None,
-        supported_generation_methods: None,
-        thinking: None,
+        display_name: input.display_name,
+        description: input.description,
+        input_token_limit: input
+            .context_window
+            .map(i64::try_from)
+            .transpose()
+            .map_err(|e| TransformError::shape("model.context_window", e.to_string()))?,
+        output_token_limit: input
+            .max_output_tokens
+            .map(i64::try_from)
+            .transpose()
+            .map_err(|e| TransformError::shape("model.max_output_tokens", e.to_string()))?,
+        supported_generation_methods: input.generation_methods,
+        thinking: input.thinking_supported,
         temperature: None,
         max_temperature: None,
         top_p: None,
@@ -191,14 +230,26 @@ pub fn gemini_to_openai(
     }
     let mut report = Report::default();
     common::report_gemini_loss(&mut report);
-    Ok(common::converted(
-        common::openai_model(
-            common::bare_gemini_id(&input.name)?,
-            created,
-            supplement.owned_by.clone(),
-        ),
-        report,
-    ))
+    let mut value = common::openai_model(
+        common::bare_gemini_id(&input.name)?,
+        created,
+        supplement.owned_by.clone(),
+    );
+    value.display_name = input.display_name;
+    value.description = input.description;
+    value.context_window = input
+        .input_token_limit
+        .map(u64::try_from)
+        .transpose()
+        .map_err(|e| TransformError::shape("model.input_token_limit", e.to_string()))?;
+    value.max_output_tokens = input
+        .output_token_limit
+        .map(u64::try_from)
+        .transpose()
+        .map_err(|e| TransformError::shape("model.output_token_limit", e.to_string()))?;
+    value.thinking_supported = input.thinking;
+    value.generation_methods = input.supported_generation_methods;
+    Ok(common::converted(value, report))
 }
 
 pub fn gemini_to_claude(

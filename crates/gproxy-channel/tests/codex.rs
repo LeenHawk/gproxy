@@ -354,12 +354,12 @@ fn prepares_responses_calls_against_the_codex_backend() {
             provider: provider(&config, None),
             credential: credential(&secret, &Value::Null),
             operation: OperationKey {
-                operation: Operation::ListModels,
+                operation: Operation::CreateEmbedding,
                 dialect: Dialect::OpenAi,
             },
             request: WireRequest {
                 method: Method::GET,
-                path: "/v1/models".into(),
+                path: "/v1/embeddings".into(),
                 query: None,
                 headers: HeaderMap::new(),
                 body: HttpBody::Bytes(Bytes::new()),
@@ -2635,4 +2635,114 @@ fn image_sse_usage_observer_handles_split_frames() {
         assert_eq!(usage.metrics["image_input_tokens"], 12.into());
         assert_eq!(usage.dimensions["quality"], "high");
     }
+}
+
+async fn model_call(
+    operation: Operation,
+    path: &str,
+    query: Option<&str>,
+    headers: HeaderMap,
+    reply: WireResponse,
+) -> (WireResponse, Vec<Sent>) {
+    let config = json!({});
+    let secret = secret("at");
+    let client = Arc::new(ScriptClient::new(vec![reply]));
+    let ctx = OperationContext {
+        provider: provider(&config, None),
+        credential: credential(&secret, &Value::Null),
+        dialect: Dialect::OpenAi,
+        request: WireRequest {
+            method: Method::GET,
+            path: path.into(),
+            query: query.map(str::to_owned),
+            headers,
+            body: HttpBody::Bytes(Bytes::new()),
+        },
+        client: client.clone(),
+        state: Arc::new(MemoryState::default()),
+        instance_id: Arc::from("i"),
+        endpoint_override: None,
+    };
+    let response = if operation == Operation::ListModels {
+        Codex.list_models(ctx).await.unwrap()
+    } else {
+        Codex.get_model(ctx).await.unwrap()
+    };
+    (response, client.sent())
+}
+#[tokio::test]
+async fn model_catalog_is_standard_for_every_user_agent_and_keeps_v3_extensions() {
+    let catalog = json!({"models":[{"slug":"gpt-6-astra","display_name":"Astra","base_instructions":"rules","context_window":272000,"max_context_window":872000,
+        "supported_reasoning_levels":["high",{"effort":"xhigh","description":"More reasoning"}],"service_tiers":[{"id":"priority","name":"Fast","description":"Fast tier"}],"future_metadata":{"value":1}}],"future_catalog":true});
+    for cli in [false, true] {
+        let mut headers = HeaderMap::new();
+        if cli {
+            headers.insert(
+                "user-agent",
+                HeaderValue::from_static("codex_cli_rs/0.155.1"),
+            );
+        }
+        let (response, sent) = model_call(
+            Operation::ListModels,
+            "/v1/models",
+            None,
+            headers,
+            reply(StatusCode::OK, catalog.clone()),
+        )
+        .await;
+        assert!(
+            sent[0]
+                .1
+                .ends_with(&format!("/models?client_version={CLI_VERSION}"))
+        );
+        let value = body_json(response).await;
+        assert_eq!(value["object"], "list");
+        assert!(value.get("models").is_none());
+        assert_eq!(value["future_catalog"], true);
+        let model = &value["data"][0];
+        assert_eq!(model["id"], "gpt-6-astra");
+        assert_eq!(model["instructions"], "rules");
+        assert_eq!(model["context_window"], 872000);
+        assert_eq!(model["max_context_window"], 872000);
+        assert_eq!(
+            model["supported_reasoning_levels"][0],
+            json!({"effort":"high","description":""})
+        );
+        assert_eq!(model["future_metadata"], json!({"value":1}));
+        assert!(model.get("created").is_none());
+        assert!(model.get("owned_by").is_none());
+    }
+}
+#[tokio::test]
+async fn model_lookup_selects_exact_id_and_preserves_errors_and_client_version() {
+    let catalog = json!({"models":[{"slug":"wrong"},{"slug":"vendor/model+v1"}]});
+    let (response, sent) = model_call(
+        Operation::GetModel,
+        "/v1/models/vendor%2Fmodel+v1",
+        Some("client_version=9.9.9&extra=1"),
+        HeaderMap::new(),
+        reply(StatusCode::OK, catalog.clone()),
+    )
+    .await;
+    assert!(sent[0].1.ends_with("/models?client_version=9.9.9&extra=1"));
+    assert_eq!(body_json(response).await["id"], "vendor/model+v1");
+    let (response, _) = model_call(
+        Operation::GetModel,
+        "/v1/models/missing",
+        None,
+        HeaderMap::new(),
+        reply(StatusCode::OK, catalog),
+    )
+    .await;
+    assert_eq!(response.status, StatusCode::NOT_FOUND);
+    let (response, _) = model_call(
+        Operation::ListModels,
+        "/v1/models",
+        None,
+        HeaderMap::new(),
+        reply(StatusCode::FORBIDDEN, json!({"error":"denied"})),
+    )
+    .await;
+    assert_eq!(response.status, StatusCode::FORBIDDEN);
+    assert_eq!(body_json(response).await, json!({"error":"denied"}));
 }

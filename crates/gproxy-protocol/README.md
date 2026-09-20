@@ -213,3 +213,9 @@ may require updates to your matches when upgrading.
 ## License
 
 [AGPL-3.0-or-later](https://www.gnu.org/licenses/agpl-3.0.html).
+
+## Compatible-provider model metadata
+
+OpenAI model objects expose the fixed v3 GPROXY model metadata extensions; creation time
+and ownership may be absent for compatible catalogs. No UA-dependent catalog projection
+is performed by the protocol or Codex channel.
