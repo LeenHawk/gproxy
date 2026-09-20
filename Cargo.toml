@@ -99,7 +99,7 @@ time = { version = "0.3", features = ["parsing"] }
 tiktoken-rs = "0.12"
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = { version = "0.7", default-features = false, features = ["rt"] }
-tokio-tungstenite = { version = "0.29", default-features = false, features = ["handshake"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
 tokio-postgres = "0.7"
 tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
 tokio-rusqlite = { version = "0.7", features = ["bundled"] }
@@ -109,7 +109,7 @@ url = "2"
 ts-rs = { version = "12", features = ["serde-json-impl"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-wasm-streams = "0.6"
+wasm-streams = "0.7"
 web-sys = "0.3"
 web-time = "1"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_Packaging_Appx"] }
