@@ -23,14 +23,14 @@ pub use services::{
 use crate::OutboundClient;
 use crate::channel::{
     AuthorizationCode, AuthorizationRequest, AuthorizationStart, BaseChannel, ChannelError,
-    ChannelServices, CredentialContext, CredentialRefresh, CredentialUpdate, CredentialView,
-    DeviceAuthorization, DevicePoll, HeaderAllowlist, LoginContext, NormalizedUsage,
-    OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode, OperationFuture, PrepareContext,
-    ProviderView, QuotaAllowance, QuotaBalance, QuotaDimension, QuotaEntry, QuotaHeaderContext,
-    QuotaHeaders, QuotaMetric, QuotaModel, QuotaQuery, QuotaResetBehavior, QuotaScope,
-    QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow, RefreshContext,
-    ResponseView, UsageCompleteness, UsageContext, UsageExtractor, UsageFrame, UsageObserver,
-    UsageStream, UsageStreamContext, UsageStreamEnd, UsageTransport, forwardable,
+    ChannelHeaders, ChannelServices, CredentialContext, CredentialRefresh, CredentialUpdate,
+    CredentialView, DeviceAuthorization, DevicePoll, HeaderAllowlist, LoginContext,
+    NormalizedUsage, OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode, OperationFuture,
+    PrepareContext, ProviderView, QuotaAllowance, QuotaBalance, QuotaDimension, QuotaEntry,
+    QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel, QuotaQuery, QuotaResetBehavior,
+    QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
+    RefreshContext, ResponseView, UsageCompleteness, UsageContext, UsageExtractor, UsageFrame,
+    UsageObserver, UsageStream, UsageStreamContext, UsageStreamEnd, UsageTransport, forwardable,
 };
 use crate::channels::shared::cache;
 use base64::Engine;
@@ -197,6 +197,24 @@ fn plan_type(credential: &CredentialView<'_>) -> Option<String> {
         .map(str::to_owned)
 }
 
+/// What the Codex CLI itself sends alongside a Responses call (session and
+/// thread ids, turn metadata and sticky routing state, subagent role,
+/// request id, CLI version, attestation). A provider allow-list never strips
+/// these; it only narrows what other clients may add.
+pub const CLI_HEADERS: ChannelHeaders = ChannelHeaders {
+    names: &[
+        "accept",
+        "session-id",
+        "thread-id",
+        "version",
+        "x-client-request-id",
+        "x-openai-subagent",
+        "x-oai-attestation",
+        "x-openai-fedramp",
+    ],
+    prefixes: &["x-codex-"],
+};
+
 /// Headers every backend call carries: bearer token, account, originator,
 /// static config headers. Source authentication and the channel's own
 /// identity headers are never forwarded; `config.allowed_headers` narrows
@@ -289,7 +307,7 @@ impl Codex {
             Some(q) => format!("{url}?{q}"),
             None => url,
         };
-        let allowlist = HeaderAllowlist::from_view(ctx.provider)?;
+        let allowlist = HeaderAllowlist::from_view_for(ctx.provider, CLI_HEADERS)?;
         let mut headers = backend_headers(
             &config,
             &account,

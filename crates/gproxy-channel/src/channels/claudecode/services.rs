@@ -549,7 +549,7 @@ fn forward(
 ) -> Result<http::Request<HttpBody>, ChannelError> {
     let config = ClaudecodeConfig::from_view(account.provider)?;
     let identity = super::account(&account.credential)?;
-    let allowlist = HeaderAllowlist::from_view(account.provider)?;
+    let allowlist = HeaderAllowlist::from_view_for(account.provider, super::CLI_HEADERS)?;
     let headers = service_headers(
         &config,
         identity.access_token,

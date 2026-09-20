@@ -526,7 +526,7 @@ fn forward<B>(
     let identity = super::account(&account.credential)?;
     let (_, backend) = base_urls(account.provider);
     let path = canonical_path(&request.path).ok_or(ChannelError::UnsupportedService)?;
-    let allowlist = HeaderAllowlist::from_view(account.provider)?;
+    let allowlist = HeaderAllowlist::from_view_for(account.provider, super::CLI_HEADERS)?;
     let headers = backend_headers(
         &config,
         &identity,
