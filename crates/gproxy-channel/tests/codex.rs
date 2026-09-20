@@ -1448,16 +1448,20 @@ fn magic_cache_strings_shape_responses_bodies_only_when_enabled() {
         body(MAGIC_1H, MAGIC_AUTO).to_string().into_bytes(),
     );
     assert!(!String::from_utf8_lossy(&with_tokens).contains(MAGIC_PREFIX));
+    let mut expected = body("", "");
+    expected["stream"] = json!(true);
+    expected["store"] = json!(false);
     assert_eq!(
-        with_tokens,
-        serde_json::to_vec(&body("", "")).unwrap(),
-        "disabled: tokens stripped, the client's breakpoint and everything else untouched"
+        serde_json::from_slice::<Value>(&with_tokens).unwrap(),
+        expected,
+        "disabled magic cache preserves client breakpoints while backend shaping still applies"
     );
     let plain = br#"{"model":"gpt-5.3-codex",  "input":"x"}"#.to_vec();
     assert_eq!(
-        shaped(&enabled, Operation::GenerateContent, plain.clone()),
-        plain,
-        "no token, no rewrite"
+        serde_json::from_slice::<Value>(&shaped(&enabled, Operation::GenerateContent, plain))
+            .unwrap(),
+        json!({"model":"gpt-5.3-codex","stream":true,"store":false,"input":[{"type":"message","role":"user","content":"x"}]}),
+        "backend shaping is independent of magic cache markers"
     );
     let other = format!(r#"{{"input":"{MAGIC_AUTO}"}}"#).into_bytes();
     assert_eq!(
@@ -1641,7 +1645,7 @@ async fn converted_bodies_get_the_cli_session_window_and_turn_identity() {
             "conv-1",
             json!([
                 user("first prompt"),
-                {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "done"}]},
+                {"type": "message", "role": "assistant", "content": "done"},
                 {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "second prompt"}]}
             ]),
         ),
@@ -1909,5 +1913,181 @@ async fn identity_synthesis_can_be_switched_off() {
     assert!(
         state.entries.lock().unwrap().is_empty(),
         "nothing remembered"
+    );
+}
+
+fn prepared_body(config: Value, operation: Operation, body: Value) -> Value {
+    let request = prepare_body_bytes(
+        config,
+        operation,
+        HeaderMap::new(),
+        Bytes::from(body.to_string()),
+    );
+    let HttpBody::Bytes(bytes) = request.into_body() else {
+        panic!("buffered")
+    };
+    serde_json::from_slice(&bytes).unwrap()
+}
+
+fn prepare_body_bytes(
+    config: Value,
+    operation: Operation,
+    headers: HeaderMap,
+    body: Bytes,
+) -> http::Request<HttpBody> {
+    Codex
+        .prepare(PrepareContext {
+            provider: provider(&config, None),
+            credential: credential(&secret("at"), &Value::Null),
+            operation: OperationKey {
+                operation,
+                dialect: Dialect::OpenAi,
+            },
+            request: WireRequest {
+                method: Method::POST,
+                path: "/ignored".into(),
+                query: None,
+                headers,
+                body: HttpBody::Bytes(body),
+            },
+            endpoint_override: None,
+        })
+        .unwrap()
+}
+
+#[test]
+fn shapes_converted_responses_and_avoids_cli_tool_name_collisions() {
+    let input = json!({
+        "model":"gpt-5.4", "instructions":"first", "stream":false, "store":true,
+        "max_output_tokens":100, "metadata":{}, "prompt_cache_options":{"mode":"implicit"},
+        "temperature":1,"top_p":1,"top_logprobs":2,"safety_identifier":"x","truncation":"auto",
+        "input":[
+            {"role":"system","content":"policy"},
+            {"type":"reasoning","id":"r1","summary":[],"status":"completed","future_item":1},
+            {"type":"shell_call","id":"shell_old","call_id":"call_old","action":{"commands":["pwd"]}},
+            {"type":"local_shell_call_output","id":"out1","call_id":"call-real","output":"ok","status":"completed"}
+        ],
+        "tools":[
+            {"type":"function","name":"shell_command","strict":false,"parameters":{"type":"object"}},
+            {"type":"shell"}, {"type":"apply_patch"}, {"type":"tool_search","execution":"client"}
+        ], "tool_choice":{"type":"shell"}, "future_request":true
+    });
+    let value = prepared_body(json!({}), Operation::StreamGenerateContent, input);
+    assert_eq!(value["stream"], true);
+    assert_eq!(value["store"], false);
+    for field in [
+        "max_output_tokens",
+        "metadata",
+        "prompt_cache_options",
+        "temperature",
+        "top_p",
+        "top_logprobs",
+        "safety_identifier",
+        "truncation",
+    ] {
+        assert!(value.get(field).is_none(), "{field}");
+    }
+    assert_eq!(value["instructions"], "first\npolicy");
+    assert!(value["input"][0].get("status").is_none());
+    assert_eq!(value["input"][0]["future_item"], 1);
+    assert_eq!(value["input"][1]["type"], "function_call");
+    assert_eq!(value["input"][1]["name"], "shell_command_1");
+    assert!(value["input"][1]["id"].as_str().unwrap().starts_with("fc_"));
+    assert_eq!(value["input"][1]["call_id"], "call_old");
+    assert_eq!(value["input"][2]["call_id"], "call-real");
+    assert_eq!(value["tools"][0]["name"], "shell_command");
+    assert_eq!(value["tools"][1]["name"], "shell_command_1");
+    assert_eq!(value["tools"][2]["type"], "custom");
+    assert!(value["tools"][3].get("parameters").is_some());
+    assert_eq!(
+        value["tool_choice"],
+        json!({"type":"function","name":"shell_command_1"})
+    );
+    assert_eq!(value["future_request"], true);
+    let text = prepared_body(
+        json!({}),
+        Operation::GenerateContent,
+        json!({"input":"hello"}),
+    );
+    assert_eq!(
+        text["input"],
+        json!([{"type":"message","role":"user","content":"hello"}])
+    );
+}
+
+#[test]
+fn cli_shaped_requests_and_client_managed_sessions_are_identity_transforms() {
+    let cli = json!({"model":"gpt-5.4","stream":true,"store":false,"instructions":"policy",
+        "input":[{"role":"user","content":"hello"}],
+        "tools":[{"type":"function","name":"shell_command","parameters":{"type":"object"},"strict":false}],
+        "include":["reasoning.encrypted_content"]});
+    assert_eq!(
+        prepared_body(json!({}), Operation::StreamGenerateContent, cli.clone()),
+        cli
+    );
+    let mut headers = HeaderMap::new();
+    headers.insert("x-codex-turn-metadata", HeaderValue::from_static("{}"));
+    let bytes =
+        Bytes::from_static(br#"{"future_cli_field": true, "tools":[{"type":"future_tool"}]}"#);
+    let request = prepare_body_bytes(
+        json!({}),
+        Operation::StreamGenerateContent,
+        headers,
+        bytes.clone(),
+    );
+    let HttpBody::Bytes(actual) = request.into_body() else {
+        panic!("buffered")
+    };
+    assert_eq!(actual, bytes);
+}
+
+#[test]
+fn codex_image_endpoints_shape_json_and_binary_multipart() {
+    for operation in [Operation::CreateImage, Operation::EditImage] {
+        assert_eq!(
+            Codex.native_dialects(provider(&json!({}), None), operation),
+            vec![Dialect::OpenAi]
+        );
+    }
+    let create = prepare_body_bytes(json!({}), Operation::CreateImage, HeaderMap::new(), Bytes::from(json!({
+        "model":"gpt-image-1","prompt":"draw","moderation":"low","future_image_option":{"x":1}
+    }).to_string()));
+    assert!(create.uri().path().ends_with("/images/generations"));
+    assert_eq!(create.headers()["content-type"], "application/json");
+    let HttpBody::Bytes(bytes) = create.into_body() else {
+        panic!("buffered")
+    };
+    let value: Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(value.get("moderation").is_none());
+    assert_eq!(value["future_image_option"]["x"], 1);
+    let edited = prepared_body(
+        json!({}),
+        Operation::EditImage,
+        json!({"model":"gpt-image-1","prompt":"edit","images":[{"image_url":"https://example.com/a.png"}],"mask":{"image_url":"mask"},"input_fidelity":"high"}),
+    );
+    assert!(edited.get("mask").is_none());
+    assert!(edited.get("input_fidelity").is_none());
+    let image = b"\x89PNG\0\xff--edge-not-a-boundary\r\n";
+    let mut body = b"--edge\r\nContent-Disposition: form-data; name=\"prompt\"\r\n\r\nedit\r\n--edge\r\nContent-Disposition: form-data; name=\"image[]\"; filename=\"x.png\"\r\nContent-Type: image/png\r\n\r\n".to_vec();
+    body.extend_from_slice(image);
+    body.extend_from_slice(b"\r\n--edge--\r\n");
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "content-type",
+        HeaderValue::from_static("multipart/form-data; boundary=\"edge\""),
+    );
+    let edit = prepare_body_bytes(json!({}), Operation::EditImage, headers, Bytes::from(body));
+    assert!(edit.uri().path().ends_with("/images/edits"));
+    assert_eq!(edit.headers()["content-type"], "application/json");
+    let HttpBody::Bytes(bytes) = edit.into_body() else {
+        panic!("buffered")
+    };
+    let value: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        value["images"][0]["image_url"],
+        format!(
+            "data:image/png;base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(image)
+        )
     );
 }
