@@ -4,7 +4,7 @@ mod native {
 
     use moka::future::Cache;
 
-    use crate::{Client, ConnectionConfig, Error};
+    use crate::{Client, ConnectionConfig, Error, OutboundClient};
 
     /// A bounded cache of clients, each owning its backend's connection pool.
     /// Concurrent misses for the same parameters coalesce into one construction.
@@ -12,6 +12,9 @@ mod native {
     #[derive(Clone)]
     pub struct ClientPool {
         cache: Cache<ClientKey, Arc<Client>>,
+        /// When set, every profile resolves to this transport and nothing is
+        /// built or cached. Hosts with their own client, and tests, use it.
+        host: Option<Arc<Client>>,
     }
 
     #[derive(Clone, PartialEq, Eq, Hash)]
@@ -40,7 +43,17 @@ mod native {
                     .max_capacity(max_clients)
                     .time_to_idle(idle_timeout)
                     .build(),
+                host: None,
             })
+        }
+
+        /// One host transport for every profile. Connection profiles, proxies
+        /// and TLS emulation no longer apply: the host already chose all of it.
+        pub fn with_client(client: Arc<dyn OutboundClient>) -> Self {
+            Self {
+                host: Some(Arc::new(Client::Host(client))),
+                ..Self::default()
+            }
         }
 
         /// Requires a Tokio runtime. Configuration IDs/names never participate in lookup.
@@ -65,6 +78,9 @@ mod native {
             config: &ConnectionConfig,
             http1_only: bool,
         ) -> Result<Arc<Client>, Arc<Error>> {
+            if let Some(client) = &self.host {
+                return Ok(client.clone());
+            }
             let key = ClientKey {
                 config: config.clone().normalized().map_err(Arc::new)?,
                 http1_only,

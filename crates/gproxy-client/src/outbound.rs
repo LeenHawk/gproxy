@@ -124,6 +124,11 @@ mod native {
             request: http::Request<HttpBody>,
         ) -> CapabilityFuture<'a, Result<WireResponse<HttpBody>, CapabilityError>> {
             Box::pin(async move {
+                // A host transport is already complete; no backend feature is
+                // involved in serving it.
+                if let Client::Host(client) = self {
+                    return client.send(request).await;
+                }
                 #[cfg(any(feature = "reqwest", feature = "wreq"))]
                 {
                     let (parts, body) = request.into_parts();
@@ -136,6 +141,7 @@ mod native {
                         Client::ReqwestNative(client) => {
                             reqwest_native_send(client, parts, body).await
                         }
+                        Client::Host(_) => unreachable!("handled above"),
                     }
                 }
                 #[cfg(not(any(feature = "reqwest", feature = "wreq")))]
@@ -151,6 +157,9 @@ mod native {
             request: http::Request<()>,
         ) -> CapabilityFuture<'a, Result<UpstreamConnection, CapabilityError>> {
             Box::pin(async move {
+                if let Client::Host(client) = self {
+                    return client.connect(request).await;
+                }
                 #[cfg(any(feature = "reqwest", feature = "wreq"))]
                 {
                     let (parts, ()) = request.into_parts();
@@ -171,6 +180,7 @@ mod native {
                                 "the reqwest_native client does not upgrade to WebSocket; use the pool's WebSocket client",
                             ))
                         }
+                        Client::Host(_) => unreachable!("handled above"),
                     }
                 }
                 #[cfg(not(any(feature = "reqwest", feature = "wreq")))]

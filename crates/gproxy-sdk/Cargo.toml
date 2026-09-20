@@ -1,0 +1,81 @@
+[package]
+name = "gproxy-sdk"
+description = "Embeddable GPROXY handle: assembly, configuration writes, login, resolution and synchronization"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# Everything in the default set compiles for wasm32-unknown-unknown.
+default = ["memory", "fs", "bundled-vocabulary"]
+
+# Channels, forwarded to gproxy-channel. Each one compiled in is registered by
+# the builder unless `without_default_channels()` is called.
+custom = ["gproxy-channel/custom"]
+codex = ["gproxy-channel/codex"]
+claudecode = ["gproxy-channel/claudecode"]
+claudeweb = ["gproxy-channel/claudeweb"]
+
+# Databases. SQLite is always available on native targets; these add a driver
+# and are native-only. libSQL and D1 are the edge options.
+postgres = ["sea-orm/sqlx-postgres"]
+mysql = ["sea-orm/sqlx-mysql"]
+libsql = ["gproxy-seaorm/libsql", "gproxy-client/libsql"]
+# Marker: the D1 binding is always available on wasm32 through gproxy-seaorm.
+# Enabling it documents the intent and keeps the feature name stable.
+d1 = []
+
+# Shared transient state and invalidation notifications.
+memory = ["gproxy-cache/memory"]
+redis = ["gproxy-cache/redis"]
+
+# Object storage for published bodies and downloaded vocabularies.
+fs = ["gproxy-file/fs"]
+s3 = ["gproxy-file/s3"]
+
+# Ship DeepSeek's vocabulary for models without a catalog vocabulary file.
+bundled-vocabulary = ["gproxy-core/bundled-vocabulary"]
+
+# TypeScript declarations for the DTOs the management API exchanges.
+ts = ["dep:ts-rs"]
+
+[dependencies]
+arc-swap = { workspace = true }
+futures-util = { workspace = true }
+getrandom = { workspace = true }
+gproxy-cache = { workspace = true }
+gproxy-channel = { workspace = true }
+gproxy-client = { workspace = true }
+gproxy-core = { workspace = true }
+gproxy-file = { workspace = true }
+gproxy-protocol = { workspace = true }
+gproxy-seaorm = { workspace = true }
+gproxy-store = { workspace = true }
+sea-orm = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+ts-rs = { workspace = true, optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gproxy-client = { workspace = true, features = ["reqwest"] }
+sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
+tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-timers = { workspace = true }
+gproxy-client = { workspace = true, features = ["fetch"] }
+tokio = { version = "1", default-features = false, features = ["macros", "sync"] }
+wasm-bindgen-futures = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+futures-util = { workspace = true, features = ["sink"] }
+gproxy-cache = { workspace = true, features = ["memory"] }
+http = { workspace = true }
+rust_decimal = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
