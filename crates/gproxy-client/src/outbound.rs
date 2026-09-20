@@ -125,7 +125,9 @@ mod native {
         ) -> CapabilityFuture<'a, Result<WireResponse<HttpBody>, CapabilityError>> {
             Box::pin(async move {
                 // A host transport is already complete; no backend feature is
-                // involved in serving it.
+                // involved in serving it. With no backend compiled in it is the
+                // only variant, so the match is irrefutable by construction.
+                #[allow(irrefutable_let_patterns)]
                 if let Client::Host(client) = self {
                     return client.send(request).await;
                 }
@@ -157,6 +159,7 @@ mod native {
             request: http::Request<()>,
         ) -> CapabilityFuture<'a, Result<UpstreamConnection, CapabilityError>> {
             Box::pin(async move {
+                #[allow(irrefutable_let_patterns)]
                 if let Client::Host(client) = self {
                     return client.connect(request).await;
                 }
