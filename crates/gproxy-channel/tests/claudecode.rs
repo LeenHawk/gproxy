@@ -139,6 +139,30 @@ fn messages_request(headers: HeaderMap, body: Value) -> WireRequest {
 }
 
 #[test]
+fn default_connection_is_the_cli_tls_identity_over_wreq() {
+    use gproxy_client::{Alpn, Backend, EmulationConfig, TlsVersion};
+    let config = Claudecode.default_connection().expect("channel default");
+    assert_eq!(config.backend, Backend::Wreq);
+    assert!(config.gzip && config.brotli && config.deflate && config.zstd);
+    let Some(EmulationConfig::Custom(fingerprint)) = &config.emulation else {
+        panic!("custom fingerprint expected: {:?}", config.emulation);
+    };
+    assert_eq!(fingerprint.alpn, [Alpn::Http1]);
+    assert_eq!(fingerprint.min_tls, Some(TlsVersion::Tls12));
+    assert_eq!(fingerprint.max_tls, Some(TlsVersion::Tls13));
+    assert_eq!(fingerprint.grease, Some(false));
+    assert_eq!(fingerprint.ocsp_stapling, Some(true));
+    assert_eq!(fingerprint.signed_cert_timestamps, Some(true));
+    assert!(fingerprint.http2.is_none(), "HTTP/1.1 only");
+    assert!(
+        fingerprint
+            .cipher_list
+            .as_deref()
+            .is_some_and(|list| list.starts_with("TLS_AES_128_GCM_SHA256:"))
+    );
+}
+
+#[test]
 fn prepares_messages_with_cli_identity_and_request_hygiene() {
     let config = json!({});
     let secret = secret("at-1");

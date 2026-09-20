@@ -137,18 +137,28 @@ pub async fn assemble(
         let Some(provider) = providers.get_mut(&row.provider_id) else {
             continue;
         };
-        let profile_id = row
-            .connection_profile_id
-            .as_deref()
-            .or(provider.entity.connection_profile_id.as_deref())
-            .or(default_profile_id);
-        let config = match profile_id {
-            Some(id) => connection_config(
+        // Credential profile → provider profile → the channel's own default
+        // client → the Setting default profile → the built-in defaults.
+        let resolve = |id: &str| {
+            connection_config(
                 profiles
                     .get(id)
                     .ok_or_else(|| AssemblyError::MissingConnectionProfile(id.to_owned()))?,
-            )?,
-            None => gproxy_client::ConnectionConfig::default(),
+            )
+        };
+        let explicit = row
+            .connection_profile_id
+            .as_deref()
+            .or(provider.entity.connection_profile_id.as_deref());
+        let config = match explicit {
+            Some(id) => resolve(id)?,
+            None => match provider.channel.default_connection() {
+                Some(config) => config,
+                None => match default_profile_id {
+                    Some(id) => resolve(id)?,
+                    None => gproxy_client::ConnectionConfig::default(),
+                },
+            },
         };
         let client_error = |source| AssemblyError::Client {
             credential_id: row.id.clone(),

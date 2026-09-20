@@ -66,8 +66,9 @@ RFC 6455 WS／WSS 使用 `pool.get_websocket(&config).await?` 获取句柄。保
 
 ## 配置选择
 
-store 保存具名的 `ConnectionProfile`；宿主按凭证 → Provider → 全局顺序选择
-第一个非空 `connection_profile_id`，加载整份配置，再构造 `ConnectionConfig`。
+store 保存具名的 `ConnectionProfile`；宿主按凭证 → Provider 顺序选择第一个非空
+`connection_profile_id`，都没有时用渠道自带的 `default_connection()`，再退到全局
+默认 profile，加载整份配置，再构造 `ConnectionConfig`。
 全部未选时使用默认 reqwest／直连；引用的记录不存在时报错，不回退。
 整份替换，不按字段合并，连接配置之间没有继承。
 
@@ -76,7 +77,7 @@ store 保存具名的 `ConnectionProfile`；宿主按凭证 → Provider → 全
 | `backend` | `Backend::Reqwest`／`Backend::Wreq` |
 | `proxy_mode = direct/system` | `ProxyConfig::Direct`／`System`，`proxy_url` 必须为空 |
 | `proxy_mode = explicit`、`proxy_url` | `ProxyConfig::Explicit { url }`，必须提供 URL |
-| `emulation` JSON／空 | 反序列化成 `EmulationConfig`／`None` |
+| `emulation` JSON／空 | 反序列化成 `EmulationConfig`（`kind: preset` 或 `kind: custom`；旧版本的扁平预设对象仍可加载）／`None` |
 | `gzip`、`brotli`、`deflate`、`zstd` | 独立自动解压开关，默认 false |
 | `redirect_max_hops` | 0 不跟随；正数限制最大重定向跳数 |
 | `retry` | `never`（默认）或 `default`（后端原生重试策略） |
@@ -93,6 +94,7 @@ store 当前仅为 entity 草案。代理 URL 可能包含认证信息，序列�
   "backend": "wreq",
   "proxy": { "mode": "explicit", "url": "socks5h://127.0.0.1:1080" },
   "emulation": {
+    "kind": "preset",
     "profile": "chrome_133",
     "platform": "linux",
     "http2": true,
@@ -110,10 +112,32 @@ store 当前仅为 entity 草案。代理 URL 可能包含认证信息，序列�
 }
 ```
 
-指纹使用 wreq-util 的具名 TLS／HTTP 预设，不支持任意自定义 TLS 参数 JSON。
-`http2` 表示应用预设的 HTTP/2 参数，设为 false 不等于禁止 HTTP/2；`headers`
-控制预设请求头。profile／platform 使用 wreq-util 的 serde 名称，未知名称在构造 wreq Client 时报错。
-指纹仅对 wreq 生效。未知字段或未编译的后端均明确报错。正常证书校验始终开启。
+`preset` 指纹使用 wreq-util 的具名 TLS／HTTP 预设。`http2` 表示应用预设的 HTTP/2
+参数，设为 false 不等于禁止 HTTP/2；`headers` 控制预设请求头。profile／platform 使用
+wreq-util 的 serde 名称，未知名称在构造 wreq Client 时报错。
+
+`custom` 指纹是一份显式的 `Fingerprint`，渠道用它承载捕获到的 CLI 身份。所有字段可选，
+未设置的字段保持 wreq（BoringSSL）默认：`alpn`（`http1`／`http2`／`http3`，按提供顺序）、
+`min_tls`／`max_tls`（`tls10`..`tls13`）、BoringSSL 语法的 `cipher_list`、`curves_list`、
+`sigalgs_list`、`preserve_tls13_cipher_list`、`grease`、`ocsp_stapling`、
+`signed_cert_timestamps`、`http2`（`enable_push`、`initial_window_size`、
+`initial_connection_window_size`、`max_frame_size`、`max_header_list_size`、
+`header_table_size`、`max_concurrent_streams`、`pseudo_header_order`、`settings_order`、
+`headers_priority`）与 `headers`（有序的 `[name, value]` 默认请求头，保留原始大小写）。
+
+```json
+{
+  "kind": "custom",
+  "alpn": ["http1"],
+  "min_tls": "tls12",
+  "cipher_list": "TLS_AES_128_GCM_SHA256:ECDHE-ECDSA-AES128-GCM-SHA256",
+  "grease": false,
+  "http2": { "enable_push": false, "initial_window_size": 2097152 }
+}
+```
+
+指纹仅对 wreq 生效：reqwest 后端遇到任何指纹配置都以 `Error::InvalidConfig` 拒绝，
+而不是悄悄换一种身份发出去。未知字段或未编译的后端均明确报错。正常证书校验始终开启。
 配置不做预校验；底层构造错误返回给调用方。
 
 ## 缓存与生命周期

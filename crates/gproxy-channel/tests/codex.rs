@@ -141,6 +141,21 @@ fn credential<'a>(secret: &'a Value, metadata: &'a Value) -> CredentialView<'a> 
 }
 
 #[test]
+fn default_connection_is_the_cli_transport_identity() {
+    use gproxy_client::{Alpn, Backend, EmulationConfig};
+    let config = Codex.default_connection().expect("channel default");
+    assert_eq!(config.backend, Backend::Wreq);
+    assert!(config.gzip && config.brotli && config.deflate && config.zstd);
+    let Some(EmulationConfig::Custom(fingerprint)) = &config.emulation else {
+        panic!("custom fingerprint expected: {:?}", config.emulation);
+    };
+    assert_eq!(fingerprint.alpn, [Alpn::Http2]);
+    let http2 = fingerprint.http2.as_ref().expect("HTTP/2 settings");
+    assert_eq!(http2.initial_window_size, Some(2_097_152));
+    assert_eq!(http2.enable_push, Some(false));
+}
+
+#[test]
 fn prepares_responses_calls_against_the_codex_backend() {
     let config = json!({});
     let secret = secret("at-1");

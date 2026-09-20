@@ -31,6 +31,10 @@ use crate::channel::{
 };
 use base64::Engine;
 use futures_util::StreamExt;
+use gproxy_client::{
+    Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, Http2Setting, Http2Settings,
+    PseudoHeader, TlsVersion,
+};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, WireRequest, WireResponse,
     codec::{CodecLimits, SseDecoder, SseFrame},
@@ -100,6 +104,63 @@ impl CodexConfig {
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Codex;
+
+/// Codex CLI's TLS and HTTP/2 identity (Rust reqwest over rustls; v3
+/// `codex/profile.rs`): the default client for providers that name no
+/// connection profile. Auto-decompression stays on as in v3.
+pub fn default_connection() -> ConnectionConfig {
+    ConnectionConfig {
+        backend: Backend::Wreq,
+        emulation: Some(EmulationConfig::Custom(Fingerprint {
+            alpn: vec![Alpn::Http2],
+            min_tls: Some(TlsVersion::Tls12),
+            max_tls: Some(TlsVersion::Tls13),
+            cipher_list: Some(
+                concat!(
+                    "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256:",
+                    "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:",
+                    "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-AES256-GCM-SHA384:",
+                    "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-CHACHA20-POLY1305"
+                )
+                .into(),
+            ),
+            curves_list: Some("X25519:P-256:P-384".into()),
+            sigalgs_list: None,
+            preserve_tls13_cipher_list: Some(false),
+            grease: Some(false),
+            ocsp_stapling: None,
+            signed_cert_timestamps: None,
+            http2: Some(Http2Settings {
+                enable_push: Some(false),
+                initial_window_size: Some(2_097_152),
+                initial_connection_window_size: Some(5_242_880),
+                max_frame_size: Some(16_384),
+                max_header_list_size: Some(16_384),
+                header_table_size: None,
+                max_concurrent_streams: None,
+                pseudo_header_order: Some(vec![
+                    PseudoHeader::Method,
+                    PseudoHeader::Scheme,
+                    PseudoHeader::Authority,
+                    PseudoHeader::Path,
+                ]),
+                settings_order: Some(vec![
+                    Http2Setting::EnablePush,
+                    Http2Setting::InitialWindowSize,
+                    Http2Setting::MaxFrameSize,
+                    Http2Setting::MaxHeaderListSize,
+                ]),
+                headers_priority: None,
+            }),
+            headers: None,
+        })),
+        gzip: true,
+        brotli: true,
+        deflate: true,
+        zstd: true,
+        ..ConnectionConfig::default()
+    }
+}
 
 fn invalid_config(message: impl Into<String>) -> ChannelError {
     ChannelError::InvalidConfig(message.into())
@@ -285,6 +346,10 @@ impl Codex {
 impl BaseChannel for Codex {
     fn id(&self) -> &'static str {
         ID
+    }
+
+    fn default_connection(&self) -> Option<ConnectionConfig> {
+        Some(default_connection())
     }
 
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
