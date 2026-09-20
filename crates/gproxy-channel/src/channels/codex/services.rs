@@ -25,7 +25,9 @@
 //! about the shared account is invented: synthetic ids hash the provider and
 //! the caller identity (v3 `codex/surface/local.rs` shapes).
 
-use super::{Codex, CodexConfig, backend_headers, base_urls, invalid_config, plan_type};
+use super::common::invalid_config;
+use super::headers::{account, backend_headers, base_urls, plan_type};
+use super::{Codex, CodexConfig};
 use crate::channel::{
     CallerUsage, CallerUsageWindow, ChannelError, ChannelServices, CredentialContext,
     CredentialView, HeaderAllowlist, OperationFuture, ResourceAccess, ServiceClass, ServiceContext,
@@ -523,7 +525,7 @@ fn forward<B>(
     websocket: bool,
 ) -> Result<http::Request<B>, ChannelError> {
     let config = CodexConfig::from_view(account.provider)?;
-    let identity = super::account(&account.credential)?;
+    let identity = super::headers::account(&account.credential)?;
     let (_, backend) = base_urls(account.provider);
     let path = canonical_path(&request.path).ok_or(ChannelError::UnsupportedService)?;
     let allowlist = HeaderAllowlist::from_view_for(account.provider, super::CLI_HEADERS)?;
@@ -585,7 +587,7 @@ fn fact<'a>(credential: &CredentialView<'a>, name: &str) -> Option<&'a Value> {
 /// recorded them, null where unknown. The CLI asks this of its auth API
 /// host, not the ChatGPT backend, so it is never forwarded.
 fn whoami_from_facts(credential: &CredentialView<'_>) -> Value {
-    let account_id = super::account(credential)
+    let account_id = account(credential)
         .ok()
         .and_then(|a| a.account_id)
         .map(Value::String)

@@ -2091,3 +2091,139 @@ fn codex_image_endpoints_shape_json_and_binary_multipart() {
         )
     );
 }
+
+fn sse_response(text: &str) -> WireResponse {
+    let chunks: Vec<_> = text
+        .as_bytes()
+        .chunks(7)
+        .map(|chunk| Ok(Bytes::copy_from_slice(chunk)))
+        .collect();
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "content-type",
+        HeaderValue::from_static("text/event-stream"),
+    );
+    WireResponse {
+        status: StatusCode::OK,
+        headers,
+        body: HttpBody::Stream(Box::pin(futures_util::stream::iter(chunks))),
+    }
+}
+
+#[tokio::test]
+async fn converted_stream_restores_native_tools_and_preserves_usage() {
+    use futures_util::StreamExt;
+    use gproxy_protocol::codec::{CodecLimits, SseDecoder, SseFrame};
+    let body = json!({"model":"gpt-5.4","input":[{"type":"shell_call","id":"client_shell","call_id":"history","action":{"commands":["pwd"]}}],
+        "tools":[{"type":"shell"},{"type":"function","name":"shell_command","strict":false,"parameters":{"type":"object"}}]});
+    let shaped = prepared_body(json!({}), Operation::StreamGenerateContent, body.clone());
+    let mapped = shaped["input"][0]["id"].clone();
+    let input = [
+        json!({"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":mapped,"call_id":"call_new","name":"shell_command_1","arguments":""}}),
+        json!({"type":"response.function_call_arguments.delta","output_index":0,"item_id":mapped,"delta":"{\"command\":\"pwd\"}"}),
+        json!({"type":"response.completed","response":{"id":"resp_native","output":[],"usage":{"input_tokens":30,"input_tokens_details":{"cached_tokens":10},"output_tokens":7,"output_tokens_details":{"reasoning_tokens":2}}}}),
+    ].iter().map(|event| format!("data: {event}\n\n")).collect::<String>();
+    let client = Arc::new(ScriptClient::new(vec![sse_response(&input)]));
+    let response = responses_call(
+        &json!({}),
+        &client,
+        &Arc::new(MemoryState::default()),
+        Operation::StreamGenerateContent,
+        HeaderMap::new(),
+        body,
+    )
+    .await;
+    let mut observer = Codex
+        .usage_stream()
+        .unwrap()
+        .start(UsageStreamContext {
+            operation: OperationKey {
+                operation: Operation::StreamGenerateContent,
+                dialect: Dialect::OpenAi,
+            },
+            request_body: None,
+            status: response.status,
+            headers: &response.headers,
+            transport: UsageTransport::Http {
+                framing: Some(StreamFraming::Sse),
+            },
+        })
+        .unwrap();
+    let HttpBody::Stream(mut stream) = response.body else {
+        panic!("stream")
+    };
+    let mut bytes = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.unwrap();
+        observer.observe(UsageFrame::HttpChunk(&chunk)).unwrap();
+        bytes.extend_from_slice(&chunk);
+    }
+    let usage = observer.finish(UsageStreamEnd::Complete).unwrap().unwrap();
+    assert_eq!(usage.tokens.input_tokens, Some(20));
+    assert_eq!(usage.tokens.cached_input_tokens, Some(10));
+    assert_eq!(usage.tokens.output_tokens, Some(7));
+    assert_eq!(usage.tokens.reasoning_tokens, Some(2));
+    let mut decoder = SseDecoder::new(CodecLimits {
+        max_buffer_bytes: 1 << 20,
+        max_value_bytes: 1 << 20,
+        max_body_bytes: 1 << 20,
+        max_line_bytes: 1 << 20,
+        max_part_bytes: 0,
+        max_parts: 0,
+    });
+    let events: Vec<Value> = decoder
+        .push(&bytes)
+        .unwrap()
+        .into_iter()
+        .filter_map(|frame| match frame {
+            SseFrame::Event(event) => Some(serde_json::from_str(&event.data).unwrap()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(events[0]["type"], "response.created");
+    assert_eq!(events[0]["response"]["id"], "resp_native");
+    let call = &events.last().unwrap()["response"]["output"][0];
+    assert_eq!(call["type"], "shell_call");
+    assert_eq!(call["id"], "client_shell");
+    assert_eq!(call["call_id"], "call_new");
+    assert_eq!(call["action"]["commands"], json!(["pwd"]));
+    assert_eq!(events[1]["item"], *call);
+    assert_eq!(events[2]["item"], *call);
+    let sent: Value = serde_json::from_slice(&client.sent()[0].3).unwrap();
+    assert_eq!(sent["tools"][0]["name"], "shell_command_1");
+    assert_eq!(sent["tools"][1]["name"], "shell_command");
+}
+
+#[tokio::test]
+async fn real_cli_and_upstream_error_streams_remain_byte_exact() {
+    use futures_util::StreamExt;
+    let text = ": keepalive\r\ndata: {\"type\":\"future.cli.event\",\"value\":1}\r\n\r\n";
+    for cli in [true, false] {
+        let mut reply = sse_response(text);
+        if !cli {
+            reply.status = StatusCode::BAD_REQUEST;
+        }
+        let client = Arc::new(ScriptClient::new(vec![reply]));
+        let mut headers = HeaderMap::new();
+        if cli {
+            headers.insert("x-codex-turn-metadata", HeaderValue::from_static("{}"));
+        }
+        let response = responses_call(
+            &json!({}),
+            &client,
+            &Arc::new(MemoryState::default()),
+            Operation::StreamGenerateContent,
+            headers,
+            json!({"input":"hi"}),
+        )
+        .await;
+        let HttpBody::Stream(mut stream) = response.body else {
+            panic!("stream")
+        };
+        let mut actual = Vec::new();
+        while let Some(bytes) = stream.next().await {
+            actual.extend_from_slice(&bytes.unwrap());
+        }
+        assert_eq!(actual, text.as_bytes());
+    }
+}
