@@ -80,10 +80,11 @@ Clearing the Client cache does not interrupt an already upgraded stream.
 ## Profiles and effective parameters
 
 Store persists named `ConnectionProfile` rows. The host selects the first explicit
-`connection_profile_id` from Credential → Provider → Setting, loads that complete
-profile, and maps its fields into `ConnectionConfig`. An absent selection uses
-`ConnectionConfig::default()` (reqwest, direct). A missing referenced row is an
-error, never a reason to fall back.
+`connection_profile_id` from Credential → Provider, then the channel's own
+`default_connection()` when it has one, then the Setting default; it loads that
+complete profile and maps its fields into `ConnectionConfig`. An absent selection
+uses `ConnectionConfig::default()` (reqwest, direct). A missing referenced row is
+an error, never a reason to fall back.
 No per-field merging or profile-to-profile inheritance is performed.
 
 | Store fields | Client configuration |
@@ -91,7 +92,7 @@ No per-field merging or profile-to-profile inheritance is performed.
 | `backend` | `Backend::Reqwest` / `Backend::Wreq` |
 | `proxy_mode = direct/system` | `ProxyConfig::Direct` / `System`; `proxy_url` must be null |
 | `proxy_mode = explicit`, `proxy_url` | `ProxyConfig::Explicit { url }`; URL required |
-| `emulation` JSON / null | Deserialize `EmulationConfig` / `None` |
+| `emulation` JSON / null | Deserialize `EmulationConfig` (`kind: preset` or `kind: custom`; the flat preset object of earlier releases still loads) / `None` |
 | `gzip`, `brotli`, `deflate`, `zstd` | Independent automatic decompression switches, default false |
 | `redirect_max_hops` | 0 disables following; positive values limit redirect hops |
 | `retry` | `never` (default) or `default` (native backend retry policy) |
@@ -109,6 +110,7 @@ Example effective configuration:
   "backend": "wreq",
   "proxy": { "mode": "explicit", "url": "socks5h://127.0.0.1:1080" },
   "emulation": {
+    "kind": "preset",
     "profile": "chrome_133",
     "platform": "linux",
     "http2": true,
@@ -126,13 +128,38 @@ Example effective configuration:
 }
 ```
 
-Emulation uses wreq-util's named TLS/HTTP presets, not arbitrary custom TLS option
-JSON. `http2` selects whether to apply the preset's HTTP/2 settings; it is not an
-HTTP/2 protocol ban when false. `headers` controls preset headers. Profile and
-platform use wreq-util serde names; invalid names fail when building a wreq client.
-Emulation applies only to wreq. Unknown fields and disabled backends fail explicitly.
-Normal certificate verification remains enabled. Configuration is not pre-validated;
-backend construction errors are returned to the caller.
+A `preset` emulation is one of wreq-util's named TLS/HTTP presets. `http2`
+selects whether to apply the preset's HTTP/2 settings; it is not an HTTP/2
+protocol ban when false. `headers` controls preset headers. Profile and platform
+use wreq-util serde names; invalid names fail when building a wreq client.
+
+A `custom` emulation is an explicit `Fingerprint`, the shape channels use for a
+captured CLI identity. Every field is optional and unset fields keep wreq's
+(BoringSSL) defaults: `alpn` (`http1`/`http2`/`http3`, in offer order),
+`min_tls`/`max_tls` (`tls10`..`tls13`), `cipher_list`, `curves_list` and
+`sigalgs_list` in BoringSSL syntax, `preserve_tls13_cipher_list`, `grease`,
+`ocsp_stapling`, `signed_cert_timestamps`, `http2` (`enable_push`,
+`initial_window_size`, `initial_connection_window_size`, `max_frame_size`,
+`max_header_list_size`, `header_table_size`, `max_concurrent_streams`,
+`pseudo_header_order`, `settings_order`, `headers_priority`) and `headers`, an
+ordered list of `[name, value]` default headers sent with their original casing.
+
+```json
+{
+  "kind": "custom",
+  "alpn": ["http1"],
+  "min_tls": "tls12",
+  "cipher_list": "TLS_AES_128_GCM_SHA256:ECDHE-ECDSA-AES128-GCM-SHA256",
+  "grease": false,
+  "http2": { "enable_push": false, "initial_window_size": 2097152 }
+}
+```
+
+Emulation applies only to wreq: the reqwest backend rejects any emulation with
+`Error::InvalidConfig` instead of silently sending a different identity. Unknown
+fields and disabled backends fail explicitly. Normal certificate verification
+remains enabled. Configuration is not pre-validated; backend construction errors
+are returned to the caller.
 
 ## Reuse and lifetime
 

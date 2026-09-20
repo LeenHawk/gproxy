@@ -48,6 +48,11 @@ profile、渠道为该凭证声明的 `QuotaDimension`，以及共享的 `Creden
 固定一个版本，只有更新的版本才能替换。`Dead` 凭证永不被选择或刷新；`status_reason`
 说明原因，`CoreError::CredentialDead` 告诉调用方需要有人重新登录。
 
+client 按凭证解析，先命中者胜、整份替换不逐字段合并：凭证的 `connection_profile_id` →
+Provider 的 → 渠道的 `BaseChannel::default_connection()`（claudecode 与 codex 内置的 CLI
+指纹）→ Setting 的默认 profile → `ConnectionConfig::default()`。引用的 profile 缺失或
+非法时整次装配失败。
+
 可用性是每凭证一份 `CredentialBlocks` cache 载荷，加载时从 `credential_blocks` 行重建。
 每个 block 指定渠道 `QuotaScope`、可选操作、`until_ms` 和 `BlockSource`：Reported 维度
 观测到耗尽（带持久化的周期记录）、Counted 窗口用尽、上游限速、连续失败。streak 按

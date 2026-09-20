@@ -97,6 +97,11 @@ fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest:
 
 #[cfg(all(feature = "reqwest", not(target_arch = "wasm32")))]
 fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest::Client, Error> {
+    // reqwest has no fingerprint control; silently sending a different identity
+    // than the profile asked for would defeat the profile.
+    if config.emulation.is_some() {
+        return Err(Error::InvalidConfig("emulation requires the wreq backend"));
+    }
     let mut builder = reqwest::Client::builder()
         .connect_timeout(Duration::from_millis(config.connect_timeout_ms.into()))
         .pool_idle_timeout(Duration::from_millis(config.pool_idle_timeout_ms.into()))
@@ -131,7 +136,7 @@ fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest:
 fn build_wreq(config: &ConnectionConfig, http1_only: bool) -> Result<wreq::Client, Error> {
     let mut builder = wreq::Client::builder();
     if let Some(emulation) = &config.emulation {
-        builder = builder.emulation(emulation.build()?);
+        builder = emulation.apply(builder)?;
     }
     builder = builder
         .connect_timeout(Duration::from_millis(config.connect_timeout_ms.into()))

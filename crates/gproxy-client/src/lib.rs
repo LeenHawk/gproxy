@@ -19,7 +19,10 @@ mod config;
 mod error;
 mod outbound;
 
-pub use config::{Backend, ConnectionConfig, EmulationConfig, ProxyConfig, RetryPolicy};
+pub use config::{
+    Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, Http2Setting, Http2Settings,
+    ProxyConfig, PseudoHeader, RetryPolicy, StreamPriority, TlsVersion,
+};
 pub use error::Error;
 pub use outbound::{ClientBounds, OutboundClient};
 

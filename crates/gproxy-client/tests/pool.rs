@@ -353,11 +353,13 @@ async fn each_decompression_option_controls_bytes_headers_and_client_identity() 
             let base = ConnectionConfig {
                 backend,
                 // Exercise decompression together with wreq's emulation path.
-                emulation: (backend == Backend::Wreq).then(|| gproxy_client::EmulationConfig {
-                    profile: "chrome_133".into(),
-                    platform: "linux".into(),
-                    http2: true,
-                    headers: false,
+                emulation: (backend == Backend::Wreq).then(|| {
+                    gproxy_client::EmulationConfig::Preset {
+                        profile: "chrome_133".into(),
+                        platform: "linux".into(),
+                        http2: true,
+                        headers: false,
+                    }
                 }),
                 ..Default::default()
             };
@@ -481,10 +483,18 @@ async fn redirects_follow_the_configured_limit_and_retries_do_not_replay_503() {
 #[tokio::test]
 async fn fingerprint_is_part_of_client_identity() {
     use gproxy_client::EmulationConfig;
+    fn preset(profile: &str, platform: &str, http2: bool, headers: bool) -> EmulationConfig {
+        EmulationConfig::Preset {
+            profile: profile.into(),
+            platform: platform.into(),
+            http2,
+            headers,
+        }
+    }
     let pool = ClientPool::default();
     let mut config = ConnectionConfig {
         backend: Backend::Wreq,
-        emulation: Some(EmulationConfig {
+        emulation: Some(EmulationConfig::Preset {
             profile: "chrome_133".into(),
             platform: "linux".into(),
             http2: true,
@@ -493,10 +503,14 @@ async fn fingerprint_is_part_of_client_identity() {
         ..Default::default()
     };
     let first = pool.get(&config).await.unwrap();
-    config.emulation.as_mut().unwrap().profile = "firefox_135".into();
+    config.emulation = Some(preset("firefox_135", "linux", true, false));
     assert!(!Arc::ptr_eq(&first, &pool.get(&config).await.unwrap()));
-    config.emulation.as_mut().unwrap().profile = "chrome_133".into();
-    config.emulation.as_mut().unwrap().headers = true;
+    config.emulation = Some(preset("chrome_133", "linux", true, true));
+    assert!(!Arc::ptr_eq(&first, &pool.get(&config).await.unwrap()));
+    config.emulation = Some(EmulationConfig::Custom(gproxy_client::Fingerprint {
+        alpn: vec![gproxy_client::Alpn::Http1],
+        ..Default::default()
+    }));
     assert!(!Arc::ptr_eq(&first, &pool.get(&config).await.unwrap()));
 }
 
@@ -591,7 +605,7 @@ async fn https_uses_authenticated_connect_and_wreq_changes_the_tls_handshake() {
                 let hello = tunneled_client_hello(
                     ConnectionConfig {
                         backend: Backend::Wreq,
-                        emulation: Some(gproxy_client::EmulationConfig {
+                        emulation: Some(gproxy_client::EmulationConfig::Preset {
                             profile: profile.into(),
                             platform: "linux".into(),
                             http2: true,
@@ -618,11 +632,13 @@ async fn websocket_tls_alpn_is_http1_even_with_emulation() {
             let hello = tunneled_client_hello(
                 ConnectionConfig {
                     backend,
-                    emulation: (backend == Backend::Wreq).then(|| gproxy_client::EmulationConfig {
-                        profile: "chrome_133".into(),
-                        platform: "linux".into(),
-                        http2: true,
-                        headers: false,
+                    emulation: (backend == Backend::Wreq).then(|| {
+                        gproxy_client::EmulationConfig::Preset {
+                            profile: "chrome_133".into(),
+                            platform: "linux".into(),
+                            http2: true,
+                            headers: false,
+                        }
                     }),
                     ..Default::default()
                 },

@@ -178,7 +178,7 @@ async fn websocket_upgrade_and_duplex_frames_use_the_profile_and_survive_cache_c
                 let config = ConnectionConfig {
                     backend,
                     proxy: if proxied { ProxyConfig::Explicit { url: format!("http://alice:secret@{address}") } } else { ProxyConfig::Direct },
-                    emulation: (backend == Backend::Wreq).then(|| gproxy_client::EmulationConfig {
+                    emulation: (backend == Backend::Wreq).then(|| gproxy_client::EmulationConfig::Preset {
                         profile: "chrome_133".into(), platform: "linux".into(), http2: true, headers: false,
                     }),
                     ..Default::default()

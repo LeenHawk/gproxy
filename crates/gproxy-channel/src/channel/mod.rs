@@ -42,7 +42,7 @@ pub use usage::{
 
 pub use refresh::{CredentialRefresh, CredentialUpdate, RefreshContext};
 
-use gproxy_client::OutboundClient;
+use gproxy_client::{ConnectionConfig, OutboundClient};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
     capability::{CapabilityError, UpstreamConnection},
@@ -140,6 +140,15 @@ pub struct PrepareContext<'a, B = HttpBody> {
 /// Optional abilities outside protocol operations retain default-None accessors.
 pub trait BaseChannel: Send + Sync {
     fn id(&self) -> &'static str;
+
+    /// The outbound client this channel's upstream expects when nothing names
+    /// one: the host resolves credential profile → provider profile → this →
+    /// the Setting default → `ConnectionConfig::default()`. Channels whose
+    /// upstream fingerprints its clients return the captured client identity;
+    /// any explicit host profile on the credential or provider still wins.
+    fn default_connection(&self) -> Option<ConnectionConfig> {
+        None
+    }
 
     /// The wire dialects this provider's upstream accepts natively for an
     /// operation, in preference order. The host uses it to choose between

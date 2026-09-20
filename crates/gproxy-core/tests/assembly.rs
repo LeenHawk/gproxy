@@ -16,7 +16,7 @@ use gproxy_protocol::{Dialect, Operation, OperationKey, capability::CapabilityFu
 use gproxy_store::{
     Store,
     entity::{
-        config::setting,
+        config::{connection_profile, setting},
         limits::credential_block,
         upstream::{
             credential, operation_endpoint, provider, provider_rewrite_rule_set, rewrite_rule,
@@ -73,6 +73,20 @@ impl QuotaModel for TestChannel {
             limit: Some(50.into()),
             tracking: QuotaTracking::Counted,
         }]
+    }
+}
+
+/// A channel that ships its own client identity, like claudecode and codex.
+struct FingerprintedChannel;
+impl BaseChannel for FingerprintedChannel {
+    fn id(&self) -> &'static str {
+        "fingerprinted"
+    }
+    fn default_connection(&self) -> Option<gproxy_client::ConnectionConfig> {
+        Some(gproxy_client::ConnectionConfig {
+            connect_timeout_ms: 4_321,
+            ..Default::default()
+        })
     }
 }
 
@@ -248,8 +262,97 @@ async fn core(store: Store<DatabaseConnection>) -> Core<DatabaseConnection> {
         .secret_codec(Arc::new(PlaintextCodec))
         .channel(Arc::new(TestChannel))
         .unwrap()
+        .channel(Arc::new(FingerprintedChannel))
+        .unwrap()
         .build()
         .unwrap()
+}
+
+/// Credential profile → provider profile → channel default → Setting default
+/// → built-in default. Clients are pooled by effective configuration, so
+/// pointer identity tells which configuration a credential resolved to.
+#[tokio::test]
+async fn channel_default_connection_sits_between_provider_profile_and_setting_default() {
+    let store = database().await;
+    store
+        .connection_profiles()
+        .create_many(vec![connection_profile::ActiveModel {
+            id: Set("slow".into()),
+            name: Set("slow".into()),
+            connect_timeout_ms: Set(9_999),
+            created_at_ms: Set(0),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    store
+        .settings()
+        .update(setting::ActiveModel {
+            config_revision: Set(1),
+            connection_profile_id: Set(Some("slow".into())),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    store
+        .users()
+        .create_many(vec![gproxy_store::entity::identity::user::ActiveModel {
+            id: Set("u".into()),
+            name: Set("u".into()),
+            role: Set("user".into()),
+            created_at_ms: Set(0),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    let provider = |id: &str, channel: &str, profile: Option<&str>| provider::ActiveModel {
+        id: Set(id.into()),
+        name: Set(id.into()),
+        channel: Set(channel.into()),
+        connection_profile_id: Set(profile.map(str::to_owned)),
+        config: Set(json!({})),
+        created_at_ms: Set(0),
+        ..Default::default()
+    };
+    store
+        .providers()
+        .create_many(vec![
+            provider("plain", "test", None),
+            provider("fp", "fingerprinted", None),
+            provider("fp_profiled", "fingerprinted", Some("slow")),
+        ])
+        .await
+        .unwrap();
+    store
+        .credentials()
+        .create_many(vec![
+            credential_row("plain_1", "plain", json!({"api_key": "k"})),
+            credential_row("fp_1", "fp", json!({"api_key": "k"})),
+            credential_row("fp_2", "fp", json!({"api_key": "k"})),
+            credential_row("fp_profiled_1", "fp_profiled", json!({"api_key": "k"})),
+        ])
+        .await
+        .unwrap();
+    let core = core(store).await;
+    core.reload_data().await.unwrap();
+    let data = core.snapshot();
+    let client = |id: &str| data.credentials[id].client.clone();
+    assert!(
+        Arc::ptr_eq(&client("fp_1"), &client("fp_2")),
+        "one client per channel default"
+    );
+    assert!(
+        !Arc::ptr_eq(&client("fp_1"), &client("plain_1")),
+        "the channel default beats the Setting default the plain provider got"
+    );
+    assert!(
+        !Arc::ptr_eq(&client("fp_1"), &client("fp_profiled_1")),
+        "a provider profile beats the channel default"
+    );
+    assert!(
+        Arc::ptr_eq(&client("plain_1"), &client("fp_profiled_1")),
+        "both resolve to the `slow` profile"
+    );
 }
 
 #[tokio::test]

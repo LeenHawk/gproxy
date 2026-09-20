@@ -58,6 +58,13 @@ pins one, and only a newer version replaces it. `Dead` credentials are never
 selected or refreshed; `status_reason` says why, and `CoreError::CredentialDead`
 tells the caller a person must log in again.
 
+The client is resolved per credential, first match wins, whole configuration
+replaced (no field merging): the credential's `connection_profile_id` → the
+provider's → the channel's `BaseChannel::default_connection()` (a captured CLI
+fingerprint for claudecode and codex) → the Setting's default profile →
+`ConnectionConfig::default()`. A referenced profile that is missing or invalid
+fails the whole assembly.
+
 Availability is one `CredentialBlocks` cache payload per credential, rebuilt
 from `credential_blocks` rows on load. Each block names a channel `QuotaScope`,
 an optional operation, an `until_ms` and a `BlockSource`: a Reported dimension
