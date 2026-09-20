@@ -1660,6 +1660,7 @@ dependencies = [
  "gproxy-cache",
  "gproxy-core",
  "gproxy-protocol",
+ "gproxy-seaorm",
  "gproxy-store",
  "http",
  "sea-orm",

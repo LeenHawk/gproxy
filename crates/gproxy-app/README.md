@@ -27,8 +27,7 @@ transport (host)
 Each step narrows, and nothing below re-opens what was narrowed above: the
 engine is handed a provider set and a credential set, not a caller to
 interpret. The sdk bridge itself (`call.rs`, `service.rs`, `publication.rs`)
-lands once `gproxy-sdk` exists; today this crate stops at the snapshot and the
-configuration.
+lands once `gproxy-sdk` exists; today this crate stops after the caller.
 
 ## What exists now
 
@@ -36,11 +35,12 @@ configuration.
 |---|---|
 | `config` | `AppConfig`: plain serde, shared by both hosts, no filesystem or environment access |
 | `snapshot` | `AppData`, the compiled identity of one configuration revision, and `AppSnapshot`, its monotonic publication |
+| `auth` | the three ways a request names a caller, and the `Caller` all three produce |
 | `error` | `AppError`, with `status_code()` and a stable `code()` for the API envelope |
 
-Everything else (`auth`, `admission`, `call`, `service`, `capture`,
-`publication`, `operations`, `audit`, `dto`) is declared with the contract it
-will hold, so a later phase fills it in place rather than reshaping the crate.
+Everything else (`admission`, `call`, `service`, `capture`, `publication`,
+`operations`, `audit`, `dto`) is declared with the contract it will hold, so a
+later phase fills it in place rather than reshaping the crate.
 
 ## The snapshot
 
@@ -100,6 +100,88 @@ is the fast path: refusing early, listing clients, rendering a portal, with no
 round trip. The SQL one is the authority, and the two must agree. One level is
 missing here and cannot be added — the global allowlist lives on `settings`,
 which is `ControlData`, not `IdentityData`.
+
+## Authentication
+
+Three kinds of caller, one `Caller`. Nothing above this layer re-derives who is
+asking.
+
+| Kind | Credential | Binding |
+|---|---|---|
+| `ApiKey` | a gateway key in `Authorization: Bearer`, `x-api-key` or `x-goog-api-key` | the key row's organization, team and subscription |
+| `OAuthGrant` | an issued access token, resolved through `resolve_access_many` | the grant's internal key row, plus a `GrantContext` |
+| `Session` | a console or portal cookie backed by `user_sessions` | none: a session acts as the person |
+
+A key in the query string (`?key=`, the Gemini shape) is deliberately not read
+from the header map. Query strings belong to the transport; a host that accepts
+one extracts it and calls `authenticate_token`.
+
+### The digest ladder, and why `sk-`/`at-` come off
+
+A presented token is looked up under **two** digests, in this order:
+
+1. `SHA-256(token)` — what `generate_api_key` writes, so a v4 key is stored
+   under the digest of its whole `sk-…` text;
+2. `SHA-256(payload)`, where the payload is the token with one leading `sk-`
+   or `at-` removed — what v3 wrote.
+
+`sk-` and `at-` are presentation prefixes, not part of the secret. Some
+channels refuse a token that does not look like a personal access token, so the
+same key is handed to one upstream as `at-…` and to another as `sk-…`. Digesting
+the payload keeps all three spellings — `sk-X`, `at-X`, bare `X` — one identity,
+so quota and usage follow the key rather than how it was typed. A token with no
+prefix yields one digest, not two.
+
+### Rules that hold across all three
+
+- **An OAuth key never authenticates directly.** `api_keys.kind = oauth` marks a
+  grant's internal key: it carries the grant's binding and usage identity, and
+  presenting its text as a bearer key is refused rather than treated as a miss.
+  It does not fall through to the access-token path either.
+- **Every failure is 401, never 403.** A disabled key, an expired key, a revoked
+  grant and a key that never existed are indistinguishable from outside;
+  `Forbidden` would say "this credential is real, but not entitled", which is
+  the fact a probe is looking for. `AppError::Unauthorized` carries a reason for
+  the operator's log and renders as the bare word `unauthorized`. 403 belongs to
+  admission, after identity is settled.
+- **Expiry is re-checked against the request clock.** The key index excludes
+  expired rows when it is assembled, but a key can expire while that snapshot is
+  still the live one.
+- **Tokens are stored only as hashes.** `api_keys.key_hash`,
+  `user_sessions.token_hash` and `oauth_tokens.token_hash` hold a SHA-256 of the
+  text. The plaintext is returned once, at creation, and the instance cannot
+  produce it again. The two string columns share `encode_key_hash`, so one
+  encoding is used everywhere here.
+- **Grant liveness is not re-implemented.** `resolve_access_many` checks the
+  token, the grant, the client, the user, the internal key, the subscription and
+  the client allowlist in the same statement that reads the token, so a
+  concurrent revocation cannot slip between a check and a use.
+
+### Where CSRF applies
+
+`verify_same_origin` is a standalone function, not a step in the ladder, because
+it applies to **cookie-authenticated requests only**. A cookie is attached by the
+browser to any request that reaches the origin, including one a foreign page
+caused; a header-borne API key is not, and a foreign page cannot read it.
+Running the check against API-key callers would break every non-browser client
+for no gain. The host calls it after authentication, on a `Session` caller,
+before the operation runs.
+
+Safe methods (`GET`, `HEAD`, `OPTIONS`) always pass. Everything else needs an
+`Origin` that matches the request's own `Host` or one of `cors_origins`. Unlike
+v3, a missing `Origin` on an unsafe method is refused: browsers send one, so its
+absence is not a browser, and treating it as trusted is an opt-out any attacker
+can take.
+
+### Passwords
+
+argon2id, a fresh 16-byte salt per hash, stored as a full PHC string so raising
+the parameters later does not invalidate every existing password. The policy is
+v3's — a password must not be blank — plus a minimum length of 8 characters and
+a maximum of 1024 bytes. No composition rule beyond that: mandatory character
+classes push users towards `Password1!` and forbid long passphrases. A
+`password_hash` that does not parse is a user who cannot log in, never a panic
+and never an accidental success.
 
 ## A cascade that only exists on new databases
 

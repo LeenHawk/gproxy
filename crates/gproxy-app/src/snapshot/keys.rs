@@ -18,7 +18,7 @@ use gproxy_store::entity::identity::{
     api_key::{self, ApiKeyKind},
     user,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 /// The caller identity a valid API key resolves to. Everything an admission
 /// decision needs about the key itself, so the hot path never touches a row.
@@ -51,11 +51,42 @@ pub struct ApiKeyIdentity {
     pub expires_at_ms: Option<i64>,
 }
 
+impl ApiKeyIdentity {
+    /// The identity a stored key row carries, given its owner. Used both when
+    /// the index is built and when authentication has to read a row this
+    /// snapshot does not have yet, so the two paths cannot drift.
+    pub fn from_row(key: &api_key::Model, user_role: &str) -> Self {
+        Self {
+            api_key_id: key.id.clone(),
+            user_id: key.user_id.clone(),
+            user_role: user_role.to_string(),
+            organization_id: key.organization_id.clone(),
+            team_id: key.team_id.clone(),
+            subscription_id: key.subscription_id.clone(),
+            kind: key.kind,
+            enabled: key.enabled,
+            expires_at_ms: key.expires_at_ms,
+        }
+    }
+
+    /// Whether the key is still within its lifetime at `now_ms`. The boundary
+    /// is exclusive: at the stated instant the key is over.
+    pub fn is_live_at(&self, now_ms: i64) -> bool {
+        self.enabled && self.expires_at_ms.is_none_or(|at| at > now_ms)
+    }
+}
+
 /// Digest → identity, for the keys that were usable when the snapshot was
-/// assembled.
+/// assembled, and the same identities by key id.
+///
+/// The id map exists for the OAuth access path: a grant names its internal key
+/// by id, never by digest, and the binding on that row is what decides who
+/// pays and what the grant can see. One `Arc` per key backs both maps so the
+/// second lookup costs a pointer rather than a second copy of every identity.
 #[derive(Clone, Debug, Default)]
 pub struct ApiKeyIndex {
-    by_digest: HashMap<[u8; 32], ApiKeyIdentity>,
+    by_digest: HashMap<[u8; 32], Arc<ApiKeyIdentity>>,
+    by_id: HashMap<String, Arc<ApiKeyIdentity>>,
 }
 
 impl ApiKeyIndex {
@@ -73,6 +104,7 @@ impl ApiKeyIndex {
         now_ms: i64,
     ) -> Self {
         let mut by_digest = HashMap::with_capacity(keys.len());
+        let mut by_id = HashMap::with_capacity(keys.len());
         let mut skipped = 0_usize;
         let mut undecodable = 0_usize;
         for key in keys {
@@ -88,17 +120,8 @@ impl ApiKeyIndex {
                 undecodable += 1;
                 continue;
             };
-            let identity = ApiKeyIdentity {
-                api_key_id: key.id.clone(),
-                user_id: key.user_id.clone(),
-                user_role: user.role.clone(),
-                organization_id: key.organization_id.clone(),
-                team_id: key.team_id.clone(),
-                subscription_id: key.subscription_id.clone(),
-                kind: key.kind,
-                enabled: true,
-                expires_at_ms: key.expires_at_ms,
-            };
+            let identity = Arc::new(ApiKeyIdentity::from_row(key, &user.role));
+            by_id.insert(key.id.clone(), identity.clone());
             // Rows arrive ordered by id, so a collision (two rows whose
             // `key_hash` differs only in case) always resolves the same way.
             if by_digest.insert(digest, identity).is_some() {
@@ -116,13 +139,18 @@ impl ApiKeyIndex {
             skipped,
             "assembled the api key index"
         );
-        Self { by_digest }
+        Self { by_digest, by_id }
     }
 
     /// The identity behind a digest, without checking expiry: the caller has
     /// the clock and decides.
     pub fn lookup(&self, digest: &[u8; 32]) -> Option<&ApiKeyIdentity> {
-        self.by_digest.get(digest)
+        self.by_digest.get(digest).map(AsRef::as_ref)
+    }
+
+    /// The identity of a key named by id. Same non-check of expiry.
+    pub fn lookup_id(&self, api_key_id: &str) -> Option<&ApiKeyIdentity> {
+        self.by_id.get(api_key_id).map(AsRef::as_ref)
     }
 
     pub fn len(&self) -> usize {
@@ -282,6 +310,28 @@ mod tests {
             index.lookup(&digest_of("sk-good")).unwrap().api_key_id,
             "k2"
         );
+    }
+
+    #[test]
+    fn the_same_identity_is_reachable_by_digest_and_by_key_id() {
+        let index = ApiKeyIndex::build(
+            &[key_row("k1", "u1", "sk-live")],
+            &users(vec![user_row("u1", true)]),
+            0,
+        );
+        assert_eq!(index.lookup_id("k1"), index.lookup(&digest_of("sk-live")));
+        assert!(index.lookup_id("absent").is_none());
+    }
+
+    #[test]
+    fn liveness_is_re_checked_against_the_request_clock() {
+        let mut identity = ApiKeyIdentity::from_row(&key_row("k1", "u1", "sk-live"), "user");
+        assert!(identity.is_live_at(i64::MAX));
+        identity.expires_at_ms = Some(1_000);
+        assert!(identity.is_live_at(999));
+        assert!(!identity.is_live_at(1_000));
+        identity.enabled = false;
+        assert!(!identity.is_live_at(0));
     }
 
     #[test]
