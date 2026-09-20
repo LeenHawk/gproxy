@@ -210,5 +210,12 @@ Chat 的 assistant 历史消息、响应及流式 delta 显式声明 DeepSeek �
 缺失时再使用明细中的文本/摘要，避免服务同时返回两种表达时重复输出。
 Claude thinking、Gemini thought 文本及 Responses reasoning 映射为 `reasoning_content`；
 Chat 明文推理映射为这些协议对应的响应/流式内容类型。
-加密明细与厂商签名不被解释为文本，也不会在缺少原始来源绑定状态时回放到另一个服务。
-由 Chat 明文推理合成的 Claude 响应使用空签名，不是可以进行签名回放的原始内容。
+Responses 的 reasoning ID、摘要/文本片段与密文通过 `format=openai-responses-v1` 的
+reasoning_details 携带；Claude thinking 的文本/签名和 redacted 块使用
+`format=anthropic-claude-v1`。请求和响应转换只还原匹配格式，不把其他格式的密文当成本厂商数据。
+format 是协议判别字段，不是密码学验证；调用方仍须将回放路由到原来的厂商和模型。
+流式转换在块/响应完成后发送完整明细；Chat 转回原生格式时，在 choice 完成后输出 reasoning，
+避免晚到的 ID/签名改变已经输出的条目。普通回答文本仍然增量输出。
+文本/摘要片段追加，加密数据和签名按快照处理，重复快照不会拼接损坏密文。
+没有匹配签名明细的 Chat 明文推理仍使用空 Claude 签名。Responses 与 Claude 直接互转继续使用
+已有的原始来源绑定状态还原路径。

@@ -3,6 +3,7 @@ use super::{
     common::{Budget, StreamEnd, bounded, claude_finish, id},
     *,
 };
+use crate::transform::generate::reasoning_details as rd;
 use crate::transform::generate::stream::{
     chat::{self, ChatStreamCollector, ChatStreamLimits},
     claude::{ClaudeStreamCollector, ClaudeStreamLimits},
@@ -32,7 +33,8 @@ pub struct ChatToClaudeStream {
     failed: bool,
     closed_blocks: bool,
     text: Option<i64>,
-    reasoning: Option<i64>,
+    reasoning_text: String,
+    reasoning_details: Vec<crate::wire::openai::chat::ReasoningDetail>,
     refusal_text: Option<String>,
     next_block: i64,
     tools: BTreeMap<i64, Tool>,
@@ -98,7 +100,8 @@ impl ChatToClaudeStream {
             failed: false,
             closed_blocks: false,
             text: None,
-            reasoning: None,
+            reasoning_text: String::new(),
+            reasoning_details: Vec::new(),
             refusal_text: None,
             next_block: 0,
             tools: BTreeMap::new(),
@@ -237,48 +240,15 @@ impl ChatToClaudeStream {
         }
         for choice in chunk.choices {
             let delta = choice.delta;
-            if let Some(text) = crate::wire::openai::chat::visible_reasoning(
+            if let Some(text) = crate::wire::openai::chat::reasoning_text(
                 &delta.reasoning_content,
                 &delta.reasoning,
-                &delta.reasoning_details,
             ) {
-                let index = match self.reasoning {
-                    Some(index) => index,
-                    None => {
-                        let index = self.allocate_block()?;
-                        self.reasoning = Some(index);
-                        self.emit(
-                            out,
-                            s::StreamEvent::ContentBlockStart(
-                                s::ContentBlockStartEvent::builder(
-                                    index,
-                                    c::ResponseContentBlock::Thinking(
-                                        crate::wire::claude::content::ThinkingBlock::builder(
-                                            crate::wire::claude::content::ThinkingBlockType::Tag,
-                                            String::new(),
-                                            String::new(),
-                                        )
-                                        .build(),
-                                    ),
-                                )
-                                .build(),
-                            ),
-                        )?;
-                        index
-                    }
-                };
-                self.emit(
-                    out,
-                    s::StreamEvent::ContentBlockDelta(
-                        s::ContentBlockDeltaEvent::builder(
-                            index,
-                            s::ContentBlockDelta::Thinking(s::ThinkingDelta::builder(text).build()),
-                        )
-                        .build(),
-                    ),
-                )?;
+                self.reasoning_text.push_str(text);
             }
-
+            if let Some(Some(details)) = delta.reasoning_details {
+                rd::merge(&mut self.reasoning_details, details)?;
+            }
             if let Some(text) = delta.content.flatten() {
                 let index = self.text_block(out)?;
                 self.emit(out, chat_blocks::text_delta(index, text))?;
@@ -337,7 +307,41 @@ impl ChatToClaudeStream {
         if self.closed_blocks {
             return Err(invalid("duplicate choice finish"));
         }
-        if let Some(index) = self.reasoning {
+        let mut restored = rd::to_claude(&self.reasoning_details);
+        if restored.is_empty() {
+            let text = crate::wire::openai::chat::visible_reasoning(
+                &Some(Some(std::mem::take(&mut self.reasoning_text))),
+                &None,
+                &Some(Some(std::mem::take(&mut self.reasoning_details))),
+            );
+            if let Some(text) = text.filter(|v| !v.is_empty()) {
+                restored.push(crate::wire::claude::content::ContentBlock::Thinking(
+                    crate::wire::claude::content::ThinkingBlock::builder(
+                        crate::wire::claude::content::ThinkingBlockType::Tag,
+                        String::new(),
+                        text,
+                    )
+                    .build(),
+                ));
+            }
+        }
+        for block in restored {
+            let index = self.allocate_block()?;
+            let block = match block {
+                crate::wire::claude::content::ContentBlock::Thinking(v) => {
+                    c::ResponseContentBlock::Thinking(v)
+                }
+                crate::wire::claude::content::ContentBlock::RedactedThinking(v) => {
+                    c::ResponseContentBlock::RedactedThinking(v)
+                }
+                _ => unreachable!(),
+            };
+            self.emit(
+                out,
+                s::StreamEvent::ContentBlockStart(
+                    s::ContentBlockStartEvent::builder(index, block).build(),
+                ),
+            )?;
             self.emit(out, chat_blocks::block_stop(index))?;
         }
         if let Some(index) = self.text {

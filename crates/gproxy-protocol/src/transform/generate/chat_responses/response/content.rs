@@ -1,4 +1,5 @@
 use super::annotations;
+use crate::transform::generate::reasoning_details as rd;
 use crate::{
     Dialect,
     transform::{
@@ -81,8 +82,26 @@ pub(super) fn to_responses(
             rest: Default::default(),
         }));
     }
-    let mut output = Vec::new();
-    if let Some(text) = reasoning {
+    let restored = rd::to_responses(
+        message
+            .reasoning_details
+            .as_ref()
+            .and_then(Option::as_deref)
+            .unwrap_or(&[]),
+    )?;
+    let has_restored = !restored.is_empty();
+    let mut output = restored
+        .into_iter()
+        .map(|mut item| {
+            item.status = Some(if incomplete {
+                i::ReasoningStatus::Incomplete
+            } else {
+                i::ReasoningStatus::Completed
+            });
+            r::ResponseOutputItem::Reasoning(item)
+        })
+        .collect::<Vec<_>>();
+    if !has_restored && let Some(text) = reasoning {
         let id = identity(
             flow,
             policy,
@@ -263,6 +282,7 @@ pub(super) fn to_chat(
 ) -> Result<ChatOutput, TransformError> {
     let mut text = String::new();
     let mut reasoning = Vec::new();
+    let mut details = Vec::new();
     let mut has_text = false;
     let mut refusal = String::new();
     let mut has_refusal = false;
@@ -379,14 +399,9 @@ pub(super) fn to_chat(
                 }));
             }
             r::ResponseOutputItem::Reasoning(item) => {
+                details.extend(rd::from_responses(&item, details.len() as i64));
                 reasoning.extend(item.summary.into_iter().map(|part| part.text));
                 reasoning.extend(item.content.into_iter().flatten().map(|part| part.text));
-                if item.encrypted_content.flatten().is_some() {
-                    report.omitted(
-                        "output.reasoning.encrypted_content",
-                        "opaque replay requires original-bound state",
-                    );
-                }
             }
             r::ResponseOutputItem::FileSearchCall(_)
             | r::ResponseOutputItem::FunctionCallOutput(_)
@@ -423,8 +438,8 @@ pub(super) fn to_chat(
             rest: Default::default(),
         }),
         message: c::ResponseMessage {
-            reasoning_details: None,
-            reasoning_content: None,
+            reasoning_details: (!details.is_empty()).then_some(Some(details)),
+            reasoning_content: (!reasoning.is_empty()).then(|| Some(reasoning.join("\n"))),
             reasoning: None,
             content: has_text.then_some(text),
             refusal: has_refusal.then_some(refusal),

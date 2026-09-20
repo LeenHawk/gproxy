@@ -89,38 +89,7 @@ impl ChoiceAccum {
                         .reasoning_details
                         .get_or_insert(None)
                         .get_or_insert_default();
-                    for detail in details {
-                        let existing = target.iter_mut().find(|v| {
-                            v.type_ == detail.type_
-                                && ((detail.index.is_some() && v.index == detail.index)
-                                    || (detail.index.is_none()
-                                        && detail.id.as_ref().and_then(Option::as_ref).is_some()
-                                        && v.id == detail.id))
-                        });
-                        if let Some(existing) = existing {
-                            fn append(out: &mut Option<String>, text: Option<String>) {
-                                if let Some(text) = text {
-                                    out.get_or_insert_default().push_str(&text);
-                                }
-                            }
-                            if let Some(text) = detail.text {
-                                append(existing.text.get_or_insert(None), text);
-                            }
-                            if let Some(signature) = detail.signature {
-                                append(existing.signature.get_or_insert(None), signature);
-                            }
-                            append(&mut existing.summary, detail.summary);
-                            append(&mut existing.data, detail.data);
-                            if detail.id.is_some() {
-                                existing.id = detail.id;
-                            }
-                            if detail.format.is_some() {
-                                existing.format = detail.format;
-                            }
-                        } else {
-                            target.push(detail);
-                        }
-                    }
+                    crate::transform::generate::reasoning_details::merge(target, details)?;
                 }
                 None if self.reasoning_details.is_none() => self.reasoning_details = Some(None),
                 None => {}

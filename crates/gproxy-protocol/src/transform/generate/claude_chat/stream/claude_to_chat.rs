@@ -2,6 +2,7 @@ use super::{
     common::{Budget, StreamEnd, chat_finish, id},
     *,
 };
+use crate::transform::generate::reasoning_details as rd;
 use crate::transform::generate::stream::{
     chat::{self, ChatStreamCollector, ChatStreamLimits},
     claude::{ClaudeStreamCollector, ClaudeStreamLimits},
@@ -18,7 +19,7 @@ enum Block {
         pending: Option<String>,
         closed: bool,
     },
-    Reasoning,
+    Reasoning(crate::wire::claude::content::ThinkingBlock),
     Tool {
         index: i64,
         has_arguments: bool,
@@ -230,16 +231,19 @@ impl ClaudeToChatStream {
                         }
                     }
                     c::ResponseContentBlock::Thinking(block) => {
-                        self.blocks.insert(v.index, Block::Reasoning);
+                        self.blocks.insert(v.index, Block::Reasoning(block.clone()));
                         if !block.thinking.is_empty() {
                             let mut delta = q::Delta::builder().build();
                             delta.reasoning_content = Some(Some(block.thinking));
                             self.emit(&mut out, delta)?;
                         }
                     }
-                    c::ResponseContentBlock::RedactedThinking(_) => {
-                        self.blocks.insert(v.index, Block::Reasoning);
-                        self.report.omitted("content.reasoning","Chat has no declared reasoning delta; opaque replay needs original-bound state");
+                    c::ResponseContentBlock::RedactedThinking(block) => {
+                        self.blocks.insert(v.index, Block::Omitted);
+                        let mut delta = q::Delta::builder().build();
+                        delta.reasoning_details =
+                            Some(Some(vec![rd::from_redacted(&block, v.index)]));
+                        self.emit(&mut out, delta)?;
                     }
                     _ => {
                         self.blocks.insert(v.index, Block::Omitted);
@@ -276,14 +280,20 @@ impl ClaudeToChatStream {
                         self.emit(&mut out, arguments(tool, json.partial_json))?;
                     }
                     s::ContentBlockDelta::Thinking(block) => {
+                        let Some(Block::Reasoning(original)) = self.blocks.get_mut(&index) else {
+                            return Err(invalid("thinking delta on nonreasoning block"));
+                        };
+                        original.thinking.push_str(&block.thinking);
                         let mut delta = q::Delta::builder().build();
                         delta.reasoning_content = Some(Some(block.thinking));
                         self.emit(&mut out, delta)?;
                     }
-                    s::ContentBlockDelta::Signature(_) => self.report.omitted(
-                        "content.reasoning_delta",
-                        "Chat has no declared reasoning/signature delta",
-                    ),
+                    s::ContentBlockDelta::Signature(signature) => {
+                        let Some(Block::Reasoning(original)) = self.blocks.get_mut(&index) else {
+                            return Err(invalid("signature on nonreasoning block"));
+                        };
+                        original.signature = signature.signature;
+                    }
                     s::ContentBlockDelta::Citations(_) => self
                         .report
                         .omitted("content.citations", "Chat has no typed citation delta"),
@@ -294,6 +304,11 @@ impl ClaudeToChatStream {
                 }
             }
             s::StreamEvent::ContentBlockStop(v) => {
+                if let Some(Block::Reasoning(block)) = self.blocks.get(&v.index) {
+                    let mut delta = q::Delta::builder().build();
+                    delta.reasoning_details = Some(Some(vec![rd::from_thinking(block, v.index)]));
+                    self.emit(&mut out, delta)?;
+                }
                 if let Some(Block::Text { closed, .. }) = self.blocks.get_mut(&v.index) {
                     *closed = true;
                     self.flush_text(&mut out)?;

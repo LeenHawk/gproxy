@@ -243,16 +243,8 @@ impl ResponsesToChatStream {
                 "response.annotations",
                 "Chat stream Delta has no annotation field",
             ),
-            rs::StreamEvent::ReasoningTextDelta(v) => {
-                let mut delta = cs::Delta::builder().build();
-                delta.reasoning_content = Some(Some(v.delta));
-                self.emit_delta(delta, &mut out)?;
-            }
-            rs::StreamEvent::ReasoningSummaryTextDelta(v) => {
-                let mut delta = cs::Delta::builder().build();
-                delta.reasoning_content = Some(Some(v.delta));
-                self.emit_delta(delta, &mut out)?;
-            }
+            rs::StreamEvent::ReasoningTextDelta(_)
+            | rs::StreamEvent::ReasoningSummaryTextDelta(_) => {}
             rs::StreamEvent::ReasoningTextDone(_)
             | rs::StreamEvent::ReasoningSummaryTextDone(_)
             | rs::StreamEvent::ReasoningSummaryPartAdded(_)
@@ -313,6 +305,13 @@ impl ResponsesToChatStream {
         }
         self.flush_text(out)?;
         let mut expected = mapped.value;
+        let message = &expected.choices[0].message;
+        if message.reasoning_details.is_some() || message.reasoning_content.is_some() {
+            let mut delta = cs::Delta::builder().build();
+            delta.reasoning_details = message.reasoning_details.clone();
+            delta.reasoning_content = message.reasoning_content.clone();
+            self.emit_delta(delta, out)?;
+        }
         if expected.choices[0].message.annotations.take().is_some() {
             self.report.omitted(
                 "message.annotations",

@@ -307,7 +307,6 @@ fn visible_reasoning_is_typed_and_opaque_signatures_and_rest_are_not_text() {
         diagnostics.extend(v.report.diagnostics);
     }
     out.extend(stream.finish().unwrap().chunks);
-    assert!(!diagnostics.is_empty());
     let collected = collect_q(out);
     assert_eq!(
         collected.choices[0].message.reasoning_content,
@@ -322,7 +321,25 @@ fn visible_reasoning_is_typed_and_opaque_signatures_and_rest_are_not_text() {
             .contains("secret")
     );
     let json = serde_json::to_string(&collected).unwrap();
-    assert!(!json.contains("opaque"));
+    assert_eq!(
+        collected.choices[0]
+            .message
+            .reasoning_details
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .unwrap()[0]
+            .signature,
+        Some(Some("opaque".into()))
+    );
+    assert!(
+        !collected.choices[0]
+            .message
+            .content
+            .as_deref()
+            .unwrap_or("")
+            .contains("opaque")
+    );
     assert!(!json.contains("DROP"));
     assert!(json.contains("KEEP"));
 }

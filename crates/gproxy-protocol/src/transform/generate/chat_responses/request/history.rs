@@ -1,4 +1,5 @@
 use super::messages::id;
+use crate::transform::generate::reasoning_details as rd;
 use crate::{
     transform::{Report, TransformError},
     wire::openai::{chat as c, responses::input as r},
@@ -230,24 +231,20 @@ pub(super) fn to_chat(
                 ));
             }
             r::InputItem::Reasoning(item) => {
+                let details = rd::from_responses(&item, 0);
                 let text = item
                     .summary
-                    .into_iter()
-                    .map(|p| p.text)
-                    .chain(item.content.into_iter().flatten().map(|p| p.text))
+                    .iter()
+                    .map(|p| p.text.as_str())
+                    .chain(item.content.iter().flatten().map(|p| p.text.as_str()))
                     .collect::<Vec<_>>()
                     .join("\n");
-                if !text.is_empty() {
+                if !text.is_empty() || !details.is_empty() {
                     let mut message =
                         c::AssistantMessage::builder(c::AssistantRole::Assistant).build();
-                    message.reasoning_content = Some(Some(text));
+                    message.reasoning_content = (!text.is_empty()).then_some(Some(text));
+                    message.reasoning_details = (!details.is_empty()).then_some(Some(details));
                     messages.push(c::ChatMessage::Assistant(message));
-                }
-                if item.encrypted_content.flatten().is_some() {
-                    report.omitted(
-                        "input.reasoning.encrypted_content",
-                        "opaque replay requires original-bound state",
-                    );
                 }
             }
             r::InputItem::Compaction(_)
