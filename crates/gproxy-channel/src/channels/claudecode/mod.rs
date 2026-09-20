@@ -38,6 +38,7 @@ use crate::channel::{
     OperationFuture, PrepareContext, ProviderView, QuotaHeaders, QuotaModel, QuotaQuery,
     RefreshContext, UsageExtractor, UsageStream, forwardable,
 };
+use crate::channels::shared::cache;
 use futures_util::StreamExt;
 use gproxy_client::{Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, TlsVersion};
 use gproxy_protocol::{
@@ -96,6 +97,10 @@ pub struct ClaudecodeConfig {
     pub user_agent: Option<String>,
     /// Static headers added to every backend request.
     pub headers: BTreeMap<String, String>,
+    /// Place `cache_control` where a client embeds a magic cache string in
+    /// Messages and count_tokens bodies (`channels::shared::cache`). Off by
+    /// default; the strings are stripped either way.
+    pub enable_claude_magic_cache: bool,
 }
 
 impl Default for ClaudecodeConfig {
@@ -107,6 +112,7 @@ impl Default for ClaudecodeConfig {
             claude_ai_url: DEFAULT_CLAUDE_AI_URL.into(),
             user_agent: None,
             headers: BTreeMap::new(),
+            enable_claude_magic_cache: false,
         }
     }
 }
@@ -666,7 +672,11 @@ impl Claudecode {
             HttpBody::Bytes(bytes) if is_messages(operation) => {
                 match hygiene::json_object(&bytes) {
                     Some(mut value) => {
-                        hygiene::messages(&mut value, &mut headers);
+                        hygiene::messages(
+                            &mut value,
+                            &mut headers,
+                            config.enable_claude_magic_cache,
+                        );
                         hygiene::inject_billing(
                             &mut value,
                             &account.device_id,
@@ -683,7 +693,13 @@ impl Claudecode {
                 if let Some(value) = hygiene::json_object(&bytes) {
                     hygiene::count_tokens(&value, &mut headers);
                 }
-                HttpBody::Bytes(bytes)
+                // Rewritten only when a magic cache string is present.
+                HttpBody::Bytes(cache::shape(
+                    bytes,
+                    config
+                        .enable_claude_magic_cache
+                        .then_some(cache::Rules::Claude),
+                ))
             }
             other => other,
         };

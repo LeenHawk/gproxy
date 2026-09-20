@@ -32,6 +32,7 @@ use crate::channel::{
     ResponseView, UsageCompleteness, UsageContext, UsageExtractor, UsageFrame, UsageObserver,
     UsageStream, UsageStreamContext, UsageStreamEnd, UsageTransport, forwardable,
 };
+use crate::channels::shared::cache;
 use base64::Engine;
 use futures_util::StreamExt;
 use gproxy_client::{Backend, ConnectionConfig};
@@ -83,6 +84,10 @@ pub struct CodexConfig {
     pub user_agent: Option<String>,
     /// Static headers added to every backend request.
     pub headers: BTreeMap<String, String>,
+    /// Place `prompt_cache_breakpoint` where a client embeds a magic cache
+    /// string in Responses bodies (`channels::shared::cache`). Off by
+    /// default; the strings are stripped either way.
+    pub enable_openai_magic_cache: bool,
 }
 
 impl Default for CodexConfig {
@@ -93,6 +98,7 @@ impl Default for CodexConfig {
             originator: DEFAULT_ORIGINATOR.into(),
             user_agent: None,
             headers: BTreeMap::new(),
+            enable_openai_magic_cache: false,
         }
     }
 }
@@ -326,10 +332,25 @@ impl BaseChannel for Codex {
         }
     }
 
+    /// Buffered Responses bodies are shaped for the magic cache strings; a
+    /// streamed request body passes through untouched, as in `claudecode`.
     fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+        let rules = CodexConfig::from_view(ctx.provider)?
+            .enable_openai_magic_cache
+            .then_some(cache::Rules::OpenAiResponses);
+        let responses = matches!(
+            ctx.operation.operation,
+            Operation::GenerateContent
+                | Operation::StreamGenerateContent
+                | Operation::CompactContent
+        );
         let (builder, request) = self.build(ctx, false)?;
+        let body = match request.body {
+            HttpBody::Bytes(bytes) if responses => HttpBody::Bytes(cache::shape(bytes, rules)),
+            other => other,
+        };
         builder
-            .body(request.body)
+            .body(body)
             .map_err(|error| invalid_config(error.to_string()))
     }
 
