@@ -16,7 +16,7 @@ use gproxy_store::Store;
 use crate::{
     SdkError, SdkResult,
     builder::LoginTtl,
-    resolve::RoutingTable,
+    resolve::{DEFAULT_MAX_ATTEMPTS, RotationCounters, RoutingTable},
     sync::{self, SyncHandle},
 };
 
@@ -49,6 +49,9 @@ pub(crate) struct Inner<C> {
     pub(crate) cache: Arc<dyn Cache>,
     /// Routing rows of the active revision, republished by every reload.
     pub(crate) routing: ArcSwap<RoutingTable>,
+    /// Balancing state, deliberately outside the routing table: a reload
+    /// replaces the rows, not the position a round robin had reached.
+    pub(crate) rotation: RotationCounters,
     /// Reloads are serialized, so a read and its publication cannot interleave
     /// with another reload's. A failed reload leaves the previous snapshot.
     pub(crate) reload_lock: tokio::sync::Mutex<()>,
@@ -171,9 +174,19 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Inner<C> {
         let _guard = self.reload_lock.lock().await;
         let outcome = self.core.reload_data().await?;
         let routing = self.store.load_routing_data().await?;
+        // The instance-wide attempt budget lives on the settings row rather
+        // than in `CoreData`, and resolution needs it for every name that does
+        // not go through a route.
+        let max_attempts = self
+            .store
+            .settings()
+            .get()
+            .await?
+            .map_or(DEFAULT_MAX_ATTEMPTS, |settings| settings.max_attempts);
         self.routing.store(Arc::new(RoutingTable::new(
             outcome.active_revision,
             routing,
+            max_attempts,
         )));
         Ok(outcome)
     }

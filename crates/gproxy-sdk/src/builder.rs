@@ -358,6 +358,7 @@ impl Options {
             store,
             cache,
             routing: ArcSwap::from_pointee(RoutingTable::default()),
+            rotation: Default::default(),
             reload_lock: tokio::sync::Mutex::new(()),
             sync: OnceLock::new(),
             login_ttl,

@@ -48,8 +48,11 @@ pub mod session;
 pub mod sync;
 
 pub use builder::{GproxyBuilder, LoginTtl};
+pub use call::{CallBuilder, ConnectBuilder};
 pub use error::{SdkError, SdkResult};
 pub use handle::Gproxy;
+pub use resolve::{Plan, ResolveRequest, RoutingTable, Target};
+pub use session::GATEWAY_SESSION_HEADER;
 pub use sync::{INVALIDATION_TOPIC, SyncMode};
 
 /// Everything a host needs to name the types the handle exchanges, without

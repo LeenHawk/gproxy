@@ -6,6 +6,8 @@
 //! Nothing here reaches a network; every upstream answer is scripted.
 #![allow(dead_code)]
 
+pub mod seed;
+
 use std::{
     collections::VecDeque,
     sync::{Arc, Mutex},

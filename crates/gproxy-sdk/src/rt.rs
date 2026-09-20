@@ -60,3 +60,14 @@ where
     wasm_bindgen_futures::spawn_local(future);
     true
 }
+
+/// Wall-clock milliseconds since the Unix epoch: the timestamp every durable
+/// row and cache payload in this workspace is written with. `web_time` is the
+/// shim core uses for the same purpose, so wasm32 reads the browser's clock
+/// instead of panicking on `std::time::SystemTime`.
+pub(crate) fn now_ms() -> i64 {
+    web_time::SystemTime::now()
+        .duration_since(web_time::UNIX_EPOCH)
+        .map(|elapsed| i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX))
+        .unwrap_or(0)
+}
