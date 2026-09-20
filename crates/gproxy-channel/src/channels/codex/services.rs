@@ -277,6 +277,13 @@ const ROUTE_TABLE: &[(&str, &str, ServiceTransport, bool, ServiceClass)] = &[
         resource(KIND_REMOTE_SERVER, Delete),
     ),
     // Codex API mount: models, guardian, alpha tools, analytics, realtime.
+    (
+        "POST",
+        "/backend-api/codex/alpha/search",
+        Http,
+        true,
+        Catalog,
+    ),
     ("GET", "/backend-api/codex/models", Http, true, Catalog),
     ("POST", "/backend-api/codex/guardian", Http, true, Catalog),
     (

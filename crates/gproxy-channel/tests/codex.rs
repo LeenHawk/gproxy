@@ -2058,15 +2058,15 @@ fn codex_image_endpoints_shape_json_and_binary_multipart() {
         panic!("buffered")
     };
     let value: Value = serde_json::from_slice(&bytes).unwrap();
-    assert!(value.get("moderation").is_none());
+    assert_eq!(value["moderation"], "low");
     assert_eq!(value["future_image_option"]["x"], 1);
     let edited = prepared_body(
         json!({}),
         Operation::EditImage,
         json!({"model":"gpt-image-1","prompt":"edit","images":[{"image_url":"https://example.com/a.png"}],"mask":{"image_url":"mask"},"input_fidelity":"high"}),
     );
-    assert!(edited.get("mask").is_none());
-    assert!(edited.get("input_fidelity").is_none());
+    assert_eq!(edited["mask"], json!({"image_url":"mask"}));
+    assert_eq!(edited["input_fidelity"], "high");
     let image = b"\x89PNG\0\xff--edge-not-a-boundary\r\n";
     let mut body = b"--edge\r\nContent-Disposition: form-data; name=\"prompt\"\r\n\r\nedit\r\n--edge\r\nContent-Disposition: form-data; name=\"image[]\"; filename=\"x.png\"\r\nContent-Type: image/png\r\n\r\n".to_vec();
     body.extend_from_slice(image);
@@ -2225,5 +2225,279 @@ async fn real_cli_and_upstream_error_streams_remain_byte_exact() {
             actual.extend_from_slice(&bytes.unwrap());
         }
         assert_eq!(actual, text.as_bytes());
+    }
+}
+
+#[tokio::test]
+async fn image_stream_parameters_and_upstream_sse_pass_through() {
+    use futures_util::StreamExt;
+    for operation in [Operation::CreateImage, Operation::EditImage] {
+        let event = if operation == Operation::CreateImage {
+            "image_generation.completed"
+        } else {
+            "image_edit.completed"
+        };
+        let wire = format!(
+            "event: {event}\r\ndata: {{\"type\":\"{event}\",\"b64_json\":\"aW1hZ2U=\"}}\r\n\r\n"
+        );
+        let client = Arc::new(ScriptClient::new(vec![sse_response(&wire)]));
+        let mut body = json!({"model":"gpt-image-2.5","prompt":"blue circle","stream":true,"partial_images":2, "moderation":"low", "output_compression":80, "output_format":"jpeg", "response_format":"b64_json", "style":"natural", "user":"gproxy-image-probe"});
+        if operation == Operation::EditImage {
+            body["images"] = json!([{"image_url":"data:image/png;base64,aW1hZ2U="}]);
+            body["input_fidelity"] = json!("high");
+            body["mask"] = json!({"image_url":"data:image/png;base64,bWFzaw=="});
+        }
+        let config = json!({});
+        let secret = secret("at");
+        let context = OperationContext {
+            provider: provider(&config, None),
+            credential: credential(&secret, &Value::Null),
+            dialect: Dialect::OpenAi,
+            request: WireRequest {
+                method: Method::POST,
+                path: "/ignored".into(),
+                query: None,
+                headers: HeaderMap::new(),
+                body: HttpBody::Bytes(Bytes::from(body.to_string())),
+            },
+            client: client.clone(),
+            state: Arc::new(MemoryState::default()),
+            instance_id: Arc::from("i"),
+            endpoint_override: None,
+        };
+        let response = match operation {
+            Operation::CreateImage => Codex.create_image(context).await.unwrap(),
+            Operation::EditImage => Codex.edit_image(context).await.unwrap(),
+            _ => unreachable!(),
+        };
+        let sent: Value = serde_json::from_slice(&client.sent()[0].3).unwrap();
+        assert_eq!(
+            sent, body,
+            "image request parameters must survive preparation"
+        );
+        assert_eq!(response.headers["content-type"], "text/event-stream");
+        let HttpBody::Stream(mut stream) = response.body else {
+            panic!("stream")
+        };
+        let mut actual = Vec::new();
+        while let Some(chunk) = stream.next().await {
+            actual.extend_from_slice(&chunk.unwrap());
+        }
+        assert_eq!(actual, wire.as_bytes());
+    }
+}
+
+#[test]
+fn multipart_image_edit_preserves_stream_parameters() {
+    let body = "--edge\r\nContent-Disposition: form-data; name=\"prompt\"\r\n\r\nedit\r\n--edge\r\nContent-Disposition: form-data; name=\"stream\"\r\n\r\ntrue\r\n--edge\r\nContent-Disposition: form-data; name=\"partial_images\"\r\n\r\n2\r\n--edge\r\nContent-Disposition: form-data; name=\"image\"\r\n\r\nhttps://example.com/a.png\r\n--edge--\r\n";
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "content-type",
+        HeaderValue::from_static("multipart/form-data; boundary=edge"),
+    );
+    let request = prepare_body_bytes(json!({}), Operation::EditImage, headers, Bytes::from(body));
+    let HttpBody::Bytes(bytes) = request.into_body() else {
+        panic!("buffered")
+    };
+    let value: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(value["stream"], true);
+    assert_eq!(value["partial_images"], 2);
+}
+
+#[tokio::test]
+async fn alpha_search_preserves_search_parameters_and_returns_json() {
+    let config = json!({});
+    let secret = secret("at");
+    let input = json!({"id":"session-1","model":"gpt-6-astra","input":"recent context",
+        "commands":{"search_query":[{"q":"OpenAI","domains":["openai.com"]}],"response_length":"short"},
+        "settings":{"external_web_access":"live"},"max_output_tokens":2500,"future":true});
+    let answer =
+        json!({"output":"result","encrypted_output":"opaque","results":[{"future_result":1}]});
+    let client = Arc::new(ScriptClient::new(vec![reply(
+        StatusCode::OK,
+        answer.clone(),
+    )]));
+    assert_eq!(
+        Codex.native_dialects(provider(&config, None), Operation::WebSearch),
+        vec![Dialect::OpenAi]
+    );
+    let response = Codex
+        .web_search(OperationContext {
+            provider: provider(&config, None),
+            credential: credential(&secret, &Value::Null),
+            dialect: Dialect::OpenAi,
+            request: WireRequest {
+                method: Method::POST,
+                path: "/v1/alpha/search".into(),
+                query: None,
+                headers: HeaderMap::new(),
+                body: HttpBody::Bytes(Bytes::from(input.to_string())),
+            },
+            client: client.clone(),
+            state: Arc::new(MemoryState::default()),
+            instance_id: Arc::from("i"),
+            endpoint_override: None,
+        })
+        .await
+        .unwrap();
+    assert!(
+        client.sent()[0]
+            .1
+            .ends_with("/backend-api/codex/alpha/search")
+    );
+    assert_eq!(
+        serde_json::from_slice::<Value>(&client.sent()[0].3).unwrap(),
+        input
+    );
+    assert_eq!(body_json(response).await, answer);
+}
+
+fn realtime_multipart() -> Bytes {
+    Bytes::from_static(b"--rtc\r\nContent-Disposition: form-data; name=\"sdp\"\r\n\r\nv=0\r\ns=offer\r\n\r\n--rtc\r\nContent-Disposition: form-data; name=\"session\"\r\n\r\n{\"type\":\"realtime\",\"model\":\"gpt-realtime\",\"future_session\":true}\r\n--rtc--\r\n")
+}
+
+#[tokio::test]
+async fn realtime_call_adapts_buffered_and_streamed_multipart_and_keeps_answer() {
+    use futures_util::StreamExt;
+    for streamed in [false, true] {
+        let config = json!({});
+        let secret = secret("at");
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "content-type",
+            HeaderValue::from_static("multipart/form-data; boundary=rtc"),
+        );
+        let source = realtime_multipart();
+        let body = if streamed {
+            HttpBody::Stream(Box::pin(futures_util::stream::iter(
+                source
+                    .chunks(3)
+                    .map(|chunk| Ok(Bytes::copy_from_slice(chunk)))
+                    .collect::<Vec<_>>(),
+            )))
+        } else {
+            HttpBody::Bytes(source)
+        };
+        let mut response_headers = HeaderMap::new();
+        response_headers.insert("content-type", HeaderValue::from_static("application/sdp"));
+        response_headers.insert(
+            "location",
+            HeaderValue::from_static("/v1/realtime/calls/rtc_test"),
+        );
+        let client = Arc::new(ScriptClient::new(vec![WireResponse {
+            status: StatusCode::CREATED,
+            headers: response_headers.clone(),
+            body: HttpBody::Bytes(Bytes::from_static(b"v=0\r\ns=answer\r\n")),
+        }]));
+        let response = Codex
+            .create_realtime_call(OperationContext {
+                provider: provider(&config, None),
+                credential: credential(&secret, &Value::Null),
+                dialect: Dialect::OpenAi,
+                request: WireRequest {
+                    method: Method::POST,
+                    path: "/v1/realtime/calls".into(),
+                    query: Some("intent=quicksilver&architecture=avas".into()),
+                    headers,
+                    body,
+                },
+                client: client.clone(),
+                state: Arc::new(MemoryState::default()),
+                instance_id: Arc::from("i"),
+                endpoint_override: None,
+            })
+            .await
+            .unwrap();
+        let sent = &client.sent()[0];
+        assert_eq!(
+            sent.1,
+            "https://chatgpt.com/backend-api/codex/realtime/calls?intent=quicksilver&architecture=avas"
+        );
+        assert_eq!(sent.2["content-type"], "application/json");
+        assert_eq!(
+            serde_json::from_slice::<Value>(&sent.3).unwrap(),
+            json!({"sdp":"v=0\r\ns=offer\r\n","session":{"type":"realtime","model":"gpt-realtime","future_session":true}})
+        );
+        assert_eq!(response.status, StatusCode::CREATED);
+        assert_eq!(response.headers, response_headers);
+        let bytes = match response.body {
+            HttpBody::Bytes(b) => b,
+            HttpBody::Stream(mut s) => s.next().await.unwrap().unwrap(),
+        };
+        assert_eq!(bytes.as_ref(), b"v=0\r\ns=answer\r\n");
+    }
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "content-type",
+        HeaderValue::from_static("multipart/form-data; boundary=rtc"),
+    );
+    let prepared = prepare_body_bytes(
+        json!({}),
+        Operation::CreateRealtimeCall,
+        headers,
+        realtime_multipart(),
+    );
+    assert_eq!(prepared.headers()["content-type"], "application/json");
+}
+
+#[tokio::test]
+async fn realtime_websocket_uses_api_routes_without_responses_identity() {
+    let config = json!({"allowed_headers":[]});
+    let secret = secret("at");
+    for (path, query, endpoint, expected) in [
+        (
+            "/v1/realtime",
+            Some("model=gpt-realtime&intent=quicksilver"),
+            None,
+            "wss://api.openai.com/v1/realtime?model=gpt-realtime&intent=quicksilver",
+        ),
+        (
+            "/v1/realtime",
+            Some("call_id=rtc_test"),
+            None,
+            "wss://api.openai.com/v1/realtime?call_id=rtc_test",
+        ),
+        (
+            "/v1/live/rtc_test",
+            None,
+            None,
+            "wss://api.openai.com/v1/live/rtc_test",
+        ),
+        ("/v1/live", None, None, "wss://api.openai.com/v1/live"),
+        (
+            "/v1/realtime",
+            Some("call_id=rtc_test"),
+            Some("https://example.test/control?deployment=x"),
+            "wss://example.test/control?deployment=x&call_id=rtc_test",
+        ),
+    ] {
+        let client = Arc::new(ScriptClient::new(vec![]));
+        let mut headers = HeaderMap::new();
+        headers.insert("openai-beta", HeaderValue::from_static("realtime=v1"));
+        let _ = Codex
+            .connect_realtime(OperationContext {
+                provider: provider(&config, None),
+                credential: credential(&secret, &Value::Null),
+                dialect: Dialect::OpenAi,
+                request: WireRequest {
+                    method: Method::GET,
+                    path: path.into(),
+                    query: query.map(str::to_owned),
+                    headers,
+                    body: (),
+                },
+                client: client.clone(),
+                state: Arc::new(MemoryState::default()),
+                instance_id: Arc::from("i"),
+                endpoint_override: endpoint,
+            })
+            .await
+            .unwrap();
+        let sent = &client.sent()[0];
+        assert_eq!(sent.1, expected);
+        assert_eq!(sent.2["authorization"], "Bearer at");
+        assert_eq!(sent.2["openai-beta"], "realtime=v1");
+        assert!(!sent.2.contains_key("x-codex-turn-metadata"));
+        assert!(!sent.2.contains_key("x-codex-turn-state"));
     }
 }

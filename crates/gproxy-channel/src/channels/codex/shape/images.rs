@@ -1,4 +1,4 @@
-//! The captured Codex image endpoints accept buffered JSON, including data URLs.
+//! Preserve image parameters; adapt buffered multipart edits to backend JSON.
 use crate::channel::ChannelError;
 use base64::Engine;
 use futures_util::{FutureExt, StreamExt};
@@ -16,16 +16,7 @@ fn invalid(error: impl std::fmt::Display) -> ChannelError {
 }
 
 pub(in crate::channels::codex) fn create(body: &Bytes) -> Result<Bytes, ChannelError> {
-    let mut input: CreateImageRequestBody = serde_json::from_slice(body).map_err(invalid)?;
-    reject_stream(input.stream)?;
-    input.moderation = None;
-    input.output_compression = None;
-    input.output_format = None;
-    input.partial_images = None;
-    input.response_format = None;
-    input.stream = None;
-    input.style = None;
-    input.user = None;
+    let input: CreateImageRequestBody = serde_json::from_slice(body).map_err(invalid)?;
     serde_json::to_vec(&input).map(Bytes::from).map_err(invalid)
 }
 
@@ -37,7 +28,7 @@ pub(in crate::channels::codex) fn edit(
         .get(header::CONTENT_TYPE)
         .and_then(|h| h.to_str().ok())
         .unwrap_or("");
-    let mut input: EditImageJsonBody = if content_type
+    let input: EditImageJsonBody = if content_type
         .split(';')
         .next()
         .is_some_and(|mime| mime.trim().eq_ignore_ascii_case("multipart/form-data"))
@@ -52,25 +43,7 @@ pub(in crate::channels::codex) fn edit(
     } else {
         serde_json::from_slice(body).map_err(invalid)?
     };
-    reject_stream(input.stream)?;
-    input.input_fidelity = None;
-    input.mask = None;
-    input.moderation = None;
-    input.output_compression = None;
-    input.output_format = None;
-    input.partial_images = None;
-    input.stream = None;
-    input.user = None;
     serde_json::to_vec(&input).map(Bytes::from).map_err(invalid)
-}
-
-fn reject_stream(stream: Option<Option<bool>>) -> Result<(), ChannelError> {
-    if stream == Some(Some(true)) {
-        return Err(invalid(
-            "streaming is not supported by the captured backend",
-        ));
-    }
-    Ok(())
 }
 
 async fn parse_multipart(body: Bytes, boundary: String) -> Result<EditImageJsonBody, ChannelError> {

@@ -12,7 +12,7 @@ default = []
 custom = []
 # OpenAI Codex (ChatGPT account) upstream: OAuth login/refresh, Responses over
 # HTTP and WebSocket, x-codex rate-limit headers and /wham/usage.
-codex = ["dep:base64", "dep:futures-util", "dep:sha2", "dep:web-time"]
+codex = ["dep:url", "dep:base64", "dep:futures-util", "dep:sha2", "dep:web-time"]
 # Claude Code (Claude.ai subscription) upstream: PKCE and cookie login,
 # refresh, Messages over HTTP with the CLI's request hygiene, unified
 # rate-limit headers and /api/oauth/usage.
@@ -37,6 +37,7 @@ claudeweb = [
 ]
 
 [dependencies]
+url = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
 futures-util = { workspace = true, optional = true }
 getrandom = { workspace = true, optional = true }
