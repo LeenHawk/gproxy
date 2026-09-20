@@ -78,7 +78,10 @@ impl RoutingTable {
                     route.id.clone(),
                     RouteEntry {
                         strategy: route.strategy,
-                        max_attempts: route.max_attempts,
+                        // `Setting.max_attempts` is the instance-wide ceiling
+                        // (see the `routes` entity): a route may ask for fewer
+                        // attempts than the instance allows, never for more.
+                        max_attempts: route.max_attempts.clamp(1, default_max_attempts.max(1)),
                         members: Vec::new(),
                     },
                 )
