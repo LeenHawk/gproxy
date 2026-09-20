@@ -203,7 +203,10 @@ Review decisions currently expressed in the code:
 - Permissions/rate limits currently target users or API keys. A quota targets
   one owner `(owner_kind, owner_id)`; kinds are host-defined strings (suggested:
   `user`, `api_key`, `subscription`, `pool`, `team`, `org`) with no foreign key,
-  so the host write layer must enforce ownership consistency and clean up.
+  so the host write layer must enforce ownership consistency and clean up. Two
+  kinds are reserved by core for upstream-side limits rather than caller
+  budgets: `credential` (one credential) and `provider` (every credential of a
+  provider), with metric `requests`/unit `count` or metric `cost`/unit `USD`.
 - Configuration-owned rows use the declared delete actions. Historical identity
   references have no configuration foreign keys. Quota settlements refer to quota
   windows, independently of removable usage detail records.

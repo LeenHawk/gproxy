@@ -156,9 +156,32 @@ or exhaustion replies and block until the upstream period end (or one window
 derived from the dimension); Counted dimensions are metered in Store's
 `counted_windows` rows with an atomic fits-under-the-limit update, requests
 before the exchange (a refused charge skips the credential without sending)
-and tokens after usage settles, and block until the window ends. Counts are
-shared by every instance and survive restarts. Entries that match no declared dimension are
-still persisted as cycles.
+and tokens and priced USD cost after usage settles, and block until the window
+ends. Counts are shared by every instance and survive restarts. Entries that
+match no declared dimension are still persisted as cycles.
+
+Operators can add limits the channel does not know about as `quotas` rows
+owned by a `credential` (`owner_id` = credential id) or a `provider`
+(`owner_id` = provider id, covering every credential of the provider unless a
+credential row with the same `window_key` overrides it): `metric` `requests`
+with unit `count`, or `cost` with unit `USD`; `period` `5h`/`1d`/`7d` (fixed
+windows aligned to `anchor_at_ms`, epoch 0 when unset), `1m` (UTC months) or
+`total` (never resets); an optional `model_pattern` glob. Assembly appends
+each as a Counted dimension `limit:{quota_id}` after the channel's own, so
+enforcement is the machinery above: requests are charged before the attempt,
+cost after settlement (an unpriced exchange charges nothing), and a full
+window writes a `Counted` block until the window ends. A literal
+`model_pattern` becomes the dimension's `Models` scope; a glob is checked at
+charge time and a block then names the charged model. Invalid rows are
+logged and skipped. These are upstream-side limits, not caller budgets:
+they never see `RequestContext::budgets` and are never settled.
+`Core::credential_limit_status(credential_id, now)` reports each limit's
+current window with `used` and `limit`; `Core::reset_credential_limit(quota_id,
+now)` sets the row's `anchor_at_ms` to `now`, deletes the dimension's counted
+windows, clears its `Counted` blocks from Store and cache and reloads the
+affected credentials, so counting restarts at once (fixed windows realign to
+the new anchor once a reloaded snapshot is published; `total` starts a fresh
+permanent window).
 
 A request whose `SessionIdentity` names an `agent_sessions` row is an agent
 session: core keeps it on its active assignment's credential while usable, runs

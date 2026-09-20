@@ -147,8 +147,11 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
   共享凭证要求具备其归属组织／团队的管理员角色。当前 entity 只表达关系，尚未实现 API 权限判断。
 - ProviderModel 可关联全局模型，删除模型资料时清空该可选引用。
 - 路由结构为对外模型名 → Route → Provider／上游模型成员；不设置组织、团队、用户归属。
-- Permission、RateLimit 暂留 user／API key 归属。Quota 可归用户、API Key、订阅或订阅池，
-  四者恰选其一；归属一致性由后续写入层校验。
+- Permission、RateLimit 暂留 user／API key 归属。Quota 归一个 `(owner_kind, owner_id)`，
+  kind 是宿主定义的字符串（建议 `user`／`api_key`／`subscription`／`pool`／`team`／`org`），
+  不建外键，归属一致性由宿主写入层校验。core 保留两种 kind 表示上游侧上限而非调用方预算：
+  `credential`（一把凭证）与 `provider`（该 provider 的每把凭证），metric `requests`／unit
+  `count` 或 metric `cost`／unit `USD`。
 - 配置从属行使用代码中声明的删除行为。历史身份 ID 不建立配置外键；QuotaSettlement 关联
   QuotaWindow，与可以清理的 UsageRecord 独立。
 - 文件内容留在 file/S3，文件实体只保存位置和元数据；模型自定义词表引用 FileObject。

@@ -95,7 +95,8 @@ pub struct BudgetStatus {
     pub resets_at_ms: Option<i64>,
 }
 
-fn period_of(row: &quota_entity::Model) -> Result<BudgetPeriod, String> {
+/// The period named by a `quotas` row, shared with credential limits.
+pub(crate) fn period_of(row: &quota_entity::Model) -> Result<BudgetPeriod, String> {
     Ok(match row.period.trim().to_ascii_lowercase().as_str() {
         "5h" => BudgetPeriod::Fixed { seconds: 5 * 3600 },
         "1d" => BudgetPeriod::Fixed { seconds: 86_400 },
