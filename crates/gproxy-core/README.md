@@ -265,8 +265,32 @@ matrix, storage representation and process-crash boundary.
 |---|---|---|
 | `AttemptUpstream` | `Upstream<Target = OperationKey>` | One attempt's provider, pinned credential version and client; owned and cloneable so lazily started fanout children outlive the attempt frame |
 | `ProtocolState` | `StateStore<Scope = StateScope>` | Store ProtocolState rows; scope is caller scope, provider and optional conversation |
-| `Resources` | `ResourceAccess<Scope = ResourceScope>` | Publications in `resource_bindings` and `file_objects` through file storage; `Id` reads resolve a same-scope publication first, then the scope provider's files API; reads by `Url` are unsupported (no host allow-list) |
+| `Resources` | `ResourceAccess<Scope = ResourceScope>` | Publications in `resource_bindings` and `file_objects` through file storage; `Id` reads resolve a same-scope publication first, then the scope provider's files API; `Url` reads are fetched by an anonymous client under the host's `FetchPolicy` (`resolve` is the policy check, `read` the GET) |
 | `ChannelStateStore` | `gproxy_channel::ChannelState` | The same ProtocolState rows, scoped to one provider and one credential, handed to the channel as `OperationContext.state`; the channel picks keys and never sees the scope |
+
+Reading by URL (request media given as links: `image_url`, Gemini `file_uri`,
+Claude URL sources) is a server-side fetch on the caller's behalf, so it runs
+under a `FetchPolicy` (`CoreBuilder::fetch_policy(Arc<dyn FetchPolicy>)`). The
+policy sees the URL and the addresses the resolver returned for its host and
+answers `Allow` or `Deny(reason)`; it is asked for the first request and again
+for every redirect (at most three hops), so a public link cannot bounce the
+fetch onto a private one. `DefaultFetchPolicy` applies when nothing is set:
+http/https only, and no loopback, link-local, RFC 1918 / `fc00::/7`, unspecified,
+broadcast or multicast address, IPv4-mapped forms included, whether the address
+is the URL's literal host or a resolver answer. A single-user host whose network
+is the caller's own network opts out with one line,
+`.fetch_policy(Arc::new(AllowAllFetchPolicy))`; `AllowlistFetchPolicy::new(["cdn.example", "*.media.example"])`
+trusts named hosts only. The fetch goes through a plain client of the core
+pool's default profile, never the scope's credential client, so no provider
+auth reaches an arbitrary origin; the body is bounded by the read limit
+(`Content-Length` is checked first) and `Content-Type` / `Content-Disposition`
+fill the returned metadata. Two residual risks stay with the host: the
+outbound client resolves the name again when it connects, so core cannot pin
+the checked addresses (a name that rebinds between the two lookups escapes the
+check — front the fetch with an egress proxy or an allow-list of names you
+control if that matters), and on wasm32 there is no resolver, so the policy
+judges names alone (literal IP hosts are still checked) and the platform's
+`fetch` follows redirects itself.
 
 Publishing by URL (images `response_format: url`) needs the host's link builder,
 `CoreBuilder::publication_url(Arc<dyn PublicationUrl>)`. Core has no public HTTP

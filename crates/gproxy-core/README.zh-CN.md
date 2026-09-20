@@ -206,8 +206,24 @@ Setting 的 `enable_upstream_log`、`enable_upstream_log_body` 控制头信息�
 |---|---|---|
 | `AttemptUpstream` | `Upstream<Target = OperationKey>` | 一次 attempt 的 Provider、固定的凭证版本与 client；自持且可克隆，惰性启动的 fanout 子调用可超出 attempt 栈帧存活 |
 | `ProtocolState` | `StateStore<Scope = StateScope>` | Store 的 ProtocolState 行；scope 是调用方 scope、Provider 与可选会话 |
-| `Resources` | `ResourceAccess<Scope = ResourceScope>` | 经文件存储落 `resource_bindings` 与 `file_objects` 的发布；`Id` 先解析同 scope 的发布，再走 scope Provider 的 files API；按 `Url` 读取不支持（没有宿主 allow-list） |
+| `Resources` | `ResourceAccess<Scope = ResourceScope>` | 经文件存储落 `resource_bindings` 与 `file_objects` 的发布；`Id` 先解析同 scope 的发布，再走 scope Provider 的 files API；`Url` 由匿名 client 在宿主 `FetchPolicy` 之下抓取（`resolve` 只做策略检查，`read` 才发 GET） |
 | `ChannelStateStore` | `gproxy_channel::ChannelState` | 同一批 ProtocolState 行，限定到一个 Provider 与一个凭证，作为 `OperationContext.state` 交给渠道；渠道只选 key，看不到 scope |
+
+按 URL 读取（请求里以链接给出的媒体：`image_url`、Gemini `file_uri`、Claude 的 URL
+source）是 core 代调用方发起的服务端抓取，因此受 `FetchPolicy`
+（`CoreBuilder::fetch_policy(Arc<dyn FetchPolicy>)`）约束。策略看到 URL 与解析器对其
+主机返回的地址，回答 `Allow` 或 `Deny(reason)`；首个请求与每一跳重定向（最多三跳）都会
+再问一次，公网链接无法把抓取弹到内网地址上。未设置时用 `DefaultFetchPolicy`：仅
+http/https，拒绝 loopback、link-local、RFC 1918／`fc00::/7`、unspecified、broadcast 与
+multicast 地址，含 IPv4-mapped 形式，无论地址来自 URL 的字面主机还是解析结果。单用户
+宿主的网络就是调用方自己的网络，一行即可放开：
+`.fetch_policy(Arc::new(AllowAllFetchPolicy))`；`AllowlistFetchPolicy::new(["cdn.example", "*.media.example"])`
+只信任列出的主机名。抓取走 core 连接池缺省配置的普通 client，绝不走 scope 的凭证
+client，Provider 鉴权不会流向任意 origin；body 受读取限额约束（先看 `Content-Length`），
+`Content-Type`／`Content-Disposition` 填入返回的元数据。两处剩余风险留给宿主：出站
+client 连接时会再解析一次域名，core 无法把连接钉在检查过的地址上（两次解析之间换绑的
+域名会绕过检查——在意的话在前面放出口代理，或只 allow-list 自己掌控的域名）；wasm32
+没有解析器，策略只能凭域名判断（字面 IP 主机仍会检查），且平台 `fetch` 自行跟随重定向。
 
 URL 形态的发布（images 的 `response_format: url`）需要宿主提供链接构造器
 `CoreBuilder::publication_url(Arc<dyn PublicationUrl>)`。core 没有公开 HTTP 面，所以

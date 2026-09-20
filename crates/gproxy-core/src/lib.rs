@@ -19,6 +19,7 @@ pub mod convert;
 pub mod data;
 pub mod estimate;
 mod execute;
+pub mod fetch_policy;
 mod ids;
 pub mod keys;
 pub mod limits;
@@ -45,6 +46,9 @@ pub use builder::*;
 pub use capability::*;
 pub use context::*;
 pub use data::*;
+pub use fetch_policy::{
+    AllowAllFetchPolicy, AllowlistFetchPolicy, DefaultFetchPolicy, FetchDecision, FetchPolicy,
+};
 pub use limits::*;
 pub use observe::*;
 pub use pricing::{Cost, PriceBook, PriceRule};
@@ -73,6 +77,7 @@ pub struct Core<C> {
     clients: gproxy_client::ClientPool,
     files: Option<gproxy_file::Operator>,
     publication_url: Option<Arc<dyn PublicationUrl>>,
+    fetch_policy: Arc<dyn FetchPolicy>,
     instance_id: Arc<str>,
     data: ArcSwap<CoreData>,
 }
@@ -103,6 +108,11 @@ impl<C> Core<C> {
     /// Without one, URL publication is refused before any side effect.
     pub fn publication_url(&self) -> Option<&Arc<dyn PublicationUrl>> {
         self.publication_url.as_ref()
+    }
+    /// Which `ResourceReference::Url` reads core may fetch on a caller's
+    /// behalf; `DefaultFetchPolicy` unless the host chose otherwise.
+    pub fn fetch_policy(&self) -> &Arc<dyn FetchPolicy> {
+        &self.fetch_policy
     }
     pub fn secret_codec(&self) -> &Arc<dyn SecretCodec> {
         &self.codec
