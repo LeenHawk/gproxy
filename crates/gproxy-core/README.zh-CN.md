@@ -124,9 +124,24 @@ capture、计量与改写，原生的拒绝回答重新进入同一分类。
 `refresh_credential` 是显式账号操作；attempt 循环在固定即将到期的材料前以 `IfNeeded`
 调用，401/403 后以 `Force` 调用。额度分两条线：Reported 维度的值来自头、查询或耗尽
 回复，block 到上游周期结束（或按维度推一个窗口）；Counted 维度落 Store 的 `counted_windows`
-行，用"装得下才加"的原子更新计数，请求在交换前（被拒绝就不发请求换凭证）、token 在用量
-结算后，block 到窗口结束；各实例看同一个数，重启不丢。对不上
+行，用"装得下才加"的原子更新计数，请求在交换前（被拒绝就不发请求换凭证）、token 与
+定价后的 USD 费用在用量结算后，block 到窗口结束；各实例看同一个数，重启不丢。对不上
 任何声明维度的 entry 仍持久化为周期记录。
+
+渠道不知道的上限由运营用 `quotas` 行配置：owner 为 `credential`（`owner_id` 是凭证 id）
+或 `provider`（`owner_id` 是 provider id，覆盖该 provider 的每把凭证，除非某把凭证有
+`window_key` 相同的自己的行）；`metric` 为 `requests`（unit `count`）或 `cost`（unit `USD`）；
+`period` 为 `5h`／`1d`／`7d`（按 `anchor_at_ms` 对齐的固定窗口，未设则 epoch 0）、`1m`
+（UTC 自然月）或 `total`（永不重置）；可选 `model_pattern` glob。组装时在渠道自己的维度
+之后为每把凭证追加 Counted 维度 `limit:{quota_id}`，执行就是上面那套：请求在 attempt 前
+记账，费用在结算后按定价记账（未定价记 0），窗口满了写 `Counted` block 到窗口结束。
+字面模型名成为维度的 `Models` scope；glob 在记账时过滤，block 则只写本次模型。
+不合法的行告警跳过。这些是上游侧上限，不是调用方预算：不进 `RequestContext::budgets`，
+也不结算。`Core::credential_limit_status(credential_id, now)` 报告每条上限当前窗口的
+`used`／`limit`；`Core::reset_credential_limit(quota_id, now)` 把行的 `anchor_at_ms` 设为
+`now`，删掉该维度的计数窗口，从 Store 与 cache 清掉它的 `Counted` block，再重载受影响的
+凭证，计数立即重新开始（固定窗口在重载快照发布后按新 anchor 对齐；`total` 从头开一个
+永久窗口）。
 
 `SessionIdentity` 指向 `agent_sessions` 行的请求是 agent 会话：core 在可用时把它保持在
 激活 assignment 的凭证上，瞬时问题（限速、冷却、本次请求的 5xx）时不绑定地走另一凭证，

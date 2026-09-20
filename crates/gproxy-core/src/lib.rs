@@ -16,6 +16,7 @@ pub mod builder;
 pub mod capability;
 pub mod context;
 pub mod convert;
+pub mod credential_limit;
 pub mod data;
 pub mod estimate;
 mod execute;
@@ -45,6 +46,7 @@ pub use budget::{BudgetData, BudgetOwner, BudgetPeriod, BudgetStatus};
 pub use builder::*;
 pub use capability::*;
 pub use context::*;
+pub use credential_limit::{CredentialLimit, CredentialLimitStatus};
 pub use data::*;
 pub use fetch_policy::{
     AllowAllFetchPolicy, AllowlistFetchPolicy, DefaultFetchPolicy, FetchDecision, FetchPolicy,

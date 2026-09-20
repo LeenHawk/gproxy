@@ -3,7 +3,8 @@
 use super::{Assembly, AssemblyError, LiveBlocks, ProviderConfig, block_from_row, provider_view};
 use crate::{
     ConfigRevision, CoreData, CredentialData, CredentialState, CredentialVersion, ExecutionLimits,
-    OperationEndpointKey, ProviderData, RewriteRuleSetData, SecretCodec, rewrite::compile_rule,
+    OperationEndpointKey, ProviderData, RewriteRuleSetData, SecretCodec,
+    credential_limit::CredentialLimit, rewrite::compile_rule,
 };
 use gproxy_channel::{ChannelRegistry, channel::CredentialView};
 use gproxy_protocol::{Dialect, Operation, OperationKey};
@@ -132,6 +133,20 @@ pub async fn assemble(
         );
     }
 
+    // Operator limits on credentials: `quotas` rows owned by a credential or
+    // a provider. An unusable row is skipped, never fatal.
+    let mut credential_limits = Vec::new();
+    for row in control
+        .quotas
+        .iter()
+        .filter(|q| q.enabled && CredentialLimit::is_limit_row(q))
+    {
+        match CredentialLimit::compile(row) {
+            Ok(limit) => credential_limits.push(Arc::new(limit)),
+            Err(reason) => tracing::warn!(quota = %row.id, %reason, "credential limit skipped"),
+        }
+    }
+
     let mut credentials = HashMap::new();
     for row in &control.credentials {
         let Some(provider) = providers.get_mut(&row.provider_id) else {
@@ -172,7 +187,7 @@ pub async fn assemble(
                 credential_id: row.id.clone(),
                 source,
             })?;
-        let quota = provider
+        let mut quota = provider
             .channel
             .quota_model()
             .map(|model| {
@@ -190,6 +205,10 @@ pub async fn assemble(
                 )
             })
             .unwrap_or_default();
+        // Operator limits follow the channel's own dimensions.
+        let limits =
+            crate::credential_limit::limits_for(&credential_limits, &row.provider_id, &row.id);
+        quota.extend(limits.iter().map(|limit| limit.dimension()));
         let version = Arc::new(CredentialVersion {
             version: row.version,
             expires_at_ms: row.expires_at_ms,
@@ -221,6 +240,7 @@ pub async fn assemble(
                 websocket_client,
                 state,
                 quota,
+                limits,
             }),
         );
     }
@@ -271,9 +291,14 @@ pub async fn assemble(
             ))
         });
     // Caller budgets and pricing: an unusable row is skipped, never fatal,
-    // so one bad price rule cannot keep a snapshot from publishing.
+    // so one bad price rule cannot keep a snapshot from publishing. Rows
+    // owned by a credential or provider are limits, handled above.
     let mut budgets = Vec::new();
-    for row in control.quotas.iter().filter(|q| q.enabled) {
+    for row in control
+        .quotas
+        .iter()
+        .filter(|q| q.enabled && !CredentialLimit::is_limit_row(q))
+    {
         match crate::budget::BudgetData::compile(row) {
             Ok(budget) => budgets.push(Arc::new(budget)),
             Err(reason) => tracing::warn!(quota = %row.id, %reason, "budget skipped"),
@@ -291,6 +316,7 @@ pub async fn assemble(
             limits,
             estimation,
             budgets,
+            credential_limits,
             pricing,
             providers: providers
                 .into_iter()

@@ -983,6 +983,7 @@ impl Harness {
                     websocket_client: self.client.clone(),
                     state: c.state.clone(),
                     quota: c.quota.clone(),
+                    limits: c.limits.clone(),
                 })
             })
             .collect();

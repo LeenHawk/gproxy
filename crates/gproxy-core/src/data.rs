@@ -44,6 +44,10 @@ pub struct CoreData {
     /// Enabled caller budgets (`quotas` rows with metric `cost`), resolved
     /// per request from the owners the host names.
     pub budgets: Vec<Arc<crate::budget::BudgetData>>,
+    /// Enabled operator limits on credentials (`quotas` rows owned by a
+    /// `credential` or `provider`); each covered credential also carries
+    /// its own in `CredentialData::limits`.
+    pub credential_limits: Vec<Arc<crate::credential_limit::CredentialLimit>>,
     /// Enabled price rules with their rates and tiers; every exchange is
     /// priced from here at settlement.
     pub pricing: Arc<crate::pricing::PriceBook>,
@@ -111,9 +115,14 @@ pub struct CredentialData {
     pub state: Arc<CredentialState>,
     /// Declared once at assembly by the channel's `QuotaModel` from this
     /// credential's auth kind and metadata. Reported dimensions receive their
-    /// values from observations; Counted ones are metered in the cache. Empty
-    /// when the channel models no quota.
+    /// values from observations; Counted ones are metered in Store windows.
+    /// Operator limits follow as synthetic Counted `limit:{quota_id}`
+    /// dimensions. Empty when the channel models no quota and no limit
+    /// covers the credential.
     pub quota: Vec<QuotaDimension>,
+    /// The operator limits behind the synthetic dimensions, for model
+    /// filtering at charge time and for status/reset. Ordered by quota id.
+    pub limits: Vec<Arc<crate::credential_limit::CredentialLimit>>,
 }
 
 pub struct RewriteRuleSetData {

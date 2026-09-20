@@ -5,12 +5,13 @@
 //! as a `credential_quota_cycles` row and an exhausted entry becomes a
 //! `QuotaExhausted` block until the upstream's period end (or one window
 //! derived from the dimension). Counted dimensions are metered in Store's
-//! `counted_windows` rows: requests before the exchange, tokens after usage
-//! settles.
+//! `counted_windows` rows: requests before the exchange, tokens and priced
+//! USD cost after usage settles. Operator limits (`credential_limit`) are
+//! Counted dimensions too, with a model filter of their own.
 
 use crate::{
     BlockSource, Core, CoreError, CoreResult, CredentialBlock, CredentialData, RequestContext,
-    UsageReport, api::lifecycle::now_ms, ids,
+    UsageReport, api::lifecycle::now_ms, credential_limit::counted_units, ids,
 };
 use gproxy_cache::Cache;
 use gproxy_channel::{
@@ -27,15 +28,21 @@ use gproxy_store::{
     entity::limits::credential_quota_cycle,
     operations::counted::{CountedCharge, CountedOutcome},
 };
-use rust_decimal::{Decimal, prelude::ToPrimitive};
+use rust_decimal::Decimal;
 use sea_orm::Set;
 use std::sync::Arc;
 use time::{Duration as TimeDuration, OffsetDateTime};
 
 /// `Total` windows never reset; the counter still needs a cache TTL.
 const TOTAL_WINDOW_TTL_MS: i64 = 30 * 24 * 60 * 60 * 1000;
+/// Cache TTL of a blocks entry left without blocks after a reset.
+const EMPTY_BLOCKS_CACHE_TTL: std::time::Duration =
+    std::time::Duration::from_secs(7 * 24 * 60 * 60);
 
+/// Whether `dimension` covers this operation and model. An operator limit
+/// behind the dimension may narrow it further by its model glob.
 fn dimension_applies(
+    credential: &CredentialData,
     dimension: &QuotaDimension,
     operation: Operation,
     model: Option<&str>,
@@ -49,7 +56,12 @@ fn dimension_applies(
         QuotaScope::Unknown => false,
         scoped => model.is_some_and(|m| scoped.matches(m)),
     };
-    operation_ok && scope_ok
+    let limit_ok = credential
+        .limits
+        .iter()
+        .find(|l| l.dimension_id == dimension.id)
+        .is_none_or(|l| l.applies_to(model));
+    operation_ok && scope_ok && limit_ok
 }
 
 fn allowance(value: &QuotaValue) -> Option<&QuotaAllowance> {
@@ -311,7 +323,7 @@ impl<C: BatchConnectionTrait> Core<C> {
             operation,
             upstream_model,
             QuotaMetric::Requests,
-            1,
+            Decimal::ONE,
             now_ms,
         )
         .await
@@ -372,9 +384,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
     }
 }
 
-/// Charges settled usage against Counted token dimensions and settles the
-/// priced cost into the request's caller budgets. Runs inside the funnel, so
-/// it owns its handles rather than borrowing the engine.
+/// Charges settled usage against Counted token and cost dimensions and
+/// settles the priced cost into the request's caller budgets. Runs inside
+/// the funnel, so it owns its handles rather than borrowing the engine.
 pub(crate) trait UsageMeter: Send + Sync {
     fn charge<'a>(
         &'a self,
@@ -427,21 +439,37 @@ impl<C: BatchConnectionTrait + Send + Sync> UsageMeter for CountedMeter<C> {
                 .into_iter()
                 .flatten()
                 .fold(0u64, u64::saturating_add);
-                if total == 0 {
-                    continue;
-                }
                 // Metering failures only lose counting; the request is done.
-                let _ = meter(
-                    &self.store,
-                    &self.cache,
-                    credential,
-                    request.operation.operation,
-                    exchange.upstream_model.as_deref(),
-                    QuotaMetric::Tokens,
-                    total,
-                    now,
-                )
-                .await;
+                if total > 0 {
+                    let _ = meter(
+                        &self.store,
+                        &self.cache,
+                        credential,
+                        request.operation.operation,
+                        exchange.upstream_model.as_deref(),
+                        QuotaMetric::Tokens,
+                        Decimal::from(total),
+                        now,
+                    )
+                    .await;
+                }
+                // Cost dimensions count USD; an unpriced exchange (or one
+                // priced in another currency) charges nothing.
+                if let Some(cost) = &exchange.cost
+                    && cost.currency.eq_ignore_ascii_case("USD")
+                {
+                    let _ = meter(
+                        &self.store,
+                        &self.cache,
+                        credential,
+                        request.operation.operation,
+                        exchange.upstream_model.as_deref(),
+                        QuotaMetric::Cost,
+                        cost.amount,
+                        now,
+                    )
+                    .await;
+                }
             }
         })
     }
@@ -451,9 +479,12 @@ impl<C: BatchConnectionTrait + Send + Sync> UsageMeter for CountedMeter<C> {
 /// operation and model. The window rows in Store are the record and the
 /// arbiter: a charge lands only while it fits under the limit, atomically per
 /// row, so every instance sees the same count and a restart loses nothing.
+/// Requests and tokens count as integers, cost in `FixedDecimal` atoms.
 /// Returns the block written when a window refused the charge, so the caller
 /// can skip the credential; a charge that lands exactly on the limit blocks
-/// the window for later calls but still counts as applied.
+/// the window for later calls but still counts as applied. A block for a
+/// glob-scoped operator limit names the charged model, since the dimension's
+/// scope is wider than the limit.
 #[allow(clippy::too_many_arguments)]
 async fn meter<C: BatchConnectionTrait>(
     store: &Store<C>,
@@ -462,22 +493,21 @@ async fn meter<C: BatchConnectionTrait>(
     operation: Operation,
     upstream_model: Option<&str>,
     metric: QuotaMetric,
-    amount: u64,
+    amount: Decimal,
     now_ms: i64,
 ) -> CoreResult<Option<CredentialBlock>> {
-    if amount == 0 {
+    let Some(amount) = counted_units(&metric, amount).filter(|a| *a > 0) else {
         return Ok(None);
-    }
-    let amount = i64::try_from(amount).unwrap_or(i64::MAX);
+    };
     for dimension in &credential.quota {
         if dimension.tracking != QuotaTracking::Counted
             || dimension.metric != metric
-            || !dimension_applies(dimension, operation, upstream_model)
+            || !dimension_applies(credential, dimension, operation, upstream_model)
         {
             continue;
         }
         // A Counted dimension without a limit cannot be enforced.
-        let Some(limit) = dimension.limit.and_then(|l| l.to_i64()) else {
+        let Some(limit) = dimension.limit.and_then(|l| counted_units(&metric, l)) else {
             continue;
         };
         let (start, end) = window_bounds(&dimension.window, now_ms);
@@ -499,8 +529,16 @@ async fn meter<C: BatchConnectionTrait>(
                 used: 0,
             });
         if !outcome.applied || outcome.used >= limit {
+            let narrowed = credential
+                .limits
+                .iter()
+                .any(|l| l.dimension_id == dimension.id && l.narrows_scope());
+            let scope = match upstream_model {
+                Some(model) if narrowed => QuotaScope::Models(vec![model.to_owned()]),
+                _ => dimension.scope.clone(),
+            };
             let block = CredentialBlock {
-                scope: dimension.scope.clone(),
+                scope,
                 operation: None,
                 until_ms: end,
                 source: BlockSource::Counted {
@@ -523,6 +561,50 @@ async fn meter<C: BatchConnectionTrait>(
         }
     }
     Ok(None)
+}
+
+/// Drop every `Counted` block of `dimension` from the credential's cached
+/// blocks with a CAS loop, keeping failure streaks and other blocks. Store
+/// rows are the caller's business. A missing entry needs nothing.
+pub(crate) async fn clear_counted_blocks(
+    cache: &Arc<dyn Cache>,
+    provider_id: &str,
+    credential_id: &str,
+    dimension: &str,
+    now_ms: i64,
+) -> CoreResult<()> {
+    use gproxy_cache::{CasOutcome, Replacement};
+    let key = crate::keys::credential_blocks(provider_id, credential_id);
+    loop {
+        let Some(entry) = cache.get(&key).await? else {
+            return Ok(());
+        };
+        let mut current =
+            serde_json::from_slice::<crate::CredentialBlocks>(&entry.value).unwrap_or_default();
+        let before = current.blocks.len();
+        current.blocks.retain(|block| {
+            block.until_ms > now_ms
+                && !matches!(&block.source, BlockSource::Counted { dimension: d } if d == dimension)
+        });
+        if current.blocks.len() == before {
+            return Ok(());
+        }
+        let ttl = current.blocks.iter().map(|b| b.until_ms).max().map_or(
+            EMPTY_BLOCKS_CACHE_TTL,
+            |until| {
+                std::time::Duration::from_millis(u64::try_from(until - now_ms).unwrap_or(1))
+                    .min(EMPTY_BLOCKS_CACHE_TTL)
+            },
+        );
+        let value = serde_json::to_vec(&current).map_err(|e| CoreError::Rewrite(e.to_string()))?;
+        match cache
+            .compare_exchange(&key, Some(entry.version), Some(Replacement { value, ttl }))
+            .await?
+        {
+            CasOutcome::Applied(_) => return Ok(()),
+            CasOutcome::Conflict => continue,
+        }
+    }
 }
 
 #[cfg(test)]
