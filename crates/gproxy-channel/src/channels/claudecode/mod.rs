@@ -34,13 +34,16 @@ use crate::OutboundClient;
 use crate::channel::{
     AuthorizationCode, AuthorizationRequest, AuthorizationStart, BaseChannel, ChannelError,
     ChannelServices, CookieLogin, CredentialRefresh, CredentialUpdate, CredentialView,
-    HeaderAllowlist, LoginContext, OAuthAuthorizationCode, OAuthCredential, OperationFuture,
-    PrepareContext, ProviderView, QuotaHeaders, QuotaModel, QuotaQuery, RefreshContext,
-    UsageExtractor, UsageStream, forwardable,
+    HeaderAllowlist, LoginContext, OAuthAuthorizationCode, OAuthCredential, OperationContext,
+    OperationFuture, PrepareContext, ProviderView, QuotaHeaders, QuotaModel, QuotaQuery,
+    RefreshContext, UsageExtractor, UsageStream, forwardable,
 };
 use futures_util::StreamExt;
 use gproxy_client::{Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, TlsVersion};
-use gproxy_protocol::{Dialect, HttpBody, Operation, WireRequest, WireResponse, connection::Bytes};
+use gproxy_protocol::{
+    Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse, capability::StateWrite,
+    connection::Bytes,
+};
 use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
@@ -269,7 +272,13 @@ fn session_id(device_id: &str, explicit: Option<&str>) -> String {
         return explicit.to_owned();
     }
     let window = unix_now_ms() / SESSION_WINDOW_MS;
-    let digest = Sha256::digest(format!("claudecode-session:{device_id}:{window}"));
+    derived_uuid(&format!("claudecode-session:{device_id}:{window}"))
+}
+
+/// A stable, UUID-shaped id from a seed: the first sixteen SHA-256 bytes
+/// with the version and variant bits of a random UUID.
+pub(super) fn derived_uuid(seed: &str) -> String {
+    let digest = Sha256::digest(seed);
     let mut bytes = [0_u8; 16];
     bytes.copy_from_slice(&digest[..16]);
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
@@ -282,6 +291,20 @@ fn session_id(device_id: &str, explicit: Option<&str>) -> String {
         hex(&bytes[8..10]),
         hex(&bytes[10..])
     )
+}
+
+/// The client's own session id, either spelling the CLI has used.
+fn explicit_session<'a>(
+    headers: &'a HeaderMap,
+    allowlist: Option<&HeaderAllowlist>,
+) -> Option<&'a str> {
+    client_header(headers, allowlist, "x-claude-code-session-id")
+        .or_else(|| client_header(headers, allowlist, "session_id"))
+}
+
+/// Where a session's last upstream `request-id` lives in channel state.
+fn prev_req_key(session: &str) -> String {
+    format!("session:{session}:prev_req")
 }
 
 // --------------------------------------------------------------- headers
@@ -544,6 +567,61 @@ impl BaseChannel for Claudecode {
     }
 
     fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+        self.prepare_with(ctx, None)
+    }
+
+    /// Messages calls read and record the session's previous `request-id`
+    /// around the plain HTTP path, so the billing block can carry
+    /// `cc_prev_req` like the CLI does.
+    fn generate_content<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        Box::pin(self.messages_http(Operation::GenerateContent, context))
+    }
+
+    fn stream_generate_content<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        Box::pin(self.messages_http(Operation::StreamGenerateContent, context))
+    }
+
+    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
+        Some(self)
+    }
+    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
+        Some(self)
+    }
+    fn cookie_login(&self) -> Option<&dyn CookieLogin> {
+        Some(self)
+    }
+    fn quota_query(&self) -> Option<&dyn QuotaQuery> {
+        Some(self)
+    }
+    fn quota_model(&self) -> Option<&dyn QuotaModel> {
+        Some(self)
+    }
+    fn quota_headers(&self) -> Option<&dyn QuotaHeaders> {
+        Some(self)
+    }
+    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
+        Some(self)
+    }
+    fn usage_stream(&self) -> Option<&dyn UsageStream> {
+        Some(self)
+    }
+    fn services(&self) -> Option<&dyn ChannelServices> {
+        Some(self)
+    }
+}
+
+impl Claudecode {
+    fn prepare_with(
+        &self,
+        ctx: PrepareContext<'_>,
+        prev_req: Option<&str>,
+    ) -> Result<http::Request<HttpBody>, ChannelError> {
         let config = ClaudecodeConfig::from_view(ctx.provider)?;
         let account = account(&ctx.credential)?;
         let operation = ctx.operation.operation;
@@ -570,12 +648,12 @@ impl BaseChannel for Claudecode {
             None => url,
         };
 
-        // Hints the client may give: its session id (either spelling the
-        // CLI has used), its CLI user agent and its own beta list.
-        let explicit_session =
-            client_header(&source, allowlist.as_ref(), "x-claude-code-session-id")
-                .or_else(|| client_header(&source, allowlist.as_ref(), "session_id"));
-        let session = session_id(&account.device_id, explicit_session);
+        // Hints the client may give: its session id, its CLI user agent and
+        // its own beta list.
+        let session = session_id(
+            &account.device_id,
+            explicit_session(&source, allowlist.as_ref()),
+        );
         let client_user_agent = client_header(&source, allowlist.as_ref(), "user-agent");
         let client_beta = client_header(&source, allowlist.as_ref(), "anthropic-beta")
             .and_then(|value| HeaderValue::from_str(value).ok());
@@ -594,6 +672,7 @@ impl BaseChannel for Claudecode {
                             &account.device_id,
                             account.account_uuid.as_deref().unwrap_or_default(),
                             &session,
+                            prev_req,
                         );
                         HttpBody::Bytes(Bytes::from(value.to_string()))
                     }
@@ -625,32 +704,66 @@ impl BaseChannel for Claudecode {
             .map_err(|error| invalid_config(error.to_string()))
     }
 
-    fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
-    }
-    fn oauth_authorization_code(&self) -> Option<&dyn OAuthAuthorizationCode> {
-        Some(self)
-    }
-    fn cookie_login(&self) -> Option<&dyn CookieLogin> {
-        Some(self)
-    }
-    fn quota_query(&self) -> Option<&dyn QuotaQuery> {
-        Some(self)
-    }
-    fn quota_model(&self) -> Option<&dyn QuotaModel> {
-        Some(self)
-    }
-    fn quota_headers(&self) -> Option<&dyn QuotaHeaders> {
-        Some(self)
-    }
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
-        Some(self)
-    }
-    fn services(&self) -> Option<&dyn ChannelServices> {
-        Some(self)
+    async fn messages_http(
+        &self,
+        operation: Operation,
+        ctx: OperationContext<'_>,
+    ) -> Result<WireResponse<HttpBody>, ChannelError> {
+        let account = account(&ctx.credential)?;
+        let allowlist = HeaderAllowlist::from_view(ctx.provider)?;
+        let session = session_id(
+            &account.device_id,
+            explicit_session(&ctx.request.headers, allowlist.as_ref()),
+        );
+        let key = prev_req_key(&session);
+        // A host without channel state simply never carries `cc_prev_req`.
+        let previous = ctx.state.get(&key).await.ok().flatten();
+        let prev_req = previous
+            .as_ref()
+            .and_then(|entry| std::str::from_utf8(&entry.payload).ok())
+            .filter(|value| hygiene::is_request_id(value))
+            .map(str::to_owned);
+        let request = self.prepare_with(
+            PrepareContext {
+                provider: ctx.provider,
+                credential: ctx.credential,
+                operation: OperationKey {
+                    operation,
+                    dialect: ctx.dialect,
+                },
+                request: ctx.request,
+                endpoint_override: ctx.endpoint_override,
+            },
+            prev_req.as_deref(),
+        )?;
+        let response = ctx.client.send(request).await?;
+        let request_id = response
+            .headers
+            .get("request-id")
+            .and_then(|value| value.to_str().ok())
+            .filter(|value| hygiene::is_request_id(value));
+        if let Some(request_id) = request_id
+            && prev_req.as_deref() != Some(request_id)
+        {
+            let expires_at = std::time::SystemTime::UNIX_EPOCH
+                + std::time::Duration::from_millis(
+                    u64::try_from(unix_now_ms() + hygiene::PREV_REQ_TTL_MS).unwrap_or(0),
+                );
+            // Losing the race to a concurrent call in the same session, or a
+            // host without state, only loses one `cc_prev_req`.
+            let _ = ctx
+                .state
+                .compare_exchange(
+                    &key,
+                    previous.map(|entry| entry.version),
+                    Some(StateWrite {
+                        payload: Bytes::copy_from_slice(request_id.as_bytes()),
+                        expires_at: Some(expires_at),
+                    }),
+                )
+                .await;
+        }
+        Ok(response)
     }
 }
 
