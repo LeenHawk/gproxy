@@ -3,7 +3,9 @@
 [English](README.md) | 简体中文
 
 GPROXY v4 原生出站 Client 复用库。默认启用 `reqwest` feature；`wreq` feature
-提供 TLS／HTTP 指纹模拟，可同时启用两者。该 crate 依赖 protocol 只为定义传输契约
+提供 TLS／HTTP 指纹模拟；`reqwest-native` feature 提供走平台原生 TLS 的 reqwest 0.12
+（Linux 上为 OpenSSL、macOS 为 Secure Transport、Windows 为 SChannel，即 Codex CLI 的
+HTTP 栈，`Backend::ReqwestNative`），三者可同时启用。该 crate 依赖 protocol 只为定义传输契约
 `OutboundClient`（`Client` 已实现：send 返回流式响应，connect 返回双向连接或被拒的握手响应；
 wreq 后端被拒时不保留 body），不依赖 store，
 不负责选路、凭证选择或数据库读取。
@@ -74,7 +76,7 @@ store 保存具名的 `ConnectionProfile`；宿主按凭证 → Provider 顺序�
 
 | store 字段 | client 配置 |
 |---|---|
-| `backend` | `Backend::Reqwest`／`Backend::Wreq` |
+| `backend` | `Backend::Reqwest`／`Backend::Wreq`／`Backend::ReqwestNative`（`reqwest_native`） |
 | `proxy_mode = direct/system` | `ProxyConfig::Direct`／`System`，`proxy_url` 必须为空 |
 | `proxy_mode = explicit`、`proxy_url` | `ProxyConfig::Explicit { url }`，必须提供 URL |
 | `emulation` JSON／空 | 反序列化成 `EmulationConfig`（`kind: preset` 或 `kind: custom`；旧版本的扁平预设对象仍可加载）／`None` |
@@ -136,9 +138,18 @@ wreq-util 的 serde 名称，未知名称在构造 wreq Client 时报错。
 }
 ```
 
-指纹仅对 wreq 生效：reqwest 后端遇到任何指纹配置都以 `Error::InvalidConfig` 拒绝，
+指纹仅对 wreq 生效：两个 reqwest 后端遇到任何指纹配置都以 `Error::InvalidConfig` 拒绝，
 而不是悄悄换一种身份发出去。未知字段或未编译的后端均明确报错。正常证书校验始终开启。
 配置不做预校验；底层构造错误返回给调用方。
+
+`Backend::ReqwestNative` 按 Codex CLI 的方式构造 reqwest 0.12：原生 TLS、h2 默认
+SETTINGS、不解压、没有重试层，因此配置了解压开关或 `retry: default` 会被拒绝。它的
+WebSocket 变体（池的 `get_websocket`）是 rustls 的 `reqwest` client，与 CLI 自己的
+WebSocket 走 rustls 一致，所以该 feature 隐含 `reqwest`。Linux 上 OpenSSL 从源码构建
+（`openssl-src`，构建需要 `perl` 与 `make`），同时启用 `wreq` 时 BoringSSL 以符号前缀方式
+构建（需要 `nm`／`objcopy`）：两套 TLS 库的归档名与符号名相同，系统 `libssl.so` 无法与
+wreq 的静态 BoringSSL 一起链接。CLI 自己在 glibc 上链接系统 OpenSSL，从源码构建的
+OpenSSL 3 的 ClientHello 与之相同。该 feature 仅原生目标可用。
 
 ## 缓存与生命周期
 

@@ -11,7 +11,7 @@ use gproxy_channel::{
         ResponseView, ServiceContext, ServiceView, UsageContext, UsageFrame, UsageStreamContext,
         UsageStreamEnd, UsageTransport,
     },
-    channels::codex::{Codex, DEFAULT_CLIENT_ID, KIND_FILE, KIND_PLUGIN, KIND_TASK},
+    channels::codex::{CLI_VERSION, Codex, DEFAULT_CLIENT_ID, KIND_FILE, KIND_PLUGIN, KIND_TASK},
 };
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
@@ -142,17 +142,22 @@ fn credential<'a>(secret: &'a Value, metadata: &'a Value) -> CredentialView<'a> 
 
 #[test]
 fn default_connection_is_the_cli_transport_identity() {
-    use gproxy_client::{Alpn, Backend, EmulationConfig};
+    use gproxy_client::{Backend, RetryPolicy};
     let config = Codex.default_connection().expect("channel default");
-    assert_eq!(config.backend, Backend::Wreq);
-    assert!(config.gzip && config.brotli && config.deflate && config.zstd);
-    let Some(EmulationConfig::Custom(fingerprint)) = &config.emulation else {
-        panic!("custom fingerprint expected: {:?}", config.emulation);
-    };
-    assert_eq!(fingerprint.alpn, [Alpn::Http2]);
-    let http2 = fingerprint.http2.as_ref().expect("HTTP/2 settings");
-    assert_eq!(http2.initial_window_size, Some(2_097_152));
-    assert_eq!(http2.enable_push, Some(false));
+    assert_eq!(config.backend, Backend::ReqwestNative);
+    assert!(
+        config.emulation.is_none(),
+        "native TLS as the CLI's reqwest"
+    );
+    assert!(
+        !(config.gzip || config.brotli || config.deflate || config.zstd),
+        "reqwest 0.12 default features decode nothing"
+    );
+    assert_eq!(config.retry, RetryPolicy::Never);
+    assert_eq!(
+        config.redirect_max_hops, 10,
+        "reqwest's default redirect limit"
+    );
 }
 
 #[test]
@@ -194,6 +199,14 @@ fn prepares_responses_calls_against_the_codex_backend() {
         "metadata over secret over client"
     );
     assert_eq!(h["originator"], "codex_cli_rs");
+    let agent = h["user-agent"].to_str().unwrap();
+    assert!(
+        agent.starts_with(&format!("codex_cli_rs/{CLI_VERSION} (")),
+        "CLI-shaped user agent: {agent}"
+    );
+    let (host, terminal) = agent.rsplit_once(") ").unwrap();
+    assert!(host.contains("; "), "os version; arch: {host}");
+    assert!(!terminal.is_empty() && !terminal.contains(' '));
     assert_eq!(h["session-id"], "sess-1", "vendor headers pass through");
     assert!(h.get("openai-beta").is_none());
 

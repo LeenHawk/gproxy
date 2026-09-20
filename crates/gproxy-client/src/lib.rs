@@ -41,6 +41,8 @@ pub use pool::ClientPool;
 
 #[cfg(all(feature = "reqwest", target_arch = "wasm32"))]
 pub use reqwest;
+#[cfg(all(feature = "reqwest-native", not(target_arch = "wasm32")))]
+pub use reqwest_native;
 #[cfg(all(feature = "reqwest", not(target_arch = "wasm32")))]
 pub use {reqwest, reqwest_websocket};
 #[cfg(all(feature = "wreq", not(target_arch = "wasm32")))]

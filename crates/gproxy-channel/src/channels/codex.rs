@@ -11,7 +11,10 @@
 //! the account id and plan discovered at login travel in `provider_fields`
 //! and, once the host persists them, in the credential's metadata.
 
+mod agent;
 mod services;
+
+pub use agent::CLI_VERSION;
 
 pub use services::{
     KIND_ENVIRONMENT, KIND_FILE, KIND_PLUGIN, KIND_REMOTE_SERVER, KIND_TASK, service_routes,
@@ -31,10 +34,7 @@ use crate::channel::{
 };
 use base64::Engine;
 use futures_util::StreamExt;
-use gproxy_client::{
-    Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, Http2Setting, Http2Settings,
-    PseudoHeader, TlsVersion,
-};
+use gproxy_client::{Backend, ConnectionConfig};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, WireRequest, WireResponse,
     codec::{CodecLimits, SseDecoder, SseFrame},
@@ -78,6 +78,8 @@ pub struct CodexConfig {
     pub client_id: String,
     /// The `originator` the backend sees; Codex CLI's by default.
     pub originator: String,
+    /// Replaces the CLI-shaped `User-Agent`
+    /// (`codex_cli_rs/<version> (<os> <version>; <arch>) <terminal>`).
     pub user_agent: Option<String>,
     /// Static headers added to every backend request.
     pub headers: BTreeMap<String, String>,
@@ -105,59 +107,17 @@ impl CodexConfig {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Codex;
 
-/// Codex CLI's TLS and HTTP/2 identity (Rust reqwest over rustls; v3
-/// `codex/profile.rs`): the default client for providers that name no
-/// connection profile. Auto-decompression stays on as in v3.
+/// The Codex CLI's transport: reqwest 0.12 with its default features, so
+/// native TLS (OpenSSL on Linux) for HTTP with h2's stock SETTINGS, no
+/// response decompression, redirects followed; WebSocket over rustls
+/// (`tokio-tungstenite`), which is what the pool's WebSocket client of this
+/// backend is. The default client for providers that name no connection
+/// profile. Host profiles override it whole.
 pub fn default_connection() -> ConnectionConfig {
     ConnectionConfig {
-        backend: Backend::Wreq,
-        emulation: Some(EmulationConfig::Custom(Fingerprint {
-            alpn: vec![Alpn::Http2],
-            min_tls: Some(TlsVersion::Tls12),
-            max_tls: Some(TlsVersion::Tls13),
-            cipher_list: Some(
-                concat!(
-                    "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256:",
-                    "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:",
-                    "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-AES256-GCM-SHA384:",
-                    "ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-CHACHA20-POLY1305"
-                )
-                .into(),
-            ),
-            curves_list: Some("X25519:P-256:P-384".into()),
-            sigalgs_list: None,
-            preserve_tls13_cipher_list: Some(false),
-            grease: Some(false),
-            ocsp_stapling: None,
-            signed_cert_timestamps: None,
-            http2: Some(Http2Settings {
-                enable_push: Some(false),
-                initial_window_size: Some(2_097_152),
-                initial_connection_window_size: Some(5_242_880),
-                max_frame_size: Some(16_384),
-                max_header_list_size: Some(16_384),
-                header_table_size: None,
-                max_concurrent_streams: None,
-                pseudo_header_order: Some(vec![
-                    PseudoHeader::Method,
-                    PseudoHeader::Scheme,
-                    PseudoHeader::Authority,
-                    PseudoHeader::Path,
-                ]),
-                settings_order: Some(vec![
-                    Http2Setting::EnablePush,
-                    Http2Setting::InitialWindowSize,
-                    Http2Setting::MaxFrameSize,
-                    Http2Setting::MaxHeaderListSize,
-                ]),
-                headers_priority: None,
-            }),
-            headers: None,
-        })),
-        gzip: true,
-        brotli: true,
-        deflate: true,
-        zstd: true,
+        backend: Backend::ReqwestNative,
+        emulation: None,
+        redirect_max_hops: 10,
         ..ConnectionConfig::default()
     }
 }
@@ -262,9 +222,11 @@ fn backend_headers(
         HeaderName::from_static("originator"),
         header_value(&config.originator)?,
     );
-    if let Some(agent) = &config.user_agent {
-        headers.insert(header::USER_AGENT, header_value(agent)?);
-    }
+    let agent = match &config.user_agent {
+        Some(agent) => agent.clone(),
+        None => agent::user_agent(&config.originator),
+    };
+    headers.insert(header::USER_AGENT, header_value(&agent)?);
     for (name, value) in &config.headers {
         headers.insert(
             HeaderName::from_bytes(name.as_bytes())

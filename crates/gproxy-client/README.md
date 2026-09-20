@@ -3,8 +3,11 @@
 English | [简体中文](README.zh-CN.md)
 
 Reusable native outbound clients for GPROXY v4. The `reqwest` feature is enabled
-by default; enable `wreq` for TLS/HTTP emulation. Both can coexist. This crate does
-not depend on store or protocol, and does not route requests or select credentials.
+by default; enable `wreq` for TLS/HTTP emulation and `reqwest-native` for reqwest
+0.12 over the platform's native TLS (OpenSSL on Linux, Secure Transport on macOS,
+SChannel on Windows: the Codex CLI's HTTP stack, `Backend::ReqwestNative`). All
+three can coexist. This crate does not depend on store or protocol, and does not
+route requests or select credentials.
 
 ```rust,no_run
 use gproxy_client::{Client, ClientPool, ConnectionConfig};
@@ -89,7 +92,7 @@ No per-field merging or profile-to-profile inheritance is performed.
 
 | Store fields | Client configuration |
 |---|---|
-| `backend` | `Backend::Reqwest` / `Backend::Wreq` |
+| `backend` | `Backend::Reqwest` / `Backend::Wreq` / `Backend::ReqwestNative` (`reqwest_native`) |
 | `proxy_mode = direct/system` | `ProxyConfig::Direct` / `System`; `proxy_url` must be null |
 | `proxy_mode = explicit`, `proxy_url` | `ProxyConfig::Explicit { url }`; URL required |
 | `emulation` JSON / null | Deserialize `EmulationConfig` (`kind: preset` or `kind: custom`; the flat preset object of earlier releases still loads) / `None` |
@@ -155,11 +158,23 @@ ordered list of `[name, value]` default headers sent with their original casing.
 }
 ```
 
-Emulation applies only to wreq: the reqwest backend rejects any emulation with
+Emulation applies only to wreq: the reqwest backends reject any emulation with
 `Error::InvalidConfig` instead of silently sending a different identity. Unknown
 fields and disabled backends fail explicitly. Normal certificate verification
 remains enabled. Configuration is not pre-validated; backend construction errors
 are returned to the caller.
+
+`Backend::ReqwestNative` builds reqwest 0.12 exactly as the Codex CLI does: native
+TLS, h2's stock SETTINGS, no decompression and no retry layer, so a profile
+asking for a decoder or `retry: default` is refused. Its WebSocket variant (the
+pool's `get_websocket`) is the rustls `reqwest` client, as the CLI's own
+WebSocket is rustls; the feature therefore implies `reqwest`. On Linux OpenSSL
+is built from source (`openssl-src`, so `perl` and `make` are build
+requirements) and, when `wreq` is also enabled, BoringSSL is built with
+prefixed symbols (`nm`/`objcopy`): the two TLS libraries share archive and
+symbol names, and the system `libssl.so` cannot be linked next to wreq's
+static BoringSSL. The CLI itself links the system OpenSSL on glibc; the
+ClientHello of a from-source OpenSSL 3 is the same. The feature is native only.
 
 ## Reuse and lifetime
 

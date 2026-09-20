@@ -315,6 +315,7 @@ fn connection_config(
         backend: match profile.backend {
             Backend::Reqwest => client::Backend::Reqwest,
             Backend::Wreq => client::Backend::Wreq,
+            Backend::ReqwestNative => client::Backend::ReqwestNative,
         },
         proxy: match profile.proxy_mode {
             ProxyMode::Direct => client::ProxyConfig::Direct,
