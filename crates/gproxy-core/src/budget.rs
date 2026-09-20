@@ -21,15 +21,36 @@ use sea_orm::Set;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-/// Who a request is charged to. The host lists every owner a request
-/// spends for; core resolves them to the enabled budgets with that owner.
+/// Who a request is charged to: one owner of a `quotas` row, `(kind, id)`.
+/// Kinds are host-defined strings (`user`, `api_key`, `team`, `org`, `pool`,
+/// ... whatever levels the host's organisation has); core matches them
+/// verbatim against `owner_kind` and knows no hierarchy between them. The
+/// host lists every owner a request spends for, and every enabled budget of
+/// any owner in that chain applies.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "id", rename_all = "snake_case")]
-pub enum BudgetOwner {
-    User(String),
-    ApiKey(String),
-    Subscription(String),
-    Pool(String),
+pub struct BudgetOwner {
+    pub kind: String,
+    pub id: String,
+}
+
+impl BudgetOwner {
+    pub fn new(kind: impl Into<String>, id: impl Into<String>) -> Self {
+        Self {
+            kind: kind.into(),
+            id: id.into(),
+        }
+    }
+
+    /// Whether `row` belongs to this owner.
+    pub fn matches(&self, row: &quota_entity::Model) -> bool {
+        row.owner_kind == self.kind && row.owner_id == self.id
+    }
+}
+
+impl std::fmt::Display for BudgetOwner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.kind, self.id)
+    }
 }
 
 /// How a budget's windows are laid out.
@@ -97,18 +118,10 @@ impl BudgetData {
         if !row.metric.eq_ignore_ascii_case("cost") {
             return Err(format!("metric `{}` is not `cost`", row.metric));
         }
-        let owner = match (
-            &row.user_id,
-            &row.api_key_id,
-            &row.subscription_id,
-            &row.pool_id,
-        ) {
-            (Some(id), None, None, None) => BudgetOwner::User(id.clone()),
-            (None, Some(id), None, None) => BudgetOwner::ApiKey(id.clone()),
-            (None, None, Some(id), None) => BudgetOwner::Subscription(id.clone()),
-            (None, None, None, Some(id)) => BudgetOwner::Pool(id.clone()),
-            _ => return Err("exactly one owner is required".into()),
-        };
+        if row.owner_kind.trim().is_empty() || row.owner_id.trim().is_empty() {
+            return Err("owner_kind and owner_id are required".into());
+        }
+        let owner = BudgetOwner::new(row.owner_kind.clone(), row.owner_id.clone());
         let period = period_of(row)?;
         let limit = row.limit_value.decimal();
         if limit < Decimal::ZERO {
@@ -184,10 +197,8 @@ impl BudgetData {
         let q = &self.quota;
         serde_json::json!({
             "id": q.id,
-            "user_id": q.user_id,
-            "api_key_id": q.api_key_id,
-            "subscription_id": q.subscription_id,
-            "pool_id": q.pool_id,
+            "owner_kind": q.owner_kind,
+            "owner_id": q.owner_id,
             "window_key": q.window_key,
             "metric": q.metric,
             "unit": q.unit,
@@ -430,10 +441,8 @@ mod tests {
     fn row(period: &str, anchor: Option<i64>) -> quota_entity::Model {
         quota_entity::Model {
             id: "q".into(),
-            user_id: Some("u".into()),
-            api_key_id: None,
-            subscription_id: None,
-            pool_id: None,
+            owner_kind: "user".into(),
+            owner_id: "u".into(),
             window_key: "primary".into(),
             metric: "cost".into(),
             unit: "USD".into(),
@@ -485,11 +494,16 @@ mod tests {
         );
         assert!(
             BudgetData::compile(&quota_entity::Model {
-                pool_id: Some("p".into()),
+                owner_kind: " ".into(),
                 ..row("1d", None)
             })
             .is_err()
         );
+        let compiled = BudgetData::compile(&row("1d", None)).unwrap();
+        assert_eq!(compiled.owner, BudgetOwner::new("user", "u"));
+        assert_eq!(compiled.owner.to_string(), "user:u");
+        assert!(compiled.owner.matches(&row("1d", None)));
+        assert!(!BudgetOwner::new("team", "u").matches(&row("1d", None)));
         assert!(
             BudgetData::compile(&quota_entity::Model {
                 model_pattern: Some("".into()),

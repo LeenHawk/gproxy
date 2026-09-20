@@ -145,9 +145,15 @@ count-tokens 与 embeddings。base64 媒体、文件 id、URL 与加密数据一
 
 ## 预算与计价
 
-预算是 metric 为 `cost`、unit 为 `USD` 的 `quotas` 行，owner 恰好一个：用户、API key、
-订阅或池。宿主在 `RequestContext::budgets`（服务 `Caller` 视图用 `ServiceRequest::budgets`）
-列出本次请求花的是谁的钱；core 解析为这些 owner 的启用预算中 `model_pattern`（对整个
+预算是 metric 为 `cost`、unit 为 `USD` 的 `quotas` 行，owner 是一个
+`(owner_kind, owner_id)`。kind 由宿主定义（建议 `user`／`api_key`／`subscription`／
+`pool`／`team`／`org`，宿主组织里的任何层级都行）；core 逐字匹配，不认识层级关系。
+宿主把本次请求花钱的 owner 链以 `BudgetOwner { kind, id }` 放进 `RequestContext::budgets`
+（服务 `Caller` 视图用 `ServiceRequest::budgets`），请求扣整条链：个人 key 传
+`[api_key:k1, user:u]`；团队 key 传 `[api_key:k2, user:u, team:t, org:o]`，四级里任一
+耗尽就拒绝并报那条额度；同一用户在另一个组织的 key 传 `[api_key:k3, user:u, team:t2, org:o2]`，
+与 `t`／`o` 互不相干。团队 key 的用量是否也算到用户头上由宿主决定：链里带 `user:u`
+就算。core 解析为这些 owner 的启用预算中 `model_pattern`（对整个
 上游模型名的 `*`／`?` glob，空则全部）覆盖目标模型的那些。所有适用预算都必须有余量
 （AND）：第一个 attempt 之前逐个读取当前窗口——没有就按 `(quota_id, starts_at_ms)`
 懒开一行 `quota_windows`，带上额度行的快照——`used >= limit_value` 的窗口让请求以
@@ -169,7 +175,8 @@ count-tokens 与 embeddings。base64 媒体、文件 id、URL 与加密数据一
 dimensions 匹配（映射见 [pricing.rs](src/pricing.rs)）。结果写在 `ExchangeUsage::cost`
 与 `UsageReport::cost` 上给 Observer。没有规则覆盖的交换计 0，并带
 `dimensions["unpriced"] = "true"`。请求的费用随后按 `request_id` 幂等地
-（`quota_settlements`）结算进每个适用预算的窗口，只结算 unit 与费用币种相同的预算。
+（`quota_settlements`）结算进每个适用预算的窗口——链上每个 owner 一条——只结算 unit
+与费用币种相同的预算。
 费用要交换结束才知道，所以预算最多被超出一个请求。
 
 ## 观测

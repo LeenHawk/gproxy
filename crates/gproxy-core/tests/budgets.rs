@@ -33,7 +33,11 @@ fn money(s: &str) -> gproxy_store::FixedDecimal {
 }
 
 fn user(id: &str) -> BudgetOwner {
-    BudgetOwner::User(id.into())
+    BudgetOwner::new("user", id)
+}
+
+fn owner(kind: &str, id: &str) -> BudgetOwner {
+    BudgetOwner::new(kind, id)
 }
 
 /// One `cost`/USD budget row. `limit` in USD; `model` scopes it.
@@ -44,8 +48,10 @@ fn budget_row(
     limit: &str,
     model: Option<&str>,
 ) -> quota::ActiveModel {
-    let mut row = quota::ActiveModel {
+    quota::ActiveModel {
         id: Set(id.into()),
+        owner_kind: Set(owner.kind),
+        owner_id: Set(owner.id),
         window_key: Set(format!("{id}-key")),
         metric: Set("cost".into()),
         unit: Set("USD".into()),
@@ -53,14 +59,7 @@ fn budget_row(
         period: Set(period.into()),
         model_pattern: Set(model.map(Into::into)),
         ..Default::default()
-    };
-    match owner {
-        BudgetOwner::User(u) => row.user_id = Set(Some(u)),
-        BudgetOwner::ApiKey(k) => row.api_key_id = Set(Some(k)),
-        BudgetOwner::Subscription(s) => row.subscription_id = Set(Some(s)),
-        BudgetOwner::Pool(p) => row.pool_id = Set(Some(p)),
     }
-    row
 }
 
 async fn bump(h: &Harness) {
@@ -487,11 +486,11 @@ async fn every_owner_must_have_room() {
         &h,
         vec![
             budget_row("user", user("u"), "1d", "100", None),
-            budget_row("key", BudgetOwner::ApiKey("k".into()), "1d", "0", None),
+            budget_row("key", owner("api_key", "k"), "1d", "0", None),
         ],
     )
     .await;
-    let both = vec![user("u"), BudgetOwner::ApiKey("k".into())];
+    let both = vec![user("u"), owner("api_key", "k")];
     let error = h
         .core
         .stream_generate_content(context(&h, "r1", both.clone(), "gpt-x"), request("{}"))
@@ -512,6 +511,92 @@ async fn every_owner_must_have_room() {
             .collect::<Vec<_>>(),
         ["key", "user"]
     );
+}
+
+/// Owner kinds are whatever the host says they are: a request charges the
+/// whole chain it names, an exhausted budget anywhere in the chain rejects
+/// it, and settlement writes one row per owner in the chain.
+#[tokio::test]
+async fn host_defined_owner_chains_charge_every_level() {
+    let h = harness(full(), "sticky").await;
+    seed_pricing(&h).await;
+    seed_budgets(
+        &h,
+        vec![
+            budget_row("k1", owner("api_key", "k1"), "1d", "100", None),
+            budget_row("k2", owner("api_key", "k2"), "1d", "100", None),
+            budget_row("u", user("u"), "1d", "100", None),
+            budget_row("t", owner("team", "t"), "1d", "100", None),
+            budget_row("o", owner("org", "o"), "1d", "0", None),
+        ],
+    )
+    .await;
+    let team_key = vec![
+        owner("api_key", "k2"),
+        user("u"),
+        owner("team", "t"),
+        owner("org", "o"),
+    ];
+    let error = h
+        .core
+        .stream_generate_content(context(&h, "r1", team_key.clone(), "gpt-x"), request("{}"))
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(&error, CoreError::BudgetExhausted { quota_id, .. } if quota_id == "o"),
+        "{error:?}"
+    );
+    assert!(h.client.seen.lines().is_empty());
+    // The same user through a personal key is not under the org's budget.
+    let personal_key = vec![owner("api_key", "k1"), user("u")];
+    h.script(vec![usage_reply()]);
+    run(&h, context(&h, "r2", personal_key, "gpt-x")).await;
+    assert_eq!(windows(&h, "k1").await[0].used, money("0.0001"));
+    assert_eq!(windows(&h, "u").await[0].used, money("0.0001"));
+    assert!(windows(&h, "k2").await[0].used.decimal().is_zero());
+    assert!(windows(&h, "t").await[0].used.decimal().is_zero());
+    // Lift the org budget: the team key charges all four levels at once.
+    h.core
+        .store()
+        .quotas()
+        .update_many(vec![quota::ActiveModel {
+            id: Set("o".into()),
+            limit_value: Set(money("100")),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    bump(&h).await;
+    h.script(vec![usage_reply()]);
+    run(&h, context(&h, "r3", team_key, "gpt-x")).await;
+    for (quota_id, used) in [
+        ("k1", "0.0001"),
+        ("k2", "0.0001"),
+        ("u", "0.0002"),
+        ("t", "0.0001"),
+        ("o", "0.0001"),
+    ] {
+        assert_eq!(
+            windows(&h, quota_id).await[0].used,
+            money(used),
+            "{quota_id}"
+        );
+    }
+    let settled_r3 = h
+        .core
+        .store()
+        .quota_settlements()
+        .query(
+            quota_settlement::Entity::find().filter(quota_settlement::Column::RequestId.eq("r3")),
+        )
+        .await
+        .unwrap();
+    assert_eq!(settled_r3.len(), 4, "one settlement per owner in the chain");
+    // Status reports the owner as the host named it.
+    let status = h.core.budget_status(&[owner("org", "o")], 1).await.unwrap();
+    assert_eq!(status.len(), 1);
+    assert_eq!(status[0].owner, owner("org", "o"));
+    assert_eq!(status[0].owner.to_string(), "org:o");
 }
 
 #[tokio::test]

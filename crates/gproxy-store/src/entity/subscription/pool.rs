@@ -1,6 +1,6 @@
 //! An upstream capacity pool backing one or more downstream plans.
 //! Actual capacity is derived from member quota observations, not a stored sum
-//! of percentages. Quota rows owned by this pool define provisioned budgets.
+//! of percentages. Quota rows with owner_kind `pool` define provisioned budgets.
 
 use sea_orm::entity::prelude::*;
 
@@ -19,8 +19,6 @@ pub struct Model {
     pub members: HasMany<super::pool_member::Entity>,
     #[sea_orm(has_many)]
     pub plans: HasMany<super::plan::Entity>,
-    #[sea_orm(has_many)]
-    pub quotas: HasMany<crate::entity::limits::quota::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}
