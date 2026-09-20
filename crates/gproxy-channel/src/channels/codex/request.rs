@@ -3,7 +3,9 @@
 use super::common::invalid_config;
 use super::headers::{Account, account, backend_headers, base_urls};
 use super::identity::{Identity, RequestKind};
-use super::{CLI_HEADERS, Codex, CodexConfig, ID, default_connection, identity, shape, sse};
+use super::{
+    CLI_HEADERS, Codex, CodexConfig, ID, default_connection, identity, realtime, shape, sse,
+};
 use crate::channel::{
     BaseChannel, ChannelError, ChannelServices, ChannelState, CredentialRefresh, HeaderAllowlist,
     OAuthAuthorizationCode, OAuthDeviceCode, OperationContext, OperationFuture, PrepareContext,
@@ -29,6 +31,7 @@ fn operation_path(operation: Operation) -> Result<&'static str, ChannelError> {
         Operation::EditImage => "/images/edits",
         Operation::SummarizeMemory => "/memories/trace_summarize",
         Operation::CreateRealtimeCall => "/realtime/calls",
+        Operation::WebSearch => "/alpha/search",
         other => {
             return Err(ChannelError::UnsupportedOperation(
                 gproxy_protocol::OperationKey {
@@ -343,6 +346,10 @@ impl Codex {
         ctx: PrepareContext<'_>,
         identity: Option<&Identity>,
     ) -> Result<(http::Request<HttpBody>, Option<shape::tools::Aliases>), ChannelError> {
+        let mut ctx = ctx;
+        if ctx.operation.operation == Operation::CreateRealtimeCall {
+            realtime::prepare_buffered(&mut ctx)?;
+        }
         let config = CodexConfig::from_view(ctx.provider)?;
         let shape = !client_managed(&ctx.request.headers)
             && matches!(
@@ -461,6 +468,8 @@ impl BaseChannel for Codex {
             Operation::CompactContent
             | Operation::SummarizeMemory
             | Operation::CreateRealtimeCall
+            | Operation::ConnectRealtime
+            | Operation::WebSearch
             | Operation::CreateImage
             | Operation::EditImage => vec![Dialect::OpenAi],
             _ => Vec::new(),
@@ -479,6 +488,9 @@ impl BaseChannel for Codex {
         &self,
         ctx: PrepareContext<'_, ()>,
     ) -> Result<http::Request<()>, ChannelError> {
+        if ctx.operation.operation == Operation::ConnectRealtime {
+            return realtime::prepare_connect(ctx);
+        }
         let (builder, _) = self.build(ctx, true, None)?;
         builder
             .body(())
@@ -518,6 +530,13 @@ impl BaseChannel for Codex {
         context: OperationContext<'a, ()>,
     ) -> OperationFuture<'a, UpstreamConnection> {
         Box::pin(self.responses_websocket(Operation::StreamGenerateContent, context))
+    }
+
+    fn create_realtime_call<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        Box::pin(realtime::create_call(self, context))
     }
 
     fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {

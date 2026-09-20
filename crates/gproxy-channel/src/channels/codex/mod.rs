@@ -18,6 +18,7 @@ mod headers;
 mod identity;
 mod oauth;
 mod quota;
+mod realtime;
 mod request;
 mod services;
 mod shape;
