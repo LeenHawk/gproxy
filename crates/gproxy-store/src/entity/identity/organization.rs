@@ -20,6 +20,9 @@ pub struct Model {
     pub members: HasMany<super::organization_member::Entity>,
     #[sea_orm(has_many)]
     pub credentials: HasMany<crate::entity::upstream::credential::Entity>,
+    /// Gateway keys bound to this scope; see ApiKey for what the binding decides.
+    #[sea_orm(has_many)]
+    pub api_keys: HasMany<super::api_key::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

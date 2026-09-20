@@ -37,6 +37,7 @@ macro_rules! repositories {
 repositories! {
     connection_profiles => crate::entity::config::connection_profile::Entity,
     api_keys => crate::entity::identity::api_key::Entity,
+    audit_events => crate::entity::identity::audit_event::Entity,
     organizations => crate::entity::identity::organization::Entity,
     organization_members => crate::entity::identity::organization_member::Entity,
     permissions => crate::entity::identity::permission::Entity,

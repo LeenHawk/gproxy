@@ -150,7 +150,7 @@ with one entity per file:
 |---|---|
 | `upstream` | Provider, Credential, Model, ProviderModel, OperationRule, OperationEndpoint, RewriteRuleSet, RewriteRule, ProviderRewriteRuleSet |
 | `routing` | ExposedModel, Route, RouteMember |
-| `identity` | Organization, Team, OrganizationMember, TeamMember, User, ApiKey, UserSession, Permission |
+| `identity` | Organization, Team, OrganizationMember, TeamMember, User, ApiKey, UserSession, Permission, AuditEvent |
 | `oauth` | Client, Grant, Code, Token, Device |
 | `subscription` | Pool, PoolMember, Plan, PlanLimit, Subscription |
 | `limits` | RateLimit, Quota, QuotaWindow, QuotaSettlement, CredentialQuotaCycle, CredentialBlock |
@@ -218,7 +218,15 @@ Review decisions currently expressed in the code:
   them to providers in order. RewriteRule stores regex, replacement, optional JSON
   dot paths and filters as explicit fields. Deleting a set cascades to its rules
   and attachments; deleting a provider removes only its attachments. Atomic rule replacement and ordered loading are implemented; rewrite execution stays in core.
-- Audit events and derived usage rollups are outside this persistence layer.
+- An API key is bound to at most one organization and at most one team. That
+  binding is what the application layer derives the budget owner chain, the
+  permission subject scope and the credential-visibility boundary from; it is
+  never taken from a request header. Deleting the bound scope deletes the key.
+- AuditEvent records one accepted management/portal operation: actor, source
+  address, action name, target, outcome and a redacted `detail` summary. It has
+  no foreign keys, because it has to survive the deletion of its actors and
+  targets, and it is not part of any control snapshot. Derived usage rollups
+  remain outside this persistence layer.
 
 Rewrite rules now persist `target` (`body` by default, `header`, `query`) and
 optional `target_name`. Header/Query name existing fields whose values are

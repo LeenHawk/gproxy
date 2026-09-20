@@ -109,7 +109,7 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
 |---|---|
 | `upstream` 上游 | Provider、Credential、Model、ProviderModel、OperationRule、OperationEndpoint、RewriteRuleSet、RewriteRule、ProviderRewriteRuleSet |
 | `routing` 路由 | ExposedModel、Route、RouteMember |
-| `identity` 身份 | Organization、Team、OrganizationMember、TeamMember、User、ApiKey、UserSession、Permission |
+| `identity` 身份 | Organization、Team、OrganizationMember、TeamMember、User、ApiKey、UserSession、Permission、AuditEvent |
 | `oauth` 下游授权 | Client、Grant、Code、Token、Device |
 | `subscription` 订阅 | Pool、PoolMember、Plan、PlanLimit、Subscription |
 | `limits` 额度 | RateLimit、Quota、QuotaWindow、QuotaSettlement、CredentialQuotaCycle、CredentialBlock |
@@ -160,7 +160,11 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
 - 改写规则通过 RewriteRuleSet 复用，通过 ProviderRewriteRuleSet 按顺序绑定到供应商。
   RewriteRule 明确保存正则、替换文本、可选 JSON 点路径和筛选条件。删除规则集会级联
   删除规则及绑定；删除供应商只删除其绑定。已实现原子规则替换和有序加载；改写执行仍由 core 完成。
-- 审计和派生用量汇总不在当前持久化层中。
+- 一个 API key 至多绑定一个组织和一个团队。应用层据此一次确定预算 owner 链、
+  权限主体范围和凭证可见性边界，绑定不从请求头读取。删除所绑定的组织／团队会删除该 key。
+- AuditEvent 记录一次被受理的管理／门户操作：操作者、来源地址、动作名、目标、结果
+  以及脱敏后的 `detail` 摘要。该表不建外键，因为它必须在操作者和目标被删除后继续存在，
+  也不属于任何控制面快照。派生用量汇总仍不在当前持久化层中。
 
 改写规则新增 `target`（默认 `body`，另有 `header`／`query`）及可空 `target_name`。
 Header／Query 选择已存在字段的值进行替换，保留重复项；Query 仅限 request。

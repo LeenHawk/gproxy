@@ -156,3 +156,108 @@ async fn sync_adds_allowlist_columns_to_populated_schema_without_losing_data() {
         .unwrap();
     assert_eq!(row.try_get::<String>("", "value").unwrap(), "retained");
 }
+
+/// The upgrade path for the API-key binding and the audit trail: an existing
+/// database gains the two nullable columns and the new table in place.
+#[tokio::test]
+async fn sync_adds_the_api_key_bindings_and_the_audit_table_in_place() {
+    use gproxy_store::entity::identity::{api_key, organization};
+    let store = Store::new(connection().await);
+    store.sync().await.unwrap();
+    // Model the immediately previous schema, before the binding and the table.
+    // SQLite refuses DROP COLUMN on a column named by a foreign key, so the
+    // previous api_keys definition is restated instead.
+    for statement in [
+        "DROP TABLE api_keys",
+        "CREATE TABLE \"api_keys\" ( \"id\" varchar NOT NULL PRIMARY KEY, \
+         \"user_id\" varchar NOT NULL, \"subscription_id\" varchar, \"name\" varchar NOT NULL, \
+         \"kind\" varchar(16) NOT NULL DEFAULT 'user', \"key_hash\" varchar NOT NULL UNIQUE, \
+         \"prefix\" varchar NOT NULL, \"secret\" varbinary_blob, \"expires_at_ms\" integer, \
+         \"enabled\" boolean NOT NULL DEFAULT TRUE, \
+         FOREIGN KEY (\"user_id\") REFERENCES \"users\" (\"id\") ON DELETE CASCADE, \
+         FOREIGN KEY (\"subscription_id\") REFERENCES \"subscriptions\" (\"id\") ON DELETE CASCADE )",
+        "DROP TABLE audit_events",
+    ] {
+        store
+            .connection()
+            .execute_unprepared(statement)
+            .await
+            .unwrap();
+    }
+    store
+        .users()
+        .create_many(vec![user::ActiveModel {
+            id: Set("u".into()),
+            name: Set("u".into()),
+            role: Set("user".into()),
+            created_at_ms: Set(0),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    store
+        .connection()
+        .execute_unprepared(
+            "INSERT INTO api_keys (id, user_id, name, kind, key_hash, prefix, enabled) \
+             VALUES ('k', 'u', 'k', 'user', 'hash', 'sk-', 1)",
+        )
+        .await
+        .unwrap();
+    assert!(
+        !tables(store.connection())
+            .await
+            .contains(&"audit_events".into())
+    );
+    store.sync().await.unwrap();
+    assert!(
+        tables(store.connection())
+            .await
+            .contains(&"audit_events".into())
+    );
+    // The pre-existing key is retained and simply unbound.
+    let key = store.load_identity_data().await.unwrap().api_keys.remove(0);
+    assert_eq!(key.key_hash, "hash");
+    assert!(key.organization_id.is_none() && key.team_id.is_none());
+    store
+        .organizations()
+        .create_many(vec![organization::ActiveModel {
+            id: Set("org".into()),
+            name: Set("org".into()),
+            created_at_ms: Set(0),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    store
+        .api_keys()
+        .update_many(vec![api_key::ActiveModel {
+            id: Set("k".into()),
+            organization_id: Set(Some("org".into())),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    assert_eq!(
+        store.load_identity_data().await.unwrap().api_keys[0]
+            .organization_id
+            .as_deref(),
+        Some("org")
+    );
+    // Documented limitation of in-place column addition: SQLite's ALTER TABLE
+    // ADD COLUMN leaves the table's foreign keys untouched, so an upgraded
+    // database gains the columns without the Cascade a freshly created one has.
+    // The application layer must therefore unbind keys itself when it deletes a
+    // scope, rather than relying on the database to do it.
+    let ddl: String = store
+        .connection()
+        .query_one_raw(Statement::from_string(
+            DbBackend::Sqlite,
+            "SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'api_keys'",
+        ))
+        .await
+        .unwrap()
+        .unwrap()
+        .try_get("", "sql")
+        .unwrap();
+    assert!(!ddl.contains("REFERENCES \"organizations\""), "{ddl}");
+}
