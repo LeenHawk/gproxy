@@ -69,6 +69,12 @@ pub enum CoreError {
     /// client request from an unsupported pair or a host/transport fault.
     #[error(transparent)]
     Transform(#[from] gproxy_protocol::transform::TransformError),
+    /// The configured file backend (`gproxy_file`, i.e. opendal) failed on
+    /// a `Core`-level publication read or delete. A missing object is not an
+    /// error there: `read_publication` answers `Ok(None)` and
+    /// `delete_publication` ignores it.
+    #[error("file storage: {0}")]
+    File(#[from] gproxy_file::Error),
     #[error(transparent)]
     Secret(#[from] crate::SecretError),
     #[error(transparent)]

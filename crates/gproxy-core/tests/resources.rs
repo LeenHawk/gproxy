@@ -213,6 +213,54 @@ async fn expired_publication_reads_as_none_through_core() {
     assert!(!h.core.delete_publication(&id).await.unwrap());
 }
 
+/// The backend losing an object behind core's back reads as `None`, and
+/// deleting it is still a clean tombstone; any other backend failure is
+/// `CoreError::File` with the opendal error intact.
+#[tokio::test]
+async fn backend_failures_surface_as_core_file_errors() {
+    let (h, dir) = with_links(Some("https://files.example")).await;
+    let r = resources(&h);
+    let s = scope(&h, "tenant", "p");
+    let published = r
+        .publish(&s, "op-url", PublicationKind::Url, metadata(), body("x"))
+        .await
+        .unwrap();
+    let id = published.handle.binding_id.clone();
+    let object = dir.path().join("publications").join(&id);
+    assert!(h.core.read_publication(&id).await.unwrap().is_some());
+
+    // Removed behind core's back: NotFound is not an error.
+    std::fs::remove_file(&object).unwrap();
+    assert!(h.core.read_publication(&id).await.unwrap().is_none());
+
+    // The stored path is now a directory: the fs backend fails to read it
+    // with something other than NotFound, and that reaches the host as is.
+    std::fs::create_dir(&object).unwrap();
+    let error = match h.core.read_publication(&id).await {
+        Err(error) => error,
+        Ok(read) => panic!("expected an error, got {:?}", read.map(|p| p.id)),
+    };
+    let gproxy_core::CoreError::File(inner) = &error else {
+        panic!("expected CoreError::File, got {error:?}");
+    };
+    assert_ne!(inner.kind(), gproxy_file::ErrorKind::NotFound);
+    assert!(error.to_string().starts_with("file storage: "), "{error}");
+
+    // Delete tombstones the row first; a non-empty directory in the object's
+    // place then makes the backend's delete fail the same way (the fs
+    // backend removes an empty directory happily).
+    std::fs::write(object.join("child"), b"x").unwrap();
+    let error = h.core.delete_publication(&id).await.unwrap_err();
+    assert!(
+        matches!(error, gproxy_core::CoreError::File(_)),
+        "{error:?}"
+    );
+    assert!(h.core.read_publication(&id).await.unwrap().is_none());
+    std::fs::remove_dir_all(&object).unwrap();
+    // Already tombstoned: nothing to delete and no backend call.
+    assert!(!h.core.delete_publication(&id).await.unwrap());
+}
+
 #[tokio::test]
 async fn publish_is_idempotent_by_operation_id_and_reads_back_the_stored_body() {
     let (h, _dir) = with_storage().await;

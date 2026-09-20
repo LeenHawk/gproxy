@@ -53,11 +53,14 @@ fn resource_storage(error: gproxy_store::StoreError) -> CapabilityError {
     )
 }
 
+/// A file backend failure inside the `ResourceAccess` protocol trait, whose
+/// error type is fixed. The message keeps the opendal kind so it survives
+/// the `CapabilityError -> TransformError` flattening.
 fn file_backend(error: gproxy_file::Error) -> CapabilityError {
     CapabilityError::with_source(
         CapabilityErrorKind::Storage,
         CapabilityErrorStage::BodyTransfer,
-        "file backend failed",
+        format!("file backend failed ({})", error.kind()),
         error,
     )
 }
@@ -957,9 +960,9 @@ impl<C: BatchConnectionTrait + Send + Sync> ResourceAccess for Resources<'_, C> 
     }
 }
 
-/// A capability failure surfaced through the engine API. There is no dedicated
-/// `CoreError` variant for the file backend; the transform mapping keeps the
-/// kind and message.
+/// A capability failure surfaced through the engine API; the transform
+/// mapping keeps the kind and message. File backend failures do not go this
+/// way: the `Core` methods below return them as `CoreError::File`.
 fn core_error(error: CapabilityError) -> crate::CoreError {
     crate::CoreError::Transform(error.into())
 }
@@ -1012,7 +1015,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         let bytes = match backend.read(&object_key(&row.id)).await {
             Ok(buffer) => buffer.to_bytes(),
             Err(error) if error.kind() == gproxy_file::ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(core_error(file_backend(error))),
+            Err(error) => return Err(crate::CoreError::File(error)),
         };
         Ok(Some(crate::Publication {
             id: row.id.clone(),
@@ -1050,7 +1053,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             && let Err(error) = backend.delete(&object_key(&row.id)).await
             && error.kind() != gproxy_file::ErrorKind::NotFound
         {
-            return Err(core_error(file_backend(error)));
+            return Err(crate::CoreError::File(error));
         }
         Ok(true)
     }

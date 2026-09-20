@@ -200,7 +200,8 @@ URL 形态的发布（images 的 `response_format: url`）需要宿主提供链�
 它只持有字节与绑定 id，链接由宿主签发：`url_for` 在任何写入之前用 core 即将记录的 id
 调用，返回 `None`（或根本没配构造器）就以 `Unsupported` 拒绝，不留行也不留对象。宿主在
 自己的路由上调用 `Core::read_publication(id)` 提供下载：对任何仍有效的发布返回元数据与
-存储的字节，不检查 scope（路由已经认证了持链接者），过期或已释放时返回 `None`；
+存储的字节，不检查 scope（路由已经认证了持链接者），过期、已释放或对象已从后端消失时
+返回 `None`，其他后端故障以 `CoreError::File` 原样带出 opendal 错误；
 `Core::delete_publication` 可提前墓碑化。images 族在第一次上游调用前就检查构造器，
 没有构造器的宿主不会为无法交付的图片付费。
 
