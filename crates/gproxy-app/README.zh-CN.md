@@ -230,11 +230,13 @@ access token 是用户交给别人程序的凭证。除非它的 `client_id` 列
 
 行来自快照，计数来自 cache——多个实例共用同一条限制，按进程计数会把每条限制乘上实例
 数。窗口固定且对齐到 epoch：`now - now % (period_seconds × 1000)`，因此每个实例只凭
-时钟就能对齐边界，key 是 `rl/{row_id}/{window_start}`。
+时钟就能对齐边界，计数器的 key 是 `rl/{row_id}/{window_start}`。
 
 `metric = "concurrency"` 取一个 cache permit 并持有到请求结束；其余 metric 以限额为
-上限对计数器 +1，每次恰好 1。想限制 **token** 的限制其实是预算而不是限流：token 数在
-上游应答之前根本不存在。
+上限对计数器 +1，每次恰好 1。permit **不按窗口分键**（key 是 `rl/{row_id}/live`）：它度量
+的是此刻在飞的请求，窗口边界并不切分这件事；周期只是 cache 回收"未释放就死掉的请求"所
+占 permit 的时限。想限制 **token** 的限制其实是预算而不是限流：token 数在上游应答之前
+根本不存在。
 
 **cache 答不上来就拒绝请求**（`429`，且不带重试提示）。`design/cache.md` 明确要求
 cache 故障不得降级到本地状态；这里同理——放行会把一次 cache 故障变成"实例上所有限制
