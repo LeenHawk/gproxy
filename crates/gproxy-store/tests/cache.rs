@@ -172,11 +172,11 @@ async fn permits_are_bounded_renewable_and_released() {
     assert!(second.is_some());
     // Two permits under a limit of two, the third refused; expiry frees them.
     let p1 = a
-        .acquire_permit("pool", 2, Duration::from_millis(1))
+        .acquire_permit("pool", 2, Duration::from_millis(200))
         .await
         .unwrap();
     let p2 = a
-        .acquire_permit("pool", 2, Duration::from_millis(1))
+        .acquire_permit("pool", 2, Duration::from_millis(200))
         .await
         .unwrap();
     assert!(p1.is_some() && p2.is_some());
@@ -186,7 +186,9 @@ async fn permits_are_bounded_renewable_and_released() {
             .unwrap()
             .is_none()
     );
-    tokio::time::sleep(Duration::from_millis(5)).await;
+    // The two short permits expire; a generous margin keeps this deterministic
+    // on a loaded machine (a 1 ms TTL raced the third acquire above).
+    tokio::time::sleep(Duration::from_millis(400)).await;
     assert!(
         b.acquire_permit("pool", 2, ttl(60))
             .await
