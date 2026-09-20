@@ -636,11 +636,21 @@ fn responses_usage_is_read_from_the_terminal_event_and_from_json() {
 
 #[test]
 fn allowed_headers_applies_to_codex_too() {
-    let config = json!({"allowed_headers": ["session-id"]});
+    let config = json!({"allowed_headers": ["x-request-id"]});
     let secret = secret("at-1");
     let mut headers = HeaderMap::new();
+    headers.insert("x-request-id", HeaderValue::from_static("req-1"));
+    headers.insert("x-custom", HeaderValue::from_static("dropped"));
+    // The CLI's own headers pass regardless of the provider list.
     headers.insert("session-id", HeaderValue::from_static("sess-1"));
+    headers.insert("thread-id", HeaderValue::from_static("thread-1"));
     headers.insert("x-client-request-id", HeaderValue::from_static("thread"));
+    headers.insert(
+        "x-codex-turn-metadata",
+        HeaderValue::from_static("{\"request_kind\":\"turn\"}"),
+    );
+    headers.insert("x-codex-turn-state", HeaderValue::from_static("sticky"));
+    headers.insert("version", HeaderValue::from_static("0.155.1"));
     headers.insert("openai-beta", HeaderValue::from_static("spoof"));
     let request = Codex
         .prepare(PrepareContext {
@@ -661,8 +671,14 @@ fn allowed_headers_applies_to_codex_too() {
         })
         .unwrap();
     let h = request.headers();
+    assert_eq!(h["x-request-id"], "req-1");
+    assert!(h.get("x-custom").is_none());
     assert_eq!(h["session-id"], "sess-1");
-    assert!(h.get("x-client-request-id").is_none());
+    assert_eq!(h["thread-id"], "thread-1");
+    assert_eq!(h["x-client-request-id"], "thread");
+    assert_eq!(h["x-codex-turn-metadata"], "{\"request_kind\":\"turn\"}");
+    assert_eq!(h["x-codex-turn-state"], "sticky");
+    assert_eq!(h["version"], "0.155.1");
     assert!(
         h.get("openai-beta").is_none(),
         "channel identity headers are never client-supplied"

@@ -7,18 +7,51 @@
 use super::{ChannelError, ProviderView};
 use http::{HeaderMap, HeaderName};
 
+/// Headers a vendor's own client sends that its channel always lets through,
+/// even under a provider allow-list: the list narrows what *other* clients
+/// may add, it must not strip the CLI the channel impersonates. Names are
+/// exact lowercase header names; prefixes match any header starting with
+/// them (`x-codex-`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ChannelHeaders {
+    pub names: &'static [&'static str],
+    pub prefixes: &'static [&'static str],
+}
+
+impl ChannelHeaders {
+    pub const NONE: Self = Self {
+        names: &[],
+        prefixes: &[],
+    };
+
+    fn allows(&self, name: &HeaderName) -> bool {
+        let name = name.as_str();
+        self.names.contains(&name) || self.prefixes.iter().any(|prefix| name.starts_with(prefix))
+    }
+}
+
 /// Provider `config.allowed_headers`: the only client headers forwarded.
 /// `content-type` is always forwarded because it describes the body being
-/// sent, not the client.
+/// sent, not the client; a channel's own `ChannelHeaders` are forwarded too.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeaderAllowlist {
     names: Vec<HeaderName>,
+    channel: ChannelHeaders,
 }
 
 impl HeaderAllowlist {
     /// None when the provider configures no list (forward everything that is
     /// not dropped); an invalid header name is a configuration error.
     pub fn from_view(provider: ProviderView<'_>) -> Result<Option<Self>, ChannelError> {
+        Self::from_view_for(provider, ChannelHeaders::NONE)
+    }
+
+    /// Like `from_view`, with the headers the channel's vendor client sends
+    /// always allowed.
+    pub fn from_view_for(
+        provider: ProviderView<'_>,
+        channel: ChannelHeaders,
+    ) -> Result<Option<Self>, ChannelError> {
         let Some(value) = provider.config.get("allowed_headers") else {
             return Ok(None);
         };
@@ -36,11 +69,11 @@ impl HeaderAllowlist {
                     })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        Ok(Some(Self { names }))
+        Ok(Some(Self { names, channel }))
     }
 
     pub fn allows(&self, name: &HeaderName) -> bool {
-        name == http::header::CONTENT_TYPE || self.names.contains(name)
+        name == http::header::CONTENT_TYPE || self.channel.allows(name) || self.names.contains(name)
     }
 }
 

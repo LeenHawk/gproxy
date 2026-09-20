@@ -14,7 +14,7 @@ mod state;
 mod usage;
 
 pub use binding::ChannelBinding;
-pub use headers::{HeaderAllowlist, forwardable};
+pub use headers::{ChannelHeaders, HeaderAllowlist, forwardable};
 pub use oauth::{
     AcquiredCredential, AuthorizationCode, AuthorizationRequest, AuthorizationStart, CookieLogin,
     DeviceAuthorization, DevicePoll, LoginContext, OAuthAuthorizationCode, OAuthCredential,

@@ -586,7 +586,10 @@ fn allowed_headers_narrows_forwarding_and_identity_cannot_be_spoofed() {
     headers.insert("x-custom", HeaderValue::from_static("dropped"));
     headers.insert("x-app", HeaderValue::from_static("spoof"));
     headers.insert("cookie", HeaderValue::from_static("sessionKey=spoof"));
-    headers.insert("anthropic-beta", HeaderValue::from_static("not-allowed"));
+    headers.insert(
+        "anthropic-beta",
+        HeaderValue::from_static("interleaved-thinking-2025-05-14"),
+    );
     headers.insert(
         "x-claude-code-session-id",
         HeaderValue::from_static("client-session"),
@@ -615,13 +618,15 @@ fn allowed_headers_narrows_forwarding_and_identity_cannot_be_spoofed() {
         h["user-agent"], CLI_USER_AGENT,
         "a foreign user agent is replaced"
     );
-    assert_eq!(
-        h["anthropic-beta"], "oauth-2025-04-20",
-        "client betas outside the allow-list are not merged"
+    // The CLI's own hints are read even though the provider list omits them.
+    let betas = h["anthropic-beta"].to_str().unwrap();
+    assert!(
+        betas.contains("oauth-2025-04-20") && betas.contains("interleaved-thinking-2025-05-14"),
+        "{betas}"
     );
-    assert_ne!(
+    assert_eq!(
         h["x-claude-code-session-id"], "client-session",
-        "session hints outside the allow-list are ignored"
+        "the CLI's session id is honoured under an allow-list"
     );
     assert_eq!(h["authorization"], "Bearer at-1");
 }

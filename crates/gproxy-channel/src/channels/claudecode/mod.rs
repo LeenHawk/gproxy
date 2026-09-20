@@ -33,10 +33,10 @@ pub use services::{KIND_FILE, KIND_PLUGIN, KIND_SKILL, service_routes};
 use crate::OutboundClient;
 use crate::channel::{
     AuthorizationCode, AuthorizationRequest, AuthorizationStart, BaseChannel, ChannelError,
-    ChannelServices, CookieLogin, CredentialRefresh, CredentialUpdate, CredentialView,
-    HeaderAllowlist, LoginContext, OAuthAuthorizationCode, OAuthCredential, OperationContext,
-    OperationFuture, PrepareContext, ProviderView, QuotaHeaders, QuotaModel, QuotaQuery,
-    RefreshContext, UsageExtractor, UsageStream, forwardable,
+    ChannelHeaders, ChannelServices, CookieLogin, CredentialRefresh, CredentialUpdate,
+    CredentialView, HeaderAllowlist, LoginContext, OAuthAuthorizationCode, OAuthCredential,
+    OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaHeaders, QuotaModel,
+    QuotaQuery, RefreshContext, UsageExtractor, UsageStream, forwardable,
 };
 use crate::channels::shared::cache;
 use futures_util::StreamExt;
@@ -314,6 +314,19 @@ fn prev_req_key(session: &str) -> String {
 }
 
 // --------------------------------------------------------------- headers
+
+/// What the Claude Code CLI itself sends and the channel reads as hints (its
+/// beta list, session id in either spelling, its user agent). A provider
+/// allow-list never hides these from the channel.
+pub const CLI_HEADERS: ChannelHeaders = ChannelHeaders {
+    names: &[
+        "anthropic-beta",
+        "x-claude-code-session-id",
+        "session_id",
+        "user-agent",
+    ],
+    prefixes: &[],
+};
 
 /// Headers the channel sets itself; a client cannot supply them. Cookies are
 /// claude.ai identity and never belong on an api.anthropic.com call.
@@ -631,7 +644,7 @@ impl Claudecode {
         let config = ClaudecodeConfig::from_view(ctx.provider)?;
         let account = account(&ctx.credential)?;
         let operation = ctx.operation.operation;
-        let allowlist = HeaderAllowlist::from_view(ctx.provider)?;
+        let allowlist = HeaderAllowlist::from_view_for(ctx.provider, CLI_HEADERS)?;
         let WireRequest {
             method,
             path,
@@ -726,7 +739,7 @@ impl Claudecode {
         ctx: OperationContext<'_>,
     ) -> Result<WireResponse<HttpBody>, ChannelError> {
         let account = account(&ctx.credential)?;
-        let allowlist = HeaderAllowlist::from_view(ctx.provider)?;
+        let allowlist = HeaderAllowlist::from_view_for(ctx.provider, CLI_HEADERS)?;
         let session = session_id(
             &account.device_id,
             explicit_session(&ctx.request.headers, allowlist.as_ref()),
