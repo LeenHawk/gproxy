@@ -28,6 +28,15 @@ pub enum CoreError {
     },
     #[error("no usable credential in the supplied candidate set")]
     NoUsableCredential,
+    /// A caller budget named by the request is spent for its current
+    /// window. Nothing was sent; `resets_at_ms` is None for a permanent
+    /// budget, which only a manual reset reopens.
+    #[error("budget `{quota_id}` ({window_key}) is exhausted")]
+    BudgetExhausted {
+        quota_id: String,
+        window_key: String,
+        resets_at_ms: Option<i64>,
+    },
     /// The caller's role does not permit what it asked for (an admin-only
     /// service view). The host authenticates; core only checks the pairing.
     #[error("forbidden: {0}")]

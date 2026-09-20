@@ -121,6 +121,7 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
 ) -> CoreResult<HttpExecution> {
     let (funnel, completion) = Funnel::new(request.clone(), core.observer().clone());
     funnel.set_meter(core.usage_meter());
+    reject_when_over_budget(core, &request, &funnel).await?;
     let snapshot = request.snapshot.clone();
     let limits = snapshot.limits;
     let provider = request.target.provider.clone();
@@ -686,6 +687,36 @@ pub(crate) async fn run_http<C: BatchConnectionTrait + Send + Sync + 'static>(
     }
     funnel.finish(UsageState::Failed).await;
     Err(CoreError::NoUsableCredential)
+}
+
+/// Caller budgets are checked once, before any credential is touched: an
+/// exhausted one fails the request through the funnel so the Observer sees
+/// a failed usage and, with tracing on, the rejection itself.
+pub(crate) async fn reject_when_over_budget<C: BatchConnectionTrait>(
+    core: &Core<C>,
+    request: &Arc<RequestContext>,
+    funnel: &Funnel,
+) -> CoreResult<()> {
+    match core.check_budgets(request, now_ms()).await {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            if let CoreError::BudgetExhausted {
+                quota_id,
+                window_key,
+                resets_at_ms,
+            } = &error
+            {
+                funnel.trace(TraceEvent::BudgetRejected {
+                    request,
+                    quota_id,
+                    window_key,
+                    resets_at_ms: *resets_at_ms,
+                });
+            }
+            funnel.finish(UsageState::Failed).await;
+            Err(error)
+        }
+    }
 }
 
 /// Trace the rejection and write the block or bump the streak. Returns whether

@@ -372,8 +372,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
     }
 }
 
-/// Charges settled usage against Counted token dimensions. Runs inside the
-/// funnel, so it owns its handles rather than borrowing the engine.
+/// Charges settled usage against Counted token dimensions and settles the
+/// priced cost into the request's caller budgets. Runs inside the funnel, so
+/// it owns its handles rather than borrowing the engine.
 pub(crate) trait UsageMeter: Send + Sync {
     fn charge<'a>(
         &'a self,
@@ -395,6 +396,16 @@ impl<C: BatchConnectionTrait + Send + Sync> UsageMeter for CountedMeter<C> {
     ) -> CapabilityFuture<'a, ()> {
         Box::pin(async move {
             let now = now_ms();
+            // Budgets settle whatever the request cost, zero included: an
+            // unpriced request still records that it happened. Settlement
+            // failures only lose accounting; the request is done.
+            if !request.budgets.is_empty() {
+                let (amount, currency) = match &report.cost {
+                    Some(cost) => (cost.amount, cost.currency.as_str()),
+                    None => (Decimal::ZERO, "USD"),
+                };
+                let _ = crate::budget::settle(&self.store, request, amount, currency, now).await;
+            }
             for exchange in &report.exchanges {
                 let Some(credential) = request
                     .target

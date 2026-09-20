@@ -1266,3 +1266,88 @@ async fn operation_endpoints_are_scoped_by_provider_operation_dialect_and_transp
             .all(Option::is_none)
     );
 }
+
+#[tokio::test]
+async fn budget_windows_open_once_query_by_time_and_close_in_place() {
+    use gproxy_store::operations::quota::OpenWindow;
+    let store = database().await;
+    let open = |quota: &str, start: i64, end: Option<i64>| OpenWindow {
+        quota_id: quota.into(),
+        starts_at_ms: start,
+        ends_at_ms: end,
+        quota_snapshot: json!({"id": quota}),
+    };
+    let first = store
+        .quota_windows()
+        .open_many(vec![open("q1", 0, Some(100)), open("q2", 50, None)])
+        .await
+        .unwrap();
+    assert_eq!(first.len(), 2);
+    assert_eq!(first[0].used, FixedDecimal::ZERO);
+    assert_eq!(first[0].quota_snapshot["id"], "q1");
+    // Opening the same key again returns the existing row, id included.
+    let again = store
+        .quota_windows()
+        .open_many(vec![open("q1", 0, Some(100))])
+        .await
+        .unwrap();
+    assert_eq!(again[0].id, first[0].id);
+    store
+        .quota_settlements()
+        .settle_many(vec![Settlement {
+            window_id: first[0].id.clone(),
+            request_id: "r".into(),
+            amount: money("0.5"),
+            settled_at_ms: 10,
+        }])
+        .await
+        .unwrap();
+    let ids = vec!["q1".to_owned(), "q2".to_owned(), "none".to_owned()];
+    let at_10 = store.quota_windows().open_at(&ids, 10).await.unwrap();
+    assert_eq!(at_10.len(), 1, "q2 has not started at 10");
+    assert_eq!(at_10[0].used, money("0.5"));
+    let at_75 = store.quota_windows().open_at(&ids, 75).await.unwrap();
+    assert_eq!(
+        at_75
+            .iter()
+            .map(|w| w.quota_id.as_str())
+            .collect::<Vec<_>>(),
+        ["q1", "q2"]
+    );
+    let at_100 = store.quota_windows().open_at(&ids, 100).await.unwrap();
+    assert_eq!(at_100.len(), 1, "q1 ended at 100 (exclusive)");
+    assert_eq!(at_100[0].quota_id, "q2");
+    store
+        .quota_windows()
+        .close_many(&[first[1].id.clone()], 80)
+        .await
+        .unwrap();
+    let at_90 = store.quota_windows().open_at(&ids, 90).await.unwrap();
+    assert_eq!(
+        at_90
+            .iter()
+            .map(|w| w.quota_id.as_str())
+            .collect::<Vec<_>>(),
+        ["q1"],
+        "q2 was closed at 80"
+    );
+    let closed = store
+        .quota_windows()
+        .get_many(&[first[1].id.clone()])
+        .await
+        .unwrap();
+    assert_eq!(closed[0].as_ref().unwrap().ends_at_ms, Some(80));
+    assert_eq!(
+        store.quota_windows().open_at(&ids, 60).await.unwrap().len(),
+        2,
+        "closing keeps the row for history"
+    );
+    assert!(
+        store
+            .quota_windows()
+            .open_at(&[], 60)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}

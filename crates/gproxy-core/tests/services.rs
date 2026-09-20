@@ -41,6 +41,7 @@ fn request(
         caller,
         view,
         target: h.target("p"),
+        budgets: Vec::new(),
         request: service_request(method, path),
     }
 }
@@ -311,6 +312,7 @@ async fn bindings_are_scoped_to_the_caller_or_to_the_targets_credentials() {
                     caller,
                     view,
                     target,
+                    budgets: Vec::new(),
                     request: service_request(Method::GET, "/bindings/thing"),
                 })
                 .await

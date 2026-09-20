@@ -10,6 +10,7 @@ mod select;
 mod stream;
 
 pub use apply::{apply_body, apply_headers, apply_query, apply_unit};
+pub(crate) use compile::glob_to_regex;
 pub use compile::{RewriteCompileError, compile_rule};
 pub use select::{Phase, RewriteContext, SelectedRules, select_rules};
 pub use stream::StreamRewriter;

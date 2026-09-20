@@ -26,6 +26,8 @@ extraction and local token estimation.
 | `capability` | Core's `AttemptUpstream`, `ProtocolState` and `Resources`, the host capabilities protocol adaptations are generic over |
 | `refresh` | Explicit credential refresh: cross-instance lease, channel `CredentialRefresh`, seal, version CAS, publication, `Dead` on definitive rejection |
 | `quota` | `QuotaHeaders`/`QuotaQuery` observations into `credential_quota_cycles` and exhaustion blocks; Counted dimensions metered in Store `counted_windows` rows |
+| `budget` | Caller budgets in USD: owners named by the host, lazy `quota_windows`, pre-attempt rejection, settlement, manual reset and status |
+| `pricing` | `PriceBook`: the Store price rules, rates and tiers compiled per snapshot; every exchange is priced at settlement |
 | `session` | Agent session assignments: stay bound while usable, reserve a new generation on durable failure, activate or fail from the preparing attempt |
 | `estimate` | Local token estimation for exchanges the upstream did not meter |
 | `observe` | The host's settlement/capture/trace funnel with a pre-work policy query |
@@ -34,10 +36,11 @@ extraction and local token estimation.
 ## Snapshot and data
 
 `CoreData` holds providers, credentials, reusable rewrite sets, the execution
-limits and the estimator. It does not hold routes, exposed-model aliases,
-identity tables, permissions, OAuth client allowlists, subscriptions, pricing or
-admission rules; those belong to the upper layer, together with route affinity
-and cross-provider balancing. `publish_snapshot` accepts only a newer revision;
+limits, the estimator, the enabled caller budgets and the price book. It does
+not hold routes, exposed-model aliases, identity tables, permissions, OAuth
+client allowlists, subscriptions or admission rules; those belong to the upper
+layer, together with route affinity and cross-provider balancing.
+`publish_snapshot` accepts only a newer revision;
 requests pin their own `Arc`, so a reload never changes a request midway.
 
 `ExecutionTarget` names one provider, an optional resolved upstream model and
@@ -84,7 +87,7 @@ returns an `Execution<T>`: the protocol response or connection and a
 | `reload_credentials` | Re-read rows in input order and publish into the existing slot; missing rows return None and retire the slot |
 | `refresh_credential` | Provider ownership check, per-credential cache lease (peers wait, a newer durable version satisfies the call), authoritative Store read, channel refresh, seal, `refresh_many` CAS, publication and a `CredentialChanged` notification; `RefreshRejected` persists `Dead` with its reason |
 | `query_credential_quota` | The channel's `QuotaQuery` through the assigned client; every entry becomes a `credential_quota_cycles` row, exhausted declared dimensions become blocks |
-| `call_service` / `connect_service` | [service.rs](src/service.rs): the channel's `ChannelServices` (vendor CLI calls without an `OperationKey`) under a `ServiceView`. `Caller` (any role) renders the caller's own picture from the gateway's accounting for `scope` and the resources bound to it — a member never sees any credential's state; `Pool` (admin) merges the target's credentials into one synthesized account; `Credential(id)` (admin) forwards raw with that credential's auth. Core never decides who is an admin of what: the host expresses the org boundary by choosing `target.credentials`, and `CallerRole::Admin` means admin over that set. Core supplies the facts (`TargetCaller`: usage rows keyed by scope, quota cycles of the target's credentials, `resource_bindings`), picks the first usable credential (or the named one) and item routes follow the credential recorded in the binding. A wrong role is `Forbidden`, a channel without services is `Channel(UnsupportedService)`. Runs **outside the funnel**: no attempt, usage, capture or retry |
+| `call_service` / `connect_service` | [service.rs](src/service.rs): the channel's `ChannelServices` (vendor CLI calls without an `OperationKey`) under a `ServiceView`. `Caller` (any role) renders the caller's own picture from the gateway's accounting for `scope` and the resources bound to it — a member never sees any credential's state; `Pool` (admin) merges the target's credentials into one synthesized account; `Credential(id)` (admin) forwards raw with that credential's auth. Core never decides who is an admin of what: the host expresses the org boundary by choosing `target.credentials`, and `CallerRole::Admin` means admin over that set. Core supplies the facts (`TargetCaller`: usage rows keyed by scope, the current windows of the budgets named in `ServiceRequest::budgets`, quota cycles of the target's credentials, `resource_bindings`), picks the first usable credential (or the named one) and item routes follow the credential recorded in the binding. A wrong role is `Forbidden`, a channel without services is `Channel(UnsupportedService)`. Runs **outside the funnel**: no attempt, usage, capture or retry |
 
 ## Execution
 
@@ -179,6 +182,46 @@ at all (the output estimate still applies). Estimates are `Partial` and carry
 `dimensions["estimated"] = "true"`; reported values are never overwritten and
 rejected answers are not estimated. `UsageState::Skipped` means the request's
 policy disabled usage, distinct from an upstream that reported nothing.
+
+## Budgets and pricing
+
+A budget is a `quotas` row with metric `cost` and unit `USD`, owned by exactly
+one user, API key, subscription or pool. The host names the owners a request
+spends for in `RequestContext::budgets` (and `ServiceRequest::budgets` for the
+`Caller` service view); core resolves them to the enabled budgets of those
+owners whose `model_pattern` (a `*`/`?` glob over the whole upstream model
+name, blank for all) covers the target model. Every applicable budget must have
+room (AND): before the first attempt each one's current window is loaded — or
+opened lazily as a `quota_windows` row keyed by `(quota_id, starts_at_ms)`,
+carrying a snapshot of the quota — and a window with `used >= limit_value`
+fails the request with `CoreError::BudgetExhausted { quota_id, window_key,
+resets_at_ms }` before any credential is touched; the funnel still delivers a
+`Failed` usage report and, with tracing on, `TraceEvent::BudgetRejected`.
+
+Periods are `5h`, `1d` and `7d` (fixed windows aligned to `anchor_at_ms`, epoch
+0 when unset; any other period with `period_seconds` works the same), `1m` (UTC
+calendar months) and `total` (one permanent window, `ends_at_ms = None`).
+Expired windows stay as history; the next request opens the next one.
+`Core::reset_budget(quota_id, now)` closes the open window at `now`, sets the
+quota's `anchor_at_ms` to `now` and opens a fresh window starting there (a whole
+period for fixed windows, to month end for `1m`, forever for `total`); the new
+anchor governs later windows once a reloaded snapshot is published.
+`Core::budget_status(owners, now)` reports every budget of the owners with its
+window, `used`, `limit` and `resets_at_ms`, for hosts and consoles.
+
+Cost is core's job. At settlement every exchange is priced from the snapshot's
+`PriceBook` (`price_rules` with their `price_rates` and `price_tiers`): the
+provider's rules precede global ones, the lowest `(priority, id)` wins among
+those whose `model_pattern` glob and optional operation fit; tiers are picked by
+`actual_service_tier` and `min_prompt_tokens`; token kinds are priced per
+million, other metrics by their rate row, conditions matched against the usage
+dimensions (see [pricing.rs](src/pricing.rs) for the mapping). The result lands
+on `ExchangeUsage::cost` and `UsageReport::cost` for the Observer. An exchange
+no rule covers costs 0 and carries `dimensions["unpriced"] = "true"`. The
+request's cost is then settled once per applicable budget window, idempotent by
+`request_id` (`quota_settlements`), only into budgets whose unit is the cost's
+currency. Because cost is known only after the exchange, a budget can be
+overrun by at most one request.
 
 ## Observation
 

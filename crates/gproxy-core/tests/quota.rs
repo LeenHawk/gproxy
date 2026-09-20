@@ -80,6 +80,7 @@ fn only(h: &Harness, credential_id: &str, request_id: &str, attempts: u32) -> Ar
         scope: ctx.scope.clone(),
         session: None,
         operation: ctx.operation,
+        budgets: Vec::new(),
         max_attempts: ctx.max_attempts,
         started_at_ms: 0,
         deadline: None,

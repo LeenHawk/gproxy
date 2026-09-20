@@ -118,14 +118,23 @@ impl Observer for Recorder {
         Box::pin(async {})
     }
     fn trace(&self, event: TraceEvent<'_>) {
-        if let TraceEvent::AttemptFinished {
-            attempt, outcome, ..
-        } = event
-        {
-            self.log.push(format!(
+        match event {
+            TraceEvent::AttemptFinished {
+                attempt, outcome, ..
+            } => self.log.push(format!(
                 "trace {} {} {outcome:?}",
                 attempt.attempt_id, attempt.credential.id
-            ));
+            )),
+            TraceEvent::BudgetRejected {
+                request,
+                quota_id,
+                window_key,
+                ..
+            } => self.log.push(format!(
+                "trace {} budget-rejected {quota_id} {window_key}",
+                request.request_id
+            )),
+            _ => {}
         }
     }
 }
@@ -375,6 +384,35 @@ impl ChannelServices for TestChannel {
                 context.caller.identity().id
             ));
             let path = context.request.path.clone();
+            if path == "/usage" {
+                let usage = context.caller.usage().await?;
+                let windows: Vec<serde_json::Value> = usage
+                    .windows
+                    .iter()
+                    .map(|w| {
+                        json!({
+                            "key": w.key,
+                            "used_percent": w.used_percent,
+                            "period_start_ms": w.period_start_ms,
+                            "reset_at_ms": w.reset_at_ms,
+                        })
+                    })
+                    .collect();
+                let mut headers = HeaderMap::new();
+                headers.insert("content-type", HeaderValue::from_static("application/json"));
+                return Ok(WireResponse {
+                    status: StatusCode::OK,
+                    headers,
+                    body: HttpBody::Bytes(Bytes::from(
+                        serde_json::to_vec(&json!({
+                            "input_tokens": usage.input_tokens,
+                            "cost": usage.cost,
+                            "windows": windows,
+                        }))
+                        .unwrap(),
+                    )),
+                });
+            }
             if let Some(kind) = path.strip_prefix("/bindings/") {
                 let ids: Vec<String> = context
                     .caller
@@ -936,6 +974,7 @@ impl Harness {
             }),
             operation,
             target,
+            budgets: Vec::new(),
             max_attempts: NonZeroU32::new(attempts).unwrap(),
             started_at_ms: 0,
             deadline: None,

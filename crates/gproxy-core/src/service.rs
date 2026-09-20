@@ -26,7 +26,7 @@
 //! affinity. They are account plumbing for the CLI, not model traffic.
 
 use crate::{
-    Core, CoreError, CoreResult, CredentialBlocks, CredentialData, CredentialStatus,
+    BudgetOwner, Core, CoreError, CoreResult, CredentialBlocks, CredentialData, CredentialStatus,
     CredentialVersion, ExecutionTarget, RefreshMode, api::lifecycle::now_ms, ids,
 };
 pub use gproxy_channel::channel::{CallerRole, ServiceView};
@@ -42,7 +42,7 @@ use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::entity::{
     limits::credential_quota_cycle, resource::resource_binding, usage::usage_record,
 };
-use rust_decimal::Decimal;
+use rust_decimal::{Decimal, prelude::ToPrimitive};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::Value;
 use std::{collections::BTreeMap, sync::Arc};
@@ -59,6 +59,10 @@ pub struct ServiceRequest<B = HttpBody> {
     /// The admitted provider and credentials. `upstream_model` is ignored:
     /// a service has no model.
     pub target: ExecutionTarget,
+    /// The owners whose budgets the `Caller` view reports as usage windows,
+    /// as `RequestContext::budgets` names them for model traffic. Empty
+    /// means the view shows no windows.
+    pub budgets: Vec<BudgetOwner>,
     /// The client's request as received, vendor path included.
     pub request: WireRequest<B>,
 }
@@ -79,8 +83,12 @@ fn host_error(error: impl std::fmt::Display) -> ChannelError {
 
 /// Which facts back a synthesized view.
 enum Facts {
-    /// `resource_bindings.scope` and usage rows attributed to the scope.
-    Scope(String),
+    /// `resource_bindings.scope`, usage rows attributed to the scope, and
+    /// the budgets of the named owners.
+    Scope {
+        scope: String,
+        budgets: Vec<BudgetOwner>,
+    },
     /// Bindings and quota cycles of the target's credentials.
     Pool,
 }
@@ -114,7 +122,10 @@ impl<'a, C> TargetCaller<'a, C> {
                     id: request.scope.clone(),
                     display_name: None,
                 },
-                Facts::Scope(request.scope.clone()),
+                Facts::Scope {
+                    scope: request.scope.clone(),
+                    budgets: request.budgets.clone(),
+                },
             ),
             // The pool identity names the provider and the exact credential
             // set, so two admins over different subsets get different ids.
@@ -170,17 +181,24 @@ impl<C: BatchConnectionTrait + Send + Sync> TargetCaller<'_, C> {
             .filter(resource_binding::Column::Generation.eq(0i64))
             .filter(resource_binding::Column::UpstreamId.is_not_null());
         match &self.facts {
-            Facts::Scope(scope) => query.filter(resource_binding::Column::Scope.eq(scope.as_str())),
+            Facts::Scope { scope, .. } => {
+                query.filter(resource_binding::Column::Scope.eq(scope.as_str()))
+            }
             Facts::Pool => query
                 .filter(resource_binding::Column::CredentialId.is_in(self.credential_ids.clone())),
         }
     }
 
-    /// The caller's own accounting: usage rows the host attributed to the
-    /// scope. Rows carry no scope column; by convention the host records
-    /// the scope as `user_id`. Windows are the host's to allot; core has no
-    /// per-scope windows, so none are reported.
-    async fn scope_usage(&self, scope: &str) -> Result<CallerUsage, ChannelError> {
+    /// The caller's own accounting: token totals and settled cost from the
+    /// usage rows the host attributed to the scope (rows carry no scope
+    /// column; by convention the host records the scope as `user_id`), and
+    /// one window per budget of the request's owners, keyed by the quota's
+    /// `window_key`, with `used_percent` from the current window.
+    async fn scope_usage(
+        &self,
+        scope: &str,
+        budgets: &[BudgetOwner],
+    ) -> Result<CallerUsage, ChannelError> {
         let rows = self
             .core
             .store()
@@ -201,6 +219,21 @@ impl<C: BatchConnectionTrait + Send + Sync> TargetCaller<'_, C> {
             }
         }
         usage.cost = costed.then(|| cost.to_string());
+        usage.windows = self
+            .core
+            .budget_status(budgets, now_ms())
+            .await
+            .map_err(host_error)?
+            .into_iter()
+            .map(|status| CallerUsageWindow {
+                key: status.window_key,
+                used_percent: (status.limit > Decimal::ZERO)
+                    .then(|| status.used / status.limit * Decimal::ONE_HUNDRED)
+                    .and_then(|p| p.to_f64()),
+                period_start_ms: Some(status.starts_at_ms),
+                reset_at_ms: status.resets_at_ms,
+            })
+            .collect();
         Ok(usage)
     }
 
@@ -278,7 +311,7 @@ impl<C: BatchConnectionTrait + Send + Sync> ServiceCaller for TargetCaller<'_, C
     fn usage<'a>(&'a self) -> OperationFuture<'a, CallerUsage> {
         Box::pin(async move {
             match &self.facts {
-                Facts::Scope(scope) => self.scope_usage(scope).await,
+                Facts::Scope { scope, budgets } => self.scope_usage(scope, budgets).await,
                 Facts::Pool => self.pool_usage().await,
             }
         })
@@ -323,7 +356,7 @@ impl<C: BatchConnectionTrait + Send + Sync> ServiceCaller for TargetCaller<'_, C
     fn save_binding<'a>(&'a self, record: ResourceBindingRecord) -> OperationFuture<'a, ()> {
         Box::pin(async move {
             let scope = match &self.facts {
-                Facts::Scope(scope) => scope.clone(),
+                Facts::Scope { scope, .. } => scope.clone(),
                 // A pool-created resource belongs to the pool, keyed by the
                 // provider so any admin over the credential sees it.
                 Facts::Pool => format!("pool:{}", self.provider_id),

@@ -188,7 +188,8 @@ fn parse_operation_keys(
 }
 
 /// `*` and `?` globs over the whole model name, case-sensitive and anchored.
-fn glob_to_regex(glob: &str) -> Result<Regex, RewriteCompileError> {
+/// Shared by rewrite filters, price rules and budget model patterns.
+pub(crate) fn glob_to_regex(glob: &str) -> Result<Regex, RewriteCompileError> {
     let mut pattern = String::with_capacity(glob.len() + 4);
     pattern.push('^');
     for ch in glob.chars() {
