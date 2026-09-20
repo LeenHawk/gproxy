@@ -14,6 +14,7 @@
 mod agent;
 mod identity;
 mod services;
+mod shape;
 
 pub use agent::CLI_VERSION;
 
@@ -277,6 +278,8 @@ fn operation_path(operation: Operation) -> Result<&'static str, ChannelError> {
     Ok(match operation {
         Operation::GenerateContent | Operation::StreamGenerateContent => "/responses",
         Operation::CompactContent => "/responses/compact",
+        Operation::CreateImage => "/images/generations",
+        Operation::EditImage => "/images/edits",
         Operation::SummarizeMemory => "/memories/trace_summarize",
         Operation::CreateRealtimeCall => "/realtime/calls",
         other => {
@@ -577,13 +580,44 @@ impl Codex {
         ctx: PrepareContext<'_>,
         identity: Option<&Identity>,
     ) -> Result<http::Request<HttpBody>, ChannelError> {
-        let rules = CodexConfig::from_view(ctx.provider)?
+        let config = CodexConfig::from_view(ctx.provider)?;
+        let shape = !client_managed(&ctx.request.headers)
+            && matches!(
+                ctx.operation.operation,
+                Operation::GenerateContent | Operation::StreamGenerateContent
+            );
+        let rules = config
             .enable_openai_magic_cache
             .then_some(cache::Rules::OpenAiResponses);
-        let responses = request_kind(ctx.operation.operation).is_some();
-        let (builder, request) = self.build(ctx, false, identity)?;
+        let operation = ctx.operation.operation;
+        let responses = request_kind(operation).is_some();
+        let (mut builder, request) = self.build(ctx, false, identity)?;
         let body = match request.body {
-            HttpBody::Bytes(bytes) if responses => HttpBody::Bytes(cache::shape(bytes, rules)),
+            HttpBody::Bytes(bytes) if responses => {
+                let bytes = cache::shape(bytes, rules);
+                HttpBody::Bytes(if shape {
+                    shape::request(&bytes)?.0
+                } else {
+                    bytes
+                })
+            }
+            HttpBody::Bytes(bytes)
+                if matches!(operation, Operation::CreateImage | Operation::EditImage) =>
+            {
+                let bytes = if operation == Operation::CreateImage {
+                    shape::images::create(&bytes)?
+                } else {
+                    shape::images::edit(&request.headers, &bytes)?
+                };
+                if let Some(headers) = builder.headers_mut() {
+                    headers.insert(
+                        header::CONTENT_TYPE,
+                        HeaderValue::from_static("application/json"),
+                    );
+                    headers.remove(header::CONTENT_LENGTH);
+                }
+                HttpBody::Bytes(bytes)
+            }
             other => other,
         };
         builder
@@ -659,7 +693,9 @@ impl BaseChannel for Codex {
             }
             Operation::CompactContent
             | Operation::SummarizeMemory
-            | Operation::CreateRealtimeCall => vec![Dialect::OpenAi],
+            | Operation::CreateRealtimeCall
+            | Operation::CreateImage
+            | Operation::EditImage => vec![Dialect::OpenAi],
             _ => Vec::new(),
         }
     }
