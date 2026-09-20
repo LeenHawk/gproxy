@@ -12,6 +12,7 @@
 //! and, once the host persists them, in the credential's metadata.
 
 mod agent;
+mod identity;
 mod services;
 
 pub use agent::CLI_VERSION;
@@ -23,25 +24,28 @@ pub use services::{
 use crate::OutboundClient;
 use crate::channel::{
     AuthorizationCode, AuthorizationRequest, AuthorizationStart, BaseChannel, ChannelError,
-    ChannelHeaders, ChannelServices, CredentialContext, CredentialRefresh, CredentialUpdate,
-    CredentialView, DeviceAuthorization, DevicePoll, HeaderAllowlist, LoginContext,
-    NormalizedUsage, OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode, OperationFuture,
-    PrepareContext, ProviderView, QuotaAllowance, QuotaBalance, QuotaDimension, QuotaEntry,
-    QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel, QuotaQuery, QuotaResetBehavior,
-    QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
-    RefreshContext, ResponseView, UsageCompleteness, UsageContext, UsageExtractor, UsageFrame,
-    UsageObserver, UsageStream, UsageStreamContext, UsageStreamEnd, UsageTransport, forwardable,
+    ChannelHeaders, ChannelServices, ChannelState, CredentialContext, CredentialRefresh,
+    CredentialUpdate, CredentialView, DeviceAuthorization, DevicePoll, HeaderAllowlist,
+    LoginContext, NormalizedUsage, OAuthAuthorizationCode, OAuthCredential, OAuthDeviceCode,
+    OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaAllowance, QuotaBalance,
+    QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel,
+    QuotaQuery, QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking,
+    QuotaValue, QuotaWindow, RefreshContext, ResponseView, UsageCompleteness, UsageContext,
+    UsageExtractor, UsageFrame, UsageObserver, UsageStream, UsageStreamContext, UsageStreamEnd,
+    UsageTransport, forwardable,
 };
-use crate::channels::shared::cache;
+use crate::channels::shared::{cache, services_common::unix_now_ms};
 use base64::Engine;
 use futures_util::StreamExt;
 use gproxy_client::{Backend, ConnectionConfig};
 use gproxy_protocol::{
-    Dialect, HttpBody, Operation, WireRequest, WireResponse,
+    Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
+    capability::{StateWrite, UpstreamConnection, Version},
     codec::{CodecLimits, SseDecoder, SseFrame},
     connection::{Bytes, StreamFraming, WsFrame},
 };
 use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header};
+use identity::{Identity, RequestKind};
 use rust_decimal::Decimal;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -88,6 +92,11 @@ pub struct CodexConfig {
     /// string in Responses bodies (`channels::shared::cache`). Off by
     /// default; the strings are stripped either way.
     pub enable_openai_magic_cache: bool,
+    /// Give Responses calls from clients that are not the Codex CLI the
+    /// CLI's session, thread, window and turn identity headers, and replay
+    /// the backend's `x-codex-turn-state` within a turn (`identity.rs`).
+    /// On by default. Headers a client sends itself pass through either way.
+    pub synthesize_cli_identity: bool,
 }
 
 impl Default for CodexConfig {
@@ -99,6 +108,7 @@ impl Default for CodexConfig {
             user_agent: None,
             headers: BTreeMap::new(),
             enable_openai_magic_cache: false,
+            synthesize_cli_identity: true,
         }
     }
 }
@@ -280,11 +290,312 @@ fn operation_path(operation: Operation) -> Result<&'static str, ChannelError> {
     })
 }
 
+/// The Responses operations that carry the CLI's identity and whose replies
+/// may carry a turn-state token.
+fn request_kind(operation: Operation) -> Option<RequestKind> {
+    match operation {
+        Operation::GenerateContent | Operation::StreamGenerateContent => Some(RequestKind::Turn),
+        Operation::CompactContent => Some(RequestKind::Compaction),
+        _ => None,
+    }
+}
+
+/// A client that sends its own turn metadata is a real Codex session
+/// managing its own identity and turn state; the channel stays out of it.
+fn client_managed(headers: &HeaderMap) -> bool {
+    headers.contains_key("x-codex-turn-metadata")
+}
+
+fn client_header(headers: &HeaderMap, name: &'static str) -> Option<String> {
+    headers
+        .get(name)?
+        .to_str()
+        .ok()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+}
+
+fn expires_in(ttl_ms: i64) -> std::time::SystemTime {
+    std::time::SystemTime::UNIX_EPOCH
+        + std::time::Duration::from_millis(u64::try_from(unix_now_ms() + ttl_ms).unwrap_or(0))
+}
+
+/// The state versions an identity was read against; the writes after the
+/// call expect them, so a concurrent call in the same thread loses cleanly.
+struct Remembered {
+    window: Option<Version>,
+    turn_state: Option<Version>,
+}
+
 impl Codex {
+    /// The identity of a request that is not a CLI's own: the client's
+    /// `session-id` and `thread-id` when it sent them, everything else
+    /// derived from the account and the body; the installation id, window
+    /// number and turn state come from channel state. A host without state
+    /// gets a fresh window 0 and no turn state every call.
+    async fn identity(
+        &self,
+        state: &dyn ChannelState,
+        account: &Account<'_>,
+        headers: &HeaderMap,
+        body: Option<&[u8]>,
+        kind: Option<RequestKind>,
+        streaming: bool,
+    ) -> (Identity, Remembered) {
+        let facts = body
+            .map(identity::body_facts)
+            .unwrap_or_else(|| identity::body_facts(b""));
+        let account_key =
+            identity::account_key(account.account_id.as_deref(), account.access_token);
+        let session_id = client_header(headers, "session-id")
+            .unwrap_or_else(|| identity::session_id(&account_key, &facts.session_key));
+        let thread_id = client_header(headers, "thread-id").unwrap_or_else(|| session_id.clone());
+        let turn_id = identity::turn_id(&session_id, facts.user_text_turns);
+
+        let persisted = state
+            .get(identity::INSTALLATION_KEY)
+            .await
+            .ok()
+            .flatten()
+            .and_then(|entry| String::from_utf8(entry.payload.to_vec()).ok())
+            .filter(|value| identity::is_uuid(value));
+        let installation_id = match persisted {
+            Some(id) => id,
+            None => {
+                let id = identity::installation_id(&account_key);
+                // Written once; a conflict means another call wrote the same
+                // derived value first, a stateless host simply derives again.
+                let _ = state
+                    .compare_exchange(
+                        identity::INSTALLATION_KEY,
+                        None,
+                        Some(StateWrite {
+                            payload: Bytes::copy_from_slice(id.as_bytes()),
+                            expires_at: None,
+                        }),
+                    )
+                    .await;
+                id
+            }
+        };
+
+        let window = state
+            .get(&identity::window_key(&thread_id))
+            .await
+            .ok()
+            .flatten();
+        let window_number = window
+            .as_ref()
+            .and_then(|entry| std::str::from_utf8(&entry.payload).ok()?.parse().ok())
+            .unwrap_or(0);
+        let turn_state = match kind {
+            Some(_) => state
+                .get(&identity::turn_state_key(&thread_id, &turn_id))
+                .await
+                .ok()
+                .flatten(),
+            None => None,
+        };
+        let token = turn_state
+            .as_ref()
+            .and_then(|entry| String::from_utf8(entry.payload.to_vec()).ok())
+            .filter(|value| !value.is_empty());
+        (
+            Identity {
+                session_id,
+                thread_id,
+                turn_id,
+                installation_id,
+                window_number,
+                turn_state: token,
+                routing_hint: facts.routing_hint,
+                kind,
+                streaming,
+            },
+            Remembered {
+                window: window.map(|entry| entry.version),
+                turn_state: turn_state.map(|entry| entry.version),
+            },
+        )
+    }
+
+    /// After a successful Responses call: keep the backend's turn-state
+    /// token for the rest of the turn, and open the next window after a
+    /// compaction. Losing a CAS race, or a host without state, only loses
+    /// one replay.
+    async fn remember(
+        &self,
+        state: &dyn ChannelState,
+        identity: &Identity,
+        remembered: Remembered,
+        response: &HeaderMap,
+    ) {
+        if let Some(token) = client_header(response, "x-codex-turn-state")
+            && identity.turn_state.as_deref() != Some(token.as_str())
+        {
+            let _ = state
+                .compare_exchange(
+                    &identity::turn_state_key(&identity.thread_id, &identity.turn_id),
+                    remembered.turn_state,
+                    Some(StateWrite {
+                        payload: Bytes::from(token),
+                        expires_at: Some(expires_in(identity::TURN_STATE_TTL_MS)),
+                    }),
+                )
+                .await;
+        }
+        if identity.kind == Some(RequestKind::Compaction) {
+            let next = identity.window_number.saturating_add(1).to_string();
+            let _ = state
+                .compare_exchange(
+                    &identity::window_key(&identity.thread_id),
+                    remembered.window,
+                    Some(StateWrite {
+                        payload: Bytes::from(next),
+                        expires_at: Some(expires_in(identity::WINDOW_TTL_MS)),
+                    }),
+                )
+                .await;
+        }
+    }
+
+    /// The HTTP Responses path with the identity read before the call and
+    /// the turn state and window written after it (as `claudecode` does
+    /// with its previous request id).
+    async fn responses_http(
+        &self,
+        operation: Operation,
+        ctx: OperationContext<'_>,
+    ) -> Result<WireResponse<HttpBody>, ChannelError> {
+        let config = CodexConfig::from_view(ctx.provider)?;
+        let OperationContext {
+            provider,
+            credential,
+            dialect,
+            request,
+            client,
+            state,
+            endpoint_override,
+            ..
+        } = ctx;
+        let resolved = if config.synthesize_cli_identity && !client_managed(&request.headers) {
+            let account = account(&credential)?;
+            let body = match &request.body {
+                HttpBody::Bytes(bytes) => Some(bytes.as_ref()),
+                HttpBody::Stream(_) => None,
+            };
+            Some(
+                self.identity(
+                    state.as_ref(),
+                    &account,
+                    &request.headers,
+                    body,
+                    request_kind(operation),
+                    operation == Operation::StreamGenerateContent,
+                )
+                .await,
+            )
+        } else {
+            None
+        };
+        let prepared = self.prepare_with(
+            PrepareContext {
+                provider,
+                credential,
+                operation: OperationKey { operation, dialect },
+                request,
+                endpoint_override,
+            },
+            resolved.as_ref().map(|(identity, _)| identity),
+        )?;
+        let response = client.send(prepared).await?;
+        if let Some((identity, remembered)) = resolved
+            && response.status.is_success()
+        {
+            self.remember(state.as_ref(), &identity, remembered, &response.headers)
+                .await;
+        }
+        Ok(response)
+    }
+
+    /// The WebSocket handshake carries the session, thread, installation and
+    /// window as the CLI's `build_websocket_headers` does, but no turn
+    /// metadata: the turn lives in the request frames, which the channel
+    /// does not see, so no turn state is replayed or captured here.
+    async fn responses_websocket(
+        &self,
+        operation: Operation,
+        ctx: OperationContext<'_, ()>,
+    ) -> Result<UpstreamConnection, ChannelError> {
+        let config = CodexConfig::from_view(ctx.provider)?;
+        let OperationContext {
+            provider,
+            credential,
+            dialect,
+            request,
+            client,
+            state,
+            endpoint_override,
+            ..
+        } = ctx;
+        let resolved = if config.synthesize_cli_identity && !client_managed(&request.headers) {
+            let account = account(&credential)?;
+            Some(
+                self.identity(
+                    state.as_ref(),
+                    &account,
+                    &request.headers,
+                    None,
+                    None,
+                    false,
+                )
+                .await,
+            )
+        } else {
+            None
+        };
+        let (builder, _) = self.build(
+            PrepareContext {
+                provider,
+                credential,
+                operation: OperationKey { operation, dialect },
+                request,
+                endpoint_override,
+            },
+            true,
+            resolved.as_ref().map(|(identity, _)| identity),
+        )?;
+        let request = builder
+            .body(())
+            .map_err(|error| invalid_config(error.to_string()))?;
+        Ok(client.connect(request).await?)
+    }
+
+    fn prepare_with(
+        &self,
+        ctx: PrepareContext<'_>,
+        identity: Option<&Identity>,
+    ) -> Result<http::Request<HttpBody>, ChannelError> {
+        let rules = CodexConfig::from_view(ctx.provider)?
+            .enable_openai_magic_cache
+            .then_some(cache::Rules::OpenAiResponses);
+        let responses = request_kind(ctx.operation.operation).is_some();
+        let (builder, request) = self.build(ctx, false, identity)?;
+        let body = match request.body {
+            HttpBody::Bytes(bytes) if responses => HttpBody::Bytes(cache::shape(bytes, rules)),
+            other => other,
+        };
+        builder
+            .body(body)
+            .map_err(|error| invalid_config(error.to_string()))
+    }
+
     fn build<B>(
         &self,
         ctx: PrepareContext<'_, B>,
         websocket: bool,
+        identity: Option<&Identity>,
     ) -> Result<(http::request::Builder, WireRequest<B>), ChannelError> {
         let config = CodexConfig::from_view(ctx.provider)?;
         let account = account(&ctx.credential)?;
@@ -319,6 +630,9 @@ impl Codex {
                 HeaderValue::from_static(RESPONSES_WS_BETA),
             );
         }
+        if let Some(identity) = identity {
+            identity::apply(&mut headers, identity);
+        }
         let mut builder = http::Request::builder()
             .method(request.method.clone())
             .uri(uri);
@@ -352,34 +666,55 @@ impl BaseChannel for Codex {
 
     /// Buffered Responses bodies are shaped for the magic cache strings; a
     /// streamed request body passes through untouched, as in `claudecode`.
+    /// Plain preparation is stateless and synthesizes no identity; the
+    /// Responses operations below read and write channel state around it.
     fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
-        let rules = CodexConfig::from_view(ctx.provider)?
-            .enable_openai_magic_cache
-            .then_some(cache::Rules::OpenAiResponses);
-        let responses = matches!(
-            ctx.operation.operation,
-            Operation::GenerateContent
-                | Operation::StreamGenerateContent
-                | Operation::CompactContent
-        );
-        let (builder, request) = self.build(ctx, false)?;
-        let body = match request.body {
-            HttpBody::Bytes(bytes) if responses => HttpBody::Bytes(cache::shape(bytes, rules)),
-            other => other,
-        };
-        builder
-            .body(body)
-            .map_err(|error| invalid_config(error.to_string()))
+        self.prepare_with(ctx, None)
     }
 
     fn prepare_connect(
         &self,
         ctx: PrepareContext<'_, ()>,
     ) -> Result<http::Request<()>, ChannelError> {
-        let (builder, _) = self.build(ctx, true)?;
+        let (builder, _) = self.build(ctx, true, None)?;
         builder
             .body(())
             .map_err(|error| invalid_config(error.to_string()))
+    }
+
+    fn generate_content<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        Box::pin(self.responses_http(Operation::GenerateContent, context))
+    }
+
+    fn stream_generate_content<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        Box::pin(self.responses_http(Operation::StreamGenerateContent, context))
+    }
+
+    fn compact_content<'a>(
+        &'a self,
+        context: OperationContext<'a>,
+    ) -> OperationFuture<'a, WireResponse<HttpBody>> {
+        Box::pin(self.responses_http(Operation::CompactContent, context))
+    }
+
+    fn generate_content_websocket<'a>(
+        &'a self,
+        context: OperationContext<'a, ()>,
+    ) -> OperationFuture<'a, UpstreamConnection> {
+        Box::pin(self.responses_websocket(Operation::GenerateContent, context))
+    }
+
+    fn stream_generate_content_websocket<'a>(
+        &'a self,
+        context: OperationContext<'a, ()>,
+    ) -> OperationFuture<'a, UpstreamConnection> {
+        Box::pin(self.responses_websocket(Operation::StreamGenerateContent, context))
     }
 
     fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
