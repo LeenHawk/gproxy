@@ -1,6 +1,7 @@
-//! Organizations, teams, scoped member/admin roles, users, API keys and permissions.
+//! Organizations, teams, scoped member/admin roles, users, API keys, permissions and the audit trail.
 
 pub mod api_key;
+pub mod audit_event;
 pub mod membership_role;
 pub mod organization;
 pub mod organization_member;

@@ -52,6 +52,7 @@ fn register_entities<R: gproxy_seaorm::EntityRegistry>(registry: R) -> R {
         .register(entity::identity::api_key::Entity)
         .register(entity::identity::user_session::Entity)
         .register(entity::identity::permission::Entity)
+        .register(entity::identity::audit_event::Entity)
         .register(entity::oauth::client::Entity)
         .register(entity::oauth::grant::Entity)
         .register(entity::oauth::code::Entity)
