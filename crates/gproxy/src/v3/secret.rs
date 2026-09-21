@@ -247,7 +247,12 @@ pub fn master_key(value: &str) -> Result<[u8; KEY_BYTES]> {
     };
     candidate
         .resolve()
-        .map_err(|error| Error::config("--source-master-key / GPROXY_IMPORT_SOURCE_MASTER_KEY", error))?
+        .map_err(|error| {
+            Error::config(
+                "--source-master-key / GPROXY_IMPORT_SOURCE_MASTER_KEY",
+                error,
+            )
+        })?
         .ok_or_else(|| {
             Error::config(
                 "--source-master-key / GPROXY_IMPORT_SOURCE_MASTER_KEY",

@@ -60,6 +60,7 @@
 //! tables with no v4 form are reported row by row by [`report::Report`].
 
 pub mod config;
+pub mod detect;
 pub mod document;
 pub mod identity;
 pub mod ids;
@@ -71,8 +72,8 @@ pub use report::Report;
 use std::{path::Path, sync::Arc};
 
 use gproxy_app::{App, Operations};
-use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_sdk::dto::{ImportMode, ImportRequest};
+use gproxy_seaorm::BatchConnectionTrait;
 use sea_orm::EntityTrait;
 
 use crate::{Error, Result, config::AdminOptions};
@@ -238,7 +239,10 @@ where
 /// decrypted, because the message can be far more useful here than "did not
 /// open".
 fn check_the_key_matches_the_document(document: &Document, bridge: &secret::Bridge) -> Result<()> {
-    let sealed = matches!(document.source_key, Some(document::SourceKey::Sealed { .. }));
+    let sealed = matches!(
+        document.source_key,
+        Some(document::SourceKey::Sealed { .. })
+    );
     if sealed && !bridge.is_keyed() {
         return Err(Error::other(
             "this export says its secrets are sealed, and no key was given. Pass \
@@ -299,7 +303,12 @@ where
         .users
         .iter()
         .find(|row| row.name == admin.user && row.is_admin);
-    let administrators: Vec<_> = document.data.users.iter().filter(|row| row.is_admin).collect();
+    let administrators: Vec<_> = document
+        .data
+        .users
+        .iter()
+        .filter(|row| row.is_admin)
+        .collect();
     let chosen = match (named, administrators.as_slice()) {
         (Some(row), _) => row,
         (None, [only]) => only,
@@ -343,4 +352,3 @@ fn now_ms() -> i64 {
         .map(|elapsed| i64::try_from(elapsed.as_millis()).unwrap_or(i64::MAX))
         .unwrap_or_default()
 }
-

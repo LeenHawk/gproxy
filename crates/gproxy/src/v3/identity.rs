@@ -81,11 +81,7 @@ const UNKNOWN_PREFIX: &str = "v3";
 /// `bridge` is used only for the keys v3 was told to keep revealable: their
 /// text is in the document, sealed, and carrying it across means v4's `reveal`
 /// keeps answering for them.
-pub async fn write<C>(
-    app: &Arc<App<C>>,
-    document: &Document,
-    bridge: &Bridge,
-) -> Result<Report>
+pub async fn write<C>(app: &Arc<App<C>>, document: &Document, bridge: &Bridge) -> Result<Report>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
@@ -143,10 +139,13 @@ where
         if present.contains(&id) {
             operations
                 .organizations()
-                .update(&id, gproxy_app::dto::OrganizationPatch {
-                    name: Some(row.name.clone()),
-                    ..Default::default()
-                })
+                .update(
+                    &id,
+                    gproxy_app::dto::OrganizationPatch {
+                        name: Some(row.name.clone()),
+                        ..Default::default()
+                    },
+                )
                 .await
                 .map_err(|error| named("organization", row.id, error))?;
         } else {
@@ -182,10 +181,13 @@ where
         if present.contains(&id) {
             operations
                 .teams()
-                .update(&id, gproxy_app::dto::TeamPatch {
-                    name: Some(row.name.clone()),
-                    ..Default::default()
-                })
+                .update(
+                    &id,
+                    gproxy_app::dto::TeamPatch {
+                        name: Some(row.name.clone()),
+                        ..Default::default()
+                    },
+                )
                 .await
                 .map_err(|error| named("team", row.id, error))?;
         } else {
@@ -226,12 +228,15 @@ where
         if present.contains(&id) {
             operations
                 .users()
-                .update(&id, gproxy_app::dto::UserPatch {
-                    name: Some(row.name.clone()),
-                    role: Some(role.to_owned()),
-                    enabled: Some(row.enabled),
-                    ..Default::default()
-                })
+                .update(
+                    &id,
+                    gproxy_app::dto::UserPatch {
+                        name: Some(row.name.clone()),
+                        role: Some(role.to_owned()),
+                        enabled: Some(row.enabled),
+                        ..Default::default()
+                    },
+                )
                 .await
                 .map_err(|error| named("user", row.id, error))?;
         } else {
@@ -291,9 +296,7 @@ where
                 report.drop_row(
                     "users.organization_id",
                     format!("user {} ({})", row.id, row.name),
-                    format!(
-                        "it named organization {organization_id}, which is not in the export"
-                    ),
+                    format!("it named organization {organization_id}, which is not in the export"),
                 );
             } else {
                 let data = app.data();
@@ -438,12 +441,15 @@ where
             // must not change, so only the row's description is refreshed.
             operations
                 .api_keys()
-                .update(&id, gproxy_app::dto::ApiKeyPatch {
-                    name: Some(write.name.clone()),
-                    expires_at_ms: Some(write.expires_at_ms),
-                    enabled: write.enabled,
-                    ..Default::default()
-                })
+                .update(
+                    &id,
+                    gproxy_app::dto::ApiKeyPatch {
+                        name: Some(write.name.clone()),
+                        expires_at_ms: Some(write.expires_at_ms),
+                        enabled: write.enabled,
+                        ..Default::default()
+                    },
+                )
                 .await
                 .map_err(|error| named("api key", row.config.id, error))?;
         } else {
@@ -502,7 +508,11 @@ where
             row.id, row.subject_kind, row.subject_id
         );
         let Some(subject) = subject(&row.subject_kind, row.subject_id, users, keys) else {
-            report.drop_row("permissions", named_row, unmappable_subject(&row.subject_kind));
+            report.drop_row(
+                "permissions",
+                named_row,
+                unmappable_subject(&row.subject_kind),
+            );
             continue;
         };
         if row.operation_group.is_some() {
@@ -538,11 +548,14 @@ where
         if present.contains(&id) {
             operations
                 .permissions()
-                .update(&id, gproxy_app::dto::PermissionPatch {
-                    action: Some(write.action.clone()),
-                    model_pattern: write.model_pattern.clone(),
-                    ..Default::default()
-                })
+                .update(
+                    &id,
+                    gproxy_app::dto::PermissionPatch {
+                        action: Some(write.action.clone()),
+                        model_pattern: write.model_pattern.clone(),
+                        ..Default::default()
+                    },
+                )
                 .await
                 .map_err(|error| named("permission", row.id, error))?;
         } else {
@@ -600,11 +613,14 @@ where
         if present.contains(&id) {
             operations
                 .rate_limits()
-                .update(&id, gproxy_app::dto::RateLimitPatch {
-                    limit_value: Some(write.limit_value.clone()),
-                    period_seconds: Some(write.period_seconds),
-                    ..Default::default()
-                })
+                .update(
+                    &id,
+                    gproxy_app::dto::RateLimitPatch {
+                        limit_value: Some(write.limit_value.clone()),
+                        period_seconds: Some(write.period_seconds),
+                        ..Default::default()
+                    },
+                )
                 .await
                 .map_err(|error| named("rate limit", row.id, error))?;
         } else {

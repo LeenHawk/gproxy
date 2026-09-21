@@ -257,7 +257,12 @@ pub enum Command {
     Import {
         /// The document to read. `-` reads standard input. Mutually exclusive
         /// with --from-v3.
-        #[arg(long = "in", short = 'i', value_name = "PATH", required_unless_present = "from_v3")]
+        #[arg(
+            long = "in",
+            short = 'i',
+            value_name = "PATH",
+            required_unless_present = "from_v3"
+        )]
         input: Option<PathBuf>,
 
         /// Migrate a **v3** deployment instead: the document is v3's own
@@ -388,9 +393,7 @@ mod tests {
 
         // Neither is not an import, and both is two different documents.
         assert!(Cli::try_parse_from(["gproxy", "import"]).is_err());
-        assert!(
-            Cli::try_parse_from(["gproxy", "import", "--in", "a", "--from-v3", "b"]).is_err()
-        );
+        assert!(Cli::try_parse_from(["gproxy", "import", "--in", "a", "--from-v3", "b"]).is_err());
     }
 
     /// Every configurable value must be reachable from the environment, or the

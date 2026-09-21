@@ -459,11 +459,7 @@ fn price_rules(
 /// v3 kept its tiers as a JSON array on the rule; v4 gives each one a row. The
 /// fields line up one for one — v3's `input` is v4's `input_per_million` and so
 /// on — because v4's table was built from v3's blob.
-fn price_tiers(
-    rule_id: &str,
-    row: &document::PriceRule,
-    report: &mut Report,
-) -> Vec<PriceTierDto> {
+fn price_tiers(rule_id: &str, row: &document::PriceRule, report: &mut Report) -> Vec<PriceTierDto> {
     let Some(Value::Array(entries)) = row.tiers.as_ref() else {
         if row.tiers.is_some() {
             report.drop_row(
@@ -734,7 +730,10 @@ fn rewrite_rules(
                 target: "body".into(),
                 target_name: None,
                 paths: Some(Value::Array(
-                    paths.iter().map(|path| Value::from(path.as_str())).collect(),
+                    paths
+                        .iter()
+                        .map(|path| Value::from(path.as_str()))
+                        .collect(),
                 )),
                 pattern,
                 replacement,
@@ -820,7 +819,12 @@ mod tests {
     }
 
     fn translated(data: Value) -> Configuration {
-        translate(&document(data), &Bridge::new(None).unwrap(), 1_700_000_000_000).unwrap()
+        translate(
+            &document(data),
+            &Bridge::new(None).unwrap(),
+            1_700_000_000_000,
+        )
+        .unwrap()
     }
 
     #[test]
@@ -834,10 +838,16 @@ mod tests {
         assert_eq!(provider.id, "v3-providers-3");
         assert_eq!(provider.name, "Anthropic (prod)");
         assert_eq!(provider.channel, "claudeapi");
-        assert_eq!(provider.base_url.as_deref(), Some("https://api.anthropic.com"));
+        assert_eq!(
+            provider.base_url.as_deref(),
+            Some("https://api.anthropic.com")
+        );
         // And the key stays in `config`, because a channel may still read it.
         assert_eq!(provider.config["beta"], json!(true));
-        assert_eq!(provider.config["base_url"], json!("https://api.anthropic.com"));
+        assert_eq!(
+            provider.config["base_url"],
+            json!("https://api.anthropic.com")
+        );
     }
 
     #[test]
@@ -912,7 +922,12 @@ mod tests {
 
         // The weight and the token ceiling have no v4 form and are named.
         assert!(out.report.warnings.iter().any(|w| w.contains("weight 250")));
-        assert!(out.report.dropped.iter().any(|d| d.table == "credentials.tpm_limit"));
+        assert!(
+            out.report
+                .dropped
+                .iter()
+                .any(|d| d.table == "credentials.tpm_limit")
+        );
     }
 
     #[test]
