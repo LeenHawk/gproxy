@@ -36,6 +36,12 @@ macro_rules! exported {
 }
 
 exported!(
+    // the channel catalogue, defined in `gproxy-channel`
+    ChannelCapabilities,
+    ChannelDescriptor,
+    ConfigKey,
+    ConfigKeyKind,
+    LoginMode,
     // catalog
     ApplyDefaultPricesReportDto,
     ApplyDefaultPricesRequest,

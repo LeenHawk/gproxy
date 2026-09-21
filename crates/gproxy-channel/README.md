@@ -268,12 +268,14 @@ behind its own feature. The steps, using `custom` (API key) and `codex`
    acme = ["dep:base64", "dep:web-time"]
    ```
 
-2. Gate the module in `src/channels/mod.rs` and, if it uses `shared`, extend
-   the `cfg(any(...))` on that module.
+2. Add one line to the `channels!` list in `src/channels/mod.rs`: the feature,
+   the module, and the value a host registers. That one line declares the
+   module and puts the channel in `channels::compiled_in()`, which is how every
+   host finds it. If the channel uses `shared`, extend the `cfg(any(...))` on
+   that module too — it keeps its own list.
 
    ```rust
-   #[cfg(feature = "acme")]
-   pub mod acme;
+   "acme" => acme, acme::Acme;
    ```
 
 3. Lay the module out one concern per file. Small channels are a single
@@ -296,7 +298,12 @@ behind its own feature. The steps, using `custom` (API key) and `codex`
 
 4. Implement `BaseChannel`. The minimum is `id`, `native_dialects` and
    `prepare`; the struct is a stateless unit so one instance serves every
-   provider of that channel.
+   provider of that channel. Override `descriptor` as well: the default reads
+   the capability accessors, and only the channel knows its display name and
+   which keys it decodes out of the provider `config` JSON. That descriptor is
+   all a management UI has to render a provider form from — under the `ts`
+   feature it is a TypeScript type too — so a key left out of it is a key
+   nobody can set.
 
    ```rust
    use gproxy_channel::channel::{
@@ -397,10 +404,19 @@ behind its own feature. The steps, using `custom` (API key) and `codex`
    exercises multi-call overrides, and `tests/support/mod.rs` has a scripted
    `ServiceCaller`. Do not test core from here.
 
-9. Register it in the host. Core never lists channels itself; the binary or
-   SDK that enables the feature passes the instance in:
+9. Register it in the host. Core never lists channels itself. A host that
+   wants what it compiled in takes the whole list — this is what `gproxy-sdk`
+   does, so enabling the feature there is the only step — and one that wants
+   an exact set passes instances:
 
    ```rust
+   let mut registry = ChannelRegistry::new();
+   for channel in gproxy_channel::channels::compiled_in() {
+       registry.register(channel)?;
+   }
+   let core = CoreBuilder::new(store).channels(registry).build().await?;
+
+   // or, naming them:
    let core = CoreBuilder::new(store)
        .channel(Arc::new(gproxy_channel::channels::custom::Custom))?
        .channel(Arc::new(gproxy_channel::channels::acme::Acme))?

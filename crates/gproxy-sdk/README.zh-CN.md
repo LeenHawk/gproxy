@@ -37,7 +37,8 @@ settings 行、装配引擎、载入首个快照，并在 `SyncMode::Background`
 
 | Feature | 作用 |
 |---|---|
-| `custom` / `codex` / `claudecode` / `claudeweb` | 编入对应渠道并默认注册 |
+| 某个渠道名（`codex`、`kiro`、`openai`……） | 编入该渠道并默认注册 |
+| `channels` | 本工作区提供的全部渠道 |
 | `postgres` / `mysql` | 额外的 SeaORM 驱动，仅原生；原生始终自带 SQLite |
 | `libsql` | 经 Hrana HTTP pipeline 的 libSQL／Turso，全平台 |
 | `d1` | Cloudflare D1 绑定的标记，wasm32 本就自带 |
@@ -46,7 +47,7 @@ settings 行、装配引擎、载入首个快照，并在 `SyncMode::Background`
 | `fs`（默认） | 本地文件系统对象存储，仅原生 |
 | `s3` | S3／R2 对象存储 |
 | `bundled-vocabulary`（默认） | 内置 DeepSeek 词表用于 token 估算 |
-| `ts` | 为每个 DTO 生成 `ts-rs` 声明，并带导出测试——见[类型导出](#类型导出) |
+| `ts` | 为每个 DTO 与渠道描述符生成 `ts-rs` 声明，并带导出测试——见[类型导出](#类型导出) |
 
 默认集可在 `wasm32-unknown-unknown` 上编译，`libsql` 亦然。wasm 上 cache 默认是
 `gproxy_store::StoreCache`，同步一律手动：isolate 活不过一次请求，在请求开头调用
@@ -485,6 +486,11 @@ GPROXY_TS_OUT=console/src/generated \
 `cargo test --all-features` 不产生副作用，生成目录只会在有意为之时被重写。给了变量
 则先清空目录——一个已经不存在的 DTO 留下的旧声明，会在 Rust 侧删掉它之后很久仍然在
 控制台里通过类型检查——最后写一份把全部类型再导出一遍的 `index.ts`。
+
+渠道目录也在其中：`dto` 把 `gproxy-channel` 的 `ChannelDescriptor` 及其组成类型再
+导出一遍，本 crate 的 `ts` feature 会连带打开那个 crate 的。控制台渲染 Provider 表单
+用的就是渠道自己返回的描述符，那么类型也应该由这个描述符生成，而不是一份下次渠道加
+配置键就会失真的手抄件。
 
 声明说了什么：
 

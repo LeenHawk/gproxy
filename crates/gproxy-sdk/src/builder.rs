@@ -398,20 +398,15 @@ fn registry(explicit: Vec<Arc<dyn BaseChannel>>, defaults: bool) -> SdkResult<Ch
     Ok(registry)
 }
 
-/// The channels this build compiled in, one per Cargo feature.
+/// The channels this build compiled in.
+///
+/// The list itself lives in `gproxy-channel`, next to the channels: a channel
+/// that is a module there but not in this vector would be compiled into every
+/// binary and reachable from none of them, and the sdk is the wrong place to
+/// notice. Enabling a channel feature on this crate forwards to that one, so a
+/// host that names its channels here gets exactly them.
 fn default_channels() -> Vec<Arc<dyn BaseChannel>> {
-    // A build with no channel feature yields an empty list, which is
-    // legitimate: the host registers its own.
-    vec![
-        #[cfg(feature = "custom")]
-        (Arc::new(gproxy_channel::channels::custom::Custom) as Arc<dyn BaseChannel>),
-        #[cfg(feature = "codex")]
-        (Arc::new(gproxy_channel::channels::codex::Codex) as Arc<dyn BaseChannel>),
-        #[cfg(feature = "claudecode")]
-        (Arc::new(gproxy_channel::channels::claudecode::Claudecode) as Arc<dyn BaseChannel>),
-        #[cfg(feature = "claudeweb")]
-        (Arc::new(gproxy_channel::channels::claudeweb::ClaudeWeb::new()) as Arc<dyn BaseChannel>),
-    ]
+    gproxy_channel::channels::compiled_in()
 }
 
 /// One instance in one process shares state through memory; an isolate that
