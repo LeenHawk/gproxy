@@ -75,7 +75,7 @@ use std::{
 
 use jni::{
     JNIEnv,
-    objects::{JClass, JString},
+    objects::{JObject, JString},
     sys::jstring,
 };
 use serde::Serialize;
@@ -317,9 +317,17 @@ pub fn status() -> Status {
 // decode, call one function above, encode. A panic unwinding out of an
 // `extern "system"` frame aborts the process, so each one catches — a failed
 // start has to be a message in a notification, not a dead app.
+//
+// In a *release* APK it catches nothing, and that is not an oversight: the
+// workspace's release profile is `panic = "abort"`, so there is no unwinding
+// to intercept and a panic ends the process either way. The guard is worth
+// keeping regardless. It is what makes a debug build report the panic through
+// the notification instead of vanishing, which is the build somebody is
+// running when they are trying to find out why.
 // ---------------------------------------------------------------------------
 
-/// Never panics, and never unwinds into the JVM.
+/// Never unwinds into the JVM. See the note above for what this does and does
+/// not buy in a release build.
 fn guarded<T>(fallback: T, body: impl FnOnce() -> T) -> T {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(body)).unwrap_or(fallback)
 }
@@ -341,7 +349,7 @@ fn java_string(env: &mut JNIEnv<'_>, text: &str) -> jstring {
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeConfigure(
     mut env: JNIEnv<'_>,
-    _class: JClass<'_>,
+    _this: JObject<'_>,
     data_dir: JString<'_>,
 ) {
     guarded((), || {
@@ -357,7 +365,7 @@ pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeConfigure(
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeStart(
     mut env: JNIEnv<'_>,
-    _class: JClass<'_>,
+    _this: JObject<'_>,
 ) -> jstring {
     guarded(std::ptr::null_mut(), || {
         let json = start().json();
@@ -369,7 +377,7 @@ pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeStart(
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeStatus(
     mut env: JNIEnv<'_>,
-    _class: JClass<'_>,
+    _this: JObject<'_>,
 ) -> jstring {
     guarded(std::ptr::null_mut(), || {
         let json = status().json();
@@ -386,7 +394,7 @@ pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeStatus(
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeShutdown(
     _env: JNIEnv<'_>,
-    _class: JClass<'_>,
+    _this: JObject<'_>,
 ) {
     guarded((), || {
         tracing::info!("stopping: the foreground service was asked to");

@@ -19,7 +19,13 @@ android {
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
         applicationId = "dev.gproxy.desktop"
-        minSdk = 24
+        // Tauri's template says 24. 28 is what v3's APK shipped, and it is
+        // what the foreground service wants: notification channels, typed
+        // foreground services and `canRequestPackageInstalls` all arrived by
+        // 26, and Android 9 is old enough that going below it would mean
+        // carrying compatibility branches for devices that cannot run a
+        // modern WebView anyway.
+        minSdk = 28
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
