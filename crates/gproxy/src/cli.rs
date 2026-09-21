@@ -53,6 +53,7 @@ pub const ADMIN_USER: &str = "GPROXY_ADMIN_USER";
 pub const ADMIN_PASSWORD: &str = "GPROXY_ADMIN_PASSWORD";
 pub const BOOTSTRAP_ADMIN_API_KEY: &str = "GPROXY_BOOTSTRAP_ADMIN_API_KEY";
 pub const IMPORT_SOURCE_MASTER_KEY: &str = "GPROXY_IMPORT_SOURCE_MASTER_KEY";
+pub const AUTOSTART: &str = "GPROXY_AUTOSTART";
 
 /// The `.env` file, read before `clap` parses. Only the real environment can
 /// name it, because a flag would have to be parsed by the very step it feeds.
@@ -276,6 +277,44 @@ pub enum Command {
         )]
         source_master_key: Option<String>,
     },
+
+    /// Install, remove or inspect the background service this machine's own
+    /// init system runs.
+    Service {
+        #[command(subcommand)]
+        action: ServiceAction,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum ServiceAction {
+    /// Write the platform's unit for this invocation, enable it and start it.
+    ///
+    /// The unit reproduces *this* command's configuration — its data
+    /// directory, its port, the file its master key comes from — so that
+    /// `gproxy service install --port 9000 --data-dir /srv/gproxy` and
+    /// `gproxy serve --port 9000 --data-dir /srv/gproxy` are the same
+    /// instance.
+    Install {
+        /// Also run without a login session, so the instance comes up at boot
+        /// rather than when this user first logs in. On systemd this is
+        /// `loginctl enable-linger`; the other three platforms report what
+        /// they can and cannot do.
+        #[arg(
+            long,
+            env = AUTOSTART,
+            value_name = "BOOL",
+            num_args = 0..=1,
+            default_missing_value = "true"
+        )]
+        autostart: Option<String>,
+    },
+
+    /// Stop the service, disable it and delete the unit.
+    Uninstall,
+
+    /// Report what the init system says about the service.
+    Status,
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -380,5 +419,71 @@ mod tests {
             without_env.is_empty(),
             "configuration without an environment name: {without_env:?}"
         );
+    }
+
+    /// The same rule, for the one subcommand that carries configuration of its
+    /// own. `export`, `import` and `bootstrap` take *arguments* — a path, a
+    /// mode — which name one invocation rather than configure the instance;
+    /// `service install` takes a setting, and a setting has an environment
+    /// name.
+    #[test]
+    fn the_service_flags_name_their_environment_variables() {
+        let command = Cli::command();
+        let install = command
+            .find_subcommand("service")
+            .expect("a service subcommand")
+            .find_subcommand("install")
+            .expect("a service install subcommand");
+        let without_env: Vec<_> = install
+            .get_arguments()
+            .filter(|arg| arg.get_id() != "help")
+            .filter(|arg| arg.get_env().is_none())
+            .map(|arg| arg.get_id().to_string())
+            .collect();
+        assert!(
+            without_env.is_empty(),
+            "configuration without an environment name: {without_env:?}"
+        );
+    }
+
+    #[test]
+    fn autostart_is_asked_for_with_or_without_a_value() {
+        let bare = Cli::try_parse_from(["gproxy", "service", "install", "--autostart"]).unwrap();
+        let Some(Command::Service {
+            action: ServiceAction::Install { autostart },
+        }) = bare.command
+        else {
+            panic!("not an install");
+        };
+        assert_eq!(autostart.as_deref(), Some("true"));
+
+        // And an install that says nothing about it is not an install that
+        // said `false`: only the first enables linger, and neither disables it.
+        let silent = Cli::try_parse_from(["gproxy", "service", "install"]).unwrap();
+        let Some(Command::Service {
+            action: ServiceAction::Install { autostart },
+        }) = silent.command
+        else {
+            panic!("not an install");
+        };
+        assert_eq!(autostart, None);
+    }
+
+    /// `--port` and `--data-dir` are the existing global flags, so the unit
+    /// `install` writes is configured exactly the way `serve` would be.
+    #[test]
+    fn the_global_configuration_reaches_service_install() {
+        let cli = Cli::try_parse_from([
+            "gproxy",
+            "service",
+            "install",
+            "--port",
+            "9000",
+            "--data-dir",
+            "/srv/gproxy",
+        ])
+        .unwrap();
+        assert_eq!(cli.options.port.as_deref(), Some("9000"));
+        assert_eq!(cli.options.data_dir.as_deref(), Some("/srv/gproxy"));
     }
 }
