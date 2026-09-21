@@ -2,11 +2,14 @@
 
 use gproxy_channel::{
     BaseChannel, ChannelError,
-    channel::{CredentialView, PrepareContext, ProviderView},
+    channel::{
+        CredentialView, NormalizedUsage, PrepareContext, ProviderView, ResponseView,
+        UsageCompleteness, UsageContext,
+    },
     channels::custom::Custom,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes};
-use http::{HeaderMap, HeaderValue, Method};
+use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
 
 fn provider<'a>(config: &'a Value, base_url: Option<&'a str>) -> ProviderView<'a> {
@@ -338,4 +341,293 @@ fn magic_cache_strings_follow_the_operation_dialect() {
     let plain = br#"{"input":  "x", "prompt_cache_breakpoint": {"mode": "explicit"}}"#;
     assert_eq!(shaped(&enabled, Dialect::OpenAi, plain), plain.to_vec());
     assert_eq!(shaped(&disabled, Dialect::OpenAi, plain), plain.to_vec());
+}
+
+// ----------------------------------------------------------------- usage
+
+/// What the channel reads out of one reply, or `None` when it reads nothing.
+fn usage(
+    operation: Operation,
+    dialect: Dialect,
+    status: StatusCode,
+    body: &[u8],
+) -> Option<NormalizedUsage> {
+    let extractor = Custom
+        .usage_extractor()
+        .expect("custom meters what the upstream reports");
+    let headers = HeaderMap::new();
+    extractor
+        .extract(UsageContext {
+            operation: OperationKey { operation, dialect },
+            request_body: None,
+            response: ResponseView {
+                status,
+                headers: &headers,
+                body,
+            },
+        })
+        .unwrap()
+}
+
+fn generated(dialect: Dialect, body: &str) -> Option<NormalizedUsage> {
+    usage(
+        Operation::GenerateContent,
+        dialect,
+        StatusCode::OK,
+        body.as_bytes(),
+    )
+}
+
+#[test]
+fn a_buffered_reply_is_metered_from_the_upstreams_own_usage_block() {
+    let chat = generated(
+        Dialect::OpenAiChat,
+        r#"{"choices":[{"message":{"content":"hi"}}],
+            "usage":{"prompt_tokens":150,"completion_tokens":40,
+                "prompt_tokens_details":{"cached_tokens":50},
+                "completion_tokens_details":{"reasoning_tokens":12}}}"#,
+    )
+    .expect("chat completions usage");
+    assert_eq!(
+        chat.tokens.input_tokens,
+        Some(100),
+        "prompt_tokens counts cache reads; the normalized input does not"
+    );
+    assert_eq!(chat.tokens.output_tokens, Some(40));
+    assert_eq!(chat.tokens.cached_input_tokens, Some(50));
+    assert_eq!(chat.tokens.reasoning_tokens, Some(12));
+    assert_eq!(chat.completeness, UsageCompleteness::Complete);
+
+    let responses = generated(
+        Dialect::OpenAi,
+        r#"{"usage":{"input_tokens":120,"output_tokens":30,
+            "input_tokens_details":{"cached_tokens":20},
+            "output_tokens_details":{"reasoning_tokens":10}}}"#,
+    )
+    .expect("responses usage");
+    assert_eq!(responses.tokens.input_tokens, Some(100));
+    assert_eq!(responses.tokens.output_tokens, Some(30));
+    assert_eq!(responses.tokens.cached_input_tokens, Some(20));
+    assert_eq!(responses.tokens.reasoning_tokens, Some(10));
+
+    let claude = generated(
+        Dialect::Claude,
+        r#"{"usage":{"input_tokens":7,"output_tokens":9,
+            "cache_read_input_tokens":4,
+            "cache_creation":{"ephemeral_5m_input_tokens":5,
+                "ephemeral_1h_input_tokens":6}}}"#,
+    )
+    .expect("claude usage");
+    assert_eq!(
+        claude.tokens.input_tokens,
+        Some(7),
+        "Claude's input already excludes both cache counters"
+    );
+    assert_eq!(claude.tokens.output_tokens, Some(9));
+    assert_eq!(claude.tokens.cached_input_tokens, Some(4));
+    assert_eq!(claude.tokens.cache_creation_5m_tokens, Some(5));
+    assert_eq!(claude.tokens.cache_creation_1h_tokens, Some(6));
+
+    let gemini = generated(
+        Dialect::Gemini,
+        r#"{"usageMetadata":{"promptTokenCount":200,"candidatesTokenCount":60,
+            "thoughtsTokenCount":25,"cachedContentTokenCount":80,
+            "toolUsePromptTokenCount":13}}"#,
+    )
+    .expect("gemini usage");
+    assert_eq!(gemini.tokens.input_tokens, Some(120));
+    assert_eq!(
+        gemini.tokens.output_tokens,
+        Some(85),
+        "candidates exclude thoughts; the normalized output includes them"
+    );
+    assert_eq!(gemini.tokens.cached_input_tokens, Some(80));
+    assert_eq!(gemini.tokens.reasoning_tokens, Some(25));
+    assert_eq!(
+        gemini
+            .metrics
+            .get("tool_use_prompt_tokens")
+            .map(ToString::to_string),
+        Some("13".to_owned())
+    );
+}
+
+#[test]
+fn a_streamed_reply_is_metered_from_its_accumulated_events() {
+    // Claude splits one response's counts across two events.
+    let claude = usage(
+        Operation::StreamGenerateContent,
+        Dialect::Claude,
+        StatusCode::OK,
+        concat!(
+            "event: message_start\n",
+            "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":11,\"cache_read_input_tokens\":4}}}\n",
+            "\n",
+            "event: content_block_delta\n",
+            "data: {\"type\":\"content_block_delta\",\"delta\":{\"text\":\"hi\"}}\n",
+            "\n",
+            "event: message_delta\n",
+            "data: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":5}}\n",
+            "\n",
+        )
+        .as_bytes(),
+    )
+    .expect("streamed claude usage");
+    assert_eq!(claude.tokens.input_tokens, Some(11));
+    assert_eq!(claude.tokens.output_tokens, Some(5));
+    assert_eq!(claude.tokens.cached_input_tokens, Some(4));
+
+    // Chat Completions carries a null usage until its last chunk.
+    let chat = usage(
+        Operation::StreamGenerateContent,
+        Dialect::OpenAiChat,
+        StatusCode::OK,
+        concat!(
+            "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}],\"usage\":null}\n",
+            "\n",
+            "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":31,\"completion_tokens\":17,\"prompt_tokens_details\":{\"cached_tokens\":9}}}\n",
+            "\n",
+            "data: [DONE]\n",
+            "\n",
+        )
+        .as_bytes(),
+    )
+    .expect("streamed chat usage");
+    assert_eq!(chat.tokens.input_tokens, Some(22));
+    assert_eq!(chat.tokens.output_tokens, Some(17));
+    assert_eq!(chat.tokens.cached_input_tokens, Some(9));
+
+    // Gemini repeats a complete block; the later one supersedes the earlier.
+    let gemini = usage(
+        Operation::StreamGenerateContent,
+        Dialect::Gemini,
+        StatusCode::OK,
+        concat!(
+            "data: {\"usageMetadata\":{\"promptTokenCount\":40,\"candidatesTokenCount\":2}}\n",
+            "\n",
+            "data: {\"usageMetadata\":{\"promptTokenCount\":40,\"candidatesTokenCount\":18}}\n",
+            "\n",
+        )
+        .as_bytes(),
+    )
+    .expect("streamed gemini usage");
+    assert_eq!(gemini.tokens.input_tokens, Some(40));
+    assert_eq!(gemini.tokens.output_tokens, Some(18));
+
+    // Responses names its counts on the terminal event only.
+    let responses = usage(
+        Operation::StreamGenerateContent,
+        Dialect::OpenAi,
+        StatusCode::OK,
+        concat!(
+            "event: response.created\n",
+            "data: {\"type\":\"response.created\",\"response\":{\"usage\":null}}\n",
+            "\n",
+            "event: response.completed\n",
+            "data: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":64,\"output_tokens\":28,\"output_tokens_details\":{\"reasoning_tokens\":6}}}}\n",
+            "\n",
+        )
+        .as_bytes(),
+    )
+    .expect("streamed responses usage");
+    assert_eq!(responses.tokens.input_tokens, Some(64));
+    assert_eq!(responses.tokens.output_tokens, Some(28));
+    assert_eq!(responses.tokens.reasoning_tokens, Some(6));
+}
+
+#[test]
+fn a_reply_that_reports_nothing_readable_is_left_to_the_hosts_estimate() {
+    // Reading nothing is reported as nothing, so the host's own estimate fills
+    // the record and marks it. A guess dressed as an upstream count would be
+    // worse than an admitted guess.
+    assert!(
+        generated(
+            Dialect::OpenAiChat,
+            r#"{"choices":[{"message":{"content":"hi"}}]}"#
+        )
+        .is_none(),
+        "no usage object at all"
+    );
+    assert!(
+        generated(Dialect::OpenAiChat, r#"{"usage":{"prompt_tokens":"many"}}"#).is_none(),
+        "counts that are not numbers"
+    );
+    assert!(
+        generated(
+            Dialect::OpenAi,
+            r#"{"usage":{"prompt_tokens":10,"completion_tokens":2}}"#
+        )
+        .is_none(),
+        "a Chat body from a provider configured for Responses names neither count this reading knows"
+    );
+    assert!(
+        generated(
+            Dialect::Claude,
+            r#"{"usageMetadata":{"promptTokenCount":9}}"#
+        )
+        .is_none(),
+        "another vendor's shape is not read with Claude's field names"
+    );
+    assert!(
+        generated(Dialect::Gemini, "<html>gateway error</html>").is_none(),
+        "neither JSON nor an event stream"
+    );
+
+    // A refusal consumed nothing, and neither did an operation whose answer
+    // merely contains numbers.
+    assert!(
+        usage(
+            Operation::GenerateContent,
+            Dialect::OpenAi,
+            StatusCode::TOO_MANY_REQUESTS,
+            br#"{"usage":{"input_tokens":1,"output_tokens":1}}"#,
+        )
+        .is_none(),
+        "a rejected call is not metered"
+    );
+    assert!(
+        usage(
+            Operation::CountTokens,
+            Dialect::Claude,
+            StatusCode::OK,
+            br#"{"usage":{"input_tokens":512,"output_tokens":0}}"#,
+        )
+        .is_none(),
+        "counting tokens reports no consumption"
+    );
+    assert!(
+        usage(
+            Operation::ListModels,
+            Dialect::OpenAi,
+            StatusCode::OK,
+            br#"{"data":[],"usage":{"input_tokens":3,"output_tokens":4}}"#,
+        )
+        .is_none(),
+        "listing models reports no consumption"
+    );
+}
+
+#[test]
+fn every_dialect_a_provider_can_declare_has_a_reading() {
+    // `native_dialects` hands back whatever `config.dialects` names, so the
+    // reading has to answer for each of them and not for a curated few.
+    let config = json!({"dialects": [
+        "openai", "openai_chat", "claude", "gemini", "openai_responses_websocket"
+    ]});
+    let declared = Custom.native_dialects(provider(&config, None), Operation::GenerateContent);
+    assert_eq!(declared.len(), 5);
+    for dialect in declared {
+        let body = match dialect {
+            Dialect::OpenAiChat => r#"{"usage":{"prompt_tokens":12,"completion_tokens":3}}"#,
+            Dialect::OpenAi | Dialect::OpenAiResponsesWebSocket | Dialect::Claude => {
+                r#"{"usage":{"input_tokens":12,"output_tokens":3}}"#
+            }
+            Dialect::Gemini => {
+                r#"{"usageMetadata":{"promptTokenCount":12,"candidatesTokenCount":3}}"#
+            }
+        };
+        let read = generated(dialect, body).unwrap_or_else(|| panic!("{dialect:?} is unread"));
+        assert_eq!(read.tokens.input_tokens, Some(12), "{dialect:?}");
+        assert_eq!(read.tokens.output_tokens, Some(3), "{dialect:?}");
+    }
 }
