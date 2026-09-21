@@ -106,6 +106,11 @@ pub struct Data {
     pub rate_limits: Vec<RateLimit>,
     #[serde(default)]
     pub provider_models: Vec<ProviderModel>,
+
+    /// v3's key/value `settings` table. The admin API's export carries none of
+    /// it, so this is empty on that route and filled on the file one.
+    #[serde(default)]
+    pub settings: std::collections::BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -365,6 +370,12 @@ pub struct RoutingRule {
     pub sort_order: i64,
     #[serde(default)]
     pub enabled: bool,
+    /// `operator` or `channel_default`. A column the admin API's export has no
+    /// field for, and the one that says whether a row is somebody's decision or
+    /// a copy of what v3's channel already declared — every row in the local v3
+    /// database is `channel_default`. Absent on the export route.
+    #[serde(default)]
+    pub origin: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
