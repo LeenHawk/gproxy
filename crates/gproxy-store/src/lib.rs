@@ -26,6 +26,7 @@ mod cache;
 pub mod migration;
 pub mod operations;
 pub use cache::StoreCache;
+pub use gproxy_seaorm::sea_orm_migration::MigrationStatus;
 pub use migration::{MIGRATION_LEDGER, Migrator, SchemaReport, SchemaState};
 
 use sea_orm::{DbBackend, Schema, SchemaBuilder};

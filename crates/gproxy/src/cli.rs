@@ -229,12 +229,23 @@ pub enum Command {
     /// does.
     Serve,
 
-    /// Create or incrementally synchronize the database schema, then exit.
+    /// Bring the database schema to what this build expects, then exit.
+    ///
+    /// An empty database is created whole. A database this build created has
+    /// any migrations it has not yet seen applied to it, in order. A database
+    /// this build did not create — one with tables but no `seaql_migrations`
+    /// ledger to migrate forward from — is refused without being touched, so a
+    /// wrong `--dsn` costs nothing.
     ///
     /// `serve` does this too; the separate command exists for a deployment
     /// that runs migrations as their own step, with one writer, before any
     /// instance starts.
-    Migrate,
+    Migrate {
+        /// List every migration this build carries and whether the database has
+        /// it, then exit. Reads only: nothing is created, applied or refused.
+        #[arg(long)]
+        status: bool,
+    },
 
     /// Create the first administrator, idempotently.
     Bootstrap {

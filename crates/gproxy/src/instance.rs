@@ -87,14 +87,28 @@ impl OpenOptions {
     }
 }
 
-/// Create or incrementally synchronize the schema, and nothing else.
+/// Bring the schema to what this build owns, and nothing else.
+///
+/// Three outcomes, and an operator should be able to tell which one they got
+/// from the log line alone. An empty database is created and its migration
+/// history recorded in one pass. A database this build created has whatever
+/// migrations it has not seen applied to it, in order. A database that is
+/// neither — no `seaql_migrations` ledger to migrate forward from — is refused
+/// before a single statement runs, rather than altered as far as the backend
+/// happens to allow and abandoned there.
 ///
 /// Deliberately does not assemble a handle: a deployment that runs this as its
 /// migration step wants one writer touching DDL and no instance loading a
 /// snapshot out of a half-migrated database.
-pub async fn migrate(config: &AppConfig) -> Result<()> {
+pub async fn migrate(config: &AppConfig, status_only: bool) -> Result<()> {
     let store = Store::new(connect(config).await?);
-    let report = store.sync().await?;
+    if status_only {
+        for (name, status) in store.migration_report().await? {
+            println!("{status:<8} {name}");
+        }
+        return Ok(());
+    }
+    let report = store.migrate().await?;
     // The settings row is a precondition for every write that follows, and
     // creating it here is what lets `serve` start against this database without
     // doing any DDL of its own.
@@ -102,10 +116,13 @@ pub async fn migrate(config: &AppConfig) -> Result<()> {
         .settings()
         .update(setting::ActiveModel::default())
         .await?;
-    for warning in &report.warnings {
-        tracing::warn!(warning, "schema synchronization");
-    }
-    tracing::info!(warnings = report.warnings.len(), "schema is up to date");
+    tracing::info!(
+        installed = report.installed,
+        applied = report.applied.len(),
+        at = report.ledger.last().map(String::as_str).unwrap_or("nothing"),
+        "{}",
+        report.summary()
+    );
     Ok(())
 }
 

@@ -34,7 +34,7 @@
 //! | Command | What it does |
 //! |---|---|
 //! | `serve` (default) | rotate if asked, bootstrap if the instance is new, bind, serve |
-//! | `migrate` | synchronize the schema and exit |
+//! | `migrate` | create the schema, or apply the migrations this database has not seen |
 //! | `bootstrap admin` | create the first administrator, idempotently |
 //! | `export` | the instance's configuration as one JSON document |
 //! | `import` | replay such a document, merging or replacing |
@@ -72,7 +72,7 @@ pub async fn run(cli: Cli) -> Result<()> {
 
     match cli.command.unwrap_or(Command::Serve) {
         Command::Serve => serve::run(settings).await,
-        Command::Migrate => instance::migrate(&settings.config).await,
+        Command::Migrate { status } => instance::migrate(&settings.config, status).await,
         Command::Bootstrap {
             target: cli::BootstrapTarget::Admin,
         } => {
