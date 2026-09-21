@@ -109,6 +109,11 @@ tracing-subscriber = { workspace = true }
 zeroize = { workspace = true }
 
 [dev-dependencies]
+# The v3 round trip builds a real v3 export: a credential sealed by v3's own
+# envelope, and a key under the digest v3 would have written.
+aes-gcm = { workspace = true }
 http = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
