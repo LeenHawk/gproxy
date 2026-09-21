@@ -13,30 +13,24 @@ Cargo feature：
 
 | feature | id | 上游 | 凭证 |
 |---|---|---|---|
-| `custom` | `custom` | 任何原生讲 OpenAI／Claude／Gemini 的 API-key 端点 | `{"api_key"}` |
+| `aistudio` | `aistudio` | Google AI Studio：同一 origin 上的原生 Gemini 方法与 `/v1beta/openai` 兼容层、SSE 与 JSON 数组两种流、`usageMetadata` 计量 | `{"api_key"}` |
 | `aws_bedrock` | `aws_bedrock` | AWS Bedrock：`bedrock-runtime` 上经 SigV4 签名的 `InvokeModel`（Anthropic 模型），AWS event-stream 响应翻译成 Claude Messages SSE，控制面的基础模型目录 | AWS 访问密钥对（可为临时）或 Bedrock API key |
 | `azure` | `azure` | Azure OpenAI 以及 Azure AI Foundry 同时托管的 Anthropic 模型：资源下的 v1 面或 deployment 面，`api-key` 与 `x-api-key` | `{"api_key"}` |
-| `codex` | `codex` | 经 Codex 后端使用的 ChatGPT 账号：OAuth（PKCE 与 device code）、HTTP SSE 与 WebSocket 上的 Responses、`x-codex-*` 限额头、`/wham/usage`、CLI 后端服务 | `OAuthCredential` |
+| `claudeapi` | `claudeapi` | Anthropic 自家 API：`x-api-key` 的 Messages，含该 API 要求的请求 hygiene 与服务端 fallback、OpenAI SDK 兼容层、`anthropic-ratelimit-*` 头、`/v1/organizations/cost_report` | `{"api_key", "quota_api_key"}` |
 | `claudecode` | `claudecode` | 经 Claude Code CLI 的 Messages 请求使用的 Claude.ai 订阅：PKCE 与 cookie 登录、刷新、统一限速头、`/api/oauth/usage`、CLI 服务 | `OAuthCredential` |
 | `claudeweb` | `claudeweb` | claude.ai 浏览器会话：对 `/api/bootstrap` 的 cookie 登录、多次调用组成的对话轮次翻译成 Claude Messages SSE、组织级用量窗口 | 会话 cookie + 组织 |
+| `codex` | `codex` | 经 Codex 后端使用的 ChatGPT 账号：OAuth（PKCE 与 device code）、HTTP SSE 与 WebSocket 上的 Responses、`x-codex-*` 限额头、`/wham/usage`、CLI 后端服务 | `OAuthCredential` |
+| `custom` | `custom` | 任何原生讲 OpenAI／Claude／Gemini 的 API-key 端点 | `{"api_key"}` |
 | `devin` | `devin` | `server.codeium.com` 上的 Devin（Windsurf）：传输是 Connect-RPC + protobuf 而非 JSON，`GetChatMessage` 的多帧流翻译成 Chat Completions SSE，`GetUserStatus` 给日／周两个窗口 | 会话 token |
-| `vertex` | `vertex` | Google Vertex AI：按项目与地区寻址 google／anthropic／OpenAI 兼容三个发布者；服务账号密钥经 `CredentialRefresh` 换取访问令牌 | Google 服务账号密钥 |
-| `vertexexpress` | `vertexexpress` | Vertex AI Express 模式：单一全局 origin 上的 Gemini 面，key 走 query，无项目无地区 | `{"api_key"}` |
-
-八个渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
-| `claudeapi` | `claudeapi` | Anthropic 自家 API：`x-api-key` 的 Messages，含该 API 要求的请求 hygiene 与服务端 fallback、OpenAI SDK 兼容层、`anthropic-ratelimit-*` 头、`/v1/organizations/cost_report` | `{"api_key", "quota_api_key"}` |
 | `openai` | `openai` | OpenAI 自家平台：完整 OpenAI 面、WebSocket 上的 Responses 与 Realtime、`x-ratelimit-*` 头、`/v1/organization/costs` | `{"api_key", "quota_api_key"}` |
-| `aistudio` | `aistudio` | Google AI Studio：同一 origin 上的原生 Gemini 方法与 `/v1beta/openai` 兼容层、SSE 与 JSON 数组两种流、`usageMetadata` 计量 | `{"api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI：按项目与地区寻址 google／anthropic／OpenAI 兼容三个发布者；服务账号密钥经 `CredentialRefresh` 换取访问令牌 | Google 服务账号密钥 |
 | `vertexexpress` | `vertexexpress` | Vertex AI Express 模式：单一全局 origin 上的 Gemini 面，key 走 query，无项目无地区 | `{"api_key"}` |
-
-十个渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
 
 `claudeapi`、`openai`、`aistudio` 是三家厂商自己的第一方 API。它们成为渠道而不是
 一个 `custom` Provider，理由都是 `custom` 表达不了的路由布局：Anthropic 的路由由
 operation 而不是客户端 path 决定，OpenAI 的 Responses 与 Realtime 要走 socket，
 AI Studio 在同一个 origin 上放了两套面、各要各的凭证头。
-九个渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
+十二个渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
 
 `azure`、`vertex`、`vertexexpress` 是云上的转售方：它们原样转发所托管厂商的 wire，
 只改方法的位置和凭证的呈现方式。三者都不伪装任何客户端，因此都不返回
