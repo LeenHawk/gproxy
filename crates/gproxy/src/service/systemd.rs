@@ -32,7 +32,7 @@
 
 use std::path::{Path, PathBuf};
 
-use super::{Plan, Platform, Report, Result, home, remove, run_tool, write_private};
+use super::{Plan, Platform, Report, Result, home, remove, run_tool, uid, write_private};
 
 /// The unit's file name, and the name every `systemctl --user` verb takes.
 ///
@@ -202,16 +202,21 @@ pub fn install(plan: &Plan) -> Result<Report> {
         .row("logs", "journalctl --user -u gproxy -f");
 
     if plan.autostart {
-        let linger = run_tool("loginctl", &["enable-linger"])?;
+        // The uid, spelled out. `loginctl enable-linger` with no argument does
+        // imply the calling user, but the matching `show-user` does not —
+        // naming the user in all three places is what keeps `install`,
+        // `uninstall` and `status` talking about the same thing.
+        let uid = uid()?;
+        let linger = run_tool("loginctl", &["enable-linger", &uid])?;
         if linger.ok {
             report = report.row("linger", "enabled, so it starts at boot");
         } else {
             // Not fatal. The service is installed and running; only the
             // survive-a-logout part failed, and the operator can do it by hand.
             report = report.note(format!(
-                "`loginctl enable-linger` failed: {}. The service is installed and running, but \
-                 it will stop when you log out and will not come back until you log in again. \
-                 Run `loginctl enable-linger` as root to fix that.",
+                "`loginctl enable-linger {uid}` failed: {}. The service is installed and running, \
+                 but it will stop when you log out and will not come back until you log in \
+                 again. Run `loginctl enable-linger {uid}` as root to fix that.",
                 linger.message()
             ));
         }
@@ -262,7 +267,8 @@ pub fn uninstall() -> Result<Report> {
     // Only what this command turned on is turned back off. An operator who had
     // linger enabled for their own reasons before ever meeting gproxy keeps it.
     if ours {
-        let linger = run_tool("loginctl", &["disable-linger"])?;
+        let uid = uid()?;
+        let linger = run_tool("loginctl", &["disable-linger", &uid])?;
         report = if linger.ok {
             report.row(
                 "linger",
@@ -270,7 +276,7 @@ pub fn uninstall() -> Result<Report> {
             )
         } else {
             report.note(format!(
-                "`loginctl disable-linger` failed: {}. Linger is still on; `gproxy service \
+                "`loginctl disable-linger {uid}` failed: {}. Linger is still on; `gproxy service \
                  install --autostart` is what turned it on, so it is safe to turn off by hand.",
                 linger.message()
             ))
@@ -345,8 +351,9 @@ pub fn status() -> Result<Report> {
         // `ExecMainCode=1 ExecMainStatus=0` on its own means nothing to anybody.
         .maybe("last exit", last_exit(&fields));
 
-    let linger = run_tool("loginctl", &["show-user", "--property=Linger"])
+    let linger = uid()
         .ok()
+        .and_then(|uid| run_tool("loginctl", &["show-user", &uid, "--property=Linger"]).ok())
         .filter(|output| output.ok)
         .and_then(|output| {
             properties_of(&output.stdout)
