@@ -8,7 +8,17 @@
 //!
 //! Field names come from the vendor references in `upstream_docs/`: OpenAI
 //! Responses `usage`, OpenAI Chat Completions `usage`, Claude Messages `usage`
-//! and Gemini `usageMetadata`.
+//! and Gemini `usageMetadata`. This is the only one of the three shared usage
+//! readers that reads all four; `shared::openai_wire` reads the two OpenAI
+//! shapes with the OpenAI platform's own extras, and
+//! `shared::compatible::usage` reads three of them behind a per-channel
+//! `Enrich` hook. The arithmetic agrees wherever they overlap on a
+//! well-formed body — what differs is which fields exist and what an absent
+//! one means, so none of the three substitutes for another.
+//!
+//! Here an absent count stays `None` rather than becoming zero, and a block
+//! naming either side is read: a body reporting only `output_tokens` is
+//! metered on its output alone.
 
 use crate::channel::{ChannelError, NormalizedUsage, UsageCompleteness};
 use gproxy_protocol::{Dialect, WireFamily};

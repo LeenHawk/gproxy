@@ -1,11 +1,21 @@
 //! Code the concrete channels share. Policy stays in each channel; these
 //! modules only execute what a channel asks for.
+//!
+//! Three modules here read a `usage` object, and they stay three on purpose.
+//! `openai_wire`, `vendor_usage` and `compatible::usage` agree on the token
+//! arithmetic of a well-formed OpenAI body and disagree about everything
+//! around it: which dialects exist, what an absent count means, which of the
+//! vendor's extra fields are metered, and whether the answer arrives buffered
+//! or through an observer. Parameterizing those differences into one reader
+//! would put every channel's billing behind one set of flags — see
+//! `design/transform.md` on why this repository keeps vendor-native readings
+//! apart rather than routing them through a pivot.
 
 /// AWS `vnd.amazon.eventstream` framing, for the upstreams that answer in it
-/// rather than in SSE. `aws_bedrock` carries an equivalent private copy in its
-/// own `stream.rs`; folding the two together means touching that channel, so
-/// it waits for a wave that owns it.
-#[cfg(feature = "kiro")]
+/// rather than in SSE. Shared by `aws_bedrock` and `kiro`; each keeps its own
+/// translator, because what a decoded payload means is not the framing's
+/// business.
+#[cfg(any(feature = "aws_bedrock", feature = "kiro"))]
 pub(crate) mod aws_eventstream;
 /// The magic cache strings, for the dialects that have cache breakpoints.
 #[cfg(any(
@@ -21,7 +31,10 @@ pub(crate) mod cache;
 /// The Code Assist envelope and Google login the Gemini CLI channels share.
 #[cfg(any(feature = "antigravity", feature = "geminicli"))]
 pub(crate) mod code_assist;
-/// Bounded ability calls and streaming usage for the API-key fleet.
+/// Bounded ability calls, and usage for the API-key fleet: Chat, Responses and
+/// Claude Messages keyed by dialect, with each channel's own fields read by an
+/// `Enrich` hook it passes in. Shared by `cline`, `copilotcli`, `dashscope`,
+/// `deepseek`, `grokbuild`, `kimi`, `opencode`, `openrouter` and `xai`.
 #[cfg(any(
     feature = "cline",
     feature = "copilotcli",
@@ -34,7 +47,13 @@ pub(crate) mod code_assist;
     feature = "xai"
 ))]
 pub(crate) mod compatible;
-/// The OpenAI request and usage wire the OpenAI-compatible channels share.
+/// The OpenAI platform's own wire: the streaming usage opt-in on the request,
+/// and metering out of Chat, Responses, image and transcription replies with
+/// the extras only that platform reports — the `cache_write_tokens` bucket,
+/// audio token counts, web-search calls and `service_tier`. Takes no dialect;
+/// it recognizes a usage object by its field names. Shared by `aistudio`,
+/// `claudeapi`, `kiro`, `openai` and `workbuddy`, each of which gates it on
+/// `WireFamily::OpenAi`.
 #[cfg(any(
     feature = "aistudio",
     feature = "claudeapi",
@@ -43,7 +62,14 @@ pub(crate) mod compatible;
     feature = "workbuddy"
 ))]
 pub(crate) mod openai_wire;
+/// Route classification, local JSON answers, synthetic ids and the binding
+/// mechanics behind resource routes, for the channels that serve a vendor's
+/// own service surface. Shared by `claudecode` and `codex`.
 #[cfg(any(feature = "codex", feature = "claudecode"))]
 pub(crate) mod services_common;
+/// Usage as the four vendor wires report it — OpenAI Responses, OpenAI Chat,
+/// Claude Messages and Gemini `usageMetadata` — for the resellers that forward
+/// a vendor's body unchanged and meter it after the fact, buffered JSON or
+/// accumulated SSE alike. Shared by `azure`, `vertex` and `vertexexpress`.
 #[cfg(any(feature = "azure", feature = "vertex", feature = "vertexexpress"))]
 pub(crate) mod vendor_usage;

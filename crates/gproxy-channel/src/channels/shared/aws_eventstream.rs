@@ -12,7 +12,9 @@
 //!
 //! Only the four `:`-prefixed headers those upstreams use are kept; every
 //! other header is skipped by its declared value type. Nothing here knows what
-//! a payload means — that is the asking channel's business.
+//! a payload means — that is the asking channel's business: `kiro` reads
+//! CodeWhisperer events out of the payloads and `aws_bedrock` reads
+//! base64-wrapped Claude Messages events, and each keeps its own translator.
 
 use crate::channel::ChannelError;
 use gproxy_protocol::connection::Bytes;
@@ -29,17 +31,6 @@ pub(crate) struct Frame {
     pub(crate) event_type: Option<String>,
     pub(crate) exception_type: Option<String>,
     pub(crate) payload: Bytes,
-}
-
-impl Frame {
-    /// The name this frame carries: an exception type wins over an event type,
-    /// because an exception frame also names the event it replaced.
-    pub(crate) fn name(&self) -> &str {
-        self.exception_type
-            .as_deref()
-            .or(self.event_type.as_deref())
-            .unwrap_or_default()
-    }
 }
 
 /// Reassembles frames across arbitrary transport chunk boundaries.
@@ -183,7 +174,9 @@ fn read_u32(bytes: &[u8]) -> u32 {
     u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]])
 }
 
-fn decode(message: impl Into<String>) -> ChannelError {
+/// The framing's own error voice. A channel translating these frames reports
+/// a malformed payload in the same voice, so it is shared too.
+pub(crate) fn decode(message: impl Into<String>) -> ChannelError {
     ChannelError::InvalidResponse(format!("AWS event-stream: {}", message.into()))
 }
 
@@ -225,9 +218,12 @@ mod tests {
         }
         parser.finish().unwrap();
         assert_eq!(frames.len(), 2);
-        assert_eq!(frames[0].name(), "assistantResponseEvent");
+        assert_eq!(
+            frames[0].event_type.as_deref(),
+            Some("assistantResponseEvent")
+        );
         assert_eq!(&frames[0].payload[..], br#"{"content":"hi"}"#);
-        assert_eq!(frames[1].name(), "metadataEvent");
+        assert_eq!(frames[1].event_type.as_deref(), Some("metadataEvent"));
     }
 
     #[test]

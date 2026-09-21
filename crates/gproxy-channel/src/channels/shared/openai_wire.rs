@@ -14,8 +14,23 @@
 //! totals *include* the cached read and, where an OpenAI-compatible vendor
 //! reports one, the cache write named `cache_write_tokens`. `input_tokens` is
 //! the ordinary input alone, so both come back out of it and are carried in
-//! the fields that name them — the same reading `codex` and
-//! `shared::vendor_usage` take of the identical wire.
+//! the fields that name them.
+//!
+//! This is *not* interchangeable with `shared::vendor_usage` or
+//! `shared::compatible::usage`, which read the same two shapes for other
+//! channels. The arithmetic agrees on a well-formed body; the contracts do
+//! not. This reader takes no dialect — it recognizes the shape from the field
+//! names — and it alone reads `cache_write_tokens` into
+//! `cache_creation_30m_tokens`, records `audio_input_tokens`,
+//! `audio_output_tokens` and `web_searches`, and carries `service_tier` as a
+//! dimension. It also requires both sides of the count to be present and then
+//! always reports an output, where the other two report per-field `None`.
+//!
+//! Because the shape is sniffed rather than declared, a Claude Messages
+//! `usage` object — which also names `input_tokens` / `output_tokens` — parses
+//! here as the Responses shape and silently loses its two cache counters.
+//! Every caller therefore gates this on `WireFamily::OpenAi`; a channel that
+//! forwards Claude Messages wants `vendor_usage::claude` instead.
 
 use crate::channel::{
     ChannelError, NormalizedUsage, UsageCompleteness, UsageContext, UsageFrame, UsageObserver,
