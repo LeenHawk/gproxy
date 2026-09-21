@@ -39,11 +39,12 @@ Cargo feature：
 | `workbuddy` | `workbuddy` | 经编辑器插件使用的腾讯 Copilot：设备登录与刷新、`/v2` 下带插件身份头与账号头的 OpenAI Chat、`/v3/config` 目录、企业与个人两套计费表 | `OAuthCredential` |
 | `xai` | `xai` | xAI（Grok）：OpenAI Chat 与 Responses，外加 xAI 自己的 `/v1/tts`、`/v1/stt`、`/v1/videos/generations`，`cost_in_usd_ticks` 计量，管理面的账单探测 | `{"api_key"}` |
 
+所有渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
+
 `claudeapi`、`openai`、`aistudio` 是三家厂商自己的第一方 API。它们成为渠道而不是
 一个 `custom` Provider，理由都是 `custom` 表达不了的路由布局：Anthropic 的路由由
 operation 而不是客户端 path 决定，OpenAI 的 Responses 与 Realtime 要走 socket，
 AI Studio 在同一个 origin 上放了两套面、各要各的凭证头。
-所有渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
 
 `dashscope`、`deepseek`、`kimi`、`openrouter`、`xai` 是 API-key 舰队：它们的 wire
 就是那三种兼容形状之一，因此共用 `channels::shared::compatible` 做有界的能力调用
