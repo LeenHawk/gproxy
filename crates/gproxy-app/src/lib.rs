@@ -47,7 +47,7 @@ pub use capture::{CaptureOutcome, DownstreamCapture, ObservationSwitches};
 
 pub mod dto;
 pub mod operations;
-pub use operations::{Operations, Scope};
+pub use operations::{Issuer, IssuerError, IssuerOrigin, Operations, Scope};
 
 pub mod publication;
 pub use publication::AppPublicationUrl;

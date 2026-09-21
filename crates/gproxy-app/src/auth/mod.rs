@@ -39,6 +39,11 @@ pub use api_key::{API_KEY_PREFIX, digests, generate_api_key};
 pub use csrf::verify_same_origin;
 pub use session::IssuedSession;
 
+// The two primitives every minted credential in this crate goes through, so
+// "how much entropy" and "hashed how" have one answer here rather than one per
+// module. The OAuth issuer mints codes, device codes and tokens with them.
+pub(crate) use api_key::{random_bytes, token_digest};
+
 use crate::{AppConfig, AppData, AppError, snapshot::Subject};
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::{Store, entity::identity::user};

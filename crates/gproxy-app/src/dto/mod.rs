@@ -26,6 +26,7 @@ mod api_keys;
 mod audit;
 mod common;
 mod members;
+mod oauth;
 mod oauth_clients;
 mod organizations;
 mod permissions;
@@ -41,6 +42,12 @@ pub use api_keys::{ApiKeyCreated, ApiKeyDto, ApiKeyPatch, ApiKeySecretDto, ApiKe
 pub use audit::{AuditEventDto, AuditQuery};
 pub use common::{BatchItem, BatchPatch, ListQuery, Page, double_option};
 pub use members::{MemberPatch, MemberWrite, MembershipDto, OrganizationMemberDto, TeamMemberDto};
+pub use oauth::{
+    AuthorizationDenied, AuthorizationIssued, AuthorizationServerMetadata, AuthorizeDetails,
+    AuthorizeOutcome, AuthorizeQuery, ConsentDecision, DEVICE_GRANT_TYPE, DeviceCodeRequest,
+    DeviceCodeResponse, DeviceDecided, DeviceDetails, OAuthErrorBody, RevokeRequest, TOKEN_TYPE,
+    TokenRequest, TokenResponse,
+};
 pub use oauth_clients::{OAuthClientDto, OAuthClientPatch, OAuthClientWrite};
 pub use organizations::{OrganizationDto, OrganizationPatch, OrganizationWrite};
 pub use permissions::{PermissionDto, PermissionPatch, PermissionWrite};

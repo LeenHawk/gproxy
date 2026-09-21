@@ -42,6 +42,19 @@ pub enum AppError {
     Forbidden(String),
     #[error("invalid request: {0}")]
     Invalid(String),
+    /// An OAuth protocol refusal from the issuer, carrying the RFC's own error
+    /// code.
+    ///
+    /// Kept whole rather than flattened into `Invalid` because the code is
+    /// what the client branches on: `invalid_grant` means re-run the login,
+    /// `authorization_pending` means keep polling, `invalid_request` means the
+    /// client has a bug. A host that had to guess between those from an
+    /// English message would make a client re-authenticate on a typo, or poll
+    /// forever on a real failure. See
+    /// [`issuer::error_body`](crate::operations::issuer::error_body), which is
+    /// how both hosts render one.
+    #[error(transparent)]
+    OAuth(#[from] crate::operations::issuer::IssuerError),
     #[error("{entity} `{id}` not found")]
     NotFound { entity: &'static str, id: String },
     #[error("conflict: {0}")]
@@ -67,6 +80,7 @@ impl AppError {
             Self::Unauthorized(_) => S::UNAUTHORIZED,
             Self::Forbidden(_) => S::FORBIDDEN,
             Self::Invalid(_) => S::BAD_REQUEST,
+            Self::OAuth(error) => return error.status_code(),
             Self::NotFound { .. } => S::NOT_FOUND,
             Self::Conflict(_) => S::CONFLICT,
             Self::RateLimited { .. } => S::TOO_MANY_REQUESTS,
@@ -84,6 +98,7 @@ impl AppError {
             Self::Unauthorized(_) => "unauthorized",
             Self::Forbidden(_) => "forbidden",
             Self::Invalid(_) => "invalid_request",
+            Self::OAuth(error) => error.code.as_str(),
             Self::NotFound { .. } => "not_found",
             Self::Conflict(_) => "conflict",
             Self::RateLimited { .. } => "rate_limited",
