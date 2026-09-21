@@ -331,10 +331,28 @@ async fn an_unknown_publication_is_404() {
 
 #[tokio::test]
 async fn a_build_with_no_console_answers_404_rather_than_a_blank_page() {
+    // Whether a bundle exists is a property of the build, not of the source:
+    // in a debug build `rust_embed` reads `assets/web` from disk, so this is
+    // served for anyone who has run the console's build and absent for
+    // everyone else. Asserting one of those would make `cargo test` fail for
+    // whoever built the console last, over a change that had nothing to do
+    // with it. So ask the crate what this build has, and assert the rule.
+    let embedded =
+        gproxy_host_axum::console::Console::from_config(&gproxy_app::config::ConsoleConfig {
+            enabled: true,
+            path: None,
+        })
+        .is_enabled();
+
     let host = instance().await;
     let answer = host.send(get("/console")).await;
-    assert_eq!(answer.status, StatusCode::NOT_FOUND);
-    assert!(answer.text().contains("console"), "{}", answer.text());
+    if embedded {
+        assert_eq!(answer.status, StatusCode::OK);
+        assert!(answer.text().contains("<html"), "{}", answer.text());
+    } else {
+        assert_eq!(answer.status, StatusCode::NOT_FOUND);
+        assert!(answer.text().contains("console"), "{}", answer.text());
+    }
 }
 
 #[tokio::test]
