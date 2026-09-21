@@ -1129,7 +1129,10 @@ async fn rewrite_targets_roundtrip_and_old_rows_sync_to_body() {
         .create_many(vec![rule("old", "targets", 0)])
         .await
         .unwrap();
-    // Simulate a persisted pre-target schema, retaining a real old rule row.
+    // Simulate a persisted pre-target schema, retaining a real old rule row,
+    // and then carry it forward the way a migration would: an explicit
+    // `ADD COLUMN` with the entity's own default. `sync` used to work this out
+    // by itself, which is exactly the habit the migrator replaced.
     store
         .connection()
         .execute_unprepared("ALTER TABLE rewrite_rules DROP COLUMN target")
@@ -1140,7 +1143,16 @@ async fn rewrite_targets_roundtrip_and_old_rows_sync_to_body() {
         .execute_unprepared("ALTER TABLE rewrite_rules DROP COLUMN target_name")
         .await
         .unwrap();
-    store.sync().await.unwrap();
+    for statement in [
+        "ALTER TABLE rewrite_rules ADD COLUMN target varchar NOT NULL DEFAULT 'body'",
+        "ALTER TABLE rewrite_rules ADD COLUMN target_name varchar",
+    ] {
+        store
+            .connection()
+            .execute_unprepared(statement)
+            .await
+            .unwrap();
+    }
     let old = store
         .rewrite_rules()
         .get_many(&["old".into()])
@@ -1186,20 +1198,14 @@ async fn rewrite_targets_roundtrip_and_old_rows_sync_to_body() {
 #[tokio::test]
 async fn operation_endpoints_are_scoped_by_provider_operation_dialect_and_transport() {
     use gproxy_store::entity::upstream::operation_endpoint::{self, EndpointTransport};
-    use sea_orm::ConnectionTrait;
     let store = database().await;
     store
         .providers()
         .create_many(vec![provider("p")])
         .await
         .unwrap();
-    // Older stores have the provider but not the additive endpoint table.
-    store
-        .connection()
-        .execute_unprepared("DROP TABLE operation_endpoints")
-        .await
-        .unwrap();
-    store.sync().await.unwrap();
+    // The table arriving on a database that predates it is a migration's job
+    // now, not this test's; see `tests/migration.rs`.
     let endpoint =
         |id: &str, dialect: &str, transport, url: &str| operation_endpoint::ActiveModel {
             id: Set(id.into()),

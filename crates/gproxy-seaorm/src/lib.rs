@@ -30,7 +30,7 @@ pub use sea_orm_migration;
 
 mod migration_support;
 pub mod schema;
-pub use migration_support::D1SchemaManagerExt;
+pub use migration_support::{D1SchemaManagerExt, SchemaProbeExt};
 pub use schema::{
     EntityRegistry, SchemaSyncConnectionTrait, SyncReport, is_engine_table, ledger_table_name,
 };

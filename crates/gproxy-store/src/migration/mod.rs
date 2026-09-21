@@ -35,14 +35,18 @@
 //!    migration adds. A migration must therefore check before it acts:
 //!
 //!    ```ignore
-//!    if !manager.has_column("providers", "description").await? {
+//!    use gproxy_seaorm::SchemaProbeExt;
+//!
+//!    if !manager.probe_column("providers", "description").await? {
 //!        manager.alter_table(/* … */).await?;
 //!    }
 //!    ```
 //!
-//!    `SchemaManager`'s `has_table`/`has_column`/`has_index` need native driver
-//!    features; over a D1 binding use [`gproxy_seaorm::D1SchemaManagerExt`],
-//!    which exists for exactly this.
+//!    `SchemaProbeExt` rather than `SchemaManager`'s own `has_column`: the
+//!    inherent ones are compiled per backend behind `sea-orm-migration`'s
+//!    `sqlx-*` features, which this workspace does not enable, and answer
+//!    `BackendNotSupported` instead of the question. The probes work on every
+//!    backend including a D1 binding.
 //!
 //! 5. **Never edit a released migration.** Once a version of gproxy that
 //!    contains it has run anywhere, its name is in somebody's ledger and it will

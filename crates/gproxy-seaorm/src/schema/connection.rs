@@ -1,4 +1,6 @@
-use sea_orm::{ConnectionTrait, DbBackend, DbErr, EntityTrait, SchemaBuilder, Statement};
+use sea_orm::{ConnectionTrait, DbErr, EntityTrait, SchemaBuilder};
+#[cfg(not(target_arch = "wasm32"))]
+use sea_orm::{DbBackend, Statement};
 use sea_orm_migration::{MigrationStatus, MigratorTrait};
 
 /// Shared entity registration for SeaORM's native builder and the D1 adapter.
@@ -59,6 +61,10 @@ pub trait SchemaSyncConnectionTrait: ConnectionTrait {
     /// "may this build open this database" is decided from.
     async fn table_names(&self) -> Result<Vec<String>, DbErr>;
 
+    /// The versions recorded in the named migration ledger. The caller has
+    /// already established that the table exists.
+    async fn ledger_versions(&self, table: &str) -> Result<Vec<String>, DbErr>;
+
     /// Apply pending migrations with SeaORM's official runner.
     ///
     /// The default refuses: not every connection this adapter offers can be
@@ -71,10 +77,23 @@ pub trait SchemaSyncConnectionTrait: ConnectionTrait {
 
     /// What the ledger says about each migration this build carries, in the
     /// order the migrator declares them.
+    ///
+    /// Reads, and only reads. SeaORM's own status paths either create the
+    /// ledger table on the way past or probe for it through
+    /// `sea-orm-migration`'s per-backend `sqlx-*` features, which this
+    /// workspace enables on `sea-orm` and not on `sea-orm-migration`. Going
+    /// through the census instead answers the question on every connection the
+    /// adapter has, without writing to a database somebody only asked about.
     async fn migration_report<M: MigratorTrait>(
         &self,
     ) -> Result<Vec<(String, MigrationStatus)>, DbErr> {
-        Err(no_runner())
+        let ledger = ledger_table_name::<M>();
+        let applied = if self.table_names().await?.contains(&ledger) {
+            self.ledger_versions(&ledger).await?
+        } else {
+            Vec::new()
+        };
+        Ok(status_against::<M>(&applied))
     }
 }
 
@@ -93,9 +112,7 @@ fn no_runner() -> DbErr {
 }
 
 /// The migrator's declared order, each entry marked against a ledger read
-/// elsewhere. Used by the connections that read their own ledger rather than
-/// letting the runner do it.
-#[cfg(any(target_arch = "wasm32", feature = "libsql"))]
+/// separately. What every connection's status report is assembled from.
 fn status_against<M: MigratorTrait>(applied: &[String]) -> Vec<(String, MigrationStatus)> {
     M::migrations()
         .into_iter()
@@ -179,14 +196,16 @@ where
         M::up(self, steps).await
     }
 
-    async fn migration_report<M: MigratorTrait>(
-        &self,
-    ) -> Result<Vec<(String, MigrationStatus)>, DbErr> {
-        Ok(M::get_migration_with_status(self)
+    async fn ledger_versions(&self, table: &str) -> Result<Vec<String>, DbErr> {
+        let statement = sea_orm::sea_query::Query::select()
+            .column("version")
+            .from(table.to_owned())
+            .take();
+        ConnectionTrait::query_all(self, &statement)
             .await?
             .into_iter()
-            .map(|migration| (migration.name().to_owned(), migration.status()))
-            .collect())
+            .map(|row| row.try_get("", "version"))
+            .collect()
     }
 }
 
@@ -212,11 +231,8 @@ impl SchemaSyncConnectionTrait for crate::LibsqlConnection {
     /// The ledger is readable here even though the runner is not reachable, so
     /// a libSQL host can still tell whether the database it was handed is the
     /// one this build expects — and refuse on its own terms if it is behind.
-    async fn migration_report<M: MigratorTrait>(
-        &self,
-    ) -> Result<Vec<(String, MigrationStatus)>, DbErr> {
-        let applied = super::ledger_versions(self, &ledger_table_name::<M>()).await?;
-        Ok(status_against::<M>(&applied))
+    async fn ledger_versions(&self, table: &str) -> Result<Vec<String>, DbErr> {
+        super::ledger_versions(self, table).await
     }
 
     // `run_migrations` keeps the refusing default: the runner needs a
@@ -248,9 +264,11 @@ impl SchemaSyncConnectionTrait for crate::D1Connection {
         self.migrate_up::<M>(steps).await
     }
 
-    async fn migration_report<M: MigratorTrait>(
-        &self,
-    ) -> Result<Vec<(String, MigrationStatus)>, DbErr> {
-        crate::D1Connection::migration_status::<M>(self).await
+    /// Read through the projection rather than through the proxy bridge that
+    /// [`crate::D1Connection::migration_status`] uses: that one initializes the
+    /// ledger table on its way past, and a status question should leave a
+    /// database exactly as it found it.
+    async fn ledger_versions(&self, table: &str) -> Result<Vec<String>, DbErr> {
+        super::ledger_versions(self, table).await
     }
 }
