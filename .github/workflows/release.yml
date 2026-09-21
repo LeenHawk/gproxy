@@ -3,7 +3,7 @@ name: Release
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [dev]
     tags:
       - "v*"
 
@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'staging' }}
+  RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'nightly' }}
 
 permissions:
   contents: write
@@ -31,13 +31,16 @@ jobs:
       - uses: actions/checkout@v7
       - id: metadata
         run: |
+          # Three channels, named the way the binary names them: dev, beta,
+          # release. A push to the development branch is a dev build; a
+          # pre-release tag is a beta; a clean version tag is a release.
           version="$(scripts/release-metadata.sh version)"
           manifest_version="$version"
-          channel=staging
+          channel=dev
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             scripts/release-metadata.sh verify-tag "$GITHUB_REF_NAME"
-            channel=releases
-            if [[ "$version" == *-* ]]; then channel=dev; fi
+            channel=release
+            if [[ "$version" == *-* ]]; then channel=beta; fi
           else
             manifest_version="$GITHUB_SHA"
           fi
@@ -201,7 +204,7 @@ jobs:
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
       - name: Prepare Microsoft Store submission
-        if: ${{ matrix.os == 'windows' && needs.prepare.outputs.channel == 'releases' }}
+        if: ${{ matrix.os == 'windows' && needs.prepare.outputs.channel == 'release' }}
         uses: ./.github/actions/windows-store
         with:
           target: ${{ matrix.target }}
@@ -350,10 +353,10 @@ jobs:
           CHANNEL: ${{ needs.prepare.outputs.channel }}
           REPO: ${{ github.repository }}
           NOTES_URL: https://github.com/${{ github.repository }}/releases/tag/${{ env.RELEASE_TAG }}
-          ASSET_PREFIX: ${{ needs.prepare.outputs.channel == 'staging' && format('{0}-', github.sha) || '' }}
+          ASSET_PREFIX: ${{ needs.prepare.outputs.channel == 'dev' && format('{0}-', github.sha) || '' }}
         run: |
           if [ -n "$ASSET_PREFIX" ]; then
-            scripts/namespace-staging-assets.sh dist/native "$ASSET_PREFIX"
+            scripts/namespace-nightly-assets.sh dist/native "$ASSET_PREFIX"
           fi
           scripts/build-update-manifest.sh
       - uses: actions/upload-artifact@v7
@@ -479,7 +482,7 @@ jobs:
   store-publish:
     name: Submit Microsoft Store update
     needs: [prepare, publish]
-    if: ${{ needs.prepare.outputs.channel == 'releases' && vars.MS_STORE_PUBLISH_ENABLED == 'true' }}
+    if: ${{ needs.prepare.outputs.channel == 'release' && vars.MS_STORE_PUBLISH_ENABLED == 'true' }}
     permissions:
       contents: read
       actions: read
