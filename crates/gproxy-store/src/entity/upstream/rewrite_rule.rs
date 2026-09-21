@@ -14,7 +14,8 @@ pub struct Model {
     #[sea_orm(default_value = "request")]
     pub phase: String,
     /// Body/payload text, named header values, or named request-query values.
-    /// Defaults to body so existing rules retain their meaning after schema sync.
+    /// Defaults to body so that a migration adding this column leaves existing
+    /// rules meaning what they meant.
     #[sea_orm(default_value = "body")]
     pub target: RewriteTarget,
     /// Required for header/query targets, absent for body. Header names match

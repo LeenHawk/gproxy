@@ -1,13 +1,18 @@
 #![cfg(not(target_arch = "wasm32"))]
+//! `sync` is the name the sdk and the hosts call the schema step by, and what
+//! it means changed: it creates the schema on an empty database, applies
+//! outstanding migrations on one this build created, and refuses anything else.
+//! What it no longer does — work out the difference between a populated
+//! database and the entity registry, and emit the `ALTER`s — is what these tests
+//! now pin down, because getting it back by accident is the failure mode.
 
 use gproxy_store::{
-    Store,
+    SchemaState, Store,
     entity::{config::setting, identity::user},
 };
 use sea_orm::{
     ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend, Set, Statement,
 };
-use serde_json::json;
 
 async fn connection() -> DatabaseConnection {
     let mut options = ConnectOptions::new("sqlite::memory:");
@@ -21,18 +26,38 @@ async fn tables(db: &DatabaseConnection) -> Vec<String> {
         .await.unwrap().into_iter().map(|r| r.try_get("", "name").unwrap()).collect()
 }
 
+async fn a_user(store: &Store<DatabaseConnection>, id: &str) {
+    store
+        .users()
+        .create_many(vec![user::ActiveModel {
+            id: Set(id.into()),
+            name: Set("kept".into()),
+            role: Set("user".into()),
+            created_at_ms: Set(1),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+}
+
 #[tokio::test]
 async fn sync_initializes_the_full_registry_and_is_repeatable() {
     let store = Store::new(connection().await);
     assert!(tables(store.connection()).await.is_empty());
     store.sync().await.unwrap();
-    // The legacy one-shot API and portable sync share exactly the same registry.
+
+    // The one-shot registry apply and the schema step agree on every table, and
+    // the schema step adds the one thing it owns beyond them: its ledger.
     let reference = connection().await;
     gproxy_store::schema(DbBackend::Sqlite)
         .apply(&reference)
         .await
         .unwrap();
-    assert_eq!(tables(store.connection()).await, tables(&reference).await);
+    let mut expected = tables(&reference).await;
+    expected.push(gproxy_store::MIGRATION_LEDGER.into());
+    expected.sort();
+    assert_eq!(tables(store.connection()).await, expected);
+
     assert!(store.settings().get().await.unwrap().is_none());
     store
         .settings()
@@ -42,17 +67,7 @@ async fn sync_initializes_the_full_registry_and_is_repeatable() {
         })
         .await
         .unwrap();
-    store
-        .users()
-        .create_many(vec![user::ActiveModel {
-            id: Set("existing".into()),
-            name: Set("kept".into()),
-            role: Set("user".into()),
-            created_at_ms: Set(1),
-            ..Default::default()
-        }])
-        .await
-        .unwrap();
+    a_user(&store, "existing").await;
     store.sync().await.unwrap();
     store.sync().await.unwrap();
     assert_eq!(
@@ -69,195 +84,79 @@ async fn sync_initializes_the_full_registry_and_is_repeatable() {
     assert_eq!(store.load_identity_data().await.unwrap().users.len(), 1);
 }
 
+/// The behaviour that had to go. A column removed behind the migrator's back is
+/// not quietly put back: the ledger says this database is where this build
+/// expects it to be, so `sync` has nothing to do and says so. Repairing it is a
+/// migration's job, and a migration is a thing somebody writes.
 #[tokio::test]
-async fn sync_adds_allowlist_columns_to_populated_schema_without_losing_data() {
+async fn sync_does_not_invent_ddl_for_a_database_that_drifted() {
     let store = Store::new(connection().await);
     store.sync().await.unwrap();
-    store
-        .users()
-        .create_many(vec![user::ActiveModel {
-            id: Set("existing".into()),
-            name: Set("kept".into()),
-            role: Set("user".into()),
-            created_at_ms: Set(1),
-            ..Default::default()
-        }])
-        .await
-        .unwrap();
-    store
-        .settings()
-        .update(setting::ActiveModel {
-            max_attempts: Set(7),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-    // Model the immediately previous schema, before the four nullable policy columns.
-    for table in ["settings", "organizations", "teams", "users"] {
-        store
-            .connection()
-            .execute_unprepared(&format!(
-                "ALTER TABLE {table} DROP COLUMN oauth_client_allowlist"
-            ))
-            .await
-            .unwrap();
-    }
+    a_user(&store, "existing").await;
     store
         .connection()
-        .execute_unprepared("CREATE TABLE legacy_data (value TEXT NOT NULL)")
+        .execute_unprepared("ALTER TABLE users DROP COLUMN oauth_client_allowlist")
         .await
         .unwrap();
-    store
-        .connection()
-        .execute_unprepared("INSERT INTO legacy_data VALUES ('retained')")
-        .await
-        .unwrap();
-    store.sync().await.unwrap();
-    let user = store
+
+    let report = store.sync().await.unwrap();
+    assert!(!report.installed);
+    assert!(report.applied.is_empty(), "{report:?}");
+
+    let error = store
         .users()
         .get_many(&["existing".into()])
         .await
-        .unwrap()
-        .remove(0)
-        .unwrap();
-    assert_eq!(user.name, "kept");
-    assert!(user.oauth_client_allowlist.is_none());
-    let settings = store.settings().get().await.unwrap().unwrap();
-    assert_eq!(settings.max_attempts, 7);
-    assert!(settings.oauth_client_allowlist.is_none());
-    store.load_all_data().await.unwrap();
-    store
-        .settings()
-        .update(setting::ActiveModel {
-            oauth_client_allowlist: Set(Some(json!(["client"]))),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-    store.sync().await.unwrap();
-    assert_eq!(
-        store
-            .settings()
-            .get()
-            .await
-            .unwrap()
-            .unwrap()
-            .oauth_client_allowlist,
-        Some(json!(["client"]))
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("oauth_client_allowlist"),
+        "{error}"
     );
-    let row = store
-        .connection()
-        .query_one_raw(Statement::from_string(
-            DbBackend::Sqlite,
-            "SELECT value FROM legacy_data",
-        ))
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(row.try_get::<String>("", "value").unwrap(), "retained");
 }
 
-/// The upgrade path for the API-key binding and the audit trail: an existing
-/// database gains the two nullable columns and the new table in place.
+/// Likewise for a table: `sync` does not put back what it did not create, and a
+/// database that lost one is a database somebody has to repair deliberately.
 #[tokio::test]
-async fn sync_adds_the_api_key_bindings_and_the_audit_table_in_place() {
-    use gproxy_store::entity::identity::{api_key, organization};
+async fn sync_does_not_recreate_a_dropped_table() {
     let store = Store::new(connection().await);
     store.sync().await.unwrap();
-    // Model the immediately previous schema, before the binding and the table.
-    // SQLite refuses DROP COLUMN on a column named by a foreign key, so the
-    // previous api_keys definition is restated instead.
-    for statement in [
-        "DROP TABLE api_keys",
-        "CREATE TABLE \"api_keys\" ( \"id\" varchar NOT NULL PRIMARY KEY, \
-         \"user_id\" varchar NOT NULL, \"subscription_id\" varchar, \"name\" varchar NOT NULL, \
-         \"kind\" varchar(16) NOT NULL DEFAULT 'user', \"key_hash\" varchar NOT NULL UNIQUE, \
-         \"prefix\" varchar NOT NULL, \"secret\" varbinary_blob, \"expires_at_ms\" integer, \
-         \"enabled\" boolean NOT NULL DEFAULT TRUE, \
-         FOREIGN KEY (\"user_id\") REFERENCES \"users\" (\"id\") ON DELETE CASCADE, \
-         FOREIGN KEY (\"subscription_id\") REFERENCES \"subscriptions\" (\"id\") ON DELETE CASCADE )",
-        "DROP TABLE audit_events",
-    ] {
-        store
-            .connection()
-            .execute_unprepared(statement)
-            .await
-            .unwrap();
-    }
-    store
-        .users()
-        .create_many(vec![user::ActiveModel {
-            id: Set("u".into()),
-            name: Set("u".into()),
-            role: Set("user".into()),
-            created_at_ms: Set(0),
-            ..Default::default()
-        }])
-        .await
-        .unwrap();
     store
         .connection()
-        .execute_unprepared(
-            "INSERT INTO api_keys (id, user_id, name, kind, key_hash, prefix, enabled) \
-             VALUES ('k', 'u', 'k', 'user', 'hash', 'sk-', 1)",
-        )
+        .execute_unprepared("DROP TABLE audit_events")
         .await
         .unwrap();
+    store.sync().await.unwrap();
     assert!(
         !tables(store.connection())
             .await
             .contains(&"audit_events".into())
     );
-    store.sync().await.unwrap();
-    assert!(
-        tables(store.connection())
-            .await
-            .contains(&"audit_events".into())
-    );
-    // The pre-existing key is retained and simply unbound.
-    let key = store.load_identity_data().await.unwrap().api_keys.remove(0);
-    assert_eq!(key.key_hash, "hash");
-    assert!(key.organization_id.is_none() && key.team_id.is_none());
+}
+
+/// The failure this whole arrangement came from: a database whose schema this
+/// build does not own. It is refused whole, and the refusal names both ledgers
+/// so an operator can tell which product's database they pointed at.
+#[tokio::test]
+async fn sync_refuses_a_database_it_did_not_create() {
+    let store = Store::new(connection().await);
     store
-        .organizations()
-        .create_many(vec![organization::ActiveModel {
-            id: Set("org".into()),
-            name: Set("org".into()),
-            created_at_ms: Set(0),
-            ..Default::default()
-        }])
-        .await
-        .unwrap();
-    store
-        .api_keys()
-        .update_many(vec![api_key::ActiveModel {
-            id: Set("k".into()),
-            organization_id: Set(Some("org".into())),
-            ..Default::default()
-        }])
-        .await
-        .unwrap();
-    assert_eq!(
-        store.load_identity_data().await.unwrap().api_keys[0]
-            .organization_id
-            .as_deref(),
-        Some("org")
-    );
-    // Documented limitation of in-place column addition: SQLite's ALTER TABLE
-    // ADD COLUMN leaves the table's foreign keys untouched, so an upgraded
-    // database gains the columns without the Cascade a freshly created one has.
-    // The application layer must therefore unbind keys itself when it deletes a
-    // scope, rather than relying on the database to do it.
-    let ddl: String = store
         .connection()
-        .query_one_raw(Statement::from_string(
-            DbBackend::Sqlite,
-            "SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'api_keys'",
-        ))
+        .execute_unprepared("CREATE TABLE users (id integer NOT NULL PRIMARY KEY)")
         .await
-        .unwrap()
-        .unwrap()
-        .try_get("", "sql")
         .unwrap();
-    assert!(!ddl.contains("REFERENCES \"organizations\""), "{ddl}");
+    store
+        .connection()
+        .execute_unprepared("CREATE TABLE schema_migrations (version varchar NOT NULL)")
+        .await
+        .unwrap();
+    let before = tables(store.connection()).await;
+
+    let error = store.sync().await.unwrap_err().to_string();
+    assert!(error.contains(gproxy_store::MIGRATION_LEDGER), "{error}");
+    assert!(error.contains("schema_migrations"), "{error}");
+    assert_eq!(tables(store.connection()).await, before);
+    assert!(matches!(
+        store.schema_state().await.unwrap(),
+        SchemaState::Foreign { .. }
+    ));
 }
