@@ -282,14 +282,14 @@ concurrency permit measures requests **in flight**. A streamed response is in
 flight long after `App::call` returned.
 
 So the response body is a wrapper stream (`response::LeasedBody`) that **owns**
-the decision: the `Admitted`, the `DownstreamCapture` and core's
-`UsageCompletion` all live inside the stream. Each chunk is fed to the capture
-as it passes; when the last one has been written the stream awaits the
-settlement, writes the capture record and its edges, and releases the lease.
-Nothing has to remember to drop anything, because there is nowhere else the
-values are held. A client that hangs up mid-stream drops the body instead: the
-lease is returned by `Admitted`'s own drop path and the capture is lost, which
-is the same cost core's observer pays.
+the decision: the `Admitted`, the `DownstreamCapture`, core's `UsageCompletion`
+and the request's cancellation guard all live inside the stream. Each chunk is
+fed to the capture as it passes; when the last one has been written the stream
+awaits the settlement, writes the capture record and its edges, and releases the
+lease. Nothing has to remember to drop anything, because there is nowhere else
+the values are held. A client that hangs up mid-stream drops the body instead:
+the lease is returned by `Admitted`'s own drop path and the capture is lost,
+which is the same cost core's observer pays.
 
 A websocket is the same rule with a longer clock. The pump owns the same
 `Trailer` the response body does, and the socket's lease is released when the
@@ -298,6 +298,50 @@ dropped before the settlement is awaited, because core arms the exchange's
 settlement inside the socket it handed over: the guard that finishes it lives
 in the incoming stream, so awaiting the `UsageCompletion` while still holding
 the socket waits for a value only dropping it can produce.
+
+## A client that goes away cancels the upstream call
+
+**One token per request.** The ingress handler mints a `response::CancelOnDrop`,
+puts a clone of its token on `DataPlaneRequest::cancellation` and keeps the
+guard. Core honours the token everywhere: before each attempt, during the send,
+during the stream, and — the part that matters for the operator — when it
+decides what the usage row should say.
+
+The client never announces its departure; it is always a **drop**, and it can
+happen at two points. So the guard is held by whatever is alive at each of them:
+
+- **Before the head arrives**, the handler future is dropped, and the guard is
+  on its stack.
+- **Mid-stream**, hyper drops the response body, and by then the guard has moved
+  into the `Trailer` inside `LeasedBody` — next to the lease, the capture and the
+  settlement, for the same reason they are all in one place.
+- **On a socket**, the pump owns the `Trailer` and cancels explicitly, because an
+  upgraded socket is pumped by a task hyper spawned and there is no handler
+  future left to drop. Every exit that means *the client is gone* cancels: its
+  stream ending, its stream failing (a dropped socket arrives as
+  `ResetWithoutClosingHandshake`, which is a failure and not an end), and a send
+  to it that could not be written. The cancel goes out after the close frame has
+  gone upstream and before the closing handshake is drained, which is the read
+  that lets core see it.
+
+**Never on a normal completion.** Core reads the token when it chooses between
+`Completed` and `Cancelled`, so a token fired after the last byte would write a
+lie into the usage row and would be racing the settlement the body is waiting on.
+The guard is therefore disarmed in exactly one place — `Trailer::finish`, which
+every normal ending goes through, whether the body ran out, the upstream failed
+mid-body, a handshake was refused or a socket closed. A close frame from either
+side is a finished session and is not a cancellation.
+
+A cancelled request is still a metered request. It gets its usage row like any
+other, with `metrics.state` set to `cancelled` rather than `completed`, whatever
+the upstream managed to report before it was stopped, and its capture record
+closed as cancelled. The lease comes back the same way it always did.
+
+**A vendor service call takes no token.** It runs outside the observation funnel
+and holds no `Admitted`, but the deciding reason is narrower: neither
+`ServiceRequestIn` nor core's `ServiceRequest` has a field to put one in, so
+giving a service call a token means changing two other crates. A service call is
+short and buffered and the value does not pay for that, so it is left out.
 
 ## Two error envelopes
 
@@ -339,10 +383,9 @@ header. The code is; the text goes to the operator's log.
   per-turn capture: see above for why.
 - **Sign-in is not rate limited.** `gproxy-app` explains why it cannot do it
   (it has no client address); this host has one and does not yet use it.
-- **A client disconnect does not cancel the upstream call.**
-  `DataPlaneRequest::cancellation` is left unset. A websocket is the exception
-  by construction: a client that goes away ends the pump, which closes the
-  upstream socket.
+- **A vendor service call cannot be cancelled.** See above: the field does not
+  exist on `ServiceRequestIn` or on core's `ServiceRequest`, and a service call
+  is short and buffered enough that adding it has not been worth two crates.
 
 ## Tests
 
@@ -356,3 +399,8 @@ extension, and an upgrade is made of it, so `tests/websocket.rs` binds a
 loopback port and speaks the protocol with `tokio-tungstenite`. Every refusal
 is still a `oneshot` test — which is itself the assertion that it never
 upgraded anything.
+
+`tests/cancel.rs` binds a port for a second reason: a disconnect cannot be
+faked. Every HTTP client in the tree drains a body before handing it over, so
+that suite types the request out over a raw `TcpStream` and hangs up by dropping
+it, which is the one thing a real client does that nothing here can imitate.
