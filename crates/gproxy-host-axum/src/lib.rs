@@ -24,6 +24,7 @@
 //! | `GET /healthz` | liveness and the published revision |
 //! | `GET /publications/{id}` | a published body, by its capability id |
 //! | `/admin/api/*` | the operator surface, one `MethodRouter` per operation |
+//! | `/admin/api/update` | self-update, **only when the host supplied an [`UpdateService`]** |
 //! | `/portal/api/*` | the end user's surface, plus `login` and `logout` |
 //! | everything else | [`ingress`], in the order that module documents |
 //!
@@ -77,7 +78,11 @@
 //! | [`websocket`] | hyper's `OnUpgrade` and `axum`'s `ws`; a Worker upgrades with a `WebSocketPair` |
 //! | [`peer_ip`] | `ConnectInfo` is axum's `tokio` feature, and a Worker has `cf-connecting-ip` instead |
 //!
-//! No route is in that table, and none may join it.
+//! No route is in that table, and none may join it. `/admin/api/update` is not
+//! an exception to it: the routes are target-independent and compile for wasm
+//! like everything else here, and their absence at the edge comes from the
+//! edge host handing [`HostState::with_updates`] nothing — a *runtime* fact,
+//! not a `cfg`. See [`update`].
 //!
 //! The one thing the wasm build asks of every handler is [`send`]. On that
 //! target the engine below this crate is `!Send` on purpose — a JS transport
@@ -100,6 +105,7 @@ pub mod policy;
 pub mod portal;
 pub mod response;
 pub mod session;
+pub mod update;
 // Two implementations of one module: hyper's upgrade natively, and a refusal
 // on a fetch runtime, where `WebSocketPair` has no `http::Response` shape.
 // `ingress` calls the same three functions either way and does not branch.
@@ -108,6 +114,7 @@ pub mod websocket;
 
 pub use error::{ErrorResponse, OAuthEnvelope};
 pub use mount::Mount;
+pub use update::{AppliedUpdate, UpdateFailure, UpdateReport, UpdateSchedule, UpdateService};
 
 use std::sync::Arc;
 
@@ -130,14 +137,19 @@ use http::{HeaderValue, StatusCode, header};
 /// plane and to the management surfaces alike.
 pub const MAX_BODY_BYTES: usize = 64 * 1024 * 1024;
 
-/// Everything a handler needs: the instance, and the console bundle.
+/// Everything a handler needs: the instance, the console bundle, and whatever
+/// the host could supply that this crate cannot decide for itself.
 ///
-/// Cheap to clone — both fields are `Arc` — which is what lets axum hand a
-/// copy to every request.
+/// Cheap to clone — every field is an `Arc` or an `Option` of one — which is
+/// what lets axum hand a copy to every request.
 pub struct HostState<C> {
     app: Arc<App<C>>,
     #[cfg(not(target_arch = "wasm32"))]
     console: Arc<console::Console>,
+    /// The self-update implementation, when the host owns an executable to
+    /// replace. `None` at the edge and in the wasm build, where the routes are
+    /// then never mounted. See [`update`].
+    updates: Option<Arc<dyn update::UpdateService>>,
 }
 
 // Manual, because a derive would demand `C: Clone` for a field that is behind
@@ -148,6 +160,7 @@ impl<C> Clone for HostState<C> {
             app: self.app.clone(),
             #[cfg(not(target_arch = "wasm32"))]
             console: self.console.clone(),
+            updates: self.updates.clone(),
         }
     }
 }
@@ -163,11 +176,30 @@ impl<C> HostState<C> {
             app,
             #[cfg(not(target_arch = "wasm32"))]
             console,
+            updates: None,
         }
+    }
+
+    /// Supply a self-update implementation, which mounts
+    /// `/admin/api/update`.
+    ///
+    /// Only a host that owns its own executable calls this. Everything the
+    /// routes do is the trait's; this crate neither downloads nor writes
+    /// anything. See [`update`] for why that separation is structural rather
+    /// than tidy.
+    pub fn with_updates(mut self, service: Arc<dyn update::UpdateService>) -> Self {
+        self.updates = Some(service);
+        self
     }
 
     pub fn app(&self) -> &Arc<App<C>> {
         &self.app
+    }
+
+    /// The host's self-update implementation, if it supplied one. `None` is
+    /// what keeps the update routes off the edge build's router.
+    pub fn updates(&self) -> Option<&Arc<dyn update::UpdateService>> {
+        self.updates.as_ref()
     }
 
     #[cfg(not(target_arch = "wasm32"))]
