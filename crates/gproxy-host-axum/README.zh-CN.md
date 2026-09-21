@@ -26,11 +26,17 @@ axum::serve(
 |---|---|---|
 | `GET` | `/healthz` | 存活与已发布的配置 revision；不鉴权 |
 | `GET` | `/publications/{id}` | 已发布的内容；id **本身就是**凭据，所以不要 key |
-| — | `/admin/api/…` | 运维面：每个操作一条显式 `MethodRouter` |
+| — | `/admin/api/…` | 运维面：每个操作一条显式 `MethodRouter`，覆盖 `Operations` 与 `manage()` 两半 |
 | — | `/portal/api/…` | 终端用户面，外加 `login` 与 `logout` |
 | — | 其余一切 | ingress 兜底，顺序见下 |
 
 ### `/admin/api`
+
+两半，一个面。**身份**家族来自 `gproxy_app::Operations`；**配置**家族直接调
+`gproxy_sdk::Gproxy::manage()`——sdk 的家族本身就是那张操作表，再包一层转发也
+没有任何东西可判断。两半共用同一组中间件。
+
+#### 身份
 
 每个身份家族都有同样的五条路由，由一个宏生成——这样一个家族不可能只写了四条，
 也不可能某一条用了别的方法：
@@ -65,12 +71,74 @@ DELETE /admin/api/sessions/{id}
 GET    /admin/api/audit                        审计
 ```
 
+#### 配置
+
+同样的五条，外加第六条——每个 sdk 家族都有 batch，而一次 batch 不论写多少行
+都只是一次 revision 提交：
+
+```
+POST   /admin/api/{family}/batch     [{"create": …}, {"update": {"id": …, "patch": …}}, {"delete": "id"}]
+```
+
+`{family}` 取 `providers`、`credentials`、`models`、`provider-models`、
+`routes`、`route-members`、`exposed-models`、`connection-profiles`、
+`rule-sets`、`rules`、`provider-rule-sets`、`operation-rules`、
+`operation-endpoints`、`quotas`、`price-rules`、`price-rates`、`price-tiers`。
+之外：
+
+```
+GET    /admin/api/settings                       唯一那行的两组设置
+PATCH  /admin/api/settings
+POST   /admin/api/providers/{id}/routing-defaults/reset
+POST   /admin/api/credentials/{id}/reveal        明文密钥——会审计
+POST   /admin/api/credentials/{id}/status        {"status": "active"|"dead", "reason": …}
+POST   /admin/api/credentials/{id}/refresh       ?force=true 连没过期的也换
+GET    /admin/api/credentials/{id}/quota         已观测到的周期与封禁
+POST   /admin/api/credentials/{id}/quota-probe   去问上游
+POST   /admin/api/credentials/{id}/quota-reset   兑换一次重置额度
+POST   /admin/api/credentials/{id}/health-reset
+GET    /admin/api/credentials/{id}/limits        覆盖它的运维限额
+POST   /admin/api/models/discover                {"providerId": …, "credentialId": …}
+POST   /admin/api/models/discover/apply          {"providerId": …, "upstreamNames": […]}
+POST   /admin/api/models/test                    真打一次生成
+PUT    /admin/api/rule-sets/{id}/rules           整组替换
+POST   /admin/api/rule-sets/{id}/rule-presets/{preset}
+GET    /admin/api/quotas/status                  ?owners=user:alice,team:t1
+POST   /admin/api/quotas/{id}/reset              预算窗口
+POST   /admin/api/quotas/{id}/limit-reset        运维限额造成的封禁
+POST   /admin/api/export                         {"includeSecrets": bool} → no-store
+POST   /admin/api/import                         {"export": …, "mode": …, "sourceMasterKey": …}
+POST   /admin/api/connectivity/test
+GET    /admin/api/channels                       每个编译进来的渠道一份 ChannelDescriptor
+GET    /admin/api/tls-presets
+GET    /admin/api/rule-presets
+GET    /admin/api/default-model-catalog
+POST   /admin/api/default-model-catalog/apply-prices
+GET    /admin/api/tokenizer-vocabs               （及 POST 拉取一份）
+GET    /admin/api/tokenizer-vocabs/progress      本进程的下载进度，或 null
+DELETE /admin/api/tokenizer-vocabs/{fileId}
+GET    /admin/api/tokenizer-auth                 （及 PATCH {"token": … | null}）
+POST   /admin/api/tokenizer-auth/reveal          明文 token——会审计
+```
+
+v3 有同一个操作的地方路径沿用 v3，运维已有的脚本因此不会断。v4 新增的：
+`/exposed-models`（v3 叫 aliases）、`/connection-profiles`、`/operation-rules`、
+`/operation-endpoints`、`/price-tiers`、`/settings`（v3 分成
+`/instance-settings` 与 `/log-settings`）、`/{family}/batch`（v3 是
+`/batch/{entity}`）、`/credentials/{id}/{status,refresh,limits}`、
+`/models/discover/apply`、`/rule-sets/{id}/rules`、`/quotas/status`、
+`/quotas/{id}/{reset,limit-reset}`，以及
+`DELETE /tokenizer-vocabs/{fileId}`（v3 把 id 放在 `DELETE` 的 body 里）。
+
+#### 中间件
+
 中间件顺序：认证 → **要求实例管理员** → 非安全方法且是 cookie 调用者时校验同源 →
 执行操作 → 非读方法写一行审计。它是 `route_layer`，所以未命中的
 `/admin/api/*` 是一个连数据库都不碰的 404。
 
 审计的 action 由命中的路由推出（`admin.api_keys.rotate`、
-`admin.users.update`），新路由因此不可能忘记给自己命名。
+`admin.providers.create`），新路由因此不可能忘记给自己命名。读不审计——上面那两个
+读之所以是 `POST`，就是为了落进审计。
 
 ### `/portal/api`
 

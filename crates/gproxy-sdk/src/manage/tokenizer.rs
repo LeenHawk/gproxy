@@ -440,7 +440,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Tokenizer<'_, C> {
 
 /// Read the body, publishing progress per chunk and refusing to buffer past
 /// the instance's response limit.
-async fn collect(body: HttpBody, limit: u64, publish: &dyn Fn(u64)) -> SdkResult<Bytes> {
+///
+/// `publish` is `+ Sync` so that the future this is awaited inside stays
+/// `Send`: a `&dyn Fn` held across an await is only `Send` when the trait
+/// object is `Sync`, and without it `Tokenizer::fetch` could not be called
+/// from an axum handler at all — every host requires a `Send` future.
+async fn collect(body: HttpBody, limit: u64, publish: &(dyn Fn(u64) + Sync)) -> SdkResult<Bytes> {
     let too_large = || {
         SdkError::invalid(format!(
             "the vocabulary is larger than this instance's {limit}-byte response limit"
