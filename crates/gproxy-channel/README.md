@@ -16,11 +16,22 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | Feature | Id | Upstream | Credential |
 |---|---|---|---|
 | `custom` | `custom` | Any API-key endpoint speaking OpenAI, Claude or Gemini natively | `{"api_key"}` |
+| `azure` | `azure` | Azure OpenAI and the Anthropic models Azure AI Foundry hosts: the v1 or the deployment-scoped surface under a resource, `api-key` and `x-api-key` | `{"api_key"}` |
 | `codex` | `codex` | ChatGPT account through the Codex backend: OAuth (PKCE and device code), Responses over HTTP SSE and WebSocket, `x-codex-*` limit headers, `/wham/usage`, CLI backend services | `OAuthCredential` |
 | `claudecode` | `claudecode` | Claude.ai subscription through the Claude Code CLI's Messages requests: PKCE and cookie login, refresh, unified rate-limit headers, `/api/oauth/usage`, CLI services | `OAuthCredential` |
 | `claudeweb` | `claudeweb` | claude.ai browser session: cookie login against `/api/bootstrap`, multi-call conversation turns rendered as Claude Messages SSE, organization usage windows | session cookie + organization |
+| `vertex` | `vertex` | Google Vertex AI: regional project-scoped methods for the Google, Anthropic and OpenAI-compatible publishers; a service-account key exchanged for an access token through `CredentialRefresh` | Google service-account key |
+| `vertexexpress` | `vertexexpress` | Vertex AI Express mode: the Gemini surface on one global origin, key in the query, no project and no region | `{"api_key"}` |
 
-All four build for native targets and `wasm32-unknown-unknown`.
+All seven build for native targets and `wasm32-unknown-unknown`.
+
+`azure`, `vertex` and `vertexexpress` are cloud resellers: they forward each
+hosted vendor's own wire and change only where the method lives and how the
+credential is presented. None of them impersonates a client, so none returns a
+`default_connection` — the operator's connection profile is the only thing
+that decides their outbound stack. A `vertex` credential is stored with its
+`expires_at_ms` already past, so the host's first refresh mints the access
+token before the first request goes out; `prepare` never mints one.
 
 ## Contract
 
