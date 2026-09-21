@@ -46,7 +46,11 @@ pub(super) fn client() -> Result<reqwest::Client, UpdateError> {
         .map_err(|_| UpdateError::Download)
 }
 
-pub(super) async fn manifest(client: &reqwest::Client, url: &str) -> Result<Manifest, UpdateError> {
+pub(super) async fn manifest(
+    client: &reqwest::Client,
+    url: &str,
+    key: Option<&str>,
+) -> Result<Manifest, UpdateError> {
     let response = client
         .get(url)
         .send()
@@ -56,7 +60,7 @@ pub(super) async fn manifest(client: &reqwest::Client, url: &str) -> Result<Mani
         return Err(UpdateError::Download);
     }
     let bytes = response.bytes().await.map_err(|_| UpdateError::Download)?;
-    Manifest::parse_verified(&bytes)
+    Manifest::parse_verified(&bytes, key)
 }
 
 pub(super) async fn artifact(

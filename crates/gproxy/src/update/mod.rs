@@ -52,6 +52,9 @@
 
 pub mod config;
 mod download;
+/// The whole path, driven against a manifest the test signs itself.
+#[cfg(test)]
+mod e2e;
 mod extract;
 mod manifest;
 mod notes;
@@ -103,6 +106,18 @@ pub struct Updater {
     /// filesystems is a copy and cannot be atomic, and a small `/tmp` is the
     /// most common way an update of a few tens of megabytes fails.
     staging: PathBuf,
+    /// The file an apply replaces, resolved **once at construction**.
+    ///
+    /// `None` when this process cannot locate itself, which on every platform
+    /// this ships to means something has already gone wrong; checking still
+    /// works and installing is refused with a message rather than a panic.
+    /// Resolving it here rather than at apply time means an operator learns
+    /// about it in the startup log, not while watching a progress bar.
+    executable: Option<PathBuf>,
+    /// The ed25519 key every manifest is verified against. Initialised from
+    /// [`config::SIGNING_PUBLIC_KEY`], which is compiled in and has no runtime
+    /// source — see that module for why the trust root is not configurable.
+    signing_key: Option<String>,
     options: UpdateOptions,
     recorded: Mutex<Recorded>,
     /// The scheduled check, aborted when this value is dropped. The task holds
@@ -134,16 +149,40 @@ impl std::fmt::Debug for Updater {
         f.debug_struct("Updater")
             .field("options", &self.options)
             .field("staging", &self.staging)
+            .field("executable", &self.executable)
+            // Never the key. It is public key material and harmless, but a
+            // `Debug` that prints a trust root teaches the wrong habit.
+            .field("signed", &self.signing_key.is_some())
             .finish_non_exhaustive()
     }
 }
 
 impl Updater {
-    /// Build an updater that stages artifacts under `data_dir`.
+    /// Build an updater that stages artifacts under `data_dir` and replaces
+    /// the executable this process is running.
     pub fn new(data_dir: &Path, options: UpdateOptions) -> Result<Arc<Self>> {
+        let executable = match std::env::current_exe() {
+            Ok(path) => Some(path),
+            Err(error) => {
+                tracing::warn!(
+                    %error,
+                    "this process cannot locate its own executable; update checks still work but \
+                     installing one will be refused"
+                );
+                None
+            }
+        };
+        if config::SIGNING_PUBLIC_KEY.is_none() {
+            tracing::debug!(
+                "no update signing key was compiled into this binary (GPROXY_UPDATE_PUBKEY), so \
+                 every manifest will be refused; this is the normal state of a source build"
+            );
+        }
         Ok(Arc::new(Self {
             client: download::client()?,
             staging: data_dir.join(STAGING_DIR),
+            executable,
+            signing_key: config::SIGNING_PUBLIC_KEY.map(str::to_owned),
             options,
             recorded: Mutex::new(Recorded::default()),
             task: Mutex::new(None),
@@ -159,6 +198,32 @@ impl Updater {
             .clone()
             .unwrap_or_else(|| crate::config::DEFAULT_DATA_DIR.to_owned());
         Self::new(Path::new(&data_dir), options)
+    }
+
+    /// An updater that verifies against a key the caller generated and
+    /// replaces a file the caller named.
+    ///
+    /// Test-only, and it is the only way the real path can be exercised at
+    /// all: the production key is compiled in from the build environment, a
+    /// checkout has none, and the production target is the test harness's own
+    /// binary. Nothing here weakens a released build — the two values it
+    /// overrides have exactly one production source each, a few lines above.
+    #[cfg(test)]
+    pub(crate) fn for_test(
+        data_dir: &Path,
+        executable: &Path,
+        signing_key: Option<String>,
+        options: UpdateOptions,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            client: download::client().expect("an HTTP client"),
+            staging: data_dir.join(STAGING_DIR),
+            executable: Some(executable.to_owned()),
+            signing_key,
+            options,
+            recorded: Mutex::new(Recorded::default()),
+            task: Mutex::new(None),
+        })
     }
 
     pub fn options(&self) -> &UpdateOptions {
@@ -282,7 +347,7 @@ impl Updater {
 
     /// Put the previous executable back.
     pub async fn rollback_now(&self, restart_after: bool) -> Outcome<AppliedUpdate> {
-        swap::rollback()?;
+        swap::rollback(self.executable()?)?;
         if restart_after {
             schedule_restart(self.options.restart);
         }
@@ -307,6 +372,20 @@ impl Updater {
         }
     }
 
+    /// The file an apply replaces, or a refusal an operator can act on.
+    ///
+    /// Only the two writing paths call this. A check does not, so an instance
+    /// that cannot locate its own executable still reports new releases — it
+    /// simply cannot install one.
+    fn executable(&self) -> Outcome<&Path> {
+        self.executable.as_deref().ok_or_else(|| {
+            UpdateError::Configuration(
+                "this process cannot locate its own executable, so there is nothing to replace"
+                    .to_owned(),
+            )
+        })
+    }
+
     /// Download and verify the manifest, and refuse one that is not for the
     /// channel that was asked for.
     ///
@@ -317,7 +396,7 @@ impl Updater {
     /// install a release candidate.
     async fn fetch_manifest(&self, channel: Channel) -> Outcome<manifest::Manifest> {
         let url = self.options.manifest_url(channel);
-        let manifest = download::manifest(&self.client, &url).await?;
+        let manifest = download::manifest(&self.client, &url, self.signing_key.as_deref()).await?;
         if manifest.channel != channel.as_str() {
             return Err(UpdateError::WrongChannel {
                 expected: channel.as_str(),
@@ -355,7 +434,10 @@ impl Updater {
             notes_url: manifest.notes_url.clone(),
             notes,
             restart: self.options.restart.as_str().to_owned(),
-            rollback_available: swap::rollback_available(),
+            rollback_available: self
+                .executable
+                .as_deref()
+                .is_some_and(swap::rollback_available),
             checked_at_ms: now_ms(),
         })
     }
@@ -383,7 +465,7 @@ impl Updater {
         let artifact = manifest.artifact(&target)?;
         let bytes = download::artifact(&self.client, artifact).await?;
         let staged = extract::binary(&bytes, &self.staging)?;
-        swap::install(&staged)?;
+        swap::install(self.executable()?, &staged)?;
         // The staged copy is now redundant — `swap` copied it into place — and
         // it is a whole executable. Removing it is a courtesy, not a
         // correctness requirement, so its failure is not the operator's

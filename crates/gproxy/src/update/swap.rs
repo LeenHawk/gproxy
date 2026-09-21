@@ -30,28 +30,27 @@ use std::path::{Path, PathBuf};
 
 use super::config::UpdateError;
 
-/// Replace the executable this process is running with `staged`.
-pub(super) fn install(staged: &Path) -> Result<(), UpdateError> {
-    let executable = current_exe()?;
-    install_at(&executable, staged, false)
+/// Replace `target` with `staged`.
+///
+/// The executable is a parameter rather than a `std::env::current_exe()` read
+/// inside this module, for two reasons. It is what lets the end-to-end test
+/// drive a real swap against a file in a temporary directory rather than
+/// against the test harness's own binary — and it puts "which file am I
+/// replacing" where it belongs, in [`Updater`](super::Updater), which resolves
+/// it once at construction instead of at the moment an operator presses apply.
+pub(super) fn install(target: &Path, staged: &Path) -> Result<(), UpdateError> {
+    install_at(target, staged, false)
 }
 
 /// Whether there is a previous executable to go back to.
-pub(super) fn rollback_available() -> bool {
-    std::env::current_exe()
-        .ok()
-        .is_some_and(|path| previous(&path).is_file())
+pub(super) fn rollback_available(target: &Path) -> bool {
+    previous(target).is_file()
 }
 
 /// Put the previous executable back, keeping the one being replaced as the new
 /// rollback target — so a rollback can itself be rolled back.
-pub(super) fn rollback() -> Result<(), UpdateError> {
-    let executable = current_exe()?;
-    rollback_at(&executable)
-}
-
-fn current_exe() -> Result<PathBuf, UpdateError> {
-    std::env::current_exe().map_err(|error| UpdateError::io("locating this executable", error))
+pub(super) fn rollback(executable: &Path) -> Result<(), UpdateError> {
+    rollback_at(executable)
 }
 
 fn rollback_at(executable: &Path) -> Result<(), UpdateError> {

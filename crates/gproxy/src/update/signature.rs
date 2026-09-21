@@ -8,18 +8,19 @@
 use base64::Engine as _;
 use ed25519_dalek::{Signature, VerifyingKey};
 
-use super::config::{SIGNING_PUBLIC_KEY, UpdateError};
+use super::config::UpdateError;
 
-/// Verify `signature` over `bytes` under the key compiled into this binary.
-pub(super) fn verify_detached(bytes: &[u8], signature: &str) -> Result<(), UpdateError> {
-    verify_detached_with_key(bytes, signature, SIGNING_PUBLIC_KEY)
-}
-
-/// The same, against a key given here.
+/// Verify `signature` over `bytes` under `public_key`.
 ///
-/// Exists so the tests can sign a manifest with a key pair they generated,
-/// which is the only way to exercise this path at all: a release build takes
-/// the key from the build environment, and a checkout has none.
+/// The key is a parameter rather than a read of
+/// [`SIGNING_PUBLIC_KEY`](super::config::SIGNING_PUBLIC_KEY), and there is no
+/// second entry point that reads that constant directly. That is what lets the
+/// tests sign a manifest with a key pair they generated — the only way to
+/// exercise this path at all, since a release build takes the key from the
+/// build environment and a checkout has none — without adding a *second*
+/// verification function a call site could pick by mistake. The production key
+/// reaches here from exactly one place: the field [`Updater`](super::Updater)
+/// initialises from the constant.
 pub(super) fn verify_detached_with_key(
     bytes: &[u8],
     signature: &str,
