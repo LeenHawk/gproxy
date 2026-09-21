@@ -7,7 +7,9 @@ use gproxy_store::entity::identity::{
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct OrganizationMemberDto {
     pub organization_id: String,
     pub user_id: String,
@@ -27,7 +29,9 @@ impl From<organization_member::Model> for OrganizationMemberDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct TeamMemberDto {
     pub team_id: String,
     pub user_id: String,
@@ -48,7 +52,9 @@ impl From<team_member::Model> for TeamMemberDto {
 /// Used by the reads that answer "who is in here" without the caller having to
 /// know which family it asked.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct MembershipDto {
     /// `organization` or `team`.
     pub scope_kind: String,
@@ -65,7 +71,9 @@ pub(crate) fn role_name(role: MembershipRole) -> &'static str {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct MemberWrite {
     pub user_id: String,
     /// `member` or `admin`; absent means `member`.
@@ -76,7 +84,9 @@ pub struct MemberWrite {
 /// The only thing a membership has to change. Moving a member to another
 /// organization is a remove and an add, not a patch: the pair *is* the key.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct MemberPatch {
     pub role: String,
 }

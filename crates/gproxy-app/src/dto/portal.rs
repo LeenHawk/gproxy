@@ -31,7 +31,9 @@ use super::ApiKeyDto;
 /// which scopes you belong to, what you are subscribed to, and which parts of
 /// the portal this instance offers you.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalContextDto {
     pub user: PortalUserDto,
     /// Direct organization memberships. A team joined without its parent is
@@ -45,7 +47,9 @@ pub struct PortalContextDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalUserDto {
     pub id: String,
     pub name: String,
@@ -58,7 +62,9 @@ pub struct PortalUserDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalOrganizationDto {
     pub id: String,
     pub name: String,
@@ -67,7 +73,9 @@ pub struct PortalOrganizationDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalTeamDto {
     pub id: String,
     pub name: String,
@@ -78,7 +86,9 @@ pub struct PortalTeamDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalSubscriptionDto {
     pub id: String,
     pub plan_id: String,
@@ -109,7 +119,9 @@ impl PortalSubscriptionDto {
 /// Every flag is a fact about configuration or about the caller's role — never
 /// about data — so computing it costs nothing and leaks nothing.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalFeaturesDto {
     /// Whether the key family's writing half is open. False for an OAuth-grant
     /// caller: a token the user handed to somebody else's program must not be
@@ -137,7 +149,9 @@ pub struct PortalFeaturesDto {
 /// served by two providers tells a user nothing about another tenant.
 /// `permitted` is the caller's own answer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalModelDto {
     /// Either an exposed model name or a `channel/model` form.
     pub name: String,
@@ -157,7 +171,9 @@ pub struct PortalModelDto {
 /// `user` keys, because an `oauth` key belongs to a grant and is managed by
 /// revoking that grant.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalKeyDto {
     pub id: String,
     pub name: String,
@@ -203,7 +219,9 @@ impl From<api_key::Model> for PortalKeyDto {
 /// organization and the team must exist, and **the caller must be a member of
 /// them**.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalKeyCreate {
     pub name: String,
     /// Absent mints a key that never expires.
@@ -223,7 +241,9 @@ pub struct PortalKeyCreate {
 /// A minted or rotated key. `token` is the only time the plaintext travels,
 /// apart from an explicit reveal of a key that retained one.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalKeyCreated {
     #[serde(flatten)]
     pub key: PortalKeyDto,
@@ -233,7 +253,9 @@ pub struct PortalKeyCreated {
 /// The answer to a reveal. Separate from [`PortalKeyDto`] so a plaintext can
 /// never ride along with an ordinary read.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalKeySecretDto {
     pub id: String,
     pub token: String,
@@ -248,7 +270,9 @@ pub struct PortalKeySecretDto {
 /// into sending the same request without it. It is overwritten with the
 /// caller's own id before the query reaches the engine.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalUsageQuery {
     /// Inclusive lower bound on `startedAtMs`.
     #[serde(default)]
@@ -278,7 +302,9 @@ pub struct PortalUsageQuery {
 
 /// The caller's own usage over the requested range.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalUsageDto {
     pub from_ms: Option<i64>,
     pub to_ms: Option<i64>,
@@ -298,7 +324,9 @@ pub struct PortalUsageDto {
 /// different things to do something about. Every owner here is one the caller
 /// is themselves part of: the chain is built from their own key binding.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalQuotaWindowDto {
     /// `api_key`, `user`, `subscription`, `team` or `org`.
     pub owner_kind: String,
@@ -330,7 +358,9 @@ pub struct PortalQuotaWindowDto {
 /// name, and only when it still exists. See the module note on
 /// [`Portal::recent_requests`](crate::operations::Portal::recent_requests).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalRequestDto {
     pub request_id: String,
     /// The caller's own key that made the request, when one did.
@@ -381,7 +411,9 @@ impl PortalRequestDto {
 
 /// One live authorization the caller granted to a third-party client.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalOAuthSessionDto {
     pub id: String,
     pub client_id: String,
@@ -438,7 +470,9 @@ fn scopes(value: &serde_json::Value) -> Vec<String> {
 /// does not: an OAuth-only account has nothing to prove, and asking it for a
 /// password it never set would be unanswerable.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalPasswordChange {
     #[serde(default)]
     pub current: Option<String>,
@@ -447,7 +481,9 @@ pub struct PortalPasswordChange {
 
 /// A portal sign-in.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalLogin {
     pub name: String,
     pub password: String,
@@ -456,7 +492,9 @@ pub struct PortalLogin {
 /// The session a sign-in opened. `token` is the only copy; the row holds its
 /// digest.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalSessionDto {
     pub id: String,
     pub token: String,

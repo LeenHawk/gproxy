@@ -5,7 +5,9 @@ use gproxy_store::entity::oauth::client;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct OAuthClientDto {
     /// The public `client_id`, chosen at registration and immutable after it.
     pub id: String,
@@ -30,7 +32,9 @@ impl From<client::Model> for OAuthClientDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct OAuthClientWrite {
     /// Required, unlike every other family: the id *is* the `client_id` a
     /// third-party binary was built with, so it cannot be generated here.
@@ -43,7 +47,9 @@ pub struct OAuthClientWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct OAuthClientPatch {
     #[serde(default)]
     pub name: Option<String>,

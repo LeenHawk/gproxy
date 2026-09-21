@@ -1030,3 +1030,36 @@ organization or a team**, in the same batch and before the parent row — see
 chain, permission subject and credential-visibility boundary no longer exist
 must not keep serving requests, and on an upgraded instance nothing below this
 layer will stop it.
+
+## Type export
+
+The `ts` feature derives a `ts-rs` declaration for every type `dto` exports,
+and one test writes them out:
+
+```sh
+GPROXY_TS_OUT=console/src/generated/app \
+  cargo test -p gproxy-app --features ts export_types
+```
+
+Without `GPROXY_TS_OUT` the test returns immediately and writes nothing, so
+`cargo test --all-features` stays hermetic and a generated directory is only
+ever rewritten on purpose. With it, the directory is wiped first — a stale
+declaration for a DTO that no longer exists would keep type-checking in the
+console long after Rust dropped it — and an `index.ts` re-exporting everything
+is written last. A second test reads `dto/mod.rs` and fails when the export
+list and the `pub use` items disagree, so adding a DTO and forgetting the list
+is a red test rather than a type the console silently goes without.
+
+The feature turns `gproxy-sdk/ts` on as well, because a portal shape is built
+out of sdk shapes — `PortalUsageDto` carries a `UsageSummaryDto` — and a
+declaration cannot be written for a type whose field types have none.
+
+### Two crates, two directories
+
+The export wipes its output directory before writing, so two crates exporting
+into one directory would erase each other. The sdk's declarations go to
+`console/src/generated/sdk` and this crate's to `console/src/generated/app`,
+each with its own `index.ts`; `pnpm types` in `console/` runs both. `ts-rs`
+exports a type together with its dependencies, so each directory is
+self-contained and neither imports across the seam — at the cost of the sdk
+shapes a portal DTO carries being declared in both.

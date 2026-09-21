@@ -6,7 +6,9 @@ use gproxy_store::entity::identity::permission;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PermissionDto {
     pub id: String,
     /// Exactly one of these two is set. A rule with neither is a grant to
@@ -44,7 +46,9 @@ impl From<permission::Model> for PermissionDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PermissionWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -65,7 +69,9 @@ pub struct PermissionWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PermissionPatch {
     #[serde(default, deserialize_with = "double_option")]
     pub user_id: Option<Option<String>>,

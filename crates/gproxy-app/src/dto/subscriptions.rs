@@ -5,7 +5,9 @@ use gproxy_store::entity::subscription::user_subscription;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct SubscriptionDto {
     pub id: String,
     pub user_id: String,
@@ -32,7 +34,9 @@ impl From<user_subscription::Model> for SubscriptionDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct SubscriptionWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -48,7 +52,9 @@ pub struct SubscriptionWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct SubscriptionPatch {
     /// Re-pointing an issued subscription at another plan is allowed but
     /// deliberate: the plan's limits are copied at issuance and existing

@@ -6,7 +6,9 @@ use gproxy_store::entity::identity::api_key::{self, ApiKeyKind};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ApiKeyDto {
     pub id: String,
     pub user_id: String,
@@ -54,7 +56,9 @@ pub(crate) fn kind_name(kind: ApiKeyKind) -> &'static str {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ApiKeyWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -81,7 +85,9 @@ pub struct ApiKeyWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ApiKeyPatch {
     #[serde(default)]
     pub name: Option<String>,
@@ -101,7 +107,9 @@ pub struct ApiKeyPatch {
 /// a response; a caller that loses it rotates the key, it is not recoverable
 /// unless the row was created with `retainSecret`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ApiKeyCreated {
     #[serde(flatten)]
     pub key: ApiKeyDto,
@@ -112,7 +120,9 @@ pub struct ApiKeyCreated {
 /// retain. Separate from [`ApiKeyDto`] so a plaintext can never ride along
 /// with an ordinary read.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ApiKeySecretDto {
     pub id: String,
     pub token: String,

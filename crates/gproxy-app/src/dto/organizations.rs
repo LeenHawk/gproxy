@@ -5,7 +5,9 @@ use gproxy_store::entity::identity::organization;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct OrganizationDto {
     pub id: String,
     pub name: String,
@@ -25,7 +27,9 @@ impl From<organization::Model> for OrganizationDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct OrganizationWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -35,7 +39,9 @@ pub struct OrganizationWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct OrganizationPatch {
     #[serde(default)]
     pub name: Option<String>,

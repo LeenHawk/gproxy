@@ -7,7 +7,9 @@ use gproxy_store::entity::identity::team;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct TeamDto {
     pub id: String,
     pub organization_id: String,
@@ -29,7 +31,9 @@ impl From<team::Model> for TeamDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct TeamWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -40,7 +44,9 @@ pub struct TeamWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct TeamPatch {
     #[serde(default)]
     pub name: Option<String>,

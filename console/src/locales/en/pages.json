@@ -1,0 +1,64 @@
+{
+  "overview": {
+    "title": "Hello, {{name}}",
+    "subscription": "Subscription",
+    "usage": "The last seven days",
+    "usageDescription": "Totals over every request this account made in the window.",
+    "quota": "Budgets",
+    "noSubscription": "No subscription is in force for this account.",
+    "noExpiry": "No expiry",
+    "expires": "Expires {{at}}"
+  },
+  "keys": {
+    "emptyTitle": "No keys yet",
+    "emptyDescription": "Mint one to point a client at this gateway.",
+    "readOnlyTitle": "Read-only here",
+    "readOnlyDescription": "You are signed in through a program you authorized, and a lent token does not get to mint fresh long-lived credentials. Sign in with your password to change keys.",
+    "secretTitle": "Copy this now",
+    "secretHint": "This is the only time the instance will show it. Lose it and the key has to be rotated.",
+    "copied": "Copied to the clipboard",
+    "copyFailed": "The clipboard is unavailable; select the text and copy it."
+  },
+  "models": {
+    "emptyTitle": "No models are exposed",
+    "emptyDescription": "This instance has no provider configured yet, or none of them reaches you."
+  },
+  "usage": {
+    "trend": "Cost over the window",
+    "groups": "Breakdown",
+    "truncated": "The scan hit its row cap. These numbers describe {{scanned}} records, not every one in the window.",
+    "emptyTitle": "Nothing in this window",
+    "emptyDescription": "No request of yours falls inside it."
+  },
+  "quota": {
+    "emptyTitle": "No budget applies",
+    "emptyDescription": "Nothing in your chain — key, account, subscription, team or organization — sets a limit.",
+    "pattern": "Covers {{pattern}}",
+    "permanent": "Does not reset",
+    "resets": "Resets {{at}}"
+  },
+  "requests": {
+    "emptyTitle": "No recent requests",
+    "emptyDescription": "Either you have made none, or this instance has the portal's request log switched off."
+  },
+  "account": {
+    "password": "Password",
+    "passwordDescription": "Changing it ends every other session you have open.",
+    "passwordChanged": "Password changed",
+    "scopes": "Scopes",
+    "scopesDescription": "The organizations and teams you belong to, and your role in each.",
+    "noScopes": "No scopes",
+    "noScopesDescription": "This account belongs to no organization or team.",
+    "sessions": "Sessions",
+    "sessionsDescription": "Every console or portal sign-in you have open, including this one.",
+    "grants": "Authorized programs",
+    "grantsDescription": "Third-party clients you granted access to. Revoking one ends its access at once.",
+    "noGrants": "Nothing authorized",
+    "noGrantsDescription": "No program holds an authorization from this account."
+  },
+  "members": {
+    "title": "Members",
+    "description": "Who belongs to {{name}}, and with what role.",
+    "emptyTitle": "No members yet"
+  }
+}

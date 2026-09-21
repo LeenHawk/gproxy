@@ -805,3 +805,30 @@ portal.password().change(change).await?;
 **因此删除组织或团队时，由本 crate 自己在同一个 batch 里、在父行之前删除受影响的
 API key**，见[显式的 key 级联](#显式的-key-级联)。一个预算链、权限主体和凭证可见性边界
 都已不存在的 key 不能继续服务请求，而在升级上来的实例上，这一层以下没有任何东西会拦住它。
+
+## 类型导出
+
+`ts` feature 给 `dto` 导出的每个类型生成一份 `ts-rs` 声明，由一个测试写出去：
+
+```sh
+GPROXY_TS_OUT=console/src/generated/app \
+  cargo test -p gproxy-app --features ts export_types
+```
+
+不设 `GPROXY_TS_OUT` 时这个测试立刻返回、什么都不写，于是
+`cargo test --all-features` 保持无副作用，生成目录只会在有人明确要求时被重写。设了之后，
+目录先被清空——一个已经不存在的 DTO 留下的陈旧声明，会在 Rust 侧删掉很久之后仍然让控制台
+通过类型检查——最后写一份 re-export 全部的 `index.ts`。另一个测试读 `dto/mod.rs`，当导出
+清单与 `pub use` 条目对不上时失败：加了 DTO 却忘了清单，是一个红测试，而不是控制台悄悄少
+一个类型。
+
+这个 feature 同时打开 `gproxy-sdk/ts`，因为门户的形状是由 sdk 的形状搭起来的——
+`PortalUsageDto` 里装着 `UsageSummaryDto`——而字段类型没有声明的类型，自己也写不出声明。
+
+### 两个 crate，两个目录
+
+导出会在写之前清空输出目录，所以两个 crate 导向同一个目录会互相抹掉。sdk 的声明写到
+`console/src/generated/sdk`，本 crate 的写到 `console/src/generated/app`，各有自己的
+`index.ts`；`console/` 下的 `pnpm types` 依次跑这两条命令。`ts-rs` 导出一个类型时会连同它
+的依赖一起导出，所以两个目录各自自洽，谁也不跨目录 import——代价是门户 DTO 用到的那几个
+sdk 形状在两边各有一份声明。

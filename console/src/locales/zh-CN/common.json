@@ -1,208 +1,213 @@
 {
-  "common": {
-    "product": "GPROXY",
-    "console": "管理控制台",
+  "shell": {
+    "navigation": "导航"
+  },
+  "signIn": {
+    "title": "登录",
+    "description": "控制台与自助门户是同一个应用；你看到的，就是这个实例说你能做的。"
+  },
+  "actions": {
+    "add": "添加",
+    "cancel": "取消",
+    "close": "关闭",
+    "copied": "已复制",
+    "copy": "复制",
+    "create": "创建",
+    "delete": "删除",
+    "details": "详情",
+    "done": "完成",
+    "edit": "编辑",
+    "members": "成员",
+    "new": "新建",
+    "remove": "移除",
+    "retire": "停用",
+    "reveal": "查看",
+    "revoke": "吊销",
+    "rotate": "轮换",
+    "save": "保存",
+    "search": "搜索",
+    "signIn": "登录",
+    "signOut": "退出登录"
+  },
+  "state": {
+    "emptyTitle": "这里还是空的",
+    "emptyDescription": "没有匹配的行。新建一条，或放宽筛选条件。",
+    "failed": "请求失败",
+    "forbidden": "无权访问",
+    "forbiddenDescription": "这个实例不允许你访问该页面。如果这不符合预期，请让运维检查你的作用域。",
+    "notFoundTitle": "没有这个页面",
+    "notFoundDescription": "该地址在这个控制台里没有对应页面。"
+  },
+  "form": {
+    "choose": "请选择…"
+  },
+  "pagination": {
+    "position": "第 {{page}} / {{pages}} 页 · 共 {{total}} 行",
+    "previous": "上一页",
+    "next": "下一页"
+  },
+  "confirm": {
+    "deleteTitle": "删除这一行？",
+    "deleteDescription": "{{name}} 将被删除，且无法撤销。",
+    "removeMemberTitle": "移除该成员？",
+    "removeMemberDescription": "{{name}} 将失去这个作用域的成员身份，以及随之而来的角色。",
+    "retireTitle": "停用这个客户端？",
+    "retireDescription": "{{name}} 将不可再用。它签发过的授权仍然指向它，所以历史记录仍可解析。",
+    "revokeTitle": "结束这个会话？",
+    "revokeDescription": "会话 {{name}} 将立即结束，持有者需要重新登录。",
+    "revokeGrantTitle": "吊销这个授权？",
+    "revokeGrantDescription": "{{name}} 将立即失去访问权限，包括它还持有的刷新令牌。",
+    "rotateTitle": "轮换这把密钥？",
+    "rotateDescription": "{{name}} 会拿到新的密钥，旧的立即失效。所有在用的地方都需要更新。"
+  },
+  "toast": {
+    "added": "已添加",
+    "created": "已创建",
+    "deleted": "已删除",
+    "removed": "已移除",
+    "retired": "已停用",
+    "revoked": "已吊销",
+    "saved": "已保存"
+  },
+  "language": {
+    "en": "English",
+    "zh-CN": "简体中文",
+    "zh-TW": "繁體中文"
+  },
+  "theme": {
+    "light": "浅色主题",
+    "dark": "深色主题"
+  },
+  "scope": {
+    "instance": "实例管理员",
+    "organization": "组织",
+    "team": "团队",
+    "none": "账号"
+  },
+  "section": {
+    "self": "我的账号",
+    "identity": "身份"
+  },
+  "range": {
+    "day": "24 小时",
+    "week": "7 天",
+    "month": "30 天"
+  },
+  "values": {
+    "yes": "是",
+    "no": "否",
+    "user": "用户",
+    "admin": "管理员",
+    "member": "成员",
+    "allow": "允许",
+    "deny": "拒绝",
+    "total": "累计",
+    "fixed": "固定周期",
+    "day": "日",
+    "week": "周",
+    "month": "月",
+    "model": "模型",
+    "operation": "操作",
+    "provider": "渠道商",
+    "apiKey": "密钥",
+    "api_key": "密钥",
+    "subscription": "订阅",
+    "team": "团队",
+    "org": "组织",
+    "in_progress": "进行中",
+    "completed": "已完成",
+    "failed": "失败",
+    "cancelled": "已取消"
+  },
+  "fields": {
+    "action": "动作",
+    "actions": "操作",
+    "actorUserId": "操作者",
+    "apiKeyId": "密钥",
+    "cachedInputTokens": "缓存输入",
+    "channelIds": "渠道",
+    "claudeRateLimitTier": "Claude 限流档位",
+    "claudeSubscriptionType": "Claude 订阅类型",
+    "clientName": "客户端",
+    "codexPlanType": "Codex 套餐",
+    "cost": "费用",
+    "createdAtMs": "创建时间",
+    "credentialId": "凭证",
+    "currentPassword": "当前密码",
+    "deletedAtMs": "停用时间",
+    "detail": "详情",
+    "durationMs": "耗时",
+    "enabled": "启用",
+    "entityId": "实体",
+    "entityKind": "实体类型",
+    "expiresAtMs": "过期时间",
+    "hasPassword": "已设密码",
+    "hasSecret": "已留存",
+    "id": "ID",
+    "inputTokens": "输入",
+    "key": "键",
+    "kind": "类型",
+    "lastRefreshedAtMs": "最近刷新",
+    "limit": "额度",
+    "limitValue": "额度",
+    "loggedInAtMs": "首次使用",
+    "metric": "计量",
+    "model": "模型",
+    "modelPattern": "模型通配",
     "name": "名称",
-    "language": "语言",
-    "languages": {
-      "en": "English",
-      "zh-CN": "简体中文",
-      "zh-TW": "繁體中文"
-    },
-    "loading": "正在加载…",
-    "loadError": "无法加载数据，请重试。",
-    "none": "无",
-    "optional": "可选",
-    "required": "必填",
-    "search": "搜索…",
-    "actions": {
-      "create": "创建",
-      "save": "保存",
-      "saving": "正在保存…",
-      "saved": "已保存",
-      "cancel": "取消",
-      "reset": "还原",
-      "close": "关闭",
-      "edit": "编辑",
-      "enable": "启用",
-      "disable": "停用",
-      "add": "添加",
-      "delete": "删除",
-      "back": "返回"
-    },
-    "status": {
-      "label": "状态",
-      "enabled": "已启用",
-      "disabled": "已停用",
-      "healthy": "健康",
-      "degraded": "性能下降",
-      "dead": "不可用",
-      "unknown": "未知",
-      "open": "进行中",
-      "closed": "已结束",
-      "active": "活跃",
-      "inactive": "非活跃"
-    },
-    "errors": {
-      "load": "无法加载数据，请重试。",
-      "save": "无法保存更改，请重试。",
-      "invalid": "请检查标记的字段。",
-      "required": "此字段为必填项。",
-      "unknown": "未知错误"
-    },
-    "batch": {
-      "select": "批量",
-      "cancel": "取消",
-      "enable": "启用所选项",
-      "disable": "停用所选项",
-      "delete": "删除所选项",
-      "enabled": "已启用 {{count}} 项。",
-      "disabled": "已停用 {{count}} 项。",
-      "deleted": "已删除 {{count}} 项。",
-      "partial": "{{total}} 项中有 {{failed}} 项失败。",
-      "failed": "无法完成批量操作。"
-    },
-    "theme": {
-      "label": "主题",
-      "light": "浅色",
-      "dark": "深色",
-      "system": "跟随系统"
-    },
-    "dataTable": {
-      "search": "搜索",
-      "columns": "列",
-      "previous": "上一页",
-      "next": "下一页",
-      "page": "第 {{page}} / {{pages}} 页",
-      "itemsPerPage": "每页项数",
-      "selected": "已选择 {{count}} 项",
-      "selectAll": "选择所有行",
-      "selectRow": "选择此行"
-    },
-    "filters": {
-      "start": "开始时间",
-      "end": "结束时间",
-      "apply": "应用",
-      "reset": "重置",
-      "invalidRange": "开始时间必须早于结束时间。"
-    },
-    "documentation": "文档",
-    "buildIdentity": "v{{version}} · {{channel}} · {{hash}} · {{kind}}"
-  },
-  "connectivity": {
-    "action": "测试连通性",
-    "testing": "正在测试…",
-    "title": "连通性结果",
-    "success": "上游出口可达",
-    "successHint": "以下地址是上游实际看到的出口地址。",
-    "failed": "连通性测试失败",
-    "requestError": "无法运行连通性测试。",
-    "route": "{{source}} · 总计 {{latency}} 毫秒",
-    "latency": "{{value}} 毫秒",
-    "sources": {
-      "proxy": "待测试代理",
-      "credential": "凭据代理",
-      "provider": "供应商代理",
-      "global": "全局代理",
-      "system": "系统代理",
-      "direct": "直连"
-    },
-    "errors": {
-      "invalid_fingerprint": "无法应用已配置的指纹。",
-      "transport": "无法访问上游或已配置的代理。",
-      "http_status": "连通性服务返回了错误状态。",
-      "invalid_response": "连通性服务未返回有效的出口地址。",
-      "timeout": "连通性测试在 30 秒后超时。",
-      "unknown": "连通性测试因未知原因失败。"
-    }
-  },
-  "auth": {
-    "home": "返回首页",
-    "username": "用户名",
+    "newPassword": "新密码",
+    "oauthClientAllowlist": "OAuth 客户端白名单",
+    "operation": "操作",
+    "organizationId": "组织",
+    "outcome": "结果",
+    "outputTokens": "输出",
     "password": "密码",
-    "logout": "退出登录",
-    "error": {
-      "title": "身份验证失败",
-      "description": "请检查凭据后重试。"
-    },
-    "login": {
-      "title": "登录 GPROXY",
-      "description": "使用此实例的管理员账户登录。",
-      "action": "登录"
-    },
-    "setup": {
-      "title": "创建管理员",
-      "description": "此账户用于管理实例，与数据平面 API 密钥相互独立。",
-      "action": "创建管理员"
-    },
-    "session": {
-      "loadError": "无法验证管理员会话，请重试。"
-    }
+    "period": "周期",
+    "periodSeconds": "周期（秒）",
+    "permitted": "已授权",
+    "planId": "套餐",
+    "poolId": "资源池",
+    "prefix": "前缀",
+    "priority": "优先级",
+    "provider": "渠道商",
+    "providerCount": "渠道商数",
+    "providerId": "渠道商",
+    "reasoningTokens": "推理",
+    "redirectUris": "回调地址",
+    "refreshCount": "刷新次数",
+    "requestId": "请求",
+    "requests": "请求数",
+    "responseStatus": "状态码",
+    "retainSecret": "留存密钥原文",
+    "role": "角色",
+    "scopes": "授权范围",
+    "sourceIp": "来源",
+    "sourceKey": "来源标识",
+    "startedAtMs": "开始时间",
+    "startsAtMs": "生效时间",
+    "state": "状态",
+    "subscriptionId": "订阅",
+    "teamId": "团队",
+    "userId": "用户",
+    "windowKey": "窗口"
   },
-  "nav": {
-    "label": "控制台导航",
-    "overview": "概览",
-    "providers": "供应商",
-    "routes": "负载均衡",
-    "rules": "规则",
-    "identity": "身份",
-    "usage": "统计",
-    "pricing": "定价",
-    "tokenizers": "分词器词表",
-    "update": "更新",
-    "settings": "设置",
-    "open": "打开导航",
-    "close": "关闭导航",
-    "resize": "调整导航宽度",
-    "about": "关于"
-  },
-  "window": {
-    "resets": "重置于 {{value}}",
-    "started": "开始于 {{time}}",
-    "noReset": "重置时间未知",
-    "notStarted": "窗口尚未开始",
-    "boundary": {
-      "label": "边界",
-      "upstream": "上游报告",
-      "inferred": "GPROXY 推断",
-      "unknown": "边界未知"
-    },
-    "confidence": {
-      "label": "置信度",
-      "exact": "精确",
-      "derived": "推导",
-      "partial": "部分可信",
-      "unknown": "未知"
-    },
-    "coverage": {
-      "partial": "部分覆盖",
-      "unknown": "覆盖范围未知"
-    },
-    "closeReason": {
-      "boundary_crossed": "跨越周期边界",
-      "manual_reset": "手动重置",
-      "usage_decreased": "上游已用额度倒降"
-    },
-    "usageUnknown": "此周期的上游用量不可用。"
-  },
-  "about": {
-    "title": "关于 GPROXY",
-    "subtitle": "用一个入口连接你的大模型服务、上游账户和应用。",
-    "description": "GPROXY 是使用 Rust 构建的开源、自托管大模型 API 网关，让你的应用通过统一的 API 入口连接多个服务商。",
-    "version": "版本 {{version}}",
-    "features": {
-      "protocols": "兼容 OpenAI Chat Completions、Responses、Claude Messages 和 Gemini API，支持流式响应与格式间直接转换。",
-      "accounts": "统一管理上游凭证，支持令牌刷新、负载均衡与故障切换。",
-      "control": "通过管理控制台和用户 Portal 管理访问权限、配额、用量与费用。"
-    },
-    "openSource": "由 Leen Hawk 和社区共同维护。网关采用 AGPL-3.0-or-later 许可证，各组件的许可信息见源码仓库。",
-    "source": "源码仓库",
-    "feedback": "问题反馈",
-    "sponsor": {
-      "title": "支持 GPROXY",
-      "description": "通过 GitHub Sponsors 赞助项目，支持 GPROXY 持续发展。",
-      "thanks": "你的支持将帮助项目持续维护、适配上游服务并开发新功能。感谢你使用和支持 GPROXY。",
-      "action": "赞助 LeenHawk"
-    }
+  "help": {
+    "codexPlanType": "面向客户端的线上标签，描述的是这个网关套餐，不是你买到的上游权益。",
+    "expiresAtMs": "留空表示永不过期。",
+    "id": "第三方程序编译进去的 client_id。它不能在这里生成，之后也不能改。",
+    "limitValue": "十进制文本而非数字：额度必须原样穿过 JavaScript 的 Number。",
+    "metric": "requests、concurrency，或宿主会计数的任意计量名。",
+    "modelPattern": "模型名上的通配：* 与 ?，整串匹配。* 同时匹配没有指定模型的请求。",
+    "oauthClientAllowlist": "每行一个客户端 ID。留空表示继承上一层；写成空列表则拒绝所有客户端。",
+    "organizationId": "这一项同时决定预算链、权限主体和这把密钥能看到哪些凭证——只在这里设定一次，绝不从请求头取。",
+    "password": "可选。没有密码的账号无法登录，这正是纯 API key 账号的形态。",
+    "periodSeconds": "固定周期必填且为正；其余周期不使用。",
+    "planId": "套餐额度在签发时即已复制：把已签发的订阅指向别的套餐不会调整既有窗口。",
+    "priority": "数值大者优先。同优先级下拒绝胜过允许。",
+    "redirectUris": "每行一个。回调地址按整串精确匹配，不做前缀匹配。",
+    "retainSecret": "留一份密封副本，以便日后查看。默认关闭：实例复现不出来的密钥，数据库泄露时也交不出去。",
+    "sourceKey": "规范化的签发方加上游订阅标识。同一个真实订阅被多份凭证导入时，靠它去重。",
+    "startsAtMs": "固定时长额度从这个锚点开始计算。留空则以签发时刻为锚点。",
+    "userId": "一条规则要么指向用户，要么指向密钥，不能两者都写。"
   }
 }

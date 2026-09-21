@@ -4,7 +4,9 @@ use gproxy_store::entity::identity::audit_event;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct AuditEventDto {
     pub id: String,
     pub actor_user_id: Option<String>,
@@ -44,7 +46,9 @@ impl From<audit_event::Model> for AuditEventDto {
 /// actor, the action and a time range, none of which any configuration family
 /// has.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct AuditQuery {
     /// 1-based; zero and absent both mean the first page.
     pub page: Option<u64>,
