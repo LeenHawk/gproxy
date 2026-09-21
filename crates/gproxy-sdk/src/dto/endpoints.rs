@@ -8,7 +8,9 @@ use super::double_option;
 use gproxy_store::entity::upstream::{operation_endpoint, operation_rule};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct OperationRuleDto {
     pub id: String,
     pub provider_id: String,
@@ -16,6 +18,7 @@ pub struct OperationRuleDto {
     pub operation: String,
     pub action: String,
     /// Action-specific target, e.g. the destination `OperationKey`.
+    #[cfg_attr(feature = "ts", ts(type = "unknown | null"))]
     pub target: Option<Value>,
 }
 
@@ -32,7 +35,9 @@ impl From<operation_rule::Model> for OperationRuleDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct OperationRuleWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -40,24 +45,30 @@ pub struct OperationRuleWrite {
     pub operation: String,
     pub action: String,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(type = "unknown | null"))]
     pub target: Option<Value>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct OperationRulePatch {
     #[serde(default)]
     pub operation: Option<String>,
     #[serde(default)]
     pub action: Option<String>,
     #[serde(default, deserialize_with = "double_option")]
+    #[cfg_attr(feature = "ts", ts(type = "unknown | null"))]
     pub target: Option<Option<Value>>,
 }
 
 /// A complete method URL for one `(operation, dialect, transport)` of one
 /// provider. It replaces the URL the channel would build, not just its host.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct OperationEndpointDto {
     pub id: String,
     pub provider_id: String,
@@ -92,7 +103,9 @@ pub(crate) fn transport_name(transport: operation_endpoint::EndpointTransport) -
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct OperationEndpointWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -107,7 +120,9 @@ pub struct OperationEndpointWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct OperationEndpointPatch {
     #[serde(default)]
     pub operation: Option<String>,

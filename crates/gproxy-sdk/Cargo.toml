@@ -39,7 +39,13 @@ s3 = ["gproxy-file/s3"]
 bundled-vocabulary = ["gproxy-core/bundled-vocabulary"]
 
 # TypeScript declarations for the DTOs the management API exchanges.
-ts = ["dep:ts-rs"]
+# `no-serde-warnings` is not cosmetic: `ts-rs` does not know
+# `#[serde(deserialize_with = "…")]` and prints a "failed to parse serde
+# attribute" warning for every one of them. Every patch field over a nullable
+# column carries `deserialize_with = "double_option"`, so without this the
+# feature would print fifty warnings that all describe the same deliberate
+# pattern — and would bury a real one.
+ts = ["dep:ts-rs", "ts-rs/no-serde-warnings"]
 
 [dependencies]
 arc-swap = { workspace = true }

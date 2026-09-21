@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 use gproxy_store::entity::routing::{exposed_model, route, route_member};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct RouteDto {
     pub id: String,
     pub name: String,
@@ -36,7 +38,9 @@ pub(crate) fn strategy_name(strategy: route::RouteStrategy) -> &'static str {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct RouteWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -50,7 +54,9 @@ pub struct RouteWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct RoutePatch {
     #[serde(default)]
     pub name: Option<String>,
@@ -63,7 +69,9 @@ pub struct RoutePatch {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct RouteMemberDto {
     pub id: String,
     pub route_id: String,
@@ -92,7 +100,9 @@ impl From<route_member::Model> for RouteMemberDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct RouteMemberWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -108,7 +118,9 @@ pub struct RouteMemberWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct RouteMemberPatch {
     #[serde(default)]
     pub route_id: Option<String>,
@@ -128,7 +140,9 @@ pub struct RouteMemberPatch {
 /// first path segment may not be a registered channel id or a provider name —
 /// those prefixes already mean `channel/model` and `provider/model` narrowing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ExposedModelDto {
     pub id: String,
     pub name: String,
@@ -148,7 +162,9 @@ impl From<exposed_model::Model> for ExposedModelDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ExposedModelWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -159,7 +175,9 @@ pub struct ExposedModelWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ExposedModelPatch {
     #[serde(default)]
     pub name: Option<String>,

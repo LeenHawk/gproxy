@@ -7,7 +7,9 @@ use super::double_option;
 use gproxy_store::entity::upstream::{provider_rewrite_rule_set, rewrite_rule, rewrite_rule_set};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct RuleSetDto {
     pub id: String,
     pub name: String,
@@ -31,7 +33,9 @@ impl From<rewrite_rule_set::Model> for RuleSetDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct RuleSetWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -43,7 +47,9 @@ pub struct RuleSetWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct RuleSetPatch {
     #[serde(default)]
     pub name: Option<String>,
@@ -57,7 +63,9 @@ pub struct RuleSetPatch {
 /// compiler first, so a rule that would be skipped at assembly is refused
 /// here instead of silently doing nothing.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct RewriteRuleDto {
     pub id: String,
     pub rule_set_id: String,
@@ -67,10 +75,15 @@ pub struct RewriteRuleDto {
     pub target: String,
     pub target_name: Option<String>,
     /// JSON array of dot paths; body target only.
+    #[cfg_attr(feature = "ts", ts(type = "string[] | null"))]
     pub paths: Option<Value>,
     pub pattern: String,
     pub replacement: String,
     /// JSON array of `{"operation": …, "dialect": …}`.
+    #[cfg_attr(
+        feature = "ts",
+        ts(type = "{ operation: string, dialect: string }[] | null")
+    )]
     pub filter_operation_keys: Option<Value>,
     pub filter_model_pattern: Option<String>,
     pub filter_header_pattern: Option<String>,
@@ -113,7 +126,9 @@ pub(crate) fn target_name(target: rewrite_rule::RewriteTarget) -> &'static str {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct RewriteRuleWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -127,10 +142,15 @@ pub struct RewriteRuleWrite {
     #[serde(default)]
     pub target_name: Option<String>,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(type = "string[] | null"))]
     pub paths: Option<Value>,
     pub pattern: String,
     pub replacement: String,
     #[serde(default)]
+    #[cfg_attr(
+        feature = "ts",
+        ts(type = "{ operation: string, dialect: string }[] | null")
+    )]
     pub filter_operation_keys: Option<Value>,
     #[serde(default)]
     pub filter_model_pattern: Option<String>,
@@ -145,7 +165,9 @@ pub struct RewriteRuleWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct RewriteRulePatch {
     #[serde(default)]
     pub phase: Option<String>,
@@ -154,12 +176,17 @@ pub struct RewriteRulePatch {
     #[serde(default, deserialize_with = "double_option")]
     pub target_name: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
+    #[cfg_attr(feature = "ts", ts(type = "string[] | null"))]
     pub paths: Option<Option<Value>>,
     #[serde(default)]
     pub pattern: Option<String>,
     #[serde(default)]
     pub replacement: Option<String>,
     #[serde(default, deserialize_with = "double_option")]
+    #[cfg_attr(
+        feature = "ts",
+        ts(type = "{ operation: string, dialect: string }[] | null")
+    )]
     pub filter_operation_keys: Option<Option<Value>>,
     #[serde(default, deserialize_with = "double_option")]
     pub filter_model_pattern: Option<Option<String>>,
@@ -175,7 +202,9 @@ pub struct RewriteRulePatch {
 
 /// A rule set attached to a provider, in attachment order.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ProviderRuleSetDto {
     pub id: String,
     pub provider_id: String,
@@ -201,7 +230,9 @@ impl From<provider_rewrite_rule_set::Model> for ProviderRuleSetDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ProviderRuleSetWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -214,7 +245,9 @@ pub struct ProviderRuleSetWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ProviderRuleSetPatch {
     #[serde(default)]
     pub sort_order: Option<i64>,

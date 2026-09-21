@@ -54,7 +54,9 @@ static PROGRESS: LazyLock<ArcSwap<Option<TokenizerProgressDto>>> =
 
 /// What to fetch, and what to point at it.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct TokenizerFetch {
     /// A Hugging Face repository id, `owner/name`.
     pub repo: String,
@@ -73,7 +75,9 @@ pub struct TokenizerFetch {
 
 /// One stored vocabulary.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct VocabularyDto {
     pub file_id: String,
     pub filename: Option<String>,
@@ -86,7 +90,9 @@ pub struct VocabularyDto {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct TokenizerProgressDto {
     pub repo: String,
     pub filename: String,
@@ -98,7 +104,9 @@ pub struct TokenizerProgressDto {
 /// Whether a source token is configured. The token itself is never reported
 /// by a read; `reveal_auth` is the one deliberate disclosure.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct TokenizerAuthDto {
     pub configured: bool,
 }

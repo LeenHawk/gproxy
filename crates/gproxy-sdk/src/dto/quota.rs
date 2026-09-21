@@ -25,7 +25,9 @@ use gproxy_store::entity::limits::{
 /// upstream accounts. Both live in one table because both are windows over a
 /// metric.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct QuotaDto {
     pub id: String,
     pub owner_kind: String,
@@ -66,7 +68,9 @@ impl From<quota::Model> for QuotaDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct QuotaWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -89,7 +93,9 @@ pub struct QuotaWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct QuotaPatch {
     #[serde(default)]
     pub owner_kind: Option<String>,
@@ -117,7 +123,9 @@ pub struct QuotaPatch {
 
 /// A caller budget's current window.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct BudgetStatusDto {
     pub quota_id: String,
     pub owner_kind: String,
@@ -156,7 +164,9 @@ impl From<gproxy_core::BudgetStatus> for BudgetStatusDto {
 
 /// An operator limit's current window on one credential.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct CredentialLimitStatusDto {
     pub quota_id: String,
     pub owner_kind: String,
@@ -194,7 +204,9 @@ impl From<gproxy_core::CredentialLimitStatus> for CredentialLimitStatusDto {
 /// What this instance knows about one credential's upstream quota: the cycles
 /// observed so far and the blocks currently keeping it out of selection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct CredentialQuotaDto {
     pub cycles: Vec<CredentialCycleDto>,
     /// Only blocks that have not expired yet.
@@ -202,11 +214,15 @@ pub struct CredentialQuotaDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct CredentialCycleDto {
     pub id: String,
     pub credential_id: String,
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub scope: Value,
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub snapshot: Value,
     pub observed_at_ms: i64,
     pub starts_at_ms: Option<i64>,
@@ -228,13 +244,17 @@ impl From<credential_quota_cycle::Model> for CredentialCycleDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct CredentialBlockDto {
     pub id: String,
     pub credential_id: String,
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub scope: Value,
     pub operation: Option<String>,
     pub until_ms: i64,
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub source: Value,
     pub observed_at_ms: i64,
 }
@@ -256,7 +276,9 @@ impl From<credential_block::Model> for CredentialBlockDto {
 /// One live answer from the upstream, already persisted as cycles and blocks
 /// by the time it is returned.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct QuotaSnapshotDto {
     pub observed_at_ms: i64,
     pub entries: Vec<QuotaEntryDto>,
@@ -272,7 +294,9 @@ impl From<QuotaSnapshot> for QuotaSnapshotDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct QuotaEntryDto {
     pub id: String,
     pub source_id: String,
@@ -280,6 +304,7 @@ pub struct QuotaEntryDto {
     /// `account`, `organization`, `project`, `key` or `unknown`.
     pub subject: String,
     /// The channel's `QuotaScope` JSON: `"all"`, `{"models":[…]}`, … .
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub model_scope: Value,
     /// `window`, `rate_limit`, `budget` or `balance`.
     pub kind: String,
@@ -323,7 +348,9 @@ fn subject_name(subject: QuotaSubject) -> &'static str {
 
 /// None means the upstream did not report the field, never zero.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct QuotaAllowanceDto {
     pub used: Option<String>,
     pub limit: Option<String>,
@@ -367,7 +394,9 @@ fn reset_behavior_name(behavior: QuotaResetBehavior) -> &'static str {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct QuotaBalanceDto {
     pub remaining: Option<String>,
     pub unit: Option<String>,
@@ -384,7 +413,9 @@ impl From<QuotaBalance> for QuotaBalanceDto {
 
 /// The outcome of redeeming an upstream reset credit.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct QuotaResetDto {
     /// `reset`, `nothing_to_reset`, `no_credit` or `already_redeemed`.
     pub outcome: String,
@@ -409,7 +440,9 @@ impl From<QuotaResetResult> for QuotaResetDto {
 /// One historical window of a configured budget or limit, joined to the
 /// `quotas` row it belongs to.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct QuotaWindowDto {
     pub id: String,
     pub quota_id: String,
@@ -431,12 +464,15 @@ pub struct QuotaWindowDto {
     pub period: Option<String>,
     /// The quota as it was when this window opened, which is what the window
     /// was actually metered against if the row has changed since.
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub quota_snapshot: Value,
 }
 
 /// One request's contribution to a window.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct QuotaSettlementDto {
     pub window_id: String,
     /// A downstream request id for a caller budget, an upstream capture id
@@ -460,7 +496,9 @@ impl From<quota_settlement::Model> for QuotaSettlementDto {
 /// One fixed window of a counted dimension on a credential: what the meter
 /// itself recorded, in the meter's own units.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct CountedWindowDto {
     pub credential_id: String,
     /// A channel-declared dimension, or `limit:{quota_id}` for the synthetic
@@ -490,7 +528,9 @@ impl From<counted_window::Model> for CountedWindowDto {
 
 /// What a window listing filters on.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct QuotaWindowQuery {
     pub quota_id: Option<String>,
     /// Both owner fields select the quotas first; a kind without an id is a
