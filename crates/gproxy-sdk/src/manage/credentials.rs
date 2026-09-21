@@ -354,6 +354,49 @@ fn view(provider: &provider::Model) -> ProviderView<'_> {
     }
 }
 
+/// `ListQuery`'s `(ownerKind, ownerId)` pair as a filter over the three owner
+/// columns, or None when the query names no owner.
+///
+/// The three columns are otherwise opaque to this family — a credential's
+/// owner is passed through from the host and means nothing to the engine — but
+/// a list that cannot be narrowed by it is a list a multi-tenant host has to
+/// filter after the fact, page by page, which is both wrong (the page counts
+/// would be the unfiltered ones) and a place for a tenant boundary to leak.
+///
+/// The kinds are the same spellings `quotas.owner_kind` uses, so one
+/// `ListQuery` narrows both families. `instance` selects the rows with no
+/// owner at all: the shared credentials a single-tenant deployment has, and
+/// the ones only an operator manages.
+fn owner_filter(query: &ListQuery) -> Option<sea_orm::Condition> {
+    use sea_orm::Condition;
+    let kind = crud::optional_text(query.owner_kind.clone())?;
+    // A kind on its own is still a filter — "every team-owned credential" is a
+    // question worth asking — but an id on its own is not: the same string
+    // could name a user, a team or an organization.
+    let owner = crud::optional_text(query.owner_id.clone());
+    let column = match kind.as_str() {
+        "user" => credential::Column::UserId,
+        "team" => credential::Column::TeamId,
+        "org" => credential::Column::OrganizationId,
+        "instance" => {
+            return Some(
+                Condition::all()
+                    .add(credential::Column::UserId.is_null())
+                    .add(credential::Column::TeamId.is_null())
+                    .add(credential::Column::OrganizationId.is_null()),
+            );
+        }
+        // An owner kind this table cannot hold — `api_key`, `provider`, a
+        // typo — matches nothing rather than everything. The primary key is
+        // `NOT NULL`, so this is the portable spelling of "no rows".
+        _ => return Some(Condition::all().add(credential::Column::Id.is_null())),
+    };
+    Some(match owner {
+        Some(owner) => Condition::all().add(column.eq(owner)),
+        None => Condition::all().add(column.is_not_null()),
+    })
+}
+
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'_, C> {
     type Entity = credential::Entity;
     type Dto = CredentialDto;
@@ -384,6 +427,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
         let mut select = credential::Entity::find();
         if let Some(provider_id) = crud::optional_text(query.provider_id.clone()) {
             select = select.filter(credential::Column::ProviderId.eq(provider_id));
+        }
+        if let Some(owner) = owner_filter(query) {
+            select = select.filter(owner);
         }
         if let Some(search) = crud::optional_text(query.search.clone()) {
             select = select.filter(credential::Column::Label.contains(&search));

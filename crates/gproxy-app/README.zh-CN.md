@@ -63,6 +63,9 @@ let outcome = app.call(&caller, request).await?;
 | `capture` | 下游 `capture_records` 行，以及连向 core 所记上游尝试的 `capture_links` 边 |
 | `publication` | `AppPublicationUrl`，以及宿主下载路由背后的读取与删除 |
 | `operations` | 身份写入家族，每次写入一个 revision commit 加一次对等实例通知 |
+| `operations::scoped` | `ScopedManage`：两个行带 owner 的 sdk 家族，按调用方的 `AdminScope` 收窄 |
+| `admin_scope` | `AdminScope`：一次管理请求可以充当什么、它从哪里来、它放行什么 |
+| `admin_surface` | `ADMIN_SECTIONS`：把管理面写成一张表，以及每个 section 的最小 scope |
 | `operations::portal` | 终端用户的自助面，由构造本身锁定在一个 `Caller` 上 |
 | `operations::issuer` | 本实例**面向下游客户端**运行的 OAuth 授权服务器 |
 | `dto` | 这些家族交换的线上形状：String id、毫秒时间戳、camelCase，不含任何密文 |
@@ -482,7 +485,64 @@ id 存在过。这里不校验 scope：id 本身就是随机的秘密，链接�
 | `audit()` | `audit_events` | `record`、`try_record`、`query` |
 
 `Operations` **不做任何授权**。谁可以调用哪个家族，是宿主中间件在操作运行前依据
-`Caller` 做出的决定。
+`Caller` 做出的决定——自 scope 模型起，还依据 guard 解析出的 `AdminScope`。见下节。
+
+## 管理 scope
+
+`organization_members.role` 与 `team_members.role` 从 schema 写下那天起就存着
+`MembershipRole::Admin`，却没有任何东西消费它：管理面要求实例管理员，门户严格自助，
+于是组织管理员根本没有面。现在他们有了**同一个**面，只是被一个带类型的值收窄。
+
+```rust
+pub enum AdminScope { Instance, Organization(String), Team(String) }
+```
+
+每个请求一个，派生只在一处——`AdminScope::resolve`，宿主的 guard 是它唯一的调用方：
+
+| 调用者 | scope |
+|---|---|
+| `users.role = admin` | `Instance`；不读 scope 头 |
+| API key（含 OAuth 授权的内部 key） | key 自己的 `team_id`，否则 `organization_id` |
+| 控制台会话 | `x-gproxy-admin-scope` 头（`SCOPE_HEADER`），按调用者的 **admin** 成员关系校验 |
+
+API key 这条就是数据面已经在用的那条规则：key 的绑定一次决定计费归属、权限主体和
+凭证可见性，所以它也决定这个；key 请求上的那个头被忽略而不是被拒。只管理一个 scope
+的会话不需要这个头；管理多个的在选定之前拿到一个点名这个头的 `400`；一个都不管理的
+整面 `403`。
+
+### 它收窄查询，而不是核对答案
+
+这就是全部要点，也正是门户安全性的镜像。门户没法点名别人，因为根本没有那个参数；
+这个面没法够到 scope 之外，因为根本构造不出那样一条查询：
+
+| 什么 | 怎么做 | scope 之外 |
+|---|---|---|
+| 列表 | `AdminScope::narrow` 在语句构造前重写 `(ownerKind, ownerId)` 筛选 | **空页**——一个没有行的合法问题 |
+| 按 id 取行 | `AdminScope::admits` 判定该行的 owner | **`NotFound`**，绝不是 `Forbidden`——后者会确认这个 id 存在 |
+| 写入点名 owner | `AdminScope::admit_write` | **`Forbidden`**——这个 id 是调用者自己填的，不是发现的 |
+
+patch 校验两次，按当前的行和按改完的行，所以一行既不会被推出 scope，也不会被拉进来。
+
+包含关系：实例 scope 装下一切，包括无主的行；组织装下自己的行**以及它的团队的行**，
+但不包括成员个人的行；团队只装自己的。`AdminScope::organization` 会报出团队的父组织，
+那正是控制台面包屑要渲染的东西。
+
+### section 表
+
+哪些家族对哪些 scope 开放，只在 `ADMIN_SECTIONS` 里声明一次。宿主的路由表给每条路由
+点名一个 section 并调 `require_section` 把关，而它对不认识的 section 一律拒绝——所以这
+张表**默认是关的**，点名了未声明 section 的路由只有实例 scope 到得了。
+`GET /admin/api/context` 按调用者的 scope 渲染同一张表，控制台的导航只从它来。
+
+现在开放的：`context`、`session`、`credentials`、`quotas`。仅实例：所有配置网关本身的
+家族，以及——暂时——每一个身份家族。开放某一个是一次有意的动作而不是一个开关：它们中
+多数要的是对成员关系做 `IN`，而不是一次列比较。
+
+`ScopedManage` 就是这两个开放的配置家族 `credentials` 与 `quotas`，包了一层，让上面
+那些规则在 `Gproxy::manage()` 之前跑。这是本 crate 唯一一处包裹 sdk 家族的地方，它配
+得上这层包裹：它有东西要判断——这行归谁——而引擎绝不该知道这件事。`quotas` 一张表同时
+装着租户预算（`owner_kind` 为 `org`/`team`）和运维限额（`credential`/`provider`）；
+分界在 owner kind 上，不在路由上。
 
 ### 一个 batch、一个 revision，然后一次通知
 

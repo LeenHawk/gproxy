@@ -249,6 +249,12 @@ println!("credential {}", created.credential_id);
 生成，时间戳一律 Unix 毫秒，小数以字符串传输，`credentials.secret` 永不出现在任何
 DTO 里——只有 `hasSecret`，外加单独的 `reveal_secret`。
 
+`ListQuery` 的 `(ownerKind, ownerId)` 这一对收窄两个行带 owner 的家族：`quotas` 按它
+自己的两列，`credentials` 按那三个不透明的列（`user` / `team` / `org`，另有
+`instance` 表示完全无主的行）。那几列**是什么意思**是宿主的事——本 crate 原样透传
+——但一个无法按它们收窄的列表，会逼多租户宿主在事后逐页过滤并报出未过滤的计数，
+租户边界正是在那里漏的。表里装不下的 owner kind 匹配零行，而不是全部。
+
 ### 一次写入，一个 revision
 
 ```

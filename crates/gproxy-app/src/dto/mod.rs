@@ -31,6 +31,7 @@
 //! object to both surfaces, and is overwritten with the caller's own id before
 //! the query runs rather than read.
 
+mod admin_context;
 mod api_keys;
 mod audit;
 mod common;
@@ -53,6 +54,7 @@ mod users;
 #[cfg(all(test, feature = "ts", not(target_arch = "wasm32")))]
 mod export;
 
+pub use admin_context::{AdminContextDto, AdminContextUserDto, AdminScopeDto, AdminSectionDto};
 pub use api_keys::{ApiKeyCreated, ApiKeyDto, ApiKeyPatch, ApiKeySecretDto, ApiKeyWrite};
 pub use audit::{AuditEventDto, AuditQuery};
 pub use common::{BatchItem, BatchPatch, ListQuery, Page, double_option};

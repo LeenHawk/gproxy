@@ -40,6 +40,12 @@ pub use snapshot::{AppData, AppSnapshot};
 pub mod admission;
 pub use admission::{Admission, AdmissionRequest, Admitted};
 
+pub mod admin_scope;
+pub use admin_scope::{AdminAdmission, AdminScope, SCOPE_HEADER};
+
+pub mod admin_surface;
+pub use admin_surface::{ADMIN_SECTIONS, AdminSection, SectionScope, require_section};
+
 pub mod audit;
 pub use audit::{Audit, AuditEntry};
 
@@ -56,7 +62,7 @@ pub use capture::{
 
 pub mod dto;
 pub mod operations;
-pub use operations::{Issuer, IssuerError, IssuerOrigin, Operations, Portal, Scope};
+pub use operations::{Issuer, IssuerError, IssuerOrigin, Operations, Portal, Scope, ScopedManage};
 
 pub mod publication;
 pub use publication::AppPublicationUrl;

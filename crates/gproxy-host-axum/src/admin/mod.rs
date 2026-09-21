@@ -16,7 +16,8 @@
 //! delegating facade in `gproxy-app`. There is nothing for such a facade to
 //! decide — the sdk families *are* the operation table — and a third host
 //! (Tauri, edge) binds the same handle its own way rather than a wrapper this
-//! host happened to invent.
+//! host happened to invent. The two exceptions are the families whose rows
+//! carry an **owner**: see the scope section below.
 //!
 //! # One explicit route per operation
 //!
@@ -29,27 +30,53 @@
 //! not compile.
 //!
 //! The handlers are deliberately thin. Each one builds an
-//! [`Operations`](gproxy_app::Operations) or a
-//! [`Manage`](gproxy_sdk::manage::Manage) over the request, calls exactly one
-//! method on it and renders the result. Nothing here validates, authorizes a
-//! row, or decides a status.
+//! [`Operations`](gproxy_app::Operations), a
+//! [`Manage`](gproxy_sdk::manage::Manage) or a
+//! [`ScopedManage`](gproxy_app::ScopedManage) over the request, calls exactly
+//! one method on it and renders the result. Nothing here validates, authorizes
+//! a row, or decides a status.
+//!
+//! # The scope, and why it is not an `if` in a handler
+//!
+//! This surface is no longer the instance administrator's alone. A caller
+//! arrives with one [`AdminScope`]: the operator gets
+//! [`Instance`](AdminScope::Instance), an organization or team administrator
+//! gets theirs, and **they call the same routes**. What differs is how many
+//! rows come back.
+//!
+//! Two mechanisms, both structural, neither a per-handler check:
+//!
+//! 1. **The route table declares its section.** Every macro below takes a
+//!    section id as a *mandatory* argument, so a family that declares nothing
+//!    does not compile. The minimum scope of a section is declared once, in
+//!    `gproxy_app::admin_surface`, and the generated handler gates on
+//!    [`require_section`](gproxy_app::require_section) — which refuses a
+//!    section it does not recognise, so the table is default closed.
+//! 2. **A scope-aware family narrows its own query.** `credentials` and
+//!    `quotas` go through `ScopedManage` rather than `manage()`, where the
+//!    scope participates in building the query and a row outside it is
+//!    `NotFound`. Nothing in this module compares an organization id to
+//!    anything.
 //!
 //! # The middleware, in order
 //!
 //! 1. **authenticate** — session cookie first, bearer token second;
-//! 2. **instance admin** — this whole surface is the operator's, and neither
-//!    [`Operations`] nor the sdk's management families perform any
-//!    authorization of their own, so the check has to be here.
-//!    Organization- and team-scoped administration is the portal's;
+//! 2. **resolve the scope** — [`AdminScope::resolve`], the one place a scope
+//!    is derived, and the one place the `x-gproxy-admin-scope` header is read.
+//!    A caller who administers nothing is refused the whole surface here, as
+//!    they were before scopes existed;
 //! 3. **same origin**, for an unsafe method on a cookie caller (inside
 //!    [`session::authenticate`]);
-//! 4. the operation;
+//! 4. the operation, gated on its declared section;
 //! 5. **audit**, for every method that is not a read. The action name is
 //!    derived from the matched route, so a new route cannot forget to name
 //!    itself.
 //!
 //! It is a `route_layer`, so it applies only to routes that matched: an
 //! unknown `/admin/api/*` path is a 404 without ever touching the database.
+//!
+//! [`context`] and `/session` are mounted under a lighter guard that stops
+//! after step 2 without demanding a *current* scope; see that module.
 
 use axum::{
     Router,
@@ -57,7 +84,9 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use gproxy_app::{AppError, Caller, Operations, audit::AuditEntry};
+use gproxy_app::{
+    AdminAdmission, AdminScope, AppError, Caller, Operations, SCOPE_HEADER, audit::AuditEntry,
+};
 use gproxy_sdk::SdkError;
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::entity::identity::audit_event;
@@ -69,27 +98,45 @@ use crate::{HostState, error::ErrorResponse, session};
 // ---------------------------------------------------------------------------
 // The macros both halves are built from. They live here, next to the
 // middleware, because what they encode is the surface's shape: a family has
-// exactly these routes and a handler does exactly one thing.
+// exactly these routes, it declares which scopes reach it, and a handler does
+// exactly one thing.
 //
 // `macro_rules!` is textually scoped, so the `mod` declarations below have to
 // come after the definitions — which is also the order a reader wants them in.
 // ---------------------------------------------------------------------------
+
+/// Refuse the request unless `$scope` reaches `$section`.
+///
+/// The section id is a mandatory argument of every route macro below, so this
+/// cannot be skipped by forgetting to write it: the macro would not expand.
+/// The minimum scope itself is declared once, in `gproxy_app::admin_surface`,
+/// and an id that table does not know is refused — a route naming a section
+/// nobody declared is closed rather than open.
+macro_rules! gate {
+    ($section:literal, $scope:expr) => {
+        if let Err(error) = gproxy_app::require_section(&$scope, $section) {
+            return ErrorResponse(error).into_response();
+        }
+    };
+}
 
 /// The five routes every identity family has, plus whatever else it declares.
 ///
 /// A macro rather than a generic function because the families are separate
 /// types with separate DTOs; what they share is the *shape*, and the point is
 /// that a family cannot accidentally have four of the five or a different
-/// method on one of them.
+/// method on one of them — nor reach a scope it never declared.
 macro_rules! family {
-    ($router:expr, $path:literal, $family:ident, $write:ty, $patch:ty) => {
+    ($router:expr, $path:literal, $family:ident, $write:ty, $patch:ty, $section:literal) => {
         $router
-            .route($path, collection!($family, $write))
+            .route($path, collection!($family, $write, $section))
             .route(
                 concat!($path, "/{id}"),
-                item!($family, $patch).delete(
-                    |State(state): State<HostState<C>>, Path(id): Path<String>| crate::send(async move {
-                        operations!(@empty state, $family.delete(&id))
+                item!($family, $patch, $section).delete(
+                    |State(state): State<HostState<C>>,
+                     Extension(scope): Extension<AdminScope>,
+                     Path(id): Path<String>| crate::send(async move {
+                        operations!(@empty state, scope, $section, $family.delete(&id))
                     }),
                 ),
             )
@@ -98,15 +145,21 @@ macro_rules! family {
 
 /// `GET` the page and `POST` a new row.
 macro_rules! collection {
-    ($family:ident, $write:ty) => {
+    ($family:ident, $write:ty, $section:literal) => {
         get(
-            |State(state): State<HostState<C>>, Query(query): Query<ListQuery>| {
-                crate::send(async move { operations!(state, $family.list(query)) })
+            |State(state): State<HostState<C>>,
+             Extension(scope): Extension<AdminScope>,
+             Query(query): Query<ListQuery>| {
+                crate::send(async move { operations!(state, scope, $section, $family.list(query)) })
             },
         )
         .post(
-            |State(state): State<HostState<C>>, Json(write): Json<$write>| {
-                crate::send(async move { operations!(state, $family.create(write)) })
+            |State(state): State<HostState<C>>,
+             Extension(scope): Extension<AdminScope>,
+             Json(write): Json<$write>| {
+                crate::send(
+                    async move { operations!(state, scope, $section, $family.create(write)) },
+                )
             },
         )
     };
@@ -116,17 +169,22 @@ macro_rules! collection {
 /// retires rather than deletes — an OAuth client, whose grants still name it —
 /// can take these two and declare its own third.
 macro_rules! item {
-    ($family:ident, $patch:ty) => {
+    ($family:ident, $patch:ty, $section:literal) => {
         get(
-            |State(state): State<HostState<C>>, Path(id): Path<String>| {
-                crate::send(async move { operations!(state, $family.get(&id)) })
+            |State(state): State<HostState<C>>,
+             Extension(scope): Extension<AdminScope>,
+             Path(id): Path<String>| {
+                crate::send(async move { operations!(state, scope, $section, $family.get(&id)) })
             },
         )
         .patch(
             |State(state): State<HostState<C>>,
+             Extension(scope): Extension<AdminScope>,
              Path(id): Path<String>,
              Json(patch): Json<$patch>| {
-                crate::send(async move { operations!(state, $family.update(&id, patch)) })
+                crate::send(async move {
+                    operations!(state, scope, $section, $family.update(&id, patch))
+                })
             },
         )
     };
@@ -138,13 +196,15 @@ macro_rules! item {
 /// this crate's half of the one-load-per-request rule: `Operations` borrows
 /// it, so it cannot outlive the binding and a second load cannot creep in.
 macro_rules! operations {
-    (@empty $state:expr, $family:ident.$method:ident($($argument:expr),* $(,)?)) => {{
+    (@empty $state:expr, $scope:expr, $section:literal, $family:ident.$method:ident($($argument:expr),* $(,)?)) => {{
+        gate!($section, $scope);
         let data = $state.app().data();
         let operations =
             Operations::new($state.app().gproxy(), &data, $state.app().config());
         reply_empty(operations.$family().$method($($argument),*).await)
     }};
-    ($state:expr, $family:ident.$method:ident($($argument:expr),* $(,)?)) => {{
+    ($state:expr, $scope:expr, $section:literal, $family:ident.$method:ident($($argument:expr),* $(,)?)) => {{
+        gate!($section, $scope);
         let data = $state.app().data();
         let operations =
             Operations::new($state.app().gproxy(), &data, $state.app().config());
@@ -163,12 +223,35 @@ macro_rules! operations {
 /// There is no snapshot to pin here: `Manage` borrows the handle, and every
 /// family reads the database at the moment it is called.
 macro_rules! manage {
-    (@empty $state:expr, $($call:tt)+) => {
+    (@empty $state:expr, $scope:expr, $section:literal, $($call:tt)+) => {{
+        gate!($section, $scope);
         reply_sdk_empty($state.app().gproxy().manage().$($call)+.await)
-    };
-    ($state:expr, $($call:tt)+) => {
+    }};
+    ($state:expr, $scope:expr, $section:literal, $($call:tt)+) => {{
+        gate!($section, $scope);
         reply_sdk($state.app().gproxy().manage().$($call)+.await)
-    };
+    }};
+}
+
+/// Render one call on a **scope-aware** family.
+///
+/// The same shape as [`manage!`], through `gproxy-app`'s `ScopedManage`, which
+/// narrows the query and admits the row. The scope is passed rather than
+/// consulted: this macro contains no comparison, and neither does any handler
+/// that uses it.
+macro_rules! scoped {
+    (@empty $state:expr, $scope:expr, $section:literal, $family:ident.$method:ident($($argument:expr),* $(,)?)) => {{
+        gate!($section, $scope);
+        let data = $state.app().data();
+        let scoped = ScopedManage::new($state.app().gproxy(), &data, &$scope);
+        reply_empty(scoped.$family().$method($($argument),*).await)
+    }};
+    ($state:expr, $scope:expr, $section:literal, $family:ident.$method:ident($($argument:expr),* $(,)?)) => {{
+        gate!($section, $scope);
+        let data = $state.app().data();
+        let scoped = ScopedManage::new($state.app().gproxy(), &data, &$scope);
+        reply(scoped.$family().$method($($argument),*).await)
+    }};
 }
 
 /// The six routes every configuration family has.
@@ -177,33 +260,38 @@ macro_rules! manage {
 /// `batch` — which is what makes a console's "disable these five" one revision
 /// instead of five.
 macro_rules! config_family {
-    ($router:expr, $path:literal, [$($family:tt)+], $write:ty, $patch:ty) => {
+    ($router:expr, $path:literal, [$($family:tt)+], $write:ty, $patch:ty, $section:literal) => {
         $router
-            .route($path, config_collection!([$($family)+], $write))
+            .route($path, config_collection!([$($family)+], $write, $section))
             .route(
                 concat!($path, "/batch"),
                 post(
                     |State(state): State<HostState<C>>,
+                     Extension(scope): Extension<AdminScope>,
                      Json(items): Json<Vec<BatchItem<$write, $patch>>>| crate::send(async move {
-                        manage!(state, $($family)+.batch(items))
+                        manage!(state, scope, $section, $($family)+.batch(items))
                     }),
                 ),
             )
-            .route(concat!($path, "/{id}"), config_item!([$($family)+], $patch))
+            .route(concat!($path, "/{id}"), config_item!([$($family)+], $patch, $section))
     };
 }
 
 /// `GET` the page and `POST` a new row.
 macro_rules! config_collection {
-    ([$($family:tt)+], $write:ty) => {
+    ([$($family:tt)+], $write:ty, $section:literal) => {
         get(
-            |State(state): State<HostState<C>>, Query(query): Query<ListQuery>| crate::send(async move {
-                manage!(state, $($family)+.list(query))
+            |State(state): State<HostState<C>>,
+             Extension(scope): Extension<AdminScope>,
+             Query(query): Query<ListQuery>| crate::send(async move {
+                manage!(state, scope, $section, $($family)+.list(query))
             }),
         )
         .post(
-            |State(state): State<HostState<C>>, Json(write): Json<$write>| crate::send(async move {
-                manage!(state, $($family)+.create(write))
+            |State(state): State<HostState<C>>,
+             Extension(scope): Extension<AdminScope>,
+             Json(write): Json<$write>| crate::send(async move {
+                manage!(state, scope, $section, $($family)+.create(write))
             }),
         )
     };
@@ -213,45 +301,124 @@ macro_rules! config_collection {
 /// always travel together: no configuration family retires a row instead of
 /// deleting it.
 macro_rules! config_item {
-    ([$($family:tt)+], $patch:ty) => {
+    ([$($family:tt)+], $patch:ty, $section:literal) => {
         get(
-            |State(state): State<HostState<C>>, Path(id): Path<String>| crate::send(async move {
-                manage!(state, $($family)+.get(&id))
+            |State(state): State<HostState<C>>,
+             Extension(scope): Extension<AdminScope>,
+             Path(id): Path<String>| crate::send(async move {
+                manage!(state, scope, $section, $($family)+.get(&id))
             }),
         )
         .patch(
             |State(state): State<HostState<C>>,
+             Extension(scope): Extension<AdminScope>,
              Path(id): Path<String>,
              Json(patch): Json<$patch>| crate::send(async move {
-                manage!(state, $($family)+.update(&id, patch))
+                manage!(state, scope, $section, $($family)+.update(&id, patch))
             }),
         )
         .delete(
-            |State(state): State<HostState<C>>, Path(id): Path<String>| crate::send(async move {
-                manage!(@empty state, $($family)+.delete(&id))
+            |State(state): State<HostState<C>>,
+             Extension(scope): Extension<AdminScope>,
+             Path(id): Path<String>| crate::send(async move {
+                manage!(@empty state, scope, $section, $($family)+.delete(&id))
             }),
         )
     };
 }
 
+/// The same six routes, for a family whose rows carry an owner.
+///
+/// Identical to [`config_family!`] except that every call goes through
+/// `ScopedManage`. There are exactly two of these — `credentials` and
+/// `quotas` — and the duplication is deliberate: the two macros are the two
+/// answers to "may this caller see this row", and collapsing them into one
+/// with a flag would put that decision back into a conditional.
+macro_rules! scoped_family {
+    ($router:expr, $path:literal, $family:ident, $write:ty, $patch:ty, $section:literal) => {
+        $router
+            .route(
+                $path,
+                get(
+                    |State(state): State<HostState<C>>,
+                     Extension(scope): Extension<AdminScope>,
+                     Query(query): Query<ListQuery>| crate::send(async move {
+                        scoped!(state, scope, $section, $family.list(query))
+                    }),
+                )
+                .post(
+                    |State(state): State<HostState<C>>,
+                     Extension(scope): Extension<AdminScope>,
+                     Json(write): Json<$write>| crate::send(async move {
+                        scoped!(state, scope, $section, $family.create(write))
+                    }),
+                ),
+            )
+            .route(
+                concat!($path, "/batch"),
+                post(
+                    |State(state): State<HostState<C>>,
+                     Extension(scope): Extension<AdminScope>,
+                     Json(items): Json<Vec<BatchItem<$write, $patch>>>| crate::send(async move {
+                        scoped!(state, scope, $section, $family.batch(items))
+                    }),
+                ),
+            )
+            .route(
+                concat!($path, "/{id}"),
+                get(
+                    |State(state): State<HostState<C>>,
+                     Extension(scope): Extension<AdminScope>,
+                     Path(id): Path<String>| crate::send(async move {
+                        scoped!(state, scope, $section, $family.get(&id))
+                    }),
+                )
+                .patch(
+                    |State(state): State<HostState<C>>,
+                     Extension(scope): Extension<AdminScope>,
+                     Path(id): Path<String>,
+                     Json(patch): Json<$patch>| crate::send(async move {
+                        scoped!(state, scope, $section, $family.update(&id, patch))
+                    }),
+                )
+                .delete(
+                    |State(state): State<HostState<C>>,
+                     Extension(scope): Extension<AdminScope>,
+                     Path(id): Path<String>| crate::send(async move {
+                        scoped!(@empty state, scope, $section, $family.delete(&id))
+                    }),
+                ),
+            )
+    };
+}
+
 mod config;
+mod context;
 mod identity;
 
 /// `/admin/api`, to be nested under that prefix.
 ///
-/// The state is taken by value because the guard below is a
-/// `from_fn_with_state` middleware, which needs the value at build time rather
+/// The state is taken by value because the guards below are
+/// `from_fn_with_state` middleware, which need the value at build time rather
 /// than the `Router<S>` placeholder.
+///
+/// Two guards, not one. Everything that acts on rows needs a settled scope;
+/// `/context` and `/session` precede the choice and must answer without one.
 pub fn router<C>(state: HostState<C>) -> Router<HostState<C>>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    identity::routes()
-        .merge(config::routes())
-        .route_layer(axum::middleware::from_fn_with_state(state, guard::<C>))
+    let scoped = identity::routes().merge(config::routes()).route_layer(
+        axum::middleware::from_fn_with_state(state.clone(), guard::<C>),
+    );
+    let unscoped = context::routes().route_layer(axum::middleware::from_fn_with_state(
+        state,
+        context_guard::<C>,
+    ));
+    scoped.merge(unscoped)
 }
 
-/// Authenticate, require the instance administrator, run, audit.
+/// Authenticate, resolve the scope, require one, run, audit.
 async fn guard<C>(State(state): State<HostState<C>>, mut request: Request, next: Next) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
@@ -262,21 +429,72 @@ where
         let method = request.method().clone();
         let headers = request.headers().clone();
         let action = session::audit_action("admin", crate::matched_path(&request), &method);
-        let caller = match session::authenticate(state.app(), &method, &headers).await {
-            Ok(caller) => caller,
+        let (caller, admission) = match admit(&state, &method, &headers).await {
+            Ok(admitted) => admitted,
             Err(error) => return ErrorResponse(error).into_response(),
         };
-        if !caller.is_instance_admin() {
-            return ErrorResponse(AppError::forbidden(
-                "the administration API is for instance administrators",
-            ))
-            .into_response();
-        }
+        let scope = match admission.require() {
+            Ok(scope) => scope.clone(),
+            Err(error) => return ErrorResponse(error).into_response(),
+        };
         request.extensions_mut().insert(caller.clone());
+        request.extensions_mut().insert(scope);
         let response = next.run(request).await;
         let status = response.status();
         audit(state, caller, action, &method, status).await;
         response
+    })
+    .await
+}
+
+/// The same without the last step: `/context` and `/session` are reachable by
+/// a caller who administers several scopes and has named none.
+async fn context_guard<C>(
+    State(state): State<HostState<C>>,
+    mut request: Request,
+    next: Next,
+) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    crate::send(async move {
+        let method = request.method().clone();
+        let headers = request.headers().clone();
+        let action = session::audit_action("admin", crate::matched_path(&request), &method);
+        let (caller, admission) = match admit(&state, &method, &headers).await {
+            Ok(admitted) => admitted,
+            Err(error) => return ErrorResponse(error).into_response(),
+        };
+        request.extensions_mut().insert(caller.clone());
+        request.extensions_mut().insert(admission);
+        let response = next.run(request).await;
+        let status = response.status();
+        audit(state, caller, action, &method, status).await;
+        response
+    })
+    .await
+}
+
+/// Who is calling and what they may act as: the two steps both guards share.
+///
+/// [`AdminScope::resolve`] is the only place in this workspace that derives a
+/// scope from a caller, and this is its only call site.
+async fn admit<C>(
+    state: &HostState<C>,
+    method: &Method,
+    headers: &http::HeaderMap,
+) -> Result<(Caller, AdminAdmission), AppError>
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    crate::send(async move {
+        let caller = session::authenticate(state.app(), method, headers).await?;
+        let data = state.app().data();
+        let requested = headers
+            .get(SCOPE_HEADER)
+            .and_then(|value| value.to_str().ok());
+        let admission = AdminScope::resolve(&caller, &data, requested)?;
+        Ok((caller, admission))
     })
     .await
 }

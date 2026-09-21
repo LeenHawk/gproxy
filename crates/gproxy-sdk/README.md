@@ -288,6 +288,15 @@ caller-supplied when given and minted otherwise, timestamps are Unix
 milliseconds, decimals travel as strings, and `credentials.secret` is never in a
 DTO — only `hasSecret`, plus the separate `reveal_secret` call.
 
+`ListQuery`'s `(ownerKind, ownerId)` pair narrows the two families whose rows
+carry an owner: `quotas` by its own two columns, `credentials` by the three
+opaque ones (`user` / `team` / `org`, plus `instance` for the rows with no
+owner at all). What those columns *mean* is the host's business — this crate
+passes them through — but a list that could not be narrowed by them would force
+a multi-tenant host to filter pages after the fact and report the unfiltered
+counts, which is where a tenant boundary leaks. An owner kind the table cannot
+hold matches nothing rather than everything.
+
 ### One write, one revision
 
 ```

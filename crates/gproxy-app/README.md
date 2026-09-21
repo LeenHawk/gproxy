@@ -73,6 +73,9 @@ one load, one request.
 | `capture` | the downstream `capture_records` row and the `capture_links` edges to the upstream attempts core recorded |
 | `publication` | `AppPublicationUrl`, plus the read and delete behind the host's download route |
 | `operations` | the identity write families, each one revision commit plus a peer notification |
+| `operations::scoped` | `ScopedManage`: the two sdk families whose rows carry an owner, narrowed by the caller's `AdminScope` |
+| `admin_scope` | `AdminScope`: what one management request may act as, where it comes from, and what it admits |
+| `admin_surface` | `ADMIN_SECTIONS`: the management surface as a table, and the minimum scope of each section |
 | `operations::portal` | the end user's self-serve surface, scoped to one `Caller` by construction |
 | `operations::issuer` | the OAuth authorization server this instance runs **for downstream clients** |
 | `dto` | the wire shapes those families exchange: string ids, millisecond timestamps, camelCase, no secrets |
@@ -600,7 +603,79 @@ single generic shape, plus whatever else that family genuinely needs.
 | `audit()` | `audit_events` | `record`, `try_record`, `query` |
 
 `Operations` performs **no authorization**. Who may call which family is the
-host middleware's decision, taken from the `Caller` before the operation runs.
+host middleware's decision, taken from the `Caller` before the operation runs —
+and, since the scope model, from the `AdminScope` the guard resolved. See the
+next section.
+
+## The administration scope
+
+`organization_members.role` and `team_members.role` have held
+`MembershipRole::Admin` since the schema was written and nothing consumed it:
+the admin surface demanded an instance administrator and the portal is strictly
+self-service, so an organization administrator had no surface at all. They now
+have the *same* surface, narrowed by one typed value.
+
+```rust
+pub enum AdminScope { Instance, Organization(String), Team(String) }
+```
+
+One per request, resolved in exactly one place — `AdminScope::resolve`, which
+a host's guard is the single caller of:
+
+| caller | scope |
+|---|---|
+| `users.role = admin` | `Instance`; the scope header is not read |
+| an API key (or an OAuth grant's key) | the key's own `team_id`, else its `organization_id` |
+| a console session | the `x-gproxy-admin-scope` header (`SCOPE_HEADER`), validated against the caller's **admin** memberships |
+
+The API key rule is the one the data plane already follows: the key's binding
+decides budget attribution, the permission subject and credential visibility,
+so it decides this too, and a header on a key request is ignored rather than
+refused. A session caller who administers exactly one scope needs no header;
+one who administers several gets a `400` naming the header until they choose;
+one who administers none is refused the whole surface with `403`.
+
+### It narrows the query; it does not check the answer
+
+That is the whole point, and it is the mirror image of why the portal is safe.
+The portal cannot name somebody else because there is no parameter for it; this
+surface cannot reach outside its scope because there is no query that could:
+
+| what | how | outside the scope |
+|---|---|---|
+| a list | `AdminScope::narrow` rewrites the `(ownerKind, ownerId)` filter before the statement is built | an **empty page** — a well-formed question with no rows |
+| a row by id | `AdminScope::admits` over the row's owner | **`NotFound`**, never `Forbidden`, which would confirm the id |
+| a write naming an owner | `AdminScope::admit_write` | **`Forbidden`** — the caller typed that id rather than discovering it |
+
+A patch is admitted twice, for the row as it is and as it would be, so a row
+can be neither pushed out of a scope nor captured into one.
+
+Containment: the instance scope holds everything including unowned rows; an
+organization holds its own rows **and its teams'**, and not its members'
+personal rows; a team holds only its own. `AdminScope::organization` reports a
+team's parent, which is what a console renders as the breadcrumb.
+
+### The section table
+
+Which families a scope reaches is declared once, in `ADMIN_SECTIONS`. A host's
+route table names a section per route and gates on `require_section`, which
+refuses a section it does not recognise — so the table is **default closed** and
+a route that names nothing undeclared is reachable by the instance scope only.
+`GET /admin/api/context` renders the same table for the caller's scope, and the
+console builds its navigation from that and from nothing else.
+
+Open today: `context`, `session`, `credentials`, `quotas`. Instance-only:
+everything that configures the gateway, and — for now — every identity family.
+Opening one is a deliberate act, not a flag: most of them need an `IN` over a
+membership rather than a column comparison.
+
+`ScopedManage` is the two open configuration families, `credentials` and
+`quotas`, wrapped so the rules above run before `Gproxy::manage()` does. It is
+the one place this crate wraps an sdk family, and it earns the wrapper because
+it has something to decide — who owns the row — that the engine must never
+learn. The `quotas` table holds tenant budgets (`owner_kind` `org`/`team`) and
+operator limits (`credential`/`provider`) side by side; the split is by owner
+kind, not by route.
 
 ### One batch, one revision, then a notification
 

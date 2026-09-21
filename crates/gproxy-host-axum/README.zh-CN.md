@@ -36,7 +36,7 @@ axum::serve(
 |---|---|---|
 | `GET` | `/healthz` | 存活与已发布的配置 revision；不鉴权 |
 | `GET` | `/publications/{id}` | 已发布的内容；id **本身就是**凭据，所以不要 key |
-| — | `/admin/api/…` | 运维面：每个操作一条显式 `MethodRouter`，覆盖 `Operations` 与 `manage()` 两半 |
+| — | `/admin/api/…` | 管理面：每个操作一条显式 `MethodRouter`，覆盖 `Operations`、`manage()` 与 `ScopedManage`；调用者的 `AdminScope` 决定他看得见多少 |
 | — | `/portal/api/…` | 终端用户面，外加 `login` 与 `logout` |
 | — | 其余一切 | ingress 兜底，顺序见下 |
 
@@ -44,7 +44,72 @@ axum::serve(
 
 两半，一个面。**身份**家族来自 `gproxy_app::Operations`；**配置**家族直接调
 `gproxy_sdk::Gproxy::manage()`——sdk 的家族本身就是那张操作表，再包一层转发也
-没有任何东西可判断。两半共用同一组中间件。
+没有任何东西可判断。例外是 `credentials` 与 `quotas`：它们的行带 owner，走
+`gproxy_app::ScopedManage`——那一层确实有东西要判断。两半共用同一组中间件。
+
+#### scope
+
+这个面不再只属于实例管理员。每个请求带一个 `gproxy_app::AdminScope`——
+`Instance`、`Organization(id)` 或 `Team(id)`——组织管理员调**同样的路由**，
+区别只是回来的行更少。
+
+| 调用者 | scope |
+|---|---|
+| `users.role = admin` | `Instance`；不读 scope 头 |
+| API key（含 OAuth 授权的内部 key） | key 自己的 `team_id`，否则 `organization_id`——永远不看请求头 |
+| 控制台会话 | `x-gproxy-admin-scope` 头，按调用者的 **admin** 成员关系校验 |
+
+`x-gproxy-admin-scope` 取 `instance`、`organization:{id}`（或 `org:{id}`）、
+`team:{id}`。只管理一个 scope 的会话不需要这个头；管理多个的必须指定，在指定之前
+每条路由都回 `400` 并点名这个头；一个都不管理的整面 `403`，和没有 scope 之前一样。
+
+scope **参与构造查询**，而不是拿来核对答案——这正是它安全的原因：
+
+- 列表在语句构造之前经 `AdminScope::narrow` 收窄，数据库永远不会执行一条可能命中
+  他人行的查询。筛选条件指向 scope 之外的 owner 返回**空页**，不是错误；
+- 按 id 取行的路由先读出该行的 owner，越界时回 **`NotFound`，绝不是 `Forbidden`**
+  ——`Forbidden` 会确认这个 id 存在，而那正是枚举想要的事实；
+- 写入时点名 scope 之外的 owner 是 **`Forbidden`**，因为这个 id 是调用者自己填的，
+  不是发现的。patch 校验两次——按当前的行和按改完的行——所以一行既不会被推出 scope，
+  也不会被拉进来。
+
+哪些家族对哪些 scope 开放，只声明**一次**：
+`gproxy_app::admin_surface::ADMIN_SECTIONS`。下面每个路由宏都把 section id 作为
+**必填**参数——什么都不声明的家族编译不过——生成的 handler 再调 `require_section`，
+而它对不认识的 section 一律拒绝。这张表因此默认是关的。
+
+目前开放的 section 是 `context`、`session`、`credentials`、`quotas`。其余都是实例
+机器：网关自身的配置（Provider、模型、路由、改写、端点、价格、连接档、设置、
+导入导出、连通性、词表、目录），以及——暂时——身份家族。按组织收窄身份是下一步，
+刻意不做成半开。
+
+`quotas` 一张表同时装着这条分界的两边：owner 是 `org`/`team` 的是租户预算，owner 是
+`credential`/`provider` 的是运维限额。分界在 `owner_kind` 上，不在路由上，所以
+`/quotas/{id}/limit-reset` 和别的按 id 取行的路由一样挂着，在实例 scope 之外直接
+`NotFound`。
+
+#### `GET /admin/api/context`
+
+唯一一条任何已认证调用者都够得着、与 scope 无关的路由，包括还没定下 scope 的人。
+**控制台的导航只从这里渲染，别无他处。**
+
+```json
+{
+  "user": { "id": "…", "name": "orgadmin", "role": "user", "instanceAdmin": false },
+  "callerKind": "session",
+  "scopeHeader": "x-gproxy-admin-scope",
+  "scope": { "kind": "organization", "id": "…", "name": "acme",
+             "organizationId": "…", "selector": "organization:…", "current": true },
+  "scopes": [ … 这个调用者可以充当的每一个 scope … ],
+  "sections": [ { "id": "credentials", "path": "/credentials",
+                  "capabilities": ["read", "write"] }, … ]
+}
+```
+
+`selector` 就是选中该 scope 要发的头的字面值，控制台不必自己拼。只有当调用者管理
+多个 scope 且一个都没指定时，`scope` 才是 `null`（`sections` 随之为空）。
+`/admin/api/session` 和它挂在同一个较轻的 guard 下，所以在选定 scope 之前、以及
+scope 失效之后，登出都还能用。
 
 #### 身份
 
@@ -142,13 +207,18 @@ v3 有同一个操作的地方路径沿用 v3，运维已有的脚本因此不�
 
 #### 中间件
 
-中间件顺序：认证 → **要求实例管理员** → 非安全方法且是 cookie 调用者时校验同源 →
-执行操作 → 非读方法写一行审计。它是 `route_layer`，所以未命中的
-`/admin/api/*` 是一个连数据库都不碰的 404。
+中间件顺序：认证 → **解析 scope**（`AdminScope::resolve`，派生 scope 的唯一一处，
+也是读 scope 头的唯一一处）→ 非安全方法且是 cookie 调用者时校验同源 →
+执行操作，按它声明的 section 把关 → 非读方法写一行审计。它是 `route_layer`，所以
+未命中的 `/admin/api/*` 是一个连数据库都不碰的 404。
+
+`/admin/api/context` 与 `/admin/api/session` 挂在第二个、更轻的 guard 下：解析完就
+停，不要求已经定下 scope。
 
 审计的 action 由命中的路由推出（`admin.api_keys.rotate`、
 `admin.providers.create`），新路由因此不可能忘记给自己命名。读不审计——上面那两个
-读之所以是 `POST`，就是为了落进审计。
+读之所以是 `POST`，就是为了落进审计。拒绝也会审计：组织管理员写操作被拒的 `403`
+会以 `outcome = error` 落在审计里。
 
 ### `/portal/api`
 
@@ -402,6 +472,11 @@ OAuth 端点回答 RFC 6749 §5.2 的
   也没有按轮次的 capture，理由见上。
 - **登录没有限流。** `gproxy-app` 说明了它为什么做不了（它没有客户端地址）；本宿主
   有，但还没用上。
+- **身份家族还没有 scope 化。** 组织管理员能到 `credentials` 与 `quotas`；用户、
+  key、团队、成员、权限、限流、订阅、池、套餐、OAuth 客户端、会话和审计仍然是
+  `Instance`-only。机制已经就位——改 `ADMIN_SECTIONS` 里的一行、再给那个家族一个
+  收窄规则就开——但每个家族都是一次有意的动作而不是一个开关，因为其中多数要的是
+  对成员关系做 `IN`，而不是一次列比较。
 - **渠道厂商服务调用没法取消。** 理由见上：`ServiceRequestIn` 和 core 的
   `ServiceRequest` 都没有这个字段，而服务调用又短又是缓冲的，还不值得为它改两个
   crate。
@@ -419,3 +494,8 @@ OAuth 端点回答 RFC 6749 §5.2 的
 `tests/cancel.rs` 绑端口是出于第二个理由：断开没法伪造。树里每个 HTTP 客户端在把
 响应交出来之前都会先把体读干净，所以那一组用例直接在裸 `TcpStream` 上把请求敲出来，
 再靠 drop 它来挂断——那是真实客户端会做、而这里没有别的东西能模仿的唯一一件事。
+
+`tests/scope.rs` 是一张真值表而不是几个轶事：四种 scope（实例、组织、团队、无）
+乘以每一类家族的一个代表，再加上不属于表里任何一格的那几条规则——scope 之外的行是
+`NotFound`、写入点名他人 owner 是 `Forbidden`、头里点名没管理的 scope 被拒、
+API key 的绑定压过它自己发的任何头。

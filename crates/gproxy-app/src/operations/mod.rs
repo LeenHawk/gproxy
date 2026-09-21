@@ -68,6 +68,7 @@ mod plans;
 mod pools;
 pub mod portal;
 mod rate_limits;
+mod scoped;
 mod sessions;
 mod subscriptions;
 mod users;
@@ -84,6 +85,7 @@ pub use portal::{
     MAX_PORTAL_MODELS, MAX_RECENT_REQUESTS, Portal, PortalKeys, PortalOAuthSessions, PortalPassword,
 };
 pub use rate_limits::RateLimits;
+pub use scoped::{ScopedCredentials, ScopedManage, ScopedQuotas};
 pub use sessions::Sessions;
 pub use subscriptions::Subscriptions;
 pub use users::Users;
