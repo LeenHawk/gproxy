@@ -1,0 +1,51 @@
+[package]
+name = "gproxy-host-axum"
+description = "The native HTTP host for GPROXY v4: an axum router over gproxy-app"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+# This crate is native-only on purpose. It binds axum, hyper and tokio, none of
+# which run on `wasm32-unknown-unknown`; the edge deployment is a separate host
+# (`gproxy-host-edge`) over the same `gproxy-app` operations. Nothing here is
+# behind a `cfg(target_arch)`, and no wasm target is attempted.
+[dependencies]
+axum = { workspace = true }
+bytes = { workspace = true }
+futures-core = { workspace = true }
+futures-util = { workspace = true }
+gproxy-app = { workspace = true }
+gproxy-channel = { workspace = true }
+gproxy-core = { workspace = true }
+gproxy-protocol = { workspace = true }
+gproxy-sdk = { workspace = true }
+gproxy-seaorm = { workspace = true }
+gproxy-store = { workspace = true }
+http = { workspace = true }
+mime_guess = { workspace = true }
+# The console bundle, when one was built into the binary. The folder is empty
+# in a source checkout, which is what makes `/console` answer 404 rather than
+# pretend to serve an application that is not there.
+rust-embed = { workspace = true }
+# The one request content-encoding this gateway decodes itself: the Codex CLI
+# sends zstd, and a channel forwards bytes rather than framing.
+ruzstd = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_urlencoded = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+async-trait = { workspace = true }
+gproxy-cache = { workspace = true, features = ["memory"] }
+sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+# `ServiceExt::oneshot`: the whole test suite drives the router directly rather
+# than binding a socket.
+tower = { workspace = true, features = ["util"] }
