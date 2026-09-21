@@ -10,6 +10,12 @@
 //!
 //! Cache creation has no TTL on this wire, so it cannot claim one of the
 //! `cache_creation_*` fields and travels as a named metric.
+//!
+//! `#7.9 actual_model_uid` — the concrete model behind a router or a family
+//! alias — travels as a usage *dimension*. It is not echoed as the response
+//! `model`, which clients compare against what they asked for, but it is the
+//! only signal of what actually ran and therefore of what is actually being
+//! billed, so pricing and metering see it.
 
 use gproxy_protocol::{
     codec::{CodecLimits, SseDecoder, SseFrame},
@@ -18,7 +24,7 @@ use gproxy_protocol::{
 use rust_decimal::Decimal;
 use serde_json::Value;
 
-use super::Devin;
+use super::{Devin, stream::ACTUAL_MODEL_KEY};
 use crate::channel::{
     ChannelError, NormalizedUsage, UsageCompleteness, UsageContext, UsageExtractor, UsageFrame,
     UsageObserver, UsageStream, UsageStreamContext, UsageStreamEnd, UsageTransport,
@@ -57,6 +63,11 @@ fn from_json(usage: &Value, completeness: UsageCompleteness) -> Option<Normalize
         normalized
             .metrics
             .insert(CACHE_CREATION_METRIC.into(), Decimal::from(created));
+    }
+    if let Some(actual) = usage.get(ACTUAL_MODEL_KEY).and_then(Value::as_str) {
+        normalized
+            .dimensions
+            .insert(ACTUAL_MODEL_KEY.into(), actual.to_owned());
     }
     Some(normalized)
 }

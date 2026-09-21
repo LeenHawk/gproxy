@@ -88,6 +88,7 @@ devin = [
     "dep:getrandom",
     "dep:miniz_oxide",
     "dep:sha2",
+    "dep:time",
     "dep:web-time",
 ]
 # Gemini CLI (Google account through Code Assist): PKCE login that discovers

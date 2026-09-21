@@ -23,10 +23,21 @@ pub const CLIENT_OS: &str = "windows";
 /// The reference defaults to 8192 rather than a smaller value because #2 only
 /// became the real cap once the max_tokens/max_newlines tags were corrected.
 pub const DEFAULT_MAX_TOKENS: u64 = 8192;
-/// `CompletionConfig` #3 (`max_newlines`), where the reference writes the
-/// context window. Keeping its value means the field stays the no-op it has
-/// always been on this wire.
-pub const DEFAULT_MAX_NEWLINES: u64 = 128_000;
+/// `CompletionConfig` #3, the slot the reference *names* `max_newlines` and
+/// *writes* the context window into (`devin-connect.js` declares
+/// `#3 = max_newlines`, and `buildCompletionConfig` writes
+/// `contextWindow ?? 128000` there, reconciling the two with "a large
+/// max_newlines is a no-op"). The field is therefore documented as one thing
+/// and used as another on the reference wire, and this channel follows the
+/// use rather than the name: the key is `context_window`, because an operator
+/// who reaches for it is trying to move a context limit, not a newline count.
+///
+/// The value is a constant here and a per-model number there. This channel
+/// has no per-model context sizes to source it from — the captured catalogue
+/// snapshot carries selectors and providers, not window sizes — so it writes
+/// the reference's own default and leaves the key for an operator who knows
+/// better. Raising it is not known to raise anything upstream.
+pub const DEFAULT_CONTEXT_WINDOW: u64 = 128_000;
 
 /// Provider `config` JSON understood by this channel. Unknown keys are ignored.
 #[derive(Debug, Deserialize)]
@@ -46,8 +57,12 @@ pub struct DevinConfig {
     pub models: BTreeMap<String, String>,
     /// `CompletionConfig` #2 when the request names no cap.
     pub max_tokens: u64,
-    /// `CompletionConfig` #3.
-    pub max_newlines: u64,
+    /// `CompletionConfig` #3. Named for what the reference writes into it
+    /// rather than for what its `.proto` calls it; see
+    /// [`DEFAULT_CONTEXT_WINDOW`]. The old `max_newlines` spelling is accepted
+    /// so a provider row written against the field name still loads.
+    #[serde(alias = "max_newlines")]
+    pub context_window: u64,
     /// Static headers added to every call.
     pub headers: BTreeMap<String, String>,
 }
@@ -61,7 +76,7 @@ impl Default for DevinConfig {
             os: CLIENT_OS.into(),
             models: BTreeMap::new(),
             max_tokens: DEFAULT_MAX_TOKENS,
-            max_newlines: DEFAULT_MAX_NEWLINES,
+            context_window: DEFAULT_CONTEXT_WINDOW,
             headers: BTreeMap::new(),
         }
     }

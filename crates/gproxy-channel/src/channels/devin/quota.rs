@@ -8,6 +8,21 @@
 //! `samples/windsurfapi/src/windsurf-api.js` and
 //! `samples/cpa-manager-plus/apps/web/src/utils/quota/{constants,providerRequests}.ts`.
 //!
+//! The client identity in the body is **one mirror's, verbatim**:
+//! `windsurf-api.js::buildMetadata`, which sends `ideName`/`extensionName`
+//! `windsurf` with version `1.9600.41`, `locale: en`, and neither `clientName`
+//! nor `os`. The two mirrors send different identities and both work, so the
+//! server evidently reads only `apiKey`; that is exactly why the value here is
+//! a quotation rather than a blend of the two, which is what a reader would
+//! otherwise take for a capture. It is deliberately **not** the chat
+//! identity from `config`: the protobuf `ClientMetadata` is a different
+//! message with different field numbers, and `extensionName` has no
+//! identified slot there at all (the positional JSON-to-protobuf map covers
+//! `ideName` #1, `ideVersion` #2, `apiKey` #3, `locale` #4, `os` #5,
+//! `extensionVersion` #7 and `clientName` #12, and stops). So the two calls
+//! are consistent in the only direction the evidence allows: each sends the
+//! identity that was captured on it, and neither invents a field number.
+//!
 //! The reply carries `userStatus.planStatus` with a daily and a weekly window
 //! reported as **remaining** percent plus a unix reset second, which is a
 //! `QuotaTracking::Reported` dimension each. Two parsing rules come from the
@@ -19,22 +34,41 @@
 //! * percentages and unix seconds may arrive as numbers or as numeric
 //!   strings, and a percentage outside 0..=100 is not a reading
 //!   (`devinQuota.ts::normalizeQuotaPercent`).
+//!
+//! Beside the two windows the payload carries a billing ledger both mirrors
+//! read: an overage balance in micro-dollars, prompt and flex credits in
+//! hundredths, and the plan period as ISO-8601 instants. Those become balance
+//! and budget entries here; the credit numbers are divided by 100 and the
+//! overage by 1,000,000 so an operator sees dollars and credits rather than
+//! the upstream's fixed-point integers.
 
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
 
 use super::config::DevinConfig;
-use super::{Devin, connect, request};
+use super::{Devin, connect, error, request};
 use crate::channel::{
     ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
-    QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery, QuotaResetBehavior,
-    QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue, QuotaWindow,
+    QuotaBalance, QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery,
+    QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
+    QuotaWindow,
 };
 
 const DAY_SECONDS: i64 = 24 * 60 * 60;
 const WEEK_SECONDS: i64 = 7 * 24 * 60 * 60;
 pub const DAILY_ID: &str = "devin_daily";
 pub const WEEKLY_ID: &str = "devin_weekly";
+/// The account's overage balance, in US dollars.
+pub const OVERAGE_ID: &str = "devin_overage";
+/// Prompt credits and flex credits for the plan period.
+pub const PROMPT_CREDITS_ID: &str = "devin_prompt_credits";
+pub const FLEX_CREDITS_ID: &str = "devin_flex_credits";
+
+/// `windsurf-api.js::buildMetadata`, quoted. See the module documentation for
+/// why this is one mirror's identity rather than the chat identity.
+const QUOTA_IDE_NAME: &str = "windsurf";
+const QUOTA_IDE_VERSION: &str = "1.9600.41";
+const QUOTA_LOCALE: &str = "en";
 
 impl QuotaModel for Devin {
     /// Both windows exist for every plan the mirrors describe. Whether they
@@ -86,13 +120,11 @@ impl QuotaQuery for Devin {
             let body = json!({
                 "metadata": {
                     "apiKey": auth.token,
-                    "ideName": config.client_name,
-                    "ideVersion": config.client_version,
-                    "extensionName": config.client_name,
-                    "extensionVersion": config.client_version,
-                    "clientName": config.client_name,
-                    "locale": config.locale,
-                    "os": config.os,
+                    "ideName": QUOTA_IDE_NAME,
+                    "ideVersion": QUOTA_IDE_VERSION,
+                    "extensionName": QUOTA_IDE_NAME,
+                    "extensionVersion": QUOTA_IDE_VERSION,
+                    "locale": QUOTA_LOCALE,
                 }
             });
             let mut builder = http::Request::post(&url);
@@ -110,10 +142,11 @@ impl QuotaQuery for Devin {
                 .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
             let (status, bytes) = super::call(&*context.client, request).await?;
             if !status.is_success() {
-                return Err(ChannelError::UpstreamResponse {
-                    status,
-                    body: bytes,
-                });
+                // Classified, not passed through: the account endpoint wraps
+                // transient faults in the same 401/403 shell the chat method
+                // does, and this is the call a health probe leans on hardest.
+                // See `error.rs`.
+                return Err(error::from_response(status, &bytes));
             }
             Ok(QuotaSnapshot {
                 // The host stamps receipt; the payload carries no observation time.
@@ -185,7 +218,100 @@ pub(super) fn parse_status(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError>
             }),
         });
     }
+    entries.extend(ledger(status, label.as_ref()));
     Ok(entries)
+}
+
+/// The billing ledger beside the two windows. Both mirrors read it and
+/// neither window carries it: `overageBalanceMicros` in micro-dollars
+/// (`devinQuota.ts`), and prompt and flex credits in **hundredths** — used,
+/// available, and the plan's monthly allowance — which is why every credit
+/// number here is divided by a hundred. The plan period (`planStart` and
+/// `planEnd`, ISO-8601 strings) becomes the credit entries' window, because
+/// that is the period the allowance is granted over.
+///
+/// Anything absent is simply not reported: proto3-JSON drops zeroes, and a
+/// zero balance and an unreported one are not the same fact. Unlike the
+/// percentage windows there is no sibling field here that proves the account
+/// has the feature at all, so the zero-means-spent rule does not apply.
+fn ledger(status: &Value, label: Option<&String>) -> Vec<QuotaEntry> {
+    let entry = |id: &str, value: QuotaValue| QuotaEntry {
+        id: id.to_owned(),
+        source_id: id.to_owned(),
+        label: label.cloned(),
+        subject: QuotaSubject::Account,
+        model_scope: QuotaScope::All,
+        value,
+    };
+    let period_start_ms = iso_8601_ms(status.get("planStart"));
+    let period_end_ms = iso_8601_ms(status.get("planEnd"));
+    let mut entries = Vec::new();
+    if let Some(micros) = number(status.get("overageBalanceMicros")) {
+        entries.push(entry(
+            OVERAGE_ID,
+            QuotaValue::Balance(QuotaBalance {
+                remaining: Some(micros / Decimal::from(1_000_000)),
+                unit: Some("usd".into()),
+            }),
+        ));
+    }
+    for (id, used_key, available_key, monthly_key) in [
+        (
+            PROMPT_CREDITS_ID,
+            "usedPromptCredits",
+            "availablePromptCredits",
+            "monthlyPromptCredits",
+        ),
+        (
+            FLEX_CREDITS_ID,
+            "usedFlexCredits",
+            "availableFlexCredits",
+            "monthlyFlexCreditPurchaseAmount",
+        ),
+    ] {
+        let hundredths =
+            |value: Option<&Value>| number(value).map(|value| value / Decimal::ONE_HUNDRED);
+        let used = hundredths(status.get(used_key));
+        let remaining = hundredths(status.get(available_key));
+        let limit = hundredths(status.pointer(&format!("/planInfo/{monthly_key}")));
+        if used.is_none() && remaining.is_none() && limit.is_none() {
+            continue;
+        }
+        entries.push(entry(
+            id,
+            QuotaValue::Budget(QuotaAllowance {
+                used,
+                limit,
+                remaining,
+                used_percent: None,
+                unlimited: None,
+                unit: Some("credits".into()),
+                period_start_ms,
+                period_end_ms,
+                reset_behavior: QuotaResetBehavior::Periodic,
+            }),
+        ));
+    }
+    entries
+}
+
+/// A number or a numeric string, which is how every scalar in this payload
+/// may arrive.
+fn number(value: Option<&Value>) -> Option<Decimal> {
+    match value? {
+        Value::Number(number) => Decimal::try_from(number.as_f64()?).ok(),
+        Value::String(text) => text.trim().parse().ok(),
+        _ => None,
+    }
+}
+
+/// `planStart` and `planEnd` are ISO-8601 instants rather than the unix
+/// seconds the two windows use.
+fn iso_8601_ms(value: Option<&Value>) -> Option<i64> {
+    let text = value?.as_str()?.trim();
+    let stamp =
+        time::OffsetDateTime::parse(text, &time::format_description::well_known::Rfc3339).ok()?;
+    Some(stamp.unix_timestamp() * 1000)
 }
 
 /// A percentage as a number or a numeric string, rejected outside 0..=100.

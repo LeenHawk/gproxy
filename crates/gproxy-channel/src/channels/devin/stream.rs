@@ -19,13 +19,20 @@
 //! Text is decoded across frame boundaries: a multi-byte character can be
 //! split between two frames, and decoding each frame alone would turn it into
 //! replacement characters.
+//!
+//! The caller's `stop` sequences are enforced **here**, because the wire has
+//! no field for them: the reference records that the OpenAI path accepted
+//! `stop` and never enforced it, so a client fencing its output with a
+//! sentinel got over-long completions, and fixes it with local truncation
+//! (`samples/windsurfapi/src/stop-sequences.js`). [`StopGate`] is that fix,
+//! including its held tail — a stop sequence can straddle two frames.
 
 use futures_util::StreamExt as _;
 use gproxy_protocol::connection::{ByteStream, Bytes, TransportError};
 use serde_json::{Value, json};
 
 use super::connect::{FrameReader, trailer_error};
-use super::proto;
+use super::{error, proto};
 use crate::channel::ChannelError;
 
 // GetChatMessageResponse
@@ -43,6 +50,16 @@ const META_COMPLETION_TOKENS: u32 = 3;
 const META_CACHE_WRITE_TOKENS: u32 = 4;
 /// Cache-read input, calibrated on the same paid account.
 const META_CACHE_READ_TOKENS: u32 = 5;
+/// `actual_model_uid`: the concrete model behind whatever was asked for,
+/// frame-verified on two model families. It must not be echoed as the
+/// response `model` — clients compare that against what they requested — but
+/// it is the only signal of what actually ran, so it travels as a usage
+/// dimension where metering and pricing can see it.
+const META_ACTUAL_MODEL: u32 = 9;
+
+/// The key `actual_model_uid` is reported under, in the usage object and as a
+/// `NormalizedUsage` dimension.
+pub const ACTUAL_MODEL_KEY: &str = "actual_model";
 
 /// What the upstream reported about one turn's consumption.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -121,6 +138,84 @@ impl Utf8Stream {
     }
 }
 
+/// Local enforcement of the caller's `stop` sequences, ported from
+/// `stop-sequences.js`. A sequence can straddle two content frames, so the
+/// last `max_len - 1` bytes are held back until they are known not to be the
+/// head of one. Once a sequence completes, everything from it onwards is
+/// suppressed and the turn finishes as `stop`; the matched text itself is not
+/// returned, which is OpenAI's semantics.
+#[derive(Debug, Default)]
+pub(super) struct StopGate {
+    sequences: Vec<String>,
+    hold: usize,
+    buffer: String,
+    done: bool,
+}
+
+impl StopGate {
+    pub(super) fn new(sequences: Vec<String>) -> Self {
+        let hold = sequences
+            .iter()
+            .map(String::len)
+            .max()
+            .unwrap_or(0)
+            .saturating_sub(1);
+        Self {
+            sequences,
+            hold,
+            buffer: String::new(),
+            done: false,
+        }
+    }
+
+    fn active(&self) -> bool {
+        !self.sequences.is_empty()
+    }
+
+    /// The safe-to-send prefix of `chunk`, and whether a stop sequence just
+    /// completed.
+    fn push(&mut self, chunk: &str) -> (String, bool) {
+        if !self.active() {
+            return (chunk.to_owned(), false);
+        }
+        if self.done {
+            return (String::new(), false);
+        }
+        self.buffer.push_str(chunk);
+        // The earliest match wins, so the answer is the shortest correct
+        // prefix when several sequences appear.
+        let cut = self
+            .sequences
+            .iter()
+            .filter_map(|sequence| self.buffer.find(sequence.as_str()))
+            .min();
+        if let Some(cut) = cut {
+            let emit = self.buffer[..cut].to_owned();
+            self.buffer.clear();
+            self.done = true;
+            return (emit, true);
+        }
+        if self.buffer.len() <= self.hold {
+            return (String::new(), false);
+        }
+        let mut split = self.buffer.len() - self.hold;
+        while split > 0 && !self.buffer.is_char_boundary(split) {
+            split -= 1;
+        }
+        let emit = self.buffer[..split].to_owned();
+        self.buffer.drain(..split);
+        (emit, false)
+    }
+
+    /// The stream ended with no match: release whatever is still held.
+    fn flush(&mut self) -> String {
+        if self.done {
+            return String::new();
+        }
+        std::mem::take(&mut self.buffer)
+    }
+}
+
 /// One turn's translation state.
 pub(super) struct Codec {
     id: String,
@@ -129,16 +224,27 @@ pub(super) struct Codec {
     max_tokens: Option<u64>,
     content: Utf8Stream,
     reasoning: Utf8Stream,
+    stop: StopGate,
+    /// A stop sequence completed, so the rest of the answer is suppressed.
+    stopped: bool,
     text: String,
     thinking: String,
     started: bool,
     finish: Option<u64>,
     usage: Option<Usage>,
+    /// `#7.9`, the model that actually served this turn.
+    actual_model: Option<String>,
     closed: bool,
 }
 
 impl Codec {
-    pub(super) fn new(id: String, model: String, created: u64, max_tokens: Option<u64>) -> Self {
+    pub(super) fn new(
+        id: String,
+        model: String,
+        created: u64,
+        max_tokens: Option<u64>,
+        stop: Vec<String>,
+    ) -> Self {
         Self {
             id,
             model,
@@ -146,11 +252,14 @@ impl Codec {
             max_tokens,
             content: Utf8Stream::default(),
             reasoning: Utf8Stream::default(),
+            stop: StopGate::new(stop),
+            stopped: false,
             text: String::new(),
             thinking: String::new(),
             started: false,
             finish: None,
             usage: None,
+            actual_model: None,
             closed: false,
         }
     }
@@ -175,8 +284,12 @@ impl Codec {
         if let Some(bytes) = proto::bytes_of(&fields, RES_CONTENT) {
             let text = self.content.push(bytes);
             if !text.is_empty() {
-                self.text.push_str(&text);
-                chunks.push(self.chunk(json!({ "content": text }), None));
+                let (emit, hit) = self.stop.push(&text);
+                if !emit.is_empty() {
+                    self.text.push_str(&emit);
+                    chunks.push(self.chunk(json!({ "content": emit }), None));
+                }
+                self.stopped |= hit;
             }
         }
         if let Some(finish) = proto::varint_of(&fields, RES_FINISH) {
@@ -184,6 +297,12 @@ impl Codec {
         }
         if let Some(metadata) = proto::bytes_of(&fields, RES_METADATA) {
             let metadata = proto::parse(metadata)?;
+            if let Some(actual) = proto::text_of(&metadata, META_ACTUAL_MODEL)
+                .map(str::trim)
+                .filter(|model| !model.is_empty())
+            {
+                self.actual_model = Some(actual.to_owned());
+            }
             // `completion_tokens` only rides the terminal metadata frame;
             // without it the pair is not yet a usage reading.
             if let Some(completion) = proto::varint_of(&metadata, META_COMPLETION_TOKENS) {
@@ -196,6 +315,16 @@ impl Codec {
             }
         }
         Ok(chunks)
+    }
+
+    /// The usage object for this turn, with the served model attached when
+    /// the upstream named one.
+    fn usage_json(&self) -> Option<Value> {
+        let mut usage = self.usage?.to_json();
+        if let Some(actual) = &self.actual_model {
+            usage[ACTUAL_MODEL_KEY] = json!(actual);
+        }
+        Some(usage)
     }
 
     /// The terminal chunk. Usage rides it whenever the upstream reported a
@@ -211,9 +340,15 @@ impl Codec {
             self.started = true;
             chunks.push(self.chunk(json!({"role": "assistant", "content": ""}), None));
         }
+        // No stop sequence matched, so the held tail was ordinary output.
+        let tail = self.stop.flush();
+        if !tail.is_empty() {
+            self.text.push_str(&tail);
+            chunks.push(self.chunk(json!({ "content": tail }), None));
+        }
         let mut last = self.chunk(json!({}), Some(self.finish_reason()));
-        if let Some(usage) = self.usage {
-            last["usage"] = usage.to_json();
+        if let Some(usage) = self.usage_json() {
+            last["usage"] = usage;
         }
         chunks.push(last);
         chunks
@@ -225,8 +360,13 @@ impl Codec {
     /// `stop`; `length` is inferred when the answer lands exactly on the cap
     /// the caller asked for, which is the test an OpenAI client would apply
     /// itself. Reporting a complete answer as truncated is the more harmful
-    /// error, so the check is deliberately an equality.
+    /// error, so the check is deliberately an equality. A locally enforced
+    /// stop sequence outranks both: the answer really did stop where the
+    /// caller asked, whatever the upstream went on to generate.
     fn finish_reason(&self) -> &'static str {
+        if self.stopped {
+            return "stop";
+        }
         match (self.max_tokens, self.usage) {
             (Some(cap), Some(usage)) if usage.completion == cap => "length",
             _ => "stop",
@@ -261,8 +401,8 @@ impl Codec {
             "model": self.model,
             "choices": [{"index": 0, "message": message, "finish_reason": finish}],
         });
-        if let Some(usage) = self.usage {
-            body["usage"] = usage.to_json();
+        if let Some(usage) = self.usage_json() {
+            body["usage"] = usage;
         }
         body
     }
@@ -305,7 +445,7 @@ impl Turn {
     }
 
     /// The next batch of translated chunks, or `None` once the turn is over.
-    pub(super) async fn step(&mut self) -> Option<Result<Vec<Value>, TransportError>> {
+    pub(super) async fn step(&mut self) -> Option<Result<Vec<Value>, ChannelError>> {
         loop {
             if self.finished {
                 return None;
@@ -317,9 +457,9 @@ impl Turn {
                     // frame. A socket that simply stops delivered a partial
                     // answer, and reporting it as a finished turn would make a
                     // truncated reply the next turn's context.
-                    return Some(Err(Box::new(ChannelError::InvalidResponse(
+                    return Some(Err(ChannelError::InvalidResponse(
                         "devin stream ended without its Connect trailer".into(),
-                    ))));
+                    )));
                 }
                 let chunks = self.codec.close();
                 return (!chunks.is_empty()).then_some(Ok(chunks));
@@ -328,25 +468,29 @@ impl Turn {
                 Ok(chunk) => chunk,
                 Err(error) => {
                     self.finished = true;
-                    return Some(Err(error));
+                    return Some(Err(ChannelError::InvalidResponse(error.to_string())));
                 }
             };
             let frames = match self.reader.push(&chunk) {
                 Ok(frames) => frames,
                 Err(error) => {
                     self.finished = true;
-                    return Some(Err(Box::new(error)));
+                    return Some(Err(error));
                 }
             };
             let mut chunks = Vec::new();
             for frame in frames {
                 if frame.end_stream {
                     self.ended = true;
-                    if let Some(message) = trailer_error(&frame.payload) {
+                    if let Some(failure) = trailer_error(&frame.payload) {
                         self.finished = true;
-                        return Some(Err(Box::new(ChannelError::InvalidResponse(format!(
-                            "devin upstream error: {message}"
-                        )))));
+                        // Classified rather than flattened: the trailer is
+                        // where a transient fault arrives dressed as
+                        // `permission_denied`. See `error.rs`.
+                        return Some(Err(error::from_trailer(
+                            failure.code.as_deref(),
+                            &failure.message,
+                        )));
                     }
                     chunks.extend(self.codec.close());
                     self.finished = true;
@@ -356,7 +500,7 @@ impl Turn {
                     Ok(translated) => chunks.extend(translated),
                     Err(error) => {
                         self.finished = true;
-                        return Some(Err(Box::new(error)));
+                        return Some(Err(error));
                     }
                 }
             }
@@ -369,27 +513,48 @@ impl Turn {
         }
     }
 
-    /// The Chat Completions SSE body.
-    pub(super) fn into_stream(self) -> ByteStream {
+    /// Pull the first batch before the response headers are committed. An
+    /// upstream refusal usually arrives as the *first* thing on the stream —
+    /// the trailer of an otherwise empty 200 — and until a byte has been
+    /// written this channel can still answer it with a status the host can
+    /// classify instead of a broken stream. Once content is flowing the
+    /// status is spent, and a later failure can only fail the stream.
+    pub(super) async fn prime(&mut self) -> Result<Vec<Value>, ChannelError> {
+        match self.step().await {
+            Some(result) => result,
+            None => Ok(Vec::new()),
+        }
+    }
+
+    /// The Chat Completions SSE body, starting from the already-pulled batch.
+    pub(super) fn into_stream(self, primed: Vec<Value>) -> ByteStream {
         Box::pin(futures_util::stream::unfold(
-            (self, false),
-            |(mut turn, sent_done)| async move {
+            (self, Some(primed), false),
+            |(mut turn, primed, sent_done)| async move {
+                if let Some(primed) = primed {
+                    let encoded = encode(&primed);
+                    return Some((Ok(encoded), (turn, None, sent_done)));
+                }
                 if sent_done {
                     return None;
                 }
                 match turn.step().await {
-                    Some(Ok(chunks)) => Some((Ok(encode(&chunks)), (turn, false))),
-                    Some(Err(error)) => Some((Err(error), (turn, true))),
-                    None => Some((Ok(done()), (turn, true))),
+                    Some(Ok(chunks)) => Some((Ok(encode(&chunks)), (turn, None, false))),
+                    Some(Err(error)) => {
+                        let boxed: TransportError = Box::new(error::as_stream_failure(error));
+                        Some((Err(boxed), (turn, None, true)))
+                    }
+                    None => Some((Ok(done()), (turn, None, true))),
                 }
             },
         ))
     }
 
-    /// Drain the turn into one `chat.completion` body.
+    /// Drain the turn into one `chat.completion` body. A failure keeps its
+    /// class: `mod.rs` turns a classified refusal into an answer.
     pub(super) async fn collect(mut self) -> Result<Value, ChannelError> {
         while let Some(item) = self.step().await {
-            item.map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
+            item?;
         }
         Ok(self.codec.completion())
     }
