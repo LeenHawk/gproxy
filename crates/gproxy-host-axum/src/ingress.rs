@@ -59,7 +59,7 @@ use crate::{
     error::ErrorResponse,
     mount::MountIndex,
     policy,
-    response::{passthrough_wire, streamed},
+    response::{CancelOnDrop, passthrough_wire, streamed},
 };
 
 /// The header a client names a vendor service view with. Absent means
@@ -168,6 +168,13 @@ fn service_route<'a>(
 /// A route the channel declares `WebSocket` — the Codex remote-control server
 /// is the one in the tree — is upgraded instead of called. See
 /// [`crate::websocket`] for what a service socket does and does not hold.
+///
+/// **No cancellation token.** A service call runs outside the observation
+/// funnel, takes no `Admitted` and — the deciding part — has nowhere to put one:
+/// neither [`ServiceRequestIn`] nor core's `ServiceRequest` carries a
+/// cancellation field, so giving a service call a token means changing two other
+/// crates for a call that is short, buffered and unmetered. It is left out; see
+/// the crate README.
 async fn service_call<C>(
     state: &HostState<C>,
     core: &gproxy_core::CoreData,
@@ -297,6 +304,15 @@ where
     let mut request = DataPlaneRequest::new(crate::request_id(), matched.operation, parts, body);
     request.client_ip = Some(client_ip.to_owned());
     request.model = model;
+    // **One token per request**, from here to the last byte. Its guard stays on
+    // this stack while the call is in flight, which covers the first of the two
+    // ways a client leaves: hyper drops this future when the connection dies
+    // before a head was written, and dropping the guard is what tells core.
+    // Once there is a response the guard moves into the body (or into the
+    // socket's pump), which covers the second. See
+    // [`crate::response::CancelOnDrop`].
+    let mut cancel = CancelOnDrop::new();
+    request.cancellation = Some(cancel.token());
     // What narrows the operations that name no model. A provider mount is one
     // provider, and one provider is one channel.
     request.channel = mount
@@ -314,14 +330,21 @@ where
                 &caller,
                 request,
                 core.limits.max_ws_frame_bytes,
+                cancel,
             )
             .await,
         );
     }
     let outcome = app.call(&caller, request).await;
     Some(match outcome {
-        Ok(outcome) => streamed(app, outcome),
-        Err(error) => ErrorResponse(error).into_response(),
+        Ok(outcome) => streamed(app, outcome, cancel),
+        Err(error) => {
+            // Nothing is left running: `App::call` gave every charge back and
+            // closed the capture before it returned this. Cancelling now would
+            // only risk relabelling a request that has already been settled.
+            cancel.disarm();
+            ErrorResponse(error).into_response()
+        }
     })
 }
 

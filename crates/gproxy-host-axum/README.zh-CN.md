@@ -243,17 +243,52 @@ issuer 标识是 `{origin}{prefix}/v1`。P7 的模块注释里把聚合挂载写
 流式响应在 `App::call` 返回之后很久仍然在途。
 
 所以响应体是一层包装流（`response::LeasedBody`），它**拥有**那份准入决定：
-`Admitted`、`DownstreamCapture` 和 core 的 `UsageCompletion` 都住在这个流里面。
-每个 chunk 经过时喂给 capture；最后一个写完之后，流去 await 结算、落下 capture
-记录与它的边，然后释放租约。没有谁需要"记得"释放什么，因为这些值没有别的存放处。
-客户端中途断开则是把响应体 drop 掉：租约由 `Admitted` 自己的 drop 路径归还，
-capture 丢失——这与 core 的 observer 付出的代价相同。
+`Admitted`、`DownstreamCapture`、core 的 `UsageCompletion`，以及本次请求的取消
+守卫，都住在这个流里面。每个 chunk 经过时喂给 capture；最后一个写完之后，流去
+await 结算、落下 capture 记录与它的边，然后释放租约。没有谁需要"记得"释放什么，
+因为这些值没有别的存放处。客户端中途断开则是把响应体 drop 掉：租约由 `Admitted`
+自己的 drop 路径归还，capture 丢失——这与 core 的 observer 付出的代价相同。
 
 WebSocket 是同一条规则，只是钟走得更久。pump 持有与响应体相同的那个 `Trailer`，
 socket 的租约在 socket 关闭时释放——`101` 不是任何东西的结束。await 结算之前会
 先把 socket 的两半 drop 掉，因为 core 是把这次交换的结算装进它交出来的那条
 socket 的：结算它的 guard 就住在 incoming 流里，所以一边攥着 socket 一边 await
 `UsageCompletion`，等的是一个只有 drop 它才会产生的值。
+
+## 客户端走了就取消上游调用
+
+**一个请求一个 token。** ingress handler 造一个 `response::CancelOnDrop`，把它的
+token 克隆一份放到 `DataPlaneRequest::cancellation` 上，自己留着守卫。core 处处
+认这个 token：每次尝试之前、发送途中、流式途中，以及——对运维真正要紧的那处——
+决定 usage 行该写什么的时候。
+
+客户端从不宣告自己要走；它永远是一次 **drop**，而且可能发生在两个位置。所以守卫
+由每个位置上还活着的那个东西持有：
+
+- **响应头还没写出去**时，handler future 被 drop，守卫就在它的栈上。
+- **流到一半**时，hyper drop 响应体，而此时守卫已经搬进 `LeasedBody` 里的
+  `Trailer`——和租约、capture、结算放在一起，理由与它们为什么住在一处相同。
+- **socket 上**由 pump 显式取消，因为升级后的 socket 是 hyper 另起的任务在泵，
+  handler future 早就没了，没有什么可供 drop。凡是意味着*客户端走了*的出口都取消：
+  它的流结束、它的流出错（被 drop 的 socket 到我们这里是
+  `ResetWithoutClosingHandshake`，那是一次失败而不是一次结束）、以及写给它却写不
+  出去的一次发送。取消发生在关闭帧已经送往上游之后、排空关闭握手之前，而那次读
+  正是让 core 看见取消的地方。
+
+**正常结束绝不取消。** core 在 `Completed` 与 `Cancelled` 之间做选择时会读这个
+token，所以最后一个字节之后才触发的 token 会往 usage 行里写进一句假话，并且会和
+响应体正在等的那次结算抢跑。因此守卫只在一个地方解除——`Trailer::finish`，所有正常
+结束都从那里经过：响应体读完、上游中途失败、握手被拒、socket 关闭。任一侧发来的
+关闭帧都是一场谈完的会话，不是取消。
+
+被取消的请求仍然是被计量的请求。它和别的请求一样有 usage 行，只是 `metrics.state`
+写的是 `cancelled` 而不是 `completed`，带着上游在被叫停之前来得及报出来的那些数，
+capture 记录也按 cancelled 收尾。租约照旧归还。
+
+**渠道厂商服务调用不带 token。** 它跑在观测漏斗之外、不持有 `Admitted`，但真正决定
+这件事的理由更窄：`ServiceRequestIn` 和 core 的 `ServiceRequest` 都没有字段可放，
+所以给服务调用加 token 意味着改动另外两个 crate。服务调用短、又是缓冲的，这点收益
+付不起那个代价，于是不做。
 
 ## 两种错误信封
 
@@ -289,8 +324,9 @@ OAuth 端点回答 RFC 6749 §5.2 的
   也没有按轮次的 capture，理由见上。
 - **登录没有限流。** `gproxy-app` 说明了它为什么做不了（它没有客户端地址）；本宿主
   有，但还没用上。
-- **客户端断开不会取消上游调用。** `DataPlaneRequest::cancellation` 留空。
-  WebSocket 天生是例外：客户端走了 pump 就结束，上游 socket 随之关闭。
+- **渠道厂商服务调用没法取消。** 理由见上：`ServiceRequestIn` 和 core 的
+  `ServiceRequest` 都没有这个字段，而服务调用又短又是缓冲的，还不值得为它改两个
+  crate。
 
 ## 测试
 
@@ -301,3 +337,7 @@ OAuth 端点回答 RFC 6749 §5.2 的
 `oneshot` 永远不会产生 hyper 的 `OnUpgrade` 扩展，而升级就是由它构成的，所以
 `tests/websocket.rs` 绑一个本机端口，用 `tokio-tungstenite` 真说协议。每一种拒绝
 仍然是 `oneshot` 用例——这本身就是「它没有升级任何东西」的断言。
+
+`tests/cancel.rs` 绑端口是出于第二个理由：断开没法伪造。树里每个 HTTP 客户端在把
+响应交出来之前都会先把体读干净，所以那一组用例直接在裸 `TcpStream` 上把请求敲出来，
+再靠 drop 它来挂断——那是真实客户端会做、而这里没有别的东西能模仿的唯一一件事。

@@ -33,6 +33,27 @@
 //! socket ends: settle usage, write the capture, hand the permits back. There
 //! is nowhere else the lease lives, so no path can forget it.
 //!
+//! # A client that vanishes cancels the upstream call
+//!
+//! The pump always closes the upstream socket, so a departed client has never
+//! left a *socket* running. What it did leave is a request core still believes
+//! in: the session's cancellation token, carried by the same [`Trailer`], is
+//! what tells core the answer was abandoned rather than delivered, and a socket
+//! settled as `Completed` when nobody was listening is a usage row that lies.
+//!
+//! So every exit from [`Pump::duplex`] that means *the client is gone* cancels
+//! the token — its stream ending, its stream failing (a socket dropped without
+//! a close frame arrives as `ResetWithoutClosingHandshake`, which is a failure
+//! and not an end), and a send to it that could not be written. A **close
+//! frame** from either side does not: that is a session two peers finished, it
+//! settles as `Complete`, and cancelling would overwrite the truth.
+//!
+//! The cancel goes out *after* the close frame has gone upstream, so the
+//! upstream is told politely first, and before [`Pump::drain_upstream`], whose
+//! read is what lets core observe it.
+//!
+//! A service socket has no token, because it has no `Trailer`: see [`service`].
+//!
 //! # What is pumped
 //!
 //! Two independent sockets, terminated here. Text and binary messages cross in
@@ -80,7 +101,7 @@ use gproxy_protocol::{
 use gproxy_seaorm::BatchConnectionTrait;
 use http::{HeaderMap, StatusCode, header};
 
-use crate::response::{Trailer, passthrough, sanitize};
+use crate::response::{CancelOnDrop, Trailer, passthrough, sanitize};
 
 /// RFC 6455 §7.4.1 `1009`: the peer sent a message too big to process. What a
 /// frame over `max_ws_frame_bytes` earns, on either side.
@@ -138,19 +159,29 @@ impl std::fmt::Debug for Upgrade {
 /// ([`App::connect`] returns `Forbidden`, `RateLimited`, `NotFound`), the
 /// engine (no usable credential, a transform that cannot be done over a
 /// socket), and the upstream's own refusal, which is relayed as it stands.
+///
+/// `cancel` is the request's token guard, held across the handshake — a client
+/// that gives up while this is still deciding drops this future — and then moved
+/// into the pump for the life of the socket.
 pub async fn data_plane<C>(
     app: Arc<App<C>>,
     upgrade: Upgrade,
     caller: &Caller,
     request: DataPlaneRequest,
     max_frame_bytes: u64,
+    mut cancel: CancelOnDrop,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
     let outcome = match app.connect(caller, request).await {
         Ok(outcome) => outcome,
-        Err(error) => return crate::ErrorResponse(error).into_response(),
+        Err(error) => {
+            // Same as the HTTP path: `App::connect` has already released
+            // everything it charged, so there is nothing left to cancel.
+            cancel.disarm();
+            return crate::ErrorResponse(error).into_response();
+        }
     };
     let ConnectOutcome {
         execution,
@@ -158,7 +189,7 @@ where
         capture,
     } = outcome;
     let (connection, usage) = execution.into_parts();
-    let mut trailer = Trailer::new(app, admitted, capture, usage);
+    let mut trailer = Trailer::new(app, admitted, capture, usage, cancel);
 
     match connection {
         // The rule this module exists for. The vendor's status, headers and
@@ -278,10 +309,15 @@ async fn collect(body: HttpBody) -> (Bytes, bool) {
 /// A service takes no lease, opens no capture and settles no usage, and that
 /// is `gproxy-app`'s decision rather than this module's: "services run outside
 /// the observation funnel", so there is nothing here to hold open and nothing
-/// to write at the end. Which credential the socket may speak for is the
-/// channel's: the Codex channel refuses a synthesized view outright, so
-/// `x-gproxy-view: credential:{id}` — and an administrator of that credential
-/// — is the only way through.
+/// to write at the end. It takes no cancellation token either, for the same
+/// reason plus a harder one: neither `ServiceRequestIn` nor core's
+/// `ServiceRequest` has a field to put one in, so a departed client cannot be
+/// reported to a service call at all. See the crate README.
+///
+/// Which credential the socket may speak for is the channel's: the Codex
+/// channel refuses a synthesized view outright, so `x-gproxy-view:
+/// credential:{id}` — and an administrator of that credential — is the only way
+/// through.
 pub async fn service<C>(
     app: &Arc<App<C>>,
     upgrade: Upgrade,
@@ -354,7 +390,8 @@ struct Pump<C> {
     incoming: WsReceiver,
     outgoing: WsSender,
     limit: u64,
-    /// `None` for a vendor service socket, which took no lease.
+    /// `None` for a vendor service socket, which took no lease and carries no
+    /// cancellation token.
     trailer: Option<Trailer<C>>,
 }
 
@@ -380,6 +417,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Pump<C> {
         // only dropping the socket can produce.
         drop((incoming, outgoing, downstream));
         if let Some(trailer) = trailer {
+            // Still armed until here, so a pump whose task is dropped outright
+            // — hyper tearing the connection down — cancels rather than leaving
+            // core waiting. `settle` disarms it before awaiting the settlement.
             trailer.settle(outcome).await;
         }
     }
@@ -413,6 +453,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Pump<C> {
                     // upstream is told so the session stops costing money.
                     None => {
                         self.close_upstream(None).await;
+                        self.client_gone();
                         Step::Stop(CaptureOutcome::Cancelled)
                     }
                     Some(Err(error)) => {
@@ -422,6 +463,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Pump<C> {
                             reason: String::new(),
                         }))
                         .await;
+                        // Still a client that is gone, and the usual one: a
+                        // dropped socket reaches us as
+                        // `ResetWithoutClosingHandshake` rather than as an end
+                        // of stream. The capture records the transport failure
+                        // it was, and the request is cancelled because nobody
+                        // is going to read the rest of it.
+                        self.client_gone();
                         Step::Stop(CaptureOutcome::Interrupted)
                     }
                 },
@@ -522,9 +570,27 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Pump<C> {
         if let Err(error) = self.downstream.send(message).await {
             tracing::debug!(%error, "client send failed");
             self.close_upstream(None).await;
+            self.client_gone();
             return Step::Stop(CaptureOutcome::Cancelled);
         }
         Step::Go
+    }
+
+    /// The client is gone. Cancel the request's token, which is the only thing
+    /// that tells core the session was abandoned rather than finished: it reads
+    /// the token when it chooses between `Completed` and `Cancelled`, and its
+    /// half of the socket selects on it, so the exchange ends here rather than
+    /// whenever the upstream next says something.
+    ///
+    /// Called *after* the close frame has gone upstream — cancelling first would
+    /// not lose the frame, since core's sink ignores the token, but the polite
+    /// order is the one worth having — and before [`Pump::drain_upstream`], whose
+    /// read is what lets core observe it. A service socket has no token and this
+    /// is a no-op.
+    fn client_gone(&mut self) {
+        if let Some(trailer) = self.trailer.as_mut() {
+            trailer.cancel();
+        }
     }
 
     /// A frame over `max_ws_frame_bytes`, refused on both sides with the code

@@ -3,7 +3,7 @@
 //!
 //! # Why a wrapper stream
 //!
-//! Three things have to outlive `App::call`:
+//! Four things have to outlive `App::call`:
 //!
 //! - the [`Admitted`], because a concurrency permit measures requests **in
 //!   flight** and a stream that is still running is one;
@@ -11,17 +11,28 @@
 //!   written yet;
 //! - core's `UsageCompletion`, because awaiting it is what settles the request
 //!   and writes its usage row. Dropping it unread loses the metering.
+//! - the request's [`CancelOnDrop`], because the client can still leave.
 //!
-//! All three are moved **into** the response body. [`LeasedBody`] owns them,
+//! All four are moved **into** the response body. [`LeasedBody`] owns them,
 //! feeds each chunk to the capture as it passes, and on the last chunk awaits
 //! the settlement, writes the capture and releases the lease. There is nowhere
 //! else the values live, so no call site can forget one — which is the whole
 //! reason it is a stream that owns them rather than a guard somebody holds.
 //!
-//! A client that hangs up mid-stream drops the body instead. The lease is then
-//! returned by `Admitted`'s own drop path, the capture is lost and the
-//! settlement does not run; that is the documented cost of an abandoned
-//! response, and it is the same cost core's observer pays.
+//! # A client that leaves cancels the upstream call
+//!
+//! A client that hangs up mid-stream drops the body. Hyper says nothing about
+//! it — the drop *is* the notification — so the token that stops the upstream
+//! call lives in the value being dropped. [`LeasedBody`] holds the whole
+//! [`Trailer`], so the same drop that returns the lease also cancels the call
+//! nobody is going to read, and core settles it as `UsageState::Cancelled`
+//! instead of paying for the rest of the answer.
+//!
+//! The one thing that must **not** cancel is a response that ended by itself.
+//! Core reads the token when it decides between `Completed` and `Cancelled`, so
+//! a token fired after the last byte would write a lie into the usage row. See
+//! [`CancelOnDrop`] for where the disarm happens and why that point is the
+//! right one.
 
 use std::{
     future::Future,
@@ -46,6 +57,88 @@ use gproxy_protocol::{
 };
 use gproxy_seaorm::BatchConnectionTrait;
 use http::{HeaderMap, HeaderName, StatusCode};
+use tokio_util::sync::CancellationToken;
+
+/// One request's cancellation token, which fires when this value is dropped
+/// unless it has been disarmed first.
+///
+/// A client leaving is a **drop**, in both of the two places it can happen: the
+/// handler future is dropped when the connection dies before a head was
+/// written, and the response body is dropped when it dies mid-stream. Neither
+/// is an event anything calls the host back about, so the token is owned by the
+/// value whose destructor *is* the event, and every path that ends a request
+/// normally has exactly one thing to do: say so.
+///
+/// # Why the disarm matters more than the cancel
+///
+/// Core reads the token at settlement time to tell `UsageState::Completed` from
+/// `UsageState::Cancelled`, and its response stream selects against the token on
+/// every chunk. A token fired after the last byte would therefore turn a
+/// finished request into a cancelled one in the usage row, and could interrupt
+/// the very settlement the [`Trailer`] is about to await. So the guard is
+/// disarmed the moment the upstream stream is over — clean end or transport
+/// failure, both are *its* end rather than the client's — which is
+/// [`Trailer::finish`], the one funnel every normal ending goes through.
+pub struct CancelOnDrop {
+    token: CancellationToken,
+    armed: bool,
+}
+
+impl CancelOnDrop {
+    /// A fresh token, armed. One per request: it is the unit core cancels.
+    pub fn new() -> Self {
+        Self {
+            token: CancellationToken::new(),
+            armed: true,
+        }
+    }
+
+    /// The copy that goes on
+    /// [`DataPlaneRequest::cancellation`](gproxy_app::DataPlaneRequest).
+    /// Cloned rather than handed over, because the guard keeps the only copy
+    /// that can fire.
+    pub fn token(&self) -> CancellationToken {
+        self.token.clone()
+    }
+
+    /// This request ended on its own terms; dropping the guard must not claim
+    /// otherwise.
+    pub fn disarm(&mut self) {
+        self.armed = false;
+    }
+
+    /// The client is known to be gone *now*, rather than whenever this value
+    /// happens to drop. The websocket pump needs it: it sees the departure as a
+    /// stream ending and still has a closing handshake and a settlement to run
+    /// afterwards, and core has to know before those.
+    pub fn cancel(&mut self) {
+        self.armed = false;
+        self.token.cancel();
+    }
+}
+
+impl Default for CancelOnDrop {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl std::fmt::Debug for CancelOnDrop {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CancelOnDrop")
+            .field("armed", &self.armed)
+            .field("cancelled", &self.token.is_cancelled())
+            .finish()
+    }
+}
+
+impl Drop for CancelOnDrop {
+    fn drop(&mut self) {
+        if self.armed {
+            self.token.cancel();
+        }
+    }
+}
 
 /// An upstream response forwarded as it is, with nothing held open.
 ///
@@ -64,7 +157,11 @@ pub fn passthrough_wire(response: WireResponse<HttpBody>) -> Response {
 
 /// A data-plane response: streamed straight through, with the request's
 /// decision held open until the last byte.
-pub fn streamed<C>(app: Arc<App<C>>, outcome: CallOutcome) -> Response
+///
+/// `cancel` is the guard the ingress handler made and put on the request. It
+/// moves in here, so from the moment the head is written the body is what owns
+/// the client's departure.
+pub fn streamed<C>(app: Arc<App<C>>, outcome: CallOutcome, cancel: CancelOnDrop) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
@@ -74,7 +171,10 @@ where
         capture,
     } = outcome;
     let (response, usage) = execution.into_parts();
-    leased(Trailer::new(app, admitted, capture, usage), response)
+    leased(
+        Trailer::new(app, admitted, capture, usage, cancel),
+        response,
+    )
 }
 
 /// The same, for a caller that already holds the decision.
@@ -169,7 +269,7 @@ type TailFuture = Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
 /// What a response body — or a socket — owns until it ends.
 ///
 /// Named for the HTTP case it was written for, and reused verbatim by
-/// [`crate::websocket`]: a socket has exactly the same three things to keep
+/// [`crate::websocket`]: a socket has exactly the same four things to keep
 /// alive and exactly the same order to release them in, and two copies of that
 /// order would be two chances to get it wrong.
 pub(crate) struct Trailer<C> {
@@ -177,6 +277,9 @@ pub(crate) struct Trailer<C> {
     admitted: Admitted,
     capture: Option<DownstreamCapture>,
     usage: UsageCompletion,
+    /// Armed for as long as this value lives, so dropping it — which is what a
+    /// client hanging up does — cancels the upstream call.
+    cancel: CancelOnDrop,
 }
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Trailer<C> {
@@ -185,18 +288,27 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Trailer<C> {
         admitted: Admitted,
         capture: Option<DownstreamCapture>,
         usage: UsageCompletion,
+        cancel: CancelOnDrop,
     ) -> Self {
         Self {
             app,
             admitted,
             capture,
             usage,
+            cancel,
         }
     }
 
     /// The capture to feed, while the response or the socket is still running.
     pub(crate) fn capture_mut(&mut self) -> Option<&mut DownstreamCapture> {
         self.capture.as_mut()
+    }
+
+    /// The client is gone and the holder knows it before it lets go of this
+    /// value. Only the websocket pump needs it; an HTTP body learns the same
+    /// thing by being dropped.
+    pub(crate) fn cancel(&mut self) {
+        self.cancel.cancel();
     }
 
     /// Settle the request and give the charges back. Awaiting the
@@ -208,7 +320,17 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Trailer<C> {
             mut admitted,
             capture,
             usage,
+            mut cancel,
         } = self;
+        // **The one disarm.** Every normal ending — a body that ran out, an
+        // upstream that failed mid-body, a refused handshake, a closed socket —
+        // arrives here, and all of them mean the upstream is already done. The
+        // token must not fire afterwards: core reads it to choose between
+        // `Completed` and `Cancelled`, so a late cancel would record a finished
+        // request as abandoned, and the settlement awaited just below is what it
+        // would be racing.
+        cancel.disarm();
+        drop(cancel);
         Box::pin(async move {
             match capture {
                 Some(capture) => {
@@ -236,6 +358,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Trailer<C> {
 
 /// The response body of a data-plane call: the upstream's chunks, plus
 /// everything that has to stay alive while they are being written.
+///
+/// While `inner` is `Some` the stream has not reached its end, so the
+/// [`Trailer`] it still holds is armed: hyper dropping this value is a client
+/// that hung up mid-stream, and the drop cancels the upstream call. Once
+/// `inner` is `None` the `Trailer` has been handed to [`Trailer::finish`],
+/// which disarmed it — so a body that is dropped while its settlement is still
+/// running cancels nothing.
 pub struct LeasedBody<C> {
     inner: Option<ChunkStream>,
     trailer: Option<Trailer<C>>,

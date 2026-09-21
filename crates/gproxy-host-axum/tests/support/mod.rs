@@ -245,6 +245,52 @@ pub enum Reply {
     /// This is what makes the lease-lifetime assertions possible — there is no
     /// other way to observe "the response is still being written".
     Stream(StatusCode, tokio::sync::mpsc::UnboundedReceiver<Bytes>),
+    /// The same, watched. Every chunk the gateway takes is counted and the body
+    /// says when it was let go, which is the only way to see a cancelled call
+    /// from outside: an upstream nobody polls any more looks exactly like a slow
+    /// one until somebody counts.
+    Probed(
+        StatusCode,
+        tokio::sync::mpsc::UnboundedReceiver<Bytes>,
+        Arc<Probe>,
+    ),
+    /// An upstream that never answers at all, for the disconnect that happens
+    /// before a head exists. There is no body to watch, so the probe reports
+    /// only whether the gateway gave the call up.
+    Stalls(Arc<Probe>),
+}
+
+/// What the gateway did with a scripted upstream body.
+#[derive(Default)]
+pub struct Probe {
+    delivered: std::sync::atomic::AtomicUsize,
+    dropped: std::sync::atomic::AtomicBool,
+}
+
+impl Probe {
+    /// Chunks the gateway actually took. A chunk the test queued after the
+    /// client left and that is still queued is the assertion.
+    pub fn delivered(&self) -> usize {
+        self.delivered.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// Whether the gateway let the upstream call go — the only thing an
+    /// upstream that never answered can be observed by.
+    pub fn dropped(&self) -> bool {
+        self.dropped.load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+/// Holds a probe for as long as the gateway holds the body, and records the
+/// release. A plain flag would need somebody to remember to set it.
+struct Watched(Arc<Probe>);
+
+impl Drop for Watched {
+    fn drop(&mut self) {
+        self.0
+            .dropped
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+    }
 }
 
 /// What the upstream answers the next handshake with.
@@ -401,6 +447,27 @@ impl OutboundClient for ScriptClient {
                         },
                     ))),
                 ),
+                Reply::Probed(status, receiver, probe) => (
+                    status,
+                    HttpBody::Stream(Box::pin(futures_util::stream::unfold(
+                        (receiver, Watched(probe)),
+                        |(mut receiver, watched)| async move {
+                            let bytes = receiver.recv().await?;
+                            watched
+                                .0
+                                .delivered
+                                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                            Some((Ok(bytes), (receiver, watched)))
+                        },
+                    ))),
+                ),
+                Reply::Stalls(probe) => {
+                    // Never resolves. The guard is what the test reads: it is
+                    // dropped exactly when the gateway stops waiting for this
+                    // answer.
+                    let _watched = Watched(probe);
+                    std::future::pending::<(StatusCode, HttpBody)>().await
+                }
             };
             Ok(WireResponse {
                 status,

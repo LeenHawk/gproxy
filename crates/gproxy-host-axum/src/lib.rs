@@ -49,6 +49,21 @@
 //! runs for an hour holds its concurrency permit for that hour and gives it
 //! back when the socket closes — not when the `101` was written.
 //!
+//! # A client that goes away cancels the upstream call
+//!
+//! The same values, for the same reason. A client never says it is leaving: the
+//! departure is a *drop* — of the handler future before a head was written, of
+//! the response body mid-stream — so the request's cancellation token is owned
+//! by a guard ([`response::CancelOnDrop`]) that fires on `Drop`, and the guard
+//! travels with the rest of the request's state into [`response::LeasedBody`].
+//! A socket cancels explicitly instead, because its pump is a task hyper spawned
+//! and there is no handler future left to drop.
+//!
+//! The guard is disarmed the moment the response reaches its own end. Core reads
+//! the token when it decides between `Completed` and `Cancelled`, so a token
+//! fired after the last byte would record a finished request as an abandoned
+//! one. [`response::CancelOnDrop`] has the whole rule.
+//!
 //! [`gproxy-host-edge`]: https://github.com/LeenHawk/gproxy
 
 pub mod admin;
