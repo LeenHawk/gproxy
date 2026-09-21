@@ -15,7 +15,9 @@
 //!    the handle's codec is fixed at assembly and the rotation decides which key
 //!    that is;
 //! 5. assemble the handle with the key that is now in force;
-//! 6. load the first snapshot ([`App::reload_all`]).
+//! 6. load the first snapshot ([`App::reload_all`]);
+//! 7. start synchronization ([`App::start_sync`]), which is what keeps both
+//!    snapshots in step with the other instances afterwards.
 //!
 //! Step 4 is why this is a function rather than a builder chain: which codec the
 //! handle gets depends on work done against the same database a moment earlier.
@@ -61,9 +63,11 @@ impl std::fmt::Debug for Instance {
 /// How an instance is assembled for a particular command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OpenOptions {
-    /// Poll and subscribe for configuration changes made by other instances.
-    /// Only a server wants this; a one-shot command would be spawning tasks it
-    /// immediately shuts down again.
+    /// Poll and subscribe for configuration changes made by other instances —
+    /// for both snapshots: the engine's, through the sdk's loops, and
+    /// identity's, through [`App::start_sync`]. Only a server wants this; a
+    /// one-shot command would be spawning tasks it immediately shuts down
+    /// again, and refreshes explicitly instead.
     pub sync_mode: SyncMode,
 }
 
@@ -152,6 +156,12 @@ pub async fn open(settings: &Settings, options: OpenOptions) -> Result<Instance>
     let gproxy = builder.build().await?;
     let app = Arc::new(App::new(gproxy, config.clone()));
     let revision = app.reload_all().await?;
+    // After the first load, never before: a fresh subscription opens with
+    // `ResyncRequired`, and that load is the resync. From here the instance
+    // keeps itself in step with whoever else writes to this database — and,
+    // in `Background`, with its own `/admin/api` writes between polls.
+    app.start_sync(options.sync_mode, gproxy_app::DEFAULT_POLL_INTERVAL)
+        .await;
 
     if !publishable {
         tracing::debug!(

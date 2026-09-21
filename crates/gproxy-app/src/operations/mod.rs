@@ -36,6 +36,17 @@
 //! regardless, because every create and update reads its row back inside the
 //! same transaction rather than from the snapshot.
 //!
+//! The host's half of that is [`crate::sync`], and it is not optional: until
+//! something rebuilds [`AppData`], a key minted by the write above cannot
+//! authenticate against the instance that minted it. A host calls
+//! [`App::sync_now`](crate::App::sync_now) after a write of its own and
+//! [`App::start_sync`](crate::App::start_sync) once for its peers'. Note what
+//! the objection above is and is not: a *writer* must not reload, because a
+//! `Writer` holds the handle and a snapshot, never the [`App`](crate::App)
+//! that publishes one. It is not an objection to reloading after a write —
+//! `AppSnapshot::publish_if_newer` is monotonic, so that cannot move the
+//! instance backwards.
+//!
 //! Publication is best effort. A cache that refuses it costs the deployment
 //! one poll interval, not correctness, so it is a warning and never an error.
 //!

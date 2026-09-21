@@ -20,10 +20,10 @@
 //! # Shutdown
 //!
 //! `SIGINT` or `SIGTERM` stops accepting and lets in-flight work finish: axum's
-//! graceful shutdown drains the requests, and the sdk's background sync is
-//! cancelled after they are done. There is no timeout, deliberately — a
-//! streaming completion legitimately runs for minutes, and a supervisor that
-//! wants a deadline has `TimeoutStopSec` and `SIGKILL`.
+//! graceful shutdown drains the requests, and the background synchronization of
+//! both snapshots is cancelled after they are done. There is no timeout,
+//! deliberately — a streaming completion legitimately runs for minutes, and a
+//! supervisor that wants a deadline has `TimeoutStopSec` and `SIGKILL`.
 
 use std::net::SocketAddr;
 
@@ -73,9 +73,9 @@ pub async fn run(settings: Settings) -> Result<()> {
         .await;
 
     tracing::info!("draining finished; shutting down");
-    // After the requests, not before: the background sync keeps the snapshot
-    // fresh for whatever is still in flight.
-    instance.app.gproxy().shutdown();
+    // After the requests, not before: both synchronization loops keep the
+    // snapshots fresh for whatever is still in flight.
+    instance.app.shutdown();
     result.map_err(|error| Error::io("serving", error))
 }
 

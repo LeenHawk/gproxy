@@ -205,10 +205,10 @@ impl Desktop {
     }
 
     /// Stop the data plane and the background sync, in that order: the sync
-    /// keeps the snapshot fresh for whatever is still in flight.
+    /// keeps both snapshots fresh for whatever is still in flight.
     pub fn shutdown(&self) {
         self.stop.notify_waiters();
-        self.app.gproxy().shutdown();
+        self.app.shutdown();
     }
 
     /// Build the request's `Operations` over a snapshot loaded exactly once.

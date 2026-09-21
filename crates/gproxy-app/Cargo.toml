@@ -56,16 +56,20 @@ ts-rs = { workspace = true, optional = true }
 web-time = { workspace = true }
 
 # A rate-limit charge has to be given back from a `Drop`, where nothing can be
-# awaited, so the release is spawned. This is the whole of the runtime this
-# crate touches: no server, no timers, no task management.
+# awaited, so the release is spawned; `sync` adds a timer for the revision poll
+# and a mutex around the subscription it drains. This is the whole of the
+# runtime this crate touches: no server, no task management.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tokio = { version = "1", default-features = false, features = ["rt"] }
+tokio = { version = "1", default-features = false, features = ["rt", "sync", "time"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # `App` has to be `Send + Sync` for a host to put it in a request-scoped state,
 # and the engine under it is `!Send` on this target by design. See `Handle` in
 # `lib.rs`: one wrapper, one isolate, checked at runtime.
 send_wrapper = { workspace = true }
+# `sync::AppSync` holds the subscription an isolate's `tick` drains. No timers
+# here: an isolate never sleeps, it ticks.
+tokio = { version = "1", default-features = false, features = ["sync"] }
 wasm-bindgen-futures = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
@@ -76,4 +80,7 @@ gproxy-cache = { workspace = true, features = ["memory"] }
 # the crate itself: nothing here implements a channel.
 gproxy-channel = { workspace = true }
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
+# Two instances over one database is the cross-instance convergence test, and
+# two connections need a file rather than a private in-memory database.
+tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
