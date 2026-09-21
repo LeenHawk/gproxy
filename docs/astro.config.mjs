@@ -47,7 +47,7 @@ export default defineConfig({
     starlight({
       title: 'GPROXY',
       description:
-        'Install, configure, and operate GPROXY v3: one gateway in front of many LLM providers, as a native binary, a container, or an edge worker.',
+        'Install, configure and operate GPROXY v4: one gateway in front of many LLM providers, as a native binary, a desktop shell or a Cloudflare Worker.',
       favicon: '/favicon.ico',
       head: [
         {
@@ -98,22 +98,12 @@ export default defineConfig({
               slug: 'introduction/architecture',
               translations: { 'zh-CN': '架构' },
             },
-            {
-              label: 'Performance',
-              slug: 'introduction/performance',
-              translations: { 'zh-CN': '性能' },
-            },
           ],
         },
         {
           label: 'Getting Started',
           translations: { 'zh-CN': '快速上手' },
           items: [
-            {
-              label: 'Downloads',
-              slug: 'getting-started/downloads',
-              translations: { 'zh-CN': '下载' },
-            },
             {
               label: 'Installation',
               slug: 'getting-started/installation',
@@ -141,9 +131,9 @@ export default defineConfig({
               translations: { 'zh-CN': 'Provider 与凭证' },
             },
             {
-              label: 'Models, Routes & Aliases',
+              label: 'Models, Routes & Exposed Names',
               slug: 'guides/models',
-              translations: { 'zh-CN': '模型、路由与别名' },
+              translations: { 'zh-CN': '模型、路由与公开名称' },
             },
             {
               label: 'Users & API Keys',
@@ -156,9 +146,9 @@ export default defineConfig({
               translations: { 'zh-CN': '权限、限流与配额' },
             },
             {
-              label: 'Routing Rules & Rule Sets',
+              label: 'Rewrite Rules & Operation Overrides',
               slug: 'guides/rules',
-              translations: { 'zh-CN': '路由规则与规则集' },
+              translations: { 'zh-CN': '改写规则与操作覆盖' },
             },
             {
               label: 'Prompt Caching',
@@ -223,24 +213,14 @@ export default defineConfig({
           translations: { 'zh-CN': '部署' },
           items: [
             {
-              label: 'Building & Releases',
+              label: 'Building from Source',
               slug: 'deployment/release-build',
-              translations: { 'zh-CN': '构建与发布' },
+              translations: { 'zh-CN': '从源码构建' },
             },
             {
-              label: 'Container',
-              slug: 'deployment/docker',
-              translations: { 'zh-CN': '容器部署' },
-            },
-            {
-              label: 'Edge Wasm',
+              label: 'Edge (Cloudflare Workers)',
               slug: 'deployment/edge',
-              translations: { 'zh-CN': 'Edge Wasm' },
-            },
-            {
-              label: 'v2 to v3 Migration',
-              slug: 'deployment/v2-to-v3',
-              translations: { 'zh-CN': 'v2 到 v3 迁移' },
+              translations: { 'zh-CN': '边缘部署（Cloudflare Workers）' },
             },
           ],
         },

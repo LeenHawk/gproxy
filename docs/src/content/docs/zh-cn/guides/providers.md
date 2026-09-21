@@ -1,185 +1,269 @@
 ---
 title: "Provider 与凭证"
-description: "渠道、Provider、凭证池、登录向导、令牌刷新、健康状态跟踪，以及控制台中的 Provider 工具"
+description: "25 个渠道、一行 Provider 装什么、凭证池及其生命周期、三种登录流程、连接配置，以及两个探针。"
 ---
 
-**渠道（channel）** 是编译进二进制的适配器，对应一类上游 API。**Provider**
-是使用某个渠道的一条已保存连接：名称、设置和一组凭证。同一渠道可以创建任意
-多个 Provider，例如 `openai-main` 和 `openai-eu` 都使用 `openai` 渠道。
+**渠道（channel）** 是编译进二进制的某一族上游适配器。**Provider** 是某个渠道上的一条
+已保存连接：名字、可选 base URL、该渠道自己的 `config` JSON，以及一个凭证池。同一个渠道
+可以建任意多个 Provider——`openai-main` 和 `openai-eu` 可以都在 `openai` 渠道上。
 
-在控制台保存的修改对新请求立即生效，无需重启。
+这里的每一次写入都是一个事务连同配置 revision 自增，而且实例先重载、再通知同伴，因此
+改动在下一个请求上生效，不需要重启。
 
-## 渠道
+## 25 个渠道
 
-控制台从正在运行的二进制读取渠道列表。每个渠道声明显示名称、能服务的路由、
-接受的 Provider 设置、所需的凭证字段，以及是否提供登录向导。28 个渠道 id
-按凭证形态分组如下：
+只有编译进你的二进制的渠道才存在。`GET /admin/api/channels` 回答自二进制而非数据库，
+每一项带着登录方式、能力，以及一个 Provider 表单该渲染的 `config` 键。
 
-| 凭证形态 | 渠道 id |
-| --- | --- |
-| API 密钥（`api_key`） | `aistudio`、`azure`、`claudeapi`、`cloudflare-ai-gateway`、`custom`、`dashscope`、`deepseek`、`nvidia`、`openai`、`openrouter`、`vercel`、`vertexexpress`、`xai` |
-| API 密钥或 OAuth 令牌 | `cline`、`kimi`、`opencode` |
-| OAuth 令牌（`access_token`、`refresh_token`） | `claudecode`、`codex`、`grokbuild`、`kiro`、`workbuddy` |
-| Google OAuth（`access_token`、`refresh_token`、`project_id`） | `antigravity`、`geminicli` |
-| Google 服务账号（`client_email`、`private_key`、`project_id`） | `vertex` |
-| AWS（`api_key`，或 `access_key_id` + `secret_access_key` + 可选 `session_token`） | `aws-bedrock` |
-| GitHub 令牌（`github_token`） | `copilotcli` |
-| 浏览器 Cookie（`cookie`、`account_uuid`） | `claudeweb`（仅 native 构建） |
-
-导入时会规范化两组 v2 id：`kimiapi`、`kimicode` 变为 `kimi`；`opencodezen`、
-`opencodego` 变为 `opencode`，并把 `tier` 设为 `zen` 或 `go`。`claudeweb`
-不会编译进 edge 构建。
-
-## Provider 字段
-
-| 字段 | 含义 |
-| --- | --- |
-| 路由名（`name`） | 唯一标识，同时也是 URL 中的命名前缀，例如 `/openai-main/v1/chat/completions`。 |
-| 显示名称（`label`） | 可选，仅在控制台显示。 |
-| 渠道 | 上表中的某个 id，创建后不可更改。 |
-| 凭证策略 | `round_robin`（默认）或 `sticky`，见下文。 |
-| Provider 代理 URL | 覆盖实例代理；凭证可以再次覆盖。 |
-| 客户端指纹 | 可选的 TLS/HTTP 配置：预设或自定义 JSON。凭证可以覆盖。 |
-| 转发元数据 | 允许哪些调用方请求头和 Query 参数发往上游、哪些响应头返回给调用方。默认值来自渠道。 |
-| 启用 | 禁用的 Provider 退出路由。 |
-
-### 渠道设置
-
-设置保存为一个 JSON 对象。渠道为常用键声明了类型化字段；其余内容通过
-**编辑设置 JSON** 修改。
-
-| 键 | 渠道 | 含义 |
+| 渠道 | 上游 | 凭证 |
 | --- | --- | --- |
-| `base_url` | 全部 | 没有精确端点覆盖时使用的上游地址。 |
-| `auto_refresh_models` | 全部 | 客户端列出模型时向该 Provider 拉取实时模型列表。默认 `true`。 |
-| `endpoints` | 全部 | 按操作类型指定精确 URL，见下文。 |
-| `enable_openai_magic_cache` | `openai`、`codex`、`azure`、`custom`、`openrouter`、`vercel`、`opencode` | 在 OpenAI 目标上识别缓存触发字符串。 |
-| `enable_claude_magic_cache` | `claudeapi`、`claudecode`、`azure`、`custom`、`openrouter`、`vercel`、`aws-bedrock`、`opencode` | 在 Claude 目标上识别缓存触发字符串。 |
-| `claude_fallback_mode`、`claude_fallback_models` | `claudeapi`、`claudecode`、`custom`、`openrouter`、`vercel` | `off`、`default`，或 `models` 加一个有序模型列表。 |
-| `region`、`video_output_s3_uri` | `aws-bedrock` | AWS 区域；生成视频的 S3 目标地址。 |
-| `region`、`profile_arn`、`auth_base_url` | `kiro` | AWS 区域、Profile ARN、认证服务地址。 |
-| `location`、`oauth_client_id`、`oauth_client_secret`、`oauth_token_url` | `vertex`、`antigravity`、`geminicli` | Google Cloud 区域与 OAuth 客户端覆盖。 |
-| `tier`、`console_base_url` | `opencode` | `zen` 或 `go`；设备登录使用的控制台地址。 |
+| `aistudio` | Google AI Studio：原生 Gemini 方法与 `/v1beta/openai` 兼容层同源 | `{"api_key"}` |
+| `antigravity` | 经 Antigravity 编辑器所用的 Code Assist 主机访问 Google 账号 | OAuth |
+| `aws_bedrock` | AWS Bedrock：SigV4 签名的 `InvokeModel`，event-stream 应答翻成 Claude SSE | AWS 密钥对，或 Bedrock API key |
+| `azure` | Azure OpenAI，以及 Azure AI Foundry 托管的 Anthropic 模型 | `{"api_key"}` |
+| `claudeapi` | Anthropic 官方 API，加上它的 OpenAI 兼容层与成本报表 | `{"api_key", "quota_api_key"}` |
+| `claudecode` | 经 Claude Code CLI 的请求使用 Claude.ai 订阅 | OAuth |
+| `claudeweb` | claude.ai 浏览器会话，渲染成 Claude Messages SSE | 会话 cookie + 组织 |
+| `cline` | Cline 自家账号，`api.cline.bot` | `{"api_key"}` 或 OAuth |
+| `codex` | 经 Codex 后端使用 ChatGPT 账号：HTTP SSE 与 WebSocket 上的 Responses、`/wham/usage` | OAuth |
+| `copilotcli` | 经 `copilot` CLI 使用 GitHub Copilot | GitHub OAuth 令牌 |
+| `custom` | 任何原生讲 OpenAI、Claude 或 Gemini 的 API-key 端点 | `{"api_key"}` |
+| `dashscope` | 阿里 DashScope：OpenAI 模式、Anthropic 模式、rerank 与原生多模态图像 API | `{"api_key"}` |
+| `deepseek` | DeepSeek：`/v1` 下的 Chat、根路径的 Responses、`/anthropic` 下的 Claude Messages | `{"api_key"}` |
+| `devin` | Devin（Windsurf），`server.codeium.com`：protobuf 上的 Connect-RPC | 会话令牌 |
+| `geminicli` | 经 Gemini CLI 所用的 Code Assist 端点访问 Google 账号 | OAuth |
+| `grokbuild` | 经 Grok Build CLI 使用 xAI 账号 | OAuth |
+| `kimi` | Moonshot 平台（API key），或 Kimi Code 订阅（设备登录） | `{"api_key"}` 或 OAuth |
+| `kiro` | 经 Kiro 桌面应用使用 AWS CodeWhisperer | OAuth |
+| `openai` | OpenAI 官方平台：完整 surface、套接字上的 Responses 与 Realtime | `{"api_key", "quota_api_key"}` |
+| `opencode` | OpenCode Zen 与 Go | `{"api_key"}` 或 OAuth |
+| `openrouter` | OpenRouter：body 里的路由偏好、应答里报出的价格 | `{"api_key"}` |
+| `vertex` | Google Vertex AI：Google、Anthropic 与 OpenAI 兼容发布者 | 服务账号密钥 |
+| `vertexexpress` | Vertex AI Express：单一全球源上的 Gemini surface | `{"api_key"}` |
+| `workbuddy` | 经编辑器插件使用腾讯 Copilot | OAuth |
+| `xai` | xAI（Grok）：OpenAI Chat 与 Responses，加上 xAI 自己的 TTS／STT／视频 | `{"api_key"}` |
 
-精确端点覆盖放在 `endpoints` 下，按操作类型作键，优先于 `base_url`。不会再
-追加路径；`{model}` 会替换为上游模型 id：
+每个渠道都能为原生目标**和** `wasm32-unknown-unknown` 构建，所以 Worker 部署不是一个
+缩水的渠道集。
+
+### 不需要渠道的厂商
+
+渠道是要对着别人的 wire 维护的代码。只有当一行 Provider 说不清它需要什么时，一个厂商才
+值得一个渠道。全部差别只是一个源和一个 header 的厂商，就是一个 `custom` Provider：
 
 ```json
-{
-  "endpoints": {
-    "openai_chat_completions": "https://api.example/v1/chat/completions",
-    "gemini_generate_content": "https://api.example/v1beta/models/{model}:generateContent"
-  }
-}
+{ "name": "nvidia-nim", "channel": "custom",
+  "baseUrl": "https://integrate.api.nvidia.com",
+  "config": { "dialects": ["openai_chat"] } }
 ```
 
-控制台只提供该渠道能服务的操作类型。常见键有 `openai_chat_completions`、
-`openai_responses`、`claude_messages`、`gemini_generate_content`、
-`gemini_stream_generate_content`、`openai_list_models`、`openai_embeddings`、
-`image_generations`。
+```json
+{ "name": "vercel-gateway", "channel": "custom",
+  "baseUrl": "https://ai-gateway.vercel.sh/v1",
+  "config": { "dialects": ["openai_chat", "openai", "claude"] } }
+```
 
-## 凭证
+```json
+{ "name": "cf-gateway", "channel": "custom",
+  "baseUrl": "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai",
+  "config": { "dialects": ["openai_chat", "openai", "claude"],
+              "headers": { "cf-aig-gateway-id": "default" } } }
+```
 
-凭证属于一个 Provider，包含：
+## 一行 Provider
 
 | 字段 | 含义 |
 | --- | --- |
-| 标签 | 可选，建议用来区分上游账号。 |
-| 类型 | `api_key`、`oauth` 或 `cookie`，记录密文的取得方式。 |
-| 密文 | 直接粘贴单个密钥，或填写包含渠道声明字段的 JSON 对象。编辑时会预填已存储的密文；留空则保留原值。 |
-| 流量权重 | 默认 100，决定在凭证池中的流量份额。 |
-| 每分钟请求数、每分钟 Token 数 | 可选的单凭证上限。 |
-| 代理覆盖 URL | 替代 Provider 和实例代理。 |
-| 客户端指纹 | 替代 Provider 指纹。 |
-| 启用 | 禁用的凭证会被跳过。 |
+| `name` | 运维者取的标签，唯一。它同时是 **Provider 挂载点**和 `provider/model` 形式的左半边。 |
+| `channel` | 上表中的一个 id。 |
+| `baseUrl` | 渠道接受 base URL 时的源。 |
+| `config` | 该渠道自己的 JSON。每个渠道声明它解码哪些键，`GET /admin/api/channels` 就是那份清单。 |
+| `connectionProfileId` | 这个 Provider 的调用走哪套出站栈——代理、TLS 模拟。 |
+| `enabled` | 被禁用的 Provider 退出解析。 |
 
-配置 master key 后，密文在静态存储中密封（见
-[配置](/zh-cn/reference/configuration/)）。在控制台读回已存储的密文是一项
-单独的、会被审计的操作。
+`custom` 的 `config` 带 `dialects`（端点讲哪些线格式）、静态 `headers`、`allowed_headers`
+和两个 magic cache 开关。模拟厂商 CLI 的渠道声明自己的身份 header，并且不让客户端伪造它们。
 
-### 凭证池策略
+### 按操作覆盖 URL
 
-选择是确定性的计数轮转，绝不随机。
+`operation_endpoints` 对某个 Provider 的某个 `(操作, 方言, 传输)` 整体替换方法 URL。它
+**不是**一个再拼默认路径的 base URL；渠道自己的路径参数由那个方法解析：
 
-| 策略 | 行为 |
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/operation-endpoints \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"providerId":"…","operation":"generate_content","dialect":"openai_chat",
+       "url":"https://elsewhere.example/v1/chat/completions"}'
+```
+
+`operation_rules` 是另一半：对某个操作上渠道行为的按 Provider 覆盖。渠道默认值留在代码里，
+不会被拷进每个新建的 Provider。
+`POST /admin/api/providers/{id}/routing-defaults/reset` 在一次提交里把两者都清掉。
+
+## 一行凭证
+
+| 字段 | 含义 |
 | --- | --- |
-| `round_robin` | 每个请求推进对应路由成员的计数器；计数器按权重比例选出一个凭证。 |
-| `sticky` | 槽位由调用方的 API 密钥（若客户端带会话 id，则由会话 id）推导，因此同一密钥在凭证池不变时始终落在同一凭证。 |
+| `label` | 可选。登录创建时会从渠道和账号推导一个。 |
+| `authKind` | `api_key`、`oauth` 或 `cookie`——密钥是怎么得到的。 |
+| `secret` | 该渠道声明的字段。从不返回；列表里只有 `hasSecret`。 |
+| `organizationId` / `teamId` / `userId` | 归属。恰好一个，或都没有（共享凭证）。 |
+| `connectionProfileId` | 覆盖 Provider 的出站栈。 |
+| `expiresAtMs` | 密钥该刷新的时间。 |
+| `status` | `active` 或 `dead`。死掉的凭证退出计划。 |
+| `version` | 刷新写回时所用的 CAS 守卫。 |
 
-### 单凭证限流
+密钥用主密钥以 AES-256-GCM 密封，而且**密封绑定到该行自己的 id**，所以一份密文被拷到
+另一行上打不开。读回它是一次单独的、被审计的调用：
 
-RPM 与 TPM 通过缓存后端按固定 60 秒窗口执行。TPM 在发往上游之前用分词器
-阶梯统计请求的输入 Token。超过任一上限的请求以 `429` 失败，且不消耗窗口。
-这些限制保护的是上游账号；调用方限流见
-[权限、限流与配额](/zh-cn/guides/permissions/)。
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/credentials/{id}/reveal \
+  -H "Authorization: Bearer $GPROXY_KEY"
+```
 
-### 健康状态
+没有主密钥时密钥以**明文**存放。这是一种受支持的部署，二进制在启动时会说一次。
 
-健康状态按（凭证，上游模型）记录，来源是上游响应：`2xx` 记为健康，`429`
-和 `5xx` 记为降级，`401`–`403` 记为失效。令牌刷新失败会把整个凭证记为降级；
-密文格式错误则记为失效。同一层级内降级凭证排在健康凭证之后；失效凭证从计划
-中移除。新观测覆盖旧观测，针对旧凭证版本记录的观测会被忽略，因此重新保存
-密文后会从零开始。凭证卡片显示当前最差状态、异常模型、最近一次状态码与详
-情，以及 **清除健康状态** 操作。
+### 谁能触达它
 
-### 令牌刷新
+一把凭证对某个调用方可见，当它**无归属**，或者它的归属与调用方所用 key 的绑定一致——
+key 自己的用户、团队，或它的有效组织。
 
-持有 OAuth 令牌的渠道会声明密文何时到期。刷新在缓存中一个 60 秒的独占租约
-下运行，并发请求只刷新一次；其余请求每秒轮询，直到拿到新版本。轮换后的
-密文以版本保护方式持久化。Claude 每次刷新都会轮换 refresh token，这条路径
-绝不能丢失任何一次写入。
+是 *key 的*绑定而不是持有人的成员关系，因为一个用户可以属于两个组织而一把 key 只属于
+一个。如果由成员关系决定，一个多组织用户的每把 key 都会触达每个组织的订阅，而且没有一把
+key 能比它的持有人更窄。
 
-## 登录向导
+可见性只收窄凭证集合，从不扩大它。
 
-两个渠道可以通过控制台获取首个凭证：
+## 通过登录获取凭证
 
-| 渠道 | 模式 |
-| --- | --- |
-| `codex` | 浏览器登录（授权码 + PKCE）、设备代码 |
-| `claudecode` | 浏览器登录（授权码 + PKCE）、浏览器 Cookie（仅 native 构建） |
+持有账号而非 key 的渠道提供三种流程中的一种或多种。
+`GET /admin/api/channels` 报告每个渠道的 `loginModes`，要一个它不提供的方式会被拒绝。
 
-- **浏览器登录**：GPROXY 生成带 S256 PKCE challenge 和 state 的授权 URL。在
-  浏览器中授权后，把完整回调 URL 粘贴回向导。代码交换后保存 access 与
-  refresh 令牌。
-- **设备代码**：向导显示用户代码和厂商验证页面，然后轮询直到厂商报告已
-  批准或已拒绝。
-- **浏览器 Cookie**：粘贴完整 `Cookie` 请求头或 `sessionKey` 值。GPROXY 发现
-  组织、用 Cookie 完成 OAuth 交换，并把 Cookie 密封保存，供令牌过期后重新
-  登录。
+| 流程 | 步骤 | 适用 |
+| --- | --- | --- |
+| 授权码 | start → complete | 带 PKCE 的浏览器跳转 |
+| 设备码 | start → 反复 poll | 在另一台设备上敲码 |
+| Cookie 交换 | exchange | 用户已经有的会话 cookie |
 
-其他渠道都通过粘贴密钥或令牌创建凭证。
+GPROXY 拥有一切不属于上游的部分。**PKCE verifier** 是本地生成的 32 个随机字节，永不外发，
+只有它的 S256 摘要会到达授权 URL，因此被截获的授权码没有它也没用。**CSRF state** 本地
+生成、本地比对，不匹配不仅拒绝，还顺手销毁会话，重放因此没有第二次机会。
 
-## 凭证费用额度
+待完成的会话存在**共享 cache** 里，不在本进程。这正是 A 实例开始的登录 B 实例能收尾的
+原因——负载均衡后面收尾的通常就是另一个实例——也是被放弃的登录不留痕迹的原因：key 自己
+过期，而过期的 key 与从未签发过的 id 无从区分。
 
-在 **Providers → 凭证 → 费用额度** 中分别设置总、月、周、日美元额度。
-留空表示不限，0 立即禁止付费请求。任一额度用尽，就不再向该凭证发送新的
-付费请求；路由可切换到其他凭证，全部候选凭证额度耗尽时返回 HTTP 402。
-免费操作仍可使用。
+**轮询是调用方的事。** 一次设备轮询只走一步就返回，这里既不 sleep 也不循环。应答带着
+该等多久，上游的 `slow_down` 会改写这个间隔并对之后每次轮询生效。
 
-费用按网关模型定价累计，从配置后开始计算；受限凭证缺少模型定价时拒绝
-付费请求。累计独立于用量日志持久化，关闭限制仍继续累计，修改额度不会
-清空已用金额。总额度不自动重置；日、周、月额度分别在 UTC 每天零点、
-周一零点、每月 1 日零点重置，界面按本地时区显示恢复时间。
+一次成功的登录就是一次普通的凭证插入，走管理写入用的同一个提交原语。密钥在语句构造
+**之前**就密封好，因此渠道与数据库之间没有任何东西见过明文，返回的只有凭证 id。
 
-付费请求发出前，会先按模型价格估算输入 token 的费用并在该凭证的额度窗口
-里预留，因此并发请求彼此可见，合起来最多只会超出"估算与结算之差"；请求结算
-或中止时释放预留。输出 token 只有结算时才知道，所以很长的回复仍可能在额度
-之上完成。这些计数不包含绕过网关的调用，也不会与上游账单自动对账。
+### 刷新
 
-## 工具
+持有 OAuth 令牌的渠道声明密钥何时到期，刷新返回的是一份**完整替换**——绝不是合并。宿主
+以 `version` 上的 CAS 写回并发出凭证变更通知。
 
-- **连通性测试**：经由所选作用域实际生效的代理探测
-  `https://1.1.1.1/cdn-cgi/trace`（IPv4 与 IPv6），报告出口 IP、位置、延迟，
-  以及使用了哪个代理来源。
-- **上游额度**：对暴露该信息的渠道（`codex`、`claudecode`、`geminicli`），
-  凭证卡片显示观测到的配额窗口、已用百分比和周期结束时间。**刷新** 会实时
-  探测上游账号；Codex 重置卡可以直接在卡片上使用。有效窗口达到 90% 及以上
-  的凭证在同一故障转移层级中排在其他凭证之后，达到 100% 则排在最后。
-- **批量操作**：启用、禁用、删除可对选中的 Provider 与凭证一次执行，并逐项
-  返回结果。
-- **导出 / 导入**：配置导出涵盖身份、Provider、凭证、密钥、配额、价格、
-  路由、别名和规则。除非明确要求，否则不含密文；含密文的导出会记录其为明文
-  还是密封，以及所用密钥的指纹。导入时会用本地密钥重新密封，并报告跳过的
-  凭证和密钥数量。
+```sh
+curl -s -X POST 'http://127.0.0.1:7070/admin/api/credentials/{id}/refresh?force=true' \
+  -H "Authorization: Bearer $GPROXY_KEY"
+```
 
-模型、从上游拉取以及模型测试见[模型、路由与别名](/zh-cn/guides/models/)。
+上游*确定性*拒绝凭证（`invalid_grant`、已撤销）会把它标记为死。短暂的传输失败或 5xx
+绝不能：它必须以传输错误的形式浮现，好让宿主稍后重试。
+
+这条路径绝不能丢写入。Claude 每次刷新都轮换 refresh token，这正是写回是带版本守卫的 CAS
+而不是尽力而为更新的原因。
+
+## 健康、封禁与计划
+
+解析直接去掉禁用、已退役和已死的凭证。**被封禁**的凭证——被上游限流的那种——在该
+Provider 还有别的可用凭证时被去掉；若**全部**被封禁则保留该 Provider 并排在所有健康
+Provider 之后。限流是最后手段，不是故障。
+
+```sh
+# 上游怎么说这把凭证的窗口
+curl -s http://127.0.0.1:7070/admin/api/credentials/{id}/quota -H "Authorization: Bearer $GPROXY_KEY"
+# 现在就问上游
+curl -s -X POST http://127.0.0.1:7070/admin/api/credentials/{id}/quota-probe -H "Authorization: Bearer $GPROXY_KEY"
+# 兑换一次重置额度（厂商卖这个的话）
+curl -s -X POST http://127.0.0.1:7070/admin/api/credentials/{id}/quota-reset -H "Authorization: Bearer $GPROXY_KEY"
+# 忘掉记录的健康状态
+curl -s -X POST http://127.0.0.1:7070/admin/api/credentials/{id}/health-reset -H "Authorization: Bearer $GPROXY_KEY"
+# 覆盖它的运维限额
+curl -s http://127.0.0.1:7070/admin/api/credentials/{id}/limits -H "Authorization: Bearer $GPROXY_KEY"
+```
+
+`POST …/status` 手动设为 `active` 或 `dead`，带一个原因。
+
+## 连接配置
+
+一份连接配置就是一次调用走的出站栈：代理，以及它呈现的 TLS 与 HTTP/2 身份。选择顺序是
+凭证优先，然后 Provider，然后渠道自己的默认，最后实例默认。
+
+内置六种身份预设，可直接存成一份连接配置的 `emulation`：
+
+```sh
+curl -s http://127.0.0.1:7070/admin/api/tls-presets -H "Authorization: Bearer $GPROXY_KEY"
+```
+
+```text
+claude / Claude CLI    codex / Codex CLI       gemini / Gemini CLI
+antigravity            kiro / Kiro CLI         copilot / GitHub Copilot CLI
+```
+
+只有 `wreq` 传输会呈现指纹。模拟 CLI 的渠道返回自己的默认；凭证或 Provider 上的显式配置
+依然胜出。
+
+## 两个探针
+
+这是本层唯一会离开进程的管理调用。
+
+**连通性**通过 scope 指定的那条 client 链，问 Cloudflare 的 trace 端点这套部署从外面看是
+什么样：
+
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/connectivity/test \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"scope":"global"}'
+```
+
+```json
+{"ok":true,"latencyMs":803,"ip":"223.166.167.192","colo":"LAX","error":null}
+```
+
+scope 可以是 `global`、`{"scope":"provider","provider_id":"…"}`、
+`{"scope":"credential","credential_id":"…"}`——它的调用所用的那条传输——或
+`{"scope":"proxy","url":"…"}`，用来测一个还没配置到任何地方的代理。
+**网络失败是 `ok: false` 加一个原因，不是错误**："上游不可达"正是问题要的答案。
+
+**模型测试与发现**像调用方的请求一样走完引擎：
+
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/models/test \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"providerId":"…","model":"gpt-4o-mini"}'
+
+curl -s -X POST http://127.0.0.1:7070/admin/api/models/discover \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"providerId":"…"}'
+```
+
+它们**花的是真凭证、消耗真上游配额、对该凭证适用的任何预算真结算，并写一行用量**。
+没有 dry run：一个没有真正调用上游的测试什么也没测到。
+
+发现用 Provider 自己的方言提问，因此名字就是上游的。每一个回来时都带着"这个 Provider
+是否已有这一行"和"内置目录能不能给它定价"；
+`POST /admin/api/models/discover/apply` 插入你点名的那些，已有的跳过。
+
+## 搬运一份配置
+
+```sh
+gproxy export --out config.json --include-secrets
+gproxy import --in  config.json --mode merge --source-master-key '…'
+```
+
+会走的是一套部署*本身*的配置：连接配置、Provider、凭证、模型目录、路由、操作覆盖、
+改写规则、配额、价格和 settings 行。**身份不走**——用户、key、组织、团队、权限和订阅属于
+产品层——用量和 capture 也不走，因为拷贝它们等于伪造目的端从未有过的历史。主密钥规则见
+[配置](/zh-cn/reference/configuration/#搬运一份配置)。

@@ -1,147 +1,222 @@
 ---
 title: "Storage & Cache Backends"
-description: "The four SQL backends and how to select them, schema migrations and table groups, cache backends and multi-instance needs, backups, retention, and edge limits"
+description: "The database backends and how they are selected, entity-first schema synchronization, the cache contract and what needs a shared one, file storage, and backups."
 ---
 
-`gproxy-store` holds one schema catalog and one query layer (SeaQuery)
-for every backend. Dialect differences — integer widths, indexed
-`VARCHAR(255)` on MySQL, `PRAGMA foreign_keys` on SQLite — are applied
-when statements are rendered, and backend parity is covered by the
-store's test scenarios. The cache is a separate service, selected
-independently of persistence.
+Three storage extension points, chosen independently: the **database**, the
+**cache**, and optional **file content**.
 
-## Selecting a Backend
+## The Database
 
-| `GPROXY_PERSISTENCE` | Connection | Notes |
+| `GPROXY_PERSISTENCE` | Connection | Build |
 | --- | --- | --- |
-| `sqlite` (default) | `<data-dir>/gproxy.db` | Bundled SQLite, one file. Foreign keys enabled. |
-| `libsql` | `GPROXY_LIBSQL_URL` + `GPROXY_LIBSQL_AUTH_TOKEN` | Hrana over HTTP at `<url>/v2/pipeline`; works with Turso and any libSQL server. The only backend on edge. |
-| `postgres` | `GPROXY_DSN=postgres://user:<password>@host:5432/gproxy` | `tokio-postgres`, a single connection behind a lock; each migration batch runs in a transaction. Append `?sslmode=require` to require rustls TLS with certificate and hostname verification against bundled Mozilla roots (including Neon); `sslmode=disable` selects plaintext. |
-| `mysql` | `GPROXY_DSN=mysql://user:<password>@host:3306/gproxy` | `mysql_async` connection pool; append `?require_ssl=true` to require rustls TLS with certificate and hostname verification; migration batches run in a transaction. |
+| `sqlite` *(default)* | `<data-dir>/gproxy.db`, or a path / `sqlite://` URL in `--dsn` | always compiled in |
+| `postgres` | `postgres://…` in `--dsn` | `--features postgres` |
+| `mysql` | `mysql://…` in `--dsn` | `--features mysql` |
+| D1 | the Cloudflare binding | the Workers host |
+| libSQL / Turso | over the Hrana HTTP pipeline | `--features libsql` |
 
-```bash
-GPROXY_PERSISTENCE=postgres \
-GPROXY_DSN='postgres://gproxy:<password>@db.internal:5432/gproxy' \
-gproxy
+`--dsn` names its own backend when `--persistence` is absent, so the scheme is
+usually enough.
+
+**A backend this build does not have is refused at startup**, naming the
+feature that would provide it, rather than at the first request.
+
+```sh
+gproxy serve --dsn 'postgres://gproxy:…@db.internal:5432/gproxy'
 ```
 
-Column types: `Integer` is `INTEGER` on SQLite and `BIGINT` elsewhere;
-`Text` is `TEXT`, or `VARCHAR(255)` on MySQL when the column is indexed;
-`Blob` is binary, or `VARBINARY(255)` on MySQL when indexed. Timestamps
-are Unix seconds in integer columns, money is decimal text, and JSON is
-text.
+libSQL is the option for a host that has no D1 — Deno, Netlify — because the
+HTTP half is provided by the caller's own transport and it therefore works on
+every target.
 
-## Migrations
+### One API over all of them
 
-Startup opens the backend and migrates before anything else; there is no
-separate migration command. `schema_migrations(version, applied_at)`
-records each applied version. The history must be contiguous, and a
-database newer than the binary is refused with
-`database schema is newer than this binary`.
+Native SeaORM connections and Cloudflare D1 share **one** store API. Every
+entity accessor goes through one generic repository, so ordinary CRUD is not
+hand-written per table, and each method executes **one atomic batch**.
 
-| Version | Name | Adds |
-| --- | --- | --- |
-| 1 | `Initial` | The complete current v3 schema listed below. The development-time versions that preceded the first v3 release were flattened; migrations added after release start at version 2. |
+Constructing the store neither opens a database nor changes a schema.
 
-Version 1 is the current schema. The self-update manifest carries a
-minimum data version that is compared against this number before an
-update is applied.
+Two consequences worth knowing:
 
-This ladder upgrades v3 stores only. `gproxy migrate --from-v2` is a separate
-data importer: it reads the v2 SQLite source without modifying it, opens a
-current v3 target (thereby creating Initial v1), then maps and writes the v2
-entities. It does not replay superseded v3 development migrations.
-Pre-release v3 stores created with the removed 15-version ladder must be
-recreated; they were never a supported migration source.
+- Reads preserve input order, duplicates and a `None` for a missing id, so a
+  caller can zip a result back onto its request.
+- A key predicate is split to fit D1's 100-bind statement limit **within the
+  same batch**. Arbitrary caller SQL is not split, and database request and
+  size limits still apply.
 
-## Tables by Group
+SQL errors roll back transactional writes. A conditional zero-row write returns
+a conflict rather than rolling back the rest of its batch. **There is no
+automatic retry**: an ambiguous commit result means checking durable state
+first.
 
-| Group | Tables | Notes |
-| --- | --- | --- |
-| Providers and routing | `providers`, `credentials`, `provider_models`, `routes`, `route_members`, `exposed_models`, `aliases` | Provider, route and exposed-model names are unique. `credentials` stores the sealed envelope (`ciphertext`, `wrapped_key`, `payload_nonce`, `key_nonce`) and a `version` for compare-and-swap on rotation. |
-| Rules | `routing_rules`, `rule_sets`, `rules`, `provider_rule_sets` | `routing_rules` is unique per `(provider_id, operation, kind)`; `origin` separates channel-seeded rows from operator rows. |
-| Pricing | `price_rules`, `price_rates` | See [Pricing & Tiers](/reference/pricing/). |
-| Identity | `organizations`, `teams`, `users`, `user_keys`, `user_sessions`, `permissions`, `rate_limits`, `quotas` | Team names are unique per organization. `user_keys` holds the unique digest, a display `prefix` and the sealed key. One quota row per subject. |
-| Quota runtime | `quota_windows`, `quota_settlements`, `credential_quota_cycles`, `credential_quota_cycle_models` | Windows are unique per `(quota, kind, start)`; settlements per `(request, window)`. Cycles track upstream quota readings per credential. |
-| Usage | `usage_rows`, `usage_rollups` | One row per request id with token columns, `metrics_json`, `dimensions_json`, decimal `cost`, `usage_source`, `ended`, `latency_ms`. Rollups are unique per `(granularity, bucket_start, dimension_key)`. |
-| Logs | `request_logs`, `wire_logs` | One downstream exchange per request id; one wire log per upstream attempt. Bodies are blobs, present only when body capture is on. |
-| Admin | `admin_audit_events`, `credential_health`, `surface_bindings`, `settings` | Health is per `(credential, model)`. Bindings pin service-surface resources to the credential that created them. `settings` is a key → JSON map. |
-| Tokenizers | `tokenizer_vocabs`, `tokenizer_auth` | Cached vocabularies and the sealed Hugging Face token. |
-| OAuth | `oauth_grants`, `oauth_codes`, `oauth_tokens`, `oauth_devices` | Issuer state for the emulated vendor-auth surfaces. |
+### Schema synchronization
 
-## Ownership
+```text
+$ gproxy migrate --data-dir ./data
+INFO gproxy::instance: schema is up to date warnings=0
+```
 
-The schema declares no database foreign keys, because the four backends
-do not agree on them. Instead each table declares what it owns, and every
-delete is generated from that declaration in one transaction: deleting a
-provider takes its credentials, route members, aliases, catalogue entries,
-pricing rules, routing rules and rule-set attachments; deleting a route
-takes its members and exposed models; deleting an organization, team, user
-or key takes the permissions, rate limits and quotas scoped to it; deleting
-a team leaves its users in place with no team. History never follows a
-delete: usage rows, rollups, quota cycles, logs and audit events keep the
-ids of subjects that no longer exist. A schema step sweeps rows whose owner
-is already gone, and a test refuses any reference column that is neither
-owned nor listed as history.
+Synchronization is **entity-first**, not a numbered migration ladder: one
+registry describes the tables, and a sync creates what is missing on a new
+database and incrementally adds supported missing columns and indexes on an
+existing one. Repeat calls preserve rows.
 
-## Cache Backends
+`serve` does this too. The separate command exists for a deployment that runs
+it as its own step, **with one writer**, before any instance starts — which is
+what more than one instance over one database requires.
+
+What synchronization does **not** do: it does not create default settings or
+administrators, it does not run versioned migrations, and it does not convert a
+column's type, its data, or an existing foreign key. Those need an explicit
+migration, and there is no promise of one atomic transaction across every
+native backend.
+
+A report carries warnings — D1 type differences, for instance — and an empty
+list **is not proof** that every change was applied. Read the diagnostics
+before considering a startup complete.
+
+### Exact amounts
+
+Money and limits are stored as scaled integers, not floats. One atom is
+`0.000000001`, and the representable range is about ±9.2 billion.
+
+SQL columns are `BIGINT`, and the entities carry the atoms as text across D1's
+JavaScript boundary so that comparisons, ordering and addition stay numeric in
+the database. JSON uses decimal **strings** for the same reason.
+
+Arithmetic happens in a decimal type and is rounded **once**, for the complete
+settlement, ties to even. Settlement checks for negative values and signed
+overflow before it increments a counter.
+
+## The Cache
 
 | Backend | Selected by | Scope |
 | --- | --- | --- |
-| In-process | default on native | One process. |
-| Redis | `GPROXY_REDIS_URL` | Shared. `redis` crate with a connection manager; rustls TLS. |
-| Upstash REST | `UPSTASH_URL` + `UPSTASH_TOKEN` | Shared. One HTTPS request per command; native and edge. |
-| libSQL table | automatic when persistence is `libsql` and neither of the above is set | Shared through the database: `gproxy_kv(k, v, expires_ms)`. |
+| Memory *(default natively)* | `--features memory` | one process |
+| Redis / Valkey | `GPROXY_REDIS_URL` | shared |
+| The database | automatic on wasm, configurable elsewhere | shared, through the same database |
 
-The cache contract is `get`, `set`, `delete`, `incr`,
-`compare_incr_and_set` and `compare_and_swap`, all with optional TTL. It
-carries admission state (`gproxy:admission:{request_id}`), pending quota
-estimates (`gproxy:quota-pending:{window}`), request-rate windows
-(`gproxy:rate:{limit}:{window_start}`), credential RPM/TPM windows
-(`gproxy:credential-rate:{credential}:{rpm|tpm}:{minute}`), settlement
-de-duplication for polled video jobs, credential refresh leases, and
-session-affinity pins. Two instances with separate in-process caches would
-each enforce limits alone and each refresh the same OAuth token, so a
-multi-instance deployment needs Redis, Upstash or the libSQL table.
+The cache holds TTL state, exact counters, permits and leases, and the
+invalidation topic. It holds **no** business entities and **no** durable ledger.
 
-Control-plane snapshots are rebuilt by the instance that made a change. The
-instance then increments `gproxy:invalidate` in the shared cache; native
-instances poll it once per second and edge isolates check it on each request,
-reloading their snapshot when the version changes.
+| Operation | Semantics |
+| --- | --- |
+| `get` / `put` / `delete` | opaque bytes, a mandatory positive TTL, a fresh version on every put |
+| `compare_exchange` | an expected version or absence; replace or delete |
+| `counter` / `increment` / `decrement` | exact non-negative integers, with an atomic ceiling check |
+| `acquire_permit` | at most N live holders, each with its own TTL |
+| `acquire_lease` | the same domain with a limit of 1 — a refresh lease |
+| `publish` / `subscribe` | lossy invalidation hints |
+
+Operations are atomic **per key**, never across keys. Key/value, counter,
+permit and topic domains are separate, so the same logical name may exist in
+each.
+
+A counter has a **fixed window**: only its creation establishes the TTL, so
+every instance agrees on a boundary from the clock alone. A permit is **not**
+keyed by window — it measures requests in flight, which no boundary divides,
+and its period is only how long the cache waits before reclaiming one from a
+request that died without releasing it.
+
+### Failure is a refusal, never a local fallback
+
+A Redis failure does **not** silently degrade to the in-process cache. Two
+instances each falling back would hold contradictory locks and count the same
+limit twice, which is worse than an error.
+
+A rate-limited request whose cache cannot answer is **refused with 429**.
+Passing it turns a cache outage into "every limit on the instance is off" — the
+one moment an attacker wants and an operator cannot see.
+
+### What needs a shared one
+
+Running more than one instance requires Redis, or the database-backed cache.
+Without it, each instance counts its own rate limits, each refreshes the same
+OAuth token, and none sees the others' configuration invalidations.
+
+A login session also lives in the cache rather than in a process, which is what
+lets any instance finish a login another one started — behind a load balancer
+it usually is another one.
+
+For a deployment with separate environments, give each its own Redis namespace.
+The notification channel encodes the database number explicitly, because Redis
+Pub/Sub itself ignores `SELECT`.
+
+### The database as a cache
+
+For a host with no memory-resident process and no Redis — an edge isolate on D1
+or libSQL — the cache can be three tables in the database itself. Expiry is
+compared in SQL, so peers on one database agree on what is live.
+
+It carries **no notification transport**: a subscription yields the initial
+resync hint and then nothing, so such a host catches up on its own schedule.
+That is the whole of the Workers host's synchronization: one revision read at
+the top of every request.
+
+## Configuration Synchronization
+
+```text
+commit_revision([statements…, config_revision += 1, read back])   one transaction
+      ↓
+reload   this instance's snapshot
+      ↓
+publish  ConfigurationChanged { revision, scopes }
+```
+
+Two mechanisms, because neither alone is enough:
+
+| | Carries | Fails by |
+| --- | --- | --- |
+| an invalidation on the shared cache | "look again", within milliseconds | losing messages |
+| the `settings.config_revision` poll | the durable truth, every 30 s | being slow |
+
+A notification never carries state. It says which revision exists, and an
+instance reloads only when that is ahead of the one it serves. An unreadable
+payload reloads rather than guesses.
+
+**The cache's own counter cannot replace the database's revision.** A Redis
+restart or eviction may lose it, and two independent commits — one to the
+database, one to the topic — do not become a transaction by being adjacent.
+
+Reloads are serialized and monotonic: an older revision never replaces a newer
+one, and a failed reload leaves the previous snapshot serving.
+
+## File Storage
+
+Optional, and off unless a backend is chosen.
+
+| Backend | Selected by | Native | Workers |
+| --- | --- | --- | --- |
+| Local filesystem | `--features fs` + `--file-storage-dir` | yes | no |
+| S3-compatible, including R2 | `--features s3` + the `[file_storage]` block | yes | yes |
+
+It holds published bodies — the bytes behind `/publications/{id}` — and
+downloaded tokenizer vocabularies. **File metadata and ownership stay in the
+database**; the storage layer holds content and nothing else.
+
+With no file storage configured, publication and vocabulary fetching answer
+"unsupported": there is nowhere to put the bytes.
+
+A publication link also needs `GPROXY_PUBLIC_BASE_URL`. With none configured
+the publish fails *before* any body is written and the caller is told to ask
+for the bytes inline. Building the link from the request's `Host` — chosen by
+the client — would be worse than no link: the upstream answer is accepted, the
+bytes are stored, the URL is handed out, and it 404s somewhere else.
 
 ## Backups
 
-- SQLite: stop the process and copy `<data-dir>/gproxy.db`, or use
-  SQLite's online backup (`sqlite3 gproxy.db ".backup gproxy-backup.db"`).
-  Keep the master key with the copy; a sealed database is unreadable
-  without `GPROXY_MASTER_KEY`.
-- PostgreSQL and MySQL: the database's own dump tools.
-- libSQL/Turso: the platform's snapshots.
-- Logical export: console → Settings → Configuration import and export
-  (`POST /admin/api/export`, `POST /admin/api/import`). The export carries
-  providers, credentials, keys, quotas, pricing, routes, aliases and rule
-  sets. With `include_secrets` it also carries credential and key
-  secrets, sealed under the exporting instance's key; import opens them
-  with the source master key and re-seals them under the local key.
-  Usage, logs and audit rows are not exported; embedded default price
-  rows are omitted.
+- **SQLite** — stop the process and copy `<data-dir>/gproxy.db`, or use
+  SQLite's own online backup. **Keep the master key with the copy**: a sealed
+  database is unreadable without it.
+- **PostgreSQL and MySQL** — the database's own dump tools.
+- **D1, libSQL / Turso** — the platform's snapshots.
+- **Logical** — `gproxy export --out config.json --include-secrets`. This
+  carries the *configuration*, not the history: identity, usage and captures
+  are deliberately out of it. See
+  [Configuration](/reference/configuration/#moving-a-configuration).
 
-## Retention and Size Pressure
-
-A sweep runs every 5 minutes on native hosts. It deletes `usage_rows`,
-`request_logs` and `wire_logs` older than `retention_days` (5,000 rows
-per table per sweep) together with the quota-tracking rows those usage
-rows own and quota activity older than the cutoff, measures the database (`page_count × page_size` on
-SQLite and libSQL, `pg_database_size` on PostgreSQL, `information_schema`
-sizes on MySQL), and when the size exceeds `max_database_size_mb` deletes
-the 5,000 oldest `request_logs` and `wire_logs` rows — never usage. Unset
-settings behave as 36,500 days and 1,024 MiB. The sweep needs a
-background spawner, so it does not run on edge; bound edge storage with
-your database provider's tools.
-
-## What the Edge Host Supports
-
-The wasm host compiles only the libSQL backend and the libSQL and Upstash
-caches. There is no SQLite file, no PostgreSQL or MySQL driver, no
-in-process cache, no Redis client, no cleanup sweep, and no Hugging Face
-vocabulary registry.
+A sealed blob is bound to its row's id, so restoring one row's secret onto
+another row does not work — which is a safety property, not an obstacle to a
+whole-database restore.

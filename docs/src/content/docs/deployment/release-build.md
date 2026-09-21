@@ -1,24 +1,69 @@
 ---
-title: "Building & Releases"
-description: "Build gproxy and the edge wasm from source, run the quality gates, and follow the tag-driven pipeline that signs and publishes every artifact"
+title: "Building from Source"
+description: "Build every GPROXY v4 target from source — the server, the desktop shell, the Worker and the console — and run the quality gates CI runs."
 ---
 
-GPROXY ships as one native binary, `gproxy`, built from
-`crates/gproxy-host-axum`, plus a wasm host, `crates/gproxy-host-edge`, for
-fetch-based platforms. The operator console is compiled once and embedded
-into the native binary, so a source build always starts with the console.
+Building from source is the only way to get v4. There is **no release
+pipeline**: no installers, no portable archives, no published container image,
+no signed update manifest and no code-signing.
+
+That is a statement about v4's current state, not a policy. v3 had all of it,
+and none of it was ported; the pages that described it were removed rather than
+rewritten around machinery that does not exist. The `deploy/` and `scripts/`
+directories in the repository still hold v3's pipeline and **do not build v4**
+— the container Dockerfile, for instance, asks for a binary target that moved
+crates.
 
 ## Prerequisites
 
-| Tool | Used for |
+| Tool | Needed for |
 | --- | --- |
-| Rust stable toolchain (edition 2024) | Every crate; add the `wasm32-unknown-unknown` target for the edge host |
-| Node.js LTS and pnpm 9 | Console (`console/`) and docs (`docs/`) |
-| `wasm-bindgen-cli` matching `Cargo.lock`, or `wasm-pack` | Edge glue generation |
-| Docker with buildx | Container image |
-| `cross`, `cargo-ndk`, Windows SDK MakeAppx, `dpkg-deb`, `hdiutil` | Release packaging only |
+| A stable Rust toolchain (edition 2024) | every crate |
+| `wasm32-unknown-unknown` | the Workers host, and the CI check |
+| `webkit2gtk-4.1`, `gtk+-3.0`, `libsoup-3.0` (Linux) | the desktop shell |
+| Node.js LTS and pnpm | the console and this documentation site |
+| `worker-build` | the Workers bundle |
 
-## Build the Console
+## The Workspace
+
+Sixteen crates. `cargo check`, `cargo test` and `cargo clippy` with no `-p` and
+no `--workspace` build the **default members**, which is everything except the
+desktop shell.
+
+That exclusion is not a demotion and it is not about incremental builds: with a
+warm target directory the two selections are within half a second of each
+other. It is about the **cold** one. The desktop shell brings wry, webkit, gtk
+and their `-sys` crates — about a hundred and eighty extra third-party crates
+that have nothing to say about the engine, and that a Linux box without the
+development headers cannot build at all.
+
+`--workspace` builds it, and CI does.
+
+## The Server
+
+```sh
+cargo build -p gproxy --release
+./target/release/gproxy --version
+```
+
+```text
+gproxy 4.0.0-dev
+```
+
+The default features are `channels`, `memory`, `fs` and `bundled-vocabulary` —
+a single-node SQLite instance with every channel compiled in. Name channels one
+by one for a binary that carries only the upstreams a deployment uses:
+
+```sh
+cargo build -p gproxy --release --no-default-features \
+  --features memory,fs,codex,claudecode,openai,custom
+```
+
+Add `postgres`, `mysql`, `redis` or `s3` as the deployment needs. SQLite is
+always compiled in, and a backend this build does not have is refused at
+startup naming the feature that would provide it.
+
+## The Console
 
 ```sh
 cd console
@@ -26,241 +71,126 @@ pnpm install --frozen-lockfile
 pnpm build
 ```
 
-`pnpm build` runs `tsc -b`, `vite build`, and `scripts/sync-to-embed.mjs`,
-which copies `console/dist/` into `crates/gproxy-host-axum/assets/web/`. That
-directory is gitignored apart from `.gitkeep`; the native host embeds it with
-`rust-embed` at compile time. If you skip this step the binary still serves
-the API, but `/`, `/admin`, and `/portal` answer `404` with the text
-`web assets are not embedded; run pnpm build in console/ and rebuild gproxy`.
+A release build copies `console/dist` into
+`crates/gproxy-host-axum/assets/web` **before** `cargo build`, and the bundle
+is embedded with `rust-embed`.
 
-## Build the Native Binary
+**A source checkout embeds nothing**, and that is the intended state:
+`cargo build` produces a binary whose console paths answer 404 rather than a
+blank page that looks like a broken application, and the startup log says so.
 
-```sh
-cargo build --release -p gproxy-host-axum
-./target/release/gproxy --version
-```
-
-The binary is `target/release/gproxy`. `cargo run -p gproxy-host-axum` runs
-a debug build with the defaults (`127.0.0.1:8787`, `./data`, SQLite).
-`--version` prints the build identity:
-
-```text
-gproxy 3.0.0 (channel development, build 4054fe4f94ea, installation source)
-```
-
-The identity is fixed at compile time from these variables, read with
-`option_env!` in `crates/gproxy-host-axum/src/lib.rs`:
-
-| Variable | Default | Release value |
-| --- | --- | --- |
-| `GPROXY_BUILD_VERSION` | Cargo package version | Workspace version |
-| `GPROXY_BUILD_CHANNEL` | `development` | `releases` or `dev` |
-| `GPROXY_BUILD_HASH` | Short git hash from `build.rs`, else `unknown` | Commit SHA |
-| `GPROXY_INSTALLATION_KIND` | `source` | `standalone`, `container`, or `android-apk` |
-| `GPROXY_UPDATE_PUBKEY` | Unset | Base64 Ed25519 public key, 32 bytes |
-
-Without `GPROXY_UPDATE_PUBKEY` the binary has no key to verify update
-manifests or the announcement feed against, so both verifications fail. A
-development build does not need it.
-
-## Build the Edge Wasm
+For development against a Vite build, point the binary at a directory instead:
 
 ```sh
-rustup target add wasm32-unknown-unknown
-cargo build -p gproxy-host-edge --release --target wasm32-unknown-unknown
-wasm-bindgen --target bundler --out-dir deploy/cloudflare/pkg \
-  --out-name gproxy_host_edge \
-  target/wasm32-unknown-unknown/release/gproxy_host_edge.wasm
+GPROXY_CONSOLE_PATH=console/dist ./target/release/gproxy serve
 ```
 
-Cloudflare uses the `bundler` target; Deno and Netlify use `--target web`.
-The `wasm-bindgen` CLI version must equal the `wasm-bindgen` crate version in
-`Cargo.lock`. `scripts/package-edge-release.sh` performs the build, generates
-both glue variants, copies a prebuilt `console/dist` into each
-`deploy/<platform>/public/`, and zips the three bundles. The platform
-directories also carry `pnpm run build` / `deno task build` scripts that do
-the same through `wasm-pack`; see [Edge Wasm](/deployment/edge/).
-
-## Quality Gates
-
-Backend and console changes finish with the same commands CI runs:
-
-| Command | Checks |
-| --- | --- |
-| `cargo fmt --check` | Formatting |
-| `cargo clippy --workspace --all-targets -- -D warnings` | Lints; any warning fails |
-| `cargo test --workspace` | Tests; also regenerates the TypeScript DTOs |
-| `cargo check --workspace --target wasm32-unknown-unknown` | The core still compiles for edge |
-| `pnpm lint` (in `console/`) | `tsc -b`, ESLint, locale parity (`pnpm i18n:check`) |
-| `pnpm test` (in `console/`) | Vitest and the model-catalog script tests |
-| `pnpm build` (in `console/`) | Production bundle |
-
-The admin API DTOs derive `ts_rs::TS`; `cargo test` writes them to
-`console/src/generated/`. Those files are generated output: change the Rust
-type, run `cargo test`, and commit the result. Never edit them by hand.
-
-## CI
-
-`.github/workflows/ci.yml` runs on every push and pull request with
-**Backend** (the four cargo gates above), **Console**
-(`pnpm install --frozen-lockfile`, lint, test, build, `i18n:check`),
-**Docs** (`pnpm check`, `pnpm build` in `docs/`), and **Windows packages**
-(x64 and ARM64 builds plus configured Store MSIX validation). Pushes to the default
-branch or `3.0` also run **Deploy docs**, which signs `notifications.json`
-with the update signing key (producing `notifications.json.sig`) and
-publishes the site to Cloudflare Pages. The native binary polls that feed
-and verifies it with the same compiled-in public key.
-
-## Cutting a Release
+The TypeScript types the console is written against are **generated from
+Rust**, never written by hand, from two crates into two directories:
 
 ```sh
-scripts/release.sh
+GPROXY_TS_OUT=console/src/generated/sdk cargo test -p gproxy-sdk --features ts export_types
+GPROXY_TS_OUT=console/src/generated/app cargo test -p gproxy-app --features ts export_types
 ```
 
-The script reads `[workspace.package].version` from `Cargo.toml`, requires a
-clean tracked worktree, creates the annotated tag `v<version>` if it does not
-exist, refuses if the tag points at another commit, and pushes only that tag.
-Re-running it for the same commit is safe. A version with a prerelease suffix
-(`3.0.0-alpha.0`) builds the `dev` channel; a plain version builds
-`releases`.
+Without the variable each test returns immediately and writes nothing, so
+`cargo test --all-features` stays hermetic and a generated directory is only
+ever rewritten on purpose. The two go to **separate** directories because the
+export wipes its output first, and two crates sharing one would erase each
+other.
 
-## Release Pipeline
-
-The tag push runs `.github/workflows/release.yml`. Jobs, in order:
-
-1. **Release metadata** — verifies the tag equals `v<workspace version>`,
-   derives the channel, and loads the target matrix from
-   `scripts/release-targets.json`.
-2. **Console bundle** — builds the console once with pnpm and passes it to
-   native and edge jobs as a workflow artifact. Container jobs package the
-   native Linux binaries into GNU and musl images for amd64, arm64 and riscv64,
-   with BuildKit provenance and SBOM attestations, then publish multi-platform
-   manifests to `ghcr.io/leenhawk/gproxy`.
-3. **Native `<target>`** — one job per matrix row. Each downloads the
-   console into `crates/gproxy-host-axum/assets/web`, checks that the update
-   public key decodes to 32 bytes, builds `--bin gproxy` with `cargo`,
-   `cross`, or `cargo-ndk` (Android API 28), and packages the result.
-   Windows builds set `RUSTFLAGS=-C target-feature=+crt-static`; macOS
-   binaries are ad hoc signed with `codesign --sign -`.
-4. **Signed update manifest** — `scripts/build-update-manifest.sh` collects
-   every native zip and Android APK, records `target_triple`, `url`,
-   `sha256`, and `size` for each, derives `min_compatible_data_version` from
-   the `Control` schema version in `crates/gproxy-store/src/schema/catalog.rs`,
-   and signs the canonical payload with the Ed25519 private key. It aborts
-   when the private and public keys do not match.
-5. **Edge bundles** — installs the matching `wasm-bindgen-cli`, runs
-   `scripts/package-edge-release.sh`, and type-checks the three platform
-   entries (`pnpm check`, `deno check`).
-6. **Publish release** — creates or updates the GitHub release `v<version>`
-   (`--prerelease` for `dev` builds) and uploads packages plus `manifest.json`.
-   Checksum and build-record files remain internal to the workflow. For `dev`
-   builds it also force-moves the `dev` tag to the commit and uploads
-   `manifest.json` to the fixed prerelease named `dev`, unless a newer v3
-   prerelease already exists.
-
-### Native Targets
-
-| Artifact | Target triple | Builder | Installer |
-| --- | --- | --- | --- |
-| `gproxy-linux-x86_64` | `x86_64-unknown-linux-gnu` | cargo | `.deb` |
-| `gproxy-linux-aarch64` | `aarch64-unknown-linux-gnu` | cargo (arm runner) | `.deb` |
-| `gproxy-linux-riscv64` | `riscv64gc-unknown-linux-gnu` | cross | `.deb` |
-| `gproxy-linux-x86_64-musl` | `x86_64-unknown-linux-musl` | cross | `.deb` |
-| `gproxy-linux-aarch64-musl` | `aarch64-unknown-linux-musl` | cross | `.deb` |
-| `gproxy-linux-riscv64-musl` | `riscv64gc-unknown-linux-musl` | cross | `.deb` |
-| `gproxy-macos-x86_64` | `x86_64-apple-darwin` | cargo | `.dmg` |
-| `gproxy-macos-aarch64` | `aarch64-apple-darwin` | cargo | `.dmg` |
-| `gproxy-windows-x86_64` | `x86_64-pc-windows-msvc` | cargo | MSIX (Store) |
-| `gproxy-windows-aarch64` | `aarch64-pc-windows-msvc` | cargo | MSIX (Store) |
-| `gproxy-android-x86_64` | `x86_64-linux-android` | cargo-ndk | `.apk` |
-| `gproxy-android-aarch64` | `aarch64-linux-android` | cargo-ndk | `.apk` |
-
-Every native target has a `.zip` (binary, `README.md`, `LICENSE`). Linux, macOS
-and Android also publish the installers listed above; Windows MSIX packages
-are retained separately for Store submission. Android zips contain the ELF as `gproxy.bin`, the NDK
-`libc++_shared.so`, and a `gproxy` launcher script; the APK wraps the same payload.
-The release also carries `manifest.json`, `gproxy-edge.wasm`, and
-`gproxy-edge-{cloudflare,deno,netlify}.zip`: 26 packages and one signed manifest
-with the current matrix. GitHub provides each attachment's SHA-256 digest;
-checksums and provenance are no longer separate release attachments.
-Exact names live in `scripts/release-targets.json` and the workflow.
-
-## Microsoft Store submissions
-
-Stable Windows jobs run `scripts/package-windows-msix.ps1` after portable ZIP
-signing. Configure the four public Partner Center identity values in Actions:
-`MS_STORE_IDENTITY_NAME`, `MS_STORE_DISPLAY_NAME`, `MS_STORE_IDENTITY_PUBLISHER`, and
-`MS_STORE_PUBLISHER_DISPLAY_NAME`. With no identity configured, the workflow
-explicitly skips Store packaging; a partial configuration fails.
-
-The script uses Windows SDK MakeAppx, the existing application icon and launcher,
-and version `<major>.<minor>.<patch>.0`. It produces x64 and ARM64 unsigned MSIX
-packages in `dist/store`, attests them, and retains them for 30 days in Actions
-artifacts named `microsoft-store-unsigned-gproxy-windows-*`. These are submission
-materials, not publicly installable Release assets. Partner Center must certify
-and re-sign the packages before Store distribution. Follow the repository's
-[Store onboarding guide](https://github.com/LeenHawk/gproxy/blob/main/.github/microsoft-store/README.md).
-
-## Signing
-
-| Mechanism | Signs | CI secrets |
-| --- | --- | --- |
-| macOS ad hoc `codesign --sign -` | The binary and the `.app` inside the DMG | none |
-| Android `apksigner` | Every `.apk` | `ANDROID_SIGNING_KEYSTORE_B64`, `ANDROID_SIGNING_KEYSTORE_PASSWORD`, `ANDROID_SIGNING_KEY_ALIAS`, optional `ANDROID_SIGNING_KEY_PASSWORD` |
-| Ed25519 update key | `manifest.json` and `notifications.json` | `UPDATE_SIGNING_PRIVATE_KEY_B64` (base64 PEM), `UPDATE_SIGNING_PUBLIC_KEY_B64` (base64 raw key) |
-
-The public half is compiled into every binary as `GPROXY_UPDATE_PUBKEY`, so a
-binary accepts only manifests and announcements signed by the matching
-private key. Generate a pair in the form the scripts expect:
+## The Desktop Shell
 
 ```sh
-openssl genpkey -algorithm ed25519 -out update.pem
-base64 -w0 update.pem                                    # UPDATE_SIGNING_PRIVATE_KEY_B64
-openssl pkey -in update.pem -pubout -outform DER \
-  | tail -c 32 | base64 -w0                              # UPDATE_SIGNING_PUBLIC_KEY_B64
+cargo run -p gproxy-host-tauri --bin gproxy-desktop
 ```
 
-The docs deploy additionally needs `CLOUDFLARE_API_TOKEN`,
-`CLOUDFLARE_ACCOUNT_ID`, and `CLOUDFLARE_PROJECT_ID`.
+One process, one instance, two front doors: the window over Tauri IPC for the
+management and user surfaces, and a real axum host on `127.0.0.1:7071` serving
+the **data plane only**, for the CLIs that speak HTTP and cannot speak IPC.
 
-## Build Provenance
-
-After packaging and platform signing, native and edge jobs use
-`actions/attest` to publish standard SLSA build provenance to GitHub Artifact
-Attestations. The jobs need `id-token: write` and `attestations: write`.
-Attestations are associated with package digests, including staging packages
-whose filenames later receive a commit prefix.
-
-`scripts/build-provenance.sh` still records version, commit, tag, target,
-builder, toolchain versions, UPX usage, and resolved base-image digests.
-The same packages receive a custom attestation containing this JSON, with
-predicate type `https://gproxy.leenhawk.com/attestations/build-environment/v1`.
-Both proofs are stored by GitHub rather than uploaded as release attachments:
+The test suite drives the whole arrangement on a machine with **no display
+server**, because almost everything is in the library and the binary only opens
+a window.
 
 ```sh
-gh attestation verify gproxy-linux-x86_64.zip -R LeenHawk/gproxy
-gh attestation verify gproxy-linux-x86_64.zip -R LeenHawk/gproxy \
-  --predicate-type https://gproxy.leenhawk.com/attestations/build-environment/v1 \
-  --format json
+cargo check  -p gproxy-host-tauri
+cargo clippy -p gproxy-host-tauri --all-targets --all-features -- -D warnings
+cargo test   -p gproxy-host-tauri
 ```
 
-Checksums remain internal inputs to `scripts/build-update-manifest.sh`.
-The updater continues to verify the Ed25519 signature and package hashes from
-`manifest.json`; it does not depend on the GitHub attestations API.
+This crate carries no auto-update, no launch-at-login and no tray icon. Every
+one of those is a decision about how software is *distributed* rather than
+about what it does, and adding them first would mean maintaining an update
+channel for an application with no users.
 
-## Update Channels
+## The Worker
 
-A released binary checks for updates against a signed manifest:
+```sh
+cargo install worker-build
+worker-build --release -- --no-default-features --features d1,custom,codex,claudecode
+```
 
-| Channel | Manifest URL |
-| --- | --- |
-| `releases` | `https://github.com/LeenHawk/gproxy/releases/latest/download/manifest.json` |
-| `staging` | `https://github.com/LeenHawk/gproxy/releases/download/staging/manifest.json` |
-| `dev` | `https://github.com/LeenHawk/gproxy/releases/download/dev/manifest.json` |
+See [Edge (Cloudflare Workers)](/deployment/edge/) for the bindings, the
+configuration document and the size constraint that makes naming channels one
+by one worth doing.
 
-The compiled channel is the default; the console's update channel setting or
-`GPROXY_UPDATE_CHANNEL` overrides it, and `GPROXY_UPDATE_SERVE` points at a
-self-hosted manifest. GitHub's `releases/latest` never resolves to a
-prerelease, so prerelease builds are compiled with channel `dev` and follow the
-`dev` manifest. See [Configuration](/reference/configuration/) for the
-remaining native-only variables.
+## The Quality Gates
+
+Exactly what CI runs:
+
+```sh
+cargo fmt --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo check --workspace --target wasm32-unknown-unknown
+```
+
+The last one is not optional decoration. `gproxy-app` and the axum router both
+build for wasm, which is what lets the Workers host mount the same router
+instead of writing the route table a second time — and a handler that forgets
+its `Send` bridge is **a compile error on that target naming the handler**. The
+check is the enforcement.
+
+A lint finding gets a code change, not an `#[allow]`.
+
+Per-crate, while working on one:
+
+```sh
+cargo test   -p gproxy-channel --all-features
+cargo clippy -p gproxy-channel --all-features --target wasm32-unknown-unknown --lib -- -D warnings
+cargo test   -p gproxy-host-axum
+cargo test   -p gproxy-store -p gproxy-seaorm
+```
+
+Every `gproxy-host-axum` integration test builds the **real router** over an
+in-memory instance, with only the upstream scripted. A test that called a
+handler function directly would skip the part being tested.
+
+Two suites bind a real loopback port because they cannot be faked: a websocket
+round trip, because the in-process service harness never produces hyper's
+upgrade extension; and a client disconnect, because every HTTP client in the
+tree drains a body before handing it over, so that suite types the request out
+over a raw socket and hangs up by dropping it.
+
+## This Documentation Site
+
+```sh
+cd docs
+pnpm install --frozen-lockfile
+pnpm check
+pnpm build
+```
+
+Astro Starlight, deployed to Cloudflare Pages by CI. `pnpm check` validates the
+notification feed the site also hosts.
+
+`scripts/check-docs.sh` is the structural check: sidebar slugs against pages,
+English and Chinese parity, frontmatter, forbidden references and oversized
+pages.
+
+## What Is Not Here
+
+No `cargo publish`. Nothing in the workspace goes to a registry, so embedding
+means a git or path dependency — see
+[Embedding the Core](/reference/embedding/). The public surface is not stable.

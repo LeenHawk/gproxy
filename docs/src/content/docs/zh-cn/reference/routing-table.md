@@ -1,232 +1,291 @@
 ---
 title: "路由与端点"
-description: "入口模式、每个操作在各协议族下的路径、模型选择与解析顺序、故障转移预算，以及发往上游前剥离的请求头"
+description: v4 完整的入站表、挂载点语法、OAuth 与管理路由、WebSocket surface、解析与失败转移预算。
 ---
 
-到达网关的每个请求都会先对照同一份操作注册表
-（`crates/gproxy-protocol/src/specs/`）分类，再解析为有序的上游候选列表，
-最后经过同一个结算漏斗。本页是这几个步骤的参考。
+下面的一切就是原生宿主的路由表，而 Workers 宿主挂载的是同一张。`gproxy-protocol` 刻意
+不声明任何路径——哪个 URL 承接哪个操作是入口层拥有的 HTTP 约定——因此本页就是那一层的表。
 
-## 聚合模式与命名模式
+## 网关自己的路由
 
-GPROXY 接受两种路径形态。
+四条，其余全部落到数据面。这和通常的安排正好相反，而且是刻意的：网关自己的路由是一份短
+而已知的清单，别的都是本实例转发的、属于别人的 API。新增一个上游 surface 不该需要在这里
+新增一条路由。
 
-| 模式 | 路径形态 | 由什么选择后端 |
+| 方法 | 路径 | 是什么 |
 | --- | --- | --- |
-| 聚合 | 已声明的操作路径：`/v1/chat/completions`、`/v1/messages`、`/v1beta/models/{model}:generateContent` 等 | 请求中的模型名，经别名和路由解析。 |
-| 命名 | `/{name}/...`，其余部分必须是已声明的操作路径或通道服务面：`/codex/v1/responses`、`/codex/backend-api/codex/responses`、`/codex/oauth/token` | 路径的第一段。 |
+| `GET` | `/healthz` | 存活与已发布的配置 revision；**不需要认证** |
+| `GET` | `/publications/{id}` | 一份已发布的 body。id **就是**凭据，因此不问 key |
+| — | `/admin/api/…` | 运维面 |
+| — | `/portal/api/…` | 终端用户自己的面 |
+| — | 其余一切 | 入站兜底 |
 
-第一段满足以下任一条件即视为名称：**路由命名空间**（公开模型名中 `/`
-之前的部分，如 `openai/gpt-5`，不区分大小写）、**路由名称**，或
-**Provider 名称**，按此顺序检查。若该段不是已知名称，或其余部分不是已声明
-的路径，整条路径按聚合模式处理，并因分类失败返回 400。
+```sh
+curl -s http://127.0.0.1:7070/healthz
+```
 
-- 命名到命名空间：请求的模型在该命名空间内查找，`/{ns}/v1/...` 配合
-  `"model": "gpt-5"` 解析为 `ns/gpt-5`。
-- 命名到路由：无论请求体中的模型是什么，都由该路由的成员服务；发往上游的
-  是各成员的 `upstream_model`。
-- 命名到 Provider：绕过路由。计划是该 Provider 的全部已启用凭证，请求的模
-  型名在经过 Provider 级别名和变体处理后原样发往上游。模型列表遵循该
-  Provider 的路由规则，而不是从快照回答。
+```json
+{"revision":2,"status":"ok"}
+```
 
-服务面（Codex CLI 的 `backend-api` 路由、Claude Code 的控制面路由）只能在
-命名模式下访问，因为它们由通道而不是操作注册表声明。它们与其他请求一样经
-过认证、准入和结算。
+`/healthz` 读已发布的快照，既不碰数据库也不碰 cache，因此负载均衡器轮询它不会自己变成
+压垮它的那份负载。
 
-## 客户端如何指定模型
+## 入站的顺序
 
-| 协议族 | 模型来自 | 协议族识别 |
+1. **CORS 与客户端地址。** 预检在这里应答、绝不转发——它问的是本实例接受什么，上游对此
+   没有意见。客户端地址在任何东西能记录它之前，按
+   [可信代理规则](/zh-cn/reference/configuration/#可信代理规则)解析。
+2. **挂载点**——路径里哪一段是本网关的。
+3. **OAuth issuer**，在 `{mount}/v1/oauth/…`。排在数据面之前，因为这些路径是*本实例*的
+   而不是某个上游的，而且它们用另一套错误信封应答。
+4. **某个渠道的厂商服务路由**——Codex 的 `/backend-api/…`、Claude Code 的 `/api/…`。
+   只在 Provider 或 namespace 挂载点上：匹配它需要一个渠道，而聚合挂载点没有点名渠道。
+5. **数据面**，见下。
+6. **console**，带 SPA 兜底，受配置开关控制。
+
+走到尽头的一切都是 404。
+
+## 数据面
+
+64 MiB 的请求体上限在任何缓冲之前生效；它是一个内存边界，不是一条策略。
+
+### 内容生成
+
+| 方法 | 路径 | 操作 / 方言 |
 | --- | --- | --- |
-| OpenAI Chat、Responses 及其他所有 `/v1/...` 操作 | 请求体 `model`；realtime 呼叫也接受 `session.model` | 路径。 |
-| Claude Messages | 请求体 `model` | 路径；在共享路径（`/v1/models`、`/v1/models/{id}`）上，`x-api-key`、`anthropic-version`、`anthropic-beta` 任一存在即视为 Claude 调用方。 |
-| Gemini | 路径段 `{model}`：`/v1beta/models/{model}:generateContent` | 路径。 |
-| 获取模型 | 路径段 `{id}` 或 `{model}` | 路径。 |
+| `POST` | `/v1/responses` | `generate_content` / `openai` |
+| `POST` | `/v1/chat/completions` | `generate_content` / `openai_chat` |
+| `POST` | `/v1/messages` | `generate_content` / `claude` |
+| `POST` | `/v1/messages/count_tokens` | `count_tokens` / `claude` |
+| `POST` | `/v1beta/models/{model}:generateContent` | `generate_content` / `gemini` |
+| `POST` | `/v1beta/models/{model}:streamGenerateContent` | `stream_generate_content` / `gemini` |
+| `POST` | `/v1beta/models/{model}:countTokens` | `count_tokens` / `gemini` |
+| `POST` | `/v1beta/models/{model}:embedContent` | `create_embedding` / `gemini` |
+| `POST` | `/v1beta/models/{model}:batchEmbedContents` | `batch_create_embedding` / `gemini` |
 
-流式检测按入口进行：请求体中的布尔 `stream`（Chat、Responses、Messages、
-图像生成），JSON 或 multipart 字段中的 `stream`（图像编辑、转写），
-`stream_format: "sse"`（语音），或端点本身（`:streamGenerateContent`、
-guardian、WebSocket 升级）。`stream: true` 会把 `generate_content` 提升为
-`stream_generate_content`。Gemini 流默认是增量 JSON 数组，除非请求带
-`?alt=sse`。
+前三条在 body 说 `"stream": true` 时变成 `stream_generate_content`。它们是**两个不同的
+操作**——不同的规则、不同的结算——所以这个标志在入口就被读取，而不是留给渠道去发现。
+Gemini 把它写在路径里，这也是那个方言有两行的原因。
 
-路由规则可以只改变流式性：把目标指向兄弟操作即可。`generate_content` →
-`stream_generate_content` 强制上游流式，并把事件流折叠成一个完整对象返回给
-非流式客户端（Kiro 这类只会说事件流的上游就是这样服务的）。
-`stream_generate_content` → `generate_content` 则向上游取一个完整对象，再合成
-客户端协议的事件流。原生宿主会立即打开该流，在等待上游期间每 15 秒发一次
-keepalive（Claude 用 `ping` 事件，SSE 用注释，Gemini 数组流用 JSON 空白）；
-此后上游失败会以该协议的错误事件送达。边缘宿主则在结束时缓冲并合成。
+### 模型
 
-## 操作
+| 方法 | 路径 | 操作 / 方言 |
+| --- | --- | --- |
+| `GET` | `/v1/models` | `list_models` / `openai`，再 `claude` |
+| `GET` | `/v1/models/{id}` | `get_model` / `openai`，再 `claude` |
+| `GET` | `/v1beta/models` | `list_models` / `gemini` |
+| `GET` | `/v1beta/models/{id}` | `get_model` / `gemini` |
 
-结算模式：**response** 按响应或流尾部的用量计费；**free** 从不计费；
-**session end** 在 realtime 会话关闭时计费；**completed status** 在轮询的视
-频任务报告 `completed` 时计费一次。亲和 **session** 把一段对话固定到一个凭
-证；**resource** 把后续调用固定到创建该文件、视频、角色或呼叫的凭证。协议
-族 ID 为 `openai`、`claude`、`gemini`；内容生成的 kind 为 `openai_chat`、
-`openai_responses`、`openai_responses_websocket`、`claude_messages`、
-`gemini_generate_content`。
+### 其余
 
-### 模型与 Token
-
-| 操作 | 方法与路径（协议族） | 结算 | 亲和 |
-| --- | --- | --- | --- |
-| `list_models` | `GET /v1/models`（openai、claude）；`GET /v1beta/models`（gemini） | free | — |
-| `get_model` | `GET /v1/models/{id}`（openai、claude）；`GET /v1beta/models/{model}`（gemini） | free | — |
-| `count_tokens` | `POST /v1/messages/count_tokens`（claude）；`POST /v1/responses/input_tokens`（openai）；`POST /v1beta/models/{model}:countTokens`（gemini） | free | — |
-
-### 内容生成、Compact 与 Memories
-
-| 操作 | 方法与路径（kind） | 结算 | 亲和 |
-| --- | --- | --- | --- |
-| `generate_content` | `POST /v1/chat/completions`（openai_chat）；`POST /v1/responses`（openai_responses）；`POST /v1/messages`（claude_messages）；`POST /v1beta/models/{model}:generateContent`（gemini_generate_content） | response | session |
-| `stream_generate_content` | 以上四个路径配合 `stream: true`；`POST /v1beta/models/{model}:streamGenerateContent`；`GET /v1/responses` WebSocket 升级（openai_responses_websocket） | response | session |
-| `guardian_review` | `POST /v1/guardian`（openai_responses，始终流式） | response | session |
-| `guardian_classify` | `POST /v1/guardian-classifier`（openai_responses，始终流式） | response | session |
-| `compact_content` | `POST /v1/responses/compact`（openai） | response | session |
-| `summarize_memory` | `POST /v1/memories/trace_summarize`（openai） | response | — |
-
-### Embeddings、Rerank 与搜索
-
-| 操作 | 方法与路径（协议族） | 结算 | 亲和 |
-| --- | --- | --- | --- |
-| `create_embedding` | `POST /v1/embeddings`（openai）；`POST /v1beta/models/{model}:embedContent`（gemini） | response | — |
-| `batch_create_embedding` | `POST /v1beta/models/{model}:batchEmbedContents`（gemini） | response | — |
-| `rerank` | `POST /v1/rerank`（openai） | response | — |
-| `web_search` | `POST /v1/alpha/search`（openai） | response | — |
-
-### 图像与音频
-
-| 操作 | 方法与路径（协议族） | 结算 | 亲和 |
-| --- | --- | --- | --- |
-| `create_image` | `POST /v1/images/generations`（openai，`stream` 标志）；`POST /v1beta/models/{model}:predict`（gemini） | response | — |
-| `edit_image` | `POST /v1/images/edits`（openai，JSON 或 multipart 中的 `stream`） | response | — |
-| `create_speech` | `POST /v1/audio/speech`（openai，`stream_format` 为 `sse` 时流式） | response | — |
-| `create_transcription` | `POST /v1/audio/transcriptions`（openai，JSON 或 multipart 中的 `stream`） | response | — |
-| `create_translation` | `POST /v1/audio/translations`（openai） | response | — |
+| 方法 | 路径 | 操作 / 方言 |
+| --- | --- | --- |
+| `POST` | `/v1/embeddings` | `create_embedding` / `openai` |
+| `POST` | `/v1/moderations` | `guardian_classify` / `openai` |
+| `POST` | `/v1/rerank` | `rerank` / `openai` |
+| `POST` | `/v1/conversations` | `create_conversation` / `openai` |
+| `POST` | `/v1/images/generations` | `create_image` / `openai` |
+| `POST` | `/v1/images/edits` | `edit_image` / `openai` |
+| `POST` | `/v1/audio/speech` | `create_speech` / `openai` |
+| `POST` | `/v1/audio/transcriptions` | `create_transcription` / `openai` |
+| `POST` | `/v1/audio/translations` | `create_translation` / `openai` |
 
 ### 文件
 
-| 操作 | 方法与路径（协议族） | 结算 | 亲和 |
-| --- | --- | --- | --- |
-| `create_file` | `POST /v1/files`（openai）；`POST /upload/v1beta/files`（gemini） | free | resource `file` |
-| `list_files` | `GET /v1/files`（openai）；`GET /v1beta/files`（gemini） | free | resource `file` |
-| `retrieve_file` | `GET /v1/files/{id}`（openai）；`GET /v1beta/files/{id}`（gemini） | free | resource `file` |
-| `retrieve_file_content` | `GET /v1/files/{id}/content`（openai）；`GET /v1beta/files/{id}:download` 和 `GET /download/v1beta/files/{id}:download`（gemini） | free | resource `file` |
-| `delete_file` | `DELETE /v1/files/{id}`（openai）；`DELETE /v1beta/files/{id}`（gemini） | free | resource `file` |
+| 方法 | 路径 | 操作 / 方言 |
+| --- | --- | --- |
+| `GET` `POST` | `/v1/files` | `list_files` / `create_file`，`openai` 再 `claude` |
+| `GET` `DELETE` | `/v1/files/{id}` | `retrieve_file` / `delete_file` |
+| `GET` | `/v1/files/{id}/content` | `retrieve_file_content` |
+| `GET` `POST` | `/v1beta/files` | Gemini 的写法 |
+| `POST` | `/upload/v1beta/files` | `create_file` / `gemini` |
+| `GET` `DELETE` | `/v1beta/files/{id}` | `retrieve_file` / `delete_file`，`gemini` |
+| `GET` | `/v1beta/files/{id}:download` | `retrieve_file_content` / `gemini` |
 
 ### 视频
 
-| 操作 | 方法与路径（协议族） | 结算 | 亲和 |
-| --- | --- | --- | --- |
-| `create_video` | `POST /v1/videos`（openai）；`POST /v1beta/models/{model}:predictLongRunning`（gemini） | free | resource `video` |
-| `retrieve_video` | `GET /v1/videos/{id}`（openai）；`GET /v1beta/operations/{id}` 和 `GET /v1beta/models/{model}/operations/{id}`（gemini） | completed status | resource `video` |
-| `list_videos` | `GET /v1/videos`（openai） | free | resource `video` |
-| `delete_video` | `DELETE /v1/videos/{id}`（openai） | free | resource `video` |
-| `download_video_content` | `GET /v1/videos/{id}/content`（openai） | free | resource `video` |
-| `remix_video` | `POST /v1/videos/{id}/remix`（openai） | free | resource `video` |
-| `edit_video` | `POST /v1/videos/edits`（openai） | free | resource `video` |
-| `extend_video` | `POST /v1/videos/extensions`（openai） | free | resource `video` |
-| `create_video_character` | `POST /v1/videos/characters`（openai） | free | resource `video_character` |
-| `get_video_character` | `GET /v1/videos/characters/{id}`（openai） | free | resource `video_character` |
+| 方法 | 路径 | 操作 |
+| --- | --- | --- |
+| `GET` `POST` | `/v1/videos` | `list_videos` / `create_video` |
+| `GET` `DELETE` | `/v1/videos/{id}` | `retrieve_video` / `delete_video` |
+| `GET` | `/v1/videos/{id}/content` | `download_video_content` |
 
-视频任务在 `retrieve_video` 的轮询首次报告 `completed` 时计费；结算跨轮询去
-重，因此创建和之后的轮询本身不产生费用。
+只有 Sora 有的操作——remix、edit、extend、characters——**刻意缺席**。没有第二家厂商提供
+它们，等有第二家的时候它们会回来。
 
-### Realtime
+### Realtime 与套接字
 
-| 操作 | 方法与路径（协议族） | 结算 | 亲和 |
-| --- | --- | --- | --- |
-| `create_realtime_call` | `POST /v1/realtime/calls`（openai） | session end | resource `realtime_call` |
-| `connect_realtime` | `GET /v1/realtime` WebSocket 升级（openai） | session end | session |
+| 方法 | 路径 | 操作 / 方言 |
+| --- | --- | --- |
+| `POST` | `/v1/realtime/calls` | `create_realtime_call` / `openai` |
+| `GET` | `/v1/realtime` | `connect_realtime` / `openai`——升级 |
+| `GET` | `/v1/live` | 同上，WebRTC 写法 |
+| `GET` | `/v1/live/{call_id}` | 把 call 放在路径里的续接 |
+| `GET` | `/v1/responses/ws` | `generate_content` / `openai_responses_websocket` |
+| `GET` | `/ws/v1beta/BidiGenerateContent` | `connect_realtime` / `gemini`——Gemini Live |
 
-## 本地回答
+`POST /v1/realtime/calls` 是一个携带 SDP offer 的 HTTP multipart 请求，而续接它的握手
+**完全不带 body**。活过升级的是 call id——在路径里，或在 `?call_id=` 里——引擎用它把套接字
+钉到应答那个 offer 的凭证上。query 被原样转发，正是为了这个。
 
-聚合或命名空间模式下的 `list_models` 和 `get_model` 由控制面快照回答：公开
-模型，加上为开启了 `auto_refresh_models` 的 Provider 并发拉取的上游目录，合
-并进列表。`count_tokens` 以及路由规则（或通道默认）为 `local` 的其他单元由
-网关用分词器阶梯回答。本地回答仍会认证、通过权限和限流检查，并完成准入与
-请求遥测。free 操作从不预扣配额，也不写用量记录。
+realtime 会话**绝不被转换**：只有同方言直通，因为一个能在响应中途继续说话的客户端，在
+半双工方言里没有对应物。
 
-## WebSocket 入口
+**任何东西在被允许之前都不会被升级。** 先认证、再看握手形状、再准入、再是上游握手；
+`101` 最后才写。因此每一次拒绝都是客户端读得到的 HTTP 应答——一个被接受又立刻关闭的套接字
+不带状态、不带 body、也不带 code。
 
-升级意图通过 `sec-websocket-*`、`Upgrade: websocket` 或 `Connection: upgrade`
-头识别。两个操作接受升级：`GET /v1/responses`（WebSocket 上的 Responses，是
-Responses 线路形态的一种封装，叠加在 Responses 的转换对之上）和
-`GET /v1/realtime`。通道可以声明自己的 WebSocket 服务面，通过命名模式访
-问。匹配升级入口却没有升级的请求，或反之，都会被拒绝。升级在原生宿主以及
-Cloudflare 和 Deno 上可用；Netlify 返回 501。
+**被拒绝的上游握手原样转达。** 厂商的
+`429 {"error":{"code":"insufficient_quota"}}` 比这个网关能编出来的任何 502 都值钱。
 
-## 解析顺序
+一个套接字持有它的并发租约直到它**关闭**，而不是到 `101` 被写出为止。跑一小时的会话就占
+一小时的名额。
 
-对于指定了模型的请求，控制面按以下顺序解析。该顺序由
-`crates/gproxy-core/src/tests/pricing.rs` 中的测试覆盖。
+### 有歧义的那几条路径
 
-1. **别名。** 先应用全局别名（没有 Provider 的 `aliases` 行）；当模式指向某
-   个 Provider 时，再应用该 Provider 的别名。别名精确匹配；按 `(priority, id)`
-   排序的第一条启用行生效。
-2. **变体后缀。** 若别名解析后的名称是某个公开模型声明的变体
-   （`variants_json`），预设会从末尾剥离并写入请求体：
-   `-thinking-none|low|medium|high|xhigh|adaptive` 变为 `reasoning_effort`
-   （Chat）、`reasoning.effort`（Responses）、`thinking`（Claude；预算
-   1,024 / 10,240 / 32,768 token、`adaptive` 或 `disabled`），或
-   `generationConfig.thinkingConfig.thinkingLevel`（Gemini）；
-   `-tier-priority|default|scale|flex|auto` 和 `-fast` 变为 `service_tier`。预设
-   可以叠加（`-thinking-high-tier-flex`）。未声明为变体的名称上的后缀不做处
-   理，按原样查找。
-3. **路由。** 解析后的名称在 `exposed_models` 中查找，命名空间内则查找
-   `ns/name`。未知名称返回 404。
-4. **成员到计划。** 其凭证对该模型（或 `*`）被标记为不可用的成员被丢弃。其
-   余成员按层级、健康状态（健康先于性能下降）、成员权重、凭证权重排序。在
-   第一层内，按路由计数器以权重比例选出成员，再在该成员内选出凭证：Provider
-   策略 `round_robin` 推进按成员的计数器，`sticky` 把会话或 API 密钥亲和键哈
-   希到固定槽位。选中的目标移到最前；其余成员保持排序作为故障转移目标。轮
-   转是计数器而非随机，连续请求会依次走过加权槽位。
-5. **凭证。** 每个目标是 `(Provider, 凭证, 上游模型)`。Provider 设置、代理
-   （凭证优先于 Provider，再优先于全局）和 TLS 指纹覆盖随目标一起传递。
+`/v1/models`、`/v1/models/{id}` 和 `/v1/files` 被 OpenAI、Claude 和 Gemini 的 v1 surface
+拼成了同一个样子。方言决定向转换器要哪一套线类型，猜错就是客户端解析不了的 body。
 
-## 故障转移预算
+判别依据是**客户端自己的认证 header**——`x-goog-api-key` 是 Gemini 的、`anthropic-version`
+是 Claude 的——因为那是客户端主动提供的关于它自己的证据，而不是本网关发明的默认值。没有
+证据时第一行胜出，而表的顺序让那一行是 OpenAI。
 
-预算为 `min(route.max_attempts, GPROXY_MAX_ATTEMPTS)`；命名到 Provider 时为
-`min(凭证数量, GPROXY_MAX_ATTEMPTS)`。只有实际发送才计入预算。以下情况跳过
-目标而不消耗预算：
+## 挂载点语法
 
-- 其凭证在本次请求中已被标记为不可用（秘密被拒、刷新失败，或上游返回
-  `CredentialDead` 判定）；
-- 资源亲和把请求固定到该 Provider 的另一个凭证；
-- Provider 对该 `(operation, kind)` 的路由规则是 `unsupported`，或要求的转换
-  对不存在；
-- 凭证自身当前分钟的 RPM 或 TPM 上限已达到。
+| 路径 | 挂载点 | 收窄到 |
+| --- | --- | --- |
+| `/v1/messages` | 聚合 | 不收窄 |
+| `/acme/v1/messages` | namespace `acme` | `acme/` 下的公开名称 |
+| `/openai-prod/v1/messages` | Provider `openai-prod` | 那一个 Provider |
 
-已发送的尝试若判定为 `Retryable` 或 `CredentialDead`，转到下一个目标；
-`Success` 和 `Terminal` 返回给客户端。一次都未能发送时，响应为 500（没有目
-标支持该操作）、400（不支持）、429（所有凭证都被限流）或 502（没有凭证）；
-全部尝试失败时为 502 `all upstream attempts failed`。每个响应都带
-`x-request-id`，在请求审计中把各次尝试关联起来。
+**namespace** 是带斜杠的公开模型名的第一段。**Provider** 挂载点用的是 Provider 的 `name`
+——运维者取的标签，而不是行 id，因为没有人会把机器生成的 id 敲进客户端的 base URL。同名时
+namespace 胜过 Provider。
 
-## 发往上游前剥离的请求头
+**只有在剥掉前缀后剩下的部分也是一个被声明的 surface 时，前缀才会被剥掉。** 这条规则的
+每一种简化都是错的：一个叫 `backend-api` 的 Provider 否则会吃掉
+`/backend-api/codex/responses`——那是一条真实的 Codex 路径——把一次数据面调用变成一个并不
+存在的挂载点。
 
-在入口，任何通道看到请求之前，GPROXY 移除 `x-gproxy-session-id`（它自己的会
-话亲和提示）、逐跳头（`connection`、`content-length`、`keep-alive`、
-`proxy-authenticate`、`proxy-authorization`、`proxy-connection`、`te`、
-`trailer`、`transfer-encoding`、`upgrade`，以及 `Connection` 指名的任何头），
-以及调用方的凭据和转发头（`accept-encoding`、`api-key`、`authorization`、
-`cookie`、`forwarded`、`host`、`via`、`x-api-key`、`x-forwarded-for`、
-`x-forwarded-host`、`x-forwarded-proto`、`x-goog-api-key`、`x-real-ip`）。
-query 参数 `access_token`、`api_key`、`key` 和 `x-api-key` 也会被移除。
+**因此有歧义的路径一律倒向聚合挂载点。** 当第一段确实点名了什么、但剩下的部分不是本网关
+提供的 surface 时，路径原样保留。丢掉一个挂载点是运维者看得见的 404；错认一个挂载点则是
+把请求发给了错误的上游。
 
-发往上游时，请求按白名单重建：`accept` 和 `content-type`、通道声明的名称，
-以及 Provider 的 `traffic_policy` 设置。实例全局元数据黑名单中的名称或
-`prefix-*` 模式即使在白名单中也会被移除。query 参数同样遵循通道白名单。之
-后通道加入自己的认证信息。返回给客户端的响应头以同样方式过滤：基础列表
-（`accept-ranges`、`allow`、`cache-control`、`content-disposition`、
-`content-encoding`、`content-range`、`content-type`、`etag`、`expires`、
-`last-modified`、`link`、`location`、`retry-after`、`vary`）加通道追加项，
-且永不包含 `alt-svc`、`server`、`set-cookie`、`set-cookie2`、`via` 或
-`www-authenticate`。
+挂载点通过**给模型名加前缀**来收窄，这是解析器自己的语法而不是第二条规则。已经带了前缀的
+名字原样保留。
 
-## 路由规则
+:::note[一个已知的缺口]
+**不带模型**的操作在 Provider 挂载点上被收窄到那个 Provider 的*渠道*，而不是那个
+Provider。`GET /p1/v1/models` 会列出 `p1` 所在渠道上、调用方能触达的每个 Provider 的模型。
+补上它需要请求形状里还没有的一个字段。
+:::
 
-Provider 的某个单元是直通、转换为其他 kind、本地回答还是不支持，由以
-`(operation, kind)` 为键的按 Provider 矩阵决定；它从通道默认值播种，可在规
-则工作区编辑。见[路由规则与规则集](/zh-cn/guides/rules/)。
+## OAuth issuer
+
+相对某个挂载点前缀（`""`、`/acme`、`/openai-prod`）：
+
+```text
+GET  {prefix}/v1/oauth/authorize    同意页交接（浏览器则 302 到用户面）
+POST {prefix}/v1/oauth/authorize    用户的决定
+POST {prefix}/v1/oauth/token        code、refresh 与设备授权
+POST {prefix}/v1/oauth/device/code
+POST {prefix}/v1/oauth/revoke
+GET  {prefix}/v1/.well-known/oauth-authorization-server
+GET  /.well-known/oauth-authorization-server{prefix}/v1   （RFC 8414 §3.1）
+```
+
+issuer 标识是 `{origin}{prefix}/v1`，这也是聚合挂载点是 `https://host/v1` 而不是
+`https://host` 的原因：这样一条规则就产出全部三个挂载点。RFC 8414 要求这个标识恰好是
+客户端取到文档的那一个，而只有宿主知道请求是从哪个挂载点进来的，所以它是被传进去的而
+不是算出来的。
+
+v3 把它们放在根路径。移到 `/v1` 之下让前缀规则与 `/v1/messages` 同构，而这次搬迁很便宜
+——v3 根本没实现发现端点，客户端本来就在硬编码地址。
+
+## 管理路由
+
+每个身份家族都有同样的五条路由，由一份声明生成，因此一个家族不可能不小心只有四条：
+
+```text
+GET    /admin/api/{family}           列表（分页与过滤在 query 里）
+POST   /admin/api/{family}           创建
+GET    /admin/api/{family}/{id}      读取
+PATCH  /admin/api/{family}/{id}      更新
+DELETE /admin/api/{family}/{id}      删除    → 204
+```
+
+**身份**家族：`users`、`api-keys`、`organizations`、`teams`、`permissions`、
+`rate-limits`、`subscriptions`、`pools`、`pool-members`、`plans`、`plan-limits`。
+`oauth-clients` 有前四条，外加 `POST …/{id}/retire` 取代删除——一个客户端签发过的授权还
+指着它。
+
+**配置**家族在同样的五条之上**多一个批量**，因为它们每一个都接受批量，而一次批量无论
+点名多少行都是一个 revision 提交：
+
+```text
+POST /admin/api/{family}/batch
+     [{"create": …}, {"update": {"id": …, "patch": …}}, {"delete": "id"}]
+```
+
+`providers`、`credentials`、`models`、`provider-models`、`routes`、`route-members`、
+`exposed-models`、`connection-profiles`、`rule-sets`、`rules`、`provider-rule-sets`、
+`operation-rules`、`operation-endpoints`、`quotas`、`price-rules`、`price-rates`、
+`price-tiers`。
+
+五条之外还有：`settings`、凭证操作（`reveal`、`status`、`refresh`、`quota`、
+`quota-probe`、`quota-reset`、`health-reset`、`limits`）、
+`models/{discover,discover/apply,test}`、`rule-sets/{id}/rules`、
+`rule-sets/{id}/rule-presets/{preset}`、`providers/{id}/routing-defaults/reset`、
+`quotas/status`、`quotas/{id}/{reset,limit-reset}`、`export`、`import`、
+`connectivity/test`、`channels`、`tls-presets`、`rule-presets`、
+`default-model-catalog`、`tokenizer-vocabs`、`tokenizer-auth`、`session`、`sessions`
+和 `audit`。
+
+v3 有同样操作的地方路径沿用 v3 的，所以运维者的脚本还能用。v4 新增的：`/exposed-models`
+（v3 叫别名）、`/connection-profiles`、`/operation-rules`、`/operation-endpoints`、
+`/price-tiers`、单一的 `/settings`（v3 拆成两个），以及 `/{family}/batch`（v3 是
+`/batch/{entity}`）。
+
+中间件依次是：认证 → **要求实例管理员** → 对不安全的 cookie 请求做同源校验 → 操作 →
+为每个不是读的方法写一行审计。它是一个 route layer，因此未知的 `/admin/api/*` 路径是一个
+根本不碰数据库的 404。
+
+## 用户面路由
+
+```text
+POST   /portal/api/login             用户名 + 密码 → 会话 cookie 与令牌
+POST   /portal/api/logout
+GET    /portal/api/context           调用方、他们的成员关系、他们的特性开关
+GET    /portal/api/models            全部公开名称，各自标注 `permitted`
+GET    /portal/api/usage             他们自己的花费
+GET    /portal/api/quota             他们自己的预算窗口
+GET    /portal/api/requests          他们的近期请求（若已启用）
+GET    /portal/api/sessions
+GET    /portal/api/keys              （+ POST、DELETE …/{id}、POST …/{id}/rotate、GET …/{id}/secret）
+GET    /portal/api/oauth-sessions    （+ DELETE …/{id}）
+POST   /portal/api/password
+```
+
+这里的守卫要求一个已认证的调用方，**仅此而已**。没有角色检查，因为没有东西可检查：用户面
+上的每个操作按构造就限定在构造它的那个调用方上，而且没有一个接收用户 id。检查可能被忘掉，
+不存在的参数不会。
+
+`login` 和 `logout` 在守卫之外——前者跑在有调用方之前，后者必须对一个已经过期的会话也有效，
+否则浏览器会攥着一个永远丢不掉的 cookie。
+
+## 解析与失败转移预算
+
+四种名字形式与排序见[模型、路由与公开名称](/zh-cn/guides/models/)。预算：
+
+- 它是路由自己的 `maxAttempts`，被 `settings.maxAttempts` 钳住；
+- 它**跨目标共享**：每个目标最多拿到自己凭证数那么多次、且不超过剩余额度，因此一个计划的
+  上游调用次数不会超过它的预算；
+- 只有"另一个 Provider 可能救得回来"的失败才换目标——没有可用凭证、凭证已死、续接钉在别的
+  实例上、任何渠道或传输错误，或 401／403／429／5xx 应答；
+- 预算耗尽、被禁止、被取消、转换错误，以及 store 或 cache 故障，都就地停止；
+- 没有目标可换时，**最后一个应答原样返回**。最后一个 Provider 的 429 就是调用方的 429，
+  不会被换成别的错误。
+
+请求体缓冲一次以便重放。超过 `maxRequestBodyBytes` 的流式体保持流式，计划随之裁剪为单个
+目标：一份 64 MiB 的上传不值得为了失败转移而全部读进内存。

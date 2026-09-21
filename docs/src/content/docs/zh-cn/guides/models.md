@@ -1,130 +1,211 @@
 ---
-title: "模型、路由与别名"
-description: "客户端模型名如何经由别名、变体后缀和路由解析到 Provider 凭证，以及模型列表如何生成"
+title: "模型、路由与公开名称"
+description: 客户端的模型名如何解析到一个 Provider 和一把凭证：四种形式、路由与成员、公开名称、namespace 与模型目录。
 ---
 
-客户端的模型名很少就是上游模型 id。在聚合模式下，请求中的 `model` 在选出
-凭证之前按固定顺序解析：
+客户端的模型名很少就是上游模型 id。v4 在**进引擎之前**解析它，因此引擎只见已选定的目标。
 
 ```text
-request model
-  -> alias (global, then provider-scoped when the provider is known)
-  -> variant suffix (thinking level, service tier, ...)
-  -> exposed model -> route -> members by tier and weight
-  -> provider credential
+请求里的 model
+  → 第一条命中的形式：公开名 · 渠道/模型 · Provider 名/模型
+  → 候选按渠道、允许的 Provider、允许的凭证收窄
+  → 按 (tier, 健康度, 权重倒序, 稳定 id) 排序
+  → 首段按路由策略均衡
+  → 每次尝试得到一个 (Provider, 凭证, 上游模型)
 ```
 
-在控制台中，路由称为 **负载均衡**，公开模型称为 **模型映射**，别名称为
-**路由别名**。
+v4 **没有别名，也没有变体后缀**。两者在 v3 都存在，都没有被移植：别名是把一个改名阶段
+叠在另一个改名阶段前面，而变体后缀是藏在解析里的请求整形。现在请求整形是一条改写规则
+——可见、有序、可按模型过滤——见[改写规则与操作覆盖](/zh-cn/guides/rules/)。
 
-## Provider 模型
+## 四种形式
 
-每个 Provider 维护一份它所服务的上游模型目录。一行包含：
+按第一条命中的规则解析。
 
-| 字段 | 含义 |
-| --- | --- |
-| 上游模型 id | Provider 期望的 id。 |
-| 显示名称 | 可选。 |
-| 最大输入、最大输出 | 已知时的上下文窗口和输出上限。 |
-| 支持思维 / 自适应 / 启用思维 | 能力标记，未设置表示未知。 |
-| 变体 | 路由到该模型的额外名称，见下文。 |
-| 启用 | 禁用的行不会被列出。 |
+| 名字 | 解析为 | 尝试预算 |
+| --- | --- | --- |
+| 没有模型 | 全部启用的 Provider，无上游模型 | `settings.max_attempts` |
+| **公开模型名** | 该路由启用的成员 | 路由自己的 |
+| `渠道/模型` | 该渠道的 Provider，优先目录里列了该模型的 | `settings.max_attempts` |
+| `Provider 名/模型` | 那一个 Provider | `settings.max_attempts` |
+| 其他 | `404 unknown_model` | — |
 
-**拉取上游模型** 通过普通的列出模型路径、用你自己的密钥向 Provider 询问实时
-目录并展示结果。在你勾选要导入的行之前不会写入任何内容；已有的行会被标记。
-当内嵌默认目录认识某个模型时，会用其限制补齐空缺，并可为该 Provider 创建
-默认价格规则。
+公开名**精确匹配且先于**前缀形式，因此运维者可以把字面量 `openai/gpt-5` 当作自己的公开名
+暴露出去。
 
-**测试** 用你自己的密钥、经正常管线为该模型发送一次 16 Token 的 chat
-completion。它经过准入、被计费，并报告状态码、延迟、付费的密钥，以及回复
-或上游错误。
+前缀形式内部，**渠道 id 胜过同名 Provider**。渠道 id 由构建固定、改不掉；Provider 名随时
+可以改。反过来更糟：把某个 Provider 命名为 `codex`，全部 `codex/*` 流量就再也到不了
+`codex` 渠道，而且没有任何绕开的办法。
 
-## 路由与成员
+## 路由
 
-路由有名称、最大尝试次数和成员：
+路由是一个具名池，带自己的均衡策略和尝试预算。
 
-| 字段 | 含义 |
-| --- | --- |
-| Provider、上游模型 | 成员把流量发往何处。 |
-| 固定凭证 | 可选，把成员限定在一个凭证上。 |
-| 故障转移层级 | 默认 0。第 0 层全部不可用后，第 1 层才接收流量。 |
-| 权重 | 默认 100，在同层健康成员之间分配流量。 |
-| 启用 | 禁用的成员退出计划。 |
-
-成员按层级、健康状态、权重排序。先用确定性的加权计数器在最低健康层级中选
-出一个成员，再按 Provider 的策略在其中选出一个凭证。故障转移沿有序列表继续，
-直到用尽路由的 **最大尝试次数**。失效凭证在消耗槽位之前就被排除；降级凭证
-排在最后。
-
-## 公开模型
-
-**模型映射** 把一个公开名称绑定到一个路由。路由对外声明的能力由成员的
-Provider 模型行保守折叠而来：
-
-- 只有每个成员都声明了某项限制，该限制才算已知，并取最小值；
-- 任一成员为 false 则能力标记为 `false`，全部为 true 才为 `true`，否则未知；
-- 只有所有成员一致时才保留显示名称；
-- 只有每个成员都声明了相同后缀，变体才会保留。
-
-含 `/` 的公开名称构成一个 **命名空间**：`team-a/reviewer` 可以在
-`/team-a/v1/...` 下以 `reviewer` 访问，`GET /team-a/v1/models` 只列出该
-命名空间。
-
-## 别名
-
-别名把传入名称精确匹配到另一个名称。行按优先级排序，第一条启用且匹配的行
-生效。
-
-| 作用域 | 应用时机 |
-| --- | --- |
-| 任意 Provider | 路由查找之前，所有模式均适用。 |
-| 单个 Provider | Provider 确定之后：发往该 Provider 的命名或 scoped 请求。 |
-
-别名是精确字符串，不是模式。需要一族带后缀的名称时请使用变体。
-
-## 变体与后缀预设
-
-Provider 模型的 **变体** 字段声明路由到基础模型的额外名称。它保存为名称的
-JSON 数组；当基础名称本身不应被列出时，则保存为对象：
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/routes \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"name":"main","strategy":"round_robin","maxAttempts":6}'
+```
 
 ```json
-{ "expose_base": false, "variants": ["gpt-5-thinking-high", "gpt-5-tier-flex"] }
+{"id":"33a88261f571347c7f0408c3bd2e2164","name":"main","strategy":"round_robin",
+ "maxAttempts":6,"enabled":true}
 ```
 
-变体名称在整个目录中必须唯一。控制台的 **设置行为** 选择器按协议给出建议
-后缀，并记录每个后缀注入的内容：
+| 字段 | 含义 |
+| --- | --- |
+| `name` | 唯一。路由名本身不可寻址——只有公开名能到达它。 |
+| `strategy` | `round_robin`、`weighted` 或 `failover`。 |
+| `maxAttempts` | 含首次调用在内的总尝试预算。执行时以 `settings.maxAttempts`（默认 6）为硬上限。 |
 
-| 协议 | 后缀 | 请求字段 |
-| --- | --- | --- |
-| OpenAI Responses / Chat | `-thinking-none`、`-low`、`-medium`、`-high`、`-xhigh` | `reasoning.effort` / `reasoning_effort` |
-| OpenAI Responses / Chat | `-tier-auto`、`-default`、`-flex`、`-scale`、`-priority`、`-fast` | `service_tier`（`-fast` = `priority`） |
-| OpenAI Responses / Chat | `-effort-low`、`-medium`、`-high` | `text.verbosity` / `verbosity` |
-| OpenAI Responses | `-image-generate`、`-image-edit`、`-search`、`-deep-research` | 强制 `tools` + `tool_choice` |
-| Claude Messages | `-thinking-none`、`-low`、`-medium`、`-high`、`-adaptive` | `thinking`（预算 1024 / 10240 / 32768） |
-| Claude Messages | `-effort-low`、`-medium`、`-high`、`-xhigh`、`-max` | `output_config.effort` |
-| Gemini | `-thinking-none`、`-low`、`-medium`、`-high` | `generationConfig.thinkingConfig.thinkingLevel` |
-| OpenRouter、Vercel | `-via-<source>` | `provider.only` / `providerOptions.gateway.only` |
+## 成员
 
-思维与服务档位后缀由核心自行应用：当请求名称是已声明的变体，且剥去可识别
-后缀后恰为基础名称时，请求体中的 `model` 会被改写，并按目标协议写入上表字
-段。其他行为都保存为普通的 `rewrite` 规则，按变体名称过滤，放在控制台为每个
-Provider 创建的规则集中（名为 `<provider> · defaults`）。可在
-[路由规则与规则集](/zh-cn/guides/rules/)中查看和编辑。
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/route-members \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"routeId":"…","providerId":"…","upstreamModel":"gpt-4o-mini",
+       "tier":0,"weight":100}'
+```
 
-## 模型列表
+| 字段 | 含义 |
+| --- | --- |
+| `providerId`、`upstreamModel` | 这个成员把流量发到哪。模型名是一个显式字符串，不是目录外键。 |
+| `tier` | 越小越优先。tier 0 耗尽之前 tier 1 拿不到任何流量。 |
+| `weight` | 正数，默认 100。层内分流，同时决定故障转移候选的顺序。 |
+| `enabled` | 被禁用的成员退出计划。 |
 
-`GET /v1/models`（以及 Claude 和 Gemini 的列表路径）在聚合与命名空间模式下
-由本地回答。列表是以下三者的并集：
+成员不指定凭证。选中的 Provider 内部由哪把凭证承接是引擎另做的决定，而且它会在计划移动到
+下一个成员之前，先在该 Provider 的凭证之间做转移。
 
-1. 公开模型及其变体，带折叠后的元数据；
-2. 以 `provider/model` 形式给出的各 Provider 目录；
-3. 从计划中所有开启了 `auto_refresh_models`（默认开启）的 Provider 并发拉取
-   的实时结果。
+### 顺序怎么定
 
-运营方的行优先于线上返回：你禁用的行绝不会出现，你记录的行保留你设置的限
-制。刷新绝不写入目录。`GET /v1/models/{id}` 在同一列表中查找。两种操作都经
-过准入，并记录一次零成本结算。像 `GET /openai-main/v1/models` 这样的命名请
-求则遵循该 Provider 的路由规则。
+候选按 `(tier, 健康度, 权重倒序, 稳定 id)` 排序。
 
-权限在 Provider 和操作组层面过滤调用方可见、可调用的内容，见
-[权限、限流与配额](/zh-cn/guides/permissions/)。
+**tier 是硬偏好。** 只有首段——与第一个候选 tier *和*健康度都相同的那一串——参与均衡，
+然后才按策略处理：
+
+| 策略 | 对首段的作用 |
+| --- | --- |
+| `round_robin` | 用一个按路由的计数器轮转它 |
+| `weighted` | 把平滑加权选中的提到队首 |
+| `failover` | 原样保留：排序结果*就是*答案 |
+
+轮转是计数器而不是随机抽取，因此 wasm 与原生行为一致，一次序列可复现。
+
+禁用、已退役和已死的凭证直接去掉。被封禁的凭证在其 Provider 还有别的可用凭证时去掉；
+若**全部**被封禁则保留该 Provider 并排在所有健康 Provider 之后。限流是最后手段，不是故障。
+
+解析成功但无处可发，与"名字不认识"是两回事——那是配置问题，不是未知模型。
+
+## 公开名称
+
+公开模型名就是客户端发的那个名字，它让客户端不再念你的基础设施。
+
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/exposed-models \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"routeId":"…","name":"fast"}'
+```
+
+多个名字可以指向同一条路由。名字全局唯一并精确匹配。
+
+### namespace
+
+带 `/` 的名字在运行期派生出一个 namespace：公开 `acme/fast` 就让 `acme` 成为一个挂载点，
+而 `/acme/v1/chat/completions` 配 `{"model":"fast"}` 解析的是 `acme/fast`。
+
+```sh
+curl -s http://127.0.0.1:7070/acme/v1/chat/completions \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"model":"fast","messages":[{"role":"user","content":"hi"}]}'
+```
+
+namespace 是一个**名字索引**，不是被存储的分组，也不是归属范围。它不创建任何东西，也不
+拥有任何东西。
+
+### 被保留的第一段
+
+第一段是已注册渠道 id 或现有 Provider 名的公开名永远走不到自己的路由——前缀形式会先认领
+它——所以写入时就拒绝，而不是留到运行期静默失效：
+
+```json
+{"error":{"code":"invalid_request","message":"invalid request: `codex/` is reserved:
+ a first segment naming a channel or a provider already means `channel/model` or
+ `provider/model` narrowing, so `codex/fast` could never reach its route"}}
+```
+
+其他都行。`coding/fast` 是个完全好用的公开名。
+
+## 模型目录
+
+两张表，而且路由都不需要它们。
+
+**`provider_models`** 记录某个 Provider 承接哪些上游名字：
+
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/provider-models \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"providerId":"…","upstreamName":"gpt-4o-mini"}'
+```
+
+```json
+{"id":"f32df0bb6378c03e70f7c3aa6315a3b8","providerId":"5a45fd807be0…",
+ "upstreamName":"gpt-4o-mini","modelId":null,"metadata":{},"enabled":true}
+```
+
+`渠道/模型` 形式在该渠道的多个 Provider 中做选择时会优先它，模型发现也写在这里。
+**`models`** 是一行 `provider_models` 可以指向的全局目录：一个名字、它的元数据，以及
+token 估算该用的词表。
+
+路由可以匹配两张表里都没有的名字。路由成员把上游模型写成一个普通字符串，所以目录行是
+文档与定价材料，不是前置条件。
+
+### 从上游填充
+
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/models/discover \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"providerId":"…"}'
+```
+
+发现用 Provider **自己的方言**提问，因此什么都不转换，名字就是上游的。每个答案带着这个
+Provider 是否已有该行、以及内置目录能不能给它定价。
+`POST /admin/api/models/discover/apply` 插入你点名的那些，已有的跳过，所以发现应用两次和
+一次结果相同。
+
+它和 `POST /admin/api/models/test` 都花真凭证、写真用量行。见
+[两个探针](/zh-cn/guides/providers/#两个探针)。
+
+内置目录——本次发布知道的模型名、上下文窗口与默认价格——是生成那份资产时的快照，不是一份
+实时目录：
+
+```sh
+curl -s http://127.0.0.1:7070/admin/api/default-model-catalog -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X POST http://127.0.0.1:7070/admin/api/default-model-catalog/apply-prices \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"providerId":"…","modelIds":["gpt-4o-mini"],"overwrite":false}'
+```
+
+`overwrite: false` 正是让重复应用安全的东西：运维者改过的规则保留它的改动，并被报告为跳过。
+
+## 调用方看到什么
+
+`GET /v1/models` 是**转发给某个 Provider** 的，回答的是那个上游自己的目录。*你*发布的那
+份名字清单在用户面，而且什么都不省略：
+
+```sh
+curl -s http://127.0.0.1:7070/portal/api/models -H "Authorization: Bearer $GPROXY_KEY"
+```
+
+```json
+[{"name":"custom/gpt-4o-mini","providerCount":1,"channelIds":["custom"],"permitted":true},
+ {"name":"fast","providerCount":1,"channelIds":["custom"],"permitted":true}]
+```
+
+调用方规则触达不到的名字仍然在清单里，只是 `permitted: false`。v3 会丢掉这样的行，v4 不
+——因为一份会静默省略的清单会让"这个模型 404 了"和"你没有权限用这个模型"变成同一个观察，
+而且没什么要保护的：公开名本来就是运维者对外发布的实例配置。
+
+被扣下的是名字背后的 Provider id：答案只报一个数量和一个渠道，说明一个名字有多冗余，
+却不点破机器。`provider/model` 形式同样能解析，但刻意**不列出**——它的左半边是一行可以
+改名的数据，印出来等于给用户一个会在有人改 Provider 时失效的名字。

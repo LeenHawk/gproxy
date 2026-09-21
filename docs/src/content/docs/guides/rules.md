@@ -1,261 +1,261 @@
 ---
-title: Routing Rules & Rule Sets
-description: "Rule sets mutate provider-native requests and responses; routing rules decide how each provider serves an operation and inbound protocol"
+title: Rewrite Rules & Operation Overrides
+description: "Ordered regex replacements over request and response payloads, headers and query values; how they are filtered, ordered and applied; and the per-provider operation overrides."
 ---
 
-GPROXY has two rule mechanisms. Both are edited in the console and both live
-in the control plane:
+v4 has two operator-editable mechanisms in front of an upstream, and they do
+different jobs.
 
-- **Rule sets** are reusable, ordered lists of mutation rules. A set is
-  attached to one or more providers and edits the provider-native request
-  before it leaves, and the provider-native response before it is converted
-  back for the client.
-- **Routing rules** belong to one provider. For each operation and inbound
-  protocol they say whether the provider passes the request through,
-  transforms it to another wire format, answers it locally, or refuses it.
+- **Rewrite rules** change bytes: an ordered regex replacement over selected
+  JSON string values, a named header value, or a named query value, in either
+  direction.
+- **Operation rules and operation endpoints** change *which dialect* and
+  *where*: a per-provider override of the dialects a channel declares for one
+  operation, and of the URL it calls.
 
-The global **Rules** workspace (`/admin/rules`) edits rule sets and their
-attachments. A provider's **Rules** tab edits the same objects scoped to that
-provider and offers presets; its **Routing** tab edits routing rules.
+v3's five rule kinds — `system_text`, `cache_breakpoint`, `rewrite`,
+`transform` and `header` — collapsed into the one shape below. A rule is now a
+pattern, a replacement, a place to apply it and a set of filters, and nothing
+else.
 
-## Where Rules Run
+## Where They Run
 
 ```text
 client request
-  -> classify operation and inbound protocol
-  -> select provider and credential
-  -> routing rule: passthrough / transform_to / local / unsupported
-  -> protocol transform to the provider's native format
-  -> rule sets, request phase (system_text -> cache_breakpoint -> rewrite
-     -> transform -> header)
-  -> Claude magic-string cache pass (if enabled on the provider)
-  -> channel prepare: URL, auth, forwarded metadata
+  → resolve the target · admit the caller
+  → convert to the provider's native dialect, when it differs
+  → rewrite rules, request phase
+  → the channel: URL, auth, its own headers
 upstream response
-  -> channel shaping
-  -> rule sets, response phase (transform only), on 2xx bodies
-  -> protocol transform back to the client's format
+  → rewrite rules, response phase  (per stream unit, for a stream)
+  → convert back to the client's dialect
 ```
 
-Rules therefore see the upstream's wire shape. An OpenAI Chat request routed
-to a Claude provider is converted to Claude Messages first, and its rules
-edit `system`, `messages[]` and `tools[]`, not `messages[].role`.
+Rules therefore see **the upstream's wire shape**, not the client's. An OpenAI
+Chat request routed to a Claude provider is converted to Claude Messages first,
+so its rules address `system`, `messages[]` and `tools[]`.
 
-Streamed responses are edited frame by frame: each SSE `data:` payload or
-Gemini JSON-array element is rewritten independently. The `[DONE]` sentinel
-is left alone. Response rules do not apply to WebSocket sessions.
+## A Rule Set
 
-## Rule Sets
+A set is a name, an optional description and an `enabled` flag. It is attached
+to one or more providers; an attachment has its own `sortOrder` and `enabled`.
 
-A rule set has a `name`, an optional `description` and an `enabled` flag.
-Disabled sets, disabled rules and disabled attachments are all skipped at
-compile time. A rule whose configuration does not compile is rejected when
-you save it, so a stored rule never fails a request.
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/rule-sets \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"name":"demo"}'
 
-### Rule Fields
+curl -s -X POST http://127.0.0.1:7070/admin/api/provider-rule-sets \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"providerId":"…","ruleSetId":"…","sortOrder":0}'
+```
 
-Every rule is written to `POST /admin/api/rules` in this shape:
+A whole set is replaced in one call, which is how a set is edited as a unit
+rather than row by row:
+
+```sh
+curl -s -X PUT http://127.0.0.1:7070/admin/api/rule-sets/{id}/rules \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '[ … ]'
+```
+
+## A Rule
+
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/rules \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"ruleSetId":"…","phase":"request","target":"body",
+       "paths":["messages.*.content"],
+       "pattern":"(?i)\\bwidget\\b","replacement":"gadget",
+       "filterOperationKeys":[{"operation":"generate_content","dialect":"openai_chat"}]}'
+```
 
 ```json
-{
-  "rule_set_id": 4,
-  "config": { "kind": "system_text", "text": "...", "position": "prepend" },
-  "filter_model_pattern": "claude-*",
-  "filter_operations": ["generate_content", "stream_generate_content"],
-  "filter_header_pattern": "^user-agent: opencode/",
-  "sort_order": 0,
-  "enabled": true
-}
+{"id":"de487987ff3d2e6415986ca9099dd60d","ruleSetId":"f41160b45f36…",
+ "phase":"request","target":"body","targetName":null,
+ "paths":["messages.*.content"],"pattern":"(?i)\\bwidget\\b","replacement":"gadget",
+ "filterOperationKeys":[{"dialect":"openai_chat","operation":"generate_content"}],
+ "filterModelPattern":null,"filterHeaderPattern":null,"filterEventPattern":null,
+ "sortOrder":0,"enabled":true,…}
 ```
 
 | Field | Meaning |
 | --- | --- |
-| `config.kind` | `system_text`, `cache_breakpoint`, `rewrite`, `transform` or `header`; the rest of `config` depends on the kind. |
-| `filter_model_pattern` | Glob (`*`, `?`) matched against the whole upstream model id, and also against the client's requested name (route, alias or variant) when it differs. |
-| `filter_operations` | Stable operation ids such as `generate_content`, `stream_generate_content`, `list_models`, `create_embedding`. |
-| `filter_header_pattern` | Case-insensitive regex tested against each inbound header rendered as `name: value`; the rule applies when any line matches. |
-| `sort_order` | Declaration order inside the set. |
+| `phase` | `request`, `response` or `both`, **relative to the upstream connection**. |
+| `target` | `body`, `header` or `query`. |
+| `targetName` | Required for `header` and `query`, absent for `body`. Header names match case-insensitively; query names match exactly after decoding. |
+| `paths` | Body only. A JSON array of dot paths selecting JSON *string values*; `null` applies the pattern to the whole payload text. |
+| `pattern` | Rust regex syntax, including inline flags such as `(?i)` and `(?s)`. |
+| `replacement` | Regex replacement syntax, including `$1` and `${name}`. |
+| `sortOrder` | Ascending within the set; the id breaks ties. |
 
-Filters are ANDed; an omitted filter matches everything. The header filter
-is what scopes an application-compatibility set to one client: a response
-rule that renames tool calls for OpenCode would otherwise rewrite them for
-every client sharing the provider. Read the exact header lines a client
-sends from **Request audit** ([Usage, Logs & Audit](/guides/observability/)).
+A rule whose pattern does not compile is refused **when you save it**, so a
+stored rule never fails a request. Regexes and paths compile once per
+configuration revision; execution never re-validates a row.
 
-### `system_text`
+### Paths
 
-Prepends or appends server-managed text at the native system-instruction
-location of the target format. It does nothing for operations that are not
-content generation.
+`messages.*.content`, `system`, `system.*.text`, `tools.*.name`. A segment is
+an object key, an array index, or `*` for every element.
 
-```json
-{ "kind": "system_text", "text": "Follow the workspace policy.", "position": "prepend" }
-```
+The payload is **scanned, never parsed into a tree**, so key order, whitespace
+and number formatting survive untouched and only the selected strings are
+re-encoded. A path rule on a payload that is not JSON is a no-op rather than an
+error.
 
-| Target format | Location |
+With `paths: null` the pattern runs against the serialized body text. Keep such
+a pattern narrow and word-bounded — on a stream it runs against every unit.
+
+### Headers and query values
+
+A header rule replaces within **every** value of that header, keeping repeats
+and their order. A query rule does the same for one parameter, and untouched
+raw segments are preserved byte for byte — only rewritten values are encoded
+again.
+
+A header whose value is not text is an error, never a lossy decode.
+
+## Filters
+
+All filters are ANDed; an omitted filter matches everything.
+
+| Filter | Matches |
 | --- | --- |
-| Claude Messages | `system` string, or a text block inserted into `system[]` |
-| OpenAI Chat Completions | a `role: "system"` message, first or after the existing leading system messages |
-| OpenAI Responses (HTTP and WebSocket) | `instructions` |
-| Gemini GenerateContent | `systemInstruction.parts[]` |
+| `filterOperationKeys` | A JSON array of `{"operation": …, "dialect": …}` pairs. The **native** operation being executed against the provider, after conversion. |
+| `filterModelPattern` | A `*` / `?` glob against the selected upstream model **or** the caller's requested name — either side matching is a hit. |
+| `filterHeaderPattern` | A case-insensitive regex against the **inbound** request header lines. |
+| `filterEventPattern` | A regex against the SSE event name, falling back to the JSON `type`; for a WebSocket, the JSON `type`. |
 
-### `cache_breakpoint`
+The header filter is what scopes a compatibility set to one client: a response
+rule that renames tool calls for one editor would otherwise rewrite them for
+every client sharing the provider. Inbound headers are a filter **condition**,
+never the rewrite target — a rule that edits a header edits the one going
+upstream.
 
-Places a native cache marker: Claude `cache_control`, or OpenAI
-`prompt_cache_breakpoint` / `prompt_cache_options`. Gemini targets are
-skipped.
+The event filter needs the decoded unit, so it is evaluated when the unit
+arrives rather than when rules are selected.
 
-```json
-{ "kind": "cache_breakpoint", "target": "system", "index": null, "ttl": "1h" }
+## Order
+
+The provider's enabled attachments run in `(sortOrder, id)` order, and each
+set's rules in the same order within it. **Visible order is execution order,
+and every rule sees the previous rule's output.** There is no ordering by kind
+the way v3 sorted `system_text` before `cache_breakpoint`; what you see in the
+list is what happens.
+
+## Streams
+
+A streamed response is rewritten **per unit** — a complete SSE event, a JSON
+array element, or an NDJSON record. A unit is never a network chunk, and
+nothing buffers a live stream to completion.
+
+Frames pass through byte for byte unless a rule changed their payload. For SSE
+only the `data:` lines are replaced, so comments, `event:`, `id:` and `retry:`
+lines and the `[DONE]` sentinel stay intact. A unit over
+`settings.maxStreamEventBytes` (1 MiB by default) is an error rather than an
+unbounded buffer.
+
+## Presets
+
+Six application-compatibility presets ship. Each makes one client application
+look like a generic one to an upstream that recognises it.
+
+```sh
+curl -s http://127.0.0.1:7070/admin/api/rule-presets -H "Authorization: Bearer $GPROXY_KEY"
 ```
-
-Targets are `top_level`, `system`, `tools` (Claude only) and `message`.
-Positions, TTLs and the marker cap are described in
-[Prompt Caching](/guides/claude-caching/).
-
-### `rewrite`
-
-Edits one JSON path in the request body. Paths are dot-separated; segments
-are object keys or numeric array indexes (`messages.0.content`).
-
-```json
-{ "kind": "rewrite", "path": "stream_options.include_usage", "action": "set", "value": true }
-```
-
-| Action | Behaviour |
-| --- | --- |
-| `set` | Creates missing object parents and writes `value` at the leaf; an array index must already exist. |
-| `delete` | Removes the key or array element; a missing path is skipped. |
-| `merge` | Shallow-merges an object `value` into the existing object at the path. |
-
-The console's model-variant editor stores variants as `rewrite`/`set` rules
-whose model filter is the variant name, so a thinking-level variant is just
-a rule you can inspect.
-
-### `transform`
-
-Text replacement over selected JSON string values, or over the serialized
-body. It is the only kind with a response phase.
-
-```json
-{
-  "kind": "transform",
-  "phase": "request",
-  "locate": { "type": "paths", "value": ["tools.*.name", "tool_choice.name"] },
-  "actions": [{ "op": "replace_regex", "pattern": "^mcp_([^_].*)$", "with": "mcp__$1" }],
-  "limit": null
-}
-```
-
-| Field | Values |
-| --- | --- |
-| `phase` | `request` (default), `response`, `both` |
-| `locate` | `{"type":"path","value":"a.*.b"}`, `{"type":"paths","value":[...]}` with `*` wildcards, or `{"type":"match","value":"<regex>"}` over the serialized body |
-| `actions[].op` | `replace_text` with `with` and an optional exact `from` guard; `replace_regex` with a Rust `pattern` and `with` (`$1` groups) |
-| `limit` | Maximum matched values (path locators) or replacements (body match) |
-
-A body `match` locator accepts only `replace_text`; on streams it runs
-against each frame, so keep the pattern narrow and word-bounded.
-
-### `header`
-
-Sets or merges an outgoing request header.
-
-```json
-{ "kind": "header", "name": "anthropic-beta", "value": "extended-cache-ttl-2025-04-11", "mode": "merge" }
-```
-
-`override` (default) replaces the header. `merge` appends a comma-separated
-value and skips it when already present. Header rules run before the
-provider's forwarded-metadata policy, so the header must be one the channel
-forwards (**Providers → Settings → Forwarded metadata**).
-
-### Fixed Apply Order
 
 ```text
-system_text -> cache_breakpoint -> rewrite -> transform -> header
+opencode    OpenCode        application   37 rules
+the agent   the agent-mono  application    9 rules
+aider       Aider           application    2 rules
+cline       Cline           application    1 rule
+continue    Continue        application    1 rule
+cursor      Cursor          application    1 rule
 ```
 
-Order is by kind first, regardless of which set a rule came from. Within a
-kind, attached sets run in attachment order and rules in `sort_order`. The
-console shows the resulting "Effective #" beside each rule.
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/rule-sets/{id}/rule-presets/opencode \
+  -H "Authorization: Bearer $GPROXY_KEY"
+```
 
-### Attaching Sets to Providers
+Applying a preset **replaces** the set's rules rather than merging them. A
+preset is one ordered answer, and half of it interleaved with something else
+rewrites text nobody predicted. To keep existing rules, read `rule-presets`,
+merge the lists yourself, and `PUT` the result.
 
-An attachment (`POST /admin/api/provider-rule-sets`) links a set to a
-provider with its own `sort_order` and `enabled` flag. The Rules workspace
-labels each set **Unused**, **One provider** (private) or **Shared** by its
-attachment count. A set cannot be deleted while it still has rules or
-attachments.
+The cache presets v3 shipped are gone with the `cache_breakpoint` rule kind.
+See [Prompt Caching](/guides/claude-caching/) for what v4 does instead.
 
-Creating a provider also creates and attaches an empty private set named
-`<provider> · defaults`. The console writes model-variant rules there; you
-may add your own rules to it as well.
+## Operation Overrides
 
-### Presets
+A rewrite rule cannot make a provider serve an operation it does not serve, or
+send it somewhere else. Two per-provider tables do.
 
-`GET /admin/api/rule-presets` lists presets; a provider's Rules tab applies
-one with **Apply compatibility preset**
-(`POST /admin/api/providers/<id>/rule-presets/<preset>`). Applying creates
-or updates an ordinary set named `<preset> compatibility`, attaches it and
-leaves it editable. Applying again refreshes the rules in place.
+**`operation_rules`** override which dialects a provider speaks natively for
+one operation. Channel defaults stay **in code** and are not copied into every
+new provider, which is the difference from v3: there is no seeded
+`channel_default` row to distinguish from an operator row, because there is no
+seeded row.
 
-| Preset | Category | What it does |
-| --- | --- | --- |
-| OpenCode | application | Strips the `<env>` block and OpenCode branding from `system`; renames lowercase tool names to Claude Code's TitleCase and `mcp_` to `mcp__` on the request, and back on the response. Scoped to `^user-agent: opencode/`. |
-| pi-mono | application | Rewrites "pi" agent branding in prompt text. No header filter. |
-| Aider | application | Rewrites "Aider" branding; scoped to `^user-agent: litellm/`. |
-| Cline | application | Rewrites "Cline"; scoped to Cline's user agent, `x-title` or `http-referer`. |
-| Continue | application | Rewrites "Continue"; scoped to `^user-agent: continue/`. |
-| Cursor | application | Rewrites "Cursor"; scoped to `^user-agent: cursor/`. |
-| Claude system cache | cache | `cache_breakpoint` on the last `system` block, TTL `1h`. |
-| Claude message cache | cache | `cache_breakpoint` on the last cacheable message block, TTL `1h`. |
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/operation-rules \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"providerId":"…","operation":"generate_content",
+       "action":"dialects","target":["claude","openai_chat"]}'
+```
 
-Application presets filter on `generate_content` and
-`stream_generate_content` and operate on request text paths only.
+`action: "dialects"` with a JSON array of dialect ids in `target` replaces the
+channel's declaration for that operation. What happens next follows from the
+list alone:
 
-## Routing Rules
+| The client's dialect is | What runs |
+| --- | --- |
+| in the list | passthrough — the bytes are not converted |
+| not in the list | conversion to the **first** declared dialect, and back |
+| not in the list, and the operation is a stream the provider only serves buffered | convert, invoke once, then synthesize the client's own stream |
+| not in the list, and nothing is declared for the operation | the provider is not a valid target for it |
 
-A routing rule belongs to one provider and is keyed by `operation` and
-inbound `kind`: a wire family or a content-generation protocol, for example
-`openai`, `claude`, `gemini`, `openai_chat`, `openai_responses`,
-`openai_responses_websocket`, `claude_messages`, `gemini_generate_content`.
+The client's dialect wins whenever it is native; otherwise the first entry is
+the conversion target, so the order of that array is a preference.
+
+**`operation_endpoints`** replace the complete method URL for one
+`(operation, dialect, transport)`. It is not a replacement base URL with a
+default path appended — the channel's own path parameters are resolved by that
+method:
+
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/operation-endpoints \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"providerId":"…","operation":"generate_content","dialect":"openai_chat",
+       "url":"https://elsewhere.example/v1/chat/completions"}'
+```
+
+A missing or disabled row leaves URL construction to the provider's `baseUrl`
+and the channel's default path.
+
+Both are dropped together by one reset:
+
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/providers/{id}/routing-defaults/reset \
+  -H "Authorization: Bearer $GPROXY_KEY"
+```
+
+## The `custom` Channel's Own List
+
+For the `custom` channel the same question has a second answer, and it is a
+provider `config` key rather than an operation rule — because a `custom`
+provider has no vendor whose dialects the channel could know:
 
 ```json
-{
-  "provider_id": 3,
-  "operation": "generate_content",
-  "kind": "claude_messages",
-  "implementation": "transform_to",
-  "dest_operation": "generate_content",
-  "dest_kind": "openai_chat",
-  "sort_order": 0,
-  "enabled": true
-}
+{ "config": { "dialects": ["openai_chat", "openai", "claude"] } }
 ```
 
-| `implementation` | Effect |
-| --- | --- |
-| `passthrough` | Send the request in the inbound format; the channel must speak it natively. |
-| `transform_to` | Convert to `dest_operation` + `dest_kind` before the channel sees it, and convert the response back. Both `dest_*` fields are required and must name a wired transform pair. |
-| `local` | GPROXY answers from its own state (model list, model get, token counting) and never calls this provider for the operation. |
-| `unsupported` | This provider refuses the operation in this protocol. |
+An operation whose dialect is reachable from neither the list nor a conversion
+fails with an error naming both sides:
 
-### Channel Defaults and Operator Rows
+```text
+models.list: no conversion from OpenAi to OpenAiChat
+```
 
-Each channel declares a default table in code. Creating a provider seeds one
-row per entry with origin `channel_default`; the console shows these rows
-muted and labels them **Inherited**. Editing a row, adding one or deleting
-one turns it into an operator row. Startup backfills new channel defaults
-for existing providers without touching rows that already exist.
-
-**Reset defaults** (`POST /admin/api/providers/<id>/routing-defaults/reset`)
-deletes every routing rule of the provider and reseeds the channel table.
-
-### What Unsupported Means
-
-When the resolved rule for a request is `unsupported` or `local`, or when
-the channel declares no route for the inbound (operation, protocol) at all,
-the provider is not a valid target: the executor skips it and moves to the
-next route member, and a client whose route has no capable member receives
-an unsupported-operation error. Rules with `enabled: false` are ignored and
-the channel's own declaration applies instead.
+That is the most common first-day surprise. If an operation fails on a `custom`
+provider, check that list before looking anywhere else.
