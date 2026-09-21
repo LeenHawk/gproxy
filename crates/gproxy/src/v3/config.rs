@@ -63,7 +63,7 @@ use gproxy_sdk::dto::{
 use serde_json::Value;
 
 use super::{
-    Report,
+    Report, channels,
     document::{self, Action, Document, Locate, RuleConfig},
     ids,
     secret::{Bridge, Domain},
@@ -93,23 +93,24 @@ pub fn translate(document: &Document, bridge: &Bridge, timestamp: i64) -> Result
     let data = &document.data;
 
     let profiles = Profiles::collect(data);
-    let credentials = credentials(data, bridge, &profiles, &mut report)?;
+    // The order matters and is not the document's. Two of v4's channel recipes
+    // need a credential's *opened* secret to build the provider row — v3 kept
+    // Cloudflare's account id in the credential and v4 needs it in the origin —
+    // so every secret is opened first, the providers are translated from them,
+    // and only then is each secret re-sealed, minus whatever moved out of it.
+    let opened = open_secrets(data, bridge)?;
+    let providers = providers(data, &opened, &profiles, timestamp, &mut report)?;
+    let credentials = credentials(data, &opened, &providers, bridge, &profiles, &mut report)?;
     let (price_rules, price_tiers) = price_rules(data, &mut report);
     let (rewrite_rules, rule_sets) = rewrite_rules(data, &mut report);
 
     report.count("connection_profiles", profiles.rows.len() as u64);
     report.count("credentials", credentials.len() as u64);
+    report.count("providers", providers.rows.len() as u64);
     report.count("price_rules", price_rules.len() as u64);
     report.count("price_tiers", price_tiers.len() as u64);
     report.count("rewrite_rules", rewrite_rules.len() as u64);
     report.count("rewrite_rule_sets", rule_sets.len() as u64);
-
-    let providers: Vec<ProviderDto> = data
-        .providers
-        .iter()
-        .map(|row| provider(row, &profiles, timestamp))
-        .collect();
-    report.count("providers", providers.len() as u64);
 
     let provider_models: Vec<ProviderModelDto> =
         data.provider_models.iter().map(provider_model).collect();
@@ -152,7 +153,7 @@ pub fn translate(document: &Document, bridge: &Bridge, timestamp: i64) -> Result
             secrets: vec![gproxy_sdk::dto::CODEC_AES_GCM.to_owned()],
             data: ConfigurationDataDto {
                 connection_profiles: profiles.rows,
-                providers,
+                providers: providers.rows,
                 credentials,
                 // v3 had no shared model catalog: a model existed per provider.
                 models: Vec::<ModelDto>::new(),
@@ -245,35 +246,101 @@ impl Profiles {
     }
 }
 
-fn provider(row: &document::Provider, profiles: &Profiles, timestamp: i64) -> ProviderDto {
-    // v3 kept the upstream origin inside `settings_json`; v4 has a column for
-    // it and its channels read the column. The key stays in `config` as well:
-    // removing it would change what a channel that still reads it sees.
-    let base_url = row
-        .settings
-        .get("base_url")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|url| !url.is_empty())
-        .map(str::to_owned);
-    ProviderDto {
-        id: ids::id("providers", row.id),
+/// Every v3 credential's secret, opened once. Keyed by the v3 credential id,
+/// because two things need them and one of them is the provider row.
+struct Opened {
+    by_credential: BTreeMap<i64, Value>,
+}
+
+impl Opened {
+    /// The opened secrets of one v3 provider's credentials, in row order.
+    fn of_provider(&self, data: &document::Data, provider_id: i64) -> Vec<Value> {
+        data.credentials
+            .iter()
+            .filter(|row| row.config.provider_id == provider_id)
+            .filter_map(|row| self.by_credential.get(&row.config.id).cloned())
+            .collect()
+    }
+}
+
+/// Open every credential secret with v3's envelope cipher, before anything is
+/// translated. A credential without one stops the import: core opens every
+/// secret while it assembles a snapshot, so a credential that arrives without
+/// one is not a degraded row, it is a row that fails every reload.
+fn open_secrets(data: &document::Data, bridge: &Bridge) -> Result<Opened> {
+    let mut by_credential = BTreeMap::new();
+    for row in &data.credentials {
+        let id = ids::id("credentials", row.config.id);
+        let Some(envelope) = &row.secret else {
+            return Err(Error::other(format!(
+                "credential {} ({}) carries no secret. Take the v3 export again with \
+                 {{\"include_secrets\": true}}, or migrate from the v3 database file, which \
+                 always has them; a configuration-only export cannot create a credential on \
+                 the destination.",
+                row.config.id,
+                row.config.label.as_deref().unwrap_or("unlabelled")
+            )));
+        };
+        by_credential.insert(
+            row.config.id,
+            bridge.open(Domain::Credential, &id, envelope)?,
+        );
+    }
+    Ok(Opened { by_credential })
+}
+
+/// The translated providers, and what each one's credentials must forget.
+struct Providers {
+    rows: Vec<ProviderDto>,
+    /// v3 provider id → keys its credentials no longer carry, because the
+    /// channel recipe lifted them into the provider row.
+    strip: BTreeMap<i64, Vec<&'static str>>,
+}
+
+fn providers(
+    data: &document::Data,
+    opened: &Opened,
+    profiles: &Profiles,
+    timestamp: i64,
+    report: &mut Report,
+) -> Result<Providers> {
+    let mut rows = Vec::with_capacity(data.providers.len());
+    let mut strip = BTreeMap::new();
+    for row in &data.providers {
         // v3 had a `name` and a display `label`; v4 has one name, and the
         // label is the one a person chose.
-        name: row
+        let name = row
             .label
             .as_deref()
             .map(str::trim)
             .filter(|label| !label.is_empty())
             .unwrap_or(row.name.as_str())
-            .to_owned(),
-        channel: row.channel.clone(),
-        base_url,
-        connection_profile_id: profiles.id(row.proxy_url.as_ref()),
-        config: object(&row.settings),
-        enabled: row.enabled,
-        created_at_ms: timestamp,
+            .to_owned();
+        // The channel is a rule, not a rename: see [`super::channels`].
+        let translated = channels::provider(
+            &row.channel,
+            &name,
+            &row.settings,
+            &opened.of_provider(data, row.id),
+        )?;
+        if let Some(note) = translated.note {
+            report.warn(format!("provider {} ({name}): {note}", row.id));
+        }
+        if !translated.strip_from_secrets.is_empty() {
+            strip.insert(row.id, translated.strip_from_secrets);
+        }
+        rows.push(ProviderDto {
+            id: ids::id("providers", row.id),
+            name,
+            channel: translated.channel,
+            base_url: translated.base_url,
+            connection_profile_id: profiles.id(row.proxy_url.as_ref()),
+            config: translated.config,
+            enabled: row.enabled,
+            created_at_ms: timestamp,
+        });
     }
+    Ok(Providers { rows, strip })
 }
 
 /// v4 requires `config` to be an object; v3 stored whatever the channel put
@@ -287,8 +354,54 @@ fn object(value: &Value) -> Value {
 
 // ----------------------------------------------------------- credentials --
 
+/// v3's credential `kind` as v4's `auth_kind`.
+///
+/// v4 does not validate the column — it is a free non-blank string — but
+/// channels read it: `kimi` branches on `auth_kind == "oauth"` to tell a
+/// platform key from a login, and `copilotcli` writes `"oauth"` itself. So a
+/// spelling v4's channels do not recognise is a behaviour change, not a
+/// cosmetic one, and the two v3 spellings that differ are mapped rather than
+/// copied.
+///
+/// Production's twelve credentials use three kinds: `api_key` (7), `oauth` (4)
+/// and **`oauth_tokens`** (1). The last is v3's longer name for a credential
+/// holding an OAuth token pair, and `oauth` is what v4 calls that.
+fn auth_kind(v3: &str, credential: i64, report: &mut Report) -> String {
+    match v3.trim() {
+        "oauth_tokens" => {
+            report.warn(format!(
+                "credential {credential} had kind `oauth_tokens`: v4 spells that `oauth`, and \
+                 channels that tell a login from a platform key read the column"
+            ));
+            "oauth".to_owned()
+        }
+        "" => {
+            // v3's column defaulted to `api_key` and is NOT NULL, so this is a
+            // hand-edited row rather than anything v3 wrote.
+            report.warn(format!(
+                "credential {credential} had a blank kind; it arrives as `api_key`, which is \
+                 what v3's column defaulted to"
+            ));
+            "api_key".to_owned()
+        }
+        kind @ ("api_key" | "oauth" | "cookie") => kind.to_owned(),
+        other => {
+            // Not refused: `auth_kind` is not a registry, and most channels
+            // decide from the secret's shape rather than from this column.
+            report.warn(format!(
+                "credential {credential} has kind `{other}`, which is none of v4's `api_key`, \
+                 `oauth` or `cookie`. It is carried across unchanged; a channel that branches \
+                 on the column will treat it as unknown."
+            ));
+            other.to_owned()
+        }
+    }
+}
+
 fn credentials(
     data: &document::Data,
+    opened: &Opened,
+    providers: &Providers,
     bridge: &Bridge,
     profiles: &Profiles,
     report: &mut Report,
@@ -297,20 +410,24 @@ fn credentials(
     let mut out = Vec::with_capacity(data.credentials.len());
     for row in &data.credentials {
         let id = ids::id("credentials", row.config.id);
-        let Some(envelope) = &row.secret else {
-            // Not a warning: core opens every credential secret while it
-            // assembles a snapshot, so a credential without one is not a
-            // degraded row, it is a row that breaks every reload.
-            return Err(Error::other(format!(
-                "credential {} ({}) carries no secret. Take the v3 export again with \
-                 {{\"include_secrets\": true}}; a configuration-only export cannot create a \
-                 credential on the destination.",
-                row.config.id,
-                row.config.label.as_deref().unwrap_or("unlabelled")
-            )));
-        };
-        let opened = bridge.open(Domain::Credential, &id, envelope)?;
-        let sealed = bridge.seal_for_sdk(&id, &opened)?;
+        // Opened in one pass before the providers were translated, because two
+        // of v4's channel recipes are built out of these.
+        let mut secret = opened
+            .by_credential
+            .get(&row.config.id)
+            .cloned()
+            .ok_or_else(|| Error::other(format!("credential {} was not opened", row.config.id)))?;
+        // Whatever the channel recipe lifted into the provider row comes out
+        // of the credential: two disagreeing copies of an origin is worse than
+        // one.
+        if let Some(keys) = providers.strip.get(&row.config.provider_id)
+            && let Value::Object(fields) = &mut secret
+        {
+            for key in keys {
+                fields.remove(*key);
+            }
+        }
+        let sealed = bridge.seal_for_sdk(&id, &secret)?;
 
         if row.config.weight != 0 && row.config.weight != 100 {
             report.warn(format!(
@@ -337,7 +454,7 @@ fn credentials(
                 team_id: None,
                 user_id: None,
                 label: row.config.label.clone(),
-                auth_kind: row.config.kind.clone(),
+                auth_kind: auth_kind(&row.config.kind, row.config.id, report),
                 has_secret: true,
                 // v4 bumps this on every secret write; starting from v3's value
                 // keeps a peer's cached credential from looking newer than the
