@@ -3,3 +3,9 @@
 # `tauri.conf.json` and the crate's dependencies, so it is a build artefact
 # rather than source — Tauri's own template ignores it for the same reason.
 /gen/schemas/
+
+# The pinned Tauri CLI, restored by `pnpm install` from the lockfile beside
+# `package.json`. `gen/android/` itself is **not** ignored: it is the Android
+# project, it is edited by hand — the service, the receiver, the manifest — and
+# the generated parts inside it have their own `.gitignore` entries.
+/node_modules/

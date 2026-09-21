@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!--
+      The four permissions a gateway on a phone needs and a desktop shell does
+      not. Every one of them buys a specific behaviour that Tauri does not
+      provide and that v3's hand-written Java already had.
+
+      FOREGROUND_SERVICE and its two typed companions: without an ongoing
+      notification Android freezes and kills this process seconds after the
+      user switches away, and the engine is *in* this process. From Android 14
+      the type is mandatory and must match one declared on the service below;
+      `specialUse` is declared because Android 15 caps a `dataSync` service at
+      six hours a day, and `dataSync` is declared for the releases that have
+      the type but not `specialUse`.
+
+      POST_NOTIFICATIONS: from Android 13 a foreground service still runs
+      without it, but its notification is hidden — which would leave the user
+      with no Stop button and no indication anything is running.
+
+      RECEIVE_BOOT_COMPLETED: the permission without which the boot receiver
+      below is simply never called, silently. It is what "start at boot"
+      actually is.
+
+      REQUEST_INSTALL_PACKAGES: what makes the install intent in
+      GproxyUpdateActivity legal. The per-app "install unknown apps" toggle is
+      a separate, user-granted thing that the activity asks for at the moment
+      it needs it.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!--
+      Asked for, never assumed. Several vendors' power managers stop a
+      foreground service anyway unless the app is exempt, and a gateway that
+      quietly dies overnight is worse than one that never started. v3 carried
+      the same permission.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- AndroidTV support -->
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+
+    <application
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.gproxy_host_tauri"
+        android:allowBackup="false"
+        android:usesCleartextTraffic="${usesCleartextTraffic}">
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:launchMode="singleTask"
+            android:label="@string/main_activity_title"
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <!-- AndroidTV support -->
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+          The gateway itself, for as long as the user wants it.
+
+          `stopWithTask="false"` is the decision v3 made and this keeps:
+          swiping the launcher card away dismisses a window, it does not
+          revoke a service the user explicitly started. Stop is in the
+          notification and is the only thing that means stop.
+
+          `specialUse` needs a stated subtype. The text below is what the
+          platform shows a reviewer and what an interested user can read.
+        -->
+        <service
+            android:name=".GproxyService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse|dataSync"
+            android:stopWithTask="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="@string/gproxy_special_use_subtype" />
+        </service>
+
+        <!-- Start at boot, and start again after this app is updated. -->
+        <receiver
+            android:name=".GproxyBootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- The in-app update: confirm and install a downloaded APK. -->
+        <activity
+            android:name=".GproxyUpdateActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!--
+          A second, narrower authority than Tauri's own `.fileprovider` below,
+          and deliberately not the same one: this grants read access to
+          exactly one file, the downloaded APK, so that the system installer
+          can open a file that lives in this app's private storage.
+        -->
+        <provider
+            android:name=".GproxyUpdateProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
+        <provider
+          android:name="androidx.core.content.FileProvider"
+          android:authorities="${applicationId}.fileprovider"
+          android:exported="false"
+          android:grantUriPermissions="true">
+          <meta-data
+            android:name="android.support.FILE_PROVIDER_PATHS"
+            android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

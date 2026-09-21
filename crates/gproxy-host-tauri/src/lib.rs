@@ -1,4 +1,4 @@
-//! The GPROXY v4 desktop host.
+//! The GPROXY v4 application host: one shell for the desktop and for Android.
 //!
 //! One process, one instance, two front doors.
 //!
@@ -22,18 +22,39 @@
 //! endpoint table has a cross in the data-plane row: this crate does not
 //! implement a data plane, it hosts the one that exists.
 //!
+//! The same sentence is why the phone is useful at all: an app on the device
+//! points at `http://127.0.0.1:7071` and is talking to this process. It still
+//! needs a key, for exactly the reason the desktop's socket does — every
+//! process on the device can reach loopback.
+//!
 //! The management surfaces go the other way. They are the window's, so they
 //! are IPC commands over the typed operations, and the embedded HTTP host
 //! refuses `/admin/api` and `/portal/api` outright.
 //!
+//! # The two platforms differ in three places and no others
+//!
+//! - **who starts the instance.** [`engine`] is a once-per-process instance
+//!   that the window starts on the desktop and that a foreground service can
+//!   also start on Android — the boot receiver has no window to start one
+//!   from.
+//! - **who decides the data directory.** Tauri's path resolver on the desktop;
+//!   the Java side on Android, because the service can run without an
+//!   activity. See [`android`].
+//! - **what closing the window means.** On the desktop it means the process is
+//!   ending, so the socket is closed on the way out. On Android it means the
+//!   user switched apps, and closing the socket there would be the bug.
+//!
+//! Everything above those three — the command table, the configuration, the
+//! secrets, the reduction in front of the router — is one implementation.
+//!
 //! # What this crate deliberately does not do
 //!
-//! Auto-update, launch-at-login, a tray icon, and mobile. Those are v3
-//! packaging concerns, and every one of them is a decision about how software
-//! is *distributed* rather than about what it does. They can be added when
-//! somebody is actually running the desktop shell and wants them; adding them
-//! first would mean maintaining an update channel for an application with no
-//! users.
+//! A tray icon, launch-at-login, and desktop auto-update. Those are decisions
+//! about how software is *distributed* rather than about what it does, and the
+//! desktop shell has no users yet to want them. Android is the exception and
+//! not an inconsistency: "start at boot" and "install the next APK" are not
+//! conveniences there but the only way a phone runs a gateway at all, and
+//! v3 had already answered both — see [`android`].
 //!
 //! It also does not build the console. P13 and P14 do, into `ui/`, from the
 //! same source the server serves — see [`ipc`] for the one seam that differs.
@@ -63,11 +84,15 @@
 //! ```
 //!
 //! [`run`] does the same thing inside a Tauri window, which is what the
-//! `gproxy-desktop` binary calls.
+//! `gproxy-desktop` binary calls and what Android's activity calls through
+//! [`start`].
 
+#[cfg(target_os = "android")]
+pub mod android;
 pub mod config;
 pub mod dataplane;
 pub mod desktop;
+pub mod engine;
 pub mod error;
 pub mod ipc;
 pub mod secrets;
@@ -78,6 +103,17 @@ pub use ipc::{OPERATIONS, Operation};
 
 use tauri::Manager;
 
+/// The credential store a shipped build uses.
+///
+/// One expression, so that the desktop and the phone cannot drift into two
+/// answers. On Android [`keyring`](secrets::Keychain) has no platform store to
+/// reach and every call fails, which [`secrets`] already treats as "there is
+/// no keychain here" — see that module for what each secret then does. The
+/// Android Keystore is a named follow-up rather than a silent gap.
+fn store() -> &'static dyn secrets::SecretStore {
+    &secrets::Keychain
+}
+
 /// Open the window and run until it closes.
 ///
 /// The order matters and is the opposite of what it looks like: the instance
@@ -85,32 +121,61 @@ use tauri::Manager;
 /// failure to open the database or a master key that has gone missing is a
 /// startup error with a message rather than an empty window that does not
 /// work. `setup` runs on the main thread, so the assembly is driven on the
-/// runtime Tauri already has.
+/// process's runtime rather than on a runtime of the window's own — which is
+/// what lets the instance outlive the window on Android.
+///
+/// The assembly goes through [`engine::ensure_started`], so on Android a
+/// window opened after the foreground service has already started the instance
+/// finds it running and shows it rather than building a second one.
 pub fn run() -> StartResult<()> {
-    let runtime = tokio::runtime::Runtime::new()
-        .map_err(|error| StartError::io("starting the async runtime", error))?;
-    let handle = runtime.handle().clone();
+    let handle = engine::runtime()?.handle().clone();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .invoke_handler(ipc::invoke_handler::<tauri::Wry>())
         .setup(move |app| {
-            let data_dir = app.path().app_data_dir()?;
-            let desktop = handle.block_on(Desktop::start(data_dir, &secrets::Keychain))?;
+            let data_dir = engine::data_dir(app.handle())?;
+            let desktop = handle.block_on(engine::ensure_started(&data_dir, store()))?;
             app.manage(desktop);
             Ok(())
-        })
-        .on_window_event(|window, event| {
-            // The instance owns a listening socket and a background sync, and
-            // a process that exits without stopping them leaves the socket in
-            // `TIME_WAIT` and the next launch unable to bind the fixed port.
-            if let tauri::WindowEvent::Destroyed = event
-                && let Some(desktop) = window.try_state::<Desktop>()
-            {
-                desktop.shutdown();
-            }
-        })
+        });
+
+    // Desktop only, and the asymmetry is the point. On the desktop a destroyed
+    // window means the process is ending, and an instance that exits without
+    // stopping its listener leaves the socket in `TIME_WAIT` and the next
+    // launch unable to bind the fixed port. On Android a destroyed window
+    // means the user switched apps or swiped the task away; the foreground
+    // service is still holding the process up on purpose, and stopping the
+    // data plane here would be precisely the failure the service exists to
+    // prevent.
+    #[cfg(desktop)]
+    let builder = builder.on_window_event(|window, event| {
+        if let tauri::WindowEvent::Destroyed = event
+            && let Some(desktop) = window.try_state::<Desktop>()
+        {
+            desktop.shutdown();
+        }
+    });
+
+    builder
         .run(tauri::generate_context!())
         .map_err(|error| StartError::App(gproxy_app::AppError::internal(error.to_string())))
+}
+
+/// Android's entry point, called by the activity through JNI.
+///
+/// There is no `main` on a phone. The activity loads
+/// `libgproxy_host_tauri.so` and Tauri's binding calls this, which is why the
+/// library carries a `cdylib` crate type; `src/main.rs` is not built for
+/// Android at all. The two things it does before [`run`] are the two a
+/// process with no terminal needs: put the log somewhere a person can read it,
+/// and refuse to lose a startup error to a closed standard error.
+#[cfg(target_os = "android")]
+#[tauri::mobile_entry_point]
+pub fn start() {
+    android::install_logging();
+    if let Err(error) = run() {
+        tracing::error!(%error, "the application could not start");
+    }
 }
 
 /// Wall clock in milliseconds. The operations that take one take it from the

@@ -1,6 +1,6 @@
 [package]
 name = "gproxy-host-tauri"
-description = "The GPROXY v4 desktop host: Tauri IPC for the management surfaces, an in-process axum data plane for the CLIs"
+description = "The GPROXY v4 application host: Tauri IPC for the management surfaces, an in-process axum data plane for the CLIs, on desktop and on Android"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true
@@ -12,9 +12,17 @@ default-run = "gproxy-desktop"
 # library is where every decision lives, and `tests/` drives it directly. The
 # binary is the window — it parses nothing, decides nothing, and exists so that
 # `cargo run` opens the shell.
+#
+# `cdylib` is the Android target's whole entry point. There is no binary on a
+# phone: the activity loads `libgproxy_host_tauri.so` and calls into it, so the
+# library has to be linkable as a shared object as well as an `rlib`. The
+# `staticlib` that Tauri's own mobile template also lists is iOS's, and this
+# crate has no iOS target — carrying it would make every desktop build produce
+# a third artefact nothing links.
 [lib]
 name = "gproxy_host_tauri"
 path = "src/lib.rs"
+crate-type = ["lib", "cdylib"]
 
 [[bin]]
 name = "gproxy-desktop"
@@ -66,6 +74,21 @@ tracing = { workspace = true }
 
 [build-dependencies]
 tauri-build = { workspace = true }
+
+# Android's whole extra surface, and it is two crates.
+#
+# `jni` is how the foreground service reaches the engine: the activity is not
+# the only entry point on a phone — the boot receiver has no activity — so
+# there has to be a way in that is not Tauri's IPC bridge. The version matches
+# the one `wry` already resolves for Tauri's own Android binding, so the
+# application links one JNI crate rather than two.
+#
+# `libc` is for `pipe` and `dup2`. Android discards a process's standard
+# output; splicing it into logcat is three system calls and no dependency on a
+# second logging framework. See `android::install_logging`.
+[target.'cfg(target_os = "android")'.dependencies]
+jni = { workspace = true }
+libc = { workspace = true }
 
 [dev-dependencies]
 # `test` gives Tauri's `MockRuntime`, which is what lets `tests/assembly.rs`
