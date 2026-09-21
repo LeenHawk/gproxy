@@ -99,7 +99,10 @@ function Navigation({ onNavigate }: { onNavigate?: () => void }) {
               to={item.route}
               onClick={onNavigate}
               className={cn(
-                "block rounded-md px-3 py-1.5 text-sm transition-colors",
+                // Taller below `lg`: a 28px row is a comfortable menu item
+                // for a cursor and a miss for a thumb, and this drawer is the
+                // only way to navigate on a phone.
+                "block rounded-md px-3 py-2 text-sm transition-colors lg:py-1.5",
                 route === item.route
                   ? "bg-accent font-medium text-accent-foreground"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -122,9 +125,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-background/95 px-4 backdrop-blur">
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           className="lg:hidden"
           aria-label={t("shell.navigation")}
+          aria-expanded={open}
           onClick={() => setOpen((value) => !value)}
         >
           {open ? <X /> : <Menu />}
@@ -137,9 +141,28 @@ export function AppShell({ children }: { children: ReactNode }) {
         </span>
       </header>
       <div className="mx-auto flex w-full max-w-[1600px]">
+        {/*
+          The scrim is what makes the drawer a drawer: it dismisses on a tap
+          anywhere outside, which is the gesture a phone user already has. It
+          is a button rather than a div so the same dismissal is reachable
+          from a keyboard, and it is only mounted while the drawer is open.
+        */}
+        {open ? (
+          <button
+            type="button"
+            aria-label={t("actions.close")}
+            className="fixed inset-x-0 top-14 bottom-0 z-20 bg-foreground/20 lg:hidden"
+            onClick={() => setOpen(false)}
+          />
+        ) : null}
         <aside
           className={cn(
             "w-60 shrink-0 border-r border-border px-2 py-6",
+            // Below `lg` the navigation floats *over* the page rather than
+            // beside it. As a column it took 240 of a 390px viewport and left
+            // the page it had just navigated to 150px to render in, which is
+            // not a narrow layout but a broken one.
+            "max-lg:fixed max-lg:top-14 max-lg:bottom-0 max-lg:left-0 max-lg:z-30 max-lg:overflow-y-auto max-lg:overscroll-contain max-lg:bg-background",
             open ? "block" : "hidden lg:block",
           )}
         >
