@@ -31,6 +31,9 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
+# `CancellationToken` only: a host cancels a call when its client goes away,
+# and the sdk's builder takes exactly this type.
+tokio-util = { workspace = true }
 tracing = { workspace = true }
 web-time = { workspace = true }
 
@@ -45,6 +48,10 @@ wasm-bindgen-futures = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 async-trait = { workspace = true }
+futures-util = { workspace = true }
 gproxy-cache = { workspace = true, features = ["memory"] }
+# The scripted channel the data-plane tests run against. Not a dependency of
+# the crate itself: nothing here implements a channel.
+gproxy-channel = { workspace = true }
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

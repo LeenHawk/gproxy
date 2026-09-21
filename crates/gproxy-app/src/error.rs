@@ -9,6 +9,7 @@
 use gproxy_cache::CacheError;
 use gproxy_core::CoreError;
 use gproxy_protocol::transform::TransformErrorKind;
+use gproxy_sdk::SdkError;
 use gproxy_store::StoreError;
 
 #[derive(Debug, thiserror::Error)]
@@ -19,6 +20,17 @@ pub enum AppError {
     Cache(#[from] CacheError),
     #[error(transparent)]
     Core(#[from] CoreError),
+    /// A handle failure the engine did not raise: an unknown model, a plan
+    /// with nothing usable left in it, an upstream's own refusal after every
+    /// target was tried.
+    ///
+    /// Kept whole rather than flattened into the variants above, because
+    /// [`SdkError::status_code`] has already decided what each of them is
+    /// worth on the wire and two layers disagreeing about that is how a 429
+    /// becomes a 500. Engine, store and cache failures are the exception: see
+    /// the `From` implementation below.
+    #[error(transparent)]
+    Sdk(SdkError),
     /// No usable credential was presented, or the one presented is not valid.
     /// The `&'static str` is a reason for the operator's log, never for the
     /// caller: telling an unauthenticated client why it failed is a probe.
@@ -51,6 +63,7 @@ impl AppError {
             Self::Store(_) | Self::Internal(_) => S::INTERNAL_SERVER_ERROR,
             Self::Cache(_) => S::SERVICE_UNAVAILABLE,
             Self::Core(error) => return core_status(error),
+            Self::Sdk(error) => return error.status_code(),
             Self::Unauthorized(_) => S::UNAUTHORIZED,
             Self::Forbidden(_) => S::FORBIDDEN,
             Self::Invalid(_) => S::BAD_REQUEST,
@@ -67,6 +80,7 @@ impl AppError {
             Self::Store(_) => "store_error",
             Self::Cache(_) => "cache_unavailable",
             Self::Core(error) => core_code(error),
+            Self::Sdk(error) => sdk_code(error),
             Self::Unauthorized(_) => "unauthorized",
             Self::Forbidden(_) => "forbidden",
             Self::Invalid(_) => "invalid_request",
@@ -94,6 +108,25 @@ impl AppError {
 
     pub fn internal(message: impl Into<String>) -> Self {
         Self::Internal(message.into())
+    }
+}
+
+/// The handle's failures, seen from the product layer.
+///
+/// Engine, store and cache failures are unwrapped into the variants this type
+/// already has, so a host that matches on `AppError::Core` still sees a spent
+/// budget or a dead credential whether it came through `Admission` or through
+/// the sdk. Everything else — a name that resolved to nothing, an upstream's
+/// own status, a build that cannot serve the request — stays whole, because
+/// flattening it would mean re-deciding a status the sdk has already decided.
+impl From<SdkError> for AppError {
+    fn from(error: SdkError) -> Self {
+        match error {
+            SdkError::Core(error) => Self::Core(error),
+            SdkError::Store(error) => Self::Store(error),
+            SdkError::Cache(error) => Self::Cache(error),
+            other => Self::Sdk(other),
+        }
     }
 }
 
@@ -148,6 +181,26 @@ fn core_code(error: &CoreError) -> &'static str {
     }
 }
 
+/// The handle's failures as envelope codes. Exhaustive on purpose: a new
+/// `SdkError` variant has to be named here rather than silently becoming an
+/// upstream error.
+fn sdk_code(error: &SdkError) -> &'static str {
+    match error {
+        SdkError::Core(error) => core_code(error),
+        SdkError::Store(_) | SdkError::Db(_) => "store_error",
+        SdkError::Cache(_) => "cache_unavailable",
+        SdkError::Invalid(_) => "invalid_request",
+        SdkError::NotFound { .. } => "not_found",
+        SdkError::Conflict(_) => "conflict",
+        SdkError::Unsupported(_) => "not_implemented",
+        SdkError::UnknownModel(_) => "unknown_model",
+        SdkError::NoTarget(_) => "no_usable_target",
+        SdkError::LoginExpired => "login_expired",
+        SdkError::Upstream { .. } | SdkError::Channel(_) => "upstream_error",
+        SdkError::Build(_) | SdkError::Secret(_) | SdkError::File(_) => "internal_error",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,5 +242,39 @@ mod tests {
         let error = AppError::Core(CoreError::NoUsableCredential);
         assert_eq!(error.status_code(), 503);
         assert_eq!(error.code(), "no_usable_credential");
+    }
+
+    #[test]
+    fn the_handles_failures_keep_the_status_the_handle_gave_them() {
+        // An upstream's own refusal is the caller's answer, not a 500.
+        let error = AppError::from(SdkError::Upstream {
+            status: 429,
+            body: "provider `p1` answered 429".into(),
+        });
+        assert_eq!(error.status_code(), 429);
+        assert_eq!(error.code(), "upstream_error");
+
+        let error = AppError::from(SdkError::NoTarget("test/m1".into()));
+        assert_eq!(error.status_code(), 503);
+        assert_eq!(error.code(), "no_usable_target");
+        assert!(error.to_string().contains("test/m1"), "{error}");
+
+        let error = AppError::from(SdkError::UnknownModel("nope".into()));
+        assert_eq!(error.status_code(), 404);
+        assert_eq!(error.code(), "unknown_model");
+    }
+
+    #[test]
+    fn the_engines_failures_are_unwrapped_rather_than_wrapped_twice() {
+        // Matching on `AppError::Core` has to work whether the failure came
+        // through admission or through the handle.
+        let error = AppError::from(SdkError::Core(CoreError::BudgetExhausted {
+            quota_id: "q".into(),
+            window_key: "w".into(),
+            resets_at_ms: None,
+        }));
+        assert!(matches!(error, AppError::Core(_)));
+        assert_eq!(error.status_code(), 429);
+        assert_eq!(error.code(), "budget_exhausted");
     }
 }
