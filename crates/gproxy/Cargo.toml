@@ -72,6 +72,10 @@ s3 = ["gproxy-sdk/s3", "gproxy-file/s3"]
 bundled-vocabulary = ["gproxy-sdk/bundled-vocabulary"]
 
 [dependencies]
+# v3's envelope encryption, which is not v4's codec: four columns, a fixed
+# authenticated-data domain and no row id bound in. `import --from-v3` has to
+# open those blobs by v3's rules before the sdk can re-seal them by v4's.
+aes-gcm = { workspace = true }
 axum = { workspace = true }
 # Standard base64 is what the sdk's import reads a source master key in, so a
 # key given here in hex is re-encoded rather than handed over as typed.
@@ -89,6 +93,9 @@ gproxy-seaorm = { workspace = true }
 gproxy-store = { workspace = true }
 # The generated first-run password, and nothing else.
 getrandom = { workspace = true }
+# `regex::escape`, for the one v3 rewrite action that names literal text where
+# v4 wants a pattern. Compiling the result is core's job, not this crate's.
+regex = { workspace = true }
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -97,6 +104,9 @@ tokio = { workspace = true }
 toml = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+# The v3 master key and the opened secrets are wiped rather than left in a
+# freed allocation for the rest of the process.
+zeroize = { workspace = true }
 
 [dev-dependencies]
 http = { workspace = true }

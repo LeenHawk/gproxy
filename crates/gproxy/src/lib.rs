@@ -38,6 +38,7 @@
 //! | `bootstrap admin` | create the first administrator, idempotently |
 //! | `export` | the instance's configuration as one JSON document |
 //! | `import` | replay such a document, merging or replacing |
+//! | `import --from-v3` | replay a **v3** deployment's export into a fresh v4 database |
 
 pub mod bootstrap;
 pub mod cli;
@@ -49,6 +50,7 @@ pub mod rotate;
 pub mod serve;
 pub mod telemetry;
 pub mod transfer;
+pub mod v3;
 
 pub use cli::{Cli, Command};
 pub use config::Settings;
@@ -85,13 +87,32 @@ pub async fn run(cli: Cli) -> Result<()> {
         }
         Command::Import {
             input,
+            from_v3,
             mode,
             source_master_key,
         } => {
             let instance = instance::open(&settings, instance::OpenOptions::management()).await?;
-            transfer::import(&instance.app, &input, mode, source_master_key.as_deref()).await?;
+            let result = match (&input, &from_v3) {
+                (_, Some(document)) => {
+                    v3::import(
+                        &instance.app,
+                        document,
+                        source_master_key.as_deref(),
+                        &settings.admin,
+                    )
+                    .await
+                    .map(|report| report.announce())
+                }
+                (Some(document), None) => {
+                    transfer::import(&instance.app, document, mode, source_master_key.as_deref())
+                        .await
+                }
+                // `clap` requires one of the two; this arm exists so the
+                // grammar and the dispatch cannot drift apart silently.
+                (None, None) => Err(Error::other("import needs --in or --from-v3")),
+            };
             instance.app.gproxy().shutdown();
-            Ok(())
+            result
         }
     }
 }
