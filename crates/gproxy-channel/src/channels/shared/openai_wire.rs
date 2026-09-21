@@ -22,6 +22,12 @@ use crate::channel::{
     UsageStreamEnd,
 };
 use gproxy_protocol::codec::{CodecLimits, SseDecoder, SseFrame};
+#[cfg(any(
+    feature = "aistudio",
+    feature = "claudeapi",
+    feature = "openai",
+    feature = "workbuddy"
+))]
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, Operation};
 use rust_decimal::Decimal;
@@ -45,6 +51,15 @@ const SSE_LIMITS: CodecLimits = CodecLimits {
 /// `response.completed` without being asked, so this is Chat-only. A body that
 /// is not a JSON object, or whose `stream_options` is not an object, is left
 /// exactly as the client sent it: metering never breaks a request.
+///
+/// Only the channels that pass a Chat body through compile it; `kiro` reuses
+/// the reading below against a stream it synthesizes itself.
+#[cfg(any(
+    feature = "aistudio",
+    feature = "claudeapi",
+    feature = "openai",
+    feature = "workbuddy"
+))]
 pub(crate) fn stream_usage_opt_in(bytes: Bytes) -> Bytes {
     let Some(mut body) = serde_json::from_slice::<Value>(&bytes)
         .ok()

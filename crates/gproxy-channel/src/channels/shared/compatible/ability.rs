@@ -10,7 +10,7 @@ use crate::OutboundClient;
 use crate::channel::ChannelError;
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{HttpBody, WireResponse};
-use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
+use http::{HeaderMap, Method, StatusCode};
 use rust_decimal::Decimal;
 use serde_json::Value;
 
@@ -41,8 +41,17 @@ pub(crate) async fn send(
     Ok((status, headers, read_body(body).await?))
 }
 
-/// `Accept: application/json` plus a bearer token.
+/// `Accept: application/json` plus a bearer token. Only the channels whose
+/// ability calls carry nothing else build their headers this way.
+#[cfg(any(
+    feature = "deepseek",
+    feature = "kimi",
+    feature = "opencode",
+    feature = "openrouter",
+    feature = "xai"
+))]
 pub(crate) fn bearer(token: &str) -> Result<HeaderMap, ChannelError> {
+    use http::{HeaderValue, header};
     let mut headers = HeaderMap::new();
     headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
     headers.insert(

@@ -13,6 +13,7 @@
     feature = "cline",
     feature = "copilotcli",
     feature = "deepseek",
+    feature = "grokbuild",
     feature = "kimi",
     feature = "opencode",
     feature = "openrouter",

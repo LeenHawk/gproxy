@@ -28,12 +28,15 @@ Cargo feature：
 | `deepseek` | `deepseek` | DeepSeek：`/v1` 下的 Chat Completions、根路径上的 Responses、`/anthropic` 下的 Claude Messages、`prompt_cache_hit_tokens`、`/user/balance` | `{"api_key"}` |
 | `devin` | `devin` | `server.codeium.com` 上的 Devin（Windsurf）：传输是 Connect-RPC + protobuf 而非 JSON，`GetChatMessage` 的多帧流翻译成 Chat Completions SSE，`GetUserStatus` 给日／周两个窗口 | 会话 token |
 | `geminicli` | `geminicli` | 经 Gemini CLI 所用的 Code Assist 端点使用的 Google 账号：PKCE 登录并在登录时发现 Cloud project 与档位、刷新、Code Assist 请求信封、`retrieveUserQuota` 目录与逐模型额度 | `OAuthCredential` |
+| `grokbuild` | `grokbuild` | 经 Grok Build CLI 使用的 xAI 账号：`auth.x.ai` 的设备登录与刷新、打在 `cli-chat-proxy.grok.com` 上的收窄版 Responses body、留在 `api.x.ai` 的 xAI 自有媒体路径、`/billing?format=credits` | `OAuthCredential` |
 | `kimi` | `kimi` | 月之暗面：用 API key 走 `api.moonshot.cn` 平台，或用设备登录走 `api.kimi.com` 的 Kimi Code 订阅（刷新、CLI 的 `x-msh-*` 身份头）；额度是 `/usages` 窗口或现金余额 | `{"api_key"}` 或 `OAuthCredential` |
+| `kiro` | `kiro` | 经 Kiro 桌面端使用的 AWS CodeWhisperer：设备登录或 IAM Identity Center 登录、刷新、把 Responses 请求改写成 CodeWhisperer 会话信封、把 AWS event-stream 回包翻译回 Responses SSE、`GetUsageLimits` 的额度窗口 | `OAuthCredential` |
 | `openai` | `openai` | OpenAI 自家平台：完整 OpenAI 面、WebSocket 上的 Responses 与 Realtime、`x-ratelimit-*` 头、`/v1/organization/costs` | `{"api_key", "quota_api_key"}` |
 | `opencode` | `opencode` | OpenCode Zen 与 Go：每档一个 origin，上面同时挂 Chat Completions、Responses 与 Claude Messages 三个面，CLI 的 `x-opencode-session` 会话头、Console 设备登录，Go 档的 `/usage` 窗口 | `{"api_key"}` 或 `OAuthCredential` |
 | `openrouter` | `openrouter` | OpenRouter：把 provider 选路偏好填进 body、`HTTP-Referer`／`X-Title` 归属头、响应里自报的价格、`/v1/auth/key` | `{"api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI：按项目与地区寻址 google／anthropic／OpenAI 兼容三个发布者；服务账号密钥经 `CredentialRefresh` 换取访问令牌 | Google 服务账号密钥 |
 | `vertexexpress` | `vertexexpress` | Vertex AI Express 模式：单一全局 origin 上的 Gemini 面，key 走 query，无项目无地区 | `{"api_key"}` |
+| `workbuddy` | `workbuddy` | 经编辑器插件使用的腾讯 Copilot：设备登录与刷新、`/v2` 下带插件身份头与账号头的 OpenAI Chat、`/v3/config` 目录、企业与个人两套计费表 | `OAuthCredential` |
 | `xai` | `xai` | xAI（Grok）：OpenAI Chat 与 Responses，外加 xAI 自己的 `/v1/tts`、`/v1/stt`、`/v1/videos/generations`，`cost_in_usd_ticks` 计量，管理面的账单探测 | `{"api_key"}` |
 
 `claudeapi`、`openai`、`aistudio` 是三家厂商自己的第一方 API。它们成为渠道而不是
@@ -82,6 +85,17 @@ user agent、主机和目录方法。
 `CredentialRefresh`——GitHub 令牌是 refresh token，Copilot 令牌是 access token——因为
 `prepare` 是同步且纯的，放在那里会每个请求都换一次。登录的最后一步先换一次，宿主落库的
 凭证因此立刻可用。
+
+`kiro`、`workbuddy`、`grokbuild` 是另外三个 CLI 仿真面，彼此只共享这个形状：一家厂商
+的编码工具、它的账号登录、以及它发的身份头。`kiro` 离公开 API 最远——CodeWhisperer
+收的是 Smithy JSON 的会话信封，回的是 AWS event-stream 分帧，所以渠道把 Responses body
+改写成信封，再把回包翻译回 Responses SSE。`workbuddy` 与 `grokbuild` 讲的是 OpenAI，
+它们的活是身份与收窄：WorkBuddy 的账号头块与网关信封，Grok Build 的双 origin 与它的
+chat proxy 拒收的那批 Responses 字段。三者都读客户端自己发的 session，而不是新铸一个：
+`design/session-identity.md` 点名了 WorkBuddy 的 `x-conversation-id` 与 Grok Build 的
+`x-grok-session-id`，也点名了它们旁边那些按请求／按轮次生成的 id **不是** session。
+Kiro 在那张阶梯表里没有条目，它的客户端也不发。
+
 ## 不需要渠道的厂商
 
 一个渠道就是一份要跟着别人 wire 维护的代码。只有当"Provider 行表达不了它要的

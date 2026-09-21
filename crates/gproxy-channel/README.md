@@ -30,12 +30,15 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `deepseek` | `deepseek` | DeepSeek: Chat Completions under `/v1`, Responses at the origin root, Claude Messages under `/anthropic`, `prompt_cache_hit_tokens`, `/user/balance` | `{"api_key"}` |
 | `devin` | `devin` | Devin (Windsurf) at `server.codeium.com`: Connect-RPC over protobuf rather than JSON, `GetChatMessage` frames translated into Chat Completions SSE, `GetUserStatus` daily and weekly windows | session token |
 | `geminicli` | `geminicli` | A Google account through the Code Assist endpoints the Gemini CLI talks to: PKCE login that discovers the Cloud project and tier, refresh, the Code Assist request envelope, `retrieveUserQuota` catalogue and per-model quota | `OAuthCredential` |
+| `grokbuild` | `grokbuild` | An xAI account through the Grok Build CLI: device login at `auth.x.ai`, refresh, a narrowed Responses body on `cli-chat-proxy.grok.com`, xAI's own media paths on `api.x.ai`, `/billing?format=credits` | `OAuthCredential` |
 | `kimi` | `kimi` | Moonshot: the platform at `api.moonshot.cn` with an API key, or the Kimi Code subscription at `api.kimi.com` through a device login, refresh and the CLI's `x-msh-*` identity; `/usages` windows or a cash balance | `{"api_key"}` or `OAuthCredential` |
+| `kiro` | `kiro` | AWS CodeWhisperer through the Kiro desktop app: device or IAM Identity Center login, refresh, a Responses request turned into the CodeWhisperer conversation envelope, an AWS event-stream reply translated back into Responses SSE, `GetUsageLimits` credit windows | `OAuthCredential` |
 | `openai` | `openai` | OpenAI's own platform: the full OpenAI surface, Responses and Realtime over a WebSocket, `x-ratelimit-*` headers, `/v1/organization/costs` | `{"api_key", "quota_api_key"}` |
 | `opencode` | `opencode` | OpenCode Zen and Go: Chat Completions, Responses and Claude Messages on one origin per tier, the CLI's `x-opencode-session` affinity header, a Console device login and the Go tier's `/usage` windows | `{"api_key"}` or `OAuthCredential` |
 | `openrouter` | `openrouter` | OpenRouter: provider routing preferences filled into the body, `HTTP-Referer`/`X-Title` attribution, the price the reply says it charged, `/v1/auth/key` | `{"api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI: regional project-scoped methods for the Google, Anthropic and OpenAI-compatible publishers; a service-account key exchanged for an access token through `CredentialRefresh` | Google service-account key |
 | `vertexexpress` | `vertexexpress` | Vertex AI Express mode: the Gemini surface on one global origin, key in the query, no project and no region | `{"api_key"}` |
+| `workbuddy` | `workbuddy` | Tencent Copilot through its editor plugin: device login, refresh, OpenAI Chat under `/v2` with the plugin's identity and account headers, the `/v3/config` catalogue, the enterprise and personal billing meters | `OAuthCredential` |
 | `xai` | `xai` | xAI (Grok): OpenAI Chat and Responses plus xAI's own `/v1/tts`, `/v1/stt` and `/v1/videos/generations`, `cost_in_usd_ticks` metering, the management billing probe | `{"api_key"}` |
 
 Every channel builds for native targets and `wasm32-unknown-unknown`.
@@ -106,6 +109,22 @@ That mint is `CredentialRefresh` — the GitHub token is the refresh token and
 the Copilot token the access token — because `prepare` is synchronous and pure
 and would otherwise re-mint on every request. The login's final step performs
 the first mint, so the credential the host persists is usable at once.
+
+`kiro`, `workbuddy` and `grokbuild` are three more CLI impersonation
+channels, and share nothing but that shape: each is one vendor's coding tool,
+its account login, and the identity headers that tool sends. `kiro` is the
+furthest from any public API — CodeWhisperer takes a conversation envelope
+over Smithy JSON and answers in AWS event-stream framing, so the channel
+builds the envelope from a Responses body and translates the reply back into
+Responses SSE. `workbuddy` and `grokbuild` speak OpenAI, and their work is
+identity and narrowing: WorkBuddy's account block and gateway envelope,
+Grok Build's two origins and the Responses fields its chat proxy refuses.
+All three read the session id their client sent rather than minting one:
+`design/session-identity.md` names WorkBuddy's `x-conversation-id` and Grok
+Build's `x-grok-session-id`, and names the per-request and per-turn ids
+beside them as explicitly not sessions. Kiro has no entry in that ladder and
+its client sends none.
+
 ## Vendors That Need No Channel
 
 A channel is code to maintain against someone else's wire. A vendor earns one
