@@ -39,14 +39,24 @@ export function QuotaWindows({ windows }: { windows: Array<PortalQuotaWindowDto>
               <span className="text-sm font-medium">{t(`values.${window.ownerKind}`)}</span>
               <Badge variant={tone(percent)}>{window.period}</Badge>
             </div>
-            <p className="font-mono text-xs text-muted-foreground">{window.windowKey}</p>
+            {/*
+              `break-all`, because a window key is an opaque identifier with no
+              promise of a space in it. A grid track cannot shrink below its
+              item's min-content width, so one unbreakable key does not
+              overflow its own card — it widens every card in the list and
+              scrolls the whole document sideways. The glob below it breaks on
+              words, since it has separators worth breaking at first.
+            */}
+            <p className="font-mono text-xs break-all text-muted-foreground">{window.windowKey}</p>
             <Progress value={percent === null ? 0 : Math.min(100, percent)} />
             <p className="text-sm">
               {amount(window.used, window.unit)}
               <span className="text-muted-foreground"> / {amount(window.limit, window.unit)}</span>
             </p>
             {window.modelPattern ? (
-              <p className="text-xs text-muted-foreground">{t("quota.pattern", { pattern: window.modelPattern })}</p>
+              <p className="text-xs break-words text-muted-foreground">
+                {t("quota.pattern", { pattern: window.modelPattern })}
+              </p>
             ) : null}
             <p className="text-xs text-muted-foreground">
               {window.resetsAtMs === null
