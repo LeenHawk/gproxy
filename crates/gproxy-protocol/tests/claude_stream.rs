@@ -22,45 +22,6 @@ fn event_rest(v: &StreamEvent) -> &gproxy_protocol::Rest {
     }
 }
 #[test]
-fn official_sse_data_sequences_deserialize_without_a_transport_parser() {
-    let doc = include_str!("../../../upstream_docs/claude/docs/Streaming Messages.md");
-    let mut count = 0;
-    let mut abbreviated = 0;
-    for line in doc.lines() {
-        if let Some(data) = line.strip_prefix("data: ") {
-            let Ok(wire) = serde_json::from_str::<Value>(data) else {
-                continue;
-            };
-            // The guide's abbreviated thinking example omits required usage
-            // at start and delta. BetaMessage and BetaRawMessageDeltaEvent in
-            // the official Python SDK both require it; do not weaken the model.
-            if (wire["type"] == "message_start" && wire["message"].get("usage").is_none())
-                || (wire["type"] == "message_delta" && wire.get("usage").is_none())
-            {
-                assert!(serde_json::from_value::<StreamEvent>(wire).is_err());
-                abbreviated += 1;
-                continue;
-            }
-            // The web-search guide fixture likewise predates required
-            // BetaServerToolUsage.web_fetch_requests (SDK confirms both counts).
-            if wire
-                .get("usage")
-                .and_then(|u| u.get("server_tool_use"))
-                .is_some_and(|u| u.get("web_fetch_requests").is_none())
-            {
-                assert!(serde_json::from_value::<StreamEvent>(wire).is_err());
-                abbreviated += 1;
-                continue;
-            }
-            let p = round::<StreamEvent>(wire);
-            assert!(event_rest(&p).is_empty());
-            count += 1;
-        }
-    }
-    assert_eq!(abbreviated, 3);
-    assert!(count > 50, "all documented SSE data examples: {count}");
-}
-#[test]
 fn eight_events_six_deltas_and_unknown_extensions_preserve_typed_fields() {
     for wire in [
         json!({"type":"message_start","message":{"type":"message","id":"m","role":"assistant","content":[],"model":"m","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":1,"output_tokens":1}}}),

@@ -17,6 +17,10 @@ All declared fields and variants follow the referenced vendor API or official cl
 source contract permits it. Bounded body codecs and conversion identity helpers are available;
 network clients and semantic cross-format conversions remain separate implementation stages.
 
+These types were written against the vendors' own published documentation, and the tests that
+read that documentation and check the types against it live with the documentation, in a
+separate repository, rather than here.
+
 ## Installation
 
 The Cargo dependency for the v4 prerelease is:

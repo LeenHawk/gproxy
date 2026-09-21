@@ -86,42 +86,6 @@ where
 }
 
 #[test]
-fn official_create_message_response_example_has_no_known_fields_in_rest() {
-    let documentation = include_str!("../../../upstream_docs/claude/docs/Create a Message.md");
-    let example = documentation
-        .split("#### Response\n\n```json\n")
-        .nth(1)
-        .unwrap();
-    let example = example.split("\n```").next().unwrap();
-    let body: GenerateContentResponseBody =
-        round_trip_known(serde_json::from_str(example).unwrap());
-    let ResponseContentBlock::Text(text) = &body.content[0] else {
-        panic!("text");
-    };
-    let ResponseTextCitation::Char(citation) =
-        &text.citations.as_ref().unwrap().as_ref().unwrap()[0]
-    else {
-        panic!("char citation");
-    };
-    assert_eq!(
-        citation.file_id.as_ref().unwrap().as_deref(),
-        Some("file_011CNha8iCJcU1wXNR6q4V8w")
-    );
-    assert!(matches!(body.stop_reason, StopReason::EndTurn));
-    assert_eq!(body.stop_sequence, Some(None));
-    assert!(matches!(
-        body.usage
-            .fallback_credit
-            .as_ref()
-            .unwrap()
-            .as_ref()
-            .unwrap()
-            .status,
-        FallbackCreditStatus::Redeemed(_)
-    ));
-}
-
-#[test]
 fn request_fallback_unions_and_diagnostics_null_round_trip() {
     use serde_json::json;
     for token in [
