@@ -1722,6 +1722,7 @@ dependencies = [
  "gproxy-client",
  "gproxy-protocol",
  "http",
+ "miniz_oxide",
  "rsa",
  "rust_decimal",
  "send_wrapper",

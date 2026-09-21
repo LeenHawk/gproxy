@@ -20,10 +20,11 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `codex` | `codex` | ChatGPT account through the Codex backend: OAuth (PKCE and device code), Responses over HTTP SSE and WebSocket, `x-codex-*` limit headers, `/wham/usage`, CLI backend services | `OAuthCredential` |
 | `claudecode` | `claudecode` | Claude.ai subscription through the Claude Code CLI's Messages requests: PKCE and cookie login, refresh, unified rate-limit headers, `/api/oauth/usage`, CLI services | `OAuthCredential` |
 | `claudeweb` | `claudeweb` | claude.ai browser session: cookie login against `/api/bootstrap`, multi-call conversation turns rendered as Claude Messages SSE, organization usage windows | session cookie + organization |
+| `devin` | `devin` | Devin (Windsurf) at `server.codeium.com`: Connect-RPC over protobuf rather than JSON, `GetChatMessage` frames translated into Chat Completions SSE, `GetUserStatus` daily and weekly windows | session token |
 | `vertex` | `vertex` | Google Vertex AI: regional project-scoped methods for the Google, Anthropic and OpenAI-compatible publishers; a service-account key exchanged for an access token through `CredentialRefresh` | Google service-account key |
 | `vertexexpress` | `vertexexpress` | Vertex AI Express mode: the Gemini surface on one global origin, key in the query, no project and no region | `{"api_key"}` |
 
-All seven build for native targets and `wasm32-unknown-unknown`.
+All eight build for native targets and `wasm32-unknown-unknown`.
 
 `azure`, `vertex` and `vertexexpress` are cloud resellers: they forward each
 hosted vendor's own wire and change only where the method lives and how the

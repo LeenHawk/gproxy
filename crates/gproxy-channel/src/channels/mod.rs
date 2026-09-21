@@ -11,6 +11,8 @@ pub mod claudeweb;
 pub mod codex;
 #[cfg(feature = "custom")]
 pub mod custom;
+#[cfg(feature = "devin")]
+pub mod devin;
 #[cfg(any(
     feature = "azure",
     feature = "codex",
