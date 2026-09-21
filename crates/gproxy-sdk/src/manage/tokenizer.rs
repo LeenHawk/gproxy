@@ -40,10 +40,7 @@ const DEFAULT_FILENAME: &str = "tokenizer.json";
 /// The `file_objects.storage_name` a vocabulary is written under. It is what
 /// tells a vocabulary apart from a published request body in the same table.
 const STORAGE_NAME: &str = "tokenizer";
-/// The settings row has no credential id of its own, so this constant binds
-/// its sealed token to the row. It must stay identical to the one
-/// `manage::settings` seals with: both write the same column.
-const TOKENIZER_SECRET_ID: &str = "settings:tokenizer_auth_token";
+use super::settings::TOKENIZER_SECRET_ID;
 
 /// Download progress, published as the bytes arrive.
 ///

@@ -215,8 +215,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> SettingsManage<'_, C> {
 }
 
 /// The settings row has no credential id of its own; this constant binds its
-/// sealed token to the row instead.
-const TOKENIZER_SECRET_ID: &str = "settings:tokenizer_auth_token";
+/// sealed token to the row instead. `manage::tokenizer` seals the same column,
+/// so it reads this one rather than keeping a copy that could drift.
+pub(super) const TOKENIZER_SECRET_ID: &str = "settings:tokenizer_auth_token";
 
 fn empty_array() -> serde_json::Value {
     serde_json::Value::Array(Vec::new())
