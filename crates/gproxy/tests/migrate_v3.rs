@@ -205,7 +205,10 @@ fn write_document(directory: &std::path::Path, document: &Value) -> std::path::P
 
 /// The source key as an operator would type it: the hex of `GPROXY_MASTER_KEY`.
 fn source_key() -> String {
-    V3_MASTER_KEY.iter().map(|byte| format!("{byte:02x}")).collect()
+    V3_MASTER_KEY
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 // ----------------------------------------------------------- round trip --
@@ -345,11 +348,17 @@ async fn a_v3_deployment_becomes_a_working_v4_one() {
 
     // ---- the rest of the deployment --------------------------------------
     assert_eq!(one(store.routes()).await.name, "claude");
-    assert_eq!(one(store.route_members()).await.upstream_model, "claude-sonnet-4");
+    assert_eq!(
+        one(store.route_members()).await.upstream_model,
+        "claude-sonnet-4"
+    );
     assert_eq!(one(store.exposed_models()).await.name, "claude-sonnet-4");
     assert_eq!(one(store.organizations()).await.name, "acme");
     assert_eq!(one(store.teams()).await.name, "core");
-    assert_eq!(one(store.rate_limits()).await.limit_value.to_string(), "120");
+    assert_eq!(
+        one(store.rate_limits()).await.limit_value.to_string(),
+        "120"
+    );
     assert_eq!(one(store.permissions()).await.model_pattern, "claude-*");
     assert_eq!(
         one(store.provider_models()).await.upstream_name,
@@ -365,7 +374,11 @@ async fn a_v3_deployment_becomes_a_working_v4_one() {
     let ids: Vec<_> = quotas.iter().map(|row| row.id.as_str()).collect();
     assert_eq!(
         ids,
-        ["v3-credentials-1-rpm", "v3-quotas-1-daily", "v3-quotas-1-total"]
+        [
+            "v3-credentials-1-rpm",
+            "v3-quotas-1-daily",
+            "v3-quotas-1-total"
+        ]
     );
 
     // The administrator got the password the flag supplied; v3's export has
@@ -406,9 +419,14 @@ async fn importing_the_same_document_twice_is_the_same_deployment() {
     let instance = open(&settings).await;
 
     for attempt in 1..=2 {
-        gproxy::v3::import(&instance.app, &document, Some(&source_key()), &settings.admin)
-            .await
-            .unwrap_or_else(|error| panic!("import {attempt} failed: {error}"));
+        gproxy::v3::import(
+            &instance.app,
+            &document,
+            Some(&source_key()),
+            &settings.admin,
+        )
+        .await
+        .unwrap_or_else(|error| panic!("import {attempt} failed: {error}"));
     }
 
     let store = instance.app.gproxy().store();
@@ -490,10 +508,15 @@ async fn a_key_under_a_digest_rule_this_build_does_not_know_is_refused() {
     let document = write_document(directory.path(), &export);
     let instance = open(&settings).await;
 
-    let error = gproxy::v3::import(&instance.app, &document, Some(&source_key()), &settings.admin)
-        .await
-        .unwrap_err()
-        .to_string();
+    let error = gproxy::v3::import(
+        &instance.app,
+        &document,
+        Some(&source_key()),
+        &settings.admin,
+    )
+    .await
+    .unwrap_err()
+    .to_string();
     assert!(error.contains("digest version 2"), "{error}");
     assert!(error.contains("could never authenticate"), "{error}");
 
@@ -510,10 +533,15 @@ async fn an_export_taken_without_secrets_is_refused_before_anything_is_written()
     let document = write_document(directory.path(), &export);
     let instance = open(&settings).await;
 
-    let error = gproxy::v3::import(&instance.app, &document, Some(&source_key()), &settings.admin)
-        .await
-        .unwrap_err()
-        .to_string();
+    let error = gproxy::v3::import(
+        &instance.app,
+        &document,
+        Some(&source_key()),
+        &settings.admin,
+    )
+    .await
+    .unwrap_err()
+    .to_string();
     assert!(error.contains("include_secrets"), "{error}");
 
     instance.app.gproxy().shutdown();
@@ -533,10 +561,15 @@ async fn a_destination_that_already_has_configuration_is_refused() {
         .await
         .unwrap();
 
-    let error = gproxy::v3::import(&instance.app, &document, Some(&source_key()), &settings.admin)
-        .await
-        .unwrap_err()
-        .to_string();
+    let error = gproxy::v3::import(
+        &instance.app,
+        &document,
+        Some(&source_key()),
+        &settings.admin,
+    )
+    .await
+    .unwrap_err()
+    .to_string();
     assert!(error.contains("configuration of its own"), "{error}");
     assert!(error.contains("gproxy migrate"), "{error}");
 
@@ -615,18 +648,19 @@ async fn all<C, E>(repository: gproxy_store::Repository<'_, C, E>) -> Vec<E::Mod
 where
     C: gproxy_seaorm::BatchConnectionTrait,
     E: sea_orm::EntityTrait,
-    <E::PrimaryKey as sea_orm::PrimaryKeyTrait>::ValueType:
-        Clone + Eq + std::hash::Hash + Sync,
+    <E::PrimaryKey as sea_orm::PrimaryKeyTrait>::ValueType: Clone + Eq + std::hash::Hash + Sync,
 {
-    repository.query(<E as sea_orm::EntityTrait>::find()).await.unwrap()
+    repository
+        .query(<E as sea_orm::EntityTrait>::find())
+        .await
+        .unwrap()
 }
 
 async fn one<C, E>(repository: gproxy_store::Repository<'_, C, E>) -> E::Model
 where
     C: gproxy_seaorm::BatchConnectionTrait,
     E: sea_orm::EntityTrait,
-    <E::PrimaryKey as sea_orm::PrimaryKeyTrait>::ValueType:
-        Clone + Eq + std::hash::Hash + Sync,
+    <E::PrimaryKey as sea_orm::PrimaryKeyTrait>::ValueType: Clone + Eq + std::hash::Hash + Sync,
 {
     let mut rows = all(repository).await;
     assert_eq!(rows.len(), 1, "expected exactly one row");

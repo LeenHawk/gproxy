@@ -93,16 +93,14 @@ pub async fn run(cli: Cli) -> Result<()> {
         } => {
             let instance = instance::open(&settings, instance::OpenOptions::management()).await?;
             let result = match (&input, &from_v3) {
-                (_, Some(document)) => {
-                    v3::import(
-                        &instance.app,
-                        document,
-                        source_master_key.as_deref(),
-                        &settings.admin,
-                    )
-                    .await
-                    .map(|report| report.announce())
-                }
+                (_, Some(document)) => v3::import(
+                    &instance.app,
+                    document,
+                    source_master_key.as_deref(),
+                    &settings.admin,
+                )
+                .await
+                .map(|report| report.announce()),
                 (Some(document), None) => {
                     transfer::import(&instance.app, document, mode, source_master_key.as_deref())
                         .await

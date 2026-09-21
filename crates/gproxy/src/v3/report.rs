@@ -40,7 +40,12 @@ impl Report {
         }
     }
 
-    pub fn drop_row(&mut self, table: &'static str, row: impl Into<String>, reason: impl Into<String>) {
+    pub fn drop_row(
+        &mut self,
+        table: &'static str,
+        row: impl Into<String>,
+        reason: impl Into<String>,
+    ) {
         self.dropped.push(Dropped {
             table,
             row: row.into(),
@@ -144,7 +149,11 @@ mod tests {
     #[test]
     fn a_dropped_row_keeps_its_table_its_row_and_its_reason() {
         let mut report = Report::default();
-        report.drop_row("rules", "id 9 (system_text)", "v4 rewrites are replacements");
+        report.drop_row(
+            "rules",
+            "id 9 (system_text)",
+            "v4 rewrites are replacements",
+        );
         assert_eq!(
             report.dropped[0],
             Dropped {

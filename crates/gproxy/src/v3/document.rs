@@ -539,10 +539,7 @@ mod tests {
                 "source_key":{"mode":"sealed","fingerprint":"abcd"},"data":{}}"#,
         )
         .unwrap();
-        assert!(matches!(
-            export.source_key,
-            Some(SourceKey::Sealed { .. })
-        ));
+        assert!(matches!(export.source_key, Some(SourceKey::Sealed { .. })));
     }
 
     #[test]
@@ -558,7 +555,13 @@ mod tests {
         .unwrap();
         assert_eq!(export.data.credentials[0].config.id, 7);
         assert_eq!(export.data.credentials[0].config.kind, "oauth");
-        assert!(export.data.credentials[0].secret.as_ref().unwrap().is_plaintext());
+        assert!(
+            export.data.credentials[0]
+                .secret
+                .as_ref()
+                .unwrap()
+                .is_plaintext()
+        );
         assert_eq!(export.data.user_keys[0].digest, vec![0, 255]);
         assert_eq!(export.data.user_keys[0].digest_version, DIGEST_VERSION);
     }
@@ -580,8 +583,7 @@ mod tests {
     /// loads and a supplemented one carries them.
     #[test]
     fn the_supplementary_lists_default_to_empty_and_read_v3s_own_dtos() {
-        let bare: Document =
-            serde_json::from_str(r#"{"format_version":1,"data":{}}"#).unwrap();
+        let bare: Document = serde_json::from_str(r#"{"format_version":1,"data":{}}"#).unwrap();
         assert!(bare.data.permissions.is_empty());
 
         let full: Document = serde_json::from_str(
