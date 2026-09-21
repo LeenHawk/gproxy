@@ -8,6 +8,7 @@
     feature = "claudeweb",
     feature = "codex",
     feature = "custom",
+    feature = "opencode",
     feature = "openrouter"
 ))]
 pub(crate) mod cache;
@@ -16,9 +17,12 @@ pub(crate) mod cache;
 pub(crate) mod code_assist;
 /// Bounded ability calls and streaming usage for the API-key fleet.
 #[cfg(any(
+    feature = "cline",
+    feature = "copilotcli",
     feature = "dashscope",
     feature = "deepseek",
     feature = "kimi",
+    feature = "opencode",
     feature = "openrouter",
     feature = "xai"
 ))]

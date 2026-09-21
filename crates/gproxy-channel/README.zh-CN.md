@@ -20,7 +20,9 @@ Cargo feature：
 | `claudeapi` | `claudeapi` | Anthropic 自家 API：`x-api-key` 的 Messages，含该 API 要求的请求 hygiene 与服务端 fallback、OpenAI SDK 兼容层、`anthropic-ratelimit-*` 头、`/v1/organizations/cost_report` | `{"api_key", "quota_api_key"}` |
 | `claudecode` | `claudecode` | 经 Claude Code CLI 的 Messages 请求使用的 Claude.ai 订阅：PKCE 与 cookie 登录、刷新、统一限速头、`/api/oauth/usage`、CLI 服务 | `OAuthCredential` |
 | `claudeweb` | `claudeweb` | claude.ai 浏览器会话：对 `/api/bootstrap` 的 cookie 登录、多次调用组成的对话轮次翻译成 Claude Messages SSE、组织级用量窗口 | 会话 cookie + 组织 |
+| `cline` | `cline` | `api.cline.bot` 上 Cline 自己的账号：WorkOS 设备登录后再向 Cline 注册、带 `workos:` 前缀的 bearer、SDK 的归属头、响应外面那层 `{success, data}` 信封、它自己的推荐模型分组、套餐窗口与信用点余额 | `{"api_key"}` 或 `OAuthCredential` |
 | `codex` | `codex` | 经 Codex 后端使用的 ChatGPT 账号：OAuth（PKCE 与 device code）、HTTP SSE 与 WebSocket 上的 Responses、`x-codex-*` 限额头、`/wham/usage`、CLI 后端服务 | `OAuthCredential` |
+| `copilotcli` | `copilotcli` | 经 `copilot` CLI 使用的 GitHub Copilot：GitHub 设备登录拿到的长期令牌由 `CredentialRefresh` 换成短期 Copilot 令牌、CLI 的编辑器身份头、按席位决定的 origin、`copilot_internal/user` 的额度快照 | GitHub OAuth 令牌（+ 换来的 Copilot 令牌） |
 | `custom` | `custom` | 任何原生讲 OpenAI／Claude／Gemini 的 API-key 端点 | `{"api_key"}` |
 | `dashscope` | `dashscope` | 阿里云百炼 DashScope：同一 origin 上的 OpenAI 兼容面、Anthropic 兼容面、独立的 rerank 前缀，以及原生的多模态生成图像 API | `{"api_key"}` |
 | `deepseek` | `deepseek` | DeepSeek：`/v1` 下的 Chat Completions、根路径上的 Responses、`/anthropic` 下的 Claude Messages、`prompt_cache_hit_tokens`、`/user/balance` | `{"api_key"}` |
@@ -28,6 +30,7 @@ Cargo feature：
 | `geminicli` | `geminicli` | 经 Gemini CLI 所用的 Code Assist 端点使用的 Google 账号：PKCE 登录并在登录时发现 Cloud project 与档位、刷新、Code Assist 请求信封、`retrieveUserQuota` 目录与逐模型额度 | `OAuthCredential` |
 | `kimi` | `kimi` | 月之暗面：用 API key 走 `api.moonshot.cn` 平台，或用设备登录走 `api.kimi.com` 的 Kimi Code 订阅（刷新、CLI 的 `x-msh-*` 身份头）；额度是 `/usages` 窗口或现金余额 | `{"api_key"}` 或 `OAuthCredential` |
 | `openai` | `openai` | OpenAI 自家平台：完整 OpenAI 面、WebSocket 上的 Responses 与 Realtime、`x-ratelimit-*` 头、`/v1/organization/costs` | `{"api_key", "quota_api_key"}` |
+| `opencode` | `opencode` | OpenCode Zen 与 Go：每档一个 origin，上面同时挂 Chat Completions、Responses 与 Claude Messages 三个面，CLI 的 `x-opencode-session` 会话头、Console 设备登录，Go 档的 `/usage` 窗口 | `{"api_key"}` 或 `OAuthCredential` |
 | `openrouter` | `openrouter` | OpenRouter：把 provider 选路偏好填进 body、`HTTP-Referer`／`X-Title` 归属头、响应里自报的价格、`/v1/auth/key` | `{"api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI：按项目与地区寻址 google／anthropic／OpenAI 兼容三个发布者；服务账号密钥经 `CredentialRefresh` 换取访问令牌 | Google 服务账号密钥 |
 | `vertexexpress` | `vertexexpress` | Vertex AI Express 模式：单一全局 origin 上的 Gemini 面，key 走 query，无项目无地区 | `{"api_key"}` |
@@ -67,6 +70,18 @@ AI Studio 在同一个 origin 上放了两套面、各要各的凭证头。
 打这两个工具各自使用的 Code Assist 内部端点，而不是 Gemini API key。两者共用 Code Assist
 请求信封、Google 登录以及登录时一次性的 project 与档位发现，区别在 client id、scope、
 user agent、主机和目录方法。
+
+`cline`、`copilotcli`、`opencode` 是三个有自己账号体系的编码工具，不是厂商。它们各自把
+很多模型挡在一条自己没有发明的 wire 后面，所以渠道存在的理由全在请求周围：一个从 A 处
+开始却在 B 处结束的设备登录、一份推理端点根本不收的凭证、一层包着回答的信封、一个不是
+模型列表的目录、一个和流量不在同一台主机上的账号面。三者里只有 `copilotcli` 有值得复现的
+客户端身份（v3 只给它写了 `profile.rs`），所以也只有它返回 `default_connection`。
+
+`copilotcli` 是唯一"拿到的凭证不能直接用"的渠道。GitHub 设备登录给出的是长期 GitHub OAuth
+令牌，而 Chat Completions 只收由它换来的、有效期以分钟计的 Copilot 令牌。这次交换被建模成
+`CredentialRefresh`——GitHub 令牌是 refresh token，Copilot 令牌是 access token——因为
+`prepare` 是同步且纯的，放在那里会每个请求都换一次。登录的最后一步先换一次，宿主落库的
+凭证因此立刻可用。
 ## 不需要渠道的厂商
 
 一个渠道就是一份要跟着别人 wire 维护的代码。只有当"Provider 行表达不了它要的

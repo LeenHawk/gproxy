@@ -15,8 +15,12 @@ pub mod claudeapi;
 pub mod claudecode;
 #[cfg(feature = "claudeweb")]
 pub mod claudeweb;
+#[cfg(feature = "cline")]
+pub mod cline;
 #[cfg(feature = "codex")]
 pub mod codex;
+#[cfg(feature = "copilotcli")]
+pub mod copilotcli;
 #[cfg(feature = "custom")]
 pub mod custom;
 #[cfg(feature = "dashscope")]
@@ -31,6 +35,8 @@ pub mod geminicli;
 pub mod kimi;
 #[cfg(feature = "openai")]
 pub mod openai;
+#[cfg(feature = "opencode")]
+pub mod opencode;
 #[cfg(feature = "openrouter")]
 pub mod openrouter;
 #[cfg(any(
@@ -41,12 +47,15 @@ pub mod openrouter;
     feature = "codex",
     feature = "claudecode",
     feature = "claudeweb",
+    feature = "cline",
+    feature = "copilotcli",
     feature = "custom",
     feature = "geminicli",
     feature = "dashscope",
     feature = "deepseek",
     feature = "kimi",
     feature = "openai",
+    feature = "opencode",
     feature = "openrouter",
     feature = "vertex",
     feature = "vertexexpress",

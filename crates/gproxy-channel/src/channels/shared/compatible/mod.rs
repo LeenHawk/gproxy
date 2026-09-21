@@ -7,10 +7,14 @@
 //! fields. Policy stays in each channel; this module only executes what a
 //! channel asks for, through the `Enrich` hook it passes in.
 
-/// Only the channels with a quota probe compile the ability helpers.
+/// Only the channels with a quota probe or a token exchange compile the
+/// ability helpers.
 #[cfg(any(
+    feature = "cline",
+    feature = "copilotcli",
     feature = "deepseek",
     feature = "kimi",
+    feature = "opencode",
     feature = "openrouter",
     feature = "xai"
 ))]
