@@ -61,6 +61,7 @@ one load, one request.
 | `capture` | the downstream `capture_records` row and the `capture_links` edges to the upstream attempts core recorded |
 | `publication` | `AppPublicationUrl`, plus the read and delete behind the host's download route |
 | `operations` | the identity write families, each one revision commit plus a peer notification |
+| `operations::portal` | the end user's self-serve surface, scoped to one `Caller` by construction |
 | `operations::issuer` | the OAuth authorization server this instance runs **for downstream clients** |
 | `dto` | the wire shapes those families exchange: string ids, millisecond timestamps, camelCase, no secrets |
 | `audit` | the append-only trail, written outside the revision batch, with its redaction rule |
@@ -847,6 +848,132 @@ trail with `try_record`, and that is load-bearing rather than lazy: a trail
 write that turned a successful exchange into a 500 would have the client retry
 with a code it has already spent, and the replay rule would then revoke the
 grant it had just been given.
+
+## The portal
+
+The families above are an operator's tools: they take an id and act on
+whatever row it names. The portal is the other half of the product — the
+person who holds a key, signing in to see their own keys, their own spend, the
+models they may call and the programs they have authorized.
+
+```rust,ignore
+let portal = Operations::new(&gproxy, &data, &config).portal(&caller);
+portal.context().await?;              // the one call a portal loads first
+portal.models()?;                     // every name, each marked `permitted`
+portal.keys().create(write).await?;   // mints for the caller, nobody else
+portal.usage(query).await?;           // the caller's own aggregate
+portal.quota().await?;                // the caller's own budget chain
+portal.recent_requests(20).await?;    // reduced, and behind a switch
+portal.oauth_sessions().list().await?;
+portal.password().change(change).await?;
+```
+
+| Operation | Answers |
+|---|---|
+| `context()` | user, organizations, teams, subscription, feature flags |
+| `models()` | every exposed name and `channel/model` form, each with `permitted` |
+| `keys()` | `list`, `create`, `rotate`, `reveal`, `delete` over the caller's own |
+| `usage(query)` | summary, optional grouped cut, optional trend |
+| `quota()` | the current window of every budget in the caller's chain |
+| `recent_requests(limit)` | the caller's own recent requests, reduced |
+| `oauth_sessions()` | `list`, `revoke` over the caller's own grants |
+| `password().change(..)` | prove the old one, set the new one, sign out everywhere |
+| `sessions()` | where the caller is signed in |
+| `logout(token)` | end the session this request arrived on |
+
+`Operations::portal_login(name, password)` and `portal_logout(token)` sit on
+`Operations` rather than on `Portal`, for the one reason that matters: a
+sign-in runs *before* there is a caller, and a type whose whole contract is
+"every method is scoped to this caller" cannot also hold the method that
+precedes one. **Rate limiting of sign-in attempts is the host's.** This crate
+never parses a forwarding header and so has no client address; a limit keyed on
+anything else would either lock one username out globally or limit nothing.
+
+### Scoping is by construction, not by checking
+
+**No portal method takes a user id.** There is no parameter through which a
+caller could name somebody else, which is the whole design: a check can be
+forgotten, a missing parameter cannot.
+
+The one request field that looks like an exception is `PortalUsageQuery.userId`,
+which exists so a console can post the same filter object to both surfaces. It
+is **overwritten** with the caller's own id before the query reaches the engine
+— written into the filter, not compared against it. The tests send another
+user's id there and assert it was ignored.
+
+Where an id genuinely is unavoidable — a key, a grant — the row is read and its
+owner compared to the caller before anything happens.
+
+### `NotFound`, never `Forbidden`
+
+A portal operation on a row that belongs to somebody else answers **404**. A
+403 would confirm that the id exists, which is exactly the fact an enumeration
+is probing for; from outside, another user's key and an id that was never
+minted must be one answer. The same 404 covers a grant's internal `oauth` key,
+which the portal does not manage at all.
+
+`Forbidden` does appear in this surface, for the one thing that names no row:
+an **OAuth-grant caller** may not mint, rotate, reveal or delete keys, and may
+not change the account password. A token the user handed to somebody else's
+program must not be able to mint a fresh long-lived credential or lock the
+owner out of their own account. That is a policy about the kind of credential
+in hand, the caller can act on being told, and `context().features` reports it
+up front so a portal can hide the button rather than render one that refuses.
+
+### It reuses the admin families
+
+A portal key create is `api_keys().create` with the caller's own user id filled
+in, so the three binding rules — the organization and team exist, the caller is
+a member of them, a team's parent is the named organization — are validated in
+one place. A portal user who names an organization they do not belong to is
+refused by that check, not by a second copy of it here. A password change is
+`users().set_password` once the old password has been proved, which is also why
+it ends **every** session including the one that asked: a session caller
+carries no session id by design, and signing out everywhere is what a password
+change is for anyway.
+
+### What the portal deliberately sees less of
+
+`recent_requests` returns no bodies, no headers, no URL, no client address, no
+credential id and no provider id — only `requestId`, the caller's own
+`apiKeyId`, the model, the operation, the provider's **display name**, the
+status, the capture state and the timings.
+
+A captured body can hold the caller's own prompt, which is theirs; it can
+equally hold a system prompt, a tool definition or an upstream error that
+belongs to the operator, and no read-side filter can tell the two apart. A
+credential id and a provider id are infrastructure the account holder has no
+use for and an attacker does. The provider survives as a name because "which
+upstream served this" is a fair question. The operator's log view keeps all of
+it — that is what it is for.
+
+The list is gated by **`settings.portal_recent_requests_enabled`**, and this is
+that column's only consumer. Off answers with an empty list rather than an
+error: the switch is an operator's decision about what the portal shows, not a
+statement about this caller, and a 403 would invite them to go looking for a
+permission they are not missing. `context().features.canSeeLogs` carries the
+same value so the tab can be hidden instead.
+
+### The model list omits nothing
+
+`models()` lists every exposed name and every `channel/model` form, and marks
+each with `permitted`. A name the caller's rules do not reach stays in the list
+with `permitted: false`. v3 dropped such rows; this does not, because a list
+that silently omits makes "this model 404s" and "you are not allowed this
+model" the same observation — and there is nothing to protect: an exposed name
+and a `channel/model` form are instance configuration, the same strings the
+operator publishes. What is withheld is the provider ids behind them; the DTO
+reports a count and a channel, which say how redundant a name is without naming
+the machinery.
+
+`providerName/model` also resolves and is deliberately **not** listed: its left
+half is a renameable row, so printing it would hand users a name that stops
+working when somebody edits a provider.
+
+`permitted` is computed by `admission::permission::allowed_providers` — the
+same function the request funnel calls, against the same snapshot — evaluated
+for `GenerateContent`, because the portal's question is "what can I send a
+prompt to".
 
 ## A cascade that only exists on new databases
 

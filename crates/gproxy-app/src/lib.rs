@@ -17,6 +17,13 @@
 //! identity snapshot, and exposes the data plane ([`App::call`],
 //! [`App::connect`]), the vendor service views ([`App::call_service`]) and the
 //! publication routes.
+//!
+//! There are two management surfaces on top of that, and they are shaped
+//! differently on purpose. [`Operations`] is the operator's: every family
+//! takes an id and acts on whatever row it names, and who may call it is the
+//! host's decision. [`Portal`] is the end user's: it is built from a `Caller`,
+//! no method on it takes a user id, and an id that belongs to somebody else
+//! answers `NotFound` rather than `Forbidden`.
 
 mod error;
 pub use error::AppError;
@@ -47,7 +54,7 @@ pub use capture::{CaptureOutcome, DownstreamCapture, ObservationSwitches};
 
 pub mod dto;
 pub mod operations;
-pub use operations::{Issuer, IssuerError, IssuerOrigin, Operations, Scope};
+pub use operations::{Issuer, IssuerError, IssuerOrigin, Operations, Portal, Scope};
 
 pub mod publication;
 pub use publication::AppPublicationUrl;

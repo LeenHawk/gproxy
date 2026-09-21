@@ -55,6 +55,7 @@ let outcome = app.call(&caller, request).await?;
 | `capture` | 下游 `capture_records` 行，以及连向 core 所记上游尝试的 `capture_links` 边 |
 | `publication` | `AppPublicationUrl`，以及宿主下载路由背后的读取与删除 |
 | `operations` | 身份写入家族，每次写入一个 revision commit 加一次对等实例通知 |
+| `operations::portal` | 终端用户的自助面，由构造本身锁定在一个 `Caller` 上 |
 | `operations::issuer` | 本实例**面向下游客户端**运行的 OAuth 授权服务器 |
 | `dto` | 这些家族交换的线上形状：String id、毫秒时间戳、camelCase，不含任何密文 |
 | `audit` | 只追加的审计流水，写在 revision batch 之外，附带脱敏规则 |
@@ -664,6 +665,104 @@ OAuth 操作是 retire 一个 client，因为它改的是 `AppData` 里的 allow
 每一次签发、拒绝、刷新、重放与撤销都用 `try_record` 写进审计流水，而这是有承重作用的而非偷懒：
 一次写流水的失败如果把成功的兑换变成 500，客户端就会拿着已经花掉的 code 重试，重放规则随即会
 撤销它刚刚拿到的授权。
+
+## 门户
+
+上面那些家族是运营者的工具：给一个 id，它就作用在那个 id 指向的行上。门户是产品的另一半
+——持有 key 的那个人登进来，看自己的 key、自己的花费、自己能调的模型，以及自己授权过的程序。
+
+```rust,ignore
+let portal = Operations::new(&gproxy, &data, &config).portal(&caller);
+portal.context().await?;              // 门户最先加载的那一个调用
+portal.models()?;                     // 全部名字，每个都标了 `permitted`
+portal.keys().create(write).await?;   // 只为调用方铸造，不为别人
+portal.usage(query).await?;           // 调用方自己的聚合
+portal.quota().await?;                // 调用方自己的预算链
+portal.recent_requests(20).await?;    // 精简过，且受开关控制
+portal.oauth_sessions().list().await?;
+portal.password().change(change).await?;
+```
+
+| 操作 | 返回 |
+|---|---|
+| `context()` | 用户、组织、团队、订阅、功能开关 |
+| `models()` | 全部暴露名与 `渠道/模型` 形式，各带 `permitted` |
+| `keys()` | 对调用方自己的 key 做 `list`、`create`、`rotate`、`reveal`、`delete` |
+| `usage(query)` | 汇总，可选的分组切片，可选的趋势 |
+| `quota()` | 调用方预算链上每条预算的当前窗口 |
+| `recent_requests(limit)` | 调用方自己的近期请求，精简版 |
+| `oauth_sessions()` | 对调用方自己的授权做 `list`、`revoke` |
+| `password().change(..)` | 先验旧密码，再设新密码，然后到处登出 |
+| `sessions()` | 调用方在哪些地方登录着 |
+| `logout(token)` | 结束本次请求所在的那个会话 |
+
+`Operations::portal_login(name, password)` 与 `portal_logout(token)` 挂在 `Operations`
+上而不是 `Portal` 上，理由只有一条：登录发生在**还没有调用方之前**，而一个全部契约就是
+"每个方法都锁定在这个调用方身上"的类型，不可能同时容纳那个先于调用方发生的方法。
+**登录尝试的限流是宿主的事。** 本 crate 从不解析转发头，因而没有客户端地址；用别的东西
+做键，要么把一个用户名全局锁死，要么根本限不住任何东西。
+
+### scope 由构造保证，而不是靠检查
+
+**门户的任何方法都不接受 user id。** 没有任何一个参数能让调用方指名别人——这就是整个设计：
+检查可能被忘掉，不存在的参数忘不掉。
+
+唯一看起来像例外的请求字段是 `PortalUsageQuery.userId`，它存在只是为了让控制台能把同一个
+过滤对象投给两个面。在查询到达引擎之前，它会被**覆写**成调用方自己的 id——是写进过滤器，
+不是拿来比对。测试就往那里塞另一个用户的 id，然后断言它被忽略了。
+
+确实绕不开 id 的地方——key、grant——先读行、把 owner 与调用方比对，然后才动手。
+
+### `NotFound`，绝不是 `Forbidden`
+
+门户操作作用在别人的行上时回答 **404**。403 会确认这个 id 确实存在，而这恰恰是枚举攻击
+要探的那件事；从外面看，别人的 key 和一个从未铸造过的 id 必须是同一个答案。同一个 404 也
+覆盖 grant 的内部 `oauth` key——门户根本不管理它。
+
+`Forbidden` 在这个面上确实会出现，只用于那件不指名任何行的事：**OAuth grant 调用方**不得
+铸造、轮换、揭示或删除 key，也不得修改账号密码。用户交给别人程序的一个令牌，不能凭这份
+信任再铸出一把新的长期凭证，也不能把账号主人锁在门外。这是关于**手里这把凭证是什么种类**
+的策略，调用方被告知后可以行动，而 `context().features` 会提前报出来，让门户直接隐藏按钮，
+而不是渲染一个必定被拒的按钮。
+
+### 它复用管理面家族
+
+门户建 key 就是 `api_keys().create`，只是把调用方自己的 user id 填了进去，于是三条绑定
+规则——组织与团队存在、调用方是它们的成员、两者同时设置时团队的父组织就是该组织——仍然只
+在一个地方校验。门户用户写了一个自己不属于的组织，是被那道检查拒掉的，不是被这里的第二份
+拷贝拒掉的。改密码是在旧密码被证明之后调 `users().set_password`，这也是它会结束**全部**
+会话（包括提出请求的那一个）的原因：会话调用方按设计不携带会话 id，而到处登出本来就是一次
+改密码应该做的事。
+
+### 门户刻意比管理面看得少
+
+`recent_requests` 不返回体、不返回头、不返回 URL、不返回客户端地址、不返回凭证 id、也不
+返回 Provider id——只有 `requestId`、调用方自己的 `apiKeyId`、模型、操作、Provider 的
+**展示名**、状态码、capture 状态和时间。
+
+被捕获的体里可能是调用方自己的 prompt，那是他的；但同样可能是系统提示词、工具定义，或者
+属于运营者的上游错误，而读取侧的任何过滤都分不出这两者。凭证 id 与 Provider id 是账号持有人
+用不上、攻击者用得上的基础设施。Provider 以名字的形式保留，因为"这次是哪个上游服务的"是个
+合理的问题。运营者的日志视图全都保留——它就是干这个的。
+
+这份列表由 **`settings.portal_recent_requests_enabled`** 控制，本 crate 里只有这一处读它。
+关掉时返回空列表而不是错误：这个开关是运营者对"门户展示什么"的决定，不是对这个调用方的
+评价，回 403 只会让他去找一个其实并不缺的权限。`context().features.canSeeLogs` 携带同一个
+值，于是页签可以直接隐藏。
+
+### 模型列表不省略任何名字
+
+`models()` 列出每一个暴露名和每一个 `渠道/模型` 形式，并为每个标上 `permitted`。调用方
+规则够不到的名字仍然留在列表里，只是 `permitted: false`。v3 会把这种行丢掉，这里不丢：
+静默省略会让"这个模型 404"和"你没被允许用这个模型"变成同一个观察结果——而且也没什么要保护
+的：暴露名和 `渠道/模型` 形式是实例配置，就是运营者发布出去的那些字符串。被扣下的是它们
+背后的 Provider id；DTO 只报一个数量和一个渠道，这说明了一个名字有多冗余，却没点名任何机器。
+
+`Provider名/模型` 同样能解析，但刻意**不**列出：它的左半是一行可以改名的配置，印出来等于
+交给用户一个别人一编辑 Provider 就失效的名字。
+
+`permitted` 由 `admission::permission::allowed_providers` 算出——正是请求漏斗调用的那个
+函数，对同一份快照——按 `GenerateContent` 评估，因为门户问的是"我能把 prompt 发给什么"。
 
 ## 只在新建数据库上存在的级联
 
