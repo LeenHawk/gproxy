@@ -15,6 +15,40 @@ members = [
     "crates/gproxy-app",
     "crates/gproxy-host-axum",
     "crates/gproxy",
+    "crates/gproxy-host-tauri",
+]
+
+# `cargo check`, `cargo test` and `cargo clippy` with no `-p` and no
+# `--workspace` build this list, which is every crate except the desktop shell.
+#
+# The exclusion is not a demotion, and it is not about incremental builds: with
+# a warm target directory the two selections are within half a second of each
+# other. It is about the **cold** one. `gproxy-host-tauri` brings wry,
+# webkit2gtk, gtk and their `*-sys` crates — about a hundred and eighty extra
+# third-party crates that have nothing to say about the engine, and that a
+# Linux box without the webkit2gtk-4.1, gtk+-3.0 and libsoup-3.0 development
+# headers cannot build at all. Leaving it in the default set would make a fresh
+# clone, a `cargo clean` and a toolchain bump slower for everyone, and would
+# make the everyday command fail outright for a contributor who only wants to
+# touch the store.
+#
+# It is still a member, so `--workspace` builds it, CI builds it, and the
+# lockfile resolves with it in.
+default-members = [
+    "crates/gproxy-protocol",
+    "crates/gproxy-protocol-macros",
+    "crates/gproxy-seaorm",
+    "crates/gproxy-tokenizer",
+    "crates/gproxy-file",
+    "crates/gproxy-store",
+    "crates/gproxy-client",
+    "crates/gproxy-channel",
+    "crates/gproxy-cache",
+    "crates/gproxy-core",
+    "crates/gproxy-sdk",
+    "crates/gproxy-app",
+    "crates/gproxy-host-axum",
+    "crates/gproxy",
 ]
 
 [workspace.package]
@@ -44,6 +78,7 @@ gproxy-client = { path = "crates/gproxy-client", version = "=4.0.0-dev", default
 gproxy-cache = { path = "crates/gproxy-cache", version = "=4.0.0-dev", default-features = false }
 gproxy-file = { path = "crates/gproxy-file", version = "=4.0.0-dev", default-features = false }
 gproxy-host-axum = { path = "crates/gproxy-host-axum", version = "=4.0.0-dev" }
+gproxy-host-tauri = { path = "crates/gproxy-host-tauri", version = "=4.0.0-dev" }
 gproxy-protocol = { path = "crates/gproxy-protocol", version = "=4.0.0-dev", features = ["exhaustive"] }
 gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=4.0.0-dev" }
 gproxy-sdk = { path = "crates/gproxy-sdk", version = "=4.0.0-dev", default-features = false }
@@ -67,6 +102,10 @@ form_urlencoded = "1"
 http = "1"
 hmac = "0.13"
 js-sys = "0.3"
+# The desktop shell's credential store. `default-features = false` drops the
+# `cli` glue — this is an application, not the keyring demo — and `v1` is the
+# platform-native store and nothing else.
+keyring = { version = "4", default-features = false, features = ["v1"] }
 mime_guess = "2"
 miniz_oxide = { version = "0.9", default-features = false, features = ["with-alloc"] }
 moka = { version = "0.12", features = ["future"] }
@@ -76,6 +115,7 @@ opendal-service-s3 = { version = "0.59", default-features = false }
 opendal-http-transport-reqwest = { version = "0.59", default-features = false }
 mysql_async = { version = "0.37", default-features = false, features = ["default-rustls"] }
 percent-encoding = "2"
+paste = "1"
 proc-macro2 = "1"
 quote = "1"
 redis = { version = "1.6", default-features = false, features = ["connection-manager", "tokio-rustls-comp"] }
@@ -99,6 +139,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde-wasm-bindgen = "0.6"
 syn = { version = "3", features = ["full", "visit-mut"] }
+tauri = { version = "2" }
+tauri-build = { version = "2" }
 serde_urlencoded = "0.7"
 sha2 = "0.11"
 strum = { version = "0.28", features = ["derive"] }

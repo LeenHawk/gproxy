@@ -30,7 +30,7 @@ use std::net::SocketAddr;
 use gproxy_host_axum::{HostState, router};
 use tokio::net::TcpListener;
 
-use crate::{Error, Result, Settings, bootstrap, instance};
+use crate::{Error, Result, Settings, bootstrap, instance, rotate};
 
 /// Assemble, bootstrap, bind and serve until a signal arrives.
 pub async fn run(settings: Settings) -> Result<()> {
@@ -84,11 +84,13 @@ fn warn_about(settings: &Settings, instance: &instance::Instance) {
     if instance.secrets.is_plaintext() {
         // Loud, and it names the variable. An operator who reads this line and
         // does nothing has made a decision; one who never sees it has not.
+        // The first sentence is `rotate::PLAINTEXT_SECRETS`, shared with the
+        // desktop shell; only the remedy is this host's.
         tracing::warn!(
-            "upstream credential secrets are stored UNENCRYPTED: no master key is configured. Set \
-             GPROXY_MASTER_KEY to 32 bytes as 64 hex characters or base64 — and, on a database \
-             that already holds secrets, set GPROXY_MASTER_KEY_NEXT with GPROXY_MASTER_KEY_ROTATE \
-             to seal what is already there."
+            "{} Set GPROXY_MASTER_KEY to 32 bytes as 64 hex characters or base64 — and, on a \
+             database that already holds secrets, set GPROXY_MASTER_KEY_NEXT with \
+             GPROXY_MASTER_KEY_ROTATE to seal what is already there.",
+            rotate::PLAINTEXT_SECRETS
         );
     }
     if let Some(rotated) = instance.secrets.rotated {

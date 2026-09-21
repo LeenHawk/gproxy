@@ -66,6 +66,18 @@ use crate::{Error, Result};
 /// open fails and the rotation refuses before writing anything.
 const TOKENIZER_SECRET_ID: &str = "settings:tokenizer_auth_token";
 
+/// The fact, phrased once.
+///
+/// Two hosts have to say this — the server when no `GPROXY_MASTER_KEY` was
+/// set, the desktop shell when the machine has no usable keychain — and the
+/// remedy differs between them while the fact does not. So the sentence that
+/// states what is true of the database lives here, and each host appends the
+/// sentence that says what to do about it. Two independently worded warnings
+/// about one condition is how an operator ends up believing they are two
+/// conditions.
+pub const PLAINTEXT_SECRETS: &str =
+    "upstream credential secrets are stored UNENCRYPTED: no master key is configured.";
+
 /// What the master-key configuration resolved to.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Outcome {
