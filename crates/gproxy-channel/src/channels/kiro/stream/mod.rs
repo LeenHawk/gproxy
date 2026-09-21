@@ -16,7 +16,7 @@ mod tools;
 
 use super::usage;
 use crate::channel::ChannelError;
-use crate::channels::shared::aws_eventstream::FrameParser;
+use crate::channels::shared::aws_eventstream::{Frame, FrameParser};
 use gproxy_protocol::connection::Bytes;
 use serde_json::{Value, json};
 
@@ -78,7 +78,7 @@ impl Translator {
     pub(super) fn push(&mut self, chunk: &[u8]) -> Result<Bytes, ChannelError> {
         let mut out = Vec::new();
         for frame in self.parser.push(chunk)? {
-            let name = frame.name().to_owned();
+            let name = name(&frame).to_owned();
             let value: Value = serde_json::from_slice(&frame.payload)
                 .map_err(|error| decode(format!("event payload JSON: {error}")))?;
             // The payload is either the event object itself or a single-key
@@ -332,6 +332,18 @@ impl Translator {
         self.sequence += 1;
         sequence
     }
+}
+
+/// The name CodeWhisperer's frames carry: an exception type wins over an event
+/// type, because an exception frame also names the event it replaced. This is
+/// how *this* upstream names a frame — `aws_bedrock` reads the same headers
+/// differently — so it lives with the reader, not with the framing.
+fn name(frame: &Frame) -> &str {
+    frame
+        .exception_type
+        .as_deref()
+        .or(frame.event_type.as_deref())
+        .unwrap_or_default()
 }
 
 fn decode(message: impl Into<String>) -> ChannelError {

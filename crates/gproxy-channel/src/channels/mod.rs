@@ -67,11 +67,12 @@ channels! {
 }
 
 /// Code several channels share. Its own list, because it is not a channel and
-/// the two channels missing from it — `aws_bedrock` and `devin` — speak wire
-/// formats nothing else does and borrow none of it.
+/// the one channel missing from it — `devin` — speaks a wire format nothing
+/// else does and borrows none of it.
 #[cfg(any(
     feature = "aistudio",
     feature = "antigravity",
+    feature = "aws_bedrock",
     feature = "azure",
     feature = "claudeapi",
     feature = "codex",

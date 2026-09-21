@@ -76,7 +76,7 @@ fn tokens(dialect: Dialect, usage: &Value) -> Option<NormalizedUsage> {
             normalized.tokens.reasoning_tokens =
                 u64_at(usage, "/completion_tokens_details/reasoning_tokens");
         }
-        Dialect::OpenAi | Dialect::OpenAiResponsesWebSocket | Dialect::Gemini => {
+        Dialect::OpenAi | Dialect::OpenAiResponsesWebSocket => {
             let input = u64_at(usage, "/input_tokens")?;
             let cached = u64_at(usage, "/input_tokens_details/cached_tokens");
             normalized.tokens.input_tokens = Some(input.saturating_sub(cached.unwrap_or(0)));
@@ -85,6 +85,15 @@ fn tokens(dialect: Dialect, usage: &Value) -> Option<NormalizedUsage> {
             normalized.tokens.reasoning_tokens =
                 u64_at(usage, "/output_tokens_details/reasoning_tokens");
         }
+        // No channel in this fleet speaks Gemini, and Gemini does not report a
+        // `usage` object at all — its counts are `usageMetadata` with
+        // `promptTokenCount`/`candidatesTokenCount`, which
+        // `shared::vendor_usage::gemini` reads. This arm used to sit with the
+        // Responses shapes above, where a native Gemini body would have
+        // metered nothing and said nothing about it; a fleet channel that
+        // grows a Gemini surface should take the reading it needs rather than
+        // inherit OpenAI's field names.
+        Dialect::Gemini => return None,
     }
     Some(normalized)
 }
