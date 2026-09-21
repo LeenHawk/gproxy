@@ -50,7 +50,9 @@ const IMAGE_MIME: u32 = 2;
 // CompletionConfig
 const COMPLETION_ENABLED: u32 = 1;
 const COMPLETION_MAX_TOKENS: u32 = 2;
-const COMPLETION_MAX_NEWLINES: u32 = 3;
+/// Declared `max_newlines` by the reference and written the context window by
+/// it; see `config::DEFAULT_CONTEXT_WINDOW` for the contradiction.
+const COMPLETION_CONTEXT_WINDOW: u32 = 3;
 const COMPLETION_TEMPERATURE: u32 = 5;
 const COMPLETION_TOP_K: u32 = 7;
 const COMPLETION_TOP_P: u32 = 8;
@@ -88,7 +90,8 @@ pub(super) struct Auth<'a> {
 
 /// Read the credential. The secret is `{"session_token": "..."}`, with
 /// `api_key` accepted as the name the reference pool uses for the same value,
-/// plus an optional `fingerprint` and an optional short-lived `user_jwt`.
+/// plus an optional `fingerprint`, an optional `device_seed` and an optional
+/// short-lived `user_jwt`.
 pub(super) fn auth<'a>(credential: &CredentialView<'a>) -> Result<Auth<'a>, ChannelError> {
     let token = ["session_token", "api_key", "token"]
         .into_iter()
@@ -98,7 +101,7 @@ pub(super) fn auth<'a>(credential: &CredentialView<'a>) -> Result<Auth<'a>, Chan
         .ok_or(ChannelError::InvalidCredential)?;
     let fingerprint = match credential.secret.get("fingerprint").and_then(Value::as_str) {
         Some(configured) => validate_fingerprint(configured.trim())?.to_owned(),
-        None => derive_fingerprint(token),
+        None => derive_fingerprint(&fingerprint_seed(credential)),
     };
     Ok(Auth {
         token,
@@ -112,6 +115,32 @@ pub(super) fn auth<'a>(credential: &CredentialView<'a>) -> Result<Auth<'a>, Chan
     })
 }
 
+/// The seed the device fingerprint is stretched from. **Never the session
+/// token.** The reference derives its stable-device value from a separate
+/// seed on purpose, and says why: the `info` label namespaces distinct
+/// fingerprints from one seed *"so the #31 metadata and, later, the login UA
+/// cannot be cross-correlated or reversed"* (`devin-connect.js`, the comment
+/// above `deriveDeviceBytes`). Deriving #31 from the credential would make a
+/// 366-byte value that is public-to-upstream a deterministic function of the
+/// secret, and would make every deployment that pastes the same token present
+/// the identical device — the opposite of what a device fingerprint is for.
+///
+/// The default seed is this credential's host identity, which is stable for
+/// the credential's lifetime, needs nothing persisted beyond the row that
+/// already exists, is not secret, and differs between two installations that
+/// share one token. A credential may name its own `device_seed` instead, which
+/// is what to set when a device identity has to survive re-adding the account.
+fn fingerprint_seed(credential: &CredentialView<'_>) -> String {
+    credential
+        .secret
+        .get("device_seed")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|seed| !seed.is_empty())
+        .map(str::to_owned)
+        .unwrap_or_else(|| format!("{}/{}", credential.provider_id, credential.id))
+}
+
 /// Reject a fingerprint the upstream would reject, here rather than there:
 /// the server's complaint is an opaque "internal" error that looks like a
 /// dead account.
@@ -122,11 +151,13 @@ pub fn validate_fingerprint(value: &str) -> Result<&str, ChannelError> {
     Ok(value)
 }
 
-/// A fingerprint that is stable for one credential and different for the
-/// next, without anything to persist: SHA-256 in counter mode over the
-/// session token, stretched to 366 bytes. The upstream checks only the shape,
-/// so the derivation is this channel's own choice; the reference derives its
-/// stable-device value the same way from an HMAC (`deriveDeviceBytes`).
+/// Stretch a seed into the 366 bytes #31 wants: SHA-256 in counter mode with
+/// a label, which is the HKDF expand phase the reference uses (it reaches for
+/// HMAC-SHA256; the label, not the construction, is what does the work here).
+/// Same seed in, same fingerprint out, with nothing persisted; a different
+/// seed gives an unrelated device. The upstream checks only the shape, so the
+/// construction is this channel's own choice — see [`fingerprint_seed`] for
+/// what must *not* be fed to it.
 pub fn derive_fingerprint(seed: &str) -> String {
     let mut out = String::with_capacity(FINGERPRINT_HEX_CHARS);
     let mut previous = [0_u8; 32];
@@ -184,6 +215,9 @@ pub(super) struct Prepared {
     /// The output cap the caller set, if any. Truncation is inferred from it
     /// rather than from the upstream's stop enum; see `stream.rs`.
     pub max_tokens: Option<u64>,
+    /// The caller's stop sequences. The wire has no field for them, so they
+    /// are enforced locally on the way back out; see `stream.rs`.
+    pub stop: Vec<String>,
 }
 
 struct Turn {
@@ -202,6 +236,57 @@ pub(super) fn parse(body: &[u8]) -> Result<Value, ChannelError> {
     }
 }
 
+/// OpenAI's `stop`: a bare string or up to four strings. Anything else in the
+/// array is dropped, which is `normalizeStop` in
+/// `samples/windsurfapi/src/stop-sequences.js`.
+fn stop_sequences(request: &Value) -> Vec<String> {
+    match request.get("stop") {
+        Some(Value::String(one)) if !one.is_empty() => vec![one.clone()],
+        Some(Value::Array(many)) => many
+            .iter()
+            .filter_map(Value::as_str)
+            .filter(|sequence| !sequence.is_empty())
+            .take(4)
+            .map(str::to_owned)
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Refuse a request whose tools would be silently lost. This channel writes
+/// no `ToolDef` (#10) and decodes no `delta_tool_calls` (#6): the request-side
+/// inner tags and every response-side tag are uncalibrated in both mirrors,
+/// and the reference keeps its own native path default-off for that reason.
+/// Accepting `tools` and dropping them produces a client that waits forever
+/// for a tool call it will never be sent, which is worse than a clear refusal
+/// — see the module documentation's "Not implemented, and why".
+fn reject_tools(request: &Value) -> Result<(), ChannelError> {
+    let declared = request
+        .get("tools")
+        .and_then(Value::as_array)
+        .is_some_and(|tools| !tools.is_empty())
+        || request
+            .get("functions")
+            .and_then(Value::as_array)
+            .is_some_and(|functions| !functions.is_empty());
+    let chosen = match request.get("tool_choice") {
+        Some(Value::String(choice)) => choice != "none",
+        Some(Value::Object(_)) => true,
+        _ => false,
+    };
+    if !declared && !chosen {
+        return Ok(());
+    }
+    Err(super::bad_request(
+        "devin: this channel does not support tool calling. The request-side \
+         ToolDef tags and every response-side ChatToolCall tag are \
+         uncalibrated in the mirrors this channel is built from, so declaring \
+         tools here would silently drop them and no tool call would ever come \
+         back. Send the request without `tools`/`tool_choice`, or route tool \
+         use to another provider.",
+    ))
+}
+
 pub(super) fn build(
     request: &Value,
     config: &DevinConfig,
@@ -214,6 +299,7 @@ pub(super) fn build(
         .filter(|model| !model.is_empty())
         .ok_or_else(|| super::bad_request("devin request has no model"))?;
     let selector = models::resolve(model, &config.models)?;
+    reject_tools(request)?;
     let messages = request
         .get("messages")
         .and_then(Value::as_array)
@@ -255,9 +341,16 @@ pub(super) fn build(
         } else {
             text
         };
-        // An assistant turn with nothing in it is dropped: the reference
-        // records empty assistant turns being answered with empty replies.
-        if role == "assistant" && text.trim().is_empty() && images.is_empty() {
+        // An assistant turn with no text is dropped, images or not. Two live
+        // findings say so: the Kimi workaround records 10/10 empty retries for
+        // empty assistant turns (`devin-connect.js`, the exclusion above its
+        // source switch), and "empty assistant turns poison upstream into
+        // repeating empty turns" (`devin-connect-openai.js`). The same
+        // exclusion covers image-only assistant turns — the reference keeps
+        // them out explicitly ("Image-only assistants retain the legacy
+        // exclusion") because admitting one puts back exactly the text-empty
+        // wire frame the exclusion exists to prevent.
+        if role == "assistant" && text.trim().is_empty() {
             continue;
         }
         let source = if role == "assistant" {
@@ -265,12 +358,30 @@ pub(super) fn build(
         } else {
             SOURCE_USER
         };
-        // The upstream request validator rejects a run of three or more
-        // consecutive messages from the same source with `invalid_argument`;
-        // merging text-only neighbours keeps the content identical and the
-        // run below that threshold.
+        // The upstream request validator rejects a same-source run of length
+        // three or more with `invalid_argument`; a run of two is tolerated —
+        // the request decodes and begins processing (`devin-connect.js`, the
+        // comment above its coalescing loop, verified by wire-shape
+        // comparison). So merge only the turn that would make a run reach
+        // three, and leave shorter runs alone: rewriting a conversation more
+        // than the wire requires changes what the model is shown.
+        //
+        // Only text-only neighbours merge. A turn carrying images encodes to
+        // a different wire shape and must stay its own message even if that
+        // leaves a long run: losing an image is worse than an invalid_argument
+        // the operator can see.
+        let run = turns
+            .iter()
+            .rev()
+            .take_while(|turn| turn.source == source)
+            .count();
+        let mergeable = run >= 2
+            && images.is_empty()
+            && turns
+                .last()
+                .is_some_and(|last| last.images.is_empty() && last.source == source);
         match turns.last_mut() {
-            Some(last) if last.source == source && last.images.is_empty() && images.is_empty() => {
+            Some(last) if mergeable => {
                 if !text.is_empty() {
                     if !last.text.is_empty() {
                         last.text.push_str("\n\n");
@@ -321,7 +432,7 @@ pub(super) fn build(
             COMPLETION_MAX_TOKENS,
             max_tokens.unwrap_or(config.max_tokens),
         )
-        .varint(COMPLETION_MAX_NEWLINES, config.max_newlines)
+        .varint(COMPLETION_CONTEXT_WINDOW, config.context_window)
         .double(COMPLETION_TEMPERATURE, temperature)
         .varint(
             COMPLETION_TOP_K,
@@ -366,6 +477,7 @@ pub(super) fn build(
         body: out.into_bytes(),
         model: model.to_owned(),
         max_tokens,
+        stop: stop_sequences(request),
     })
 }
 

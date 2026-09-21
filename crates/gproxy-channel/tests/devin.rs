@@ -149,10 +149,23 @@ fn bytes_frame(field: u32, bytes: &[u8]) -> Vec<u8> {
 
 /// The terminal frame: stop enum plus the metadata sub-message.
 fn final_frame(prompt: u64, completion: u64, cached: Option<u64>) -> Vec<u8> {
+    final_frame_served_by(prompt, completion, cached, None)
+}
+
+/// The same, plus `#7.9 actual_model_uid`.
+fn final_frame_served_by(
+    prompt: u64,
+    completion: u64,
+    cached: Option<u64>,
+    actual_model: Option<&str>,
+) -> Vec<u8> {
     let mut metadata = devin::proto::Message::new();
     metadata.varint(2, prompt).varint(3, completion);
     if let Some(cached) = cached {
         metadata.varint(5, cached);
+    }
+    if let Some(model) = actual_model {
+        metadata.string(9, model);
     }
     let mut message = devin::proto::Message::new();
     message.varint(5, 2).message(7, &metadata);
@@ -296,10 +309,11 @@ fn a_compressed_frame_is_inflated_and_the_trailer_is_recognized() {
     assert_eq!(devin::proto::text_of(&fields, 3), Some("compressed answer"));
     assert!(frames[1].end_stream);
     assert_eq!(devin::connect::trailer_error(&frames[1].payload), None);
-    assert_eq!(
-        devin::connect::trailer_error(br#"{"error":{"code":"permission_denied","message":"no"}}"#),
-        Some("permission_denied: no".into())
-    );
+    let failure =
+        devin::connect::trailer_error(br#"{"error":{"code":"permission_denied","message":"no"}}"#)
+            .expect("an error trailer");
+    assert_eq!(failure.code.as_deref(), Some("permission_denied"));
+    assert_eq!(failure.message, "no");
 }
 
 #[test]
@@ -452,6 +466,196 @@ async fn a_missing_session_token_is_an_invalid_credential() {
     assert!(client.sent().is_empty());
 }
 
+// ── Request shaping ────────────────────────────────────────────────────────
+
+/// The `(source, text)` of every `ChatMessage` in the one request that was
+/// sent, read back through this channel's own parser.
+async fn sent_turns(messages: Value) -> Vec<(u64, String)> {
+    let config = json!({});
+    let secret = secret();
+    let metadata = json!({});
+    let client = ScriptClient::new(vec![upstream(vec![
+        text_frame(3, "ok"),
+        final_frame(1, 1, None),
+        trailer(),
+    ])]);
+    let body = json!({"model": "swe-1-6-slow", "messages": messages});
+    let response = Devin
+        .stream_generate_content(context(
+            provider(&config),
+            credential(&secret, &metadata),
+            client.clone(),
+            body,
+        ))
+        .await
+        .unwrap();
+    drain(response).await;
+    let sent = client.sent();
+    let fields = devin::proto::parse(&sent[0].3[5..]).unwrap();
+    fields
+        .iter()
+        .filter_map(|field| match field.value {
+            devin::proto::Value::Bytes(bytes) if field.number == 3 => Some(bytes),
+            _ => None,
+        })
+        .map(|bytes| {
+            let turn = devin::proto::parse(bytes).unwrap();
+            (
+                devin::proto::varint_of(&turn, 2).unwrap(),
+                devin::proto::text_of(&turn, 3)
+                    .unwrap_or_default()
+                    .to_owned(),
+            )
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn a_same_source_run_is_merged_only_once_it_would_reach_three() {
+    // Two consecutive assistant turns are tolerated by the upstream
+    // validator, so they stay two: rewriting a conversation more than the
+    // wire requires changes what the model is shown.
+    let pair = sent_turns(json!([
+        {"role": "user", "content": "one"},
+        {"role": "assistant", "content": "a"},
+        {"role": "assistant", "content": "b"},
+        {"role": "user", "content": "two"},
+    ]))
+    .await;
+    assert_eq!(
+        pair,
+        vec![
+            (1, "one".to_owned()),
+            (2, "a".to_owned()),
+            (2, "b".to_owned()),
+            (1, "two".to_owned()),
+        ]
+    );
+
+    // A third crosses the threshold the validator rejects, so it folds into
+    // the second and the run stays at two.
+    let run = sent_turns(json!([
+        {"role": "user", "content": "one"},
+        {"role": "assistant", "content": "a"},
+        {"role": "assistant", "content": "b"},
+        {"role": "assistant", "content": "c"},
+        {"role": "assistant", "content": "d"},
+    ]))
+    .await;
+    assert_eq!(
+        run,
+        vec![
+            (1, "one".to_owned()),
+            (2, "a".to_owned()),
+            (2, "b\n\nc\n\nd".to_owned()),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn an_image_only_assistant_turn_is_dropped_like_an_empty_one() {
+    let turns = sent_turns(json!([
+        {"role": "user", "content": "look"},
+        {"role": "assistant", "content": [
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,aGk="}}
+        ]},
+        {"role": "user", "content": "well?"},
+    ]))
+    .await;
+    assert_eq!(
+        turns,
+        vec![(1, "look".to_owned()), (1, "well?".to_owned())],
+        "an assistant turn with no text is excluded whether or not it carries images"
+    );
+}
+
+#[tokio::test]
+async fn a_request_that_declares_tools_is_refused_rather_than_stripped() {
+    let config = json!({});
+    let secret = secret();
+    let metadata = json!({});
+    let client = ScriptClient::new(Vec::new());
+    let body = json!({
+        "model": "swe-1-6-slow",
+        "messages": [{"role": "user", "content": "what is the weather"}],
+        "tools": [{"type": "function", "function": {"name": "weather", "parameters": {}}}],
+    });
+    let error = Devin
+        .generate_content(context(
+            provider(&config),
+            credential(&secret, &metadata),
+            client.clone(),
+            body,
+        ))
+        .await
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("tool calling"),
+        "the refusal says what is missing: {error}"
+    );
+    assert!(
+        client.sent().is_empty(),
+        "nothing goes upstream with the tools silently dropped"
+    );
+}
+
+/// The `ClientMetadata` #31 one credential presents.
+async fn sent_fingerprint(secret: &Value, credential_id: &'static str) -> String {
+    let config = json!({});
+    let metadata = json!({});
+    let client = ScriptClient::new(vec![upstream(vec![
+        text_frame(3, "ok"),
+        final_frame(1, 1, None),
+        trailer(),
+    ])]);
+    let credential = CredentialView {
+        id: credential_id,
+        provider_id: "devin-1",
+        auth_kind: "api_key",
+        secret,
+        metadata: &metadata,
+        version: 1,
+        expires_at_ms: None,
+    };
+    let response = Devin
+        .stream_generate_content(context(
+            provider(&config),
+            credential,
+            client.clone(),
+            request_body(),
+        ))
+        .await
+        .unwrap();
+    drain(response).await;
+    let sent = client.sent();
+    let fields = devin::proto::parse(&sent[0].3[5..]).unwrap();
+    let meta = devin::proto::parse(devin::proto::bytes_of(&fields, 1).unwrap()).unwrap();
+    devin::proto::text_of(&meta, 31).unwrap().to_owned()
+}
+
+#[tokio::test]
+async fn the_fingerprint_is_not_derived_from_the_session_token() {
+    let token = secret();
+    let first = sent_fingerprint(&token, "cred-1").await;
+    assert_eq!(first, sent_fingerprint(&token, "cred-1").await, "stable");
+    assert_ne!(
+        first,
+        sent_fingerprint(&token, "cred-2").await,
+        "two installations pasting one token must not present the same device"
+    );
+    assert_ne!(
+        first,
+        devin::derive_fingerprint("devin-session-token$abc"),
+        "a value public to the upstream is never a function of the secret"
+    );
+    let seeded = json!({"session_token": "devin-session-token$abc", "device_seed": "my-seed"});
+    assert_eq!(
+        sent_fingerprint(&seeded, "cred-1").await,
+        devin::derive_fingerprint("my-seed"),
+        "an explicit seed is what survives re-adding the account"
+    );
+}
+
 // ── Models ─────────────────────────────────────────────────────────────────
 
 #[test]
@@ -504,6 +708,51 @@ fn catalogued_aliases_resolve_and_dotted_forms_keep_their_own_target() {
     assert_eq!(devin::resolve("house-model", &extra).unwrap(), "swe-9");
     assert_eq!(devin::resolve("swe-9", &extra).unwrap(), "swe-9");
     assert!(devin::catalogue(&extra).contains(&"swe-9".to_owned()));
+}
+
+#[test]
+fn the_captured_snapshot_reaches_every_effort_and_variant_selector() {
+    let extra = std::collections::BTreeMap::new();
+    // The hand-written alias table names 44 targets; the snapshot carries 123,
+    // two of which it does not (`swe-1-6-slow`, captured on an account whose
+    // entitlement view omitted it, and `subagent-default`).
+    assert_eq!(devin::catalogue(&extra).len(), 125);
+    // Everything the alias table used to hard-block, because the channel
+    // refuses a name it does not know.
+    for selector in [
+        "claude-opus-4-8-medium-fast",
+        "claude-opus-4-8-xhigh",
+        "claude-opus-4-6-thinking",
+        "claude-sonnet-4-6-1m",
+        "gpt-5-5-medium",
+        "gpt-5-4-high-priority",
+        "glm-5-2-max",
+        "gemini-3-5-flash-minimal",
+        "claude-5-fable-max",
+        "gpt-5-6-luna-none",
+    ] {
+        assert_eq!(
+            devin::resolve(selector, &extra).unwrap(),
+            selector,
+            "`{selector}` is in the captured catalogue"
+        );
+    }
+}
+
+#[test]
+fn a_router_selector_is_refused_with_its_own_reason() {
+    let extra = std::collections::BTreeMap::new();
+    for name in ["adaptive", "arena-alpha"] {
+        let error = devin::resolve(name, &extra).unwrap_err();
+        let ChannelError::InvalidConfig(message) = &error else {
+            panic!("expected a configuration refusal: {error}");
+        };
+        assert!(
+            message.contains("AssignModel"),
+            "a router fails for a reason of its own: {message}"
+        );
+    }
+    assert!(devin::ROUTER_SELECTORS.contains(&"adaptive"));
 }
 
 #[tokio::test]
@@ -648,11 +897,138 @@ async fn an_answer_landing_on_the_callers_cap_reads_as_truncated() {
 }
 
 #[tokio::test]
-async fn an_error_trailer_fails_the_stream_instead_of_ending_it() {
+async fn a_stop_sequence_is_enforced_locally_because_the_wire_has_no_field_for_it() {
+    let config = json!({});
+    let secret = secret();
+    let metadata = json!({});
+    // The sequence straddles two frames, which is why the translator holds a
+    // tail back rather than matching frame by frame.
+    let client = ScriptClient::new(vec![upstream(vec![
+        text_frame(3, "before END"),
+        text_frame(3, "-OF-TEXT and everything after"),
+        final_frame(5, 9, None),
+        trailer(),
+    ])]);
+    let mut body = request_body();
+    body["stop"] = json!(["END-OF-TEXT"]);
+    let response = Devin
+        .stream_generate_content(context(
+            provider(&config),
+            credential(&secret, &metadata),
+            client,
+            body,
+        ))
+        .await
+        .unwrap();
+    let chunks = chunks(&drain(response).await);
+    let text: String = chunks
+        .iter()
+        .filter_map(|chunk| chunk["choices"][0]["delta"]["content"].as_str())
+        .collect();
+    assert_eq!(
+        text, "before ",
+        "the answer is cut at the sequence, which is not itself returned"
+    );
+    assert_eq!(
+        chunks.last().unwrap()["choices"][0]["finish_reason"],
+        "stop"
+    );
+}
+
+#[tokio::test]
+async fn an_unmatched_stop_sequence_releases_the_held_tail() {
     let config = json!({});
     let secret = secret();
     let metadata = json!({});
     let client = ScriptClient::new(vec![upstream(vec![
+        text_frame(3, "nothing to cut here"),
+        final_frame(5, 5, None),
+        trailer(),
+    ])]);
+    let mut body = request_body();
+    body["stop"] = json!("STOP");
+    let response = Devin
+        .generate_content(context(
+            provider(&config),
+            credential(&secret, &metadata),
+            client,
+            body,
+        ))
+        .await
+        .unwrap();
+    let completion: Value = serde_json::from_str(&drain(response).await).unwrap();
+    assert_eq!(
+        completion["choices"][0]["message"]["content"], "nothing to cut here",
+        "the bytes held back against a straddling match are still the answer"
+    );
+}
+
+#[tokio::test]
+async fn the_model_that_actually_served_the_turn_travels_as_usage() {
+    let config = json!({});
+    let secret = secret();
+    let metadata = json!({});
+    let client = ScriptClient::new(vec![upstream(vec![
+        text_frame(3, "Hello"),
+        final_frame_served_by(40, 7, Some(3), Some("claude-opus-4-8-medium")),
+        trailer(),
+    ])]);
+    let response = Devin
+        .generate_content(context(
+            provider(&config),
+            credential(&secret, &metadata),
+            client,
+            request_body(),
+        ))
+        .await
+        .unwrap();
+    let body = drain(response).await;
+    let completion: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(
+        completion["model"], "swe-1-6-slow",
+        "the response model stays the name the client asked for"
+    );
+    assert_eq!(
+        completion["usage"][devin::ACTUAL_MODEL_KEY],
+        "claude-opus-4-8-medium"
+    );
+
+    let headers = HeaderMap::new();
+    let usage = Devin
+        .usage_extractor()
+        .unwrap()
+        .extract(UsageContext {
+            operation: gproxy_protocol::OperationKey {
+                operation: gproxy_protocol::Operation::GenerateContent,
+                dialect: Dialect::OpenAiChat,
+            },
+            request_body: None,
+            response: ResponseView {
+                status: StatusCode::OK,
+                headers: &headers,
+                body: body.as_bytes(),
+            },
+        })
+        .unwrap()
+        .expect("the completion reports usage");
+    assert_eq!(
+        usage
+            .dimensions
+            .get(devin::ACTUAL_MODEL_KEY)
+            .map(String::as_str),
+        Some("claude-opus-4-8-medium"),
+        "metering sees what actually ran, and therefore what is billed"
+    );
+}
+
+#[tokio::test]
+async fn an_error_trailer_fails_the_stream_instead_of_ending_it() {
+    let config = json!({});
+    let secret = secret();
+    let metadata = json!({});
+    // Delivered as two transport chunks, so the content really is on the wire
+    // before the trailer arrives and the status is genuinely spent.
+    let client = ScriptClient::new(vec![chunked(vec![
         text_frame(3, "partial"),
         error_trailer("resource_exhausted", "quota exceeded"),
     ])]);
@@ -674,9 +1050,211 @@ async fn an_error_trailer_fails_the_stream_instead_of_ending_it() {
             failure = Some(error.to_string());
         }
     }
+    // Content was already on the wire, so the status is spent and the
+    // classified refusal can only fail the stream — but it keeps its text.
     let failure = failure.expect("the trailer error reaches the caller");
     assert!(failure.contains("resource_exhausted"), "{failure}");
     assert!(failure.contains("quota exceeded"), "{failure}");
+    assert!(
+        failure.contains("429"),
+        "and the class it was given: {failure}"
+    );
+}
+
+#[tokio::test]
+async fn a_refusal_that_arrives_before_any_content_is_answered_with_its_status() {
+    let config = json!({});
+    let secret = secret();
+    let metadata = json!({});
+    // The free-tier wall: the trailer of an otherwise empty 200 stream. It is
+    // the first thing on the wire, so it is still answerable with a status.
+    let client = ScriptClient::new(vec![upstream(vec![error_trailer(
+        "permission_denied",
+        "Visit /upgrade to access this model",
+    )])]);
+    let response = Devin
+        .stream_generate_content(context(
+            provider(&config),
+            credential(&secret, &metadata),
+            client,
+            request_body(),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status,
+        StatusCode::FORBIDDEN,
+        "a tier wall is not the permission_denied shell it arrived in"
+    );
+    let body: Value = serde_json::from_str(&drain(response).await).unwrap();
+    assert_eq!(body["error"]["type"], "model_blocked");
+    assert_eq!(body["error"]["code"], "permission_denied");
+    assert!(
+        body["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("/upgrade")
+    );
+}
+
+#[tokio::test]
+async fn a_non_2xx_reply_is_classified_rather_than_parsed_as_frames() {
+    let config = json!({});
+    let secret = secret();
+    let metadata = json!({});
+    // A transient backend fault, delivered inside the 401 shell this upstream
+    // wraps everything in. Reading the status at face value would retire a
+    // live session token.
+    let client = ScriptClient::new(vec![json_reply(
+        StatusCode::UNAUTHORIZED,
+        json!({
+            "code": "permission_denied",
+            "message": "an internal error occurred (trace ID: 9f21c)",
+        }),
+    )]);
+    let response = Devin
+        .generate_content(context(
+            provider(&config),
+            credential(&secret, &metadata),
+            client,
+            request_body(),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status,
+        StatusCode::BAD_GATEWAY,
+        "a backend fault must not present as an authentication failure"
+    );
+    let body: Value = serde_json::from_str(&drain(response).await).unwrap();
+    assert_eq!(body["error"]["type"], "upstream_internal");
+    assert!(
+        body["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("trace ID")
+    );
+}
+
+// ── The error taxonomy ─────────────────────────────────────────────────────
+
+/// Every branch, with the message strings the evidence records. The order of
+/// the branches is the taxonomy: two of these assertions exist only to pin
+/// that a later branch does not steal an earlier one's text.
+#[test]
+fn each_upstream_error_class_is_recognized_by_its_own_evidence() {
+    use devin::ErrorClass;
+    let case = |message: &str, code: Option<&str>, status: Option<u16>| {
+        devin::classify(
+            message,
+            code,
+            status.map(|status| StatusCode::from_u16(status).unwrap()),
+        )
+    };
+
+    // `internal` is a permanent client mistake: a short fingerprint or a
+    // gzipped request frame. It fails identically on every retry.
+    let internal = case("an internal error occurred", Some("internal"), Some(500));
+    assert_eq!(internal.class, ErrorClass::ClientRequest);
+    assert_eq!(internal.class.status(), StatusCode::BAD_REQUEST);
+
+    // The hard throttle, with its Go-duration window. It must win over the
+    // capacity branch, whose `try again later` also matches this exact text.
+    let throttled = case(
+        "Reached message rate limit for this model. Please try again later. Resets in: 3h0m0s",
+        Some("permission_denied"),
+        Some(403),
+    );
+    assert_eq!(throttled.class, ErrorClass::RateLimited);
+    assert_eq!(throttled.class.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(throttled.reset_ms, Some(3 * 3_600_000));
+
+    // Capacity, as it is actually delivered: inside a 401/403 shell.
+    let capacity = case(
+        "We're currently facing high demand for this model. Please try again later.",
+        Some("permission_denied"),
+        Some(403),
+    );
+    assert_eq!(capacity.class, ErrorClass::Capacity);
+    assert_eq!(capacity.class.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(
+        case("the service is temporarily unavailable", None, None).class,
+        ErrorClass::Capacity
+    );
+    assert_eq!(
+        case("", Some("unavailable"), None).class,
+        ErrorClass::Capacity
+    );
+
+    // A transient backend fault. Observed 3/3 while GetUserStatus kept
+    // answering on the same token, which is what proves it is not an auth
+    // failure — even though it arrives as one.
+    let backend = case(
+        "an internal error occurred (trace ID: 0c9f2a41)",
+        Some("permission_denied"),
+        Some(401),
+    );
+    assert_eq!(backend.class, ErrorClass::UpstreamInternal);
+    assert_eq!(backend.class.status(), StatusCode::BAD_GATEWAY);
+
+    // A content-policy block, before the auth branch its code belongs to.
+    let blocked = case(
+        "Your request was blocked by our content policy. Please remove sensitive or unsafe content from your prompt.",
+        Some("permission_denied"),
+        Some(403),
+    );
+    assert_eq!(blocked.class, ErrorClass::ContentBlocked);
+    assert_eq!(
+        blocked.class.status(),
+        StatusCode::BAD_REQUEST,
+        "a blocked prompt is a per-request rejection, not a credential fault"
+    );
+
+    // Out of money, before the tier wall so it never reads as an upgrade prompt.
+    assert_eq!(
+        case(
+            "insufficient credit balance",
+            Some("permission_denied"),
+            None
+        )
+        .class,
+        ErrorClass::QuotaExhausted
+    );
+    // The tier wall itself.
+    assert_eq!(
+        case("Visit /upgrade to access this model", None, Some(402)).class,
+        ErrorClass::ModelBlocked
+    );
+    assert_eq!(
+        case("this model requires a paid plan", None, None).class,
+        ErrorClass::ModelBlocked
+    );
+
+    // Only now does permission_denied mean what it says.
+    let dead = case("invalid session token", Some("unauthenticated"), Some(401));
+    assert_eq!(dead.class, ErrorClass::Unauthorized);
+    assert_eq!(dead.class.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        case("", None, Some(403)).class,
+        ErrorClass::Unauthorized,
+        "a bare 403 with nothing to read is an auth failure"
+    );
+
+    // A bare 429 outranks the text heuristics below it.
+    assert_eq!(
+        case("please try again later", None, Some(429)).class,
+        ErrorClass::RateLimited
+    );
+    assert_eq!(
+        case("too many requests", None, None).class,
+        ErrorClass::RateLimited
+    );
+
+    // Nothing matched: transient, which is the reference's own fallback.
+    let unknown = case("something else entirely", None, None);
+    assert_eq!(unknown.class, ErrorClass::Unknown);
+    assert_eq!(unknown.class.status(), StatusCode::BAD_GATEWAY);
+    assert_eq!(unknown.message, "something else entirely");
 }
 
 #[tokio::test]
@@ -708,32 +1286,6 @@ async fn a_stream_without_its_trailer_is_not_a_finished_turn() {
         failed,
         "a truncated Connect stream must not read as complete"
     );
-}
-
-#[tokio::test]
-async fn a_non_2xx_reply_is_returned_whole_rather_than_parsed_as_frames() {
-    let config = json!({});
-    let secret = secret();
-    let metadata = json!({});
-    // The free-tier wall arrives this way: an HTTP error carrying a JSON body.
-    let client = ScriptClient::new(vec![json_reply(
-        StatusCode::PAYMENT_REQUIRED,
-        json!({"code": "permission_denied", "message": "/upgrade to access this model"}),
-    )]);
-    let error = Devin
-        .stream_generate_content(context(
-            provider(&config),
-            credential(&secret, &metadata),
-            client,
-            request_body(),
-        ))
-        .await
-        .unwrap_err();
-    let ChannelError::UpstreamResponse { status, body } = error else {
-        panic!("the upstream's own reply is the answer");
-    };
-    assert_eq!(status, StatusCode::PAYMENT_REQUIRED);
-    assert!(String::from_utf8_lossy(&body).contains("/upgrade"));
 }
 
 // ── Non-streaming and usage ────────────────────────────────────────────────
@@ -927,7 +1479,16 @@ async fn the_quota_query_reads_both_windows_from_plan_status() {
     );
     let body: Value = serde_json::from_slice(body).unwrap();
     assert_eq!(body["metadata"]["apiKey"], "devin-session-token$abc");
-    assert_eq!(body["metadata"]["ideName"], devin::CLIENT_NAME);
+    assert_eq!(
+        body["metadata"]["ideName"], "windsurf",
+        "one mirror's captured identity, verbatim, not a blend of the two"
+    );
+    assert_eq!(body["metadata"]["extensionName"], "windsurf");
+    assert_eq!(body["metadata"]["ideVersion"], "1.9600.41");
+    assert!(
+        body["metadata"].get("clientName").is_none() && body["metadata"].get("os").is_none(),
+        "the capture sends neither"
+    );
 
     assert_eq!(snapshot.entries.len(), 2);
     let daily = &snapshot.entries[0];
@@ -993,6 +1554,92 @@ async fn a_spent_window_omits_its_zero_percentage() {
     assert_eq!(allowance.used, Some(Decimal::ONE_HUNDRED));
 }
 
+#[tokio::test]
+async fn the_billing_ledger_beside_the_windows_is_reported_too() {
+    let config = json!({});
+    let secret = secret();
+    let metadata = json!({});
+    let mut payload = quota_payload(Some(80.0));
+    let plan = &mut payload["userStatus"]["planStatus"];
+    plan["overageBalanceMicros"] = json!(2_500_000);
+    plan["usedPromptCredits"] = json!(1250);
+    plan["availablePromptCredits"] = json!("3750");
+    plan["planInfo"]["monthlyPromptCredits"] = json!(5000);
+    plan["usedFlexCredits"] = json!(100);
+    let client = ScriptClient::new(vec![json_reply(StatusCode::OK, payload)]);
+    let snapshot = Devin
+        .quota_query()
+        .unwrap()
+        .query(CredentialContext {
+            provider: provider(&config),
+            credential: credential(&secret, &metadata),
+            client: &*client,
+        })
+        .await
+        .unwrap();
+    let entry = |id: &str| {
+        snapshot
+            .entries
+            .iter()
+            .find(|entry| entry.id == id)
+            .unwrap_or_else(|| panic!("`{id}` is reported"))
+    };
+    let QuotaValue::Balance(balance) = &entry(devin::OVERAGE_ID).value else {
+        panic!("a balance");
+    };
+    assert_eq!(
+        balance.remaining,
+        Some(Decimal::try_from(2.5).unwrap()),
+        "micro-dollars become dollars"
+    );
+    assert_eq!(balance.unit.as_deref(), Some("usd"));
+    let QuotaValue::Budget(prompt) = &entry(devin::PROMPT_CREDITS_ID).value else {
+        panic!("a budget");
+    };
+    assert_eq!(
+        prompt.used,
+        Some(Decimal::try_from(12.5).unwrap()),
+        "credits arrive in hundredths"
+    );
+    assert_eq!(prompt.remaining, Some(Decimal::try_from(37.5).unwrap()));
+    assert_eq!(prompt.limit, Some(Decimal::from(50)));
+    assert_eq!(
+        prompt.period_end_ms,
+        Some(1_790_812_800_000),
+        "the plan period is ISO-8601, not the windows' unix seconds"
+    );
+    let QuotaValue::Budget(flex) = &entry(devin::FLEX_CREDITS_ID).value else {
+        panic!("a budget");
+    };
+    assert_eq!(flex.used, Some(Decimal::ONE));
+    assert_eq!(flex.remaining, None, "absent is unreported, not zero");
+}
+
+#[tokio::test]
+async fn a_transient_fault_on_the_account_call_is_not_read_as_a_dead_token() {
+    let config = json!({});
+    let secret = secret();
+    let metadata = json!({});
+    let client = ScriptClient::new(vec![json_reply(
+        StatusCode::UNAUTHORIZED,
+        json!({"code": "permission_denied", "message": "We're currently facing high demand."}),
+    )]);
+    let error = Devin
+        .quota_query()
+        .unwrap()
+        .query(CredentialContext {
+            provider: provider(&config),
+            credential: credential(&secret, &metadata),
+            client: &*client,
+        })
+        .await
+        .unwrap_err();
+    let ChannelError::UpstreamResponse { status, .. } = error else {
+        panic!("the classified refusal");
+    };
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+}
+
 #[test]
 fn both_windows_are_declared_as_reported_percentages() {
     let config = json!({});
@@ -1023,6 +1670,10 @@ fn the_descriptor_declares_a_pasted_token_and_a_quota_query() {
     assert!(!descriptor.capabilities.websocket);
     assert!(descriptor.config_key("models").is_some());
     assert!(descriptor.config_key("client_version").is_some());
+    assert!(
+        descriptor.config_key("context_window").is_some(),
+        "CompletionConfig #3 is named for what the reference writes into it"
+    );
     assert!(descriptor.config_key("allowed_headers").is_some());
     assert!(
         Devin.default_connection().is_none(),

@@ -235,19 +235,31 @@ fn common_headers(headers: &mut HeaderMap) {
     headers.insert(header::USER_AGENT, HeaderValue::from_static(USER_AGENT));
 }
 
+/// The Connect code and message a failed trailer carries.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TrailerError {
+    pub code: Option<String>,
+    pub message: String,
+}
+
 /// The trailer of a Connect stream, read for an error. `{}` and any
 /// unparseable body are success; `{"error":{"code":…,"message":…}}` is not.
-pub fn trailer_error(payload: &[u8]) -> Option<String> {
+/// The code and the message are returned apart because both are inputs to the
+/// taxonomy in `error.rs`, which needs them unflattened.
+pub fn trailer_error(payload: &[u8]) -> Option<TrailerError> {
     let value: serde_json::Value = serde_json::from_slice(payload).ok()?;
     let error = value.get("error")?;
-    let code = error.get("code").and_then(serde_json::Value::as_str);
-    let message = error
-        .get("message")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or("upstream error");
-    Some(match code {
-        Some(code) => format!("{code}: {message}"),
-        None => message.to_owned(),
+    let text = |key: &str| {
+        error
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned)
+    };
+    Some(TrailerError {
+        code: text("code"),
+        message: text("message").unwrap_or_else(|| "upstream error".to_owned()),
     })
 }
 
