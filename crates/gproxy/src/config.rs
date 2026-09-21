@@ -361,7 +361,7 @@ fn list(value: &str) -> Vec<String> {
 /// A value the operator actually supplied. An empty string counts as silence:
 /// an unset variable and one set to `""` are the same intent in every
 /// deployment tool that produces them.
-fn text(value: &Option<String>) -> Option<String> {
+pub(crate) fn text(value: &Option<String>) -> Option<String> {
     value
         .as_deref()
         .map(str::trim)
@@ -370,7 +370,7 @@ fn text(value: &Option<String>) -> Option<String> {
 }
 
 /// `--port / GPROXY_PORT`, the pair an error message names.
-fn source(env: &str) -> String {
+pub(crate) fn source(env: &str) -> String {
     let flag = env
         .strip_prefix("GPROXY_")
         .unwrap_or(env)

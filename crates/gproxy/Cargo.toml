@@ -83,6 +83,9 @@ base64 = { workspace = true }
 clap = { workspace = true }
 # `.env`, loaded without overriding anything the real environment already set.
 dotenvy = { workspace = true }
+# Detached ed25519 verification of the signed update manifest. Verification
+# only: nothing in this crate signs anything.
+ed25519-dalek = { workspace = true }
 gproxy-app = { workspace = true }
 gproxy-cache = { workspace = true }
 gproxy-core = { workspace = true }
@@ -96,11 +99,18 @@ getrandom = { workspace = true }
 # `regex::escape`, for the one v3 rewrite action that names literal text where
 # v4 wants a pattern. Compiling the result is core's job, not this crate's.
 regex = { workspace = true }
+# The two update downloads: a signed manifest and one release archive. It
+# follows redirects, which a GitHub release asset URL is; that is safe here
+# because the signature and the sha256 are checked after the bytes arrive.
+reqwest = { workspace = true }
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
+# Ordering a release against the running build, on every channel but `staging`.
+semver = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 # The source marker: SHA-256 of the v3 file's path, which is v3's own scheme
 # for recording an import it has already performed.
+# The artifact's integrity check, before the archive is parsed.
 sha2 = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
@@ -111,12 +121,28 @@ tracing-subscriber = { workspace = true }
 # freed allocation for the rest of the process.
 zeroize = { workspace = true }
 
+# The release archive. `deflate` and nothing else: that is what
+# `scripts/package-native-release.sh` writes.
+zip = { workspace = true }
+
+# Windows will not rename over a running executable and has no equivalent
+# trick, so the platform dance is a crate there. On Unix the swap is a plain
+# `rename(2)` and this is not compiled at all.
+[target.'cfg(not(unix))'.dependencies]
+self-replace = { workspace = true }
+
 [dev-dependencies]
-# The v3 round trip builds a real v3 export: a credential sealed by v3's own
-# envelope, and a key under the digest v3 would have written.
 aes-gcm = { workspace = true }
+# Signing a manifest in the tests. The release pipeline signs with `openssl`;
+# this is the same detached ed25519 signature over the same payload, so a test
+# that passes is a test against the wire format the pipeline writes.
+ed25519-dalek = { workspace = true, features = ["rand_core"] }
 http = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+# The end-to-end update test serves a manifest and a fake artifact over
+# loopback, because the only honest way to prove the download path is to make
+# it download something.
+axum = { workspace = true }
