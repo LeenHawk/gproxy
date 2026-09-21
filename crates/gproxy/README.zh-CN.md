@@ -26,6 +26,7 @@ cargo run -p gproxy -- serve
 | `gproxy bootstrap admin` | 建第一个管理员。幂等。 |
 | `gproxy export --out <PATH>` | 把本实例的配置写成一份 JSON 文档。 |
 | `gproxy import --in <PATH>` | 把这样一份文档回放进本实例。 |
+| `gproxy service install` | 写出本机自己的服务单元，启用并启动它。 |
 
 所有配置项都是全局的：`gproxy --port 9000 serve` 和 `gproxy serve --port 9000`
 是同一次调用。
@@ -86,6 +87,82 @@ gproxy import --in config.json --mode merge --source-master-key "…"
 | 与来源相同的密钥 | blob 原样存入，本来就能解开 |
 | 两者都没有 | 该凭证被跳过、计数并告警 |
 
+### `service`
+
+```
+gproxy service install [--autostart] [--port …] [--data-dir …]
+gproxy service uninstall
+gproxy service status
+```
+
+**没有 `--daemon`，没有 pidfile，也没有 `gproxy stop`。** 后台化、崩溃后重启、开机
+自启，这三件事每个操作系统都已经解决过了；内置守护模式意味着要自己维护一个会变陈旧
+的 pidfile、一份没人轮转的日志、一个没有退避的重启循环，以及一个与「还占着端口的
+那个东西」赛跑的停止命令。所以 `gproxy serve` 始终是收到 `SIGTERM` 就退出的前台
+进程，而 `gproxy service install` 写出那份「专门干这活的 supervisor」要读的单元。
+
+单元复现的是**这一次**调用：`gproxy service install --port 9000 --data-dir
+/srv/gproxy` 和 `gproxy serve --port 9000 --data-dir /srv/gproxy` 是同一个实例。
+相对路径先被转成绝对路径——单元运行时的工作目录是 init 系统挑的，不是你的。
+
+| 平台 | 写出什么 | 由谁启动 |
+|---|---|---|
+| Linux + systemd | `~/.config/systemd/user/gproxy.service` | `systemctl --user enable --now`；带 `--autostart` 时再加 `loginctl enable-linger` |
+| macOS | `~/Library/LaunchAgents/io.github.leenhawk.gproxy.plist` | `launchctl bootstrap gui/<uid>` |
+| Windows | 一个名为 `gproxy` 的登录触发计划任务 | `schtasks /create /xml` |
+| Termux | `~/.termux/boot/gproxy.sh` | **Termux:Boot** 附加组件，必须另行安装 |
+
+这四样都没有的机器——容器、chroot、基于 runit 或 s6 的发行版、不是 Termux 的
+Android 应用——会被明确告知原因，而不是拿到一份没人会读的单元。
+
+#### 单元里绝不会有什么
+
+**密钥。** `~/.config/systemd/user/gproxy.service` 是一个普通文件，跟它能解开的
+数据库只隔一个目录，`$HOME` 的每次备份都会带上它，而 `systemctl --user show`
+会把它念给任何人听。所以单元携带的是环境文件的**路径**，绝不是其中的值：systemd
+用 `EnvironmentFile=-`，另外三家用 `GPROXY_ENV_FILE`。
+
+`install` 会说明它遇到的是哪一种：
+
+| 主密钥来自 | `install` 的做法 |
+|---|---|
+| gproxy 会读的那个环境文件 | 只写文件名，密钥留在文件里 |
+| 导出的环境变量，或 `--master-key` | **拒绝复制**，并指出该放进哪个文件 |
+| 哪里都没有 | 告知该服务将以明文存储密钥 |
+
+进入单元命令行的只有 `--host`、`--port`、`--data-dir` 和 `--config`。其余的——
+带密码的 DSN、Redis URL、管理员密码——属于环境文件或配置文件，因为那是运维能给它
+设权限位的文件。
+
+#### `--autostart`
+
+装上之后，服务总是「你登录时启动」。`--autostart` 要的是另一件事：没人登录也在跑。
+
+- **systemd** —— `loginctl enable-linger`。`uninstall` **只在** linger 是被
+  `install --autostart` 打开时才把它关回去，这一点由单元自己的一行注释记录。
+- **macOS** —— `LaunchAgent` 做不到，而且什么也没做。开机就跑意味着 root 的
+  `LaunchDaemon`，而一个用 root 写自己数据库的网关，比一个等你登录的网关更糟。
+- **Windows** —— 不提权就做不到。开机即启的任务要么以 SYSTEM 身份运行，要么把你的
+  密码存进任务库。
+- **Termux** —— 本来就是。Termux:Boot 就是个开机钩子，仅此而已。
+
+`status` 报告的是 init 系统说了什么——loaded、active、enabled、上次退出、重启
+次数——而不是这个命令希望是什么：
+
+```
+$ gproxy service status
+gproxy, as the systemd user manager sees it.
+  unit       /home/leen/.config/systemd/user/gproxy.service
+  loaded     loaded
+  active     inactive
+  sub-state  dead
+  enabled    enabled
+  restarts   1
+  result     success
+  last exit  exited with status 0
+  linger     yes
+```
+
 ---
 
 ## 配置
@@ -134,6 +211,7 @@ flag 旁边，这张表不可能和程序本身走偏。v3 里存在过的名字
 | `GPROXY_ADMIN_PASSWORD` | `--admin-password` / `--password` | 自动生成 | 其密码 |
 | `GPROXY_BOOTSTRAP_ADMIN_API_KEY` | `--admin-api-key` / `--api-key` | 自动生成 | 为其铸造的确切 API key |
 | `GPROXY_IMPORT_SOURCE_MASTER_KEY` | `--source-master-key` | — | 仅 `import`：来源实例的主密钥 |
+| `GPROXY_AUTOSTART` | `--autostart` | `false` | 仅 `service install`：没人登录时也运行 |
 | `GPROXY_ENV_FILE` | — | `.env` | 加载哪个 `.env` |
 
 `GPROXY_ENV_FILE` 故意没有 flag：flag 要由它所供给的那一步来解析，因此它无法影响

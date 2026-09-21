@@ -26,7 +26,7 @@
 
 use std::path::PathBuf;
 
-use super::{LABEL, Plan, Report, Result, home, remove, run_tool, write_private};
+use super::{LABEL, Plan, Report, Result, home, remove, run_tool, uid, write_private};
 
 pub fn plist_path() -> Result<PathBuf> {
     Ok(home()?
@@ -35,22 +35,8 @@ pub fn plist_path() -> Result<PathBuf> {
 }
 
 /// `gui/501`, the domain a login session's agents live in.
-///
-/// The uid comes from `id -u` rather than from a `getuid()` FFI declaration.
-/// One number is not worth an `unsafe extern` block and a safety comment in a
-/// module that already starts three `launchctl` processes per command, and
-/// `id` is POSIX and present on every macOS install.
 fn domain() -> Result<String> {
-    let id = run_tool("id", &["-u"])?;
-    id.require("id -u")?;
-    let uid = id.stdout.trim();
-    if uid.is_empty() || !uid.chars().all(|c| c.is_ascii_digit()) {
-        return Err(crate::Error::other(format!(
-            "gproxy service: `id -u` answered `{uid}`, which is not a uid, so the launchd domain \
-             to install into cannot be named"
-        )));
-    }
-    Ok(format!("gui/{uid}"))
+    Ok(format!("gui/{}", uid()?))
 }
 
 fn service_target(domain: &str) -> String {
@@ -340,7 +326,6 @@ mod tests {
         assert!(domain["gui/".len()..].chars().all(|c| c.is_ascii_digit()));
         assert_eq!(service_target(&domain), format!("{domain}/{LABEL}"));
     }
-
     #[test]
     fn print_output_is_read_as_flat_key_value_pairs() {
         let fields = fields_of(

@@ -29,6 +29,7 @@ key, and prints the two secrets once.
 | `gproxy bootstrap admin` | Create the first administrator. Idempotent. |
 | `gproxy export --out <PATH>` | Write this instance's configuration as one JSON document. |
 | `gproxy import --in <PATH>` | Replay such a document into this instance. |
+| `gproxy service install` | Write this machine's own service unit, enable it and start it. |
 
 Every configuration flag is global: `gproxy --port 9000 serve` and
 `gproxy serve --port 9000` are the same invocation.
@@ -99,6 +100,91 @@ the database file. On the way back in:
 | the same key as the source | the blob is stored verbatim and already opens |
 | neither | the credential is skipped, counted and warned about |
 
+### `service`
+
+```
+gproxy service install [--autostart] [--port …] [--data-dir …]
+gproxy service uninstall
+gproxy service status
+```
+
+**There is no `--daemon`, no pidfile and no `gproxy stop`.** Backgrounding,
+restart-on-crash and start-at-boot are three problems every operating system
+already solved, and a built-in daemon mode would mean owning a pidfile that
+goes stale, a log nobody rotates, a restart loop with no backoff and a stop
+command that races whatever else holds the port. `gproxy serve` stays a
+foreground process that exits on `SIGTERM`; `gproxy service install` writes the
+unit that a supervisor built for the job reads.
+
+The unit reproduces **this** invocation: `gproxy service install --port 9000
+--data-dir /srv/gproxy` and `gproxy serve --port 9000 --data-dir /srv/gproxy`
+are the same instance. Relative paths are made absolute first, because the unit
+runs with a working directory the init system chose.
+
+| Platform | What is written | Started by |
+|---|---|---|
+| Linux + systemd | `~/.config/systemd/user/gproxy.service` | `systemctl --user enable --now`, plus `loginctl enable-linger` with `--autostart` |
+| macOS | `~/Library/LaunchAgents/io.github.leenhawk.gproxy.plist` | `launchctl bootstrap gui/<uid>` |
+| Windows | a logon-triggered task named `gproxy` | `schtasks /create /xml` |
+| Termux | `~/.termux/boot/gproxy.sh` | the **Termux:Boot** add-on, which must be installed separately |
+
+A machine with none of those — a container, a chroot, a distribution on runit
+or s6, an Android app that is not Termux — is told so, with the reason, instead
+of being handed a unit nothing will read.
+
+#### What the unit never contains
+
+**A secret.** `~/.config/systemd/user/gproxy.service` is a plain file a
+directory away from the database it would unlock, it survives every backup of
+`$HOME`, and `systemctl --user show` reads it back to anyone who asks. So the
+unit carries the environment file's **path** and never a value out of it:
+`EnvironmentFile=-` on systemd, `GPROXY_ENV_FILE` on the other three.
+
+`install` says which of the three cases it found:
+
+| Where the master key came from | What `install` does |
+|---|---|
+| the environment file gproxy reads | names the file; the key stays in it |
+| an exported variable, or `--master-key` | **refuses to copy it**, and names the file to put it in |
+| nowhere | says the service will store secrets unencrypted |
+
+Only `--host`, `--port`, `--data-dir` and `--config` reach the command line in
+the unit. Everything else — a DSN with a password in it, a Redis URL, an admin
+password — belongs in the environment file or the config file, which are files
+an operator can give a mode to.
+
+#### `--autostart`
+
+Installing always gives you a service that starts when you log in.
+`--autostart` asks for the other thing: running with nobody logged in.
+
+- **systemd** — `loginctl enable-linger`. `uninstall` turns it back off *only*
+  if `install --autostart` was what turned it on, which the unit records in a
+  comment of its own.
+- **macOS** — not possible for a `LaunchAgent`, and nothing is done about it. A
+  boot-time service is a root `LaunchDaemon`, and a gateway that writes its
+  database as root is worse than one that waits for a login.
+- **Windows** — not possible without elevation. A task that starts at boot runs
+  as SYSTEM or stores your password in the task store.
+- **Termux** — already the case. Termux:Boot is a boot hook and nothing else.
+
+`status` reports what the init system says — loaded, active, enabled, the last
+exit, the restart count — not what this command hopes:
+
+```
+$ gproxy service status
+gproxy, as the systemd user manager sees it.
+  unit       /home/leen/.config/systemd/user/gproxy.service
+  loaded     loaded
+  active     inactive
+  sub-state  dead
+  enabled    enabled
+  restarts   1
+  result     success
+  last exit  exited with status 0
+  linger     yes
+```
+
 ---
 
 ## Configuration
@@ -152,6 +238,7 @@ upgrade is not a redeployment.
 | `GPROXY_ADMIN_PASSWORD` | `--admin-password` / `--password` | generated | their password |
 | `GPROXY_BOOTSTRAP_ADMIN_API_KEY` | `--admin-api-key` / `--api-key` | generated | the exact API key to mint for them |
 | `GPROXY_IMPORT_SOURCE_MASTER_KEY` | `--source-master-key` | — | `import` only: the source instance's key |
+| `GPROXY_AUTOSTART` | `--autostart` | `false` | `service install` only: also run without a login session |
 | `GPROXY_ENV_FILE` | — | `.env` | which `.env` to load |
 
 `GPROXY_ENV_FILE` has no flag on purpose: a flag would have to be parsed by the

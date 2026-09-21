@@ -424,6 +424,28 @@ pub struct ToolOutput {
     pub stderr: String,
 }
 
+/// This user's numeric id, as `loginctl` and `launchctl` both want it.
+///
+/// From `id -u` rather than from a `getuid()` FFI declaration: one number is
+/// not worth an `unsafe extern` block in the crate that is meant to be thin,
+/// and `id` is POSIX and present wherever either of those tools is.
+///
+/// The uid rather than a name, and never an omitted argument.
+/// `loginctl show-user` with nothing after it reports the *login manager's*
+/// properties, not the calling user's — it answers, it exits 0, and it says
+/// nothing about linger at all. `$USER` is not set in every context a service
+/// command runs in either.
+pub fn uid() -> Result<String> {
+    let id = run_tool("id", &["-u"])?;
+    id.require("id -u")?;
+    let uid = id.stdout.trim().to_owned();
+    if uid.is_empty() || !uid.chars().all(|c| c.is_ascii_digit()) {
+        return Err(crate::Error::other(format!(
+            "gproxy service: `id -u` answered `{uid}`, which is not a uid"
+        )));
+    }
+    Ok(uid)
+}
 impl ToolOutput {
     /// The output as one message, for an error. `stderr` first because that is
     /// where all three tools put their complaints.
@@ -663,6 +685,16 @@ pub(crate) mod tests {
     fn a_missing_tool_names_itself_rather_than_the_syscall() {
         let error = run_tool("gproxy-no-such-service-manager", &["--version"]).unwrap_err();
         assert!(error.to_string().contains("is not on PATH"), "{error}");
+    }
+
+    /// `loginctl show-user` and `launchctl bootstrap` both want the uid, and
+    /// neither accepts being told nothing.
+    #[cfg(unix)]
+    #[test]
+    fn the_uid_is_a_number_this_machine_agrees_with() {
+        let uid = uid().unwrap();
+        assert!(!uid.is_empty());
+        assert!(uid.chars().all(|c| c.is_ascii_digit()), "{uid}");
     }
 
     #[cfg(unix)]
