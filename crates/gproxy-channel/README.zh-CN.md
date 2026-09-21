@@ -38,7 +38,6 @@ Cargo feature：
 operation 而不是客户端 path 决定，OpenAI 的 Responses 与 Realtime 要走 socket，
 AI Studio 在同一个 origin 上放了两套面、各要各的凭证头。
 所有渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
-十七个渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
 
 `dashscope`、`deepseek`、`kimi`、`openrouter`、`xai` 是 API-key 舰队：它们的 wire
 就是那三种兼容形状之一，因此共用 `channels::shared::compatible` 做有界的能力调用

@@ -43,8 +43,6 @@ route layout `custom` cannot express: Anthropic's routes follow the operation
 rather than the client's path, OpenAI serves Responses and Realtime over a
 socket, and AI Studio puts two surfaces on one origin with a different
 credential header on each.
-Every channel builds for native targets and `wasm32-unknown-unknown`.
-All seventeen build for native targets and `wasm32-unknown-unknown`.
 
 `dashscope`, `deepseek`, `kimi`, `openrouter` and `xai` are the API-key fleet:
 vendors whose wire is one of the three compatible shapes, so they share
