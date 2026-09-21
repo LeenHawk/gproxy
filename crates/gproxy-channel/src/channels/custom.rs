@@ -7,18 +7,24 @@
 //! wire family from the credential's `api_key`; source authentication in
 //! headers and query is always removed, and `config.allowed_headers` can
 //! restrict forwarding to a named set. No protocol conversion happens here.
+//!
+//! The reply is the upstream's own body for the same reason, so it is metered
+//! the way the other pass-through channels meter theirs: with the vendor's
+//! field names, through `shared::vendor_usage`.
 
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView, forwardable,
+    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, NormalizedUsage, PrepareContext, ProviderView,
+    UsageContext, UsageExtractor, forwardable,
 };
-use crate::channels::shared::cache;
+use crate::channels::shared::{cache, vendor_usage};
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireFamily, WireRequest};
 use http::{HeaderName, HeaderValue, header};
 use serde::Deserialize;
 
 pub const ID: &str = "custom";
 const DEFAULT_ANTHROPIC_VERSION: &str = "2023-06-01";
+const USAGE: CustomUsage = CustomUsage;
 
 /// Provider `config` JSON understood by this channel. Unknown keys are ignored.
 #[derive(Debug, Default, Deserialize)]
@@ -242,6 +248,54 @@ impl BaseChannel for Custom {
             .body(())
             .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
     }
+
+    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
+        Some(&USAGE)
+    }
+}
+
+/// Per-call metering. The upstream's reply is forwarded verbatim, so its
+/// counts are read with the vendor's own field names, keyed by the dialect the
+/// exchange actually spoke — the same reading `azure`, `vertex` and
+/// `vertexexpress` take, and for the same reason.
+///
+/// One extractor covers both framings: the host accumulates a streamed body
+/// whenever a channel offers an extractor and no observer, and
+/// `vendor_usage::from_body` reads accumulated `text/event-stream` bytes as
+/// readily as a buffered JSON document. A realtime websocket is the exception
+/// — only a `UsageStream` observer sees frames — but `ConnectRealtime` is not
+/// a metered operation here either way.
+///
+/// A body this reader does not recognise yields `None`, and the host's local
+/// estimate fills the record as before. That is deliberate: an unrecognised
+/// shape is a missing number, not a zero.
+struct CustomUsage;
+
+impl UsageExtractor for CustomUsage {
+    fn extract(&self, context: UsageContext<'_>) -> Result<Option<NormalizedUsage>, ChannelError> {
+        if !context.response.status.is_success() || !is_metered(context.operation.operation) {
+            return Ok(None);
+        }
+        vendor_usage::from_body(context.operation.dialect, context.response.body)
+    }
+}
+
+/// Operations that consume model tokens and whose replies carry a vendor usage
+/// block: the union of what `azure` and `vertex` meter, because a `custom`
+/// provider may be pointed at either kind of upstream. Counting tokens is
+/// excluded for the reason it is excluded there — `count_tokens` answers with
+/// numbers that were never consumed.
+fn is_metered(operation: Operation) -> bool {
+    matches!(
+        operation,
+        Operation::GenerateContent
+            | Operation::StreamGenerateContent
+            | Operation::CompactContent
+            | Operation::CreateEmbedding
+            | Operation::BatchCreateEmbedding
+            | Operation::CreateImage
+            | Operation::EditImage
+    )
 }
 
 /// Remove `key`, `access_token` and `api_key` parameters, keeping the rest

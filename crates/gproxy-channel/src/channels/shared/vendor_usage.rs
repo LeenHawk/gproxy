@@ -3,8 +3,11 @@
 //!
 //! A cloud reseller (Azure, Vertex) does not invent a usage block: the body it
 //! returns is the vendor's, so the counts are read with the vendor's field
-//! names. Only parsing lives here; which dialect a response is in, and whether
-//! an operation is metered at all, stays with the channel that asks.
+//! names. A `custom` provider is the same case with the vendor unnamed — the
+//! operator's `base_url` decides which of the four wires comes back, and the
+//! dialect the exchange spoke is what says which to read. Only parsing lives
+//! here; which dialect a response is in, and whether an operation is metered
+//! at all, stays with the channel that asks.
 //!
 //! Field names come from the vendor references in `upstream_docs/`: OpenAI
 //! Responses `usage`, OpenAI Chat Completions `usage`, Claude Messages `usage`

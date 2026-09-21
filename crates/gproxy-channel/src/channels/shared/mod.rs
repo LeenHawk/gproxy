@@ -68,8 +68,16 @@ pub(crate) mod openai_wire;
 #[cfg(any(feature = "codex", feature = "claudecode"))]
 pub(crate) mod services_common;
 /// Usage as the four vendor wires report it — OpenAI Responses, OpenAI Chat,
-/// Claude Messages and Gemini `usageMetadata` — for the resellers that forward
+/// Claude Messages and Gemini `usageMetadata` — for the channels that forward
 /// a vendor's body unchanged and meter it after the fact, buffered JSON or
-/// accumulated SSE alike. Shared by `azure`, `vertex` and `vertexexpress`.
-#[cfg(any(feature = "azure", feature = "vertex", feature = "vertexexpress"))]
+/// accumulated SSE alike. Shared by `azure`, `custom`, `vertex` and
+/// `vertexexpress`: three resell a named vendor, and `custom` points at
+/// whichever one an operator configured, which is why it needs the reader that
+/// covers all four and answers `None` for anything else.
+#[cfg(any(
+    feature = "azure",
+    feature = "custom",
+    feature = "vertex",
+    feature = "vertexexpress"
+))]
 pub(crate) mod vendor_usage;
