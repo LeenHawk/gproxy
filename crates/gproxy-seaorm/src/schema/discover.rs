@@ -33,6 +33,59 @@ impl SyncPlan {
     }
 }
 
+/// Create the whole registry on an empty database, in one atomic batch.
+///
+/// Planning against an empty snapshot rather than a discovered one is what makes
+/// this a fresh install: every registered table is missing, so the plan is
+/// nothing but `CREATE`s, and a database that already holds one of them fails
+/// the batch instead of being quietly altered around.
+pub(crate) async fn apply_registry<C: ProjectedConnection>(
+    registry: SchemaSync,
+    db: &C,
+) -> Result<Vec<String>, DbErr> {
+    let plan = registry.plan_snapshot(&SchemaSnapshot::default()).await?;
+    plan.apply(db).await?;
+    Ok(plan.warnings)
+}
+
+/// The census the schema gate reads, over a projected connection.
+pub(crate) async fn table_names<C: ProjectedConnection>(db: &C) -> Result<Vec<String>, DbErr> {
+    let mut names = Vec::new();
+    for row in db
+        .with_projection(Projection::new().column("name", D1Type::Text, false)?)
+        .query_all_raw(sql(
+            "SELECT name FROM sqlite_schema WHERE type = 'table'",
+            Vec::new(),
+        ))
+        .await?
+    {
+        let name: String = row.try_get("", "name")?;
+        if !super::is_engine_table(&name) {
+            names.push(name);
+        }
+    }
+    Ok(names)
+}
+
+/// The versions recorded in a migration ledger, read through a projection
+/// because these connections decode rows by declared type rather than by what
+/// the driver guesses. An absent ledger is no versions, not an error — that is
+/// what SeaORM's own read-only status path reports too.
+pub(crate) async fn ledger_versions<C: ProjectedConnection>(
+    db: &C,
+    table: &str,
+) -> Result<Vec<String>, DbErr> {
+    if !schema_has_table(db, table).await? {
+        return Ok(Vec::new());
+    }
+    db.with_projection(Projection::new().column("version", D1Type::Text, false)?)
+        .query_all_raw(sql(&format!("SELECT version FROM \"{table}\""), Vec::new()))
+        .await?
+        .into_iter()
+        .map(|row| row.try_get("", "version"))
+        .collect()
+}
+
 #[cfg(target_arch = "wasm32")]
 impl ProjectedConnection for crate::D1Connection {
     fn with_projection(&self, projection: Projection) -> Self {

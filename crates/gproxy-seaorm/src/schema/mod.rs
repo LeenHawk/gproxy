@@ -1,6 +1,12 @@
-//! Entity-first synchronization for D1, following SeaORM's SQLite sync rules.
+//! Entity-first schema creation for D1, following SeaORM's SQLite rules.
 //! SeaORM generates DDL and dependency order. D1 supplies schema discovery and
 //! executes the resulting statements. There is no version guard or index-ownership registry.
+//!
+//! The planner below still diffs a desired registry against a discovered schema,
+//! because that is how the D1 adapter creates what is missing. What no longer
+//! happens is a *caller* reaching for it to evolve a populated database: an
+//! existing database is moved forward by a versioned migration, and the only
+//! entry point the store uses here is the empty-snapshot plan — a fresh install.
 
 use crate::error;
 use sea_orm::sea_query::{
@@ -16,9 +22,13 @@ use std::collections::BTreeMap;
 mod connection;
 #[cfg(any(target_arch = "wasm32", feature = "libsql"))]
 mod discover;
-pub use connection::{EntityRegistry, SchemaSyncConnectionTrait, SyncReport};
+pub use connection::{
+    EntityRegistry, SchemaSyncConnectionTrait, SyncReport, is_engine_table, ledger_table_name,
+};
 #[cfg(any(target_arch = "wasm32", feature = "libsql"))]
 pub use discover::ProjectedConnection;
+#[cfg(any(target_arch = "wasm32", feature = "libsql"))]
+pub(crate) use discover::{apply_registry, ledger_versions, table_names};
 #[cfg(test)]
 mod tests;
 
