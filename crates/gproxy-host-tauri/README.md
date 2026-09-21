@@ -2,7 +2,9 @@
 
 English | [简体中文](README.zh-CN.md)
 
-The desktop host for GPROXY v4. One process, one instance, two front doors:
+The application host for GPROXY v4 — the desktop shell and, from the same
+source, [the Android application](ANDROID.md). One process, one instance, two
+front doors:
 
 ```
         the window                     Claude Code, the Codex CLI
@@ -194,11 +196,17 @@ holds a placeholder page.
 
 ## What this crate deliberately does not do
 
-Auto-update, launch-at-login, a tray icon, and mobile. Every one of those is a
+A tray icon, launch-at-login, and desktop auto-update. Every one of those is a
 decision about how software is *distributed* rather than about what it does,
 and they are v3 packaging concerns. They can be added when somebody is actually
 running the desktop shell and wants them; adding them first would mean
 maintaining an update channel for an application with no users.
+
+Android is the exception and not an inconsistency. "Start at boot" and "install
+the next APK" are not conveniences on a phone — they are the only way one runs
+a gateway at all — and v3 had already answered both in hand-written Java. See
+[ANDROID.md](ANDROID.md), which is also where the list of what has **not** been
+verified lives, because nothing on Android has been observed running.
 
 It also does not build the console, and it does not bind the OAuth issuer:
 `/v1/oauth/*` is the authorization server this instance runs for *downstream*
@@ -227,6 +235,19 @@ cargo clippy  -p gproxy-host-tauri --all-targets --all-features -- -D warnings
 cargo test    -p gproxy-host-tauri
 cargo run     -p gproxy-host-tauri --bin gproxy-desktop
 ```
+
+Android needs none of those libraries and all of the Android SDK instead:
+
+```sh
+cd crates/gproxy-host-tauri
+pnpm install                 # the Tauri CLI, pinned
+pnpm android:build:arm64     # a release APK
+```
+
+The library carries a `cdylib` crate type for it — there is no binary on a
+phone, the activity loads `libgproxy_host_tauri.so` — and `src/main.rs` is not
+built for Android at all. [ANDROID.md](ANDROID.md) has the toolchain versions,
+what a CI job would need, and what is unverified.
 
 The tests never touch a real credential store: `secrets::MemoryStore` and
 `secrets::UnavailableStore` stand in for a working keychain and a missing one,
