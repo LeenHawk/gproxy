@@ -67,8 +67,15 @@ pub mod identity;
 pub mod ids;
 pub mod report;
 pub mod secret;
+pub mod source;
 
 pub use report::Report;
+
+/// Lowercase hex, for the source marker. One line rather than a dependency,
+/// and the same encoding `gproxy-app` uses for a key digest.
+pub(crate) fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
 
 use std::{path::Path, sync::Arc};
 
@@ -80,12 +87,18 @@ use sea_orm::EntityTrait;
 use crate::{Error, Result, config::AdminOptions};
 use document::Document;
 
-/// Read a v3 export document and replay it into this instance.
+/// Read a v3 deployment and replay it into this instance.
 ///
-/// The order is: parse, refuse, translate, write the configuration through the
-/// sdk, write the identity through the app, set one password, reload. Every
-/// refusal happens before the first write, so an operator either gets the whole
-/// document or an untouched database.
+/// `input` is either a **v3 SQLite database**, which is the route an operator
+/// with a `gproxy.db` and a stopped service actually has, or a document from
+/// v3's `POST /admin/api/export`. Which one it is is decided by looking at the
+/// file, not by a flag: a SQLite file starts with a known 16-byte string, and
+/// nothing else does.
+///
+/// The order is: read, refuse, translate, write the configuration through the
+/// sdk, write the identity through the app, set one password, mark the source,
+/// reload. Every refusal happens before the first write, so an operator either
+/// gets the whole deployment or an untouched database.
 pub async fn import<C>(
     app: &Arc<App<C>>,
     input: &Path,
@@ -95,7 +108,31 @@ pub async fn import<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    let document = read(input)?;
+    let (document, marker) = match is_sqlite(input)? {
+        // The source file is never written to, so the "already imported" note
+        // goes into the *destination*, keyed by the source's path. v3 did the
+        // same thing one version earlier.
+        true => (
+            source::read(input).await?,
+            Some(source::source_marker(input)?),
+        ),
+        false => (read_document(input)?, None),
+    };
+    if let Some(marker) = &marker
+        && already_imported(app, marker).await?
+    {
+        tracing::info!(
+            source = %input.display(),
+            "this instance has already imported that v3 database; nothing to do"
+        );
+        let mut report = Report::default();
+        report.warn(format!(
+            "{} was already imported into this instance and was not read again. Remove the \
+             `{marker}` row from `settings` to force a re-import.",
+            input.display()
+        ));
+        return Ok(report);
+    }
     refuse_a_populated_destination(app).await?;
 
     let bridge = secret::Bridge::new(match source_master_key {
@@ -140,12 +177,91 @@ where
     // The identity half: `gproxy-app`'s own families, one row at a time.
     report.absorb(identity::write(app, &document, &bridge).await?);
     admin_password(app, &document, admin, &mut report).await?;
+    if let Some(marker) = marker {
+        mark_imported(app, &marker).await?;
+    }
     app.reload_all().await?;
 
     Ok(report)
 }
 
-fn read(input: &Path) -> Result<Document> {
+/// Whether the file is a SQLite database rather than a JSON document. The
+/// header string is SQLite's own and is the first 16 bytes of every file it
+/// writes; a JSON document cannot begin with it.
+fn is_sqlite(path: &Path) -> Result<bool> {
+    use std::io::Read;
+    const HEADER: &[u8; 16] = b"SQLite format 3\0";
+    let mut file = std::fs::File::open(path)
+        .map_err(|error| Error::io(format!("reading {}", path.display()), error))?;
+    let mut head = [0_u8; 16];
+    match file.read_exact(&mut head) {
+        Ok(()) => Ok(&head == HEADER),
+        // Too short to be a database; let the document reader say why.
+        Err(_) => Ok(false),
+    }
+}
+
+/// The action the source marker is recorded under.
+const IMPORT_ACTION: &str = "migration.v3.import";
+const IMPORT_ENTITY: &str = "v3_source";
+
+/// Whether this instance has already imported that source.
+///
+/// v3 recorded its own v2 import as a `v2_import_{sha256(path)}` row in its
+/// key/value `settings` table (`v3:crates/gproxy-app/src/migrate_v2/mod.rs`).
+/// v4's `settings` is one wide row with fixed columns and has nowhere to put
+/// such a key, so the same fact goes where v4 keeps "this happened": the audit
+/// trail, which is append-only, indexed by `entity_id`, and survives the
+/// deletion of everything the import created. The marker string itself is
+/// v3's scheme with the version moved on.
+async fn already_imported<C>(app: &Arc<App<C>>, marker: &str) -> Result<bool>
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    use gproxy_store::entity::identity::audit_event;
+    use sea_orm::{ColumnTrait, QueryFilter};
+    let found = app
+        .gproxy()
+        .store()
+        .audit_events()
+        .query(
+            audit_event::Entity::find()
+                .filter(audit_event::Column::Action.eq(IMPORT_ACTION))
+                .filter(audit_event::Column::EntityId.eq(marker))
+                .filter(audit_event::Column::Outcome.eq(audit_event::OUTCOME_OK)),
+        )
+        .await?;
+    Ok(!found.is_empty())
+}
+
+/// Record that this source has been imported. Written last, so a run that
+/// failed halfway leaves no marker and the re-run that completes it is not
+/// mistaken for a no-op.
+async fn mark_imported<C>(app: &Arc<App<C>>, marker: &str) -> Result<()>
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    let data = app.data();
+    let operations = Operations::new(app.gproxy(), &data, app.config());
+    operations
+        .audit()
+        .record(gproxy_app::AuditEntry {
+            // Nobody signed in: this is the command line acting as the
+            // instance itself.
+            actor_user_id: None,
+            actor_api_key_id: None,
+            source_ip: None,
+            action: IMPORT_ACTION.to_owned(),
+            entity_kind: Some(IMPORT_ENTITY.to_owned()),
+            entity_id: Some(marker.to_owned()),
+            outcome: gproxy_store::entity::identity::audit_event::OUTCOME_OK.to_owned(),
+            detail: serde_json::json!({"marker": marker}),
+        })
+        .await?;
+    Ok(())
+}
+
+fn read_document(input: &Path) -> Result<Document> {
     let bytes = match input == Path::new("-") {
         true => {
             use std::io::Read;
