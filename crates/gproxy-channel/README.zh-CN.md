@@ -14,11 +14,19 @@ Cargo feature：
 | feature | id | 上游 | 凭证 |
 |---|---|---|---|
 | `custom` | `custom` | 任何原生讲 OpenAI／Claude／Gemini 的 API-key 端点 | `{"api_key"}` |
+| `azure` | `azure` | Azure OpenAI 以及 Azure AI Foundry 同时托管的 Anthropic 模型：资源下的 v1 面或 deployment 面，`api-key` 与 `x-api-key` | `{"api_key"}` |
 | `codex` | `codex` | 经 Codex 后端使用的 ChatGPT 账号：OAuth（PKCE 与 device code）、HTTP SSE 与 WebSocket 上的 Responses、`x-codex-*` 限额头、`/wham/usage`、CLI 后端服务 | `OAuthCredential` |
 | `claudecode` | `claudecode` | 经 Claude Code CLI 的 Messages 请求使用的 Claude.ai 订阅：PKCE 与 cookie 登录、刷新、统一限速头、`/api/oauth/usage`、CLI 服务 | `OAuthCredential` |
 | `claudeweb` | `claudeweb` | claude.ai 浏览器会话：对 `/api/bootstrap` 的 cookie 登录、多次调用组成的对话轮次翻译成 Claude Messages SSE、组织级用量窗口 | 会话 cookie + 组织 |
+| `vertex` | `vertex` | Google Vertex AI：按项目与地区寻址 google／anthropic／OpenAI 兼容三个发布者；服务账号密钥经 `CredentialRefresh` 换取访问令牌 | Google 服务账号密钥 |
+| `vertexexpress` | `vertexexpress` | Vertex AI Express 模式：单一全局 origin 上的 Gemini 面，key 走 query，无项目无地区 | `{"api_key"}` |
 
-四个渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
+七个渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
+
+`azure`、`vertex`、`vertexexpress` 是云上的转售方：它们原样转发所托管厂商的 wire，
+只改方法的位置和凭证的呈现方式。三者都不伪装任何客户端，因此都不返回
+`default_connection`——出站栈只由运营方的连接 profile 决定。`vertex` 的凭证入库时
+`expires_at_ms` 已经过期，宿主的第一次刷新就会铸出访问令牌；`prepare` 从不铸令牌。
 
 ## 契约
 
