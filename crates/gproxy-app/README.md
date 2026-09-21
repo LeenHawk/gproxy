@@ -21,13 +21,32 @@ transport (host)
   → auth        Caller   { user, role, api key, organization, team, subscription, grant }
   → admission   Admitted { allowed providers, allowed credentials, budget owners,
                            scope, session identity, rate-limit permit }
-  → sdk call()  the engine executes with exactly those, and nothing re-derives them
+  → App::call   the engine executes with exactly those, and nothing re-derives them
 ```
 
 Each step narrows, and nothing below re-opens what was narrowed above: the
 engine is handed a provider set and a credential set, not a caller to
-interpret. The sdk bridge itself (`call.rs`, `service.rs`, `publication.rs`)
-lands next; today this crate stops after the `Admitted`.
+interpret.
+
+`App` is where the three pieces meet — the engine handle, the instance
+configuration and the identity snapshot — and it is the only thing a host
+holds:
+
+```rust,ignore
+let app = App::new(gproxy, config);
+app.reload_all().await?;                       // both snapshots, one startup
+
+let data = app.data();                         // once per request, held throughout
+let caller = app.authenticator(&data).authenticate_request(&headers).await?;
+let outcome = app.call(&caller, request).await?;
+//   outcome.execution  → the response to stream back
+//   outcome.admitted   → the charges; keep it alive until the stream ends
+```
+
+`authenticator` and `admission` take the snapshot rather than loading it
+because they borrow it for as long as they live and the published snapshot can
+be replaced at any moment — which is also the request-scoped rule written down:
+one load, one request.
 
 ## What exists now
 
@@ -37,11 +56,14 @@ lands next; today this crate stops after the `Admitted`.
 | `snapshot` | `AppData`, the compiled identity of one configuration revision, and `AppSnapshot`, its monotonic publication |
 | `auth` | the three ways a request names a caller, and the `Caller` all three produce |
 | `admission` | `Caller` → `Admitted`: providers, credentials, budget owners, scope, session, rate-limit charges |
+| `call` | `DataPlaneRequest` → `CallOutcome`: admit, then run the engine with exactly what was admitted |
+| `service` | vendor CLI services: which credentials are in the target, and what role the caller has over them |
+| `publication` | `AppPublicationUrl`, plus the read and delete behind the host's download route |
 | `error` | `AppError`, with `status_code()` and a stable `code()` for the API envelope |
 
-Everything else (`call`, `service`, `capture`, `publication`, `operations`,
-`audit`, `dto`) is declared with the contract it will hold, so a later phase
-fills it in place rather than reshaping the crate.
+Everything else (`capture`, `operations`, `audit`, `dto`) is declared with the
+contract it will hold, so a later phase fills it in place rather than reshaping
+the crate.
 
 ## The snapshot
 
@@ -308,6 +330,107 @@ lease returns whatever is still outstanding; because the cache is async and
 `Drop` cannot await, the release is spawned, and a host that can await should
 call `Admitted::release()` instead. Every charge expires with its window, so
 even a lost release self-heals at the boundary.
+
+## The data plane
+
+`App::call` and `App::connect` are the whole bridge to the engine: admit, then
+drive the handle's builder with every value out of the `Admitted` — scope,
+attribution, budget owners, the provider set, the credential set, the session —
+and with nothing that was not decided there. The engine never sees a `Caller`,
+so it cannot re-answer a question this layer already answered, and this layer
+never guesses at routing, which is the engine's.
+
+One value is read on both sides: the model name. It is parsed out of the JSON
+body here (the handle's own helper for that is private, so the same two lines
+exist in both places) and then passed to the builder explicitly, so the name
+permissions and rate limits were decided against is the name resolution uses.
+A dialect that carries the model in the path instead — the Gemini shape — has
+already been parsed by the host, which sets `DataPlaneRequest::model`.
+
+The gateway's session header is stripped before forwarding, here as well as
+inside the handle. A client must not be able to choose another caller's
+conversation by sending the header the gateway uses to name one.
+
+### Keep the leases alive while you stream
+
+`CallOutcome` hands back the `Admitted` on purpose:
+
+| Charge | On `finish()` | On drop |
+|---|---|---|
+| window counter (`requests`, …) | stands — a request was made | nothing |
+| concurrency permit | still outstanding | returned |
+
+`call()` has already called `Admitted::finish()` by the time it returns, so
+**the host must hold `outcome.admitted` for as long as it is writing the
+response**. A concurrency permit measures requests *in flight*, and a streamed
+answer is still in flight long after `call()` returned; dropping the outcome
+early hands the slot to the next request while this one is still using it. A
+host that can await should end the request with `Admitted::release()` rather
+than relying on the drop path, which has to spawn because `Drop` cannot await.
+
+A failure after admission is the opposite case: `call()` releases every charge
+before it returns, because nothing ran.
+
+`SdkError` is mapped to `AppError` with its status preserved. Engine, store and
+cache failures are unwrapped into the variants this crate already has — so
+matching on `AppError::Core` still catches a spent budget whichever layer
+raised it — and everything else stays whole in `AppError::Sdk`, because the
+handle has already decided what a 429 from every target, or a name that
+resolved to nothing usable, is worth on the wire.
+
+## Vendor services
+
+The service views (`profile`, `usage`, plugins, remote control) have no
+`OperationKey` and no model. Core says outright that it does not decide who is
+an admin of what, so this crate answers exactly two questions and hands the
+rest over:
+
+1. **the target's credentials** are the caller's *visible* credentials of that
+   provider — the same set a model call from the same key could spend. `Pool`
+   therefore aggregates only what this caller already reaches, and
+   `Credential(id)` can only name one of them (anything else is `404`);
+2. **the role** is `Admin` for an instance administrator, or for an `Admin`
+   member of the organization or team that owns **every** credential in that
+   set. Anything else is `Member`, and a `Member` may only ask for the `Caller`
+   view — `Pool` and `Credential` are `403`.
+
+"Every credential" is not a formality: the target is the whole visible set, so
+administering one organization must not render a pool that also contains
+another's. An unowned credential has no administrator by construction — nobody
+is an `Admin` member of nothing — so on a single-tenant instance where every
+credential is shared, only an instance administrator reaches `Pool` and
+`Credential`. Widening that is an operator decision (promote the user, or give
+the credential an owner), not an inference made here.
+
+A service takes **no rate-limit lease** — charging a window for a profile fetch
+would spend an allowance the caller needs for traffic that costs money — but it
+does pass the budget chain, because the `Caller` view renders the caller's own
+windows from it. Reporting a quota is not spending one.
+
+`ServiceRequest::user_id` is `attribution(caller).user_id`, from the same
+function a model request uses. Core's view of the caller reads it to find the
+caller's usage; two answers to "who is this" inside one request is exactly the
+bug the single-`Caller` rule exists to prevent.
+
+## Publication links
+
+Core owns published bytes and the id they are stored under, but it has no
+public HTTP surface, so it cannot say where they can be fetched from.
+`AppPublicationUrl` answers `{public_base_url}/publications/{id}`, and
+`App::read_publication` / `App::delete_publication` serve that route.
+
+**With no `public_base_url` configured it answers `None`**, which makes the
+publish fail with `Unsupported` before any body is written, and the caller is
+told to ask for the bytes inline (`b64_json`) instead. The alternative would be
+to build the link from the request's `Host` — chosen by the client — or from an
+`x-forwarded-proto` chosen by whatever is in front. A link built from a guess
+is worse than no link: the upstream answer is accepted, the bytes are stored,
+the URL is handed out, and it 404s somewhere else.
+
+A read that finds nothing, a released body and an expired one are one answer —
+`404` — because distinguishing them tells a prober which ids existed. The scope
+is not checked: the id is a random secret and the link is the capability,
+exactly as core's own read has it.
 
 ## A cascade that only exists on new databases
 

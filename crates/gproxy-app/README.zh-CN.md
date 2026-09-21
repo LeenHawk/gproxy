@@ -19,12 +19,28 @@ Cloudflare Worker 里——本 crate 能为 `wasm32-unknown-unknown` 构建，�
   → auth        Caller   { 用户、角色、api key、组织、团队、订阅、grant }
   → admission   Admitted { 允许的 Provider 集、允许的凭证集、预算 owner 链、
                            scope、会话身份、限流许可 }
-  → sdk call()  引擎只按这些执行，下游不再重新推导任何一项
+  → App::call   引擎只按这些执行，下游不再重新推导任何一项
 ```
 
 每一步都在收窄，下面不会重新打开上面已经收窄的东西：交给引擎的是一个 Provider 集和
-一个凭证集，而不是一个待解释的调用方。sdk 桥接本身（`call.rs`、`service.rs`、
-`publication.rs`）是下一步；当前本 crate 到 `Admitted` 为止。
+一个凭证集，而不是一个待解释的调用方。
+
+`App` 是三样东西汇合的地方——引擎句柄、实例配置、身份快照——也是宿主唯一需要持有的值：
+
+```rust,ignore
+let app = App::new(gproxy, config);
+app.reload_all().await?;                       // 启动时一次，两个快照一起
+
+let data = app.data();                         // 每个请求取一次，全程持有
+let caller = app.authenticator(&data).authenticate_request(&headers).await?;
+let outcome = app.call(&caller, request).await?;
+//   outcome.execution  → 要回写给客户端的响应
+//   outcome.admitted   → 扣减；在流写完之前不能丢
+```
+
+`authenticator` 与 `admission` 接收快照而不是自己去取，因为它们会在整个生命周期里借用
+它，而已发布的快照随时可能被换掉；这同时也把「一个请求只取一次快照」这条规则写进了
+签名里。
 
 ## 现在有什么
 
@@ -34,10 +50,13 @@ Cloudflare Worker 里——本 crate 能为 `wasm32-unknown-unknown` 构建，�
 | `snapshot` | `AppData`——某个配置 revision 编译后的身份，以及单调发布它的 `AppSnapshot` |
 | `auth` | 请求指认调用方的三条路径，以及三者产出的同一个 `Caller` |
 | `admission` | `Caller` → `Admitted`：Provider 集、凭证集、预算 owner 链、scope、会话、限流扣减 |
+| `call` | `DataPlaneRequest` → `CallOutcome`：先准入，再让引擎严格按准入结果执行 |
+| `service` | 厂商 CLI 服务：目标集里有哪些凭证，以及调用方对这组凭证是什么角色 |
+| `publication` | `AppPublicationUrl`，以及宿主下载路由背后的读取与删除 |
 | `error` | `AppError`，带 `status_code()` 与用于 API 信封的稳定 `code()` |
 
-其余模块（`call`、`service`、`capture`、`publication`、`operations`、`audit`、`dto`）
-都已声明并写明各自将承担的契约，后续阶段就地填充，不需要再改 crate 的形状。
+其余模块（`capture`、`operations`、`audit`、`dto`）都已声明并写明各自将承担的契约，
+后续阶段就地填充，不需要再改 crate 的形状。
 
 ## 快照
 
@@ -248,6 +267,82 @@ permit 度量的是在途请求数，不是已发生请求数。丢弃一个 lea
 由于 cache 是异步的而 `Drop` 不能 await，归还是 spawn 出去的，能够 await 的宿主应改
 调用 `Admitted::release()`。每份扣减都随窗口过期，所以即便一次归还丢了，也会在边界处
 自愈。
+
+## 数据面
+
+`App::call` 与 `App::connect` 就是通往引擎的全部桥接：先准入，再用 `Admitted` 里的每
+一项去驱动句柄的 builder——scope、归因、预算 owner、Provider 集、凭证集、会话——并且不
+带任何不是在那里决定的东西。引擎永远看不到 `Caller`，所以它无法重新回答这一层已经回答
+过的问题；这一层也从不猜测选路，那是引擎的事。
+
+只有一个值两边都要读：模型名。它在这里从 JSON body 里解析出来（句柄自己的那个 helper
+是私有的，所以同样的两行在两处各有一份），然后显式传给 builder，这样权限和限流判定所依
+据的名字就是选路使用的名字。把模型放在路径里的方言——Gemini 那种形状——已经由宿主解析
+过，宿主设置 `DataPlaneRequest::model`。
+
+网关的会话头在转发前会被剥掉，这里剥一次，句柄里再剥一次。客户端不能靠发送网关用来标识
+会话的那个头，去挑别人的会话。
+
+### 流还没写完，lease 就不能丢
+
+`CallOutcome` 把 `Admitted` 交还出来是刻意的：
+
+| 扣减 | `finish()` 之后 | drop 时 |
+|---|---|---|
+| 窗口计数（`requests` 等） | 保留——请求确实发生了 | 不动 |
+| 并发 permit | 仍然占用 | 归还 |
+
+`call()` 返回时已经调用过 `Admitted::finish()`，因此**宿主必须在回写响应的全过程中持有
+`outcome.admitted`**。并发 permit 度量的是「在途」请求数，而流式响应在 `call()` 返回之
+后很久仍然在途；过早丢弃会在本请求还在用这个槽位时，就把它让给下一个请求。能够 await
+的宿主应在请求结束时调用 `Admitted::release()`，而不是依赖 drop 路径——`Drop` 不能
+await，只能 spawn。
+
+准入之后失败是相反的情况：`call()` 在返回前就把所有扣减退回，因为什么都没跑成。
+
+`SdkError` 映射为 `AppError` 时保留状态码。引擎、store 和 cache 的失败被拆回本 crate
+已有的变体——所以 `AppError::Core` 依然能同时匹配到两层各自抛出的预算耗尽——其余的整体
+保留在 `AppError::Sdk` 里，因为「所有目标都返回 429」或者「名字解析后没有可用目标」值
+多少个状态码，句柄已经判定过了。
+
+## 厂商服务
+
+服务视图（`profile`、用量、插件、远程控制）没有 `OperationKey`，也没有模型。core 自己
+就写明它不决定谁是谁的 admin，所以本 crate 只回答两个问题，其余交出去：
+
+1. **目标集的凭证**是该 Provider 下调用方**可见**的那些凭证——和同一把 key 发模型请求时
+   能花的是同一组。因此 `Pool` 聚合的只是这个调用方本来就够得着的东西，`Credential(id)`
+   也只能点名其中之一（其余是 `404`）；
+2. **角色**：实例管理员是 `Admin`；否则必须是**该集合中每一个凭证**所属组织或团队的
+   `Admin` 成员。其他一律是 `Member`，而 `Member` 只能要 `Caller` 视图——`Pool` 与
+   `Credential` 是 `403`。
+
+「每一个凭证」不是形式：目标就是整个可见集，所以管着一个组织不能渲染出一个还包含另一个
+组织凭证的池。无主凭证按定义没有管理员——没有人是「无」的 `Admin` 成员——所以在所有凭证
+都共享的单租户实例上，只有实例管理员够得到 `Pool` 和 `Credential`。要放宽是运维的决定
+（提升这个用户，或给凭证一个 owner），不是这里替他推断出来的。
+
+服务**不拿限流 lease**——为一次拉取 profile 扣掉一格窗口，花的是调用方真正要用来跑花钱
+流量的额度——但会传预算链，因为 `Caller` 视图要据此渲染调用方自己的窗口。报告配额不等于
+消耗配额。
+
+`ServiceRequest::user_id` 取自 `attribution(caller).user_id`，和模型请求用的是同一个函
+数。core 眼中的调用方要靠它去找这个人的用量；一个请求内部对「这是谁」出现两个答案，正是
+单一 `Caller` 规则要防的那个 bug。
+
+## 发布链接
+
+core 拥有已发布的字节和它们的 id，但它没有对外的 HTTP 面，所以说不出这些字节能从哪里取
+回。`AppPublicationUrl` 给出 `{public_base_url}/publications/{id}`，
+`App::read_publication` / `App::delete_publication` 服务那条路由。
+
+**没有配 `public_base_url` 时它返回 `None`**，于是发布会在写入任何 body 之前以
+`Unsupported` 失败，调用方被告知改要内联字节（`b64_json`）。另一种做法是用请求的 `Host`
+——那是客户端选的——或者用前置代理给的 `x-forwarded-proto` 去拼链接。用猜出来的东西拼出
+的链接比没有链接更糟：上游回答被接受、字节被存下、URL 交了出去，然后它在别的地方 404。
+
+读不到、body 已释放、已过期，三者是同一个回答——`404`——因为区分它们等于告诉探测者哪些
+id 存在过。这里不校验 scope：id 本身就是随机的秘密，链接即凭据，和 core 自己的读取一致。
 
 ## 只在新建数据库上存在的级联
 
