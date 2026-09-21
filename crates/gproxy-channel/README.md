@@ -30,6 +30,8 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `vertex` | `vertex` | Google Vertex AI: regional project-scoped methods for the Google, Anthropic and OpenAI-compatible publishers; a service-account key exchanged for an access token through `CredentialRefresh` | Google service-account key |
 | `vertexexpress` | `vertexexpress` | Vertex AI Express mode: the Gemini surface on one global origin, key in the query, no project and no region | `{"api_key"}` |
 
+Every channel builds for native targets and `wasm32-unknown-unknown`.
+
 `claudeapi`, `openai` and `aistudio` are the vendors' own first-party APIs.
 Each exists as a channel rather than as a `custom` provider because of a
 route layout `custom` cannot express: Anthropic's routes follow the operation
