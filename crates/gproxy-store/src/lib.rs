@@ -1,8 +1,12 @@
 //! GPROXY v4 entities, batch repositories and atomic persistence operations.
 //!
 //! Store accepts an existing batch connection. It does not open a database or perform
-//! schema changes during construction. Call [`Store::sync`] explicitly to initialize
-//! or incrementally synchronize all entities; [`schema`] retains one-shot DDL access.
+//! schema changes during construction. Call [`Store::migrate`] explicitly to create the
+//! schema or carry an existing one forward; [`schema`] retains one-shot DDL access.
+//!
+//! Schema changes are versioned. [`migration`] holds the migrator, the baseline
+//! that creates the registry on an empty database, and the gate that refuses a
+//! database this build does not own rather than altering it and hoping.
 
 pub mod entity;
 mod error;
@@ -19,8 +23,10 @@ pub use control::{AllData, ControlData, IdentityData, RoutingData};
 mod revision;
 pub use revision::Commit;
 mod cache;
+pub mod migration;
 pub mod operations;
 pub use cache::StoreCache;
+pub use migration::{MIGRATION_LEDGER, Migrator, SchemaReport, SchemaState};
 
 use sea_orm::{DbBackend, Schema, SchemaBuilder};
 

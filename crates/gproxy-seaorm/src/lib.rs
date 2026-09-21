@@ -31,7 +31,9 @@ pub use sea_orm_migration;
 mod migration_support;
 pub mod schema;
 pub use migration_support::D1SchemaManagerExt;
-pub use schema::{EntityRegistry, SchemaSyncConnectionTrait, SyncReport};
+pub use schema::{
+    EntityRegistry, SchemaSyncConnectionTrait, SyncReport, is_engine_table, ledger_table_name,
+};
 
 #[cfg(any(target_arch = "wasm32", test, feature = "libsql"))]
 mod codec;
