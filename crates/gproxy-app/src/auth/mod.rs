@@ -35,7 +35,7 @@ mod oauth_access;
 pub mod password;
 mod session;
 
-pub use api_key::{API_KEY_PREFIX, digests, generate_api_key};
+pub use api_key::{API_KEY_PREFIX, adopt_api_key, digests, generate_api_key};
 pub use csrf::verify_same_origin;
 pub use session::IssuedSession;
 

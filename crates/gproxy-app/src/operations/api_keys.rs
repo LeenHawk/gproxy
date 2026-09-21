@@ -71,6 +71,39 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ApiKeys<'_, C> {
     /// Mint a key. The returned `token` is the only copy of the plaintext the
     /// caller will get unless the row retained one.
     pub async fn create(&self, write: ApiKeyWrite) -> Result<ApiKeyCreated> {
+        let (token, prefix, key_hash) = generate_api_key(API_KEY_PREFIX)?;
+        self.write_row(write, token, prefix, key_hash).await
+    }
+
+    /// Write a row for a key whose text the caller already has.
+    ///
+    /// For provisioning: an operator who keeps the gateway key in a secret
+    /// manager hands it here instead of taking a generated one, and the same
+    /// value works on every instance of the deployment. The validation, the
+    /// binding rules and the digest are the ones [`ApiKeys::create`] uses —
+    /// which is the point. A second, hand-rolled insert is how v3 ended up with
+    /// a bootstrap key that authenticated nowhere: it wrote the digest of the
+    /// key's *payload* while the lookup asked for the digest of the whole text.
+    ///
+    /// The key's strength is the caller's problem. Nothing here can tell a
+    /// 32-byte random token from a short one, so a weak key is accepted exactly
+    /// as typed; only a blank one is refused.
+    pub async fn adopt(&self, write: ApiKeyWrite, token: &str) -> Result<ApiKeyCreated> {
+        let (prefix, key_hash) = crate::auth::adopt_api_key(token)?;
+        self.write_row(write, token.trim().to_owned(), prefix, key_hash)
+            .await
+    }
+
+    /// The shared half: validate the binding, build the row, commit one
+    /// revision. Both entry points reach the database only through here, so
+    /// there is one set of rules and one digest.
+    async fn write_row(
+        &self,
+        write: ApiKeyWrite,
+        token: String,
+        prefix: String,
+        key_hash: String,
+    ) -> Result<ApiKeyCreated> {
         let id = crud::id_or_new(write.id.as_deref())?;
         let user_id = crud::text(&write.user_id, "userId")?;
         crud::require_rows(
@@ -87,7 +120,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ApiKeys<'_, C> {
         self.validate_subscription(&user_id, subscription_id.as_deref())
             .await?;
 
-        let (token, prefix, key_hash) = generate_api_key(API_KEY_PREFIX)?;
         let secret = if write.retain_secret.unwrap_or(false) {
             Some(self.seal(&id, &token)?)
         } else {

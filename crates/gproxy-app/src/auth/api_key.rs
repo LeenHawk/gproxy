@@ -77,6 +77,32 @@ pub fn generate_api_key(prefix: &str) -> Result<(String, String, String), AppErr
     Ok((token, display, key_hash))
 }
 
+/// The two columns a row keeps for a token the caller already has, rather than
+/// one this module generated.
+///
+/// The same digest [`generate_api_key`] writes — the SHA-256 of the whole text —
+/// so an adopted key is found on the first rung of [`digests`] exactly like a
+/// minted one. That is the whole point of routing this through here: v3 stored a
+/// bootstrap key under the digest of its *payload* while its console stored
+/// minted keys under a different rule, and the mismatch meant an operator's
+/// `sk-`-prefixed bootstrap key authenticated on some surfaces and answered 401
+/// on others. There is one answer to "hashed how" in this crate, and it is this
+/// file.
+///
+/// The display prefix is the first eight characters of the body, after any
+/// presentation prefix, matching what a minted key shows in a list. A token too
+/// short to have eight is shown as far as it goes rather than padded.
+pub fn adopt_api_key(token: &str) -> Result<(String, String), AppError> {
+    let token = token.trim();
+    if token.is_empty() {
+        return Err(AppError::invalid("api key must not be blank"));
+    }
+    let body = strip_presentation_prefix(token).unwrap_or(token);
+    let display: String = body.chars().take(8).collect();
+    let key_hash = encode_key_hash(&Sha256::digest(token.as_bytes()).into());
+    Ok((display, key_hash))
+}
+
 /// Cryptographically secure bytes, or an error. Never a zeroed buffer.
 pub(crate) fn random_bytes<const N: usize>() -> Result<[u8; N], AppError> {
     let mut bytes = [0_u8; N];
@@ -223,5 +249,46 @@ mod tests {
         let (first, _, _) = generate_api_key(API_KEY_PREFIX).unwrap();
         let (second, _, _) = generate_api_key(API_KEY_PREFIX).unwrap();
         assert_ne!(first, second);
+    }
+
+    #[test]
+    fn an_adopted_key_is_stored_exactly_where_a_minted_one_would_be() {
+        let (token, display, key_hash) = generate_api_key(API_KEY_PREFIX).unwrap();
+        let (adopted_display, adopted_hash) = adopt_api_key(&token).unwrap();
+        assert_eq!(adopted_display, display);
+        assert_eq!(adopted_hash, key_hash);
+    }
+
+    #[test]
+    fn an_adopted_key_is_found_on_the_first_rung_of_the_ladder() {
+        // The v3 bug this exists to prevent: a bootstrap key spelled `sk-…`
+        // stored under the payload digest while the lookup tried the whole text
+        // first. Both sides now agree on the whole text.
+        for token in [
+            "sk-operator-supplied",
+            "at-operator-supplied",
+            "plain-token",
+        ] {
+            let (_, key_hash) = adopt_api_key(token).unwrap();
+            assert_eq!(
+                key_hash,
+                crate::snapshot::encode_key_hash(&digests(token)[0])
+            );
+        }
+    }
+
+    #[test]
+    fn an_adopted_key_shows_the_body_not_the_presentation_prefix() {
+        let (display, _) = adopt_api_key("sk-abcdefghijkl").unwrap();
+        assert_eq!(display, "abcdefgh");
+        // Shorter than the display width is shown as far as it goes.
+        let (short, _) = adopt_api_key("sk-abc").unwrap();
+        assert_eq!(short, "abc");
+    }
+
+    #[test]
+    fn a_blank_adopted_key_is_refused() {
+        assert!(adopt_api_key("   ").is_err());
+        assert!(adopt_api_key("").is_err());
     }
 }
