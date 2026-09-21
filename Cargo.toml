@@ -63,6 +63,7 @@ http = "1"
 hmac = "0.13"
 js-sys = "0.3"
 mime_guess = "2"
+miniz_oxide = { version = "0.9", default-features = false, features = ["with-alloc"] }
 moka = { version = "0.12", features = ["future"] }
 opendal-core = { version = "0.59", default-features = false }
 opendal-service-fs = { version = "0.59", default-features = false }
