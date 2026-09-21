@@ -25,8 +25,17 @@ pub struct OAuthCredential {
     pub scopes: Vec<String>,
     pub expires_at_ms: Option<i64>,
     pub refresh_expires_at_ms: Option<i64>,
+    /// Public account facts. They are sealed with the tokens *and* published
+    /// as the credential's `metadata`, which a console may render, so nothing
+    /// secret belongs here.
     #[serde(default)]
     pub provider_fields: BTreeMap<String, Value>,
+    /// Secret-bearing facts a later refresh needs: sealed with the tokens and
+    /// never published as metadata. A client secret a login registered for
+    /// itself is the case this exists for — `provider_fields` would leak it,
+    /// and the login session it arrived in does not outlive the login.
+    #[serde(default)]
+    pub provider_secrets: BTreeMap<String, Value>,
 }
 
 pub struct AuthorizationRequest<'a> {
@@ -36,10 +45,27 @@ pub struct AuthorizationRequest<'a> {
     pub code_challenge: &'a str,
 }
 
+/// What the browser step settled on. `provider_state` is the same pocket the
+/// device flow carries in [`DeviceAuthorization`], so the two flows are one
+/// idea: a channel may need facts of its own on the far side of the person's
+/// authorization, and this is where they wait.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct AuthorizationStart {
     pub authorize_url: String,
     pub redirect_uri: String,
+    /// Facts this channel needs across the user's authorization, handed back
+    /// to `exchange` in [`AuthorizationCode::provider_state`]. The shape is
+    /// the channel's own.
+    ///
+    /// Unlike [`OAuthCredential::provider_fields`] this map **may carry
+    /// secrets** — a client id and secret a dynamic registration (RFC 7591)
+    /// just minted is what it exists for. It never leaves the host's login
+    /// session, which is short-lived, cache-backed and never rendered, and it
+    /// is never persisted on the credential. A channel that wants one of
+    /// these facts to survive the login has to return it from `exchange`:
+    /// public ones in `provider_fields`, secret ones in
+    /// [`OAuthCredential::provider_secrets`].
+    pub provider_state: BTreeMap<String, Value>,
 }
 
 pub struct AuthorizationCode<'a> {
@@ -48,6 +74,12 @@ pub struct AuthorizationCode<'a> {
     pub code_verifier: &'a str,
     /// Original state, also required in Claude's upstream token exchange.
     pub state: &'a str,
+    /// Whatever `authorize` put in [`AuthorizationStart::provider_state`],
+    /// parked in the login session in between and handed back unchanged;
+    /// empty when the channel needed nothing. Secret-bearing by design, so it
+    /// may be sent to the upstream but never published: see the field it came
+    /// from.
+    pub provider_state: &'a BTreeMap<String, Value>,
 }
 
 pub trait OAuthAuthorizationCode: Send + Sync {
@@ -74,6 +106,12 @@ pub struct DeviceAuthorization {
     pub verification_uri_complete: Option<String>,
     pub expires_at_ms: Option<i64>,
     pub interval_secs: u64,
+    /// Facts this channel needs across the user's authorization, handed back
+    /// to `poll` with the rest of the authorization. The same pocket, with the
+    /// same rules, as [`AuthorizationStart::provider_state`]: the shape is the
+    /// channel's own, it **may carry secrets** — unlike
+    /// [`OAuthCredential::provider_fields`] — and it never leaves the host's
+    /// login session.
     pub provider_state: BTreeMap<String, Value>,
 }
 
@@ -113,6 +151,9 @@ pub struct AcquiredCredential {
 }
 
 impl From<OAuthCredential> for AcquiredCredential {
+    /// The whole credential is sealed; only `provider_fields` is published.
+    /// `provider_secrets` is deliberately absent from the metadata: it is in
+    /// the sealed blob beside the tokens and nowhere else.
     fn from(credential: OAuthCredential) -> Self {
         let expires_at_ms = credential.expires_at_ms;
         let metadata = Value::Object(

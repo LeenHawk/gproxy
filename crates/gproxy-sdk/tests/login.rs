@@ -7,10 +7,10 @@
 
 mod support;
 
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use base64::Engine as _;
-use gproxy_channel::channel::{AcquiredCredential, DevicePoll};
+use gproxy_channel::channel::{AcquiredCredential, AuthorizationStart, DevicePoll};
 use gproxy_sdk::{
     ClientPool, Gproxy, GproxyBuilder, SdkError, SyncMode,
     dto::{
@@ -304,6 +304,123 @@ async fn a_bare_code_completes_the_login_too() {
         .unwrap();
     // A caller-supplied label wins, trimmed.
     assert_eq!(row.label.as_deref(), Some("pasted by hand"));
+}
+
+/// The authorization-code pocket: a channel's own facts survive the person's
+/// trip through the browser, in the session and nowhere else.
+#[tokio::test]
+async fn an_authorization_code_login_round_trips_the_channels_provider_state() {
+    let (gproxy, channel) = sealed_sdk().await;
+    let provider_id = provider(&gproxy, "test").await;
+    // A client the channel registered for this login alone: an id that is a
+    // public fact and a secret that is not.
+    channel
+        .authorize_starts
+        .lock()
+        .unwrap()
+        .push_back(AuthorizationStart {
+            authorize_url: "https://login.example/authorize".into(),
+            redirect_uri: "http://127.0.0.1:1455/callback".into(),
+            provider_state: BTreeMap::from([
+                ("client_id".into(), json!("registered-9")),
+                ("client_secret".into(), json!("registered-secret")),
+            ]),
+        });
+
+    let started = gproxy
+        .login()
+        .authcode_start(AuthCodeStart {
+            provider_id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let parked = session(&gproxy, &started.login_session_id).await.unwrap();
+    assert_eq!(parked["provider_state"]["client_id"], "registered-9");
+    assert_eq!(
+        parked["provider_state"]["client_secret"], "registered-secret",
+        "the cache-backed session is where a login's own secret waits"
+    );
+
+    channel
+        .code_exchanges
+        .lock()
+        .unwrap()
+        .push_back(Ok(support::oauth_credential("access-3")));
+    let state = parked["state"].as_str().unwrap().to_owned();
+    let created = gproxy
+        .login()
+        .authcode_complete(AuthCodeComplete {
+            login_session_id: started.login_session_id,
+            code: Some("code-3".into()),
+            state: Some(state),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    // What was parked is what the exchange was handed, unchanged.
+    let handed = channel.exchanged_provider_state.lock().unwrap().clone();
+    assert_eq!(
+        handed,
+        vec![BTreeMap::from([
+            ("client_id".to_owned(), json!("registered-9")),
+            ("client_secret".to_owned(), json!("registered-secret")),
+        ])]
+    );
+
+    // And none of it reached the credential row, whose metadata is rendered.
+    let row = gproxy
+        .store()
+        .credentials()
+        .get_many(std::slice::from_ref(&created.credential_id))
+        .await
+        .unwrap()
+        .remove(0)
+        .unwrap();
+    assert!(
+        !row.metadata.to_string().contains("registered"),
+        "provider_state must not become credential metadata: {}",
+        row.metadata
+    );
+}
+
+#[tokio::test]
+async fn a_login_that_carries_no_provider_state_carries_an_empty_one() {
+    let (gproxy, channel, _) = support::sdk_parts().await;
+    let provider_id = provider(&gproxy, "test").await;
+    let started = gproxy
+        .login()
+        .authcode_start(AuthCodeStart {
+            provider_id,
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let parked = session(&gproxy, &started.login_session_id).await.unwrap();
+    assert_eq!(parked["provider_state"], json!({}));
+
+    channel
+        .code_exchanges
+        .lock()
+        .unwrap()
+        .push_back(Ok(support::oauth_credential("access-4")));
+    let state = parked["state"].as_str().unwrap().to_owned();
+    gproxy
+        .login()
+        .authcode_complete(AuthCodeComplete {
+            login_session_id: started.login_session_id,
+            code: Some("code-4".into()),
+            state: Some(state),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        channel.exchanged_provider_state.lock().unwrap().clone(),
+        vec![BTreeMap::new()],
+        "empty on one side is empty on the other, never absent"
+    );
 }
 
 #[tokio::test]

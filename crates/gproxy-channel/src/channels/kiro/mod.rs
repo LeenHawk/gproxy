@@ -631,12 +631,12 @@ impl BaseChannel for Kiro {
                 ConfigKey::optional(
                     "sso_client_id",
                     ConfigKeyKind::String,
-                    "An IAM Identity Center client registered once with AWS OIDC RegisterClient; required for the authorization-code login.",
+                    "An IAM Identity Center client registered once by hand with AWS OIDC RegisterClient. Only needed when the portal refuses dynamic registration; the authorization-code login registers its own client otherwise.",
                 ),
                 ConfigKey::optional(
                     "sso_client_secret",
                     ConfigKeyKind::String,
-                    "The secret that goes with sso_client_id. Kept in configuration rather than on the credential, because credential provider fields are published as metadata.",
+                    "The secret that goes with sso_client_id. A client the login registered for itself is sealed with the credential instead, never written here and never published as metadata.",
                 ),
                 ConfigKey::optional(
                     "sso_start_url",

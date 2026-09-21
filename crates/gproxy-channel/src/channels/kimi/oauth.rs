@@ -236,6 +236,7 @@ impl OAuthDeviceCode for super::Kimi {
                     expires_at_ms: Some(reply.expires_at_ms()),
                     refresh_expires_at_ms: None,
                     provider_fields,
+                    provider_secrets: BTreeMap::new(),
                 }));
             }
             match reply.error.as_deref() {

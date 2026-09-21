@@ -220,6 +220,7 @@ impl OAuthDeviceCode for super::WorkBuddy {
                     .or_else(|| relative(Some(DEFAULT_EXPIRES_IN_SECS))),
                 refresh_expires_at_ms: tokens.refresh_expires_at_ms(),
                 provider_fields: fields,
+                provider_secrets: BTreeMap::new(),
             }))
         })
     }

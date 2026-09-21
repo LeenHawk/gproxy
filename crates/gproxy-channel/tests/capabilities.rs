@@ -1,4 +1,7 @@
-use std::{collections::VecDeque, sync::Mutex};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    sync::Mutex,
+};
 
 mod support;
 
@@ -190,6 +193,9 @@ impl OAuthAuthorizationCode for Demo {
                     req.state, req.code_challenge
                 ),
                 redirect_uri: req.redirect_uri.into(),
+                // The pocket the exchange gets back, the same one a device
+                // authorization carries.
+                provider_state: BTreeMap::from([("registration".into(), json!("client-9"))]),
             })
         })
     }
@@ -203,7 +209,8 @@ impl OAuthAuthorizationCode for Demo {
                 ctx,
                 "/token",
                 json!({"code":code.code,"state":code.state,
-                "redirect_uri":code.redirect_uri,"code_verifier":code.code_verifier}),
+                "redirect_uri":code.redirect_uri,"code_verifier":code.code_verifier,
+                "provider_state":code.provider_state}),
             )
             .await?;
             Ok(serde_json::from_value(payload(response)).unwrap())
@@ -305,6 +312,7 @@ async fn oauth_flows_preserve_pkce_state_tokens_and_host_driven_device_polling()
                 state: "state",
                 redirect_uri: &started.redirect_uri,
                 code_verifier: "verifier",
+                provider_state: &started.provider_state,
             },
         )
         .await
@@ -359,6 +367,10 @@ async fn oauth_flows_preserve_pkce_state_tokens_and_host_driven_device_polling()
     let grant: Value = serde_json::from_slice(body).unwrap();
     assert_eq!(grant["state"], "state");
     assert_eq!(grant["code_verifier"], "verifier");
+    assert_eq!(
+        grant["provider_state"]["registration"], "client-9",
+        "what authorize put in its pocket is what exchange was handed"
+    );
 }
 
 fn window(percent: Option<Decimal>) -> QuotaEntry {

@@ -222,6 +222,7 @@ impl OAuthDeviceCode for super::CopilotCli {
                 // The GitHub token has no stated lifetime of its own.
                 refresh_expires_at_ms: None,
                 provider_fields: BTreeMap::new(),
+                provider_secrets: BTreeMap::new(),
             }))
         })
     }

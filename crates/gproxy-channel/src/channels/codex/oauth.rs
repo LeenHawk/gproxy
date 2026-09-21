@@ -75,6 +75,7 @@ fn credential_from_tokens(
     OAuthCredential {
         expires_at_ms: jwt_expiry_ms(&access_token),
         provider_fields: provider_fields(id_token.as_deref()),
+        provider_secrets: BTreeMap::new(),
         access_token,
         refresh_token,
         id_token,
@@ -209,6 +210,8 @@ impl OAuthAuthorizationCode for Codex {
                     config.issuer.trim_end_matches('/')
                 ),
                 redirect_uri: request.redirect_uri.to_owned(),
+                // The exchange needs nothing this call learned.
+                provider_state: BTreeMap::new(),
             })
         })
     }

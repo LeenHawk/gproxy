@@ -138,6 +138,7 @@ fn credential(data: &Value) -> Result<OAuthCredential, ChannelError> {
         expires_at_ms: auth::token_expires_at_ms(access),
         refresh_expires_at_ms: None,
         provider_fields,
+        provider_secrets: std::collections::BTreeMap::new(),
     })
 }
 

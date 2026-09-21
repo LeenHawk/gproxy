@@ -251,6 +251,19 @@ one credential (a web conversation to resume, a session to reuse). Channels
 write under keys they choose through compare-and-swap; `NoState` is the
 binding default and refuses every write.
 
+Both OAuth flows carry the same pocket for facts a channel needs on the far
+side of the person's authorization: `AuthorizationStart::provider_state` comes
+back as `AuthorizationCode::provider_state`, and
+`DeviceAuthorization::provider_state` comes back with the authorization itself.
+The shape is the channel's own — a non-standard device handle, a client a login
+registered for itself. Unlike `OAuthCredential::provider_fields`, which the
+host publishes as the credential's metadata, **this pocket may carry secrets**:
+it lives in the host's login session, which is short-lived, cache-backed and
+never rendered, and it is gone when the login ends. Anything that has to
+outlive the login must be returned from the exchange — public facts in
+`provider_fields`, secret ones in `OAuthCredential::provider_secrets`, which is
+sealed with the tokens and never becomes metadata.
+
 ## Adding a Channel
 
 Channels are built in, not plugged in: a new one is a module of this crate
@@ -389,7 +402,10 @@ behind its own feature. The steps, using `custom` (API key) and `codex`
    `RefreshRejected` only for a definitive upstream refusal.
    Public facts a login discovers (plan, account id) go into
    `AcquiredCredential::metadata` or `OAuthCredential::provider_fields`, and
-   the host writes them to the credential row.
+   the host writes them to the credential row; a secret a later refresh needs
+   (a client secret the login registered for itself) goes into
+   `OAuthCredential::provider_secrets`, which is sealed with the tokens and
+   never published.
 
 7. Put reusable wire mechanics in `src/channels/shared/` (cache magic
    strings, service caller helpers), gated on the features that use them.

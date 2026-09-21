@@ -25,7 +25,7 @@ use gproxy_protocol::{
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{BTreeMap, HashMap, VecDeque},
     sync::{
         Arc, Mutex,
         atomic::{AtomicU64, Ordering},
@@ -693,6 +693,7 @@ async fn authorize_url_and_code_exchange_follow_the_cli() {
                 redirect_uri: DEFAULT_REDIRECT_URI,
                 code_verifier: "ver",
                 state: "st",
+                provider_state: &BTreeMap::new(),
             },
         )
         .await

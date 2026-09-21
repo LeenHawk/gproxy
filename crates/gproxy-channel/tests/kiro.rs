@@ -3,8 +3,9 @@
 
 use futures_util::StreamExt as _;
 use gproxy_channel::channel::{
-    BaseChannel, ChannelError, CredentialContext, CredentialRefresh, CredentialView, DevicePoll,
-    LoginContext, NoState, OAuthDeviceCode, OperationContext, PrepareContext, ProviderView,
+    AcquiredCredential, AuthorizationCode, AuthorizationRequest, BaseChannel, ChannelError,
+    CredentialContext, CredentialRefresh, CredentialView, DevicePoll, LoginContext, NoState,
+    OAuthAuthorizationCode, OAuthDeviceCode, OperationContext, PrepareContext, ProviderView,
     QuotaQuery, QuotaValue, ResponseView, UsageContext, UsageExtractor,
 };
 use gproxy_channel::channels::kiro::{AGENTIC_REQUEST_DIMENSION, Kiro};
@@ -875,8 +876,260 @@ async fn an_identity_center_credential_renews_against_aws_oidc() {
     assert_eq!(body["grantType"], "refresh_token");
     assert_eq!(
         body["clientSecret"], "csec",
-        "the registered client lives in configuration, never on the credential"
+        "a credential that registered no client of its own falls back to configuration"
     );
+}
+
+/// The login context this channel's authorization-code flow takes.
+fn login<'a>(config: &'a Value, client: &'a ScriptClient) -> LoginContext<'a> {
+    LoginContext {
+        provider: provider(config, None),
+        client,
+    }
+}
+
+fn authorization_request<'a>() -> AuthorizationRequest<'a> {
+    AuthorizationRequest {
+        // Empty: the channel names the loopback the Kiro CLI registers.
+        redirect_uri: "",
+        state: "st-1",
+        code_challenge: "challenge-1",
+    }
+}
+
+#[tokio::test]
+async fn the_identity_center_login_registers_its_own_client_and_carries_it_to_the_exchange() {
+    // An operator pair is configured as well, so every assertion below also
+    // says that the registered client is the one that wins.
+    let config = json!({
+        "region": "eu-west-1",
+        "sso_client_id": "operator-id",
+        "sso_client_secret": "operator-secret",
+        "sso_start_url": "https://acme.awsapps.com/start",
+    });
+    let registrar = ScriptClient::new(vec![reply(
+        StatusCode::OK,
+        json!({"clientId": "dyn-id", "clientSecret": "dyn-secret",
+               "clientIdIssuedAt": 1, "clientSecretExpiresAt": 2}),
+    )]);
+    let started = Kiro
+        .authorize(login(&config, &registrar), authorization_request())
+        .await
+        .expect("an authorize url");
+
+    let (method, url, _, body) = registrar.sent().into_iter().next().unwrap();
+    assert_eq!(method, Method::POST);
+    assert_eq!(url, "https://oidc.eu-west-1.amazonaws.com/client/register");
+    let body: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(body["clientName"], "Kiro-CLI");
+    assert_eq!(body["clientType"], "public");
+    assert_eq!(
+        body["grantTypes"],
+        json!(["authorization_code", "refresh_token"])
+    );
+    assert_eq!(
+        body["redirectUris"],
+        json!(["http://127.0.0.1:1455/oauth/callback"])
+    );
+    assert_eq!(body["issuerUrl"], "https://acme.awsapps.com/start");
+    assert_eq!(body["scopes"][0], "codewhisperer:completions");
+
+    assert!(
+        started
+            .authorize_url
+            .starts_with("https://oidc.eu-west-1.amazonaws.com/authorize?"),
+        "{}",
+        started.authorize_url
+    );
+    assert!(
+        started.authorize_url.contains("client_id=dyn-id"),
+        "{}",
+        started.authorize_url
+    );
+    assert!(!started.authorize_url.contains("operator-id"));
+    assert_eq!(started.provider_state["client_id"], "dyn-id");
+    assert_eq!(
+        started.provider_state["client_secret"], "dyn-secret",
+        "the pocket is where a minted secret waits for the exchange"
+    );
+
+    let exchanger = ScriptClient::new(vec![reply(
+        StatusCode::OK,
+        json!({"accessToken": "at", "refreshToken": "rt", "expiresIn": 3600,
+               "profileArn": "arn:aws:codewhisperer:eu-west-1:1:profile/P"}),
+    )]);
+    let acquired = Kiro
+        .exchange(
+            login(&config, &exchanger),
+            AuthorizationCode {
+                code: "code-1",
+                redirect_uri: &started.redirect_uri,
+                code_verifier: "verifier-1",
+                state: "st-1",
+                provider_state: &started.provider_state,
+            },
+        )
+        .await
+        .expect("a credential");
+    let (_, url, _, body) = exchanger.sent().into_iter().next().unwrap();
+    assert_eq!(url, "https://oidc.eu-west-1.amazonaws.com/token");
+    let body: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(body["grantType"], "authorization_code");
+    assert_eq!(body["clientId"], "dyn-id");
+    assert_eq!(
+        body["clientSecret"], "dyn-secret",
+        "the exchange redeems with the client that was registered, not the configured one"
+    );
+    assert_eq!(body["codeVerifier"], "verifier-1");
+
+    // The id is a public fact the refresh reads back out of the metadata; the
+    // secret is sealed with the tokens and appears nowhere else.
+    assert_eq!(acquired.provider_fields["client_id"], "dyn-id");
+    assert_eq!(acquired.provider_fields["region"], "eu-west-1");
+    assert_eq!(
+        acquired.provider_fields["start_url"],
+        "https://acme.awsapps.com/start"
+    );
+    assert!(!acquired.provider_fields.contains_key("client_secret"));
+    assert_eq!(acquired.provider_secrets["client_secret"], "dyn-secret");
+
+    // And that is what the host persists: sealed blob yes, rendered metadata
+    // no.
+    let persisted = AcquiredCredential::from(acquired);
+    assert_eq!(
+        persisted.secret["provider_secrets"]["client_secret"],
+        "dyn-secret"
+    );
+    assert!(
+        !persisted.metadata.to_string().contains("dyn-secret"),
+        "no login state may reach the credential's metadata: {}",
+        persisted.metadata
+    );
+    assert_eq!(persisted.metadata["client_id"], "dyn-id");
+}
+
+#[tokio::test]
+async fn a_refused_registration_falls_back_to_the_operator_configured_client() {
+    let config = json!({
+        "region": "eu-west-1",
+        "sso_client_id": "operator-id",
+        "sso_client_secret": "operator-secret",
+    });
+    let refused = ScriptClient::new(vec![reply(
+        StatusCode::BAD_REQUEST,
+        json!({"__type": "UnsupportedOperationException"}),
+    )]);
+    let started = Kiro
+        .authorize(login(&config, &refused), authorization_request())
+        .await
+        .expect("an authorize url");
+    assert!(
+        started.authorize_url.contains("client_id=operator-id"),
+        "{}",
+        started.authorize_url
+    );
+    assert!(
+        started.provider_state.is_empty(),
+        "nothing was minted, so nothing is carried"
+    );
+
+    let exchanger = ScriptClient::new(vec![reply(
+        StatusCode::OK,
+        json!({"accessToken": "at", "refreshToken": "rt", "expiresIn": 3600}),
+    )]);
+    let acquired = Kiro
+        .exchange(
+            login(&config, &exchanger),
+            AuthorizationCode {
+                code: "code-1",
+                redirect_uri: &started.redirect_uri,
+                code_verifier: "verifier-1",
+                state: "st-1",
+                provider_state: &started.provider_state,
+            },
+        )
+        .await
+        .expect("a credential");
+    let (_, _, _, body) = exchanger.sent().into_iter().next().unwrap();
+    let body: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(body["clientId"], "operator-id");
+    assert_eq!(body["clientSecret"], "operator-secret");
+    // A client the operator owns stays theirs: configuration is the one source
+    // of truth, and a stale copy sealed here would outlive their next rotation.
+    assert!(!acquired.provider_fields.contains_key("client_id"));
+    assert!(acquired.provider_secrets.is_empty());
+
+    // Neither registered nor configured is no login at all.
+    let bare = json!({"region": "eu-west-1"});
+    let refused = ScriptClient::new(vec![reply(
+        StatusCode::BAD_REQUEST,
+        json!({"__type": "UnsupportedOperationException"}),
+    )]);
+    assert!(matches!(
+        Kiro.authorize(login(&bare, &refused), authorization_request())
+            .await,
+        Err(ChannelError::InvalidConfig(_))
+    ));
+}
+
+#[tokio::test]
+async fn a_refresh_renews_with_the_client_the_login_registered() {
+    // Configured too, and it must lose: the refresh token is bound to the
+    // client that redeemed the code.
+    let config = json!({"sso_client_id": "operator-id", "sso_client_secret": "operator-secret"});
+    let secret = json!({"access_token": "a", "refresh_token": "r",
+                        "provider_fields": {"client_id": "dyn-id", "region": "eu-west-1"},
+                        "provider_secrets": {"client_secret": "dyn-secret"}});
+    let metadata = json!({"client_id": "dyn-id", "region": "eu-west-1"});
+    let rotated = ScriptClient::new(vec![reply(
+        StatusCode::OK,
+        json!({"accessToken": "at2", "refreshToken": "rt2", "expiresIn": 3600}),
+    )]);
+    let update = CredentialRefresh::refresh(
+        &Kiro,
+        CredentialContext {
+            provider: provider(&config, None),
+            credential: credential(&secret, &metadata),
+            client: rotated.as_ref(),
+        },
+    )
+    .await
+    .expect("a rotation");
+    let (_, url, _, body) = rotated.sent().into_iter().next().unwrap();
+    assert_eq!(url, "https://oidc.eu-west-1.amazonaws.com/token");
+    let body: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(body["clientId"], "dyn-id");
+    assert_eq!(body["clientSecret"], "dyn-secret");
+    // The rotation replaces the tokens and keeps everything else, so the one
+    // after it can still renew.
+    assert_eq!(
+        update.secret["provider_secrets"]["client_secret"],
+        "dyn-secret"
+    );
+
+    // A credential imported from v3 keeps its flat pair, and it is read the
+    // same way.
+    let imported = json!({"access_token": "a", "refresh_token": "r",
+                          "client_id": "v3-id", "client_secret": "v3-secret",
+                          "region": "eu-west-1"});
+    let rotated = ScriptClient::new(vec![reply(
+        StatusCode::OK,
+        json!({"accessToken": "at2", "refreshToken": "rt2", "expiresIn": 3600}),
+    )]);
+    CredentialRefresh::refresh(
+        &Kiro,
+        CredentialContext {
+            provider: provider(&config, None),
+            credential: credential(&imported, &Value::Null),
+            client: rotated.as_ref(),
+        },
+    )
+    .await
+    .expect("a rotation");
+    let (_, _, _, body) = rotated.sent().into_iter().next().unwrap();
+    let body: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(body["clientId"], "v3-id");
+    assert_eq!(body["clientSecret"], "v3-secret");
 }
 
 // -------------------------------------------------------------------- quota
