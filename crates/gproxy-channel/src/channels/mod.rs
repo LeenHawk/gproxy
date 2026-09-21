@@ -3,6 +3,8 @@
 
 #[cfg(feature = "aistudio")]
 pub mod aistudio;
+#[cfg(feature = "antigravity")]
+pub mod antigravity;
 #[cfg(feature = "aws_bedrock")]
 pub mod aws_bedrock;
 #[cfg(feature = "azure")]
@@ -19,16 +21,20 @@ pub mod codex;
 pub mod custom;
 #[cfg(feature = "devin")]
 pub mod devin;
+#[cfg(feature = "geminicli")]
+pub mod geminicli;
 #[cfg(feature = "openai")]
 pub mod openai;
 #[cfg(any(
     feature = "aistudio",
+    feature = "antigravity",
     feature = "azure",
     feature = "claudeapi",
     feature = "codex",
     feature = "claudecode",
     feature = "claudeweb",
     feature = "custom",
+    feature = "geminicli",
     feature = "openai",
     feature = "vertex",
     feature = "vertexexpress"

@@ -11,6 +11,9 @@
     feature = "openai"
 ))]
 pub(crate) mod cache;
+/// The Code Assist envelope and Google login the Gemini CLI channels share.
+#[cfg(any(feature = "antigravity", feature = "geminicli"))]
+pub(crate) mod code_assist;
 /// The OpenAI request and usage wire the OpenAI-compatible channels share.
 #[cfg(any(feature = "aistudio", feature = "claudeapi", feature = "openai"))]
 pub(crate) mod openai_wire;

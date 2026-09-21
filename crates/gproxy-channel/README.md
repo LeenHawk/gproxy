@@ -16,6 +16,7 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | Feature | Id | Upstream | Credential |
 |---|---|---|---|
 | `aistudio` | `aistudio` | Google AI Studio: the native Gemini methods and the `/v1beta/openai` compatibility layer off one origin, SSE and JSON-array streams, `usageMetadata` metering | `{"api_key"}` |
+| `antigravity` | `antigravity` | A Google account through the Code Assist host the Antigravity editor talks to: PKCE login that discovers the Cloud project and tier, refresh, the Code Assist request envelope, `fetchAvailableModels` catalogue and per-model quota | `OAuthCredential` |
 | `aws_bedrock` | `aws_bedrock` | AWS Bedrock: SigV4-signed `InvokeModel` for Anthropic models on `bedrock-runtime`, AWS event-stream replies translated into Claude Messages SSE, the control plane's foundation-model directory | AWS access key pair (optionally temporary) or a Bedrock API key |
 | `azure` | `azure` | Azure OpenAI and the Anthropic models Azure AI Foundry hosts: the v1 or the deployment-scoped surface under a resource, `api-key` and `x-api-key` | `{"api_key"}` |
 | `claudeapi` | `claudeapi` | Anthropic's own API: `x-api-key` Messages with the API's request hygiene and server-side fallback, the OpenAI SDK compatibility layer, `anthropic-ratelimit-*` headers, `/v1/organizations/cost_report` | `{"api_key", "quota_api_key"}` |
@@ -24,6 +25,7 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `codex` | `codex` | ChatGPT account through the Codex backend: OAuth (PKCE and device code), Responses over HTTP SSE and WebSocket, `x-codex-*` limit headers, `/wham/usage`, CLI backend services | `OAuthCredential` |
 | `custom` | `custom` | Any API-key endpoint speaking OpenAI, Claude or Gemini natively | `{"api_key"}` |
 | `devin` | `devin` | Devin (Windsurf) at `server.codeium.com`: Connect-RPC over protobuf rather than JSON, `GetChatMessage` frames translated into Chat Completions SSE, `GetUserStatus` daily and weekly windows | session token |
+| `geminicli` | `geminicli` | A Google account through the Code Assist endpoints the Gemini CLI talks to: PKCE login that discovers the Cloud project and tier, refresh, the Code Assist request envelope, `retrieveUserQuota` catalogue and per-model quota | `OAuthCredential` |
 | `openai` | `openai` | OpenAI's own platform: the full OpenAI surface, Responses and Realtime over a WebSocket, `x-ratelimit-*` headers, `/v1/organization/costs` | `{"api_key", "quota_api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI: regional project-scoped methods for the Google, Anthropic and OpenAI-compatible publishers; a service-account key exchanged for an access token through `CredentialRefresh` | Google service-account key |
 | `vertexexpress` | `vertexexpress` | Vertex AI Express mode: the Gemini surface on one global origin, key in the query, no project and no region | `{"api_key"}` |
@@ -34,7 +36,7 @@ route layout `custom` cannot express: Anthropic's routes follow the operation
 rather than the client's path, OpenAI serves Responses and Realtime over a
 socket, and AI Studio puts two surfaces on one origin with a different
 credential header on each.
-All twelve build for native targets and `wasm32-unknown-unknown`.
+Every channel builds for native targets and `wasm32-unknown-unknown`.
 
 `azure`, `vertex` and `vertexexpress` are cloud resellers: they forward each
 hosted vendor's own wire and change only where the method lives and how the
@@ -52,6 +54,13 @@ streaming reply is not SSE but AWS event-stream framing, so
 Claude Messages SSE the client asked for. It serves the Anthropic model
 families; reaching the others needs Bedrock's `Converse` shape, which
 `gproxy-protocol` cannot express yet.
+
+`geminicli` and `antigravity` are the Gemini family's CLI impersonation
+channels: a Google account's OAuth credential used against the Code Assist
+internal endpoints those two tools talk to, not a Gemini API key. They share
+the Code Assist request envelope, the Google login and the one-time project
+and tier discovery, and differ in their client id, scopes, user agent, host
+and catalogue method.
 
 ## Contract
 
