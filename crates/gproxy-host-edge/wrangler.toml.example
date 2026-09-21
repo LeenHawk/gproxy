@@ -1,0 +1,117 @@
+# The GPROXY v4 Cloudflare Worker, by example.
+#
+# Copy to `wrangler.toml` and fill in the two things only you know: the D1
+# database id, and — with `wrangler secret put`, never here — the master key.
+#
+# Nothing in this file is read by Rust. `GPROXY_CONFIG` below is, and it is the
+# same `AppConfig` document `gproxy.toml` holds for the native binary.
+
+name = "gproxy"
+main = "build/worker/shim.mjs"
+compatibility_date = "2026-09-01"
+
+# `worker-build` compiles the crate to wasm, runs `wasm-bindgen`, optimizes
+# with `wasm-opt -Oz` and writes the shim `main` points at. It is not optional:
+# an unoptimized build is several times over Cloudflare's size limit.
+#
+# Name the channels the deployment actually forwards to. `--features channels`
+# compiles all twenty-five and costs binary size on a platform that limits it.
+[build]
+command = "cargo install -q worker-build && worker-build --release -- --no-default-features --features d1,custom,codex,claudecode"
+
+# ---------------------------------------------------------------- the store --
+#
+# Create it first, then paste the id:
+#
+#     wrangler d1 create gproxy
+#     wrangler d1 migrations apply gproxy --remote
+#
+# The binding name is what `GPROXY_CONFIG`'s `store.binding` names; `DB` is the
+# default, so the entry below needs no configuration to go with it.
+#
+# **The Worker does not create or migrate the schema.** It runs under traffic,
+# and DDL under traffic is how two isolates deadlock a migration. Apply
+# migrations with `wrangler` before the deployment, exactly as above.
+[[d1_databases]]
+binding = "DB"
+database_name = "gproxy"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+# --------------------------------------------------------------- the console --
+#
+# The console is a static bundle and belongs in front of the Worker, not inside
+# it: Workers Assets serves it without waking an isolate, and the wasm binary
+# stays under the size limit. `run_worker_first` keeps the API routes on the
+# Worker and lets everything else fall through to the files.
+#
+# [assets]
+# directory = "console/dist"
+# binding = "ASSETS"
+# run_worker_first = ["/v1/*", "/admin/api/*", "/portal/api/*", "/healthz", "/publications/*"]
+
+# ------------------------------------------------------------- the settings --
+#
+# One JSON document, in the `AppConfig` shape. Every field is optional; the
+# whole variable is optional. What is left out gets the edge defaults: the `DB`
+# binding, and the database-backed cache.
+#
+# `host`, `port`, `data_dir` and `console` describe a process with a socket and
+# a filesystem. They are accepted — it is one shared type — and never read.
+#
+# The cache **must** be `store` or `redis`. `memory` is per isolate, and an
+# isolate is created and destroyed around a request: a rate-limit counter kept
+# there counts to one forever and a half-finished login is gone before the
+# redirect comes back. Assembly refuses it rather than answering wrongly.
+[vars]
+GPROXY_CONFIG = """
+{
+  "store": { "kind": "d1", "binding": "DB" },
+  "cache": { "kind": "store" },
+  "public_base_url": "https://gproxy.example.workers.dev",
+  "cors_origins": ["https://gproxy.example.workers.dev"],
+  "trusted_proxies": [],
+  "session_ttl_secs": 2592000,
+  "oauth": { "access_ttl_secs": 3600, "cli_client_ids": [] }
+}
+"""
+
+# --------------------------------------------------------------- the secrets --
+#
+# Never in this file. Each one overrides the corresponding field of the
+# document above, which is what keeps them out of it:
+#
+#     wrangler secret put GPROXY_MASTER_KEY          # 64 hex digits, or base64
+#     wrangler secret put GPROXY_LIBSQL_TOKEN        # only with a libSQL store
+#     wrangler secret put GPROXY_S3_ACCESS_KEY_ID    # only with S3/R2 storage
+#     wrangler secret put GPROXY_S3_SECRET_ACCESS_KEY
+#
+# Without `GPROXY_MASTER_KEY` upstream credential secrets are stored in
+# plaintext. That is a supported deployment and the Worker logs a warning once
+# per cold start; it is not a default anybody should keep.
+
+# ------------------------------------------------------- libSQL, instead of D1 --
+#
+# A Turso database reaches the Worker over HTTP, through the same fetch
+# transport every upstream call uses. Build with `--features libsql` and set:
+#
+# GPROXY_CONFIG = """
+# { "store": { "kind": "libsql", "url": "libsql://gproxy-you.turso.io" },
+#   "cache": { "kind": "store" } }
+# """
+#
+# then `wrangler secret put GPROXY_LIBSQL_TOKEN`.
+
+# ------------------------------------------- published bodies, R2 or any S3 --
+#
+# Needed only by upstreams that want a fetchable URL rather than inline bytes,
+# and by downloaded tokenizer vocabularies. Build with `--features s3`, set
+# `public_base_url` above, and add to the document:
+#
+#   "file_storage": {
+#     "kind": "s3",
+#     "bucket": "gproxy",
+#     "region": "auto",
+#     "endpoint": "https://<account>.r2.cloudflarestorage.com"
+#   }
+#
+# then put the two S3 secrets. R2 speaks S3, so it needs no separate binding.

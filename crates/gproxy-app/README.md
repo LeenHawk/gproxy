@@ -14,6 +14,18 @@ it. That line is what lets the same decisions run behind a native axum server
 and inside a Cloudflare Worker — the crate builds for `wasm32-unknown-unknown`,
 and it stays that way because it has nothing platform-shaped to lose.
 
+`App<C>` is `Send + Sync` on **every** target, which is what lets a host put
+one in a request-scoped state — `axum::Router<S>` asks for
+`S: Clone + Send + Sync + 'static` before it will hold one. That is not free on
+wasm: the engine below is `!Send` there by design, because a JS transport
+handle belongs to the isolate that made it and `gproxy-client`'s
+`ClientBounds` says so in its type. `App` therefore holds its handle in a
+`send_wrapper::SendWrapper` on that target and nothing else changes — one
+wrapper, checked at runtime rather than asserted, sound because a Worker
+isolate is single-threaded. The futures `App`'s own methods return are still
+`!Send` on wasm; a host bridges those at its handlers (see
+`gproxy_host_axum::send`).
+
 ## The shape of a request
 
 ```text

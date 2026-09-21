@@ -194,7 +194,7 @@ where
         tail: None,
         failure: None,
     };
-    build(status, headers, Body::from_stream(body))
+    build(status, headers, Body::from_stream(crate::send(body)))
 }
 
 fn build(status: StatusCode, headers: HeaderMap, body: Body) -> Response {
@@ -249,7 +249,7 @@ pub(crate) fn sanitize(mut headers: HeaderMap) -> HeaderMap {
 fn into_body(body: HttpBody) -> Body {
     match body {
         HttpBody::Bytes(bytes) => Body::from(bytes),
-        HttpBody::Stream(stream) => Body::from_stream(stream),
+        HttpBody::Stream(stream) => Body::from_stream(crate::send(stream)),
     }
 }
 
@@ -263,8 +263,19 @@ fn chunks(body: HttpBody) -> ChunkStream {
     }
 }
 
+/// A chunk stream and a tail future, with the `Send` each target can honestly
+/// promise. These mirror [`gproxy_protocol::connection::ByteStream`], which
+/// makes the same split for the same reason: on wasm the bytes are being read
+/// out of a JS `ReadableStream` that belongs to one isolate. [`crate::send`]
+/// is what carries them across axum's bound.
+#[cfg(not(target_arch = "wasm32"))]
 type ChunkStream = Pin<Box<dyn Stream<Item = Result<Bytes, TransportError>> + Send + 'static>>;
+#[cfg(target_arch = "wasm32")]
+type ChunkStream = Pin<Box<dyn Stream<Item = Result<Bytes, TransportError>> + 'static>>;
+#[cfg(not(target_arch = "wasm32"))]
 type TailFuture = Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
+#[cfg(target_arch = "wasm32")]
+type TailFuture = Pin<Box<dyn Future<Output = ()> + 'static>>;
 
 /// What a response body — or a socket — owns until it ends.
 ///
@@ -300,6 +311,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Trailer<C> {
     }
 
     /// The capture to feed, while the response or the socket is still running.
+    ///
+    /// Only [`crate::websocket`]'s pump needs it — an HTTP body feeds its own
+    /// capture from inside [`LeasedBody`] — so it is native-only for as long
+    /// as sockets are.
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn capture_mut(&mut self) -> Option<&mut DownstreamCapture> {
         self.capture.as_mut()
     }
@@ -307,6 +323,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Trailer<C> {
     /// The client is gone and the holder knows it before it lets go of this
     /// value. Only the websocket pump needs it; an HTTP body learns the same
     /// thing by being dropped.
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn cancel(&mut self) {
         self.cancel.cancel();
     }
@@ -351,6 +368,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Trailer<C> {
 
     /// The same, for a caller that can simply await it — a socket pump runs in
     /// its own task and has no stream to thread a future through.
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) async fn settle(self, outcome: CaptureOutcome) {
         self.finish(outcome).await;
     }

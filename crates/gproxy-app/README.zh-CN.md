@@ -12,6 +12,14 @@ GPROXY v4 的产品层：谁在调用、允许他做什么，以及改变这两�
 Cloudflare Worker 里——本 crate 能为 `wasm32-unknown-unknown` 构建，而且会一直如此，
 因为它本来就没有任何与平台绑定的东西。
 
+`App<C>` 在**每个**目标上都是 `Send + Sync`，这样宿主才能把它放进请求级 state——
+`axum::Router<S>` 要 `S: Clone + Send + Sync + 'static` 才肯接。这在 wasm 上不是白来的：
+那边的引擎按设计就是 `!Send`，因为 JS 传输句柄属于创建它的 isolate，`gproxy-client`
+的 `ClientBounds` 在类型上写明了这件事。所以 `App` 在该目标上用
+`send_wrapper::SendWrapper` 持有句柄，其余一律不变——一层包装，运行时检查而非断言，
+因 Worker isolate 单线程而成立。`App` 自身方法返回的 future 在 wasm 上仍是 `!Send`；
+宿主在各自的 handler 处桥接（见 `gproxy_host_axum::send`）。
+
 ## 一个请求的形状
 
 ```text

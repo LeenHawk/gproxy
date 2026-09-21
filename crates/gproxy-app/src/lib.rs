@@ -70,6 +70,35 @@ use std::sync::Arc;
 
 pub type Result<T> = std::result::Result<T, AppError>;
 
+/// The engine handle, as [`App`] has to hold it on each target.
+///
+/// Natively this is the handle itself. On `wasm32-unknown-unknown` the engine
+/// below is deliberately `!Send`: a JS transport handle belongs to the isolate
+/// that made it, and `gproxy-client` says so in its type
+/// (`ClientBounds` is `Send + Sync` natively and empty on wasm). That is the
+/// right statement about the engine and the wrong one about *this* type, which
+/// a host has to be able to put in a request-scoped state — and axum's
+/// `Router<S>` asks for `S: Clone + Send + Sync + 'static` before it will hold
+/// one.
+///
+/// A Worker isolate is single-threaded, so the wrapper's promise — this value
+/// is only ever touched from the thread that made it — is one the runtime
+/// keeps. It is checked at runtime rather than asserted: a cross-thread poll
+/// panics instead of racing.
+#[cfg(not(target_arch = "wasm32"))]
+type Handle<C> = Gproxy<C>;
+#[cfg(target_arch = "wasm32")]
+type Handle<C> = send_wrapper::SendWrapper<Gproxy<C>>;
+
+#[cfg(not(target_arch = "wasm32"))]
+fn hold<C>(gproxy: Gproxy<C>) -> Handle<C> {
+    gproxy
+}
+#[cfg(target_arch = "wasm32")]
+fn hold<C>(gproxy: Gproxy<C>) -> Handle<C> {
+    send_wrapper::SendWrapper::new(gproxy)
+}
+
 /// One configured instance: the engine handle, the instance configuration and
 /// the identity snapshot, assembled once and shared by every request.
 ///
@@ -89,7 +118,7 @@ pub type Result<T> = std::result::Result<T, AppError>;
 /// argument rather than loading it per call. Two loads in one request could
 /// straddle a reload and disagree about who the caller is.
 pub struct App<C> {
-    gproxy: Gproxy<C>,
+    gproxy: Handle<C>,
     config: Arc<AppConfig>,
     snapshot: AppSnapshot,
 }
@@ -100,7 +129,7 @@ impl<C> App<C> {
     /// [`App::refresh`]; a host calls [`App::reload_all`] once at startup.
     pub fn new(gproxy: Gproxy<C>, config: AppConfig) -> Self {
         Self {
-            gproxy,
+            gproxy: hold(gproxy),
             config: Arc::new(config),
             snapshot: AppSnapshot::default(),
         }

@@ -155,14 +155,14 @@ async fn set_password<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(state, users.set_password(&id, &body.password))
+    crate::send(async move { operations!(state, users.set_password(&id, &body.password)) }).await
 }
 
 async fn clear_password<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(state, users.clear_password(&id))
+    crate::send(async move { operations!(state, users.clear_password(&id)) }).await
 }
 
 async fn set_allowlist<C>(
@@ -173,28 +173,28 @@ async fn set_allowlist<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(state, users.set_allowlist(&id, body.clients))
+    crate::send(async move { operations!(state, users.set_allowlist(&id, body.clients)) }).await
 }
 
 async fn rotate_key<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(state, api_keys.rotate(&id))
+    crate::send(async move { operations!(state, api_keys.rotate(&id)) }).await
 }
 
 async fn reveal_key<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(state, api_keys.reveal(&id))
+    crate::send(async move { operations!(state, api_keys.reveal(&id)) }).await
 }
 
 async fn retire_client<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(state, oauth_clients.retire(&id))
+    crate::send(async move { operations!(state, oauth_clients.retire(&id)) }).await
 }
 
 async fn list_members<C>(
@@ -205,10 +205,13 @@ async fn list_members<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    // The path names the organization; a query parameter must not be able to
-    // point the list at a different one.
-    query.organization_id = Some(id);
-    operations!(state, members.list(query))
+    crate::send(async move {
+        // The path names the organization; a query parameter must not be able to
+        // point the list at a different one.
+        query.organization_id = Some(id);
+        operations!(state, members.list(query))
+    })
+    .await
 }
 
 async fn get_member<C>(
@@ -218,7 +221,7 @@ async fn get_member<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(state, members.get(&id, &user_id))
+    crate::send(async move { operations!(state, members.get(&id, &user_id)) }).await
 }
 
 async fn add_member<C>(
@@ -229,7 +232,7 @@ async fn add_member<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(state, members.add(&id, write))
+    crate::send(async move { operations!(state, members.add(&id, write)) }).await
 }
 
 async fn set_member_role<C>(
@@ -240,7 +243,7 @@ async fn set_member_role<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(state, members.set_role(&id, &user_id, patch))
+    crate::send(async move { operations!(state, members.set_role(&id, &user_id, patch)) }).await
 }
 
 async fn remove_member<C>(
@@ -250,7 +253,7 @@ async fn remove_member<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(@empty state, members.remove(&id, &user_id))
+    crate::send(async move { operations!(@empty state, members.remove(&id, &user_id)) }).await
 }
 
 async fn list_team_members<C>(
@@ -261,8 +264,11 @@ async fn list_team_members<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    query.team_id = Some(id);
-    operations!(state, team_members.list(query))
+    crate::send(async move {
+        query.team_id = Some(id);
+        operations!(state, team_members.list(query))
+    })
+    .await
 }
 
 async fn get_team_member<C>(
@@ -272,7 +278,7 @@ async fn get_team_member<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(state, team_members.get(&id, &user_id))
+    crate::send(async move { operations!(state, team_members.get(&id, &user_id)) }).await
 }
 
 async fn add_team_member<C>(
@@ -283,7 +289,7 @@ async fn add_team_member<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(state, team_members.add(&id, write))
+    crate::send(async move { operations!(state, team_members.add(&id, write)) }).await
 }
 
 async fn set_team_member_role<C>(
@@ -294,7 +300,8 @@ async fn set_team_member_role<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(state, team_members.set_role(&id, &user_id, patch))
+    crate::send(async move { operations!(state, team_members.set_role(&id, &user_id, patch)) })
+        .await
 }
 
 async fn remove_team_member<C>(
@@ -304,7 +311,7 @@ async fn remove_team_member<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(@empty state, team_members.remove(&id, &user_id))
+    crate::send(async move { operations!(@empty state, team_members.remove(&id, &user_id)) }).await
 }
 
 async fn list_sessions<C>(
@@ -314,21 +321,21 @@ async fn list_sessions<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(state, sessions.page(query))
+    crate::send(async move { operations!(state, sessions.page(query)) }).await
 }
 
 async fn revoke_session<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(@empty state, sessions.revoke(&id))
+    crate::send(async move { operations!(@empty state, sessions.revoke(&id)) }).await
 }
 
 async fn user_sessions<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(state, sessions.list(&id))
+    crate::send(async move { operations!(state, sessions.list(&id)) }).await
 }
 
 async fn revoke_user_sessions<C>(
@@ -338,12 +345,15 @@ async fn revoke_user_sessions<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    let data = state.app().data();
-    let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
-    match operations.sessions().revoke_all(&id).await {
-        Ok(count) => crate::error::ok_json(&serde_json::json!({ "revoked": count })),
-        Err(error) => ErrorResponse(error).into_response(),
-    }
+    crate::send(async move {
+        let data = state.app().data();
+        let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
+        match operations.sessions().revoke_all(&id).await {
+            Ok(count) => crate::error::ok_json(&serde_json::json!({ "revoked": count })),
+            Err(error) => ErrorResponse(error).into_response(),
+        }
+    })
+    .await
 }
 
 async fn list_audit<C>(
@@ -353,7 +363,7 @@ async fn list_audit<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    operations!(state, audit.query(query))
+    crate::send(async move { operations!(state, audit.query(query)) }).await
 }
 
 /// Who this request is, as the console renders its header from.
@@ -361,11 +371,14 @@ where
 /// On the admin surface rather than the portal's because reaching it at all
 /// proves the middleware admitted an instance administrator.
 async fn session_status(Extension(caller): Extension<Caller>) -> Response {
-    crate::error::ok_json(&SessionStatus {
-        user_id: caller.user_id,
-        user_role: caller.user_role,
-        api_key_id: caller.api_key_id,
+    crate::send(async move {
+        crate::error::ok_json(&SessionStatus {
+            user_id: caller.user_id,
+            user_role: caller.user_role,
+            api_key_id: caller.api_key_id,
+        })
     })
+    .await
 }
 
 #[derive(Serialize)]
@@ -381,5 +394,5 @@ async fn sign_out<C>(State(state): State<HostState<C>>, request: Request) -> Res
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::portal::sign_out(state, request).await
+    crate::send(async move { crate::portal::sign_out(state, request).await }).await
 }
