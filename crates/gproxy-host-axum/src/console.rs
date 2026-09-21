@@ -214,16 +214,30 @@ mod tests {
 
     #[tokio::test]
     async fn a_checkout_with_no_bundle_answers_404_rather_than_a_blank_page() {
+        // Whether a bundle exists is not a property of the source tree: in a
+        // debug build `rust_embed` reads `assets/web` from disk, so this is
+        // `Embedded` for anyone who has run the console's build and `Disabled`
+        // for everyone else. Asserting the machine's current state would make
+        // `cargo test` fail for whoever built the console last. The rule is
+        // what holds in both worlds: asking for the console gets it exactly
+        // when there is one to get.
         let console = Console::from_config(&ConsoleConfig {
             enabled: true,
             path: None,
         });
-        // Nothing is embedded in a source checkout.
-        assert!(!console.is_enabled());
-        let response = console.serve(&Method::GET, "/console").await.unwrap();
+        assert_eq!(
+            console.is_enabled(),
+            Embedded::get("index.html").is_some(),
+            "the console is enabled if and only if a bundle is embedded"
+        );
+
+        // The answer when there is nothing to serve, which is the part that
+        // must never become a blank page.
+        let empty = Console::Disabled;
+        let response = empty.serve(&Method::GET, "/console").await.unwrap();
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         // And a non-console path is still nobody's.
-        assert!(console.serve(&Method::GET, "/v1/messages").await.is_none());
+        assert!(empty.serve(&Method::GET, "/v1/messages").await.is_none());
     }
 
     #[tokio::test]
