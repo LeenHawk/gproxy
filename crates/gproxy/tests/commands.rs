@@ -53,14 +53,14 @@ async fn migrate_creates_the_schema_on_a_fresh_file_and_succeeds() {
     let directory = tempfile::tempdir().unwrap();
     let settings = settings(directory.path(), AdminOptions::default());
 
-    instance::migrate(&settings.config)
+    instance::migrate(&settings.config, false)
         .await
         .expect("migrate a fresh database");
     assert!(directory.path().join("gproxy.db").is_file());
 
     // Idempotent: running it again on the database it just made changes nothing
     // and still succeeds, which is what a deployment's migration step needs.
-    instance::migrate(&settings.config)
+    instance::migrate(&settings.config, false)
         .await
         .expect("migrate an up-to-date database");
 
@@ -75,8 +75,71 @@ async fn migrate_creates_the_data_directory_it_was_given() {
     let nested = parent.path().join("a/b/c");
     let settings = settings(&nested, AdminOptions::default());
 
-    instance::migrate(&settings.config).await.unwrap();
+    instance::migrate(&settings.config, false).await.unwrap();
     assert!(nested.join("gproxy.db").is_file());
+}
+
+/// `--status` answers and stops. Opening a SQLite file creates it — that is
+/// what `mode=rwc` means — but nothing inside it, not even the ledger the
+/// question is about.
+#[tokio::test]
+async fn migrate_status_reports_without_changing_the_database() {
+    let directory = tempfile::tempdir().unwrap();
+    let settings = settings(directory.path(), AdminOptions::default());
+
+    instance::migrate(&settings.config, true)
+        .await
+        .expect("report on an empty database");
+    assert!(tables(&settings).await.is_empty());
+
+    instance::migrate(&settings.config, false).await.unwrap();
+    let after = tables(&settings).await;
+    instance::migrate(&settings.config, true).await.unwrap();
+    assert_eq!(tables(&settings).await, after);
+    assert!(after.contains(&gproxy_store::MIGRATION_LEDGER.to_owned()));
+}
+
+/// The case the migrator was written for. The message has to be one an operator
+/// can act on, and the database has to come out of it exactly as it went in.
+#[tokio::test]
+async fn migrate_refuses_a_database_this_build_did_not_create() {
+    use sea_orm::ConnectionTrait;
+    let directory = tempfile::tempdir().unwrap();
+    let settings = settings(directory.path(), AdminOptions::default());
+    let connection = instance::connect(&settings.config).await.unwrap();
+    for statement in [
+        "CREATE TABLE schema_migrations (version varchar NOT NULL PRIMARY KEY)",
+        "CREATE TABLE users (id integer NOT NULL PRIMARY KEY, name varchar)",
+    ] {
+        connection.execute_unprepared(statement).await.unwrap();
+    }
+    drop(connection);
+
+    let error = instance::migrate(&settings.config, false)
+        .await
+        .expect_err("a database with a foreign schema")
+        .to_string();
+    assert!(error.contains(gproxy_store::MIGRATION_LEDGER), "{error}");
+    assert!(error.contains("schema_migrations"), "{error}");
+    assert_eq!(tables(&settings).await, ["schema_migrations", "users"]);
+}
+
+/// The tables in the instance's database, sorted, engine-owned ones excluded.
+async fn tables(settings: &Settings) -> Vec<String> {
+    use sea_orm::{ConnectionTrait, DbBackend, Statement};
+    let connection = instance::connect(&settings.config).await.unwrap();
+    let mut names: Vec<String> = connection
+        .query_all_raw(Statement::from_string(
+            DbBackend::Sqlite,
+            "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
+        ))
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| row.try_get("", "name").unwrap())
+        .collect();
+    names.sort();
+    names
 }
 
 // ------------------------------------------------------------ bootstrap --
