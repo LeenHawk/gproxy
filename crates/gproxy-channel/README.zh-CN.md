@@ -14,6 +14,7 @@ Cargo feature：
 | feature | id | 上游 | 凭证 |
 |---|---|---|---|
 | `aistudio` | `aistudio` | Google AI Studio：同一 origin 上的原生 Gemini 方法与 `/v1beta/openai` 兼容层、SSE 与 JSON 数组两种流、`usageMetadata` 计量 | `{"api_key"}` |
+| `antigravity` | `antigravity` | 经 Antigravity 编辑器所用的 Code Assist 主机使用的 Google 账号：PKCE 登录并在登录时发现 Cloud project 与档位、刷新、Code Assist 请求信封、`fetchAvailableModels` 目录与逐模型额度 | `OAuthCredential` |
 | `aws_bedrock` | `aws_bedrock` | AWS Bedrock：`bedrock-runtime` 上经 SigV4 签名的 `InvokeModel`（Anthropic 模型），AWS event-stream 响应翻译成 Claude Messages SSE，控制面的基础模型目录 | AWS 访问密钥对（可为临时）或 Bedrock API key |
 | `azure` | `azure` | Azure OpenAI 以及 Azure AI Foundry 同时托管的 Anthropic 模型：资源下的 v1 面或 deployment 面，`api-key` 与 `x-api-key` | `{"api_key"}` |
 | `claudeapi` | `claudeapi` | Anthropic 自家 API：`x-api-key` 的 Messages，含该 API 要求的请求 hygiene 与服务端 fallback、OpenAI SDK 兼容层、`anthropic-ratelimit-*` 头、`/v1/organizations/cost_report` | `{"api_key", "quota_api_key"}` |
@@ -22,6 +23,7 @@ Cargo feature：
 | `codex` | `codex` | 经 Codex 后端使用的 ChatGPT 账号：OAuth（PKCE 与 device code）、HTTP SSE 与 WebSocket 上的 Responses、`x-codex-*` 限额头、`/wham/usage`、CLI 后端服务 | `OAuthCredential` |
 | `custom` | `custom` | 任何原生讲 OpenAI／Claude／Gemini 的 API-key 端点 | `{"api_key"}` |
 | `devin` | `devin` | `server.codeium.com` 上的 Devin（Windsurf）：传输是 Connect-RPC + protobuf 而非 JSON，`GetChatMessage` 的多帧流翻译成 Chat Completions SSE，`GetUserStatus` 给日／周两个窗口 | 会话 token |
+| `geminicli` | `geminicli` | 经 Gemini CLI 所用的 Code Assist 端点使用的 Google 账号：PKCE 登录并在登录时发现 Cloud project 与档位、刷新、Code Assist 请求信封、`retrieveUserQuota` 目录与逐模型额度 | `OAuthCredential` |
 | `openai` | `openai` | OpenAI 自家平台：完整 OpenAI 面、WebSocket 上的 Responses 与 Realtime、`x-ratelimit-*` 头、`/v1/organization/costs` | `{"api_key", "quota_api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI：按项目与地区寻址 google／anthropic／OpenAI 兼容三个发布者；服务账号密钥经 `CredentialRefresh` 换取访问令牌 | Google 服务账号密钥 |
 | `vertexexpress` | `vertexexpress` | Vertex AI Express 模式：单一全局 origin 上的 Gemini 面，key 走 query，无项目无地区 | `{"api_key"}` |
@@ -30,7 +32,7 @@ Cargo feature：
 一个 `custom` Provider，理由都是 `custom` 表达不了的路由布局：Anthropic 的路由由
 operation 而不是客户端 path 决定，OpenAI 的 Responses 与 Realtime 要走 socket，
 AI Studio 在同一个 origin 上放了两套面、各要各的凭证头。
-十二个渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
+所有渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
 
 `azure`、`vertex`、`vertexexpress` 是云上的转售方：它们原样转发所托管厂商的 wire，
 只改方法的位置和凭证的呈现方式。三者都不伪装任何客户端，因此都不返回
@@ -42,6 +44,11 @@ AI Studio 在同一个 origin 上放了两套面、各要各的凭证头。
 它的流式响应不是 SSE 而是 AWS event-stream 分帧，所以 `stream_generate_content`
 被覆写，把帧翻译成客户端要的 Claude Messages SSE。它服务 Anthropic 系模型；
 其余家族要走 Bedrock 的 `Converse` 形状，而 `gproxy-protocol` 目前无法表达它。
+
+`geminicli` 与 `antigravity` 是 Gemini 家族的 CLI 仿真面：用 Google 账号的 OAuth 凭证
+打这两个工具各自使用的 Code Assist 内部端点，而不是 Gemini API key。两者共用 Code Assist
+请求信封、Google 登录以及登录时一次性的 project 与档位发现，区别在 client id、scope、
+user agent、主机和目录方法。
 
 ## 契约
 

@@ -12,6 +12,16 @@ default = []
 # the /v1beta/openai compatibility layer off one origin, SSE and JSON-array
 # streams, usageMetadata metering.
 aistudio = []
+# Antigravity (Google account through the Antigravity editor's Code Assist
+# host): PKCE login that discovers the Cloud project and tier, refresh, the
+# Code Assist request envelope, the fetchAvailableModels catalogue and its
+# per-model quota.
+antigravity = [
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:time",
+    "dep:web-time",
+]
 # AWS Bedrock: every request is SigV4-signed. Anthropic models are invoked
 # through bedrock-runtime InvokeModel with the Bedrock Claude Messages
 # envelope, the streaming reply arrives as AWS event-stream frames that the
@@ -71,6 +81,15 @@ devin = [
     "dep:getrandom",
     "dep:miniz_oxide",
     "dep:sha2",
+    "dep:web-time",
+]
+# Gemini CLI (Google account through Code Assist): PKCE login that discovers
+# the Cloud project and tier, refresh, the Code Assist request envelope, and
+# the retrieveUserQuota catalogue and per-model quota.
+geminicli = [
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:time",
     "dep:web-time",
 ]
 # OpenAI's own platform (api.openai.com) upstream: the full OpenAI surface,
