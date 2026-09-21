@@ -1,163 +1,226 @@
 ---
 title: Adding a Channel
-description: "How a built-in channel is structured, the Channel contract it implements, where it is registered, and what the console picks up without new UI"
+description: "How a v4 channel is structured: the BaseChannel contract, the optional ability traits, the module layout, and the nine steps from a Cargo feature to a registered channel."
 ---
 
-A channel is the adapter for one upstream family: it knows the URLs, how to
-inject a credential, how to read a stream, how to extract usage and, for
-OAuth-style upstreams, how to log in and refresh. Everything else, routing,
-admission, failover, transforms, settlement and capture, is the engine's job
-and is not reimplemented in a channel.
+A channel knows one upstream family: its URLs, how a credential is injected,
+which wire dialects it speaks, how its stream reports usage and — for
+account-style upstreams — how to log in, refresh and read quota.
 
-## Built In, Not Plugged In
+Everything else is somebody else's job. Routing, credential selection,
+failover, protocol conversion, settlement and capture belong to the engine, and
+**nothing in a channel reads the database or picks a transport**.
 
-v3 has no plugin mechanism: no `linkme` slice, no external channel crate,
-no Cargo feature per channel. Every channel is a module of
-`crates/gproxy-channels`, and the set compiled into the binary is the list
-in `crates/gproxy-app/src/bootstrap.rs`. Adding a channel means a pull
-request against this repository. The 28 built-in ids form the runtime
-catalogue; `claudeweb` is the only one gated to native builds.
+Channels are built in, not plugged in: a new one is a module of
+`gproxy-channel` behind its own Cargo feature, and adding one is a pull request
+against this repository. No concrete channel is compiled by default.
 
-## The `Channel` Contract
+## Does It Need One?
 
-The contract lives in `crates/gproxy-channel-api/src/`. `Channel` is
-synchronous and object-safe: an adapter is pure logic over borrowed data,
-and the one async concern, credential refresh, returns a boxed future.
-`prepare` must not perform I/O.
+A channel is code to maintain against somebody else's wire. A vendor earns one
+only when a provider row cannot state what it needs: a path that moves with the
+operation, a body that must be rewritten, an account surface to read, a client
+identity to present.
 
-Required methods:
+A vendor whose whole difference is an origin and a header is a `custom`
+provider. See
+[vendors that need no channel](/guides/providers/#vendors-that-need-no-channel).
 
-| Method | Responsibility |
-| --- | --- |
-| `descriptor()` | The identity card: `id`, `display_name`, executable `supports`, declared `provider_fields` and `credential_fields`, `endpoint_overrides`, `traffic_policy`. |
-| `routing_table()` | The provider defaults seeded on provider creation: one `ChannelSupport` per (operation, inbound protocol) with action `passthrough`, `transform`, `local` or `unsupported`. |
-| `prepare(PrepareCtx)` | Build the absolute upstream request: URL from settings or an endpoint override, auth injected from the decrypted secret, header allow-list, body shaping. |
-| `classify(ResponseView)` | Map an upstream answer to `Success`, `Retryable`, `Terminal` or `CredentialDead`; this drives failover and health. |
-| `extract_usage(UsageCtx)` | Read `NormalizedUsage` from a buffered exchange: input, output and cached tokens plus dimensional `metrics` and `dimensions`. |
+## The Contract
 
-Optional hooks, whose defaults do nothing:
+`BaseChannel` is the only required trait and `id` is its only required method.
+Every protocol operation has its own asynchronous method with a **default**
+implementation: build the request with `prepare` (HTTP) or `prepare_connect`
+(WebSocket), then hand it to the assigned client.
 
-| Hook | Use when |
-| --- | --- |
-| `login()` | The channel acquires credentials interactively. Returns a `ChannelLoginRef` whose descriptor lists modes (`AuthCode` with PKCE, `Device`, `Cookie`) and parameters; the adapter implements `ChannelLogin`. |
-| `refresh_due()`, `refresh()` | The secret expires. `refresh` returns the full replacement secret; the engine persists it through the host's version-guarded store. |
-| `stream_decoder(StreamCtx)` | The wire is SSE, AWS event-stream or another framing that must be decoded into frames and observed for usage. Returns a `StreamDecoder` state machine: `push` chunks in, `Frame`s out, `finish` yields the `StreamTail` with usage. |
-| `shape_response()` | A channel-private envelope must be normalised to the declared native wire before the outward transform. |
-| `select_support()` | One credential family serves several source rows and the secret shape decides which. |
-| `operation_driver()` | An operation needs several upstream calls (create, poll, fetch). The driver is a state machine; the core performs and funnels every call. |
-| `observe_quota()`, `prepare_quota_probe()`, `parse_quota_probe()` and the credits and reset variants | The upstream reports quota windows in headers or exposes a usage endpoint. |
-| `session_preparer()` | Long-lived realtime sessions with a usage meter. |
-| `settlement_ready()`, `resource_mutations()` | Asynchronous operations and durable resources (files, videos) whose ownership must be recorded. |
-| `surfaces()`, `prepare_surface()` | The channel emulates a vendor control plane (Codex `backend-api`, Claude Code files). Entries are rows: method, path pattern, credential affinity, and forward or synthesize. |
-| `requires_continuations()` | The channel relies on continuation state between calls. |
-
-`PreparedRequest` carries the request plus an optional stream `framing`
-override, a `websocket` flag and an optional `ClientProfile`: the TLS and
-HTTP/2 fingerprint a native transport applies
-(`ClientProfilePreset::Chrome148` is the captured preset). Edge hosts
-ignore optional profiles.
-
-## Declared Fields
-
-The console has no channel-specific screens. Everything it renders for a
-channel comes from the descriptor through `GET /admin/api/channels`:
-
-| Field | Purpose |
-| --- | --- |
-| `provider_fields` | Typed provider settings. Controls: `text`, `secret`, `url`, `integer`, `boolean`, `string_list`, `select` (with `options` and `default_value`); `required` and `advanced` flags. |
-| `credential_fields` | The secret's shape when a credential is pasted: `api_key`; `access_token` and `refresh_token`; service-account fields. |
-| `endpoint_overrides` | Whether the Settings tab offers per-operation endpoint URL overrides; the keys come from `endpoint_override_key`. |
-| `traffic_policy` | Request headers, response headers and query parameters the channel forwards; operators may override them per provider. |
-| `login` | Modes and parameters for the credential wizard. |
-
-Reuse the field sets in `crates/gproxy-channels/src/metadata.rs`
-(`BASE_URL`, `OPENAI_CACHE`, `CLAUDE`, `API_KEY`, `OAUTH`,
-`SERVICE_ACCOUNT` and others) where they fit. Labels come from the locale
-files: each field key needs `providers.channelFields.<key>.label` and
-`.description` in `console/src/locales/{en,zh-CN,zh-TW}/providers.json`,
-and `select` options need `providers.channelFieldOptions.<key>.<option>`.
-The admin API adds `auto_refresh_models` to every channel itself.
-
-## Routing Table
-
-Declare routes with the `route!` macro from `shared/routing.rs`:
-
-```rust
-use crate::shared::routing::route;
-
-pub(super) static ROUTES: &[ChannelSupport] = &[
-    route!(pass ListModels, openai),
-    route!(xform ListModels, claude => ListModels, openai),
-    route!(local CountTokens, openai),
-    route!(pass GenerateContent, openai_chat),
-    route!(xform GenerateContent, claude_messages => GenerateContent, openai_chat),
-    route!(unsupported CreateEmbedding, gemini),
-];
-```
-
-Wire kinds are `openai`, `claude`, `gemini` for family operations and
-`openai_chat`, `openai_responses`, `openai_responses_websocket`,
-`claude_messages`, `gemini_generate_content` for content generation. An
-`xform` row must name a pair the transform registry implements; the test
-`every_declared_builtin_transform_is_wired` in
-`crates/gproxy-core/src/tests/channels.rs` checks the descriptor's
-`supports` for that, and a new channel with transforms belongs in its list.
-Operators can override any row per provider afterwards
-(see [Routing Rules & Rule Sets](/guides/rules/)).
-
-## Where a Channel Lives
-
-One directory per channel id, one file per concern, no file over 500 lines
-and ideally under 200:
+Both preparation hooks default to "unsupported", so a channel supports exactly
+what it prepares or overrides, **never more**.
 
 ```text
-crates/gproxy-channels/src/<id>/
-  mod.rs        descriptor, SUPPORTS, Channel impl
-  routes.rs     routing_table()
-  prepare.rs    URL, auth, endpoint overrides
-  model.rs      model id and body shaping
-  sse.rs        stream decoder
-  usage.rs      usage extraction
-  resource.rs   settlement_ready / resource_mutations (when needed)
-  login.rs      ChannelLogin (when needed)
-  auth.rs       refresh_due / refresh (when needed)
-  quota.rs      quota probe (when needed)
-  surface/      service-surface table and synthesizers (when needed)
-  tests.rs      or tests/ for larger suites
+the host selects provider, credential, client
+  → ChannelBinding::new(&channel, provider, credential, client)
+  → binding.send(OperationKey, WireRequest<HttpBody>)
+    binding.connect(OperationKey, WireRequest<()>)
+  → the named operation method on BaseChannel
+  → default: prepare + client.send  /  prepare_connect + client.connect
+    or the channel's own multi-call flow through the same client
 ```
 
-Shared wire knowledge goes under `crates/gproxy-channels/src/shared/`:
-`openai`, `claude`, `gemini`, `aws_eventstream`, `code_assist`,
-`google_oauth`, `cache` (magic strings), `quota`, `http`,
-`image_multipart`. `policy.rs` holds each channel's `ChannelTrafficPolicy`,
-`metadata.rs` the field sets, and `legacy.rs` canonicalises settings
-imported under older ids.
+What the host hands over is borrowed and public where it can be:
 
-Read `crates/gproxy-channels/src/openai/` for an API-key channel and
-`claudecode/` for an OAuth channel with login, refresh and surfaces. Wire
-truth is the vendor's API documentation, not another channel's code.
+| Type | Holds |
+| --- | --- |
+| `ProviderView` | `id`, `channel`, optional `base_url`, and the JSON `config` the channel decodes into its own typed settings |
+| `CredentialView` | `id`, `provider_id`, `auth_kind`, the JSON `secret` (no `Debug`, no `Serialize`), the public `metadata` the host recorded, `version`, `expires_at_ms` |
+| `OperationContext` | both views, the operation's dialect, the `WireRequest`, an owned client, cross-request state, the host instance id and an optional endpoint override |
+| `CredentialContext` | provider, credential and client, for refresh, quota and services |
 
-## Registration
+### Rules every channel follows
 
-1. Add `mod <id>;` and `pub use <id>::<Name>Channel;` in
-   `crates/gproxy-channels/src/lib.rs`.
-2. Push `Box::new(gproxy_channels::<Name>Channel)` onto the list in
-   `channels()` in `crates/gproxy-app/src/bootstrap.rs`.
-   `ChannelRegistry::new` fails startup on a duplicate id.
-3. If the channel cannot build for `wasm32-unknown-unknown`, gate the module
-   and the registration with `#[cfg(not(target_arch = "wasm32"))]`, as
-   `claudeweb` does. Prefer code that builds for both targets.
-4. Add the locale entries for any new field keys.
+- **Preparation is synchronous and pure**: no I/O, no hidden state, no client
+  construction. An operation override may make several exchanges, but only
+  through `context.client`, and may keep it to finish work after the response
+  stream ends.
+- **Source authentication never reaches the upstream.** The forwarding helper
+  drops the hop-by-hop headers plus `host`, `content-length`, `authorization`,
+  `x-api-key`, `x-goog-api-key` and `api-key`; the channel adds its own auth
+  from the credential. A provider's `allowed_headers` narrows what else is
+  forwarded, while `content-type` and the channel's declared identity headers
+  always pass.
+- **An endpoint override is the complete method URL**, replacing the base URL
+  and the channel's default path — not a base to append to.
+- **A non-2xx is a response, not an error.** Status, headers and a lazy body
+  come back as they stand. The error variant is for *ability* calls (login,
+  refresh, quota) and for an intermediate exchange inside a multi-call
+  override, where the failing reply is not the response being returned.
+- **`RefreshRejected` means the upstream definitively refused the credential**
+  (`invalid_grant`, revoked) and the host marks it dead. A transient transport
+  failure or a 5xx must surface as a transport error so the host retries later.
+  Getting this wrong kills a working account.
+- **`ContinuationElsewhere`** says a live upstream connection is held by
+  another host process. The host reroutes; nothing is wrong with the
+  credential.
 
-Nothing else is required: provider creation seeds routing rules from
-`routing_table()`, the Providers page lists the channel, and the credential
-wizard follows `login()`.
+## The Optional Abilities
 
-## Tests
+Each is an independent trait behind a default-`None` accessor. A channel
+implements the ones its upstream has, and nothing couples them — a channel may
+report quota windows without offering a reset.
 
-Channel tests live beside the code (`tests.rs` or `tests/`). Test what is
-easy to get wrong: request preparation against a fixture secret, stream
-decoding and usage extraction from captured frames, quota parsing, and the
-consistency between `supports` and `routing_table()`. Do not test the
-engine from a channel. Finish with `cargo fmt`, `cargo clippy` and
-`cargo test`; a lint finding gets a code change, not an `#[allow]`.
+| Accessor | Purpose |
+| --- | --- |
+| `credential_refresh` | Produce a **full replacement** secret and expiry; the host persists it under a compare-and-swap on `version` |
+| `oauth_authorization_code` | Build the authorize URL for a host-supplied PKCE challenge and state; exchange the code |
+| `oauth_device_code` | `start` and one `poll` step. Scheduling belongs to the host |
+| `cookie_login` | Exchange a pasted cookie for a credential plus its public metadata |
+| `quota_model` | Synchronous and pure: which quota dimensions a credential has, from its `auth_kind` and metadata |
+| `quota_query` | Read a quota snapshot from the upstream's usage endpoint |
+| `quota_headers` | Turn response headers into quota entries; empty means nothing reported |
+| `quota_reset` | Credits and a manual reset, on upstreams that sell them |
+| `usage_extractor` | Normalized usage from a buffered response. `None` means **unreported**, not zero |
+| `usage_stream` | A per-response observer fed raw chunks or frames. It never rewrites the delivered stream |
+| `services` | Vendor control-plane routes — see [CLI Clients](/guides/cli-clients/) |
+
+Cross-request memory is scoped by the host to one provider and one credential,
+and written under compare-and-swap. The binding default refuses every write, so
+a channel that wants state has to be given it.
+
+### The login pocket
+
+Both OAuth flows carry a pocket for facts a channel needs on the far side of
+the person's authorization: what `start` puts in comes back with the
+authorization. Its shape is the channel's own — a non-standard device handle, a
+client a login registered for itself.
+
+**This pocket may carry secrets**, unlike the public `provider_fields` the host
+publishes as credential metadata: it lives in the host's login session, which
+is short-lived, cache-backed and never rendered, and it is gone when the login
+ends. Anything that must outlive the login is returned from the exchange —
+public facts as metadata, secret ones as provider secrets, which are sealed
+with the tokens and never become metadata.
+
+## The Nine Steps
+
+Use `custom` (API key) and `codex` (OAuth account) as the two references.
+
+1. **Declare the feature** in `crates/gproxy-channel/Cargo.toml`, listing only
+   the optional dependencies the channel needs. A wasm-only dependency goes
+   under the `cfg(target_arch = "wasm32")` target table.
+
+   ```toml
+   [features]
+   # One-line description of the upstream and what the channel covers.
+   acme = ["dep:base64", "dep:web-time"]
+   ```
+
+2. **Add one line** to the `channels!` list in `src/channels/mod.rs`: the
+   feature, the module, and the value a host registers. That single line
+   declares the module and puts the channel in `compiled_in()`, which is how
+   every host finds it.
+
+   ```rust
+   "acme" => acme, acme::Acme;
+   ```
+
+   If the channel uses `shared`, extend that module's own `cfg(any(...))` too.
+
+3. **Lay the module out one concern per file.** A small channel is a single
+   `acme.rs`; a larger one a directory:
+
+   ```text
+   src/channels/acme/
+     mod.rs        the id, the unit struct, re-exports, the module doc
+     config.rs     the provider `config` JSON, serde(default), unknown keys ignored
+     request.rs    prepare / prepare_connect / overridden operations
+     oauth.rs      the login and refresh abilities
+     quota.rs      the quota abilities
+     usage.rs      the usage abilities
+     services.rs   the vendor control-plane routes
+   ```
+
+   **The module doc names the source of every wire fact** — the vendor's API
+   reference, or the CLI source under `samples/`. Wire truth is never another
+   channel's code.
+
+4. **Implement `BaseChannel`.** The minimum is `id`, `native_dialects` and
+   `prepare`. The struct is a stateless unit, so one instance serves every
+   provider of that channel.
+
+   Override `descriptor` as well. The default reads the capability accessors,
+   and only the channel knows its display name and which keys it decodes out of
+   the provider `config` JSON. **That descriptor is all a management UI has to
+   render a provider form from** — under the `ts` feature it is a TypeScript
+   type too — so a key left out of it is a key nobody can set.
+
+   Override an operation method instead of `prepare` when the upstream needs
+   more than one exchange, a locally synthesized reply, a different transport,
+   or a response rewritten into the declared native dialect.
+
+5. **Declare what the vendor client sends.** If the channel impersonates a CLI,
+   export its header constant and build the allow-list from it, so a provider's
+   `allowed_headers` cannot strip the CLI's own headers. Pass those identity
+   headers to the forwarding helper's drop list so a **client cannot spoof
+   them**. Return a default connection when the upstream fingerprints its
+   clients; an explicit profile on the credential or provider still wins.
+
+6. **Add abilities as separate types** and return them from the accessors. Keep
+   each trait's rules: a refresh returns a full replacement, never a merge;
+   quota dimensions read plan facts from the credential's metadata and never
+   the network; a usage observer snapshots cumulatively, and its `finish`
+   receives complete-or-interrupted **from the host**, because EOF alone does
+   not establish complete usage.
+
+7. **Put reusable wire mechanics in `src/channels/shared/`**, gated on the
+   features that use them. Policy stays in the channel; a shared module only
+   executes what a channel asks for.
+
+8. **Test beside the code** in `tests/<id>.rs` behind
+   `#![cfg(feature = "…")]`. Build the provider and credential views by hand,
+   call `prepare` with a fixture secret, and assert the URL, the injected auth
+   and the dropped headers. Feed captured frames to the usage observer; parse
+   recorded quota headers and usage bodies. A scripted outbound client
+   exercises multi-call overrides. **Do not test the engine from here.**
+
+9. **Register it in the host.** The engine never lists channels itself. A host
+   that wants everything it compiled in takes the whole list — which is what
+   `gproxy-sdk` does, so enabling the feature there is the only step — and one
+   that wants an exact set passes instances. A duplicate id is rejected, and a
+   provider naming an unregistered channel is a configuration error rather than
+   a fallback.
+
+## Finish
+
+```sh
+cargo fmt --all
+cargo clippy -p gproxy-channel --all-features --all-targets -- -D warnings
+cargo clippy -p gproxy-channel --all-features --target wasm32-unknown-unknown --lib -- -D warnings
+cargo test   -p gproxy-channel --all-features
+```
+
+**Every channel builds for native targets and for
+`wasm32-unknown-unknown`**, which is what keeps the Workers host from being a
+reduced channel set. A lint finding gets a code change, not an `#[allow]`.
+
+Once it is in, nothing else is required: a provider on the new channel appears
+in `GET /admin/api/channels` with its descriptor, and a management UI renders
+its form from that.

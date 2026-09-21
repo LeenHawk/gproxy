@@ -1,164 +1,257 @@
 ---
 title: Usage, Logs & Audit
-description: "Usage rows and hourly rollups, request audit with graded capture and redaction, retention, admin action audit, request ids and process logs"
+description: "What GPROXY v4 records: usage rows and their settlement, downstream and upstream captures, redaction, the audit trail, and what the HTTP host does not yet expose."
 ---
 
-GPROXY writes its operational data to the persistence backend, so every
-instance sharing a database shares one view. The console reads it under
-**Statistics**: the Usage, Admin actions and Request audit tabs.
+Everything below is written to the database, so every instance sharing one
+database shares one view.
 
-## Request IDs
+Three things are recorded, and they are separately switchable **at runtime**,
+not at compile time — an operator needs to decide per deployment, and a Cargo
+feature cannot give them that.
 
-Every gateway request gets an id of the form
-`<instance>-<prefix>-<sequence>`: the numeric `GPROXY_INSTANCE_ID`
-(default `0`), a random 64-bit prefix chosen at process start, and a
-per-process counter, both in hex. The id is returned to the client in the
-`x-request-id` response header and is the join key across usage rows,
-request logs, upstream captures and the portal's recent-request list. Usage
-rows also carry `instance_id` and the configured `instance_name` in their
-dimensions, so a shared database can be split by instance.
+| | The expensive part | Turning it off costs you |
+| --- | --- | --- |
+| settlement | usage extraction, token estimation, pricing | quota accounting **and** cost statistics, together |
+| capture | cloning the body — the most expensive of the three | any request or response retained |
+| tracing | string formatting | everything but error logs |
 
-## Usage Rows and Rollups
+The switch is asked **before** the work, never applied to a result afterwards.
+v3 cloned the body and then let a sink decide, so an empty sink saved nothing;
+v4 asks first, and with capture off nothing is allocated and no body is copied.
 
-Every settled exchange writes one row to `usage_rows` and adds to the hourly
-bucket in `usage_rollups` in the same batch. Settlement happens on every
-path that reaches an upstream, including service surfaces; locally answered
-operations record a zero-cost row.
+## Usage Records
 
-| Column | Content |
-| --- | --- |
-| `request_id`, `at` | Correlation id and Unix time of settlement. |
-| `provider_id`, `credential_id`, `upstream_model`, `operation` | What served the request. |
-| `organization_id`, `team_id`, `user_id`, `user_key_id` | Who was admitted. |
-| `input_tokens`, `output_tokens`, `cached_input_tokens` | First-class token counts; `input_tokens` includes cached reads. |
-| `metrics` | Dimensional quantities such as `cache_creation_5m_tokens`, `reasoning_tokens`, `audio_seconds`, `web_searches`. |
-| `dimensions` | Qualifiers such as `service_tier`, `instance_id`, `instance_name`. |
-| `cost` | Settled decimal cost. |
-| `usage_source` | `upstream` when the provider reported usage, `estimated` when GPROXY counted tokens itself. |
-| `ended` | `complete`, or `interrupted` when the client hung up or the stream broke. |
-| `latency_ms` | Wall time of the exchange. |
+Every settled exchange writes one row. Settlement happens on **every** path
+that reaches an upstream — there is no fast path around the funnel, because a
+path around it is unmetered traffic.
 
-Rollups are keyed by hour, provider, organization, team, user, upstream
-model and dimensions; the Overview trend reads them. Turning `enable_usage`
-off stops persisting rows; admission, settlement and quota reconciliation
-still run.
+A row carries its request id, the model, the operation, the settled cost, and a
+`metrics` document holding the normalized token counts, the per-exchange
+breakdown behind them, the settlement state and the priced amounts.
 
-### Querying Usage
+A request that reached two providers has **two exchanges in one row**, each
+with that attempt's own tokens and price. Grouping by provider is therefore
+per-exchange rather than per-row: a failed-over request counts under both.
 
-`GET /admin/api/usage?from&to` aggregates rows over a range of at most 366
-days. `group_by` is `user_key`, `user`, `provider` or `model`; without it
-every distinct dimension combination is returned. Filters: `user_key_id`,
-`user_id`, `provider_id`, `credential_id`, `model`. Each row reports
-requests, input, output and cached tokens, cache writes for 5 minutes,
-30 minutes and 1 hour, and cost. The console's Usage tab exposes the same
-filters with a date range and switches between **Usage and cost** and
-**Quota windows**. `GET /admin/api/usage-trend?from&to` returns hourly
-points.
+```json
+{"dimensions":{"estimated":"true","unpriced":"true"},
+ "exchanges":[{"attempt_id":"1a0c3372ac7-0-1","attempt_ordinal":1,
+   "credential_id":"b8aad67f…","model":"gpt-4o-mini","provider_id":"5a45fd80…"}]}
+```
 
-Cost, tokens and dimensions answer different questions: cost is what was
-billed after pricing; tokens are the provider's or the estimator's counts;
-metrics and dimensions carry everything that is not a token and are priced
-by `price_rates` rows (see [Pricing & Tiers](/reference/pricing/)).
+Two dimensions are worth knowing by name:
 
-## Request Audit
+- **`estimated = true`** — the upstream reported no usage and GPROXY counted
+  the tokens itself. A token count is `null` rather than `0` when a field was
+  never reported: an upstream that did not measure something did not measure
+  zero.
+- **`unpriced = true`** — no price rule covered this model. The request still
+  settles, at zero, because the operator wanted the signal that a model is
+  being served for free rather than a refusal.
 
-Request audit stores the downstream exchange (what the client sent and
-received) and every upstream attempt it caused, correlated by request id.
-Capture is off by default and graded by four switches on the Settings page
-(`PATCH /admin/api/log-settings` or `/admin/api/instance-settings`).
+A **cancelled** request is still a metered request: it gets its row like any
+other, with the state set to `cancelled`, whatever the upstream managed to
+report before it was stopped.
 
-| Switch | Records |
-| --- | --- |
-| `enable_downstream_log` | Client method, path, query, IP, headers, status, error kind, duration, output tokens per second. |
-| `enable_downstream_log_body` | Also the client request and response bodies. Streamed responses are captured in full and written when the stream ends. |
-| `enable_upstream_log` | Every upstream attempt: provider, credential, URL, method, headers, status. |
-| `enable_upstream_log_body` | Also the upstream request and response bodies. |
+### Reading it back
 
-Body switches can only be turned on when `retention_days` or
-`max_database_size_mb` is set; the API answers 400 otherwise.
+```sh
+curl -s http://127.0.0.1:7070/portal/api/usage -H "Authorization: Bearer $GPROXY_KEY"
+curl -s 'http://127.0.0.1:7070/portal/api/usage?groupBy=provider' -H "Authorization: Bearer $GPROXY_KEY"
+```
 
-`GET /admin/api/logs?start&end` lists captured requests, with filters
-`user_id`, `user_key_id`, `provider_id`, `status`, `request_id`, a `cursor`
-and `limit` (1 to 100, default 50). `GET /admin/api/logs/<request_id>`
-returns the downstream record and the ordered upstream attempts. In the
-console, **Request audit** opens each request at `/admin/logs/<request_id>`
-with copyable headers and bodies; fields that were not captured say so.
+```json
+{"summary":{"requests":19,"inputTokens":43,"outputTokens":3830,
+  "cachedInputTokens":0,"cacheCreationTokens":0,"reasoningTokens":0,
+  "cost":"0","currency":null,"truncated":false,"scanned":19},
+ "groups":[…],"trend":[]}
+```
 
-The client IP is the peer address, unless the peer is loopback or listed in
-`GPROXY_TRUSTED_PROXIES`, in which case the first `X-Forwarded-For` entry or
-`X-Real-IP` is used.
+`currency` is `null` when the scanned records disagreed about it. Summing
+dollars and euros into one number would not be a total.
+
+`truncated` and `scanned` are the honest half of the same answer. The metrics
+document is one JSON blob per request and no supported backend can sum inside
+it, so aggregates are folded in Rust over a **scan cap** — 50,000 rows by
+default. An aggregate that reached its budget says so rather than presenting a
+smaller number as the whole truth.
+
+:::caution[The operator's read side is not on HTTP yet]
+`gproxy-sdk` has a full query side — usage records, summaries, groups, trends,
+quota windows and settlements, request logs and their details — and the desktop
+host exposes all of it over IPC. **The axum host does not.** There is no
+`GET /admin/api/usage` and no `GET /admin/api/logs`; both answer 404.
+
+What the HTTP host does serve is `/portal/api/usage`, `/portal/api/quota` and
+`/portal/api/requests`, which are scoped to the calling identity by
+construction, plus `/admin/api/quotas/status` and `/admin/api/audit`.
+:::
+
+## Quotas and Budgets
+
+A budget is a `quotas` row whose metric is `cost` in USD, against an owner —
+`api_key`, `user`, `subscription`, `team` or `org`.
+
+Admission hands the engine the caller's **budget chain**:
+`[api_key?, user, subscription?, team?, org?]`, skipping what is not set. The
+engine matches those kinds **verbatim** and knows no hierarchy between them, so
+**every** enabled budget of **any** owner in the chain applies and all of them
+must have room. The order is what a log reports, not a precedence.
+
+Windows open lazily, on an `INSERT … ON CONFLICT DO NOTHING` so concurrent
+instances converge on the same row, and an expired window is never deleted —
+the next request simply opens the next one, and history is the full list.
+
+```sh
+curl -s 'http://127.0.0.1:7070/admin/api/quotas/status?owners=user:alice,team:t1' \
+  -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X POST http://127.0.0.1:7070/admin/api/quotas/{id}/reset \
+  -H "Authorization: Bearer $GPROXY_KEY"
+```
+
+A reset closes the open window at *now*, re-anchors the quota, and opens a
+fresh one. History is kept.
+
+**A budget can be overrun by at most one request.** Cost is not known until the
+exchange ends, and that is the accepted price of not estimating, not
+pre-charging and not rolling back. Settlement is idempotent per request id, so
+a replay does not double-charge, and a settlement failure loses the accounting
+rather than the delivered response.
+
+## Captures
+
+A capture has two sides with two owners. The engine writes the `upstream` row
+for every physical send; only a host sees the inbound HTTP exchange, so the
+`downstream` row is the product layer's.
+
+| | upstream | downstream |
+| --- | --- | --- |
+| gate | `enableUpstreamLog` | `enableDownstreamLog` |
+| body gate | `enableUpstreamLogBody` | `enableDownstreamLogBody` |
+| id | its own, opaque | **the request id**, which is also the usage row's |
+| body storage | streamed into capture events | the inline column, buffered and capped |
+| websocket frames | one event per frame | one event per frame, buffered |
+
+```sh
+curl -s -X PATCH http://127.0.0.1:7070/admin/api/settings \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"logging":{"enableUpstreamLogBody":true}}'
+```
+
+All four switches are read off the settings row of the **revision the request
+pinned**, so a request cannot be half-captured under two configurations.
+
+With a body switch off, the body is not copied and the record's body state says
+`notCaptured` — which is how a reader tells "there was no body" from "we chose
+not to keep it". Two rows with zero bytes and different states are different
+facts. What is kept is capped at 64 KiB per direction, and a body over it is
+stored truncated with the state `partial`.
+
+A **capture failure is never a request failure.** The request has been answered
+by then, and an error in describing it must not become a response.
+
+### A socket is one record and a list of frames
+
+A WebSocket is **one** record with `101` as its status and an ordered event
+list across both directions, not one record per exchange. Ping, pong and close
+are recorded too, and a keepalive stays on the side it was sent on because it
+measures the link it travelled.
+
+No per-turn record is written and the turn column is left unset. A turn is a
+dialect's notion — OpenAI's `response.created`/`response.done`, Gemini Live's
+own — and the host forwards realtime frames as opaque passthrough. Inventing a
+boundary the wire did not draw would put a record in the log that nothing
+produced.
+
+### Retries are edges, not columns
+
+A capture record's provider, credential and metrics columns stay **unset** on a
+downstream row. A retried request reached two providers with two credentials,
+and a single column would have to pick one. The edges answer that without
+picking, and the billed usage is the usage row.
+
+Those edges are merged from two sources, because neither is complete on its
+own: what the engine could **meter** (a 503 that was retried elsewhere carries
+no usage and is not in the report at all), and every upstream record whose
+initiator is this request (which misses one a *continuation* reached). Nothing
+is written until the exchange ends; the record and all of its edges go in one
+batch.
 
 ## Redaction
 
-Redaction is on by default and applies to headers, query strings and bodies
-in both directions before anything is stored:
+Redaction happens **at write time**, not at read time. A secret that reaches
+the column has already leaked into every backup and replica, so nothing on the
+read side redacts and a host must not assume a second pass happens: if it is in
+the database, the policy allowed it there.
 
-- Headers `authorization`, `proxy-authorization`, `x-api-key`,
-  `x-goog-api-key`, `api-key`, `cookie` and `set-cookie` become
-  `[redacted]`.
-- JSON fields and form or query parameters whose name is a known secret
-  (`api_key`, `token`, `access_token`, `refresh_token`, `client_secret`,
-  `password`, `code`, `signature`, `code_verifier`, `state` and similar)
-  are replaced; nested objects and arrays are walked.
-- Bodies over 100 MiB are truncated with a marker.
+Header names, query parameters and JSON fields on the standard list —
+`authorization`, `cookie`, `api_key`, `access_token` and their peers — are
+masked, and both sides of one request hide the same things. A request body is
+redacted **before** it is cut, so length is never a way past the policy.
 
-`disable_log_redaction` is the explicit cleartext override. The console
-highlights it in red because credentials, cookies and user content are then
-written to the database as sent. Sign-in paths (`/oauth/*`, device-auth
-callbacks, `/portal/api/login`, `/portal/api/password`) stay redacted even
-with the override on.
+A body that is not JSON has no key to match on and is stored as received. That
+is one more reason the body switches are off by default.
 
-## Retention and Size Pressure
+`disableLogRedaction` is the explicit cleartext override.
 
-A sweep runs every five minutes.
+## The Audit Trail
 
-| Setting | Effect |
-| --- | --- |
-| `retention_days` | Deletes `request_logs`, `wire_logs` and `usage_rows` older than the cutoff. Unset behaves as 36,500 days. |
-| `max_database_size_mb` | When the database exceeds the cap, deletes the oldest 5,000 rows each of `request_logs` and `wire_logs` per sweep. Unset behaves as 1,024 MiB. |
+Every `/admin/api` call that is not a read writes one row. The action is
+derived from the **matched route**, so a new route cannot forget to name
+itself:
 
-Size pressure never deletes usage rows or rollups; only retention does, and
-only by age. Database size is read from `page_count × page_size` on SQLite
-and libSQL, `pg_database_size` on PostgreSQL and `information_schema`
-totals on MySQL. Deleting rows does not shrink a SQLite file by itself.
+```sh
+curl -s 'http://127.0.0.1:7070/admin/api/audit?limit=4' -H "Authorization: Bearer $GPROXY_KEY"
+```
 
-## Admin Action Audit
+```json
+{"items":[{"id":"d052d378c1fc61c9fe4a4738d61fc996",
+  "actorUserId":"5d1eb28a…","actorApiKeyId":"29371cab…","sourceIp":null,
+  "action":"admin.settings.update","entityKind":null,"entityId":null,
+  "outcome":"ok","detail":{"status":200},"createdAtMs":1789982332295}]}
+```
 
-Every successful state-changing call to the admin API writes an
-`audit_events` row: actor user id, action such as `providers.update`,
-`rule_preset.apply`, `credential.secret_reveal`, `user_key.reveal`,
-`log_settings.update` or `channel_login.device_start`, target kind and id,
-time and client IP. Sign-in events `auth.setup`, `auth.login` and
-`auth.logout` are recorded too. Reads and configuration export are not
-audited.
+Reads are not audited, which is exactly why the two deliberate disclosures —
+revealing a credential secret and revealing the tokenizer token — are `POST`s.
 
-`GET /admin/api/audit?limit` returns the newest events (default 100, max
-500). The **Admin actions** tab shows the latest 500 with actor name, IP,
-action and target, and a text search.
+The row is written **outside** the revision transaction. That is not laziness:
+a trail insert that failed would otherwise roll back the operation it was only
+describing, and a *rejected* operation — the row an investigation actually
+wants — has no transaction to join at all. A failure to write the trail is
+logged, never propagated.
 
-## Credential Health and Quota Cycles
+Caller-supplied JSON only enters an entry through a redacting constructor, and
+a failure records the error's stable **code**, never its message, because a
+message can quote a value the caller sent. Field names are matched whole after
+normalizing case, underscores and dashes, so `passwordPolicy` and
+`keyboardLayout` survive while `password` does not, and a matched value is
+**replaced** with `[redacted]` rather than removed — a reader can then tell
+"this operation carried a password" from "this one did not".
 
-Health is tracked per credential and upstream model as `healthy`,
-`degraded` or `dead`, with the observed status, a detail string and the
-time. The Overview lists enabled credentials that are not healthy; the
-credential card shows the per-model rows and offers a reset
-(`POST /admin/api/credentials/<id>/health-reset`). A reset clears the
-recorded state; a still-failing upstream degrades the credential again on
-the next attempt.
+Queries page newest first, ordered on `(createdAtMs DESC, id)`, so two rows
+written in the same millisecond cannot repeat or skip across a page boundary.
 
-Upstream quota windows that ride on responses or come from a quota probe are
-persisted as credential cycles: window key and label, period start and end,
-used and limit, whether the boundary was reported by the upstream or
-inferred, and whether the cycle is open or closed.
-`GET /admin/api/credential-cycles?from&to[&credential_id]` lists them; the
-Usage tab and the Overview's quota-pressure card (windows at or above 80 %)
-read the same data. `POST /admin/api/credentials/<id>/quota-probe`
-refreshes a credential's windows on demand.
+Sessions and audit rows deliberately do **not** bump the configuration
+revision. Neither is in the identity snapshot — authentication reads sessions
+on every request — so bumping would make every login and every audited
+operation invalidate the whole fleet's snapshot for a change no snapshot
+contains.
 
 ## Process Logs
 
-The native binary logs through `tracing` to standard output.
-`GPROXY_LOG_FORMAT` (`--log-format`) selects `text` (default) or
-newline-delimited `json`. The level filter comes from `RUST_LOG` and
-defaults to `info`. Cleanup sweeps, failed usage writes and failed captures
-are logged with the request id where one exists.
+```sh
+gproxy serve --log-format json --log-filter 'gproxy=debug,info'
+```
+
+`--log-format` is `text` or `json`; `--log-filter` takes `RUST_LOG` syntax and
+falls back to `RUST_LOG`, then to `info`.
+
+Logs go to standard **error**, and the first-run administrator block goes to
+standard output. That is what keeps the secrets out of a journal, and what
+keeps `gproxy export --out -` clean.
+
+## Request Ids
+
+A request's id joins its usage row, its captures and its edges. There is **no
+`x-request-id` response header** in v4; the id is recorded, not returned.

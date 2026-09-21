@@ -1,174 +1,216 @@
 ---
 title: 发送第一个请求
-description: 通过 GPROXY 发送 OpenAI Chat、OpenAI Responses、Claude Messages 和 Gemini 请求，使用流式、列出模型、使用命名前缀，并在事后找到这次请求。
+description: 用 OpenAI、Claude 和 Gemini 的原生路径经 GPROXY 发请求，流式、三个挂载点，以及它回答的错误。
 ---
 
-GPROXY 在每种接受的线格式的原生路径上应答。用户 API 密钥用于鉴权；公开模型名选择
-负载均衡，它的成员、权限、配额、规则和凭证决定请求去向。下面的示例假设已经按
-[快速开始](/zh-cn/getting-started/quick-start/)创建了公开模型名 `main` 和密钥
-`sk-<your-key>`。
+GPROXY 在每种被接受的线格式的原生路径上应答。网关 API key 认证调用方，`model` 名决定
+请求去哪。下面的例子假设有一个名为 `fast` 的公开模型名，以及一把按
+[快速开始](/zh-cn/getting-started/quick-start/)创建的 key。
 
-## 鉴权
-
-在任意路径上，用以下任一请求头发送密钥：
-
-```text
-Authorization: Bearer sk-<your-key>
-x-api-key: sk-<your-key>
-x-goog-api-key: sk-<your-key>
+```sh
+export GPROXY_KEY='sk-…'
 ```
 
-密钥必须已启用且未过期，并且对请求解析到的 Provider 拥有允许权限。
+## 认证
+
+在任意路径上，key 可以放在这三个 header 中的任意一个：
+
+```text
+Authorization: Bearer sk-…
+x-api-key: sk-…
+x-goog-api-key: sk-…
+```
+
+三者到达同一个身份。key 还会按"去掉前导 `sk-` 或 `at-` 之后的摘要"再查一次，因此同一份
+密钥写成 `sk-X`、`at-X` 或裸 `X` 都是**同一把 key**：配额与用量跟着 key 走，而不是跟着
+它被怎么敲出来走。
+
+每一次认证失败都是 `401`，从不是 `403`——被禁用的 key、过期的 key、被撤销的授权和从未
+存在过的 key，从外面看必须无法区分：
+
+```json
+{"error":{"code":"unauthorized","message":"unauthorized"}}
+```
 
 ## OpenAI Chat Completions
 
-```bash
-curl http://127.0.0.1:8787/v1/chat/completions \
-  -H "Authorization: Bearer sk-<your-key>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "main",
-    "messages": [
-      { "role": "user", "content": "Say hello." }
-    ]
-  }'
+```sh
+curl -s http://127.0.0.1:7070/v1/chat/completions \
+  -H "Authorization: Bearer $GPROXY_KEY" \
+  -H 'content-type: application/json' \
+  -d '{"model":"fast","messages":[{"role":"user","content":"Say hello."}]}'
 ```
 
 ## OpenAI Responses
 
-```bash
-curl http://127.0.0.1:8787/v1/responses \
-  -H "Authorization: Bearer sk-<your-key>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "main",
-    "input": "Say hello."
-  }'
+```sh
+curl -s http://127.0.0.1:7070/v1/responses \
+  -H "Authorization: Bearer $GPROXY_KEY" \
+  -H 'content-type: application/json' \
+  -d '{"model":"fast","input":"Say hello."}'
 ```
 
 ## Claude Messages
 
-```bash
-curl http://127.0.0.1:8787/v1/messages \
-  -H "x-api-key: sk-<your-key>" \
-  -H "anthropic-version: 2023-06-01" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "main",
-    "max_tokens": 256,
-    "messages": [
-      { "role": "user", "content": "Say hello." }
-    ]
-  }'
+```sh
+curl -s http://127.0.0.1:7070/v1/messages \
+  -H "x-api-key: $GPROXY_KEY" \
+  -H 'anthropic-version: 2023-06-01' \
+  -H 'content-type: application/json' \
+  -d '{"model":"fast","max_tokens":256,
+       "messages":[{"role":"user","content":"Say hello."}]}'
+```
+
+当 `fast` 背后的成员是一个 OpenAI 形状的上游时，回来的仍然是 Claude Messages：
+
+```json
+{"type":"message","id":"chatcmpl-mock-1",
+ "content":[{"type":"text","text":"Hello from the mock upstream."}],
+ "model":"gpt-4o-mini","role":"assistant","stop_reason":"end_turn",
+ "usage":{"input_tokens":11,"output_tokens":7}}
 ```
 
 ## Gemini GenerateContent
 
-Gemini 把模型放在路径中：
+Gemini 把模型放在路径里：
 
-```bash
-curl "http://127.0.0.1:8787/v1beta/models/main:generateContent" \
-  -H "x-goog-api-key: sk-<your-key>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "contents": [
-      { "parts": [ { "text": "Say hello." } ] }
-    ]
-  }'
+```sh
+curl -s "http://127.0.0.1:7070/v1beta/models/fast:generateContent" \
+  -H "x-goog-api-key: $GPROXY_KEY" \
+  -H 'content-type: application/json' \
+  -d '{"contents":[{"parts":[{"text":"Say hello."}]}]}'
 ```
 
-如果负载均衡的成员使用另一种格式，GPROXY 在发出时转换请求、在返回时转换响应。客
-户端在任何情况下看到的都是自己的格式。
+```json
+{"candidates":[{"content":{"parts":[{"text":"Hello from the mock upstream."}],
+ "role":"model"},"finishReason":"STOP","index":0}],
+ "usageMetadata":{"promptTokenCount":11,"totalTokenCount":18},
+ "modelVersion":"gpt-4o-mini","responseId":"chatcmpl-mock-1"}
+```
+
+有几条路径（`/v1/models`、`/v1/models/{id}`、`/v1/files`…）被 OpenAI、Claude 和 Gemini
+的 v1 surface 拼成了同一个样子。方言决定向转换器要哪一套线类型，猜错就是客户端解析不了
+的 body。判别依据是**客户端自己的认证 header**——`x-goog-api-key` 是 Gemini 的、
+`anthropic-version` 是 Claude 的——因为那是客户端主动提供的关于它自己的证据。没有证据
+时第一行胜出，而表的顺序让那一行是 OpenAI。
 
 ## 流式
 
-对 OpenAI Chat、OpenAI Responses 和 Claude Messages，在请求体中加入
-`"stream": true`；响应是该格式自身事件形状的 server-sent events：
+对三种靠 body 标志的方言，加上 `"stream": true`。响应是该格式自己的事件形状的 SSE：
 
-```bash
-curl -N http://127.0.0.1:8787/v1/chat/completions \
-  -H "Authorization: Bearer sk-<your-key>" \
-  -H "Content-Type: application/json" \
-  -d '{ "model": "main", "stream": true,
-        "messages": [ { "role": "user", "content": "Count to five." } ] }'
+```sh
+curl -sN http://127.0.0.1:7070/v1/chat/completions \
+  -H "Authorization: Bearer $GPROXY_KEY" \
+  -H 'content-type: application/json' \
+  -d '{"model":"fast","stream":true,
+       "messages":[{"role":"user","content":"Count to three."}]}'
 ```
 
-对 Gemini，调用 `:streamGenerateContent`。不带查询参数时，流是 Gemini 的增量 JSON
-数组；`?alt=sse` 选择 server-sent events：
+由 OpenAI 上游承接的 `/v1/messages` 流式请求是**逐事件翻译**的，不是缓冲后重发：
 
-```bash
-curl -N "http://127.0.0.1:8787/v1beta/models/main:streamGenerateContent?alt=sse" \
-  -H "x-goog-api-key: sk-<your-key>" \
-  -H "Content-Type: application/json" \
-  -d '{ "contents": [ { "parts": [ { "text": "Count to five." } ] } ] }'
+```text
+event: message_start
+data: {"type":"message_start","message":{"type":"message","id":"chatcmpl-mock-1",…}}
+
+event: content_block_start
+data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+
+event: content_block_delta
+data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}
 ```
 
-OpenAI Responses 也支持 WebSocket：向 `GET /v1/responses` 发起升级请求会打开一个
-会话，它经过与 HTTP 调用相同的准入和结算。
+带 `stream: true` 的路径和不带的是**两个不同的操作**——不同的规则、不同的结算——所以这个
+标志在入口就被读取，而不是留给渠道去发现。
+
+Gemini 则把它写在路径里。不带 query 时流是 Gemini 的增量 JSON 数组；`?alt=sse` 选择 SSE：
+
+```sh
+curl -sN "http://127.0.0.1:7070/v1beta/models/fast:streamGenerateContent?alt=sse" \
+  -H "x-goog-api-key: $GPROXY_KEY" \
+  -H 'content-type: application/json' \
+  -d '{"contents":[{"parts":[{"text":"Count to three."}]}]}'
+```
+
+无论上游产出什么，调用方拿到的都是它要的那种分帧。
 
 ## 列出模型
 
-```bash
-curl http://127.0.0.1:8787/v1/models \
-  -H "Authorization: Bearer sk-<your-key>"
+```sh
+curl -s http://127.0.0.1:7070/v1/models -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
-`GET /v1/models` 以 OpenAI 或 Claude 的形状应答，`GET /v1beta/models` 以 Gemini 的
-形状应答，`GET /v1/models/{id}` 返回单条记录。列表包含该密钥可以使用的公开模型名
-和变体。开启了**从上游刷新模型列表**设置（默认开启）的 Provider 会被并发询问其目
-录。列表由网关自身应答，仍然经过准入，并记录一条零成本结算。
+v4 的 `GET /v1/models` 是**转发给某个 Provider** 的，回答的是那个上游自己的目录，不是
+由你的配置合成出来的。*你*发布的那份名字清单在用户面，并且会标出这个调用方能不能调：
 
-## 命名前缀
-
-把目标名放在第一段路径中即可直接选择它，其余部分是原生路径：
-
-```bash
-curl http://127.0.0.1:8787/openai-main/v1/chat/completions \
-  -H "Authorization: Bearer sk-<your-key>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-4.1-mini",
-    "messages": [ { "role": "user", "content": "Say hello." } ]
-  }'
+```sh
+curl -s http://127.0.0.1:7070/portal/api/models -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
-| 第一段路径 | 对 `model` 的影响 |
-| --- | --- |
-| Provider 名，例如 `openai-main` | `model` 是上游模型 id。直接使用该 Provider 的凭证池，跳过负载均衡选择。 |
-| 路由名 | 像聚合模式一样使用该路由的成员。 |
-| 命名空间，例如公开模型 `openai/gpt-4.1` 的 `openai` | `model` 是斜杠之后的部分。 |
+```json
+[{"name":"custom/gpt-4o-mini","providerCount":1,"channelIds":["custom"],"permitted":true},
+ {"name":"fast","providerCount":1,"channelIds":["custom"],"permitted":true}]
+```
 
-命名请求仍然校验密钥、针对所选 Provider 检查权限、应用它的规则集、选择凭证并结算
-用量。第一段路径与任何目标都不匹配时，按聚合路径的一部分处理。Codex CLI 使用的就
-是这种形式：门户的连接片段把它指向 `/codex/backend-api/...` 和 `/codex/oauth/...`。
+这份清单什么都不省略。调用方规则触达不到的名字仍然在里面，只是 `permitted: false`——
+因为一份会静默省略的清单会让"这个模型 404 了"和"你没有权限用这个模型"变成同一个观察。
+
+## 三个挂载点
+
+```sh
+# 聚合——模型名决定一切
+curl -s http://127.0.0.1:7070/v1/chat/completions … -d '{"model":"fast",…}'
+
+# namespace——公开 `acme/fast` 就产生了 namespace `acme`
+curl -s http://127.0.0.1:7070/acme/v1/chat/completions … -d '{"model":"fast",…}'
+
+# Provider——只有那一个 Provider
+curl -s http://127.0.0.1:7070/openai-main/v1/chat/completions … -d '{"model":"gpt-4o-mini",…}'
+```
+
+挂载点通过**给模型名加前缀**来收窄：`/acme/v1/messages` 配 `{"model":"fast"}` 解析的是
+`acme/fast`。这是解析器自己的 `前缀/模型` 语法，不是第二条规则。已经带了前缀的名字原样
+保留，因此客户端两种写法都行。
+
+只有在剥掉前缀后剩下的部分本身也是本网关提供的 surface 时，前缀才会被剥掉。正是这条规则
+挡住了一个叫 `backend-api` 的 Provider 吃掉 `/backend-api/codex/responses`——那是一条真实
+的 Codex 路径。
 
 ## 错误
 
+产品面的信封是
+
+```json
+{"error":{"code":"unknown_model","message":"unknown model `nope`"}}
+```
+
 | 状态码 | 含义 |
 | --- | --- |
-| `400` | 路径或操作不受支持，或请求体无效。 |
-| `401` | 密钥缺失、未知、已停用或已过期。 |
-| `402` | 成本配额已用尽。 |
-| `403` | 密钥对解析到的 Provider 没有允许权限，或有拒绝规则生效。 |
-| `404` | 公开模型名、路由或 Provider 不存在。 |
-| `413` | 请求体超过 100 MiB 上限。 |
-| `429` | 触发限流；响应体中有 `retry_after_secs`。 |
-| `502` | 没有可用凭证，或所有上游尝试都失败。 |
+| `400` | 请求格式不对，或点名了无效的东西 |
+| `401` | 凭据缺失、未知、被禁用、过期或已撤销 |
+| `403` | 准入拒绝：权限，或 OAuth 操作基线 |
+| `404` | 模型名、路由或那一行不存在 |
+| `429` | 限流；cache 回答不了时同样在这里拒绝 |
+| `5xx` | 本实例失败，或所有上游尝试都失败 |
 
-错误体使用 OpenAI 的信封格式：`{"error":{"message":"..."}}`。
+5xx 的消息从不返回给调用方——它可能引用 DSN、一行数据或一个 header。返回的是 `code`，
+文本进运维者的日志。
 
-## 事后找到这次请求
+OAuth 端点用的是 RFC 6749 §5.2 的信封，因为 RFC 规定 `error` 是字符串，而在那里读到一个
+对象的客户端分不清"重新登录"和"继续轮询"：
 
-每个响应都带有形如 `<instance-id>-<random>-<sequence>` 的 `x-request-id` 头。在控
-制台中：
+```json
+{"error":"invalid_grant","error_description":"…"}
+```
 
-- **统计 → 用量**显示请求数、输入与输出 token、缓存读写和结算成本，可按 Provider、
-  凭证、用户、密钥或模型筛选。
-- **统计 → 请求审计**列出每个客户端请求及其产生的全部上游调用，可按用户、密钥、
-  Provider、状态或请求 ID 筛选。只有在**设置**中开启了对应的捕获开关时才会显示请求
-  头和请求体，且除非在那里关闭脱敏，否则都经过脱敏。
-- **统计 → 管理操作**记录控制台变更和通道登录。
+## 事后怎么找到这个请求
 
-登录 `/portal` 的用户可以看到自己的用量；当运维者在**设置 → 用户门户**中开启了
-**显示最近结算请求**时，还会看到**最近结算请求**表，包含 Provider、操作、上游模
-型、token、成本和延迟——绝不包含请求或响应体。
+v4 **没有 `x-request-id` 响应 header**。请求自己的 id 随用量行和 capture 一起记录，而
+调用方自己能看到的那一份在用户面：
+
+```sh
+curl -s http://127.0.0.1:7070/portal/api/usage    -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:7070/portal/api/requests -H "Authorization: Bearer $GPROXY_KEY"
+```
+
+记录了什么、脱敏了什么、以及 HTTP 宿主还没暴露什么，见
+[用量、日志与审计](/zh-cn/guides/observability/)。

@@ -1,235 +1,200 @@
 ---
 title: Installation
-description: Install each GPROXY package, find the data directory and logs, complete first boot, update, manage login startup, and uninstall.
+description: Build the GPROXY v4 binary from source, run it, find its data, and choose between the server, the desktop shell and the Workers host.
 ---
 
-GPROXY is one executable, `gproxy`, with the console, portal, and public site
-embedded. Every package on the [Downloads](/getting-started/downloads/) page
-contains that executable and differs only in how it is started and where its
-data lives.
+v4 has **no release pipeline**: no installers, no portable archives, no
+published container image and no signed artifacts. There is one supported way
+to get a binary, and it is to build one.
 
-## Packages
-
-### Linux `.deb`
-
-```bash
-sudo apt install ./gproxy-linux-x86_64.deb
-```
-
-The package installs `/usr/bin/gproxy`, the launcher `/usr/bin/gproxy-desktop`,
-an application-menu entry named GPROXY, and `/etc/xdg/autostart/gproxy.desktop`
-so the launcher runs at login. It depends on `curl`, `xdg-utils`, and `zenity`.
-The launcher creates `${XDG_DATA_HOME:-~/.local/share}/gproxy`, writes a
-private `.env` there on first run, starts `gproxy` from that directory when
-`http://127.0.0.1:8787/admin` is not answering, and opens the console. Running
-`gproxy` yourself from a terminal uses `./data` in the current directory
-instead — a separate instance with separate data.
-
-### macOS `.dmg`
-
-Drag `GPROXY.app` to Applications and open it. The app runs the server from
-`~/Library/Application Support/GPROXY`, writes a private `.env` there on first
-run, registers `~/Library/LaunchAgents/io.github.leenhawk.gproxy.plist` so the
-server starts at login and is kept alive, and opens the console. It has no
-Dock icon. The bundle is ad-hoc signed, not notarized, and requires macOS 11.
-
-### Windows Microsoft Store (MSIX)
-
-Store publication is being prepared; use the portable ZIP until a public Store
-listing is available. MSI packages remain on historical releases.
-
-The Store package requires Windows 10 version 2004 or later. Its Start menu
-entry opens first-run setup, starts the server in the background and opens
-Console. Windows owns the immutable program files. Database, keys and logs live
-under the package's `LocalState\GPROXY` directory. Enable login startup through
-**Windows Settings → Apps → Startup**; it is initially disabled.
-
-Store handles updates. The Console's Updates page directs you to Store, and
-native EXE replacement/rollback endpoints are disabled for this installation.
-When moving from MSI, export your configuration (including secrets if needed),
-stop the old server and disable its autostart before starting the Store version,
-then import the configuration. Old `%LOCALAPPDATA%\GPROXY` data is not silently
-moved or deleted; back up the database and its master key before migration.
-
-### Android `.apk`
-
-The package id is `io.github.leenhawk.gproxy` and the minimum version is
-Android 9 (API 28). Allow installation from unknown sources, install the APK
-for your ABI, and open GPROXY. The screen has a switch "Start automatically on
-app launch and device boot" (on by default), buttons to start the server, open
-the console, and stop, and a log view. With automatic start on, the app asks
-to be excluded from battery optimization. The service copies the binary into
-the app's private storage, writes a private `.env`, listens on
-`127.0.0.1:8787`, and shows a persistent notification while running.
-
-### Portable Archive
-
-```bash
-unzip gproxy-linux-x86_64.zip -d gproxy && cd gproxy
-chmod +x ./gproxy
-./gproxy
-```
-
-Data goes to `./data` under the current directory unless `--data-dir` or
-`GPROXY_DATA_DIR` says otherwise. On Android keep `gproxy`, `gproxy.bin`, and
-`libc++_shared.so` together and run `./gproxy`.
-
-### Container
-
-```bash
-docker run -d --name gproxy -p 8787:8787 \
-  -v gproxy-data:/var/lib/gproxy \
-  ghcr.io/leenhawk/gproxy:<tag>
-```
-
-The image sets `GPROXY_HOST=0.0.0.0`, `GPROXY_PORT=8787`,
-`GPROXY_DATA_DIR=/var/lib/gproxy`, and `GPROXY_PERSISTENCE=sqlite`, runs as
-the unprivileged user `gproxy`, and exposes port 8787. Mount
-`/var/lib/gproxy`. See [Container](/deployment/docker/).
-
-### Edge
-
-Edge bundles are deployed with the platform's tooling and need a libSQL
-database. See [Edge Wasm](/deployment/edge/).
-
-## Where Data Lives
-
-| Package | Data directory | Logs |
-| --- | --- | --- |
-| Portable | `./data` under the working directory | stdout and stderr |
-| `.deb` launcher | `${XDG_DATA_HOME:-~/.local/share}/gproxy` | `${XDG_STATE_HOME:-~/.local/state}/gproxy/gproxy.log` |
-| `.dmg` | `~/Library/Application Support/GPROXY` | `~/Library/Logs/GPROXY/gproxy.log` |
-| MSIX | `%LOCALAPPDATA%\Packages\<PackageFamilyName>\LocalState\GPROXY\data` | `LocalState\GPROXY\logs` |
-| `.apk` | app-private storage, `files/data` | the log view in the app |
-| Container | `/var/lib/gproxy` | container stdout |
-
-The data directory holds `gproxy.db` (the SQLite store), the
-`.autostart-initialized` marker, and `.update/` while an update is staged.
-With the `libsql`, `postgres`, or `mysql` backends the directory still exists
-for these files.
-
-Configuration is layered: command line, then process environment, then
-`./.env` in the working directory, then `<data-dir>/.env`, then defaults. Only
-`GPROXY_*` keys plus `UPSTASH_URL` and `UPSTASH_TOKEN` are read from a `.env`;
-other keys are ignored. The full list is `gproxy --help` and
-[Configuration](/reference/configuration/).
-
-:::caution[Keep the generated master key]
-Each installer and the Android app write a random `GPROXY_MASTER_KEY` into
-their private `.env` (the `.deb` and `.dmg` launchers also write
-`GPROXY_DATA_DIR=.`). Stored credentials and user keys are then encrypted with
-that key, and GPROXY refuses to open a sealed database without it. Back up the
-`.env` together with `gproxy.db`. A portable install stores secrets in
-plaintext until you set the variable yourself.
+:::note[What happened to the download page]
+v3 published installers for four platforms and a signed update manifest. None
+of that was ported, and this site no longer describes it. The pages that did —
+Downloads, Code signing and Container — were removed rather than rewritten
+around machinery that does not exist.
 :::
 
-## First Boot
+## Prerequisites
 
-Open `http://127.0.0.1:8787/admin`. While the store has no administrator the
-console shows **Create the administrator**; choose a username and password and
-you are signed in. The administrator is a user with the admin flag; the same
-account signs in to the console, and its API keys are ordinary user keys.
+| Tool | Needed for |
+| --- | --- |
+| A stable Rust toolchain (edition 2024) | every crate |
+| `wasm32-unknown-unknown` | the Workers host only |
+| `webkit2gtk-4.1`, `gtk+-3.0`, `libsoup-3.0` (Linux) | the desktop shell only |
+| Node.js LTS and pnpm | the console bundle only |
 
-For unattended setups the administrator can come from the environment:
+The tree was last built here with:
 
-```env
-GPROXY_ADMIN_USER=admin
-GPROXY_ADMIN_PASSWORD=<strong password>
-# GPROXY_BOOTSTRAP_ADMIN_API_KEY=sk-<your-key>
-# GPROXY_BOOTSTRAP_CHANNELS=openai,claudeapi
+```text
+rustc 1.98.0 (88d9e12ae 2026-08-18)
+cargo 1.98.0 (797e8a9bc 2026-08-05)
 ```
 
-On a fresh store this creates the administrator, issues it an API key (the
-one supplied, or a generated one you read from Identity with the reveal
-action), and creates one enabled provider per listed channel id, named after
-the channel, with the channel's routing defaults, an empty private rule set,
-and no credentials yet. The
-bootstrap key and channels require `GPROXY_ADMIN_PASSWORD` and are ignored
-once an administrator exists. `GPROXY_ADMIN_PASSWORD` on an existing store
-resets the password of the administrator named by `GPROXY_ADMIN_USER` if that
-account exists and does nothing otherwise, so remove it after first boot
-unless a reset is intended.
+## Build the Server
 
-## Updating
+```sh
+git clone https://github.com/LeenHawk/gproxy
+cd gproxy
+cargo build -p gproxy --release
+```
 
-Native installations update from **Updates** in the console. The update
-channel (**Build default**, **Dev (alpha)**, **Stable releases**, **Staging
-(prerelease)**) and the automatic-check switch (off by default) are instance
-settings shared by every administrator. **Check for updates** fetches the
-channel's manifest and shows the installed and latest versions, resolved
-channel, build target, restart mode, and release notes.
+The binary is `target/release/gproxy`.
 
-**Verify and apply** downloads the manifest and refuses it unless its
-Ed25519 signature verifies, its channel matches, it lists the running target
-triple, and its minimum data version is not newer than this binary's schema.
-It then downloads the archive, checks size and SHA-256, stages the executable
-under `<data-dir>/.update/`, copies the running executable to `<exe>.prev`,
-and swaps it. **Roll back** restores `<exe>.prev`. On Android the verified APK
-is staged and the system package installer opens; the app needs permission
-to install unknown apps.
+```text
+$ ./target/release/gproxy --version
+gproxy 4.0.0-dev
+```
 
-| Variable | Effect |
+The default feature set is a single-node SQLite instance with every channel
+this repository implements: `channels`, `memory`, `fs`, `bundled-vocabulary`.
+
+| Feature | Default | Adds |
+| --- | --- | --- |
+| `channels` | ✓ | all 25 channels. Name them one by one (`codex`, `kiro`, `openai`, …) for a binary that carries only the upstreams you use |
+| `memory` | ✓ | the in-process cache |
+| `fs` | ✓ | local file storage |
+| `bundled-vocabulary` | ✓ | a fallback tokenizer vocabulary |
+| `postgres` | | the PostgreSQL driver |
+| `mysql` | | the MySQL driver |
+| `redis` | | the shared cache a multi-instance deployment needs |
+| `s3` | | S3-compatible file storage |
+
+SQLite is always compiled in. A backend this build does not have is refused
+**at startup**, naming the feature that would provide it, rather than at the
+first request.
+
+## Run It
+
+```sh
+./target/release/gproxy serve --data-dir ./data --port 7070
+```
+
+A first start creates the database and the schema, creates one administrator,
+mints one gateway API key, and prints both **once**, to standard output:
+
+```text
+GPROXY first-run administrator (shown once)
+  user:     admin
+  password: p0Wsgf70xcFViWtn1UhZQ3msZSYHx2ZC
+  api key:  sk-5hKlHHF0mtyw4pQewEj6pD2WZPkgH2vN-5lufKRtTdQ
+Save these before closing this terminal; they are not stored in a form
+this instance can show you again.
+```
+
+Save them. The password is argon2-hashed and the key is stored as a SHA-256
+digest; the instance cannot show you either again.
+
+The log goes to standard **error**, which is what keeps that block and
+`gproxy export --out -` clean:
+
+```text
+WARN gproxy::serve: upstream credential secrets are stored UNENCRYPTED: no
+     master key is configured. Set GPROXY_MASTER_KEY to 32 bytes as 64 hex
+     characters or base64 …
+INFO gproxy::serve: no console bundle is compiled into this binary and no
+     directory was named, so /console answers 404. …
+INFO gproxy::bootstrap: created the first administrator user="admin"
+INFO gproxy::serve: gproxy is listening address=127.0.0.1:7070 revision=2 console=false
+```
+
+Both of those lines are true and deliberate. Read on.
+
+### Set a master key before the first credential
+
+With no master key, upstream credential secrets are stored **unencrypted**.
+That is a supported deployment — the binary says so loudly once at startup —
+but it is not one to keep by accident.
+
+```sh
+GPROXY_MASTER_KEY="$(openssl rand -hex 32)" \
+  ./target/release/gproxy serve --data-dir ./data
+```
+
+32 bytes, as 64 hex characters or as base64. Setting it *after* credentials
+already exist is a rotation, not an edit; see
+[Configuration](/reference/configuration/#master-key-rotation).
+
+### A source checkout has no console
+
+`/console` is served from a bundle compiled into the binary, and **a source
+checkout embeds nothing**. That is the intended state: `cargo build` produces a
+binary whose console paths answer 404 rather than a blank page that looks like
+a broken application, and the startup log says so.
+
+To get one, build the console and point the binary at it:
+
+```sh
+cd console && pnpm install && pnpm build
+GPROXY_CONSOLE_PATH=console/dist ./target/release/gproxy serve
+```
+
+A release build instead copies `console/dist` into
+`crates/gproxy-host-axum/assets/web` before `cargo build`, and the bundle is
+embedded.
+
+## Where the Data Lives
+
+Everything relative resolves against `--data-dir` (`GPROXY_DATA_DIR`,
+default `data`):
+
+| Path | What it is |
 | --- | --- |
-| `GPROXY_UPDATE_CHANNEL` | Overrides the saved channel: `releases`, `staging`, or `dev`. |
-| `GPROXY_UPDATE_CHANNEL_SERVE` | Same, and wins over `GPROXY_UPDATE_CHANNEL`. |
-| `GPROXY_UPDATE_SERVE` | Manifest URL to fetch instead of GitHub, for a mirror. |
-| `GPROXY_UPDATE_RESTART` | `re-exec` (default): re-execute the new binary in place after apply or rollback (exits 42 on Windows). `supervisor`: exit with code 42 so a process manager restarts it. `none`: restart the process yourself. |
+| `<data-dir>/gproxy.db` | the SQLite instance |
+| `<data-dir>/` + `--file-storage-dir` | published bodies and downloaded vocabularies |
 
-The updater uses `GPROXY_UPSTREAM_PROXY_URL` when set. `releases` and `dev`
-compare semantic versions; `staging` compares build hashes.
+With `postgres` or `mysql` the directory still exists for the file storage.
 
-Microsoft Store installations are updated by Store; use the Store guidance on
-**Updates** instead of the native update and rollback commands above.
+`migrate` creates or incrementally synchronizes the schema and exits:
 
-## Automatic Startup
+```text
+$ ./target/release/gproxy migrate --data-dir ./data
+INFO gproxy::instance: schema is up to date warnings=0
+```
 
-**Settings → Automatic startup** manages a per-user autostart entry written by the
-binary itself. On the first start in a data directory the entry is created
-unless `GPROXY_AUTOSTART=off`; the decision is recorded in
-`.autostart-initialized`. Linux needs a desktop session (`DISPLAY`,
-`WAYLAND_DISPLAY`, or `XDG_CURRENT_DESKTOP`) and is skipped in containers.
+`serve` does this too. The separate command is for a deployment that runs
+migrations as their own step, with one writer, before any instance starts —
+which is what more than one instance over one database requires.
 
-Store installations use a package StartupTask instead. Enable or disable it
-in Windows Settings → Apps → Startup; the Console does not write a Run entry.
+## The Desktop Shell
 
-| Platform | Entry |
-| --- | --- |
-| Linux | `~/.config/autostart/gproxy.desktop` (honours `XDG_CONFIG_HOME`) |
-| macOS | `~/Library/LaunchAgents/io.github.leenhawk.gproxy.plist` |
-| Windows portable / historical MSI | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, value `GPROXY` |
+`gproxy-desktop` is a Tauri window over the same instance, new in v4. It is not
+in the workspace's default members, because it pulls in webkit, gtk and about a
+hundred and eighty crates that have nothing to say about the engine.
 
-On Android, the APK home screen owns the startup switch and boot receiver.
-In Termux, run `./gproxy` with the usual command-line flags and manage startup
-from the Console. This writes `~/.termux/boot/gproxy.sh`; install Termux:Boot
-and open it once to enable boot execution. The script preserves the working
-directory and bundled library path, requests a wake lock, and writes output
-to `autostart.log` in the data directory. Other Android shells have no automatic
-startup integration. APK processes select APK updates; Termux processes select
-the Android binary archive.
+```sh
+cargo run -p gproxy-host-tauri --bin gproxy-desktop
+```
 
-The entry records the executable, the flags it was started with, the working
-directory, and `--master-key` copied from `GPROXY_MASTER_KEY` when that
-variable was set, so treat it as secret-bearing. Turning the switch off removes
-the entry and does not stop the running server. The `.deb` autostart file
-and the `.dmg` LaunchAgent belong to the installer's
-launcher and are separate from this switch.
+Two front doors, one instance:
 
-## Uninstalling
+- **the window**, over Tauri IPC, which carries the management and user
+  surfaces. There is no authentication on it, deliberately: a message arrives
+  only because this process's own webview sent it, so the channel is the proof.
+- **`127.0.0.1:7071`**, a real axum host serving the **data plane only**, for
+  Claude Code and the Codex CLI, which speak HTTP and cannot speak IPC. It
+  **still demands a gateway key** — a loopback socket is not a trust boundary —
+  and `/admin/api` and `/portal/api` answer 404 there, so the gateway key never
+  doubles as an administrative one.
 
-- `.deb`: `sudo apt remove gproxy`. The data directory, the log directory, and
-  a per-user `~/.config/autostart/gproxy.desktop` remain.
-- `.dmg`: delete `~/Library/LaunchAgents/io.github.leenhawk.gproxy.plist`,
-  then move `GPROXY.app` to the Trash. The data and log directories remain.
-- MSIX: uninstall through Windows Apps settings; Windows removes package-private data.
-  Export configuration and back up keys first. Historical MSI data in `%LOCALAPPDATA%\GPROXY`
-  and the `GPROXY` Run value, if enabled, remain.
-- `.apk`: uninstall the app; Android removes its private storage with it.
-- Container: `docker rm gproxy`; the volume persists until you remove it.
-- Portable: delete the executable, `<exe>.prev`, and the data directory.
+Port 7071 is one above the server's 7070 so the two can run side by side, and
+it is fixed rather than random: a client's base URL is typed once and kept.
+
+The master key is minted on first run and kept in the platform keychain
+(Secret Service, the macOS Keychain, the Windows Credential Manager). It does
+**not** fall back to a file — a key sitting next to the database it protects is
+a longer path to the same plaintext. With no keychain the instance runs exactly
+as the server does without `GPROXY_MASTER_KEY`, and says so.
+
+## A Cloudflare Worker
+
+The third host compiles the same router to wasm. See
+[Edge (Cloudflare Workers)](/deployment/edge/).
 
 ## Next Steps
 
-- [Quick Start](/getting-started/quick-start/) to configure the first route.
-- [Configuration](/reference/configuration/) for every flag and variable.
-- [Console, Portal & Public Site](/guides/console/) before exposing the
-  instance beyond localhost.
+- [Quick Start](/getting-started/quick-start/) — a provider, a credential, a
+  route and a request.
+- [Configuration](/reference/configuration/) — every flag and every
+  `GPROXY_*` variable.
+- [Building from Source](/deployment/release-build/) — the quality gates and
+  the other build targets.

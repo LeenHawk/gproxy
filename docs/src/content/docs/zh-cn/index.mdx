@@ -1,16 +1,16 @@
 ---
 title: GPROXY
-description: "用一个网关接入多个 LLM Provider：成对协议转换、凭证池、用量计量，以及内嵌控制台。"
+description: "用一个网关接入多个 LLM Provider：成对协议转换、带故障转移的凭证池、按请求计量，以及一张路由表之上的三个宿主。"
 template: splash
 hero:
-  tagline: "一个网关，接入多个 LLM Provider。在 OpenAI、Claude、Gemini 线格式之间成对转换协议，池化上游凭证并自动故障转移，按请求计量与配额；同一个二进制还提供三个 Web 界面：公开站点、运维控制台和用户门户。"
+  tagline: "一个网关，接入多个 LLM Provider。在 OpenAI、Claude、Gemini 线格式之间成对转换协议，池化上游凭证并自动故障转移，按请求计量与限额——而同一张路由表由原生二进制、桌面宿主和 Cloudflare Worker 共同提供。"
   actions:
-    - text: 下载 GPROXY
-      link: /zh-cn/getting-started/downloads/
-      icon: download
+    - text: 安装 GPROXY
+      link: /zh-cn/getting-started/installation/
+      icon: rocket
     - text: 快速开始
       link: /zh-cn/getting-started/quick-start/
-      icon: rocket
+      icon: right-arrow
       variant: secondary
     - text: GitHub
       link: https://github.com/LeenHawk/gproxy
@@ -24,65 +24,71 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 <CardGrid stagger>
 	<Card title="介绍" icon="document">
-		了解 GPROXY 能做什么、接受哪些线格式、请求如何路由，以及核心库与宿主如何组合。
+		GPROXY 做什么、接受哪些线格式、一个请求如何从调用方一路收窄到一把凭证，
+		以及 crate 与三个宿主如何组合。
 	</Card>
 	<Card title="快速上手" icon="rocket">
-		选择发布产物、完成安装、在控制台创建管理员，并用每种支持的格式发送第一个请求。
+		构建二进制、运行它、加一个 Provider 和一把凭证，并用每种被接受的格式
+		发送第一个请求。
 	</Card>
 	<Card title="使用指南" icon="puzzle">
-		配置 Provider 与凭证、路由与别名、用户与密钥、权限与配额、规则集、提示缓存、CLI
-		客户端和可观测性。
+		Provider 与凭证、路由与公开名称、改写规则、提示缓存、CLI 客户端、
+		可观测性，以及新增通道。
 	</Card>
 	<Card title="参考手册" icon="seti:config">
-		查阅全部参数与环境变量、路由表、价格与分层、存储与缓存后端，以及如何嵌入核心库。
+		每个 flag 与变量、完整的入站表、价格与分层、存储与缓存后端，
+		以及可嵌入的句柄。
 	</Card>
 </CardGrid>
 
-## 为高负载而生
+## 它是怎么建的
 
 <CardGrid>
-	<Card title="0.21 ms" icon="approve-check">
-		网关为一个请求增加的中位延迟，端到端实测，鉴权、路由、计价和用量记录全部开启。
+	<Card title="一张 router，三个宿主" icon="random">
+		Workers 宿主挂载的是原生二进制服务的同一个 axum router。它新增的路由就是
+		边缘提供的路由，没有第二张表会漂走。
 	</Card>
-	<Card title="27,000 请求/秒" icon="rocket">
-		单台 16 线程机器、SQLite 存储下的完整计费吞吐。结算在响应之外进行，并合并成批量提交。
+	<Card title="每一层都在收窄" icon="approve-check">
+		认证产出一个调用方，准入产出一个 Provider 集合和一个凭证集合，引擎拿到的
+		恰好就是这些。下层绝不重新打开上层收窄过的东西。
 	</Card>
-	<Card title="20,000 并发连接" icon="random">
-		面对 500 ms 的上游同时保持 2 万条连接，零错误，每个请求都写入账本。
+	<Card title="没有中间格式" icon="setting">
+		转换是两种线格式之间的直接映射。上游规范的变化速度快过任何中枢格式能跟上
+		的速度，而转换保真度正是这个产品本身。
 	</Card>
-	<Card title="108,000 请求/秒" icon="star">
-		仅鉴权与路由。控制面是内存快照，请求去往 Provider 的路上不读数据库。
+	<Card title="没有东西绕过漏斗" icon="warning">
+		每一条到达上游的路径都经同一个出口定价、扣减与观测。绕过它的路径就是未计量
+		流量，所以那样的路径不存在。
 	</Card>
 </CardGrid>
 
-<LinkCard
-	title="性能"
-	description="这些数字如何测得、对真实部署意味着什么，以及规模化时哪些参数重要。"
-	href="/zh-cn/introduction/performance/"
-/>
+:::note[v4 从源码构建]
+目前还没有发布流水线——没有安装包、没有发布的容器镜像、也没有签名产物。见
+[安装](/zh-cn/getting-started/installation/)。
+:::
 
-## 主要入口
+## 主要路径
 
 <LinkCard
-	title="下载"
-	description="原生安装包、便携压缩包、容器镜像、Edge Bundle、校验值和签名更新清单。"
-	href="/zh-cn/getting-started/downloads/"
+	title="安装"
+	description="前置条件、构建、首次启动与数据的位置，外加桌面宿主和 Workers 宿主。"
+	href="/zh-cn/getting-started/installation/"
 />
 
 <LinkCard
 	title="快速开始"
-	description="从下载的二进制到可用网关：启动 gproxy、创建管理员、添加 Provider 与路由、签发密钥、发起调用。"
+	description="从一个运行中的实例到一个被计量的请求：一个 Provider、一把凭证、一条路由、一个公开名，以及它产生的用量。"
 	href="/zh-cn/getting-started/quick-start/"
 />
 
 <LinkCard
 	title="架构"
-	description="跟随一次请求，从入口与分类，经过准入、转换、上游调用，到结算与捕获。"
+	description="两种装配、十六个 crate、每个问题在哪里被回答，以及不让结构漂回去的那几条规则。"
 	href="/zh-cn/introduction/architecture/"
 />
 
 <LinkCard
-	title="v2 到 v3 迁移"
-	description="用 gproxy migrate 导入正在使用的 v2 SQLite 数据库，并了解配置与部署上的变化。"
-	href="/zh-cn/deployment/v2-to-v3/"
+	title="路由与端点"
+	description="完整的入站表、挂载点语法、OAuth 与管理路由，以及失败转移预算。"
+	href="/zh-cn/reference/routing-table/"
 />

@@ -1,148 +1,235 @@
 ---
 title: Quick Start
-description: "From a downloaded binary to a working gateway: start gproxy, create the administrator, add a provider and a route, issue a key, and send a request."
+description: "From a built binary to a metered request: start gproxy, add a provider and a credential, expose a model name, and call it."
 ---
 
-This page takes a fresh native installation to its first successful request.
-It assumes a portable archive from the [Downloads](/getting-started/downloads/)
-page. An installer performs steps 1 and 2 for you and opens the console.
+This page takes a fresh instance to its first successful request. It assumes a
+binary from [Installation](/getting-started/installation/) and uses the admin
+API throughout, because a source checkout has no console bundle in it.
 
-## 1. Start gproxy
+Every command below was run against a throwaway data directory; the output is
+what came back.
 
-```bash
-chmod +x ./gproxy
-./gproxy
+## 1. Start the Instance
+
+```sh
+./target/release/gproxy serve --data-dir ./data --port 7070
 ```
 
-The server listens on `127.0.0.1:8787`, creates `./data/gproxy.db`, and logs
-`GPROXY listening`. `gproxy --help` lists every flag. Each flag has a
-`GPROXY_*` environment twin, and both can be written into a `.env` file in the
-working directory or in the data directory. Precedence is flag, then
-environment, then `./.env`, then `<data-dir>/.env`, then the default.
+The first start prints the administrator and one gateway API key, once, to
+standard output:
 
-A minimal `.env`:
-
-```env
-GPROXY_HOST=127.0.0.1
-GPROXY_PORT=8787
-GPROXY_DATA_DIR=./data
-GPROXY_MASTER_KEY=<standard base64, 32 bytes>
+```text
+GPROXY first-run administrator (shown once)
+  user:     admin
+  password: zfpub7rfV2PO2PAbqazAVt-yC_yfwLrt
+  api key:  sk-56sjXy3JADsZjYl1g3QnzzTNH-NBmzPNyUKf22qgVzI
+Save these before closing this terminal; they are not stored in a form
+this instance can show you again.
 ```
 
-Generate the key with `openssl rand -base64 32`. Without it, credentials and
-user keys are stored in plaintext. Set it before adding the first credential;
-changing it afterwards is a rotation step described in
-[Configuration](/reference/configuration/). Installers write a `.env` with a
-generated key for you.
+That key is both the gateway key and the administrator's key, so it opens
+`/admin/api` as well as `/v1`. Keep it in a shell variable for the rest of this
+page:
 
-For a container:
-
-```bash
-docker run -d --name gproxy -p 8787:8787 \
-  -v gproxy-data:/app/data \
-  ghcr.io/leenhawk/gproxy:<tag>
+```sh
+export GPROXY_KEY='sk-56sjXy3JADsZjYl1g3QnzzTNH-NBmzPNyUKf22qgVzI'
 ```
 
-## 2. Create the Administrator
+Check it is up. `/healthz` is unauthenticated and touches neither the database
+nor the cache, so a load balancer polling it cannot become the load that fails
+it:
 
-Open <http://127.0.0.1:8787/admin>. On a fresh store the console shows
-**Create the administrator**. Choose a username and a password; you are signed
-in when the form completes. The console navigation is Overview, Providers,
-Load balancing, Rules, Identity, Statistics, Pricing, Tokenizers, Updates, and
-Settings.
+```sh
+curl -s http://127.0.0.1:7070/healthz
+```
 
-The administrator can also be created from `GPROXY_ADMIN_PASSWORD`; see
-[Installation](/getting-started/installation/#first-boot).
+```json
+{"revision":2,"status":"ok"}
+```
 
-## 3. Add a Provider and a Credential
+## 2. See Which Channels This Binary Has
 
-Go to **Providers → Add provider**. Enter a route name (the stable identifier
-of this provider, also usable as a named-mode path prefix), pick the channel,
-and choose the credential strategy: **Round robin** rotates requests across
-the pool, **Sticky by API key** keeps each client key on one credential. The
-channel decides which settings appear, for example a base URL for `custom` or
-a region for `aws-bedrock`. Saving the provider seeds the channel's routing
-rules and creates an empty private rule set named `<provider> · defaults`.
+A channel is the adapter for one upstream family, and only the ones compiled in
+exist. The list comes from the binary, not the database:
 
-Then open the provider and choose **Add credential**. There are two ways to
-supply the secret:
+```sh
+curl -s http://127.0.0.1:7070/admin/api/channels \
+  -H "Authorization: Bearer $GPROXY_KEY"
+```
 
-- **Paste it.** Pick the credential kind (API key, OAuth, or Cookie) and fill
-  the fields the channel declares, or use the JSON field for the raw
-  credential object. The label is optional; a default is derived from the
-  secret.
-- **Sign in.** Channels that declare a sign-in method show a **Sign-in
-  method** selector. `codex` offers **Browser sign-in** (authorization code
-  with PKCE) and **Device code**; `claudecode` offers **Browser sign-in** and
-  **Browser cookie**. Start the sign-in, approve it in the browser, paste the
-  callback URL (or enter the device code on the verification page), and
-  complete it. The tokens are stored sealed and refreshed by GPROXY under an
-  exclusive lease.
+A default build answers with all 25: `aistudio`, `antigravity`, `aws_bedrock`,
+`azure`, `claudeapi`, `claudecode`, `claudeweb`, `cline`, `codex`,
+`copilotcli`, `custom`, `dashscope`, `deepseek`, `devin`, `geminicli`,
+`grokbuild`, `kimi`, `kiro`, `openai`, `opencode`, `openrouter`, `vertex`,
+`vertexexpress`, `workbuddy`, `xai`.
 
-Each credential row carries a traffic weight, optional requests-per-minute and
-tokens-per-minute limits, a proxy override, and its observed health.
+Each entry carries its login modes, its capabilities and the `config` keys a
+provider form should offer — which is all a management UI needs to render one.
 
-Optionally open the provider's **Models** tab and use **Pull from upstream** to
-record the model ids it serves, together with capabilities and default prices.
+## 3. Add a Provider
 
-## 4. Create a Route
+A provider is one saved connection on a channel. `custom` is the generic
+API-key channel: any endpoint that speaks OpenAI, Claude or Gemini natively.
 
-Go to **Load balancing → New load balancer**. Enter a route name and the
-maximum number of attempts (the first attempt plus failovers). Then **Add
-member**: choose the provider, type the upstream model id, optionally pin a
-credential, and set the failover tier and weight. Tier 0 is exhausted before
-tier 1 receives traffic; weight splits traffic among healthy members in the
-same tier. Add members from other providers for failover.
-
-Creating a load balancer does not expose it yet. Under **Model mappings**,
-add a public model name that points at it; that name is what clients send as
-`model`. Aggregated resolution runs alias, then variant suffix, then public
-model name, then the load balancer's members. A route name on its own is
-reachable only through the named prefix, `/{route}/v1/...`.
-
-## 5. Create a User and an API Key
-
-Go to **Identity** and create a user. A password is optional; it is needed
-only if the user should sign in to the portal. Then, under the user's **API
-keys**, choose **Create API key**: give it a label, pick the prefix — **Standard
-key (sk-)** for API clients, **Codex key (at-)** for Codex CLI access-token
-login — and an optional expiry. Copy the key when it is shown. The list shows
-only the prefix afterwards; revealing the full key is a separate, audited
-action.
-
-Permissions are default-deny. Under **Access**, add a permission with effect
-**Allow**, for all providers or one provider, and for all operations or one
-operation group. It can be attached to the key, the user, a team, or an
-organization and is inherited downward. Without an allow permission every
-request from the key is refused with `403`. Rate limits and cost quotas are
-added in the same place.
-
-## 6. Send a Request
-
-Replace the placeholders with the key and the public model name:
-
-```bash
-curl http://127.0.0.1:8787/v1/chat/completions \
-  -H "Authorization: Bearer sk-<your-key>" \
-  -H "Content-Type: application/json" \
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/providers \
+  -H "Authorization: Bearer $GPROXY_KEY" \
+  -H 'content-type: application/json' \
   -d '{
-    "model": "<public-model-name>",
-    "messages": [
-      { "role": "user", "content": "Say hello in one short sentence." }
-    ]
+    "name": "openai-main",
+    "channel": "custom",
+    "baseUrl": "https://api.openai.com",
+    "config": { "dialects": ["openai_chat", "openai"] }
   }'
 ```
 
-The response carries an `x-request-id` header. Open **Statistics → Request
-audit** in the console to see the request and the upstream call it produced.
+```json
+{"id":"5a45fd807be02516a1626eedd528859d","name":"openai-main","channel":"custom",
+ "baseUrl":"https://api.openai.com","connectionProfileId":null,
+ "config":{"dialects":["openai_chat","openai"]},"enabled":true,
+ "createdAtMs":1789981558211}
+```
+
+`name` is the operator's label and it is also the **provider mount**:
+`/openai-main/v1/chat/completions` reaches this provider and nothing else.
+`dialects` tells the `custom` channel which wire shapes this endpoint speaks —
+name each one you want served; an operation whose dialect is not listed has no
+conversion to reach it.
+
+Keep the id:
+
+```sh
+export PROVIDER=5a45fd807be02516a1626eedd528859d
+```
+
+## 4. Add a Credential
+
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/credentials \
+  -H "Authorization: Bearer $GPROXY_KEY" \
+  -H 'content-type: application/json' \
+  -d "{\"providerId\":\"$PROVIDER\",\"label\":\"main key\",
+       \"authKind\":\"api_key\",\"secret\":{\"api_key\":\"sk-…\"}}"
+```
+
+```json
+{"id":"b8aad67f1af2cdb265218b8d1686a2ef","providerId":"5a45fd807be02516a1626eedd528859d",
+ "organizationId":null,"teamId":null,"userId":null,"label":"main key",
+ "authKind":"api_key","hasSecret":true,"version":0,"connectionProfileId":null,
+ "metadata":{},"expiresAtMs":null,"status":"active","statusReason":null,"enabled":true}
+```
+
+The secret never comes back in a listing — only `hasSecret`, plus a separate,
+audited `POST /admin/api/credentials/{id}/reveal`. Add as many credentials as
+the account pool has; the engine rotates among them and fails over inside the
+provider before the plan moves on.
+
+For a channel that logs in rather than takes a key (`codex`, `claudecode`,
+`kiro`, …), the credential comes from
+[the login flows](/guides/providers/#acquiring-a-credential-by-logging-in)
+instead.
+
+## 5. Call It Through the Provider Mount
+
+You can already send a request. The provider mount needs no route and no
+exposed name:
+
+```sh
+curl -s http://127.0.0.1:7070/openai-main/v1/chat/completions \
+  -H "Authorization: Bearer $GPROXY_KEY" \
+  -H 'content-type: application/json' \
+  -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Say hello."}]}'
+```
+
+The `provider/model` form does the same thing from the aggregated mount:
+
+```sh
+curl -s http://127.0.0.1:7070/v1/chat/completions \
+  -H "Authorization: Bearer $GPROXY_KEY" \
+  -H 'content-type: application/json' \
+  -d '{"model":"openai-main/gpt-4o-mini","messages":[{"role":"user","content":"Say hello."}]}'
+```
+
+## 6. Give It a Public Name
+
+A route is a set of members with tiers and weights; an exposed model is the
+public name that points at one. Together they are how a client stops naming
+your infrastructure.
+
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/routes \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"name":"main"}'
+```
+
+```json
+{"id":"33a88261f571347c7f0408c3bd2e2164","name":"main","strategy":"round_robin",
+ "maxAttempts":6,"enabled":true}
+```
+
+```sh
+export ROUTE=33a88261f571347c7f0408c3bd2e2164
+
+curl -s -X POST http://127.0.0.1:7070/admin/api/route-members \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d "{\"routeId\":\"$ROUTE\",\"providerId\":\"$PROVIDER\",
+       \"upstreamModel\":\"gpt-4o-mini\"}"
+
+curl -s -X POST http://127.0.0.1:7070/admin/api/exposed-models \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d "{\"routeId\":\"$ROUTE\",\"name\":\"fast\"}"
+```
+
+```json
+{"id":"fe91bb79f182e5becd899a056865c707","routeId":"33a88261f571347c7f0408c3bd2e2164",
+ "providerId":"5a45fd807be02516a1626eedd528859d","upstreamModel":"gpt-4o-mini",
+ "tier":0,"weight":100,"enabled":true}
+{"id":"c524d5e47279e2eb3fa86b2143e4f755","name":"fast",
+ "routeId":"33a88261f571347c7f0408c3bd2e2164","enabled":true}
+```
+
+A second member on another provider, at `tier: 1`, is a failover target. Two
+members at `tier: 0` split traffic by weight.
+
+Every write is one transaction with the configuration revision bump, and the
+instance reloads before it tells its peers, so the new name works on the next
+request.
+
+## 7. Send the Request
+
+```sh
+curl -s http://127.0.0.1:7070/v1/chat/completions \
+  -H "Authorization: Bearer $GPROXY_KEY" \
+  -H 'content-type: application/json' \
+  -d '{"model":"fast","messages":[{"role":"user","content":"Say hello."}]}'
+```
+
+## 8. See What It Cost
+
+```sh
+curl -s http://127.0.0.1:7070/portal/api/usage \
+  -H "Authorization: Bearer $GPROXY_KEY"
+```
+
+```json
+{"fromMs":null,"toMs":null,"summary":{"requests":2,"inputTokens":4,
+ "outputTokens":318,"cachedInputTokens":0,"cacheCreationTokens":0,
+ "reasoningTokens":0,"cost":"0","currency":null,"truncated":false,"scanned":2},
+ "groups":[],"trend":[]}
+```
+
+`cost` is `0` because no price rule covers this model yet. The request is still
+settled and still recorded, with the dimension `unpriced = true` — the operator
+wanted the signal that a model is being served for free, not a refusal. See
+[Pricing & Tiers](/reference/pricing/).
 
 ## Next Steps
 
-- [First Request](/getting-started/first-request/) shows the same call in
-  every accepted format, streaming, model listing, and the named prefix.
-- Users with a password can sign in at `/portal` to create their own keys and
-  copy connection snippets for curl, the OpenAI, Claude, and Gemini SDKs,
-  Codex CLI, and Claude Code. See
-  [Console, Portal & Public Site](/guides/console/).
-- [CLI Clients](/guides/cli-clients/) covers pointing Codex CLI and Claude
-  Code at the gateway.
+- [First Request](/getting-started/first-request/) — the same call in every
+  accepted format, streaming, and the mounts.
+- [Providers & Credentials](/guides/providers/) — pools, login flows, health.
+- [Models, Routes & Exposed Names](/guides/models/) — tiers, weights and
+  namespaces.
+- [CLI Clients](/guides/cli-clients/) — pointing the Codex CLI and Claude Code
+  at the gateway.
