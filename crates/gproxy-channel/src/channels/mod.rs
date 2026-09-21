@@ -19,12 +19,20 @@ pub mod claudeweb;
 pub mod codex;
 #[cfg(feature = "custom")]
 pub mod custom;
+#[cfg(feature = "dashscope")]
+pub mod dashscope;
+#[cfg(feature = "deepseek")]
+pub mod deepseek;
 #[cfg(feature = "devin")]
 pub mod devin;
 #[cfg(feature = "geminicli")]
 pub mod geminicli;
+#[cfg(feature = "kimi")]
+pub mod kimi;
 #[cfg(feature = "openai")]
 pub mod openai;
+#[cfg(feature = "openrouter")]
+pub mod openrouter;
 #[cfg(any(
     feature = "aistudio",
     feature = "antigravity",
@@ -35,12 +43,19 @@ pub mod openai;
     feature = "claudeweb",
     feature = "custom",
     feature = "geminicli",
+    feature = "dashscope",
+    feature = "deepseek",
+    feature = "kimi",
     feature = "openai",
+    feature = "openrouter",
     feature = "vertex",
-    feature = "vertexexpress"
+    feature = "vertexexpress",
+    feature = "xai"
 ))]
 mod shared;
 #[cfg(feature = "vertex")]
 pub mod vertex;
 #[cfg(feature = "vertexexpress")]
 pub mod vertexexpress;
+#[cfg(feature = "xai")]
+pub mod xai;

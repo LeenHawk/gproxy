@@ -8,12 +8,21 @@
     feature = "claudeweb",
     feature = "codex",
     feature = "custom",
-    feature = "openai"
+    feature = "openrouter"
 ))]
 pub(crate) mod cache;
 /// The Code Assist envelope and Google login the Gemini CLI channels share.
 #[cfg(any(feature = "antigravity", feature = "geminicli"))]
 pub(crate) mod code_assist;
+/// Bounded ability calls and streaming usage for the API-key fleet.
+#[cfg(any(
+    feature = "dashscope",
+    feature = "deepseek",
+    feature = "kimi",
+    feature = "openrouter",
+    feature = "xai"
+))]
+pub(crate) mod compatible;
 /// The OpenAI request and usage wire the OpenAI-compatible channels share.
 #[cfg(any(feature = "aistudio", feature = "claudeapi", feature = "openai"))]
 pub(crate) mod openai_wire;
