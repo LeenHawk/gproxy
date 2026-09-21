@@ -135,8 +135,20 @@ surfaces! {
     DELETE "/v1/videos/{id}" => DeleteVideo / OpenAi;
     GET "/v1/videos/{id}/content" => DownloadVideoContent / OpenAi;
     // ----------------------------------------------------------- realtime --
+    // `POST /v1/realtime/calls` is the SDP offer, and it is HTTP: the
+    // handshake that continues it carries no body at all (`WireRequest<()>`
+    // all the way down to `Upstream::connect`). What survives the upgrade is
+    // the *call id*, in the path or in `?call_id=`, which core looks up to pin
+    // the socket to the credential the offer was answered by.
+    //
+    // The three upgrade paths are the three `RealtimeRoute`s that
+    // `Core::connect_realtime_path` accepts, so this table is that guard: a
+    // path it does not declare never reaches the engine, and a test checks the
+    // two agree.
     POST "/v1/realtime/calls" => CreateRealtimeCall / OpenAi;
     GET "/v1/realtime" => ConnectRealtime / OpenAi, upgrade: true;
+    GET "/v1/live" => ConnectRealtime / OpenAi, upgrade: true;
+    GET "/v1/live/{call_id}" => ConnectRealtime / OpenAi, upgrade: true;
     GET "/v1/responses/ws" => GenerateContent / OpenAiResponsesWebSocket, upgrade: true;
     GET "/ws/v1beta/BidiGenerateContent" => ConnectRealtime / Gemini, upgrade: true;
 }
@@ -505,5 +517,76 @@ mod tests {
         assert!(matched.upgrade);
         let matched = match_path(&Method::POST, "/v1/messages", &HeaderMap::new(), None).unwrap();
         assert!(!matched.upgrade);
+    }
+
+    #[test]
+    fn every_upgrade_surface_names_an_operation_the_protocol_calls_a_websocket() {
+        use gproxy_protocol::spec::OperationTransport;
+
+        // The flag and the transport must not be able to disagree: a surface
+        // marked `upgrade` that core would execute over HTTP would answer a
+        // `101` and then hand the pump a socket that does not exist.
+        for surface in table() {
+            let key = OperationKey {
+                operation: surface.operation,
+                dialect: surface.dialect,
+            };
+            let websocket = OPERATION_SPECS
+                .iter()
+                .find(|spec| spec.key == key)
+                .is_some_and(|spec| matches!(spec.transport, OperationTransport::WebSocket));
+            assert_eq!(
+                surface.upgrade, websocket,
+                "{} {} is marked upgrade: {}",
+                surface.method, surface.pattern, surface.upgrade
+            );
+        }
+    }
+
+    #[test]
+    fn the_openai_realtime_upgrades_are_exactly_the_routes_core_dispatches() {
+        use gproxy_protocol::wire::openai::realtime::RealtimeRoute;
+
+        // `Core::connect_realtime_path` accepts `Connect` and `Live`; this
+        // table is the host's copy of that grammar, so each declared path has
+        // to be one of them and each of them has to be declared.
+        let declared: Vec<&str> = table()
+            .iter()
+            .filter(|surface| {
+                surface.upgrade
+                    && surface.operation == Operation::ConnectRealtime
+                    && surface.dialect == Dialect::OpenAi
+            })
+            .map(|surface| surface.pattern)
+            .collect();
+        assert_eq!(declared, ["/v1/realtime", "/v1/live", "/v1/live/{call_id}"]);
+        for (pattern, path) in [
+            ("/v1/realtime", "/v1/realtime"),
+            ("/v1/live", "/v1/live"),
+            ("/v1/live/{call_id}", "/v1/live/rtc_abc"),
+        ] {
+            assert!(
+                declared.contains(&pattern),
+                "{pattern} is no longer declared"
+            );
+            assert!(
+                matches!(
+                    RealtimeRoute::from_path(path),
+                    Some(RealtimeRoute::Connect | RealtimeRoute::Live { .. })
+                ),
+                "{path} is not a route core would dispatch"
+            );
+            let matched = match_path(&Method::GET, path, &HeaderMap::new(), None).unwrap();
+            assert!(matched.upgrade);
+            assert_eq!(matched.operation.operation, Operation::ConnectRealtime);
+            // The call id is a path segment, not a model: naming it `model`
+            // would send `rtc_abc` to the resolver.
+            assert_eq!(matched.model, None);
+        }
+        // The SDP offer keeps its own HTTP row and is not an upgrade.
+        let offer =
+            match_path(&Method::POST, "/v1/realtime/calls", &HeaderMap::new(), None).unwrap();
+        assert!(!offer.upgrade);
+        assert_eq!(offer.operation.operation, Operation::CreateRealtimeCall);
     }
 }

@@ -102,12 +102,66 @@ POST   /portal/api/password          修改密码，需证明当前密码
 4. **渠道声明的厂商服务路由**（Codex 的 `/backend-api/…`、Claude Code 的
    `/api/…`）。只在 Provider 或命名空间挂载上：匹配一条服务路由需要渠道，而聚合
    挂载不指名任何渠道。视图用 `x-gproxy-view: caller | pool | credential:{id}` 选。
+   渠道声明为 socket 的那条路由走升级，不走调用。
 5. **数据面**——`/v1/messages`、`/v1/responses`、`/v1/chat/completions`、
    `/v1beta/models/{model}:generateContent`，以及 files、images、audio、video、
-   realtime 各面。先解码体，再匹配操作，然后 `App::call`。
+   realtime 各面。先解码体，再匹配操作，然后 `App::call`；若命中的是握手面，
+   则是 `App::connect`，随后升级。
 6. **静态控制台**，带 SPA 回退，受 `console.enabled` 控制。
 
 走到最后仍未命中的一律 404。
+
+### WebSocket
+
+| 路由 | 操作 / 方言 | 是什么 |
+|---|---|---|
+| `GET {mount}/v1/realtime` | `ConnectRealtime` / OpenAI | realtime 会话，可用 `?call_id=` 续接一次通话 |
+| `GET {mount}/v1/live` | `ConnectRealtime` / OpenAI | 同上，WebRTC 的那种写法 |
+| `GET {mount}/v1/live/{call_id}` | `ConnectRealtime` / OpenAI | 通话 id 写在路径里的续接 |
+| `GET {mount}/v1/responses/ws` | `GenerateContent` / OpenAI Responses-over-WS | Responses 的 websocket 信封 |
+| `GET {mount}/ws/v1beta/BidiGenerateContent` | `ConnectRealtime` / Gemini | Gemini Live |
+| `GET {mount}/backend-api/…` | 渠道的 `ServiceRoute`，`ServiceTransport::WebSocket` | Codex 的远程控制服务端 |
+
+三条 OpenAI realtime 路径正好是 `Core::connect_realtime_path` 会派发的那三条
+路由，有一个测试断言两张表一致。`POST /v1/realtime/calls` **不在**其中：SDP
+offer 是一个 HTTP multipart 请求，而续接它的握手根本不带体（从这里一路到
+`Upstream::connect` 都是 `WireRequest<()>`）。真正跨越升级活下来的是通话
+id——在路径里或在 `?call_id=` 里——core 用它把这条 socket 钉在当初回答 offer 的
+那张凭证上。查询串原样转发，正是为了这个。
+
+**在获准之前什么都不会被升级。** 先认证，再看握手形状，再准入，再打上游握手，
+`101` 最后才写。所以每一次拒绝都是客户端读得到的 HTTP 回答——一条被接受又立刻
+关掉的 socket 既没有状态码、也没有体、也没有 code。
+
+**上游拒绝的握手原样转达。** 上游的状态、头和体照原样到客户端；厂商自己的
+`429 {"error":{"code":"insufficient_quota"}}` 比本网关能编出来的任何 502 都值钱。
+这个体是本宿主唯一有意缓冲的响应：处在握手中途的客户端是从它的握手缓冲里读剩下
+那段响应的，而分块转发到它手里时 chunk 框架还在里面。
+
+**socket 开着多久就占着租约多久。** pump 持有与流式响应体同一个 `Trailer`——
+`Admitted`、下游 capture、core 的 `UsageCompletion`——并在 socket 关闭时释放，
+而不是在写完 `101` 时。跑一小时的会话就占一小时的并发额。
+
+pump 双向转发 text 与 binary；ping/pong 留在它来的那一侧，因为心跳量的是它走过
+的那条链路。一侧的 close 会转给另一侧，然后把关闭握手读到底（有五秒宽限），这正
+是让 core 把这次交换结算为「完成」而不是「中断」的原因。超过 `max_ws_frame_bytes`
+的帧会用 `1009 Message Too Big` 关掉两边。
+
+**记什么。** 每条 socket 一行 `capture_records`，kind 是 `ws_connection`，状态
+`101`；再加每条消息一行 `capture_events`——text、binary、ping、pong、close，跨两
+个方向统一排序，各带一个 `direction`。帧和别的体一样受 `enable_downstream_log_body`
+控制、按同一套规则脱敏；关掉它时连接仍然记录，但调用者说过的话一个字都不复制。
+累计 64 KiB 后停止记录，行的 body state 写 `partial`。
+
+`turn_id` 恒为空，也不写 `ws_turn` 行。schema 把它说成「可识别时的 WS 业务轮次」，
+而「轮次」是某个方言的概念——OpenAI 的 `response.created`/`response.done`、
+Gemini Live 自己的一套——本宿主则是把 realtime 帧当不透明字节转发（除
+`OpenAiResponsesWebSocket` 外，core 拒绝转换任何 websocket 方言）。在这里切轮次
+就是替线上协议发明一条它没画过的边界。
+
+厂商服务 socket 什么都不占、什么都不记，这是 `gproxy-app` 的规矩而不是本 crate 的：
+服务跑在观测漏斗之外。它能代表哪张凭证说话是渠道说了算——Codex 直接拒绝合成视图，
+所以只有该凭证的管理员带 `x-gproxy-view: credential:{id}` 才过得去。
 
 #### OAuth 端点
 
@@ -140,7 +194,7 @@ issuer 标识是 `{origin}{prefix}/v1`。P7 的模块注释里把聚合挂载写
 | 一个操作做什么 | `gproxy_app::Operations` / `Portal` / `Issuer` |
 
 它负责的是：路由、头与体的解码、CORS、客户端地址、挂载语法、两种错误信封、
-流式转发，以及限流租约的生命周期。
+流式转发、WebSocket 升级与双工 pump，以及限流租约的生命周期。
 
 ## 挂载语法
 
@@ -195,6 +249,12 @@ issuer 标识是 `{origin}{prefix}/v1`。P7 的模块注释里把聚合挂载写
 客户端中途断开则是把响应体 drop 掉：租约由 `Admitted` 自己的 drop 路径归还，
 capture 丢失——这与 core 的 observer 付出的代价相同。
 
+WebSocket 是同一条规则，只是钟走得更久。pump 持有与响应体相同的那个 `Trailer`，
+socket 的租约在 socket 关闭时释放——`101` 不是任何东西的结束。await 结算之前会
+先把 socket 的两半 drop 掉，因为 core 是把这次交换的结算装进它交出来的那条
+socket 的：结算它的 guard 就住在 incoming 流里，所以一边攥着 socket 一边 await
+`UsageCompletion`，等的是一个只有 drop 它才会产生的值。
+
 ## 两种错误信封
 
 产品面回答
@@ -222,14 +282,22 @@ OAuth 端点回答 RFC 6749 §5.2 的
   `DataPlaneRequest` 有 `channel` 字段而没有 provider 字段，所以
   `GET /p1/v1/models` 会列出调用者能够到的、`p1` 所在渠道上所有 Provider 的模型。
   要收干净得给 `DataPlaneRequest` 加一个字段。
-- **WebSocket 升级回 `426`。** 路由已经声明，好让挂载语法先认得它们，客户端拿到的
-  是一句明确的拒绝，而不是一个看起来像"模型不存在"的 404；升级本身由 P10 实现。
+- **WebSocket：有意没做的部分。** 本宿主自己不做子协议协商——上游选了什么就原样
+  回给客户端，此外不提供任何选项。帧原样转发，core 对帧应用的改写规则是 core 的。
+  socket 在这里没有空闲超时，因为 core 自己就写了：realtime 会话「由取消和帧上限
+  约束，而不是由 HTTP 的空闲/总超时约束：一个 realtime 会话理应在等人说话」。
+  也没有按轮次的 capture，理由见上。
 - **登录没有限流。** `gproxy-app` 说明了它为什么做不了（它没有客户端地址）；本宿主
   有，但还没用上。
 - **客户端断开不会取消上游调用。** `DataPlaneRequest::cancellation` 留空。
+  WebSocket 天生是例外：客户端走了 pump 就结束，上游 socket 随之关闭。
 
 ## 测试
 
-`cargo test -p gproxy-host-axum`。每个集成测试都在内存实例上构建真实的 router，
-并用 `tower::ServiceExt::oneshot` 驱动它；只有上游是脚本化的。直接调用 handler
-函数的测试会跳过真正要测的那一层。
+`cargo test -p gproxy-host-axum`。每个集成测试都在内存实例上构建真实的 router；
+只有上游是脚本化的。直接调用 handler 函数的测试会跳过真正要测的那一层。
+
+绝大多数用例用 `tower::ServiceExt::oneshot` 驱动 router。WebSocket 的往返不行：
+`oneshot` 永远不会产生 hyper 的 `OnUpgrade` 扩展，而升级就是由它构成的，所以
+`tests/websocket.rs` 绑一个本机端口，用 `tokio-tungstenite` 真说协议。每一种拒绝
+仍然是 `oneshot` 用例——这本身就是「它没有升级任何东西」的断言。

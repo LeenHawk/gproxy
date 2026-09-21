@@ -28,7 +28,9 @@ use gproxy_protocol::{
         CapabilityError, CapabilityErrorKind, CapabilityErrorStage, CapabilityFuture,
         UpstreamConnection,
     },
-    connection::{Bytes, HeaderMap, HeaderValue},
+    connection::{
+        Bytes, HeaderMap, HeaderValue, TransportError, WebSocket as ProtocolSocket, WsFrame,
+    },
 };
 use gproxy_sdk::{
     ClientPool, Gproxy, GproxyBuilder, OutboundClient, SdkError, SecretCodec, SyncMode,
@@ -96,6 +98,40 @@ impl BaseChannel for TestChannel {
             .map_err(|_| ChannelError::InvalidCredential)
     }
 
+    /// The handshake half of `prepare`, which is what makes this channel's
+    /// providers reachable over `/v1/realtime` and friends. A handshake has no
+    /// body, and the query has to survive: a realtime continuation names its
+    /// call in `?call_id=`.
+    fn prepare_connect(
+        &self,
+        ctx: PrepareContext<'_, ()>,
+    ) -> Result<http::Request<()>, ChannelError> {
+        let path = match ctx.request.query.as_deref() {
+            Some(query) => format!("{}?{query}", ctx.request.path),
+            None => ctx.request.path.to_owned(),
+        };
+        let url = match ctx.endpoint_override {
+            Some(url) => url.to_owned(),
+            None => format!("{}{path}", ctx.provider.base_url.unwrap_or_default()),
+        };
+        let key = ctx
+            .credential
+            .secret
+            .get("api_key")
+            .and_then(Value::as_str)
+            .ok_or(ChannelError::InvalidCredential)?;
+        let mut builder = http::Request::builder()
+            .method(ctx.request.method)
+            .uri(url)
+            .header("authorization", format!("Bearer {key}"));
+        for (name, value) in &ctx.request.headers {
+            builder = builder.header(name, value);
+        }
+        builder
+            .body(())
+            .map_err(|_| ChannelError::InvalidCredential)
+    }
+
     fn services(&self) -> Option<&dyn ChannelServices> {
         Some(self)
     }
@@ -107,19 +143,66 @@ impl BaseChannel for TestChannel {
 /// host attributed — the last one proving `ServiceRequest::user_id` arrived,
 /// since that is the only thing the caller's token totals are read by.
 impl ChannelServices for TestChannel {
-    /// One declared vendor route, shaped like the real ones: a path that is
-    /// nothing like the model API's, so the mount grammar has to recognise it
-    /// as a surface before it will strip a provider prefix in front of it.
+    /// Two declared vendor routes, shaped like the real ones: paths that are
+    /// nothing like the model API's, so the mount grammar has to recognise
+    /// them as surfaces before it will strip a provider prefix in front of
+    /// them. The second is a socket, like Codex's remote-control server.
     fn routes(&self) -> &[gproxy_channel::channel::ServiceRoute] {
         use gproxy_channel::channel::{ServiceClass, ServiceRoute, ServiceTransport};
-        const ROUTES: &[ServiceRoute] = &[ServiceRoute {
-            method: http::Method::GET,
-            path_template: "/backend-api/wham/usage",
-            transport: ServiceTransport::Http,
-            idempotent: true,
-            class: ServiceClass::Usage,
-        }];
+        const ROUTES: &[ServiceRoute] = &[
+            ServiceRoute {
+                method: http::Method::GET,
+                path_template: "/backend-api/wham/usage",
+                transport: ServiceTransport::Http,
+                idempotent: true,
+                class: ServiceClass::Usage,
+            },
+            ServiceRoute {
+                method: http::Method::GET,
+                path_template: "/backend-api/wham/remote/control/server",
+                transport: ServiceTransport::WebSocket,
+                idempotent: true,
+                class: ServiceClass::Restricted,
+            },
+        ];
         ROUTES
+    }
+
+    /// The same rule the Codex channel applies to its remote-control socket:
+    /// a synthesized view is refused, because the socket pairs a device with
+    /// the shared account. A `Credential` view forwards the handshake.
+    fn connect<'a>(
+        &'a self,
+        context: ServiceContext<'a, ()>,
+    ) -> gproxy_channel::channel::OperationFuture<'a, UpstreamConnection> {
+        Box::pin(async move {
+            if context.view.is_synthesized() {
+                let mut headers = HeaderMap::new();
+                headers.insert("content-type", HeaderValue::from_static("application/json"));
+                return Ok(UpstreamConnection::Rejected(WireResponse {
+                    status: StatusCode::FORBIDDEN,
+                    headers,
+                    body: HttpBody::Bytes(Bytes::from_static(
+                        br#"{"error":"remote control needs a credential view"}"#,
+                    )),
+                }));
+            }
+            let request = http::Request::builder()
+                .method(http::Method::GET)
+                .uri(format!(
+                    "{}{}",
+                    context
+                        .account
+                        .provider
+                        .base_url
+                        .unwrap_or_default()
+                        .replace("https://", "wss://"),
+                    context.request.path
+                ))
+                .body(())
+                .unwrap();
+            Ok(context.account.client.connect(request).await?)
+        })
     }
 
     fn call<'a>(
@@ -164,12 +247,100 @@ pub enum Reply {
     Stream(StatusCode, tokio::sync::mpsc::UnboundedReceiver<Bytes>),
 }
 
+/// What the upstream answers the next handshake with.
+pub enum WsReply {
+    /// The upstream refused the upgrade. Its whole HTTP response is what the
+    /// client must be given, which is the rule the host tests assert.
+    Rejected(StatusCode, Value),
+    /// The handshake succeeded; the test drives the socket through [`WsPeer`].
+    Connected(WsPeer),
+}
+
+/// The scripted socket itself, queued on the client and taken once the
+/// handshake reaches it.
+pub struct WsPeer {
+    socket: Mutex<Option<ProtocolSocket>>,
+}
+
+/// The upstream end of a scripted socket, held by the test.
+///
+/// Frames pushed on `send` arrive at the gateway as upstream frames; frames
+/// the gateway forwards upstream arrive on `received`. Dropping `send` is how
+/// a test makes the upstream vanish without a close frame.
+pub struct WsHandle {
+    pub send: tokio::sync::mpsc::UnboundedSender<Result<WsFrame, TransportError>>,
+    received: tokio::sync::Mutex<tokio::sync::mpsc::UnboundedReceiver<WsFrame>>,
+}
+
+impl WsHandle {
+    /// The next frame the gateway forwarded upstream, or `None` if nothing
+    /// arrived before the timeout.
+    pub async fn next(&self) -> Option<WsFrame> {
+        let mut received = self.received.lock().await;
+        tokio::time::timeout(std::time::Duration::from_secs(5), received.recv())
+            .await
+            .ok()
+            .flatten()
+    }
+}
+
+impl WsPeer {
+    /// A scripted socket and the handle that drives it.
+    ///
+    /// The upstream half behaves like a real peer in the one way the pump
+    /// depends on: once the gateway sends it a close frame, its incoming
+    /// stream **ends**. That is the second half of RFC 6455's closing
+    /// handshake, and core's exchange is only finished when the stream it
+    /// wrapped runs out — a harness that kept the stream open for ever would
+    /// make every clean close look like a hung one.
+    pub fn new() -> (Self, WsHandle) {
+        let (send, incoming) = tokio::sync::mpsc::unbounded_channel();
+        let (outgoing, received) = tokio::sync::mpsc::unbounded_channel();
+        let closed = tokio_util::sync::CancellationToken::new();
+        let socket = ProtocolSocket {
+            incoming: Box::pin(futures_util::stream::unfold(
+                (incoming, closed.clone()),
+                |(mut incoming, closed)| async move {
+                    tokio::select! {
+                        () = closed.cancelled() => None,
+                        frame = incoming.recv() => frame.map(|frame| (frame, (incoming, closed))),
+                    }
+                },
+            )),
+            outgoing: Box::pin(futures_util::sink::unfold(
+                (outgoing, closed),
+                |(outgoing, closed), frame: WsFrame| async move {
+                    let closing = matches!(frame, WsFrame::Close(_));
+                    // A closed receiver means the test stopped listening, not
+                    // that the socket broke.
+                    let _ = outgoing.send(frame);
+                    if closing {
+                        closed.cancel();
+                    }
+                    Ok::<_, TransportError>((outgoing, closed))
+                },
+            )),
+        };
+        let handle = WsHandle {
+            send,
+            received: tokio::sync::Mutex::new(received),
+        };
+        (
+            Self {
+                socket: Mutex::new(Some(socket)),
+            },
+            handle,
+        )
+    }
+}
+
 /// Answers each request from a queue and records the URL it was given, so a
 /// test can assert which provider was reached — and, when the queue is
 /// untouched, that nothing was sent at all.
 #[derive(Default)]
 pub struct ScriptClient {
     replies: Mutex<VecDeque<Reply>>,
+    sockets: Mutex<VecDeque<WsReply>>,
     seen: Mutex<Vec<String>>,
 }
 
@@ -181,6 +352,18 @@ impl ScriptClient {
     /// Queue one more reply without discarding what is already scripted.
     pub fn push(&self, reply: Reply) {
         self.replies.lock().unwrap().push_back(reply);
+    }
+
+    /// Queue one handshake answer.
+    pub fn push_socket(&self, reply: WsReply) {
+        self.sockets.lock().unwrap().push_back(reply);
+    }
+
+    /// Queue one accepted handshake and hand back the test's end of it.
+    pub fn accept_socket(&self) -> WsHandle {
+        let (peer, handle) = WsPeer::new();
+        self.push_socket(WsReply::Connected(peer));
+        handle
     }
 
     /// The request URLs in the order they were sent.
@@ -229,14 +412,45 @@ impl OutboundClient for ScriptClient {
 
     fn connect<'a>(
         &'a self,
-        _: http::Request<()>,
+        request: http::Request<()>,
     ) -> CapabilityFuture<'a, Result<UpstreamConnection, CapabilityError>> {
         Box::pin(async move {
-            Err(CapabilityError::new(
-                CapabilityErrorKind::Unsupported,
-                CapabilityErrorStage::Start,
-                "no websocket here",
-            ))
+            self.seen.lock().unwrap().push(request.uri().to_string());
+            let reply = self.sockets.lock().unwrap().pop_front();
+            match reply {
+                Some(WsReply::Connected(peer)) => {
+                    let socket = peer
+                        .socket
+                        .lock()
+                        .unwrap()
+                        .take()
+                        .expect("a scripted socket is connected once");
+                    let mut headers = HeaderMap::new();
+                    headers.insert("x-upstream-handshake", HeaderValue::from_static("ok"));
+                    Ok(UpstreamConnection::Connected {
+                        handshake: WireResponse {
+                            status: StatusCode::SWITCHING_PROTOCOLS,
+                            headers,
+                            body: (),
+                        },
+                        socket,
+                    })
+                }
+                Some(WsReply::Rejected(status, body)) => {
+                    let mut headers = HeaderMap::new();
+                    headers.insert("content-type", HeaderValue::from_static("application/json"));
+                    Ok(UpstreamConnection::Rejected(WireResponse {
+                        status,
+                        headers,
+                        body: HttpBody::Bytes(Bytes::from(serde_json::to_vec(&body).unwrap())),
+                    }))
+                }
+                None => Err(CapabilityError::new(
+                    CapabilityErrorKind::Unsupported,
+                    CapabilityErrorStage::Start,
+                    "no websocket scripted",
+                )),
+            }
         })
     }
 }
@@ -654,6 +868,25 @@ impl Host {
         self.router.clone().oneshot(request).await.unwrap()
     }
 
+    /// Bind the router to a loopback port and serve it until the returned
+    /// value is dropped.
+    ///
+    /// Only the websocket tests need this. `oneshot` never produces hyper's
+    /// `OnUpgrade` extension — an upgrade is made of it — so a handshake
+    /// driven through the service directly can only ever be refused. Anything
+    /// that is answered over HTTP is still driven with `oneshot`.
+    pub async fn bind(&self) -> Bound {
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .unwrap();
+        let address = listener.local_addr().unwrap();
+        let router = self.router.clone();
+        let server = tokio::spawn(async move {
+            let _ = axum::serve(listener, router.into_make_service()).await;
+        });
+        Bound { address, server }
+    }
+
     /// The identity snapshot, for seeding through the same families the API
     /// uses. Held by the caller and passed to [`Host::operations`], because
     /// `Operations` borrows it — the same one-load-per-request rule the host
@@ -667,6 +900,30 @@ impl Host {
         data: &'a gproxy_app::AppData,
     ) -> Operations<'a, DatabaseConnection> {
         Operations::new(self.app.gproxy(), data, self.app.config())
+    }
+}
+
+/// A router served on a real loopback port, torn down when this is dropped.
+pub struct Bound {
+    pub address: std::net::SocketAddr,
+    server: tokio::task::JoinHandle<()>,
+}
+
+impl Bound {
+    /// The `ws://` URL of one path on this instance.
+    pub fn ws(&self, path: &str) -> String {
+        format!("ws://{}{path}", self.address)
+    }
+
+    /// The `http://` URL of one path on this instance.
+    pub fn http(&self, path: &str) -> String {
+        format!("http://{}{path}", self.address)
+    }
+}
+
+impl Drop for Bound {
+    fn drop(&mut self) {
+        self.server.abort();
     }
 }
 

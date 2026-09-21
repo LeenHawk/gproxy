@@ -74,16 +74,23 @@ where
         capture,
     } = outcome;
     let (response, usage) = execution.into_parts();
+    leased(Trailer::new(app, admitted, capture, usage), response)
+}
+
+/// The same, for a caller that already holds the decision.
+///
+/// [`crate::websocket`] uses it for the one answer a handshake can give over
+/// HTTP: an upstream that refused the upgrade, whose whole response is relayed
+/// while the lease it was admitted under is released on the last byte.
+pub(crate) fn leased<C>(trailer: Trailer<C>, response: WireResponse<HttpBody>) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
     let status = response.status;
     let headers = sanitize(response.headers);
     let body = LeasedBody {
         inner: Some(chunks(response.body)),
-        trailer: Some(Trailer {
-            app,
-            admitted,
-            capture,
-            usage,
-        }),
+        trailer: Some(trailer),
         tail: None,
         failure: None,
     };
@@ -106,7 +113,11 @@ fn build(status: StatusCode, headers: HeaderMap, body: Body) -> Response {
 /// `transfer-encoding: chunked` in particular makes hyper frame a body it has
 /// already framed, and forwarding a nominated header leaks an upstream's
 /// connection state to the client.
-fn sanitize(mut headers: HeaderMap) -> HeaderMap {
+///
+/// `sec-websocket-accept` and `sec-websocket-key` go with them: they are the
+/// proof of *one* handshake, computed from the key that side sent, and the
+/// gateway's 101 to the client carries its own.
+pub(crate) fn sanitize(mut headers: HeaderMap) -> HeaderMap {
     let nominated: Vec<HeaderName> = headers
         .get_all(http::header::CONNECTION)
         .iter()
@@ -120,6 +131,8 @@ fn sanitize(mut headers: HeaderMap) -> HeaderMap {
         "proxy-authenticate",
         "proxy-authorization",
         "proxy-connection",
+        "sec-websocket-accept",
+        "sec-websocket-key",
         "te",
         "trailer",
         "transfer-encoding",
@@ -153,8 +166,13 @@ fn chunks(body: HttpBody) -> ChunkStream {
 type ChunkStream = Pin<Box<dyn Stream<Item = Result<Bytes, TransportError>> + Send + 'static>>;
 type TailFuture = Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
 
-/// What the response body owns until it ends.
-struct Trailer<C> {
+/// What a response body — or a socket — owns until it ends.
+///
+/// Named for the HTTP case it was written for, and reused verbatim by
+/// [`crate::websocket`]: a socket has exactly the same three things to keep
+/// alive and exactly the same order to release them in, and two copies of that
+/// order would be two chances to get it wrong.
+pub(crate) struct Trailer<C> {
     app: Arc<App<C>>,
     admitted: Admitted,
     capture: Option<DownstreamCapture>,
@@ -162,6 +180,25 @@ struct Trailer<C> {
 }
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Trailer<C> {
+    pub(crate) fn new(
+        app: Arc<App<C>>,
+        admitted: Admitted,
+        capture: Option<DownstreamCapture>,
+        usage: UsageCompletion,
+    ) -> Self {
+        Self {
+            app,
+            admitted,
+            capture,
+            usage,
+        }
+    }
+
+    /// The capture to feed, while the response or the socket is still running.
+    pub(crate) fn capture_mut(&mut self) -> Option<&mut DownstreamCapture> {
+        self.capture.as_mut()
+    }
+
     /// Settle the request and give the charges back. Awaiting the
     /// `UsageCompletion` is not optional: it is what makes core write the
     /// usage row, and [`DownstreamCapture::settle`] awaits it for us.
@@ -188,6 +225,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Trailer<C> {
             // Awaited rather than left to the drop path, which has to spawn.
             admitted.release().await;
         })
+    }
+
+    /// The same, for a caller that can simply await it — a socket pump runs in
+    /// its own task and has no stream to thread a future through.
+    pub(crate) async fn settle(self, outcome: CaptureOutcome) {
+        self.finish(outcome).await;
     }
 }
 

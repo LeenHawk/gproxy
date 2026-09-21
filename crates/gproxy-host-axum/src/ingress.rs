@@ -18,7 +18,9 @@
 //! 5. **The data plane** — `/v1/messages`, `/v1/chat/completions`,
 //!    `/v1beta/models/{model}:generateContent` and the rest of
 //!    [`surface`]. The body is decoded, the operation is matched, and
-//!    [`App::call`](gproxy_app::App::call) does the rest.
+//!    [`App::call`](gproxy_app::App::call) does the rest. A surface the table
+//!    marks as a handshake goes to [`crate::websocket`] instead, which admits
+//!    it before it upgrades anything.
 //! 6. **The console**, with its SPA fallback, behind the configuration switch.
 //!
 //! Anything that reaches the end is a 404.
@@ -50,7 +52,7 @@ use gproxy_app::{App, AppError, Caller, DataPlaneRequest, RequestedView, Service
 use gproxy_channel::channel::{ServiceRoute, ServiceTransport};
 use gproxy_protocol::connection::Bytes;
 use gproxy_seaorm::BatchConnectionTrait;
-use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
+use http::{HeaderMap, Method, StatusCode, header};
 
 use crate::{
     HostState, Mount,
@@ -121,7 +123,7 @@ where
     }
 
     if let Some(response) =
-        service_call(state, &core, &mount, &index, &remainder, &parts, &body).await
+        service_call(state, &core, &mount, &index, &remainder, &mut parts, &body).await
     {
         return response;
     }
@@ -162,13 +164,17 @@ fn service_route<'a>(
 /// narrows to the providers its exposed names reach; the first that declares a
 /// matching route serves it, which is deterministic because `CoreData` orders
 /// providers by id.
+///
+/// A route the channel declares `WebSocket` — the Codex remote-control server
+/// is the one in the tree — is upgraded instead of called. See
+/// [`crate::websocket`] for what a service socket does and does not hold.
 async fn service_call<C>(
     state: &HostState<C>,
     core: &gproxy_core::CoreData,
     mount: &Mount,
     index: &MountIndex,
     remainder: &str,
-    parts: &http::request::Parts,
+    parts: &mut http::request::Parts,
     body: &Bytes,
 ) -> Option<Response>
 where
@@ -186,15 +192,22 @@ where
             .map(|(id, _)| id.clone())?,
     };
     let route = service_route(core.providers.get(&provider_id)?, &parts.method, remainder)?;
-    if route.transport == ServiceTransport::WebSocket {
-        // P10 owns the upgrade. Until then a client is told plainly rather
-        // than handed a buffered body it cannot use.
-        return Some(upgrade_required("this vendor service is a websocket"));
-    }
+    let websocket = route.transport == ServiceTransport::WebSocket;
 
     let caller = match authenticate(state.app(), parts).await {
         Ok(caller) => caller,
         Err(error) => return Some(ErrorResponse(error).into_response()),
+    };
+    // A socket takes the handshake out of the request before anything is
+    // answered, so a service path that is a socket and was not asked for as
+    // one answers `426` rather than a buffered body no client can use.
+    let upgrade = if websocket {
+        match crate::websocket::extract(parts, core.limits.max_ws_frame_bytes).await {
+            Ok(upgrade) => Some(upgrade),
+            Err(response) => return Some(*response),
+        }
+    } else {
+        None
     };
     let view = match requested_view(&parts.headers) {
         Ok(view) => view,
@@ -211,9 +224,21 @@ where
         view,
         provider_id,
     };
-    Some(match state.app().call_service(&caller, request).await {
-        Ok(response) => passthrough_wire(response),
-        Err(error) => ErrorResponse(error).into_response(),
+    Some(match upgrade {
+        Some(upgrade) => {
+            crate::websocket::service(
+                state.app(),
+                upgrade,
+                &caller,
+                request,
+                core.limits.max_ws_frame_bytes,
+            )
+            .await
+        }
+        None => match state.app().call_service(&caller, request).await {
+            Ok(response) => passthrough_wire(response),
+            Err(error) => ErrorResponse(error).into_response(),
+        },
     })
 }
 
@@ -244,18 +269,22 @@ where
         .flatten();
     let matched = surface::match_path(&parts.method, remainder, &parts.headers, json.as_ref())?;
 
-    if matched.upgrade {
-        // The handshake itself is P10's. The route is declared here so that
-        // the mount grammar already accepts it and a client gets a clear
-        // refusal rather than a 404 that looks like a missing model.
-        return Some(upgrade_required(
-            "websocket upgrades are not served by this build",
-        ));
-    }
-
     let caller = match authenticate(state.app(), parts).await {
         Ok(caller) => caller,
         Err(error) => return Some(ErrorResponse(error).into_response()),
+    };
+
+    // The handshake is taken out of the request once there is a caller and
+    // before anything is accepted. Nothing is upgraded here — the `101` is
+    // only written once the engine has a socket — so admission below still
+    // refuses over HTTP, which is the only way a client can be told why.
+    let upgrade = if matched.upgrade {
+        match crate::websocket::extract(parts, core.limits.max_ws_frame_bytes).await {
+            Ok(upgrade) => Some(upgrade),
+            Err(response) => return Some(*response),
+        }
+    } else {
+        None
     };
 
     let mut parts = parts.clone();
@@ -277,6 +306,18 @@ where
         .map(|provider| provider.channel.id().to_owned());
 
     let app = Arc::clone(state.app());
+    if let Some(upgrade) = upgrade {
+        return Some(
+            crate::websocket::data_plane(
+                app,
+                upgrade,
+                &caller,
+                request,
+                core.limits.max_ws_frame_bytes,
+            )
+            .await,
+        );
+    }
     let outcome = app.call(&caller, request).await;
     Some(match outcome {
         Ok(outcome) => streamed(app, outcome),
@@ -379,14 +420,6 @@ fn rewrite_path(uri: &http::Uri, path: &str) -> http::Uri {
     target.parse().unwrap_or_else(|_| uri.clone())
 }
 
-fn upgrade_required(message: &'static str) -> Response {
-    let mut response = (StatusCode::UPGRADE_REQUIRED, message).into_response();
-    response
-        .headers_mut()
-        .insert(header::UPGRADE, HeaderValue::from_static("websocket"));
-    response
-}
-
 /// A request body's content encoding, undone.
 ///
 /// Ported from v3's `gproxy-app/src/ingress.rs` with its tests. `zstd` is the
@@ -455,6 +488,7 @@ fn invalid_encoding() -> DecodeError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use http::HeaderValue;
     use ruzstd::encoding::{CompressionLevel, compress_to_vec};
 
     #[test]

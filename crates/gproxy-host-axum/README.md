@@ -111,14 +111,85 @@ expired, or a browser is left holding a cookie it can never discard.
 4. **A channel's vendor service route** (Codex's `/backend-api/…`, Claude
    Code's `/api/…`). Only on a provider or namespace mount: matching a route
    needs a channel, and the aggregated mount names none. The view is chosen
-   with `x-gproxy-view: caller | pool | credential:{id}`.
+   with `x-gproxy-view: caller | pool | credential:{id}`. A route the channel
+   declares as a socket is upgraded instead of called.
 5. **The data plane** — `/v1/messages`, `/v1/responses`,
    `/v1/chat/completions`, `/v1beta/models/{model}:generateContent`, the files,
    images, audio, video and realtime surfaces. The body is decoded, the
-   operation is matched, `App::call` runs.
+   operation is matched, `App::call` runs — or, for a handshake surface,
+   `App::connect` and then the upgrade.
 6. **The console**, with an SPA fallback, behind `console.enabled`.
 
 Anything that reaches the end is a 404.
+
+### WebSocket
+
+| Route | Operation / dialect | What it is |
+|---|---|---|
+| `GET {mount}/v1/realtime` | `ConnectRealtime` / OpenAI | the realtime session, optionally continuing a call with `?call_id=` |
+| `GET {mount}/v1/live` | `ConnectRealtime` / OpenAI | the same, at the WebRTC spelling |
+| `GET {mount}/v1/live/{call_id}` | `ConnectRealtime` / OpenAI | the continuation with the call in the path |
+| `GET {mount}/v1/responses/ws` | `GenerateContent` / OpenAI Responses-over-WS | the Responses websocket envelope |
+| `GET {mount}/ws/v1beta/BidiGenerateContent` | `ConnectRealtime` / Gemini | Gemini Live |
+| `GET {mount}/backend-api/…` | a channel `ServiceRoute` with `ServiceTransport::WebSocket` | Codex's remote-control server |
+
+The three OpenAI realtime paths are exactly the routes
+`Core::connect_realtime_path` dispatches, and a test asserts the two tables
+agree. `POST /v1/realtime/calls` is **not** among them: the SDP offer is an
+HTTP multipart request, and the handshake that continues it carries no body at
+all (`WireRequest<()>` all the way down to `Upstream::connect`). What survives
+the upgrade is the call id — in the path or in `?call_id=` — which core looks
+up to pin the socket to the credential that answered the offer. The query is
+forwarded intact for exactly that reason.
+
+**Nothing is upgraded before it is allowed.** Authentication, then the
+handshake shape, then admission, then the upstream handshake; the `101` is
+written last. Every refusal is therefore an HTTP answer a client can read — a
+socket that is accepted and immediately closed carries no status, no body and
+no code.
+
+**A refused upstream handshake is relayed verbatim.** The upstream's status,
+headers and body reach the client as they stand; a vendor's
+`429 {"error":{"code":"insufficient_quota"}}` is worth more than any 502 this
+gateway could invent. That body is the one response this host buffers on
+purpose: a client in the middle of a handshake reads what is left of the
+response out of its handshake buffer, and a chunked relay would arrive with
+its chunk framing still in it.
+
+**A socket holds its lease for as long as it is open.** The pump owns the same
+`Trailer` a streamed response body does — the `Admitted`, the downstream
+capture and core's `UsageCompletion` — and releases it when the socket closes,
+not when the `101` was written. A session that runs for an hour holds its
+concurrency permit for that hour.
+
+The pump forwards text and binary in both directions; ping and pong stay on the
+side they were sent on, because a keepalive measures the link it travelled. A
+close on one side is forwarded to the other and the closing handshake is then
+read to its end (with a five-second grace period), which is what lets core
+settle the exchange as complete rather than as an interrupted one. A frame over
+`max_ws_frame_bytes` closes both sides with `1009 Message Too Big`.
+
+**What is captured.** One `capture_records` row of kind `ws_connection` per
+socket, with `101` as its status, plus one `capture_events` row per message —
+text, binary, ping, pong and close, ordered across both directions, with a
+`direction` each. Frames are gated on `enable_downstream_log_body` like any
+other body and are redacted by the same rules; with it off the connection is
+still recorded and nothing the caller said is copied. Recording stops after 64
+KiB of payload and the row's body state says `partial`.
+
+`turn_id` is always unset and no `ws_turn` record is written. The schema calls
+it "the WS business turn, when identifiable", and a turn is a dialect's notion
+— OpenAI's `response.created`/`response.done`, Gemini Live's own — while this
+host forwards realtime frames as opaque passthrough (core refuses to convert
+any websocket dialect but `OpenAiResponsesWebSocket`). Splitting turns here
+would mean inventing a boundary the wire did not draw.
+
+A vendor service socket holds nothing and records nothing, which is
+`gproxy-app`'s rule rather than this crate's: services run outside the
+observation funnel. Which credential it may speak for is the channel's
+decision — Codex refuses a synthesized view outright, so `x-gproxy-view:
+credential:{id}` from an administrator of that credential is the only way
+through.
 
 #### The OAuth endpoints
 
@@ -153,8 +224,8 @@ Nothing here re-answers a question that has an answer below it:
 | what an operation does | `gproxy_app::Operations` / `Portal` / `Issuer` |
 
 What it does decide: routing, header and body decoding, CORS, the client
-address, the mount grammar, the two error envelopes, streaming, and the
-lifetime of a rate-limit lease.
+address, the mount grammar, the two error envelopes, streaming, the websocket
+upgrade and its duplex pump, and the lifetime of a rate-limit lease.
 
 ## The mount grammar
 
@@ -220,6 +291,14 @@ values are held. A client that hangs up mid-stream drops the body instead: the
 lease is returned by `Admitted`'s own drop path and the capture is lost, which
 is the same cost core's observer pays.
 
+A websocket is the same rule with a longer clock. The pump owns the same
+`Trailer` the response body does, and the socket's lease is released when the
+socket closes — the `101` is not the end of anything. The socket halves are
+dropped before the settlement is awaited, because core arms the exchange's
+settlement inside the socket it handed over: the guard that finishes it lives
+in the incoming stream, so awaiting the `UsageCompletion` while still holding
+the socket waits for a value only dropping it can produce.
+
 ## Two error envelopes
 
 The product surfaces answer
@@ -250,17 +329,30 @@ header. The code is; the text goes to the operator's log.
   no provider field, so `GET /p1/v1/models` lists the models of every provider
   on `p1`'s channel that the caller may reach. Closing it needs a field on
   `DataPlaneRequest`.
-- **Websocket upgrades answer `426`.** The routes are declared so the mount
-  grammar already accepts them and a client gets a clear refusal rather than a
-  404 that looks like a missing model; P10 implements the upgrade.
+- **Websocket upgrades: what is deliberately left out.** There is no
+  subprotocol negotiation of this host's own — whatever the upstream selected
+  is echoed to the client and nothing else is offered. Frames are forwarded
+  unchanged; the rewrite rules core applies to them are core's. A socket has no
+  idle timeout here, because core's own note says a realtime session "is
+  bounded by cancellation and the frame cap, not by the HTTP idle/total
+  timeouts: a realtime session legitimately waits on a user". And there is no
+  per-turn capture: see above for why.
 - **Sign-in is not rate limited.** `gproxy-app` explains why it cannot do it
   (it has no client address); this host has one and does not yet use it.
 - **A client disconnect does not cancel the upstream call.**
-  `DataPlaneRequest::cancellation` is left unset.
+  `DataPlaneRequest::cancellation` is left unset. A websocket is the exception
+  by construction: a client that goes away ends the pump, which closes the
+  upstream socket.
 
 ## Tests
 
 `cargo test -p gproxy-host-axum`. Every integration test builds the real router
-over an in-memory instance and drives it with `tower::ServiceExt::oneshot`;
-only the upstream is scripted. A test that called a handler function directly
-would skip the part being tested.
+over an in-memory instance; only the upstream is scripted. A test that called a
+handler function directly would skip the part being tested.
+
+Most of the suite drives the router with `tower::ServiceExt::oneshot`. The
+websocket round trips cannot: `oneshot` never produces hyper's `OnUpgrade`
+extension, and an upgrade is made of it, so `tests/websocket.rs` binds a
+loopback port and speaks the protocol with `tokio-tungstenite`. Every refusal
+is still a `oneshot` test — which is itself the assertion that it never
+upgraded anything.

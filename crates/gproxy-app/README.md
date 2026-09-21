@@ -439,6 +439,7 @@ exists, and core never fabricates one — and `src/capture.rs` is that half.
 | redaction | `disable_log_redaction` | the same switch, the same field list |
 | id | its own, opaque | **the request id**, which is also the usage row's |
 | body storage | `capture_events`, streamed | the inline column, buffered and capped |
+| websocket frames | `capture_events`, per frame | `capture_events`, per frame, buffered |
 
 All four switches are read off the `settings` row of the revision the request
 pinned, at the same load that assembles `AppData` — not from `AppConfig`, and
@@ -457,6 +458,34 @@ capture.settle(store, CaptureOutcome::Complete, usage).await;
 `settle` awaits the `UsageCompletion`, which is what makes core settle; a host
 that wants the `UsageReport` for itself awaits it, calls `link_exchanges` and
 then `finish`.
+
+### A socket is one record and a list of frames
+
+A host that upgraded the request calls `record_response_head` with `101`, which
+turns the row into a `ws_connection`, and then `record_frame` for every message
+it pumps:
+
+```rust
+capture.record_frame(CaptureDirection::Request, CapturedFrame::Text(text));
+```
+
+The schema decides the shape, not this crate: "all WS messages append to the
+WsConnection", and `sequence` is "host-assigned monotonic order across both
+directions of ... the entire WS connection, including control messages and
+concurrent turns". So a socket is **one** record with an ordered event list
+across both directions, not one record per exchange.
+
+`turn_id` is left unset. The column identifies "the WS business turn, when
+identifiable", and a turn is a dialect's notion — OpenAI's
+`response.created`/`response.done`, Gemini Live's own — which a host forwarding
+opaque frames cannot see. Inventing a boundary the wire did not draw would put
+a `WsTurn` record in the log that nothing produced.
+
+Frames are gated on `enable_downstream_log_body` like any other body — a frame
+*is* the body of a socket — and recording stops after
+`MAX_CAPTURED_FRAME_BYTES` of payload, which marks the row `Partial`. A
+realtime session runs for as long as a person keeps talking, and the row it
+produces is built in memory until the socket ends.
 
 ### Ask before you clone
 
