@@ -16,6 +16,12 @@
 //! snapshots. An isolate that has just been created has nothing to catch up on
 //! and an isolate that has been alive for an hour catches up on the hour.
 //!
+//! There are two snapshots and therefore two ticks, one per layer:
+//! `Gproxy::tick` rebuilds the engine's view and `App::tick` rebuilds
+//! identity. Neither implies the other — identity rows are not in `CoreData`
+//! at all — so an isolate that only ticked the handle would serve keys and
+//! permissions from whenever it was created.
+//!
 //! # Why the assembly is cached at all
 //!
 //! Because the alternative is a full reload — every provider, credential,
@@ -60,6 +66,14 @@ where
 
     /// One step of synchronization, at the top of a request.
     ///
+    /// Two steps, because there are two snapshots: the engine's, which the sdk
+    /// rebuilds, and identity, which `gproxy-app` does. Both are one read of
+    /// `settings.config_revision` plus whatever invalidations are already
+    /// waiting on the shared cache; when the revision either finds is newer
+    /// than the one this isolate published, that layer reloads. The engine
+    /// goes first, which is the order `App::reload_all` gives its reason for:
+    /// an engine one revision behind identity is the harmless direction.
+    ///
     /// A failure is logged and swallowed on purpose. `tick` is a *catch-up*:
     /// if the revision cannot be read right now, this isolate serves the
     /// configuration it already has, which is a previous revision rather than
@@ -71,6 +85,9 @@ where
             worker::console_warn!(
                 "configuration sync failed, serving the loaded revision: {error}"
             );
+        }
+        if let Err(error) = self.app.tick().await {
+            worker::console_warn!("identity sync failed, serving the loaded revision: {error}");
         }
     }
 }
@@ -238,6 +255,11 @@ where
         .reload_all()
         .await
         .map_err(|e| error(format!("the first configuration load failed: {e}")))?;
+    // Manual for the same reason the handle is: there is no task to run a loop
+    // in. What this does give the isolate is a subscription, so the `tick` at
+    // the top of a request has something to drain besides the revision read.
+    app.start_sync(SyncMode::Manual, gproxy_app::DEFAULT_POLL_INTERVAL)
+        .await;
 
     if !publishable {
         worker::console_log!(

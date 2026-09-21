@@ -98,7 +98,12 @@ where
         .merge(guarded)
 }
 
-/// Authenticate, hand the caller to the handler, run, audit.
+/// Authenticate, hand the caller to the handler, run, refresh, audit.
+///
+/// The refresh is [`crate::admin::settle`], and it is here for the same reason
+/// it is on the operator's surface: a portal key is minted by an operation
+/// that commits and notifies without reloading, and a key its owner cannot
+/// use until the next poll is a key that does not work.
 async fn guard<C>(State(state): State<HostState<C>>, mut request: Request, next: Next) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
@@ -116,6 +121,7 @@ where
         request.extensions_mut().insert(caller.clone());
         let response = next.run(request).await;
         let status = response.status();
+        crate::admin::settle(&state, &method).await;
         crate::admin::audit(state, caller, action, &method, status).await;
         response
     })

@@ -70,9 +70,12 @@ pub use publication::AppPublicationUrl;
 pub mod service;
 pub use service::{RequestedView, ServiceRequestIn};
 
+pub mod sync;
+pub use sync::{DEFAULT_POLL_INTERVAL, INVALIDATION_TOPIC, SyncMode};
+
 use gproxy_sdk::Gproxy;
 use gproxy_seaorm::BatchConnectionTrait;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 pub type Result<T> = std::result::Result<T, AppError>;
 
@@ -123,21 +126,40 @@ fn hold<C>(gproxy: Gproxy<C>) -> Handle<C> {
 /// whole request — which is why the decision surfaces below take it as an
 /// argument rather than loading it per call. Two loads in one request could
 /// straddle a reload and disagree about who the caller is.
+///
+/// # Nothing rebuilds itself
+///
+/// An identity write commits and notifies; it does not reload — see
+/// [`operations`]. So an instance that never refreshes serves the identity it
+/// started with, and a key minted a second ago cannot authenticate against it.
+/// [`sync`] is the other half: [`App::sync_now`] on the host's write path,
+/// [`App::start_sync`] for the peers' writes, [`App::tick`] where there is no
+/// task to run a loop in.
 pub struct App<C> {
     gproxy: Handle<C>,
     config: Arc<AppConfig>,
     snapshot: AppSnapshot,
+    /// Serializes the reads that rebuild [`AppData`], so a burst of writes
+    /// costs one reload rather than one per write, and a slow load cannot
+    /// interleave its publication with a fast one's.
+    refresh_lock: tokio::sync::Mutex<()>,
+    /// Set once, by [`App::start_sync`]: the loops need a `Weak` to the `Arc`
+    /// a host holds, which does not exist until the host has made one.
+    sync: OnceLock<sync::AppSync>,
 }
 
 impl<C> App<C> {
     /// Wrap an assembled handle. The identity snapshot starts empty — every
     /// key is unknown and every permission absent — until the first
-    /// [`App::refresh`]; a host calls [`App::reload_all`] once at startup.
+    /// [`App::refresh`]; a host calls [`App::reload_all`] once at startup and
+    /// then [`App::start_sync`].
     pub fn new(gproxy: Gproxy<C>, config: AppConfig) -> Self {
         Self {
             gproxy: hold(gproxy),
             config: Arc::new(config),
             snapshot: AppSnapshot::default(),
+            refresh_lock: tokio::sync::Mutex::new(()),
+            sync: OnceLock::new(),
         }
     }
 
@@ -194,11 +216,15 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
     /// Re-read identity and publish it, answering with the revision that was
     /// read.
     ///
-    /// The publication is monotonic: a load that finishes after a newer one
-    /// changes nothing, so a poll and a notification racing for the same write
-    /// are harmless. The returned revision is what was *read*, which is not
-    /// necessarily what is now active.
+    /// Serialized: two callers racing — a notification and a poll for the same
+    /// write, a write path and a background loop — do one read after the
+    /// other rather than two at once. The publication is monotonic on top of
+    /// that, so a load that finishes after a newer one changes nothing, and a
+    /// read that fails leaves the previous snapshot serving. The returned
+    /// revision is what was *read*, which is not necessarily what is now
+    /// active.
     pub async fn refresh(&self) -> Result<i64> {
+        let _guard = self.refresh_lock.lock().await;
         let all = self.gproxy.store().load_all_data().await?;
         // The settings row carries the revision every write bumps. Its absence
         // is a broken installation, not revision zero: the builder creates it.
@@ -237,6 +263,17 @@ impl<C> std::fmt::Debug for App<C> {
         f.debug_struct("App")
             .field("revision", &self.snapshot.revision())
             .finish_non_exhaustive()
+    }
+}
+
+/// Dropping the last handle ends the synchronization loops at their next wake
+/// even though they only hold a `Weak`: without this they would sleep out a
+/// whole poll interval first. The same reason `gproxy-sdk`'s `Inner` has one.
+impl<C> Drop for App<C> {
+    fn drop(&mut self) {
+        if let Some(sync) = self.sync.get() {
+            sync.cancel();
+        }
     }
 }
 

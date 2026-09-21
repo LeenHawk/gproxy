@@ -59,7 +59,7 @@ pub mod table;
 
 pub use table::{OPERATIONS, invoke_handler};
 
-use crate::{IpcError, IpcResult};
+use crate::{Desktop, IpcError, IpcResult};
 
 /// One entry in the command table: what it is called over IPC, and which
 /// operation it calls.
@@ -112,23 +112,42 @@ where
 /// the commands built over it. The snapshot in the two `Operations` arms is a
 /// local so that it lives for the call and not a moment longer: that is this
 /// crate's half of the one-load-per-request rule both HTTP hosts follow.
+///
+/// Four of the five end in [`settle`], which is this host's half of
+/// `gproxy-app`'s write contract: an operation commits its rows and tells the
+/// peers, and the host rebuilds the identity snapshot. Without it a key minted
+/// by `admin_api_keys_create` cannot authenticate on the data plane this same
+/// process is serving, and a permission the window just granted is still
+/// refused — until the next poll, or a restart. `query` is the exception and
+/// the reason is in the sdk: nothing in that family writes, so none of it can
+/// move the revision.
 macro_rules! ipc_call {
     (admin, $desktop:ident, [$($chain:tt)*], $method:ident, ($($argument:expr,)*)) => {{
-        let data = $desktop.app().data();
-        let operations = $desktop.operations(&data);
-        $crate::ipc::json(operations $($chain)* .$method($($argument),*).await)
+        let answer = {
+            let data = $desktop.app().data();
+            let operations = $desktop.operations(&data);
+            $crate::ipc::json(operations $($chain)* .$method($($argument),*).await)
+        };
+        $crate::ipc::settle($desktop).await;
+        answer
     }};
     (portal, $desktop:ident, [$($chain:tt)*], $method:ident, ($($argument:expr,)*)) => {{
-        let data = $desktop.app().data();
-        let operations = $desktop.operations(&data);
-        $crate::ipc::json(
-            operations.portal($desktop.caller()) $($chain)* .$method($($argument),*).await
-        )
+        let answer = {
+            let data = $desktop.app().data();
+            let operations = $desktop.operations(&data);
+            $crate::ipc::json(
+                operations.portal($desktop.caller()) $($chain)* .$method($($argument),*).await
+            )
+        };
+        $crate::ipc::settle($desktop).await;
+        answer
     }};
     (manage, $desktop:ident, [$($chain:tt)*], $method:ident, ($($argument:expr,)*)) => {{
-        $crate::ipc::json(
+        let answer = $crate::ipc::json(
             $desktop.app().gproxy().manage() $($chain)* .$method($($argument),*).await
-        )
+        );
+        $crate::ipc::settle($desktop).await;
+        answer
     }};
     (query, $desktop:ident, [$($chain:tt)*], $method:ident, ($($argument:expr,)*)) => {{
         $crate::ipc::json(
@@ -136,10 +155,31 @@ macro_rules! ipc_call {
         )
     }};
     (upstream, $desktop:ident, [$($chain:tt)*], $method:ident, ($($argument:expr,)*)) => {{
-        $crate::ipc::json(
+        let answer = $crate::ipc::json(
             $desktop.app().gproxy() $($chain)* .$method($($argument),*).await
-        )
+        );
+        $crate::ipc::settle($desktop).await;
+        answer
     }};
+}
+
+/// Rebuild the identity snapshot if the command that just ran moved the
+/// revision.
+///
+/// One read of `settings.config_revision`, and a rebuild only when that number
+/// is ahead of the one being served — so a `list` costs a single indexed row
+/// on a local SQLite file and nothing else. It is not classified by method
+/// name on purpose: "which of these hundred and twenty commands writes" would
+/// be a second opinion about what a write is, maintained here, and a new
+/// family that got it wrong would be invisible until somebody noticed their
+/// key did not work.
+///
+/// A failure is a warning: the write landed, and the poll or a peer's
+/// notification brings this instance to it.
+pub async fn settle(desktop: &Desktop) {
+    if let Err(error) = desktop.app().sync_now().await {
+        tracing::warn!(%error, "the identity snapshot was not refreshed after an operation");
+    }
 }
 
 /// The command table.

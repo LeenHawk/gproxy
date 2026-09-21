@@ -68,7 +68,10 @@
 //! 3. **same origin**, for an unsafe method on a cookie caller (inside
 //!    [`session::authenticate`]);
 //! 4. the operation, gated on its declared section;
-//! 5. **audit**, for every method that is not a read. The action name is
+//! 5. **refresh**, for every method that is not a read: an operation commits
+//!    and notifies but does not reload, so the host rebuilds the identity
+//!    snapshot before it answers. See [`settle`];
+//! 6. **audit**, for every method that is not a read. The action name is
 //!    derived from the matched route, so a new route cannot forget to name
 //!    itself.
 //!
@@ -441,6 +444,7 @@ where
         request.extensions_mut().insert(scope);
         let response = next.run(request).await;
         let status = response.status();
+        settle(&state, &method).await;
         audit(state, caller, action, &method, status).await;
         response
     })
@@ -469,6 +473,7 @@ where
         request.extensions_mut().insert(admission);
         let response = next.run(request).await;
         let status = response.status();
+        settle(&state, &method).await;
         audit(state, caller, action, &method, status).await;
         response
     })
@@ -497,6 +502,43 @@ where
         Ok((caller, admission))
     })
     .await
+}
+
+/// Rebuild the identity snapshot if this request moved the revision — the
+/// host's half of `gproxy-app`'s write contract.
+///
+/// An operation commits its rows and tells the peers; it does not reload,
+/// because a `Writer` holds the handle and a snapshot and never the `App` that
+/// publishes one. Without this call a key minted through `POST /admin/api/api-keys`
+/// is a `401` on the very next request, a permission that was granted is still
+/// refused, and a membership that exists reads as "administers nothing" —
+/// until the process restarts.
+///
+/// It is here rather than in the handlers because "this request could have
+/// written" is a property of the method, and the method is what the middleware
+/// already classifies for the audit trail. It is a durable revision poll
+/// rather than a drained notification on purpose: a `MemoryCache` publish
+/// reaches this process synchronously, but a Redis publish is a round trip and
+/// the subscription learns about it whenever it learns about it — so only the
+/// database can answer "did I just write this" in time for the answer to
+/// matter. A read costs nothing extra, and a write that failed finds the
+/// revision where it left it and rebuilds nothing.
+///
+/// A failure is a warning, never the caller's problem: the write landed, and
+/// the poll or a peer's notification will bring this instance to it.
+pub(crate) async fn settle<C>(state: &HostState<C>, method: &Method)
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    if matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS) {
+        return;
+    }
+    crate::send(async move {
+        if let Err(error) = state.app().sync_now().await {
+            tracing::warn!(%error, "the identity snapshot was not refreshed after a write");
+        }
+    })
+    .await;
 }
 
 /// Append the trail row for a write.
