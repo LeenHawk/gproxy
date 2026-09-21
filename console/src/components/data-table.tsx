@@ -15,6 +15,60 @@ export type Column<T> = {
   className?: string
 }
 
+/**
+ * The actions column is pinned to the right edge of the scroller.
+ *
+ * A twelve-column family is 1400px wide and a phone is 390, so on every list
+ * in this console the row's own verbs — edit, delete, rotate, revoke — sat a
+ * thousand pixels past the edge behind a horizontal scroll with nothing to
+ * say they were there. Pinned, they are where a row's actions always are, at
+ * whatever width, and the columns scroll underneath them.
+ *
+ * It needs an opaque background for that scrolled content to pass behind, and
+ * a left border so the seam reads as an edge rather than a column boundary.
+ * At a width where the table already fits there is nothing to stick to and
+ * the rule costs nothing, which is why it is not behind a breakpoint.
+ */
+const STUCK = "sticky right-0 z-10 border-l border-border bg-background"
+
+/**
+ * No single column may exceed this.
+ *
+ * `ui/table` sets `whitespace-nowrap` on every cell, so one untruncated value
+ * sets its column's width: an account named
+ * `carol-with-a-deliberately-long-account-name-for-layout` or a pair of
+ * redirect URIs took 570px of a 390px viewport and pushed every column after
+ * it that much further out of reach. Capped and ellipsised, a long value
+ * costs its own column and not the whole table; the row's edit dialog is
+ * where the untruncated value lives.
+ */
+const CELL_CAP = "max-w-[18rem] truncate"
+
+/**
+ * Row actions, laid out by the table rather than by each caller.
+ *
+ * A family with four verbs — reveal, rotate, edit, delete — is 260px of
+ * buttons, and pinned against a 356px scroller that leaves the row itself 96.
+ * Capped and allowed to wrap, four verbs become two rows of two and give half
+ * of that back; a family with two stays on one line because it already fits
+ * under the cap, so only the crowded families pay the extra row. Above `sm`
+ * there is room for the single row and the cap lifts.
+ *
+ * It is a span inside the cell and not the cell itself: `display: flex` on a
+ * `<td>` would stop it being a table cell. And it is `w-max` under the cap
+ * because a wrappable cell has a min-content width of one button, which is
+ * what the table's column algorithm reaches for when space is tight — every
+ * family would then stack its verbs one per line, including the ones that
+ * fit. `max-content` asks for the unwrapped row and the cap is what refuses
+ * it.
+ *
+ * The vertical gap is the wider one: the two lines are stacked verbs a thumb
+ * has to tell apart, and `Edit` 4px above `Delete` is a mis-tap waiting to
+ * happen. Along a line the labels already separate them.
+ */
+const ACTION_ROW =
+  "flex w-max max-w-40 flex-wrap items-center justify-end gap-x-1 gap-y-2 sm:max-w-none sm:flex-nowrap"
+
 export function DataTable<T>({ columns, rows, rowKey, empty, actions }: {
   columns: Array<Column<T>>
   rows: Array<T>
@@ -26,25 +80,35 @@ export function DataTable<T>({ columns, rows, rowKey, empty, actions }: {
   const { t } = useTranslation()
   if (rows.length === 0) return <>{empty}</>
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    // `ui/table` already wraps the table in its own `overflow-x-auto`, and
+    // that inner container is the one that scrolls. This wrapper only draws
+    // the frame and clips the table's square corners to it — a second
+    // `overflow-x-auto` here would be a scroll container that never scrolls
+    // and would take the sticky actions column out of the scroller it needs
+    // to stick against.
+    <div className="overflow-hidden rounded-lg border border-border">
       <Table>
         <TableHeader>
           <TableRow>
             {columns.map((column) => (
-              <TableHead key={column.key} className={column.className}>
+              <TableHead key={column.key} className={cn(CELL_CAP, column.className)}>
                 {column.header ?? t(`fields.${column.key}`)}
               </TableHead>
             ))}
-            {actions ? <TableHead className="text-right">{t("fields.actions")}</TableHead> : null}
+            {actions ? <TableHead className={cn(STUCK, "text-right")}>{t("fields.actions")}</TableHead> : null}
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map((row) => (
             <TableRow key={rowKey(row)}>
               {columns.map((column) => (
-                <TableCell key={column.key} className={column.className}>{column.cell(row)}</TableCell>
+                <TableCell key={column.key} className={cn(CELL_CAP, column.className)}>{column.cell(row)}</TableCell>
               ))}
-              {actions ? <TableCell className="text-right whitespace-nowrap">{actions(row)}</TableCell> : null}
+              {actions ? (
+                <TableCell className={cn(STUCK, "text-right whitespace-nowrap")}>
+                  <span className={ACTION_ROW}>{actions(row)}</span>
+                </TableCell>
+              ) : null}
             </TableRow>
           ))}
         </TableBody>
@@ -82,7 +146,20 @@ export function Pagination({ page, pageSize, total, onPage }: {
   )
 }
 
-/** A monospaced id, truncated in the middle of a table without wrapping. */
+/**
+ * A monospaced id, truncated in the middle of a table without wrapping.
+ *
+ * The truncation is the point and was missing: a `title` keeps the full value
+ * one hover or long-press away, which an opaque id needs more than a name
+ * does, since there is nothing to infer it from.
+ */
 export function IdCell({ value, className }: { value: string; className?: string }) {
-  return <code className={cn("font-mono text-xs text-muted-foreground", className)}>{value}</code>
+  return (
+    <code
+      title={value}
+      className={cn("block max-w-[14rem] truncate font-mono text-xs text-muted-foreground", className)}
+    >
+      {value}
+    </code>
+  )
 }

@@ -34,7 +34,20 @@ export function ErrorNotice({ error }: { error: unknown }) {
   return (
     <Alert variant="destructive">
       <AlertTitle>{title}</AlertTitle>
-      <AlertDescription>
+      {/*
+        This text comes from the server and routinely carries an id —
+        "refused by rule 9d36240f…" — with nowhere to break. Unbroken it
+        stretched the alert's grid to 584px inside a 390px viewport and
+        scrolled the document sideways, on whichever page or dialog happened
+        to be showing the failure.
+
+        `wrap-anywhere` and not `break-words`: the latter wraps the line but
+        leaves the min-content width at the whole token, and a grid track
+        cannot shrink below that — the text would wrap inside a box that is
+        still too wide. `anywhere` shrinks the box too, and still prefers a
+        space, so only the token breaks and the prose around it reads.
+      */}
+      <AlertDescription className="wrap-anywhere">
         {message}
         {code ? <span className="text-muted-foreground"> ({code})</span> : null}
       </AlertDescription>

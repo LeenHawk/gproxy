@@ -124,7 +124,7 @@ export function CollectionPage<D, W, P>({
             rowKey={rowId}
             empty={<EmptyNotice title={t("state.emptyTitle")} description={t("state.emptyDescription")} />}
             actions={(row) => (
-              <span className="inline-flex items-center gap-1">
+              <>
                 {rowActions?.(row)}
                 <Button variant="ghost" size="sm" onClick={() => setEditing(row)}>{t("actions.edit")}</Button>
                 {deletable ? (
@@ -136,7 +136,7 @@ export function CollectionPage<D, W, P>({
                     {t("actions.delete")}
                   </ConfirmButton>
                 ) : null}
-              </span>
+              </>
             )}
           />
           <Pagination
