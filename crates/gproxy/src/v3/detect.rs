@@ -1,4 +1,4 @@
-//! Recognising a v3 database, and refusing to touch it.
+//! Recognising a database this build does not own, and refusing to touch it.
 //!
 //! # The failure this exists to prevent
 //!
@@ -25,30 +25,43 @@
 //!
 //! # There is no in-place upgrade, and that is the design
 //!
-//! Nothing here tries to rewrite a v3 file. v3's ids are `i64` where v4's are
-//! `String`, its credential secrets are a four-column envelope where v4's are
-//! one opaque blob, and its `settings` is a key/value table where v4's is one
-//! wide row. That is not a sequence of `ALTER TABLE`s, and pretending it could
-//! be is what produced the error above. The route is v3's own
-//! `POST /admin/api/export` and [`super::import`], leaving the v3 file
-//! untouched and rollback-able.
+//! Nothing here rewrites a v3 file, and neither does the migration: it opens
+//! one **read-only**. v3's ids are `i64` where v4's are `String`, its
+//! credential secrets are a four-column envelope where v4's are one blob, and
+//! its `settings` is a key/value table where v4's is one wide row. That is not
+//! a sequence of `ALTER TABLE`s, and pretending it could be is what produced
+//! the error above.
 //!
-//! # The tells
+//! # How the verdict is reached
 //!
-//! Three positives, any one of which is decisive, and one escape hatch checked
-//! first so a database that is already v4's can never be refused:
+//! The decisive signal is **which migration ledger the database carries**,
+//! because a ledger is a whole table rather than a column and neither version
+//! can grow the other's by accident:
 //!
-//! | Probe | Why it is decisive |
+//! | Ledger | Whose |
 //! |---|---|
-//! | `settings.config_revision` reads | **v4's own marker.** Present ⇒ ours, stop looking. |
-//! | `settings.key`, `settings.value_json` read | v3's settings was a key/value table; v4's is one wide row and has neither column. |
-//! | `credentials.ciphertext`, `.wrapped_key` read | v3's envelope columns; v4 stores one `secret` blob. |
-//! | `schema_migrations.version` reads | v3's and v2's migration ledger. v4 has no such table: it synchronizes an entity registry and keeps no version row. |
+//! | `seaql_migrations` | SeaORM's own, which is what `gproxy-seaorm`'s `migrate_up` writes. Ours. |
+//! | `schema_migrations` | v3's hand-rolled one — production's has ten rows. Theirs. |
 //!
-//! Each is one statement against a table that either exists with those columns
-//! or does not, so nothing here depends on what any row contains — an empty v3
-//! database is recognised exactly as well as a full one. A database with none
-//! of the four is either empty or foreign, and an empty one is the normal case.
+//! ## The one thing to know before changing this
+//!
+//! **Nothing in this workspace defines a migrator yet.** `gproxy-seaorm` has
+//! the runner (`migration.rs`: `migrate_up`, `migrate_down`,
+//! `migration_status`, and a D1 `MigrationProxy`), but there is no
+//! `MigratorTrait` implementation anywhere and nothing calls it — only
+//! `Store::sync` has ever run, and `sync` writes no ledger. Verified against a
+//! freshly created v4 database: 55 tables, no `seaql_migrations`.
+//!
+//! So [`V4_LEDGER`] is checked first and is the *future* primary signal, while
+//! [`V4_MARKER`] — `settings.config_revision`, a column only v4's wide settings
+//! row has — is what actually recognises a v4 database today. When the baseline
+//! migrator lands, `V4_MARKER` is the line to delete; the rest of this module
+//! does not change. It is written this way round deliberately: if the two were
+//! collapsed, a v4 database would start reading as foreign the moment the
+//! ledger check became load-bearing, and the check would invert in silence.
+//!
+//! Everything else is corroboration, present in the message so an operator can
+//! see *why* the conclusion was reached rather than being asked to trust it.
 
 use sea_orm::{ConnectionTrait, Statement};
 
@@ -59,17 +72,31 @@ use crate::Error;
 pub enum Verdict {
     /// v4's own, or empty. Either way this build may synchronize it.
     Ours,
-    /// v3's, or v2's: it holds tables this build does not own and whose shape
-    /// no `ALTER TABLE` reaches.
-    Legacy { tells: Vec<&'static str> },
+    /// v3's, or v2's: it carries v3's ledger and tables whose shape no
+    /// `ALTER TABLE` reaches.
+    Version3 { tells: Vec<&'static str> },
+    /// Tables, but neither version's ledger and none of v4's own columns. Not
+    /// assumed to be v3: it is somebody else's database, and the answer is a
+    /// different one.
+    Foreign { tables: u64 },
 }
 
-/// v4's marker. Checked first and on its own: a database that answers this is
-/// this build's, and no other probe can overrule it.
+/// SeaORM's ledger, written by `gproxy_seaorm`'s `migrate_up`. The primary
+/// "this is ours" signal **once a migrator exists**; see the module note.
+const V4_LEDGER: &str = "SELECT version FROM seaql_migrations LIMIT 1";
+
+/// What recognises a v4 database *today*, because `Store::sync` writes no
+/// ledger: `config_revision` is a column of v4's single wide `settings` row and
+/// v3's key/value `settings` has nothing like it. Delete this when the baseline
+/// migrator lands.
 const V4_MARKER: &str = "SELECT config_revision FROM settings LIMIT 1";
 
-/// One probe each, in the order they are reported.
-const TELLS: [(&str, &str); 3] = [
+/// v3's own hand-rolled ledger. Decisive on its own.
+const V3_LEDGER: &str = "SELECT version FROM schema_migrations LIMIT 1";
+
+/// Corroboration only. Each one is reported so the verdict is auditable, and
+/// none of them decides it.
+const TELLS: [(&str, &str); 2] = [
     (
         "`settings` is a key/value table (`key`, `value_json`), which is v3's shape",
         "SELECT key, value_json FROM settings LIMIT 1",
@@ -78,33 +105,43 @@ const TELLS: [(&str, &str); 3] = [
         "`credentials` has v3's envelope columns (`ciphertext`, `wrapped_key`)",
         "SELECT ciphertext, wrapped_key FROM credentials LIMIT 1",
     ),
-    (
-        "a `schema_migrations` table is present, which only v2 and v3 wrote",
-        "SELECT version FROM schema_migrations LIMIT 1",
-    ),
 ];
+
+/// The third corroborating shape, which needs the value and not just that the
+/// statement ran: every `users` table has an `id`, and what distinguishes the
+/// versions is that v3's holds an integer where v4's holds a string.
+const V3_USER_ID: &str = "SELECT typeof(id) AS kind FROM users LIMIT 1";
 
 /// Look at a database without writing to it.
 ///
 /// Every probe is a `SELECT`; a statement that fails means the table or the
 /// column is not there, which is the answer rather than an error. A driver
-/// failure that is *not* about a missing name therefore reads as "no tell",
+/// failure that is *not* about a missing name therefore reads as "no signal",
 /// and the ordinary schema synchronization gets its turn and its own error —
-/// which is right: this function's job is to recognise v3, not to be a second
-/// health check.
+/// which is right: this function's job is to recognise a foreign database, not
+/// to be a second health check.
 pub async fn inspect<C: ConnectionTrait>(connection: &C) -> Verdict {
-    if probe(connection, V4_MARKER).await {
+    // Ours, in the order of how reliable each signal is *right now*.
+    if probe(connection, V4_LEDGER).await || probe(connection, V4_MARKER).await {
         return Verdict::Ours;
     }
-    let mut tells = Vec::new();
-    for (tell, sql) in TELLS {
-        if probe(connection, sql).await {
-            tells.push(tell);
+    if probe(connection, V3_LEDGER).await {
+        let mut tells = vec!["a `schema_migrations` ledger is present, which is v3's own"];
+        for (tell, sql) in TELLS {
+            if probe(connection, sql).await {
+                tells.push(tell);
+            }
         }
+        if integer_user_ids(connection).await {
+            tells.push("`users`.`id` holds an integer, where v4's holds a string");
+        }
+        return Verdict::Version3 { tells };
     }
-    match tells.is_empty() {
-        true => Verdict::Ours,
-        false => Verdict::Legacy { tells },
+    // No ledger and no v4 column. Empty is the normal first start; tables
+    // without a ledger are somebody else's schema.
+    match tables(connection).await {
+        0 => Verdict::Ours,
+        tables => Verdict::Foreign { tables },
     }
 }
 
@@ -113,34 +150,98 @@ async fn probe<C: ConnectionTrait>(connection: &C, sql: &str) -> bool {
     connection.query_one_raw(statement).await.is_ok()
 }
 
-/// The error an operator sees, naming what was found and the command that
-/// actually migrates it.
+/// Whether `users.id` actually holds an integer. SQLite-only, because
+/// `typeof` is: on another backend this simply does not corroborate, and the
+/// ledger has already decided.
+async fn integer_user_ids<C: ConnectionTrait>(connection: &C) -> bool {
+    if connection.get_database_backend() != sea_orm::DatabaseBackend::Sqlite {
+        return false;
+    }
+    let statement =
+        Statement::from_string(connection.get_database_backend(), V3_USER_ID.to_owned());
+    connection
+        .query_one_raw(statement)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|row| row.try_get_by_index::<String>(0).ok())
+        .is_some_and(|kind| kind == "integer")
+}
+
+/// How many tables the database has, across the three backends this binary
+/// opens. A backend whose catalogue cannot be read counts as empty, which
+/// leaves the ordinary synchronization to speak for itself.
+async fn tables<C: ConnectionTrait>(connection: &C) -> u64 {
+    use sea_orm::DatabaseBackend;
+    let sql = match connection.get_database_backend() {
+        DatabaseBackend::Sqlite => {
+            "SELECT count(*) AS n FROM sqlite_master WHERE type = 'table' \
+             AND name NOT LIKE 'sqlite_%'"
+        }
+        DatabaseBackend::Postgres => {
+            "SELECT count(*) AS n FROM information_schema.tables \
+             WHERE table_schema = current_schema()"
+        }
+        DatabaseBackend::MySql => {
+            "SELECT count(*) AS n FROM information_schema.tables \
+             WHERE table_schema = database()"
+        }
+        _ => return 0,
+    };
+    let statement = Statement::from_string(connection.get_database_backend(), sql.to_owned());
+    connection
+        .query_one_raw(statement)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|row| row.try_get_by_index::<i64>(0).ok())
+        .and_then(|count| u64::try_from(count).ok())
+        .unwrap_or_default()
+}
+
+/// The error an operator sees for a v3 database, naming what was found and the
+/// command that actually migrates it.
 ///
 /// Three things, in this order, because that is the order the questions arrive
 /// in: what this is, what will not happen to it, and what to do.
-pub fn refuse(target: &str, tells: &[&'static str]) -> Error {
-    let mut message = format!("{target} looks like a GPROXY v3 database:\n");
+pub fn refuse_version3(target: &str, tells: &[&'static str]) -> Error {
+    let mut message = format!("{target} is a GPROXY v3 database:\n");
     for tell in tells {
         message.push_str(&format!("  - {tell}\n"));
     }
     message.push_str(
-        "\nv4 will not open or alter it. v3's tables cannot be reshaped in place — its ids are \
-         integers where v4's are strings, its credential secrets are a four-column envelope \
-         where v4's are one blob — so a schema synchronization would either fail halfway or \
-         quietly leave a database that is neither.\n\n\
-         To migrate it, leave this file alone and export from v3 instead:\n\n  \
-         # on the v3 instance, as a signed-in administrator\n  \
-         curl -X POST http://127.0.0.1:7070/admin/api/export \\\n    \
-         -b cookies.txt -H 'content-type: application/json' \\\n    \
-         -d '{\"include_secrets\": true}' > v3-export.json\n\n  \
-         # then, against a *fresh* v4 data directory\n  \
+        "\nv4 will not open it for writing and will not alter it. v3's tables cannot be \
+         reshaped in place — its ids are integers where v4's are strings, its credential \
+         secrets are a four-column envelope where v4's are one blob — so a schema \
+         synchronization would either fail halfway or quietly leave a database that is \
+         neither.\n\n\
+         Migrate it into a *fresh* v4 database instead, reading this file read-only and \
+         leaving it exactly as it is:\n\n  \
          gproxy --data-dir ./v4-data migrate\n  \
-         gproxy --data-dir ./v4-data import --from-v3 v3-export.json \\\n    \
-         --source-master-key \"$GPROXY_MASTER_KEY\" --admin-password '…'\n\n\
-         See the v3-to-v4 page in the documentation for the whole procedure, including what \
-         does not come across.",
+         gproxy --data-dir ./v4-data import --from-v3 ",
+    );
+    message.push_str(target);
+    message.push_str(
+        " \\\n    --source-master-key \"$GPROXY_MASTER_KEY\" --admin-password '…'\n\n\
+         Leave --source-master-key off if the v3 instance ran without one. See the v3-to-v4 \
+         page in the documentation for the whole procedure, and for what does not come across.",
     );
     Error::other(message)
+}
+
+/// The error for a database that is neither version's. Deliberately not the
+/// message above: telling somebody their Postgres schema "is a GPROXY v3
+/// database" would send them to a migration that cannot help them.
+pub fn refuse_foreign(target: &str, tables: u64) -> Error {
+    Error::other(format!(
+        "{target} already has {tables} tables and carries neither GPROXY's migration ledger \
+         (`seaql_migrations`) nor v3's (`schema_migrations`), and none of v4's own columns. \
+         This build will not synchronize a schema it does not recognise: creating its tables \
+         alongside somebody else's is how two applications come to share a name and neither \
+         works.\n\n\
+         Point --data-dir or --dsn at a database of GPROXY's own. If this really is a GPROXY \
+         database, it predates v3's ledger and has to be brought up to v3 first."
+    ))
 }
 
 #[cfg(test)]
@@ -162,106 +263,157 @@ mod tests {
             .unwrap();
     }
 
-    #[tokio::test]
-    async fn an_empty_database_is_ours_to_synchronize() {
-        assert_eq!(inspect(&memory().await).await, Verdict::Ours);
+    /// v3's ledger and the four tables that corroborate it.
+    async fn version3() -> DatabaseConnection {
+        let connection = memory().await;
+        for ddl in [
+            "CREATE TABLE schema_migrations (version integer NOT NULL PRIMARY KEY, \
+             applied_at integer NOT NULL)",
+            "CREATE TABLE settings (key text NOT NULL PRIMARY KEY, value_json text NOT NULL)",
+            "CREATE TABLE users (id integer NOT NULL PRIMARY KEY AUTOINCREMENT, \
+             name text NOT NULL UNIQUE, organization_id integer, team_id integer, \
+             password_hash text, enabled integer NOT NULL, \
+             is_admin integer NOT NULL DEFAULT (0))",
+            "CREATE TABLE credentials (id integer NOT NULL PRIMARY KEY AUTOINCREMENT, \
+             provider_id integer NOT NULL, label text, ciphertext blob NOT NULL, \
+             wrapped_key blob NOT NULL, payload_nonce blob NOT NULL, key_nonce blob NOT NULL, \
+             version integer NOT NULL, enabled integer NOT NULL, kind text NOT NULL)",
+            "INSERT INTO schema_migrations VALUES (1, 1788347715)",
+            "INSERT INTO users (name, enabled) VALUES ('root', 1)",
+        ] {
+            run(&connection, ddl).await;
+        }
+        connection
     }
 
     #[tokio::test]
-    async fn a_v4_database_is_never_refused() {
+    async fn an_empty_database_is_a_first_start() {
+        assert_eq!(inspect(&memory().await).await, Verdict::Ours);
+    }
+
+    /// What a v4 database looks like **today**: `Store::sync` ran, so there is
+    /// no ledger at all and only `settings.config_revision` says whose it is.
+    #[tokio::test]
+    async fn a_v4_database_without_a_ledger_is_still_ours() {
         let connection = memory().await;
         run(
             &connection,
-            "CREATE TABLE settings (id INTEGER PRIMARY KEY, config_revision BIGINT NOT NULL)",
+            "CREATE TABLE settings (id integer PRIMARY KEY, config_revision bigint NOT NULL)",
         )
         .await;
-        // Even with a foreign `schema_migrations` beside it: v4's own marker
-        // is checked first and is not overruled.
         run(
             &connection,
-            "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at INTEGER)",
+            "CREATE TABLE providers (id varchar PRIMARY KEY)",
         )
         .await;
         assert_eq!(inspect(&connection).await, Verdict::Ours);
     }
 
-    /// The three tells, each on its own, because any one of them is enough.
+    /// And what it will look like once the baseline migrator lands: the ledger
+    /// alone is enough, with no `settings` row to read.
     #[tokio::test]
-    async fn each_tell_is_decisive_by_itself() {
-        for (expected, ddl) in [
-            (
-                "`settings` is a key/value table",
-                "CREATE TABLE settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL)",
-            ),
-            (
-                "v3's envelope columns",
-                "CREATE TABLE credentials (id INTEGER PRIMARY KEY, ciphertext BLOB, \
-                 wrapped_key BLOB, payload_nonce BLOB, key_nonce BLOB, kind TEXT)",
-            ),
-            (
-                "`schema_migrations` table is present",
-                "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at INTEGER)",
-            ),
-        ] {
-            let connection = memory().await;
-            run(&connection, ddl).await;
-            let Verdict::Legacy { tells } = inspect(&connection).await else {
-                panic!("`{ddl}` was not recognised as v3");
-            };
-            assert_eq!(tells.len(), 1, "{tells:?}");
-            assert!(tells[0].contains(expected), "{tells:?}");
-        }
+    async fn a_v4_database_with_seaorms_ledger_is_ours_on_that_alone() {
+        let connection = memory().await;
+        run(
+            &connection,
+            "CREATE TABLE seaql_migrations (version varchar PRIMARY KEY, \
+             applied_at bigint NOT NULL)",
+        )
+        .await;
+        assert_eq!(inspect(&connection).await, Verdict::Ours);
     }
 
-    /// A hand-built database with v3's actual shape, which is the same verdict
-    /// the real `data/gproxy.db` gives. Every tell fires, and the message says
-    /// all three things.
+    /// The ordering that matters: ours wins. A v4 database that had once been
+    /// migrated from v3 in place would carry both ledgers, and refusing it
+    /// would lock an operator out of their own working instance.
     #[tokio::test]
-    async fn a_v3_shaped_database_is_refused_with_the_command_that_migrates_it() {
-        let connection = memory().await;
-        for ddl in [
-            "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at INTEGER \
-             NOT NULL)",
-            "CREATE TABLE settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL)",
-            "CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, \
-             organization_id INTEGER, team_id INTEGER, password_hash TEXT, \
-             enabled INTEGER NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0)",
-            "CREATE TABLE credentials (id INTEGER PRIMARY KEY AUTOINCREMENT, \
-             provider_id INTEGER NOT NULL, label TEXT, ciphertext BLOB NOT NULL, \
-             wrapped_key BLOB NOT NULL, payload_nonce BLOB NOT NULL, key_nonce BLOB NOT NULL, \
-             version INTEGER NOT NULL, enabled INTEGER NOT NULL, kind TEXT NOT NULL)",
-        ] {
-            run(&connection, ddl).await;
-        }
-        let Verdict::Legacy { tells } = inspect(&connection).await else {
-            panic!("a v3-shaped database was not recognised");
-        };
-        assert_eq!(tells.len(), 3, "{tells:?}");
+    async fn a_database_carrying_both_ledgers_is_ours() {
+        let connection = version3().await;
+        run(
+            &connection,
+            "CREATE TABLE seaql_migrations (version varchar PRIMARY KEY, \
+             applied_at bigint NOT NULL)",
+        )
+        .await;
+        assert_eq!(inspect(&connection).await, Verdict::Ours);
+    }
 
-        let message = refuse("data/gproxy.db", &tells).to_string();
-        // What it is, what will not happen to it, and what to do instead.
-        assert!(message.contains("data/gproxy.db looks like a GPROXY v3 database"));
-        assert!(message.contains("will not open or alter it"));
-        assert!(message.contains("import --from-v3"));
-        assert!(message.contains("/admin/api/export"));
-        // And every tell it found, so the verdict is auditable.
+    #[tokio::test]
+    async fn v3s_ledger_is_decisive_and_the_tells_corroborate_it() {
+        let Verdict::Version3 { tells } = inspect(&version3().await).await else {
+            panic!("a v3 database was not recognised");
+        };
+        // The ledger, plus all three corroborating shapes.
+        assert_eq!(tells.len(), 4, "{tells:?}");
+        assert!(tells[0].contains("schema_migrations"));
+        assert!(tells.iter().any(|tell| tell.contains("value_json")));
+        assert!(tells.iter().any(|tell| tell.contains("wrapped_key")));
+        assert!(tells.iter().any(|tell| tell.contains("`users`.`id`")));
+    }
+
+    /// The ledger alone, with nothing to corroborate it, is still v3: a v3
+    /// instance that had only just created its schema is exactly this.
+    #[tokio::test]
+    async fn v3s_ledger_alone_is_enough() {
+        let connection = memory().await;
+        run(
+            &connection,
+            "CREATE TABLE schema_migrations (version integer PRIMARY KEY, \
+             applied_at integer NOT NULL)",
+        )
+        .await;
+        let Verdict::Version3 { tells } = inspect(&connection).await else {
+            panic!("v3's ledger was not decisive on its own");
+        };
+        assert_eq!(tells.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn the_v3_refusal_says_what_it_is_what_will_not_happen_and_what_to_do() {
+        let Verdict::Version3 { tells } = inspect(&version3().await).await else {
+            unreachable!()
+        };
+        let message = refuse_version3("data/gproxy.db", &tells).to_string();
+        assert!(message.contains("data/gproxy.db is a GPROXY v3 database"));
+        assert!(message.contains("will not open it for writing"));
+        assert!(message.contains("import --from-v3 data/gproxy.db"));
+        // The file's own path, so the command can be pasted as printed.
+        assert!(message.contains("--source-master-key"));
         for tell in &tells {
             assert!(message.contains(tell), "{message}");
         }
     }
 
-    /// v4's marker is a column and not just a table: a v3 `settings` exists
-    /// too, and confusing the two is exactly how the original bug got past its
-    /// own warnings.
+    /// Tables, no ledger, none of v4's columns: somebody else's database. This
+    /// must not be reported as v3.
     #[tokio::test]
-    async fn a_settings_table_alone_is_not_v4s_marker() {
+    async fn a_foreign_schema_is_refused_but_not_called_v3() {
+        let connection = memory().await;
+        run(&connection, "CREATE TABLE ar_internal_metadata (key text)").await;
+        run(&connection, "CREATE TABLE widgets (id integer PRIMARY KEY)").await;
+        let Verdict::Foreign { tables } = inspect(&connection).await else {
+            panic!("a foreign schema was not recognised");
+        };
+        assert_eq!(tables, 2);
+
+        let message = refuse_foreign("the configured database", tables).to_string();
+        assert!(message.contains("neither GPROXY's migration ledger"));
+        assert!(!message.contains("is a GPROXY v3 database"));
+        assert!(!message.contains("import --from-v3"));
+    }
+
+    /// `sqlite_sequence` is SQLite's own and is not somebody's table; a
+    /// database holding only it is still empty.
+    #[tokio::test]
+    async fn sqlites_own_tables_do_not_count_as_a_foreign_schema() {
         let connection = memory().await;
         run(
             &connection,
-            "CREATE TABLE settings (key TEXT PRIMARY KEY, value_json TEXT NOT NULL)",
+            "CREATE TABLE t (id integer PRIMARY KEY AUTOINCREMENT)",
         )
         .await;
-        assert!(!probe(&connection, V4_MARKER).await);
-        assert!(matches!(inspect(&connection).await, Verdict::Legacy { .. }));
+        run(&connection, "INSERT INTO t VALUES (1)").await;
+        // `sqlite_sequence` now exists beside `t`, and only `t` is counted.
+        assert_eq!(tables(&connection).await, 1);
     }
 }
