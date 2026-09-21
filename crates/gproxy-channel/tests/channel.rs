@@ -9,9 +9,18 @@ use gproxy_channel::channel::{
     LoginContext, OperationFuture, PrepareContext, ProviderView, RefreshContext,
 };
 use gproxy_channel::{
-    BaseChannel, ChannelBinding, ChannelCapabilities, ChannelError, ConfigKeyKind, LoginMode,
-    OutboundClient,
+    BaseChannel, ChannelBinding, ChannelCapabilities, ChannelError, LoginMode, OutboundClient,
 };
+// Only the descriptor tests read it, and each of those is behind its own
+// channel feature, so importing it unconditionally is an unused import in a
+// build with no channel compiled in.
+#[cfg(any(
+    feature = "claudecode",
+    feature = "claudeweb",
+    feature = "codex",
+    feature = "custom"
+))]
+use gproxy_channel::ConfigKeyKind;
 use gproxy_protocol::capability::{
     CapabilityError, CapabilityErrorKind, CapabilityErrorStage, CapabilityFuture,
 };
