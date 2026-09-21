@@ -1,0 +1,104 @@
+[package]
+name = "gproxy"
+description = "The GPROXY v4 command line: configuration, schema, bootstrap, transfer and the native server"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+default-run = "gproxy"
+
+# Two targets over one source tree. The library exists so `tests/` can drive
+# the config layering, the bootstrap and the rotation directly: an integration
+# test cannot reach inside a bare `[[bin]]`, and the alternative — asserting
+# on a subprocess's stdout — would test the formatting rather than the rules.
+[lib]
+name = "gproxy"
+path = "src/lib.rs"
+
+[[bin]]
+name = "gproxy"
+path = "src/main.rs"
+
+[features]
+# A single-node SQLite instance with every channel this repository implements.
+default = ["channels", "memory", "fs", "bundled-vocabulary"]
+
+# Channels, forwarded to the sdk. The sdk registers each one it was compiled
+# with; a build with none serves only providers whose channel a host supplies.
+# `channels` is every channel this repository implements — name them one by one
+# instead for a binary that carries only the upstreams a deployment uses.
+channels = ["gproxy-sdk/channels"]
+aistudio = ["gproxy-sdk/aistudio"]
+antigravity = ["gproxy-sdk/antigravity"]
+aws_bedrock = ["gproxy-sdk/aws_bedrock"]
+azure = ["gproxy-sdk/azure"]
+claudeapi = ["gproxy-sdk/claudeapi"]
+claudecode = ["gproxy-sdk/claudecode"]
+claudeweb = ["gproxy-sdk/claudeweb"]
+cline = ["gproxy-sdk/cline"]
+codex = ["gproxy-sdk/codex"]
+copilotcli = ["gproxy-sdk/copilotcli"]
+custom = ["gproxy-sdk/custom"]
+dashscope = ["gproxy-sdk/dashscope"]
+deepseek = ["gproxy-sdk/deepseek"]
+devin = ["gproxy-sdk/devin"]
+geminicli = ["gproxy-sdk/geminicli"]
+grokbuild = ["gproxy-sdk/grokbuild"]
+kimi = ["gproxy-sdk/kimi"]
+kiro = ["gproxy-sdk/kiro"]
+openai = ["gproxy-sdk/openai"]
+opencode = ["gproxy-sdk/opencode"]
+openrouter = ["gproxy-sdk/openrouter"]
+vertex = ["gproxy-sdk/vertex"]
+vertexexpress = ["gproxy-sdk/vertexexpress"]
+workbuddy = ["gproxy-sdk/workbuddy"]
+xai = ["gproxy-sdk/xai"]
+
+# Database drivers. SQLite is always compiled in; these add the others, and
+# `GPROXY_PERSISTENCE`/`GPROXY_DSN` are refused at startup without them.
+postgres = ["gproxy-sdk/postgres", "sea-orm/sqlx-postgres"]
+mysql = ["gproxy-sdk/mysql", "sea-orm/sqlx-mysql"]
+
+# Shared transient state. `memory` is one process; `redis` is what several
+# instances of one deployment must use.
+memory = ["gproxy-sdk/memory", "gproxy-cache/memory"]
+redis = ["gproxy-sdk/redis", "gproxy-cache/redis"]
+
+# Object storage for published bodies and downloaded vocabularies.
+fs = ["gproxy-sdk/fs", "gproxy-file/fs"]
+s3 = ["gproxy-sdk/s3", "gproxy-file/s3"]
+
+bundled-vocabulary = ["gproxy-sdk/bundled-vocabulary"]
+
+[dependencies]
+axum = { workspace = true }
+# Standard base64 is what the sdk's import reads a source master key in, so a
+# key given here in hex is re-encoded rather than handed over as typed.
+base64 = { workspace = true }
+clap = { workspace = true }
+# `.env`, loaded without overriding anything the real environment already set.
+dotenvy = { workspace = true }
+gproxy-app = { workspace = true }
+gproxy-cache = { workspace = true }
+gproxy-core = { workspace = true }
+gproxy-file = { workspace = true }
+gproxy-host-axum = { workspace = true }
+gproxy-sdk = { workspace = true }
+gproxy-seaorm = { workspace = true }
+gproxy-store = { workspace = true }
+# The generated first-run password, and nothing else.
+getrandom = { workspace = true }
+sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+http = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

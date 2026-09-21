@@ -14,6 +14,7 @@ members = [
     "crates/gproxy-sdk",
     "crates/gproxy-app",
     "crates/gproxy-host-axum",
+    "crates/gproxy",
 ]
 
 [workspace.package]
@@ -33,6 +34,7 @@ blake3 = "1"
 clap = { version = "4", features = ["derive", "env"] }
 chacha20poly1305 = "0.11"
 gproxy-app = { path = "crates/gproxy-app", version = "=4.0.0-dev", default-features = false }
+gproxy = { path = "crates/gproxy", version = "=4.0.0-dev", default-features = false }
 gproxy-admin = { path = "crates/gproxy-admin", version = "=3.0.13" }
 gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "=3.0.13" }
 gproxy-channels = { path = "crates/gproxy-channels", version = "=3.0.13" }
@@ -52,6 +54,7 @@ gproxy-transform = { path = "crates/gproxy-transform", version = "=3.0.13", feat
 gproxy-upstream = { path = "crates/gproxy-upstream", version = "=3.0.13" }
 getrandom = { version = "0.4", features = ["wasm_js"] }
 dashmap = { version = "6" }
+dotenvy = "0.15"
 getrandom_v02 = { package = "getrandom", version = "0.2", features = ["js"] }
 gloo-timers = { version = "0.4", features = ["futures"] }
 bytes = "1"
@@ -110,6 +113,7 @@ tokio-postgres = "0.7"
 tower = { version = "0.5", default-features = false }
 tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
 tokio-rusqlite = { version = "0.7", features = ["bundled"] }
+toml = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 url = "2"
