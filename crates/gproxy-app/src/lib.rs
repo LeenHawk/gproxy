@@ -34,6 +34,8 @@ pub mod admission;
 pub use admission::{Admission, AdmissionRequest, Admitted};
 
 pub mod audit;
+pub use audit::{Audit, AuditEntry};
+
 pub mod auth;
 pub use auth::{Authenticator, Caller, CallerKind, GrantContext};
 
@@ -43,6 +45,7 @@ pub use call::{CallOutcome, ConnectOutcome, DataPlaneRequest};
 pub mod capture;
 pub mod dto;
 pub mod operations;
+pub use operations::{Operations, Scope};
 
 pub mod publication;
 pub use publication::AppPublicationUrl;

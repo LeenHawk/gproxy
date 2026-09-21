@@ -53,10 +53,12 @@ let outcome = app.call(&caller, request).await?;
 | `call` | `DataPlaneRequest` → `CallOutcome`：先准入，再让引擎严格按准入结果执行 |
 | `service` | 厂商 CLI 服务：目标集里有哪些凭证，以及调用方对这组凭证是什么角色 |
 | `publication` | `AppPublicationUrl`，以及宿主下载路由背后的读取与删除 |
+| `operations` | 身份写入家族，每次写入一个 revision commit 加一次对等实例通知 |
+| `dto` | 这些家族交换的线上形状：String id、毫秒时间戳、camelCase，不含任何密文 |
+| `audit` | 只追加的审计流水，写在 revision batch 之外，附带脱敏规则 |
 | `error` | `AppError`，带 `status_code()` 与用于 API 信封的稳定 `code()` |
 
-其余模块（`capture`、`operations`、`audit`、`dto`）都已声明并写明各自将承担的契约，
-后续阶段就地填充，不需要再改 crate 的形状。
+只剩 `capture` 还是只有声明和写明的契约，后续阶段就地填充，不需要再改 crate 的形状。
 
 ## 快照
 
@@ -343,6 +345,126 @@ core 拥有已发布的字节和它们的 id，但它没有对外的 HTTP 面，
 
 读不到、body 已释放、已过期，三者是同一个回答——`404`——因为区分它们等于告诉探测者哪些
 id 存在过。这里不校验 scope：id 本身就是随机的秘密，链接即凭据，和 core 自己的读取一致。
+## 身份操作
+
+`Operations::new(&gproxy, &data, &config)` 按家族分发访问器。每个家族都是同一套泛型
+形状给出的 `list / get / create / update / delete`，外加该家族确实需要的额外操作。
+
+| 家族 | 表 | 五件套之外 |
+|---|---|---|
+| `users()` | `users` | `set_password`、`clear_password`、`set_allowlist`、`batch` |
+| `api_keys()` | `api_keys` | `create` 只返回一次明文，另有 `reveal`、`rotate` |
+| `organizations()` | `organizations` | `batch`；删除时执行 key 级联 |
+| `teams()` | `teams` | `batch`；删除时执行 key 级联 |
+| `members()` | `organization_members` | 复合主键上的 `add`、`set_role`、`remove` |
+| `team_members()` | `team_members` | 复合主键上的 `add`、`set_role`、`remove` |
+| `permissions()` | `permissions` | `batch`——规则集整体编辑 |
+| `rate_limits()` | `rate_limits` | `batch` |
+| `subscriptions()` | `subscriptions` | `batch` |
+| `pools()` | `subscription_pools` | `batch` |
+| `pool_members()` | `subscription_pool_members` | `batch` |
+| `plans()` | `subscription_plans` | `batch` |
+| `plan_limits()` | `subscription_plan_limits` | `batch` |
+| `oauth_clients()` | `oauth_clients` | 用 `retire` 代替 delete |
+| `sessions()` | `user_sessions` | `list`、`revoke`、`revoke_all`、`purge_expired` |
+| `audit()` | `audit_events` | `record`、`try_record`、`query` |
+
+`Operations` **不做任何授权**。谁可以调用哪个家族，是宿主中间件在操作运行前依据
+`Caller` 做出的决定。
+
+### 一个 batch、一个 revision，然后一次通知
+
+一次配置写入就是一次 `Store::commit_revision`：调用方的语句与
+`settings.config_revision` 的自增要么一起落库、要么都不落。只落了行而没有自增，对等实例
+看不见；只自增而没有落行，它们白重载一次。create 与 update 都在**同一个事务内**把行读
+回来，所以返回的 DTO 是该 revision 留下的那一行，而不是一次可能已被对等实例改过的重读。
+
+写入之后，writer 在 `gproxy-core` 的失效主题上发布
+`Invalidation::ConfigurationChanged { revision, scopes }`，scope 用本 crate 自己的名字：
+`identity`、`permissions`、`keys`、`rate_limits`、`subscriptions`、`oauth_clients`。
+发布是尽力而为——cache 拒收只让部署多等一个轮询间隔，不影响正确性。
+
+**这里与 sdk 的 `manage::Writer` 有何不同，为什么。** sdk 先重载再通知，因为对等实例不能
+在收到通知后发现写入方自己还在服务它刚宣告的那个 revision。本层根本不重载：身份行不在
+`CoreData` 里，它们喂养的是 `AppData`，而 `AppData` 归宿主所有——宿主持有 `AppSnapshot`，
+并通过 `App::refresh()` 重建它。writer 自作主张重载会发布出第二份相互竞争的快照，
+`AppSnapshot` 要保证的单调性就此丢失。所以契约是：**操作负责提交与通知，宿主负责刷新。**
+
+有两个家族不是配置，因此刻意两件事都不做。`user_sessions` 不在 `IdentityData` 里，认证在
+每个请求上都读表，撤销无需任何东西重载即可生效；`audit_events` 是历史，没有任何请求路径
+会读它。为这两者自增 revision，等于让每一次登录和每一条审计都让整个集群为一个快照里根本
+不存在的变化失效一次。
+
+### 什么绝不会被返回
+
+`users.password_hash`、`api_keys.key_hash`、`api_keys.secret` 的字节和
+`user_sessions.token_hash` 没有任何 DTO 字段，也没有任何访问器。user 只报
+`hasPassword`，key 只报用于展示的 `prefix` 与 `hasSecret`，session 只报开启时刻与结束时刻。
+
+key 的明文在响应里只出现两次：`create` 与 `rotate` 各返回一次。`reveal` 只有对创建时带了
+`retainSecret` 的 key 才能事后给出明文——那份副本由 core 的 `SecretCodec` 绑定该 key 自身的
+id 密封，因此把密封块拷到别的行上是打不开的。保留默认关闭：实例复现不出来的 key，数据库
+泄露时也交不出去。
+
+### 显式的 key 级联
+
+删除组织时，在同一个 batch 里、且在父行之前删除：绑定到其任一团队的 key、绑定到该组织本身
+的 key，以及这些团队。删除团队时删除绑定到它的 key。这正是下一节存在的理由，也是它被写死
+在代码里而不是交给 schema 的原因。
+
+选择删除而不是解绑是刻意的。解绑会把一个 key 从"这个团队的凭证"悄悄放宽到"它的用户能碰到
+的一切"——一次删除动作造成的权限**扩大**；而实体自身的契约写明：owner 链与可见性边界都已
+消失的 key 必须停止服务请求。由于显式语句先执行，**确实**带外键的数据库会发现无物可级联，
+于是新建库与升级库落到完全相同的状态。
+
+### schema 表达不了的校验
+
+- **key 的绑定检查三件事**：组织与团队存在、key 的用户是它们的成员、两者同时设置时团队的
+  父组织*就是*该组织。patch 会按行最终会持有的绑定重新校验，而不是只看 patch 提到的那一半。
+  在升级路径上这两列根本没有外键，所以三者里有两者只有这一道检查。
+- **key 只能选自己用户的订阅。**
+- **权限规则与限流规则都只接受一个主体。** 一个都没有，是 `PermissionSet::build` 会直接丢弃
+  的行；两个都有，是快照仍然承认的交集——v3 库里可能存在这种行——但没有人写规则时是这个意思，
+  因此写入时就拒绝，而不是存下来日后被误读。
+- **`action` 是 `allow` 或 `deny`**，`role` 是 `admin` 或 `user`，成员角色是 `member` 或
+  `admin`，plan 的 period 取 `total / fixed / day / week / month` 之一，`fixed` 窗口必须有
+  正的时长。
+- **`periodSeconds` 为正**，**`limitValue` 不为负**；0 是合法上限，表示不删行地关停某个主体。
+- 两端都已知时，**`startsAtMs <= expiresAtMs`**。
+- **最后一个启用的管理员不能被删除、禁用或降级。** 实例角色不是成员身份，不是管理员的人无法
+  授予它，所以一旦丢失，只能去数据库里救。计数从数据库读而不是从快照读：落后一个 revision 的
+  快照仍会列出刚被删掉的管理员，于是放行对真正最后一个管理员的删除。
+- **改密码会在同一个事务里结束该用户的全部会话**——会话活得比开启它的凭证更久，正是一次重置
+  要关掉的那个窗口。
+- **OAuth 客户端只能 retire，不能删除**，retire 通过 store 的原子 `retire_many` 撤销它的授权、
+  授权的内部 key 和已签发的全部令牌。同一个 `client_id` 重新注册会被拒绝，因此新行永远不可能
+  继承上一次注册攒下的授权。
+
+### 审计，以及 `detail` 绝不会携带什么
+
+`audit().record(AuditEntry { … })` 在 revision batch **之外**追加一行。这不是偷懒：否则一次
+失败的流水插入会把它只是在描述的那次操作一起回滚，而**被拒绝**的操作——恰恰是事后调查最想要的
+那一行——根本没有事务可加入。写流水失败只记日志，绝不向上抛。
+
+`AuditEntry::redacted(value)` 是把调用方提供的 JSON 放进条目的唯一受支持方式，因为脱敏发生在
+存入之前而不是展示之前：进了列的密文早已泄漏进每一份备份和副本。它会递归走遍对象与数组的每一层，
+把名字（忽略大小写、下划线与短横线后）属于下列之一的字段的值替换掉：
+
+```text
+accessToken  apiKey     authorization  clientSecret  code        codeVerifier
+cookie       credentials  currentPassword  idToken    key         keyHash
+masterKey    newPassword  oldPassword   password     passwordHash  privateKey
+refreshToken secret      sessionToken   setCookie    token       tokenHash
+verifier     xApiKey
+```
+
+替换成字面量 `[redacted]`——是替换而不是删除，这样读者能分辨"这次操作带了密码"和"这次没带"。
+匹配的是归一化后的完整名字而不是子串，所以 `passwordPolicy` 或 `keyboardLayout` 会原样保留。
+`AuditEntry::failed(&error)` 记录错误的稳定 **code** 而不是它的 message，因为 message 可能把
+调用方发来的值原样引回去。
+
+`query(AuditQuery)` 按最新在前分页——`created_at_ms DESC` 再按主键，这样同一毫秒内写下的两行
+不会在翻页边界上重复或漏掉。
 
 ## 只在新建数据库上存在的级联
 
@@ -350,6 +472,6 @@ id 存在过。这里不校验 scope：id 本身就是随机的秘密，链接�
 但 SQLite 的增量升级路径用 `ALTER TABLE ADD COLUMN` 加这两列，而这种语句无法带外键。
 只有全新创建的数据库才有该约束，升级上来的没有，其他后端未验证。
 
-**因此删除组织或团队时，必须由本 crate 自己解绑或删除受影响的 API key。** 一个预算链、
-权限主体和凭证可见性边界都已不存在的 key 不能继续服务请求，而在升级上来的实例上，
-这一层以下没有任何东西会拦住它。
+**因此删除组织或团队时，由本 crate 自己在同一个 batch 里、在父行之前删除受影响的
+API key**，见[显式的 key 级联](#显式的-key-级联)。一个预算链、权限主体和凭证可见性边界
+都已不存在的 key 不能继续服务请求，而在升级上来的实例上，这一层以下没有任何东西会拦住它。

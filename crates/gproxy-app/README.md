@@ -59,11 +59,14 @@ one load, one request.
 | `call` | `DataPlaneRequest` → `CallOutcome`: admit, then run the engine with exactly what was admitted |
 | `service` | vendor CLI services: which credentials are in the target, and what role the caller has over them |
 | `publication` | `AppPublicationUrl`, plus the read and delete behind the host's download route |
+| `operations` | the identity write families, each one revision commit plus a peer notification |
+| `dto` | the wire shapes those families exchange: string ids, millisecond timestamps, camelCase, no secrets |
+| `audit` | the append-only trail, written outside the revision batch, with its redaction rule |
 | `error` | `AppError`, with `status_code()` and a stable `code()` for the API envelope |
 
-Everything else (`capture`, `operations`, `audit`, `dto`) is declared with the
-contract it will hold, so a later phase fills it in place rather than reshaping
-the crate.
+Only `capture` is still declared without an implementation, with the contract
+it will hold, so a later phase fills it in place rather than reshaping the
+crate.
 
 ## The snapshot
 
@@ -431,6 +434,161 @@ A read that finds nothing, a released body and an expired one are one answer —
 `404` — because distinguishing them tells a prober which ids existed. The scope
 is not checked: the id is a random secret and the link is the capability,
 exactly as core's own read has it.
+## Identity operations
+
+`Operations::new(&gproxy, &data, &config)` hands out one accessor per family.
+Every family is `list / get / create / update / delete` over one table, from a
+single generic shape, plus whatever else that family genuinely needs.
+
+| Family | Table | Beyond the five |
+|---|---|---|
+| `users()` | `users` | `set_password`, `clear_password`, `set_allowlist`, `batch` |
+| `api_keys()` | `api_keys` | `create` returns the plaintext once, `reveal`, `rotate` |
+| `organizations()` | `organizations` | `batch`; delete performs the key cascade |
+| `teams()` | `teams` | `batch`; delete performs the key cascade |
+| `members()` | `organization_members` | `add`, `set_role`, `remove` over the composite key |
+| `team_members()` | `team_members` | `add`, `set_role`, `remove` over the composite key |
+| `permissions()` | `permissions` | `batch` — a rule set is edited as a whole |
+| `rate_limits()` | `rate_limits` | `batch` |
+| `subscriptions()` | `subscriptions` | `batch` |
+| `pools()` | `subscription_pools` | `batch` |
+| `pool_members()` | `subscription_pool_members` | `batch` |
+| `plans()` | `subscription_plans` | `batch` |
+| `plan_limits()` | `subscription_plan_limits` | `batch` |
+| `oauth_clients()` | `oauth_clients` | `retire` instead of delete |
+| `sessions()` | `user_sessions` | `list`, `revoke`, `revoke_all`, `purge_expired` |
+| `audit()` | `audit_events` | `record`, `try_record`, `query` |
+
+`Operations` performs **no authorization**. Who may call which family is the
+host middleware's decision, taken from the `Caller` before the operation runs.
+
+### One batch, one revision, then a notification
+
+A configuration write is one `Store::commit_revision`: the caller's statements
+and the `settings.config_revision` bump land together or not at all. A write
+that landed without a bump would be invisible to peers; a bump without a write
+would make them reload for nothing. A create and an update read their row back
+from **inside** that same transaction, so the DTO returned is the row as the
+revision left it rather than a re-read a peer could already have changed.
+
+Afterwards the writer publishes `Invalidation::ConfigurationChanged { revision,
+scopes }` on `gproxy-core`'s invalidation topic, with this crate's own scope
+names: `identity`, `permissions`, `keys`, `rate_limits`, `subscriptions`,
+`oauth_clients`. Publication is best effort — a cache that refuses it costs the
+deployment one poll interval, not correctness.
+
+**How this differs from the sdk's `manage::Writer`, and why.** The sdk reloads
+and only then notifies, because a peer must never find the writer still serving
+the revision it just announced. This layer does not reload at all: identity
+rows are not in `CoreData`, and what they feed — `AppData` — is owned by the
+host, which holds the `AppSnapshot` and rebuilds it through `App::refresh()`. A
+writer that reloaded on its own would publish a second, competing snapshot and
+lose the monotonicity `AppSnapshot` exists to guarantee. So the contract is:
+**the operation commits and notifies; the host refreshes.**
+
+Two families are not configuration and deliberately do neither. `user_sessions`
+is not in `IdentityData`, so authentication reads it on every request and a
+revocation takes effect without anything reloading; `audit_events` is history
+that nothing reads to serve a request. Bumping the revision for either would
+make every login and every audited operation invalidate the whole fleet's
+snapshot for a change no snapshot contains.
+
+### What is never returned
+
+`users.password_hash`, `api_keys.key_hash`, the bytes of `api_keys.secret` and
+`user_sessions.token_hash` have no DTO field and no accessor. A user reports
+`hasPassword`, a key reports its display `prefix` and `hasSecret`, a session
+reports only when it was opened and when it ends.
+
+A key's plaintext exists in a response exactly twice: `create` and `rotate`
+return it once. `reveal` can produce it later only for a key created with
+`retainSecret`, which seals a copy under core's `SecretCodec` bound to the
+key's own id — so a sealed blob copied onto another row does not open.
+Retention is off by default: a key the instance cannot reproduce is a key a
+database leak does not hand over.
+
+### The explicit key cascade
+
+Deleting an organization deletes, in the same batch and before the parent row:
+every key bound to one of its teams, every key bound to the organization
+itself, and the teams. Deleting a team deletes the keys bound to it. This is
+the rule the section below exists for, and the reason it is written out rather
+than left to the schema.
+
+Deleting rather than unbinding is deliberate. Unbinding would silently widen a
+key from "this team's credentials" to "everything its user can reach" — a
+privilege *increase* performed by a deletion — and the entity's own contract
+says a key whose owner chain and visibility boundary are gone must stop serving
+requests. Because the explicit statements run first, a database that *does*
+have the foreign key finds nothing left to cascade, so a fresh database and an
+upgraded one end in exactly the same state.
+
+### Validation the schema cannot express
+
+- **A key's binding is checked three ways**: the organization and team exist,
+  the key's user is a member of them, and when both are set the team's parent
+  *is* that organization. A patch is re-validated against the binding the row
+  will end up with, not the half it mentioned. On the upgrade path these
+  columns carry no foreign key at all, so for two of the three this is the only
+  check there is.
+- **A key may only select its own user's subscription.**
+- **A permission rule and a rate limit take exactly one subject.** Neither is a
+  row `PermissionSet::build` drops on the floor; both is an intersection the
+  snapshot still honours — a v3 database may hold one — but which nobody writing
+  a rule means, so the write is refused rather than silently misread later.
+- **`action` is `allow` or `deny`**, `role` is `admin` or `user`, a membership
+  role is `member` or `admin`, a plan period is one of `total / fixed / day /
+  week / month`, and a `fixed` window needs a positive duration.
+- **`periodSeconds` is positive** and **`limitValue` is not negative**; zero is
+  a legitimate ceiling that switches a subject off without deleting its row.
+- **`startsAtMs <= expiresAtMs`** whenever both are known.
+- **The last enabled administrator cannot be deleted, disabled or demoted.**
+  The instance role is not a membership and cannot be granted by anybody who is
+  not already an admin, so losing it is unrecoverable without going to the
+  database. The count is read from the database rather than from the snapshot:
+  a snapshot that is one revision behind would still list an admin deleted a
+  moment ago and would wave through the deletion of the real last one.
+- **A password change ends the user's sessions**, in the same transaction — a
+  session that outlives the credential that opened it is exactly the window a
+  reset is meant to close.
+- **An OAuth client is retired, never deleted**, and retirement revokes its
+  grants, their internal keys and every issued token through the store's
+  atomic `retire_many`. Re-registering the same `client_id` is refused, so a
+  fresh row can never inherit the previous registration's grants.
+
+### Audit, and what `detail` never carries
+
+`audit().record(AuditEntry { … })` appends one row **outside** the revision
+batch. That is not laziness: a trail insert that failed would otherwise roll
+back the operation it was only describing, and a *rejected* operation — the row
+an investigation actually wants — has no transaction to join at all. A failure
+to write the trail is logged, never propagated.
+
+`AuditEntry::redacted(value)` is the only supported way to put caller-supplied
+JSON into an entry, because redaction happens before the value is stored, not
+before it is displayed: a secret that reaches the column has already leaked
+into every backup and replica. It walks objects and arrays to any depth and
+replaces the value of any field whose name — ignoring case, underscores and
+dashes — is one of:
+
+```text
+accessToken  apiKey     authorization  clientSecret  code        codeVerifier
+cookie       credentials  currentPassword  idToken    key         keyHash
+masterKey    newPassword  oldPassword   password     passwordHash  privateKey
+refreshToken secret      sessionToken   setCookie    token       tokenHash
+verifier     xApiKey
+```
+
+with the literal string `[redacted]` — replaced rather than removed, so a
+reader can tell "this operation carried a password" from "this one did not".
+Matching is on the whole normalized name, not a substring, so a
+`passwordPolicy` or a `keyboardLayout` survives. `AuditEntry::failed(&error)`
+records the error's stable **code**, never its message, because a message can
+quote a value the caller sent.
+
+`query(AuditQuery)` pages newest first — `created_at_ms DESC`, then the primary
+key, so two rows written in the same millisecond cannot repeat or skip across a
+page boundary.
 
 ## A cascade that only exists on new databases
 
@@ -440,8 +598,9 @@ columns with `ALTER TABLE ADD COLUMN`, which cannot carry a foreign key. Only a
 freshly created database has the constraint; an upgraded one does not, and the
 other backends are unverified.
 
-**So this crate must unbind or delete the affected API keys itself when it
-deletes an organization or a team.** A key whose budget chain, permission
-subject and credential-visibility boundary no longer exist must not keep
-serving requests, and on an upgraded instance nothing below this layer will
-stop it.
+**So this crate deletes the affected API keys itself when it deletes an
+organization or a team**, in the same batch and before the parent row — see
+[The explicit key cascade](#the-explicit-key-cascade). A key whose budget
+chain, permission subject and credential-visibility boundary no longer exist
+must not keep serving requests, and on an upgraded instance nothing below this
+layer will stop it.
