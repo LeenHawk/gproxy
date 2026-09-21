@@ -38,11 +38,13 @@ fn request(model: &str) -> DataPlaneRequest {
 }
 
 /// Drain the response and its settlement, which is what makes the usage row
-/// appear.
+/// appear. The capture these tests do not look at is exercised in
+/// `tests/capture.rs`.
 async fn finish(outcome: gproxy_app::CallOutcome) -> serde_json::Value {
     let gproxy_app::CallOutcome {
         execution,
         admitted,
+        ..
     } = outcome;
     let (response, usage) = execution.into_parts();
     let body = support::read_json(response.body).await;

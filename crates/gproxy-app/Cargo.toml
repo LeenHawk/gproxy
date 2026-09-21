@@ -13,6 +13,10 @@ arc-swap = { workspace = true }
 argon2 = { workspace = true }
 base64 = { workspace = true }
 bytes = { workspace = true }
+# Query-parameter keys are percent-decoded before they are matched against the
+# redaction list, exactly as core's observer decodes them, so the two sides of
+# one request hide the same parameters.
+form_urlencoded = { workspace = true }
 # `wasm_js` comes from the workspace entry, which is what makes randomness
 # available on wasm32-unknown-unknown without a native backend.
 getrandom = { workspace = true }

@@ -43,6 +43,8 @@ pub mod call;
 pub use call::{CallOutcome, ConnectOutcome, DataPlaneRequest};
 
 pub mod capture;
+pub use capture::{CaptureOutcome, DownstreamCapture, ObservationSwitches};
+
 pub mod dto;
 pub mod operations;
 pub use operations::{Operations, Scope};
@@ -162,12 +164,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
             .as_ref()
             .map(|settings| settings.config_revision)
             .ok_or_else(|| AppError::internal("the global settings row is missing"))?;
-        let data = Arc::new(AppData::assemble(
-            revision,
-            &all.identity,
-            &all.control.credentials,
-        )?);
-        self.snapshot.publish_if_newer(data);
+        let mut data = AppData::assemble(revision, &all.identity, &all.control.credentials)?;
+        // The logging switches come out of the same read as the identity rows,
+        // so a request that pinned this snapshot captures under the policy of
+        // the revision it was decided under.
+        data.observation = ObservationSwitches::from_settings(all.control.settings.as_ref());
+        self.snapshot.publish_if_newer(Arc::new(data));
         Ok(revision)
     }
 

@@ -29,7 +29,7 @@ pub use membership::MembershipIndex;
 pub use oauth_policy::ClientAllowlist;
 pub use permission::{Decision, PermissionSet, Subject};
 
-use crate::AppError;
+use crate::{AppError, ObservationSwitches};
 use arc_swap::ArcSwap;
 use gproxy_store::{
     IdentityData,
@@ -56,6 +56,11 @@ use std::{collections::HashMap, sync::Arc};
 pub struct AppData {
     /// `settings.config_revision` this was assembled from.
     pub revision: i64,
+    /// The logging switches of this revision, for the downstream capture. Set
+    /// by [`App::refresh`](crate::App::refresh) from the settings row of the
+    /// same read; [`AppData::assemble`] leaves the schema's defaults, because
+    /// its arguments do not carry that row.
+    pub observation: ObservationSwitches,
     pub keys: ApiKeyIndex,
     pub memberships: MembershipIndex,
     pub credential_ownership: CredentialOwnership,
@@ -117,6 +122,7 @@ impl AppData {
         }
         Ok(Self {
             revision,
+            observation: ObservationSwitches::default(),
             keys: ApiKeyIndex::build(&identity.api_keys, &users, now_ms),
             memberships: MembershipIndex::build(
                 &identity.organization_members,
@@ -149,6 +155,7 @@ impl AppData {
     pub fn empty() -> Self {
         Self {
             revision: i64::MIN,
+            observation: ObservationSwitches::default(),
             keys: ApiKeyIndex::default(),
             memberships: MembershipIndex::default(),
             credential_ownership: CredentialOwnership::default(),
