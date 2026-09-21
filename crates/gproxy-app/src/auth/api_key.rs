@@ -78,11 +78,30 @@ pub fn generate_api_key(prefix: &str) -> Result<(String, String, String), AppErr
 }
 
 /// Cryptographically secure bytes, or an error. Never a zeroed buffer.
-pub(super) fn random_bytes<const N: usize>() -> Result<[u8; N], AppError> {
+pub(crate) fn random_bytes<const N: usize>() -> Result<[u8; N], AppError> {
     let mut bytes = [0_u8; N];
     getrandom::fill(&mut bytes)
         .map_err(|_| AppError::internal("secure randomness is unavailable"))?;
     Ok(bytes)
+}
+
+/// The digest a credential is stored under: the SHA-256 of the text exactly as
+/// presented.
+///
+/// One function for all of them, because "hashed how" must have a single
+/// answer in this crate. What differs between the columns is only the
+/// *encoding* of the result: `api_keys.key_hash` and `user_sessions.token_hash`
+/// are text and go through
+/// [`encode_key_hash`](crate::snapshot::encode_key_hash), while the OAuth
+/// tables (`oauth_tokens.token_hash`, `oauth_codes.code_hash`,
+/// `oauth_devices.device_code_hash`) are `Binary(32)` and store these bytes.
+///
+/// No presentation prefix is stripped here — that ladder belongs to
+/// [`digests`], and it exists so one gateway key can be typed three ways. A
+/// token the issuer minted has exactly one spelling, and widening what it can
+/// match would only ever help an attacker.
+pub(crate) fn token_digest(token: &str) -> [u8; 32] {
+    Sha256::digest(token.as_bytes()).into()
 }
 
 impl<C> Authenticator<'_, C> {

@@ -55,6 +55,7 @@ let outcome = app.call(&caller, request).await?;
 | `capture` | 下游 `capture_records` 行，以及连向 core 所记上游尝试的 `capture_links` 边 |
 | `publication` | `AppPublicationUrl`，以及宿主下载路由背后的读取与删除 |
 | `operations` | 身份写入家族，每次写入一个 revision commit 加一次对等实例通知 |
+| `operations::issuer` | 本实例**面向下游客户端**运行的 OAuth 授权服务器 |
 | `dto` | 这些家族交换的线上形状：String id、毫秒时间戳、camelCase，不含任何密文 |
 | `audit` | 只追加的审计流水，写在 revision batch 之外，附带脱敏规则 |
 | `error` | `AppError`，带 `status_code()` 与用于 API 信封的稳定 `code()` |
@@ -543,6 +544,126 @@ verifier     xApiKey
 
 `query(AuditQuery)` 按最新在前分页——`created_at_ms DESC` 再按主键，这样同一毫秒内写下的两行
 不会在翻页边界上重复或漏掉。
+
+## OAuth issuer
+
+`Operations::issuer()` 是 gproxy **面向下游客户端**充当 OAuth 授权服务器——编辑器插件、
+编码 CLI、用户机器上的脚本。它**不是** gproxy 登录上游的那条路；那是 sdk 的 `login()`，
+在那里 gproxy 是别人 OAuth 的客户端。本模块里没有任何东西会和 Provider 通信。
+
+```text
+  Claude Code ──authorize/token──▶ gproxy  (operations::issuer：服务器)
+                                     │
+                                     └──login()──▶ OpenAI   (gproxy-sdk：客户端)
+```
+
+| 操作 | 宿主映射到的端点 | RFC |
+|---|---|---|
+| `authorize_details(caller, query)` | `GET /oauth/authorize`——先校验，再画同意页 | 6749 §4.1.1 |
+| `authorize(caller, query, decision)` | `POST /oauth/authorize`——一个 code，或一次错误重定向 | 6749 §4.1.2 |
+| `token(request)` | `POST /oauth/token`——`authorization_code`、`refresh_token`、`urn:ietf:params:oauth:grant-type:device_code` | 6749 §4.1.3/§6、8628 §3.4 |
+| `device_code(request, origin)` | `POST /oauth/device/code` | 8628 §3.1 |
+| `device_details(user_code)` | 批准页 | 8628 §3.3 |
+| `device_decision(caller, user_code, decision)` | 批准页上的按钮 | 8628 §3.3 |
+| `device_cancel(client_id, device_code)` | 设备主动作废自己打印出来的码 | — |
+| `revoke(request)` | `POST /oauth/revoke` | 7009 §2 |
+| `metadata(origin)` | `GET /.well-known/oauth-authorization-server` | 8414 §2 |
+
+本模块不是 HTTP：这里没有路由、没有表单解析、也没有 `Location` 头。
+`error_body(&AppError)` 是让两个宿主把失败渲染成同一个样子的那一个函数——
+`AppError::OAuth` 保留它携带的 RFC code，凡是实例自己的锅一律变成 `server_error`，
+其余任何情况都不会把内部 message 引给客户端。
+
+### 一次授权（grant）是什么
+
+一次授权绑定一个**用户**和一把 `kind = OAuth` 的**内部 API key**，两者在同一个事务里创建。
+再往下的一切都只认 key：预算链、凭证可见性边界、权限主体，全部来自那一行 key，和用户自己手工
+铸的 key 走完全相同的路。这把 key 永远无法被出示——认证层拒绝把 `kind = OAuth` 的 key 当作
+bearer key——所以唯一的用法是出示 access token，而它在一条语句里就把整条链解析完。
+
+**OAuth 调用方随后能做什么不在这里决定。** 那条操作基线——列模型、取模型、计 token、生成、
+流式生成、压缩，除非 client 写进了 `oauth.cliClientIds`，否则别无其他——住在
+[准入](#oauth-操作基线)里，因为它是这个令牌**每一次请求**的属性，而不是它被铸出来那一刻的属性。
+放宽它不应该要求重新签发令牌，收紧它必须立刻作用于已经存在的令牌。
+
+### 这个 issuer 不让步的几条规矩
+
+**PKCE 永远是 S256。** `plain` 被拒绝，缺失 challenge 同样被拒绝。注册在册的 client 全是
+公共客户端，没有 secret 可以证明自己，所以 verifier 是泄漏的 code 与令牌之间唯一的东西。
+`code_challenge_method` 的**拼写**读得宽松（去空白、忽略大小写），因为要指认的变换只有一种。
+
+**redirect URI 精确匹配。** 不是前缀，不是通配，也不是"同源"。每一种更松的规则都会以同样的
+方式失败：注册了 `https://app.example/cb` 的 client 会连
+`https://app.example/cb.evil.example`、`https://app.example/cb/../../elsewhere`、
+`https://app.example/cb?next=//evil` 一起接受，而这些都是攻击者能控制、又能收到授权码的 URL。
+注册表拒绝存 `*`，出于同一个理由。
+
+**code、refresh token 与 device code 都是一次性的。** 消费与换发是 store 的
+`exchange_tokens_many` 里的一个原子 batch，所以同一份凭证的两次兑换无论怎么交错都不可能同时成功。
+
+**令牌只在一次响应里存在。** 来自 `getrandom` 的 32 字节，base64url 无填充；行里只留 SHA-256——
+`oauth_tokens.token_hash`、`oauth_codes.code_hash`、`oauth_devices.device_code_hash` 都是
+`Binary(32)`。哈希函数和 `api_keys.key_hash`、`user_sessions.token_hash` 用的是同一个，
+只有编码不同，因为那两列是文本列。丢失的令牌只能换发，永远找不回来。
+
+### 轮换重放会撤销一整族
+
+code 和 refresh token 都是一次性的。当其中之一被出示第二次时，只有两种可能，而站在这里没有办法
+分辨：客户端丢了响应在重试，或者别人也拿到了这份凭证。RFC 6749 §4.1.2、RFC 6819 §5.2.2.3 与
+OAuth 2.0 Security BCP §4.14 的结论一致——按泄漏处理。
+
+所以被重放的 refresh token（或授权码）回 `invalid_grant`，**并且**在一个 batch 里撤销这次授权、
+它的内部 API key，以及它曾签发的每一个 access 与 refresh token。合法客户端此刻手上的 access token
+同样立刻失效，它会重跑一次登录；小偷的也失效，而它跑不了登录。
+
+检测靠的是 store，而不是"先读再判"：兑换语句带着 `consumed_at_ms IS NULL` 去消费那一行，
+所以花掉的凭证会以 `CasOutcome::Conflict` 回来，再回读一次那行就能区分它是被消费过（重放），
+还是仅仅过期或被撤销（普通的 `invalid_grant`）。
+
+**设备流是唯一的例外。** 轮询的客户端本来就会反复发同一个 device code，而丢失的响应和送达的
+响应从这里看不出区别。被消费过的设备授权只回 `invalid_grant`，到此为止——device code 反正已经
+花掉了，再把令牌一起带走，只会把一个刚刚合法连上的客户端锁在账号外面。
+
+### 设备流复用了授权码流
+
+一次批准铸出的是一个普通授权码，而 store 的 `issue_many` 在**同一个** batch 里预留并批准那行
+待决的设备授权。两个列让这件事不需要第二套形状：
+
+- 授权码的 `redirect_uri` 是 `urn:ietf:params:oauth:grant-type:device_code`，一个任何注册都
+  不可能持有的 URN（注册要求含 `://`），因此设备铸出的码永远不可能走 `authorization_code` 兑换；
+- 授权码的 `code_challenge` 是 `device_code_hash` 的 base64url，而它*就是* device code 的 S256
+  challenge，因为两者是同一个 SHA-256 的 base64url。于是 device code 本身就是 PKCE 的 verifier，
+  不花任何额外代价。
+
+user code 是八个符号，字母表里去掉了 `I`、`O`、`0`、`1`，展示成 `ABCD-EFGH`，查询时归一化，
+所以字符对的任何一种写法都能命中。`slow_down` 永不发出：要回答它就得在每台设备的每次轮询上写一次库，
+而给端点限流是宿主的事，也是同一道防线。
+
+### `issuer` 来自挂载点，而不是某个请求头
+
+同一个实例最多在三个挂载点上提供 issuer——`https://host`、`https://host/{namespace}/v1`、
+`https://host/{provider}/v1`——而 RFC 8414 §2 要求 `issuer` 标识必须恰好是客户端取到这份文档
+的那一个。只有宿主知道请求落在哪个挂载点上，所以 `IssuerOrigin` 是**传进来的**，绝不在这里算。
+
+scheme 是这件事的另一半。`x-forwarded-proto` 是任何客户端都能发的头，所以宿主**只能在对端位于
+`trustedProxies` 时**相信它，否则退回 `publicBaseUrl` 或套接字自身的 scheme。用攻击者可控的
+`Host` 或 `x-forwarded-proto` 拼出来的 issuer 标识，就是一份指向别人端点的发现文档。
+
+`IssuerOrigin` 把 origin 和 mount 分开存，因为两者用法不同：协议端点挂在 mount 下，客户端才能
+发现自己正在对话的那一个；而设备验证页挂在 origin 上——无论数据面挂了多少个点，门户只有一个。
+
+### 这些全都不动 revision
+
+签发、刷新、撤销都**不**推进 `settings.config_revision`，这和 `user_sessions`、`audit_events`
+是同一个决定。授权在每次请求时都由一次数据库读解析，所以对等实例过期的 `AppData` 既不会放行
+已撤销的令牌，也不会拒绝还活着的令牌。反过来，每次兑换都推 revision，等于**每一次刷新都让全集群
+的快照作废**——在 access token 一小时一换的机群上，这是一场毫无收益的重载风暴。唯一算配置的
+OAuth 操作是 retire 一个 client，因为它改的是 `AppData` 里的 allowlist，它在 `oauth_clients()`
+里提交 revision。
+
+每一次签发、拒绝、刷新、重放与撤销都用 `try_record` 写进审计流水，而这是有承重作用的而非偷懒：
+一次写流水的失败如果把成功的兑换变成 500，客户端就会拿着已经花掉的 code 重试，重放规则随即会
+撤销它刚刚拿到的授权。
 
 ## 只在新建数据库上存在的级联
 

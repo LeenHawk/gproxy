@@ -50,6 +50,7 @@
 
 mod api_keys;
 mod crud;
+pub mod issuer;
 mod members;
 mod oauth_clients;
 mod organizations;
@@ -62,6 +63,7 @@ mod subscriptions;
 mod users;
 
 pub use api_keys::ApiKeys;
+pub use issuer::{Issuer, IssuerError, IssuerErrorCode, IssuerOrigin};
 pub use members::{OrganizationMembers, TeamMembers};
 pub use oauth_clients::OAuthClients;
 pub use organizations::{Organizations, Teams};
@@ -214,6 +216,14 @@ impl<'a, C> Operations<'a, C> {
     }
     pub fn oauth_clients(&self) -> OAuthClients<'a, C> {
         OAuthClients::new(self.writer())
+    }
+    /// The OAuth authorization server this instance runs **for downstream
+    /// clients** — authorize, token, device, revoke and the RFC 8414
+    /// discovery document. Not a configuration surface: see
+    /// [`issuer`](crate::operations::issuer) for why none of it moves the
+    /// revision.
+    pub fn issuer(&self) -> Issuer<'a, C> {
+        Issuer::new(self.gproxy, self.data, self.config)
     }
     /// Console and portal sessions. Not configuration: see the module note.
     pub fn sessions(&self) -> Sessions<'a, C> {

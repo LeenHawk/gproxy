@@ -61,6 +61,7 @@ one load, one request.
 | `capture` | the downstream `capture_records` row and the `capture_links` edges to the upstream attempts core recorded |
 | `publication` | `AppPublicationUrl`, plus the read and delete behind the host's download route |
 | `operations` | the identity write families, each one revision commit plus a peer notification |
+| `operations::issuer` | the OAuth authorization server this instance runs **for downstream clients** |
 | `dto` | the wire shapes those families exchange: string ids, millisecond timestamps, camelCase, no secrets |
 | `audit` | the append-only trail, written outside the revision batch, with its redaction rule |
 | `error` | `AppError`, with `status_code()` and a stable `code()` for the API envelope |
@@ -686,6 +687,166 @@ quote a value the caller sent.
 `query(AuditQuery)` pages newest first — `created_at_ms DESC`, then the primary
 key, so two rows written in the same millisecond cannot repeat or skip across a
 page boundary.
+
+## OAuth issuer
+
+`Operations::issuer()` is gproxy acting as an **OAuth authorization server for
+downstream clients** — an editor extension, a coding CLI, a script on the
+user's machine. It is not how gproxy logs in to an upstream; that is the sdk's
+`login()`, which speaks somebody else's OAuth as a client. Nothing in this
+module ever talks to a provider.
+
+```text
+  Claude Code ──authorize/token──▶ gproxy  (operations::issuer: the server)
+                                     │
+                                     └──login()──▶ OpenAI   (gproxy-sdk: the client)
+```
+
+| Operation | Endpoint a host maps it to | RFC |
+|---|---|---|
+| `authorize_details(caller, query)` | `GET /oauth/authorize` — validate, then draw a consent screen | 6749 §4.1.1 |
+| `authorize(caller, query, decision)` | `POST /oauth/authorize` — a code, or an error redirect | 6749 §4.1.2 |
+| `token(request)` | `POST /oauth/token` — `authorization_code`, `refresh_token`, `urn:ietf:params:oauth:grant-type:device_code` | 6749 §4.1.3/§6, 8628 §3.4 |
+| `device_code(request, origin)` | `POST /oauth/device/code` | 8628 §3.1 |
+| `device_details(user_code)` | the approval page | 8628 §3.3 |
+| `device_decision(caller, user_code, decision)` | the approval page's button | 8628 §3.3 |
+| `device_cancel(client_id, device_code)` | a device retiring the code it printed | — |
+| `revoke(request)` | `POST /oauth/revoke` | 7009 §2 |
+| `metadata(origin)` | `GET /.well-known/oauth-authorization-server` | 8414 §2 |
+
+This module is not HTTP: there is no routing, no form parsing and no
+`Location` header here. `error_body(&AppError)` is what makes both hosts render
+a failure identically — an `AppError::OAuth` keeps the RFC code it carries,
+anything the instance is responsible for becomes `server_error`, and nothing
+else quotes an internal message to a client.
+
+### What a grant is
+
+One authorization binds a **user** and an **internal API key** of
+`kind = OAuth`, created in the same transaction. Everything downstream then
+works on keys: the budget chain, the credential-visibility boundary and the
+permission subject all come from that key row exactly as they would for a key
+the user minted by hand. The key is never presentable — authentication refuses
+a `kind = OAuth` key offered as a bearer key — so the only way to use it is to
+present an access token, which resolves the whole chain in one statement.
+
+**What an OAuth caller may then do is not decided here.** The operation
+baseline — list models, get a model, count tokens, generate, stream, compact,
+and nothing else unless the client is named in `oauth.cliClientIds` — lives in
+[admission](#the-oauth-operation-baseline), because it is a property of every
+request the token makes and not of the moment it was minted. Widening it must
+not require re-issuing tokens, and narrowing it must take effect on the tokens
+that already exist.
+
+### Rules this issuer does not bend
+
+**PKCE S256, always.** `plain` is refused and so is an absent challenge. Every
+registered client is public, with no secret to prove with, so the verifier is
+the only thing standing between a leaked code and a token. The *spelling* of
+`code_challenge_method` is read leniently (trimmed, case-insensitive) because
+there is only one transformation to name.
+
+**Redirect URIs match exactly.** Not a prefix, not a wildcard, not
+"same origin". Every looser rule has the same failure: a client registered for
+`https://app.example/cb` would also accept `https://app.example/cb.evil.example`,
+`https://app.example/cb/../../elsewhere` or `https://app.example/cb?next=//evil`,
+and each of those is a URL an attacker controls that receives the authorization
+code. The registry refuses to store a `*` for the same reason.
+
+**Codes, refresh tokens and device codes are single-use.** The consumption and
+the replacement are one atomic batch in the store's `exchange_tokens_many`, so
+two redemptions of the same credential cannot both succeed however they are
+interleaved.
+
+**Tokens exist in exactly one response.** 32 bytes from `getrandom`, base64url
+without padding; the row keeps the SHA-256 and nothing else —
+`oauth_tokens.token_hash`, `oauth_codes.code_hash` and
+`oauth_devices.device_code_hash` are `Binary(32)`. The hash function is the
+same one `api_keys.key_hash` and `user_sessions.token_hash` use; only the
+encoding differs, because those two columns are text. A lost token is
+replaced, never recovered.
+
+### Rotation reuse revokes the whole family
+
+A code and a refresh token are single-use. When one is presented twice there
+are two possibilities and no way to tell them apart from here: the client lost
+a response and retried, or somebody else has the credential. RFC 6749 §4.1.2,
+RFC 6819 §5.2.2.3 and the OAuth 2.0 Security BCP §4.14 resolve that the same
+way — assume the leak.
+
+So a replayed refresh token (or authorization code) answers `invalid_grant`
+**and** revokes the grant, its internal API key and every access and refresh
+token it ever issued, in one batch. The access token the legitimate client is
+holding right now stops working too; it re-runs its login. The thief's does
+too, and it cannot.
+
+Detection is the store's, not a read-then-check: the exchange consumes the row
+under `consumed_at_ms IS NULL`, so a spent credential comes back as
+`CasOutcome::Conflict` and a re-read of the row says whether it was consumed
+(a replay) or merely expired or revoked (a plain `invalid_grant`).
+
+**The device flow is the exception.** A polling client re-sends the same device
+code by design, and a lost response is indistinguishable from a delivered one.
+A consumed device authorization is `invalid_grant` and nothing more — the
+device code is spent either way, and taking the tokens with it would lock a
+client out of an account it had just legitimately connected.
+
+### The device flow reuses the code flow
+
+An approval mints an ordinary authorization code, and the store's `issue_many`
+reserves and approves the pending device row in the **same** batch. Two columns
+make that work with no second shape:
+
+- the code's `redirect_uri` is `urn:ietf:params:oauth:grant-type:device_code`,
+  a URN no registration can hold (registration requires `://`), so a
+  device-issued code can never be redeemed through `authorization_code`;
+- the code's `code_challenge` is the base64url of `device_code_hash`, which
+  *is* the S256 challenge of the device code, since both are the base64url of
+  the same SHA-256. The device code is therefore the PKCE verifier, for free.
+
+User codes are eight symbols from an alphabet with `I`, `O`, `0` and `1`
+removed, shown grouped as `ABCD-EFGH` and normalized on lookup, so any spelling
+with the right characters resolves. `slow_down` is never emitted: answering it
+means a write on every poll of every device, and rate-limiting the endpoint is
+the host's job and the same defence.
+
+### `issuer` comes from the mount, never from a header
+
+The same instance serves the issuer at up to three mounts — `https://host`,
+`https://host/{namespace}/v1` and `https://host/{provider}/v1` — and RFC 8414
+§2 requires the `issuer` identifier to be exactly the one a client fetched the
+document from. Only the host knows which mount a request arrived on, so
+`IssuerOrigin` is **passed in** and never computed here.
+
+The scheme is the other half of that. `x-forwarded-proto` is a header any
+client can send, so a host must believe it **only from a peer listed in
+`trustedProxies`**, and fall back to `publicBaseUrl` or the socket's own scheme
+otherwise. An issuer identifier taken from an attacker-supplied `Host` or
+`x-forwarded-proto` is a discovery document pointing at somebody else's
+endpoints.
+
+`IssuerOrigin` keeps the origin and the mount apart because they are used
+differently: the protocol endpoints hang off the mount, so a client discovers
+the one it is talking to, while the device verification page hangs off the
+origin — the portal is one application however many mounts the data plane
+answers at.
+
+### None of this moves the revision
+
+Issuing, refreshing and revoking do **not** bump `settings.config_revision`,
+the same decision `user_sessions` and `audit_events` made. A grant is resolved
+by a database read on every request, so a peer's stale `AppData` cannot admit a
+revoked token or refuse a live one. Bumping per exchange would instead make
+every refresh invalidate every peer's snapshot — on a fleet with hour-long
+access tokens, a reload storm in exchange for nothing. The one OAuth operation
+that *is* configuration is retiring a client, which changes the allowlist
+`AppData` holds, and it commits a revision in `oauth_clients()`.
+
+Every issuance, denial, refresh, replay and revocation is written to the audit
+trail with `try_record`, and that is load-bearing rather than lazy: a trail
+write that turned a successful exchange into a 500 would have the client retry
+with a code it has already spent, and the replay rule would then revoke the
+grant it had just been given.
 
 ## A cascade that only exists on new databases
 
