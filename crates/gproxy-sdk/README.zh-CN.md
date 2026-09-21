@@ -227,9 +227,14 @@ println!("credential {}", created.credential_id);
 | `endpoints()` | `operation_rules`、`operation_endpoints` | |
 | `quotas()` | `quotas` | `budget_status`、`reset_budget`、`limit_status`、`reset_limit` |
 | `pricing()` | `price_rules`、`price_rates`、`price_tiers` | |
+| `transfer()` | 全部配置行 | `export`、`import` |
+| `catalog()` | 不落库，除非被应用 | `channels`、`default_models`、`apply_default_prices`、`tls_presets`、`rule_presets`、`apply_rule_preset` |
+| `connectivity()` | `provider_models` | `test`、`model_test`、`discover_models`、`apply_discovered` |
+| `tokenizer()` | `file_objects`、`models.vocabulary_file_id`、`settings` | `vocabularies`、`fetch`、`progress`、`delete`、`auth`、`set_auth`、`reveal_auth` |
 
-每个家族都有 `list(ListQuery) -> Page<Dto>`、`get(id)`、`create(Write)`、
-`update(id, Patch)`、`delete(id)` 与 `batch(Vec<BatchItem>)`。id 给了就用、没给就
+前十一个家族都有 `list(ListQuery) -> Page<Dto>`、`get(id)`、`create(Write)`、
+`update(id, Patch)`、`delete(id)` 与 `batch(Vec<BatchItem>)`；后四个见
+[运维目录](#运维目录)。id 给了就用、没给就
 生成，时间戳一律 Unix 毫秒，小数以字符串传输，`credentials.secret` 永不出现在任何
 DTO 里——只有 `hasSecret`，外加单独的 `reveal_secret`。
 
@@ -262,6 +267,131 @@ publish  Invalidation::ConfigurationChanged { revision, scopes }
 这个 Provider 上的该模型”。因此第一段是已注册渠道 id 或现有 Provider 名的暴露名永
 远走不到自己的路由，写入时即被拒绝，而不是留到运行期静默失效。其余都没问题：
 `coding/fast` 就是个好名字。
+
+## 运维目录
+
+四个不是“单表 CRUD”的家族：搬运整份配置、这个二进制自带的数据、两个会走出进程的探
+针，以及本地 token 估算读的词表文件。
+
+### 导出与导入
+
+`manage().transfer()` 把实例写成一份文档，也能把一份文档读回来。文档就是管理面自己
+的 DTO，所以导出的内容正是控制台会列出来的内容。
+
+```json
+{
+  "formatVersion": 4,
+  "exportedAtMs": 1758412800000,
+  "secretsOmitted": false,
+  "secrets": ["aes-gcm"],
+  "data": {
+    "connectionProfiles": [], "providers": [], "credentials": [],
+    "models": [], "providerModels": [],
+    "routes": [], "routeMembers": [], "exposedModels": [],
+    "operationRules": [], "operationEndpoints": [],
+    "rewriteRuleSets": [], "rewriteRules": [], "providerRewriteRuleSets": [],
+    "quotas": [], "priceRules": [], "priceRates": [], "priceTiers": [],
+    "settings": null
+  }
+}
+```
+
+`data` 按回放顺序排列：任何一行都不会出现在它所指向的那一行之前。凭证是它自己的列
+加上 `secret`，后者是 `{ "codec": "aes-gcm" | "plaintext", "bytes": "<base64>" }`
+——原样搬运的数据库列，从不打开，也从不是明文。`include_secrets: false` 时每个
+`secret` 都是 `null`，`secretsOmitted` 为真，`secrets` 为空。
+
+**不会搬运的东西。** 身份（用户、API key、组织、团队、权限、订阅、OAuth client）属
+于应用层，本 crate 根本够不着。用量记录、配额窗口、计数窗口、结算、凭证周期与封
+锁、抓包、agent 会话、协议状态、cache 行与文件对象都是观测与运行期状态：搬过去等于
+给目的地伪造一段它从未有过的历史。因此 `models` 的 `vocabularyFileId` 或 `settings`
+的 `defaultVocabularyFileId` 指向目的地没有的文件时会被清空并给出 warning，而不是拒
+绝整份文档——词表在那边重新拉一次就是了。
+
+`import` 整份文档是一次 revision 提交，所以任何一处被拒绝都不会留下半截状态。
+`Merge` 按 id upsert，文档没提到的一概不动；`Replace` 额外删掉文档省略的那些导出
+表的行，先子后父，且绝不碰身份、用量与抓包表。文档内外都解析不到的引用会在写任何
+东西之前被点名拒绝。
+
+**主密钥规则。** 密封的 blob 只在封它的那把钥匙下打开，而 core 在装配快照时会打开
+每一条凭证的密钥——所以一条打不开的凭证被导入，坏掉的不是它自己的调用，而是整个实
+例之后的每一次重载。于是：
+
+| 导入方持有 | 凭证的结局 |
+|---|---|
+| `sourceMasterKey`（源实例的 32 字节，标准 base64） | 打开一次并用本实例的 codec 重新密封，计入 `credentialsResealed` |
+| 与源相同的 codec，没有密钥 | 原样写入，并给出 warning |
+| 两者都没有 | 连同其行一起跳过，计入 `credentialsSkipped` 并给出 warning |
+
+因此一份只含配置的导出不会新建任何凭证；它会更新目的地已有的那些，其余计入 skipped。
+`ImportReportDto` 带有 `created`、`updated`、`skipped`、`credentialsResealed`、
+`credentialsSkipped` 与 `warnings`——被静默清掉的归属或词表引用就报在 warnings 里。
+
+### 静态目录
+
+`manage().catalog()` 的答案来自这个二进制，不来自数据库。
+
+- `channels()`——每个编译进来的渠道作为 `ChannelDescriptor`：登录方式、能力，以及
+  Provider 表单该渲染哪些配置键。与 `Gproxy::channels()` 是同一份列表。
+- `default_models()`——自带的模型目录：这个版本知道的模型名、上下文窗口与默认价
+  格。它是生成资产时的快照，不是实时目录。
+- `apply_default_prices({ providerId, modelIds, overwrite })`——把目录价格写成
+  `price_rules` 及其 rates 与 tiers，一次提交。不给 Provider 时用目录自己的
+  `*fragment*` 通配与 priority，一条规则就给该模型在所有 Provider 上定价；给了
+  Provider 则用字面模型名作 pattern、priority 为 0。`overwrite: false` 正是重复应用
+  目录也安全的原因——运维改过的规则保留其修改，并报为 `skipped`。
+- `tls_presets()`——六种客户端身份，形式就是 `gproxy_client::EmulationConfig` 对
+  象，可直接存进连接配置的 `emulation`。只有 `wreq` 后端会呈现它。
+- `rule_presets()` / `apply_rule_preset({ ruleSetId, presetId })`——让某个客户端应用
+  看起来像个通用客户端的改写规则集。应用预设是**替换**规则集而不是合并：一个预设是
+  一份有序的完整答案，掐一半跟别的交织在一起，改出来的文本没人预料得到。想保留既有
+  规则的调用方读 `rule_presets()`，然后把自己的列表交给 `rewrite().replace_rules`。
+
+### 两个探针
+
+`manage().connectivity()` 是本 crate 唯一走出进程的部分。
+
+`test({ scope })` 通过 scope 指定的客户端链去问 Cloudflare 的 trace 端点，这个部署
+从外面看是什么样——`Global`（实例默认配置）、`Provider`、`Credential`（就是它的调用
+真正用的那条传输），或者 `Proxy { url }`，用来测一个还没配置在任何地方的代理。返回
+`{ ok, latencyMs, ip, colo, error }`。**网络失败是 `ok: false` 加一个原因，不是
+`Err`**：“上游不可达”正是提问者要的答案。`Err` 意味着请求本身错了——Provider 不存
+在，或凭证不属于这个 Provider。
+
+`model_test({ providerId, model, credentialId })` 与
+`discover_models(provider_id, credential_id)` 完全按调用方请求的路径走 `Core`。
+**它们会花掉一条真实凭证、消耗真实的上游配额、对该凭证所受的预算结算，并写一条用量
+行**，归属到 scope `gproxy-sdk:admin` 与 API key id `admin-probe`。没有 dry run：没
+真打上游的测试什么也没测到。一次尝试、三十秒 deadline、自身不带预算。
+
+`discover_models` 用 Provider 自己的 dialect 去问，因此不发生任何转换，拿到的就是上
+游自己的名字；每一个都带 `known`（该 Provider 已有 `provider_models` 行）与
+`hasDefaultPrice`（自带目录能给它定价）。`apply_discovered(provider_id, names)` 插入
+这些行并跳过已有的，所以同一次发现应用两遍与一遍等价。
+
+### 词表
+
+core 会为上游没报用量的交换做本地 token 估算，依据就是词表文件。
+`manage().tokenizer()` 负责取它们。
+
+`fetch({ repo, filename, modelId, setAsDefault })` 下载
+`https://huggingface.co/{repo}/resolve/main/{filename}`（默认 `tokenizer.json`），把
+存好的来源 token 作为 `Authorization: Bearer` 发出，经配置好的文件存储写入字节，然
+后插入 `file_objects` 行并把 `models.vocabulary_file_id` 与
+`settings.default_vocabulary_file_id` 指过去——行与两个指针在同一次 revision 提交
+里。字节先落地：指向一个从未写入的对象的行会让之后每次重载都失败，而没有行的对象只
+是浪费空间。非 2xx 会带着上游自己的状态码被拒绝，因为对刚敲完仓库名的人来说 `404`
+和 `401` 完全是两回事；大小上限取实例的 `maxResponseBodyBytes`。没有配置文件存储
+时，整个家族答 `Unsupported`：字节无处可放。
+
+`progress()` 报告**本进程内**正在跑的下载——一个单元，不按句柄区分，也不跨实例共
+享，所以控制台在一个请求里发起 fetch、在另一个请求里轮询进度。`delete(file_id)` 在
+一次提交里删掉行并顺带释放所有指向它的选择，然后移除已存的对象。
+
+`auth()` 只说是否配置了来源 token；`set_auth(token)` 把它像凭证密钥一样密封进
+settings 行，绑定在一个固定身份上，因此数据库的副本里没有可用的 token；
+`reveal_auth()` 是唯一一次有意的披露，单独成一个调用的理由与“读出凭证明文”不和“列
+出凭证”混在一起是同一个。
 
 ## 查询
 

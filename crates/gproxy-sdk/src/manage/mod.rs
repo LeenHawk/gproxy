@@ -17,6 +17,8 @@
 //! write limited to those may claim [`Scope::CredentialState`] and take the
 //! cheap `reload_credentials` path. Everything else rebuilds the snapshot.
 
+mod catalog;
+mod connectivity;
 mod credentials;
 mod crud;
 mod endpoints;
@@ -28,7 +30,11 @@ mod quotas;
 mod rewrite;
 mod routing;
 mod settings;
+mod tokenizer;
+mod transfer;
 
+pub use catalog::Catalog;
+pub use connectivity::Connectivity;
 pub use credentials::Credentials;
 pub use endpoints::Endpoints;
 pub use models::{Models, ProviderModels};
@@ -39,6 +45,10 @@ pub use quotas::Quotas;
 pub use rewrite::{ProviderRuleSets, Rewrite, RewriteRules, RuleSets};
 pub use routing::{ExposedModels, RouteMembers, Routes};
 pub use settings::SettingsManage;
+pub use tokenizer::{
+    Tokenizer, TokenizerAuthDto, TokenizerFetch, TokenizerProgressDto, VocabularyDto,
+};
+pub use transfer::Transfer;
 
 use std::sync::Arc;
 
@@ -145,6 +155,23 @@ impl<'a, C> Manage<'a, C> {
     }
     pub fn pricing(&self) -> Pricing<'a, C> {
         Pricing::new(self.writer())
+    }
+    /// Export and import: the whole configuration as one document.
+    pub fn transfer(&self) -> Transfer<'a, C> {
+        Transfer::new(self.writer())
+    }
+    /// The static catalogues, and the two operations that write from them.
+    pub fn catalog(&self) -> Catalog<'a, C> {
+        Catalog::new(self.writer())
+    }
+    /// The probes. Unlike everything else here they leave the process, and
+    /// two of them spend a real credential.
+    pub fn connectivity(&self) -> Connectivity<'a, C> {
+        Connectivity::new(self.writer())
+    }
+    /// Tokenizer vocabularies and the token they are fetched with.
+    pub fn tokenizer(&self) -> Tokenizer<'a, C> {
+        Tokenizer::new(self.writer())
     }
 }
 

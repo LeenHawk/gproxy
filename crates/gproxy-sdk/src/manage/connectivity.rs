@@ -1,0 +1,622 @@
+//! The probes: what this deployment can reach, and whether a provider answers.
+//!
+//! Everything else in this crate answers from the database. These three leave
+//! the process, which makes them the only management operations with a cost
+//! and a wall clock. Two consequences run through the whole module.
+//!
+//! A probe that fails to reach anything is still a successful probe. "The
+//! upstream is unreachable" is the answer an operator asked for, so a transport
+//! failure comes back as `ok: false` with a reason rather than as an `Err`.
+//! An `Err` here means the *request* was wrong — an unknown provider, a
+//! credential that is not this provider's — which is a different thing and a
+//! different fix.
+//!
+//! [`Connectivity::model_test`] and [`Connectivity::discover_models`] go
+//! through `Core` exactly as a caller's request would. They therefore **spend
+//! a real credential, consume real upstream quota, settle against any budget
+//! the credential is subject to, and write a usage row** attributed to
+//! `gproxy-sdk:admin`. There is no dry run; a test that did not really call
+//! the upstream would not have tested anything.
+
+use std::{collections::BTreeSet, num::NonZeroU32, sync::Arc, time::Duration};
+
+use futures_util::StreamExt;
+use gproxy_channel::channel::{NormalizedUsage, ProviderView};
+use gproxy_client::{ConnectionConfig, OutboundClient, ProxyConfig};
+use gproxy_core::{
+    CoreData, CredentialData, ExecutionTarget, ProviderData, RequestContext, UsageAttribution,
+};
+use gproxy_protocol::{
+    Dialect, HttpBody, Operation, OperationKey, WireRequest,
+    connection::{Bytes, HeaderMap},
+};
+use gproxy_seaorm::{BatchConnectionTrait, BatchStatement};
+use gproxy_store::entity::upstream::provider_model;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
+use serde_json::{Value, json};
+use web_time::Instant;
+
+use super::{Scope, Writer, catalog, crud};
+use crate::{
+    SdkError, SdkResult,
+    dto::{
+        ConnectivityResultDto, ConnectivityScope, ConnectivityTest, DiscoveredModelDto, ModelTest,
+        ModelTestResultDto, UsageTokensDto,
+    },
+    rt,
+};
+
+/// Cloudflare reports the address and the edge it saw the request arrive from,
+/// which is exactly the question a proxy test asks: not "did a TCP connection
+/// open" but "who does the upstream think I am".
+const TRACE_URL: &str = "https://www.cloudflare.com/cdn-cgi/trace";
+/// A trace body is a few hundred bytes. Anything larger is not a trace.
+const TRACE_MAX_BYTES: usize = 8 * 1024;
+/// Short on purpose: an operator is watching this run.
+const TRACE_TIMEOUT: Duration = Duration::from_secs(10);
+/// Long enough for a cold model to answer, short enough to stay a test.
+const PROBE_TIMEOUT: Duration = Duration::from_secs(30);
+/// The scope a probe runs under. It is not a caller's scope, so a probe never
+/// shares credential affinity with real traffic.
+const PROBE_SCOPE: &str = "gproxy-sdk:admin";
+/// What the usage row a probe writes is attributed to. A person looking at a
+/// month of spend should be able to see which of it was operators testing.
+const PROBE_KEY: &str = "admin-probe";
+
+pub struct Connectivity<'a, C> {
+    writer: Writer<'a, C>,
+}
+
+impl<'a, C> Connectivity<'a, C> {
+    pub(crate) fn new(writer: Writer<'a, C>) -> Self {
+        Self { writer }
+    }
+}
+
+impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
+    /// Ask Cloudflare what this deployment looks like from outside, through
+    /// the client chain the named scope would use.
+    ///
+    /// The scope decides the chain, exactly as assembly does: a credential's
+    /// own profile, else its provider's, else the channel's default, else the
+    /// instance default. `Proxy` is the odd one out — it tests a URL that is
+    /// not configured anywhere yet, which is the point of having it.
+    pub async fn test(&self, request: ConnectivityTest) -> SdkResult<ConnectivityResultDto> {
+        let client = self.probe_client(&request.scope).await?;
+        let started = Instant::now();
+        let outcome = rt::timeout(TRACE_TIMEOUT, trace(client.as_ref())).await;
+        let latency_ms = elapsed(started);
+        Ok(match outcome {
+            None => ConnectivityResultDto {
+                latency_ms,
+                error: Some("connectivity probe timed out".to_owned()),
+                ..Default::default()
+            },
+            Some(Err(error)) => ConnectivityResultDto {
+                latency_ms,
+                error: Some(error),
+                ..Default::default()
+            },
+            Some(Ok(trace)) => ConnectivityResultDto {
+                ok: true,
+                latency_ms,
+                ip: trace.0,
+                colo: trace.1,
+                error: None,
+            },
+        })
+    }
+
+    /// Generate once against one provider and report what came back.
+    ///
+    /// This spends a credential and writes a usage row; see the module note.
+    /// One attempt only: a probe that silently failed over would answer a
+    /// question nobody asked.
+    pub async fn model_test(&self, request: ModelTest) -> SdkResult<ModelTestResultDto> {
+        let snapshot = self.writer.core().snapshot();
+        let provider = provider(&snapshot, &request.provider_id)?;
+        let credentials = credentials(&snapshot, provider, request.credential_id.as_deref())?;
+        let dialect = native_dialect(provider, Operation::GenerateContent)?;
+        let model = crud::text(&request.model, "model")?;
+
+        let endpoint = gproxy_core::convert::generate_endpoint(dialect, &model, false)
+            .map_err(|error| SdkError::invalid(format!("no generation endpoint: {error}")))?;
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            http::header::CONTENT_TYPE,
+            http::HeaderValue::from_static("application/json"),
+        );
+        let body = probe_body(dialect, &model);
+        let wire = WireRequest {
+            method: http::Method::POST,
+            path: endpoint.path.clone(),
+            query: endpoint.query.clone(),
+            headers,
+            body: HttpBody::Bytes(Bytes::from(serde_json::to_vec(&body).unwrap_or_default())),
+        };
+        let context = self.context(
+            &snapshot,
+            OperationKey {
+                operation: Operation::GenerateContent,
+                dialect,
+            },
+            provider,
+            credentials,
+            Some(model.clone()),
+        );
+
+        let started = Instant::now();
+        let execution = match self.writer.core().generate_content(context, wire).await {
+            Ok(execution) => execution,
+            Err(error) => {
+                return Ok(ModelTestResultDto {
+                    latency_ms: elapsed(started),
+                    model,
+                    error: Some(error.to_string()),
+                    ..Default::default()
+                });
+            }
+        };
+        let (response, settled) = execution.into_parts();
+        let status = response.status;
+        // The body has to be read to the end before the funnel can settle, and
+        // a failure's body is also the only place the upstream says why.
+        let payload = read(response.body, TRACE_MAX_BYTES).await;
+        let usage = rt::timeout(TRACE_TIMEOUT, settled)
+            .await
+            .and_then(Result::ok)
+            .and_then(|report| reported(&report));
+        Ok(ModelTestResultDto {
+            ok: status.is_success(),
+            latency_ms: elapsed(started),
+            status: status.as_u16(),
+            model,
+            usage,
+            error: (!status.is_success()).then(|| upstream_error(status, &payload)),
+        })
+    }
+
+    /// Ask a provider what models it offers, and say which of them this
+    /// instance already knows and can already price.
+    ///
+    /// The directory is requested in the provider's own dialect, so nothing is
+    /// converted on the way back and the names are the upstream's own. Like
+    /// `model_test` this is a real call on a real credential.
+    pub async fn discover_models(
+        &self,
+        provider_id: &str,
+        credential_id: Option<&str>,
+    ) -> SdkResult<Vec<DiscoveredModelDto>> {
+        let snapshot = self.writer.core().snapshot();
+        let provider = provider(&snapshot, provider_id)?;
+        let credentials = credentials(&snapshot, provider, credential_id)?;
+        let dialect = native_dialect(provider, Operation::ListModels)?;
+        let path = directory_path(dialect);
+        let wire = WireRequest {
+            method: http::Method::GET,
+            path: path.to_owned(),
+            query: None,
+            headers: HeaderMap::new(),
+            body: HttpBody::Bytes(Bytes::new()),
+        };
+        let context = self.context(
+            &snapshot,
+            OperationKey {
+                operation: Operation::ListModels,
+                dialect,
+            },
+            provider,
+            credentials,
+            None,
+        );
+        let execution = self.writer.core().list_models(context, wire).await?;
+        let (response, settled) = execution.into_parts();
+        let status = response.status;
+        let payload = read(
+            response.body,
+            snapshot.limits.max_response_body_bytes as usize,
+        )
+        .await;
+        drop(rt::timeout(TRACE_TIMEOUT, settled).await);
+        if !status.is_success() {
+            return Err(SdkError::Upstream {
+                status: status.as_u16(),
+                body: upstream_error(status, &payload),
+            });
+        }
+        let document: Value = serde_json::from_slice(&payload).map_err(|error| {
+            SdkError::invalid(format!("the model directory is not JSON: {error}"))
+        })?;
+        let known: BTreeSet<&str> = provider
+            .models
+            .iter()
+            .map(|row| row.upstream_name.as_str())
+            .collect();
+        Ok(model_names(dialect, &document)
+            .into_iter()
+            .map(|upstream_name| DiscoveredModelDto {
+                known: known.contains(upstream_name.as_str()),
+                has_default_price: catalog::has_default_price(&upstream_name),
+                upstream_name,
+            })
+            .collect())
+    }
+
+    /// Add discovered names to a provider's catalog. Names it already offers
+    /// are left alone, so applying a discovery twice is the same as once.
+    pub async fn apply_discovered(
+        &self,
+        provider_id: &str,
+        upstream_names: Vec<String>,
+    ) -> SdkResult<Vec<String>> {
+        let provider_id = crud::text(provider_id, "providerId")?;
+        crud::require_rows(
+            self.writer.store().providers(),
+            "provider",
+            std::slice::from_ref(&provider_id),
+        )
+        .await?;
+        let existing: BTreeSet<String> = self
+            .writer
+            .store()
+            .provider_models()
+            .query(
+                provider_model::Entity::find()
+                    .filter(provider_model::Column::ProviderId.eq(&provider_id)),
+            )
+            .await?
+            .into_iter()
+            .map(|row| row.upstream_name)
+            .collect();
+
+        let mut added = Vec::new();
+        let mut statements = Vec::new();
+        for name in upstream_names {
+            let name = name.trim().to_owned();
+            if name.is_empty() || existing.contains(&name) || added.contains(&name) {
+                continue;
+            }
+            statements.push(BatchStatement::Execute(
+                self.writer.store().provider_models().insert_statement(
+                    provider_model::ActiveModel {
+                        id: Set(crate::ids::random_id()),
+                        provider_id: Set(provider_id.clone()),
+                        upstream_name: Set(name.clone()),
+                        model_id: Set(None),
+                        metadata: Set(Value::Object(Default::default())),
+                        enabled: Set(true),
+                    },
+                )?,
+            ));
+            added.push(name);
+        }
+        if !statements.is_empty() {
+            self.writer.commit(statements, &[Scope::Models]).await?;
+        }
+        Ok(added)
+    }
+
+    /// The client a probe of this scope should go out through.
+    async fn probe_client(&self, scope: &ConnectivityScope) -> SdkResult<Arc<dyn OutboundClient>> {
+        match scope {
+            ConnectivityScope::Global => {
+                let profile = self
+                    .writer
+                    .store()
+                    .settings()
+                    .get()
+                    .await?
+                    .and_then(|settings| settings.connection_profile_id);
+                let config = match profile {
+                    Some(id) => self.profile_config(&id).await?,
+                    None => ConnectionConfig::default(),
+                };
+                self.client(config).await
+            }
+            // The provider chain already lives in core; reimplementing it here
+            // would be a second answer to the same question.
+            ConnectivityScope::Provider { provider_id } => {
+                Ok(self.writer.core().provider_client(provider_id).await?)
+            }
+            // A credential's client is resolved once at assembly and held on
+            // the snapshot, so this is the very transport its calls use.
+            ConnectivityScope::Credential { credential_id } => self
+                .writer
+                .core()
+                .snapshot()
+                .credentials
+                .get(credential_id)
+                .map(|credential| credential.client.clone())
+                .ok_or_else(|| SdkError::not_found("credential", credential_id.clone())),
+            ConnectivityScope::Proxy { url } => {
+                let url = crud::url(url, "url")?;
+                self.client(ConnectionConfig {
+                    proxy: ProxyConfig::Explicit { url },
+                    ..ConnectionConfig::default()
+                })
+                .await
+            }
+        }
+    }
+
+    async fn profile_config(&self, id: &str) -> SdkResult<ConnectionConfig> {
+        let row = self
+            .writer
+            .store()
+            .connection_profiles()
+            .get_many(std::slice::from_ref(&id.to_owned()))
+            .await?
+            .into_iter()
+            .next()
+            .flatten()
+            .ok_or_else(|| SdkError::not_found("connection profile", id))?;
+        Ok(gproxy_core::assemble::connection_config(&row).map_err(gproxy_core::CoreError::from)?)
+    }
+
+    async fn client(&self, config: ConnectionConfig) -> SdkResult<Arc<dyn OutboundClient>> {
+        let client = self
+            .writer
+            .core()
+            .clients()
+            .get(&config)
+            .await
+            .map_err(|error| SdkError::invalid(format!("no usable client: {error}")))?;
+        Ok(client)
+    }
+
+    /// The context a probe executes under: no budgets, no session, one
+    /// attempt, a bounded deadline and an attribution that names it a probe.
+    fn context(
+        &self,
+        snapshot: &Arc<CoreData>,
+        operation: OperationKey,
+        provider: &Arc<ProviderData>,
+        credentials: Vec<Arc<CredentialData>>,
+        upstream_model: Option<String>,
+    ) -> Arc<RequestContext> {
+        Arc::new(RequestContext {
+            request_id: crate::ids::random_id(),
+            attribution: UsageAttribution {
+                api_key_id: Some(PROBE_KEY.to_owned()),
+                model: upstream_model.clone(),
+                ..Default::default()
+            },
+            snapshot: snapshot.clone(),
+            scope: PROBE_SCOPE.to_owned(),
+            session: None,
+            operation,
+            target: ExecutionTarget {
+                provider: provider.clone(),
+                upstream_model,
+                credentials,
+            },
+            budgets: Vec::new(),
+            max_attempts: NonZeroU32::MIN,
+            started_at_ms: rt::now_ms(),
+            deadline: Some(Instant::now() + PROBE_TIMEOUT),
+            cancellation: Default::default(),
+        })
+    }
+}
+
+fn provider<'a>(snapshot: &'a CoreData, id: &str) -> SdkResult<&'a Arc<ProviderData>> {
+    snapshot
+        .providers
+        .get(id)
+        .ok_or_else(|| SdkError::not_found("provider", id))
+}
+
+/// The credentials a probe may spend: the one that was named, or every one the
+/// provider has. An empty set is a configuration problem rather than a probe
+/// result, so it is an error.
+fn credentials(
+    snapshot: &CoreData,
+    provider: &Arc<ProviderData>,
+    credential_id: Option<&str>,
+) -> SdkResult<Vec<Arc<CredentialData>>> {
+    let chosen: Vec<Arc<CredentialData>> = provider
+        .credential_ids
+        .iter()
+        .filter(|id| credential_id.is_none_or(|wanted| wanted == id.as_str()))
+        .filter_map(|id| snapshot.credentials.get(id).cloned())
+        .collect();
+    if chosen.is_empty() {
+        return Err(match credential_id {
+            Some(id) => SdkError::invalid(format!(
+                "credential `{id}` does not belong to provider `{}`, or is not loaded",
+                provider.entity.id
+            )),
+            None => SdkError::NoTarget(provider.entity.id.clone()),
+        });
+    }
+    Ok(chosen)
+}
+
+/// The dialect this provider speaks natively for `operation`, so the probe is
+/// a passthrough and the answer is the upstream's own shape. The websocket
+/// envelope variant is skipped: it has no HTTP path.
+fn native_dialect(provider: &Arc<ProviderData>, operation: Operation) -> SdkResult<Dialect> {
+    provider
+        .channel
+        .native_dialects(
+            ProviderView {
+                id: &provider.entity.id,
+                channel: &provider.entity.channel,
+                base_url: provider.entity.base_url.as_deref(),
+                config: &provider.entity.config,
+            },
+            operation,
+        )
+        .into_iter()
+        .find(|dialect| !matches!(dialect, Dialect::OpenAiResponsesWebSocket))
+        .ok_or_else(|| {
+            SdkError::invalid(format!(
+                "channel `{}` speaks no HTTP dialect for {operation:?}",
+                provider.entity.channel
+            ))
+        })
+}
+
+/// The model directory path per family, mirroring core's own
+/// `convert::endpoints::list_models_path`, which is not re-exported. The
+/// websocket envelope variant never reaches here: `native_dialect` skips it.
+fn directory_path(dialect: Dialect) -> String {
+    match dialect {
+        Dialect::Gemini => "/v1beta/models".to_owned(),
+        _ => "/v1/models".to_owned(),
+    }
+}
+
+/// The smallest generation each family accepts. Small on purpose: this costs
+/// the operator money.
+fn probe_body(dialect: Dialect, model: &str) -> Value {
+    match dialect {
+        Dialect::OpenAi | Dialect::OpenAiResponsesWebSocket => json!({
+            "model": model,
+            "input": "ping",
+            "max_output_tokens": 16,
+        }),
+        Dialect::OpenAiChat => json!({
+            "model": model,
+            "messages": [{ "role": "user", "content": "ping" }],
+            "max_tokens": 16,
+        }),
+        Dialect::Claude => json!({
+            "model": model,
+            "messages": [{ "role": "user", "content": "ping" }],
+            "max_tokens": 16,
+        }),
+        Dialect::Gemini => json!({
+            "contents": [{ "role": "user", "parts": [{ "text": "ping" }] }],
+            "generationConfig": { "maxOutputTokens": 16 },
+        }),
+    }
+}
+
+/// The upstream names in a model directory, per family.
+///
+/// The protocol crate's wire types are the reference for where a name lives —
+/// `data[].id` for OpenAI and Claude, `models[].name` for Gemini — but they
+/// are also strict about every other field, and a compatible catalog that
+/// omits one still has usable names in it. Discovery reads the names it can
+/// see rather than refusing a directory over a field it does not need.
+fn model_names(dialect: Dialect, document: &Value) -> Vec<String> {
+    let (list, field, strip) = match dialect {
+        Dialect::Gemini => ("models", "name", true),
+        _ => ("data", "id", false),
+    };
+    let mut names: Vec<String> = document
+        .get(list)
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.get(field).and_then(Value::as_str))
+                .map(|name| match strip {
+                    // Gemini names a model `models/gemini-…`; the resource
+                    // prefix is not part of the name a request sends.
+                    true => name.strip_prefix("models/").unwrap_or(name).to_owned(),
+                    false => name.to_owned(),
+                })
+                .filter(|name| !name.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    names.sort();
+    names.dedup();
+    names
+}
+
+/// What the upstream said it spent. A conversion reports the downstream view;
+/// a passthrough reports none and its exchanges are the request, which is the
+/// same rule the store observer writes a usage row by.
+fn reported(report: &gproxy_core::UsageReport) -> Option<UsageTokensDto> {
+    if let Some(usage) = &report.downstream_usage {
+        return Some(tokens(usage));
+    }
+    if report.exchanges.is_empty() {
+        return None;
+    }
+    Some(tokens(&NormalizedUsage::aggregate(
+        report.exchanges.iter().map(|exchange| &exchange.usage),
+    )))
+}
+
+fn tokens(usage: &NormalizedUsage) -> UsageTokensDto {
+    UsageTokensDto {
+        input_tokens: usage.tokens.input_tokens,
+        output_tokens: usage.tokens.output_tokens,
+        cached_input_tokens: usage.tokens.cached_input_tokens,
+        cache_creation_5m_tokens: usage.tokens.cache_creation_5m_tokens,
+        cache_creation_30m_tokens: usage.tokens.cache_creation_30m_tokens,
+        cache_creation_1h_tokens: usage.tokens.cache_creation_1h_tokens,
+        reasoning_tokens: usage.tokens.reasoning_tokens,
+    }
+}
+
+/// `GET https://www.cloudflare.com/cdn-cgi/trace`, and the `ip=` and `colo=`
+/// lines out of the `key=value` body it answers with.
+async fn trace(client: &dyn OutboundClient) -> Result<(Option<String>, Option<String>), String> {
+    let request = http::Request::builder()
+        .method(http::Method::GET)
+        .uri(TRACE_URL)
+        .header(http::header::ACCEPT, "text/plain")
+        .body(HttpBody::Bytes(Bytes::new()))
+        .map_err(|error| error.to_string())?;
+    let response = client
+        .send(request)
+        .await
+        .map_err(|error| error.to_string())?;
+    if !response.status.is_success() {
+        return Err(format!(
+            "connectivity probe returned {}",
+            response.status.as_u16()
+        ));
+    }
+    let body = read(response.body, TRACE_MAX_BYTES).await;
+    let text = String::from_utf8_lossy(&body);
+    let value = |key: &str| {
+        text.lines().find_map(|line| {
+            let (name, found) = line.split_once('=')?;
+            (name.trim() == key).then(|| found.trim().to_owned())
+        })
+    };
+    let ip = value("ip").filter(|value| !value.is_empty());
+    if ip.is_none() {
+        return Err("connectivity probe did not report an egress address".to_owned());
+    }
+    Ok((ip, value("colo").filter(|value| !value.is_empty())))
+}
+
+/// Read a body up to `max_bytes`, keeping whatever arrived. A truncated or
+/// failed body is not an error here: the status and the prefix are already
+/// enough to report.
+async fn read(body: HttpBody, max_bytes: usize) -> Vec<u8> {
+    match body {
+        HttpBody::Bytes(bytes) => bytes.into_iter().take(max_bytes).collect(),
+        HttpBody::Stream(mut stream) => {
+            let mut out = Vec::new();
+            while let Some(Ok(chunk)) = stream.next().await {
+                let room = max_bytes.saturating_sub(out.len());
+                if room == 0 {
+                    break;
+                }
+                out.extend_from_slice(&chunk[..chunk.len().min(room)]);
+            }
+            out
+        }
+    }
+}
+
+fn upstream_error(status: http::StatusCode, body: &[u8]) -> String {
+    let text = String::from_utf8_lossy(body);
+    let text = text.trim();
+    match text.is_empty() {
+        true => format!("upstream answered {}", status.as_u16()),
+        false => format!("upstream answered {}: {text}", status.as_u16()),
+    }
+}
+
+fn elapsed(started: Instant) -> u64 {
+    u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
+}
