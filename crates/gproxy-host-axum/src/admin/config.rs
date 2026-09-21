@@ -242,18 +242,21 @@ async fn reset_routing_defaults<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    // A row count, not a row: the answer is how much was dropped.
-    match state
-        .app()
-        .gproxy()
-        .manage()
-        .providers()
-        .reset_routing_defaults(&id)
-        .await
-    {
-        Ok(cleared) => crate::error::ok_json(&serde_json::json!({ "cleared": cleared })),
-        Err(error) => ErrorResponse(AppError::from(error)).into_response(),
-    }
+    crate::send(async move {
+        // A row count, not a row: the answer is how much was dropped.
+        match state
+            .app()
+            .gproxy()
+            .manage()
+            .providers()
+            .reset_routing_defaults(&id)
+            .await
+        {
+            Ok(cleared) => crate::error::ok_json(&serde_json::json!({ "cleared": cleared })),
+            Err(error) => ErrorResponse(AppError::from(error)).into_response(),
+        }
+    })
+    .await
 }
 
 // ----------------------------------------------------------- credentials --
@@ -268,7 +271,7 @@ async fn reveal_secret<C>(State(state): State<HostState<C>>, Path(id): Path<Stri
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, credentials().reveal_secret(&id))
+    crate::send(async move { manage!(state, credentials().reveal_secret(&id)) }).await
 }
 
 #[derive(Deserialize)]
@@ -287,10 +290,13 @@ async fn set_status<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(
-        state,
-        credentials().set_status(&id, body.status, body.reason)
-    )
+    crate::send(async move {
+        manage!(
+            state,
+            credentials().set_status(&id, body.status, body.reason)
+        )
+    })
+    .await
 }
 
 /// `?force=true` renews material that has not expired yet, which is what an
@@ -320,42 +326,42 @@ async fn refresh<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, credentials().refresh(&id, query.mode()))
+    crate::send(async move { manage!(state, credentials().refresh(&id, query.mode())) }).await
 }
 
 async fn quota_read<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, credentials().quota_read(&id))
+    crate::send(async move { manage!(state, credentials().quota_read(&id)) }).await
 }
 
 async fn quota_probe<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, credentials().quota_probe(&id))
+    crate::send(async move { manage!(state, credentials().quota_probe(&id)) }).await
 }
 
 async fn quota_reset<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, credentials().quota_reset(&id))
+    crate::send(async move { manage!(state, credentials().quota_reset(&id)) }).await
 }
 
 async fn health_reset<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, credentials().health_reset(&id))
+    crate::send(async move { manage!(state, credentials().health_reset(&id)) }).await
 }
 
 async fn limit_status<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, credentials().limit_status(&id))
+    crate::send(async move { manage!(state, credentials().limit_status(&id)) }).await
 }
 
 // ---------------------------------------------------------------- models --
@@ -378,10 +384,13 @@ async fn discover_models<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(
-        state,
-        connectivity().discover_models(&body.provider_id, body.credential_id.as_deref())
-    )
+    crate::send(async move {
+        manage!(
+            state,
+            connectivity().discover_models(&body.provider_id, body.credential_id.as_deref())
+        )
+    })
+    .await
 }
 
 #[derive(Deserialize)]
@@ -399,10 +408,13 @@ async fn apply_discovered<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(
-        state,
-        connectivity().apply_discovered(&body.provider_id, body.upstream_names)
-    )
+    crate::send(async move {
+        manage!(
+            state,
+            connectivity().apply_discovered(&body.provider_id, body.upstream_names)
+        )
+    })
+    .await
 }
 
 async fn model_test<C>(
@@ -412,7 +424,7 @@ async fn model_test<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, connectivity().model_test(request))
+    crate::send(async move { manage!(state, connectivity().model_test(request)) }).await
 }
 
 // -------------------------------------------------------------- settings --
@@ -421,7 +433,7 @@ async fn read_settings<C>(State(state): State<HostState<C>>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, settings().get())
+    crate::send(async move { manage!(state, settings().get()) }).await
 }
 
 async fn patch_settings<C>(
@@ -431,7 +443,7 @@ async fn patch_settings<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, settings().update(patch))
+    crate::send(async move { manage!(state, settings().update(patch)) }).await
 }
 
 // --------------------------------------------------------------- rewrite --
@@ -446,7 +458,7 @@ async fn replace_rules<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, rewrite().replace_rules(&id, rules))
+    crate::send(async move { manage!(state, rewrite().replace_rules(&id, rules)) }).await
 }
 
 /// Both ids come from the path, so a body cannot point the write at a
@@ -458,13 +470,16 @@ async fn apply_rule_preset<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(
-        state,
-        catalog().apply_rule_preset(ApplyRulePreset {
-            rule_set_id,
-            preset_id,
-        })
-    )
+    crate::send(async move {
+        manage!(
+            state,
+            catalog().apply_rule_preset(ApplyRulePreset {
+                rule_set_id,
+                preset_id,
+            })
+        )
+    })
+    .await
 }
 
 // ---------------------------------------------------------------- quotas --
@@ -488,35 +503,38 @@ async fn budget_status<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    let mut owners = Vec::new();
-    for pair in query
-        .owners
-        .split(',')
-        .map(str::trim)
-        .filter(|pair| !pair.is_empty())
-    {
-        // Only the first colon splits: an owner kind never contains one, and
-        // an id supplied by a host might.
-        match pair.split_once(':') {
-            Some((kind, id)) if !kind.is_empty() && !id.is_empty() => {
-                owners.push(BudgetOwner::new(kind, id));
-            }
-            _ => {
-                return ErrorResponse(AppError::invalid(format!(
-                    "owner `{pair}` is not in `kind:id` form"
-                )))
-                .into_response();
+    crate::send(async move {
+        let mut owners = Vec::new();
+        for pair in query
+            .owners
+            .split(',')
+            .map(str::trim)
+            .filter(|pair| !pair.is_empty())
+        {
+            // Only the first colon splits: an owner kind never contains one, and
+            // an id supplied by a host might.
+            match pair.split_once(':') {
+                Some((kind, id)) if !kind.is_empty() && !id.is_empty() => {
+                    owners.push(BudgetOwner::new(kind, id));
+                }
+                _ => {
+                    return ErrorResponse(AppError::invalid(format!(
+                        "owner `{pair}` is not in `kind:id` form"
+                    )))
+                    .into_response();
+                }
             }
         }
-    }
-    manage!(state, quotas().budget_status(&owners))
+        manage!(state, quotas().budget_status(&owners))
+    })
+    .await
 }
 
 async fn reset_budget<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, quotas().reset_budget(&id))
+    crate::send(async move { manage!(state, quotas().reset_budget(&id)) }).await
 }
 
 /// The other half of the same table: a `credential` or `provider` row is an
@@ -526,7 +544,7 @@ async fn reset_limit<C>(State(state): State<HostState<C>>, Path(id): Path<String
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, quotas().reset_limit(&id))
+    crate::send(async move { manage!(state, quotas().reset_limit(&id)) }).await
 }
 
 // -------------------------------------------------------------- transfer --
@@ -541,19 +559,22 @@ async fn export<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    let mut response = reply_sdk(
-        state
-            .app()
-            .gproxy()
-            .manage()
-            .transfer()
-            .export(request)
-            .await,
-    );
-    response
-        .headers_mut()
-        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-    response
+    crate::send(async move {
+        let mut response = reply_sdk(
+            state
+                .app()
+                .gproxy()
+                .manage()
+                .transfer()
+                .export(request)
+                .await,
+        );
+        response
+            .headers_mut()
+            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+        response
+    })
+    .await
 }
 
 async fn import<C>(
@@ -563,7 +584,7 @@ async fn import<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, transfer().import(request))
+    crate::send(async move { manage!(state, transfer().import(request)) }).await
 }
 
 // ---------------------------------------------------------- connectivity --
@@ -575,7 +596,7 @@ async fn connectivity_test<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, connectivity().test(request))
+    crate::send(async move { manage!(state, connectivity().test(request)) }).await
 }
 
 // --------------------------------------------------------------- catalog --
@@ -586,21 +607,30 @@ async fn channels<C>(State(state): State<HostState<C>>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::error::ok_json(&state.app().gproxy().manage().catalog().channels())
+    crate::send(async move {
+        crate::error::ok_json(&state.app().gproxy().manage().catalog().channels())
+    })
+    .await
 }
 
 async fn tls_presets<C>(State(state): State<HostState<C>>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::error::ok_json(&state.app().gproxy().manage().catalog().tls_presets())
+    crate::send(async move {
+        crate::error::ok_json(&state.app().gproxy().manage().catalog().tls_presets())
+    })
+    .await
 }
 
 async fn rule_presets<C>(State(state): State<HostState<C>>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::error::ok_json(&state.app().gproxy().manage().catalog().rule_presets())
+    crate::send(async move {
+        crate::error::ok_json(&state.app().gproxy().manage().catalog().rule_presets())
+    })
+    .await
 }
 
 /// The prices and context windows this release was built with. It is parsed
@@ -609,7 +639,8 @@ async fn default_models<C>(State(state): State<HostState<C>>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    reply_sdk(state.app().gproxy().manage().catalog().default_models())
+    crate::send(async move { reply_sdk(state.app().gproxy().manage().catalog().default_models()) })
+        .await
 }
 
 async fn apply_default_prices<C>(
@@ -619,7 +650,7 @@ async fn apply_default_prices<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, catalog().apply_default_prices(request))
+    crate::send(async move { manage!(state, catalog().apply_default_prices(request)) }).await
 }
 
 // ------------------------------------------------------------- tokenizer --
@@ -628,7 +659,7 @@ async fn vocabularies<C>(State(state): State<HostState<C>>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, tokenizer().vocabularies())
+    crate::send(async move { manage!(state, tokenizer().vocabularies()) }).await
 }
 
 async fn fetch_vocabulary<C>(
@@ -638,7 +669,7 @@ async fn fetch_vocabulary<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, tokenizer().fetch(request))
+    crate::send(async move { manage!(state, tokenizer().fetch(request)) }).await
 }
 
 /// How far the download running **in this process** has got. A peer's is
@@ -647,21 +678,24 @@ async fn fetch_progress<C>(State(state): State<HostState<C>>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::error::ok_json(&state.app().gproxy().manage().tokenizer().progress())
+    crate::send(async move {
+        crate::error::ok_json(&state.app().gproxy().manage().tokenizer().progress())
+    })
+    .await
 }
 
 async fn delete_vocabulary<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(@empty state, tokenizer().delete(&id))
+    crate::send(async move { manage!(@empty state, tokenizer().delete(&id)) }).await
 }
 
 async fn tokenizer_auth<C>(State(state): State<HostState<C>>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, tokenizer().auth())
+    crate::send(async move { manage!(state, tokenizer().auth()) }).await
 }
 
 #[derive(Deserialize)]
@@ -679,7 +713,7 @@ async fn set_tokenizer_auth<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    manage!(state, tokenizer().set_auth(body.token))
+    crate::send(async move { manage!(state, tokenizer().set_auth(body.token)) }).await
 }
 
 /// The other deliberate disclosure, for the same reason as `reveal_secret`:
@@ -688,15 +722,18 @@ async fn reveal_tokenizer_auth<C>(State(state): State<HostState<C>>) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    match state
-        .app()
-        .gproxy()
-        .manage()
-        .tokenizer()
-        .reveal_auth()
-        .await
-    {
-        Ok(token) => crate::error::ok_json(&serde_json::json!({ "token": token })),
-        Err(error) => ErrorResponse(AppError::from(error)).into_response(),
-    }
+    crate::send(async move {
+        match state
+            .app()
+            .gproxy()
+            .manage()
+            .tokenizer()
+            .reveal_auth()
+            .await
+        {
+            Ok(token) => crate::error::ok_json(&serde_json::json!({ "token": token })),
+            Err(error) => ErrorResponse(AppError::from(error)).into_response(),
+        }
+    })
+    .await
 }

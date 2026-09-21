@@ -6,8 +6,18 @@ GPROXY v4 的原生 HTTP 宿主：架在 [`gproxy-app`](../gproxy-app) 之上的
 [axum](https://docs.rs/axum) 路由。它是一层**传输绑定**——把字节变成
 `gproxy-app` 暴露的带类型调用，再把结果变回字节，自己不含任何产品行为。
 
-仅限原生。它依赖 axum、hyper 与 tokio，三者都不能在
-`wasm32-unknown-unknown` 上运行；边缘部署是另一个宿主，跑同一套操作。
+能编到原生目标，**也能编到 `wasm32-unknown-unknown`**，而且两边是同一张 `Router`：
+[`gproxy-host-edge`](../gproxy-host-edge) 把它挂进 Cloudflare Workers 的 fetch
+处理器，而不是把路由表再写一遍。wasm 构建里少掉的都是"插座形状"的东西，从来不是路由
+——内嵌 console（`rust-embed` 和文件系统）、websocket 升级（hyper 的 `OnUpgrade`）、
+以及 `peer_ip` 用的 `ConnectInfo`（axum 的 `tokio` feature，在那边换成
+`cf-connecting-ip`）。
+
+wasm 目标对 handler 的唯一要求是函数体外面包一层 `crate::send`。wasm 上引擎按设计
+就是 `!Send`——JS 传输句柄属于创建它的 isolate——而 axum 的 `Handler` 要求
+`Future: Send`。`send` 在原生是恒等函数，在那边是 `send_wrapper::SendWrapper`，
+所以漏包的 handler 会让 wasm 构建报一条点名到它的错，而不是错在别处、或者在边缘
+悄无声息地不存在。完整结论在那个 crate 的 README 里。
 
 ```rust,ignore
 let app = Arc::new(App::new(gproxy, config));

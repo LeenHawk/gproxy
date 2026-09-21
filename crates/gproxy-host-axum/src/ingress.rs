@@ -72,19 +72,22 @@ pub async fn handle<C>(State(state): State<HostState<C>>, request: Request) -> R
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    let origins = &state.app().config().cors_origins;
-    let origin = policy::allowed_origin(request.headers(), origins);
-    if policy::is_preflight(request.method(), request.headers()) {
-        // A preflight is never forwarded: it asks this instance what it will
-        // accept, and the upstream has no opinion about that.
-        return policy::apply_preflight_cors(
-            StatusCode::NO_CONTENT.into_response(),
-            origin.as_ref(),
-            request.headers(),
-        );
-    }
-    let response = dispatch(&state, request).await;
-    policy::apply_cors(response, origin.as_ref())
+    crate::send(async move {
+        let origins = &state.app().config().cors_origins;
+        let origin = policy::allowed_origin(request.headers(), origins);
+        if policy::is_preflight(request.method(), request.headers()) {
+            // A preflight is never forwarded: it asks this instance what it
+            // will accept, and the upstream has no opinion about that.
+            return policy::apply_preflight_cors(
+                StatusCode::NO_CONTENT.into_response(),
+                origin.as_ref(),
+                request.headers(),
+            );
+        }
+        let response = dispatch(&state, request).await;
+        policy::apply_cors(response, origin.as_ref())
+    })
+    .await
 }
 
 async fn dispatch<C>(state: &HostState<C>, request: Request) -> Response
@@ -136,6 +139,10 @@ where
         return response;
     }
 
+    // A Worker serves its console from Workers Assets, in front of this
+    // handler and without waking the isolate; the embedded bundle is native
+    // only. See the `console` row in the crate-level table.
+    #[cfg(not(target_arch = "wasm32"))]
     if let Some(response) = state.console().serve(&parts.method, &path).await {
         return response;
     }

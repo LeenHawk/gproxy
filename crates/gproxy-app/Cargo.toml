@@ -48,6 +48,10 @@ web-time = { workspace = true }
 tokio = { version = "1", default-features = false, features = ["rt"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+# `App` has to be `Send + Sync` for a host to put it in a request-scoped state,
+# and the engine under it is `!Send` on this target by design. See `Handle` in
+# `lib.rs`: one wrapper, one isolate, checked at runtime.
+send_wrapper = { workspace = true }
 wasm-bindgen-futures = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]

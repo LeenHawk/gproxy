@@ -7,9 +7,21 @@ The native HTTP host for GPROXY v4: an [axum](https://docs.rs/axum) router over
 into the typed calls `gproxy-app` exposes and turns their answers back into
 bytes, and it contains no product behaviour of its own.
 
-Native only. It binds axum, hyper and tokio, none of which run on
-`wasm32-unknown-unknown`; the edge deployment is a separate host over the same
-operations.
+Builds for a native target **and for `wasm32-unknown-unknown`**, and the same
+`Router` serves both: [`gproxy-host-edge`](../gproxy-host-edge) mounts this one
+inside a Cloudflare Workers fetch handler rather than writing the route table a
+second time. What the wasm build leaves out is socket-shaped and never a route
+— the embedded console (`rust-embed` and a filesystem), the websocket upgrade
+(hyper's `OnUpgrade`), and `peer_ip`'s `ConnectInfo` (axum's `tokio` feature,
+replaced there by `cf-connecting-ip`).
+
+The one thing the wasm target asks of a handler is `crate::send` around its
+body. On wasm the engine below is `!Send` on purpose — a JS transport handle
+belongs to the isolate that made it — while axum's `Handler` requires
+`Future: Send`. `send` is the identity function natively and a
+`send_wrapper::SendWrapper` there, so a handler that forgets it fails the wasm
+build naming itself, instead of failing somewhere else or silently not
+existing at the edge. That crate's README has the whole finding.
 
 ```rust,ignore
 let app = Arc::new(App::new(gproxy, config));

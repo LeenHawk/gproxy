@@ -88,9 +88,9 @@ macro_rules! family {
             .route(
                 concat!($path, "/{id}"),
                 item!($family, $patch).delete(
-                    |State(state): State<HostState<C>>, Path(id): Path<String>| async move {
+                    |State(state): State<HostState<C>>, Path(id): Path<String>| crate::send(async move {
                         operations!(@empty state, $family.delete(&id))
-                    },
+                    }),
                 ),
             )
     };
@@ -100,13 +100,13 @@ macro_rules! family {
 macro_rules! collection {
     ($family:ident, $write:ty) => {
         get(
-            |State(state): State<HostState<C>>, Query(query): Query<ListQuery>| async move {
-                operations!(state, $family.list(query))
+            |State(state): State<HostState<C>>, Query(query): Query<ListQuery>| {
+                crate::send(async move { operations!(state, $family.list(query)) })
             },
         )
         .post(
-            |State(state): State<HostState<C>>, Json(write): Json<$write>| async move {
-                operations!(state, $family.create(write))
+            |State(state): State<HostState<C>>, Json(write): Json<$write>| {
+                crate::send(async move { operations!(state, $family.create(write)) })
             },
         )
     };
@@ -118,15 +118,15 @@ macro_rules! collection {
 macro_rules! item {
     ($family:ident, $patch:ty) => {
         get(
-            |State(state): State<HostState<C>>, Path(id): Path<String>| async move {
-                operations!(state, $family.get(&id))
+            |State(state): State<HostState<C>>, Path(id): Path<String>| {
+                crate::send(async move { operations!(state, $family.get(&id)) })
             },
         )
         .patch(
             |State(state): State<HostState<C>>,
              Path(id): Path<String>,
-             Json(patch): Json<$patch>| async move {
-                operations!(state, $family.update(&id, patch))
+             Json(patch): Json<$patch>| {
+                crate::send(async move { operations!(state, $family.update(&id, patch)) })
             },
         )
     };
@@ -184,9 +184,9 @@ macro_rules! config_family {
                 concat!($path, "/batch"),
                 post(
                     |State(state): State<HostState<C>>,
-                     Json(items): Json<Vec<BatchItem<$write, $patch>>>| async move {
+                     Json(items): Json<Vec<BatchItem<$write, $patch>>>| crate::send(async move {
                         manage!(state, $($family)+.batch(items))
-                    },
+                    }),
                 ),
             )
             .route(concat!($path, "/{id}"), config_item!([$($family)+], $patch))
@@ -197,14 +197,14 @@ macro_rules! config_family {
 macro_rules! config_collection {
     ([$($family:tt)+], $write:ty) => {
         get(
-            |State(state): State<HostState<C>>, Query(query): Query<ListQuery>| async move {
+            |State(state): State<HostState<C>>, Query(query): Query<ListQuery>| crate::send(async move {
                 manage!(state, $($family)+.list(query))
-            },
+            }),
         )
         .post(
-            |State(state): State<HostState<C>>, Json(write): Json<$write>| async move {
+            |State(state): State<HostState<C>>, Json(write): Json<$write>| crate::send(async move {
                 manage!(state, $($family)+.create(write))
-            },
+            }),
         )
     };
 }
@@ -215,21 +215,21 @@ macro_rules! config_collection {
 macro_rules! config_item {
     ([$($family:tt)+], $patch:ty) => {
         get(
-            |State(state): State<HostState<C>>, Path(id): Path<String>| async move {
+            |State(state): State<HostState<C>>, Path(id): Path<String>| crate::send(async move {
                 manage!(state, $($family)+.get(&id))
-            },
+            }),
         )
         .patch(
             |State(state): State<HostState<C>>,
              Path(id): Path<String>,
-             Json(patch): Json<$patch>| async move {
+             Json(patch): Json<$patch>| crate::send(async move {
                 manage!(state, $($family)+.update(&id, patch))
-            },
+            }),
         )
         .delete(
-            |State(state): State<HostState<C>>, Path(id): Path<String>| async move {
+            |State(state): State<HostState<C>>, Path(id): Path<String>| crate::send(async move {
                 manage!(@empty state, $($family)+.delete(&id))
-            },
+            }),
         )
     };
 }
@@ -256,26 +256,29 @@ async fn guard<C>(State(state): State<HostState<C>>, mut request: Request, next:
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    // Copied out because `Next::run` consumes the request and a borrow of one
-    // cannot cross an await; see `session::authenticate`.
-    let method = request.method().clone();
-    let headers = request.headers().clone();
-    let action = session::audit_action("admin", crate::matched_path(&request), &method);
-    let caller = match session::authenticate(state.app(), &method, &headers).await {
-        Ok(caller) => caller,
-        Err(error) => return ErrorResponse(error).into_response(),
-    };
-    if !caller.is_instance_admin() {
-        return ErrorResponse(AppError::forbidden(
-            "the administration API is for instance administrators",
-        ))
-        .into_response();
-    }
-    request.extensions_mut().insert(caller.clone());
-    let response = next.run(request).await;
-    let status = response.status();
-    audit(state, caller, action, &method, status).await;
-    response
+    crate::send(async move {
+        // Copied out because `Next::run` consumes the request and a borrow of one
+        // cannot cross an await; see `session::authenticate`.
+        let method = request.method().clone();
+        let headers = request.headers().clone();
+        let action = session::audit_action("admin", crate::matched_path(&request), &method);
+        let caller = match session::authenticate(state.app(), &method, &headers).await {
+            Ok(caller) => caller,
+            Err(error) => return ErrorResponse(error).into_response(),
+        };
+        if !caller.is_instance_admin() {
+            return ErrorResponse(AppError::forbidden(
+                "the administration API is for instance administrators",
+            ))
+            .into_response();
+        }
+        request.extensions_mut().insert(caller.clone());
+        let response = next.run(request).await;
+        let status = response.status();
+        audit(state, caller, action, &method, status).await;
+        response
+    })
+    .await
 }
 
 /// Append the trail row for a write.
@@ -302,20 +305,23 @@ pub(crate) async fn audit<C>(
 ) where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    if matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS) {
-        return;
-    }
-    let mut entry = AuditEntry::new(action)
-        .by(&caller)
-        .detail(serde_json::json!({ "status": status.as_u16() }));
-    if !status.is_success() {
-        entry.outcome = audit_event::OUTCOME_ERROR.to_owned();
-    }
-    let data = state.app().data();
-    Operations::new(state.app().gproxy(), &data, state.app().config())
-        .audit()
-        .try_record(entry)
-        .await;
+    crate::send(async move {
+        if matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS) {
+            return;
+        }
+        let mut entry = AuditEntry::new(action)
+            .by(&caller)
+            .detail(serde_json::json!({ "status": status.as_u16() }));
+        if !status.is_success() {
+            entry.outcome = audit_event::OUTCOME_ERROR.to_owned();
+        }
+        let data = state.app().data();
+        Operations::new(state.app().gproxy(), &data, state.app().config())
+            .audit()
+            .try_record(entry)
+            .await;
+    })
+    .await
 }
 
 /// One operation's answer as a response.

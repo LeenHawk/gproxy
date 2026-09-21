@@ -14,6 +14,7 @@ members = [
     "crates/gproxy-sdk",
     "crates/gproxy-app",
     "crates/gproxy-host-axum",
+    "crates/gproxy-host-edge",
     "crates/gproxy",
     "crates/gproxy-host-tauri",
 ]
@@ -48,6 +49,7 @@ default-members = [
     "crates/gproxy-sdk",
     "crates/gproxy-app",
     "crates/gproxy-host-axum",
+    "crates/gproxy-host-edge",
     "crates/gproxy",
 ]
 
@@ -78,6 +80,7 @@ gproxy-client = { path = "crates/gproxy-client", version = "=4.0.0-dev", default
 gproxy-cache = { path = "crates/gproxy-cache", version = "=4.0.0-dev", default-features = false }
 gproxy-file = { path = "crates/gproxy-file", version = "=4.0.0-dev", default-features = false }
 gproxy-host-axum = { path = "crates/gproxy-host-axum", version = "=4.0.0-dev" }
+gproxy-host-edge = { path = "crates/gproxy-host-edge", version = "=4.0.0-dev" }
 gproxy-host-tauri = { path = "crates/gproxy-host-tauri", version = "=4.0.0-dev" }
 gproxy-protocol = { path = "crates/gproxy-protocol", version = "=4.0.0-dev", features = ["exhaustive"] }
 gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=4.0.0-dev" }

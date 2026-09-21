@@ -7,12 +7,13 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
-# This crate is native-only on purpose. It binds axum, hyper and tokio, none of
-# which run on `wasm32-unknown-unknown`; the edge deployment is a separate host
-# (`gproxy-host-edge`) over the same `gproxy-app` operations. Nothing here is
-# behind a `cfg(target_arch)`, and no wasm target is attempted.
+# Two targets, one router. Natively this binds axum over hyper and tokio; on
+# `wasm32-unknown-unknown` it binds the same `Router` with axum's server halves
+# switched off, so `gproxy-host-edge` can drive it from a Workers fetch handler
+# instead of writing the route table a second time. What the wasm build leaves
+# out is listed in that crate's README — the socket-shaped pieces (hyper
+# upgrades, `ConnectInfo`, the embedded console), never a route.
 [dependencies]
-axum = { workspace = true }
 bytes = { workspace = true }
 futures-core = { workspace = true }
 futures-util = { workspace = true }
@@ -24,20 +25,40 @@ gproxy-sdk = { workspace = true }
 gproxy-seaorm = { workspace = true }
 gproxy-store = { workspace = true }
 http = { workspace = true }
-mime_guess = { workspace = true }
-# The console bundle, when one was built into the binary. The folder is empty
-# in a source checkout, which is what makes `/console` answer 404 rather than
-# pretend to serve an application that is not there.
-rust-embed = { workspace = true }
 # The one request content-encoding this gateway decodes itself: the Codex CLI
 # sends zstd, and a channel forwards bytes rather than framing.
 ruzstd = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_urlencoded = { workspace = true }
-tokio = { workspace = true }
 tokio-util = { workspace = true }
 tracing = { workspace = true }
+# `SystemTime::now()` inside a Worker isolate, where `std::time` has no clock.
+web-time = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+axum = { workspace = true }
+mime_guess = { workspace = true }
+# The console bundle, when one was built into the binary. The folder is empty
+# in a source checkout, which is what makes `/console` answer 404 rather than
+# pretend to serve an application that is not there.
+rust-embed = { workspace = true }
+tokio = { workspace = true }
+
+# The extractors the routers use and nothing else: no `http1`/`http2` (hyper is
+# a server), no `tokio` (which is what `ConnectInfo` and `axum::serve` hang
+# off), no `ws` (a Workers upgrade is a `WebSocketPair`, not a hyper upgrade).
+# `Router` itself is target-independent, which is the whole point.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+axum = { version = "0.8", default-features = false, features = [
+    "json",
+    "matched-path",
+    "query",
+] }
+# A JS handle is thread-bound, so on wasm the engine below this crate is `!Send`
+# by design and axum's handler bound is not. `send_wrapper` is the bridge, and
+# `crate::send` is the only place that names it.
+send_wrapper = { workspace = true }
 
 [dev-dependencies]
 async-trait = { workspace = true }

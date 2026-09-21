@@ -1,0 +1,95 @@
+[package]
+name = "gproxy-host-edge"
+description = "The Cloudflare Workers host for GPROXY v4: a fetch handler over the gproxy-host-axum router"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+# `cdylib` is what `worker-build` links into the Worker; `rlib` is what the
+# native `cargo check`/`cargo test` of this workspace sees, and it is what
+# keeps `config.rs`'s tests runnable on the host target.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# D1 is the default store because it is the one a Worker has without an
+# account anywhere else, and the database-backed cache is the only one an
+# isolate can share. `bundled-vocabulary` is deliberately absent: it is
+# hundreds of kilobytes of tokenizer in a binary Cloudflare size-limits.
+default = ["channels", "d1"]
+
+# Which store backends this build can open. Naming neither leaves the Worker
+# with nothing to connect to, and assembly says so.
+d1 = ["gproxy-sdk/d1"]
+libsql = ["gproxy-sdk/libsql", "gproxy-client/libsql"]
+
+# Object storage for published bodies and downloaded vocabularies. S3 (and
+# therefore R2, which speaks it) is the only one at the edge; there is no
+# filesystem.
+s3 = ["gproxy-sdk/s3", "gproxy-file/s3"]
+
+# Ship DeepSeek's vocabulary for models without a catalogue vocabulary file.
+# Costs binary size a Worker pays for; off unless a deployment needs it.
+bundled-vocabulary = ["gproxy-sdk/bundled-vocabulary"]
+
+# Channels, forwarded to the sdk exactly as the `gproxy` binary forwards them.
+channels = ["gproxy-sdk/channels"]
+aistudio = ["gproxy-sdk/aistudio"]
+antigravity = ["gproxy-sdk/antigravity"]
+aws_bedrock = ["gproxy-sdk/aws_bedrock"]
+azure = ["gproxy-sdk/azure"]
+claudeapi = ["gproxy-sdk/claudeapi"]
+claudecode = ["gproxy-sdk/claudecode"]
+claudeweb = ["gproxy-sdk/claudeweb"]
+cline = ["gproxy-sdk/cline"]
+codex = ["gproxy-sdk/codex"]
+copilotcli = ["gproxy-sdk/copilotcli"]
+custom = ["gproxy-sdk/custom"]
+dashscope = ["gproxy-sdk/dashscope"]
+deepseek = ["gproxy-sdk/deepseek"]
+devin = ["gproxy-sdk/devin"]
+geminicli = ["gproxy-sdk/geminicli"]
+grokbuild = ["gproxy-sdk/grokbuild"]
+kimi = ["gproxy-sdk/kimi"]
+kiro = ["gproxy-sdk/kiro"]
+openai = ["gproxy-sdk/openai"]
+opencode = ["gproxy-sdk/opencode"]
+openrouter = ["gproxy-sdk/openrouter"]
+vertex = ["gproxy-sdk/vertex"]
+vertexexpress = ["gproxy-sdk/vertexexpress"]
+workbuddy = ["gproxy-sdk/workbuddy"]
+xai = ["gproxy-sdk/xai"]
+
+# `config.rs` is plain data and is tested on the host target; everything else
+# in this crate is behind `cfg(target_arch = "wasm32")` and only these three
+# dependencies are needed to compile it.
+[dependencies]
+gproxy-app = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# `Body` in the response type the fetch handler returns. The router itself
+# comes from `gproxy-host-axum`, which enables the features it needs.
+axum = { version = "0.8", default-features = false }
+gproxy-cache = { workspace = true }
+gproxy-client = { workspace = true, default-features = false, features = ["fetch", "workers"] }
+gproxy-file = { workspace = true }
+gproxy-host-axum = { workspace = true }
+gproxy-sdk = { workspace = true }
+gproxy-seaorm = { workspace = true }
+gproxy-store = { workspace = true }
+http = { workspace = true }
+js-sys = { workspace = true }
+# `Service::call` on the router. Nothing else from tower.
+tower = { workspace = true }
+wasm-bindgen = { workspace = true }
+# `#[event(fetch)]`, the `Env` bindings and `ctx.wait_until`. The `http`
+# feature is what makes the handler speak `http::Request`/`http::Response`, so
+# the axum router is called with no adapter in between.
+worker = { version = "0.8.6", default-features = false, features = ["d1", "http"] }
+
+[dev-dependencies]
+serde_json = { workspace = true }
