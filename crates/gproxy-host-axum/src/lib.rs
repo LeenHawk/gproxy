@@ -44,6 +44,11 @@
 //! and are only released when it ends. Nothing has to remember to drop
 //! anything, because there is nowhere else the values are held.
 //!
+//! A websocket is the same rule with a longer clock. [`websocket`] moves the
+//! same [`response::Trailer`] into the duplex pump, so a realtime session that
+//! runs for an hour holds its concurrency permit for that hour and gives it
+//! back when the socket closes — not when the `101` was written.
+//!
 //! [`gproxy-host-edge`]: https://github.com/LeenHawk/gproxy
 
 pub mod admin;
@@ -56,6 +61,7 @@ pub mod policy;
 pub mod portal;
 pub mod response;
 pub mod session;
+pub mod websocket;
 
 pub use error::{ErrorResponse, OAuthEnvelope};
 pub use mount::Mount;

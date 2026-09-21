@@ -46,6 +46,10 @@ sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-# `ServiceExt::oneshot`: the whole test suite drives the router directly rather
-# than binding a socket.
+# A websocket round trip needs a real connection: `oneshot` never produces the
+# `OnUpgrade` extension an upgrade is made of, so the socket tests bind a port
+# and speak the protocol for real. `connect` is the client half.
+tokio-tungstenite = { workspace = true, features = ["connect"] }
+# `ServiceExt::oneshot`: everything that is answered over HTTP — which is every
+# refusal — is driven through the router directly rather than over a socket.
 tower = { workspace = true, features = ["util"] }

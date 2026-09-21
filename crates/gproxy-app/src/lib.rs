@@ -50,7 +50,9 @@ pub mod call;
 pub use call::{CallOutcome, ConnectOutcome, DataPlaneRequest};
 
 pub mod capture;
-pub use capture::{CaptureOutcome, DownstreamCapture, ObservationSwitches};
+pub use capture::{
+    CaptureDirection, CaptureOutcome, CapturedFrame, DownstreamCapture, ObservationSwitches,
+};
 
 pub mod dto;
 pub mod operations;

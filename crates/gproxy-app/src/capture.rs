@@ -21,6 +21,7 @@
 //! | redaction | `disable_log_redaction` | the same switch, the same field list |
 //! | id | its own, opaque | **the request id**, which is also the usage row's |
 //! | body storage | `capture_events`, streamed | the inline column, buffered and capped |
+//! | websocket frames | `capture_events`, per frame | `capture_events`, per frame, buffered |
 //! | failure | logged, never fails the request | logged, never fails the request |
 //!
 //! # Ask before you clone
@@ -52,7 +53,7 @@ use gproxy_store::{
     Store,
     entity::{
         config::setting,
-        usage::{capture_link, capture_record as record},
+        usage::{capture_event as event, capture_link, capture_record as record},
     },
 };
 use http::{HeaderMap, StatusCode};
@@ -61,6 +62,11 @@ use serde_json::{Value, json};
 
 use crate::{Admitted, AppError, Caller, DataPlaneRequest, now_ms};
 
+/// The two directions a captured frame or chunk travelled in, as the schema
+/// spells them. Re-exported so a host can name one without depending on
+/// `gproxy-store`.
+pub use event::{CaptureDirection, CaptureEventKind};
+
 /// How much of one downstream body is stored, per direction.
 ///
 /// The same 64 KiB the sdk's log detail hands back
@@ -68,6 +74,16 @@ use crate::{Admitted, AppError, Caller, DataPlaneRequest, now_ms};
 /// than what can be read out of it again, and a streamed answer cannot grow a
 /// row without bound while the request is still open.
 pub const MAX_CAPTURED_BODY_BYTES: usize = 64 * 1024;
+
+/// How much of one socket's traffic is stored, across both directions.
+///
+/// A websocket record buffers its frames until the socket ends, and a realtime
+/// session runs for as long as a person keeps talking. Without a bound the row
+/// a two-hour call produces would be built in memory for two hours, so the
+/// capture stops recording once it has this much and says so with a `Partial`
+/// body state. The same 64 KiB as a body, for the same reason: it is what the
+/// log reader hands back.
+pub const MAX_CAPTURED_FRAME_BYTES: usize = MAX_CAPTURED_BODY_BYTES;
 
 /// What a redacted value is replaced by. The same marker core writes, so the
 /// two sides of one request read alike.
@@ -140,6 +156,46 @@ pub enum CaptureOutcome {
     Failed { error: String },
 }
 
+/// One websocket message, as a host saw it on the wire.
+///
+/// Borrowed, so a frame that is not going to be stored costs nothing: with
+/// `enable_downstream_log_body` off [`DownstreamCapture::record_frame`]
+/// returns before it reads the payload.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CapturedFrame<'a> {
+    Text(&'a str),
+    Binary(&'a [u8]),
+    Ping(&'a [u8]),
+    Pong(&'a [u8]),
+    /// The payload column holds the close code and reason, which is what the
+    /// schema documents for `ws_close`.
+    Close {
+        code: Option<u16>,
+        reason: &'a str,
+    },
+}
+
+impl CapturedFrame<'_> {
+    /// The stored kind and payload. `Close` is rendered as the same JSON
+    /// object core's observer writes, so the two sides of one socket read
+    /// alike.
+    fn encode(self) -> (CaptureEventKind, Vec<u8>) {
+        match self {
+            Self::Text(text) => (CaptureEventKind::WsText, text.as_bytes().to_vec()),
+            Self::Binary(bytes) => (CaptureEventKind::WsBinary, bytes.to_vec()),
+            Self::Ping(bytes) => (CaptureEventKind::WsPing, bytes.to_vec()),
+            Self::Pong(bytes) => (CaptureEventKind::WsPong, bytes.to_vec()),
+            Self::Close { code, reason } => {
+                let value = code.map(|code| json!({"code": code, "reason": reason}));
+                (
+                    CaptureEventKind::WsClose,
+                    serde_json::to_vec(&value).unwrap_or_else(|_| b"null".to_vec()),
+                )
+            }
+        }
+    }
+}
+
 /// One downstream exchange, buffered until it ends.
 ///
 /// Created by [`App::call`](crate::App::call) and
@@ -192,6 +248,15 @@ pub struct DownstreamCapture {
     response_truncated: bool,
     /// Kept out of the row so the final state can be decided from it.
     status: Option<i32>,
+    /// One row per websocket message, in the order the socket saw them across
+    /// both directions. Empty for an HTTP exchange, which uses the inline
+    /// body columns instead.
+    events: Vec<event::ActiveModel>,
+    /// Payload bytes already held in `events`, against
+    /// [`MAX_CAPTURED_FRAME_BYTES`].
+    event_bytes: usize,
+    /// Whether a frame was dropped because the budget ran out.
+    events_truncated: bool,
     /// upstream capture id → the `(started_at_ms, attempt_ordinal)` it is
     /// ordered by. A map rather than a list because `(downstream_id,
     /// upstream_id)` is the primary key of an edge: a report handed over twice
@@ -288,6 +353,9 @@ impl DownstreamCapture {
             response_body: Vec::new(),
             response_truncated: false,
             status: None,
+            events: Vec::new(),
+            event_bytes: 0,
+            events_truncated: false,
             links: BTreeMap::new(),
         })
     }
@@ -331,6 +399,58 @@ impl DownstreamCapture {
         } else {
             self.response_body.extend_from_slice(bytes);
         }
+    }
+
+    /// One websocket message, recorded as a `capture_events` row.
+    ///
+    /// The schema decides the shape, not this crate: "all WS messages append
+    /// to the WsConnection", and `sequence` is "host-assigned monotonic order
+    /// across both directions of ... the entire WS connection, including
+    /// control messages and concurrent turns". So a socket is **one** record
+    /// with an ordered event list, not one record per exchange.
+    ///
+    /// `turn_id` is left unset, and deliberately. The column identifies "the
+    /// WS business turn, when identifiable", and a turn is a dialect's notion
+    /// — OpenAI's `response.created`/`response.done`, Gemini Live's own —
+    /// while this host forwards realtime frames as opaque passthrough (core
+    /// refuses to convert any websocket dialect but
+    /// `OpenAiResponsesWebSocket`). Inventing a boundary the wire did not draw
+    /// would put a `WsTurn` record in the log that nothing produced, so the
+    /// connection is recorded whole and the turn column stays `None`.
+    ///
+    /// A no-op with `enable_downstream_log_body` off, exactly like
+    /// [`DownstreamCapture::record_response_chunk`]: a frame *is* the body of
+    /// a socket, so it is gated by the body switch rather than by a third one.
+    /// Recording also stops once [`MAX_CAPTURED_FRAME_BYTES`] have been kept,
+    /// which marks the row `Partial`.
+    pub fn record_frame(&mut self, direction: CaptureDirection, frame: CapturedFrame<'_>) {
+        if !self.switches.downstream_log_body {
+            return;
+        }
+        // The socket's bodies are the events, not the inline columns. Said on
+        // the first frame rather than at the handshake, so a socket that
+        // carried nothing still reads as an empty buffered exchange.
+        self.row.request_framing = Set(record::BodyFraming::WebSocket);
+        self.row.response_framing = Set(record::BodyFraming::WebSocket);
+        if self.event_bytes >= MAX_CAPTURED_FRAME_BYTES {
+            self.events_truncated = true;
+            return;
+        }
+        let (kind, payload) = frame.encode();
+        let payload = redacted(&payload, self.switches.redact).into_owned();
+        // Whole frames only. The column preserves message boundaries, so half
+        // a frame would be a message the socket never carried; the budget is
+        // allowed one overshoot and then closes.
+        self.event_bytes = self.event_bytes.saturating_add(payload.len());
+        self.events.push(event::ActiveModel {
+            capture_id: Set(self.id.clone()),
+            sequence: Set(self.events.len() as i64),
+            turn_id: Set(None),
+            direction: Set(direction),
+            kind: Set(kind),
+            payload: Set(payload),
+            observed_at_ms: Set(now_ms()),
+        });
     }
 
     /// Attach one edge per upstream exchange the settled report names.
@@ -413,6 +533,9 @@ impl DownstreamCapture {
         }
         let id = self.id.clone();
         let links = self.links.len();
+        // The record and its events, which is the prefix of the batch that
+        // depends on nothing outside itself.
+        let own = 1 + self.events.len();
         let statements = self.into_statements(store, outcome)?;
         if let Err(error) = store.connection().atomic_batch(&statements).await {
             tracing::error!(capture_id = %id, links, %error, "downstream capture write failed");
@@ -423,10 +546,11 @@ impl DownstreamCapture {
             // written. If it did not — its own write failed, or the switch
             // moved mid-request — the foreign key takes the whole batch with
             // it, and losing the request's own log line over a missing edge is
-            // the worse outcome of the two.
+            // the worse outcome of the two. The events go in either way: their
+            // only foreign key is onto the record in front of them.
             store
                 .connection()
-                .atomic_batch(&statements[..1])
+                .atomic_batch(&statements[..own])
                 .await
                 .map_err(|error| {
                     tracing::error!(capture_id = %id, %error, "downstream capture retry failed");
@@ -477,10 +601,11 @@ impl DownstreamCapture {
         }
     }
 
-    /// The record insert first, then one insert per edge: a foreign key is
-    /// checked as the statement runs, so the row an edge points at has to be
-    /// there already. [`DownstreamCapture::finish`] relies on that order when
-    /// it retries with the first statement alone.
+    /// The record insert first, then its events, then one insert per edge: a
+    /// foreign key is checked as the statement runs, so the row an event or an
+    /// edge points at has to be there already.
+    /// [`DownstreamCapture::finish`] relies on that order when it retries with
+    /// the first statement alone.
     fn into_statements<C: BatchConnectionTrait>(
         self,
         store: &Store<C>,
@@ -494,6 +619,9 @@ impl DownstreamCapture {
             response_body,
             mut response_truncated,
             status,
+            events,
+            event_bytes: _,
+            events_truncated,
             links,
         } = self;
 
@@ -529,19 +657,28 @@ impl DownstreamCapture {
         row.state = Set(state);
         row.error = Set(error);
         row.ended_at_ms = Set(Some(now_ms()));
+        // A socket's traffic is in the events, and it is one stream in both
+        // directions: a frame budget that ran out cuts both columns, because
+        // it is not knowable which direction the frames it dropped were.
         row.request_body_state = Set(body_state(
             switches.downstream_log_body,
-            request_truncated,
+            request_truncated || events_truncated,
             true,
         ));
         row.response_body_state = Set(body_state(
             switches.downstream_log_body,
-            response_truncated,
+            response_truncated || events_truncated,
             outcome == CaptureOutcome::Complete,
         ));
         row.response_body = Set(response_body);
 
         let mut statements = vec![store.capture_records().insert_statement(row)?];
+        // Every frame the socket carried, in observed order, after the record
+        // they belong to and before the edges: `capture_events.capture_id` is
+        // a foreign key onto the row just inserted.
+        for event in events {
+            statements.push(store.capture_events().insert_statement(event)?);
+        }
         // `sequence` is the position in this request, not the upstream's own
         // `attempt_ordinal`: a failover restarts the engine's attempt counter
         // at the next provider, so two attempts of one request can both be

@@ -354,6 +354,7 @@ await，只能 spawn。
 | 遮蔽 | `disable_log_redaction` | 同一个开关，同一张字段名单 |
 | id | 自己的，不透明 | **请求 id**，也就是 usage 行的键 |
 | 正文存放 | `capture_events`，流式 | 内联列，缓冲并设上限 |
+| WebSocket 帧 | `capture_events`，一帧一行 | `capture_events`，一帧一行，缓冲 |
 
 四个开关都从请求所钉住的那个 revision 的 `settings` 行读出，与装配 `AppData` 是同一次
 读——不从 `AppConfig` 读，也不另起一套。
@@ -369,6 +370,29 @@ capture.settle(store, CaptureOutcome::Complete, usage).await;
 
 `settle` 会 await `UsageCompletion`，而那正是让 core 结算的东西；想自己拿 `UsageReport`
 的宿主就自己 await，然后调 `link_exchanges` 再 `finish`。
+
+### 一条 socket 是一行记录加一串帧
+
+升级了请求的宿主用 `101` 调 `record_response_head`，把这一行变成 `ws_connection`，
+随后每转发一条消息调一次 `record_frame`：
+
+```rust
+capture.record_frame(CaptureDirection::Request, CapturedFrame::Text(text));
+```
+
+形状是 schema 定的，不是本 crate 定的：「所有 WS 消息都追加到 WsConnection 上」，
+而 `sequence` 是「宿主分配的单调序，跨整条 WS 连接的两个方向，包含控制消息与并发
+轮次」。所以一条 socket 是**一行**记录加一串跨两个方向的有序事件，而不是一次交换
+一行。
+
+`turn_id` 留空。这一列标识的是「可识别时的 WS 业务轮次」，而「轮次」是某个方言的
+概念——OpenAI 的 `response.created`/`response.done`、Gemini Live 自己的一套——转发
+不透明帧的宿主看不见它。替线上协议发明一条它没画过的边界，只会在日志里留下一行
+谁都没产生过的 `WsTurn`。
+
+帧和别的正文一样受 `enable_downstream_log_body` 控制——帧本来就是 socket 的正文——
+并在累计 `MAX_CAPTURED_FRAME_BYTES` 后停止记录，行标记为 `Partial`。realtime 会话
+有人说多久就跑多久，而它产出的那一行在 socket 结束前一直建在内存里。
 
 ### 先问再拷
 
