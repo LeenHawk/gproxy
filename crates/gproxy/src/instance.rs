@@ -193,12 +193,16 @@ pub async fn open(settings: &Settings, options: OpenOptions) -> Result<Instance>
 /// happens before any caller can reach `Store::sync`.
 pub async fn connect(config: &AppConfig) -> Result<Connection> {
     let connection = open_connection(config).await?;
-    if let crate::v3::detect::Verdict::Legacy { tells } =
-        crate::v3::detect::inspect(&connection).await
-    {
-        return Err(crate::v3::detect::refuse(&describe(config), &tells));
+    match crate::v3::detect::inspect(&connection).await {
+        crate::v3::detect::Verdict::Ours => Ok(connection),
+        crate::v3::detect::Verdict::Version3 { tells } => Err(crate::v3::detect::refuse_version3(
+            &describe(config),
+            &tells,
+        )),
+        crate::v3::detect::Verdict::Foreign { tables } => {
+            Err(crate::v3::detect::refuse_foreign(&describe(config), tables))
+        }
     }
-    Ok(connection)
 }
 
 /// What the refusal calls the database, so the message names the file an
