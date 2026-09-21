@@ -156,6 +156,19 @@ fn read(input: &Path) -> Result<Document> {
         false => std::fs::read(input)
             .map_err(|error| Error::io(format!("reading {}", input.display()), error))?,
     };
+    // A v4 export spells the same field `formatVersion`, so it fails to parse
+    // as a v3 one for a reason that says nothing useful. Recognise it first:
+    // handing `export`'s own output to `--from-v3` is the likeliest mistake
+    // anyone makes here, and the answer is one flag away.
+    if let Ok(serde_json::Value::Object(fields)) = serde_json::from_slice(&bytes)
+        && fields.contains_key("formatVersion")
+    {
+        return Err(Error::other(format!(
+            "{} is a **v4** configuration export, not a v3 one. Replay it with \
+             `gproxy import --in` instead.",
+            input.display()
+        )));
+    }
     let document: Document = serde_json::from_slice(&bytes).map_err(|error| {
         Error::other(format!(
             "{} is not a v3 configuration export: {error}. Take one with \
