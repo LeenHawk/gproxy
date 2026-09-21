@@ -197,6 +197,7 @@ impl OAuthDeviceCode for super::OpenCode {
                 expires_at_ms: reply.expires_at_ms(),
                 refresh_expires_at_ms: None,
                 provider_fields: BTreeMap::from([(CONSOLE_FIELD.to_owned(), Value::String(base))]),
+                provider_secrets: BTreeMap::new(),
             }))
         })
     }

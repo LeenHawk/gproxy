@@ -12,11 +12,12 @@
 //! Nothing durable is written until the login succeeds. Abandoning a login
 //! leaves nothing behind but a key that expires on its own.
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use gproxy_cache::Cache;
 use gproxy_channel::channel::DeviceAuthorization;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::{SdkError, SdkResult, builder::LoginTtl, dto::CredentialOwner};
 
@@ -52,6 +53,13 @@ pub(crate) enum LoginSession {
         /// What the channel actually asked the upstream to redirect to, which
         /// the token exchange has to repeat verbatim.
         redirect_uri: String,
+        /// The channel's own facts from the authorize step, handed back to
+        /// `exchange` — the same pocket a device authorization carries, and
+        /// secret-bearing for the same reason: a client a login registered for
+        /// itself has a secret, and it belongs here rather than on the
+        /// credential's published metadata. This session is where it lives and
+        /// the only place it does.
+        provider_state: BTreeMap<String, Value>,
         label: Option<String>,
         owner: CredentialOwner,
     },

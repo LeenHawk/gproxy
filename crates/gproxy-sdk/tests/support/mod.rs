@@ -9,7 +9,7 @@
 pub mod seed;
 
 use std::{
-    collections::VecDeque,
+    collections::{BTreeMap, VecDeque},
     sync::{Arc, Mutex},
 };
 
@@ -64,6 +64,10 @@ pub struct TestChannel {
     /// Overrides the authorize URL derived from the request.
     pub authorize_starts: Mutex<VecDeque<AuthorizationStart>>,
     pub code_exchanges: Mutex<VecDeque<Result<OAuthCredential, &'static str>>>,
+    /// The `provider_state` each `exchange` was handed, in order. It is not in
+    /// `login_calls` because it may carry a secret and that log is compared
+    /// line by line.
+    pub exchanged_provider_state: Mutex<Vec<BTreeMap<String, Value>>>,
     pub device_authorizations: Mutex<VecDeque<DeviceAuthorization>>,
     pub device_polls: Mutex<VecDeque<DevicePoll>>,
     pub cookie_exchanges: Mutex<VecDeque<Result<AcquiredCredential, &'static str>>>,
@@ -164,6 +168,7 @@ impl OAuthAuthorizationCode for TestChannel {
                     request.state, request.code_challenge
                 ),
                 redirect_uri: request.redirect_uri.to_owned(),
+                provider_state: BTreeMap::new(),
             });
         Box::pin(async move { Ok(start) })
     }
@@ -177,6 +182,10 @@ impl OAuthAuthorizationCode for TestChannel {
             "exchange code={} verifier={} state={}",
             grant.code, grant.code_verifier, grant.state
         ));
+        self.exchanged_provider_state
+            .lock()
+            .unwrap()
+            .push(grant.provider_state.clone());
         let reply = self
             .code_exchanges
             .lock()
@@ -287,6 +296,7 @@ pub fn oauth_credential(access_token: &str) -> OAuthCredential {
         expires_at_ms: None,
         refresh_expires_at_ms: None,
         provider_fields: Default::default(),
+        provider_secrets: Default::default(),
     }
 }
 

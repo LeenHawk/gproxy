@@ -19,7 +19,7 @@ use gproxy_protocol::{
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
 use std::{
-    collections::VecDeque,
+    collections::{BTreeMap, VecDeque},
     sync::{Arc, Mutex},
 };
 
@@ -715,6 +715,7 @@ async fn the_exchange_discovers_the_project_and_reports_antigravity_as_the_ide()
                 redirect_uri: DEFAULT_REDIRECT_URI,
                 code_verifier: "verifier-1",
                 state: "st-1",
+                provider_state: &BTreeMap::new(),
             },
         )
         .await

@@ -206,6 +206,15 @@ body 里没有选路对象、响应里也没有价格：没有任何东西要渠
 对话、要复用的会话）。渠道用自己选的 key 经 compare-and-swap 写入；`NoState` 是
 绑定的默认值，拒绝一切写入。
 
+两种 OAuth 流都带同一个"口袋"，装渠道在用户完成授权之后还需要的事实：
+`AuthorizationStart::provider_state` 原样回到 `AuthorizationCode::provider_state`，
+`DeviceAuthorization::provider_state` 则随授权一起回到 `poll`。形状由渠道自己定——
+非标准的设备句柄，或某次登录替自己注册的客户端。与被宿主当作凭证 metadata 公开的
+`OAuthCredential::provider_fields` 不同，**这个口袋可以装 secret**：它只存在于宿主的
+登录会话里，短命、落在 cache 上、从不被渲染，登录一结束就没了。要活过登录的东西必须
+由 `exchange` 返回——公开事实进 `provider_fields`，secret 进
+`OAuthCredential::provider_secrets`，后者与 token 一同封存，永远不会变成 metadata。
+
 ## 添加一个渠道
 
 渠道是内建的，不是插件：新渠道就是本 crate 里一个由自己的 feature 门控的模块。
@@ -325,7 +334,9 @@ body 里没有选路对象、响应里也没有价格：没有任何东西要渠
    用量观察者做累计快照，`finish` 由宿主传入 `Complete` 或 `Interrupted`，因为
    EOF 本身不能证明用量完整；`RefreshRejected` 只用于上游的明确拒绝。登录发现的公开
    事实（套餐、账号 id）放进 `AcquiredCredential::metadata` 或
-   `OAuthCredential::provider_fields`，由宿主写到凭证行上。
+   `OAuthCredential::provider_fields`，由宿主写到凭证行上；刷新还需要的 secret
+   （某次登录自己注册的 client secret）放进 `OAuthCredential::provider_secrets`，
+   它与 token 一同封存，不会被当作 metadata 公开。
 
 7. 可复用的 wire 机制放到 `src/channels/shared/`（缓存魔法串、服务调用方辅助），按
    用到它的 feature 门控。策略留在渠道里；shared 模块只执行渠道要求的事。

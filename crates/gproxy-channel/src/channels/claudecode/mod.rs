@@ -993,6 +993,7 @@ pub(super) fn credential_from_tokens(
         expires_at_ms,
         refresh_expires_at_ms,
         provider_fields: fields,
+        provider_secrets: BTreeMap::new(),
     })
 }
 
@@ -1175,6 +1176,8 @@ impl OAuthAuthorizationCode for Claudecode {
             Ok(AuthorizationStart {
                 authorize_url: format!("{}?{query}", config.authorize_url.trim_end_matches('?')),
                 redirect_uri: redirect_uri.to_owned(),
+                // The exchange needs nothing this call learned.
+                provider_state: BTreeMap::new(),
             })
         })
     }

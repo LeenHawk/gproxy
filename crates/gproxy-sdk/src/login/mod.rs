@@ -14,7 +14,10 @@
 //!   is destroyed, so a replay cannot be retried into success.
 //! - **The session.** It lives in the shared cache under its own TTL, which is
 //!   what lets any instance of a deployment complete a login another started,
-//!   and what makes an abandoned login cost nothing.
+//!   and what makes an abandoned login cost nothing. It also carries the
+//!   channel's own `provider_state` from the first step to the last — in both
+//!   flows, and without reading it — which is the only way a secret a login
+//!   minted for itself can reach the step that needs it.
 //! - **Sealing.** The acquired secret is sealed with the configured codec
 //!   before the insert statement is built.
 //!
@@ -113,6 +116,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
                 verifier: pkce.verifier,
                 state,
                 redirect_uri: started.redirect_uri.clone(),
+                provider_state: started.provider_state,
                 label: request.label,
                 owner: request.owner,
             },
@@ -141,6 +145,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
             verifier,
             state: expected_state,
             redirect_uri,
+            provider_state,
             label,
             owner,
         } = loaded
@@ -177,6 +182,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
                     redirect_uri: &redirect_uri,
                     code_verifier: &verifier,
                     state: &expected_state,
+                    // Whatever `authorize` left for this moment, unread by
+                    // anything in between.
+                    provider_state: &provider_state,
                 },
             )
             .await?;

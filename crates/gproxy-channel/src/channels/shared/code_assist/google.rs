@@ -109,6 +109,9 @@ pub(crate) fn authorize(
     AuthorizationStart {
         authorize_url: format!("{}?{query}", authorize_url.trim_end_matches('?')),
         redirect_uri: redirect_uri.to_owned(),
+        // Google's client is a constant of the tool being impersonated, so the
+        // exchange needs nothing this call learned.
+        provider_state: BTreeMap::new(),
     }
 }
 
@@ -292,6 +295,7 @@ fn credential(
         expires_at_ms: tokens.expires_at_ms,
         refresh_expires_at_ms: None,
         provider_fields,
+        provider_secrets: BTreeMap::new(),
     }
 }
 
