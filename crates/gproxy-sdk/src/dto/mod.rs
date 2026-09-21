@@ -35,6 +35,14 @@ mod usage;
 #[cfg(all(test, feature = "ts", not(target_arch = "wasm32")))]
 mod export;
 
+/// The channel catalogue, defined in `gproxy-channel` and re-exported here so
+/// that everything a management call returns is one import and one TypeScript
+/// export away. `manage().catalog().channels()` answers with these, and a
+/// console renders a provider form from them.
+pub use gproxy_channel::{
+    ChannelCapabilities, ChannelDescriptor, ConfigKey, ConfigKeyKind, LoginMode,
+};
+
 pub use catalog::{
     ApplyDefaultPricesReportDto, ApplyDefaultPricesRequest, ApplyRulePreset,
     DefaultModelCatalogDto, DefaultModelCatalogSourceDto, DefaultModelDto,

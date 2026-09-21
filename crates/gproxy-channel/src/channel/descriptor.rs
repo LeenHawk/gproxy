@@ -6,10 +6,21 @@
 //! from the code: the default implementation reads the capability accessors,
 //! and a channel only spells out what those cannot tell (its display name, the
 //! keys it decodes out of the provider `config` JSON).
+//!
+//! # Why these types carry `serde` and `ts-rs` attributes
+//!
+//! They are the only part of this crate a management UI reads, and it reads
+//! them beside the host's own configuration DTOs, so they follow that
+//! convention rather than Rust's: struct fields serialize `camelCase`, enum
+//! variants `snake_case`. The `ts` feature derives the TypeScript declarations
+//! from the same definitions — a console that renders a provider form off a
+//! descriptor cannot then be typed against a hand-written copy of it.
 
 /// How a credential for this channel comes into existence.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ts", ts(rename_all = "snake_case"))]
 pub enum LoginMode {
     /// Browser redirect with PKCE; `OAuthAuthorizationCode`.
     AuthorizationCode,
@@ -25,6 +36,9 @@ pub enum LoginMode {
 /// Optional abilities beyond protocol operations. All false is a legitimate
 /// channel: an API-key upstream needs none of them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ChannelCapabilities {
     /// `CredentialRefresh`: the credential can be renewed without a person.
     pub refresh: bool,
@@ -42,7 +56,9 @@ pub struct ChannelCapabilities {
 
 /// How a configuration value is written, for form rendering and validation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ts", ts(rename_all = "snake_case"))]
 pub enum ConfigKeyKind {
     String,
     Bool,
@@ -56,6 +72,9 @@ pub enum ConfigKeyKind {
 /// One entry of a provider's configuration. Unless noted, the name is a key of
 /// the provider's `config` JSON; `base_url` is the provider's own column.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ConfigKey {
     pub name: &'static str,
     pub kind: ConfigKeyKind,
@@ -110,6 +129,9 @@ pub const HOST_CONFIG_KEYS: [ConfigKey; 2] = [
 
 /// A channel as the management layer sees it.
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ChannelDescriptor {
     /// Matches `BaseChannel::id` and the provider's `channel` column.
     pub id: &'static str,

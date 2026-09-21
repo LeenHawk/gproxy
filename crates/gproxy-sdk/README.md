@@ -42,7 +42,8 @@ opt-out, and a build with neither is refused.
 
 | Feature | Effect |
 |---|---|
-| `custom` / `codex` / `claudecode` / `claudeweb` | Compile a channel in and register it by default |
+| One channel's name (`codex`, `kiro`, `openai`, …) | Compile that channel in and register it by default |
+| `channels` | Every channel this workspace ships |
 | `postgres` / `mysql` | Extra SeaORM drivers, native only. SQLite is always available natively |
 | `libsql` | libSQL/Turso over the Hrana HTTP pipeline, every target |
 | `d1` | Marker for a Cloudflare D1 binding, which wasm32 always has |
@@ -51,7 +52,7 @@ opt-out, and a build with neither is refused.
 | `fs` (default) | Local filesystem object storage, native only |
 | `s3` | S3/R2 object storage |
 | `bundled-vocabulary` (default) | Ship DeepSeek's vocabulary for token estimation |
-| `ts` | `ts-rs` declarations for every DTO, plus the export test — see [Type export](#type-export) |
+| `ts` | `ts-rs` declarations for every DTO and for the channel descriptors, plus the export test — see [Type export](#type-export) |
 
 The default set compiles for `wasm32-unknown-unknown`, and so does `libsql`.
 On wasm the cache defaults to `gproxy_store::StoreCache` and synchronization is
@@ -590,6 +591,12 @@ ever rewritten on purpose. With it, the directory is wiped first — a stale
 declaration for a DTO that no longer exists would keep type-checking in the
 console long after Rust dropped it — and an `index.ts` re-exporting everything
 is written last.
+
+The channel catalogue is in there as well: `dto` re-exports `ChannelDescriptor`
+and its parts from `gproxy-channel`, and this crate's `ts` feature turns that
+crate's on. A console renders a provider form from the descriptor the channel
+itself returns, so it should be typed by that descriptor and not by a copy of
+it that drifts the next time a channel adds a configuration key.
 
 What the declarations say:
 

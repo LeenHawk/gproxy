@@ -221,12 +221,12 @@ body 里没有选路对象、响应里也没有价格：没有任何东西要渠
    acme = ["dep:base64", "dep:web-time"]
    ```
 
-2. 在 `src/channels/mod.rs` 门控模块；若用到 `shared`，把该模块的 `cfg(any(...))`
-   也加上。
+2. 往 `src/channels/mod.rs` 的 `channels!` 列表里加一行：feature、模块、宿主要注册的
+   那个值。这一行同时声明模块并把渠道放进 `channels::compiled_in()`，宿主就是从那里
+   找到它的。若用到 `shared`，把该模块的 `cfg(any(...))` 也加上——它自有一份列表。
 
    ```rust
-   #[cfg(feature = "acme")]
-   pub mod acme;
+   "acme" => acme, acme::Acme;
    ```
 
 3. 按关注点分文件。小渠道一个 `acme.rs` 即可，大渠道用目录：
@@ -246,7 +246,10 @@ body 里没有选路对象、响应里也没有价格：没有任何东西要渠
    wire 事实永远不来自另一个渠道的代码。
 
 4. 实现 `BaseChannel`。最少是 `id`、`native_dialects` 和 `prepare`；结构体是无状态
-   单元类型，一个实例服务该渠道的所有 provider。
+   单元类型，一个实例服务该渠道的所有 provider。同时覆写 `descriptor`：默认实现只会
+   读能力访问器，而显示名和该渠道从 provider `config` JSON 里解出的键只有渠道自己
+   知道。管理界面渲染 Provider 表单就只有这份描述符可用——开了 `ts` feature 它还是
+   一个 TypeScript 类型——漏写一个键，就等于没人能设置它。
 
    ```rust
    use gproxy_channel::channel::{
@@ -333,9 +336,18 @@ body 里没有选路对象、响应里也没有价格：没有任何东西要渠
    `OutboundClient`（见 `tests/capabilities.rs`）用来测多次调用的覆写，
    `tests/support/mod.rs` 里有脚本化的 `ServiceCaller`。不要在这里测 core。
 
-9. 在宿主注册。core 自己不列举渠道；开启了 feature 的二进制或 SDK 把实例传进去：
+9. 在宿主注册。core 自己不列举渠道。想要"编进来的都要"的宿主直接取整份列表——
+   `gproxy-sdk` 就是这么做的，所以在那边开 feature 就是全部步骤；想要精确一组的宿主
+   逐个传实例：
 
    ```rust
+   let mut registry = ChannelRegistry::new();
+   for channel in gproxy_channel::channels::compiled_in() {
+       registry.register(channel)?;
+   }
+   let core = CoreBuilder::new(store).channels(registry).build().await?;
+
+   // 或者逐个点名：
    let core = CoreBuilder::new(store)
        .channel(Arc::new(gproxy_channel::channels::custom::Custom))?
        .channel(Arc::new(gproxy_channel::channels::acme::Acme))?

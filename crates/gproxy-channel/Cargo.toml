@@ -8,6 +8,12 @@ repository.workspace = true
 
 [features]
 default = []
+# Not a channel. `ts-rs` declarations for the descriptor types, so the console
+# that renders a provider form off `BaseChannel::descriptor` is typed against
+# the descriptor itself rather than a hand-written copy. Nothing here exports;
+# `gproxy-sdk`'s export list names these types beside its own DTOs.
+ts = ["dep:ts-rs"]
+
 # Google AI Studio (Gemini API key) upstream: the native Gemini methods and
 # the /v1beta/openai compatibility layer off one origin, SSE and JSON-array
 # streams, usageMetadata metering.
@@ -202,6 +208,7 @@ serde_json.workspace = true
 sha2 = { workspace = true, optional = true }
 thiserror.workspace = true
 time = { workspace = true, optional = true }
+ts-rs = { workspace = true, optional = true }
 web-time = { workspace = true, optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
