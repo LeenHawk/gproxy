@@ -1,267 +1,328 @@
 ---
 title: "Routing & Endpoints"
-description: "Ingress modes, every operation and its paths per wire family, model selection and resolution, the failover budget, and the headers stripped before egress"
+description: "The complete v4 ingress table, the mount grammar, the OAuth and management routes, WebSocket surfaces, resolution and the failover budget."
 ---
 
-Every request that reaches the gateway is classified against one
-operation registry (`crates/gproxy-protocol/src/specs/`), resolved to an
-ordered list of upstream candidates, and sent through a single settlement
-funnel. This page is the reference for each of those steps.
+Everything below is the native host's route table, and the Workers host mounts
+the same one. `gproxy-protocol` deliberately declares no paths — which URL
+serves an operation is an HTTP convention owned by the ingress layer — so this
+page is that layer's table.
 
-## Aggregated and Named Ingress
+## The Gateway's Own Routes
 
-GPROXY answers two shapes of path.
+Four, and everything else falls through to the data plane. That is the opposite
+of the usual arrangement and it is deliberate: the gateway's own routes are a
+short, known list, and everything else is somebody else's API that this
+instance forwards. A new upstream surface must not require a new route here.
 
-| Mode | Path shape | What selects the backend |
+| Method | Path | What it is |
 | --- | --- | --- |
-| Aggregated | A declared operation path: `/v1/chat/completions`, `/v1/messages`, `/v1beta/models/{model}:generateContent`, ... | The model name in the request, through aliases and routes. |
-| Named | `/{name}/...` where the remainder is a declared operation path or a channel service surface: `/codex/v1/responses`, `/codex/backend-api/codex/responses`, `/codex/oauth/token` | The first path segment. |
+| `GET` | `/healthz` | liveness and the published config revision; **unauthenticated** |
+| `GET` | `/publications/{id}` | a published body. The id **is** the credential, so no key is asked for |
+| — | `/admin/api/…` | the operator surface |
+| — | `/portal/api/…` | the end user's own surface |
+| — | everything else | the ingress fallback |
 
-A first segment counts as a name when it is one of: a **route namespace**
-(the part before `/` in an exposed model name such as `openai/gpt-5`,
-matched case-insensitively), a **route name**, or a **provider name**,
-checked in that order. If the segment is not a known name, or the
-remainder is not a declared path, the whole path is treated as aggregated
-and fails classification with 400.
+```sh
+curl -s http://127.0.0.1:7070/healthz
+```
 
-- Named to a namespace: the request's model is looked up inside that
-  namespace, so `/{ns}/v1/...` with `"model": "gpt-5"` resolves
-  `ns/gpt-5`.
-- Named to a route: the route's members serve the request regardless of
-  the model in the body; each member's `upstream_model` is what goes
-  upstream.
-- Named to a provider: routes are bypassed. The plan is every enabled
-  credential of that provider, and the requested model name is sent
-  upstream as-is after provider-scoped aliases and variants. The models
-  list follows the provider's routing rule instead of being answered
-  from the snapshot.
+```json
+{"revision":2,"status":"ok"}
+```
 
-Service surfaces (Codex CLI's `backend-api` routes, Claude Code's
-control-plane routes) are only reachable in named mode, because a channel
-declares them rather than the operation registry. They pass the same
-authentication, admission and settlement as any other request.
+`/healthz` reads the published snapshot and touches neither the database nor
+the cache, so a load balancer polling it cannot itself become the load that
+fails it.
 
-## How a Client Names the Model
+## The Order of Ingress
 
-| Wire family | Model comes from | Family detection |
+1. **CORS and the client address.** A preflight is answered here and never
+   forwarded — it asks this instance what it will accept, and the upstream has
+   no opinion about that. The client address is resolved under the
+   [trusted-proxy rule](/reference/configuration/#the-trusted-proxy-rule)
+   before anything can log it.
+2. **The mount** — which slice of the path is this gateway's.
+3. **The OAuth issuer**, at `{mount}/v1/oauth/…`, before the data plane because
+   these paths are *this* instance's and answer in a different error envelope.
+4. **A channel's vendor service route** — Codex's `/backend-api/…`, Claude
+   Code's `/api/…`. Only on a provider or namespace mount: matching one needs a
+   channel, and the aggregated mount names none.
+5. **The data plane**, below.
+6. **The console**, with an SPA fallback, behind the configuration switch.
+
+Anything that reaches the end is a 404.
+
+## The Data Plane
+
+A request body limit of 64 MiB applies before anything is buffered; it is a
+memory bound, not a policy.
+
+### Content generation
+
+| Method | Path | Operation / dialect |
 | --- | --- | --- |
-| OpenAI Chat, Responses, and every other `/v1/...` operation | body `model`; realtime calls also accept `session.model` | Path. |
-| Claude Messages | body `model` | Path; on shared paths (`/v1/models`, `/v1/models/{id}`) any of `x-api-key`, `anthropic-version`, `anthropic-beta` marks the caller as Claude. |
-| Gemini | the `{model}` path segment, `/v1beta/models/{model}:generateContent` | Path. |
-| Model get | the `{id}` or `{model}` path segment | Path. |
+| `POST` | `/v1/responses` | `generate_content` / `openai` |
+| `POST` | `/v1/chat/completions` | `generate_content` / `openai_chat` |
+| `POST` | `/v1/messages` | `generate_content` / `claude` |
+| `POST` | `/v1/messages/count_tokens` | `count_tokens` / `claude` |
+| `POST` | `/v1beta/models/{model}:generateContent` | `generate_content` / `gemini` |
+| `POST` | `/v1beta/models/{model}:streamGenerateContent` | `stream_generate_content` / `gemini` |
+| `POST` | `/v1beta/models/{model}:countTokens` | `count_tokens` / `gemini` |
+| `POST` | `/v1beta/models/{model}:embedContent` | `create_embedding` / `gemini` |
+| `POST` | `/v1beta/models/{model}:batchEmbedContents` | `batch_create_embedding` / `gemini` |
 
-Streaming is detected per ingress: a boolean `stream` in the body (Chat,
-Responses, Messages, image generation), `stream` in JSON or a multipart
-field (image edits, transcription), `stream_format: "sse"` (speech), or
-the endpoint itself (`:streamGenerateContent`, guardian, WebSocket
-upgrades). A `stream: true` body promotes `generate_content` to
-`stream_generate_content`. Gemini streams are an incremental JSON array
-unless the request carries `?alt=sse`.
+The first three become `stream_generate_content` when the body says
+`"stream": true`. They are **separate operations** — separate rules, separate
+settlement — so the flag is read at ingress rather than left for a channel to
+notice. Gemini says it in the path instead, which is why that dialect has two
+rows.
 
-A routing rule may change stream-ness alone by targeting the sibling
-operation. `generate_content` → `stream_generate_content` forces a streaming
-upstream and collapses the events into one object for the non-stream client
-(how event-stream-only upstreams such as Kiro are served). `stream_generate_content` →
-`generate_content` fetches one object from the upstream and synthesizes the
-client's stream from it. On native hosts that stream opens immediately and
-carries a keepalive every 15 seconds while the upstream works (Claude
-`ping`, an SSE comment, or JSON whitespace for Gemini arrays); an upstream
-failure after that point arrives as the protocol's error event. Edge hosts
-buffer and synthesize at the end instead.
+### Models
 
-## Operations
+| Method | Path | Operation / dialect |
+| --- | --- | --- |
+| `GET` | `/v1/models` | `list_models` / `openai`, then `claude` |
+| `GET` | `/v1/models/{id}` | `get_model` / `openai`, then `claude` |
+| `GET` | `/v1beta/models` | `list_models` / `gemini` |
+| `GET` | `/v1beta/models/{id}` | `get_model` / `gemini` |
 
-Settle modes: **response** is billed from the response or stream tail;
-**free** is never billed; **session end** is billed when a realtime
-session closes; **completed status** is billed once, when a polled video
-reports `completed`. Affinity **session** pins a conversation to a
-credential; **resource** pins follow-up calls to the credential that
-created the file, video, character or call. Family ids are `openai`,
-`claude`, `gemini`; content-generation kinds are `openai_chat`,
-`openai_responses`, `openai_responses_websocket`, `claude_messages`,
-`gemini_generate_content`.
+### Everything else
 
-### Models and Tokens
-
-| Operation | Method and path (family) | Settle | Affinity |
-| --- | --- | --- | --- |
-| `list_models` | `GET /v1/models` (openai, claude); `GET /v1beta/models` (gemini) | free | — |
-| `get_model` | `GET /v1/models/{id}` (openai, claude); `GET /v1beta/models/{model}` (gemini) | free | — |
-| `count_tokens` | `POST /v1/messages/count_tokens` (claude); `POST /v1/responses/input_tokens` (openai); `POST /v1beta/models/{model}:countTokens` (gemini) | free | — |
-
-### Generate Content, Compact and Memories
-
-| Operation | Method and path (kind) | Settle | Affinity |
-| --- | --- | --- | --- |
-| `generate_content` | `POST /v1/chat/completions` (openai_chat); `POST /v1/responses` (openai_responses); `POST /v1/messages` (claude_messages); `POST /v1beta/models/{model}:generateContent` (gemini_generate_content) | response | session |
-| `stream_generate_content` | the four above with `stream: true`; `POST /v1beta/models/{model}:streamGenerateContent`; `GET /v1/responses` WebSocket upgrade (openai_responses_websocket) | response | session |
-| `guardian_review` | `POST /v1/guardian` (openai_responses, always streams) | response | session |
-| `guardian_classify` | `POST /v1/guardian-classifier` (openai_responses, always streams) | response | session |
-| `compact_content` | `POST /v1/responses/compact` (openai) | response | session |
-| `summarize_memory` | `POST /v1/memories/trace_summarize` (openai) | response | — |
-
-### Embeddings, Rerank and Search
-
-| Operation | Method and path (family) | Settle | Affinity |
-| --- | --- | --- | --- |
-| `create_embedding` | `POST /v1/embeddings` (openai); `POST /v1beta/models/{model}:embedContent` (gemini) | response | — |
-| `batch_create_embedding` | `POST /v1beta/models/{model}:batchEmbedContents` (gemini) | response | — |
-| `rerank` | `POST /v1/rerank` (openai) | response | — |
-| `web_search` | `POST /v1/alpha/search` (openai) | response | — |
-
-### Images and Audio
-
-| Operation | Method and path (family) | Settle | Affinity |
-| --- | --- | --- | --- |
-| `create_image` | `POST /v1/images/generations` (openai, `stream` flag); `POST /v1beta/models/{model}:predict` (gemini) | response | — |
-| `edit_image` | `POST /v1/images/edits` (openai, `stream` in JSON or multipart) | response | — |
-| `create_speech` | `POST /v1/audio/speech` (openai, streams when `stream_format` is `sse`) | response | — |
-| `create_transcription` | `POST /v1/audio/transcriptions` (openai, `stream` in JSON or multipart) | response | — |
-| `create_translation` | `POST /v1/audio/translations` (openai) | response | — |
+| Method | Path | Operation / dialect |
+| --- | --- | --- |
+| `POST` | `/v1/embeddings` | `create_embedding` / `openai` |
+| `POST` | `/v1/moderations` | `guardian_classify` / `openai` |
+| `POST` | `/v1/rerank` | `rerank` / `openai` |
+| `POST` | `/v1/conversations` | `create_conversation` / `openai` |
+| `POST` | `/v1/images/generations` | `create_image` / `openai` |
+| `POST` | `/v1/images/edits` | `edit_image` / `openai` |
+| `POST` | `/v1/audio/speech` | `create_speech` / `openai` |
+| `POST` | `/v1/audio/transcriptions` | `create_transcription` / `openai` |
+| `POST` | `/v1/audio/translations` | `create_translation` / `openai` |
 
 ### Files
 
-| Operation | Method and path (family) | Settle | Affinity |
-| --- | --- | --- | --- |
-| `create_file` | `POST /v1/files` (openai); `POST /upload/v1beta/files` (gemini) | free | resource `file` |
-| `list_files` | `GET /v1/files` (openai); `GET /v1beta/files` (gemini) | free | resource `file` |
-| `retrieve_file` | `GET /v1/files/{id}` (openai); `GET /v1beta/files/{id}` (gemini) | free | resource `file` |
-| `retrieve_file_content` | `GET /v1/files/{id}/content` (openai); `GET /v1beta/files/{id}:download` and `GET /download/v1beta/files/{id}:download` (gemini) | free | resource `file` |
-| `delete_file` | `DELETE /v1/files/{id}` (openai); `DELETE /v1beta/files/{id}` (gemini) | free | resource `file` |
+| Method | Path | Operation / dialect |
+| --- | --- | --- |
+| `GET` `POST` | `/v1/files` | `list_files` / `create_file`, `openai` then `claude` |
+| `GET` `DELETE` | `/v1/files/{id}` | `retrieve_file` / `delete_file` |
+| `GET` | `/v1/files/{id}/content` | `retrieve_file_content` |
+| `GET` `POST` | `/v1beta/files` | the Gemini spellings |
+| `POST` | `/upload/v1beta/files` | `create_file` / `gemini` |
+| `GET` `DELETE` | `/v1beta/files/{id}` | `retrieve_file` / `delete_file`, `gemini` |
+| `GET` | `/v1beta/files/{id}:download` | `retrieve_file_content` / `gemini` |
 
 ### Video
 
-| Operation | Method and path (family) | Settle | Affinity |
-| --- | --- | --- | --- |
-| `create_video` | `POST /v1/videos` (openai); `POST /v1beta/models/{model}:predictLongRunning` (gemini) | free | resource `video` |
-| `retrieve_video` | `GET /v1/videos/{id}` (openai); `GET /v1beta/operations/{id}` and `GET /v1beta/models/{model}/operations/{id}` (gemini) | completed status | resource `video` |
-| `list_videos` | `GET /v1/videos` (openai) | free | resource `video` |
-| `delete_video` | `DELETE /v1/videos/{id}` (openai) | free | resource `video` |
-| `download_video_content` | `GET /v1/videos/{id}/content` (openai) | free | resource `video` |
-| `remix_video` | `POST /v1/videos/{id}/remix` (openai) | free | resource `video` |
-| `edit_video` | `POST /v1/videos/edits` (openai) | free | resource `video` |
-| `extend_video` | `POST /v1/videos/extensions` (openai) | free | resource `video` |
-| `create_video_character` | `POST /v1/videos/characters` (openai) | free | resource `video_character` |
-| `get_video_character` | `GET /v1/videos/characters/{id}` (openai) | free | resource `video_character` |
+| Method | Path | Operation |
+| --- | --- | --- |
+| `GET` `POST` | `/v1/videos` | `list_videos` / `create_video` |
+| `GET` `DELETE` | `/v1/videos/{id}` | `retrieve_video` / `delete_video` |
+| `GET` | `/v1/videos/{id}/content` | `download_video_content` |
 
-A video job is billed when a poll of `retrieve_video` first reports
-`completed`; the settlement is de-duplicated across polls, so creation and
-later polls carry no cost of their own.
+Sora-only operations — remix, edit, extend, characters — are **deliberately
+absent**. No other vendor offers them, and they come back when a second one
+does.
 
-### Realtime
+### Realtime and sockets
 
-| Operation | Method and path (family) | Settle | Affinity |
-| --- | --- | --- | --- |
-| `create_realtime_call` | `POST /v1/realtime/calls` (openai) | session end | resource `realtime_call` |
-| `connect_realtime` | `GET /v1/realtime` WebSocket upgrade (openai) | session end | session |
+| Method | Path | Operation / dialect |
+| --- | --- | --- |
+| `POST` | `/v1/realtime/calls` | `create_realtime_call` / `openai` |
+| `GET` | `/v1/realtime` | `connect_realtime` / `openai` — upgrade |
+| `GET` | `/v1/live` | the same, at the WebRTC spelling |
+| `GET` | `/v1/live/{call_id}` | the continuation with the call in the path |
+| `GET` | `/v1/responses/ws` | `generate_content` / `openai_responses_websocket` |
+| `GET` | `/ws/v1beta/BidiGenerateContent` | `connect_realtime` / `gemini` — Gemini Live |
 
-## Answered Locally
+`POST /v1/realtime/calls` is an HTTP multipart request carrying an SDP offer,
+and the handshake that continues it carries **no body at all**. What survives
+the upgrade is the call id — in the path, or in `?call_id=` — which the engine
+looks up to pin the socket to the credential that answered the offer. The query
+is forwarded intact for exactly that reason.
 
-`list_models` and `get_model` in aggregated or namespace mode are answered
-from the control-plane snapshot: the exposed models plus, for providers
-with `auto_refresh_models` on, a concurrent upstream catalogue fetch
-merged into the list. `count_tokens`, and any other cell whose routing
-rule (or channel default) is `local`, is answered by the gateway with its
-tokenizer ladder. Local answers still authenticate, pass permission and
-rate-limit checks, and complete admission and request telemetry. Free
-operations never pre-charge a quota and write no usage row.
+A realtime session is **never converted**: only same-dialect passthrough,
+because a client that can keep talking mid-response has no equivalent in a
+half-duplex dialect.
 
-## WebSocket Ingresses
+**Nothing is upgraded before it is allowed.** Authentication, then the
+handshake shape, then admission, then the upstream handshake; the `101` is
+written last. Every refusal is therefore an HTTP answer a client can read — a
+socket that is accepted and immediately closed carries no status, no body and
+no code. A **refused upstream handshake is relayed verbatim**: a vendor's
+`429 {"error":{"code":"insufficient_quota"}}` is worth more than any 502 this
+gateway could invent.
 
-Upgrade intent is detected from `sec-websocket-*`, `Upgrade: websocket`
-or `Connection: upgrade` headers. Two operations accept it:
-`GET /v1/responses` (Responses over WebSocket, an envelope of the
-Responses wire shape that composes onto the Responses transform pairs)
-and `GET /v1/realtime`. Channels may add WebSocket service surfaces of
-their own, reachable in named mode. A path that matches an upgrade
-ingress without an upgrade, or the reverse, is rejected. Upgrades work on
-the native host and on Cloudflare and Deno; Netlify answers 501.
+A socket holds its concurrency lease until it **closes**, not until the `101`
+was written. A session that runs for an hour holds its slot for that hour.
 
-## Resolution Order
+### The ambiguous paths
 
-For a request that names a model, the control plane resolves in this
-order. The order is exercised by
-`crates/gproxy-core/src/tests/pricing.rs`.
+`/v1/models`, `/v1/models/{id}` and `/v1/files` are spelled identically by
+OpenAI, Claude and Gemini's v1 surface, and the dialect decides which wire
+types a conversion is asked for — so guessing it wrong is a converted body the
+client cannot parse.
 
-1. **Alias.** A global alias (an `aliases` row with no provider) is applied
-   first; then, when the mode names a provider, that provider's alias.
-   Aliases match exactly; the first enabled row by `(priority, id)` wins.
-2. **Variant suffix.** If the aliased name is a declared variant of an
-   exposed model (`variants_json`), the presets are stripped from the end
-   and written into the body: `-thinking-none|low|medium|high|xhigh|adaptive`
-   becomes `reasoning_effort` (Chat), `reasoning.effort` (Responses),
-   `thinking` (Claude; budgets 1,024 / 10,240 / 32,768 tokens, `adaptive`,
-   or `disabled`), or `generationConfig.thinkingConfig.thinkingLevel`
-   (Gemini); `-tier-priority|default|scale|flex|auto` and `-fast` become
-   `service_tier`. Presets stack (`-thinking-high-tier-flex`). A suffix on
-   a name that is not a declared variant is left alone and looked up
-   verbatim.
-3. **Route.** The resolved name is looked up in `exposed_models`, or as
-   `ns/name` inside a namespace. An unknown name is 404.
-4. **Members to plan.** Members whose credential is marked dead for this
-   model (or for `*`) are dropped. The rest sort by tier, then health
-   (healthy before degraded), then member weight, then credential weight.
-   Inside the first tier a per-route counter picks the member in
-   proportion to its weight, then a credential inside that member: the
-   provider strategy `round_robin` advances a per-member counter,
-   `sticky` hashes the session or API-key affinity to a stable slot. The
-   pick moves to the front; the other members stay in sorted order as
-   failover targets. Rotation is a counter, never random, so successive
-   requests walk the weighted slots in order.
-5. **Credential.** Each target is `(provider, credential, upstream model)`.
-   Provider settings, the proxy (credential over provider over global)
-   and the TLS fingerprint override travel with it.
+The tiebreak is **the client's own authentication header** —
+`x-goog-api-key` is Gemini's, `anthropic-version` is Claude's — which is
+evidence the client supplied about itself rather than a default this gateway
+invented. With no evidence the first row wins, and the table is ordered so that
+is OpenAI.
 
-## Failover Budget
+## The Mount Grammar
 
-The budget is `min(route.max_attempts, GPROXY_MAX_ATTEMPTS)`; for a named
-provider it is `min(number of credentials, GPROXY_MAX_ATTEMPTS)`. Only
-sends count against it. A target is skipped without spending budget when:
+| Path | Mount | Narrows to |
+| --- | --- | --- |
+| `/v1/messages` | aggregated | nothing |
+| `/acme/v1/messages` | namespace `acme` | the exposed names under `acme/` |
+| `/openai-prod/v1/messages` | provider `openai-prod` | that provider |
 
-- its credential was already marked dead during this request (secret
-  rejected, refresh failed, or an upstream `CredentialDead` disposition);
-- a resource affinity pins the request to another credential of that
-  provider;
-- the provider's routing rule for this `(operation, kind)` is
-  `unsupported`, or asks for a transform pair that does not exist;
-- the credential's own RPM or TPM limit for the current minute is reached.
+A **namespace** is the first segment of a slash-bearing exposed model name. A
+**provider** mount names a provider's `name` — the operator's label, not the
+row id, because nobody types a machine-minted id into a client's base URL. A
+namespace wins over a provider of the same name.
 
-A sent attempt whose disposition is `Retryable` or `CredentialDead` moves
-to the next target; `Success` and `Terminal` are returned to the client.
-When no attempt could be sent, the response is 500 (no target supports
-the operation), 400 (unsupported), 429 (every credential rate-limited) or
-502 (no credentials); when all attempts failed it is 502
-`all upstream attempts failed`. Every response carries `x-request-id`,
-which ties the attempts together in the request audit.
+**A prefix is only stripped when what is left is also a declared surface.**
+Every simplification of that rule is wrong: a provider named `backend-api`
+would otherwise eat `/backend-api/codex/responses`, which is a real Codex path,
+and turn a data-plane call into a mount that does not exist.
 
-## Headers Stripped Before Egress
+**An ambiguous path therefore resolves towards the aggregated mount.** When the
+first segment names something but the remainder is not a surface this gateway
+serves, the path is left whole. Losing a mount is a 404 an operator can see;
+taking one that was not meant is a request sent to the wrong upstream.
 
-At ingress, before any channel sees the request, GPROXY removes
-`x-gproxy-session-id` (its own session-affinity hint), the hop-by-hop
-headers (`connection`, `content-length`, `keep-alive`,
-`proxy-authenticate`, `proxy-authorization`, `proxy-connection`, `te`,
-`trailer`, `transfer-encoding`, `upgrade`, plus anything nominated by
-`Connection`), and the caller's credential and forwarding headers
-(`accept-encoding`, `api-key`, `authorization`, `cookie`, `forwarded`,
-`host`, `via`, `x-api-key`, `x-forwarded-for`, `x-forwarded-host`,
-`x-forwarded-proto`, `x-goog-api-key`, `x-real-ip`). The query parameters
-`access_token`, `api_key`, `key` and `x-api-key` are removed.
+A mount narrows by **prefixing the model name**, which is the resolver's own
+grammar rather than a second rule. A name that already carries the prefix is
+left alone.
 
-At egress the upstream request is rebuilt from an allow-list: `accept`
-and `content-type`, the names the channel declares, and the provider's
-`traffic_policy` setting. Names or `prefix-*` patterns in the instance's
-global metadata blacklist are removed even when allowed. Query parameters
-follow the channel's allow-list the same way. The channel then adds its
-own authentication. Response headers to the client are filtered alike: a
-base list (`accept-ranges`, `allow`, `cache-control`,
-`content-disposition`, `content-encoding`, `content-range`,
-`content-type`, `etag`, `expires`, `last-modified`, `link`, `location`,
-`retry-after`, `vary`) plus channel additions, and never `alt-svc`,
-`server`, `set-cookie`, `set-cookie2`, `via` or `www-authenticate`.
+:::note[One known gap]
+A **model-less** operation on a provider mount is narrowed to that provider's
+*channel*, not to the provider. `GET /p1/v1/models` lists the models of every
+provider on `p1`'s channel that the caller may reach. Closing it needs a field
+the request shape does not have yet.
+:::
 
-## Routing Rules
+## The OAuth Issuer
 
-Whether a provider's cell is passthrough, transformed to another kind,
-answered locally or unsupported is a per-provider matrix keyed by
-`(operation, kind)`, seeded from the channel's defaults and editable in
-the Rules workspace. See [Routing Rules & Rule Sets](/guides/rules/).
+Relative to a mount prefix (`""`, `/acme`, `/openai-prod`):
+
+```text
+GET  {prefix}/v1/oauth/authorize    consent handoff (302 to the portal for a browser)
+POST {prefix}/v1/oauth/authorize    the person's decision
+POST {prefix}/v1/oauth/token        code, refresh and device grants
+POST {prefix}/v1/oauth/device/code
+POST {prefix}/v1/oauth/revoke
+GET  {prefix}/v1/.well-known/oauth-authorization-server
+GET  /.well-known/oauth-authorization-server{prefix}/v1   (RFC 8414 §3.1)
+```
+
+The issuer identifier is `{origin}{prefix}/v1`, which is why the aggregated
+mount is `https://host/v1` and not `https://host`: one rule then produces all
+three mounts. RFC 8414 requires the identifier to be exactly the one a client
+fetched the document from, and only the host knows which mount a request
+arrived on, so it is passed in rather than computed.
+
+v3 served these at the root. Moving them under `/v1` made the prefix rule the
+same one `/v1/messages` follows, and the move was cheap because v3 never
+implemented the discovery endpoint at all — clients were hard-coding the
+address anyway.
+
+## Management Routes
+
+Every identity family has the same five routes, generated from one declaration
+so a family cannot accidentally have four of them:
+
+```text
+GET    /admin/api/{family}           list      (page and filters in the query)
+POST   /admin/api/{family}           create
+GET    /admin/api/{family}/{id}      get
+PATCH  /admin/api/{family}/{id}      update
+DELETE /admin/api/{family}/{id}      delete    → 204
+```
+
+**Identity** families: `users`, `api-keys`, `organizations`, `teams`,
+`permissions`, `rate-limits`, `subscriptions`, `pools`, `pool-members`,
+`plans`, `plan-limits`. `oauth-clients` has the first four plus
+`POST …/{id}/retire` instead of a delete — the grants a client issued still
+name it.
+
+**Configuration** families get the same five **plus a batch**, because every
+one of them takes a batch and a batch is one revision commit however many rows
+it names:
+
+```text
+POST /admin/api/{family}/batch
+     [{"create": …}, {"update": {"id": …, "patch": …}}, {"delete": "id"}]
+```
+
+`providers`, `credentials`, `models`, `provider-models`, `routes`,
+`route-members`, `exposed-models`, `connection-profiles`, `rule-sets`, `rules`,
+`provider-rule-sets`, `operation-rules`, `operation-endpoints`, `quotas`,
+`price-rules`, `price-rates`, `price-tiers`.
+
+Beyond the five: `settings`, the credential operations (`reveal`, `status`,
+`refresh`, `quota`, `quota-probe`, `quota-reset`, `health-reset`, `limits`),
+`models/{discover,discover/apply,test}`, `rule-sets/{id}/rules`,
+`rule-sets/{id}/rule-presets/{preset}`,
+`providers/{id}/routing-defaults/reset`, `quotas/status`,
+`quotas/{id}/{reset,limit-reset}`, `export`, `import`, `connectivity/test`,
+`channels`, `tls-presets`, `rule-presets`, `default-model-catalog`,
+`tokenizer-vocabs`, `tokenizer-auth`, `session`, `sessions` and `audit`.
+
+Where v3 had the same operation the path is v3's, so an operator's scripts
+survive. New in v4: `/exposed-models` (v3 called them aliases),
+`/connection-profiles`, `/operation-rules`, `/operation-endpoints`,
+`/price-tiers`, a single `/settings` (v3 split it in two), and
+`/{family}/batch` (v3 had `/batch/{entity}`). The middleware runs authenticate
+→ **require the instance administrator** → same-origin for an unsafe cookie
+request → the operation → an audit row for every method that is not a read. It
+is a route layer, so an unknown `/admin/api/*` path is a 404 that never touches
+the database.
+
+## Portal Routes
+
+```text
+POST   /portal/api/login             name + password → session cookie and token
+POST   /portal/api/logout
+GET    /portal/api/context           the caller, their memberships, their features
+GET    /portal/api/models            every exposed name, each marked `permitted`
+GET    /portal/api/usage             their own spend
+GET    /portal/api/quota             their own budget windows
+GET    /portal/api/requests          their recent requests, if enabled
+GET    /portal/api/sessions
+GET    /portal/api/keys              (+ POST, DELETE …/{id}, POST …/{id}/rotate, GET …/{id}/secret)
+GET    /portal/api/oauth-sessions    (+ DELETE …/{id})
+POST   /portal/api/password
+```
+
+The guard requires an authenticated caller and **nothing more**. There is no
+role check because there is nothing to check against: every portal operation is
+scoped to the caller it was built from and none of them takes a user id. A
+check can be forgotten; a missing parameter cannot.
+
+`login` and `logout` sit outside the guard — the first runs before there is a
+caller, and the second has to work for a session that has already expired, or a
+browser is left holding a cookie it can never discard.
+
+## Resolution and the Failover Budget
+
+See [Models, Routes & Exposed Names](/guides/models/) for the four name forms
+and the ordering. The budget:
+
+- it is the route's own `maxAttempts`, capped by `settings.maxAttempts`;
+- it is **shared across targets**: each target is granted at most as many
+  attempts as it has credentials, and never more than what is left, so a plan
+  cannot cost more upstream calls than its budget;
+- a failure moves to the next provider **only if another provider could serve
+  it** — no usable credential, a dead credential, a continuation pinned
+  elsewhere, any channel or transport error, or a 401, 403, 429 or 5xx answer;
+- a spent budget, a forbidden request, a cancellation, a bad conversion and a
+  store or cache failure stop the call where they are;
+- with no target left, **the last answer is returned as it stands**. A 429 from
+  the final provider is the caller's 429, not a synthesized error.
+
+The request body is buffered once so it can be replayed. A streaming body over
+`maxRequestBodyBytes` stays a stream and the plan is cut to a single target: a
+64 MiB upload is not worth reading into memory for the sake of failover.

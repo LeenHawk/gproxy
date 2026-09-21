@@ -1,0 +1,64 @@
+{
+  "overview": {
+    "title": "你好，{{name}}",
+    "subscription": "订阅",
+    "usage": "最近七天",
+    "usageDescription": "窗口内这个账号发出的全部请求的合计。",
+    "quota": "预算",
+    "noSubscription": "这个账号当前没有生效的订阅。",
+    "noExpiry": "不过期",
+    "expires": "{{at}} 到期"
+  },
+  "keys": {
+    "emptyTitle": "还没有密钥",
+    "emptyDescription": "铸造一把，把客户端指向这个网关。",
+    "readOnlyTitle": "此处只读",
+    "readOnlyDescription": "你是通过自己授权过的程序登录的，被借出的令牌不能再铸造长期凭证。要改密钥，请用密码登录。",
+    "secretTitle": "现在就复制",
+    "secretHint": "这是实例唯一一次展示它。丢了就只能轮换。",
+    "copied": "已复制到剪贴板",
+    "copyFailed": "剪贴板不可用，请选中文本手动复制。"
+  },
+  "models": {
+    "emptyTitle": "没有暴露任何模型",
+    "emptyDescription": "这个实例还没有配置渠道商，或者没有一个能到达你。"
+  },
+  "usage": {
+    "trend": "窗口内的费用",
+    "groups": "分组",
+    "truncated": "扫描触到了行数上限。这些数字描述的是 {{scanned}} 条记录，不是窗口内的全部。",
+    "emptyTitle": "这个窗口里没有记录",
+    "emptyDescription": "你没有请求落在这个区间内。"
+  },
+  "quota": {
+    "emptyTitle": "没有预算约束",
+    "emptyDescription": "你的链路上——密钥、账号、订阅、团队、组织——没有任何一层设了额度。",
+    "pattern": "覆盖 {{pattern}}",
+    "permanent": "不重置",
+    "resets": "{{at}} 重置"
+  },
+  "requests": {
+    "emptyTitle": "没有最近请求",
+    "emptyDescription": "要么你还没发过请求，要么这个实例关掉了门户的请求日志。"
+  },
+  "account": {
+    "password": "密码",
+    "passwordDescription": "改密码会结束你打开的其他所有会话。",
+    "passwordChanged": "密码已修改",
+    "scopes": "作用域",
+    "scopesDescription": "你所属的组织与团队，以及各自的角色。",
+    "noScopes": "没有作用域",
+    "noScopesDescription": "这个账号不属于任何组织或团队。",
+    "sessions": "会话",
+    "sessionsDescription": "你打开的每一个控制台或门户登录，包括当前这个。",
+    "grants": "已授权的程序",
+    "grantsDescription": "你授予过访问权限的第三方客户端。吊销会立即断开它。",
+    "noGrants": "没有授权",
+    "noGrantsDescription": "没有程序持有这个账号的授权。"
+  },
+  "members": {
+    "title": "成员",
+    "description": "谁属于 {{name}}，各自是什么角色。",
+    "emptyTitle": "还没有成员"
+  }
+}

@@ -1,140 +1,236 @@
 ---
-title: "Models, Routes & Aliases"
-description: "How a client model name resolves through aliases, variant suffixes, and routes to a provider credential, and how the model list is built"
+title: "Models, Routes & Exposed Names"
+description: "How a client model name resolves to a provider and a credential: the four forms, routes and their members, exposed names, namespaces and the model catalogue."
 ---
 
-A client model name is rarely an upstream model id. In aggregated mode the
-request `model` resolves in a fixed order before a credential is chosen:
+A client model name is rarely an upstream model id. v4 resolves it **before**
+the engine runs, so the engine only ever sees an already-chosen target.
 
 ```text
 request model
-  -> alias (global, then provider-scoped when the provider is known)
-  -> variant suffix (thinking level, service tier, ...)
-  -> exposed model -> route -> members by tier and weight
-  -> provider credential
+  → the first matching form: exposed name · channel/model · provider/model
+  → candidates, narrowed by channel, allowed providers, allowed credentials
+  → ordered by (tier, health, descending weight, stable id)
+  → the leading run balanced by the route's strategy
+  → one (provider, credential, upstream model) per attempt
 ```
 
-In the console, a route is called a **load balancer**, an exposed model is a
-**model mapping**, and an alias is a **routing alias**.
+There are **no aliases and no variant suffixes** in v4. Both existed in v3 and
+neither was ported: an alias was a second name-rewriting stage in front of a
+name-rewriting stage, and a variant suffix was request shaping hidden inside
+resolution. Request shaping is a rewrite rule now — visible, ordered, and
+filtered by model — see [Rewrite Rules](/guides/rules/).
 
-## Provider Models
+## The Four Forms
 
-Each provider keeps a catalogue of the upstream models it serves. A row has:
+A name matches the first rule that applies.
 
-| Field | Meaning |
-| --- | --- |
-| Upstream model id | The id the provider expects. |
-| Display name | Optional. |
-| Max input, Max output | Context window and output limit, when known. |
-| Thinking supported / adaptive / enabled | Capability flags. Unset means unknown. |
-| Variants | Extra names that route to this model. See below. |
-| Enabled | Disabled rows are never listed. |
+| Name | Resolves to | Attempt budget |
+| --- | --- | --- |
+| absent | every enabled provider, no upstream model | `settings.max_attempts` |
+| an **exposed model name** | that route's enabled members | the route's own |
+| `channel/model` | the providers of that channel, preferring the ones whose catalogue lists `model` | `settings.max_attempts` |
+| `provider/model` | that one provider | `settings.max_attempts` |
+| anything else | `404 unknown_model` | — |
 
-**Pull from upstream** asks the provider for its live catalogue through the
-ordinary list-models path, authenticated with your own key, and shows the
-result. Nothing is written until you pick rows to import; known rows are
-marked. When the embedded default catalogue knows a model, its limits fill
-gaps and a default price rule can be created for this provider.
+Exposed names are matched **exactly and first**, so an operator can expose the
+literal name `openai/gpt-5` as a public name of their own.
 
-**Test** sends one 16-token chat completion for the model through the normal
-pipeline with your own key. It passes admission, is billed, and reports the
-status, latency, the key that paid, and the reply or the upstream error.
+Inside the prefix forms, **a channel id beats a provider of the same name**. A
+channel id is fixed by the build and cannot be renamed out of the way; a
+provider always can. The alternative is worse: name a provider `codex` and all
+`codex/*` traffic could never reach the `codex` channel again, with no way
+around it.
 
-## Routes and Members
+## Routes
 
-A route has a name, a maximum attempt count, and members:
+A route is a named pool with its own balancing strategy and attempt budget.
 
-| Field | Meaning |
-| --- | --- |
-| Provider, Upstream model | Where a member sends traffic. |
-| Pinned credential | Optional. Restricts the member to one credential. |
-| Failover tier | Default 0. Tier 0 is exhausted before tier 1 receives traffic. |
-| Weight | Default 100. Splits traffic among healthy members in the same tier. |
-| Enabled | Disabled members leave the plan. |
-
-Members are ordered by tier, then health, then weight. One member of the
-lowest healthy tier is chosen by a deterministic weighted counter, then a
-credential inside it by the provider's strategy. Failover walks the rest of
-the ordered list until the route's **Maximum attempts** is spent. Dead
-credentials are excluded before the slot is consumed; degraded ones sort last.
-
-## Exposed Models
-
-A **model mapping** binds a public name to a route. What a route advertises is
-folded from its members' provider-model rows, conservatively:
-
-- a limit is known only when every member states one, and the minimum wins;
-- a capability flag is `false` if any member says false, `true` only if all
-  say true, otherwise unknown;
-- a display name is kept only when all members agree;
-- variants survive only when every member declares the same suffix.
-
-A public name containing `/` creates a **namespace**: `team-a/reviewer` is
-reachable as `reviewer` under `/team-a/v1/...`, and `GET /team-a/v1/models`
-lists that namespace only.
-
-## Aliases
-
-An alias maps an incoming name to another name by exact match. Rows are
-ordered by priority; the first enabled match wins.
-
-| Scope | Applied |
-| --- | --- |
-| Any provider | Before route lookup, in every mode. |
-| One provider | After the provider is known: named or scoped requests to that provider. |
-
-Aliases are exact strings, not patterns. Use a variant when you want a family
-of suffixed names.
-
-## Variants and Suffix Presets
-
-A provider model's **Variants** field declares extra names that route to the
-base model. It is stored as a JSON array of names, or as an object when the
-base name itself should not be listed:
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/routes \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"name":"main","strategy":"round_robin","maxAttempts":6}'
+```
 
 ```json
-{ "expose_base": false, "variants": ["gpt-5-thinking-high", "gpt-5-tier-flex"] }
+{"id":"33a88261f571347c7f0408c3bd2e2164","name":"main","strategy":"round_robin",
+ "maxAttempts":6,"enabled":true}
 ```
 
-Variant names must be unique across the whole catalogue. The console's
-**Set behavior** picker suggests suffixes per protocol and records what each
-one injects:
+| Field | Meaning |
+| --- | --- |
+| `name` | Unique. A route name is not addressable on its own — only an exposed name reaches it. |
+| `strategy` | `round_robin`, `weighted` or `failover`. |
+| `maxAttempts` | The total attempt budget including the first call. `settings.maxAttempts` (default 6) is a hard ceiling on it at execution time. |
 
-| Protocol | Suffixes | Request field |
-| --- | --- | --- |
-| OpenAI Responses / Chat | `-thinking-none`, `-low`, `-medium`, `-high`, `-xhigh` | `reasoning.effort` / `reasoning_effort` |
-| OpenAI Responses / Chat | `-tier-auto`, `-default`, `-flex`, `-scale`, `-priority`, `-fast` | `service_tier` (`-fast` = `priority`) |
-| OpenAI Responses / Chat | `-effort-low`, `-medium`, `-high` | `text.verbosity` / `verbosity` |
-| OpenAI Responses | `-image-generate`, `-image-edit`, `-search`, `-deep-research` | forced `tools` + `tool_choice` |
-| Claude Messages | `-thinking-none`, `-low`, `-medium`, `-high`, `-adaptive` | `thinking` (budgets 1024 / 10240 / 32768) |
-| Claude Messages | `-effort-low`, `-medium`, `-high`, `-xhigh`, `-max` | `output_config.effort` |
-| Gemini | `-thinking-none`, `-low`, `-medium`, `-high` | `generationConfig.thinkingConfig.thinkingLevel` |
-| OpenRouter, Vercel | `-via-<source>` | `provider.only` / `providerOptions.gateway.only` |
+## Members
 
-Thinking and tier suffixes are applied by the core itself: when the requested
-name is a declared variant and stripping recognised suffixes yields the base,
-the body's `model` is rewritten and the fields above are set for the target
-protocol. Every other behaviour is stored as ordinary `rewrite` rules, filtered
-by the variant name, in a rule set the console creates per provider (named
-`<provider> · defaults`). You can inspect and edit them in
-[Routing Rules & Rule Sets](/guides/rules/).
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/route-members \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"routeId":"…","providerId":"…","upstreamModel":"gpt-4o-mini",
+       "tier":0,"weight":100}'
+```
 
-## Model Listing
+| Field | Meaning |
+| --- | --- |
+| `providerId`, `upstreamModel` | Where this member sends traffic. The model name is an explicit string, not a catalogue foreign key. |
+| `tier` | Lower is preferred. Tier 0 is exhausted before tier 1 sees any traffic. |
+| `weight` | Positive, default 100. Splits traffic inside a tier, and orders failover candidates. |
+| `enabled` | A disabled member leaves the plan. |
 
-`GET /v1/models` (and the Claude and Gemini list paths) is answered locally in
-aggregated and namespace mode. The list is the union of:
+A member names no credential. Which credential inside the chosen provider
+serves the call is a separate decision the engine makes, and it fails over
+between that provider's credentials before the plan moves on to the next
+member.
 
-1. exposed models and their variants, with the folded metadata;
-2. the provider catalogues as `provider/model`;
-3. a live refresh from every provider in the plan whose
-   `auto_refresh_models` is on (the default), run concurrently.
+### How the order is decided
 
-Operator rows win over the wire: a row you disabled never appears, and a row
-you recorded keeps your limits. The refresh never writes to the catalogue.
-`GET /v1/models/{id}` looks the id up in the same list. Both operations pass
-admission and record a zero-cost settlement. A named request such as
-`GET /openai-main/v1/models` follows that provider's routing rule instead.
+Candidates sort by `(tier, health, descending weight, stable id)`.
 
-Permissions filter what a caller can see and call at the provider and
-operation-group level; see
-[Permissions, Rate Limits & Quotas](/guides/permissions/).
+**Tier is a hard preference.** Only the leading run — the candidates sharing
+the first one's tier *and* health — is balanced, and then by the strategy:
+
+| Strategy | Effect on the leading run |
+| --- | --- |
+| `round_robin` | rotates it on a per-route counter |
+| `weighted` | promotes the smooth weighted pick to the front |
+| `failover` | leaves it alone: the sorted order *is* the answer |
+
+Rotation is a counter, never a random draw, so wasm and native behave
+identically and a sequence is reproducible.
+
+Disabled, retired and dead credentials are dropped outright. A blocked
+credential is dropped while its provider still has an unblocked one; a provider
+whose credentials are **all** blocked keeps them and sorts behind every healthy
+provider. A rate limit is a last resort, not an outage.
+
+A name that resolved but reaches nothing is a different error from a name that
+was never known — a configuration problem rather than an unknown model.
+
+## Exposed Names
+
+An exposed model is the public name a client sends. It is what stops clients
+naming your infrastructure.
+
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/exposed-models \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"routeId":"…","name":"fast"}'
+```
+
+Many names may expose one route. A name is globally unique and matched exactly.
+
+### Namespaces
+
+A name with a `/` in it derives a namespace at runtime: exposing `acme/fast`
+makes `acme` a mount, and `/acme/v1/chat/completions` with `{"model":"fast"}`
+resolves `acme/fast`.
+
+```sh
+curl -s http://127.0.0.1:7070/acme/v1/chat/completions \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"model":"fast","messages":[{"role":"user","content":"hi"}]}'
+```
+
+A namespace is a **name index**, not a stored group and not an ownership
+scope. Nothing is created and nothing is owned by it.
+
+### Reserved first segments
+
+An exposed name whose first segment is a registered channel id or an existing
+provider name could never be reached — the prefix forms would claim it first —
+so the write is refused rather than left to fail silently at runtime:
+
+```json
+{"error":{"code":"invalid_request","message":"invalid request: `codex/` is reserved:
+ a first segment naming a channel or a provider already means `channel/model` or
+ `provider/model` narrowing, so `codex/fast` could never reach its route"}}
+```
+
+Anything else is fine. `coding/fast` is a perfectly good public name.
+
+## The Model Catalogue
+
+Two tables, and neither is required for routing.
+
+**`provider_models`** records which upstream names a provider serves:
+
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/provider-models \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"providerId":"…","upstreamName":"gpt-4o-mini"}'
+```
+
+```json
+{"id":"f32df0bb6378c03e70f7c3aa6315a3b8","providerId":"5a45fd807be0…",
+ "upstreamName":"gpt-4o-mini","modelId":null,"metadata":{},"enabled":true}
+```
+
+It is what the `channel/model` form prefers when it chooses among a channel's
+providers, and it is where discovery writes. **`models`** is the global
+catalogue a `provider_models` row may point at: one name, its metadata, and the
+tokenizer vocabulary token estimation should use for it.
+
+Routing can match names absent from both. A route member names its upstream
+model as a plain string, so a catalogue row is documentation and pricing
+material, not a prerequisite.
+
+### Filling it from the upstream
+
+```sh
+curl -s -X POST http://127.0.0.1:7070/admin/api/models/discover \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"providerId":"…"}'
+```
+
+Discovery asks in the provider's **own dialect**, so nothing is converted and
+the names are the upstream's. Each answer carries whether this provider already
+has a row for it and whether the bundled catalogue can price it.
+`POST /admin/api/models/discover/apply` inserts the ones you name, skipping
+those already there, so applying a discovery twice is the same as once.
+
+Both this and `POST /admin/api/models/test` spend a real credential and write a
+real usage row. See
+[the two probes](/guides/providers/#the-two-probes).
+
+The bundled catalogue — names, context windows and default prices this release
+knew about — is a snapshot taken when the asset was generated, not a live
+directory:
+
+```sh
+curl -s http://127.0.0.1:7070/admin/api/default-model-catalog -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X POST http://127.0.0.1:7070/admin/api/default-model-catalog/apply-prices \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"providerId":"…","modelIds":["gpt-4o-mini"],"overwrite":false}'
+```
+
+`overwrite: false` is what makes re-applying safe: a rule an operator edited
+keeps its edit and is reported as skipped.
+
+## What a Caller Sees
+
+`GET /v1/models` is **forwarded to a provider** and answers with that
+upstream's own catalogue. The list of names *you* publish is the portal's, and
+it omits nothing:
+
+```sh
+curl -s http://127.0.0.1:7070/portal/api/models -H "Authorization: Bearer $GPROXY_KEY"
+```
+
+```json
+[{"name":"custom/gpt-4o-mini","providerCount":1,"channelIds":["custom"],"permitted":true},
+ {"name":"fast","providerCount":1,"channelIds":["custom"],"permitted":true}]
+```
+
+A name the caller's rules do not reach stays in the list with
+`permitted: false`. v3 dropped such rows; v4 does not, because a list that
+silently omits makes "this model 404s" and "you are not allowed this model" the
+same observation — and there is nothing to protect, since an exposed name is
+instance configuration the operator publishes anyway.
+
+What *is* withheld is the provider ids behind a name: the answer reports a
+count and a channel, which say how redundant a name is without naming the
+machinery. The `provider/model` form also resolves and is deliberately **not**
+listed — its left half is a renameable row, and printing it would hand users a
+name that stops working when somebody edits a provider.

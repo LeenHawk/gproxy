@@ -1,0 +1,146 @@
+[package]
+name = "gproxy-sdk"
+description = "Embeddable GPROXY handle: assembly, configuration writes, login, resolution and synchronization"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# Everything in the default set compiles for wasm32-unknown-unknown.
+default = ["memory", "fs", "bundled-vocabulary"]
+
+# Channels, forwarded to gproxy-channel. Each one compiled in is registered by
+# the builder unless `without_default_channels()` is called.
+aistudio = ["gproxy-channel/aistudio"]
+antigravity = ["gproxy-channel/antigravity"]
+aws_bedrock = ["gproxy-channel/aws_bedrock"]
+azure = ["gproxy-channel/azure"]
+claudeapi = ["gproxy-channel/claudeapi"]
+claudecode = ["gproxy-channel/claudecode"]
+claudeweb = ["gproxy-channel/claudeweb"]
+cline = ["gproxy-channel/cline"]
+codex = ["gproxy-channel/codex"]
+copilotcli = ["gproxy-channel/copilotcli"]
+custom = ["gproxy-channel/custom"]
+dashscope = ["gproxy-channel/dashscope"]
+deepseek = ["gproxy-channel/deepseek"]
+devin = ["gproxy-channel/devin"]
+geminicli = ["gproxy-channel/geminicli"]
+grokbuild = ["gproxy-channel/grokbuild"]
+kimi = ["gproxy-channel/kimi"]
+kiro = ["gproxy-channel/kiro"]
+openai = ["gproxy-channel/openai"]
+opencode = ["gproxy-channel/opencode"]
+openrouter = ["gproxy-channel/openrouter"]
+vertex = ["gproxy-channel/vertex"]
+vertexexpress = ["gproxy-channel/vertexexpress"]
+workbuddy = ["gproxy-channel/workbuddy"]
+xai = ["gproxy-channel/xai"]
+# Every channel this workspace ships.
+channels = [
+    "aistudio",
+    "antigravity",
+    "aws_bedrock",
+    "azure",
+    "claudeapi",
+    "claudecode",
+    "claudeweb",
+    "cline",
+    "codex",
+    "copilotcli",
+    "custom",
+    "dashscope",
+    "deepseek",
+    "devin",
+    "geminicli",
+    "grokbuild",
+    "kimi",
+    "kiro",
+    "openai",
+    "opencode",
+    "openrouter",
+    "vertex",
+    "vertexexpress",
+    "workbuddy",
+    "xai",
+]
+
+# Databases. SQLite is always available on native targets; these add a driver
+# and are native-only. libSQL and D1 are the edge options.
+postgres = ["sea-orm/sqlx-postgres"]
+mysql = ["sea-orm/sqlx-mysql"]
+libsql = ["gproxy-seaorm/libsql", "gproxy-client/libsql"]
+# Marker: the D1 binding is always available on wasm32 through gproxy-seaorm.
+# Enabling it documents the intent and keeps the feature name stable.
+d1 = []
+
+# Shared transient state and invalidation notifications.
+memory = ["gproxy-cache/memory"]
+redis = ["gproxy-cache/redis"]
+
+# Object storage for published bodies and downloaded vocabularies.
+fs = ["gproxy-file/fs"]
+s3 = ["gproxy-file/s3"]
+
+# Ship DeepSeek's vocabulary for models without a catalog vocabulary file.
+bundled-vocabulary = ["gproxy-core/bundled-vocabulary"]
+
+# TypeScript declarations for the DTOs the management API exchanges, and for
+# the channel descriptors a provider form is rendered from.
+# `no-serde-warnings` is not cosmetic: `ts-rs` does not know
+# `#[serde(deserialize_with = "…")]` and prints a "failed to parse serde
+# attribute" warning for every one of them. Every patch field over a nullable
+# column carries `deserialize_with = "double_option"`, so without this the
+# feature would print fifty warnings that all describe the same deliberate
+# pattern — and would bury a real one.
+ts = ["dep:ts-rs", "ts-rs/no-serde-warnings", "gproxy-channel/ts"]
+
+[dependencies]
+arc-swap = { workspace = true }
+base64 = { workspace = true }
+futures-util = { workspace = true }
+getrandom = { workspace = true }
+gproxy-cache = { workspace = true }
+gproxy-channel = { workspace = true }
+gproxy-client = { workspace = true }
+gproxy-core = { workspace = true }
+gproxy-file = { workspace = true }
+gproxy-protocol = { workspace = true }
+gproxy-seaorm = { workspace = true }
+gproxy-store = { workspace = true }
+http = { workspace = true }
+rust_decimal = { workspace = true }
+sea-orm = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+ts-rs = { workspace = true, optional = true }
+url = { workspace = true }
+web-time = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gproxy-client = { workspace = true, features = ["reqwest"] }
+sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
+tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-timers = { workspace = true }
+gproxy-client = { workspace = true, features = ["fetch"] }
+tokio = { version = "1", default-features = false, features = ["macros", "sync"] }
+wasm-bindgen-futures = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+async-trait = { workspace = true }
+futures-util = { workspace = true, features = ["sink"] }
+gproxy-cache = { workspace = true, features = ["memory"] }
+# The transfer and tokenizer tests need real file storage behind the handle.
+gproxy-file = { workspace = true, features = ["fs"] }
+http = { workspace = true }
+rust_decimal = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

@@ -1,0 +1,96 @@
+[package]
+name = "gproxy-client"
+description = "Reusable outbound reqwest and wreq clients for GPROXY"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["reqwest"]
+# Native reqwest backend; on wasm32 the reqwest Fetch fallback (HTTP only,
+# buffered request bodies).
+reqwest = ["dep:reqwest", "dep:reqwest-websocket"]
+wreq = ["dep:wreq", "dep:wreq-util"]
+# Native only: reqwest 0.12 over the platform's native TLS (OpenSSL on Linux,
+# Secure Transport on macOS, SChannel on Windows), the Codex CLI's HTTP stack.
+# WebSocket upgrades for this backend go through the rustls `reqwest` client,
+# as the CLI's own WebSocket does. On Linux OpenSSL is built from source and
+# wreq's BoringSSL gets prefixed symbols, the only way both TLS libraries link
+# into one binary (their archives share names and symbols; the system
+# libssl.so cannot be picked over BoringSSL's static libssl.a).
+reqwest-native = [
+    "dep:reqwest_native",
+    "dep:openssl-sys",
+    "reqwest",
+    "wreq?/prefix-symbols",
+]
+# wasm32: the JS host's global `fetch` through web-sys, with streaming bodies
+# in both directions. Works wherever a JS runtime exposes fetch: Cloudflare
+# Workers, Deno, Netlify Edge, browsers.
+fetch = [
+    "dep:js-sys",
+    "dep:wasm-bindgen",
+    "dep:wasm-bindgen-futures",
+    "dep:wasm-streams",
+    "dep:web-sys",
+]
+# wasm32: Cloudflare Workers WebSocket upgrades (`fetch` with `Upgrade:
+# websocket`, then `response.webSocket`), on top of `fetch`.
+workers = ["fetch"]
+# `Client` as the HTTP leg of gproxy-seaorm's libSQL/Turso connection.
+libsql = ["dep:gproxy-seaorm"]
+
+[dependencies]
+gproxy-protocol = { workspace = true }
+gproxy-seaorm = { workspace = true, optional = true, features = ["libsql"] }
+http = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+url = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+futures-util = { workspace = true, features = ["sink"] }
+moka = { workspace = true }
+tokio = { workspace = true, features = ["rt"] }
+reqwest = { workspace = true, optional = true, features = ["gzip", "brotli", "deflate", "zstd", "multipart"] }
+reqwest-websocket = { workspace = true, optional = true }
+wreq = { workspace = true, optional = true, features = ["system-proxy", "multipart", "ws"] }
+wreq-util = { workspace = true, optional = true, features = ["emulation-serde"] }
+reqwest_native = { workspace = true, optional = true }
+
+# The Codex CLI links the system OpenSSL on glibc targets and builds it from
+# source on musl; here it is always built from source on Linux so it can share
+# a binary with wreq's BoringSSL (see the `reqwest-native` feature).
+[target.'cfg(target_os = "linux")'.dependencies]
+openssl-sys = { version = "0.9", optional = true, features = ["vendored"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+futures-util = { workspace = true, features = ["sink"] }
+js-sys = { workspace = true, optional = true }
+reqwest = { version = "0.13", default-features = false, features = ["stream"], optional = true }
+tokio = { version = "1", default-features = false, features = ["sync"] }
+wasm-bindgen = { workspace = true, optional = true }
+wasm-bindgen-futures = { workspace = true, optional = true }
+wasm-streams = { workspace = true, optional = true }
+web-sys = { workspace = true, optional = true, features = [
+    "BinaryType",
+    "CloseEvent",
+    "Event",
+    "Headers",
+    "MessageEvent",
+    "ReadableStream",
+    "Request",
+    "RequestInit",
+    "Response",
+    "WebSocket",
+] }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+tokio = { workspace = true, features = ["io-util"] }
+tokio-tungstenite = { workspace = true }
+futures-util = { workspace = true, features = ["sink"] }

@@ -1,50 +1,86 @@
 [package]
 name = "gproxy-app"
-description = "GPROXY v3 bootstrap, control snapshot, and core host services"
+description = "Identity, admission and product operations for GPROXY v4, independent of any server"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
-[dependencies]
-aes-gcm.workspace = true
-arc-swap.workspace = true
-base64.workspace = true
-getrandom.workspace = true
-futures-util.workspace = true
-form_urlencoded.workspace = true
-gproxy-channel-api.workspace = true
-gproxy-admin.workspace = true
-gproxy-channels.workspace = true
-gproxy-core = { workspace = true, features = ["exhaustive"] }
-gproxy-protocol = { workspace = true, features = ["exhaustive"] }
-gproxy-store.workspace = true
-gproxy-tokenize.workspace = true
-gproxy-upstream.workspace = true
-bytes.workspace = true
-http.workspace = true
-hmac.workspace = true
-rust_decimal.workspace = true
-ruzstd.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-serde_urlencoded.workspace = true
-sha2.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
-web-time.workspace = true
-zeroize.workspace = true
+[features]
+# TypeScript declarations for the identity and portal DTOs, and the export
+# test that writes them. It turns the sdk's on as well, because a portal shape
+# is built out of sdk shapes — `PortalUsageDto` carries a `UsageSummaryDto` —
+# and a declaration cannot be written for a type whose field types have none.
+#
+# `no-serde-warnings` is not cosmetic here either: every patch field over a
+# nullable column carries `#[serde(deserialize_with = "double_option")]`, which
+# `ts-rs` cannot parse and warns about once per field. Without the flag the
+# feature prints several dozen warnings that all describe the same deliberate
+# pattern, and a real one would be lost among them.
+ts = ["dep:ts-rs", "ts-rs/no-serde-warnings", "gproxy-sdk/ts"]
 
+[dependencies]
+arc-swap = { workspace = true }
+# Pure Rust password hashing for the console/portal login.
+argon2 = { workspace = true }
+base64 = { workspace = true }
+bytes = { workspace = true }
+# Query-parameter keys are percent-decoded before they are matched against the
+# redaction list, exactly as core's observer decodes them, so the two sides of
+# one request hide the same parameters.
+form_urlencoded = { workspace = true }
+# `wasm_js` comes from the workspace entry, which is what makes randomness
+# available on wasm32-unknown-unknown without a native backend.
+getrandom = { workspace = true }
+gproxy-cache = { workspace = true }
+gproxy-core = { workspace = true }
+gproxy-protocol = { workspace = true }
+# The session ladder of `design/session-identity.md` has exactly one
+# implementation, and it lives in the sdk; `admission::session` wraps it rather
+# than growing a second one that could drift.
+gproxy-sdk = { workspace = true }
+gproxy-seaorm = { workspace = true }
+gproxy-store = { workspace = true }
+http = { workspace = true }
+sea-orm = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+# `CancellationToken` only: a host cancels a call when its client goes away,
+# and the sdk's builder takes exactly this type.
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+ts-rs = { workspace = true, optional = true }
+web-time = { workspace = true }
+
+# A rate-limit charge has to be given back from a `Drop`, where nothing can be
+# awaited, so the release is spawned; `sync` adds a timer for the revision poll
+# and a mutex around the subscription it drains. This is the whole of the
+# runtime this crate touches: no server, no task management.
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-chacha20poly1305.workspace = true
-clap.workspace = true
-gproxy-tokenize = { workspace = true, features = ["count-local"] }
-tokio.workspace = true
-tokio-rusqlite.workspace = true
+tokio = { version = "1", default-features = false, features = ["rt", "sync", "time"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-gloo-timers.workspace = true
+# `App` has to be `Send + Sync` for a host to put it in a request-scoped state,
+# and the engine under it is `!Send` on this target by design. See `Handle` in
+# `lib.rs`: one wrapper, one isolate, checked at runtime.
+send_wrapper = { workspace = true }
+# `sync::AppSync` holds the subscription an isolate's `tick` drains. No timers
+# here: an isolate never sleeps, it ticks.
+tokio = { version = "1", default-features = false, features = ["sync"] }
+wasm-bindgen-futures = { workspace = true }
 
-[dev-dependencies]
-blake3.workspace = true
-tempfile.workspace = true
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+async-trait = { workspace = true }
+futures-util = { workspace = true }
+gproxy-cache = { workspace = true, features = ["memory"] }
+# The scripted channel the data-plane tests run against. Not a dependency of
+# the crate itself: nothing here implements a channel.
+gproxy-channel = { workspace = true }
+sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
+# Two instances over one database is the cross-instance convergence test, and
+# two connections need a file rather than a private in-memory database.
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

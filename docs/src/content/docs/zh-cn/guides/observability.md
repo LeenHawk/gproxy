@@ -1,146 +1,212 @@
 ---
 title: 用量、日志与审计
-description: "用量行与小时汇总、带分级捕获与脱敏的请求审计、保留策略、管理操作审计、请求 id 与进程日志"
+description: GPROXY v4 记录什么：用量行与结算、下游与上游 capture、脱敏、审计轨迹，以及 HTTP 宿主还没暴露的东西。
 ---
 
-GPROXY 把运维数据写入持久化后端，因此共用同一数据库的所有实例共享同一视图。
-控制台在 **统计** 下读取这些数据：用量、管理操作与请求审计三个标签页。
+下面的一切都写进数据库，因此共用一个数据库的每个实例共享同一份视图。
 
-## 请求 ID
+记录三样东西，而且它们是**运行期**分开开关的，不是编译期——运维者需要按部署来决定，而
+Cargo feature 给不了这个。
 
-每个网关请求都获得形如 `<instance>-<prefix>-<sequence>` 的 id：数字型
-`GPROXY_INSTANCE_ID`（默认 `0`）、进程启动时随机选取的 64 位前缀，以及每进
-程计数器，后两者均为十六进制。该 id 通过 `x-request-id` 响应头返回给客户端，
-也是关联用量行、请求日志、上游捕获和门户最近请求列表的键。用量行的维度中还携
-带 `instance_id` 与配置的 `instance_name`，因此共享数据库可以按实例拆分。
+| | 贵在哪 | 关掉的后果 |
+| --- | --- | --- |
+| 结算 | usage 提取、token 估算、定价 | 配额记账**和**成本统计一起失效 |
+| capture | 复制 body，三者里最贵的 | 没有任何请求／响应留存 |
+| tracing | 字符串格式化 | 只剩错误日志 |
 
-## 用量行与汇总
+开关是在干活**之前**问的，绝不是事后丢弃结果。v3 先复制 body 再让 sink 决定，所以空
+sink 什么也省不下来；v4 先问，capture 关掉时不分配任何东西、不复制任何 body。
 
-每次结算的交换都在同一批次内向 `usage_rows` 写入一行，并累加到
-`usage_rollups` 的小时桶。所有到达上游的路径都会结算，包括服务界面；本地作
-答的操作记录一条零成本行。
+## 用量记录
 
-| 列 | 内容 |
-| --- | --- |
-| `request_id`、`at` | 关联 id 与结算的 Unix 时间。 |
-| `provider_id`、`credential_id`、`upstream_model`、`operation` | 由谁服务了请求。 |
-| `organization_id`、`team_id`、`user_id`、`user_key_id` | 谁被准入。 |
-| `input_tokens`、`output_tokens`、`cached_input_tokens` | 一级 Token 计数；`input_tokens` 包含缓存读取。 |
-| `metrics` | 维度数量，例如 `cache_creation_5m_tokens`、`reasoning_tokens`、`audio_seconds`、`web_searches`。 |
-| `dimensions` | 限定符，例如 `service_tier`、`instance_id`、`instance_name`。 |
-| `cost` | 结算的十进制成本。 |
-| `usage_source` | Provider 报告了用量时为 `upstream`，GPROXY 自行计数时为 `estimated`。 |
-| `ended` | `complete`，或客户端挂断、流中断时为 `interrupted`。 |
-| `latency_ms` | 交换的墙钟时间。 |
+每次结算的交换写一行。结算发生在**每一条**到达上游的路径上——没有绕过漏斗的快路径，
+因为绕过它的路径就是未计量流量。
 
-汇总以小时、Provider、组织、团队、用户、上游模型和维度为键；概览趋势读取的
-就是它。关闭 `enable_usage` 会停止持久化用量行；准入、结算与配额对账仍然运行。
+一行带着它的请求 id、模型、操作、结算后的费用，以及一份 `metrics` 文档，里面装着归一化的
+token 计数、它们背后的按交换明细、结算状态和定价结果。
 
-### 查询用量
+一个到达过两个 Provider 的请求在**一行里有两次交换**，各自带着那次尝试自己的 token 与
+价格。因此按 Provider 分组是按交换而不是按行：一个发生过故障转移的请求在两边都计一次。
 
-`GET /admin/api/usage?from&to` 在最长 366 天的范围内聚合用量行。`group_by` 可
-为 `user_key`、`user`、`provider` 或 `model`；不指定时返回每个不同的维度组
-合。过滤条件：`user_key_id`、`user_id`、`provider_id`、`credential_id`、
-`model`。每行报告请求数、输入、输出与缓存 Token、5 分钟、30 分钟和 1 小时的缓
-存写入以及成本。控制台的用量标签页提供同样的过滤条件加日期范围，并在
-**用量与成本** 和 **配额窗口** 之间切换。`GET /admin/api/usage-trend?from&to`
-返回每小时的数据点。
+```json
+{"dimensions":{"estimated":"true","unpriced":"true"},
+ "exchanges":[{"attempt_id":"1a0c3372ac7-0-1","attempt_ordinal":1,
+   "credential_id":"b8aad67f…","model":"gpt-4o-mini","provider_id":"5a45fd80…"}]}
+```
 
-成本、Token 和维度回答的是不同的问题：成本是计价后的实际计费；Token 是
-Provider 或估算器给出的计数；指标与维度承载 Token 之外的一切，由
-`price_rates` 行计价（见[价格与分层](/zh-cn/reference/pricing/)）。
+有两个维度值得记住名字：
 
-### 删除用量明细
+- **`estimated = true`**——上游没报 usage，GPROXY 自己数了 token。某个字段从未被报时它是
+  `null` 而不是 `0`：上游没测量某样东西，不等于它测出了 0。
+- **`unpriced = true`**——没有价格规则覆盖这个模型。请求照样按 0 结算，因为运维者要的是
+  "有个模型在被白嫖"这个信号，而不是一个拒绝。
 
-在用量标签页点击 **批量**，选中记录后点击 **删除** 并确认。删除后会刷新
-列表与基于明细的统计。管理 API 也支持 `DELETE /admin/api/usage/{id}`，以及
-携带 `{"action":"delete","ids":[1,2]}` 的 `POST /admin/api/batch/usage`。
-删除操作会写入管理审计，不退还已结算费用、不重置配额，也不删除概览趋势和
-计费所用的历史小时汇总。
+一个**被取消**的请求仍然是被计量的请求：它和别的一样得到自己的行，状态是 `cancelled`，
+带着上游在被打断前设法报出的东西。
 
-## 请求审计
+## 读回来
 
-请求审计保存下游交换（客户端发送与收到的内容）以及它引发的每一次上游尝试，
-按请求 id 关联。捕获默认关闭，由设置页上的四个开关分级控制
-（`PATCH /admin/api/log-settings` 或 `/admin/api/instance-settings`）。
+```sh
+curl -s http://127.0.0.1:7070/portal/api/usage -H "Authorization: Bearer $GPROXY_KEY"
+curl -s 'http://127.0.0.1:7070/portal/api/usage?groupBy=provider' -H "Authorization: Bearer $GPROXY_KEY"
+```
 
-| 开关 | 记录内容 |
-| --- | --- |
-| `enable_downstream_log` | 客户端的方法、路径、查询、IP、请求头、状态、错误类型、时长、每秒输出 Token。 |
-| `enable_downstream_log_body` | 另加客户端的请求体与响应体。流式响应完整捕获，在流结束时写入。 |
-| `enable_upstream_log` | 每次上游尝试：Provider、凭证、URL、方法、请求头、状态。 |
-| `enable_upstream_log_body` | 另加上游的请求体与响应体。 |
+```json
+{"summary":{"requests":19,"inputTokens":43,"outputTokens":3830,
+  "cachedInputTokens":0,"cacheCreationTokens":0,"reasoningTokens":0,
+  "cost":"0","currency":null,"truncated":false,"scanned":19},
+ "groups":[…],"trend":[]}
+```
 
-只有设置了 `retention_days` 或 `max_database_size_mb` 才能打开请求体开关；
-否则 API 返回 400。
+被扫到的记录在币种上不一致时，`currency` 是 `null`。把美元和欧元加成一个数不是一个合计。
 
-`GET /admin/api/logs?start&end` 列出捕获的请求，过滤条件有 `user_id`、
-`user_key_id`、`provider_id`、`status`、`request_id`，以及 `cursor` 和
-`limit`（1 到 100，默认 50）。`GET /admin/api/logs/<request_id>` 返回下游记录
-和按顺序排列的上游尝试。在控制台中，**请求审计** 在
-`/admin/logs/<request_id>` 打开每条请求，请求头和请求体可复制；未捕获的字段
-会明确标出。
+`truncated` 与 `scanned` 是同一个答案里诚实的那一半。metrics 文档是每请求一份 JSON，本
+产品支持的任何后端都无法在其内部求和，所以聚合在 Rust 侧折叠，并且有**扫描上限**
+——默认 50 000 行。用满预算的聚合会这么说，而不是把一个更小的数字当成全部事实。
 
-客户端 IP 取对端地址；若对端是环回地址或列在 `GPROXY_TRUSTED_PROXIES` 中，则
-取 `X-Forwarded-For` 的第一项或 `X-Real-IP`。
+:::caution[运维者的读侧还没上 HTTP]
+`gproxy-sdk` 有完整的查询侧——用量记录、汇总、分组、趋势、配额窗口与结算、请求日志及其
+详情——桌面宿主通过 IPC 把它们全部暴露出来。**axum 宿主没有。** 没有
+`GET /admin/api/usage`，也没有 `GET /admin/api/logs`，两者都回 404。
+
+HTTP 宿主确实提供的是 `/portal/api/usage`、`/portal/api/quota` 和
+`/portal/api/requests`——它们按构造就限定在调用方身份上——外加
+`/admin/api/quotas/status` 和 `/admin/api/audit`。
+:::
+
+## 配额与预算
+
+一个预算就是一行 metric 为 `cost`、unit 为 USD 的 `quotas`，挂在某个 owner 上——
+`api_key`、`user`、`subscription`、`team` 或 `org`。
+
+准入把调用方的**预算链**交给引擎：`[api_key?, user, subscription?, team?, org?]`，跳过
+没设的那些。引擎对这些 kind **逐字比较**，不认识它们之间的任何层级关系，因此链上**任何**
+owner 的**每一个**启用预算都适用，而且全部都要有余量。顺序是日志里报告的东西，不是优先级。
+
+窗口**懒开**，用 `INSERT … ON CONFLICT DO NOTHING`，因此并发的实例收敛到同一行；过期的
+窗口从不删除——下一个请求只是开下一个，而历史就是全部行。
+
+```sh
+curl -s 'http://127.0.0.1:7070/admin/api/quotas/status?owners=user:alice,team:t1' \
+  -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X POST http://127.0.0.1:7070/admin/api/quotas/{id}/reset \
+  -H "Authorization: Bearer $GPROXY_KEY"
+```
+
+重置把打开的窗口关在*此刻*、给配额重新锚定、再开一个新的。历史保留。
+
+**预算最多被超出一个请求。** 费用要等交换结束才知道，而这是不用预估、不用预扣、不用回滚
+所付的代价。结算按请求 id 幂等，所以重放不会重复扣；结算失败丢的是记账，不是已经交付的
+响应。
+
+## Capture
+
+一次 capture 有两侧，归两个主人。引擎为每一次物理发送写 `upstream` 那一行；只有宿主见得到
+入站 HTTP 交换，所以 `downstream` 那一行是产品层的。
+
+| | upstream | downstream |
+| --- | --- | --- |
+| 开关 | `enableUpstreamLog` | `enableDownstreamLog` |
+| body 开关 | `enableUpstreamLogBody` | `enableDownstreamLogBody` |
+| id | 它自己的，不透明 | **请求 id**，也是用量行的那一个 |
+| body 存放 | 流式写进 capture 事件 | 内联列，缓冲且有上限 |
+| WebSocket 帧 | 每帧一个事件 | 每帧一个事件，缓冲 |
+
+```sh
+curl -s -X PATCH http://127.0.0.1:7070/admin/api/settings \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"logging":{"enableUpstreamLogBody":true}}'
+```
+
+四个开关都是从**请求钉住的那个 revision** 的 settings 行上读的，因此一个请求不会在两份
+配置下被记一半。
+
+body 开关关闭时 body 不被复制，记录的 body 状态是 `notCaptured`——读的人正是靠这个来区分
+"本来就没有 body"和"我们选择不留"。两行都是 0 字节但状态不同，说的是不同的事实。留下来的
+每个方向上限 64 KiB，超过的按截断存放，状态写 `partial`。
+
+**capture 失败绝不是请求失败。** 那时请求早已被应答，描述它时出的错不该变成一个响应。
+
+### 一个套接字是一条记录加一串帧
+
+一个 WebSocket 是**一条**记录，状态为 `101`，带一串跨两个方向的有序事件，而不是每次交换
+一条记录。ping、pong 和 close 也被记录，而且保活帧留在它被发出的那一侧，因为它量的是它
+走过的那条链路。
+
+不写按轮次的记录，轮次列留空。轮次是某个方言的概念——OpenAI 的
+`response.created`/`response.done`、Gemini Live 自己的——而宿主把 realtime 帧当不透明数据
+转发。在这里发明一条 wire 没有画出的边界，等于往日志里放一条谁也没产生的记录。
+
+### 重试是边，不是列
+
+下游记录行上的 Provider、凭证和 metrics 列保持**未设置**。一个被重试的请求到达过两个
+Provider、用过两把凭证，单独一列只能挑一个。边在不挑的前提下回答了这个问题，而计费用量
+是那行用量记录。
+
+这些边由两个来源合并而来，因为哪一个单独都不完整：引擎能**计量**到的部分（一个被重试到
+别处的 503 不带 usage，根本不在报告里），以及所有以这个请求为发起者的上游记录（它漏掉
+*续接*到达的那些）。交换结束前什么也不写；记录和它所有的边在一个批里落库。
 
 ## 脱敏
 
-脱敏默认开启，在存储之前作用于两个方向的请求头、查询串和请求体：
+脱敏发生在**写入时**，不是读取时。一个已经到达列里的密钥早就泄漏进了每一份备份和副本，
+所以读侧什么也不脱敏，宿主也不能假设读的时候还有第二趟：如果它在数据库里，就是策略允许
+它在那里。
 
-- 请求头 `authorization`、`proxy-authorization`、`x-api-key`、
-  `x-goog-api-key`、`api-key`、`cookie` 与 `set-cookie` 变为 `[redacted]`。
-- 名称属于已知机密的 JSON 字段以及表单或查询参数（`api_key`、`token`、
-  `access_token`、`refresh_token`、`client_secret`、`password`、`code`、
-  `signature`、`code_verifier`、`state` 等）被替换；嵌套对象与数组会被遍历。
-- 超过 100 MiB 的请求体被截断并加标记。
+标准清单上的 header 名、query 参数和 JSON 字段——`authorization`、`cookie`、`api_key`、
+`access_token` 及其同类——会被遮蔽，而且一个请求的两侧遮蔽的是同一批东西。请求 body 在
+被**截断之前**脱敏，因此长度永远不是绕过策略的办法。
 
-`disable_log_redaction` 是显式的明文覆盖。控制台把它标红，因为此时凭证、
-Cookie 和用户内容会按原样写入数据库。登录路径（`/oauth/*`、设备授权回调、
-`/portal/api/login`、`/portal/api/password`）即便开启覆盖也始终脱敏。
+不是 JSON 的 body 没有键可匹配，按原样存放。这也是 body 开关默认关闭的又一个理由。
 
-## 保留与容量压力
+`disableLogRedaction` 是显式的明文覆盖开关。
 
-清理每五分钟运行一次。
+## 审计轨迹
 
-| 设置 | 效果 |
-| --- | --- |
-| `retention_days` | 删除早于截止时间的 `request_logs`、`wire_logs` 和 `usage_rows`。未设置时按 36,500 天处理。 |
-| `max_database_size_mb` | 数据库超过上限时，每次清理各删除 `request_logs` 和 `wire_logs` 中最旧的 5,000 行。未设置时按 1,024 MiB 处理。 |
+每一个不是读的 `/admin/api` 调用写一行。动作由**匹配到的路由**推导，因此新路由不可能忘了
+给自己命名：
 
-容量压力永远不会删除用量行或汇总；只有保留策略会，并且只按时间。数据库大小
-在 SQLite 与 libSQL 上读取 `page_count × page_size`，在 PostgreSQL 上读取
-`pg_database_size`，在 MySQL 上读取 `information_schema` 的合计。删除行本身不
-会缩小 SQLite 文件。
+```sh
+curl -s 'http://127.0.0.1:7070/admin/api/audit?limit=4' -H "Authorization: Bearer $GPROXY_KEY"
+```
 
-## 管理操作审计
+```json
+{"items":[{"id":"d052d378c1fc61c9fe4a4738d61fc996",
+  "actorUserId":"5d1eb28a…","actorApiKeyId":"29371cab…","sourceIp":null,
+  "action":"admin.settings.update","entityKind":null,"entityId":null,
+  "outcome":"ok","detail":{"status":200},"createdAtMs":1789982332295}]}
+```
 
-每次成功的管理 API 写操作都会写入一条 `audit_events` 行：操作者用户 id、动作
-（例如 `providers.update`、`rule_preset.apply`、`credential.secret_reveal`、
-`user_key.reveal`、`log_settings.update` 或 `channel_login.device_start`）、目标
-类型与 id、时间以及客户端 IP。登录事件 `auth.setup`、`auth.login` 与
-`auth.logout` 也会记录。读操作与配置导出不审计。
+读不被审计，这也正是两个刻意的披露动作——揭示凭证密钥、揭示 tokenizer 令牌——都是 `POST`
+的原因。
 
-`GET /admin/api/audit?limit` 返回最新的事件（默认 100，最多 500）。
-**管理操作** 标签页显示最新的 500 条，含操作者名称、IP、动作与目标，并支持文
-本搜索。
+这一行写在 revision 事务**之外**。这不是偷懒：一次失败的轨迹插入会把它只是在描述的那个
+操作回滚掉，而一个*被拒绝*的操作——调查真正想要的那一行——根本没有事务可加入。写轨迹失败
+只记日志，绝不向上传播。
 
-## 凭证健康与配额周期
+调用方提供的 JSON 只能经由一个会脱敏的构造器进入条目，而失败记录的是错误的稳定 **code**，
+绝不是它的消息，因为消息可能引用调用方发来的值。字段名在归一化大小写、下划线和连字符后
+整体匹配，所以 `passwordPolicy` 和 `keyboardLayout` 活下来而 `password` 不会；命中的值被
+**替换**成 `[redacted]` 而不是删掉——读的人于是能区分"这次操作带过密码"和"这次没有"。
 
-健康按凭证与上游模型跟踪，状态为 `healthy`、`degraded` 或 `dead`，并带有观察
-到的状态码、详情字符串与时间。概览列出不健康的已启用凭证；凭证卡片显示按模型
-的行并提供重置（`POST /admin/api/credentials/<id>/health-reset`）。重置只清除
-记录的状态；仍在失败的上游会在下一次尝试时再次降级该凭证。
+查询按 `(createdAtMs DESC, id)` 从新到旧分页，所以同一毫秒写下的两行不会跨页重复或漏掉。
 
-随响应返回或来自配额探测的上游配额窗口会持久化为凭证周期：窗口键与标签、周
-期起止、已用与上限、边界是由上游报告还是推断得出、周期是开放还是已关闭。
-`GET /admin/api/credential-cycles?from&to[&credential_id]` 列出它们；用量标签
-页和概览的配额压力卡片（达到或超过 80% 的窗口）读取同一批数据。
-`POST /admin/api/credentials/<id>/quota-probe` 按需刷新某个凭证的窗口。
+会话与审计行刻意**不**推进配置 revision。两者都不在身份快照里——认证每个请求都读会话
+——所以推进它会让每次登录、每个被审计的操作，为一份快照里根本没有的变更让整个集群失效一次。
 
 ## 进程日志
 
-原生二进制通过 `tracing` 输出日志到标准输出。`GPROXY_LOG_FORMAT`
-（`--log-format`）选择 `text`（默认）或按行分隔的 `json`。级别过滤来自
-`RUST_LOG`，默认 `info`。清理、用量写入失败与捕获失败都会记录日志，并在有请求
-id 时附带。
+```sh
+gproxy serve --log-format json --log-filter 'gproxy=debug,info'
+```
+
+`--log-format` 是 `text` 或 `json`；`--log-filter` 用 `RUST_LOG` 语法，缺省回落到
+`RUST_LOG`，再回落到 `info`。
+
+日志走标准**错误**，而首次运行的管理员那一段走标准输出。这正是让密钥不进 journal 的原因，
+也是让 `gproxy export --out -` 保持干净的原因。
+
+## 请求 id
+
+一个请求的 id 把它的用量行、capture 和边串起来。v4 **没有 `x-request-id` 响应 header**：
+这个 id 被记录，不被返回。

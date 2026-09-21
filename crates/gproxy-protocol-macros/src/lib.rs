@@ -1,179 +1,145 @@
-//! Derives and expression helpers used by `gproxy-protocol`.
+//! Builders for protocol structs with required arguments and optional setters.
 
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::visit_mut::{self, VisitMut};
-use syn::{Data, DeriveInput, Expr, ExprStruct, Fields, Meta, Type, parse_macro_input};
+use syn::{Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, parse_macro_input};
 
-#[proc_macro_derive(WireBuilder, attributes(serde))]
-pub fn derive_wire_builder(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-    let name = input.ident;
-    let builder = format_ident!("Wire{name}Builder");
-    let generics = input.generics;
-    let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
-    let Data::Struct(data) = input.data else {
-        return syn::Error::new_spanned(name, "WireBuilder only supports structs")
-            .to_compile_error()
-            .into();
-    };
-    let Fields::Named(fields) = data.fields else {
-        return syn::Error::new_spanned(name, "WireBuilder requires named fields")
-            .to_compile_error()
-            .into();
-    };
+mod declared_fields;
 
-    let fields: Vec<_> = fields.named.into_iter().collect();
-    let names: Vec<_> = fields
-        .iter()
-        .map(|field| field.ident.as_ref().expect("named field"))
-        .collect();
-    let types: Vec<_> = fields.iter().map(|field| &field.ty).collect();
-    let values = fields.iter().map(|field| {
-        let field_name = field.ident.as_ref().expect("named field");
-        if field_has_default(field) {
-            quote! { self.#field_name.unwrap_or_default() }
-        } else {
-            quote! {
-                self.#field_name.ok_or_else(|| crate::WireBuildError::missing(
-                    stringify!(#name),
-                    stringify!(#field_name),
-                ))?
-            }
-        }
-    });
-
-    quote! {
-        #[doc(hidden)]
-        pub struct #builder #generics {
-            #(#names: ::core::option::Option<#types>,)*
-        }
-
-        impl #impl_generics #builder #type_generics #where_clause {
-            #(
-                pub fn #names(mut self, value: #types) -> Self {
-                    self.#names = ::core::option::Option::Some(value);
-                    self
-                }
-            )*
-
-            pub fn build(self) -> ::core::result::Result<#name #type_generics, crate::WireBuildError> {
-                ::core::result::Result::Ok(#name {
-                    #(#names: #values,)*
-                })
-            }
-        }
-
-        impl #impl_generics #name #type_generics #where_clause {
-            pub fn builder() -> #builder #type_generics {
-                #builder {
-                    #(#names: ::core::option::Option::None,)*
-                }
-            }
-
-            #[doc(hidden)]
-            pub fn builder_from(value: Self) -> #builder #type_generics {
-                #builder {
-                    #(#names: ::core::option::Option::Some(value.#names),)*
-                }
-            }
-        }
-    }
-    .into()
+/// Rebuilds the same wire type using declared fields, recursively dropping
+/// extension bags without reading, cloning, or serializing them. Mark a bag
+/// with `#[declared(extension)]`; `#[serde(flatten)] rest` is also recognized.
+/// Formal JSON fields are preserved. This derive does not change serde behavior.
+/// An alternate protocol crate path can be supplied with `#[declared(crate = "path")]`.
+/// `#[declared(bound = "T: path::DeclaredFields")]` replaces inferred formal-field
+/// bounds, for example for mutually recursive generic types. Existing where
+/// clauses and extension-field Default bounds are retained.
+#[proc_macro_derive(DeclaredFields, attributes(declared))]
+pub fn declared_fields(input: TokenStream) -> TokenStream {
+    declared_fields::expand(parse_macro_input!(input as DeriveInput))
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
 }
 
-fn field_has_default(field: &syn::Field) -> bool {
-    if matches!(
-        &field.ty,
-        Type::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "Option")
-    ) {
-        return true;
-    }
-    field.attrs.iter().any(|attribute| {
-        if !attribute.path().is_ident("serde") {
-            return false;
+/// Generates `Type::builder(required_fields...)` and a `TypeBuilder`.
+///
+/// Required fields are supplied in declaration order. `Option<T>` fields start
+/// as `None` and have setters accepting `T`; `rest` starts empty and has a
+/// setter accepting its declared type. `build()` returns the completed value.
+/// Mark a nullable but required field with `#[wire(required)]` to require an
+/// explicit `Option<T>` argument instead of defaulting it in the builder.
+#[proc_macro_derive(WireBuilder, attributes(wire))]
+pub fn wire_builder(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    expand(input)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
+
+fn expand(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
+    let Data::Struct(data) = &input.data else {
+        return Err(syn::Error::new_spanned(
+            &input,
+            "WireBuilder requires a struct",
+        ));
+    };
+    let Fields::Named(fields) = &data.fields else {
+        return Err(syn::Error::new_spanned(
+            &input,
+            "WireBuilder requires named fields",
+        ));
+    };
+    let name = &input.ident;
+    let builder = format_ident!("{}Builder", name);
+    let visibility = &input.vis;
+    let generics = &input.generics;
+    let (impl_generics, type_generics, where_clause) = generics.split_for_impl();
+    let mut arguments = Vec::new();
+    let mut initializers = Vec::new();
+    let mut setters = Vec::new();
+
+    for field in &fields.named {
+        let ident = field.ident.as_ref().expect("named field");
+        let ty = &field.ty;
+        let mut required = false;
+        for attr in field
+            .attrs
+            .iter()
+            .filter(|attr| attr.path().is_ident("wire"))
+        {
+            attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("required") {
+                    required = true;
+                    Ok(())
+                } else {
+                    Err(meta.error("expected `required`"))
+                }
+            })?;
         }
-        let Meta::List(list) = &attribute.meta else {
-            return false;
-        };
-        let tokens = list.tokens.to_string();
-        tokens.split(',').any(|part| {
-            let part = part.trim();
-            part == "default"
-                || part.starts_with("default =")
-                || part == "skip"
-                || part == "skip_deserializing"
-        })
+        if required {
+            arguments.push(quote!(#ident: #ty));
+            initializers.push(quote!(#ident));
+            continue;
+        }
+        if let Some(inner) = option_inner(ty) {
+            initializers.push(quote!(#ident: ::core::option::Option::None));
+            setters.push(quote! {
+                #[must_use]
+                pub fn #ident(mut self, value: impl ::core::convert::Into<#inner>) -> Self {
+                    self.0.#ident = ::core::option::Option::Some(value.into());
+                    self
+                }
+            });
+        } else if ident == "rest" {
+            initializers.push(quote!(#ident: ::core::default::Default::default()));
+            setters.push(quote! {
+                #[must_use]
+                pub fn #ident(mut self, value: #ty) -> Self {
+                    self.0.#ident = value;
+                    self
+                }
+            });
+        } else {
+            arguments.push(quote!(#ident: #ty));
+            initializers.push(quote!(#ident));
+        }
+    }
+
+    Ok(quote! {
+        impl #impl_generics #name #type_generics #where_clause {
+            /// Start a builder by supplying the required fields in declaration order.
+            #[allow(clippy::too_many_arguments)]
+            pub fn builder(#(#arguments),*) -> #builder #type_generics {
+                #builder(Self { #(#initializers),* })
+            }
+        }
+
+        #[doc = concat!("Builder for [`", stringify!(#name), "`].")]
+        #[must_use]
+        #visibility struct #builder #generics (#name #type_generics) #where_clause;
+
+        impl #impl_generics #builder #type_generics #where_clause {
+            #(#setters)*
+
+            /// Return the completed wire value.
+            pub fn build(self) -> #name #type_generics {
+                self.0
+            }
+        }
     })
 }
 
-/// Construct an extensible wire struct with familiar named-field syntax.
-#[proc_macro]
-pub fn wire(input: TokenStream) -> TokenStream {
-    let expression = parse_macro_input!(input as ExprStruct);
-    expand_struct(expression).into()
-}
-
-struct NestedWireRewriter;
-
-impl VisitMut for NestedWireRewriter {
-    fn visit_expr_mut(&mut self, expression: &mut Expr) {
-        visit_mut::visit_expr_mut(self, expression);
-        let Expr::Struct(struct_expression) = expression else {
-            return;
-        };
-        if !looks_like_enum_variant(&struct_expression.path) {
-            *expression = Expr::Verbatim(expand_struct(struct_expression.clone()));
-        }
+fn option_inner(ty: &Type) -> Option<&Type> {
+    let Type::Path(path) = ty else { return None };
+    let segment = path.path.segments.last()?;
+    if segment.ident != "Option" {
+        return None;
     }
-}
-
-fn looks_like_enum_variant(path: &syn::Path) -> bool {
-    path.segments
-        .iter()
-        .rev()
-        .nth(1)
-        .and_then(|segment| segment.ident.to_string().chars().next())
-        .is_some_and(char::is_uppercase)
-}
-
-fn expand_struct(mut expression: ExprStruct) -> proc_macro2::TokenStream {
-    let mut rewriter = NestedWireRewriter;
-    for field in &mut expression.fields {
-        rewriter.visit_expr_mut(&mut field.expr);
+    let PathArguments::AngleBracketed(arguments) = &segment.arguments else {
+        return None;
+    };
+    match arguments.args.first()? {
+        GenericArgument::Type(inner) => Some(inner),
+        _ => None,
     }
-    if let Some(rest) = expression.rest.as_mut() {
-        rewriter.visit_expr_mut(rest);
-    }
-    if looks_like_enum_variant(&expression.path) {
-        return quote! { #expression };
-    }
-    let path = expression.path;
-    let fields = expression.fields;
-
-    if let Some(rest) = expression.rest {
-        let setters = fields.iter().map(|field| {
-            let member = &field.member;
-            let value = &field.expr;
-            quote! { .#member(#value) }
-        });
-        return quote! {{
-            #path::builder_from(#rest)
-                #(#setters)*
-                .build()
-                .expect(concat!("complete ", stringify!(#path), " wire construction"))
-        }};
-    }
-
-    let setters = fields.iter().map(|field| {
-        let member = &field.member;
-        let value = &field.expr;
-        quote! { .#member(#value) }
-    });
-    quote! {{
-        #path::builder()
-            #(#setters)*
-            .build()
-            .expect(concat!("complete ", stringify!(#path), " wire construction"))
-    }}
 }

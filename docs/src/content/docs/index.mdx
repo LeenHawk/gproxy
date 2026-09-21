@@ -1,16 +1,16 @@
 ---
 title: GPROXY
-description: "Run one gateway in front of many LLM providers, with pairwise protocol conversion, pooled credentials, metering, and an embedded console."
+description: "Run one gateway in front of many LLM providers: pairwise protocol conversion, pooled credentials with failover, per-request metering, and one router over three hosts."
 template: splash
 hero:
-  tagline: "One gateway for many LLM providers. Pairwise protocol conversion between OpenAI, Claude, and Gemini wire formats, pooled upstream credentials with failover, per-request metering and quotas, and three web surfaces served by the same binary — a public site, an operator console, and a user portal."
+  tagline: "One gateway for many LLM providers. Pairwise protocol conversion between the OpenAI, Claude and Gemini wire formats, pooled upstream credentials with failover, per-request metering and budgets — and one route table served by a native binary, a desktop shell and a Cloudflare Worker alike."
   actions:
-    - text: Download GPROXY
-      link: /getting-started/downloads/
-      icon: download
+    - text: Install GPROXY
+      link: /getting-started/installation/
+      icon: rocket
     - text: Quick start
       link: /getting-started/quick-start/
-      icon: rocket
+      icon: right-arrow
       variant: secondary
     - text: View on GitHub
       link: https://github.com/LeenHawk/gproxy
@@ -24,73 +24,75 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 <CardGrid stagger>
 	<Card title="Introduction" icon="document">
-		See what GPROXY does, which wire formats it accepts, how a request is
-		routed, and how the core and its hosts fit together.
+		What GPROXY does, which wire formats it accepts, how a request is narrowed
+		from a caller to one credential, and how the crates and the three hosts fit
+		together.
 	</Card>
 	<Card title="Getting Started" icon="rocket">
-		Pick a release asset, install it, create the administrator in the console,
-		and send the first request in each supported format.
+		Build the binary, run it, add a provider and a credential, and send the
+		first request in each accepted format.
 	</Card>
 	<Card title="Guides" icon="puzzle">
-		Configure providers and credentials, routes and aliases, users and keys,
-		permissions and quotas, rule sets, prompt caching, CLI clients, and
-		observability.
+		Providers and credentials, routes and exposed names, rewrite rules, prompt
+		caching, CLI clients, observability, and adding a channel.
 	</Card>
 	<Card title="Reference" icon="seti:config">
-		Look up every flag and environment variable, the routing table, pricing
-		and tiers, storage and cache backends, and how to embed the core.
+		Every flag and variable, the full ingress table, pricing and tiers, storage
+		and cache backends, and the embeddable handle.
 	</Card>
 </CardGrid>
 
-## Built for Load
+## How It Is Built
 
 <CardGrid>
-	<Card title="0.21 ms" icon="approve-check">
-		Median latency the gateway adds to a request, measured end to end with
-		authentication, routing, pricing and usage recording all switched on.
+	<Card title="One router, three hosts" icon="random">
+		The Workers host mounts the same axum router the native binary serves.
+		A route it grows is a route the edge serves, with no second table to drift.
 	</Card>
-	<Card title="27,000 req/s" icon="rocket">
-		Fully metered throughput on one 16-thread machine with SQLite. Settlement
-		runs off the response path and batches into grouped commits.
+	<Card title="Each layer narrows" icon="approve-check">
+		Authentication produces a caller, admission produces a provider set and a
+		credential set, and the engine is handed exactly those. Nothing below
+		re-opens what was narrowed above.
 	</Card>
-	<Card title="20,000 connections" icon="random">
-		Concurrent connections held open against a 500 ms upstream with zero
-		errors and every request written to the ledger.
+	<Card title="No intermediate format" icon="setting">
+		Conversion is direct between two wire formats. Upstream specifications
+		change faster than any pivot format can track, and conversion fidelity is
+		the product.
 	</Card>
-	<Card title="108,000 req/s" icon="star">
-		Authentication and routing alone. The control plane is an in-memory
-		snapshot; no request reads the database on its way to the provider.
+	<Card title="Nothing skips the funnel" icon="warning">
+		Every path that reaches an upstream is priced, charged and observed through
+		the same exit. A path around it would be unmetered traffic, so there is
+		not one.
 	</Card>
 </CardGrid>
 
-<LinkCard
-	title="Performance"
-	description="How the numbers were measured, what they mean for a real deployment, and which settings matter at scale."
-	href="/introduction/performance/"
-/>
+:::note[v4 is built from source]
+There is no release pipeline yet — no installers, no published container image
+and no signed artifacts. See [Installation](/getting-started/installation/).
+:::
 
 ## Primary Paths
 
 <LinkCard
-	title="Downloads"
-	description="Native installers, portable archives, the container image, edge bundles, checksums, and the signed update manifest."
-	href="/getting-started/downloads/"
+	title="Installation"
+	description="Prerequisites, the build, the first start and where its data lives — plus the desktop shell and the Workers host."
+	href="/getting-started/installation/"
 />
 
 <LinkCard
 	title="Quick Start"
-	description="From a downloaded binary to a working gateway: start gproxy, create the administrator, add a provider and a route, issue a key, call it."
+	description="From a running instance to a metered request: a provider, a credential, a route, an exposed name, and the usage it produced."
 	href="/getting-started/quick-start/"
 />
 
 <LinkCard
 	title="Architecture"
-	description="Follow a request from ingress and classification through admission, transform, upstream delivery, settlement, and capture."
+	description="The two assemblies, the sixteen crates, where each question is answered, and the rules that keep the structure from drifting back."
 	href="/introduction/architecture/"
 />
 
 <LinkCard
-	title="v2 to v3 Migration"
-	description="Import a live v2 SQLite database with gproxy migrate, and see what changed in configuration and deployment."
-	href="/deployment/v2-to-v3/"
+	title="Routing & Endpoints"
+	description="The complete ingress table, the mount grammar, the OAuth and management routes, and the failover budget."
+	href="/reference/routing-table/"
 />

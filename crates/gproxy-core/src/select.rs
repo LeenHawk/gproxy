@@ -1,0 +1,209 @@
+//! Credential selection inside the permitted set. Never widens to the
+//! provider pool; an empty eligible set is an error the caller reports.
+
+use crate::{
+    AffinityScope, Core, CoreError, CoreResult, CredentialAffinity, CredentialAffinityKey,
+    CredentialBlocks, CredentialData, CredentialStatus, CredentialStrategy, RequestContext, keys,
+};
+use gproxy_protocol::Operation;
+use std::{collections::HashSet, sync::Arc, time::Duration};
+
+/// How long a session keeps its credential without traffic.
+const AFFINITY_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+/// Rotation counters outlive any realistic idle gap; a lost counter only
+/// restarts rotation at the first candidate.
+const ROTATION_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+
+pub(crate) struct Selection {
+    pub credential: Arc<CredentialData>,
+    /// Present when the request named an agent session that is or becomes
+    /// bound to this credential.
+    pub assignment: Option<crate::session::AssignmentHandle>,
+}
+
+impl<C> Core<C> {
+    pub(crate) async fn read_blocks(
+        &self,
+        provider_id: &str,
+        credential_id: &str,
+    ) -> CoreResult<CredentialBlocks> {
+        Ok(self
+            .cache
+            .get(&keys::credential_blocks(provider_id, credential_id))
+            .await?
+            .and_then(|entry| serde_json::from_slice(&entry.value).ok())
+            .unwrap_or_default())
+    }
+}
+
+impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
+    /// Pick one credential from `request.target.credentials` minus `excluded`.
+    /// Eligibility: enabled, Active, not retired, not blocked for this
+    /// model/operation now. Strategy then orders the eligible set: Sticky and
+    /// RoundRobinAffinity honour an existing session pin, RoundRobin and an
+    /// unbound session advance a shared rotation counter.
+    pub(crate) async fn select_credential(
+        &self,
+        request: &RequestContext,
+        excluded: &HashSet<String>,
+        now_ms: i64,
+    ) -> CoreResult<Selection> {
+        let provider = &request.target.provider;
+        let model = request.target.upstream_model.as_deref();
+        let operation: Operation = request.operation.operation;
+        let mut eligible: Vec<(Arc<CredentialData>, CredentialBlocks)> = Vec::new();
+        let mut any_dead = false;
+        let mut any_candidate = false;
+        for credential in &request.target.credentials {
+            if excluded.contains(&credential.id)
+                || credential.provider_id != provider.entity.id
+                || !credential.enabled
+                || credential.state.is_retired()
+            {
+                continue;
+            }
+            any_candidate = true;
+            let version = credential.state.load();
+            if version.status == CredentialStatus::Dead {
+                any_dead = true;
+                continue;
+            }
+            let blocks = self
+                .read_blocks(&credential.provider_id, &credential.id)
+                .await?;
+            if blocks.blocked_by(model, operation, now_ms).is_some() {
+                continue;
+            }
+            eligible.push((credential.clone(), blocks));
+        }
+        if eligible.is_empty() {
+            if any_dead && any_candidate {
+                let dead = request
+                    .target
+                    .credentials
+                    .iter()
+                    .find(|c| c.state.load().status == CredentialStatus::Dead)
+                    .expect("a dead candidate was seen");
+                let version = dead.state.load();
+                return Err(CoreError::CredentialDead {
+                    credential_id: dead.id.clone(),
+                    reason: version.status_reason.clone(),
+                });
+            }
+            return Err(CoreError::NoUsableCredential);
+        }
+
+        let affinity_key = request
+            .session
+            .as_ref()
+            .filter(|s| s.is_stable())
+            .map(|session| CredentialAffinityKey {
+                scope: AffinityScope {
+                    scope: request.scope.clone(),
+                    session_id: session.id.clone(),
+                    source: session.source,
+                },
+                provider_id: provider.entity.id.clone(),
+            });
+        let pinned = match (&affinity_key, provider.credential_strategy) {
+            (Some(key), CredentialStrategy::Sticky | CredentialStrategy::RoundRobinAffinity) => {
+                self.cache
+                    .get(&keys::credential_affinity(key))
+                    .await?
+                    .and_then(|entry| {
+                        serde_json::from_slice::<CredentialAffinity>(&entry.value).ok()
+                    })
+                    .and_then(|pin| eligible.iter().position(|(c, _)| c.id == pin.credential_id))
+            }
+            _ => None,
+        };
+        let index = match pinned {
+            Some(index) => index,
+            None => {
+                let mut ids: Vec<&str> = eligible.iter().map(|(c, _)| c.id.as_str()).collect();
+                ids.sort_unstable();
+                let signature = ids.join(",");
+                let counter = match self
+                    .cache
+                    .increment(
+                        &keys::credential_selection(&provider.entity.id, &signature),
+                        1,
+                        i64::MAX as u64,
+                        ROTATION_TTL,
+                    )
+                    .await?
+                {
+                    gproxy_cache::IncrementOutcome::Applied(counter) => counter.value,
+                    gproxy_cache::IncrementOutcome::Limited { current } => current,
+                };
+                let position = usize::try_from((counter - 1) % eligible.len() as u64).unwrap_or(0);
+                let chosen = ids[position];
+                eligible
+                    .iter()
+                    .position(|(c, _)| c.id == chosen)
+                    .expect("chosen id is eligible")
+            }
+        };
+        // An agent session overrides the strategy: it stays on its assigned
+        // credential while usable, and reserves the strategy's pick otherwise.
+        let (index, assignment) = match self.session_pick(request, &eligible, index, now_ms).await?
+        {
+            Some((index, handle)) => (index, Some(handle)),
+            None => (index, None),
+        };
+        let (credential, _) = eligible.swap_remove(index);
+        Ok(Selection {
+            credential,
+            assignment,
+        })
+    }
+
+    /// Record that this session should keep using this credential. Called
+    /// after a successful attempt only, so a failing pick is never pinned.
+    pub(crate) async fn pin_affinity(
+        &self,
+        request: &RequestContext,
+        credential_id: &str,
+        now_ms: i64,
+    ) -> CoreResult<()> {
+        let Some(session) = request.session.as_ref().filter(|s| s.is_stable()) else {
+            return Ok(());
+        };
+        if !matches!(
+            request.target.provider.credential_strategy,
+            CredentialStrategy::Sticky | CredentialStrategy::RoundRobinAffinity
+        ) {
+            return Ok(());
+        }
+        let key = CredentialAffinityKey {
+            scope: AffinityScope {
+                scope: request.scope.clone(),
+                session_id: session.id.clone(),
+                source: session.source,
+            },
+            provider_id: request.target.provider.entity.id.clone(),
+        };
+        let cache_key = keys::credential_affinity(&key);
+        let existing = self
+            .cache
+            .get(&cache_key)
+            .await?
+            .and_then(|entry| serde_json::from_slice::<CredentialAffinity>(&entry.value).ok());
+        let value = CredentialAffinity {
+            credential_id: credential_id.to_owned(),
+            anchored_at_ms: existing
+                .as_ref()
+                .filter(|pin| pin.credential_id == credential_id)
+                .map_or(now_ms, |pin| pin.anchored_at_ms),
+            last_success_at_ms: now_ms,
+        };
+        self.cache
+            .put(
+                &cache_key,
+                serde_json::to_vec(&value).map_err(|e| CoreError::Rewrite(e.to_string()))?,
+                AFFINITY_TTL,
+            )
+            .await?;
+        Ok(())
+    }
+}

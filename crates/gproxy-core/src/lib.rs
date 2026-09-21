@@ -1,70 +1,171 @@
-//! GPROXY v3 embeddable core.
-//!
-//! Channels, credential lifecycle, protocol transforms, and the execution
-//! pipeline, consumable as a library. Hosts (axum server, edge wasm) and
-//! other applications embed this crate; it must never depend on an HTTP
-//! server framework. Host-provided services (credential persistence, cache,
-//! transport, sinks) enter through the traits in [`host`].
-//!
-//! Interface rounds 1–3 are drafted: boundary types, host contract (all
-//! async methods return the workspace [`BoxFuture`] — no AFIT in public
-//! traits), control-plane read model, settlement types, the two execution
-//! tiers, and (via `gproxy-channel-api`) the channel contract with surface
-//! hooks.
+//! Server-independent upstream execution, configuration snapshots and observation.
+//! Store owns durable facts, Cache owns shared transient state, and CoreData
+//! holds each instance's immutable configuration snapshot.
+
+#![forbid(unsafe_code)]
+// wasm32-unknown-unknown is single-threaded and the JS transport handles held
+// through `dyn OutboundClient` are thread-bound; shared ownership still goes
+// through Arc so the engine's API is identical on every target.
+#![cfg_attr(target_arch = "wasm32", allow(clippy::arc_with_non_send_sync))]
 
 pub mod api;
-pub mod boundary;
-pub mod continuation;
-pub mod control;
-pub mod error;
-pub mod host;
-pub mod process;
-pub mod routing;
-pub mod usage;
-
-mod attempt;
-mod execution;
-mod fingerprint;
-mod funnel;
-mod login;
-mod orchestration;
+pub mod assemble;
+mod availability;
+pub mod budget;
+pub mod builder;
+pub mod capability;
+pub mod context;
+pub mod convert;
+pub mod credential_limit;
+pub mod data;
+pub mod estimate;
+mod execute;
+pub mod fetch_policy;
+mod ids;
+pub mod keys;
+pub mod limits;
+pub mod observe;
+mod store_observer;
+pub use store_observer::StoreObserver;
+pub mod pricing;
+pub mod publication;
 mod quota;
-mod quota_source;
-mod surface;
+pub mod realtime;
+mod refresh;
+pub mod rewrite;
+mod rt;
+pub mod runtime;
+pub mod secret;
+mod select;
+mod service;
+mod session;
 
-#[cfg(test)]
-mod tests;
-
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) type Shared<T> = std::sync::Arc<T>;
-#[cfg(target_arch = "wasm32")]
-pub(crate) type Shared<T> = std::rc::Rc<T>;
-
-pub use gproxy_channel_api as channel_api;
-pub use gproxy_channel_api::{
-    BindingStore, BoxFuture, CallerIdentity, QuotaResetBehavior, QuotaResetCredits,
-    QuotaResetOutcome, QuotaResetResult, QuotaSample, QuotaSampleSource, QuotaScope, QuotaWindow,
-    UsageView, WsDuplex, WsFrame,
+pub use api::*;
+pub use assemble::AssemblyError;
+pub use budget::{BudgetData, BudgetOwner, BudgetPeriod, BudgetStatus};
+pub use builder::*;
+pub use capability::*;
+pub use context::*;
+pub use credential_limit::{CredentialLimit, CredentialLimitStatus};
+pub use data::*;
+pub use fetch_policy::{
+    AllowAllFetchPolicy, AllowlistFetchPolicy, DefaultFetchPolicy, FetchDecision, FetchPolicy,
 };
-pub use gproxy_channel_api::{ModelMetadata, ModelReasoningLevel, ModelServiceTier};
-pub use gproxy_channels as channels;
-pub use gproxy_protocol as protocol;
-pub use gproxy_protocol::OperationKey;
+pub use limits::*;
+pub use observe::*;
+pub use pricing::{Cost, PriceBook, PriceRule};
+pub use publication::*;
+pub use rewrite::RewriteCompileError;
+pub use runtime::*;
+pub use secret::*;
+pub use service::{CallerRole, ServiceRequest, ServiceView, TargetCaller};
 
-pub use api::{Core, InitError};
-pub use boundary::{ByteStream, Disposition, ExecOutcome, RequestCtx, ResponseBody, RoutingMode};
-pub use continuation::{Continuation, ContinuationKey, ContinuationMeta, ContinuationStore};
-pub use control::{
-    ConditionalMetricRate, ConfiguredFingerprint, ControlPlane, DiscoveredModel, ExposedModel,
-    FingerprintOverride, PRICING_SERVICE_TIERS, Plan, Pricing, PricingTier, ProviderRef, Target,
-    TargetRules, UpstreamProxy, normalize_service_tier,
-};
-pub use error::CoreError;
-pub use fingerprint::apply_request as apply_provider_transport;
-pub use host::{
-    CacheBackend, CaptureSink, CredentialHealth, CredentialId, CredentialRecord, CredentialStore,
-    Host, SettlementPermit, Spawner, UpstreamTransport, UsageSink,
-};
-pub use quota::QuotaProbeResult;
-pub use quota_source::QuotaSourceProbeResult;
-pub use usage::{Ended, NormalizedUsage, SettledAttempt, Settlement, UsageSource};
+use arc_swap::ArcSwap;
+use gproxy_cache::Cache;
+use gproxy_channel::ChannelRegistry;
+use gproxy_store::Store;
+use std::sync::Arc;
+
+/// Assembled engine dependencies, built through `CoreBuilder`. Construction
+/// performs no I/O. The host supplies Store, shared Cache, secret codec and
+/// channel registry; core owns the outbound client pool. Observation defaults
+/// to Store persistence and can be replaced with an explicit host Observer.
+pub struct Core<C> {
+    store: Arc<Store<C>>,
+    cache: Arc<dyn Cache>,
+    observer: Arc<dyn Observer>,
+    codec: Arc<dyn SecretCodec>,
+    channels: Arc<ChannelRegistry>,
+    clients: gproxy_client::ClientPool,
+    files: Option<gproxy_file::Operator>,
+    publication_url: Option<Arc<dyn PublicationUrl>>,
+    fetch_policy: Arc<dyn FetchPolicy>,
+    instance_id: Arc<str>,
+    data: ArcSwap<CoreData>,
+}
+impl<C> Core<C> {
+    pub fn builder(store: Arc<Store<C>>) -> CoreBuilder<C> {
+        CoreBuilder::new(store)
+    }
+    /// Pin one immutable configuration snapshot for the logical request.
+    pub fn snapshot(&self) -> Arc<CoreData> {
+        self.data.load_full()
+    }
+    /// The Store this engine reads and writes. Management writes go through the
+    /// upper layer's coordinator; this accessor exists for tests and diagnostics.
+    pub fn store(&self) -> &Arc<Store<C>> {
+        &self.store
+    }
+    pub fn cache(&self) -> &Arc<dyn Cache> {
+        &self.cache
+    }
+    pub fn observer(&self) -> &Arc<dyn Observer> {
+        &self.observer
+    }
+    /// Object storage for locally published bodies, when configured.
+    pub fn file_storage(&self) -> Option<&gproxy_file::Operator> {
+        self.files.as_ref()
+    }
+    /// The host's link builder for `PublicationKind::Url`, when configured.
+    /// Without one, URL publication is refused before any side effect.
+    pub fn publication_url(&self) -> Option<&Arc<dyn PublicationUrl>> {
+        self.publication_url.as_ref()
+    }
+    /// Which `ResourceReference::Url` reads core may fetch on a caller's
+    /// behalf; `DefaultFetchPolicy` unless the host chose otherwise.
+    pub fn fetch_policy(&self) -> &Arc<dyn FetchPolicy> {
+        &self.fetch_policy
+    }
+    pub fn secret_codec(&self) -> &Arc<dyn SecretCodec> {
+        &self.codec
+    }
+    /// This host process, as channels see it. A channel that keeps a live
+    /// upstream connection between two requests records the holder with the
+    /// continuation, so a later request served by another process fails with
+    /// `CoreError::ContinuationElsewhere` naming that holder.
+    pub fn instance_id(&self) -> &Arc<str> {
+        &self.instance_id
+    }
+    pub fn channels(&self) -> &Arc<ChannelRegistry> {
+        &self.channels
+    }
+    pub fn clients(&self) -> &gproxy_client::ClientPool {
+        &self.clients
+    }
+    /// Publish an already-validated snapshot with a durable configuration
+    /// revision. Delayed reloads cannot overwrite a newer revision. This does
+    /// not persist revisions, compile data or authorize configuration changes.
+    pub fn publish_snapshot(&self, next: Arc<CoreData>) -> bool {
+        let previous = self.data.rcu(|current| {
+            if next.revision > current.revision {
+                next.clone()
+            } else {
+                current.clone()
+            }
+        });
+        next.revision > previous.revision
+    }
+    /// Recover ownership when dismantling an engine without exposing a live
+    /// writable Store accessor that bypasses future management coordination.
+    pub fn into_parts(self) -> CoreParts<C> {
+        CoreParts {
+            store: self.store,
+            cache: self.cache,
+            observer: self.observer,
+            codec: self.codec,
+            channels: self.channels,
+            data: self.data.into_inner(),
+        }
+    }
+}
+
+/// Ownership recovered by `Core::into_parts`. The client pool is dropped with
+/// the engine; live sockets already handed out are unaffected.
+pub struct CoreParts<C> {
+    pub store: Arc<Store<C>>,
+    pub cache: Arc<dyn Cache>,
+    pub observer: Arc<dyn Observer>,
+    pub codec: Arc<dyn SecretCodec>,
+    pub channels: Arc<ChannelRegistry>,
+    pub data: Arc<CoreData>,
+}

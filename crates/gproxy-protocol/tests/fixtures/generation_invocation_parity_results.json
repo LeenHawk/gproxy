@@ -1,0 +1,452 @@
+{
+  "scope": "Actual public protocol conversion APIs for fixed v2/v3 sources; actual lightweight Upstream/StateStore/ResourceAccess host for v4, not live providers or complete older core runtimes. v2 response dispatch uses the actual response direction; v3 response belongs to its original request edge.",
+  "source_verification": [
+    {
+      "version": "v2",
+      "revision": "993eac13",
+      "verified_source_files": 376,
+      "mismatches": []
+    },
+    {
+      "version": "v3",
+      "revision": "77d2353d",
+      "verified_source_files": 503,
+      "mismatches": []
+    }
+  ],
+  "v4_base": "ed731230",
+  "host_facts": {
+    "selected_model": "selected",
+    "created_unix_seconds": 123,
+    "origin": "actual-upstream",
+    "source_resource_scope": "source-client",
+    "resource": "actual PNG bytes in test host"
+  },
+  "v2": [
+    {
+      "accepted": true,
+      "name": "parallel_same_name_missing_ids",
+      "output": {
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "function": {
+                    "arguments": "{\"a\":1}",
+                    "name": "same"
+                  },
+                  "id": "call_same",
+                  "type": "function"
+                },
+                {
+                  "function": {
+                    "arguments": "{\"a\":2}",
+                    "name": "same"
+                  },
+                  "id": "call_same",
+                  "type": "function"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 0,
+        "id": "g-native",
+        "model": "selected",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 2,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "prompt_tokens": 4,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "accepted": true,
+      "name": "distinct_punctuation_ids",
+      "output": {
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "function": {
+                    "arguments": "{}",
+                    "name": "same"
+                  },
+                  "id": "a.b",
+                  "type": "function"
+                },
+                {
+                  "function": {
+                    "arguments": "{}",
+                    "name": "same"
+                  },
+                  "id": "a_b",
+                  "type": "function"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 0,
+        "id": "msg-native",
+        "model": "selected",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 2,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "prompt_tokens": 4,
+          "prompt_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "accepted": true,
+      "name": "truncated_tool_result",
+      "output": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "functionResponse": {
+                  "id": "known-client-call",
+                  "name": "known-client-call",
+                  "response": {
+                    "output": "actual result"
+                  }
+                }
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "client"
+      }
+    },
+    {
+      "accepted": true,
+      "name": "foreign_image_url",
+      "output": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "fileData": {
+                  "fileUri": "https://source/private.png"
+                }
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "client"
+      }
+    }
+  ],
+  "v3": [
+    {
+      "accepted": true,
+      "name": "parallel_same_name_missing_ids",
+      "output": {
+        "choices": [
+          {
+            "finish_reason": "stop",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "function": {
+                    "arguments": "{\"a\":1}",
+                    "name": "same"
+                  },
+                  "id": "gemini_call_0_0",
+                  "type": "function"
+                },
+                {
+                  "function": {
+                    "arguments": "{\"a\":2}",
+                    "name": "same"
+                  },
+                  "id": "gemini_call_0_1",
+                  "type": "function"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 0,
+        "id": "g-native",
+        "model": "selected",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 2,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "prompt_tokens": 4,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "accepted": true,
+      "name": "distinct_punctuation_ids",
+      "output": {
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "function": {
+                    "arguments": "{}",
+                    "name": "same"
+                  },
+                  "id": "a.b",
+                  "type": "function"
+                },
+                {
+                  "function": {
+                    "arguments": "{}",
+                    "name": "same"
+                  },
+                  "id": "a_b",
+                  "type": "function"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 0,
+        "id": "msg-native",
+        "model": "selected",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 2,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "prompt_tokens": 4,
+          "prompt_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "total_tokens": 6
+        }
+      }
+    },
+    {
+      "accepted": false,
+      "error": "invalid Chat tool result wire shape: tool_call_id has no preceding call",
+      "name": "truncated_tool_result"
+    },
+    {
+      "accepted": true,
+      "name": "foreign_image_url",
+      "output": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "fileData": {
+                  "fileUri": "https://source/private.png"
+                }
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "model": "selected"
+      }
+    }
+  ],
+  "v4": [
+    {
+      "accepted": true,
+      "name": "parallel_same_name_missing_ids",
+      "output": {
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": null,
+              "refusal": null,
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "function": {
+                    "arguments": "{\"a\":1}",
+                    "name": "same"
+                  },
+                  "id": "call_02020202020202020202020202020202_g_c_0",
+                  "type": "function"
+                },
+                {
+                  "function": {
+                    "arguments": "{\"a\":2}",
+                    "name": "same"
+                  },
+                  "id": "call_02020202020202020202020202020202_g_c_1",
+                  "type": "function"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 123,
+        "id": "g-native",
+        "model": "selected",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 2,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "prompt_tokens": 4,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "total_tokens": 6
+        }
+      },
+      "resource_reads": 0,
+      "saved_records": 3
+    },
+    {
+      "accepted": true,
+      "name": "distinct_punctuation_ids",
+      "output": {
+        "choices": [
+          {
+            "finish_reason": "tool_calls",
+            "index": 0,
+            "logprobs": null,
+            "message": {
+              "content": null,
+              "refusal": null,
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "function": {
+                    "arguments": "{}",
+                    "name": "same"
+                  },
+                  "id": "a.b",
+                  "type": "function"
+                },
+                {
+                  "function": {
+                    "arguments": "{}",
+                    "name": "same"
+                  },
+                  "id": "a_b",
+                  "type": "function"
+                }
+              ]
+            }
+          }
+        ],
+        "created": 123,
+        "id": "msg-native",
+        "model": "selected",
+        "object": "chat.completion",
+        "usage": {
+          "completion_tokens": 2,
+          "completion_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "prompt_tokens": 4,
+          "prompt_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "total_tokens": 6
+        }
+      },
+      "resource_reads": 0,
+      "saved_records": 3
+    },
+    {
+      "accepted": true,
+      "name": "truncated_tool_result",
+      "output": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "functionResponse": {
+                  "id": "known-client-call",
+                  "name": "actual_lookup",
+                  "response": {
+                    "output": "actual result"
+                  }
+                }
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "generationConfig": {}
+      },
+      "resource_reads": 0,
+      "saved_records": 3
+    },
+    {
+      "accepted": true,
+      "name": "foreign_image_url",
+      "output": {
+        "contents": [
+          {
+            "parts": [
+              {
+                "inlineData": {
+                  "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+                  "mimeType": "image/png"
+                }
+              }
+            ],
+            "role": "user"
+          }
+        ],
+        "generationConfig": {}
+      },
+      "resource_reads": 1,
+      "saved_records": 1
+    }
+  ],
+  "validation": {
+    "adapt_generate_tests_default": 35,
+    "adapt_generate_tests_exhaustive": 35,
+    "existing_chat_responses_tests_each": 9,
+    "clippy_deny_warnings": true,
+    "wasm32_unknown_unknown_test_compile": true
+  }
+}

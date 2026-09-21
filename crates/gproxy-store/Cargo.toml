@@ -1,42 +1,24 @@
 [package]
 name = "gproxy-store"
-description = "GPROXY v3 shared persistence schema and native/edge store"
+description = "SeaORM entities and batch persistence for GPROXY v4"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
 [dependencies]
-base64.workspace = true
-bytes.workspace = true
-gproxy-core.workspace = true
-rust_decimal.workspace = true
-sea-query.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-thiserror.workspace = true
-ts-rs.workspace = true
-web-time.workspace = true
+async-trait = { workspace = true }
+gproxy-cache = { workspace = true, default-features = false }
+sea-orm = { workspace = true, features = ["with-rust_decimal"] }
+web-time = { workspace = true }
+serde = { workspace = true }
+gproxy-seaorm = { workspace = true }
+serde_json = { workspace = true }
+rust_decimal = { workspace = true }
+thiserror = { workspace = true }
+getrandom = { workspace = true }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-mysql_async.workspace = true
-redis.workspace = true
-tokio.workspace = true
-tokio-postgres.workspace = true
-tokio-rusqlite.workspace = true
-wreq.workspace = true
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-js-sys.workspace = true
-wasm-bindgen.workspace = true
-wasm-bindgen-futures.workspace = true
-web-sys = { workspace = true, features = [
-    "Headers",
-    "Request",
-    "RequestInit",
-    "Response",
-] }
-
-[dev-dependencies]
-tempfile.workspace = true
-tokio.workspace = true
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

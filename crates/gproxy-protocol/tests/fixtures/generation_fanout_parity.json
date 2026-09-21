@@ -1,0 +1,84 @@
+[
+  {
+    "name": "chat_via_claude",
+    "client": "chat",
+    "upstream": "claude",
+    "input": {
+      "model": "client",
+      "n": 2,
+      "max_completion_tokens": 64,
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi",
+          "foreign": "ignore"
+        }
+      ],
+      "foreign": "ignore"
+    }
+  },
+  {
+    "name": "chat_via_responses",
+    "client": "chat",
+    "upstream": "responses",
+    "input": {
+      "model": "client",
+      "n": 2,
+      "max_completion_tokens": 64,
+      "messages": [
+        {
+          "role": "user",
+          "content": "hi",
+          "foreign": "ignore"
+        }
+      ],
+      "foreign": "ignore"
+    }
+  },
+  {
+    "name": "gemini_via_claude",
+    "client": "gemini",
+    "upstream": "claude",
+    "input": {
+      "contents": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "hi",
+              "foreign": "ignore"
+            }
+          ]
+        }
+      ],
+      "generationConfig": {
+        "candidateCount": 2,
+        "maxOutputTokens": 64
+      },
+      "foreign": "ignore"
+    }
+  },
+  {
+    "name": "gemini_via_responses",
+    "client": "gemini",
+    "upstream": "responses",
+    "input": {
+      "contents": [
+        {
+          "role": "user",
+          "parts": [
+            {
+              "text": "hi",
+              "foreign": "ignore"
+            }
+          ]
+        }
+      ],
+      "generationConfig": {
+        "candidateCount": 2,
+        "maxOutputTokens": 64
+      },
+      "foreign": "ignore"
+    }
+  }
+]

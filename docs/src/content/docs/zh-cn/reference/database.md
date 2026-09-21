@@ -1,125 +1,182 @@
 ---
 title: "存储与缓存后端"
-description: "四种 SQL 后端及其选择方式、schema 迁移与表分组、缓存后端与多实例要求、备份、保留策略，以及 Edge 的限制"
+description: 数据库后端及其选择、以实体为先的结构同步、cache 契约与何时需要共享 cache、文件存储与备份。
 ---
 
-`gproxy-store` 为所有后端维护一份 schema 目录和一层查询构造（SeaQuery）。
-方言差异——整数宽度、MySQL 上带索引列的 `VARCHAR(255)`、SQLite 上的
-`PRAGMA foreign_keys`——在渲染语句时应用，后端一致性由 store 的测试场景覆
-盖。缓存是独立于持久化选择的另一项服务。
+三个存储扩展点，彼此独立选择：**数据库**、**cache**，以及可选的**文件内容**。
 
-## 选择后端
+## 数据库
 
-| `GPROXY_PERSISTENCE` | 连接 | 说明 |
+| `GPROXY_PERSISTENCE` | 连接 | 构建 |
 | --- | --- | --- |
-| `sqlite`（默认） | `<data-dir>/gproxy.db` | 内置 SQLite，单文件。启用外键。 |
-| `libsql` | `GPROXY_LIBSQL_URL` + `GPROXY_LIBSQL_AUTH_TOKEN` | 通过 HTTP 的 Hrana 协议，端点为 `<url>/v2/pipeline`；适用于 Turso 和任何 libSQL 服务器。Edge 上唯一的后端。 |
-| `postgres` | `GPROXY_DSN=postgres://user:<password>@host:5432/gproxy` | `tokio-postgres`，单个连接加锁串行；每个迁移批次在一个事务中执行。连接不启用 TLS；请把数据库放在私有网络或本地 socket 上。 |
-| `mysql` | `GPROXY_DSN=mysql://user:<password>@host:3306/gproxy` | `mysql_async` 连接池，支持 rustls TLS；迁移批次在事务中执行。 |
+| `sqlite`（默认） | `<data-dir>/gproxy.db`，或 `--dsn` 里的路径 / `sqlite://` URL | 始终编译在内 |
+| `postgres` | `--dsn` 里的 `postgres://…` | `--features postgres` |
+| `mysql` | `--dsn` 里的 `mysql://…` | `--features mysql` |
+| D1 | Cloudflare binding | Workers 宿主 |
+| libSQL / Turso | 经 Hrana HTTP pipeline | `--features libsql` |
 
-```bash
-GPROXY_PERSISTENCE=postgres \
-GPROXY_DSN='postgres://gproxy:<password>@db.internal:5432/gproxy' \
-gproxy
+没有 `--persistence` 时 `--dsn` 自己点明后端，所以通常 scheme 就够了。
+
+**本次构建没有的后端会在启动时被拒绝**，并指名能提供它的 feature，而不是等到第一个请求。
+
+```sh
+gproxy serve --dsn 'postgres://gproxy:…@db.internal:5432/gproxy'
 ```
 
-列类型：`Integer` 在 SQLite 上是 `INTEGER`，其他后端是 `BIGINT`；`Text` 是
-`TEXT`，MySQL 上带索引的列是 `VARCHAR(255)`；`Blob` 是二进制，MySQL 上带索
-引的列是 `VARBINARY(255)`。时间戳是整数列中的 Unix 秒，金额是小数文本，
-JSON 是文本。
+libSQL 是给没有 D1 的宿主——Deno、Netlify——准备的选项，因为 HTTP 那一段由调用方自己的
+传输提供，因此它在每个目标上都能用。
 
-## 迁移
+### 一套 API 覆盖全部
 
-启动时先打开后端并完成迁移，再做其他任何事；没有单独的迁移命令。
-`schema_migrations(version, applied_at)` 记录每个已应用的版本。历史必须连
-续；数据库比二进制更新时以 `database schema is newer than this binary` 拒绝。
+原生 SeaORM 连接与 Cloudflare D1 共享**同一套** store API。每个实体访问器都走同一个泛型
+仓储，因此普通 CRUD 不用按表手写，而且每个方法执行**一个原子批**。
 
-| 版本 | 名称 | 新增 |
+构造 store 既不打开数据库，也不改动表结构。
+
+两个值得知道的推论：
+
+- 读取保持输入顺序、重复项，以及缺失 id 对应的 `None`，因此调用方可以把结果按请求拉回去对齐。
+- 键谓词会被拆分以适配 D1 的 100 个绑定值的语句上限，**而且仍在同一个批里**。任意的调用方
+  SQL 不会被拆，数据库的请求与体积限制依然适用。
+
+SQL 错误回滚事务性写入。条件写入影响 0 行时返回一个冲突，而不是把同一批里的其余部分回滚。
+**没有自动重试**：一个含糊的提交结果意味着先去核对持久状态。
+
+### 结构同步
+
+```text
+$ gproxy migrate --data-dir ./data
+INFO gproxy::instance: schema is up to date warnings=0
+```
+
+同步是**以实体为先**的，不是一条编号的迁移阶梯：一份注册表描述这些表，一次同步在新数据库
+上创建缺失的东西，在已有数据库上增量添加受支持的缺失列与索引。重复调用保留数据。
+
+`serve` 也会做这件事。单独的命令是给那些把它当作独立一步、**由单一写入者**在任何实例启动
+前执行的部署用的——多实例共用一个数据库正需要这样。
+
+同步**不做**的事：它不创建默认 settings 或管理员，不运行版本化迁移，也不转换列的类型、
+它的数据或已有的外键。那些需要显式迁移，而且不保证在每个原生后端上都是一个原子事务。
+
+报告会带上告警——例如 D1 的类型差异——而空列表**并不证明**每一项变更都被应用了。在认为
+启动完成之前，请先读这些诊断。
+
+## 精确金额
+
+金额与限额以缩放后的整数存放，不是浮点。一个原子是 `0.000000001`，可表示范围约为 ±92 亿。
+
+SQL 列是 `BIGINT`，而实体把这些原子以文本形式穿过 D1 的 JavaScript 边界，好让比较、排序
+和加法在数据库里仍然是数值的。JSON 出于同样的理由使用十进制**字符串**。
+
+算术在一个 decimal 类型里完成，并且**只**在整次结算上舍入一次，ties-to-even。结算在递增
+计数器之前会检查负值与有符号溢出。
+
+## Cache
+
+| 后端 | 由什么选择 | 作用域 |
 | --- | --- | --- |
-| 1 | `Initial` | 下文列出的完整当前 v3 schema。首个 v3 发布之前的开发期版本已被压平；发布后新增的迁移从版本 2 开始。 |
+| Memory（原生默认） | `--features memory` | 一个进程 |
+| Redis / Valkey | `GPROXY_REDIS_URL` | 共享 |
+| 数据库 | wasm 上自动，别处可配置 | 经同一个数据库共享 |
 
-版本 1 是当前 schema。自更新 manifest 携带最低数据版本，应用更新前会与此
-数字比较。
+cache 装 TTL 状态、精确计数器、许可与租约，以及失效通知通道。它**不**装业务实体，也**不**
+装持久账本。
 
-这条阶梯只升级 v3 存储。`gproxy migrate --from-v2` 是独立的数据导入器：它
-只读取 v2 SQLite 源而不修改它，打开一个当前的 v3 目标（从而创建 Initial 版
-本 1），再映射并写入 v2 实体。它不会重放已被取代的 v3 开发期迁移。用已移除
-的 15 版本阶梯创建的 v3 预发布存储必须重建；它们从来不是受支持的迁移来源。
+| 操作 | 语义 |
+| --- | --- |
+| `get` / `put` / `delete` | 不透明字节、必填的正 TTL、每次 put 产生新版本 |
+| `compare_exchange` | 期望的版本或不存在；替换或删除 |
+| `counter` / `increment` / `decrement` | 精确的非负整数，带原子上限检查 |
+| `acquire_permit` | 最多 N 个存活持有者，各有自己的 TTL |
+| `acquire_lease` | 同一个域、上限为 1——一把刷新租约 |
+| `publish` / `subscribe` | 有损的失效提示 |
 
-## 表分组
+操作**按 key** 原子，绝不跨 key。键值、计数器、许可和 topic 是分开的域，因此同一个逻辑
+名字可以在每个域里各自存在。
 
-| 分组 | 表 | 说明 |
+计数器有**固定窗口**：只有创建才确立 TTL，因此每个实例仅凭时钟就能对边界达成一致。许可
+**不**按窗口计——它量的是在途请求，而任何边界都不切分它——它的周期只是 cache 在从一个死掉
+而没释放的请求那里回收许可之前等多久。
+
+### 故障是拒绝，绝不是本地回退
+
+Redis 故障**不会**静默降级到进程内 cache。两个实例各自回退，会持有互相矛盾的锁、把同一个
+限额数两遍，那比报错更糟。
+
+一个受限流的请求，若它的 cache 回答不了，就被**以 429 拒绝**。放行它会把一次 cache 故障
+变成"这个实例上所有限额都关了"——那正是攻击者想要而运维者看不见的时刻。
+
+### 什么时候需要共享 cache
+
+跑多个实例需要 Redis，或者数据库承载的 cache。没有它，每个实例各数自己的限流、各自刷新
+同一个 OAuth 令牌，而且谁也看不见别人的配置失效通知。
+
+登录会话也活在 cache 而不是进程里，这正是 A 实例开始的登录 B 实例能收尾的原因——负载均衡
+后面收尾的通常就是另一个实例。
+
+对有多套环境的部署，给每套自己的 Redis namespace。通知 channel 显式包含数据库编号，
+因为 Redis Pub/Sub 本身忽略 `SELECT`。
+
+### 数据库当 cache
+
+对一个没有常驻进程也没有 Redis 的宿主——D1 或 libSQL 上的 edge isolate——cache 可以就是
+数据库里的三张表。过期在 SQL 里比较，因此同一个数据库上的同伴对"什么还活着"看法一致。
+
+它**不带通知传输**：订阅会给出最初的 resync 提示然后什么也没有，因此这样的宿主按自己的
+节奏追赶。而那就是 Workers 宿主同步机制的全部：每个请求开头读一次 revision。
+
+## 配置同步
+
+```text
+commit_revision([语句…, config_revision += 1, 读回])   一个事务
+      ↓
+reload   本实例的快照
+      ↓
+publish  ConfigurationChanged { revision, scopes }
+```
+
+两套机制，缺一不可：
+
+| | 传递什么 | 会怎么失败 |
 | --- | --- | --- |
-| Provider 与路由 | `providers`、`credentials`、`provider_models`、`routes`、`route_members`、`exposed_models`、`aliases` | Provider、路由和公开模型名唯一。`credentials` 存放密封信封（`ciphertext`、`wrapped_key`、`payload_nonce`、`key_nonce`）和用于轮换时 compare-and-swap 的 `version`。 |
-| 规则 | `routing_rules`、`rule_sets`、`rules`、`provider_rule_sets` | `routing_rules` 对 `(provider_id, operation, kind)` 唯一；`origin` 区分通道播种行与操作员行。 |
-| 定价 | `price_rules`、`price_rates` | 见[价格与分层](/zh-cn/reference/pricing/)。 |
-| 身份 | `organizations`、`teams`、`users`、`user_keys`、`user_sessions`、`permissions`、`rate_limits`、`quotas` | 团队名在组织内唯一。`user_keys` 保存唯一摘要、用于显示的 `prefix` 和密封的密钥。每个主体一条配额行。 |
-| 配额运行时 | `quota_windows`、`quota_settlements`、`credential_quota_cycles`、`credential_quota_cycle_models` | 窗口对 `(配额, 类型, 起点)` 唯一；结算对 `(请求, 窗口)` 唯一。周期记录每个凭证的上游配额读数。 |
-| 用量 | `usage_rows`、`usage_rollups` | 每个请求 ID 一行，含 token 列、`metrics_json`、`dimensions_json`、小数 `cost`、`usage_source`、`ended`、`latency_ms`。汇总对 `(granularity, bucket_start, dimension_key)` 唯一。 |
-| 日志 | `request_logs`、`wire_logs` | 每个请求 ID 一条下游交换；每次上游尝试一条线路日志。正文是 blob，只在开启正文捕获时存在。 |
-| 管理 | `admin_audit_events`、`credential_health`、`surface_bindings`、`settings` | 健康状态按 `(凭证, 模型)` 记录。绑定把服务面资源固定到创建它的凭证。`settings` 是键到 JSON 的映射。 |
-| 分词器 | `tokenizer_vocabs`、`tokenizer_auth` | 缓存的词表和密封的 Hugging Face Token。 |
-| OAuth | `oauth_grants`、`oauth_codes`、`oauth_tokens`、`oauth_devices` | 模拟厂商认证面的签发方状态。 |
+| 共享 cache 上的失效通知 | 毫秒级的"再看一眼" | 丢消息 |
+| `settings.config_revision` 轮询 | 持久事实，默认 30 秒 | 慢 |
 
-## 归属关系
+通知从不携带状态。它只说存在哪个 revision，而实例只在那个比自己正在服务的更靠前时才重载。
+无法解析的载荷一律重载而不猜测。
 
-schema 不声明数据库外键，因为四种后端对外键的支持并不一致。取而代之的是每张表
-声明自己拥有哪些行，所有删除都从这份声明生成，在一个事务里完成：删除 Provider
-会带走它的凭证、路由成员、别名、模型目录、价格规则、路由规则和规则集挂载；删除
-路由带走成员和公开模型；删除组织、团队、用户或密钥带走作用于它们的权限、限流和
-配额；删除团队只把用户的团队字段置空。历史数据从不跟随删除：用量行、汇总、配额
-周期、日志和审计事件保留已不存在主体的 ID。一个 schema 步骤会清理归属方已经
-消失的行，并有测试拒绝任何既未声明归属也未列为历史的引用列。
+**不能用 cache 自己的自增值代替数据库的 revision。** Redis 重启或淘汰可能丢失它，而两次
+独立的提交——一次到数据库、一次到 topic——不会因为挨得近就变成一个事务。
 
-## 缓存后端
+重载串行且单调推进：旧 revision 绝不覆盖新的，重载失败保留上一份快照继续服务。
 
-| 后端 | 选择方式 | 范围 |
-| --- | --- | --- |
-| 进程内 | 原生默认 | 单进程。 |
-| Redis | `GPROXY_REDIS_URL` | 共享。`redis` crate 连接管理器；rustls TLS。 |
-| Upstash REST | `UPSTASH_URL` + `UPSTASH_TOKEN` | 共享。每条命令一次 HTTPS 请求；原生和 Edge 均可用。 |
-| libSQL 表 | 持久化为 `libsql` 且未设置以上两者时自动启用 | 通过数据库共享：`gproxy_kv(k, v, expires_ms)`。 |
+## 文件存储
 
-缓存契约是 `get`、`set`、`delete`、`incr`、`compare_incr_and_set` 和
-`compare_and_swap`，都带可选 TTL。它承载准入状态
-（`gproxy:admission:{request_id}`）、待结算配额估算
-（`gproxy:quota-pending:{window}`）、请求限流窗口
-（`gproxy:rate:{limit}:{window_start}`）、凭证 RPM/TPM 窗口
-（`gproxy:credential-rate:{credential}:{rpm|tpm}:{minute}`）、轮询视频任务的
-结算去重、凭证刷新租约和会话亲和绑定。两个实例若各用进程内缓存，会各自独
-立执行限流并各自刷新同一个 OAuth token，因此多实例部署需要 Redis、Upstash
-或 libSQL 表。
+可选，没选后端就是关闭的。
 
-控制面快照由做出更改的实例重建，随后该实例递增共享缓存中的
-`gproxy:invalidate`。原生实例每秒轮询一次，Edge isolate 每次请求时检查；版本变化
-时重新加载自己的快照。
+| 后端 | 由什么选择 | 原生 | Workers |
+| --- | --- | --- | --- |
+| 本地文件系统 | `--features fs` + `--file-storage-dir` | 是 | 否 |
+| S3 兼容，含 R2 | `--features s3` + `[file_storage]` 块 | 是 | 是 |
+
+它装发布出去的 body——`/publications/{id}` 背后的字节——和下载的 tokenizer 词表。
+**文件元数据与归属留在数据库里**；存储层只装内容，别的什么都不装。
+
+没有配置文件存储时，发布与词表抓取回答"不支持"：没有地方放这些字节。
+
+发布链接还需要 `GPROXY_PUBLIC_BASE_URL`。没有配置它时，发布在任何 body 被写入**之前**就
+失败，并告诉调用方改要内联字节。用请求的 `Host`——那是客户端挑的——去拼链接会比没有链接
+更糟：上游的答案被接受、字节被存下、URL 被交出去，然后它在别的地方 404。
 
 ## 备份
 
-- SQLite：停止进程后复制 `<data-dir>/gproxy.db`，或使用 SQLite 在线备份
-  （`sqlite3 gproxy.db ".backup gproxy-backup.db"`）。主密钥要与副本一起保
-  存；没有 `GPROXY_MASTER_KEY`，密封的数据库无法读取。
-- PostgreSQL 和 MySQL：使用数据库自带的转储工具。
-- libSQL/Turso：使用平台的快照。
-- 逻辑导出：控制台 → 设置 → 配置导入与导出（`POST /admin/api/export`、
-  `POST /admin/api/import`）。导出包含 Provider、凭证、密钥、配额、定价、路
-  由、别名和规则集。开启 `include_secrets` 时还包含凭证和密钥的秘密，以导
-  出实例的密钥密封；导入用源主密钥打开它们并用本地密钥重新密封。用量、日
-  志和审计行不导出；内置默认价格行也省略。
+- **SQLite**——停掉进程并拷 `<data-dir>/gproxy.db`，或用 SQLite 自己的在线备份。
+  **把主密钥和副本放在一起**：一个加封的数据库没有它读不了。
+- **PostgreSQL 与 MySQL**——数据库自己的导出工具。
+- **D1、libSQL / Turso**——平台自己的快照。
+- **逻辑导出**——`gproxy export --out config.json --include-secrets`。它带走的是*配置*
+  而不是历史：身份、用量和 capture 刻意不在里面。见
+  [配置](/zh-cn/reference/configuration/#搬运一份配置)。
 
-## 保留与大小压力
-
-原生宿主每 5 分钟执行一次清理。它删除早于 `retention_days` 的
-`usage_rows`、`request_logs` 和 `wire_logs`（每表每次 5,000 行），连同这些
-用量行拥有的配额跟踪行和早于截止时间的配额活动记录，测量数据
-库大小（SQLite 和 libSQL 用 `page_count × page_size`，PostgreSQL 用
-`pg_database_size`，MySQL 用 `information_schema` 中的大小），当大小超过
-`max_database_size_mb` 时删除最旧的 5,000 行 `request_logs` 和 `wire_logs`
-——从不删除用量。未设置的值按 36,500 天和 1,024 MiB 处理。清理需要后台任务
-调度器，因此在 Edge 上不运行；请用数据库供应商的工具约束 Edge 存储。
-
-## Edge 宿主支持范围
-
-wasm 宿主只编译 libSQL 后端以及 libSQL 和 Upstash 缓存。没有 SQLite 文件、
-没有 PostgreSQL 或 MySQL 驱动、没有进程内缓存、没有 Redis 客户端、没有清理
-任务，也没有 Hugging Face 词表注册表。
+一份密文绑定到它那一行的 id，所以把某一行的密钥恢复到另一行上是行不通的——这是一条安全
+性质，不是整库恢复的障碍。

@@ -1,402 +1,397 @@
-//! Operation taxonomy: what a request *is*, independent of any provider.
+//! Operation identity: what a request is asking for, and in whose dialect.
 //!
-//! v2's model, kept: an [`Operation`] names the action, an [`OperationKind`]
-//! names the wire shape it arrives in, and the pair ([`OperationKey`]) is
-//! what routing rules and transforms key on. Content generation has several
-//! kinds because OpenAI Responses and Chat Completions are genuinely
-//! different wire shapes, not labels.
+//! An operation is declared once here and nowhere else. Everything downstream
+//! — transform pairs, channel support tables, routing rules — keys on
+//! [`OperationKey`], so adding a variant produces a compile-error checklist
+//! rather than a runtime fallthrough.
 //!
-//! Every enum here is `exhaustive`-feature gated: workspace builds match
-//! exhaustively (adding a variant is a compile-error checklist), external
-//! consumers see `#[non_exhaustive]`. The starter variant set covers the
-//! first porting wave; it grows port by port, compiler-enforced.
+//! Paths are deliberately absent. Which URL serves an operation is an HTTP
+//! convention owned by the ingress layer; an SDK caller names the operation
+//! directly and never sees a path.
+//!
+//! Persistence strings live on the variants rather than in a hand-written
+//! match. `snake_case` conversion is exact for every operation; the OpenAI
+//! dialects need an explicit spelling because the derive would otherwise split
+//! them into `open_ai`. A pinning test guards the whole set, so renaming a
+//! variant cannot silently change what is already in a database.
 
-/// Broad capability a client asks for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub enum OperationGroup {
-    Models,
-    CountTokens,
-    Memories,
-    GenerateContent,
-    Compact,
-    Conversation,
-    Embeddings,
-    Images,
-    Audio,
-    Video,
-    Files,
-    Search,
-    Rerank,
-    Realtime,
-}
-
-/// Concrete action.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// What the caller wants done.
+///
+/// The operation and [`Dialect`] together identify the wire shape.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::IntoStaticStr,
+    strum::EnumString,
+    strum::EnumIter,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum Operation {
+    // models
     ListModels,
     GetModel,
+    // counting
     CountTokens,
-    SummarizeMemory,
+    // generation
     GenerateContent,
     StreamGenerateContent,
+    // moderation
     GuardianReview,
     GuardianClassify,
+    // context management
     CompactContent,
+    SummarizeMemory,
     CreateConversation,
+    // embeddings
     CreateEmbedding,
     BatchCreateEmbedding,
+    // retrieval
     Rerank,
+    // alpha search for codex (maybe include by other providers later)
     WebSearch,
+    // images
     CreateImage,
     EditImage,
+    // audio
     CreateSpeech,
     CreateTranscription,
     CreateTranslation,
+    // files
     CreateFile,
     ListFiles,
     RetrieveFile,
     RetrieveFileContent,
     DeleteFile,
+    // video — the async-job core. Keyed with the OpenAI family dialect; the
+    // request body is OpenAI's plus documented extensions, because OpenAI's own
+    // five fields cap what the models can be asked for (three fixed durations,
+    // four fixed sizes, one reference asset, no seed). Sora-only operations —
+    // remix, edit, extend, characters — are deliberately absent: no other
+    // vendor offers them. Add them back only when a second vendor does.
     CreateVideo,
     RetrieveVideo,
     ListVideos,
     DeleteVideo,
+    /// Download video bytes, e.g. OpenAI's GET /videos/{video_id}/content.
+    /// Some vendors instead expose a download URL in a job response; their
+    /// channel implementation resolves that URL as part of this operation.
     DownloadVideoContent,
-    RemixVideo,
-    CreateVideoCharacter,
-    GetVideoCharacter,
-    EditVideo,
-    ExtendVideo,
-    /// SDP handshake creating a WebRTC realtime call (`/v1/realtime/calls`).
-    /// The session's WS/observer operations arrive with the round-3
-    /// websocket-ingress design.
+    // realtime
+    /// SDP handshake creating a WebRTC realtime call.
     CreateRealtimeCall,
-    /// Direct websocket connection to `/v1/realtime`.
+    /// Duplex websocket session. Never transformed — only same-protocol
+    /// passthrough, because a client that can keep talking mid-response has no
+    /// equivalent in a half-duplex dialect.
     ConnectRealtime,
 }
 
-/// Wire family for provider-shaped (non-content-generation) operations.
-/// v2 called this `Provider`; renamed — it names a wire dialect, not a
-/// configured backend.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+impl Operation {
+    /// Stable persistence id.
+    pub fn id(self) -> &'static str {
+        self.into()
+    }
+
+    pub fn from_id(value: &str) -> Option<Self> {
+        value.parse().ok()
+    }
+}
+
+/// Vendor grouping of dialects. Derived from a [`Dialect`], never stored
+/// alongside one.
+///
+/// Names a dialect family, not a configured backend — v2 called this
+/// `Provider` and the two kept getting confused. Which vendor actually *serves*
+/// a dialect is the channel's business: Anthropic and Google both expose
+/// OpenAI-compatible endpoints, and that shows up as channel support, not here.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::IntoStaticStr,
+    strum::EnumString,
+    strum::EnumIter,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 pub enum WireFamily {
+    #[serde(rename = "openai")]
+    #[strum(serialize = "openai")]
     OpenAi,
     Claude,
     Gemini,
 }
 
 impl WireFamily {
-    pub const fn id(self) -> &'static str {
-        match self {
-            Self::OpenAi => "openai",
-            Self::Claude => "claude",
-            Self::Gemini => "gemini",
-        }
+    pub fn id(self) -> &'static str {
+        self.into()
     }
 
     pub fn from_id(value: &str) -> Option<Self> {
-        Some(match value {
-            "openai" => Self::OpenAi,
-            "claude" => Self::Claude,
-            "gemini" => Self::Gemini,
-            _ => return None,
-        })
-    }
-
-    /// Request headers that identify a client as speaking this family.
-    /// Several families share ingress paths (`/v1/files` is both OpenAI and
-    /// Claude), so classification disambiguates by the dialect the caller
-    /// authenticates with. Exhaustive: a new family declares its markers
-    /// here rather than growing a private table inside the engine.
-    pub const fn client_markers(self) -> &'static [&'static str] {
-        match self {
-            Self::Claude => &["x-api-key", "anthropic-version", "anthropic-beta"],
-            Self::OpenAi | Self::Gemini => &[],
-        }
+        value.parse().ok()
     }
 }
 
-impl ContentGenerationKind {
-    pub const fn id(self) -> &'static str {
-        match self {
-            Self::OpenAiChat => "openai_chat",
-            Self::OpenAiResponses => "openai_responses",
-            Self::OpenAiResponsesWebSocket => "openai_responses_websocket",
-            Self::ClaudeMessages => "claude_messages",
-            Self::GeminiGenerateContent => "gemini_generate_content",
-        }
-    }
-
-    pub fn from_id(value: &str) -> Option<Self> {
-        Some(match value {
-            "openai_chat" => Self::OpenAiChat,
-            "openai_responses" => Self::OpenAiResponses,
-            "openai_responses_websocket" => Self::OpenAiResponsesWebSocket,
-            "claude_messages" => Self::ClaudeMessages,
-            "gemini_generate_content" => Self::GeminiGenerateContent,
-            _ => return None,
-        })
-    }
-}
-
-impl OperationKind {
-    pub const fn id(self) -> &'static str {
-        match self {
-            Self::ContentGeneration(kind) => kind.id(),
-            Self::Family(family) => family.id(),
-        }
-    }
-
-    pub fn from_id(value: &str) -> Option<Self> {
-        ContentGenerationKind::from_id(value)
-            .map(Self::ContentGeneration)
-            .or_else(|| WireFamily::from_id(value).map(Self::Family))
-    }
-}
-
-/// The distinct content-generation wire shapes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// The wire shape an operation is expressed in.
+///
+/// The three vendor dialects cover all operations. For content generation,
+/// they mean OpenAI Responses, Claude Messages and Gemini GenerateContent.
+/// OpenAI additionally has Chat Completions and a Responses websocket envelope.
+/// [`Dialect::family`] derives the vendor grouping from this single axis.
+///
+/// There is no AWS variant: Bedrock Converse has no ingress path, so no client
+/// speaks it to us. It is an upstream shape the `aws_bedrock` channel produces,
+/// and its wire types live with that channel.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::IntoStaticStr,
+    strum::EnumString,
+    strum::EnumIter,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub enum ContentGenerationKind {
+pub enum Dialect {
+    /// OpenAI's shape for the operation; Responses for content generation.
+    #[serde(rename = "openai")]
+    #[strum(serialize = "openai")]
+    OpenAi,
+    /// Claude's shape for the operation; Messages for content generation.
+    Claude,
+    /// Gemini's shape for the operation; GenerateContent for content generation.
+    Gemini,
+    /// OpenAI Chat Completions, for conversation operations only.
+    #[serde(rename = "openai_chat")]
+    #[strum(serialize = "openai_chat")]
     OpenAiChat,
-    OpenAiResponses,
-    /// Envelope variant of `OpenAiResponses`: same semantics over a
-    /// websocket transport. Transforms compose it onto the Responses
-    /// pairs; it never gets pair families of its own.
+    /// Responses over a websocket, for conversation operations only. The
+    /// envelope layer unwraps onto [`Dialect::OpenAi`]'s Responses pairs and
+    /// wraps the result back; this variant owns no transform pairs of its own.
+    #[serde(rename = "openai_responses_websocket")]
+    #[strum(serialize = "openai_responses_websocket")]
     OpenAiResponsesWebSocket,
-    ClaudeMessages,
-    GeminiGenerateContent,
 }
 
-/// Wire shape of an operation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
-pub enum OperationKind {
-    ContentGeneration(ContentGenerationKind),
-    Family(WireFamily),
+impl Dialect {
+    pub fn id(self) -> &'static str {
+        self.into()
+    }
+
+    pub fn from_id(value: &str) -> Option<Self> {
+        value.parse().ok()
+    }
+
+    /// The vendor family this shape belongs to.
+    pub const fn family(self) -> WireFamily {
+        match self {
+            Self::OpenAi | Self::OpenAiChat | Self::OpenAiResponsesWebSocket => WireFamily::OpenAi,
+            Self::Claude => WireFamily::Claude,
+            Self::Gemini => WireFamily::Gemini,
+        }
+    }
+
+    /// The dialect that owns the transform pairs for this one. Only the
+    /// websocket envelope variant differs from itself.
+    pub const fn pair_dialect(self) -> Self {
+        match self {
+            Self::OpenAiResponsesWebSocket => Self::OpenAi,
+            other => other,
+        }
+    }
 }
 
-/// What routing rules, transforms, and channel support tables key on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// What transform pairs, channel support tables and routing rules key on.
+///
+/// Construct directly from an operation and dialect. Supported combinations
+/// are defined by transform and channel support tables, not by this type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct OperationKey {
-    operation: Operation,
-    kind: OperationKind,
+    pub operation: Operation,
+    pub dialect: Dialect,
 }
 
 impl OperationKey {
-    pub const fn content(operation: Operation, kind: ContentGenerationKind) -> Self {
-        assert!(
-            operation.is_content_generation(),
-            "content kind used with non-content operation"
-        );
+    pub const fn family(self) -> WireFamily {
+        self.dialect.family()
+    }
+
+    /// The key whose transform pairs serve this one. Differs from `self` only
+    /// for the websocket envelope variant.
+    pub const fn pair_key(self) -> Self {
         Self {
-            operation,
-            kind: OperationKind::ContentGeneration(kind),
+            operation: self.operation,
+            dialect: self.dialect.pair_dialect(),
         }
     }
+}
 
-    pub const fn family(operation: Operation, family: WireFamily) -> Self {
-        assert!(
-            !operation.is_content_generation(),
-            "wire family used with content operation"
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use strum::IntoEnumIterator;
+
+    /// Pins every persistence id. The derive generates these from the variant
+    /// names, so without this test renaming a variant would silently rewrite
+    /// what is already stored in a database. Order and count are pinned too,
+    /// which is what makes adding an operation a deliberate act.
+    #[test]
+    fn operation_ids_are_pinned() {
+        let ids: Vec<&'static str> = Operation::iter().map(Operation::id).collect();
+        assert_eq!(
+            ids,
+            [
+                "list_models",
+                "get_model",
+                "count_tokens",
+                "generate_content",
+                "stream_generate_content",
+                "guardian_review",
+                "guardian_classify",
+                "compact_content",
+                "summarize_memory",
+                "create_conversation",
+                "create_embedding",
+                "batch_create_embedding",
+                "rerank",
+                "web_search",
+                "create_image",
+                "edit_image",
+                "create_speech",
+                "create_transcription",
+                "create_translation",
+                "create_file",
+                "list_files",
+                "retrieve_file",
+                "retrieve_file_content",
+                "delete_file",
+                "create_video",
+                "retrieve_video",
+                "list_videos",
+                "delete_video",
+                "download_video_content",
+                "create_realtime_call",
+                "connect_realtime",
+            ]
         );
-        Self {
-            operation,
-            kind: OperationKind::Family(family),
+    }
+
+    /// Pins the five canonical dialect ids used by serde and strum.
+    #[test]
+    fn dialect_ids_are_pinned() {
+        let ids: Vec<&'static str> = Dialect::iter().map(Dialect::id).collect();
+        assert_eq!(
+            ids,
+            [
+                "openai",
+                "claude",
+                "gemini",
+                "openai_chat",
+                "openai_responses_websocket",
+            ]
+        );
+
+        let families: Vec<&'static str> = WireFamily::iter().map(WireFamily::id).collect();
+        assert_eq!(families, ["openai", "claude", "gemini"]);
+    }
+
+    #[test]
+    fn every_id_round_trips() {
+        for operation in Operation::iter() {
+            assert_eq!(Operation::from_id(operation.id()), Some(operation));
+        }
+        for dialect in Dialect::iter() {
+            assert_eq!(Dialect::from_id(dialect.id()), Some(dialect));
+        }
+        for family in WireFamily::iter() {
+            assert_eq!(WireFamily::from_id(family.id()), Some(family));
         }
     }
 
-    pub const fn try_new(
-        operation: Operation,
-        kind: OperationKind,
-    ) -> Result<Self, OperationKeyError> {
-        let consistent = matches!(kind, OperationKind::ContentGeneration(_))
-            == operation.is_content_generation();
-        if consistent {
-            Ok(Self { operation, kind })
-        } else {
-            Err(OperationKeyError { operation, kind })
+    /// serde and strum derive their strings separately; nothing forces them to
+    /// agree, so check that they do.
+    #[test]
+    fn serde_agrees_with_strum() {
+        for operation in Operation::iter() {
+            let json = serde_json::to_string(&operation).expect("serializes");
+            assert_eq!(json, format!("\"{}\"", operation.id()));
+            let back: Operation = serde_json::from_str(&json).expect("deserializes");
+            assert_eq!(back, operation);
+        }
+        for dialect in Dialect::iter() {
+            let json = serde_json::to_string(&dialect).expect("serializes");
+            assert_eq!(json, format!("\"{}\"", dialect.id()));
+            let back: Dialect = serde_json::from_str(&json).expect("deserializes");
+            assert_eq!(back, dialect);
+        }
+        for family in WireFamily::iter() {
+            let json = serde_json::to_string(&family).expect("serializes");
+            assert_eq!(json, format!("\"{}\"", family.id()));
         }
     }
 
-    pub const fn operation(self) -> Operation {
-        self.operation
+    #[test]
+    fn unknown_ids_are_rejected() {
+        assert_eq!(Operation::from_id("not_an_operation"), None);
+        assert_eq!(Dialect::from_id("open_ai"), None);
+        assert_eq!(WireFamily::from_id("open_ai"), None);
     }
 
-    pub const fn kind(self) -> OperationKind {
-        self.kind
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct OperationKeyError {
-    pub operation: Operation,
-    pub kind: OperationKind,
-}
-
-impl std::fmt::Display for OperationKeyError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "operation {:?} is inconsistent with kind {:?}",
-            self.operation, self.kind
-        )
-    }
-}
-
-impl std::error::Error for OperationKeyError {}
-
-impl OperationGroup {
-    /// Stable permission and persistence id.
-    pub const fn id(self) -> &'static str {
-        use OperationGroup::*;
-        match self {
-            Models => "models",
-            CountTokens => "count_tokens",
-            Memories => "memories",
-            GenerateContent => "generate_content",
-            Compact => "compact",
-            Conversation => "conversation",
-            Embeddings => "embeddings",
-            Images => "images",
-            Audio => "audio",
-            Video => "video",
-            Files => "files",
-            Search => "search",
-            Rerank => "rerank",
-            Realtime => "realtime",
-        }
-    }
-}
-
-impl Operation {
-    pub const fn is_content_generation(self) -> bool {
-        matches!(
-            self,
-            Self::GenerateContent
-                | Self::StreamGenerateContent
-                | Self::GuardianReview
-                | Self::GuardianClassify
-        )
+    /// Every dialect belongs to exactly one family, and the family shapes are
+    /// the identity of their own family.
+    #[test]
+    fn families_are_derivable() {
+        assert_eq!(Dialect::OpenAiChat.family(), WireFamily::OpenAi);
+        assert_eq!(
+            Dialect::OpenAiResponsesWebSocket.family(),
+            WireFamily::OpenAi
+        );
+        assert_eq!(Dialect::OpenAi.family(), WireFamily::OpenAi);
+        assert_eq!(Dialect::Claude.family(), WireFamily::Claude);
+        assert_eq!(Dialect::Gemini.family(), WireFamily::Gemini);
     }
 
-    /// Stable persistence id. Exhaustive so adding an operation cannot silently
-    /// collapse into a debug-string or catch-all representation.
-    pub const fn id(self) -> &'static str {
-        use Operation::*;
-        match self {
-            ListModels => "list_models",
-            GetModel => "get_model",
-            CountTokens => "count_tokens",
-            SummarizeMemory => "summarize_memory",
-            GenerateContent => "generate_content",
-            StreamGenerateContent => "stream_generate_content",
-            GuardianReview => "guardian_review",
-            GuardianClassify => "guardian_classify",
-            CompactContent => "compact_content",
-            CreateConversation => "create_conversation",
-            CreateEmbedding => "create_embedding",
-            BatchCreateEmbedding => "batch_create_embedding",
-            Rerank => "rerank",
-            WebSearch => "web_search",
-            CreateImage => "create_image",
-            EditImage => "edit_image",
-            CreateSpeech => "create_speech",
-            CreateTranscription => "create_transcription",
-            CreateTranslation => "create_translation",
-            CreateFile => "create_file",
-            ListFiles => "list_files",
-            RetrieveFile => "retrieve_file",
-            RetrieveFileContent => "retrieve_file_content",
-            DeleteFile => "delete_file",
-            CreateVideo => "create_video",
-            RetrieveVideo => "retrieve_video",
-            ListVideos => "list_videos",
-            DeleteVideo => "delete_video",
-            DownloadVideoContent => "download_video_content",
-            RemixVideo => "remix_video",
-            CreateVideoCharacter => "create_video_character",
-            GetVideoCharacter => "get_video_character",
-            EditVideo => "edit_video",
-            ExtendVideo => "extend_video",
-            CreateRealtimeCall => "create_realtime_call",
-            ConnectRealtime => "connect_realtime",
-        }
-    }
-
-    pub fn from_id(value: &str) -> Option<Self> {
-        use Operation::*;
-        Some(match value {
-            "list_models" => ListModels,
-            "get_model" => GetModel,
-            "count_tokens" => CountTokens,
-            "summarize_memory" => SummarizeMemory,
-            "generate_content" => GenerateContent,
-            "stream_generate_content" => StreamGenerateContent,
-            "guardian_review" => GuardianReview,
-            "guardian_classify" => GuardianClassify,
-            "compact_content" => CompactContent,
-            "create_conversation" => CreateConversation,
-            "create_embedding" => CreateEmbedding,
-            "batch_create_embedding" => BatchCreateEmbedding,
-            "rerank" => Rerank,
-            "web_search" => WebSearch,
-            "create_image" => CreateImage,
-            "edit_image" => EditImage,
-            "create_speech" => CreateSpeech,
-            "create_transcription" => CreateTranscription,
-            "create_translation" => CreateTranslation,
-            "create_file" => CreateFile,
-            "list_files" => ListFiles,
-            "retrieve_file" => RetrieveFile,
-            "retrieve_file_content" => RetrieveFileContent,
-            "delete_file" => DeleteFile,
-            "create_video" => CreateVideo,
-            "retrieve_video" => RetrieveVideo,
-            "list_videos" => ListVideos,
-            "delete_video" => DeleteVideo,
-            "download_video_content" => DownloadVideoContent,
-            "remix_video" => RemixVideo,
-            "create_video_character" => CreateVideoCharacter,
-            "get_video_character" => GetVideoCharacter,
-            "edit_video" => EditVideo,
-            "extend_video" => ExtendVideo,
-            "create_realtime_call" => CreateRealtimeCall,
-            "connect_realtime" => ConnectRealtime,
-            _ => return None,
-        })
-    }
-
-    /// Exhaustive by design: a new operation fails to compile until its
-    /// group — and its [`spec`](crate::spec::OperationSpec) — exist.
-    pub const fn group(self) -> OperationGroup {
-        use Operation::*;
-        match self {
-            ListModels | GetModel => OperationGroup::Models,
-            CountTokens => OperationGroup::CountTokens,
-            SummarizeMemory => OperationGroup::Memories,
-            GenerateContent | StreamGenerateContent | GuardianReview | GuardianClassify => {
-                OperationGroup::GenerateContent
+    #[test]
+    fn only_the_websocket_envelope_borrows_another_dialects_pairs() {
+        let ws = OperationKey {
+            operation: Operation::StreamGenerateContent,
+            dialect: Dialect::OpenAiResponsesWebSocket,
+        };
+        assert_eq!(
+            ws.pair_key(),
+            OperationKey {
+                operation: Operation::StreamGenerateContent,
+                dialect: Dialect::OpenAi,
             }
-            CompactContent => OperationGroup::Compact,
-            CreateConversation => OperationGroup::Conversation,
-            CreateEmbedding | BatchCreateEmbedding => OperationGroup::Embeddings,
-            Rerank => OperationGroup::Rerank,
-            WebSearch => OperationGroup::Search,
-            CreateImage | EditImage => OperationGroup::Images,
-            CreateSpeech | CreateTranscription | CreateTranslation => OperationGroup::Audio,
-            CreateFile | ListFiles | RetrieveFile | RetrieveFileContent | DeleteFile => {
-                OperationGroup::Files
-            }
-            CreateVideo | RetrieveVideo | ListVideos | DeleteVideo | DownloadVideoContent
-            | RemixVideo | CreateVideoCharacter | GetVideoCharacter | EditVideo | ExtendVideo => {
-                OperationGroup::Video
-            }
-            CreateRealtimeCall | ConnectRealtime => OperationGroup::Realtime,
+        );
+
+        for dialect in Dialect::iter().filter(|d| *d != Dialect::OpenAiResponsesWebSocket) {
+            assert_eq!(dialect.pair_dialect(), dialect);
         }
     }
 }

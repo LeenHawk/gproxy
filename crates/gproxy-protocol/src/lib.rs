@@ -1,75 +1,44 @@
-//! GPROXY v3 protocol model.
+//! GPROXY v4 protocol.
 //!
-//! The operation taxonomy ([`operation`]) and the OperationSpec registry
-//! ([`spec`], tables under `specs/`): every fact about an operation —
-//! ingress paths, wire kinds, settle mode, affinity — declared once and
-//! read by classification, channels, settlement, and console metadata.
+//! Two jobs, and nothing else:
 //!
-//! Public request, response, and stream-event models live under their wire
-//! family and preserve unmodeled fields through each struct's flattened rest.
+//! 1. **Model the connection.** What a request and a response are on an
+//!    HTTP link — five request elements, three response elements, and buffered
+//!    or streaming bodies. An established WebSocket is a separate duplex link.
+//! 2. **Describe host capabilities for protocol adaptation.** A host supplies
+//!    upstream calls, resource access, and scoped state. Bounded codecs and
+//!    identity mapping support adapters that compose these capabilities for
+//!    one or more calls without depending on a full core.
 //!
-//! Enums are exhaustive under the workspace-internal `exhaustive` feature
-//! and `#[non_exhaustive]` otherwise; see Cargo.toml.
+//! What is deliberately absent:
+//!
+//! - **URL path matching.** Which URL serves an operation is an HTTP
+//!   convention. The ingress layer owns it; an SDK caller names the operation
+//!   and never sees a path.
+//! - **Any notion of a channel.** A channel is a vendor integration with
+//!   credentials and auth; this crate only knows dialects.
+//! - **A unified IR.** Conversion is N-by-N pairwise on purpose. Upstream specs
+//!   churn faster than any pivot format tracks, and conversion fidelity is the
+//!   product. See `design/transform.md`.
+//!
+//! Everything here derives from `upstream_docs/`, which is the source of truth
+//! for field names, semantics and examples.
 
-pub mod aws;
-pub mod claude;
-pub mod gemini;
-pub mod openai;
+extern crate self as gproxy_protocol;
+
+pub mod adapt;
+pub mod capability;
+pub mod codec;
+pub mod connection;
 pub mod operation;
-mod path;
 pub mod spec;
-mod specs;
+pub mod transform;
+pub mod wire;
 
-pub use gproxy_protocol_macros::{WireBuilder, wire};
+pub use wire::{claude, gemini, openai};
 
-#[cfg(test)]
-mod tests;
+pub use connection::{HttpBody, WebSocket, WireRequest, WireResponse};
+pub use operation::{Dialect, Operation, OperationKey, WireFamily};
 
-pub use operation::{
-    ContentGenerationKind, Operation, OperationGroup, OperationKey, OperationKeyError,
-    OperationKind, WireFamily,
-};
-pub use path::{match_ingress, match_ingress_for, match_path, request_target};
-pub use spec::{
-    Affinity, Ingress, Matched, OperationSpec, PathPattern, Seg, SettleMode, StreamDetect,
-    StreamFraming, default_framing, streaming_sibling,
-};
-
-pub fn registered_operations() -> impl Iterator<Item = Operation> {
-    specs::REGISTRY.iter().map(|(operation, _)| *operation)
-}
-
-/// A required field was omitted while constructing an extensible wire struct.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct WireBuildError {
-    type_name: &'static str,
-    field: &'static str,
-}
-
-impl WireBuildError {
-    #[doc(hidden)]
-    pub const fn missing(type_name: &'static str, field: &'static str) -> Self {
-        Self { type_name, field }
-    }
-
-    pub const fn type_name(&self) -> &'static str {
-        self.type_name
-    }
-
-    pub const fn field(&self) -> &'static str {
-        self.field
-    }
-}
-
-impl std::fmt::Display for WireBuildError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "missing required field `{}.{}`",
-            self.type_name, self.field
-        )
-    }
-}
-
-impl std::error::Error for WireBuildError {}
+/// Unknown fields preserved when a wire object is read and written unchanged.
+pub type Rest = serde_json::Map<String, serde_json::Value>;

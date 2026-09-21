@@ -1,23 +1,59 @@
 ---
-title: "构建与发布"
-description: "从源码构建 gproxy 与 edge wasm，运行质量门禁，并了解由 tag 驱动、对每个产物签名并发布的流水线"
+title: "从源码构建"
+description: 从源码构建 GPROXY v4 的每个目标——server、桌面宿主、Worker 与 console——并运行 CI 跑的那几道质量闸门。
 ---
 
-GPROXY 以一个原生二进制 `gproxy` 交付，构建自 `crates/gproxy-host-axum`；另有
-一个面向 fetch 平台的 wasm host，`crates/gproxy-host-edge`。操作员控制台只编译
-一次并内嵌进原生二进制，因此源码构建总是从控制台开始。
+从源码构建是拿到 v4 的唯一方式。**没有发布流水线**：没有安装包、没有便携包、没有发布的
+容器镜像、没有签名的更新清单，也没有代码签名。
+
+这是关于 v4 当前状态的陈述，不是一条方针。v3 这些全都有，而一样都没有被移植；描述它们的
+那些页面被删除，而不是围绕不存在的机制改写。仓库里的 `deploy/` 与 `scripts/` 目录仍然装着
+v3 的流水线，而且**构建不了 v4**——比如那份容器 Dockerfile 要的二进制目标已经换了 crate。
 
 ## 前置条件
 
-| 工具 | 用途 |
+| 工具 | 用于 |
 | --- | --- |
-| Rust stable 工具链（edition 2024） | 全部 crate；构建 edge host 需额外添加 `wasm32-unknown-unknown` target |
-| Node.js LTS 与 pnpm 9 | 控制台（`console/`）与文档（`docs/`） |
-| 与 `Cargo.lock` 版本一致的 `wasm-bindgen-cli`，或 `wasm-pack` | 生成 edge glue |
-| 带 buildx 的 Docker | 容器镜像 |
-| `cross`、`cargo-ndk`、Windows SDK MakeAppx、`dpkg-deb`、`hdiutil` | 仅 release 打包需要 |
+| stable Rust 工具链（edition 2024） | 每个 crate |
+| `wasm32-unknown-unknown` | Workers 宿主，以及 CI 的那一道检查 |
+| `webkit2gtk-4.1`、`gtk+-3.0`、`libsoup-3.0`（Linux） | 桌面宿主 |
+| Node.js LTS 与 pnpm | console 与本文档站 |
+| `worker-build` | Workers 包 |
 
-## 构建控制台
+## Workspace
+
+十六个 crate。不带 `-p` 也不带 `--workspace` 的 `cargo check`、`cargo test` 和
+`cargo clippy` 构建的是**默认成员**，也就是除桌面宿主之外的一切。
+
+这个排除不是降级，也不是为了增量构建：目标目录是热的时候，两种选择相差不到半秒。它是为了
+**冷**的那一次。桌面宿主会拉进 wry、webkit、gtk 及它们的 `-sys` crate——大约一百八十个与
+引擎无关的第三方 crate，而且一台没有对应开发头文件的 Linux 机器根本构建不了它们。
+
+`--workspace` 会构建它，CI 也会。
+
+## server
+
+```sh
+cargo build -p gproxy --release
+./target/release/gproxy --version
+```
+
+```text
+gproxy 4.0.0-dev
+```
+
+默认 feature 是 `channels`、`memory`、`fs` 和 `bundled-vocabulary`——一个编译进全部渠道的
+单节点 SQLite 实例。逐个点名渠道可以得到一个只带用得到的上游的二进制：
+
+```sh
+cargo build -p gproxy --release --no-default-features \
+  --features memory,fs,codex,claudecode,openai,custom
+```
+
+按部署需要加上 `postgres`、`mysql`、`redis` 或 `s3`。SQLite 始终编译在内，而本次构建没有的
+后端会在启动时被拒绝，并指名能提供它的 feature。
+
+## console
 
 ```sh
 cd console
@@ -25,214 +61,110 @@ pnpm install --frozen-lockfile
 pnpm build
 ```
 
-`pnpm build` 依次执行 `tsc -b`、`vite build` 和 `scripts/sync-to-embed.mjs`，
-最后一步把 `console/dist/` 复制到 `crates/gproxy-host-axum/assets/web/`。该目录
-除 `.gitkeep` 外均被 gitignore；原生 host 在编译期通过 `rust-embed` 嵌入它。跳过
-这一步时二进制仍能提供 API，但 `/`、`/admin` 和 `/portal` 会返回 `404`，正文为
-`web assets are not embedded; run pnpm build in console/ and rebuild gproxy`。
+发布构建在 `cargo build` **之前**把 `console/dist` 拷进
+`crates/gproxy-host-axum/assets/web`，bundle 由 `rust-embed` 内嵌进去。
 
-## 构建原生二进制
+**源码检出什么都不内嵌**，这是刻意的状态：`cargo build` 产出的二进制在 console 路径上回
+404，而不是一个看起来像坏掉的应用的空白页，启动日志也说了这件事。
 
-```sh
-cargo build --release -p gproxy-host-axum
-./target/release/gproxy --version
-```
-
-产物是 `target/release/gproxy`。`cargo run -p gproxy-host-axum` 以默认值
-（`127.0.0.1:8787`、`./data`、SQLite）运行 debug 构建。`--version` 打印构建标识：
-
-```text
-gproxy 3.0.0 (channel development, build 4054fe4f94ea, installation source)
-```
-
-构建标识在编译期由以下变量固定，`crates/gproxy-host-axum/src/lib.rs` 用
-`option_env!` 读取：
-
-| 变量 | 默认值 | Release 取值 |
-| --- | --- | --- |
-| `GPROXY_BUILD_VERSION` | Cargo package 版本 | workspace 版本 |
-| `GPROXY_BUILD_CHANNEL` | `development` | `releases` 或 `dev` |
-| `GPROXY_BUILD_HASH` | `build.rs` 取到的 git 短哈希，否则 `unknown` | 提交 SHA |
-| `GPROXY_INSTALLATION_KIND` | `source` | `standalone`、`container` 或 `android-apk` |
-| `GPROXY_UPDATE_PUBKEY` | 未设置 | base64 的 Ed25519 公钥，32 字节 |
-
-没有 `GPROXY_UPDATE_PUBKEY` 时，二进制没有可用于校验更新 manifest 和公告 feed 的
-公钥，两项校验都会失败。开发构建不需要它。
-
-## 构建 Edge Wasm
+要对着一个 Vite 构建开发，就让二进制指向一个目录：
 
 ```sh
-rustup target add wasm32-unknown-unknown
-cargo build -p gproxy-host-edge --release --target wasm32-unknown-unknown
-wasm-bindgen --target bundler --out-dir deploy/cloudflare/pkg \
-  --out-name gproxy_host_edge \
-  target/wasm32-unknown-unknown/release/gproxy_host_edge.wasm
+GPROXY_CONSOLE_PATH=console/dist ./target/release/gproxy serve
 ```
 
-Cloudflare 使用 `bundler` target；Deno 与 Netlify 使用 `--target web`。
-`wasm-bindgen` CLI 的版本必须等于 `Cargo.lock` 中 `wasm-bindgen` crate 的版本。
-`scripts/package-edge-release.sh` 会完成构建、生成两种 glue、把预构建的
-`console/dist` 复制到各 `deploy/<platform>/public/`，并打包三个 bundle 的 zip。
-各平台目录还带有 `pnpm run build` / `deno task build` 脚本，通过 `wasm-pack`
-完成同样的工作；见 [Edge Wasm](/zh-cn/deployment/edge/)。
-
-## 质量门禁
-
-后端与控制台变更收尾时运行与 CI 相同的命令：
-
-| 命令 | 检查内容 |
-| --- | --- |
-| `cargo fmt --check` | 格式 |
-| `cargo clippy --workspace --all-targets -- -D warnings` | lint；任何 warning 都会失败 |
-| `cargo test --workspace` | 测试；同时重新生成 TypeScript DTO |
-| `cargo check --workspace --target wasm32-unknown-unknown` | 核心仍可为 edge 编译 |
-| `pnpm lint`（在 `console/` 中） | `tsc -b`、ESLint、多语言一致性（`pnpm i18n:check`） |
-| `pnpm test`（在 `console/` 中） | Vitest 与模型目录脚本测试 |
-| `pnpm build`（在 `console/` 中） | 生产 bundle |
-
-管理 API 的 DTO 派生 `ts_rs::TS`；`cargo test` 把它们写入 `console/src/generated/`。
-这些文件是生成产物：修改 Rust 类型，运行 `cargo test`，提交结果。不要手工编辑。
-
-## CI
-
-`.github/workflows/ci.yml` 在每次 push 和 pull request 时运行后端、控制台、文档及 Windows 打包检查：
-**Backend**（上述四个 cargo 门禁）、**Console**（`pnpm install --frozen-lockfile`、
-lint、test、build、`i18n:check`）和 **Docs**（在 `docs/` 中执行 `pnpm check`、
-`pnpm build`）。推送到默认分支或 `3.0` 时还会运行 **Deploy docs**：用更新签名
-密钥对 `notifications.json` 签名（生成 `notifications.json.sig`），并把站点发布到
-Cloudflare Pages。原生二进制轮询该 feed，并用同一把编译进二进制的公钥校验。
-
-## 发起一次发布
+console 所依据的 TypeScript 类型是**由 Rust 生成的**、绝不手写，从两个 crate 生成到两个
+目录：
 
 ```sh
-scripts/release.sh
+GPROXY_TS_OUT=console/src/generated/sdk cargo test -p gproxy-sdk --features ts export_types
+GPROXY_TS_OUT=console/src/generated/app cargo test -p gproxy-app --features ts export_types
 ```
 
-脚本从 `Cargo.toml` 读取 `[workspace.package].version`，要求已跟踪的工作区干净，
-若 tag `v<version>` 不存在则创建带注释的 tag，若 tag 指向其他提交则拒绝，并且只
-推送这个 tag。对同一提交重复运行是安全的。带预发布后缀的版本（`3.0.0-alpha.0`）
-构建 `dev` channel；普通版本构建 `releases`。
+没有这个环境变量时每个测试都直接返回、什么也不写，所以 `cargo test --all-features` 保持
+无副作用，而生成目录只会被有意地重写。两者去**不同**的目录，因为导出会先清空它的输出目录，
+两个 crate 共用一个会把对方擦掉。
 
-## 发布流水线
-
-推送 tag 会触发 `.github/workflows/release.yml`。job 按顺序为：
-
-1. **Release metadata** —— 校验 tag 等于 `v<workspace version>`，推导 channel，
-   并从 `scripts/release-targets.json` 载入 target 矩阵。
-2. **Console bundle** —— 用 pnpm 构建一次控制台，通过 workflow artifact 传给
-   native 和 edge job。容器 job 将原生 Linux 二进制打包为 amd64、arm64、riscv64
-   的 GNU 和 musl 镜像，附带 BuildKit provenance 与 SBOM attestation，再向
-   `ghcr.io/leenhawk/gproxy` 发布多平台 manifest。
-3. **Native `<target>`** —— 矩阵每行一个 job。各自把控制台下载到
-   `crates/gproxy-host-axum/assets/web`，检查更新公钥能解码为 32 字节，用
-   `cargo`、`cross` 或 `cargo-ndk`（Android API 28）构建 `--bin gproxy`，然后
-   打包。Windows 构建设置 `RUSTFLAGS=-C target-feature=+crt-static`；macOS 二进制
-   用 `codesign --sign -` 做 ad hoc 签名。
-4. **Signed update manifest** —— `scripts/build-update-manifest.sh` 收集每个原生
-   zip 和 Android APK，为每个记录 `target_triple`、`url`、`sha256` 和 `size`，从
-   `crates/gproxy-store/src/schema/catalog.rs` 中的 `Control` schema 版本推导
-   `min_compatible_data_version`，并用 Ed25519 私钥对规范化 payload 签名。私钥与
-   公钥不匹配时中止。
-5. **Edge bundles** —— 安装匹配的 `wasm-bindgen-cli`，运行
-   `scripts/package-edge-release.sh`，并对三个平台入口做类型检查（`pnpm check`、
-   `deno check`）。
-6. **Publish release** —— 创建或更新 GitHub release `v<version>`（`dev` 构建加
-   `--prerelease`）并上传实际包与 `manifest.json`。校验和及构建记录文件仅在 workflow
-   内部传递。对 `dev` 构建还会把 `dev` tag 强制移到该提交，
-   并把 `manifest.json` 上传到名为 `dev` 的固定预发布版本，除非已存在更新的 v3
-   预发布版本。
-
-### 原生 Target
-
-| 产物 | Target triple | 构建器 | 安装包 |
-| --- | --- | --- | --- |
-| `gproxy-linux-x86_64` | `x86_64-unknown-linux-gnu` | cargo | `.deb` |
-| `gproxy-linux-aarch64` | `aarch64-unknown-linux-gnu` | cargo（arm runner） | `.deb` |
-| `gproxy-linux-riscv64` | `riscv64gc-unknown-linux-gnu` | cross | `.deb` |
-| `gproxy-linux-x86_64-musl` | `x86_64-unknown-linux-musl` | cross | `.deb` |
-| `gproxy-linux-aarch64-musl` | `aarch64-unknown-linux-musl` | cross | `.deb` |
-| `gproxy-linux-riscv64-musl` | `riscv64gc-unknown-linux-musl` | cross | `.deb` |
-| `gproxy-macos-x86_64` | `x86_64-apple-darwin` | cargo | `.dmg` |
-| `gproxy-macos-aarch64` | `aarch64-apple-darwin` | cargo | `.dmg` |
-| `gproxy-windows-x86_64` | `x86_64-pc-windows-msvc` | cargo | MSIX (Store) |
-| `gproxy-windows-aarch64` | `aarch64-pc-windows-msvc` | cargo | MSIX (Store) |
-| `gproxy-android-x86_64` | `x86_64-linux-android` | cargo-ndk | `.apk` |
-| `gproxy-android-aarch64` | `aarch64-linux-android` | cargo-ndk | `.apk` |
-
-每个原生 target 都有一个 `.zip`（二进制、`README.md`、`LICENSE`）。Linux、macOS
-和 Android 另行发布表中安装包；Windows MSIX 单独保存用于商店提交。Android zip 中 ELF 名为 `gproxy.bin`，附带 NDK 的 `libc++_shared.so`
-和一个 `gproxy` 启动脚本；APK 封装同一份 payload。release 还包含 `manifest.json`、
-`gproxy-edge.wasm` 和 `gproxy-edge-{cloudflare,deno,netlify}.zip`，按当前矩阵合计
-26 个实际包与 1 个签名清单。GitHub 为每个附件提供 SHA-256 摘要，校验和与溯源记录
-不再作为独立 Release 附件。确切名称见 `scripts/release-targets.json` 与 workflow。
-
-## Microsoft Store 提交
-
-稳定版 Windows job 在便携 ZIP 签名后运行 `scripts/package-windows-msix.ps1`。
-在 Actions 中配置 Partner Center 提供的四个公开身份值：`MS_STORE_IDENTITY_NAME`、`MS_STORE_DISPLAY_NAME`、
-`MS_STORE_IDENTITY_PUBLISHER` 和 `MS_STORE_PUBLISHER_DISPLAY_NAME`。未配置时会明确
-跳过商店打包；只配置一部分会报错。
-
-脚本使用 Windows SDK MakeAppx、已有图标与启动器，包版本为 `<主>.<次>.<修订>.0`。
-x64 和 ARM64 的未签名 MSIX 输出到 `dist/store`，生成 GitHub 证明后保存在
-`microsoft-store-unsigned-gproxy-windows-*` Actions 产物中，保留 30 天。
-这些是提交材料，不是公开可安装的 Release 附件。须通过 Partner Center 审核、由微软
-重新签名后才可通过商店分发。步骤见仓库的
-[商店接入指南](https://github.com/LeenHawk/gproxy/blob/main/.github/microsoft-store/README.md)。
-
-## 签名
-
-| 机制 | 签名对象 | CI secret |
-| --- | --- | --- |
-| macOS ad hoc `codesign --sign -` | 二进制与 DMG 内的 `.app` | 无 |
-| Android `apksigner` | 每个 `.apk` | `ANDROID_SIGNING_KEYSTORE_B64`、`ANDROID_SIGNING_KEYSTORE_PASSWORD`、`ANDROID_SIGNING_KEY_ALIAS`，可选 `ANDROID_SIGNING_KEY_PASSWORD` |
-| Ed25519 更新密钥 | `manifest.json` 与 `notifications.json` | `UPDATE_SIGNING_PRIVATE_KEY_B64`（base64 的 PEM）、`UPDATE_SIGNING_PUBLIC_KEY_B64`（base64 的原始公钥） |
-
-公钥一半以 `GPROXY_UPDATE_PUBKEY` 编译进每个二进制，因此二进制只接受由对应私钥
-签名的 manifest 与公告。按脚本期待的形式生成密钥对：
+## 桌面宿主
 
 ```sh
-openssl genpkey -algorithm ed25519 -out update.pem
-base64 -w0 update.pem                                    # UPDATE_SIGNING_PRIVATE_KEY_B64
-openssl pkey -in update.pem -pubout -outform DER \
-  | tail -c 32 | base64 -w0                              # UPDATE_SIGNING_PUBLIC_KEY_B64
+cargo run -p gproxy-host-tauri --bin gproxy-desktop
 ```
 
-文档部署另外需要 `CLOUDFLARE_API_TOKEN`、`CLOUDFLARE_ACCOUNT_ID` 和
-`CLOUDFLARE_PROJECT_ID`。
+一个进程、一个实例、两扇前门：承载管理面与用户面的 Tauri IPC 窗口，以及一个跑在
+`127.0.0.1:7071` 上、**只提供数据面**的真正 axum 宿主，给那些会说 HTTP、不会说 IPC 的 CLI。
 
-## 构建溯源
-
-完成打包与平台签名后，native 和 edge job 使用 `actions/attest` 向 GitHub
-Artifact Attestations 发布标准 SLSA 构建证明。job 需要 `id-token: write` 和
-`attestations: write` 权限。证明按包摘要关联，staging 包后续添加提交前缀不影响关联。
-
-`scripts/build-provenance.sh` 继续记录版本、提交、tag、target、构建器、工具链版本、
-UPX 使用情况及实际解析到的基础镜像摘要。同一批包还会获得包含这份 JSON 的自定义
-证明，predicate type 为 `https://gproxy.leenhawk.com/attestations/build-environment/v1`。
-两类证明均由 GitHub 保存，不再上传为 Release 附件：
+测试套件能在一台**没有显示服务器**的机器上驱动整套安排，因为几乎所有东西都在库里，而
+二进制只负责开一个窗口。
 
 ```sh
-gh attestation verify gproxy-linux-x86_64.zip -R LeenHawk/gproxy
-gh attestation verify gproxy-linux-x86_64.zip -R LeenHawk/gproxy \
-  --predicate-type https://gproxy.leenhawk.com/attestations/build-environment/v1 \
-  --format json
+cargo check  -p gproxy-host-tauri
+cargo clippy -p gproxy-host-tauri --all-targets --all-features -- -D warnings
+cargo test   -p gproxy-host-tauri
 ```
 
-校验和仍作为 `scripts/build-update-manifest.sh` 的内部输入。更新器继续验证
-`manifest.json` 的 Ed25519 签名及包哈希，不依赖 GitHub 证明 API。
+这个 crate 不带自动更新、不带开机自启、也不带托盘图标。这些每一个都是关于软件如何被*分发*
+而不是它做什么的决定，先把它们加上意味着要为一个没有用户的应用维护一条更新通道。
 
-## 更新 Channel
+## Worker
 
-已发布的二进制根据签名 manifest 检查更新：
+```sh
+cargo install worker-build
+worker-build --release -- --no-default-features --features d1,custom,codex,claudecode
+```
 
-| Channel | Manifest URL |
-| --- | --- |
-| `releases` | `https://github.com/LeenHawk/gproxy/releases/latest/download/manifest.json` |
-| `staging` | `https://github.com/LeenHawk/gproxy/releases/download/staging/manifest.json` |
-| `dev` | `https://github.com/LeenHawk/gproxy/releases/download/dev/manifest.json` |
+binding、配置文档，以及那个让"逐个点名渠道"变得值得做的体积约束，见
+[边缘部署（Cloudflare Workers）](/zh-cn/deployment/edge/)。
 
-编译进去的 channel 是默认值；控制台的更新 channel 设置或 `GPROXY_UPDATE_CHANNEL`
-可覆盖它，`GPROXY_UPDATE_SERVE` 可指向自托管的 manifest。GitHub 的
-`releases/latest` 永远不会解析到预发布版本，因此预发布构建以 `dev` channel 编译，
-并跟随 `dev` manifest。其余仅原生可用的变量见[配置](/zh-cn/reference/configuration/)。
+## 质量闸门
+
+CI 跑的正是这几条：
+
+```sh
+cargo fmt --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+cargo check --workspace --target wasm32-unknown-unknown
+```
+
+最后一条不是可有可无的装饰。`gproxy-app` 和 axum router 都能为 wasm 构建，这正是 Workers
+宿主能挂载同一个 router 而不是把路由表写第二遍的原因——而一个漏了 `Send` 桥接的 handler
+在那个目标上就是**一个指名道姓的编译错误**。这条检查就是强制手段。
+
+lint 报错要改代码，不是加 `#[allow]`。
+
+在某个 crate 上干活时按 crate 跑：
+
+```sh
+cargo test   -p gproxy-channel --all-features
+cargo clippy -p gproxy-channel --all-features --target wasm32-unknown-unknown --lib -- -D warnings
+cargo test   -p gproxy-host-axum
+cargo test   -p gproxy-store -p gproxy-seaorm
+```
+
+`gproxy-host-axum` 的每个集成测试都在一个内存实例之上构建**真正的 router**，只有上游是
+脚本化的。一个直接调 handler 函数的测试会跳过正要被测的那一部分。
+
+有两个套件必须绑定一个真实的回环端口，因为它们没法伪造：一次 WebSocket 往返，因为进程内的
+service 测试装置从不产生 hyper 的升级扩展；以及一次客户端断连，因为本仓库里的每个 HTTP
+客户端都会在交出 body 之前把它排空，所以那个套件直接在裸 socket 上把请求敲出去，再靠 drop
+挂断。
+
+## 本文档站
+
+```sh
+cd docs
+pnpm install --frozen-lockfile
+pnpm check
+pnpm build
+```
+
+Astro Starlight，由 CI 部署到 Cloudflare Pages。`pnpm check` 校验本站同时承载的那份通知源。
+
+`scripts/check-docs.sh` 是结构性检查：侧边栏 slug 对页面、中英文对等、frontmatter、
+被禁止的引用，以及过长的页面。
+
+## 这里没有什么
+
+没有 `cargo publish`。workspace 里没有任何东西发布到 registry，因此嵌入意味着一个 git 或
+路径依赖——见[嵌入核心库](/zh-cn/reference/embedding/)。公开接口尚不稳定。

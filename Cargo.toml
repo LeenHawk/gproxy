@@ -1,23 +1,60 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/gproxy-admin",
-    "crates/gproxy-app",
-    "crates/gproxy-channel-api",
-    "crates/gproxy-channels",
-    "crates/gproxy-core",
-    "crates/gproxy-host-axum",
-    "crates/gproxy-host-edge",
     "crates/gproxy-protocol",
     "crates/gproxy-protocol-macros",
+    "crates/gproxy-seaorm",
+    "crates/gproxy-tokenizer",
+    "crates/gproxy-file",
     "crates/gproxy-store",
-    "crates/gproxy-tokenize",
-    "crates/gproxy-transform",
-    "crates/gproxy-upstream",
+    "crates/gproxy-client",
+    "crates/gproxy-channel",
+    "crates/gproxy-cache",
+    "crates/gproxy-core",
+    "crates/gproxy-sdk",
+    "crates/gproxy-app",
+    "crates/gproxy-host-axum",
+    "crates/gproxy-host-edge",
+    "crates/gproxy",
+    "crates/gproxy-host-tauri",
+]
+
+# `cargo check`, `cargo test` and `cargo clippy` with no `-p` and no
+# `--workspace` build this list, which is every crate except the desktop shell.
+#
+# The exclusion is not a demotion, and it is not about incremental builds: with
+# a warm target directory the two selections are within half a second of each
+# other. It is about the **cold** one. `gproxy-host-tauri` brings wry,
+# webkit2gtk, gtk and their `*-sys` crates — about a hundred and eighty extra
+# third-party crates that have nothing to say about the engine, and that a
+# Linux box without the webkit2gtk-4.1, gtk+-3.0 and libsoup-3.0 development
+# headers cannot build at all. Leaving it in the default set would make a fresh
+# clone, a `cargo clean` and a toolchain bump slower for everyone, and would
+# make the everyday command fail outright for a contributor who only wants to
+# touch the store.
+#
+# It is still a member, so `--workspace` builds it, CI builds it, and the
+# lockfile resolves with it in.
+default-members = [
+    "crates/gproxy-protocol",
+    "crates/gproxy-protocol-macros",
+    "crates/gproxy-seaorm",
+    "crates/gproxy-tokenizer",
+    "crates/gproxy-file",
+    "crates/gproxy-store",
+    "crates/gproxy-client",
+    "crates/gproxy-channel",
+    "crates/gproxy-cache",
+    "crates/gproxy-core",
+    "crates/gproxy-sdk",
+    "crates/gproxy-app",
+    "crates/gproxy-host-axum",
+    "crates/gproxy-host-edge",
+    "crates/gproxy",
 ]
 
 [workspace.package]
-version = "3.0.17"
+version = "4.0.0-dev"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/LeenHawk/gproxy"
@@ -26,68 +63,109 @@ repository = "https://github.com/LeenHawk/gproxy"
 aes-gcm = { version = "0.11", default-features = false, features = ["aes", "alloc", "zeroize"] }
 argon2 = "0.6"
 arc-swap = "1"
+async-trait = "0.1"
 axum = { version = "0.8", features = ["http1", "http2", "tokio", "ws"] }
 base64 = "0.23"
 blake3 = "1"
 clap = { version = "4", features = ["derive", "env"] }
 chacha20poly1305 = "0.11"
-gproxy-app = { path = "crates/gproxy-app", version = "=3.0.17" }
-gproxy-admin = { path = "crates/gproxy-admin", version = "=3.0.17" }
-gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "=3.0.17" }
-gproxy-channels = { path = "crates/gproxy-channels", version = "=3.0.17" }
-gproxy-core = { path = "crates/gproxy-core", version = "=3.0.17" }
-gproxy-protocol = { path = "crates/gproxy-protocol", version = "=3.0.17" }
-gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=3.0.17" }
-gproxy-store = { path = "crates/gproxy-store", version = "=3.0.17" }
-gproxy-tokenize = { path = "crates/gproxy-tokenize", version = "=3.0.17" }
-gproxy-transform = { path = "crates/gproxy-transform", version = "=3.0.17", features = ["exhaustive"] }
-gproxy-upstream = { path = "crates/gproxy-upstream", version = "=3.0.17" }
+gproxy-app = { path = "crates/gproxy-app", version = "=4.0.0-dev", default-features = false }
+gproxy = { path = "crates/gproxy", version = "=4.0.0-dev", default-features = false }
+gproxy-admin = { path = "crates/gproxy-admin", version = "=3.0.13" }
+gproxy-channel-api = { path = "crates/gproxy-channel-api", version = "=3.0.13" }
+gproxy-channels = { path = "crates/gproxy-channels", version = "=3.0.13" }
+gproxy-core = { path = "crates/gproxy-core", version = "=4.0.0-dev", default-features = false }
+gproxy-channel = { path = "crates/gproxy-channel", version = "=4.0.0-dev", default-features = false }
+gproxy-client = { path = "crates/gproxy-client", version = "=4.0.0-dev", default-features = false }
+gproxy-cache = { path = "crates/gproxy-cache", version = "=4.0.0-dev", default-features = false }
+gproxy-file = { path = "crates/gproxy-file", version = "=4.0.0-dev", default-features = false }
+gproxy-host-axum = { path = "crates/gproxy-host-axum", version = "=4.0.0-dev" }
+gproxy-host-edge = { path = "crates/gproxy-host-edge", version = "=4.0.0-dev" }
+gproxy-host-tauri = { path = "crates/gproxy-host-tauri", version = "=4.0.0-dev" }
+gproxy-protocol = { path = "crates/gproxy-protocol", version = "=4.0.0-dev", features = ["exhaustive"] }
+gproxy-protocol-macros = { path = "crates/gproxy-protocol-macros", version = "=4.0.0-dev" }
+gproxy-sdk = { path = "crates/gproxy-sdk", version = "=4.0.0-dev", default-features = false }
+gproxy-seaorm = { path = "crates/gproxy-seaorm", version = "=4.0.0-dev" }
+gproxy-store = { path = "crates/gproxy-store", version = "=4.0.0-dev" }
+gproxy-tokenizer = { path = "crates/gproxy-tokenizer", version = "=4.0.0-dev", default-features = false }
+gproxy-transform = { path = "crates/gproxy-transform", version = "=3.0.13", features = ["exhaustive"] }
+gproxy-upstream = { path = "crates/gproxy-upstream", version = "=3.0.13" }
 getrandom = { version = "0.4", features = ["wasm_js"] }
 dashmap = { version = "6" }
+dotenvy = "0.15"
 getrandom_v02 = { package = "getrandom", version = "0.2", features = ["js"] }
 gloo-timers = { version = "0.4", features = ["futures"] }
 bytes = "1"
 crc32fast = "1"
 ed25519-dalek = "3"
 futures-core = "0.3"
+futures-sink = "0.3"
 futures-util = "0.3"
 form_urlencoded = "1"
 http = "1"
 hmac = "0.13"
 js-sys = "0.3"
+# The desktop shell's credential store. `default-features = false` drops the
+# `cli` glue — this is an application, not the keyring demo — and `v1` is the
+# platform-native store and nothing else.
+keyring = { version = "4", default-features = false, features = ["v1"] }
 mime_guess = "2"
+miniz_oxide = { version = "0.9", default-features = false, features = ["with-alloc"] }
+moka = { version = "0.12", features = ["future"] }
+opendal-core = { version = "0.59", default-features = false }
+opendal-service-fs = { version = "0.59", default-features = false }
+opendal-service-s3 = { version = "0.59", default-features = false }
+opendal-http-transport-reqwest = { version = "0.59", default-features = false }
 mysql_async = { version = "0.37", default-features = false, features = ["default-rustls"] }
 percent-encoding = "2"
+paste = "1"
 proc-macro2 = "1"
 quote = "1"
 redis = { version = "1.6", default-features = false, features = ["connection-manager", "tokio-rustls-comp"] }
 rsa = { version = "0.9", features = ["sha2"] }
 regex = "1"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "http2", "stream", "socks", "system-proxy"] }
+# reqwest 0.12 over the platform's native TLS (OpenSSL on Linux): what the
+# Codex CLI's HTTP client is built on.
+reqwest_native = { package = "reqwest", version = "0.12", default-features = false, features = ["native-tls", "http2", "stream", "socks", "cookies"] }
+reqwest-websocket = { version = "0.6", default-features = false }
 rust_decimal = { version = "1", features = ["serde"] }
 ruzstd = "0.9"
 semver = "1"
 self-replace = "1"
 rust-embed = { version = "8", features = ["include-exclude"] }
-sea-query = { version = "1.0.2", default-features = false, features = ["backend-mysql", "backend-postgres", "backend-sqlite", "derive"] }
+sea-query = { version = "1", default-features = false, features = ["backend-mysql", "backend-postgres", "backend-sqlite", "derive"] }
+sea-orm = { version = "2", default-features = false, features = ["macros", "with-json"] }
+sea-orm-migration = { version = "2", default-features = false, features = ["with-time"] }
+send_wrapper = { version = "0.6", features = ["futures"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+serde-wasm-bindgen = "0.6"
 syn = { version = "3", features = ["full", "visit-mut"] }
+tauri = { version = "2" }
+tauri-build = { version = "2" }
 serde_urlencoded = "0.7"
 sha2 = "0.11"
+strum = { version = "0.28", features = ["derive"] }
 tempfile = "3"
 thiserror = "2"
 time = { version = "0.3", features = ["parsing"] }
 tiktoken-rs = "0.12"
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-util = { version = "0.7", default-features = false, features = ["rt"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
 tokio-postgres = "0.7"
-tokenizers = { version = "0.23", default-features = false, features = ["onig"] }
+tower = { version = "0.5", default-features = false }
+tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
 tokio-rusqlite = { version = "0.7", features = ["bundled"] }
+toml = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
-ts-rs = { version = "12.0.1", features = ["serde-json-impl"] }
+url = "2"
+ts-rs = { version = "12", features = ["serde-json-impl"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-wasm-streams = "0.6"
+wasm-streams = "0.7"
 web-sys = "0.3"
 web-time = "1"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_Packaging_Appx"] }

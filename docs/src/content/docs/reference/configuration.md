@@ -1,233 +1,335 @@
 ---
 title: "Configuration"
-description: "Flags, GPROXY_* environment variables, .env layering, native-only and build-time variables, and the instance settings stored in the database"
+description: "The five configuration sources and their order, all 24 GPROXY_* variables, the TOML file, master-key rotation, bootstrap, and the runtime settings row."
 ---
 
-GPROXY reads its process configuration once, at startup, from command-line
-flags, environment variables, and `.env` files. There is no other
-configuration file: v3 does not read TOML. Everything that changes while
-the process runs — providers, credentials, routes, rules, pricing,
-identity, and the instance settings at the end of this page — lives in the
-database and is edited through the console or the admin API.
+GPROXY reads its process configuration **once, at startup**. No module below
+the entry point reads the environment.
 
-`gproxy --help` is generated from the same declaration as the environment
-list, so the two cannot drift. Every flag has a `GPROXY_*` twin; the tables
-below name both.
+Everything that changes while the process runs — providers, credentials,
+routes, rewrite rules, pricing, identity, and the settings row at the end of
+this page — lives in the database.
 
-## Precedence
+## The Five Sources
 
-A value is taken from the first source that sets it:
+Strongest first:
 
-1. the command-line flag;
-2. the process environment;
-3. `./.env` in the working directory;
-4. `<data-dir>/.env`, read only when it is a different file from `./.env`;
-5. the built-in default.
+1. **the command line** — `--port 9000`
+2. **the real environment** — `GPROXY_PORT=9000`
+3. **`.env`**, loaded without overriding anything the environment already set
+4. **the TOML file** named by `--config`
+5. **the built-in defaults**
 
-`GPROXY_DATA_DIR` itself is resolved from the first three sources, because
-the data directory must be known before its `.env` can be read. A relative
-data directory is resolved against the working directory and created at
-startup if it is missing.
+Putting the file *under* the environment is the choice that matters. A file is
+a deployment's checked-in intent; the environment is how one host or one
+container deviates from it. If the file won, a `GPROXY_PORT` in a compose file
+would silently do nothing.
 
-## The `.env` Format
+Every configuration flag is global, so `gproxy --port 9000 serve` and
+`gproxy serve --port 9000` are the same invocation.
 
-```bash
-# <data-dir>/.env
-GPROXY_HOST=0.0.0.0
-GPROXY_PORT=8787
-GPROXY_PERSISTENCE=postgres
-GPROXY_DSN=postgres://gproxy:<password>@db.internal:5432/gproxy
-GPROXY_MASTER_KEY=<standard-base64-32-bytes>
+## The Environment
+
+Every value is one flag carrying its variable name, so `gproxy --help` prints
+the variable next to the flag it shadows and this table cannot drift away from
+the program. Names that existed in v3 mean what they meant there: an upgrade is
+not a redeployment.
+
+| Variable | Flag | Default | What it is |
+| --- | --- | --- | --- |
+| `GPROXY_CONFIG` | `--config`, `-c` | — | TOML file holding any config field |
+| `GPROXY_HOST` | `--host` | `127.0.0.1` | listen address (an IP, not a hostname) |
+| `GPROXY_PORT` | `--port`, `-p` | `7070` | listen port |
+| `GPROXY_DATA_DIR` | `--data-dir` | `data` | root that relative paths resolve against |
+| `GPROXY_PERSISTENCE` | `--persistence` | `sqlite` | `sqlite`, `postgres` or `mysql` |
+| `GPROXY_DSN` | `--dsn` | — | connection string; names its own backend when `--persistence` is absent |
+| `GPROXY_REDIS_URL` | `--redis-url` | — | shared cache; **required for more than one instance** |
+| `GPROXY_MASTER_KEY` | `--master-key` | — | 32 bytes as 64 hex characters or base64. Unset stores secrets in plaintext |
+| `GPROXY_MASTER_KEY_NEXT` | `--master-key-next` | — | the key to re-seal to |
+| `GPROXY_MASTER_KEY_ROTATE` | `--master-key-rotate` | `false` | perform the rotation at startup |
+| `GPROXY_PUBLIC_BASE_URL` | `--public-base-url` | — | external origin, for publication links and the OAuth issuer identifier |
+| `GPROXY_CORS_ORIGINS` | `--cors-origin` | — | comma-separated browser origins; empty means same-origin only |
+| `GPROXY_TRUSTED_PROXIES` | `--trusted-proxy` | — | comma-separated peers whose `x-forwarded-*` is believed; empty trusts nothing |
+| `GPROXY_FILE_STORAGE_DIR` | `--file-storage-dir` | — | local directory for published bodies and vocabularies |
+| `GPROXY_CONSOLE` | `--console` | `true` | serve the console |
+| `GPROXY_CONSOLE_PATH` | `--console-path` | — | serve it from this directory instead of the embedded bundle |
+| `GPROXY_INSTANCE_ID` | `--instance-id` | random | a stable name for this process |
+| `GPROXY_LOG_FORMAT` | `--log-format` | `text` | `text` or `json` |
+| `GPROXY_LOG_FILTER` | `--log-filter` | `RUST_LOG`, else `info` | tracing filter |
+| `GPROXY_ADMIN_USER` | `--admin-user` / `--user` | `admin` | the first administrator's name |
+| `GPROXY_ADMIN_PASSWORD` | `--admin-password` / `--password` | generated | their password |
+| `GPROXY_BOOTSTRAP_ADMIN_API_KEY` | `--admin-api-key` / `--api-key` | generated | the exact API key to mint for them |
+| `GPROXY_IMPORT_SOURCE_MASTER_KEY` | `--source-master-key` | — | `import` only: the source instance's key |
+| `GPROXY_ENV_FILE` | — | `.env` | which `.env` to load |
+
+`GPROXY_ENV_FILE` has no flag on purpose: a flag would have to be parsed by the
+very step it feeds, so it could not affect the values the parser itself reads.
+
+Booleans take `1`, `true`, `yes`, `on`, `0`, `false`, `no` or `off`. **A
+misspelling is an error rather than a `false`** — the two values this gates,
+rotating every secret in the database and serving the console, are both things
+whose absence goes unnoticed until it matters.
+
+## The Commands
+
+| Command | What it does |
+| --- | --- |
+| `gproxy serve` | Rotate the master key if asked, bootstrap if the instance is new, bind, serve. **The default** — `gproxy` with no subcommand is `gproxy serve`. |
+| `gproxy migrate` | Create or incrementally synchronize the schema, then exit. |
+| `gproxy bootstrap admin` | Create the first administrator. Idempotent. |
+| `gproxy export --out <PATH>` | Write this instance's configuration as one JSON document. |
+| `gproxy import --in <PATH>` | Replay such a document into this instance. |
+
+`serve` stops on `SIGINT` or `SIGTERM`, draining in-flight requests first.
+**There is no shutdown timeout**: a streamed completion legitimately runs for
+minutes, and a supervisor that wants a deadline has one. The bind happens
+**after** the schema work, so a process that is still migrating refuses
+connections outright rather than accepting them into a backlog nothing is
+answering.
+
+## The Config File
+
+The file speaks the configuration type's own field names, which are
+`snake_case`. **Unknown keys are an error**, so a typo is reported at startup
+rather than silently ignored.
+
+```toml
+host = "0.0.0.0"
+port = 7070
+data_dir = "/var/lib/gproxy"
+public_base_url = "https://gproxy.example.com"
+cors_origins = ["https://console.example.com"]
+trusted_proxies = ["10.0.0.0/8"]
+session_ttl_secs = 2592000
+
+[store]              # kind = "url" with a dsn for postgres or mysql
+kind = "sqlite"
+path = "gproxy.db"
+
+[cache]              # kind = "redis" with url and namespace, for several instances
+kind = "memory"
+
+[master_key]
+rotate = false
+
+[master_key.key]
+kind = "hex"
+value = "0000000000000000000000000000000000000000000000000000000000000000"
+
+[file_storage]       # kind = "s3" with bucket, region and endpoint
+kind = "fs"
+root = "files"
+
+[console]
+enabled = true
+
+[oauth]
+access_ttl_secs = 3600
+refresh_ttl_secs = 2592000
+code_ttl_secs = 300
+device_ttl_secs = 900
+cli_client_ids = []
 ```
 
-- One `KEY=value` per line. Keys and values are trimmed; quotes are not
-  removed, so do not quote values.
-- `#` starts a comment anywhere on a line, so a value cannot contain `#`.
-  Put such a value in the real environment instead.
-- A non-empty line without `=` is a startup error that names the file and
-  line.
-- Only keys that start with `GPROXY_`, plus `UPSTASH_URL` and
-  `UPSTASH_TOKEN`, are read. Other keys in a shared deployment `.env` are
-  ignored and never enter the process.
+Several fields have no flag because they are not things a container overrides:
+`session_ttl_secs`, the whole `[oauth]` block, and the S3 details.
 
-## Listen and Data
-
-| Variable | Flag | Default | Meaning |
-| --- | --- | --- | --- |
-| `GPROXY_HOST` | `--host <ADDR>` | `127.0.0.1` | Interface to bind. `host:port` must parse as a socket address, so an IPv6 address needs brackets: `[::1]`. |
-| `GPROXY_PORT` | `--port <PORT>` | `8787` | TCP port. |
-| `GPROXY_DATA_DIR` | `--data-dir <PATH>` | `./data` | Holds the SQLite file `gproxy.db`, the optional `.env`, self-update staging (`.update/`), and the autostart marker. |
-
-The container image presets `GPROXY_HOST=0.0.0.0`,
-`GPROXY_DATA_DIR=/var/lib/gproxy` and `GPROXY_PERSISTENCE=sqlite`; see
-[Container](/deployment/docker/).
-
-## Persistence
-
-| Variable | Flag | Default | Meaning |
-| --- | --- | --- | --- |
-| `GPROXY_PERSISTENCE` | `--persistence <BACKEND>` | `sqlite` | `sqlite`, `libsql`, `postgres`, or `mysql` (case-insensitive). |
-| `GPROXY_DSN` | `--dsn <DSN>` | none | Connection string for `postgres` or `mysql`; required for those backends. |
-| `GPROXY_LIBSQL_URL` | `--libsql-url <URL>` | none | Absolute `http(s)` URL of a libSQL server; required for `libsql`. |
-| `GPROXY_LIBSQL_AUTH_TOKEN` | `--libsql-auth-token <TOKEN>` | none | Bearer token for that server; required and non-empty for `libsql`. |
-
-DSN shapes and backend behaviour are on
-[Storage & Cache Backends](/reference/database/).
-
-## Cache
-
-| Variable | Flag | Default | Meaning |
-| --- | --- | --- | --- |
-| `GPROXY_REDIS_URL` | `--redis-url <URL>` | none | Redis shared cache. Wins over Upstash when both are set. |
-| `UPSTASH_URL` | `--upstash-url <URL>` | none | Upstash Redis REST endpoint; absolute `http(s)` URL. |
-| `UPSTASH_TOKEN` | `--upstash-token <TOKEN>` | none | Upstash REST token. Setting only one of the two `UPSTASH_*` values is a startup error. |
-
-With none of these set the cache is in-process, or a table in the libSQL
-database when persistence is `libsql`. Quotas, rate limits, admission
-state, refresh leases and affinity pins all live in the cache, so more
-than one instance requires Redis or Upstash.
+This is the **same document** the Workers host reads as JSON in `GPROXY_CONFIG`
+and the desktop shell reads as `gproxy.toml` in its data directory, so there is
+no second schema to keep in step.
 
 ## Secrets at Rest
 
-| Variable | Flag | Default | Meaning |
-| --- | --- | --- | --- |
-| `GPROXY_MASTER_KEY` | `--master-key <BASE64>` | unset | Standard base64 that decodes to exactly 32 bytes. When set, credentials, user API keys and the Hugging Face token are sealed with AES-256-GCM envelope encryption. Unset means plaintext storage. |
-| `GPROXY_MASTER_KEY_NEXT` | `--master-key-next <BASE64>` | unset | Key to rotate to. An empty value rotates to plaintext. Ignored, with a warning, unless rotation is armed. |
-| `GPROXY_MASTER_KEY_ROTATE` | `--master-key-rotate <BOOL>` | off | Arms the rotation: `1`, `true`, `yes`, `on`; or `0`, `false`, `no`, `off`, empty. Any other value is a startup error. |
+Credential secrets, retained API keys and the tokenizer source token are sealed
+with AES-256-GCM under `GPROXY_MASTER_KEY`. **The seal is bound to the row's
+own id**, so a blob copied onto another row does not open.
 
-The store records a SHA-256 fingerprint of the key it was sealed with.
-Startup refuses a sealed store opened with a different or missing key, and
-refuses a plaintext store opened with a key set. Moving in either
-direction is a rotation, never a silent re-encryption.
+With no master key, secrets are stored unencrypted. That is a supported
+deployment, not an accident, and the binary warns loudly once at startup,
+naming the variable that would fix it and the two that would seal a database
+already holding secrets.
 
-Rotation procedure:
+Generate one with `openssl rand -hex 32`, which is exactly 64 hex characters. A
+32-byte base64 key is 43 or 44 characters, so the two encodings cannot be
+confused and the format is sniffed rather than configured.
 
-1. Leave `GPROXY_MASTER_KEY` at the current value (or unset for a plaintext
-   store). Set `GPROXY_MASTER_KEY_NEXT` to the new key, or to an empty
-   string to return to plaintext. Set `GPROXY_MASTER_KEY_ROTATE=on`.
-2. Start GPROXY once. It opens every stored secret with the current key,
-   re-seals it with the next key, and replaces the secret inventory and
-   the fingerprint in one write. The log ends with a warning that tells
-   you to finish the rotation.
-3. Stop GPROXY. Set `GPROXY_MASTER_KEY` to the new key (or unset it), clear
-   `GPROXY_MASTER_KEY_NEXT` and `GPROXY_MASTER_KEY_ROTATE`, and start again.
+### Master-Key Rotation
 
-`GPROXY_MASTER_KEY_ROTATE=on` without `GPROXY_MASTER_KEY_NEXT` is a startup
-error.
+Changing the key is not a configuration edit. Every sealed blob has to be
+opened with the old key and sealed again with the new one, or the next reload
+fails on the first credential it cannot open. So rotation is a real operation,
+performed at startup:
 
-## Networking and Limits
+```sh
+# 1. Stop every instance.
+# 2. Start one with the rotation armed.
+GPROXY_MASTER_KEY=<old> \
+GPROXY_MASTER_KEY_NEXT=<new> \
+GPROXY_MASTER_KEY_ROTATE=true \
+  gproxy serve
 
-| Variable | Flag | Default | Meaning |
-| --- | --- | --- | --- |
-| `GPROXY_UPSTREAM_PROXY_URL` | `--upstream-proxy-url <URL>` | none | Default outbound proxy. Precedence: credential proxy, then provider proxy, then this value. Overrides the `proxy` instance setting. Ambient `HTTP_PROXY`/`HTTPS_PROXY` are ignored unless `inherit_system_proxy` is on. Also used for update and announcement fetches. |
-| `GPROXY_TRUSTED_PROXIES` | `--trusted-proxy <IP>` | empty | Comma-separated IPs. `X-Forwarded-For` (first entry) and `X-Real-IP` are honoured only from loopback or a listed peer. |
-| `GPROXY_CORS_ORIGINS` | `--cors-origin <ORIGIN>` | empty | Comma-separated exact origins. Empty sends no CORS headers (same-origin only). Allowed methods `GET, POST, PATCH, DELETE, OPTIONS`; headers `authorization, content-type, x-api-key`; credentials allowed. |
-| `GPROXY_MAX_ATTEMPTS` | `--max-attempts <COUNT>` | `6` | Upper bound on upstream attempts per request. A route's own `max_attempts` is capped by it. Must be positive. |
-| `GPROXY_MAX_IN_FLIGHT` | `--max-in-flight <COUNT>` | `1024` | Concurrent requests the listener serves. Every request, including the console and admin API, takes one permit; further requests wait. Must be positive. |
-| `GPROXY_FILE_UPLOAD_MAX_IN_FLIGHT` | `--file-upload-max-in-flight <COUNT>` | unset | Concurrent `POST /v1/files` and `POST /upload/v1beta/files` uploads per process. `0` is unlimited. When set it overrides the console setting of the same name. |
-| `GPROXY_INSTANCE_ID` | `--instance-id <ID>` | `0` | Leading component of native request ids (`<instance>-<boot prefix>-<sequence>`). Give each instance in a fleet a distinct value. |
-| `GPROXY_LOG_FORMAT` | `--log-format <FORMAT>` | `text` | `text` or `json` (newline-delimited). |
-| `RUST_LOG` | — | `info` | Standard `tracing` filter for the native log. Read from the process environment only. |
+# 3. It logs, at WARN:
+#    master key rotated; copy GPROXY_MASTER_KEY_NEXT to GPROXY_MASTER_KEY,
+#    then clear GPROXY_MASTER_KEY_NEXT and GPROXY_MASTER_KEY_ROTATE
 
-Request bodies are limited to 100 MiB. `Content-Encoding: zstd` bodies are
-decoded at ingress; other encodings are rejected with 415. Neither limit
-is configurable.
-
-## First-Run Bootstrap
-
-These apply to a fresh store, one with no administrator yet. Without
-`GPROXY_ADMIN_PASSWORD`, the first visit to `/admin` shows the setup
-screen that creates the administrator.
-
-| Variable | Flag | Default | Meaning |
-| --- | --- | --- | --- |
-| `GPROXY_ADMIN_USER` | `--admin-user <USER>` | `admin` | Administrator username used by bootstrap. |
-| `GPROXY_ADMIN_PASSWORD` | `--admin-password <PASSWORD>` | unset | Fresh store: creates the administrator with this password and an API key. Existing store: resets the password of this user if it exists; other accounts are never touched. |
-| `GPROXY_BOOTSTRAP_ADMIN_API_KEY` | `--bootstrap-admin-api-key <KEY>` | generated | Fresh store only, and only with `GPROXY_ADMIN_PASSWORD`: the administrator's first API key. Otherwise a random key is generated. Either way the key is sealed like any other and shown only through the console's reveal action. A blank value is an error. |
-| `GPROXY_BOOTSTRAP_CHANNELS` | `--bootstrap-channel <CHANNEL>` | empty | Comma-separated channel ids. Fresh store only, with `GPROXY_ADMIN_PASSWORD`: creates one enabled provider per channel, named after it, with the channel's default rule set. An unknown id is a startup error. |
-
-Setting a bootstrap key or channels on a fresh store without
-`GPROXY_ADMIN_PASSWORD` is a startup error. A fresh store also loads the
-embedded global price catalog; see [Pricing & Tiers](/reference/pricing/).
-
-## Native Host Extras
-
-The native binary reads these from the process environment only — not
-from `.env` — and there are no flags for them.
-
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `GPROXY_AUTOSTART` | `on` | First-run default of the per-user login entry (Linux `.desktop`, macOS LaunchAgent, Windows Run key). Read once, until `<data-dir>/.autostart-initialized` exists; afterwards the console's Login startup switch owns it. Accepts `on`/`off`, `true`/`false`, `1`/`0`, `yes`/`no`, `enable(d)`/`disable(d)`. The saved launch command repeats the current arguments and adds `--master-key` when `GPROXY_MASTER_KEY` was in the environment. |
-| `GPROXY_UPDATE_CHANNEL_SERVE` | build channel | Update channel with the highest precedence: `releases` (also `release`, `stable`), `staging`, or `dev` (also `development`). |
-| `GPROXY_UPDATE_CHANNEL` | build channel | Same values; consulted when `GPROXY_UPDATE_CHANNEL_SERVE` is unset. Full precedence: `_SERVE`, then `GPROXY_UPDATE_CHANNEL`, then the console's update channel setting, then the build channel. An invalid name makes update requests fail with 400. |
-| `GPROXY_UPDATE_SERVE` | GitHub release URLs | Manifest URL override for every channel. Defaults: `dev` and `staging` read `releases/download/<channel>/manifest.json`, `releases` reads `releases/latest/download/manifest.json`, all from the GPROXY repository. |
-| `GPROXY_UPDATE_RESTART` | `re-exec` | What happens after an applied update or rollback: `re-exec` (also `reexec`; execs the new binary with the same arguments on Unix, exit 42 elsewhere), `supervisor` (exit code 42 after 250 ms so a supervisor restarts it), or `none` (you restart). An invalid value disables self-update; its endpoints answer 503. |
-
-An update is refused with 409 when the manifest's minimum data version is
-above this binary's schema version, when the version is invalid, or when
-no `<exe>.prev` exists for a rollback.
-
-## Build-Time Identity
-
-These are compile-time inputs read with `option_env!`, set in the
-environment of `cargo build`. They are not runtime configuration.
-
-| Variable | Default | Meaning |
-| --- | --- | --- |
-| `GPROXY_UPDATE_PUBKEY` | none | Standard base64 Ed25519 public key that verifies the signed update manifest. A build without it fails every update check with a signature error. |
-| `GPROXY_BUILD_VERSION` | `CARGO_PKG_VERSION` | Version reported by `--version` and compared against manifests. |
-| `GPROXY_BUILD_CHANNEL` | `development` | Update channel the build belongs to. `development` resolves to `dev`. |
-| `GPROXY_BUILD_HASH` | git short hash | `build.rs` fills it from `git rev-parse --short=12 HEAD`; `unknown` without a repository. |
-| `GPROXY_INSTALLATION_KIND` | `source` | Installation label reported by `--version`; installers set their own. |
-
-```text
-$ gproxy --version
-gproxy 3.0.0 (channel development, build 4054fe4f94ea, installation source)
+# 4. Promote the key and clear the other two.
+GPROXY_MASTER_KEY=<new> gproxy serve
 ```
 
-## Edge Bindings
+Three properties make it safe to run:
 
-The wasm host has no command line and reads no `.env`. The platform
-wrapper passes bindings of the same names into the edge config:
-`GPROXY_LIBSQL_URL` and `GPROXY_LIBSQL_AUTH_TOKEN` (required),
-`GPROXY_MASTER_KEY`, `GPROXY_MASTER_KEY_NEXT` and `GPROXY_MASTER_KEY_ROTATE`
-(optional), and `UPSTASH_URL` with `UPSTASH_TOKEN` (optional, together).
-Persistence is always libSQL; the cache is the libSQL table unless
-Upstash is set. Listen, data-directory, bootstrap and native rows do not
-apply. See [Edge Wasm](/deployment/edge/).
+- **One transaction.** Every update and the revision bump commit together, so a
+  failure leaves the database entirely on the old key and the rotation can
+  simply be retried. There is never a half-rotated database to work out the
+  shape of first.
+- **Everything is opened before anything is written.** A key that decrypts most
+  of the rows aborts before the first write.
+- **Nothing is skipped.** A blob that cannot be opened is an error, never a row
+  left behind — a skipped row would be unopenable by *both* keys once the
+  operator promotes the new one.
 
-## Instance Settings
+Two rules follow from the design:
 
-Runtime settings live in the `settings` table and are edited at
-console → Settings (`GET`/`PATCH /admin/api/instance-settings` and
-`/admin/api/log-settings`). They take effect without a restart.
+- **Rotate with one instance running.** There is no durable record of which key
+  the database is on, so a peer still holding the old key would see the
+  revision bump, reload, and fail to open anything.
+- **The rotating process serves on the new key** for the rest of its life,
+  because that is what the database now holds. Forgetting step 4 means the next
+  start cannot open anything — loudly, at assembly, not silently.
 
-| Key | Console label | Default | Meaning |
-| --- | --- | --- | --- |
-| `instance_name` | Instance name | `default` | Shown in logs and telemetry. |
-| `proxy` | Default upstream proxy | none | Used after credential and provider proxies; `GPROXY_UPSTREAM_PROXY_URL` overrides it. |
-| `inherit_system_proxy` | Inherit system proxy | off | Honour `HTTP_PROXY`/`HTTPS_PROXY` when no explicit proxy applies. Native only. |
-| `enable_usage` | Usage recording | on | Persist usage rows after settlement. Admission and quota accounting run either way. |
-| `enable_tokenizer_vocabs` | Use vocabularies | on | Count tokens with a real vocabulary; off falls back to the character estimate. Native only. |
-| `enable_tokenizer_download` | Automatic vocabulary fetching | off | Fetch uncached vocabularies from Hugging Face while counting. |
-| `default_tokenizer_vocab` | Default vocabulary | none | Used when a model matches no pattern in the provider's `tokenizer_map`. |
-| `file_upload_max_in_flight` | Concurrent file uploads | `0` | `0` is unlimited; the environment override wins. |
-| `retention_days` | Retention days | unset | Age limit for usage rows, request logs and wire logs. Unset behaves as 36,500 days. |
-| `max_database_size_mb` | Database size cap (MiB) | unset | Above the cap the oldest request and wire logs are trimmed; usage rows are never trimmed by size. Unset behaves as 1,024 MiB. |
-| `enable_downstream_log`, `enable_downstream_log_body` | Downstream metadata / bodies | — | Record the caller's request and response metadata, and optionally bodies. |
-| `enable_upstream_log`, `enable_upstream_log_body` | Upstream metadata / bodies | — | Record every upstream attempt, and optionally bodies. |
-| `disable_log_redaction` | Disable log redaction | off | Store captured headers and bodies in clear text. Redaction is on by default. |
-| `traffic_blacklist` | Global metadata blacklist | built-in list | Extra request header, response header and query names removed instance-wide, on top of the built-in list. |
-| `update_channel`, `enable_auto_update_check` | Update | build channel | Console preference for the update channel and the automatic check. |
+`GPROXY_MASTER_KEY_NEXT` with an unset `GPROXY_MASTER_KEY` is the **adoption
+path**: it seals a database that was running in plaintext.
 
-The Hugging Face token is stored sealed in its own table
-(`tokenizer_auth`), not in `settings`. Login startup and the update
-actions on the same console page are served by the native host, not the
-database.
+Setting `GPROXY_MASTER_KEY_NEXT` *without* `GPROXY_MASTER_KEY_ROTATE` does
+nothing and says so, so a next key sitting in a deployment for a month is not
+mistaken for a rotation that happened.
 
-## Shutdown
+## Bootstrap
 
-The native binary handles `Ctrl-C` (SIGINT) and SIGTERM. On either signal it
-stops accepting connections and lets in-flight requests and streams finish
-before it exits; there is no drain deadline. The container image declares
-`STOPSIGNAL SIGTERM`, so the normal `docker stop` path is graceful.
+A fresh database has no way in, so the first start creates one administrator,
+mints one gateway API key and prints both once, to standard output. See
+[Installation](/getting-started/installation/#run-it) for what that looks like.
+
+- **The trigger is an empty users table.** Any user at all means the instance
+  has been set up: no password is reset, no key is minted, no row is changed.
+  An operator restarting a container that still carries
+  `GPROXY_ADMIN_PASSWORD` is not asking for a password reset.
+- **Only what the operator does not already know is printed.** Supply
+  `GPROXY_ADMIN_PASSWORD` and it is used but not echoed; supply
+  `GPROXY_BOOTSTRAP_ADMIN_API_KEY` and that exact key is minted.
+- **Every write goes through the product's own operation families**, so the
+  password is validated and hashed by the product's rules and the key is
+  digested by the product's function. In v3 the bootstrap key was written with
+  hand-rolled SQL under a digest the admin API did not look it up by, and an
+  `sk-` prefixed bootstrap key answered `401` on every request. The fix is not
+  a better digest — it is having only one.
+
+## Moving a Configuration
+
+```sh
+gproxy export --out config.json --include-secrets
+gproxy import --in  config.json --mode merge --source-master-key '…'
+```
+
+`-` means standard output or standard input. The document is the management
+DTOs themselves, so an export says exactly what a listing would have said, in
+replay order — no row appears before the row it points at:
+
+```json
+{"formatVersion":4,"exportedAtMs":1789981723118,"secretsOmitted":true,
+ "secrets":[],"data":{"connectionProfiles":[],"providers":[…],"credentials":[…],
+ "models":[],"providerModels":[],"routes":[],"routeMembers":[],
+ "exposedModels":[],"operationRules":[],"operationEndpoints":[],
+ "rewriteRuleSets":[],"rewriteRules":[],"providerRewriteRuleSets":[],
+ "quotas":[],"priceRules":[],"priceRates":[],"priceTiers":[],"settings":null}}
+```
+
+**Identity does not travel** — users, keys, organizations, teams, permissions,
+subscriptions and OAuth clients belong to the product layer — so an imported
+instance still needs its own bootstrap. Usage and captures do not travel
+either: copying them would fabricate history the destination never had.
+
+`--mode merge` writes what the document names and leaves the rest alone;
+`--mode replace` additionally deletes rows of an exported kind the document
+omits, children before parents, and never touches an identity, usage or capture
+table. An import is **one revision commit for the whole document**, so a
+document refused anywhere leaves nothing behind.
+
+With `--include-secrets` the sealed blobs travel base64-encoded, never opened
+and never plaintext — the document is then exactly as sensitive as the database
+file. On the way back in:
+
+| The importer has | What happens |
+| --- | --- |
+| `--source-master-key` | every secret is opened and re-sealed under this instance's key |
+| the same key as the source | the blob is stored verbatim and already opens |
+| neither | the credential is skipped, counted and warned about |
+
+That rule exists because the engine opens every credential's secret while it
+assembles a snapshot: a credential imported unopenable would not break its own
+calls, it would break **every later reload of the whole instance**.
+
+## The Settings Row
+
+Runtime settings live in the database and take effect without a restart.
+
+```sh
+curl -s http://127.0.0.1:7070/admin/api/settings  -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X PATCH http://127.0.0.1:7070/admin/api/settings \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"instance":{"maxAttempts":4}}'
+```
+
+One row, two groups. The instance group:
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `instanceName` | `default` | recorded with usage |
+| `maxAttempts` | `6` | hard ceiling on a plan's upstream attempts; a route's own budget is capped by it |
+| `maxInFlight` | `1024` | concurrent requests |
+| `requestTimeoutMs` | `600000` | whole-request deadline |
+| `streamIdleTimeoutMs` | `60000` | gap between stream units |
+| `maxRequestBodyBytes` | `67108864` | a streaming body over this stays a stream, and the plan is cut to one target |
+| `maxResponseBodyBytes` | `67108864` | buffered response cap |
+| `maxStreamEventBytes` | `1048576` | one SSE event or array element |
+| `maxWsFrameBytes` | `16777216` | a larger frame closes both sides with `1009` |
+| `maxMultipartParts` | `64` | |
+| `enableSettlement`, `enableUsage` | `true` | pricing and the usage row |
+| `enableTokenizerVocabs` | `true` | count with a real vocabulary |
+| `enableTokenizerDownload` | `false` | fetch an uncached vocabulary |
+| `retentionDays`, `maxDatabaseSizeMb` | unset | |
+| `portalRecentRequestsEnabled` | `true` | whether the portal shows recent requests |
+| `corsOrigins`, `trustedProxies`, `connectionProfileId`, `oauthClientAllowlist` | | the database's copy of the same policies |
+| `configRevision` | | read-only: the revision every instance synchronizes on |
+
+The logging group is `enableDownstreamLog`, `enableDownstreamLogBody`,
+`enableUpstreamLog`, `enableUpstreamLogBody`, `disableLogRedaction`,
+`enableTracing`, `logLevel`, `logFormat` and three blacklists. The two body
+switches are off by default; see
+[Usage, Logs & Audit](/guides/observability/#captures).
+
+## Running More Than One Instance
+
+Three things change. **`GPROXY_REDIS_URL`**, because the default cache is
+process-local and two instances would not see each other's invalidations and
+would each count rate limits on their own — and a cache that cannot answer
+*refuses* a rate-limited request rather than passing it, because a silent local
+fallback turns an outage into "every limit on the instance is off".
+**`gproxy migrate` as its own step**, with one writer, before any instance
+starts. And **rotate with one instance running**, as above. See
+[Storage & Cache Backends](/reference/database/#the-cache).
+
+## The Trusted-Proxy Rule
+
+`x-forwarded-for` and `x-forwarded-proto` are headers, and a header is whatever
+the peer wrote. They are believed **only when the socket's peer is loopback or
+is listed in `trustedProxies`**. From any other peer they are ignored outright
+— not merged, not preferred, not used as a fallback — and the default trusts
+nothing.
+
+Both matter, for different reasons. A forged `x-forwarded-for` picks the
+address in the operator's log next to somebody's request. A forged
+`x-forwarded-proto` picks the **scheme of the OAuth issuer identifier**, which
+is a discovery document telling a client where to send an authorization code.
+
+When the peer is unknown it is treated as untrusted.

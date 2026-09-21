@@ -1,153 +1,183 @@
 ---
 title: 新增通道
-description: "内置通道的结构、它实现的 Channel 契约、注册位置，以及控制台无需新增界面即可自动识别的内容"
+description: "一个 v4 渠道的结构：BaseChannel 契约、可选能力 trait、模块布局，以及从一个 Cargo feature 到注册完成的九步。"
 ---
 
-通道是某一上游家族的适配器：它知道 URL、如何注入凭证、如何读取流、如何提取用
-量，对 OAuth 类上游还知道如何登录与刷新。其余一切——路由、准入、故障转移、变
-换、结算与捕获——都是引擎的职责，不在通道里重新实现。
+一个渠道只知道一族上游：它的 URL、凭证怎么注入、它讲哪些线方言、它的流怎么报 usage，
+以及——对账号型上游——怎么登录、刷新和读配额。
 
-## 内置，而非插件
+其余都是别人的事。路由、凭证选择、失败转移、协议转换、结算和 capture 属于引擎，而且
+**渠道里没有任何东西读数据库或挑传输后端**。
 
-v3 没有插件机制：没有 `linkme` slice，没有外部通道 crate，也没有按通道划分的
-Cargo feature。每个通道都是 `crates/gproxy-channels` 的一个模块，编入二进制的
-集合就是 `crates/gproxy-app/src/bootstrap.rs` 中的列表。新增通道意味着向本仓
-库提交 pull request。28 个内置 id 构成运行时目录；`claudeweb` 是唯一限定原生
-构建的通道。
+渠道是编译进去的，不是插上去的：新渠道是 `gproxy-channel` 的一个模块，藏在它自己的 Cargo
+feature 后面，新增一个意味着向本仓库提一个 PR。默认不编译任何具体渠道。
 
-## `Channel` 契约
+## 它需要一个渠道吗
 
-契约位于 `crates/gproxy-channel-api/src/`。`Channel` 是同步且对象安全的：适配
-器是作用于借用数据的纯逻辑，唯一的异步关注点——凭证刷新——返回一个装箱的
-future。`prepare` 不得执行 I/O。
+渠道是要对着别人的 wire 维护的代码。只有当一行 Provider 说不清它需要什么时——路径随操作
+移动、body 必须被改写、有账号 surface 要读、有客户端身份要呈现——一个厂商才值得一个渠道。
 
-必须实现的方法：
+全部差别只是一个源和一个 header 的厂商，就是一个 `custom` Provider。见
+[不需要渠道的厂商](/zh-cn/guides/providers/#不需要渠道的厂商)。
 
-| 方法 | 职责 |
-| --- | --- |
-| `descriptor()` | 身份卡：`id`、`display_name`、可执行的 `supports`、声明的 `provider_fields` 与 `credential_fields`、`endpoint_overrides`、`traffic_policy`。 |
-| `routing_table()` | 创建 Provider 时播种的默认值：每个（操作，入站协议）一条 `ChannelSupport`，动作为 `passthrough`、`transform`、`local` 或 `unsupported`。 |
-| `prepare(PrepareCtx)` | 构建绝对的上游请求：来自设置或端点覆盖的 URL、从解密后的机密注入认证、请求头允许列表、请求体整形。 |
-| `classify(ResponseView)` | 把上游应答映射为 `Success`、`Retryable`、`Terminal` 或 `CredentialDead`；它驱动故障转移与健康。 |
-| `extract_usage(UsageCtx)` | 从缓冲的交换中读取 `NormalizedUsage`：输入、输出与缓存 Token，加上维度化的 `metrics` 与 `dimensions`。 |
+## 契约
 
-可选钩子，默认实现不做任何事：
+`BaseChannel` 是唯一必需的 trait，`id` 是它唯一必需的方法。每个协议操作都有自己的异步方法
+并带**默认实现**：用 `prepare`（HTTP）或 `prepare_connect`（WebSocket）构造请求，再把它交给
+被指派的 client。
 
-| 钩子 | 使用场景 |
-| --- | --- |
-| `login()` | 通道以交互方式获取凭证。返回 `ChannelLoginRef`，其描述符列出模式（带 PKCE 的 `AuthCode`、`Device`、`Cookie`）与参数；适配器实现 `ChannelLogin`。 |
-| `refresh_due()`、`refresh()` | 机密会过期。`refresh` 返回完整的替换机密；引擎通过宿主的版本守卫存储持久化它。 |
-| `stream_decoder(StreamCtx)` | 线上是 SSE、AWS event-stream 或其他必须解码成帧并观察用量的分帧。返回 `StreamDecoder` 状态机：`push` 送入分块，输出 `Frame`，`finish` 产出带用量的 `StreamTail`。 |
-| `shape_response()` | 通道私有的信封必须在向外变换之前规范化为声明的原生线上格式。 |
-| `select_support()` | 同一凭证家族服务多条源行，由机密形状决定选哪条。 |
-| `operation_driver()` | 一个操作需要多次上游调用（创建、轮询、获取）。驱动器是状态机；核心执行并把每次调用纳入漏斗。 |
-| `observe_quota()`、`prepare_quota_probe()`、`parse_quota_probe()` 及 credits 与 reset 变体 | 上游在响应头中报告配额窗口，或提供用量端点。 |
-| `session_preparer()` | 带用量计量的长连接实时会话。 |
-| `settlement_ready()`、`resource_mutations()` | 异步操作以及必须记录归属的持久资源（文件、视频）。 |
-| `surfaces()`、`prepare_surface()` | 通道模拟厂商控制平面（Codex `backend-api`、Claude Code 文件）。条目是表格行：方法、路径模式、凭证亲和，以及转发或合成。 |
-| `requires_continuations()` | 通道依赖调用之间的续接状态。 |
-
-`PreparedRequest` 携带请求，以及可选的流 `framing` 覆盖、`websocket` 标志和
-可选的 `ClientProfile`：原生传输层应用的 TLS 与 HTTP/2 指纹
-（`ClientProfilePreset::Chrome148` 是采集好的预设）。Edge 宿主忽略可选的指
-纹。
-
-## 声明的字段
-
-控制台没有任何通道专属界面。它为通道渲染的一切都来自描述符，经由
-`GET /admin/api/channels` 获取：
-
-| 字段 | 用途 |
-| --- | --- |
-| `provider_fields` | 类型化的 Provider 设置。控件：`text`、`secret`、`url`、`integer`、`boolean`、`string_list`、`select`（带 `options` 与 `default_value`）；`required` 与 `advanced` 标志。 |
-| `credential_fields` | 粘贴凭证时机密的形状：`api_key`；`access_token` 与 `refresh_token`；服务账号字段。 |
-| `endpoint_overrides` | 设置标签页是否提供按操作的端点 URL 覆盖；键来自 `endpoint_override_key`。 |
-| `traffic_policy` | 通道转发的请求头、响应头与查询参数；操作员可按 Provider 覆盖。 |
-| `login` | 凭证向导的模式与参数。 |
-
-尽量复用 `crates/gproxy-channels/src/metadata.rs` 中的字段集（`BASE_URL`、
-`OPENAI_CACHE`、`CLAUDE`、`API_KEY`、`OAUTH`、`SERVICE_ACCOUNT` 等）。标签来
-自语言文件：每个字段键都需要在
-`console/src/locales/{en,zh-CN,zh-TW}/providers.json` 中提供
-`providers.channelFields.<key>.label` 与 `.description`，`select` 选项需要
-`providers.channelFieldOptions.<key>.<option>`。管理 API 会自行为每个通道加上
-`auto_refresh_models`。
-
-## 路由表
-
-用 `shared/routing.rs` 中的 `route!` 宏声明路由：
-
-```rust
-use crate::shared::routing::route;
-
-pub(super) static ROUTES: &[ChannelSupport] = &[
-    route!(pass ListModels, openai),
-    route!(xform ListModels, claude => ListModels, openai),
-    route!(local CountTokens, openai),
-    route!(pass GenerateContent, openai_chat),
-    route!(xform GenerateContent, claude_messages => GenerateContent, openai_chat),
-    route!(unsupported CreateEmbedding, gemini),
-];
-```
-
-线上类型中，`openai`、`claude`、`gemini` 用于家族操作，`openai_chat`、
-`openai_responses`、`openai_responses_websocket`、`claude_messages`、
-`gemini_generate_content` 用于内容生成。`xform` 行必须命名变换注册表已实现的
-变换对；`crates/gproxy-core/src/tests/channels.rs` 中的测试
-`every_declared_builtin_transform_is_wired` 会对描述符的 `supports` 做此检查，
-声明了变换的新通道应加入它的列表。之后操作员可以按 Provider 覆盖任意一行
-（见[路由规则与规则集](/zh-cn/guides/rules/)）。
-
-## 通道的位置
-
-每个通道 id 一个目录，每个关注点一个文件，任何文件不超过 500 行，最好少于
-200 行：
+两个准备钩子的默认实现都是"不支持"，因此**一个渠道恰好支持它准备或覆写的那些，绝不更多**。
 
 ```text
-crates/gproxy-channels/src/<id>/
-  mod.rs        descriptor, SUPPORTS, Channel impl
-  routes.rs     routing_table()
-  prepare.rs    URL, auth, endpoint overrides
-  model.rs      model id and body shaping
-  sse.rs        stream decoder
-  usage.rs      usage extraction
-  resource.rs   settlement_ready / resource_mutations (when needed)
-  login.rs      ChannelLogin (when needed)
-  auth.rs       refresh_due / refresh (when needed)
-  quota.rs      quota probe (when needed)
-  surface/      service-surface table and synthesizers (when needed)
-  tests.rs      or tests/ for larger suites
+宿主选定 Provider、凭证、client
+  → ChannelBinding::new(&channel, provider, credential, client)
+  → binding.send(OperationKey, WireRequest<HttpBody>)
+    binding.connect(OperationKey, WireRequest<()>)
+  → BaseChannel 上那个具名操作方法
+  → 默认：prepare + client.send  /  prepare_connect + client.connect
+    或渠道自己经同一个 client 的多次调用流程
 ```
 
-共享的线上知识放在 `crates/gproxy-channels/src/shared/` 下：`openai`、
-`claude`、`gemini`、`aws_eventstream`、`code_assist`、`google_oauth`、`cache`
-（魔法字符串）、`quota`、`http`、`image_multipart`。`policy.rs` 保存每个通道
-的 `ChannelTrafficPolicy`，`metadata.rs` 保存字段集，`legacy.rs` 把旧 id 下导
-入的设置规范化。
+宿主交过来的视图是借用的，能公开的都公开：
 
-API 密钥类通道可参考 `crates/gproxy-channels/src/openai/`，带登录、刷新与服务
-界面的 OAuth 通道可参考 `claudecode/`。线上格式的依据是厂商的 API 文档，而不
-是另一个通道的代码。
+| 类型 | 装什么 |
+| --- | --- |
+| `ProviderView` | `id`、`channel`、可选 `base_url`，以及渠道自己解码成类型化设置的 `config` JSON |
+| `CredentialView` | `id`、`provider_id`、`auth_kind`、`secret` JSON（无 `Debug`、无 `Serialize`）、宿主记录的公开 `metadata`、`version`、`expires_at_ms` |
+| `OperationContext` | 两个视图、操作的方言、`WireRequest`、一个持有的 client、跨请求状态、宿主 `instance_id` 和可选的端点覆盖 |
+| `CredentialContext` | 刷新、配额与服务用的 Provider、凭证和 client |
 
-## 注册
+### 每个渠道都遵守的规则
 
-1. 在 `crates/gproxy-channels/src/lib.rs` 中加入 `mod <id>;` 与
-   `pub use <id>::<Name>Channel;`。
-2. 在 `crates/gproxy-app/src/bootstrap.rs` 的 `channels()` 列表中加入
-   `Box::new(gproxy_channels::<Name>Channel)`。`ChannelRegistry::new` 遇到重
-   复 id 时会让启动失败。
-3. 如果通道无法为 `wasm32-unknown-unknown` 构建，像 `claudeweb` 那样用
-   `#[cfg(not(target_arch = "wasm32"))]` 同时限定模块与注册。优先编写两个目
-   标都能构建的代码。
-4. 为新增的字段键补充语言文件条目。
+- **准备是同步且纯的**：不做 I/O、不藏状态、不构造 client。操作覆写可以做多次交换，但只能
+  经 `context.client`，并且可以在响应流结束后继续持有它完成收尾工作。
+- **来源鉴权绝不到达上游。** 转发助手丢弃逐跳 header，外加 `host`、`content-length`、
+  `authorization`、`x-api-key`、`x-goog-api-key` 和 `api-key`；渠道从凭证里加上自己的
+  鉴权。Provider 的 `allowed_headers` 收窄还能转发什么，而 `content-type` 和渠道声明的
+  身份 header 总是放行。
+- **端点覆盖是完整的方法 URL**，替换 base URL 加渠道默认路径——不是一个拿来再拼的 base。
+- **非 2xx 是一个响应，不是一个错误。** 状态、header 和一个惰性 body 原样回来。错误变体
+  是给*能力*调用（登录、刷新、配额）和多次调用覆写里的中间交换用的，那里失败的应答不是
+  要返回的那个响应。
+- **`RefreshRejected` 意味着上游确定性地拒绝了这把凭证**（`invalid_grant`、已撤销），
+  宿主会把它标记为死。短暂的传输失败或 5xx 绝不能：它必须以传输错误浮现，好让宿主稍后
+  重试。这一条弄错就会杀掉一个正常的账号。
+- **`ContinuationElsewhere`** 表示一条活的上游连接被另一个宿主进程持有。宿主会改道；
+  凭证本身没有任何问题。
 
-此外无需其他工作：创建 Provider 时会从 `routing_table()` 播种路由规则，供应
-商页面会列出该通道，凭证向导会跟随 `login()`。
+## 可选能力
 
-## 测试
+每一项都是一个独立 trait，藏在默认返回 `None` 的访问器后面。渠道实现它的上游拥有的那些，
+而且彼此之间没有任何强制耦合——一个渠道可以报告配额窗口却不提供重置。
 
-通道测试与代码放在一起（`tests.rs` 或 `tests/`）。测试容易出错的部分：基于固
-定机密的请求准备、基于采集帧的流解码与用量提取、配额解析，以及 `supports` 与
-`routing_table()` 的一致性。不要在通道里测试引擎。以 `cargo fmt`、
-`cargo clippy` 和 `cargo test` 收尾；lint 告警要修改代码，而不是加
-`#[allow]`。
+| 访问器 | 用途 |
+| --- | --- |
+| `credential_refresh` | 产出一份**完整替换**的密钥与过期时间；宿主以 `version` 上的 CAS 写回 |
+| `oauth_authorization_code` | 用宿主提供的 PKCE challenge 与 state 构造授权 URL；把 code 换成凭证 |
+| `oauth_device_code` | `start` 与一步 `poll`。节奏是宿主的事 |
+| `cookie_login` | 把粘贴来的 cookie 换成一份凭证加它的公开元数据 |
+| `quota_model` | 同步且纯：从 `auth_kind` 与 metadata 推出这把凭证有哪些配额维度 |
+| `quota_query` | 从上游的用量端点读一份配额快照 |
+| `quota_headers` | 把响应 header 变成配额条目；空表示什么都没报 |
+| `quota_reset` | 在卖重置额度的上游上兑换与手动重置 |
+| `usage_extractor` | 从缓冲的响应里取归一化用量。`None` 表示**未报告**，不是 0 |
+| `usage_stream` | 按响应的观察者，喂给它原始 chunk 或帧。它绝不改写交付出去的流 |
+| `services` | 厂商控制面路由——见 [CLI 客户端](/zh-cn/guides/cli-clients/) |
+
+跨请求记忆由宿主限定在一个 Provider 加一把凭证的范围内，并以 CAS 写入。binding 的默认实现
+拒绝一切写入，因此想要状态的渠道必须被明确授予。
+
+### 登录口袋
+
+两种 OAuth 流程都带着同一个口袋，用来存渠道在用户完成授权之后需要的事实：`start` 放进去
+的东西会随授权一起回来。它的形状是渠道自己的——一个非标准的设备句柄、一个登录过程为自己
+注册的 client。
+
+**这个口袋可以带密钥**，与宿主会当作凭证 metadata 公开的 `provider_fields` 不同：它活在
+宿主的登录会话里，短命、由 cache 承载、从不被渲染，登录结束就没了。任何必须活过登录的
+东西都要从 exchange 返回——公开事实进 metadata，秘密进 provider secrets，后者与令牌一起
+密封，永远不会变成 metadata。
+
+## 九步
+
+拿 `custom`（API key）和 `codex`（OAuth 账号）当两个参考。
+
+1. **在 `crates/gproxy-channel/Cargo.toml` 里声明 feature**，只列这个渠道需要的可选依赖。
+   仅 wasm 需要的依赖放进 `cfg(target_arch = "wasm32")` 的 target 表。
+
+   ```toml
+   [features]
+   # 一行说明上游是什么、这个渠道覆盖到哪。
+   acme = ["dep:base64", "dep:web-time"]
+   ```
+
+2. **往 `src/channels/mod.rs` 的 `channels!` 列表里加一行**：feature、模块，以及宿主要注册
+   的那个值。这一行同时声明模块并把渠道放进 `compiled_in()`，而那正是每个宿主找到它的方式。
+
+   ```rust
+   "acme" => acme, acme::Acme;
+   ```
+
+   如果这个渠道用到 `shared`，也要扩展那个模块自己的 `cfg(any(...))`。
+
+3. **一个文件一件事地铺开模块。** 小渠道就是一个 `acme.rs`；大的是一个目录：
+
+   ```text
+   src/channels/acme/
+     mod.rs        id、单元结构体、re-export、模块文档
+     config.rs     Provider 的 `config` JSON，serde(default)，忽略未知键
+     request.rs    prepare / prepare_connect / 被覆写的操作
+     oauth.rs      登录与刷新能力
+     quota.rs      配额能力
+     usage.rs      用量能力
+     services.rs   厂商控制面路由
+   ```
+
+   **模块文档要点名每一条 wire 事实的来源**——厂商的 API 参考，或 `samples/` 下的 CLI
+   源码。wire 真相绝不是另一个渠道的代码。
+
+4. **实现 `BaseChannel`。** 最少是 `id`、`native_dialects` 和 `prepare`。结构体是无状态
+   单元，所以一个实例服务该渠道的每一个 Provider。
+
+   也要覆写 `descriptor`。默认实现只读能力访问器，而只有渠道自己知道它的显示名，以及它
+   从 Provider `config` JSON 里解码哪些键。**那份 descriptor 是管理 UI 渲染 Provider 表单
+   的全部依据**——在 `ts` feature 下它还是一个 TypeScript 类型——所以漏掉的键就是没人能设的键。
+
+   当上游需要多次交换、需要本地合成的应答、需要另一种传输，或需要把响应改写成声明的原生
+   方言时，覆写具体的操作方法而不是 `prepare`。
+
+5. **声明厂商客户端会发什么。** 如果渠道模拟某个 CLI，导出它的 header 常量并用它构造
+   allow-list，这样 Provider 的 `allowed_headers` 就剥不掉 CLI 自己的 header。把这些身份
+   header 传进转发助手的丢弃列表，让**客户端无法伪造它们**。上游对客户端做指纹时返回一份
+   默认连接配置；凭证或 Provider 上的显式配置依然胜出。
+
+6. **把能力做成独立类型**并从访问器返回。守住每个 trait 的规则：刷新返回完整替换而不是
+   合并；配额维度从凭证 metadata 读套餐事实，绝不走网络；用量观察者做累积快照，而它的
+   `finish` 从**宿主**收到"完成还是被打断"，因为光有 EOF 并不能确立完整的用量。
+
+7. **可复用的 wire 机制放进 `src/channels/shared/`**，按使用它们的 feature 门控。策略留在
+   渠道里；shared 模块只执行渠道要求的事。
+
+8. **测试贴着代码放**在 `tests/<id>.rs`，用 `#![cfg(feature = "…")]` 门控。手工构造
+   Provider 与凭证视图，用一份 fixture 密钥调 `prepare`，断言 URL、注入的鉴权和被丢弃的
+   header。把抓到的帧喂给用量观察者；解析录下来的配额 header 与用量 body。一个脚本化的
+   出站 client 用来演练多次调用覆写。**不要从这里测引擎。**
+
+9. **在宿主里注册它。** 引擎从不自己列渠道。想要全部编译进去的宿主就取整份列表——
+   `gproxy-sdk` 正是这么做的，所以在那边打开 feature 就是唯一一步——想要精确集合的则传实例
+   进去。重复 id 会被拒绝，而点名了未注册渠道的 Provider 是一个配置错误，不是一次回退。
+
+## 收尾
+
+```sh
+cargo fmt --all
+cargo clippy -p gproxy-channel --all-features --all-targets -- -D warnings
+cargo clippy -p gproxy-channel --all-features --target wasm32-unknown-unknown --lib -- -D warnings
+cargo test   -p gproxy-channel --all-features
+```
+
+**每个渠道都要能为原生目标和 `wasm32-unknown-unknown` 构建**，这正是 Workers 宿主不是一个
+缩水渠道集的原因。lint 报错要改代码，不是加 `#[allow]`。
+
+进去之后就不需要别的了：新渠道上的 Provider 会带着它的 descriptor 出现在
+`GET /admin/api/channels` 里，管理 UI 从那份 descriptor 渲染它的表单。

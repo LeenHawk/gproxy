@@ -1,213 +1,315 @@
 ---
 title: "配置"
-description: "命令行参数、GPROXY_* 环境变量、.env 分层、原生宿主专用与构建期变量，以及存放在数据库中的实例设置"
+description: 五个配置来源及其顺序、全部 24 个 GPROXY_* 变量、TOML 文件、主密钥轮换、bootstrap，以及运行期 settings 行。
 ---
 
-GPROXY 在启动时一次性读取进程配置，来源是命令行参数、环境变量和 `.env`
-文件。除 `.env` 之外没有别的配置文件：v3 不读取 TOML。运行期间会变化的
-一切——Provider、凭证、路由、规则、定价、身份，以及本页末尾的实例设置——
-都保存在数据库中，通过控制台或 admin API 编辑。
+GPROXY **只在启动时读一次**进程配置。入口点之下没有任何模块读环境变量。
 
-`gproxy --help` 与环境变量列表由同一份声明生成，两者不会漂移。每个参数都
-有对应的 `GPROXY_*` 环境变量；下表同时列出两者。
+一切在进程运行期间会变的东西——Provider、凭证、路由、改写规则、价格、身份，以及本页末尾
+的 settings 行——都在数据库里。
 
-## 优先级顺序
+## 五个来源
 
-一个值取自最先设置它的来源：
+从强到弱：
 
-1. 命令行参数；
-2. 进程环境变量；
-3. 工作目录下的 `./.env`；
-4. `<data-dir>/.env`，仅当它与 `./.env` 不是同一个文件时才读取；
-5. 内置默认值。
+1. **命令行**——`--port 9000`
+2. **真实环境**——`GPROXY_PORT=9000`
+3. **`.env`**，加载时不覆盖环境已经设过的任何东西
+4. **`--config` 点名的 TOML 文件**
+5. **内置默认值**
 
-`GPROXY_DATA_DIR` 本身只从前三个来源解析，因为必须先知道数据目录才能读取
-其中的 `.env`。相对路径的数据目录相对于工作目录解析，启动时不存在则创建。
+把文件放在环境*下面*是要紧的那个选择。文件是一套部署签进版本库的意图；环境是某一台主机或
+某一个容器偏离它的方式。如果文件赢了，compose 文件里的 `GPROXY_PORT` 就会静默地什么也不做。
 
-## `.env` 格式
+每个配置 flag 都是全局的，因此 `gproxy --port 9000 serve` 和 `gproxy serve --port 9000`
+是同一次调用。
 
-```bash
-# <data-dir>/.env
-GPROXY_HOST=0.0.0.0
-GPROXY_PORT=8787
-GPROXY_PERSISTENCE=postgres
-GPROXY_DSN=postgres://gproxy:<password>@db.internal:5432/gproxy
-GPROXY_MASTER_KEY=<standard-base64-32-bytes>
+## 环境变量
+
+每个值都是一个带着自己变量名的 flag，因此 `gproxy --help` 会把变量印在它所遮蔽的 flag 旁边，
+这张表也就没法从程序上漂走。v3 就有的名字含义不变：升级不是重新部署。
+
+| 变量 | Flag | 默认 | 是什么 |
+| --- | --- | --- | --- |
+| `GPROXY_CONFIG` | `--config`、`-c` | — | 装任意配置字段的 TOML 文件 |
+| `GPROXY_HOST` | `--host` | `127.0.0.1` | 监听地址（一个 IP，不是主机名） |
+| `GPROXY_PORT` | `--port`、`-p` | `7070` | 监听端口 |
+| `GPROXY_DATA_DIR` | `--data-dir` | `data` | 相对路径相对它解析的根 |
+| `GPROXY_PERSISTENCE` | `--persistence` | `sqlite` | `sqlite`、`postgres` 或 `mysql` |
+| `GPROXY_DSN` | `--dsn` | — | 连接串；没有 `--persistence` 时由它自己点明后端 |
+| `GPROXY_REDIS_URL` | `--redis-url` | — | 共享 cache；**多实例必需** |
+| `GPROXY_MASTER_KEY` | `--master-key` | — | 32 字节，64 个十六进制字符或 base64。不设则明文存放 |
+| `GPROXY_MASTER_KEY_NEXT` | `--master-key-next` | — | 要重新密封到的那把钥匙 |
+| `GPROXY_MASTER_KEY_ROTATE` | `--master-key-rotate` | `false` | 启动时执行轮换 |
+| `GPROXY_PUBLIC_BASE_URL` | `--public-base-url` | — | 对外源，用于发布链接和 OAuth issuer 标识 |
+| `GPROXY_CORS_ORIGINS` | `--cors-origin` | — | 逗号分隔的浏览器 origin；空表示仅同源 |
+| `GPROXY_TRUSTED_PROXIES` | `--trusted-proxy` | — | 逗号分隔、其 `x-forwarded-*` 可被相信的对端；空表示谁都不信 |
+| `GPROXY_FILE_STORAGE_DIR` | `--file-storage-dir` | — | 发布 body 与词表的本地目录 |
+| `GPROXY_CONSOLE` | `--console` | `true` | 提供 console |
+| `GPROXY_CONSOLE_PATH` | `--console-path` | — | 从这个目录而不是内嵌 bundle 提供 console |
+| `GPROXY_INSTANCE_ID` | `--instance-id` | 随机 | 本进程的稳定名字 |
+| `GPROXY_LOG_FORMAT` | `--log-format` | `text` | `text` 或 `json` |
+| `GPROXY_LOG_FILTER` | `--log-filter` | `RUST_LOG`，再 `info` | tracing 过滤器 |
+| `GPROXY_ADMIN_USER` | `--admin-user` / `--user` | `admin` | 第一个管理员的名字 |
+| `GPROXY_ADMIN_PASSWORD` | `--admin-password` / `--password` | 生成 | 他的密码 |
+| `GPROXY_BOOTSTRAP_ADMIN_API_KEY` | `--admin-api-key` / `--api-key` | 生成 | 要为他签发的那把确切 API key |
+| `GPROXY_IMPORT_SOURCE_MASTER_KEY` | `--source-master-key` | — | 仅 `import`：源实例的钥匙 |
+| `GPROXY_ENV_FILE` | — | `.env` | 加载哪个 `.env` |
+
+`GPROXY_ENV_FILE` 刻意没有 flag：flag 得由它所喂养的那一步来解析，因此它影响不了解析器
+自己读到的值。
+
+布尔值接受 `1`、`true`、`yes`、`on`、`0`、`false`、`no`、`off`。**拼错是错误而不是
+`false`**——它管的两件事，"把数据库里每个密钥都轮换一遍"和"提供 console"，都属于那种
+不出事就没人注意到缺席的东西。
+
+## 命令
+
+| 命令 | 做什么 |
+| --- | --- |
+| `gproxy serve` | 按需轮换主密钥、实例是新的就 bootstrap、绑定、服务。**默认命令**——不带子命令的 `gproxy` 就是 `gproxy serve`。 |
+| `gproxy migrate` | 创建或增量同步表结构，然后退出。 |
+| `gproxy bootstrap admin` | 创建第一个管理员。幂等。 |
+| `gproxy export --out <PATH>` | 把本实例的配置写成一份 JSON 文档。 |
+| `gproxy import --in <PATH>` | 把这样一份文档回放进本实例。 |
+
+`serve` 在 `SIGINT` 或 `SIGTERM` 上停止，先把在途请求排空。**没有关停超时**：一次流式
+补全跑上几分钟是合法的，而想要截止时间的 supervisor 自己有。
+
+绑定发生在表结构工作**之后**，因此一个还在迁移的进程直接拒绝连接，而不是把它们收进一个
+没人应答的积压队列。
+
+## 配置文件
+
+文件讲的是配置类型自己的字段名，`snake_case`。**未知键是错误**，因此拼写错误在启动时就被
+报出来，而不是被静默忽略。
+
+```toml
+host = "0.0.0.0"
+port = 7070
+data_dir = "/var/lib/gproxy"
+public_base_url = "https://gproxy.example.com"
+cors_origins = ["https://console.example.com"]
+trusted_proxies = ["10.0.0.0/8"]
+session_ttl_secs = 2592000
+
+[store]
+kind = "sqlite"
+path = "gproxy.db"
+# kind = "url"
+# dsn = "postgres://gproxy@db/gproxy"
+
+[cache]
+kind = "memory"
+# kind = "redis"
+# url = "redis://cache:6379"
+# namespace = "prod"
+
+[master_key]
+rotate = false
+
+[master_key.key]
+kind = "hex"
+value = "0000000000000000000000000000000000000000000000000000000000000000"
+
+[file_storage]
+kind = "fs"
+root = "files"
+# kind = "s3"
+# bucket = "gproxy"
+# region = "auto"
+# endpoint = "https://…"
+
+[console]
+enabled = true
+
+[oauth]
+access_ttl_secs = 3600
+refresh_ttl_secs = 2592000
+code_ttl_secs = 300
+device_ttl_secs = 900
+cli_client_ids = []
 ```
 
-- 每行一个 `KEY=value`。键和值都会去除首尾空白；引号不会被去掉，所以不要
-  给值加引号。
-- `#` 在一行的任何位置都开始注释，因此值中不能包含 `#`。这类值请放到真实
-  环境变量中。
-- 非空行缺少 `=` 是启动错误，报错信息会指出文件和行号。
-- 只读取以 `GPROXY_` 开头的键，以及 `UPSTASH_URL` 和 `UPSTASH_TOKEN`。共享
-  部署 `.env` 中的其他键会被忽略，不会进入进程。
+有几个字段没有 flag，因为它们不是容器会去覆盖的东西：`session_ttl_secs`、整个 `[oauth]`
+块，以及 S3 细节。
 
-## 监听与数据目录
+这就是 Workers 宿主在 `GPROXY_CONFIG` 里读作 JSON、桌面宿主在数据目录里读作 `gproxy.toml`
+的**同一份文档**，所以没有第二套 schema 要维持同步。
 
-| 变量 | 参数 | 默认值 | 含义 |
-| --- | --- | --- | --- |
-| `GPROXY_HOST` | `--host <ADDR>` | `127.0.0.1` | 绑定的网络接口。`host:port` 必须能解析为 socket 地址，因此 IPv6 地址需要方括号：`[::1]`。 |
-| `GPROXY_PORT` | `--port <PORT>` | `8787` | TCP 端口。 |
-| `GPROXY_DATA_DIR` | `--data-dir <PATH>` | `./data` | 存放 SQLite 文件 `gproxy.db`、可选的 `.env`、自更新暂存目录（`.update/`）和登录启动标记文件。 |
+## 静态密钥
 
-容器镜像预设 `GPROXY_HOST=0.0.0.0`、`GPROXY_DATA_DIR=/var/lib/gproxy` 和
-`GPROXY_PERSISTENCE=sqlite`；见[容器部署](/zh-cn/deployment/docker/)。
+凭证密钥、被保留的 API key 和 tokenizer 源令牌，都用主密钥以 AES-256-GCM 密封。
+**密封绑定到该行自己的 id**，所以一份密文被拷到另一行上打不开。
 
-## 持久化
-
-| 变量 | 参数 | 默认值 | 含义 |
-| --- | --- | --- | --- |
-| `GPROXY_PERSISTENCE` | `--persistence <BACKEND>` | `sqlite` | `sqlite`、`libsql`、`postgres` 或 `mysql`（不区分大小写）。 |
-| `GPROXY_DSN` | `--dsn <DSN>` | 无 | `postgres` 或 `mysql` 的连接串；这两种后端必填。 |
-| `GPROXY_LIBSQL_URL` | `--libsql-url <URL>` | 无 | libSQL 服务器的绝对 `http(s)` URL；`libsql` 后端必填。 |
-| `GPROXY_LIBSQL_AUTH_TOKEN` | `--libsql-auth-token <TOKEN>` | 无 | 该服务器的 Bearer Token；`libsql` 后端必填且不能为空。 |
-
-DSN 格式与各后端行为见[存储与缓存后端](/zh-cn/reference/database/)。
-
-## 缓存
-
-| 变量 | 参数 | 默认值 | 含义 |
-| --- | --- | --- | --- |
-| `GPROXY_REDIS_URL` | `--redis-url <URL>` | 无 | Redis 共享缓存。与 Upstash 同时设置时 Redis 优先。 |
-| `UPSTASH_URL` | `--upstash-url <URL>` | 无 | Upstash Redis REST 端点；绝对 `http(s)` URL。 |
-| `UPSTASH_TOKEN` | `--upstash-token <TOKEN>` | 无 | Upstash REST Token。两个 `UPSTASH_*` 只设置其一是启动错误。 |
-
-以上都未设置时，缓存为进程内缓存；持久化为 `libsql` 时则是 libSQL 数据库中
-的一张表。配额、限流、准入状态、刷新租约和亲和绑定都存放在缓存里，因此多
-实例部署必须使用 Redis 或 Upstash。
-
-## 密钥与加密存储
-
-| 变量 | 参数 | 默认值 | 含义 |
-| --- | --- | --- | --- |
-| `GPROXY_MASTER_KEY` | `--master-key <BASE64>` | 未设置 | 标准 base64，解码后恰为 32 字节。设置后，凭证、用户 API 密钥和 Hugging Face Token 以 AES-256-GCM 信封加密密封存储。未设置表示明文存储。 |
-| `GPROXY_MASTER_KEY_NEXT` | `--master-key-next <BASE64>` | 未设置 | 要轮换到的新密钥。空值表示轮换回明文。未武装轮换时忽略并打印警告。 |
-| `GPROXY_MASTER_KEY_ROTATE` | `--master-key-rotate <BOOL>` | 关 | 武装轮换：`1`、`true`、`yes`、`on`；或 `0`、`false`、`no`、`off`、空。其他值是启动错误。 |
-
-存储会记录密封所用密钥的 SHA-256 指纹。已密封的存储用不同密钥或不带密钥
-打开时，启动会拒绝；明文存储在设置了密钥的情况下打开，启动同样拒绝。无论
-哪个方向的切换都必须经过轮换，不会静默重新加密。
-
-轮换步骤：
-
-1. 保持 `GPROXY_MASTER_KEY` 为当前密钥（明文存储则保持未设置）。将
-   `GPROXY_MASTER_KEY_NEXT` 设为新密钥，或设为空字符串以回到明文。设置
-   `GPROXY_MASTER_KEY_ROTATE=on`。
-2. 启动 GPROXY 一次。它用当前密钥打开每个已存储的秘密，用新密钥重新密封，
-   并在一次写入中替换秘密清单和指纹。日志末尾会有一条警告提示完成轮换。
-3. 停止 GPROXY。把 `GPROXY_MASTER_KEY` 设为新密钥（或取消设置），清除
-   `GPROXY_MASTER_KEY_NEXT` 和 `GPROXY_MASTER_KEY_ROTATE`，再次启动。
-
-设置了 `GPROXY_MASTER_KEY_ROTATE=on` 却未设置 `GPROXY_MASTER_KEY_NEXT` 是
-启动错误。
-
-## 网络与限制
-
-| 变量 | 参数 | 默认值 | 含义 |
-| --- | --- | --- | --- |
-| `GPROXY_UPSTREAM_PROXY_URL` | `--upstream-proxy-url <URL>` | 无 | 默认出站代理。优先级：凭证代理，然后 Provider 代理，最后此值。它会覆盖实例设置中的 `proxy`。除非开启 `inherit_system_proxy`，环境中的 `HTTP_PROXY`/`HTTPS_PROXY` 会被忽略。自更新和公告拉取也使用它。 |
-| `GPROXY_TRUSTED_PROXIES` | `--trusted-proxy <IP>` | 空 | 逗号分隔的 IP。仅当对端是回环地址或列表中的地址时，才采信 `X-Forwarded-For`（第一项）和 `X-Real-IP`。 |
-| `GPROXY_CORS_ORIGINS` | `--cors-origin <ORIGIN>` | 空 | 逗号分隔的精确 Origin。为空则不发送 CORS 头（仅同源）。允许的方法 `GET, POST, PATCH, DELETE, OPTIONS`；允许的头 `authorization, content-type, x-api-key`；允许携带凭据。 |
-| `GPROXY_MAX_ATTEMPTS` | `--max-attempts <COUNT>` | `6` | 单个请求上游尝试次数的上限。路由自身的 `max_attempts` 受它约束。必须为正数。 |
-| `GPROXY_MAX_IN_FLIGHT` | `--max-in-flight <COUNT>` | `1024` | 监听器同时服务的请求数。每个请求（包括控制台和 admin API）都占用一个许可；超出的请求排队等待。必须为正数。 |
-| `GPROXY_FILE_UPLOAD_MAX_IN_FLIGHT` | `--file-upload-max-in-flight <COUNT>` | 未设置 | 本进程 `POST /v1/files` 和 `POST /upload/v1beta/files` 的上传并发数。`0` 表示不限制。设置后覆盖控制台中的同名设置。 |
-| `GPROXY_INSTANCE_ID` | `--instance-id <ID>` | `0` | 原生请求 ID 的首段（`<instance>-<启动前缀>-<序号>`）。多实例部署请为每个实例设置不同的值。 |
-| `GPROXY_LOG_FORMAT` | `--log-format <FORMAT>` | `text` | `text` 或 `json`（按行分隔）。 |
-| `RUST_LOG` | — | `info` | 原生日志的标准 `tracing` 过滤器。只从进程环境变量读取。 |
-
-请求体上限为 100 MiB。`Content-Encoding: zstd` 的请求体在入口解码；其他编码
-返回 415。两者都不可配置。
-
-## 首次启动引导
-
-以下变量作用于全新存储，即尚无管理员的存储。未设置 `GPROXY_ADMIN_PASSWORD`
-时，首次访问 `/admin` 会显示创建管理员的初始化页面。
-
-| 变量 | 参数 | 默认值 | 含义 |
-| --- | --- | --- | --- |
-| `GPROXY_ADMIN_USER` | `--admin-user <USER>` | `admin` | 引导时使用的管理员用户名。 |
-| `GPROXY_ADMIN_PASSWORD` | `--admin-password <PASSWORD>` | 未设置 | 全新存储：用此密码创建管理员并生成一个 API 密钥。已有存储：若该用户存在则重置其密码；其他账户永不改动。 |
-| `GPROXY_BOOTSTRAP_ADMIN_API_KEY` | `--bootstrap-admin-api-key <KEY>` | 自动生成 | 仅对全新存储、且仅在设置了 `GPROXY_ADMIN_PASSWORD` 时生效：管理员的第一个 API 密钥。未设置则随机生成。无论哪种方式，密钥都会像其他密钥一样密封存储，只能通过控制台的"显示"操作查看。空白值是错误。 |
-| `GPROXY_BOOTSTRAP_CHANNELS` | `--bootstrap-channel <CHANNEL>` | 空 | 逗号分隔的通道 ID。仅对全新存储、且设置了 `GPROXY_ADMIN_PASSWORD` 时生效：为每个通道创建一个同名的已启用 Provider，并附上该通道的默认规则集。未知 ID 是启动错误。 |
-
-全新存储上设置了引导密钥或通道却未设置 `GPROXY_ADMIN_PASSWORD` 是启动
-错误。全新存储还会加载内置的全局价格目录；见
-[价格与分层](/zh-cn/reference/pricing/)。
-
-## 原生宿主专用变量
-
-原生二进制只从进程环境变量读取这些值——不读 `.env`——也没有对应的命令行
-参数。
-
-| 变量 | 默认值 | 含义 |
-| --- | --- | --- |
-| `GPROXY_AUTOSTART` | `on` | 按用户登录启动项（Linux `.desktop`、macOS LaunchAgent、Windows Run 键）的首次运行默认值。只读取一次，直到 `<data-dir>/.autostart-initialized` 存在；之后由控制台的"登录时启动"开关管理。接受 `on`/`off`、`true`/`false`、`1`/`0`、`yes`/`no`、`enable(d)`/`disable(d)`。保存的启动命令会重复当前参数，并在环境中存在 `GPROXY_MASTER_KEY` 时追加 `--master-key`。 |
-| `GPROXY_UPDATE_CHANNEL_SERVE` | 构建通道 | 优先级最高的更新通道：`releases`（也接受 `release`、`stable`）、`staging` 或 `dev`（也接受 `development`）。 |
-| `GPROXY_UPDATE_CHANNEL` | 构建通道 | 取值相同；`GPROXY_UPDATE_CHANNEL_SERVE` 未设置时生效。完整优先级：`_SERVE`，然后 `GPROXY_UPDATE_CHANNEL`，然后控制台的更新通道设置，最后是构建通道。名称无效时更新请求返回 400。 |
-| `GPROXY_UPDATE_SERVE` | GitHub release URL | 覆盖所有通道的 manifest URL。默认：`dev` 和 `staging` 读取 `releases/download/<channel>/manifest.json`，`releases` 读取 `releases/latest/download/manifest.json`，均来自 GPROXY 仓库。 |
-| `GPROXY_UPDATE_RESTART` | `re-exec` | 应用更新或回滚之后的动作：`re-exec`（也接受 `reexec`；Unix 上以相同参数 exec 新二进制，其他平台退出码 42）、`supervisor`（250 ms 后以退出码 42 退出，交给守护进程重启）或 `none`（由你重启）。值无效会禁用自更新，其端点返回 503。 |
-
-当 manifest 要求的最低数据版本高于本二进制的 schema 版本、版本号无效，或
-回滚时不存在 `<exe>.prev`，更新会以 409 拒绝。
-
-## 构建期标识
-
-这些是编译期输入（`option_env!`），在 `cargo build` 的环境中设置，不是运行
-时配置。
-
-| 变量 | 默认值 | 含义 |
-| --- | --- | --- |
-| `GPROXY_UPDATE_PUBKEY` | 无 | 标准 base64 的 Ed25519 公钥，用于校验签名的更新 manifest。没有它的构建，每次更新检查都会以签名错误失败。 |
-| `GPROXY_BUILD_VERSION` | `CARGO_PKG_VERSION` | `--version` 报告的版本，也用于与 manifest 比较。 |
-| `GPROXY_BUILD_CHANNEL` | `development` | 构建所属的更新通道。`development` 解析为 `dev`。 |
-| `GPROXY_BUILD_HASH` | git 短哈希 | `build.rs` 用 `git rev-parse --short=12 HEAD` 填充；没有仓库时为 `unknown`。 |
-| `GPROXY_INSTALLATION_KIND` | `source` | `--version` 报告的安装来源标签；安装程序会设置自己的值。 |
+没有主密钥时密钥以明文存放。这是一种受支持的部署形态，不是意外，而且二进制在启动时会
+大声说一次，并点名那个能修好它的变量：
 
 ```text
-$ gproxy --version
-gproxy 3.0.0 (channel development, build 4054fe4f94ea, installation source)
+WARN gproxy::serve: upstream credential secrets are stored UNENCRYPTED: no
+     master key is configured. Set GPROXY_MASTER_KEY to 32 bytes as 64 hex
+     characters or base64 — and, on a database that already holds secrets, set
+     GPROXY_MASTER_KEY_NEXT with GPROXY_MASTER_KEY_ROTATE to seal what is
+     already there.
 ```
 
-## Edge 绑定
+用 `openssl rand -hex 32` 生成一把，正好 64 个十六进制字符。32 字节的 base64 是 43 或 44
+个字符，所以两种编码不会混淆，格式是嗅探出来的而不是配置出来的。
 
-wasm 宿主没有命令行，也不读 `.env`。平台包装层把同名绑定传入 edge 配置：
-`GPROXY_LIBSQL_URL` 与 `GPROXY_LIBSQL_AUTH_TOKEN`（必填），
-`GPROXY_MASTER_KEY`、`GPROXY_MASTER_KEY_NEXT` 与 `GPROXY_MASTER_KEY_ROTATE`
-（可选），以及 `UPSTASH_URL` 与 `UPSTASH_TOKEN`（可选，须同时设置）。持久化
-始终是 libSQL；未设置 Upstash 时缓存为 libSQL 表。监听、数据目录、引导和原
-生宿主各行不适用。见 [Edge Wasm](/zh-cn/deployment/edge/)。
+### 主密钥轮换
 
-## 实例设置
+换钥匙不是改一行配置。每一份密文都必须用旧钥匙打开、再用新钥匙封上，否则下一次重载会在
+它打不开的第一把凭证上失败。所以轮换是一次真正的操作，在启动时执行：
 
-运行时设置保存在 `settings` 表中，在控制台 → 设置里编辑
-（`GET`/`PATCH /admin/api/instance-settings` 和 `/admin/api/log-settings`），
-无需重启即生效。
+```sh
+# 1. 停掉每一个实例。
+# 2. 带着轮换开关启动一个。
+GPROXY_MASTER_KEY=<old> \
+GPROXY_MASTER_KEY_NEXT=<new> \
+GPROXY_MASTER_KEY_ROTATE=true \
+  gproxy serve
 
-| 键 | 控制台标签 | 默认值 | 含义 |
-| --- | --- | --- | --- |
-| `instance_name` | 实例名称 | `default` | 在日志和遥测中显示。 |
-| `proxy` | 默认上游代理 | 无 | 在凭证和 Provider 代理之后使用；`GPROXY_UPSTREAM_PROXY_URL` 会覆盖它。 |
-| `inherit_system_proxy` | 继承系统代理 | 关 | 没有显式代理时采用 `HTTP_PROXY`/`HTTPS_PROXY`。仅原生宿主。 |
-| `enable_usage` | 用量记录 | 开 | 结算后持久化用量记录。关闭时准入和配额核算照常进行。 |
-| `enable_tokenizer_vocabs` | 使用词表 | 开 | 用真实词表统计 token；关闭则回退到字符估算。仅原生宿主。 |
-| `enable_tokenizer_download` | 自动下载词表 | 关 | 统计时自动从 Hugging Face 拉取未缓存的词表。 |
-| `default_tokenizer_vocab` | 默认词表 | 无 | 模型未匹配 Provider `tokenizer_map` 中任何模式时使用。 |
-| `file_upload_max_in_flight` | 文件上传并发数 | `0` | `0` 表示不限制；环境变量覆盖优先。 |
-| `retention_days` | 保留天数 | 未设置 | 用量记录、请求日志和线路日志的保留期限。未设置时按 36,500 天处理。 |
-| `max_database_size_mb` | 数据库大小上限（MiB） | 未设置 | 超过上限时删除最旧的请求日志和线路日志；用量记录不会因大小被删除。未设置时按 1,024 MiB 处理。 |
-| `enable_downstream_log`、`enable_downstream_log_body` | 下游元数据 / 正文 | — | 记录调用方请求与响应的元数据，可选记录正文。 |
-| `enable_upstream_log`、`enable_upstream_log_body` | 上游元数据 / 正文 | — | 记录每次上游尝试，可选记录正文。 |
-| `disable_log_redaction` | 停用日志脱敏 | 关 | 以明文存储捕获的头和正文。脱敏默认开启。 |
-| `traffic_blacklist` | 全局元数据黑名单 | 内置列表 | 在内置列表之上，实例范围内额外移除的请求头、响应头和 query 参数名。 |
-| `update_channel`、`enable_auto_update_check` | 更新 | 构建通道 | 控制台对更新通道和自动检查的偏好。 |
+# 3. 它会在 WARN 级别记录：
+#    master key rotated; copy GPROXY_MASTER_KEY_NEXT to GPROXY_MASTER_KEY,
+#    then clear GPROXY_MASTER_KEY_NEXT and GPROXY_MASTER_KEY_ROTATE
 
-Hugging Face Token 密封存放在单独的表（`tokenizer_auth`）中，不在
-`settings` 里。同一控制台页面上的登录启动和更新操作由原生宿主提供，不经
-过数据库。
+# 4. 把新钥匙提升上来，清掉另外两个。
+GPROXY_MASTER_KEY=<new> gproxy serve
+```
 
-## 关闭
+三条性质让它敢跑：
 
-原生二进制处理 `Ctrl-C`（SIGINT）和 SIGTERM。收到任一信号后都会停止接受连接，让
-进行中的请求和流式响应完成后退出；没有排空超时。容器镜像声明了
-`STOPSIGNAL SIGTERM`，所以普通的 `docker stop` 会优雅关闭。
+- **一个事务。** 每一次更新和 revision 自增一起提交，所以失败只会让数据库整体停在旧钥匙
+  上，重试即可。绝不会出现一个半轮换的数据库要先搞清楚它是什么形状。
+- **写之前先全部打开。** 一把能解开大多数行的钥匙，会在第一次写入之前就中止。
+- **什么都不跳过。** 打不开的密文是错误，绝不是一行被留下——被跳过的行在运维者提升新钥匙
+  之后，就是**两把**钥匙都打不开了。
+
+由此得出两条规则：
+
+- **轮换时只跑一个实例。** 数据库现在在哪把钥匙上没有持久记录，所以一个还拿着旧钥匙的
+  同伴会看到 revision 自增、重载，然后什么都打不开。
+- **执行轮换的进程此后一直用新钥匙服务**，因为数据库现在就装着那个。忘了第 4 步意味着
+  下次启动什么都打不开——大声地、在装配时，而不是静默地。
+
+`GPROXY_MASTER_KEY_NEXT` 配上没设的 `GPROXY_MASTER_KEY` 是**采纳路径**：它给一个本来在跑
+明文的数据库加封。
+
+设了 `GPROXY_MASTER_KEY_NEXT` 却*没有* `GPROXY_MASTER_KEY_ROTATE` 时什么也不做，并且会
+这么说——这样一把在部署里躺了一个月的"下一把钥匙"，不会被误当成一次已经发生过的轮换。
+
+## Bootstrap
+
+一个全新的数据库没有入口，所以首次启动创建一个管理员、签发一把网关 API key，并把两者
+只打印一次到标准输出。
+
+- **触发条件是 users 表为空。** 只要有任何用户，就说明这个实例已经被设置过：不重置密码、
+  不签发 key、不改任何一行。一个重启还带着 `GPROXY_ADMIN_PASSWORD` 的容器的运维者，并不
+  是在要求重置密码。
+- **只打印运维者还不知道的东西。** 提供了 `GPROXY_ADMIN_PASSWORD` 就使用它但不回显；
+  提供了 `GPROXY_BOOTSTRAP_ADMIN_API_KEY` 就签发那把确切的 key。
+- **输出走 stdout，绝不走日志**，这样密钥不会落进 journal 或者把它运走的任何东西。
+- **每一次写入都走产品自己的操作家族**，所以密码由产品的规则校验和哈希，key 由产品的函数
+  做摘要。v3 的 bootstrap key 是用手写 SQL 按一个管理 API 并不用它来查的摘要写下去的，
+  于是一把 `sk-` 前缀的 bootstrap key 在每个请求上都回 `401`。修法不是换一个更好的摘要
+  ——而是只有一个。
+
+## 搬运一份配置
+
+```sh
+gproxy export --out config.json --include-secrets
+gproxy import --in  config.json --mode merge --source-master-key '…'
+```
+
+`-` 表示标准输出或标准输入。文档就是管理 DTO 本身，所以导出说的正是一次列表会说的：
+
+```json
+{"formatVersion":4,"exportedAtMs":1789981723118,"secretsOmitted":true,
+ "secrets":[],"data":{"connectionProfiles":[],"providers":[…],"credentials":[…],
+ "models":[],"providerModels":[],"routes":[],"routeMembers":[],
+ "exposedModels":[],"operationRules":[],"operationEndpoints":[],
+ "rewriteRuleSets":[],"rewriteRules":[],"providerRewriteRuleSets":[],
+ "quotas":[],"priceRules":[],"priceRates":[],"priceTiers":[],"settings":null}}
+```
+
+`data` 按回放顺序排列：没有任何一行出现在它所指向的那一行之前。
+
+**身份不走**——用户、key、组织、团队、权限、订阅和 OAuth 客户端属于产品层——所以被导入的
+实例仍然需要它自己的 bootstrap。用量和 capture 也不走：拷贝它们等于伪造目的端从未有过的
+历史。
+
+`--mode merge` 写文档点名的东西，其余不动。`--mode replace` 还会删掉文档没提到的、属于
+已导出种类的行，先子后父，并且绝不碰身份、用量或 capture 表。一次导入是**整份文档一个
+revision 提交**，因此任何一处被拒绝的文档什么也不会留下。
+
+带 `--include-secrets` 时密文以 base64 随行，从不被打开、也从不是明文——这份文档因此与
+数据库文件同等敏感。回来的时候：
+
+| 导入方有什么 | 会发生什么 |
+| --- | --- |
+| `--source-master-key` | 每个密钥被打开并用本实例的钥匙重新密封 |
+| 与源相同的钥匙 | 密文原样存放，本来就能打开 |
+| 都没有 | 这把凭证被跳过、计数并告警 |
+
+这条规则存在，是因为引擎在装配快照时会打开每一把凭证的密钥：一把导入后打不开的凭证不会
+只是坏掉它自己的调用，它会坏掉**整个实例此后每一次重载**。
+
+## settings 行
+
+运行期设置在数据库里，改了不用重启。
+
+```sh
+curl -s http://127.0.0.1:7070/admin/api/settings  -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X PATCH http://127.0.0.1:7070/admin/api/settings \
+  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
+  -d '{"instance":{"maxAttempts":4}}'
+```
+
+一行，两组。instance 组：
+
+| 键 | 默认 | 含义 |
+| --- | --- | --- |
+| `instanceName` | `default` | 随用量一起记录 |
+| `maxAttempts` | `6` | 一个计划上游尝试次数的硬上限；路由自己的预算被它钳住 |
+| `maxInFlight` | `1024` | 并发请求数 |
+| `requestTimeoutMs` | `600000` | 整请求截止时间 |
+| `streamIdleTimeoutMs` | `60000` | 流单元之间的间隔 |
+| `maxRequestBodyBytes` | `67108864` | 超过它的流式体保持流式，计划随之裁剪为单个目标 |
+| `maxResponseBodyBytes` | `67108864` | 缓冲响应上限 |
+| `maxStreamEventBytes` | `1048576` | 一个 SSE 事件或数组元素 |
+| `maxWsFrameBytes` | `16777216` | 更大的帧以 `1009` 关闭双方 |
+| `maxMultipartParts` | `64` | |
+| `enableSettlement`、`enableUsage` | `true` | 定价与用量行 |
+| `enableTokenizerVocabs` | `true` | 用真实词表计数 |
+| `enableTokenizerDownload` | `false` | 抓取未缓存的词表 |
+| `retentionDays`、`maxDatabaseSizeMb` | 未设 | |
+| `portalRecentRequestsEnabled` | `true` | 用户面是否展示近期请求 |
+| `corsOrigins`、`trustedProxies`、`connectionProfileId`、`oauthClientAllowlist` | | 同一批策略在数据库里的那一份 |
+| `configRevision` | | 只读：每个实例据以同步的 revision |
+
+logging 组是 `enableDownstreamLog`、`enableDownstreamLogBody`、`enableUpstreamLog`、
+`enableUpstreamLogBody`、`disableLogRedaction`、`enableTracing`、`logLevel`、`logFormat`
+和三个黑名单。两个 body 开关默认关闭，见
+[用量、日志与审计](/zh-cn/guides/observability/#capture)。
+
+## 跑多个实例
+
+三件事会变：
+
+1. **`GPROXY_REDIS_URL`。** 默认 cache 是进程本地的，两个实例不会看到彼此的失效通知，
+   也会各自独立地计限流。回答不了的 cache 会**拒绝**一个受限流的请求而不是放行它——静默
+   地退回本地，会把一次故障变成"这个实例上所有限额都关了"。
+2. **`gproxy migrate` 作为独立一步**，由单一写入者在任何实例启动前执行。
+3. **轮换时只跑一个实例**，如上。
+
+## 可信代理规则
+
+`x-forwarded-for` 和 `x-forwarded-proto` 是 header，而 header 是对端写什么就是什么。
+**只有当 socket 的对端是回环或列在 `trustedProxies` 里时**它们才被相信。来自任何其他对端
+时直接忽略——不合并、不偏好、也不当兜底——而默认谁都不信。
+
+两者都要紧，理由不同。伪造的 `x-forwarded-for` 决定运维者日志里某个请求旁边的那个地址。
+伪造的 `x-forwarded-proto` 决定 **OAuth issuer 标识的 scheme**，而那是一份告诉客户端把
+授权码发往哪里的发现文档。
+
+对端未知时按不可信处理。

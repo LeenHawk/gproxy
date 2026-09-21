@@ -1,0 +1,135 @@
+use crate::transform::{Report, TransformError};
+use crate::wire::{gemini, openai};
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+
+pub(crate) fn converted<T>(value: T, report: Report) -> crate::transform::Converted<T> {
+    crate::transform::Converted { value, report }
+}
+
+pub(crate) fn model_resource(value: &str) -> Result<String, TransformError> {
+    if value.is_empty() || value == "models/" {
+        return Err(TransformError::missing_metadata("target_model"));
+    }
+    if value.starts_with("models/") {
+        Ok(value.to_owned())
+    } else {
+        Ok(format!("models/{value}"))
+    }
+}
+
+pub(crate) fn target_model_name(value: &str) -> Result<String, TransformError> {
+    Ok(value.to_owned())
+}
+
+pub(crate) fn source_model_resource(value: &str) -> Result<String, TransformError> {
+    model_resource(value)
+}
+
+pub(crate) fn text_content(value: String) -> gemini::content::Content {
+    gemini::content::Content {
+        parts: Some(vec![gemini::content::Part {
+            thought: None,
+            thought_signature: None,
+            part_metadata: None,
+            media_resolution: None,
+            text: Some(value),
+            inline_data: None,
+            function_call: None,
+            function_response: None,
+            file_data: None,
+            executable_code: None,
+            code_execution_result: None,
+            tool_call: None,
+            tool_response: None,
+            video_metadata: None,
+            rest: Default::default(),
+        }]),
+        role: None,
+        rest: Default::default(),
+    }
+}
+
+pub(crate) fn content_text(content: gemini::content::Content) -> Result<String, TransformError> {
+    Ok(content
+        .parts
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|part| part.text)
+        .collect::<Vec<_>>()
+        .join(""))
+}
+
+pub(crate) fn dimensions(value: Option<i64>) -> Result<Option<i64>, TransformError> {
+    Ok(value)
+}
+
+pub(crate) fn gemini_dimensions(
+    body: &gemini::embeddings::EmbedContentRequestBody,
+) -> Result<Option<i64>, TransformError> {
+    let top = dimensions(body.output_dimensionality)?;
+    let config = body
+        .embed_content_config
+        .as_ref()
+        .and_then(|config| config.output_dimensionality);
+    let config = dimensions(config)?;
+    match (top, config) {
+        (Some(top), Some(config)) if top != config => Err(TransformError::new(
+            crate::transform::TransformErrorKind::Conflict,
+            "embedding.output_dimensionality",
+            "top-level and config dimensions disagree",
+        )),
+        (Some(value), _) | (_, Some(value)) => Ok(Some(value)),
+        (None, None) => Ok(None),
+    }
+}
+
+pub(crate) fn decode_base64(value: &str) -> Result<Vec<serde_json::Number>, TransformError> {
+    let bytes = STANDARD.decode(value).map_err(|error| {
+        TransformError::shape(
+            "embedding.base64",
+            format!("invalid base64 vector: {error}"),
+        )
+    })?;
+
+    bytes
+        .chunks(4)
+        .map(|chunk| {
+            let value = f32::from_le_bytes(chunk.try_into().map_err(|_| {
+                TransformError::invalid_result("embedding.base64", "incomplete float32 value")
+            })?);
+            serde_json::Number::from_f64(f64::from(value)).ok_or_else(|| {
+                TransformError::invalid_result(
+                    "embedding.base64",
+                    "vector contains non-finite value",
+                )
+            })
+        })
+        .collect()
+}
+
+pub(crate) fn vector_values(
+    vector: openai::embeddings::EmbeddingVector,
+) -> Result<Vec<serde_json::Number>, TransformError> {
+    match vector {
+        openai::embeddings::EmbeddingVector::Floats(values) => Ok(values),
+        openai::embeddings::EmbeddingVector::Base64(value) => decode_base64(&value),
+    }
+}
+
+pub(crate) fn encode_base64(values: &[serde_json::Number]) -> Result<String, TransformError> {
+    let mut bytes = Vec::with_capacity(values.len() * 4);
+    for value in values {
+        let value = value.as_f64().ok_or_else(|| {
+            TransformError::invalid_result("embedding.values", "value is not a JSON number")
+        })?;
+        let value = value as f32;
+        if !value.is_finite() {
+            return Err(TransformError::invalid_result(
+                "embedding.values",
+                "vector contains non-finite value",
+            ));
+        }
+        bytes.extend_from_slice(&value.to_le_bytes());
+    }
+    Ok(STANDARD.encode(bytes))
+}

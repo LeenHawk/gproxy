@@ -1,0 +1,432 @@
+//! The call entry: what reaches core, what fails over, and what stops.
+
+mod support;
+
+use std::{collections::BTreeSet, sync::Arc};
+
+use gproxy_core::{BudgetOwner, SessionSource, UsageAttribution};
+use gproxy_protocol::{
+    Dialect, HttpBody, Operation, OperationKey, WireRequest,
+    connection::{Bytes, HeaderMap, HeaderValue, Method},
+};
+use gproxy_sdk::{GATEWAY_SESSION_HEADER, SdkError};
+use gproxy_store::entity::usage::usage_record;
+use http::StatusCode;
+use sea_orm::EntityTrait;
+use serde_json::json;
+use support::seed::{self, Handle, Reply, SeedClient, SeedObserver, WsReply};
+
+fn generate() -> OperationKey {
+    OperationKey {
+        operation: Operation::GenerateContent,
+        dialect: Dialect::OpenAi,
+    }
+}
+
+fn request(body: serde_json::Value) -> WireRequest<HttpBody> {
+    WireRequest {
+        method: Method::POST,
+        path: "/v1/responses".into(),
+        query: None,
+        headers: HeaderMap::new(),
+        body: HttpBody::Bytes(Bytes::from(serde_json::to_vec(&body).unwrap())),
+    }
+}
+
+fn with_headers(body: serde_json::Value, pairs: &[(&'static str, &str)]) -> WireRequest<HttpBody> {
+    let mut request = request(body);
+    for (name, value) in pairs {
+        request
+            .headers
+            .insert(*name, HeaderValue::from_str(value).unwrap());
+    }
+    request
+}
+
+/// Two providers of the `test` channel, both serving `m1`, behind one
+/// failover route exposed as `pair`.
+async fn pair() -> (Handle, Arc<SeedClient>, Arc<SeedObserver>) {
+    let (gproxy, client, observer) = seed::handle().await;
+    for id in ["p1", "p2"] {
+        seed::provider(&gproxy, id, "test", &["m1"]).await;
+        seed::credential(&gproxy, &format!("c-{id}"), id).await;
+    }
+    seed::route(
+        &gproxy,
+        "r",
+        "pair",
+        gproxy_store::entity::routing::route::RouteStrategy::Failover,
+        4,
+        &[("m-p1", "p1", "m1", 0, 100), ("m-p2", "p2", "m1", 0, 100)],
+    )
+    .await;
+    seed::publish(&gproxy).await;
+    (gproxy, client, observer)
+}
+
+/// Drain the response and its settlement, which is what makes the usage row
+/// appear; a host that abandons the body gets the same settlement later.
+async fn finish(execution: gproxy_core::HttpExecution) -> String {
+    let (response, usage) = execution.into_parts();
+    let body = support::read(response.body).await;
+    usage.await.unwrap();
+    body
+}
+
+async fn usage_rows(gproxy: &Handle) -> Vec<usage_record::Model> {
+    gproxy
+        .store()
+        .usage_records()
+        .query(usage_record::Entity::find())
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn a_scripted_answer_comes_back_and_is_metered() {
+    let (gproxy, client, _) = pair().await;
+    client.script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
+
+    let execution = gproxy
+        .call(generate(), request(json!({"model": "pair"})))
+        .scope("user:u1")
+        .attribution(UsageAttribution {
+            user_id: Some("u1".into()),
+            ..Default::default()
+        })
+        .request_id("req-1")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(execution.response().status, StatusCode::OK);
+    assert_eq!(finish(execution).await, r#"{"ok":true}"#);
+
+    assert_eq!(client.urls(), ["https://p1.example/v1/responses"]);
+    let rows = usage_rows(&gproxy).await;
+    assert_eq!(rows.len(), 1, "one request, one usage summary");
+    assert_eq!(rows[0].request_id, "req-1");
+    assert_eq!(rows[0].user_id.as_deref(), Some("u1"));
+    assert_eq!(
+        rows[0].model, "pair",
+        "the model the caller named, taken from the body"
+    );
+}
+
+#[tokio::test]
+async fn a_rejected_provider_hands_over_to_the_next_one() {
+    let (gproxy, client, _) = pair().await;
+    client.script(vec![
+        Reply::Http(StatusCode::SERVICE_UNAVAILABLE, json!({"error": "down"})),
+        Reply::Http(StatusCode::OK, json!({"from": "p2"})),
+    ]);
+
+    let execution = gproxy
+        .call(generate(), request(json!({"model": "pair"})))
+        .scope("user:u1")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(execution.response().status, StatusCode::OK);
+    assert_eq!(finish(execution).await, r#"{"from":"p2"}"#);
+    assert_eq!(
+        client.urls(),
+        [
+            "https://p1.example/v1/responses",
+            "https://p2.example/v1/responses"
+        ],
+        "both providers were tried, in plan order"
+    );
+}
+
+#[tokio::test]
+async fn the_last_provider_s_answer_is_returned_as_it_is() {
+    let (gproxy, client, _) = pair().await;
+    client.script(vec![
+        Reply::Http(StatusCode::SERVICE_UNAVAILABLE, json!({"error": "a"})),
+        Reply::Http(StatusCode::TOO_MANY_REQUESTS, json!({"error": "b"})),
+    ]);
+
+    let execution = gproxy
+        .call(generate(), request(json!({"model": "pair"})))
+        .scope("user:u1")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        execution.response().status,
+        StatusCode::TOO_MANY_REQUESTS,
+        "with nowhere left to go the caller gets the upstream's own answer"
+    );
+    assert_eq!(finish(execution).await, r#"{"error":"b"}"#);
+}
+
+#[tokio::test]
+async fn every_provider_failing_returns_the_last_error() {
+    let (gproxy, client, _) = pair().await;
+    client.script(vec![
+        Reply::Transport("p1 unreachable"),
+        Reply::Transport("p2 unreachable"),
+    ]);
+
+    let error = gproxy
+        .call(generate(), request(json!({"model": "pair"})))
+        .scope("user:u1")
+        .send()
+        .await
+        .expect_err("nothing answered");
+    assert!(
+        error.to_string().contains("p2 unreachable"),
+        "the last provider's failure is the one reported: {error}"
+    );
+    assert_eq!(client.urls().len(), 2);
+}
+
+#[tokio::test]
+async fn a_spent_budget_stops_before_the_first_provider() {
+    let (gproxy, client, _) = pair().await;
+    seed::spent_budget(&gproxy, "q", "user", "u1").await;
+    seed::publish(&gproxy).await;
+    client.script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
+
+    let error = gproxy
+        .call(generate(), request(json!({"model": "pair"})))
+        .scope("user:u1")
+        .budgets(vec![BudgetOwner::new("user", "u1")])
+        .send()
+        .await
+        .expect_err("the budget is spent");
+    assert!(
+        matches!(
+            error,
+            SdkError::Core(gproxy_core::CoreError::BudgetExhausted { .. })
+        ),
+        "{error}"
+    );
+    assert_eq!(error.status_code(), 429);
+    assert!(
+        client.urls().is_empty(),
+        "a spent budget is not retried against another provider"
+    );
+}
+
+#[tokio::test]
+async fn the_gateway_session_wins_and_is_not_forwarded() {
+    let (gproxy, client, observer) = pair().await;
+    client.script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
+
+    let execution = gproxy
+        .call(
+            generate(),
+            with_headers(
+                json!({"model": "pair", "client_metadata": {"thread_id": "t-body"}}),
+                &[(GATEWAY_SESSION_HEADER, "ours"), ("thread-id", "t-header")],
+            ),
+        )
+        .scope("user:u1")
+        .send()
+        .await
+        .unwrap();
+    finish(execution).await;
+
+    let seen = observer.seen();
+    assert_eq!(seen.len(), 1);
+    assert_eq!(seen[0].1.id, "ours");
+    assert_eq!(seen[0].1.source, SessionSource::Gateway);
+
+    let sent = client.seen.lines();
+    assert!(
+        sent[0].contains("gateway=-"),
+        "the gateway header is ours and never reaches the upstream: {}",
+        sent[0]
+    );
+}
+
+#[tokio::test]
+async fn the_claude_encoded_user_id_yields_the_inner_session() {
+    let (gproxy, client, observer) = pair().await;
+    client.script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
+    let encoded = json!({"account_uuid": "acct", "session_id": "sess-42"}).to_string();
+
+    let execution = gproxy
+        .call(
+            OperationKey {
+                operation: Operation::GenerateContent,
+                dialect: Dialect::Claude,
+            },
+            request(json!({"model": "pair", "metadata": {"user_id": encoded}})),
+        )
+        .scope("user:u1")
+        .send()
+        .await
+        .unwrap();
+    finish(execution).await;
+
+    let seen = observer.seen();
+    assert_eq!(seen[0].1.id, "sess-42");
+    assert_eq!(seen[0].1.source, SessionSource::ClaudeCode);
+    assert_eq!(
+        seen[0].1.field.as_deref(),
+        Some("metadata.user_id.session_id")
+    );
+}
+
+#[tokio::test]
+async fn a_request_without_a_session_gets_its_own_id_and_says_so() {
+    let (gproxy, client, observer) = pair().await;
+    client.script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
+
+    let execution = gproxy
+        .call(generate(), request(json!({"model": "pair"})))
+        .scope("user:u1")
+        .request_id("req-7")
+        .send()
+        .await
+        .unwrap();
+    finish(execution).await;
+
+    let seen = observer.seen();
+    assert_eq!(seen[0].1.id, "req-7");
+    assert_eq!(
+        seen[0].1.source,
+        SessionSource::RequestFallback,
+        "a request id is never claimed to be a cross-turn session"
+    );
+}
+
+#[tokio::test]
+async fn a_call_without_a_scope_is_refused_before_anything_is_sent() {
+    let (gproxy, client, _) = pair().await;
+    let error = gproxy
+        .call(generate(), request(json!({"model": "pair"})))
+        .send()
+        .await
+        .expect_err("there is no safe default scope");
+    assert!(matches!(error, SdkError::Invalid(_)), "{error}");
+    assert_eq!(error.status_code(), 400);
+    assert!(client.urls().is_empty());
+}
+
+#[tokio::test]
+async fn the_narrowing_setters_reach_the_plan() {
+    let (gproxy, client, _) = pair().await;
+    client.script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
+
+    // p1 would come first; allowing only p2's credential leaves p2 alone.
+    let credentials: BTreeSet<String> = ["c-p2".to_owned()].into();
+    let execution = gproxy
+        .call(generate(), request(json!({"model": "pair"})))
+        .scope("user:u1")
+        .credentials(credentials)
+        .send()
+        .await
+        .unwrap();
+    finish(execution).await;
+    assert_eq!(client.urls(), ["https://p2.example/v1/responses"]);
+
+    // An allowance that reaches nothing is a plan with no target.
+    let error = gproxy
+        .call(generate(), request(json!({"model": "pair"})))
+        .scope("user:u1")
+        .providers(BTreeSet::new())
+        .send()
+        .await
+        .expect_err("no provider is allowed");
+    assert!(matches!(error, SdkError::NoTarget(_)), "{error}");
+}
+
+#[tokio::test]
+async fn an_explicit_model_overrides_the_body() {
+    let (gproxy, client, _) = pair().await;
+    client.script(vec![Reply::Http(StatusCode::OK, json!({"ok": true}))]);
+
+    // The body names a route that does not exist; the setter names one that does.
+    let execution = gproxy
+        .call(generate(), request(json!({"model": "nonsense"})))
+        .scope("user:u1")
+        .model("test/m1")
+        .request_id("req-9")
+        .send()
+        .await
+        .unwrap();
+    finish(execution).await;
+    assert_eq!(usage_rows(&gproxy).await[0].model, "test/m1");
+}
+
+#[tokio::test]
+async fn the_attempt_budget_is_shared_across_targets() {
+    let (gproxy, client, _) = pair().await;
+    client.script(vec![
+        Reply::Http(StatusCode::SERVICE_UNAVAILABLE, json!({"error": "a"})),
+        Reply::Http(StatusCode::SERVICE_UNAVAILABLE, json!({"error": "b"})),
+    ]);
+
+    // One attempt in total: the first target spends it and the second is
+    // never reached, so its answer is the one the caller sees.
+    let execution = gproxy
+        .call(generate(), request(json!({"model": "pair"})))
+        .scope("user:u1")
+        .max_attempts(std::num::NonZeroU32::new(1).unwrap())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(execution.response().status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(finish(execution).await, r#"{"error":"a"}"#);
+    assert_eq!(client.urls(), ["https://p1.example/v1/responses"]);
+}
+
+#[tokio::test]
+async fn a_refused_handshake_hands_over_to_the_next_provider() {
+    let (gproxy, client, _) = seed::handle().await;
+    for id in ["w1", "w2"] {
+        seed::provider(&gproxy, id, "alt", &["m1"]).await;
+        seed::credential(&gproxy, &format!("c-{id}"), id).await;
+    }
+    seed::route(
+        &gproxy,
+        "r",
+        "sockets",
+        gproxy_store::entity::routing::route::RouteStrategy::Failover,
+        4,
+        &[("m-w1", "w1", "m1", 0, 100), ("m-w2", "w2", "m1", 0, 100)],
+    )
+    .await;
+    seed::publish(&gproxy).await;
+    client.script_ws(vec![
+        WsReply::Rejected(StatusCode::SERVICE_UNAVAILABLE),
+        WsReply::Connected,
+    ]);
+
+    let execution = gproxy
+        .connect(
+            OperationKey {
+                operation: Operation::StreamGenerateContent,
+                dialect: Dialect::OpenAiResponsesWebSocket,
+            },
+            WireRequest {
+                method: Method::GET,
+                path: "/v1/realtime".into(),
+                query: None,
+                headers: HeaderMap::new(),
+                body: (),
+            },
+        )
+        .scope("user:u1")
+        .model("sockets")
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        matches!(
+            execution.response(),
+            gproxy_protocol::capability::UpstreamConnection::Connected { .. }
+        ),
+        "a refused upgrade is a failed status like any other"
+    );
+    assert_eq!(
+        client.urls(),
+        [
+            "wss://w1.example/v1/realtime",
+            "wss://w2.example/v1/realtime"
+        ]
+    );
+}

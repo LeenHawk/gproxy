@@ -1,0 +1,223 @@
+[package]
+name = "gproxy-channel"
+description = "Standalone GPROXY channel contracts, optional capabilities and explicit invocation"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+# Not a channel. `ts-rs` declarations for the descriptor types, so the console
+# that renders a provider form off `BaseChannel::descriptor` is typed against
+# the descriptor itself rather than a hand-written copy. Nothing here exports;
+# `gproxy-sdk`'s export list names these types beside its own DTOs.
+ts = ["dep:ts-rs"]
+
+# Google AI Studio (Gemini API key) upstream: the native Gemini methods and
+# the /v1beta/openai compatibility layer off one origin, SSE and JSON-array
+# streams, usageMetadata metering.
+aistudio = []
+# Antigravity (Google account through the Antigravity editor's Code Assist
+# host): PKCE login that discovers the Cloud project and tier, refresh, the
+# Code Assist request envelope, the fetchAvailableModels catalogue and its
+# per-model quota.
+antigravity = [
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:time",
+    "dep:web-time",
+]
+# AWS Bedrock: every request is SigV4-signed. Anthropic models are invoked
+# through bedrock-runtime InvokeModel with the Bedrock Claude Messages
+# envelope, the streaming reply arrives as AWS event-stream frames that the
+# channel translates into Claude Messages SSE, and the control plane's
+# foundation-model directory answers ListModels/GetModel.
+aws_bedrock = [
+    "dep:base64",
+    "dep:crc32fast",
+    "dep:futures-util",
+    "dep:hmac",
+    "dep:sha2",
+    "dep:web-time",
+]
+# Azure OpenAI and the Anthropic models Azure AI Foundry hosts beside them:
+# an API key on the v1 or the deployment-scoped surface, no login, no refresh.
+azure = []
+# API-key upstreams speaking one or more native dialects verbatim.
+custom = []
+# OpenAI Codex (ChatGPT account) upstream: OAuth login/refresh, Responses over
+# HTTP and WebSocket, x-codex rate-limit headers and /wham/usage.
+codex = ["dep:url", "dep:base64", "dep:futures-util", "dep:sha2", "dep:web-time"]
+# Anthropic's first-party API (api.anthropic.com) upstream: x-api-key
+# Messages with the API's request hygiene and server-side fallback, the
+# OpenAI SDK compatibility layer, anthropic-ratelimit-* headers and the
+# organization cost report.
+claudeapi = ["dep:futures-util", "dep:time", "dep:web-time"]
+# Claude Code (Claude.ai subscription) upstream: PKCE and cookie login,
+# refresh, Messages over HTTP with the CLI's request hygiene, unified
+# rate-limit headers and /api/oauth/usage.
+claudecode = [
+    "dep:base64",
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:sha2",
+    "dep:time",
+    "dep:web-time",
+]
+# Claude Web (claude.ai browser session) upstream: cookie login against
+# /api/bootstrap, multi-call conversation turns translated into Claude
+# Messages SSE, /api/organizations/{org}/usage quota windows.
+claudeweb = [
+    "dep:send_wrapper",
+    "dep:base64",
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:time",
+    "dep:web-time",
+]
+# Cline (cline.bot) coding-agent account: a WorkOS device login registered
+# with Cline's own API, a `workos:`-prefixed bearer, the tool's attribution
+# headers, the `{success, data}` envelope its REST surface wraps replies in,
+# its own recommended-model catalogue, plan-usage windows and credit balance.
+cline = ["dep:base64", "dep:futures-util", "dep:time", "dep:web-time"]
+# GitHub Copilot CLI: a GitHub OAuth token from a device login, exchanged
+# through CredentialRefresh for the short-lived Copilot token that Chat
+# Completions actually presents, the CLI's editor-identity headers and the
+# `copilot_internal/user` quota snapshots.
+copilotcli = [
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:sha2",
+    "dep:time",
+    "dep:web-time",
+]
+# Alibaba DashScope: one origin serving an OpenAI-compatible mode, an
+# Anthropic-compatible mode, a rerank prefix of its own and the native
+# multimodal-generation image API.
+dashscope = ["dep:futures-util"]
+# DeepSeek: OpenAI Chat, Responses off /responses and Claude Messages off
+# /anthropic, with prompt_cache_hit_tokens and the /user/balance probe.
+deepseek = ["dep:futures-util"]
+# Devin (Windsurf) cloud upstream at server.codeium.com: Connect-RPC over
+# protobuf rather than HTTP+JSON, so the channel hand-writes the envelope and
+# the few messages it needs; GetChatMessage frames become OpenAI Chat
+# Completions SSE, and GetUserStatus reports the daily and weekly quota
+# windows over Connect's JSON codec.
+devin = [
+    "dep:base64",
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:miniz_oxide",
+    "dep:sha2",
+    "dep:time",
+    "dep:web-time",
+]
+# Gemini CLI (Google account through Code Assist): PKCE login that discovers
+# the Cloud project and tier, refresh, the Code Assist request envelope, and
+# the retrieveUserQuota catalogue and per-model quota.
+geminicli = [
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:time",
+    "dep:web-time",
+]
+# Grok Build (grok-shell): an xAI account granted through the CLI's device
+# login and used against the Grok Build chat proxy rather than api.x.ai. The
+# Responses body is narrowed to what that proxy accepts, xAI's own media paths
+# stay on the public origin, and /billing reports the credit window.
+grokbuild = [
+    "dep:base64",
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:time",
+    "dep:web-time",
+]
+# Moonshot Kimi: an API key against api.moonshot.cn or a Kimi Code device
+# login against api.kimi.com, with the CLI's x-msh-* identity headers.
+kimi = ["dep:futures-util", "dep:getrandom", "dep:time", "dep:web-time"]
+# Kiro (AWS CodeWhisperer through the Kiro desktop app): a Builder ID or IAM
+# Identity Center token against the CodeWhisperer Smithy surface. The OpenAI
+# Responses request becomes a conversation envelope, the AWS event-stream
+# reply is translated back into Responses SSE, and GetUsageLimits reports the
+# subscription's credit windows.
+kiro = [
+    "dep:crc32fast",
+    "dep:futures-util",
+    "dep:sha2",
+    "dep:web-time",
+]
+# OpenAI's own platform (api.openai.com) upstream: the full OpenAI surface,
+# Responses and Realtime over a WebSocket, x-ratelimit-* headers and the
+# organization cost report.
+openai = ["dep:futures-util", "dep:web-time"]
+# OpenCode (opencode.ai) Zen and Go: one account reached with a device login
+# or a pasted key, three compatible surfaces on one origin, the tool's
+# `x-opencode-session` affinity header and the Go tier's `/usage` windows.
+opencode = [
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:time",
+    "dep:web-time",
+]
+# OpenRouter: provider routing preferences, app attribution headers,
+# upstream-priced usage and the /v1/auth/key budget probe.
+openrouter = ["dep:futures-util"]
+# Google Vertex AI: regional project-scoped methods for the Google, Anthropic
+# and OpenAI-compatible surfaces, with a service-account key exchanged for a
+# short-lived access token through CredentialRefresh (RS256, hence `rsa`).
+vertex = [
+    "dep:base64",
+    "dep:futures-util",
+    "dep:getrandom_v02",
+    "dep:rsa",
+    "dep:web-time",
+]
+# Google Vertex AI Express mode: the Gemini surface with an API key in the
+# query, no project and no region.
+vertexexpress = []
+# WorkBuddy (Tencent Copilot, `copilot.tencent.com`): a device login through
+# the editor plugin's auth endpoints, OpenAI Chat under /v2 carrying the CLI's
+# identity headers, a /v3/config model catalogue and the two billing-meter
+# surfaces an enterprise and a personal account read.
+workbuddy = [
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:time",
+    "dep:web-time",
+]
+# xAI: OpenAI Chat and Responses with xAI's own speech, transcription and
+# video paths, cost ticks in usage and the management billing probe.
+xai = ["dep:futures-util"]
+
+[dependencies]
+url = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+crc32fast = { workspace = true, optional = true }
+futures-util = { workspace = true, optional = true }
+getrandom = { workspace = true, optional = true }
+gproxy-client.workspace = true
+gproxy-protocol.workspace = true
+http.workspace = true
+hmac = { workspace = true, optional = true }
+miniz_oxide = { workspace = true, optional = true }
+rsa = { workspace = true, optional = true }
+rust_decimal.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2 = { workspace = true, optional = true }
+thiserror.workspace = true
+time = { workspace = true, optional = true }
+ts-rs = { workspace = true, optional = true }
+web-time = { workspace = true, optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+send_wrapper = { workspace = true, optional = true }
+# Never imported. `rsa` reaches getrandom 0.2 through rand_core 0.6, and that
+# version refuses to build for wasm32-unknown-unknown unless its `js` backend
+# is selected; naming it here is how a dependent selects it.
+getrandom_v02 = { workspace = true, optional = true }
+
+[dev-dependencies]
+futures-util = { workspace = true, features = ["sink"] }
+tokio = { workspace = true, features = ["macros", "rt"] }

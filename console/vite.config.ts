@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process"
+import { readFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import tailwindcss from "@tailwindcss/vite"
@@ -8,9 +10,15 @@ const consoleDir = path.dirname(fileURLToPath(import.meta.url))
 const backend = process.env.GPROXY_DEV_BACKEND ?? "http://127.0.0.1:8787"
 const workspace = readFileSync(path.resolve(consoleDir, "../Cargo.toml"), "utf8")
 const version = /\[workspace\.package\][\s\S]*?version\s*=\s*"([^"]+)"/.exec(workspace)?.[1] ?? "unknown"
-const buildHash = process.env.GPROXY_BUILD_HASH ?? execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { cwd: path.resolve(consoleDir, ".."), encoding: "utf8" }).trim()
+const buildHash = process.env.GPROXY_BUILD_HASH
+  ?? execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { cwd: path.resolve(consoleDir, ".."), encoding: "utf8" }).trim()
 
+// `gproxy-host-axum` serves the bundle under `/console`, and only under it:
+// `console::asset_name` strips exactly that prefix, so a document loaded from
+// `/` that asked for `/assets/app.js` would 404. The base makes every emitted
+// URL absolute under the prefix the host actually owns.
 export default defineConfig({
+  base: "/console/",
   define: {
     __GPROXY_VERSION__: JSON.stringify(version),
     __GPROXY_BUILD_HASH__: JSON.stringify(buildHash),
@@ -19,14 +27,11 @@ export default defineConfig({
   resolve: { alias: { "@": path.join(consoleDir, "src") } },
   server: {
     proxy: {
-      "/admin/api": {
-        target: backend,
-        changeOrigin: true,
-        headers: { origin: backend },
-        bypass: (request) => request.method === "GET" && request.headers.accept?.includes("text/html") ? "/index.html" : undefined,
-      },
+      // `changeOrigin` plus an explicit `origin` is what gets a dev request
+      // past the same-origin check the host applies to unsafe methods.
+      "/admin/api": { target: backend, changeOrigin: true, headers: { origin: backend } },
       "/portal/api": { target: backend, changeOrigin: true, headers: { origin: backend } },
-      "/oauth": { target: backend, changeOrigin: false },
+      "/v1/oauth": { target: backend, changeOrigin: true, headers: { origin: backend } },
     },
   },
   build: { outDir: "dist", assetsDir: "assets", emptyOutDir: true },
@@ -36,5 +41,3 @@ export default defineConfig({
     css: true,
   },
 })
-import { execFileSync } from "node:child_process"
-import { readFileSync } from "node:fs"

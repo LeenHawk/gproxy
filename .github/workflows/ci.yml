@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend (fmt · clippy · test · edge-wasm)
+    name: Backend (fmt · clippy · test · wasm)
     needs: console
     runs-on: ubuntu-latest
     steps:
@@ -26,10 +26,78 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-targets: true
-      - run: cargo fmt --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
-      - run: cargo check --workspace --target wasm32-unknown-unknown
+      - run: cargo fmt --all --check
+      # No `--workspace` on the next two, on purpose. They build the root
+      # manifest's `default-members`, which is every crate except the desktop
+      # shell; the comment there explains why the shell is excluded, and the
+      # `desktop` job below is the other half of that same decision. Between
+      # the two jobs every member is still linted and tested.
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      # This step used to be `cargo check --workspace --target
+      # wasm32-unknown-unknown`, and it could never have passed. The workspace
+      # now holds the CLI and the desktop shell, and both reach tokio's `net`
+      # feature, so mio stops the build outright: "This wasm target is
+      # unsupported by mio." Neither belongs in a browser or a Worker.
+      #
+      # What must stay wasm-clean is the engine and the two hosts that actually
+      # deploy there. Every crate below claims that property in its own README;
+      # this list is that claim, enforced.
+      - name: wasm (default features)
+        run: >
+          cargo check --target wasm32-unknown-unknown
+          -p gproxy-protocol -p gproxy-store -p gproxy-seaorm -p gproxy-client
+          -p gproxy-cache -p gproxy-channel -p gproxy-core -p gproxy-file
+          -p gproxy-tokenizer -p gproxy-sdk -p gproxy-app -p gproxy-host-axum
+          -p gproxy-host-edge
+      # The non-default feature sets the READMEs document as wasm-clean, one
+      # invocation each because cargo unifies features across a single
+      # invocation and these are deliberately different answers. `gproxy-sdk`'s
+      # `postgres` and `mysql` are native-only and are not here; `gproxy-file`'s
+      # `fs` is native-only, which is why its check drops the default set.
+      # `gproxy-channel` and `gproxy-host-edge` are `--lib` because their tests
+      # are native by design.
+      - name: wasm (documented feature sets)
+        run: |
+          cargo check --target wasm32-unknown-unknown -p gproxy-sdk --features libsql
+          cargo check --target wasm32-unknown-unknown -p gproxy-cache --all-features
+          cargo check --target wasm32-unknown-unknown -p gproxy-file --no-default-features --features s3
+          cargo check --target wasm32-unknown-unknown -p gproxy-channel --all-features --lib
+
+  # The other half of the root manifest's `default-members` decision. wry,
+  # webkit2gtk and gtk are ~180 transitive crates that say nothing about the
+  # engine, and a runner cannot build them at all without these headers — so
+  # the shell is checked here instead of taxing every backend run with an apt
+  # install and a cold build of all of it.
+  #
+  # `libdbus-1-dev` is not in the manifest's list of three: `tao` links dbus.
+  # The tests themselves need no D-Bus session, no keychain and no display —
+  # `tests/assembly.rs` drives `Desktop::start` against a temp directory with
+  # the in-memory `SecretStore`, and `tests/table.rs` drives Tauri's
+  # `MockRuntime`. This runner needs the headers to compile, not to run.
+  desktop:
+    name: Desktop shell (clippy · test)
+    needs: console
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: console-dist
+          path: crates/gproxy-host-axum/assets/web
+      - name: Install desktop toolkit headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libdbus-1-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: desktop-shell
+      - run: cargo clippy -p gproxy-host-tauri --all-targets -- -D warnings
+      - run: cargo test -p gproxy-host-tauri
 
   console:
     name: Console (typecheck · test · build · i18n)

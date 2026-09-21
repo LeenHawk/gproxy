@@ -1,0 +1,78 @@
+[
+  {
+    "name": "two_instances_two_samples",
+    "direction": "veo_request",
+    "input": {
+      "instances": [
+        {
+          "prompt": "first"
+        },
+        {
+          "prompt": "second"
+        }
+      ],
+      "parameters": {
+        "sampleCount": 2,
+        "durationSeconds": 4,
+        "aspectRatio": "16:9",
+        "resolution": "720p"
+      }
+    },
+    "v4_children": 4
+  },
+  {
+    "name": "one_instance_three_samples",
+    "direction": "veo_request",
+    "input": {
+      "instances": [
+        {
+          "prompt": "first"
+        }
+      ],
+      "parameters": {
+        "sampleCount": 3,
+        "durationSeconds": 4,
+        "aspectRatio": "16:9",
+        "resolution": "720p"
+      }
+    },
+    "v4_children": 3
+  },
+  {
+    "name": "zero_sample_count",
+    "direction": "veo_request",
+    "input": {
+      "instances": [
+        {
+          "prompt": "first"
+        }
+      ],
+      "parameters": {
+        "sampleCount": 0,
+        "durationSeconds": 4,
+        "aspectRatio": "16:9",
+        "resolution": "720p"
+      }
+    },
+    "v4_children": null
+  },
+  {
+    "name": "native_negative_prompt",
+    "direction": "veo_request",
+    "input": {
+      "instances": [
+        {
+          "prompt": "first"
+        }
+      ],
+      "parameters": {
+        "sampleCount": 1,
+        "durationSeconds": 4,
+        "aspectRatio": "16:9",
+        "resolution": "720p",
+        "negativePrompt": "avoid red"
+      }
+    },
+    "v4_children": 1
+  }
+]

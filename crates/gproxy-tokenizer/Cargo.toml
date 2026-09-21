@@ -1,0 +1,21 @@
+[package]
+name = "gproxy-tokenizer"
+description = "Runtime-independent local token counting for GPROXY"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["local"]
+tiktoken = ["dep:tiktoken-rs"]
+huggingface = ["dep:tokenizers"]
+bundled-deepseek = ["huggingface"]
+local = ["tiktoken", "huggingface", "bundled-deepseek"]
+
+[dependencies]
+tiktoken-rs = { workspace = true, optional = true }
+tokenizers = { workspace = true, optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tokenizers = { workspace = true, optional = true, features = ["unstable_wasm"] }

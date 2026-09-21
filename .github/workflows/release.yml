@@ -112,8 +112,6 @@ jobs:
         run: cargo install cross --locked
       - if: ${{ matrix.builder == 'cargo-ndk' }}
         uses: android-actions/setup-android@v4
-        with:
-          packages: platform-tools
       - if: ${{ matrix.builder == 'cargo-ndk' }}
         run: cargo install cargo-ndk --locked
       - name: Build
@@ -232,10 +230,6 @@ jobs:
             dist/release/${{ matrix.artifact }}.provenance.json
             dist/release/${{ matrix.artifact }}.zip
             dist/release/${{ matrix.artifact }}.zip.sha256
-            dist/release/${{ matrix.artifact }}.deb
-            dist/release/${{ matrix.artifact }}.deb.sha256
-            dist/release/${{ matrix.artifact }}.dmg
-            dist/release/${{ matrix.artifact }}.dmg.sha256
             dist/release/${{ matrix.artifact }}.apk
             dist/release/${{ matrix.artifact }}.apk.sha256
           retention-days: 1

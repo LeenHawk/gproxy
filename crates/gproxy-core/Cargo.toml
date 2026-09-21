@@ -1,32 +1,63 @@
 [package]
 name = "gproxy-core"
-description = "GPROXY v3 embeddable core: channels, credential lifecycle, transforms, execution"
+description = "Runtime data and request context contracts for the GPROXY engine"
+readme = "README.md"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
-[features]
-default = []
-exhaustive = []
-
 [dependencies]
-base64.workspace = true
-gproxy-channel-api.workspace = true
-gproxy-channels.workspace = true
-gproxy-protocol = { workspace = true, features = ["exhaustive"] }
-gproxy-transform.workspace = true
-bytes.workspace = true
-futures-core.workspace = true
-futures-util.workspace = true
-form_urlencoded.workspace = true
-getrandom.workspace = true
-http.workspace = true
-regex.workspace = true
-rust_decimal.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-sha2.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
-web-time.workspace = true
+aes-gcm = { workspace = true }
+arc-swap = { workspace = true }
+base64 = { workspace = true }
+form_urlencoded = { workspace = true }
+futures-core = { workspace = true }
+futures-util = { workspace = true }
+getrandom = { workspace = true }
+gproxy-cache = { workspace = true }
+gproxy-file = { workspace = true }
+gproxy-tokenizer = { workspace = true, default-features = false, features = ["tiktoken", "huggingface"] }
+gproxy-channel = { workspace = true }
+gproxy-client = { workspace = true }
+gproxy-protocol = { workspace = true }
+gproxy-seaorm = { workspace = true }
+gproxy-store = { workspace = true }
+http = { workspace = true }
+percent-encoding = { workspace = true }
+regex = { workspace = true }
+rust_decimal = { workspace = true }
+sea-orm = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_urlencoded = { workspace = true }
+thiserror = { workspace = true }
+time = { workspace = true }
+tokio-util = { workspace = true }
+tracing = { workspace = true }
+url = { workspace = true }
+web-time = { workspace = true }
+zeroize = { workspace = true }
+
+[features]
+default = ["bundled-vocabulary"]
+# Ship DeepSeek's vocabulary for models without a catalog vocabulary file
+# (about 4 MiB in the binary). Off, such models use the character estimate.
+bundled-vocabulary = ["gproxy-tokenizer/bundled-deepseek"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { workspace = true, features = ["sync", "time", "macros", "net"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-timers = { workspace = true }
+gproxy-client = { workspace = true, features = ["fetch"] }
+tokio = { version = "1", default-features = false, features = ["sync", "macros"] }
+wasm-bindgen-futures = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+gproxy-cache = { workspace = true, features = ["memory"] }
+gproxy-client = { workspace = true, features = ["reqwest"] }
+gproxy-file = { workspace = true, features = ["fs"] }
+sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "io-util"] }
