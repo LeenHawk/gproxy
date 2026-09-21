@@ -59,6 +59,7 @@
 //! them would fabricate a past this instance never had. Beyond those, the v3
 //! tables with no v4 form are reported row by row by [`report::Report`].
 
+pub mod channels;
 pub mod config;
 pub mod detect;
 pub mod document;
