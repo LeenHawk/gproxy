@@ -22,7 +22,9 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `claudeapi` | `claudeapi` | Anthropic's own API: `x-api-key` Messages with the API's request hygiene and server-side fallback, the OpenAI SDK compatibility layer, `anthropic-ratelimit-*` headers, `/v1/organizations/cost_report` | `{"api_key", "quota_api_key"}` |
 | `claudecode` | `claudecode` | Claude.ai subscription through the Claude Code CLI's Messages requests: PKCE and cookie login, refresh, unified rate-limit headers, `/api/oauth/usage`, CLI services | `OAuthCredential` |
 | `claudeweb` | `claudeweb` | claude.ai browser session: cookie login against `/api/bootstrap`, multi-call conversation turns rendered as Claude Messages SSE, organization usage windows | session cookie + organization |
+| `cline` | `cline` | Cline's own account at `api.cline.bot`: a WorkOS device login registered with Cline, a `workos:`-prefixed bearer, the SDK's attribution headers, the `{success, data}` envelope its replies arrive in, its recommended-model groups, plan windows and credit balance | `{"api_key"}` or `OAuthCredential` |
 | `codex` | `codex` | ChatGPT account through the Codex backend: OAuth (PKCE and device code), Responses over HTTP SSE and WebSocket, `x-codex-*` limit headers, `/wham/usage`, CLI backend services | `OAuthCredential` |
+| `copilotcli` | `copilotcli` | GitHub Copilot through the `copilot` CLI: a GitHub device login whose long-lived token is exchanged by `CredentialRefresh` for the short-lived Copilot token, the CLI's editor identity, the seat's origin, `copilot_internal/user` quota snapshots | GitHub OAuth token (+ minted Copilot token) |
 | `custom` | `custom` | Any API-key endpoint speaking OpenAI, Claude or Gemini natively | `{"api_key"}` |
 | `dashscope` | `dashscope` | Alibaba DashScope: the OpenAI-compatible mode, the Anthropic-compatible mode, a rerank prefix of its own and the native multimodal-generation image API, all on one origin | `{"api_key"}` |
 | `deepseek` | `deepseek` | DeepSeek: Chat Completions under `/v1`, Responses at the origin root, Claude Messages under `/anthropic`, `prompt_cache_hit_tokens`, `/user/balance` | `{"api_key"}` |
@@ -30,6 +32,7 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `geminicli` | `geminicli` | A Google account through the Code Assist endpoints the Gemini CLI talks to: PKCE login that discovers the Cloud project and tier, refresh, the Code Assist request envelope, `retrieveUserQuota` catalogue and per-model quota | `OAuthCredential` |
 | `kimi` | `kimi` | Moonshot: the platform at `api.moonshot.cn` with an API key, or the Kimi Code subscription at `api.kimi.com` through a device login, refresh and the CLI's `x-msh-*` identity; `/usages` windows or a cash balance | `{"api_key"}` or `OAuthCredential` |
 | `openai` | `openai` | OpenAI's own platform: the full OpenAI surface, Responses and Realtime over a WebSocket, `x-ratelimit-*` headers, `/v1/organization/costs` | `{"api_key", "quota_api_key"}` |
+| `opencode` | `opencode` | OpenCode Zen and Go: Chat Completions, Responses and Claude Messages on one origin per tier, the CLI's `x-opencode-session` affinity header, a Console device login and the Go tier's `/usage` windows | `{"api_key"}` or `OAuthCredential` |
 | `openrouter` | `openrouter` | OpenRouter: provider routing preferences filled into the body, `HTTP-Referer`/`X-Title` attribution, the price the reply says it charged, `/v1/auth/key` | `{"api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI: regional project-scoped methods for the Google, Anthropic and OpenAI-compatible publishers; a service-account key exchanged for an access token through `CredentialRefresh` | Google service-account key |
 | `vertexexpress` | `vertexexpress` | Vertex AI Express mode: the Gemini surface on one global origin, key in the query, no project and no region | `{"api_key"}` |
@@ -85,6 +88,24 @@ internal endpoints those two tools talk to, not a Gemini API key. They share
 the Code Assist request envelope, the Google login and the one-time project
 and tier discovery, and differ in their client id, scopes, user agent, host
 and catalogue method.
+
+`cline`, `copilotcli` and `opencode` are coding tools with accounts of their
+own rather than vendors. Each fronts many models behind one wire it did not
+invent, so what the channel exists for is everything around the request: a
+device login that ends somewhere other than where it started, a credential
+that is not what the inference endpoint accepts, a reply that arrives wrapped,
+a catalogue that is not a model list, and an account surface on a different
+host from the traffic. Only `copilotcli` has a client identity worth
+reproducing (v3 recorded a `profile.rs` for it and for neither of the others),
+so only it returns a `default_connection`.
+
+`copilotcli` is the one channel whose credential cannot be used as it is
+acquired. A GitHub device login yields a long-lived GitHub OAuth token; Chat
+Completions accepts only a Copilot token minted from it, good for minutes.
+That mint is `CredentialRefresh` — the GitHub token is the refresh token and
+the Copilot token the access token — because `prepare` is synchronous and pure
+and would otherwise re-mint on every request. The login's final step performs
+the first mint, so the credential the host persists is usable at once.
 ## Vendors That Need No Channel
 
 A channel is code to maintain against someone else's wire. A vendor earns one

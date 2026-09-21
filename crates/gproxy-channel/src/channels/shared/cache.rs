@@ -25,6 +25,7 @@ use serde_json::Value;
     feature = "codex",
     feature = "custom",
     feature = "openai",
+    feature = "opencode",
     feature = "openrouter"
 ))]
 const MAGIC_PREFIX: &str = "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_";
@@ -49,6 +50,7 @@ const MAGIC: &[(&str, Option<&str>)] = &[
     feature = "codex",
     feature = "custom",
     feature = "openai",
+    feature = "opencode",
     feature = "openrouter"
 ))]
 pub(crate) fn contains_token(bytes: &[u8]) -> bool {
@@ -99,6 +101,7 @@ fn strip(text: &mut String) -> (bool, Option<&'static str>) {
     feature = "codex",
     feature = "custom",
     feature = "openai",
+    feature = "opencode",
     feature = "openrouter"
 ))]
 pub(crate) use rules::*;
@@ -109,6 +112,7 @@ pub(crate) use rules::*;
     feature = "codex",
     feature = "custom",
     feature = "openai",
+    feature = "opencode",
     feature = "openrouter"
 ))]
 mod rules {
@@ -119,7 +123,8 @@ mod rules {
         feature = "claudecode",
         feature = "codex",
         feature = "custom",
-        feature = "openai"
+        feature = "openai",
+        feature = "opencode"
     ))]
     use gproxy_protocol::connection::Bytes;
     use serde_json::{Map, json};
@@ -160,7 +165,8 @@ mod rules {
         feature = "claudecode",
         feature = "codex",
         feature = "custom",
-        feature = "openai"
+        feature = "openai",
+        feature = "opencode"
     ))]
     pub(crate) fn shape(bytes: Bytes, rules: Option<Rules>) -> Bytes {
         if !contains_token(&bytes) {
@@ -658,6 +664,7 @@ mod tests {
         feature = "codex",
         feature = "custom",
         feature = "openai",
+        feature = "opencode",
         feature = "openrouter"
     ))]
     #[test]
@@ -702,6 +709,7 @@ mod tests {
         feature = "codex",
         feature = "custom",
         feature = "openai",
+        feature = "opencode",
         feature = "openrouter"
     ))]
     #[test]
@@ -732,6 +740,7 @@ mod tests {
         feature = "codex",
         feature = "custom",
         feature = "openai",
+        feature = "opencode",
         feature = "openrouter"
     ))]
     #[test]
@@ -782,6 +791,7 @@ mod tests {
         feature = "codex",
         feature = "custom",
         feature = "openai",
+        feature = "opencode",
         feature = "openrouter"
     ))]
     #[test]
@@ -845,6 +855,7 @@ mod tests {
         feature = "codex",
         feature = "custom",
         feature = "openai",
+        feature = "opencode",
         feature = "openrouter"
     ))]
     #[test]

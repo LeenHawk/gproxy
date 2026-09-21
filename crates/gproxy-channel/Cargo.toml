@@ -70,6 +70,22 @@ claudeweb = [
     "dep:time",
     "dep:web-time",
 ]
+# Cline (cline.bot) coding-agent account: a WorkOS device login registered
+# with Cline's own API, a `workos:`-prefixed bearer, the tool's attribution
+# headers, the `{success, data}` envelope its REST surface wraps replies in,
+# its own recommended-model catalogue, plan-usage windows and credit balance.
+cline = ["dep:base64", "dep:futures-util", "dep:time", "dep:web-time"]
+# GitHub Copilot CLI: a GitHub OAuth token from a device login, exchanged
+# through CredentialRefresh for the short-lived Copilot token that Chat
+# Completions actually presents, the CLI's editor-identity headers and the
+# `copilot_internal/user` quota snapshots.
+copilotcli = [
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:sha2",
+    "dep:time",
+    "dep:web-time",
+]
 # Alibaba DashScope: one origin serving an OpenAI-compatible mode, an
 # Anthropic-compatible mode, a rerank prefix of its own and the native
 # multimodal-generation image API.
@@ -107,6 +123,15 @@ kimi = ["dep:futures-util", "dep:getrandom", "dep:time", "dep:web-time"]
 # Responses and Realtime over a WebSocket, x-ratelimit-* headers and the
 # organization cost report.
 openai = ["dep:futures-util", "dep:web-time"]
+# OpenCode (opencode.ai) Zen and Go: one account reached with a device login
+# or a pasted key, three compatible surfaces on one origin, the tool's
+# `x-opencode-session` affinity header and the Go tier's `/usage` windows.
+opencode = [
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:time",
+    "dep:web-time",
+]
 # OpenRouter: provider routing preferences, app attribution headers,
 # upstream-priced usage and the /v1/auth/key budget probe.
 openrouter = ["dep:futures-util"]
