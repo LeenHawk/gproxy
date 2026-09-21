@@ -12,6 +12,19 @@ default = []
 # the /v1beta/openai compatibility layer off one origin, SSE and JSON-array
 # streams, usageMetadata metering.
 aistudio = []
+# AWS Bedrock: every request is SigV4-signed. Anthropic models are invoked
+# through bedrock-runtime InvokeModel with the Bedrock Claude Messages
+# envelope, the streaming reply arrives as AWS event-stream frames that the
+# channel translates into Claude Messages SSE, and the control plane's
+# foundation-model directory answers ListModels/GetModel.
+aws_bedrock = [
+    "dep:base64",
+    "dep:crc32fast",
+    "dep:futures-util",
+    "dep:hmac",
+    "dep:sha2",
+    "dep:web-time",
+]
 # Azure OpenAI and the Anthropic models Azure AI Foundry hosts beside them:
 # an API key on the v1 or the deployment-scoped surface, no login, no refresh.
 azure = []
@@ -81,11 +94,13 @@ vertexexpress = []
 [dependencies]
 url = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
+crc32fast = { workspace = true, optional = true }
 futures-util = { workspace = true, optional = true }
 getrandom = { workspace = true, optional = true }
 gproxy-client.workspace = true
 gproxy-protocol.workspace = true
 http.workspace = true
+hmac = { workspace = true, optional = true }
 miniz_oxide = { workspace = true, optional = true }
 rsa = { workspace = true, optional = true }
 rust_decimal.workspace = true

@@ -3,6 +3,8 @@
 
 #[cfg(feature = "aistudio")]
 pub mod aistudio;
+#[cfg(feature = "aws_bedrock")]
+pub mod aws_bedrock;
 #[cfg(feature = "azure")]
 pub mod azure;
 #[cfg(feature = "claudeapi")]
