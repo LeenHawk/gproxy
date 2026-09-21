@@ -1,4 +1,24 @@
 <resources>
     <string name="app_name">"GPROXY"</string>
     <string name="main_activity_title">"GPROXY"</string>
+
+    <!-- The foreground service. -->
+    <string name="gproxy_channel_name">"GPROXY gateway"</string>
+    <string name="gproxy_channel_description">"Shows that the gateway is running and offers a way to stop it."</string>
+    <string name="gproxy_status_starting">"Starting…"</string>
+    <string name="gproxy_status_running">"Serving on %1$s"</string>
+    <string name="gproxy_status_unsealed">"Credentials are stored unencrypted: this device has no keychain GPROXY can use."</string>
+    <string name="gproxy_status_failed">"GPROXY did not start"</string>
+    <string name="gproxy_status_failed_unknown">"The instance did not start and gave no reason."</string>
+    <string name="gproxy_action_stop">"Stop"</string>
+
+    <!--
+      What Android shows for a `specialUse` foreground service. It has to say
+      what the service does rather than what the app is, because a person
+      reading it is deciding whether to let it keep running.
+    -->
+    <string name="gproxy_special_use_subtype">"Runs the on-device GPROXY gateway so that apps configured to reach http://127.0.0.1 keep working while GPROXY is not the app in front."</string>
+
+    <!-- The in-app update. -->
+    <string name="gproxy_update_none">"No verified GPROXY update is waiting."</string>
 </resources>
