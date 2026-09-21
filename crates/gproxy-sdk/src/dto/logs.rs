@@ -25,7 +25,9 @@ use super::UsageRecordDto;
 
 /// How a body's bytes are spelled in `content`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub enum LogBodyEncoding {
     /// Valid UTF-8, cut at a character boundary when it was cut at all.
     Utf8,
@@ -35,7 +37,9 @@ pub enum LogBodyEncoding {
 
 /// One captured body, or the reason there is none.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct LogBodyDto {
     /// The record's own `body_state`: `not_captured`, `recording`,
     /// `complete`, `partial` or `failed`. `not_captured` with zero bytes is a
@@ -100,7 +104,9 @@ impl LogBodyDto {
 
 /// One downstream request, as a list row.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct LogEntryDto {
     /// A downstream record's id is the request id: the same string
     /// `usage_records.request_id` and `query().logs().detail` use.
@@ -154,7 +160,9 @@ impl From<capture_record::Model> for LogEntryDto {
 
 /// One page of the request list, plus where the next one starts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct LogPageDto {
     pub items: Vec<LogEntryDto>,
     /// The `started_at_ms` of the last item, or None at the end of the list.
@@ -168,7 +176,9 @@ pub struct LogPageDto {
 
 /// One captured exchange in full, downstream or upstream.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct CaptureRecordDto {
     pub id: String,
     pub initiator_request_id: Option<String>,
@@ -192,18 +202,21 @@ pub struct CaptureRecordDto {
     pub request_url: Option<String>,
     pub request_query: Option<String>,
     /// `[[name, value], …]`, repeated headers preserved.
+    #[cfg_attr(feature = "ts", ts(type = "[string, string][] | null"))]
     pub request_headers: Option<Value>,
     pub request_body: LogBodyDto,
     /// `buffered`, `bytes`, `sse`, `ndjson`, `json_array` or `websocket`.
     /// Anything but `buffered` means the body is in the events, not the row.
     pub request_framing: String,
     pub response_status: Option<i32>,
+    #[cfg_attr(feature = "ts", ts(type = "[string, string][] | null"))]
     pub response_headers: Option<Value>,
     pub response_body: LogBodyDto,
     pub response_framing: String,
     pub client_ip: Option<String>,
     /// Upstream-native usage for this one exchange, when the channel reported
     /// any. Billed usage is on the usage record, not here.
+    #[cfg_attr(feature = "ts", ts(type = "unknown | null"))]
     pub metrics: Option<Value>,
     pub state: String,
     pub error: Option<String>,
@@ -214,7 +227,9 @@ pub struct CaptureRecordDto {
 
 /// One stream chunk or websocket message.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct CaptureEventDto {
     pub capture_id: String,
     /// Monotonic across both directions of the exchange or connection.
@@ -230,7 +245,9 @@ pub struct CaptureEventDto {
 
 /// One request and everything captured under it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct LogDetailDto {
     pub downstream: CaptureRecordDto,
     /// Every upstream attempt reached through `capture_links`, in link order.
@@ -248,7 +265,9 @@ pub struct LogDetailDto {
 /// What a request listing filters on. Timestamps bound `started_at_ms`:
 /// `from_ms` is inclusive, `to_ms` exclusive.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct LogQuery {
     pub from_ms: Option<i64>,
     pub to_ms: Option<i64>,

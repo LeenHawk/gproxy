@@ -8,7 +8,9 @@ use super::double_option;
 use gproxy_store::entity::pricing::{price_rate, price_rule, price_tier, price_unit::PriceUnit};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PriceRuleDto {
     pub id: String,
     /// None prices every provider; a provider rule wins over a global one.
@@ -38,7 +40,9 @@ impl From<price_rule::Model> for PriceRuleDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PriceRuleWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -55,7 +59,9 @@ pub struct PriceRuleWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PriceRulePatch {
     #[serde(default, deserialize_with = "double_option")]
     pub provider_id: Option<Option<String>>,
@@ -74,7 +80,9 @@ pub struct PriceRulePatch {
 /// One billable quantity's price. `value` buys `unit_quantity` units, so a
 /// per-million token price is `unit_quantity = 1000000`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PriceRateDto {
     pub id: String,
     pub price_rule_id: String,
@@ -85,6 +93,7 @@ pub struct PriceRateDto {
     pub unit_quantity: String,
     pub value: String,
     /// None is the fallback rate; otherwise a nonempty object of dimensions.
+    #[cfg_attr(feature = "ts", ts(type = "unknown | null"))]
     pub conditions: Option<Value>,
     pub priority: i32,
 }
@@ -114,7 +123,9 @@ pub(crate) fn unit_name(unit: PriceUnit) -> &'static str {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PriceRateWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -124,13 +135,16 @@ pub struct PriceRateWrite {
     pub unit_quantity: String,
     pub value: String,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(type = "unknown | null"))]
     pub conditions: Option<Value>,
     #[serde(default)]
     pub priority: Option<i32>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PriceRatePatch {
     #[serde(default)]
     pub metric: Option<String>,
@@ -141,6 +155,7 @@ pub struct PriceRatePatch {
     #[serde(default)]
     pub value: Option<String>,
     #[serde(default, deserialize_with = "double_option")]
+    #[cfg_attr(feature = "ts", ts(type = "unknown | null"))]
     pub conditions: Option<Option<Value>>,
     #[serde(default)]
     pub priority: Option<i32>,
@@ -149,7 +164,9 @@ pub struct PriceRatePatch {
 /// A context or service-tier override inside one rule. Every per-million
 /// price is optional: None inherits, zero is explicitly free.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PriceTierDto {
     pub id: String,
     pub price_rule_id: String,
@@ -203,7 +220,9 @@ impl From<price_tier::Model> for PriceTierDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PriceTierWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -247,7 +266,9 @@ pub struct PriceTierWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PriceTierPatch {
     #[serde(default, deserialize_with = "double_option")]
     pub service_tier: Option<Option<String>>,

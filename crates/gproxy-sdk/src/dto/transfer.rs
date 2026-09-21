@@ -34,7 +34,9 @@ pub const CODEC_AES_GCM: &str = "aes-gcm";
 pub const CODEC_UNKNOWN: &str = "unknown";
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ExportRequest {
     /// Whether the sealed credential blobs travel with the configuration. An
     /// export without them still restores every row; the credentials simply
@@ -45,7 +47,9 @@ pub struct ExportRequest {
 
 /// One instance's configuration as a document.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ConfigurationExportDto {
     pub format_version: u32,
     pub exported_at_ms: i64,
@@ -63,7 +67,9 @@ pub struct ConfigurationExportDto {
 /// never appears before the row it points at. Each field defaults to empty, so
 /// a document written by a build that knew fewer tables still imports.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ConfigurationDataDto {
     #[serde(default)]
     pub connection_profiles: Vec<ConnectionProfileDto>,
@@ -108,7 +114,9 @@ pub struct ConfigurationDataDto {
 /// A credential row plus the sealed bytes behind it. The columns are flattened,
 /// so the object is a [`CredentialDto`] with one field added.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ExportCredentialDto {
     #[serde(flatten)]
     pub credential: CredentialDto,
@@ -121,7 +129,9 @@ pub struct ExportCredentialDto {
 /// standard base64. Nothing here is plaintext, and nothing here can be opened
 /// without the key the source sealed it with.
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct SealedSecretDto {
     /// `plaintext`, `aes-gcm`, or `unknown` for an envelope this build does
     /// not recognize. Carried so an importer can refuse early rather than
@@ -142,7 +152,9 @@ impl std::fmt::Debug for SealedSecretDto {
 
 /// What an import does with a row the destination already has under that id.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "snake_case")]
+#[cfg_attr(feature = "ts", ts(rename_all = "snake_case"))]
 pub enum ImportMode {
     /// Write every row of the document, leaving anything it does not mention
     /// alone. This is the additive mode: two deployments can be merged.
@@ -155,7 +167,9 @@ pub enum ImportMode {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ImportRequest {
     pub export: ConfigurationExportDto,
     #[serde(default)]
@@ -182,7 +196,9 @@ impl std::fmt::Debug for ImportRequest {
 /// are the things that were silently changed rather than refused, which is the
 /// only place a caller learns that a credential arrived unusable.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ImportReportDto {
     pub created: u64,
     pub updated: u64,

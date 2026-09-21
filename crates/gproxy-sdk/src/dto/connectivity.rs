@@ -14,7 +14,11 @@ use super::UsageTokensDto;
 /// client chain a real call would: the credential's profile, then the
 /// provider's, then the channel's default, then the instance default.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(tag = "scope", rename_all = "snake_case")]
+// The variants' own fields are not renamed, so the tagged object is
+// `{"scope": "provider", "provider_id": "…"}`. Mirrored exactly.
+#[cfg_attr(feature = "ts", ts(tag = "scope", rename_all = "snake_case"))]
 pub enum ConnectivityScope {
     /// The instance default profile, with no provider in the picture.
     Global,
@@ -33,7 +37,9 @@ pub enum ConnectivityScope {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ConnectivityTest {
     #[serde(flatten)]
     pub scope: ConnectivityScope,
@@ -43,7 +49,9 @@ pub struct ConnectivityTest {
 /// trace endpoint, so `ip` is the address the upstream would see — which is
 /// the whole point of testing a proxy.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ConnectivityResultDto {
     pub ok: bool,
     /// Measured across the whole exchange, including the body read, and
@@ -59,7 +67,9 @@ pub struct ConnectivityResultDto {
 /// A real generation against one provider. It spends a real credential and
 /// writes a real usage row; there is no dry run.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ModelTest {
     pub provider_id: String,
     /// The upstream model name, as the provider's catalog spells it.
@@ -71,7 +81,9 @@ pub struct ModelTest {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ModelTestResultDto {
     pub ok: bool,
     pub latency_ms: u64,
@@ -86,7 +98,9 @@ pub struct ModelTestResultDto {
 
 /// One model an upstream says it offers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct DiscoveredModelDto {
     pub upstream_name: String,
     /// Whether this provider already has a `provider_models` row for it.

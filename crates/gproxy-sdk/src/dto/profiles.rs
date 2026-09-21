@@ -10,7 +10,9 @@ use gproxy_store::entity::config::connection_profile as profile;
 /// edit it; it may carry proxy credentials, which is why the management API
 /// is an operator surface and its responses are not for a caller's eyes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ConnectionProfileDto {
     pub id: String,
     pub name: String,
@@ -20,6 +22,7 @@ pub struct ConnectionProfileDto {
     pub proxy_mode: String,
     pub proxy_url: Option<String>,
     /// A `gproxy-client` emulation object, or null. Only meaningful with `wreq`.
+    #[cfg_attr(feature = "ts", ts(type = "unknown | null"))]
     pub emulation: Option<Value>,
     pub gzip: bool,
     pub brotli: bool,
@@ -81,7 +84,9 @@ pub(crate) fn retry_name(retry: profile::RetryPolicy) -> &'static str {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ConnectionProfileWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -93,6 +98,7 @@ pub struct ConnectionProfileWrite {
     #[serde(default)]
     pub proxy_url: Option<String>,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(type = "unknown | null"))]
     pub emulation: Option<Value>,
     #[serde(default)]
     pub gzip: Option<bool>,
@@ -115,7 +121,9 @@ pub struct ConnectionProfileWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ConnectionProfilePatch {
     #[serde(default)]
     pub name: Option<String>,
@@ -126,6 +134,7 @@ pub struct ConnectionProfilePatch {
     #[serde(default, deserialize_with = "double_option")]
     pub proxy_url: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
+    #[cfg_attr(feature = "ts", ts(type = "unknown | null"))]
     pub emulation: Option<Option<Value>>,
     #[serde(default)]
     pub gzip: Option<bool>,

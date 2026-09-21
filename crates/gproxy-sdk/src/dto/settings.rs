@@ -8,7 +8,9 @@ use super::double_option;
 use gproxy_store::entity::config::setting;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct SettingsDto {
     pub instance: InstanceSettingsDto,
     pub logging: LoggingSettingsDto,
@@ -69,12 +71,17 @@ impl From<setting::Model> for SettingsDto {
 /// Identity, network, execution limits and maintenance. `config_revision` is
 /// read-only: it is the write path's own counter.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct InstanceSettingsDto {
     pub instance_name: String,
+    #[cfg_attr(feature = "ts", ts(type = "string[] | null"))]
     pub oauth_client_allowlist: Option<Value>,
     pub connection_profile_id: Option<String>,
+    #[cfg_attr(feature = "ts", ts(type = "string[]"))]
     pub cors_origins: Value,
+    #[cfg_attr(feature = "ts", ts(type = "string[]"))]
     pub trusted_proxies: Value,
     pub max_attempts: u32,
     pub max_in_flight: u32,
@@ -104,7 +111,9 @@ pub struct InstanceSettingsDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct LoggingSettingsDto {
     pub enable_downstream_log: bool,
     pub enable_downstream_log_body: bool,
@@ -114,15 +123,20 @@ pub struct LoggingSettingsDto {
     pub enable_tracing: bool,
     pub log_level: String,
     pub log_format: String,
+    #[cfg_attr(feature = "ts", ts(type = "string[]"))]
     pub request_header_blacklist: Value,
+    #[cfg_attr(feature = "ts", ts(type = "string[]"))]
     pub response_header_blacklist: Value,
+    #[cfg_attr(feature = "ts", ts(type = "string[]"))]
     pub query_parameter_blacklist: Value,
 }
 
 /// Both groups are optional, and so is every field inside them: a patch names
 /// only what changes.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct SettingsPatch {
     #[serde(default)]
     pub instance: Option<InstanceSettingsPatch>,
@@ -131,17 +145,22 @@ pub struct SettingsPatch {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct InstanceSettingsPatch {
     #[serde(default)]
     pub instance_name: Option<String>,
     #[serde(default, deserialize_with = "double_option")]
+    #[cfg_attr(feature = "ts", ts(type = "string[] | null"))]
     pub oauth_client_allowlist: Option<Option<Value>>,
     #[serde(default, deserialize_with = "double_option")]
     pub connection_profile_id: Option<Option<String>>,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(type = "string[] | null"))]
     pub cors_origins: Option<Value>,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(type = "string[] | null"))]
     pub trusted_proxies: Option<Value>,
     #[serde(default)]
     pub max_attempts: Option<u32>,
@@ -192,7 +211,9 @@ pub struct InstanceSettingsPatch {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct LoggingSettingsPatch {
     #[serde(default)]
     pub enable_downstream_log: Option<bool>,
@@ -211,9 +232,12 @@ pub struct LoggingSettingsPatch {
     #[serde(default)]
     pub log_format: Option<String>,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(type = "string[] | null"))]
     pub request_header_blacklist: Option<Value>,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(type = "string[] | null"))]
     pub response_header_blacklist: Option<Value>,
     #[serde(default)]
+    #[cfg_attr(feature = "ts", ts(type = "string[] | null"))]
     pub query_parameter_blacklist: Option<Value>,
 }

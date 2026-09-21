@@ -30,6 +30,11 @@ mod settings;
 mod transfer;
 mod usage;
 
+/// The `ts-rs` declarations, and the check that the export list still covers
+/// every `pub use` below. Tests only, and only where a filesystem exists.
+#[cfg(all(test, feature = "ts", not(target_arch = "wasm32")))]
+mod export;
+
 pub use catalog::{
     ApplyDefaultPricesReportDto, ApplyDefaultPricesRequest, ApplyRulePreset,
     DefaultModelCatalogDto, DefaultModelCatalogSourceDto, DefaultModelDto,
@@ -91,3 +96,9 @@ pub use usage::{
     UsageExchangeDto, UsageGroupBy, UsageGroupDto, UsageGroupQuery, UsageQuery, UsageRecordDto,
     UsageRecordQuery, UsageSummaryDto, UsageTokensDto, UsageTrendPointDto, UsageTrendQuery,
 };
+
+// The tokenizer family's shapes are declared next to the operations that
+// produce them, because they describe a download rather than a stored row.
+// They are re-exported here so that `dto` really is every shape this crate
+// exchanges — which is what `export.rs` checks its list against.
+pub use crate::manage::{TokenizerAuthDto, TokenizerFetch, TokenizerProgressDto, VocabularyDto};

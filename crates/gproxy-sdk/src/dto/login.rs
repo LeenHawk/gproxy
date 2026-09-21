@@ -12,7 +12,9 @@ use serde::{Deserialize, Serialize};
 /// Opaque to this crate: it copies the three columns through untouched, and
 /// only the layer above knows what an organization or a team is.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct CredentialOwner {
     #[serde(default)]
     pub organization_id: Option<String>,
@@ -25,7 +27,9 @@ pub struct CredentialOwner {
 /// Begin a browser redirect login. The SDK mints the PKCE verifier and the
 /// CSRF state itself, so neither is a field here.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct AuthCodeStart {
     pub provider_id: String,
     /// Where the upstream should send the person back. Absent lets the channel
@@ -42,7 +46,9 @@ pub struct AuthCodeStart {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct AuthCodeStarted {
     /// Names the pending session in every later step. It is not a secret, but
     /// whoever holds it can complete this login.
@@ -57,7 +63,9 @@ pub struct AuthCodeStarted {
 /// Finish a browser redirect login, with either the whole callback URL or the
 /// authorization code picked out of it — never both.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct AuthCodeComplete {
     pub login_session_id: String,
     /// The callback as the browser received it; `code` and `state` are read
@@ -76,13 +84,17 @@ pub struct AuthCodeComplete {
 /// A login that produced a credential row. The secret is already sealed in the
 /// database; nothing about it travels back.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct CredentialCreated {
     pub credential_id: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct DeviceStart {
     pub provider_id: String,
     #[serde(default)]
@@ -92,7 +104,9 @@ pub struct DeviceStart {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct DeviceStarted {
     pub login_session_id: String,
     /// What the person types on the other device.
@@ -111,10 +125,19 @@ pub struct DeviceStarted {
 /// One polling step. The SDK never sleeps and never loops: the caller owns the
 /// cadence, and `interval_secs` is what it should honour.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(
     tag = "status",
     rename_all = "snake_case",
     rename_all_fields = "camelCase"
+)]
+#[cfg_attr(
+    feature = "ts",
+    ts(
+        tag = "status",
+        rename_all = "snake_case",
+        rename_all_fields = "camelCase"
+    )
 )]
 pub enum DevicePollOutcome {
     /// Nobody has approved it yet. Poll again after `interval_secs`.
@@ -134,7 +157,9 @@ pub enum DevicePollOutcome {
 /// Exchange a browser session cookie for a credential. One call: there is no
 /// pending state to park.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct CookieExchange {
     pub provider_id: String,
     /// The cookie as the browser holds it; the channel normalizes it.

@@ -6,11 +6,13 @@
 它不写配置、不解析模型名、也不知道别的实例改了什么。这一层补上其余部分——用默认
 实现装配出 `Core`，承担推进 `settings.config_revision` 的配置写入，把一次登录变成
 一行凭证，把模型名解析成执行计划，并通过共享 cache 与持久 revision 轮询让同一部署
-的每个实例停在同一个 revision 上。
+的每个实例停在同一个 revision 上。这些决定背后的设计笔记见
+[`design/sdk.md`](../../design/sdk.md)。
 
 ```rust
 use gproxy_sdk::{GproxyBuilder, SyncMode};
 
+# async fn example() -> Result<(), gproxy_sdk::SdkError> {
 let gproxy = GproxyBuilder::sqlite("gproxy.db")
     .await?
     .master_key([0u8; 32])
@@ -22,6 +24,8 @@ for channel in gproxy.channels() {
     println!("{} ({})", channel.display_name, channel.id);
 }
 println!("serving revision {}", gproxy.revision().0);
+# Ok(())
+# }
 ```
 
 `build()` 不会打开任何未被交给它的东西：同步实体 schema（除非关掉）、创建全局
@@ -42,7 +46,7 @@ settings 行、装配引擎、载入首个快照，并在 `SyncMode::Background`
 | `fs`（默认） | 本地文件系统对象存储，仅原生 |
 | `s3` | S3／R2 对象存储 |
 | `bundled-vocabulary`（默认） | 内置 DeepSeek 词表用于 token 估算 |
-| `ts` | 为 DTO 生成 `ts-rs` 声明 |
+| `ts` | 为每个 DTO 生成 `ts-rs` 声明，并带导出测试——见[类型导出](#类型导出) |
 
 默认集可在 `wasm32-unknown-unknown` 上编译，`libsql` 亦然。wasm 上 cache 默认是
 `gproxy_store::StoreCache`，同步一律手动：isolate 活不过一次请求，在请求开头调用
@@ -71,10 +75,12 @@ settings 行、装配引擎、载入首个快照，并在 `SyncMode::Background`
 凭证亲和性的边界，没有安全的默认值。
 
 ```rust
-use gproxy_sdk::Gproxy;
+use gproxy_sdk::{Gproxy, SdkError};
 use gproxy_core::{BudgetOwner, UsageAttribution};
-use gproxy_protocol::{Dialect, Operation, OperationKey};
+use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest};
 
+# async fn example<C>(gproxy: &Gproxy<C>, request: WireRequest<HttpBody>) -> Result<(), SdkError>
+# where C: gproxy_seaorm::BatchConnectionTrait + Send + Sync + 'static {
 let execution = gproxy
     .call(
         OperationKey { operation: Operation::GenerateContent, dialect: Dialect::OpenAi },
@@ -88,6 +94,9 @@ let execution = gproxy
     .await?;
 
 let (response, usage) = execution.into_parts();
+# let _ = (response, usage);
+# Ok(())
+# }
 ```
 
 `connect` 是同一套 builder 的 websocket 握手版本。应用层决定的一切——允许的 Provider
@@ -131,7 +140,7 @@ core 已经在单个 Provider 的凭证之间重试。`send` 是另一个维度�
 | 任何 `Channel(..)` 错误，含传输失败 | 是 |
 | 401／403／429／5xx 应答，或被拒绝的 websocket 升级 | 是 |
 | `BudgetExhausted`、`Forbidden`、`Cancelled`、`DeadlineExceeded` | 否 |
-| `Transform`、`Route`、`Rewrite`、`OperationMismatch`、`InvalidTarget` | 否 |
+| `Transform`、`Route`、`Rewrite`、`OperationMismatch`、`InvalidTarget`、`NotImplemented` | 否 |
 | `Store`、`Cache`、`Secret`、`Limits`、`Assembly`、`File` | 否 |
 
 尝试预算跨目标共享：每个目标最多拿到自己凭证数那么多次、且不超过剩余额度，因此一个
@@ -232,8 +241,9 @@ println!("credential {}", created.credential_id);
 | `connectivity()` | `provider_models` | `test`、`model_test`、`discover_models`、`apply_discovered` |
 | `tokenizer()` | `file_objects`、`models.vocabulary_file_id`、`settings` | `vocabularies`、`fetch`、`progress`、`delete`、`auth`、`set_auth`、`reveal_auth` |
 
-前十一个家族都有 `list(ListQuery) -> Page<Dto>`、`get(id)`、`create(Write)`、
-`update(id, Patch)`、`delete(id)` 与 `batch(Vec<BatchItem>)`；后四个见
+前十行是对各自表的普通 CRUD：`list(ListQuery) -> Page<Dto>`、`get(id)`、
+`create(Write)`、`update(id, Patch)`、`delete(id)` 与 `batch(Vec<BatchItem>)`；
+唯一的例外是 `settings()`，它只有一行、只能读与打补丁。后四个见
 [运维目录](#运维目录)。id 给了就用、没给就
 生成，时间戳一律 Unix 毫秒，小数以字符串传输，`credentials.secret` 永不出现在任何
 DTO 里——只有 `hasSecret`，外加单独的 `reveal_secret`。
@@ -462,6 +472,42 @@ header、查询参数、流里的密钥片段——所以存下来的已经就�
 的原始计量行——对 `limit:{quota_id}` 维度，权威答案是 `limit_status`，它知道背后的
 quota 行，并以归一化小数而不是成本计量器所用的定点原子单位报告用量。
 
+## 类型导出
+
+`ts` feature 给 `dto` 导出的每个类型生成一份 `ts-rs` 声明，由一个测试写出去：
+
+```sh
+GPROXY_TS_OUT=console/src/generated \
+  cargo test -p gproxy-sdk --features ts export_types
+```
+
+没有 `GPROXY_TS_OUT` 时测试直接返回、不写任何文件，因此
+`cargo test --all-features` 不产生副作用，生成目录只会在有意为之时被重写。给了变量
+则先清空目录——一个已经不存在的 DTO 留下的旧声明，会在 Rust 侧删掉它之后很久仍然在
+控制台里通过类型检查——最后写一份把全部类型再导出一遍的 `index.ts`。
+
+声明说了什么：
+
+| Rust | TypeScript | 为什么 |
+|---|---|---|
+| `i64` / `u64` | `number` | `with_large_int("number")`。这里每个时间戳与字节数都远在 JavaScript number 能精确表示的范围内 |
+| 小数金额 | `string` | 出于同一个理由，金额与限额在线上本来就是十进制字符串 |
+| `serde_json::Value` | `unknown`，或该列被校验成的形状 | `paths` 确实是 `string[]`，`corsOrigins` 确实是 `string[]`；`config` 与 `metadata` 由渠道定义，保持 `unknown` |
+| 带 tag 的枚举 | 同样带 tag 的联合 | `ts(tag = …)` 逐字段镜像 `serde(tag = …)`，联合就是线上形状 |
+| `Option<T>` | `T \| null` | |
+
+动手写之前值得知道两件事。可空列的 patch 字段是 `Option<Option<T>>`，生成
+`T | null | null`，TypeScript 读作 `T | null`；第三种状态——键缺席，意为"这一列别动"
+——没法在生成的声明里表达，所以调用方用 `Partial<CredentialPatch>` 构造 patch，那正
+是对的形状。另外两个扁平化了 JSON 对象的目录类型（`DefaultModelDto`、
+`DefaultModelCatalogSourceDto`）会生成为与一个 `JsonValue` 索引签名的交叉类型，
+`JsonValue` 落在 `serde_json/` 子目录里。
+
+`src/dto/export.rs` 里的清单是手写的，因为 Rust 没有运行期枚举模块类型的办法。v3 漂移
+的正是这份清单——加了 DTO，没人记得改清单，控制台就悄悄少了一个类型——所以第二个测试
+会读 `src/dto/mod.rs` 的源码，把它 `pub use` 的类型名与清单对比。加了 DTO 却忘了清单，
+是一个红色的测试，不是一个缺失的文件。
+
 ## 不在这里的东西
 
 - **身份**：用户、API key、组织、团队、权限、订阅、限流与 OAuth issuer 属于上层
@@ -469,5 +515,7 @@ quota 行，并以归一化小数而不是成本计量器所用的定点原子�
 - **下游鉴权**：这里不判断调用方是谁；句柄拿到的是 scope 以及允许的 Provider 与
   凭证集合。
 - **server**：没有监听、路由、中间件或 CLI。原生与边缘宿主建在本 crate 之上。
+- **控制台**：本 crate 只生成界面所依据的 TypeScript 类型；界面本身、它的会话处理与
+  HTTP 传输都属于应用层。
 - **执行**：尝试、协议转换、改写、观测、预算与结算都属于 `gproxy-core`，本 crate
   只决定交给它什么。

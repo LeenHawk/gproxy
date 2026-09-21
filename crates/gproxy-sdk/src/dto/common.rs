@@ -10,7 +10,9 @@ use serde::{Deserialize, Deserializer, Serialize};
 /// ignored rather than rejected. `page` is 1-based; both fields have defaults
 /// so an empty query is a valid first page.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ListQuery {
     /// 1-based. Zero and absent both mean the first page.
     pub page: Option<u64>,
@@ -42,7 +44,9 @@ impl ListQuery {
 /// One page of results. `total` counts every row the filters match, not the
 /// page, so a console can render a pager without a second request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct Page<T> {
     pub items: Vec<T>,
     pub total: u64,
@@ -66,7 +70,9 @@ impl<T> Page<T> {
 /// One step of a batch write. Every item of one batch lands in a single
 /// revision commit: either all of them are durable or none is.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub enum BatchItem<W, P> {
     Create(W),
     Update(BatchPatch<P>),
@@ -74,7 +80,9 @@ pub enum BatchItem<W, P> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct BatchPatch<P> {
     pub id: String,
     pub patch: P,

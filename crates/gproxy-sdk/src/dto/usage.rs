@@ -19,7 +19,9 @@ use gproxy_store::entity::usage::usage_record;
 
 /// Token counts exactly as the upstream reported them.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UsageTokensDto {
     /// Ordinary input, excluding cache reads and cache writes.
     pub input_tokens: Option<u64>,
@@ -76,7 +78,9 @@ fn text(value: Option<&Value>) -> Option<String> {
 
 /// One persisted request.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UsageRecordDto {
     /// The downstream exchange or websocket turn this usage belongs to, which
     /// is also the id of its downstream `capture_records` row.
@@ -99,6 +103,7 @@ pub struct UsageRecordDto {
     /// provider and a credential are named.
     pub exchanges: Vec<UsageExchangeDto>,
     /// The whole document, so nothing above is a lossy summary of it.
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub metrics: Value,
     pub started_at_ms: i64,
     pub ended_at_ms: Option<i64>,
@@ -137,7 +142,9 @@ impl From<usage_record::Model> for UsageRecordDto {
 /// One upstream attempt inside a request: which provider and credential
 /// served it, and what it cost on its own.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UsageExchangeDto {
     pub capture_id: Option<String>,
     pub attempt_id: Option<String>,
@@ -170,7 +177,9 @@ impl UsageExchangeDto {
 
 /// Totals over the records a scan covered.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UsageSummaryDto {
     pub requests: u64,
     pub input_tokens: u64,
@@ -194,7 +203,9 @@ pub struct UsageSummaryDto {
 
 /// One bucket of a grouped aggregate.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UsageGroupDto {
     /// The grouping column's value. None is "the records carried none" — an
     /// anonymous request has no user, a failed attempt no provider.
@@ -206,7 +217,9 @@ pub struct UsageGroupDto {
 
 /// One fixed-width bucket of a trend. Present even when empty.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UsageTrendPointDto {
     pub start_ms: i64,
     /// Exclusive, always `start_ms + bucketMs`: the last bucket keeps the
@@ -218,7 +231,9 @@ pub struct UsageTrendPointDto {
 /// What a record listing filters on. Timestamps bound `started_at_ms`:
 /// `from_ms` is inclusive, `to_ms` exclusive.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UsageRecordQuery {
     pub from_ms: Option<i64>,
     pub to_ms: Option<i64>,
@@ -236,7 +251,9 @@ pub struct UsageRecordQuery {
 
 /// What an aggregate filters on, and how far it is allowed to read.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UsageQuery {
     pub from_ms: Option<i64>,
     pub to_ms: Option<i64>,
@@ -254,7 +271,9 @@ pub struct UsageQuery {
 
 /// Which column the aggregate is cut by.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub enum UsageGroupBy {
     User,
     ApiKey,
@@ -269,14 +288,18 @@ pub enum UsageGroupBy {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UsageGroupQuery {
     pub filter: UsageQuery,
     pub group_by: UsageGroupBy,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UsageTrendQuery {
     /// `from_ms` and `to_ms` are required here: buckets are aligned to
     /// `from_ms` and counted up to `to_ms`, and neither has a sane default.

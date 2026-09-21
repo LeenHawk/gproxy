@@ -9,7 +9,8 @@ that does: it assembles a `Core` out of default implementations, owns the
 configuration writes that advance `settings.config_revision`, turns a login
 into a credential row, resolves a model name to an execution plan, and keeps
 every instance of a deployment on the same revision through the shared cache
-and a durable revision poll.
+and a durable revision poll. The design notes behind those decisions are in
+[`design/sdk.md`](../../design/sdk.md).
 
 ```rust
 use gproxy_sdk::{GproxyBuilder, SyncMode};
@@ -50,7 +51,7 @@ opt-out, and a build with neither is refused.
 | `fs` (default) | Local filesystem object storage, native only |
 | `s3` | S3/R2 object storage |
 | `bundled-vocabulary` (default) | Ship DeepSeek's vocabulary for token estimation |
-| `ts` | `ts-rs` declarations for the DTOs |
+| `ts` | `ts-rs` declarations for every DTO, plus the export test — see [Type export](#type-export) |
 
 The default set compiles for `wasm32-unknown-unknown`, and so does `libsql`.
 On wasm the cache defaults to `gproxy_store::StoreCache` and synchronization is
@@ -157,7 +158,7 @@ serve:
 | any `Channel(..)` error, including transport failures | yes |
 | a 401, 403, 429 or 5xx answer, or a refused websocket upgrade | yes |
 | `BudgetExhausted`, `Forbidden`, `Cancelled`, `DeadlineExceeded` | no |
-| `Transform`, `Route`, `Rewrite`, `OperationMismatch`, `InvalidTarget` | no |
+| `Transform`, `Route`, `Rewrite`, `OperationMismatch`, `InvalidTarget`, `NotImplemented` | no |
 | `Store`, `Cache`, `Secret`, `Limits`, `Assembly`, `File` | no |
 
 The attempt budget is shared: each target is granted at most as many attempts
@@ -277,9 +278,10 @@ of them over the same primitive.
 | `connectivity()` | `provider_models` | `test`, `model_test`, `discover_models`, `apply_discovered` |
 | `tokenizer()` | `file_objects`, `models.vocabulary_file_id`, `settings` | `vocabularies`, `fetch`, `progress`, `delete`, `auth`, `set_auth`, `reveal_auth` |
 
-The first eleven families have `list(ListQuery) -> Page<Dto>`, `get(id)`,
-`create(Write)`, `update(id, Patch)`, `delete(id)` and
-`batch(Vec<BatchItem>)`; the last four are described under
+The first ten rows are ordinary CRUD over their tables:
+`list(ListQuery) -> Page<Dto>`, `get(id)`, `create(Write)`, `update(id, Patch)`,
+`delete(id)` and `batch(Vec<BatchItem>)` — with `settings()` the one exception,
+a single row that is only read and patched. The last four are described under
 [Operations catalogue](#operations-catalogue). Ids are
 caller-supplied when given and minted otherwise, timestamps are Unix
 milliseconds, decimals travel as strings, and `credentials.secret` is never in a
@@ -572,6 +574,49 @@ status for — for a `limit:{quota_id}` dimension, `limit_status` is the
 authoritative answer, because it knows the quota row and reports a normalized
 decimal instead of the fixed-point atoms a cost meter counts in.
 
+## Type export
+
+The `ts` feature derives a `ts-rs` declaration for every type `dto` exports, and
+one test writes them out:
+
+```sh
+GPROXY_TS_OUT=console/src/generated \
+  cargo test -p gproxy-sdk --features ts export_types
+```
+
+Without `GPROXY_TS_OUT` the test returns immediately and writes nothing, so
+`cargo test --all-features` stays hermetic and a generated directory is only
+ever rewritten on purpose. With it, the directory is wiped first — a stale
+declaration for a DTO that no longer exists would keep type-checking in the
+console long after Rust dropped it — and an `index.ts` re-exporting everything
+is written last.
+
+What the declarations say:
+
+| Rust | TypeScript | Why |
+|---|---|---|
+| `i64` / `u64` | `number` | `with_large_int("number")`. Every timestamp and byte count here is far inside the range a JavaScript number holds exactly |
+| a decimal amount | `string` | Money and limits are already decimal strings on the wire, for that same reason |
+| `serde_json::Value` | `unknown`, or the shape the column is validated against | `paths` really is `string[]`, `corsOrigins` really is `string[]`; `config` and `metadata` are channel-defined and stay `unknown` |
+| a tagged enum | the same tagged union | `ts(tag = …)` mirrors `serde(tag = …)`, field by field, so the union is the wire |
+| `Option<T>` | `T \| null` | |
+
+Two caveats worth knowing before writing against them. A patch field over a
+nullable column is `Option<Option<T>>` and generates `T | null | null`, which
+TypeScript reads as `T | null`; the third state — the key being absent, meaning
+"leave the column alone" — is not expressible in a generated declaration, so a
+caller builds a patch as `Partial<CredentialPatch>`, which is exactly the right
+shape. And the two catalogue types that flatten a JSON object
+(`DefaultModelDto`, `DefaultModelCatalogSourceDto`) come out as an intersection
+with an index signature over `JsonValue`, generated into `serde_json/`.
+
+The export list in `src/dto/export.rs` is hand-written, because Rust cannot
+enumerate a module's types at run time. That list is what drifted in v3 — a DTO
+was added, nobody remembered the list, and the console silently went without a
+type for it — so a second test reads `src/dto/mod.rs` itself and compares its
+`pub use` items against the list. Adding a DTO and forgetting the list is a red
+test, not a missing file.
+
 ## What is not here
 
 - **Identity.** Users, API keys, organizations, teams, permissions,
@@ -582,5 +627,8 @@ decimal instead of the fixed-point atoms a cost meter counts in.
   handle is given a scope and a set of allowed providers and credentials.
 - **A server.** No listener, no router, no middleware, no CLI. Native and edge
   hosts are built on top of this crate.
+- **A console.** This crate generates the TypeScript types a UI is written
+  against; the UI itself, its session handling and its HTTP transport are the
+  application's.
 - **Execution.** Attempts, conversion, rewriting, observation, budgets and
   settlement are `gproxy-core`'s; this crate only decides what to hand it.
