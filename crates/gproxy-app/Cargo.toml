@@ -7,6 +7,19 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+# TypeScript declarations for the identity and portal DTOs, and the export
+# test that writes them. It turns the sdk's on as well, because a portal shape
+# is built out of sdk shapes — `PortalUsageDto` carries a `UsageSummaryDto` —
+# and a declaration cannot be written for a type whose field types have none.
+#
+# `no-serde-warnings` is not cosmetic here either: every patch field over a
+# nullable column carries `#[serde(deserialize_with = "double_option")]`, which
+# `ts-rs` cannot parse and warns about once per field. Without the flag the
+# feature prints several dozen warnings that all describe the same deliberate
+# pattern, and a real one would be lost among them.
+ts = ["dep:ts-rs", "ts-rs/no-serde-warnings", "gproxy-sdk/ts"]
+
 [dependencies]
 arc-swap = { workspace = true }
 # Pure Rust password hashing for the console/portal login.
@@ -39,6 +52,7 @@ thiserror = { workspace = true }
 # and the sdk's builder takes exactly this type.
 tokio-util = { workspace = true }
 tracing = { workspace = true }
+ts-rs = { workspace = true, optional = true }
 web-time = { workspace = true }
 
 # A rate-limit charge has to be given back from a `Drop`, where nothing can be

@@ -4,7 +4,9 @@ use gproxy_store::entity::subscription::{pool, pool_member};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PoolDto {
     pub id: String,
     pub name: String,
@@ -24,7 +26,9 @@ impl From<pool::Model> for PoolDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PoolWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -34,7 +38,9 @@ pub struct PoolWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PoolPatch {
     #[serde(default)]
     pub name: Option<String>,
@@ -43,7 +49,9 @@ pub struct PoolPatch {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PoolMemberDto {
     pub id: String,
     pub pool_id: String,
@@ -67,7 +75,9 @@ impl From<pool_member::Model> for PoolMemberDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PoolMemberWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -79,7 +89,9 @@ pub struct PoolMemberWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PoolMemberPatch {
     #[serde(default)]
     pub pool_id: Option<String>,

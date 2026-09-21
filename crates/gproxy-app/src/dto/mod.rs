@@ -48,6 +48,11 @@ mod subscriptions;
 mod teams;
 mod users;
 
+/// The `ts-rs` declarations, and the check that the export list still covers
+/// every `pub use` below. Tests only, and only where a filesystem exists.
+#[cfg(all(test, feature = "ts", not(target_arch = "wasm32")))]
+mod export;
+
 pub use api_keys::{ApiKeyCreated, ApiKeyDto, ApiKeyPatch, ApiKeySecretDto, ApiKeyWrite};
 pub use audit::{AuditEventDto, AuditQuery};
 pub use common::{BatchItem, BatchPatch, ListQuery, Page, double_option};

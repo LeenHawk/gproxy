@@ -1,208 +1,213 @@
 {
-  "common": {
-    "product": "GPROXY",
-    "console": "Admin console",
+  "shell": {
+    "navigation": "Navigation"
+  },
+  "signIn": {
+    "title": "Sign in",
+    "description": "This console and the self-service portal are one application; what you see is what this instance says you may do."
+  },
+  "actions": {
+    "add": "Add",
+    "cancel": "Cancel",
+    "close": "Close",
+    "copied": "Copied",
+    "copy": "Copy",
+    "create": "Create",
+    "delete": "Delete",
+    "details": "Details",
+    "done": "Done",
+    "edit": "Edit",
+    "members": "Members",
+    "new": "New",
+    "remove": "Remove",
+    "retire": "Retire",
+    "reveal": "Reveal",
+    "revoke": "Revoke",
+    "rotate": "Rotate",
+    "save": "Save",
+    "search": "Search",
+    "signIn": "Sign in",
+    "signOut": "Sign out"
+  },
+  "state": {
+    "emptyTitle": "Nothing here yet",
+    "emptyDescription": "No row matches. Create one, or widen the filter.",
+    "failed": "The request failed",
+    "forbidden": "Not permitted",
+    "forbiddenDescription": "This instance does not let you reach that. If you expected to, ask an operator to check your scope.",
+    "notFoundTitle": "No such page",
+    "notFoundDescription": "This console has no page at that address."
+  },
+  "form": {
+    "choose": "Choose…"
+  },
+  "pagination": {
+    "position": "Page {{page}} of {{pages}} · {{total}} rows",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "confirm": {
+    "deleteTitle": "Delete this row?",
+    "deleteDescription": "{{name}} will be removed. This cannot be undone.",
+    "removeMemberTitle": "Remove this member?",
+    "removeMemberDescription": "{{name}} loses their membership of this scope, and any role that came with it.",
+    "retireTitle": "Retire this client?",
+    "retireDescription": "{{name}} stops being usable. Its existing grants keep naming it, so session history still resolves.",
+    "revokeTitle": "End this session?",
+    "revokeDescription": "Session {{name}} ends immediately and its holder has to sign in again.",
+    "revokeGrantTitle": "Revoke this authorization?",
+    "revokeGrantDescription": "{{name}} loses its access immediately, including any refresh token it still holds.",
+    "rotateTitle": "Rotate this key?",
+    "rotateDescription": "{{name}} gets a new secret and the old one stops working at once. Anything using it has to be updated."
+  },
+  "toast": {
+    "added": "Added",
+    "created": "Created",
+    "deleted": "Deleted",
+    "removed": "Removed",
+    "retired": "Retired",
+    "revoked": "Revoked",
+    "saved": "Saved"
+  },
+  "language": {
+    "en": "English",
+    "zh-CN": "简体中文",
+    "zh-TW": "繁體中文"
+  },
+  "theme": {
+    "light": "Light theme",
+    "dark": "Dark theme"
+  },
+  "scope": {
+    "instance": "Instance operator",
+    "organization": "Organization",
+    "team": "Team",
+    "none": "Account"
+  },
+  "section": {
+    "self": "Your account",
+    "identity": "Identity"
+  },
+  "range": {
+    "day": "24 hours",
+    "week": "7 days",
+    "month": "30 days"
+  },
+  "values": {
+    "yes": "Yes",
+    "no": "No",
+    "user": "User",
+    "admin": "Administrator",
+    "member": "Member",
+    "allow": "Allow",
+    "deny": "Deny",
+    "total": "Total",
+    "fixed": "Fixed",
+    "day": "Day",
+    "week": "Week",
+    "month": "Month",
+    "model": "Model",
+    "operation": "Operation",
+    "provider": "Provider",
+    "apiKey": "Key",
+    "api_key": "Key",
+    "subscription": "Subscription",
+    "team": "Team",
+    "org": "Organization",
+    "in_progress": "In progress",
+    "completed": "Completed",
+    "failed": "Failed",
+    "cancelled": "Cancelled"
+  },
+  "fields": {
+    "action": "Action",
+    "actions": "Actions",
+    "actorUserId": "Actor",
+    "apiKeyId": "Key",
+    "cachedInputTokens": "Cached input",
+    "channelIds": "Channels",
+    "claudeRateLimitTier": "Claude rate-limit tier",
+    "claudeSubscriptionType": "Claude subscription",
+    "clientName": "Client",
+    "codexPlanType": "Codex plan",
+    "cost": "Cost",
+    "createdAtMs": "Created",
+    "credentialId": "Credential",
+    "currentPassword": "Current password",
+    "deletedAtMs": "Retired",
+    "detail": "Detail",
+    "durationMs": "Duration",
+    "enabled": "Enabled",
+    "entityId": "Entity",
+    "entityKind": "Entity kind",
+    "expiresAtMs": "Expires",
+    "hasPassword": "Password",
+    "hasSecret": "Retained",
+    "id": "Id",
+    "inputTokens": "Input",
+    "key": "Key",
+    "kind": "Kind",
+    "lastRefreshedAtMs": "Last refreshed",
+    "limit": "Limit",
+    "limitValue": "Limit",
+    "loggedInAtMs": "First use",
+    "metric": "Metric",
+    "model": "Model",
+    "modelPattern": "Model pattern",
     "name": "Name",
-    "language": "Language",
-    "languages": {
-      "en": "English",
-      "zh-CN": "简体中文",
-      "zh-TW": "繁體中文"
-    },
-    "loading": "Loading…",
-    "loadError": "Could not load this data. Retry.",
-    "none": "None",
-    "optional": "Optional",
-    "required": "Required",
-    "search": "Search…",
-    "actions": {
-      "create": "Create",
-      "save": "Save",
-      "saving": "Saving…",
-      "saved": "Saved",
-      "cancel": "Cancel",
-      "reset": "Revert",
-      "close": "Close",
-      "edit": "Edit",
-      "enable": "Enable",
-      "disable": "Disable",
-      "add": "Add",
-      "delete": "Delete",
-      "back": "Back"
-    },
-    "status": {
-      "label": "Status",
-      "enabled": "Enabled",
-      "disabled": "Disabled",
-      "healthy": "Healthy",
-      "degraded": "Degraded",
-      "dead": "Dead",
-      "unknown": "Unknown",
-      "open": "Open",
-      "closed": "Closed",
-      "active": "Active",
-      "inactive": "Inactive"
-    },
-    "errors": {
-      "load": "Could not load this data. Retry.",
-      "save": "Could not save changes. Retry.",
-      "invalid": "Check the highlighted fields.",
-      "required": "This field is required.",
-      "unknown": "Unknown error"
-    },
-    "batch": {
-      "select": "Batch",
-      "cancel": "Cancel",
-      "enable": "Enable selected",
-      "disable": "Disable selected",
-      "delete": "Delete selected",
-      "enabled": "Enabled {{count}} items.",
-      "disabled": "Disabled {{count}} items.",
-      "deleted": "Deleted {{count}} items.",
-      "partial": "{{failed}} of {{total}} items failed.",
-      "failed": "The batch action could not be completed."
-    },
-    "theme": {
-      "label": "Theme",
-      "light": "Light",
-      "dark": "Dark",
-      "system": "System"
-    },
-    "dataTable": {
-      "search": "Search",
-      "columns": "Columns",
-      "previous": "Previous",
-      "next": "Next",
-      "page": "Page {{page}} of {{pages}}",
-      "itemsPerPage": "Items per page",
-      "selected": "{{count}} selected",
-      "selectAll": "Select all rows",
-      "selectRow": "Select row"
-    },
-    "filters": {
-      "start": "Start",
-      "end": "End",
-      "apply": "Apply",
-      "reset": "Reset",
-      "invalidRange": "Start must be before end."
-    },
-    "documentation": "Documentation",
-    "buildIdentity": "v{{version}} · {{channel}} · {{hash}} · {{kind}}"
-  },
-  "connectivity": {
-    "action": "Test connectivity",
-    "testing": "Testing…",
-    "title": "Connectivity result",
-    "success": "Upstream egress is reachable",
-    "successHint": "The addresses below are what the upstream sees.",
-    "failed": "Connectivity test failed",
-    "requestError": "Could not run the connectivity test.",
-    "route": "{{source}} · {{latency}} ms total",
-    "latency": "{{value}} ms",
-    "sources": {
-      "proxy": "Proxy under test",
-      "credential": "Credential proxy",
-      "provider": "Provider proxy",
-      "global": "Global proxy",
-      "system": "System proxy",
-      "direct": "Direct connection"
-    },
-    "errors": {
-      "invalid_fingerprint": "The configured fingerprint cannot be applied.",
-      "transport": "The upstream or configured proxy could not be reached.",
-      "http_status": "The connectivity service returned an error status.",
-      "invalid_response": "The connectivity service did not return a valid egress address.",
-      "timeout": "The connectivity test timed out after 30 seconds.",
-      "unknown": "The connectivity test failed for an unknown reason."
-    }
-  },
-  "auth": {
-    "home": "Back to home",
-    "username": "Username",
+    "newPassword": "New password",
+    "oauthClientAllowlist": "OAuth client allowlist",
+    "operation": "Operation",
+    "organizationId": "Organization",
+    "outcome": "Outcome",
+    "outputTokens": "Output",
     "password": "Password",
-    "logout": "Sign out",
-    "error": {
-      "title": "Authentication failed",
-      "description": "Check the credentials and try again."
-    },
-    "login": {
-      "title": "Sign in to GPROXY",
-      "description": "Use an administrator account for this instance.",
-      "action": "Sign in"
-    },
-    "setup": {
-      "title": "Create the administrator",
-      "description": "This account manages the instance and is separate from data-plane API keys.",
-      "action": "Create administrator"
-    },
-    "session": {
-      "loadError": "Could not verify the admin session. Retry."
-    }
+    "period": "Period",
+    "periodSeconds": "Period (seconds)",
+    "permitted": "Permitted",
+    "planId": "Plan",
+    "poolId": "Pool",
+    "prefix": "Prefix",
+    "priority": "Priority",
+    "provider": "Provider",
+    "providerCount": "Providers",
+    "providerId": "Provider",
+    "reasoningTokens": "Reasoning",
+    "redirectUris": "Redirect URIs",
+    "refreshCount": "Refreshes",
+    "requestId": "Request",
+    "requests": "Requests",
+    "responseStatus": "Status",
+    "retainSecret": "Retain the secret",
+    "role": "Role",
+    "scopes": "Scopes",
+    "sourceIp": "Source",
+    "sourceKey": "Source key",
+    "startedAtMs": "Started",
+    "startsAtMs": "Starts",
+    "state": "State",
+    "subscriptionId": "Subscription",
+    "teamId": "Team",
+    "userId": "User",
+    "windowKey": "Window"
   },
-  "nav": {
-    "label": "Console navigation",
-    "overview": "Overview",
-    "providers": "Providers",
-    "routes": "Load balancing",
-    "rules": "Rules",
-    "identity": "Identity",
-    "usage": "Statistics",
-    "pricing": "Pricing",
-    "tokenizers": "Tokenizers",
-    "update": "Updates",
-    "settings": "Settings",
-    "open": "Open navigation",
-    "close": "Close navigation",
-    "resize": "Resize navigation",
-    "about": "About"
-  },
-  "window": {
-    "resets": "Resets {{value}}",
-    "started": "Started {{time}}",
-    "noReset": "Reset time is not known",
-    "notStarted": "Window has not started",
-    "boundary": {
-      "label": "Boundary",
-      "upstream": "Reported by upstream",
-      "inferred": "Inferred by GPROXY",
-      "unknown": "Boundary unknown"
-    },
-    "confidence": {
-      "label": "Confidence",
-      "exact": "Exact",
-      "derived": "Derived",
-      "partial": "Partial",
-      "unknown": "Unknown"
-    },
-    "coverage": {
-      "partial": "Partial coverage",
-      "unknown": "Coverage unknown"
-    },
-    "closeReason": {
-      "boundary_crossed": "Boundary crossed",
-      "manual_reset": "Manual reset",
-      "usage_decreased": "Upstream usage reset"
-    },
-    "usageUnknown": "Upstream usage is unavailable for this period."
-  },
-  "about": {
-    "title": "About GPROXY",
-    "subtitle": "One endpoint for your LLM providers, accounts and applications.",
-    "description": "GPROXY is an open-source, self-hosted LLM API gateway built with Rust. Connect your applications to multiple providers through one API endpoint.",
-    "version": "Version {{version}}",
-    "features": {
-      "protocols": "Use OpenAI Chat Completions, Responses, Claude Messages and Gemini APIs, with streaming and direct format conversion.",
-      "accounts": "Pool upstream credentials with token refresh, load balancing and failover.",
-      "control": "Manage access, quotas, usage and costs through the admin console and user portal."
-    },
-    "openSource": "Maintained by Leen Hawk and the community. The gateway is licensed under AGPL-3.0-or-later; see the repository for individual component licenses.",
-    "source": "Source code",
-    "feedback": "Report an issue",
-    "sponsor": {
-      "title": "Support GPROXY",
-      "description": "Help keep GPROXY moving forward through GitHub Sponsors.",
-      "thanks": "Your support helps sustain maintenance, provider compatibility and new features. Thank you for using and supporting GPROXY.",
-      "action": "Sponsor LeenHawk"
-    }
+  "help": {
+    "codexPlanType": "A client-facing wire label for this gateway plan, not a purchased upstream entitlement.",
+    "expiresAtMs": "Leave empty for a key that never expires.",
+    "id": "The client_id the third-party binary was built with. It cannot be generated here, and cannot be changed afterwards.",
+    "limitValue": "A decimal amount, as text: a limit has to survive a JavaScript number unchanged.",
+    "metric": "requests, concurrency, or any counter name the host charges.",
+    "modelPattern": "A glob over the model name: * and ?, anchored. * also matches a request that names no model.",
+    "oauthClientAllowlist": "One client id per line. Empty inherits the level above; a list of none denies every client.",
+    "organizationId": "The binding that decides the budget chain, the permission subject and which credentials this key may reach — all at once, and only here.",
+    "password": "Optional. An account created without one cannot sign in until a password is set, which is what an API-key-only account is.",
+    "periodSeconds": "Required and positive for a fixed period; unused otherwise.",
+    "planId": "The plan's limits are copied at issuance: re-pointing an issued subscription does not resize existing windows.",
+    "priority": "Higher wins. A deny beats an allow at the same priority.",
+    "redirectUris": "One per line. A redirect is matched exactly, never by prefix.",
+    "retainSecret": "Keep a sealed copy so the key can be revealed later. Off by default: a key the instance cannot reproduce is a key a database leak does not hand over.",
+    "sourceKey": "The canonical issuer plus upstream subscription identity. It is what deduplicates one real subscription imported under several credentials.",
+    "startsAtMs": "The anchor fixed-duration allowances are measured from. Empty anchors at the moment it is issued.",
+    "userId": "A rule names a user or a key, never both."
   }
 }

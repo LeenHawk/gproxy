@@ -1,43 +1,82 @@
-import { useQueries } from "@tanstack/react-query"
+//! The route table, and the one thing it does beyond matching: refuse.
+//!
+//! Every route here has a navigation entry in `@/capability/navigation`, and
+//! [`mayEnter`] is asked before a page is rendered. That matters for a route
+//! reached by typing rather than clicking — a bookmark, a shared link, or a
+//! session that lost a capability while the tab was open — which the sidebar
+//! alone cannot guard.
+
 import { useTranslation } from "react-i18next"
+import { mayEnter } from "@/capability/navigation"
+import { useConsoleContext } from "@/capability/session"
+import { EmptyNotice } from "@/components/state"
+import { Page, PageHeader } from "@/components/page"
+import { useRoute, useScrollReset } from "@/lib/router"
 import {
-  modelAliases,
-  providers,
-  routeMembers,
-  routes,
-} from "@/api/control"
-import { PageLayout } from "@/components/page-layout"
-import { QueryState } from "@/components/query-state"
-import { RoutesWorkspace } from "@/components/routes/routes-workspace"
+  ApiKeysPage, OAuthClientsPage, OrganizationsPage, PermissionsPage, PlanLimitsPage, PlansPage,
+  PoolMembersPage, PoolsPage, RateLimitsPage, SubscriptionsPage, TeamsPage, UsersPage,
+} from "@/pages/identity/families"
+import { AuditPage } from "@/pages/identity/audit"
+import { SessionsPage } from "@/pages/identity/sessions"
+import { AccountPage } from "@/pages/self/account"
+import { KeysPage } from "@/pages/self/keys"
+import { ModelsPage } from "@/pages/self/models"
+import { OverviewPage } from "@/pages/self/overview"
+import { QuotaPage } from "@/pages/self/quota"
+import { RequestsPage } from "@/pages/self/requests"
+import { UsagePage } from "@/pages/self/usage"
 
-export function RoutesPage() {
+const ROUTES: Record<string, () => React.ReactElement> = {
+  "/": OverviewPage,
+  "/keys": KeysPage,
+  "/models": ModelsPage,
+  "/usage": UsagePage,
+  "/quota": QuotaPage,
+  "/requests": RequestsPage,
+  "/account": AccountPage,
+  "/identity/users": UsersPage,
+  "/identity/api-keys": ApiKeysPage,
+  "/identity/organizations": OrganizationsPage,
+  "/identity/teams": TeamsPage,
+  "/identity/permissions": PermissionsPage,
+  "/identity/rate-limits": RateLimitsPage,
+  "/identity/plans": PlansPage,
+  "/identity/plan-limits": PlanLimitsPage,
+  "/identity/subscriptions": SubscriptionsPage,
+  "/identity/pools": PoolsPage,
+  "/identity/pool-members": PoolMembersPage,
+  "/identity/oauth-clients": OAuthClientsPage,
+  "/identity/sessions": SessionsPage,
+  "/identity/audit": AuditPage,
+}
+
+function NotFound() {
   const { t } = useTranslation()
-  const [routeQuery, memberQuery, providerQuery, modelAliasQuery] = useQueries({
-    queries: [
-      { queryKey: ["routes"], queryFn: routes },
-      { queryKey: ["route-members"], queryFn: routeMembers },
-      { queryKey: ["providers"], queryFn: providers },
-      { queryKey: ["model-aliases"], queryFn: modelAliases },
-    ],
-  })
-  const queries = [routeQuery, memberQuery, providerQuery, modelAliasQuery]
-
   return (
-    <PageLayout title={t("routes.title")} description={t("routes.subtitle")}>
-      <QueryState
-        loading={queries.some((query) => query.isLoading)}
-        error={queries.some((query) => query.error) ? t("routes.loadError") : ""}
-      >
-        <RoutesWorkspace
-          routes={routeQuery.data ?? []}
-          members={memberQuery.data ?? []}
-          providers={providerQuery.data ?? []}
-          modelAliases={modelAliasQuery.data ?? []}
-          onRoutesChanged={() => void routeQuery.refetch()}
-          onMembersChanged={() => void memberQuery.refetch()}
-          onModelAliasesChanged={() => void modelAliasQuery.refetch()}
-        />
-      </QueryState>
-    </PageLayout>
+    <Page>
+      <PageHeader title={t("state.notFoundTitle")} />
+      <EmptyNotice title={t("state.notFoundTitle")} description={t("state.notFoundDescription")} />
+    </Page>
   )
+}
+
+function Forbidden() {
+  const { t } = useTranslation()
+  return (
+    <Page>
+      <PageHeader title={t("state.forbidden")} />
+      <EmptyNotice title={t("state.forbidden")} description={t("state.forbiddenDescription")} />
+    </Page>
+  )
+}
+
+export function Routes() {
+  const route = useRoute()
+  const context = useConsoleContext()
+  useScrollReset(route)
+
+  const Match = ROUTES[route]
+  if (!Match) return <NotFound />
+  if (!mayEnter(context, route)) return <Forbidden />
+  return <Match />
 }

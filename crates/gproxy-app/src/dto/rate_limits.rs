@@ -6,7 +6,9 @@ use gproxy_store::entity::limits::rate_limit;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct RateLimitDto {
     pub id: String,
     /// Exactly one subject, the same rule permissions follow.
@@ -39,7 +41,9 @@ impl From<rate_limit::Model> for RateLimitDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct RateLimitWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -57,7 +61,9 @@ pub struct RateLimitWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct RateLimitPatch {
     #[serde(default, deserialize_with = "double_option")]
     pub user_id: Option<Option<String>>,

@@ -6,7 +6,9 @@ use gproxy_store::entity::identity::user_session;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UserSessionDto {
     pub id: String,
     pub user_id: String,

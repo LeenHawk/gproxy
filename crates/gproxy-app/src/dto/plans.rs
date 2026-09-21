@@ -5,7 +5,9 @@ use gproxy_store::entity::subscription::{plan, plan_limit};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PlanDto {
     pub id: String,
     pub pool_id: String,
@@ -33,7 +35,9 @@ impl From<plan::Model> for PlanDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PlanWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -50,7 +54,9 @@ pub struct PlanWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PlanPatch {
     #[serde(default)]
     pub pool_id: Option<String>,
@@ -67,7 +73,9 @@ pub struct PlanPatch {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PlanLimitDto {
     pub id: String,
     pub plan_id: String,
@@ -98,7 +106,9 @@ impl From<plan_limit::Model> for PlanLimitDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PlanLimitWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -113,7 +123,9 @@ pub struct PlanLimitWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PlanLimitPatch {
     #[serde(default)]
     pub window_key: Option<String>,

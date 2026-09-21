@@ -1,208 +1,213 @@
 {
-  "common": {
-    "product": "GPROXY",
-    "console": "管理控制台",
+  "shell": {
+    "navigation": "導覽"
+  },
+  "signIn": {
+    "title": "登入",
+    "description": "主控台與自助入口是同一個應用程式；你看到的，就是這個執行個體說你能做的。"
+  },
+  "actions": {
+    "add": "新增",
+    "cancel": "取消",
+    "close": "關閉",
+    "copied": "已複製",
+    "copy": "複製",
+    "create": "建立",
+    "delete": "刪除",
+    "details": "詳情",
+    "done": "完成",
+    "edit": "編輯",
+    "members": "成員",
+    "new": "新建",
+    "remove": "移除",
+    "retire": "停用",
+    "reveal": "檢視",
+    "revoke": "撤銷",
+    "rotate": "輪換",
+    "save": "儲存",
+    "search": "搜尋",
+    "signIn": "登入",
+    "signOut": "登出"
+  },
+  "state": {
+    "emptyTitle": "這裡還是空的",
+    "emptyDescription": "沒有符合的列。新建一筆，或放寬篩選條件。",
+    "failed": "請求失敗",
+    "forbidden": "無權存取",
+    "forbiddenDescription": "這個執行個體不允許你存取該頁面。若不符預期，請讓維運檢查你的作用域。",
+    "notFoundTitle": "沒有這個頁面",
+    "notFoundDescription": "該位址在這個主控台裡沒有對應頁面。"
+  },
+  "form": {
+    "choose": "請選擇…"
+  },
+  "pagination": {
+    "position": "第 {{page}} / {{pages}} 頁 · 共 {{total}} 列",
+    "previous": "上一頁",
+    "next": "下一頁"
+  },
+  "confirm": {
+    "deleteTitle": "刪除這一列？",
+    "deleteDescription": "{{name}} 將被刪除，且無法復原。",
+    "removeMemberTitle": "移除該成員？",
+    "removeMemberDescription": "{{name}} 將失去這個作用域的成員身分，以及隨之而來的角色。",
+    "retireTitle": "停用這個用戶端？",
+    "retireDescription": "{{name}} 將無法再使用。它簽發過的授權仍指向它，所以歷史記錄仍可解析。",
+    "revokeTitle": "結束這個工作階段？",
+    "revokeDescription": "工作階段 {{name}} 將立即結束，持有者需要重新登入。",
+    "revokeGrantTitle": "撤銷這個授權？",
+    "revokeGrantDescription": "{{name}} 將立即失去存取權，包括它還持有的更新權杖。",
+    "rotateTitle": "輪換這把金鑰？",
+    "rotateDescription": "{{name}} 會取得新的金鑰，舊的立即失效。所有使用中的地方都需要更新。"
+  },
+  "toast": {
+    "added": "已新增",
+    "created": "已建立",
+    "deleted": "已刪除",
+    "removed": "已移除",
+    "retired": "已停用",
+    "revoked": "已撤銷",
+    "saved": "已儲存"
+  },
+  "language": {
+    "en": "English",
+    "zh-CN": "简体中文",
+    "zh-TW": "繁體中文"
+  },
+  "theme": {
+    "light": "淺色主題",
+    "dark": "深色主題"
+  },
+  "scope": {
+    "instance": "執行個體管理員",
+    "organization": "組織",
+    "team": "團隊",
+    "none": "帳號"
+  },
+  "section": {
+    "self": "我的帳號",
+    "identity": "身分"
+  },
+  "range": {
+    "day": "24 小時",
+    "week": "7 天",
+    "month": "30 天"
+  },
+  "values": {
+    "yes": "是",
+    "no": "否",
+    "user": "使用者",
+    "admin": "管理員",
+    "member": "成員",
+    "allow": "允許",
+    "deny": "拒絕",
+    "total": "累計",
+    "fixed": "固定週期",
+    "day": "日",
+    "week": "週",
+    "month": "月",
+    "model": "模型",
+    "operation": "操作",
+    "provider": "供應者",
+    "apiKey": "金鑰",
+    "api_key": "金鑰",
+    "subscription": "訂閱",
+    "team": "團隊",
+    "org": "組織",
+    "in_progress": "進行中",
+    "completed": "已完成",
+    "failed": "失敗",
+    "cancelled": "已取消"
+  },
+  "fields": {
+    "action": "動作",
+    "actions": "操作",
+    "actorUserId": "操作者",
+    "apiKeyId": "金鑰",
+    "cachedInputTokens": "快取輸入",
+    "channelIds": "通道",
+    "claudeRateLimitTier": "Claude 限流層級",
+    "claudeSubscriptionType": "Claude 訂閱類型",
+    "clientName": "用戶端",
+    "codexPlanType": "Codex 方案",
+    "cost": "費用",
+    "createdAtMs": "建立時間",
+    "credentialId": "憑證",
+    "currentPassword": "目前密碼",
+    "deletedAtMs": "停用時間",
+    "detail": "詳情",
+    "durationMs": "耗時",
+    "enabled": "啟用",
+    "entityId": "實體",
+    "entityKind": "實體類型",
+    "expiresAtMs": "到期時間",
+    "hasPassword": "已設密碼",
+    "hasSecret": "已保留",
+    "id": "ID",
+    "inputTokens": "輸入",
+    "key": "鍵",
+    "kind": "類型",
+    "lastRefreshedAtMs": "最近更新",
+    "limit": "額度",
+    "limitValue": "額度",
+    "loggedInAtMs": "首次使用",
+    "metric": "計量",
+    "model": "模型",
+    "modelPattern": "模型樣式",
     "name": "名稱",
-    "language": "語言",
-    "languages": {
-      "en": "English",
-      "zh-CN": "简体中文",
-      "zh-TW": "繁體中文"
-    },
-    "loading": "正在載入…",
-    "loadError": "無法載入資料，請重試。",
-    "none": "無",
-    "optional": "選填",
-    "required": "必填",
-    "search": "搜尋…",
-    "actions": {
-      "create": "建立",
-      "save": "儲存",
-      "saving": "正在儲存…",
-      "saved": "已儲存",
-      "cancel": "取消",
-      "reset": "還原",
-      "close": "關閉",
-      "edit": "編輯",
-      "enable": "啟用",
-      "disable": "停用",
-      "add": "新增",
-      "delete": "刪除",
-      "back": "返回"
-    },
-    "status": {
-      "label": "狀態",
-      "enabled": "已啟用",
-      "disabled": "已停用",
-      "healthy": "健康",
-      "degraded": "部分異常",
-      "dead": "不可用",
-      "unknown": "未知",
-      "open": "進行中",
-      "closed": "已結束",
-      "active": "作用中",
-      "inactive": "非作用中"
-    },
-    "errors": {
-      "load": "無法載入資料，請重試。",
-      "save": "無法儲存變更，請重試。",
-      "invalid": "請檢查標記的欄位。",
-      "required": "此欄位為必填。",
-      "unknown": "未知錯誤"
-    },
-    "batch": {
-      "select": "批次",
-      "cancel": "取消",
-      "enable": "啟用所選項目",
-      "disable": "停用所選項目",
-      "delete": "刪除所選項目",
-      "enabled": "已啟用 {{count}} 項。",
-      "disabled": "已停用 {{count}} 項。",
-      "deleted": "已刪除 {{count}} 項。",
-      "partial": "{{total}} 項中有 {{failed}} 項失敗。",
-      "failed": "無法完成批次操作。"
-    },
-    "theme": {
-      "label": "主題",
-      "light": "淺色",
-      "dark": "深色",
-      "system": "跟隨系統"
-    },
-    "dataTable": {
-      "search": "搜尋",
-      "columns": "欄",
-      "previous": "上一頁",
-      "next": "下一頁",
-      "page": "第 {{page}} / {{pages}} 頁",
-      "itemsPerPage": "每頁項數",
-      "selected": "已選擇 {{count}} 項",
-      "selectAll": "選擇所有列",
-      "selectRow": "選擇此列"
-    },
-    "filters": {
-      "start": "開始時間",
-      "end": "結束時間",
-      "apply": "套用",
-      "reset": "重設",
-      "invalidRange": "開始時間必須早於結束時間。"
-    },
-    "documentation": "文件",
-    "buildIdentity": "v{{version}} · {{channel}} · {{hash}} · {{kind}}"
-  },
-  "connectivity": {
-    "action": "測試連線",
-    "testing": "正在測試…",
-    "title": "連線結果",
-    "success": "上游出口可連線",
-    "successHint": "以下位址是上游實際看到的出口位址。",
-    "failed": "連線測試失敗",
-    "requestError": "無法執行連線測試。",
-    "route": "{{source}} · 總計 {{latency}} 毫秒",
-    "latency": "{{value}} 毫秒",
-    "sources": {
-      "proxy": "待測試代理",
-      "credential": "憑證代理",
-      "provider": "供應商代理",
-      "global": "全域代理",
-      "system": "系統代理",
-      "direct": "直接連線"
-    },
-    "errors": {
-      "invalid_fingerprint": "無法套用已設定的指紋。",
-      "transport": "無法連線上游或已設定的代理。",
-      "http_status": "連線服務傳回錯誤狀態。",
-      "invalid_response": "連線服務未傳回有效的出口位址。",
-      "timeout": "連線測試在 30 秒後逾時。",
-      "unknown": "連線測試因未知原因失敗。"
-    }
-  },
-  "auth": {
-    "home": "返回首頁",
-    "username": "使用者名稱",
+    "newPassword": "新密碼",
+    "oauthClientAllowlist": "OAuth 用戶端允許清單",
+    "operation": "操作",
+    "organizationId": "組織",
+    "outcome": "結果",
+    "outputTokens": "輸出",
     "password": "密碼",
-    "logout": "登出",
-    "error": {
-      "title": "身分驗證失敗",
-      "description": "請檢查憑證後重試。"
-    },
-    "login": {
-      "title": "登入 GPROXY",
-      "description": "使用此執行個體的管理員帳戶登入。",
-      "action": "登入"
-    },
-    "setup": {
-      "title": "建立管理員",
-      "description": "此帳戶用於管理執行個體，與資料平面 API 金鑰相互獨立。",
-      "action": "建立管理員"
-    },
-    "session": {
-      "loadError": "無法驗證管理員工作階段，請重試。"
-    }
+    "period": "週期",
+    "periodSeconds": "週期（秒）",
+    "permitted": "已允許",
+    "planId": "方案",
+    "poolId": "資源池",
+    "prefix": "前綴",
+    "priority": "優先順序",
+    "provider": "供應者",
+    "providerCount": "供應者數",
+    "providerId": "供應者",
+    "reasoningTokens": "推理",
+    "redirectUris": "重新導向位址",
+    "refreshCount": "更新次數",
+    "requestId": "請求",
+    "requests": "請求數",
+    "responseStatus": "狀態碼",
+    "retainSecret": "保留金鑰原文",
+    "role": "角色",
+    "scopes": "授權範圍",
+    "sourceIp": "來源",
+    "sourceKey": "來源識別",
+    "startedAtMs": "開始時間",
+    "startsAtMs": "生效時間",
+    "state": "狀態",
+    "subscriptionId": "訂閱",
+    "teamId": "團隊",
+    "userId": "使用者",
+    "windowKey": "視窗"
   },
-  "nav": {
-    "label": "控制台導覽",
-    "overview": "總覽",
-    "providers": "供應商",
-    "routes": "負載均衡",
-    "rules": "規則",
-    "identity": "身分",
-    "usage": "統計",
-    "pricing": "定價",
-    "tokenizers": "分詞器詞表",
-    "update": "更新",
-    "settings": "設定",
-    "open": "開啟導覽",
-    "close": "關閉導覽",
-    "resize": "調整導覽寬度",
-    "about": "關於"
-  },
-  "window": {
-    "resets": "重設於 {{value}}",
-    "started": "開始於 {{time}}",
-    "noReset": "重設時間未知",
-    "notStarted": "視窗尚未開始",
-    "boundary": {
-      "label": "邊界",
-      "upstream": "上游回報",
-      "inferred": "GPROXY 推斷",
-      "unknown": "邊界未知"
-    },
-    "confidence": {
-      "label": "可信度",
-      "exact": "精確",
-      "derived": "推導",
-      "partial": "部分可信",
-      "unknown": "未知"
-    },
-    "coverage": {
-      "partial": "部分涵蓋",
-      "unknown": "涵蓋範圍未知"
-    },
-    "closeReason": {
-      "boundary_crossed": "跨越週期邊界",
-      "manual_reset": "手動重設",
-      "usage_decreased": "上游已用額度倒降"
-    },
-    "usageUnknown": "此週期的上游用量無法取得。"
-  },
-  "about": {
-    "title": "關於 GPROXY",
-    "subtitle": "用一個入口連接你的大型語言模型服務、上游帳戶與應用程式。",
-    "description": "GPROXY 是使用 Rust 建構的開源、自架大型語言模型 API 閘道，讓你的應用程式透過統一的 API 入口連接多個服務商。",
-    "version": "版本 {{version}}",
-    "features": {
-      "protocols": "相容 OpenAI Chat Completions、Responses、Claude Messages 和 Gemini API，支援串流回應與格式間直接轉換。",
-      "accounts": "統一管理上游憑證，支援權杖更新、負載平衡與故障切換。",
-      "control": "透過管理控制台和使用者 Portal 管理存取權限、配額、用量與費用。"
-    },
-    "openSource": "由 Leen Hawk 和社群共同維護。閘道採用 AGPL-3.0-or-later 授權條款，各元件的授權資訊請見原始碼儲存庫。",
-    "source": "原始碼儲存庫",
-    "feedback": "問題回報",
-    "sponsor": {
-      "title": "支持 GPROXY",
-      "description": "透過 GitHub Sponsors 贊助專案，支持 GPROXY 持續發展。",
-      "thanks": "你的支持將幫助專案持續維護、適配上游服務並開發新功能。感謝你使用和支持 GPROXY。",
-      "action": "贊助 LeenHawk"
-    }
+  "help": {
+    "codexPlanType": "面向用戶端的線上標籤，描述的是這個閘道方案，不是你買到的上游權益。",
+    "expiresAtMs": "留空表示永不到期。",
+    "id": "第三方程式編譯進去的 client_id。它不能在這裡產生，之後也不能改。",
+    "limitValue": "十進位文字而非數字：額度必須原樣通過 JavaScript 的 Number。",
+    "metric": "requests、concurrency，或主機會計數的任意計量名稱。",
+    "modelPattern": "模型名稱上的樣式：* 與 ?，整串比對。* 同時比對沒有指定模型的請求。",
+    "oauthClientAllowlist": "每行一個用戶端 ID。留空表示沿用上一層；寫成空清單則拒絕所有用戶端。",
+    "organizationId": "這一項同時決定預算鏈、權限主體與這把金鑰能看到哪些憑證——只在這裡設定一次，絕不從請求標頭取得。",
+    "password": "選填。沒有密碼的帳號無法登入，這正是純 API key 帳號的樣子。",
+    "periodSeconds": "固定週期必填且為正；其餘週期不使用。",
+    "planId": "方案額度在簽發時即已複製：把已簽發的訂閱指向別的方案不會調整既有視窗。",
+    "priority": "數值大者優先。同優先順序下拒絕勝過允許。",
+    "redirectUris": "每行一個。重新導向位址按整串精確比對，不做前綴比對。",
+    "retainSecret": "保留一份密封副本，以便日後檢視。預設關閉：執行個體重現不出來的金鑰，資料庫外洩時也交不出去。",
+    "sourceKey": "正規化的簽發方加上游訂閱識別。同一個真實訂閱被多份憑證匯入時，靠它去重。",
+    "startsAtMs": "固定時長額度從這個錨點開始計算。留空則以簽發時刻為錨點。",
+    "userId": "一條規則要麼指向使用者，要麼指向金鑰，不能兩者都寫。"
   }
 }

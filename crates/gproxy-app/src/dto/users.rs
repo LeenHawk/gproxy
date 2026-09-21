@@ -6,7 +6,9 @@ use gproxy_store::entity::identity::user;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UserDto {
     pub id: String,
     pub name: String,
@@ -38,7 +40,9 @@ impl From<user::Model> for UserDto {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UserWrite {
     #[serde(default)]
     pub id: Option<String>,
@@ -57,7 +61,9 @@ pub struct UserWrite {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UserPatch {
     #[serde(default)]
     pub name: Option<String>,
@@ -74,7 +80,9 @@ pub struct UserPatch {
 
 /// The body of `users.set_password`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PasswordWrite {
     pub password: String,
 }
