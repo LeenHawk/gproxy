@@ -61,8 +61,13 @@ const CELL_CAP = "max-w-[18rem] truncate"
  * family would then stack its verbs one per line, including the ones that
  * fit. `max-content` asks for the unwrapped row and the cap is what refuses
  * it.
+ *
+ * The vertical gap is the wider one: the two lines are stacked verbs a thumb
+ * has to tell apart, and `Edit` 4px above `Delete` is a mis-tap waiting to
+ * happen. Along a line the labels already separate them.
  */
-const ACTION_ROW = "flex w-max max-w-40 flex-wrap items-center justify-end gap-1 sm:max-w-none sm:flex-nowrap"
+const ACTION_ROW =
+  "flex w-max max-w-40 flex-wrap items-center justify-end gap-x-1 gap-y-2 sm:max-w-none sm:flex-nowrap"
 
 export function DataTable<T>({ columns, rows, rowKey, empty, actions }: {
   columns: Array<Column<T>>
