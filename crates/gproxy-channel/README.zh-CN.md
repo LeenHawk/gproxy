@@ -22,17 +22,36 @@ Cargo feature：
 | `claudeweb` | `claudeweb` | claude.ai 浏览器会话：对 `/api/bootstrap` 的 cookie 登录、多次调用组成的对话轮次翻译成 Claude Messages SSE、组织级用量窗口 | 会话 cookie + 组织 |
 | `codex` | `codex` | 经 Codex 后端使用的 ChatGPT 账号：OAuth（PKCE 与 device code）、HTTP SSE 与 WebSocket 上的 Responses、`x-codex-*` 限额头、`/wham/usage`、CLI 后端服务 | `OAuthCredential` |
 | `custom` | `custom` | 任何原生讲 OpenAI／Claude／Gemini 的 API-key 端点 | `{"api_key"}` |
+| `dashscope` | `dashscope` | 阿里云百炼 DashScope：同一 origin 上的 OpenAI 兼容面、Anthropic 兼容面、独立的 rerank 前缀，以及原生的多模态生成图像 API | `{"api_key"}` |
+| `deepseek` | `deepseek` | DeepSeek：`/v1` 下的 Chat Completions、根路径上的 Responses、`/anthropic` 下的 Claude Messages、`prompt_cache_hit_tokens`、`/user/balance` | `{"api_key"}` |
 | `devin` | `devin` | `server.codeium.com` 上的 Devin（Windsurf）：传输是 Connect-RPC + protobuf 而非 JSON，`GetChatMessage` 的多帧流翻译成 Chat Completions SSE，`GetUserStatus` 给日／周两个窗口 | 会话 token |
 | `geminicli` | `geminicli` | 经 Gemini CLI 所用的 Code Assist 端点使用的 Google 账号：PKCE 登录并在登录时发现 Cloud project 与档位、刷新、Code Assist 请求信封、`retrieveUserQuota` 目录与逐模型额度 | `OAuthCredential` |
+| `kimi` | `kimi` | 月之暗面：用 API key 走 `api.moonshot.cn` 平台，或用设备登录走 `api.kimi.com` 的 Kimi Code 订阅（刷新、CLI 的 `x-msh-*` 身份头）；额度是 `/usages` 窗口或现金余额 | `{"api_key"}` 或 `OAuthCredential` |
 | `openai` | `openai` | OpenAI 自家平台：完整 OpenAI 面、WebSocket 上的 Responses 与 Realtime、`x-ratelimit-*` 头、`/v1/organization/costs` | `{"api_key", "quota_api_key"}` |
+| `openrouter` | `openrouter` | OpenRouter：把 provider 选路偏好填进 body、`HTTP-Referer`／`X-Title` 归属头、响应里自报的价格、`/v1/auth/key` | `{"api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI：按项目与地区寻址 google／anthropic／OpenAI 兼容三个发布者；服务账号密钥经 `CredentialRefresh` 换取访问令牌 | Google 服务账号密钥 |
 | `vertexexpress` | `vertexexpress` | Vertex AI Express 模式：单一全局 origin 上的 Gemini 面，key 走 query，无项目无地区 | `{"api_key"}` |
+| `xai` | `xai` | xAI（Grok）：OpenAI Chat 与 Responses，外加 xAI 自己的 `/v1/tts`、`/v1/stt`、`/v1/videos/generations`，`cost_in_usd_ticks` 计量，管理面的账单探测 | `{"api_key"}` |
 
 `claudeapi`、`openai`、`aistudio` 是三家厂商自己的第一方 API。它们成为渠道而不是
 一个 `custom` Provider，理由都是 `custom` 表达不了的路由布局：Anthropic 的路由由
 operation 而不是客户端 path 决定，OpenAI 的 Responses 与 Realtime 要走 socket，
 AI Studio 在同一个 origin 上放了两套面、各要各的凭证头。
 所有渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
+十七个渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
+
+`dashscope`、`deepseek`、`kimi`、`openrouter`、`xai` 是 API-key 舰队：它们的 wire
+就是那三种兼容形状之一，因此共用 `channels::shared::compatible` 做有界的能力调用
+和用量观察，彼此的差别只在方法落在哪里、usage 对象多带了哪些字段、账号面报什么。
+每一个都因为"`custom` 表达不了的东西"才成为渠道——表达得了的那些见下文
+《不需要渠道的厂商》。
+
+其中两个报的是价格而不只是计数。`openrouter` 在开启用量记账时记录
+`upstream_cost_usd`，`xai` 在视频任务上记录它（那类响应自报美元），两者同时打上
+`upstream_priced` 维度。Core 按仓库里的费率行计价、并不认识这些指标的名字，所以
+运营方若想让上游自报的数字就是账单，就为 `upstream_cost_usd` 写一条 1 USD／单位
+的费率行、不写 token 行。xAI 的 `cost_in_usd_ticks` 按原名记录，**刻意不是美元**：
+那是 xAI 自己的计量单位，要自己的费率行。
 
 `azure`、`vertex`、`vertexexpress` 是云上的转售方：它们原样转发所托管厂商的 wire，
 只改方法的位置和凭证的呈现方式。三者都不伪装任何客户端，因此都不返回
@@ -49,6 +68,47 @@ AI Studio 在同一个 origin 上放了两套面、各要各的凭证头。
 打这两个工具各自使用的 Code Assist 内部端点，而不是 Gemini API key。两者共用 Code Assist
 请求信封、Google 登录以及登录时一次性的 project 与档位发现，区别在 client id、scope、
 user agent、主机和目录方法。
+## 不需要渠道的厂商
+
+一个渠道就是一份要跟着别人 wire 维护的代码。只有当"Provider 行表达不了它要的
+东西"时，厂商才值得一个渠道：路径随 operation 移动、body 必须改写、有账号面要读、
+有客户端身份要出示。差别只有一个 origin 加一个头的厂商，就是一个 `custom`
+Provider——下面三个正是如此。这些配方就是完整的 Provider 行，`base_url` 是
+Provider 列，其余都在它的 `config` JSON 里。
+
+**NVIDIA NIM**——一个 OpenAI 兼容端点，仅此而已。
+
+```json
+{ "base_url": "https://integrate.api.nvidia.com", "config": { "dialects": ["openai_chat"] } }
+```
+
+**Vercel AI Gateway**——和 OpenRouter 一样是一个 origin 挡在很多厂商前面，但
+body 里没有选路对象、响应里也没有价格：没有任何东西要渠道去填或去读回来。
+`custom` 按家族各用各的鉴权方式，正是这个网关接受的方式。
+
+```json
+{
+  "base_url": "https://ai-gateway.vercel.sh/v1",
+  "config": { "dialects": ["openai_chat", "openai", "claude"] }
+}
+```
+
+**Cloudflare AI Gateway**——对一个确定的网关来说，account id 与 `/ai` 前缀是固定
+的，所以它们属于 `base_url`；gateway id 是一个静态头。
+
+```json
+{
+  "base_url": "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai",
+  "config": {
+    "dialects": ["openai_chat", "openai", "claude"],
+    "headers": { "cf-aig-gateway-id": "default" }
+  }
+}
+```
+
+这三者都保留 `custom` 的魔法缓存开关与 `allowed_headers`，并按上游实际回的那种
+兼容形状读取用量。
+
 
 ## 契约
 

@@ -24,11 +24,16 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `claudeweb` | `claudeweb` | claude.ai browser session: cookie login against `/api/bootstrap`, multi-call conversation turns rendered as Claude Messages SSE, organization usage windows | session cookie + organization |
 | `codex` | `codex` | ChatGPT account through the Codex backend: OAuth (PKCE and device code), Responses over HTTP SSE and WebSocket, `x-codex-*` limit headers, `/wham/usage`, CLI backend services | `OAuthCredential` |
 | `custom` | `custom` | Any API-key endpoint speaking OpenAI, Claude or Gemini natively | `{"api_key"}` |
+| `dashscope` | `dashscope` | Alibaba DashScope: the OpenAI-compatible mode, the Anthropic-compatible mode, a rerank prefix of its own and the native multimodal-generation image API, all on one origin | `{"api_key"}` |
+| `deepseek` | `deepseek` | DeepSeek: Chat Completions under `/v1`, Responses at the origin root, Claude Messages under `/anthropic`, `prompt_cache_hit_tokens`, `/user/balance` | `{"api_key"}` |
 | `devin` | `devin` | Devin (Windsurf) at `server.codeium.com`: Connect-RPC over protobuf rather than JSON, `GetChatMessage` frames translated into Chat Completions SSE, `GetUserStatus` daily and weekly windows | session token |
 | `geminicli` | `geminicli` | A Google account through the Code Assist endpoints the Gemini CLI talks to: PKCE login that discovers the Cloud project and tier, refresh, the Code Assist request envelope, `retrieveUserQuota` catalogue and per-model quota | `OAuthCredential` |
+| `kimi` | `kimi` | Moonshot: the platform at `api.moonshot.cn` with an API key, or the Kimi Code subscription at `api.kimi.com` through a device login, refresh and the CLI's `x-msh-*` identity; `/usages` windows or a cash balance | `{"api_key"}` or `OAuthCredential` |
 | `openai` | `openai` | OpenAI's own platform: the full OpenAI surface, Responses and Realtime over a WebSocket, `x-ratelimit-*` headers, `/v1/organization/costs` | `{"api_key", "quota_api_key"}` |
+| `openrouter` | `openrouter` | OpenRouter: provider routing preferences filled into the body, `HTTP-Referer`/`X-Title` attribution, the price the reply says it charged, `/v1/auth/key` | `{"api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI: regional project-scoped methods for the Google, Anthropic and OpenAI-compatible publishers; a service-account key exchanged for an access token through `CredentialRefresh` | Google service-account key |
 | `vertexexpress` | `vertexexpress` | Vertex AI Express mode: the Gemini surface on one global origin, key in the query, no project and no region | `{"api_key"}` |
+| `xai` | `xai` | xAI (Grok): OpenAI Chat and Responses plus xAI's own `/v1/tts`, `/v1/stt` and `/v1/videos/generations`, `cost_in_usd_ticks` metering, the management billing probe | `{"api_key"}` |
 
 Every channel builds for native targets and `wasm32-unknown-unknown`.
 
@@ -39,6 +44,25 @@ rather than the client's path, OpenAI serves Responses and Realtime over a
 socket, and AI Studio puts two surfaces on one origin with a different
 credential header on each.
 Every channel builds for native targets and `wasm32-unknown-unknown`.
+All seventeen build for native targets and `wasm32-unknown-unknown`.
+
+`dashscope`, `deepseek`, `kimi`, `openrouter` and `xai` are the API-key fleet:
+vendors whose wire is one of the three compatible shapes, so they share
+`channels::shared::compatible` for bounded ability calls and for the usage
+observer, and differ only in where a method lives, which extra fields the
+usage object carries, and what an account surface reports. Each earns a
+channel by having something `custom` cannot state — see *Vendors that need no
+channel* below for the ones that do not.
+
+Two of them report a price rather than only counts. `openrouter` records
+`upstream_cost_usd` whenever usage accounting is on, and `xai` records it for
+a video job, which states its own dollars; both also set the
+`upstream_priced` dimension. Core prices from the store's rate rows and knows
+nothing about these metrics by name, so an operator who wants the upstream's
+own number to be the bill writes one rate row for `upstream_cost_usd` at 1
+USD per unit and no token rows. xAI's `cost_in_usd_ticks` is recorded under
+that name and is deliberately *not* dollars: it is xAI's own unit and needs a
+rate row of its own.
 
 `azure`, `vertex` and `vertexexpress` are cloud resellers: they forward each
 hosted vendor's own wire and change only where the method lives and how the
@@ -63,6 +87,51 @@ internal endpoints those two tools talk to, not a Gemini API key. They share
 the Code Assist request envelope, the Google login and the one-time project
 and tier discovery, and differ in their client id, scopes, user agent, host
 and catalogue method.
+## Vendors That Need No Channel
+
+A channel is code to maintain against someone else's wire. A vendor earns one
+only when a provider row cannot state what it needs: a path that moves with
+the operation, a body that must be rewritten, an account surface to read, a
+client identity to present. A vendor whose whole difference is an origin and
+a header is a `custom` provider, and these three are. The recipes below are
+the complete provider rows; `base_url` is the provider column, everything
+else is its `config` JSON.
+
+**NVIDIA NIM** — an OpenAI-compatible endpoint and nothing else.
+
+```json
+{ "base_url": "https://integrate.api.nvidia.com", "config": { "dialects": ["openai_chat"] } }
+```
+
+**Vercel AI Gateway** — one origin in front of many vendors, like OpenRouter,
+but with no routing object in the body and no price in the reply: there is
+nothing for a channel to fill in or to read back. `custom` authenticates each
+family the way that family expects, which is what the gateway accepts.
+
+```json
+{
+  "base_url": "https://ai-gateway.vercel.sh/v1",
+  "config": { "dialects": ["openai_chat", "openai", "claude"] }
+}
+```
+
+**Cloudflare AI Gateway** — the account id and the `/ai` prefix are fixed for
+a given gateway, so they belong in `base_url`; the gateway id is a static
+header.
+
+```json
+{
+  "base_url": "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai",
+  "config": {
+    "dialects": ["openai_chat", "openai", "claude"],
+    "headers": { "cf-aig-gateway-id": "default" }
+  }
+}
+```
+
+Each of these keeps `custom`'s magic-cache switches and `allowed_headers`, and
+reports usage from whichever compatible shape the upstream answered in.
+
 
 ## Contract
 

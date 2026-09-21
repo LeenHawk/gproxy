@@ -24,7 +24,8 @@ use serde_json::Value;
     feature = "claudecode",
     feature = "codex",
     feature = "custom",
-    feature = "openai"
+    feature = "openai",
+    feature = "openrouter"
 ))]
 const MAGIC_PREFIX: &str = "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_";
 const MAGIC_TRIGGER_AUTO_ID: &str =
@@ -47,7 +48,8 @@ const MAGIC: &[(&str, Option<&str>)] = &[
     feature = "claudecode",
     feature = "codex",
     feature = "custom",
-    feature = "openai"
+    feature = "openai",
+    feature = "openrouter"
 ))]
 pub(crate) fn contains_token(bytes: &[u8]) -> bool {
     let prefix = MAGIC_PREFIX.as_bytes();
@@ -96,7 +98,8 @@ fn strip(text: &mut String) -> (bool, Option<&'static str>) {
     feature = "claudecode",
     feature = "codex",
     feature = "custom",
-    feature = "openai"
+    feature = "openai",
+    feature = "openrouter"
 ))]
 pub(crate) use rules::*;
 
@@ -105,11 +108,20 @@ pub(crate) use rules::*;
     feature = "claudecode",
     feature = "codex",
     feature = "custom",
-    feature = "openai"
+    feature = "openai",
+    feature = "openrouter"
 ))]
 mod rules {
     use super::*;
-    use gproxy_protocol::{Dialect, connection::Bytes};
+    use gproxy_protocol::Dialect;
+    #[cfg(any(
+        feature = "claudeapi",
+        feature = "claudecode",
+        feature = "codex",
+        feature = "custom",
+        feature = "openai"
+    ))]
+    use gproxy_protocol::connection::Bytes;
     use serde_json::{Map, json};
 
     /// Breakpoints a body may carry in total, the client's own included.
@@ -141,7 +153,15 @@ mod rules {
 
     /// Shape a buffered request body. A body without a token, or one that is
     /// not a JSON object, is returned untouched; otherwise the tokens are
-    /// stripped and, with `rules`, breakpoints placed.
+    /// stripped and, with `rules`, breakpoints placed. Channels that rewrite
+    /// the body for other reasons parse once themselves and call `apply`.
+    #[cfg(any(
+        feature = "claudeapi",
+        feature = "claudecode",
+        feature = "codex",
+        feature = "custom",
+        feature = "openai"
+    ))]
     pub(crate) fn shape(bytes: Bytes, rules: Option<Rules>) -> Bytes {
         if !contains_token(&bytes) {
             return bytes;
@@ -637,7 +657,8 @@ mod tests {
         feature = "claudecode",
         feature = "codex",
         feature = "custom",
-        feature = "openai"
+        feature = "openai",
+        feature = "openrouter"
     ))]
     #[test]
     fn claude_breakpoints_carry_the_ttl_and_respect_the_cap_with_client_marks() {
@@ -680,7 +701,8 @@ mod tests {
         feature = "claudecode",
         feature = "codex",
         feature = "custom",
-        feature = "openai"
+        feature = "openai",
+        feature = "openrouter"
     ))]
     #[test]
     fn claude_lone_token_block_hands_its_mark_to_the_previous_block() {
@@ -709,7 +731,8 @@ mod tests {
         feature = "claudecode",
         feature = "codex",
         feature = "custom",
-        feature = "openai"
+        feature = "openai",
+        feature = "openrouter"
     ))]
     #[test]
     fn chat_splits_string_content_and_marks_parts_up_to_the_cap() {
@@ -758,7 +781,8 @@ mod tests {
         feature = "claudecode",
         feature = "codex",
         feature = "custom",
-        feature = "openai"
+        feature = "openai",
+        feature = "openrouter"
     ))]
     #[test]
     fn responses_anchor_instructions_and_mark_variables_and_items() {
@@ -820,7 +844,8 @@ mod tests {
         feature = "claudecode",
         feature = "codex",
         feature = "custom",
-        feature = "openai"
+        feature = "openai",
+        feature = "openrouter"
     ))]
     #[test]
     fn shape_leaves_token_free_and_non_object_bodies_alone() {
