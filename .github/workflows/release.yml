@@ -230,10 +230,6 @@ jobs:
             dist/release/${{ matrix.artifact }}.provenance.json
             dist/release/${{ matrix.artifact }}.zip
             dist/release/${{ matrix.artifact }}.zip.sha256
-            dist/release/${{ matrix.artifact }}.deb
-            dist/release/${{ matrix.artifact }}.deb.sha256
-            dist/release/${{ matrix.artifact }}.dmg
-            dist/release/${{ matrix.artifact }}.dmg.sha256
             dist/release/${{ matrix.artifact }}.apk
             dist/release/${{ matrix.artifact }}.apk.sha256
           retention-days: 1

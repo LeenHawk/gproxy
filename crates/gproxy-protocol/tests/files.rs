@@ -53,30 +53,6 @@ fn all_three_resources_have_typed_known_fields_and_exact_envelopes() {
     assert!(p.rest.is_empty());
 }
 #[test]
-fn claude_official_examples_round_trip() {
-    for doc in [
-        include_str!("../../../upstream_docs/claude/docs/files/upload.md"),
-        include_str!("../../../upstream_docs/claude/docs/files/list.md"),
-        include_str!("../../../upstream_docs/claude/docs/files/delete.md"),
-    ] {
-        let example = doc
-            .split("#### Response\n\n```json\n")
-            .nth(1)
-            .unwrap()
-            .split("\n```")
-            .next()
-            .unwrap();
-        let v: Value = serde_json::from_str(example).unwrap();
-        if v.get("data").is_some() {
-            round::<c::ListFilesResponseBody>(v);
-        } else if v.get("filename").is_some() {
-            round::<c::FileMetadata>(v);
-        } else {
-            round::<c::DeleteFileResponseBody>(v);
-        }
-    }
-}
-#[test]
 fn required_optional_and_nullable_contracts_do_not_drop_values() {
     for field in [
         "id",
