@@ -1076,3 +1076,136 @@ async fn a_credential_limit_is_visible_on_its_credential() {
         "an operator limit is not a caller budget, whatever its owner kind looks like"
     );
 }
+
+#[tokio::test]
+async fn a_credential_list_narrows_by_owner() {
+    // The three owner columns are opaque to this crate — a host decides what
+    // they mean — but the list has to be narrowable by them, or a multi-tenant
+    // host would have to filter pages after the fact and report the unfiltered
+    // counts.
+    let (gproxy, _, _) = support::sdk_parts().await;
+    let provider = provider(&gproxy, "upstream").await;
+    // The owner columns carry foreign keys, so the rows they name have to
+    // exist even though nothing in this crate reads them.
+    gproxy
+        .store()
+        .users()
+        .create_many(vec![gproxy_store::entity::identity::user::ActiveModel {
+            id: Set("alice".to_owned()),
+            name: Set("alice".to_owned()),
+            role: Set("user".to_owned()),
+            created_at_ms: Set(0),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    gproxy
+        .store()
+        .organizations()
+        .create_many(vec![
+            gproxy_store::entity::identity::organization::ActiveModel {
+                id: Set("acme".to_owned()),
+                name: Set("acme".to_owned()),
+                created_at_ms: Set(0),
+                ..Default::default()
+            },
+        ])
+        .await
+        .unwrap();
+    gproxy
+        .store()
+        .teams()
+        .create_many(vec![gproxy_store::entity::identity::team::ActiveModel {
+            id: Set("core".to_owned()),
+            organization_id: Set("acme".to_owned()),
+            name: Set("core".to_owned()),
+            created_at_ms: Set(0),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    for (id, user, team, org) in [
+        ("c-shared", None, None, None),
+        ("c-alice", Some("alice"), None, None),
+        ("c-core", None, Some("core"), None),
+        ("c-acme", None, None, Some("acme")),
+    ] {
+        gproxy
+            .manage()
+            .credentials()
+            .create(CredentialWrite {
+                id: Some(id.to_owned()),
+                provider_id: provider.id.clone(),
+                auth_kind: "api_key".to_owned(),
+                secret: json!({ "api_key": "k" }),
+                user_id: user.map(str::to_owned),
+                team_id: team.map(str::to_owned),
+                organization_id: org.map(str::to_owned),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+    }
+
+    async fn listed(
+        gproxy: &Gproxy<DatabaseConnection>,
+        owner_kind: Option<&str>,
+        owner_id: Option<&str>,
+    ) -> Vec<String> {
+        let mut ids: Vec<String> = gproxy
+            .manage()
+            .credentials()
+            .list(ListQuery {
+                owner_kind: owner_kind.map(str::to_owned),
+                owner_id: owner_id.map(str::to_owned),
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .items
+            .into_iter()
+            .map(|item| item.id)
+            .collect();
+        ids.sort();
+        ids
+    }
+
+    assert_eq!(
+        listed(&gproxy, None, None).await,
+        ["c-acme", "c-alice", "c-core", "c-shared"],
+        "no owner filter is no narrowing"
+    );
+    assert_eq!(listed(&gproxy, Some("org"), Some("acme")).await, ["c-acme"]);
+    assert_eq!(
+        listed(&gproxy, Some("team"), Some("core")).await,
+        ["c-core"]
+    );
+    assert_eq!(
+        listed(&gproxy, Some("user"), Some("alice")).await,
+        ["c-alice"]
+    );
+    // `instance` is the rows with no owner at all, which is what a
+    // single-tenant deployment's credentials look like.
+    assert_eq!(
+        listed(&gproxy, Some("instance"), None).await,
+        ["c-shared".to_owned()]
+    );
+    // A kind with no id is "every row owned by one of these".
+    assert_eq!(listed(&gproxy, Some("org"), None).await, ["c-acme"]);
+    // An owner this table cannot hold matches nothing rather than everything.
+    assert!(
+        listed(&gproxy, Some("api_key"), Some("k1"))
+            .await
+            .is_empty()
+    );
+    assert!(
+        listed(&gproxy, Some("provider"), Some("p1"))
+            .await
+            .is_empty()
+    );
+    assert!(
+        listed(&gproxy, Some("org"), Some("globex"))
+            .await
+            .is_empty()
+    );
+}

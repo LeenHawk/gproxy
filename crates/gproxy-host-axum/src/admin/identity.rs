@@ -2,18 +2,26 @@
 //! [`Operations`](gproxy_app::Operations).
 //!
 //! The surface's rules — one explicit route per operation, thin handlers, the
-//! middleware order and why the audit action is derived rather than typed —
-//! are documented once on the parent module, which also owns the macros used
-//! here. This file is the route table and nothing else.
+//! middleware order, how a section declares which scopes reach it, and why the
+//! audit action is derived rather than typed — are documented once on the
+//! parent module, which also owns the macros used here. This file is the route
+//! table and nothing else.
+//!
+//! **Every family here is instance machinery today.** Organization-scoped
+//! identity — an organization administrator managing their own members, teams
+//! and keys — is the next step of the scope model and is not implemented; the
+//! sections are declared `Instance`, so an organization or team scope reaches
+//! none of them and the surface is correct rather than half-open. See
+//! `gproxy_app::admin_surface`.
 
 use axum::{
     Extension, Json, Router,
-    extract::{Path, Query, Request, State},
+    extract::{Path, Query, State},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
 use gproxy_app::{
-    Caller, Operations,
+    AdminScope, Operations,
     dto::{
         ApiKeyPatch, ApiKeyWrite, AuditQuery, ListQuery, MemberWrite, OAuthClientPatch,
         OAuthClientWrite, OrganizationPatch, OrganizationWrite, PermissionPatch, PermissionWrite,
@@ -23,7 +31,7 @@ use gproxy_app::{
     },
 };
 use gproxy_seaorm::BatchConnectionTrait;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use super::{reply, reply_empty};
 use crate::{HostState, error::ErrorResponse};
@@ -33,78 +41,97 @@ pub(super) fn routes<C>() -> Router<HostState<C>>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    let router = Router::new().route("/session", get(session_status).delete(sign_out::<C>));
-    let router = family!(router, "/users", users, UserWrite, UserPatch)
-        .route(
-            "/users/{id}/password",
-            post(set_password::<C>).delete(clear_password::<C>),
-        )
-        .route(
-            "/users/{id}/allowlist",
-            axum::routing::put(set_allowlist::<C>),
-        )
-        .route(
-            "/users/{id}/sessions",
-            get(user_sessions::<C>).delete(revoke_user_sessions::<C>),
-        );
-    let router = family!(router, "/api-keys", api_keys, ApiKeyWrite, ApiKeyPatch)
-        .route("/api-keys/{id}/rotate", post(rotate_key::<C>))
-        .route("/api-keys/{id}/secret", get(reveal_key::<C>));
+    let router = family!(
+        Router::new(),
+        "/users",
+        users,
+        UserWrite,
+        UserPatch,
+        "users"
+    )
+    .route(
+        "/users/{id}/password",
+        post(set_password::<C>).delete(clear_password::<C>),
+    )
+    .route(
+        "/users/{id}/allowlist",
+        axum::routing::put(set_allowlist::<C>),
+    )
+    .route(
+        "/users/{id}/sessions",
+        get(user_sessions::<C>).delete(revoke_user_sessions::<C>),
+    );
+    let router = family!(
+        router,
+        "/api-keys",
+        api_keys,
+        ApiKeyWrite,
+        ApiKeyPatch,
+        "api-keys"
+    )
+    .route("/api-keys/{id}/rotate", post(rotate_key::<C>))
+    .route("/api-keys/{id}/secret", get(reveal_key::<C>));
     let router = family!(
         router,
         "/organizations",
         organizations,
         OrganizationWrite,
-        OrganizationPatch
+        OrganizationPatch,
+        "organizations"
     );
-    let router = family!(router, "/teams", teams, TeamWrite, TeamPatch);
+    let router = family!(router, "/teams", teams, TeamWrite, TeamPatch, "teams");
     let router = family!(
         router,
         "/permissions",
         permissions,
         PermissionWrite,
-        PermissionPatch
+        PermissionPatch,
+        "permissions"
     );
     let router = family!(
         router,
         "/rate-limits",
         rate_limits,
         RateLimitWrite,
-        RateLimitPatch
+        RateLimitPatch,
+        "rate-limits"
     );
     let router = family!(
         router,
         "/subscriptions",
         subscriptions,
         SubscriptionWrite,
-        SubscriptionPatch
+        SubscriptionPatch,
+        "subscriptions"
     );
-    let router = family!(router, "/pools", pools, PoolWrite, PoolPatch);
+    let router = family!(router, "/pools", pools, PoolWrite, PoolPatch, "pools");
     let router = family!(
         router,
         "/pool-members",
         pool_members,
         PoolMemberWrite,
-        PoolMemberPatch
+        PoolMemberPatch,
+        "pool-members"
     );
-    let router = family!(router, "/plans", plans, PlanWrite, PlanPatch);
+    let router = family!(router, "/plans", plans, PlanWrite, PlanPatch, "plans");
     let router = family!(
         router,
         "/plan-limits",
         plan_limits,
         PlanLimitWrite,
-        PlanLimitPatch
+        PlanLimitPatch,
+        "plan-limits"
     );
     // An OAuth client is retired, not deleted: the grants it issued still
     // name it, so the row survives and stops being usable.
     let router = router
         .route(
             "/oauth-clients",
-            collection!(oauth_clients, OAuthClientWrite),
+            collection!(oauth_clients, OAuthClientWrite, "oauth-clients"),
         )
         .route(
             "/oauth-clients/{id}",
-            item!(oauth_clients, OAuthClientPatch),
+            item!(oauth_clients, OAuthClientPatch, "oauth-clients"),
         )
         .route("/oauth-clients/{id}/retire", post(retire_client::<C>));
 
@@ -149,56 +176,94 @@ struct AllowlistBody {
 
 async fn set_password<C>(
     State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
     Path(id): Path<String>,
     Json(body): Json<PasswordBody>,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, users.set_password(&id, &body.password)) }).await
+    crate::send(async move {
+        operations!(
+            state,
+            scope,
+            "users",
+            users.set_password(&id, &body.password)
+        )
+    })
+    .await
 }
 
-async fn clear_password<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
+async fn clear_password<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Path(id): Path<String>,
+) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, users.clear_password(&id)) }).await
+    crate::send(async move { operations!(state, scope, "users", users.clear_password(&id)) }).await
 }
 
 async fn set_allowlist<C>(
     State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
     Path(id): Path<String>,
     Json(body): Json<AllowlistBody>,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, users.set_allowlist(&id, body.clients)) }).await
+    crate::send(async move {
+        operations!(
+            state,
+            scope,
+            "users",
+            users.set_allowlist(&id, body.clients)
+        )
+    })
+    .await
 }
 
-async fn rotate_key<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
+async fn rotate_key<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Path(id): Path<String>,
+) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, api_keys.rotate(&id)) }).await
+    crate::send(async move { operations!(state, scope, "api-keys", api_keys.rotate(&id)) }).await
 }
 
-async fn reveal_key<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
+async fn reveal_key<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Path(id): Path<String>,
+) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, api_keys.reveal(&id)) }).await
+    crate::send(async move { operations!(state, scope, "api-keys", api_keys.reveal(&id)) }).await
 }
 
-async fn retire_client<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
+async fn retire_client<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Path(id): Path<String>,
+) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, oauth_clients.retire(&id)) }).await
+    crate::send(
+        async move { operations!(state, scope, "oauth-clients", oauth_clients.retire(&id)) },
+    )
+    .await
 }
 
 async fn list_members<C>(
     State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
     Path(id): Path<String>,
     Query(mut query): Query<ListQuery>,
 ) -> Response
@@ -209,55 +274,72 @@ where
         // The path names the organization; a query parameter must not be able to
         // point the list at a different one.
         query.organization_id = Some(id);
-        operations!(state, members.list(query))
+        operations!(state, scope, "members", members.list(query))
     })
     .await
 }
 
 async fn get_member<C>(
     State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
     Path((id, user_id)): Path<(String, String)>,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, members.get(&id, &user_id)) }).await
+    crate::send(async move { operations!(state, scope, "members", members.get(&id, &user_id)) })
+        .await
 }
 
 async fn add_member<C>(
     State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
     Path(id): Path<String>,
     Json(write): Json<MemberWrite>,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, members.add(&id, write)) }).await
+    crate::send(async move { operations!(state, scope, "members", members.add(&id, write)) }).await
 }
 
 async fn set_member_role<C>(
     State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
     Path((id, user_id)): Path<(String, String)>,
     Json(patch): Json<gproxy_app::dto::MemberPatch>,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, members.set_role(&id, &user_id, patch)) }).await
+    crate::send(async move {
+        operations!(
+            state,
+            scope,
+            "members",
+            members.set_role(&id, &user_id, patch)
+        )
+    })
+    .await
 }
 
 async fn remove_member<C>(
     State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
     Path((id, user_id)): Path<(String, String)>,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(@empty state, members.remove(&id, &user_id)) }).await
+    crate::send(async move {
+        operations!(@empty state, scope, "members", members.remove(&id, &user_id))
+    })
+    .await
 }
 
 async fn list_team_members<C>(
     State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
     Path(id): Path<String>,
     Query(mut query): Query<ListQuery>,
 ) -> Response
@@ -266,86 +348,123 @@ where
 {
     crate::send(async move {
         query.team_id = Some(id);
-        operations!(state, team_members.list(query))
+        operations!(state, scope, "team-members", team_members.list(query))
     })
     .await
 }
 
 async fn get_team_member<C>(
     State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
     Path((id, user_id)): Path<(String, String)>,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, team_members.get(&id, &user_id)) }).await
+    crate::send(async move {
+        operations!(
+            state,
+            scope,
+            "team-members",
+            team_members.get(&id, &user_id)
+        )
+    })
+    .await
 }
 
 async fn add_team_member<C>(
     State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
     Path(id): Path<String>,
     Json(write): Json<MemberWrite>,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, team_members.add(&id, write)) }).await
+    crate::send(
+        async move { operations!(state, scope, "team-members", team_members.add(&id, write)) },
+    )
+    .await
 }
 
 async fn set_team_member_role<C>(
     State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
     Path((id, user_id)): Path<(String, String)>,
     Json(patch): Json<gproxy_app::dto::MemberPatch>,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, team_members.set_role(&id, &user_id, patch)) })
-        .await
+    crate::send(async move {
+        operations!(
+            state,
+            scope,
+            "team-members",
+            team_members.set_role(&id, &user_id, patch)
+        )
+    })
+    .await
 }
 
 async fn remove_team_member<C>(
     State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
     Path((id, user_id)): Path<(String, String)>,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(@empty state, team_members.remove(&id, &user_id)) }).await
+    crate::send(async move {
+        operations!(@empty state, scope, "team-members", team_members.remove(&id, &user_id))
+    })
+    .await
 }
 
 async fn list_sessions<C>(
     State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
     Query(query): Query<ListQuery>,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, sessions.page(query)) }).await
+    crate::send(async move { operations!(state, scope, "sessions", sessions.page(query)) }).await
 }
 
-async fn revoke_session<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
+async fn revoke_session<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Path(id): Path<String>,
+) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(@empty state, sessions.revoke(&id)) }).await
+    crate::send(async move { operations!(@empty state, scope, "sessions", sessions.revoke(&id)) })
+        .await
 }
 
-async fn user_sessions<C>(State(state): State<HostState<C>>, Path(id): Path<String>) -> Response
+async fn user_sessions<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Path(id): Path<String>,
+) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, sessions.list(&id)) }).await
+    crate::send(async move { operations!(state, scope, "sessions", sessions.list(&id)) }).await
 }
 
 async fn revoke_user_sessions<C>(
     State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
     Path(id): Path<String>,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
     crate::send(async move {
+        gate!("sessions", scope);
         let data = state.app().data();
         let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
         match operations.sessions().revoke_all(&id).await {
@@ -358,41 +477,11 @@ where
 
 async fn list_audit<C>(
     State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
     Query(query): Query<AuditQuery>,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { operations!(state, audit.query(query)) }).await
-}
-
-/// Who this request is, as the console renders its header from.
-///
-/// On the admin surface rather than the portal's because reaching it at all
-/// proves the middleware admitted an instance administrator.
-async fn session_status(Extension(caller): Extension<Caller>) -> Response {
-    crate::send(async move {
-        crate::error::ok_json(&SessionStatus {
-            user_id: caller.user_id,
-            user_role: caller.user_role,
-            api_key_id: caller.api_key_id,
-        })
-    })
-    .await
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct SessionStatus {
-    user_id: String,
-    user_role: String,
-    api_key_id: Option<String>,
-}
-
-/// End the session this request arrived on, and clear the cookie.
-async fn sign_out<C>(State(state): State<HostState<C>>, request: Request) -> Response
-where
-    C: BatchConnectionTrait + Send + Sync + 'static,
-{
-    crate::send(async move { crate::portal::sign_out(state, request).await }).await
+    crate::send(async move { operations!(state, scope, "audit", audit.query(query)) }).await
 }

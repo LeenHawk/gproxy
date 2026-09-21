@@ -47,6 +47,11 @@ macro_rules! exported {
 }
 
 exported!(
+    // the administrative scope and what it may reach
+    AdminContextDto,
+    AdminContextUserDto,
+    AdminScopeDto,
+    AdminSectionDto,
     // api keys
     ApiKeyCreated,
     ApiKeyDto,

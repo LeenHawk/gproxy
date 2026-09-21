@@ -41,7 +41,7 @@ axum::serve(
 |---|---|---|
 | `GET` | `/healthz` | liveness and the published config revision; unauthenticated |
 | `GET` | `/publications/{id}` | a published body; the id **is** the credential, so no key is asked for |
-| — | `/admin/api/…` | the operator surface: one explicit `MethodRouter` per operation, over both `Operations` and `manage()` |
+| — | `/admin/api/…` | the management surface: one explicit `MethodRouter` per operation, over `Operations`, `manage()` and `ScopedManage`; the caller's `AdminScope` decides how much of it they see |
 | — | `/portal/api/…` | the end user's surface, plus `login` and `logout` |
 | — | everything else | the ingress fallback, in the order below |
 
@@ -51,7 +51,88 @@ Two halves, one surface. The **identity** families come from
 `gproxy_app::Operations`; the **configuration** families are
 `gproxy_sdk::Gproxy::manage()` called directly, because the sdk families
 already are the operation table and a delegating facade would have nothing to
-decide. Both halves are guarded by the same middleware.
+decide. The two exceptions are `credentials` and `quotas`, whose rows carry an
+owner — those go through `gproxy_app::ScopedManage`, which is the facade that
+*does* have something to decide. Both halves are guarded by the same
+middleware.
+
+#### The scope
+
+This surface is not the instance administrator's alone. Every request carries
+one `gproxy_app::AdminScope` — `Instance`, `Organization(id)` or `Team(id)` —
+and an organization administrator calls **the same routes** as the operator
+and simply sees fewer rows.
+
+| caller | scope |
+|---|---|
+| `users.role = admin` | `Instance`; the scope header is not read |
+| an API key (or an OAuth grant's key) | the key's own `team_id`, else its `organization_id` — never a header |
+| a console session | the `x-gproxy-admin-scope` header, validated against the caller's **admin** memberships |
+
+`x-gproxy-admin-scope` takes `instance`, `organization:{id}` (or `org:{id}`)
+or `team:{id}`. A session caller who administers exactly one scope does not
+need it; one who administers several must name one, and gets `400` naming the
+header until they do; one who administers none is refused the whole surface
+with `403`, exactly as before scopes existed.
+
+The scope **participates in building the query** rather than being compared
+against the answer, which is the property that makes this safe:
+
+- a list is narrowed through `AdminScope::narrow` before the statement is
+  built, so the database never runs a query that could match a foreign row. A
+  filter naming an owner outside the scope answers an **empty page**, not an
+  error;
+- a route taking an id reads the row's owner and answers **`NotFound`, never
+  `Forbidden`** — a `Forbidden` would confirm that the id exists, which is the
+  fact an enumeration wants;
+- a write naming an owner outside the scope is **`Forbidden`**, because the
+  caller supplied that id rather than discovered it. A patch is admitted twice,
+  for the row as it is and as it would be, so a row can be neither pushed out
+  of a scope nor captured into one.
+
+Which families a scope reaches is declared **once**, in
+`gproxy_app::admin_surface::ADMIN_SECTIONS`. Every route macro below takes a
+section id as a mandatory argument — a family that declares nothing does not
+compile — and the generated handler gates on `require_section`, which refuses
+a section it does not recognise. The table is therefore default closed.
+
+Today the open sections are `context`, `session`, `credentials` and `quotas`.
+Everything else is instance machinery: the gateway's own configuration
+(providers, models, routes, rewrite, endpoints, prices, profiles, settings,
+transfer, connectivity, tokenizer, catalogues) and — for now — the identity
+families. Organization-scoped identity is the next step and is deliberately
+not half-open.
+
+The `quotas` table holds both halves of that split at once: a row owned by
+`org` or `team` is a tenant budget, and one owned by `credential` or
+`provider` is an operator limit. The split is by `owner_kind`, not by route,
+so `/quotas/{id}/limit-reset` is routed like any other row and simply answers
+`NotFound` outside the instance scope.
+
+#### `GET /admin/api/context`
+
+The one route every authenticated caller reaches regardless of scope,
+including one who has not settled on a scope yet. **The console renders its
+navigation from this and from nothing else.**
+
+```json
+{
+  "user": { "id": "…", "name": "orgadmin", "role": "user", "instanceAdmin": false },
+  "callerKind": "session",
+  "scopeHeader": "x-gproxy-admin-scope",
+  "scope": { "kind": "organization", "id": "…", "name": "acme",
+             "organizationId": "…", "selector": "organization:…", "current": true },
+  "scopes": [ … every scope this caller may act as … ],
+  "sections": [ { "id": "credentials", "path": "/credentials",
+                  "capabilities": ["read", "write"] }, … ]
+}
+```
+
+`selector` is the exact header value that selects that scope, so a console
+never builds one by hand. `scope` is `null` — and `sections` empty — only when
+the caller administers several scopes and named none. `/admin/api/session` is
+mounted beside it under the same lighter guard, so signing out works before a
+scope has been chosen and after one has stopped being valid.
 
 #### Identity
 
@@ -150,14 +231,21 @@ and `DELETE /tokenizer-vocabs/{fileId}` (v3 took the id in a `DELETE` body).
 
 #### The middleware
 
-Middleware, in order: authenticate → **require the instance administrator** →
-same-origin for an unsafe cookie request → the operation → an audit row for
-every method that is not a read. It is a `route_layer`, so an unknown
-`/admin/api/*` path is a 404 that never touches the database.
+Middleware, in order: authenticate → **resolve the scope**
+(`AdminScope::resolve`, the one place a scope is derived and the one place the
+scope header is read) → same-origin for an unsafe cookie request → the
+operation, gated on its declared section → an audit row for every method that
+is not a read. It is a `route_layer`, so an unknown `/admin/api/*` path is a
+404 that never touches the database.
+
+`/admin/api/context` and `/admin/api/session` are mounted under a second,
+lighter guard that stops after resolution without demanding a *current* scope.
 
 The audit action is derived from the matched route (`admin.api_keys.rotate`,
 `admin.providers.create`), so a new route cannot forget to name itself. Reads
-are not audited — which is why the two disclosures above are `POST`s.
+are not audited — which is why the two disclosures above are `POST`s. A
+refusal is audited too: an organization administrator's `403` on a write lands
+in the trail with `outcome = error`.
 
 ### `/portal/api`
 
@@ -465,6 +553,14 @@ header. The code is; the text goes to the operator's log.
   per-turn capture: see above for why.
 - **Sign-in is not rate limited.** `gproxy-app` explains why it cannot do it
   (it has no client address); this host has one and does not yet use it.
+- **The identity families are not scope-aware yet.** An organization
+  administrator reaches `credentials` and `quotas`; users, keys, teams,
+  members, permissions, rate limits, subscriptions, pools, plans, OAuth
+  clients, sessions and the audit trail are still `Instance`-only. The
+  mechanism is in place — a section flips by changing one row of
+  `ADMIN_SECTIONS` and giving the family a narrowing — and each family is a
+  deliberate act rather than a flag, because most of them need an `IN` over a
+  membership rather than a column comparison.
 - **A vendor service call cannot be cancelled.** See above: the field does not
   exist on `ServiceRequestIn` or on core's `ServiceRequest`, and a service call
   is short and buffered enough that adding it has not been worth two crates.
@@ -486,3 +582,10 @@ upgraded anything.
 faked. Every HTTP client in the tree drains a body before handing it over, so
 that suite types the request out over a raw `TcpStream` and hangs up by dropping
 it, which is the one thing a real client does that nothing here can imitate.
+
+`tests/scope.rs` is a truth table rather than a walk through anecdotes: four
+scopes (instance, organization, team, none) crossed with one representative of
+each family group, plus the rules that are not a cell of it — a row outside the
+scope is `NotFound`, a write naming a foreign owner is `Forbidden`, a header
+naming an unadministered scope is refused, and an API key's binding wins over
+any header it sends.
