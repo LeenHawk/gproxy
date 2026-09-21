@@ -272,9 +272,15 @@ of them over the same primitive.
 | `endpoints()` | `operation_rules`, `operation_endpoints` | |
 | `quotas()` | `quotas` | `budget_status`, `reset_budget`, `limit_status`, `reset_limit` |
 | `pricing()` | `price_rules`, `price_rates`, `price_tiers` | |
+| `transfer()` | every configured row | `export`, `import` |
+| `catalog()` | nothing, until applied | `channels`, `default_models`, `apply_default_prices`, `tls_presets`, `rule_presets`, `apply_rule_preset` |
+| `connectivity()` | `provider_models` | `test`, `model_test`, `discover_models`, `apply_discovered` |
+| `tokenizer()` | `file_objects`, `models.vocabulary_file_id`, `settings` | `vocabularies`, `fetch`, `progress`, `delete`, `auth`, `set_auth`, `reveal_auth` |
 
-Every family has `list(ListQuery) -> Page<Dto>`, `get(id)`, `create(Write)`,
-`update(id, Patch)`, `delete(id)` and `batch(Vec<BatchItem>)`. Ids are
+The first eleven families have `list(ListQuery) -> Page<Dto>`, `get(id)`,
+`create(Write)`, `update(id, Patch)`, `delete(id)` and
+`batch(Vec<BatchItem>)`; the last four are described under
+[Operations catalogue](#operations-catalogue). Ids are
 caller-supplied when given and minted otherwise, timestamps are Unix
 milliseconds, decimals travel as strings, and `credentials.secret` is never in a
 DTO — only `hasSecret`, plus the separate `reveal_secret` call.
@@ -317,6 +323,164 @@ name whose first segment is a registered channel id or an existing provider name
 would therefore never be reached, so it is refused at write time rather than
 left to fail silently. Anything else is fine: `coding/fast` is a perfectly good
 public name.
+
+## Operations catalogue
+
+Four families that are not CRUD over one table: moving a whole configuration,
+the data this build already holds, the two probes that leave the process, and
+the vocabulary files local token estimation reads.
+
+### Export and import
+
+`manage().transfer()` writes the instance out as one document and reads one
+back. The document is the management DTOs themselves, so an export says exactly
+what a console would have listed.
+
+```json
+{
+  "formatVersion": 4,
+  "exportedAtMs": 1758412800000,
+  "secretsOmitted": false,
+  "secrets": ["aes-gcm"],
+  "data": {
+    "connectionProfiles": [], "providers": [], "credentials": [],
+    "models": [], "providerModels": [],
+    "routes": [], "routeMembers": [], "exposedModels": [],
+    "operationRules": [], "operationEndpoints": [],
+    "rewriteRuleSets": [], "rewriteRules": [], "providerRewriteRuleSets": [],
+    "quotas": [], "priceRules": [], "priceRates": [], "priceTiers": [],
+    "settings": null
+  }
+}
+```
+
+`data` is in replay order: no row appears before the row it points at. A
+credential is its own columns plus `secret`, which is
+`{ "codec": "aes-gcm" | "plaintext", "bytes": "<base64>" }` — the database
+column verbatim, never opened and never plaintext. With
+`include_secrets: false` every `secret` is `null`, `secretsOmitted` is true and
+`secrets` is empty.
+
+**What does not travel.** Identity (users, API keys, organizations, teams,
+permissions, subscriptions, OAuth clients) belongs to the application layer and
+is out of this crate's reach. Usage records, quota windows, counted windows,
+settlements, credential cycles and blocks, captures, agent sessions, protocol
+states, cache rows and file objects are observations and runtime state: copying
+them would fabricate history the destination never had. A `models`
+`vocabularyFileId` or a `settings` `defaultVocabularyFileId` that names a file
+the destination does not have is therefore cleared, with a warning, rather than
+refused — and the vocabulary is re-fetched there.
+
+`import` is one revision commit for the whole document, so a document that is
+refused anywhere leaves nothing behind. `Merge` upserts by id and leaves
+everything it does not mention alone; `Replace` additionally deletes the rows of
+the exported kinds that the document omits, children before parents, and never
+touches an identity, usage or capture table. A reference that resolves neither
+in the document nor here is refused by name before anything is written.
+
+**The master-key rule.** A sealed blob only opens under the key that sealed it,
+and core opens every credential's secret while it assembles a snapshot — so a
+credential imported unopenable would not break its own calls, it would break
+every later reload of the whole instance. Hence:
+
+| The importer has | What happens to a credential |
+|---|---|
+| `sourceMasterKey` (the source's 32 bytes, standard base64) | opened once and resealed under this instance's codec; counted in `credentialsResealed` |
+| the same codec as the source, no key | stored verbatim, with a warning |
+| neither | skipped with its row, counted in `credentialsSkipped` and warned |
+
+A configuration-only export therefore creates no new credentials at all; it
+updates the ones the destination already has and reports the rest as skipped.
+`ImportReportDto` carries `created`, `updated`, `skipped`,
+`credentialsResealed`, `credentialsSkipped` and the `warnings` — the warnings
+are where a silently-cleared owner or vocabulary reference is reported.
+
+### The static catalogues
+
+`manage().catalog()` answers from this binary, not from the database.
+
+- `channels()` — every compiled-in channel as a `ChannelDescriptor`: login
+  modes, capabilities and the configuration keys a provider form should render.
+  The same list as `Gproxy::channels()`.
+- `default_models()` — the bundled model catalog: names, context windows and
+  default prices for the models this release knew about. It is a snapshot taken
+  when the asset was generated, not a live directory.
+- `apply_default_prices({ providerId, modelIds, overwrite })` — writes catalog
+  prices as `price_rules` with their rates and tiers, in one commit. Without a
+  provider the catalog's own `*fragment*` glob and priority are used, so one
+  rule prices that model wherever it is served; with a provider the literal
+  name becomes the pattern at priority zero. `overwrite: false` is what makes
+  re-applying the catalog safe — a rule an operator edited keeps its edit and
+  is reported as `skipped`.
+- `tls_presets()` — six client identities as `gproxy_client::EmulationConfig`
+  objects, ready to store as a connection profile's `emulation`. Only the
+  `wreq` backend presents one.
+- `rule_presets()` / `apply_rule_preset({ ruleSetId, presetId })` — rewrite
+  rule sets that make one client application look like a generic one. Applying
+  a preset *replaces* the set's rules rather than merging: a preset is one
+  ordered answer, and half of it interleaved with something else rewrites text
+  nobody predicted. A caller that wants to keep existing rules reads
+  `rule_presets()` and sends its own list to `rewrite().replace_rules`.
+
+### The two probes
+
+`manage().connectivity()` is the only part of this crate that leaves the
+process.
+
+`test({ scope })` asks Cloudflare's trace endpoint what this deployment looks
+like from outside, through the client chain the scope names — `Global` (the
+instance default profile), `Provider`, `Credential` (the very transport its
+calls use), or `Proxy { url }` for a proxy that is not configured anywhere yet.
+It answers `{ ok, latencyMs, ip, colo, error }`. **A network failure is
+`ok: false` with a reason, not an `Err`**: "the upstream is unreachable" is the
+answer that was asked for. An `Err` means the request was wrong — an unknown
+provider, a credential that is not this provider's.
+
+`model_test({ providerId, model, credentialId })` and
+`discover_models(provider_id, credential_id)` go through `Core` exactly as a
+caller's request would. **They spend a real credential, consume real upstream
+quota, settle against any budget that credential is subject to, and write a
+usage row** attributed to the scope `gproxy-sdk:admin` and the API key id
+`admin-probe`. There is no dry run; a test that did not really call the
+upstream would not have tested anything. One attempt, a thirty-second deadline
+and no budgets of its own.
+
+`discover_models` asks in the provider's own dialect, so nothing is converted
+and the names are the upstream's; each one comes back with `known` (this
+provider already has a `provider_models` row) and `hasDefaultPrice` (the
+bundled catalog can price it). `apply_discovered(provider_id, names)` inserts
+the rows, skipping the ones already there, so applying a discovery twice is the
+same as once.
+
+### Tokenizer vocabularies
+
+Core estimates tokens for exchanges whose upstream reported none, and it does
+that against a vocabulary file. `manage().tokenizer()` fetches them.
+
+`fetch({ repo, filename, modelId, setAsDefault })` downloads
+`https://huggingface.co/{repo}/resolve/main/{filename}` (default
+`tokenizer.json`), sending the stored source token as
+`Authorization: Bearer`, writes the bytes through the configured file storage,
+and then inserts the `file_objects` row and points `models.vocabulary_file_id`
+and `settings.default_vocabulary_file_id` at it — the row and both pointers in
+one revision commit. The bytes land before the row: a row pointing at an object
+that was never written would fail every reload, while an object with no row is
+only wasted space. A non-2xx answer is refused with the upstream's own status,
+because `404` and `401` mean very different things to whoever typed the
+repository name, and the instance's `maxResponseBodyBytes` is the size cap.
+Without file storage the whole family answers `Unsupported`: there is nowhere
+to put the bytes.
+
+`progress()` reports the download running **in this process** — one cell, not
+per handle and not shared between peers, so a console asks for the fetch on one
+request and polls progress on another. `delete(file_id)` drops the row inside a
+commit that also releases whatever selected it, then removes the stored object.
+
+`auth()` says only whether a source token is configured; `set_auth(token)`
+seals it into the settings row exactly like a credential secret, under a fixed
+identity, so a copy of the database carries no usable token; `reveal_auth()` is
+the one deliberate disclosure, separate for the same reason revealing a
+credential secret is separate from listing credentials.
 
 ## Queries
 

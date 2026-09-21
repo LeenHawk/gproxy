@@ -82,6 +82,8 @@ wasm-bindgen-futures = { workspace = true }
 async-trait = { workspace = true }
 futures-util = { workspace = true, features = ["sink"] }
 gproxy-cache = { workspace = true, features = ["memory"] }
+# The transfer and tokenizer tests need real file storage behind the handle.
+gproxy-file = { workspace = true, features = ["fs"] }
 http = { workspace = true }
 rust_decimal = { workspace = true }
 tempfile = { workspace = true }

@@ -14,7 +14,9 @@
 //! No DTO ever carries `credentials.secret`. A credential reports whether it
 //! has one; reading it back is a separate, auditable operation.
 
+mod catalog;
 mod common;
+mod connectivity;
 mod control;
 mod endpoints;
 mod login;
@@ -25,9 +27,20 @@ mod quota;
 mod rewrite;
 mod routing;
 mod settings;
+mod transfer;
 mod usage;
 
+pub use catalog::{
+    ApplyDefaultPricesReportDto, ApplyDefaultPricesRequest, ApplyRulePreset,
+    DefaultModelCatalogDto, DefaultModelCatalogSourceDto, DefaultModelDto,
+    DefaultModelPriceRateDto, DefaultModelPricingDto, DefaultModelTierDto, RulePresetCategory,
+    RulePresetDto, TlsPresetDto,
+};
 pub use common::{BatchItem, BatchPatch, ListQuery, Page, double_option};
+pub use connectivity::{
+    ConnectivityResultDto, ConnectivityScope, ConnectivityTest, DiscoveredModelDto, ModelTest,
+    ModelTestResultDto,
+};
 pub use control::{
     CredentialDto, CredentialPatch, CredentialSummaryDto, CredentialWrite, ModelDto, ModelPatch,
     ModelWrite, ProviderDto, ProviderModelDto, ProviderModelPatch, ProviderModelWrite,
@@ -67,6 +80,11 @@ pub use routing::{
 pub use settings::{
     InstanceSettingsDto, InstanceSettingsPatch, LoggingSettingsDto, LoggingSettingsPatch,
     SettingsDto, SettingsPatch,
+};
+pub use transfer::{
+    CODEC_AES_GCM, CODEC_PLAINTEXT, CODEC_UNKNOWN, ConfigurationDataDto, ConfigurationExportDto,
+    EXPORT_FORMAT_VERSION, ExportCredentialDto, ExportRequest, ImportMode, ImportReportDto,
+    ImportRequest, SealedSecretDto,
 };
 pub(crate) use usage::money;
 pub use usage::{
