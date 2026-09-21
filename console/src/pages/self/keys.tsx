@@ -111,7 +111,7 @@ export function KeysPage() {
           rowKey={(row) => row.id}
           empty={<EmptyNotice title={t("keys.emptyTitle")} description={t("keys.emptyDescription")} />}
           actions={(row) => (
-            <span className="inline-flex items-center gap-1">
+            <>
               {row.hasSecret ? (
                 <Button variant="ghost" size="sm" onClick={() => reveal.mutate(row.id)}>{t("actions.reveal")}</Button>
               ) : null}
@@ -134,7 +134,7 @@ export function KeysPage() {
                   </ConfirmButton>
                 </>
               ) : null}
-            </span>
+            </>
           )}
         />
       </QueryState>
