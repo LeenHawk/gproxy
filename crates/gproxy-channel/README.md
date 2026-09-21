@@ -25,6 +25,20 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `vertexexpress` | `vertexexpress` | Vertex AI Express mode: the Gemini surface on one global origin, key in the query, no project and no region | `{"api_key"}` |
 
 All eight build for native targets and `wasm32-unknown-unknown`.
+| `claudeapi` | `claudeapi` | Anthropic's own API: `x-api-key` Messages with the API's request hygiene and server-side fallback, the OpenAI SDK compatibility layer, `anthropic-ratelimit-*` headers, `/v1/organizations/cost_report` | `{"api_key", "quota_api_key"}` |
+| `openai` | `openai` | OpenAI's own platform: the full OpenAI surface, Responses and Realtime over a WebSocket, `x-ratelimit-*` headers, `/v1/organization/costs` | `{"api_key", "quota_api_key"}` |
+| `aistudio` | `aistudio` | Google AI Studio: the native Gemini methods and the `/v1beta/openai` compatibility layer off one origin, SSE and JSON-array streams, `usageMetadata` metering | `{"api_key"}` |
+| `vertex` | `vertex` | Google Vertex AI: regional project-scoped methods for the Google, Anthropic and OpenAI-compatible publishers; a service-account key exchanged for an access token through `CredentialRefresh` | Google service-account key |
+| `vertexexpress` | `vertexexpress` | Vertex AI Express mode: the Gemini surface on one global origin, key in the query, no project and no region | `{"api_key"}` |
+
+All ten build for native targets and `wasm32-unknown-unknown`.
+
+`claudeapi`, `openai` and `aistudio` are the vendors' own first-party APIs.
+Each exists as a channel rather than as a `custom` provider because of a
+route layout `custom` cannot express: Anthropic's routes follow the operation
+rather than the client's path, OpenAI serves Responses and Realtime over a
+socket, and AI Studio puts two surfaces on one origin with a different
+credential header on each.
 
 `azure`, `vertex` and `vertexexpress` are cloud resellers: they forward each
 hosted vendor's own wire and change only where the method lives and how the
