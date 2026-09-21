@@ -79,6 +79,9 @@ base64 = { workspace = true }
 clap = { workspace = true }
 # `.env`, loaded without overriding anything the real environment already set.
 dotenvy = { workspace = true }
+# Detached ed25519 verification of the signed update manifest. Verification
+# only: nothing in this crate signs anything.
+ed25519-dalek = { workspace = true }
 gproxy-app = { workspace = true }
 gproxy-cache = { workspace = true }
 gproxy-core = { workspace = true }
@@ -89,16 +92,41 @@ gproxy-seaorm = { workspace = true }
 gproxy-store = { workspace = true }
 # The generated first-run password, and nothing else.
 getrandom = { workspace = true }
+# The two update downloads: a signed manifest and one release archive. It
+# follows redirects, which a GitHub release asset URL is; that is safe here
+# because the signature and the sha256 are checked after the bytes arrive.
+reqwest = { workspace = true }
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
+# Ordering a release against the running build, on every channel but `staging`.
+semver = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+# The artifact's integrity check, before the archive is parsed.
+sha2 = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 toml = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+# The release archive. `deflate` and nothing else: that is what
+# `scripts/package-native-release.sh` writes.
+zip = { workspace = true }
+
+# Windows will not rename over a running executable and has no equivalent
+# trick, so the platform dance is a crate there. On Unix the swap is a plain
+# `rename(2)` and this is not compiled at all.
+[target.'cfg(not(unix))'.dependencies]
+self-replace = { workspace = true }
 
 [dev-dependencies]
+# Signing a manifest in the tests. The release pipeline signs with `openssl`;
+# this is the same detached ed25519 signature over the same payload, so a test
+# that passes is a test against the wire format the pipeline writes.
+ed25519-dalek = { workspace = true, features = ["rand_core"] }
 http = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+# The end-to-end update test serves a manifest and a fake artifact over
+# loopback, because the only honest way to prove the download path is to make
+# it download something.
+axum = { workspace = true }

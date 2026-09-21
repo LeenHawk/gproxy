@@ -39,6 +39,7 @@
 //! | `export` | the instance's configuration as one JSON document |
 //! | `import` | replay such a document, merging or replacing |
 //! | `service` | install, remove or inspect the unit this machine's init system runs |
+//! | `update` | report whether a newer release exists; install it only when asked |
 
 pub mod bootstrap;
 pub mod cli;
@@ -51,6 +52,7 @@ pub mod serve;
 pub mod service;
 pub mod telemetry;
 pub mod transfer;
+pub mod update;
 
 pub use cli::{Cli, Command};
 pub use config::Settings;
@@ -63,6 +65,10 @@ pub use error::{Error, Result};
 pub async fn run(cli: Cli) -> Result<()> {
     let settings = config::settings(&cli)?;
     telemetry::init(&settings.telemetry)?;
+    // Layered here with everything else, and refused here too: a bad
+    // `--update-channel` is a startup failure rather than something discovered
+    // six hours later by a background task nobody is watching.
+    let updates = update::UpdateOptions::from_cli(&cli.options)?;
 
     // Kept before the `match`, which moves `cli.command`. The unit `service
     // install` writes has to name the `--config` file this invocation read,
@@ -71,7 +77,7 @@ pub async fn run(cli: Cli) -> Result<()> {
     let config_path = cli.options.config.clone();
 
     match cli.command.unwrap_or(Command::Serve) {
-        Command::Serve => serve::run(settings).await,
+        Command::Serve => serve::run(settings, updates).await,
         Command::Migrate => instance::migrate(&settings.config).await,
         Command::Bootstrap {
             target: cli::BootstrapTarget::Admin,
@@ -104,5 +110,8 @@ pub async fn run(cli: Cli) -> Result<()> {
         // No database, no network, no runtime work: this one only reads the
         // resolved configuration and writes a file the init system will read.
         Command::Service { action } => service::run(&action, &settings, config_path.as_deref()),
+        // Opens no database and touches no row: an update is about this
+        // executable, not about this instance's configuration.
+        Command::Update { check, channel } => update::run(&settings, updates, check, channel).await,
     }
 }
