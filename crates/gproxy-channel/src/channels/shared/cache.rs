@@ -19,7 +19,13 @@
 use serde_json::Value;
 
 /// Common prefix of the three tokens; a body without it needs no parsing.
-#[cfg(any(feature = "codex", feature = "claudecode", feature = "custom"))]
+#[cfg(any(
+    feature = "claudeapi",
+    feature = "claudecode",
+    feature = "codex",
+    feature = "custom",
+    feature = "openai"
+))]
 const MAGIC_PREFIX: &str = "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_";
 const MAGIC_TRIGGER_AUTO_ID: &str =
     "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_7D9ASD7A98SD7A9S8D79ASC98A7FNKJBVV80SCMSHDSIUCH";
@@ -36,7 +42,13 @@ const MAGIC: &[(&str, Option<&str>)] = &[
 ];
 
 /// Whether a raw body can contain a token at all.
-#[cfg(any(feature = "codex", feature = "claudecode", feature = "custom"))]
+#[cfg(any(
+    feature = "claudeapi",
+    feature = "claudecode",
+    feature = "codex",
+    feature = "custom",
+    feature = "openai"
+))]
 pub(crate) fn contains_token(bytes: &[u8]) -> bool {
     let prefix = MAGIC_PREFIX.as_bytes();
     bytes.len() >= prefix.len() && bytes.windows(prefix.len()).any(|window| window == prefix)
@@ -79,10 +91,22 @@ fn strip(text: &mut String) -> (bool, Option<&'static str>) {
     (matched, ttl)
 }
 
-#[cfg(any(feature = "codex", feature = "claudecode", feature = "custom"))]
+#[cfg(any(
+    feature = "claudeapi",
+    feature = "claudecode",
+    feature = "codex",
+    feature = "custom",
+    feature = "openai"
+))]
 pub(crate) use rules::*;
 
-#[cfg(any(feature = "codex", feature = "claudecode", feature = "custom"))]
+#[cfg(any(
+    feature = "claudeapi",
+    feature = "claudecode",
+    feature = "codex",
+    feature = "custom",
+    feature = "openai"
+))]
 mod rules {
     use super::*;
     use gproxy_protocol::{Dialect, connection::Bytes};
@@ -608,7 +632,13 @@ mod tests {
         assert!(!strip_tokens(&mut body));
     }
 
-    #[cfg(any(feature = "codex", feature = "claudecode", feature = "custom"))]
+    #[cfg(any(
+        feature = "claudeapi",
+        feature = "claudecode",
+        feature = "codex",
+        feature = "custom",
+        feature = "openai"
+    ))]
     #[test]
     fn claude_breakpoints_carry_the_ttl_and_respect_the_cap_with_client_marks() {
         let mut body = json!({
@@ -645,7 +675,13 @@ mod tests {
         }
     }
 
-    #[cfg(any(feature = "codex", feature = "claudecode", feature = "custom"))]
+    #[cfg(any(
+        feature = "claudeapi",
+        feature = "claudecode",
+        feature = "codex",
+        feature = "custom",
+        feature = "openai"
+    ))]
     #[test]
     fn claude_lone_token_block_hands_its_mark_to_the_previous_block() {
         let mut body = json!({
@@ -668,7 +704,13 @@ mod tests {
         );
     }
 
-    #[cfg(any(feature = "codex", feature = "claudecode", feature = "custom"))]
+    #[cfg(any(
+        feature = "claudeapi",
+        feature = "claudecode",
+        feature = "codex",
+        feature = "custom",
+        feature = "openai"
+    ))]
     #[test]
     fn chat_splits_string_content_and_marks_parts_up_to_the_cap() {
         let mut body = json!({
@@ -711,7 +753,13 @@ mod tests {
         assert_eq!(parts[4]["text"], "z ");
     }
 
-    #[cfg(any(feature = "codex", feature = "claudecode", feature = "custom"))]
+    #[cfg(any(
+        feature = "claudeapi",
+        feature = "claudecode",
+        feature = "codex",
+        feature = "custom",
+        feature = "openai"
+    ))]
     #[test]
     fn responses_anchor_instructions_and_mark_variables_and_items() {
         let mut body = json!({
@@ -767,7 +815,13 @@ mod tests {
         );
     }
 
-    #[cfg(any(feature = "codex", feature = "claudecode", feature = "custom"))]
+    #[cfg(any(
+        feature = "claudeapi",
+        feature = "claudecode",
+        feature = "codex",
+        feature = "custom",
+        feature = "openai"
+    ))]
     #[test]
     fn shape_leaves_token_free_and_non_object_bodies_alone() {
         assert!(contains_token(format!("{{\"a\":\"{AUTO}\"}}").as_bytes()));

@@ -23,6 +23,18 @@ Cargo feature：
 | `vertexexpress` | `vertexexpress` | Vertex AI Express 模式：单一全局 origin 上的 Gemini 面，key 走 query，无项目无地区 | `{"api_key"}` |
 
 八个渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
+| `claudeapi` | `claudeapi` | Anthropic 自家 API：`x-api-key` 的 Messages，含该 API 要求的请求 hygiene 与服务端 fallback、OpenAI SDK 兼容层、`anthropic-ratelimit-*` 头、`/v1/organizations/cost_report` | `{"api_key", "quota_api_key"}` |
+| `openai` | `openai` | OpenAI 自家平台：完整 OpenAI 面、WebSocket 上的 Responses 与 Realtime、`x-ratelimit-*` 头、`/v1/organization/costs` | `{"api_key", "quota_api_key"}` |
+| `aistudio` | `aistudio` | Google AI Studio：同一 origin 上的原生 Gemini 方法与 `/v1beta/openai` 兼容层、SSE 与 JSON 数组两种流、`usageMetadata` 计量 | `{"api_key"}` |
+| `vertex` | `vertex` | Google Vertex AI：按项目与地区寻址 google／anthropic／OpenAI 兼容三个发布者；服务账号密钥经 `CredentialRefresh` 换取访问令牌 | Google 服务账号密钥 |
+| `vertexexpress` | `vertexexpress` | Vertex AI Express 模式：单一全局 origin 上的 Gemini 面，key 走 query，无项目无地区 | `{"api_key"}` |
+
+十个渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
+
+`claudeapi`、`openai`、`aistudio` 是三家厂商自己的第一方 API。它们成为渠道而不是
+一个 `custom` Provider，理由都是 `custom` 表达不了的路由布局：Anthropic 的路由由
+operation 而不是客户端 path 决定，OpenAI 的 Responses 与 Realtime 要走 socket，
+AI Studio 在同一个 origin 上放了两套面、各要各的凭证头。
 
 `azure`、`vertex`、`vertexexpress` 是云上的转售方：它们原样转发所托管厂商的 wire，
 只改方法的位置和凭证的呈现方式。三者都不伪装任何客户端，因此都不返回
