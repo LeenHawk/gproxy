@@ -211,27 +211,10 @@ where
         view,
         provider_id,
     };
-    Some(match call_service(state, caller, request).await {
+    Some(match state.app().call_service(&caller, request).await {
         Ok(response) => passthrough_wire(response),
         Err(error) => ErrorResponse(error).into_response(),
     })
-}
-
-/// `App::call_service`, off the request's own task. See
-/// [`crate::on_engine_thread`] for why — the engine's futures are not `Send`
-/// and an axum handler's must be.
-async fn call_service<C>(
-    state: &HostState<C>,
-    caller: Caller,
-    request: ServiceRequestIn,
-) -> Result<gproxy_protocol::WireResponse<gproxy_protocol::HttpBody>, AppError>
-where
-    C: BatchConnectionTrait + Send + Sync + 'static,
-{
-    let app = Arc::clone(state.app());
-    crate::on_engine_thread(move || async move { app.call_service(&caller, request).await })
-        .await
-        .and_then(|result| result)
 }
 
 /// Step 5: the model API.
@@ -293,17 +276,11 @@ where
         .and_then(|id| core.providers.get(id))
         .map(|provider| provider.channel.id().to_owned());
 
-    // Off the request's own task: the engine's execution futures are not
-    // `Send`. See `crate::on_engine_thread`.
     let app = Arc::clone(state.app());
-    let outcome = crate::on_engine_thread(move || async move {
-        let result = app.call(&caller, request).await;
-        (app, result)
-    })
-    .await;
+    let outcome = app.call(&caller, request).await;
     Some(match outcome {
-        Ok((app, Ok(outcome))) => streamed(app, outcome),
-        Ok((_, Err(error))) | Err(error) => ErrorResponse(error).into_response(),
+        Ok(outcome) => streamed(app, outcome),
+        Err(error) => ErrorResponse(error).into_response(),
     })
 }
 

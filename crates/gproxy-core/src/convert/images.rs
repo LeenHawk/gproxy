@@ -233,7 +233,7 @@ pub(crate) async fn run<C: BatchConnectionTrait + Send + Sync>(
             decode_json::<o::CreateImageRequestBody>(call.body(), call.limits)
                 .map_err(|e| codec(e, "client.body"))?,
         ),
-        Operation::EditImage => ImageInput::Edit(match boundary(&call.request.headers) {
+        Operation::EditImage => ImageInput::Edit(match boundary(call.request.headers) {
             Some(boundary) => multipart_edit(call, boundary).await?,
             None => decode_json::<o::EditImageJsonBody>(call.body(), call.limits)
                 .map_err(|e| codec(e, "client.body"))?,

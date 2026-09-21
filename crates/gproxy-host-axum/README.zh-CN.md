@@ -218,16 +218,6 @@ OAuth 端点回答 RFC 6749 §5.2 的
 
 ## 已知限制
 
-- **引擎的执行 future 不是 `Send` 的。**
-  `gproxy_core::execute::attempt` 与 `gproxy_core::service` 跨 await 持有
-  `&WireRequest` / `&ServiceRequest`，而这两个类型带着 `HttpBody`，它的流式变体是
-  `Send` 但不是 `Sync`。axum handler 的 future 必须是 `Send`，所以每次引擎调用都
-  过一遍 `on_engine_thread`：在一个 blocking 线程上创建并驱动这个 future。它是正确
-  的——`Handle::block_on` 进入主 runtime，所以连接与定时器仍归主 runtime——但每个
-  在途调用都会占住一个线程直到响应头到达，这是本网关不该留着的并发硬上限。
-  **修法在 `gproxy-core`**：别再跨 await 借用 request，改完之后这里每个调用点都变
-  回普通 `.await`，这个辅助函数就没了。P9 之前没人发现，是因为既有测试都跑在
-  `#[tokio::test]` 的 current-thread runtime 上，那里没有 `Send` 约束。
 - **Provider 挂载上不带模型的操作只收窄到该 Provider 的渠道，而不是该 Provider。**
   `DataPlaneRequest` 有 `channel` 字段而没有 provider 字段，所以
   `GET /p1/v1/models` 会列出调用者能够到的、`p1` 所在渠道上所有 Provider 的模型。

@@ -130,7 +130,7 @@ fn template<C>(call: &Call<'_, C>, path: String) -> WireRequest<()> {
 async fn list<C: BatchConnectionTrait + Send + Sync>(
     call: &Call<'_, C>,
 ) -> Result<Converted, TransformError> {
-    if call.request.query.as_deref().is_some_and(|q| !q.is_empty()) {
+    if call.request.query.is_some_and(|q| !q.is_empty()) {
         return Err(TransformError::unsupported(
             "models.query",
             "client pagination is not converted; the complete directory is returned",
@@ -255,7 +255,7 @@ fn supplement<'m, T>(
 async fn get<C: BatchConnectionTrait + Send + Sync>(
     call: &Call<'_, C>,
 ) -> Result<Converted, TransformError> {
-    let id = requested_id(&call.request.path)?;
+    let id = requested_id(call.request.path)?;
     let key = OperationKey {
         operation: Operation::GetModel,
         dialect: call.target,
