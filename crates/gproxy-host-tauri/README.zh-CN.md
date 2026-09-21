@@ -2,7 +2,8 @@
 
 [English](README.md) | 简体中文
 
-GPROXY v4 的桌面宿主。一个进程、一个实例、两个入口：
+GPROXY v4 的应用宿主——桌面壳，以及由同一份源码构建的
+[Android 应用](ANDROID.zh-CN.md)。一个进程、一个实例、两个入口：
 
 ```
          窗口                        Claude Code、Codex CLI
@@ -173,9 +174,14 @@ export const transport = "__TAURI_INTERNALS__" in window
 
 ## 本 crate 明确不做的事
 
-自动更新、开机自启、系统托盘、移动端。这些每一件都是关于软件怎么**分发**的决
+系统托盘、开机自启、桌面端自动更新。这些每一件都是关于软件怎么**分发**的决
 定，而不是关于它做什么，而且都是 v3 的打包遗留关切。等真有人在用这个桌面壳并
 且需要它们再加；先加只会让一个还没有用户的应用背上一条更新通道。
+
+Android 是例外，而不是自相矛盾。「开机自启」和「装下一个 APK」在手机上不是便利
+功能——那是一个网关能跑起来的唯一方式——而 v3 早已用手写 Java 把两件事都答过
+了。见 [ANDROID.md](ANDROID.zh-CN.md)；**未经验证**的清单也在那里，因为
+Android 上没有任何东西被实际运行观察过。
 
 它也不构建控制台，不绑 OAuth issuer：`/v1/oauth/*` 是这个实例为**下游**客户端
 跑的授权服务器，由那些会把浏览器重定向过去的程序经 HTTP 访问。在签发它的这个
@@ -201,6 +207,19 @@ cargo clippy  -p gproxy-host-tauri --all-targets --all-features -- -D warnings
 cargo test    -p gproxy-host-tauri
 cargo run     -p gproxy-host-tauri --bin gproxy-desktop
 ```
+
+Android 一个都不需要那些库，需要的是整套 Android SDK：
+
+```sh
+cd crates/gproxy-host-tauri
+pnpm install                 # 钉死版本的 Tauri CLI
+pnpm android:build:arm64     # 一个 release APK
+```
+
+库为此带上了 `cdylib` crate type——手机上没有二进制，是 activity 去加载
+`libgproxy_host_tauri.so`——而 `src/main.rs` 在 Android 上根本不参与构建。
+工具链版本、CI 需要什么、以及哪些没有验证，都在
+[ANDROID.zh-CN.md](ANDROID.zh-CN.md)。
 
 测试从不碰真的凭据存储：`secrets::MemoryStore` 与 `secrets::UnavailableStore`
 分别扮演能用的 keychain 和缺失的 keychain；`tests/assembly.rs` 在临时目录上启
