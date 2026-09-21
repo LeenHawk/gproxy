@@ -79,6 +79,7 @@ const RPM_PERIOD_SECONDS: i64 = 60;
 
 /// What one translation produced: the document to hand the sdk, and the key it
 /// needs to open the secrets inside it.
+#[derive(Debug)]
 pub struct Configuration {
     pub export: ConfigurationExportDto,
     pub report: Report,
