@@ -33,6 +33,15 @@
 //! stand, permits are returned when the value is finally dropped. A host that
 //! can await should end the request with [`Admitted::release`] instead of
 //! relying on the drop path, which has to spawn.
+//!
+//! # So does the capture
+//!
+//! [`CallOutcome::capture`] is the request's own `capture_records` row, and it
+//! is unwritten when `call()` returns for the same reason: the response has
+//! not been sent yet. The host feeds it the chunks it writes and then settles
+//! it, which is also what writes the edges to the upstream attempts. See
+//! [`crate::capture`]; `None` means `enable_downstream_log` is off and there
+//! is nothing to feed.
 
 use std::{collections::BTreeSet, time::Duration};
 
@@ -42,7 +51,11 @@ use gproxy_seaorm::BatchConnectionTrait;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
-use crate::{AdmissionRequest, Admitted, App, AppError, Caller, admission::strip_gateway_header};
+use crate::{
+    AdmissionRequest, Admitted, App, AppError, Caller,
+    admission::strip_gateway_header,
+    capture::{CaptureOutcome, DownstreamCapture},
+};
 
 /// One client request, decoded far enough for this crate to decide on it.
 ///
@@ -129,6 +142,10 @@ impl std::fmt::Debug for DataPlaneRequest {
 pub struct CallOutcome {
     pub execution: HttpExecution,
     pub admitted: Admitted,
+    /// The request's downstream capture, with the response head already
+    /// recorded. `None` when `enable_downstream_log` is off. Feed it the
+    /// response chunks as they are written and settle it at the end.
+    pub capture: Option<DownstreamCapture>,
 }
 
 impl std::fmt::Debug for CallOutcome {
@@ -139,6 +156,7 @@ impl std::fmt::Debug for CallOutcome {
             .field("status", &self.execution.response().status)
             .field("scope", &self.admitted.scope)
             .field("leases", &self.admitted.rate_limit_leases.len())
+            .field("capture", &self.capture.is_some())
             .finish()
     }
 }
@@ -149,6 +167,11 @@ impl std::fmt::Debug for CallOutcome {
 pub struct ConnectOutcome {
     pub execution: WebSocketExecution,
     pub admitted: Admitted,
+    /// The downstream capture, with **no** response head recorded: a
+    /// handshake has no `WireResponse`, so the host calls
+    /// [`DownstreamCapture::record_response_head`] with `101` once it has
+    /// accepted the upgrade, which is what marks the row a `WsConnection`.
+    pub capture: Option<DownstreamCapture>,
 }
 
 impl std::fmt::Debug for ConnectOutcome {
@@ -161,6 +184,7 @@ impl std::fmt::Debug for ConnectOutcome {
             .field("accepted", &accepted)
             .field("scope", &self.admitted.scope)
             .field("leases", &self.admitted.rate_limit_leases.len())
+            .field("capture", &self.capture.is_some())
             .finish()
     }
 }
@@ -223,6 +247,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
             .admit(&data, caller, &request, json.as_ref(), model.as_deref())
             .await?;
 
+        // Opened before the engine is handed anything, and out of the request
+        // as it arrived rather than out of the rewritten wire request: a log
+        // is what the client sent, not what a channel made of it.
+        let mut capture = DownstreamCapture::open(&data.observation, &request, caller, &admitted);
+
         let DataPlaneRequest {
             operation,
             parts,
@@ -251,14 +280,27 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
         match builder.send().await {
             Ok(execution) => {
                 admitted.finish();
+                // The head is known now and the host would otherwise have to
+                // remember to copy it off the execution before consuming it.
+                if let Some(capture) = capture.as_mut() {
+                    let response = execution.response();
+                    capture.record_response_head(response.status, &response.headers);
+                }
                 Ok(CallOutcome {
                     execution,
                     admitted,
+                    capture,
                 })
             }
             Err(error) => {
                 // Nothing ran, so nothing should have been spent.
                 admitted.release().await;
+                // A request that reached admission and then failed is still a
+                // request the operator wants in the log, and there is no
+                // outcome to hand the capture back in. The result is dropped
+                // on purpose: `finish` has already logged, and a logging
+                // failure must not replace the failure that caused it.
+                self.close_capture(capture, &error).await;
                 Err(error.into())
             }
         }
@@ -278,6 +320,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
         let mut admitted = self
             .admit(&data, caller, &request, None, model.as_deref())
             .await?;
+
+        let capture = DownstreamCapture::open(&data.observation, &request, caller, &admitted);
 
         let DataPlaneRequest {
             operation, parts, ..
@@ -304,12 +348,33 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
                 Ok(ConnectOutcome {
                     execution,
                     admitted,
+                    capture,
                 })
             }
             Err(error) => {
                 admitted.release().await;
+                self.close_capture(capture, &error).await;
                 Err(error.into())
             }
+        }
+    }
+
+    /// Write the record of a request that never got a response.
+    ///
+    /// Separate from the success path because there is nobody to hand the
+    /// capture to: the host is about to receive an error, not an outcome. The
+    /// write cannot fail the request — it has already failed — so its result
+    /// is discarded after `finish` has logged it.
+    async fn close_capture(
+        &self,
+        capture: Option<DownstreamCapture>,
+        error: &gproxy_sdk::SdkError,
+    ) {
+        if let Some(capture) = capture {
+            let outcome = CaptureOutcome::Failed {
+                error: error.to_string(),
+            };
+            let _ = capture.finish(self.gproxy().store(), outcome).await;
         }
     }
 

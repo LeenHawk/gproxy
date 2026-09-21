@@ -58,15 +58,16 @@ one load, one request.
 | `admission` | `Caller` → `Admitted`: providers, credentials, budget owners, scope, session, rate-limit charges |
 | `call` | `DataPlaneRequest` → `CallOutcome`: admit, then run the engine with exactly what was admitted |
 | `service` | vendor CLI services: which credentials are in the target, and what role the caller has over them |
+| `capture` | the downstream `capture_records` row and the `capture_links` edges to the upstream attempts core recorded |
 | `publication` | `AppPublicationUrl`, plus the read and delete behind the host's download route |
 | `operations` | the identity write families, each one revision commit plus a peer notification |
 | `dto` | the wire shapes those families exchange: string ids, millisecond timestamps, camelCase, no secrets |
 | `audit` | the append-only trail, written outside the revision batch, with its redaction rule |
 | `error` | `AppError`, with `status_code()` and a stable `code()` for the API envelope |
 
-Only `capture` is still declared without an implementation, with the contract
-it will hold, so a later phase fills it in place rather than reshaping the
-crate.
+Every module in the table is implemented. What the crate still lacks is a host:
+nothing here binds a transport, which is what `gproxy-host-axum` and
+`gproxy-host-edge` are for.
 
 ## The snapshot
 
@@ -414,6 +415,102 @@ windows from it. Reporting a quota is not spending one.
 function a model request uses. Core's view of the caller reads it to find the
 caller's usage; two answers to "who is this" inside one request is exactly the
 bug the single-`Caller` rule exists to prevent.
+
+And no capture on either side. Core writes no upstream record for a service, so
+a downstream one would have nothing to link to and would read as a request that
+reached no upstream; there is also no `Admitted` to attribute it to. A vendor's
+profile page is the one thing a request log is not for.
+
+## Downstream capture
+
+`capture_records` has two sides and they have two owners. Core's `StoreObserver`
+writes the `side = Upstream` row for every physical send and the settled
+`usage_records` row; only a host sees the inbound HTTP exchange, so the
+`side = Downstream` row is this crate's. `design/core-observation.md` states
+the rule — the host owns the downstream record, the edges are built once it
+exists, and core never fabricates one — and `src/capture.rs` is that half.
+
+| | upstream (core) | downstream (here) |
+|---|---|---|
+| gate | `enable_upstream_log` | `enable_downstream_log` |
+| body gate | `enable_upstream_log_body` | `enable_downstream_log_body` |
+| redaction | `disable_log_redaction` | the same switch, the same field list |
+| id | its own, opaque | **the request id**, which is also the usage row's |
+| body storage | `capture_events`, streamed | the inline column, buffered and capped |
+
+All four switches are read off the `settings` row of the revision the request
+pinned, at the same load that assembles `AppData` — not from `AppConfig`, and
+not from a second copy of the settings.
+
+`App::call` opens the capture after admission (an attribution column is an
+admission decision, so a request refused before one has no record) and hands it
+back inside `CallOutcome` with the response head already recorded. The host
+feeds it the chunks it writes and ends it:
+
+```rust
+capture.record_response_chunk(&chunk);
+capture.settle(store, CaptureOutcome::Complete, usage).await;
+```
+
+`settle` awaits the `UsageCompletion`, which is what makes core settle; a host
+that wants the `UsageReport` for itself awaits it, calls `link_exchanges` and
+then `finish`.
+
+### Ask before you clone
+
+With `enable_downstream_log` off, `DownstreamCapture::open` answers `None`:
+nothing is allocated, no body is copied, no row is written. With
+`enable_downstream_log_body` off the bodies are not copied either and
+`*_body_state` says `NotCaptured`, which is how a reader tells "there was no
+body" from "we chose not to keep it". What is kept is capped at 64 KiB per
+direction — the same cut the sdk's log detail applies on the way out — and a
+body over it is stored truncated with the state saying `Partial`.
+
+Redaction masks the header names, query parameters and JSON fields on core's
+own list (`authorization`, `cookie`, `api_key`, `access_token`, …), so the two
+sides of one request hide the same things; core's helper is private, so this is
+a second implementation of the same list rather than a call. A request body is
+redacted **before** it is cut, so length is never a way past the policy. A body
+that is not JSON has no key to match on and is stored as received — one more
+reason the body switch is off by default.
+
+### The edges
+
+`capture_links` is where "this request reached those upstreams" lives, and a
+retried request has one row per attempt. Two sources are merged, because
+neither is complete on its own:
+
+- `UsageReport::exchanges`, which names what core could **meter**. A `503` that
+  was retried elsewhere carries no usage, so it is not in the report at all;
+- the `capture_records` whose `initiator_request_id` is this request — the
+  column the schema keeps so a retry stays traceable. It misses an upstream
+  record a *continuation* reached, which carries another request's initiator
+  and is only named by the report.
+
+`sequence` is a dense rank over `(started_at_ms, attempt_ordinal)`, not the
+upstream's own ordinal: a failover restarts the engine's attempt counter at the
+next provider, so two attempts of one request can both be ordinal 1. Two
+attempts that began in the same millisecond share a number, which is what the
+column means by "parallel calls may share an ordinal; break ties by
+upstream_id".
+
+Nothing is written until the exchange ends: the record and all of its edges go
+in one batch. With `enable_upstream_log` off no edge is written at all — there
+is no upstream row to point at, and the foreign key would take the record down
+with it.
+
+### A capture failure is never a request failure
+
+The same rule core follows. `finish` logs at `error` and returns; the request
+has already been answered by then and an `Err` must not become a response.
+`App::call` discards it on its own error path. If the batch fails because an
+edge pointed at a record that was never written, the record alone is retried:
+losing the request's log line over a missing edge is the worse of the two.
+
+`provider_id`, `credential_id`, `pool_id` and `metrics` stay unset on a
+downstream row. A retried request reached two providers with two credentials
+and a single column would have to pick one; the edges answer that without
+picking, and billed usage is the `usage_records` row.
 
 ## Publication links
 

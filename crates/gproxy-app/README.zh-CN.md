@@ -52,13 +52,15 @@ let outcome = app.call(&caller, request).await?;
 | `admission` | `Caller` → `Admitted`：Provider 集、凭证集、预算 owner 链、scope、会话、限流扣减 |
 | `call` | `DataPlaneRequest` → `CallOutcome`：先准入，再让引擎严格按准入结果执行 |
 | `service` | 厂商 CLI 服务：目标集里有哪些凭证，以及调用方对这组凭证是什么角色 |
+| `capture` | 下游 `capture_records` 行，以及连向 core 所记上游尝试的 `capture_links` 边 |
 | `publication` | `AppPublicationUrl`，以及宿主下载路由背后的读取与删除 |
 | `operations` | 身份写入家族，每次写入一个 revision commit 加一次对等实例通知 |
 | `dto` | 这些家族交换的线上形状：String id、毫秒时间戳、camelCase，不含任何密文 |
 | `audit` | 只追加的审计流水，写在 revision batch 之外，附带脱敏规则 |
 | `error` | `AppError`，带 `status_code()` 与用于 API 信封的稳定 `code()` |
 
-只剩 `capture` 还是只有声明和写明的契约，后续阶段就地填充，不需要再改 crate 的形状。
+表里的模块都已实现。本 crate 还缺的是宿主：这里没有任何东西绑定传输层，那是
+`gproxy-host-axum` 与 `gproxy-host-edge` 的事。
 
 ## 快照
 
@@ -331,6 +333,82 @@ await，只能 spawn。
 `ServiceRequest::user_id` 取自 `attribution(caller).user_id`，和模型请求用的是同一个函
 数。core 眼中的调用方要靠它去找这个人的用量；一个请求内部对「这是谁」出现两个答案，正是
 单一 `Caller` 规则要防的那个 bug。
+
+两侧都不记 capture。core 自己就不给服务写上游记录，所以下游记录无边可连，读起来会像一个
+没有碰过任何上游的请求；而且服务也没有 `Admitted` 可供归属。厂商的 profile 页面，恰恰是
+请求日志唯一不该收的东西。
+
+## 下游 capture
+
+`capture_records` 有两侧，归属也是两个。core 的 `StoreObserver` 为每一次真实发送写
+`side = Upstream` 的行，以及结算后的 `usage_records` 行；入站的 HTTP 交换只有宿主看得
+见，所以 `side = Downstream` 那一行是本 crate 的。`design/core-observation.md` 把规则写
+死了——宿主拥有下游记录后再建立边，Core 不伪造下游记录——`src/capture.rs` 就是这一半。
+
+| | 上游（core） | 下游（这里） |
+|---|---|---|
+| 开关 | `enable_upstream_log` | `enable_downstream_log` |
+| 正文开关 | `enable_upstream_log_body` | `enable_downstream_log_body` |
+| 遮蔽 | `disable_log_redaction` | 同一个开关，同一张字段名单 |
+| id | 自己的，不透明 | **请求 id**，也就是 usage 行的键 |
+| 正文存放 | `capture_events`，流式 | 内联列，缓冲并设上限 |
+
+四个开关都从请求所钉住的那个 revision 的 `settings` 行读出，与装配 `AppData` 是同一次
+读——不从 `AppConfig` 读，也不另起一套。
+
+`App::call` 在准入之后打开 capture（归属列就是准入的决定，因此在那之前被拒的请求没有
+记录），并把它连同已经记好的响应头一起放在 `CallOutcome` 里交还。宿主把写出去的分片喂
+给它，再结束它：
+
+```rust
+capture.record_response_chunk(&chunk);
+capture.settle(store, CaptureOutcome::Complete, usage).await;
+```
+
+`settle` 会 await `UsageCompletion`，而那正是让 core 结算的东西；想自己拿 `UsageReport`
+的宿主就自己 await，然后调 `link_exchanges` 再 `finish`。
+
+### 先问再拷
+
+`enable_downstream_log` 关闭时，`DownstreamCapture::open` 返回 `None`：不分配、不拷贝
+正文、不写行。`enable_downstream_log_body` 关闭时正文同样不拷贝，`*_body_state` 记作
+`NotCaptured`——读的人据此分辨「本来就没有正文」和「我们选择不留」。留下来的每个方向上限
+64 KiB——和 sdk 日志详情往外发时切的是同一刀——超出的正文截断存放，状态写 `Partial`。
+
+遮蔽按 core 自己那张名单处理头名、查询参数和 JSON 字段（`authorization`、`cookie`、
+`api_key`、`access_token`……），使一个请求的两侧藏起同样的东西；core 的辅助函数是私有的，
+所以这里是同一张名单的第二份实现，而不是调用。请求正文**先遮蔽再截断**，长度永远不能成为
+绕过策略的办法。不是 JSON 的正文没有键可匹配，按收到的样子存——这也是正文开关默认关闭的
+理由之一。
+
+### 边
+
+`capture_links` 记的是「这个请求碰过哪些上游」，重试过的请求每次尝试一行。两个来源合并，
+因为单独任何一个都不完整：
+
+- `UsageReport::exchanges`，即 core **计得出量**的那些。被改投别处的 `503` 没有用量，
+  所以根本不在报告里；
+- `initiator_request_id` 等于本请求的那些 `capture_records`——schema 保留这一列正是为了
+  让重试可追踪。它会漏掉*续传*碰到的上游记录：那条记录带的是另一个请求的发起者，只有报告
+  知道本请求也碰过它。
+
+`sequence` 是 `(started_at_ms, attempt_ordinal)` 上的稠密排名，不是上游自己的序号：
+换 Provider 重试会让引擎的尝试计数从头开始，于是同一个请求的两次尝试都可能是序号 1。
+同一毫秒内开始的两次尝试共用一个号，这正是该列所说的「并行调用可以共享序号，展示时用
+upstream_id 打破并列」。
+
+交换结束前什么都不写：记录和它全部的边在同一个 batch 里落库。`enable_upstream_log` 关闭
+时一条边都不写——没有上游行可指，外键会把记录一起带走。
+
+### capture 失败永远不是请求失败
+
+与 core 同一条规则。`finish` 以 `error` 级记录后返回；到那时请求早已被回答，`Err` 不能
+变成响应。`App::call` 在自己的失败路径上丢弃它。若 batch 因为某条边指向了从未写入的记录
+而失败，则单独重试写记录本身：为一条缺失的边丢掉请求自己的日志行，是两者中更糟的那个。
+
+下游行的 `provider_id`、`credential_id`、`pool_id` 和 `metrics` 保持为空。重试过的请求
+碰了两个 Provider、两份凭证，单个列只能二选一；边不必二选一就能回答，而计费用量是
+`usage_records` 那一行。
 
 ## 发布链接
 
