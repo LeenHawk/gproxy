@@ -407,13 +407,24 @@ mod identity;
 ///
 /// Two guards, not one. Everything that acts on rows needs a settled scope;
 /// `/context` and `/session` precede the choice and must answer without one.
+///
+/// `/update` joins the scoped half **only when the host supplied an
+/// [`UpdateService`](crate::update::UpdateService)**. It is one `if` rather
+/// than a `cfg` because the fact it tests is a runtime one: the same compiled
+/// router serves the native binary, which owns an executable to replace, and
+/// the edge, which does not.
 pub fn router<C>(state: HostState<C>) -> Router<HostState<C>>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    let scoped = identity::routes().merge(config::routes()).route_layer(
-        axum::middleware::from_fn_with_state(state.clone(), guard::<C>),
-    );
+    let mut families = identity::routes().merge(config::routes());
+    if state.updates().is_some() {
+        families = families.merge(crate::update::routes::<C>());
+    }
+    let scoped = families.route_layer(axum::middleware::from_fn_with_state(
+        state.clone(),
+        guard::<C>,
+    ));
     let unscoped = context::routes().route_layer(axum::middleware::from_fn_with_state(
         state,
         context_guard::<C>,
