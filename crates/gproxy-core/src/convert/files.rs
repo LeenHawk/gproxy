@@ -142,7 +142,7 @@ fn client_file_id<C>(
     family: Family,
     content: bool,
 ) -> Result<String, TransformError> {
-    let mut path = call.request.path.as_str();
+    let mut path = call.request.path;
     if content {
         path = path.strip_suffix("/content").ok_or_else(|| {
             TransformError::shape("files.path", "content download path must end in /content")
@@ -529,7 +529,7 @@ async fn list<C: BatchConnectionTrait + Send + Sync>(
     client: Family,
     target: Family,
 ) -> Result<Converted, TransformError> {
-    let spec = list_spec(call.request.query.as_deref(), client)?;
+    let spec = list_spec(call.request.query, client)?;
     if spec.limit.is_some_and(|l| l <= 0) {
         return Err(TransformError::shape(
             "files.query",
@@ -747,7 +747,7 @@ fn disposition(headers: &HeaderMap) -> (Option<String>, Option<String>) {
 async fn parse_upload<C: BatchConnectionTrait + Send + Sync>(
     call: &Call<'_, C>,
 ) -> Result<Upload, TransformError> {
-    let boundary = boundary(&call.request.headers)?;
+    let boundary = boundary(call.request.headers)?;
     let body = HttpBody::Bytes(Bytes::copy_from_slice(call.body()));
     let mut decoder =
         MultipartDecoder::new(body, boundary, call.limits).map_err(|e| codec(e, "files.upload"))?;

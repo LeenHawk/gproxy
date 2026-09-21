@@ -202,41 +202,6 @@ where
 
 // ----------------------------------------------------------------- shared --
 
-/// Drive one engine call on a thread that owns it.
-///
-/// **A workaround for a defect below this crate, not a design.** The engine's
-/// execution futures are **not `Send`**: `gproxy_core::execute::attempt` holds
-/// a `&WireRequest` across its awaits, `WireRequest` carries an `HttpBody`,
-/// and `HttpBody::Stream` is `Pin<Box<dyn Stream + Send>>` — `Send` but not
-/// `Sync`, so a shared reference to one is not `Send`. The same holds for
-/// `gproxy_core::service`. Nothing noticed until now because every existing
-/// test runs on `#[tokio::test]`'s current-thread runtime, which imposes no
-/// `Send` bound; an axum handler's future does.
-///
-/// So the non-`Send` future is created and polled to completion on a single
-/// blocking-pool thread, and only its result — which *is* `Send`, because a
-/// `ByteStream` is — crosses back. `Handle::block_on` enters the main runtime,
-/// so anything the call spawns (a connection pool task, a timer) still belongs
-/// to it, and the response body that comes back is polled normally afterwards.
-///
-/// The cost is one blocking-pool thread per in-flight *call*, held until the
-/// response head arrives — not for the length of a stream, but still a hard
-/// ceiling on concurrency that this gateway must not keep. **The fix is to
-/// stop borrowing the request across those awaits in `gproxy-core`**, after
-/// which every call site here becomes a plain `.await` and this function goes
-/// away.
-pub(crate) async fn on_engine_thread<F, Fut, T>(job: F) -> Result<T, gproxy_app::AppError>
-where
-    F: FnOnce() -> Fut + Send + 'static,
-    Fut: std::future::Future<Output = T>,
-    T: Send + 'static,
-{
-    let handle = tokio::runtime::Handle::current();
-    tokio::task::spawn_blocking(move || handle.block_on(job()))
-        .await
-        .map_err(|error| gproxy_app::AppError::internal(format!("engine task: {error}")))
-}
-
 /// Wall clock in milliseconds. `gproxy-app`'s own is crate-private, which is
 /// correct — a host that needs a clock has one.
 pub(crate) fn now_ms() -> i64 {

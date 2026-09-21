@@ -440,11 +440,17 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
     /// under `Credential(id)` the named one; otherwise the first that is not
     /// blocked credential-wide, as `select_credential` would pick without
     /// strategy or affinity. Material about to expire is refreshed first.
+    ///
+    /// Takes the target and the view rather than the whole `ServiceRequest`,
+    /// which carries the client's `HttpBody`: a streaming body is `Send` but
+    /// not `Sync`, so a `&ServiceRequest<HttpBody>` held across the refresh
+    /// and block-lookup awaits below would make `call_service` non-`Send` and
+    /// unspawnable by a host.
     async fn service_credentials(
         &self,
-        request: &ServiceRequest<impl Sized>,
+        target: &ExecutionTarget,
+        view: &ServiceView,
     ) -> CoreResult<Selected> {
-        let target = &request.target;
         let now = now_ms();
         let provider_id = &target.provider.entity.id;
         let mut usable = Vec::new();
@@ -459,10 +465,9 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
                 continue;
             }
             any_candidate = true;
-            let named =
-                matches!(&request.view, ServiceView::Credential(id) if *id == credential.id);
-            let wanted = named
-                || (selected.is_none() && !matches!(request.view, ServiceView::Credential(_)));
+            let named = matches!(view, ServiceView::Credential(id) if *id == credential.id);
+            let wanted =
+                named || (selected.is_none() && !matches!(view, ServiceView::Credential(_)));
             // Material about to expire is refreshed before it is used; a
             // failed refresh still lets the call try the current material.
             if wanted
@@ -492,7 +497,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             usable.push((credential.clone(), version));
             if named {
                 selected = Some(index);
-            } else if selected.is_none() && !matches!(request.view, ServiceView::Credential(_)) {
+            } else if selected.is_none() && !matches!(view, ServiceView::Credential(_)) {
                 let blocks = self
                     .read_blocks(&credential.provider_id, &credential.id)
                     .await?;
@@ -503,7 +508,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
         }
         match selected {
             Some(index) => Ok(Selected { index, usable }),
-            None => match (&request.view, dead) {
+            None => match (view, dead) {
                 (ServiceView::Credential(id), _) => Err(CoreError::InvalidTarget(format!(
                     "credential `{id}` is not a usable credential of this target"
                 ))),
@@ -544,7 +549,9 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             return Err(CoreError::Channel(ChannelError::UnsupportedService));
         };
         Self::check_view(&request)?;
-        let selected = self.service_credentials(&request).await?;
+        let selected = self
+            .service_credentials(&request.target, &request.view)
+            .await?;
         let caller = TargetCaller::new(self, &request);
         let provider = crate::assemble::provider_view(&request.target.provider.entity);
         let accounts = selected
@@ -579,7 +586,9 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             return Err(CoreError::Channel(ChannelError::UnsupportedService));
         };
         Self::check_view(&request)?;
-        let selected = self.service_credentials(&request).await?;
+        let selected = self
+            .service_credentials(&request.target, &request.view)
+            .await?;
         let caller = TargetCaller::new(self, &request);
         let provider = crate::assemble::provider_view(&request.target.provider.entity);
         let accounts = selected

@@ -296,7 +296,7 @@ pub(crate) async fn streamed<C: BatchConnectionTrait + Send + Sync + 'static>(
     let upstream = call.upstream;
     let body = call.body();
     let limits = call.limits;
-    let settings = stream_settings(limits, client, call.request.query.as_deref());
+    let settings = stream_settings(limits, client, call.request.query);
     if call.synthesize {
         return invoke_complete(
             call,

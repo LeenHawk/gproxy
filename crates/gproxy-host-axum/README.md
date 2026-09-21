@@ -245,20 +245,6 @@ header. The code is; the text goes to the operator's log.
 
 ## Known limitations
 
-- **The engine's execution futures are not `Send`.**
-  `gproxy_core::execute::attempt` and `gproxy_core::service` hold a
-  `&WireRequest` / `&ServiceRequest` across their awaits, and those types carry
-  an `HttpBody` whose streaming variant is `Send` but not `Sync`. An axum
-  handler's future must be `Send`, so every engine call goes through
-  `on_engine_thread`, which creates and drives the future on one blocking-pool
-  thread. It is correct — `Handle::block_on` enters the main runtime, so
-  connections and timers still belong to it — but it holds a thread per
-  in-flight call until the response head arrives, which is a hard concurrency
-  ceiling this gateway must not keep. **The fix belongs in `gproxy-core`**:
-  stop borrowing the request across those awaits, after which every call site
-  here becomes a plain `.await` and the helper goes away. Nothing noticed
-  before P9 because every existing test runs on `#[tokio::test]`'s
-  current-thread runtime, which imposes no `Send` bound.
 - **A model-less operation on a provider mount is narrowed to that provider's
   channel, not to the provider.** `DataPlaneRequest` has a `channel` field and
   no provider field, so `GET /p1/v1/models` lists the models of every provider

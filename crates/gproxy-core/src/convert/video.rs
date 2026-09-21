@@ -82,7 +82,7 @@ fn template(method: Method, path: String) -> WireRequest<()> {
 
 /// The client id named by `/v1/videos/{id}` or `/v1/videos/{id}/content`.
 fn client_id<C>(call: &Call<'_, C>, content: bool) -> Result<String, TransformError> {
-    let mut path = call.request.path.as_str();
+    let mut path = call.request.path;
     if content {
         path = path.strip_suffix("/content").ok_or_else(|| {
             TransformError::shape("video.path", "content download path must end in /content")

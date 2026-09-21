@@ -392,7 +392,7 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     client: operation,
                     target: upstream,
                     model: upstream_model.as_deref(),
-                    request: &this_wire,
+                    request: convert::ClientRequest::new(&this_wire),
                     limits: limits.codec(),
                     state_store: &state_store,
                     state_scope: &scope,
