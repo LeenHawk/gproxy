@@ -200,7 +200,41 @@ pub async fn open(settings: &Settings, options: OpenOptions) -> Result<Instance>
 /// The connection is opened here rather than through `GproxyBuilder::sqlite`
 /// because the rotation step needs a `Store` over it *before* a handle exists,
 /// and the builder does not give its connection back.
+///
+/// # A database this build does not own is refused here
+///
+/// Every command that touches a database comes through this function, so this
+/// is where a v3 file is recognised and refused — see [`crate::v3::detect`].
+/// Putting it in a command would mean `serve` was safe and `migrate` was not,
+/// and `migrate` is the one that runs the DDL. The check is `SELECT`-only and
+/// happens before any caller can reach `Store::sync`.
 pub async fn connect(config: &AppConfig) -> Result<Connection> {
+    let connection = open_connection(config).await?;
+    match crate::v3::detect::inspect(&connection).await {
+        crate::v3::detect::Verdict::Ours => Ok(connection),
+        crate::v3::detect::Verdict::Version3 { tells } => Err(crate::v3::detect::refuse_version3(
+            &describe(config),
+            &tells,
+        )),
+        crate::v3::detect::Verdict::Foreign { tables } => {
+            Err(crate::v3::detect::refuse_foreign(&describe(config), tables))
+        }
+    }
+}
+
+/// What the refusal calls the database, so the message names the file an
+/// operator has to move rather than the flag that found it.
+fn describe(config: &AppConfig) -> String {
+    match &config.store {
+        StoreBackendConfig::Sqlite { path } => resolve(config, path).display().to_string(),
+        // Never the DSN itself: it carries a password.
+        StoreBackendConfig::Url { .. } => "the configured database".to_owned(),
+        StoreBackendConfig::D1 { binding } => format!("the D1 binding `{binding}`"),
+        StoreBackendConfig::Libsql { .. } => "the configured libSQL database".to_owned(),
+    }
+}
+
+async fn open_connection(config: &AppConfig) -> Result<Connection> {
     match &config.store {
         StoreBackendConfig::Sqlite { path } => {
             let path = resolve(config, path);

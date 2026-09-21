@@ -94,6 +94,48 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ApiKeys<'_, C> {
             .await
     }
 
+    /// Write a row for a key the caller has the **digest** of and not the text.
+    ///
+    /// There is exactly one caller — the v3 migration — and exactly one reason
+    /// it cannot use [`ApiKeys::adopt`]: v3 stored `SHA-256(payload)`, the text
+    /// with an `sk-`/`at-` presentation prefix removed, and a digest is not
+    /// invertible. Carrying those bytes across verbatim is what lets an
+    /// operator's existing key keep working, and [`crate::auth::digests`] finds
+    /// it on its second rung, which exists for precisely this row.
+    ///
+    /// Adopting by plaintext instead would be worse than useless here even when
+    /// the text happens to be available: it would store `SHA-256("sk-X")` and
+    /// so break the `sk-X` / `at-X` / `X` interchangeability that the payload
+    /// digest is the whole reason for.
+    ///
+    /// `prefix` is display only — the first eight characters of the body for a
+    /// minted key; for a migrated one, whatever v3 knew, because v3 never
+    /// stored the body. `retained` is the plaintext when, and only when, the
+    /// source kept a revealable copy; it is sealed exactly as a minted key's
+    /// would be, so [`ApiKeys::reveal`] keeps answering after the migration.
+    ///
+    /// Everything else — the user, the binding, the subscription, the revision
+    /// commit — is [`ApiKeys::create`]'s, because it is the same code.
+    pub async fn adopt_digest(
+        &self,
+        write: ApiKeyWrite,
+        digest: &[u8; 32],
+        prefix: &str,
+        retained: Option<&str>,
+    ) -> Result<ApiKeyDto> {
+        let prefix = match prefix.trim() {
+            "" => return Err(AppError::invalid("api key prefix must not be blank")),
+            prefix => prefix.to_owned(),
+        };
+        self.insert(
+            write,
+            prefix,
+            crate::snapshot::encode_key_hash(digest),
+            retained,
+        )
+        .await
+    }
+
     /// The shared half: validate the binding, build the row, commit one
     /// revision. Both entry points reach the database only through here, so
     /// there is one set of rules and one digest.
@@ -104,6 +146,21 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ApiKeys<'_, C> {
         prefix: String,
         key_hash: String,
     ) -> Result<ApiKeyCreated> {
+        let retain = write.retain_secret.unwrap_or(false);
+        let key = self
+            .insert(write, prefix, key_hash, retain.then_some(token.as_str()))
+            .await?;
+        Ok(ApiKeyCreated { key, token })
+    }
+
+    /// Validate the binding, build the row, commit one revision.
+    async fn insert(
+        &self,
+        write: ApiKeyWrite,
+        prefix: String,
+        key_hash: String,
+        retained: Option<&str>,
+    ) -> Result<ApiKeyDto> {
         let id = crud::id_or_new(write.id.as_deref())?;
         let user_id = crud::text(&write.user_id, "userId")?;
         crud::require_rows(
@@ -120,10 +177,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ApiKeys<'_, C> {
         self.validate_subscription(&user_id, subscription_id.as_deref())
             .await?;
 
-        let secret = if write.retain_secret.unwrap_or(false) {
-            Some(self.seal(&id, &token)?)
-        } else {
-            None
+        let secret = match retained {
+            Some(token) => Some(self.seal(&id, token)?),
+            None => None,
         };
         let row = api_key::ActiveModel {
             id: Set(id.clone()),
@@ -142,14 +198,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ApiKeys<'_, C> {
             enabled: Set(write.enabled.unwrap_or(true)),
         };
         let statement = self.writer.store().api_keys().insert_statement(row)?;
-        let key = crud::commit_one::<C, Self>(
+        crud::commit_one::<C, Self>(
             self,
             vec![BatchStatement::Execute(statement)],
             &id,
             &[Scope::Keys],
         )
-        .await?;
-        Ok(ApiKeyCreated { key, token })
+        .await
     }
 
     /// Read back the plaintext of a key that was created with `retainSecret`.
