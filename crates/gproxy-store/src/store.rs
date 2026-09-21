@@ -1,6 +1,7 @@
 //! Database-backed operations; runtime compilation and cache invalidation stay in core.
+use crate::migration::SchemaReport;
 use crate::repository::Repository;
-use gproxy_seaorm::{BatchConnectionTrait, SchemaSyncConnectionTrait, SyncReport};
+use gproxy_seaorm::{BatchConnectionTrait, SchemaSyncConnectionTrait};
 
 pub struct Store<C> {
     pub(crate) db: C,
@@ -18,13 +19,21 @@ impl<C> Store<C> {
 }
 
 impl<C: SchemaSyncConnectionTrait> Store<C> {
-    /// Create missing tables or incrementally synchronize the complete entity
-    /// registry. Call explicitly during startup before serving requests, with
-    /// one schema writer. Does not seed application data or run migrations.
-    /// Existing types/data transformations still require versioned migrations.
-    pub async fn sync(&self) -> crate::Result<SyncReport> {
-        let registry = crate::register_entities(self.db.schema_registry());
-        Ok(self.db.sync_schema(registry).await?)
+    /// The name the sdk and the hosts call [`Store::migrate`] by.
+    ///
+    /// It no longer synchronizes anything. It used to walk the entity registry
+    /// against whatever schema it found and emit the `ALTER`s it thought were
+    /// missing, which worked exactly as long as every difference happened to be
+    /// one SQLite would accept — and then failed partway through a database it
+    /// had already started changing. What it does now is what
+    /// [`Store::migrate`] does: create the schema if the database is empty,
+    /// apply outstanding migrations if the database is ours, and refuse if it
+    /// is anyone else's.
+    ///
+    /// Still call it explicitly during startup, before serving requests, with
+    /// one schema writer. It still seeds no application data.
+    pub async fn sync(&self) -> crate::Result<SchemaReport> {
+        self.migrate().await
     }
 }
 macro_rules! repositories {
