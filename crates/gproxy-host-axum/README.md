@@ -29,11 +29,19 @@ axum::serve(
 |---|---|---|
 | `GET` | `/healthz` | liveness and the published config revision; unauthenticated |
 | `GET` | `/publications/{id}` | a published body; the id **is** the credential, so no key is asked for |
-| — | `/admin/api/…` | the operator surface: one explicit `MethodRouter` per operation |
+| — | `/admin/api/…` | the operator surface: one explicit `MethodRouter` per operation, over both `Operations` and `manage()` |
 | — | `/portal/api/…` | the end user's surface, plus `login` and `logout` |
 | — | everything else | the ingress fallback, in the order below |
 
 ### `/admin/api`
+
+Two halves, one surface. The **identity** families come from
+`gproxy_app::Operations`; the **configuration** families are
+`gproxy_sdk::Gproxy::manage()` called directly, because the sdk families
+already are the operation table and a delegating facade would have nothing to
+decide. Both halves are guarded by the same middleware.
+
+#### Identity
 
 Every identity family has the same five routes, generated from one macro so a
 family cannot accidentally have four of them or a different method on one:
@@ -69,13 +77,75 @@ DELETE /admin/api/sessions/{id}
 GET    /admin/api/audit                        the trail
 ```
 
+#### Configuration
+
+The same five, plus a sixth — every sdk family takes a batch, and a batch is
+one revision commit however many rows it names:
+
+```
+POST   /admin/api/{family}/batch     [{"create": …}, {"update": {"id": …, "patch": …}}, {"delete": "id"}]
+```
+
+`{family}` is `providers`, `credentials`, `models`, `provider-models`,
+`routes`, `route-members`, `exposed-models`, `connection-profiles`,
+`rule-sets`, `rules`, `provider-rule-sets`, `operation-rules`,
+`operation-endpoints`, `quotas`, `price-rules`, `price-rates`, `price-tiers`.
+Beyond them:
+
+```
+GET    /admin/api/settings                       both groups of the one row
+PATCH  /admin/api/settings
+POST   /admin/api/providers/{id}/routing-defaults/reset
+POST   /admin/api/credentials/{id}/reveal        the plaintext secret — audited
+POST   /admin/api/credentials/{id}/status        {"status": "active"|"dead", "reason": …}
+POST   /admin/api/credentials/{id}/refresh       ?force=true renews an unexpired one
+GET    /admin/api/credentials/{id}/quota         observed cycles and blocks
+POST   /admin/api/credentials/{id}/quota-probe   asks the upstream
+POST   /admin/api/credentials/{id}/quota-reset   redeems a reset credit
+POST   /admin/api/credentials/{id}/health-reset
+GET    /admin/api/credentials/{id}/limits        the operator limits covering it
+POST   /admin/api/models/discover                {"providerId": …, "credentialId": …}
+POST   /admin/api/models/discover/apply          {"providerId": …, "upstreamNames": […]}
+POST   /admin/api/models/test                    one real generation
+PUT    /admin/api/rule-sets/{id}/rules           replace the whole set
+POST   /admin/api/rule-sets/{id}/rule-presets/{preset}
+GET    /admin/api/quotas/status                  ?owners=user:alice,team:t1
+POST   /admin/api/quotas/{id}/reset              a budget's window
+POST   /admin/api/quotas/{id}/limit-reset        an operator limit's blocks
+POST   /admin/api/export                         {"includeSecrets": bool} → no-store
+POST   /admin/api/import                         {"export": …, "mode": …, "sourceMasterKey": …}
+POST   /admin/api/connectivity/test
+GET    /admin/api/channels                       ChannelDescriptor per compiled-in channel
+GET    /admin/api/tls-presets
+GET    /admin/api/rule-presets
+GET    /admin/api/default-model-catalog
+POST   /admin/api/default-model-catalog/apply-prices
+GET    /admin/api/tokenizer-vocabs               (+ POST to fetch one)
+GET    /admin/api/tokenizer-vocabs/progress      this process's download, or null
+DELETE /admin/api/tokenizer-vocabs/{fileId}
+GET    /admin/api/tokenizer-auth                 (+ PATCH {"token": … | null})
+POST   /admin/api/tokenizer-auth/reveal          the token in the clear — audited
+```
+
+Where v3 had the same operation the path is v3's, so an operator's scripts
+survive. New in v4: `/exposed-models` (v3 called them aliases),
+`/connection-profiles`, `/operation-rules`, `/operation-endpoints`,
+`/price-tiers`, `/settings` (v3 split it into `/instance-settings` and
+`/log-settings`), `/{family}/batch` (v3 had `/batch/{entity}`),
+`/credentials/{id}/{status,refresh,limits}`, `/models/discover/apply`,
+`/rule-sets/{id}/rules`, `/quotas/status`, `/quotas/{id}/{reset,limit-reset}`
+and `DELETE /tokenizer-vocabs/{fileId}` (v3 took the id in a `DELETE` body).
+
+#### The middleware
+
 Middleware, in order: authenticate → **require the instance administrator** →
 same-origin for an unsafe cookie request → the operation → an audit row for
 every method that is not a read. It is a `route_layer`, so an unknown
 `/admin/api/*` path is a 404 that never touches the database.
 
 The audit action is derived from the matched route (`admin.api_keys.rotate`,
-`admin.users.update`), so a new route cannot forget to name itself.
+`admin.providers.create`), so a new route cannot forget to name itself. Reads
+are not audited — which is why the two disclosures above are `POST`s.
 
 ### `/portal/api`
 
