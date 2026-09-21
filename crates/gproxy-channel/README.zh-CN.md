@@ -14,6 +14,7 @@ Cargo feature：
 | feature | id | 上游 | 凭证 |
 |---|---|---|---|
 | `custom` | `custom` | 任何原生讲 OpenAI／Claude／Gemini 的 API-key 端点 | `{"api_key"}` |
+| `aws_bedrock` | `aws_bedrock` | AWS Bedrock：`bedrock-runtime` 上经 SigV4 签名的 `InvokeModel`（Anthropic 模型），AWS event-stream 响应翻译成 Claude Messages SSE，控制面的基础模型目录 | AWS 访问密钥对（可为临时）或 Bedrock API key |
 | `azure` | `azure` | Azure OpenAI 以及 Azure AI Foundry 同时托管的 Anthropic 模型：资源下的 v1 面或 deployment 面，`api-key` 与 `x-api-key` | `{"api_key"}` |
 | `codex` | `codex` | 经 Codex 后端使用的 ChatGPT 账号：OAuth（PKCE 与 device code）、HTTP SSE 与 WebSocket 上的 Responses、`x-codex-*` 限额头、`/wham/usage`、CLI 后端服务 | `OAuthCredential` |
 | `claudecode` | `claudecode` | 经 Claude Code CLI 的 Messages 请求使用的 Claude.ai 订阅：PKCE 与 cookie 登录、刷新、统一限速头、`/api/oauth/usage`、CLI 服务 | `OAuthCredential` |
@@ -35,11 +36,18 @@ Cargo feature：
 一个 `custom` Provider，理由都是 `custom` 表达不了的路由布局：Anthropic 的路由由
 operation 而不是客户端 path 决定，OpenAI 的 Responses 与 Realtime 要走 socket，
 AI Studio 在同一个 origin 上放了两套面、各要各的凭证头。
+九个渠道都能在原生目标和 `wasm32-unknown-unknown` 上构建。
 
 `azure`、`vertex`、`vertexexpress` 是云上的转售方：它们原样转发所托管厂商的 wire，
 只改方法的位置和凭证的呈现方式。三者都不伪装任何客户端，因此都不返回
 `default_connection`——出站栈只由运营方的连接 profile 决定。`vertex` 的凭证入库时
 `expires_at_ms` 已经过期，宿主的第一次刷新就会铸出访问令牌；`prepare` 从不铸令牌。
+
+`aws_bedrock` 是唯一"签名"而不是"出示令牌"的渠道：每个请求都带 AWS SigV4 的
+`Authorization`，签名在 `prepare` 里算——它是对请求和凭证的纯算术，没有 I/O。
+它的流式响应不是 SSE 而是 AWS event-stream 分帧，所以 `stream_generate_content`
+被覆写，把帧翻译成客户端要的 Claude Messages SSE。它服务 Anthropic 系模型；
+其余家族要走 Bedrock 的 `Converse` 形状，而 `gproxy-protocol` 目前无法表达它。
 
 ## 契约
 
