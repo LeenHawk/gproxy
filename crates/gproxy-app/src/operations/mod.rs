@@ -47,6 +47,15 @@
 //! revision and neither notifies — doing so would make every login and every
 //! audited operation invalidate every peer's snapshot for no observable
 //! change.
+//!
+//! # The other surface
+//!
+//! Everything above is the **operator's**: a family takes an id and acts on
+//! whatever row it names, and who may call it is the host's decision.
+//! [`Operations::portal`] hands out the **end user's** surface, which is
+//! shaped the opposite way — it is built from a [`Caller`](crate::Caller), no
+//! method on it takes a user id, and it delegates the writes back to the
+//! families here so no rule is validated twice. See [`portal`].
 
 mod api_keys;
 mod crud;
@@ -57,6 +66,7 @@ mod organizations;
 mod permissions;
 mod plans;
 mod pools;
+pub mod portal;
 mod rate_limits;
 mod sessions;
 mod subscriptions;
@@ -70,6 +80,9 @@ pub use organizations::{Organizations, Teams};
 pub use permissions::Permissions;
 pub use plans::{PlanLimits, Plans};
 pub use pools::{PoolMembers, Pools};
+pub use portal::{
+    MAX_PORTAL_MODELS, MAX_RECENT_REQUESTS, Portal, PortalKeys, PortalOAuthSessions, PortalPassword,
+};
 pub use rate_limits::RateLimits;
 pub use sessions::Sessions;
 pub use subscriptions::Subscriptions;

@@ -1,4 +1,5 @@
-//! The wire shapes of the identity management API.
+//! The wire shapes of the identity management API and of the self-serve
+//! portal.
 //!
 //! Conventions are the sdk's, deliberately to the letter: every id is a
 //! `String`, every timestamp is Unix milliseconds, every field is camelCase on
@@ -21,6 +22,14 @@
 //! mint and the rotation and by nothing else, plus the explicit
 //! [`reveal`](crate::operations::ApiKeys::reveal) of a key whose secret the
 //! instance was asked to retain.
+//!
+//! **The portal shapes have one more rule.** They belong to the end user's
+//! surface, so none of them names anybody but the caller: no `userId` on a
+//! key, none on a request row, and no request field through which a caller
+//! could ask about somebody else. The single exception,
+//! [`PortalUsageQuery::user_id`], exists so a console can post one filter
+//! object to both surfaces, and is overwritten with the caller's own id before
+//! the query runs rather than read.
 
 mod api_keys;
 mod audit;
@@ -32,6 +41,7 @@ mod organizations;
 mod permissions;
 mod plans;
 mod pools;
+mod portal;
 mod rate_limits;
 mod sessions;
 mod subscriptions;
@@ -53,6 +63,12 @@ pub use organizations::{OrganizationDto, OrganizationPatch, OrganizationWrite};
 pub use permissions::{PermissionDto, PermissionPatch, PermissionWrite};
 pub use plans::{PlanDto, PlanLimitDto, PlanLimitPatch, PlanLimitWrite, PlanPatch, PlanWrite};
 pub use pools::{PoolDto, PoolMemberDto, PoolMemberPatch, PoolMemberWrite, PoolPatch, PoolWrite};
+pub use portal::{
+    PortalContextDto, PortalFeaturesDto, PortalKeyCreate, PortalKeyCreated, PortalKeyDto,
+    PortalKeySecretDto, PortalLogin, PortalModelDto, PortalOAuthSessionDto, PortalOrganizationDto,
+    PortalPasswordChange, PortalQuotaWindowDto, PortalRequestDto, PortalSessionDto,
+    PortalSubscriptionDto, PortalTeamDto, PortalUsageDto, PortalUsageQuery, PortalUserDto,
+};
 pub use rate_limits::{RateLimitDto, RateLimitPatch, RateLimitWrite};
 pub use sessions::UserSessionDto;
 pub use subscriptions::{SubscriptionDto, SubscriptionPatch, SubscriptionWrite};
