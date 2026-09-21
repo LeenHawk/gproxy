@@ -233,7 +233,7 @@ impl<'a, C> Operations<'a, C> {
     /// The OAuth authorization server this instance runs **for downstream
     /// clients** — authorize, token, device, revoke and the RFC 8414
     /// discovery document. Not a configuration surface: see
-    /// [`issuer`](crate::operations::issuer) for why none of it moves the
+    /// [`issuer`] for why none of it moves the
     /// revision.
     pub fn issuer(&self) -> Issuer<'a, C> {
         Issuer::new(self.gproxy, self.data, self.config)
