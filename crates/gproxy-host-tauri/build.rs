@@ -1,9 +1,20 @@
 //! Tauri's build step: it reads `tauri.conf.json`, embeds it, and generates
 //! the capability/permission tables `tauri::generate_context!` expands into.
+//! It is also what sets `cfg(desktop)` and `cfg(mobile)`, and the
+//! `TAURI_ANDROID_PACKAGE_NAME_*` variables that `#[tauri::mobile_entry_point]`
+//! reads to name the JNI symbols the activity looks for.
 //!
-//! Nothing else happens here. In particular there is no frontend build: the
-//! console is built by its own toolchain into `ui/`, and a Rust build that
-//! shelled out to `pnpm` would make `cargo check` depend on Node.
+//! The one thing added to it is a library to link, and only on Android:
+//! `liblog` is where `android::install_logging` sends this process's standard
+//! output, because Android discards it otherwise and there is no terminal
+//! behind a phone.
+//!
+//! There is no frontend build here. The console is built by its own toolchain
+//! into `ui/`, and a Rust build that shelled out to `pnpm` would make
+//! `cargo check` depend on Node.
 fn main() {
     tauri_build::build();
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("android") {
+        println!("cargo:rustc-link-lib=log");
+    }
 }

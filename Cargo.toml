@@ -104,7 +104,14 @@ futures-util = "0.3"
 form_urlencoded = "1"
 http = "1"
 hmac = "0.13"
+# The Android host's way in from Java. `0.21` rather than the newer line
+# because that is what `wry` resolves for Tauri's own Android binding, and two
+# JNI crates in one application would be two `JNIEnv` types that cannot meet.
+jni = "0.21"
 js-sys = "0.3"
+# Android only, and for three system calls: `pipe` and `dup2` put this
+# process's standard output into logcat, which Android otherwise discards.
+libc = "0.2"
 # The desktop shell's credential store. `default-features = false` drops the
 # `cli` glue — this is an application, not the keyring demo — and `v1` is the
 # platform-native store and nothing else.
