@@ -9,7 +9,8 @@
 //!    console that is not built, a cache that cannot be shared;
 //! 3. create the first administrator if the instance is new;
 //! 4. bind;
-//! 5. serve, holding the connection info the client-address logic needs.
+//! 5. arm the scheduled update check, which only ever produces a report;
+//! 6. serve, holding the connection info the client-address logic needs.
 //!
 //! **The bind comes after the database work**, not before. v3 reserved the port
 //! first so a second instance failed fast, but that means the kernel accepts
@@ -30,10 +31,10 @@ use std::net::SocketAddr;
 use gproxy_host_axum::{HostState, router};
 use tokio::net::TcpListener;
 
-use crate::{Error, Result, Settings, bootstrap, instance, rotate};
+use crate::{Error, Result, Settings, bootstrap, instance, rotate, update};
 
 /// Assemble, bootstrap, bind and serve until a signal arrives.
-pub async fn run(settings: Settings) -> Result<()> {
+pub async fn run(settings: Settings, updates: update::UpdateOptions) -> Result<()> {
     let instance = instance::open(&settings, instance::OpenOptions::serving()).await?;
     warn_about(&settings, &instance);
 
@@ -50,7 +51,15 @@ pub async fn run(settings: Settings) -> Result<()> {
         .local_addr()
         .map_err(|error| Error::io("reading the bound address", error))?;
 
-    let state = HostState::new(instance.app.clone());
+    // Built before the router, because the router's state carries it: the
+    // update routes exist only for a host that supplied an implementation, and
+    // this is the only host in the workspace that owns an executable to
+    // replace. Nothing is downloaded here — `start` arms a timer whose every
+    // tick produces a report.
+    let updater = update::Updater::for_settings(&settings, updates)?;
+    updater.start();
+
+    let state = HostState::new(instance.app.clone()).with_updates(updater.clone());
     let console = state.console().is_enabled();
     tracing::info!(
         address = %bound,
@@ -59,6 +68,7 @@ pub async fn run(settings: Settings) -> Result<()> {
         // `/healthz`.
         revision = instance.app.snapshot().revision(),
         console,
+        update_channel = updater.options().channel.as_str(),
         "gproxy is listening"
     );
 
@@ -76,6 +86,9 @@ pub async fn run(settings: Settings) -> Result<()> {
     // After the requests, not before: both synchronization loops keep the
     // snapshots fresh for whatever is still in flight.
     instance.app.shutdown();
+    // The scheduled check stops when the last `Arc` goes, which is here: the
+    // router held one through `HostState`, and `axum::serve` has returned it.
+    drop(updater);
     result.map_err(|error| Error::io("serving", error))
 }
 

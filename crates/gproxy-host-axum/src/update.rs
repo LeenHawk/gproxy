@@ -146,7 +146,13 @@ pub struct UpdateReport {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AppliedUpdate {
     /// The version now on disk.
-    pub version: String,
+    ///
+    /// `None` after a **rollback**: the executable that was put back carries
+    /// its own version and nothing on disk records what it was. Reporting the
+    /// calling process's version instead would be a guess that is wrong in
+    /// exactly the common case — a console pressing rollback is talking to the
+    /// binary that was installed.
+    pub version: Option<String>,
     /// Whether anything was actually replaced. `false` means the instance was
     /// already on that version and nothing was written.
     pub changed: bool,

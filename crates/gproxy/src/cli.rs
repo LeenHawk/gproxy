@@ -54,6 +54,11 @@ pub const ADMIN_PASSWORD: &str = "GPROXY_ADMIN_PASSWORD";
 pub const BOOTSTRAP_ADMIN_API_KEY: &str = "GPROXY_BOOTSTRAP_ADMIN_API_KEY";
 pub const IMPORT_SOURCE_MASTER_KEY: &str = "GPROXY_IMPORT_SOURCE_MASTER_KEY";
 pub const AUTOSTART: &str = "GPROXY_AUTOSTART";
+pub const UPDATE_CHANNEL: &str = "GPROXY_UPDATE_CHANNEL";
+pub const UPDATE_MANIFEST_URL: &str = "GPROXY_UPDATE_MANIFEST_URL";
+pub const UPDATE_RESTART: &str = "GPROXY_UPDATE_RESTART";
+pub const UPDATE_CHECK_INTERVAL: &str = "GPROXY_UPDATE_CHECK_INTERVAL";
+pub const UPDATE_AUTOMATIC: &str = "GPROXY_UPDATE_AUTOMATIC";
 
 /// The `.env` file, read before `clap` parses. Only the real environment can
 /// name it, because a flag would have to be parsed by the very step it feeds.
@@ -221,6 +226,48 @@ pub struct Options {
         hide_env_values = true
     )]
     pub admin_api_key: Option<String>,
+
+    /// Which stream of releases `update` reads: `dev` (a rolling build of the
+    /// default branch), `beta` (pre-release tags) or `release` (tagged
+    /// releases). [default: whatever this binary was built as]
+    #[arg(long, global = true, env = UPDATE_CHANNEL, value_name = "CHANNEL")]
+    pub update_channel: Option<String>,
+
+    /// The signed update manifest to read, for a private mirror or an
+    /// air-gapped release host. [default: the channel's own URL on GitHub]
+    ///
+    /// This does **not** weaken the signature: a manifest from anywhere is
+    /// still verified against the ed25519 key compiled into this binary.
+    #[arg(long, global = true, env = UPDATE_MANIFEST_URL, value_name = "URL")]
+    pub update_manifest_url: Option<String>,
+
+    /// What a running server does with itself after installing an update:
+    /// `none`, `supervisor` (exit 42) or `re-exec`. [default: re-exec]
+    #[arg(long, global = true, env = UPDATE_RESTART, value_name = "MODE")]
+    pub update_restart: Option<String>,
+
+    /// Seconds between scheduled update checks while serving, or `0` to check
+    /// nothing. A check only ever reports. [default: 21600]
+    #[arg(long, global = true, env = UPDATE_CHECK_INTERVAL, value_name = "SECONDS")]
+    pub update_check_interval: Option<String>,
+
+    /// Install what a scheduled check finds, without being asked. **Off by
+    /// default, and leave it off unless you mean it.** [default: false]
+    ///
+    /// What it trades away: this instance will replace its own executable at
+    /// an hour nobody chose, on a release nobody read the notes for, and then
+    /// restart — interrupting whatever was in flight. A gateway holding a pile
+    /// of upstream credentials is not a thing that should decide on its own
+    /// which binary it is.
+    #[arg(
+        long,
+        global = true,
+        env = UPDATE_AUTOMATIC,
+        value_name = "BOOL",
+        num_args = 0..=1,
+        default_missing_value = "true"
+    )]
+    pub update_automatic: Option<String>,
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -283,6 +330,28 @@ pub enum Command {
     Service {
         #[command(subcommand)]
         action: ServiceAction,
+    },
+
+    // ---------------------------------------------------------------------
+    // One variant per operator-facing verb, and this is where new ones go.
+    // Keep additions adjacent and each one small: more than one branch adds
+    // to this enum at a time, and a union merge is only a union when the
+    // hunks do not overlap.
+    // ---------------------------------------------------------------------
+    /// Report whether a newer release exists, and install it when asked.
+    ///
+    /// Checking never installs. Installing is this command without
+    /// `--check`, or the console's button — never something the instance
+    /// decides on its own, unless `--update-automatic` was turned on.
+    Update {
+        /// Report and exit. Downloads the signed manifest, nothing else.
+        #[arg(long)]
+        check: bool,
+
+        /// Read one channel for this invocation only, overriding
+        /// `--update-channel`.
+        #[arg(long, value_name = "CHANNEL")]
+        channel: Option<String>,
     },
 }
 
@@ -395,6 +464,44 @@ mod tests {
             panic!("not an import");
         };
         assert_eq!(mode, ImportModeArg::Merge);
+    }
+
+    /// `update` reports by default and installs only when told to, so the
+    /// dangerous spelling is the longer one.
+    #[test]
+    fn update_checks_only_when_asked_and_installs_only_when_not() {
+        let cli = Cli::try_parse_from(["gproxy", "update", "--check"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Some(Command::Update {
+                check: true,
+                channel: None
+            })
+        ));
+
+        let cli = Cli::try_parse_from(["gproxy", "update", "--channel", "dev"]).unwrap();
+        let Some(Command::Update { check, channel }) = cli.command else {
+            panic!("not an update");
+        };
+        assert!(!check);
+        assert_eq!(channel.as_deref(), Some("dev"));
+
+        // The instance-wide channel is a global flag, so it works on `serve`
+        // too — which is what the scheduled check reads.
+        let cli = Cli::try_parse_from(["gproxy", "serve", "--update-channel", "beta"]).unwrap();
+        assert_eq!(cli.options.update_channel.as_deref(), Some("beta"));
+    }
+
+    /// The one switch that lets the instance install on its own is armed the
+    /// same way rotation is, and saying nothing is not saying yes.
+    #[test]
+    fn automatic_updates_are_only_on_when_spelled_out() {
+        let silent = Cli::try_parse_from(["gproxy"]).unwrap();
+        assert_eq!(silent.options.update_automatic, None);
+        let bare = Cli::try_parse_from(["gproxy", "--update-automatic"]).unwrap();
+        assert_eq!(bare.options.update_automatic.as_deref(), Some("true"));
+        let explicit = Cli::try_parse_from(["gproxy", "--update-automatic", "false"]).unwrap();
+        assert_eq!(explicit.options.update_automatic.as_deref(), Some("false"));
     }
 
     /// Every configurable value must be reachable from the environment, or the
