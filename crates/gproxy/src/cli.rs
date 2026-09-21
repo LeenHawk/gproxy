@@ -267,19 +267,36 @@ pub enum Command {
 
     /// Replay a configuration document into this instance.
     Import {
-        /// The document to read. `-` reads standard input.
-        #[arg(long = "in", short = 'i', value_name = "PATH")]
-        input: PathBuf,
+        /// The document to read. `-` reads standard input. Mutually exclusive
+        /// with --from-v3.
+        #[arg(
+            long = "in",
+            short = 'i',
+            value_name = "PATH",
+            required_unless_present = "from_v3"
+        )]
+        input: Option<PathBuf>,
+
+        /// Migrate a **v3** deployment instead: the document is v3's own
+        /// export (`POST /admin/api/export`), not this command's. Providers,
+        /// credentials, routing, pricing, quotas, users and API keys come
+        /// across; usage and logs do not. Requires a database that is empty
+        /// apart from an earlier run of the same import.
+        #[arg(long, value_name = "PATH", conflicts_with = "input")]
+        from_v3: Option<PathBuf>,
 
         /// `merge` writes what the document names and leaves the rest alone;
         /// `replace` additionally deletes rows of an exported kind that the
-        /// document does not mention.
+        /// document does not mention. Not used by --from-v3, which only ever
+        /// merges into a database it has checked is otherwise empty.
         #[arg(long, value_enum, default_value_t = ImportModeArg::Merge)]
         mode: ImportModeArg,
 
         /// The master key the source instance sealed its secrets with, as hex
         /// or base64. With it every secret is opened and re-sealed under this
         /// instance's key; without it the blobs are stored as they arrived.
+        /// For --from-v3 this is the v3 instance's `GPROXY_MASTER_KEY`, and a
+        /// sealed v3 export cannot be imported without it.
         #[arg(
             long,
             env = IMPORT_SOURCE_MASTER_KEY,
@@ -406,6 +423,27 @@ mod tests {
             panic!("not an import");
         };
         assert_eq!(mode, ImportModeArg::Merge);
+    }
+
+    #[test]
+    fn an_import_names_one_document_or_the_other_and_never_both() {
+        let v4 = Cli::try_parse_from(["gproxy", "import", "--in", "x.json"]).unwrap();
+        let Some(Command::Import { input, from_v3, .. }) = v4.command else {
+            panic!("not an import");
+        };
+        assert_eq!(input.as_deref(), Some(std::path::Path::new("x.json")));
+        assert!(from_v3.is_none());
+
+        let v3 = Cli::try_parse_from(["gproxy", "import", "--from-v3", "v3.json"]).unwrap();
+        let Some(Command::Import { input, from_v3, .. }) = v3.command else {
+            panic!("not an import");
+        };
+        assert!(input.is_none());
+        assert_eq!(from_v3.as_deref(), Some(std::path::Path::new("v3.json")));
+
+        // Neither is not an import, and both is two different documents.
+        assert!(Cli::try_parse_from(["gproxy", "import"]).is_err());
+        assert!(Cli::try_parse_from(["gproxy", "import", "--in", "a", "--from-v3", "b"]).is_err());
     }
 
     /// Every configurable value must be reachable from the environment, or the

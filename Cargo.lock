@@ -2649,6 +2649,7 @@ dependencies = [
 name = "gproxy"
 version = "4.0.0-dev"
 dependencies = [
+ "aes-gcm",
  "axum",
  "base64 0.23.1",
  "clap",
@@ -2663,15 +2664,18 @@ dependencies = [
  "gproxy-seaorm",
  "gproxy-store",
  "http",
+ "regex",
  "sea-orm",
  "serde",
  "serde_json",
+ "sha2 0.11.0",
  "tempfile",
  "thiserror 2.0.20",
  "tokio",
  "toml 1.1.6+spec-1.1.0",
  "tracing",
  "tracing-subscriber",
+ "zeroize",
 ]
 
 [[package]]
