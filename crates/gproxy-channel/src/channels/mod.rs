@@ -31,8 +31,12 @@ pub mod deepseek;
 pub mod devin;
 #[cfg(feature = "geminicli")]
 pub mod geminicli;
+#[cfg(feature = "grokbuild")]
+pub mod grokbuild;
 #[cfg(feature = "kimi")]
 pub mod kimi;
+#[cfg(feature = "kiro")]
+pub mod kiro;
 #[cfg(feature = "openai")]
 pub mod openai;
 #[cfg(feature = "opencode")]
@@ -51,14 +55,17 @@ pub mod openrouter;
     feature = "copilotcli",
     feature = "custom",
     feature = "geminicli",
+    feature = "grokbuild",
     feature = "dashscope",
     feature = "deepseek",
     feature = "kimi",
+    feature = "kiro",
     feature = "openai",
     feature = "opencode",
     feature = "openrouter",
     feature = "vertex",
     feature = "vertexexpress",
+    feature = "workbuddy",
     feature = "xai"
 ))]
 mod shared;
@@ -66,5 +73,7 @@ mod shared;
 pub mod vertex;
 #[cfg(feature = "vertexexpress")]
 pub mod vertexexpress;
+#[cfg(feature = "workbuddy")]
+pub mod workbuddy;
 #[cfg(feature = "xai")]
 pub mod xai;

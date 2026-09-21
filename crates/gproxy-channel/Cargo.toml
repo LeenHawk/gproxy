@@ -116,9 +116,31 @@ geminicli = [
     "dep:time",
     "dep:web-time",
 ]
+# Grok Build (grok-shell): an xAI account granted through the CLI's device
+# login and used against the Grok Build chat proxy rather than api.x.ai. The
+# Responses body is narrowed to what that proxy accepts, xAI's own media paths
+# stay on the public origin, and /billing reports the credit window.
+grokbuild = [
+    "dep:base64",
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:time",
+    "dep:web-time",
+]
 # Moonshot Kimi: an API key against api.moonshot.cn or a Kimi Code device
 # login against api.kimi.com, with the CLI's x-msh-* identity headers.
 kimi = ["dep:futures-util", "dep:getrandom", "dep:time", "dep:web-time"]
+# Kiro (AWS CodeWhisperer through the Kiro desktop app): a Builder ID or IAM
+# Identity Center token against the CodeWhisperer Smithy surface. The OpenAI
+# Responses request becomes a conversation envelope, the AWS event-stream
+# reply is translated back into Responses SSE, and GetUsageLimits reports the
+# subscription's credit windows.
+kiro = [
+    "dep:crc32fast",
+    "dep:futures-util",
+    "dep:sha2",
+    "dep:web-time",
+]
 # OpenAI's own platform (api.openai.com) upstream: the full OpenAI surface,
 # Responses and Realtime over a WebSocket, x-ratelimit-* headers and the
 # organization cost report.
@@ -148,6 +170,16 @@ vertex = [
 # Google Vertex AI Express mode: the Gemini surface with an API key in the
 # query, no project and no region.
 vertexexpress = []
+# WorkBuddy (Tencent Copilot, `copilot.tencent.com`): a device login through
+# the editor plugin's auth endpoints, OpenAI Chat under /v2 carrying the CLI's
+# identity headers, a /v3/config model catalogue and the two billing-meter
+# surfaces an enterprise and a personal account read.
+workbuddy = [
+    "dep:futures-util",
+    "dep:getrandom",
+    "dep:time",
+    "dep:web-time",
+]
 # xAI: OpenAI Chat and Responses with xAI's own speech, transcription and
 # video paths, cost ticks in usage and the management billing probe.
 xai = ["dep:futures-util"]
