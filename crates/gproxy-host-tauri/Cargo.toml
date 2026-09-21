@@ -1,0 +1,83 @@
+[package]
+name = "gproxy-host-tauri"
+description = "The GPROXY v4 desktop host: Tauri IPC for the management surfaces, an in-process axum data plane for the CLIs"
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+default-run = "gproxy-desktop"
+
+# Two targets over one source tree, for the same reason `gproxy` has them: the
+# library is where every decision lives, and `tests/` drives it directly. The
+# binary is the window — it parses nothing, decides nothing, and exists so that
+# `cargo run` opens the shell.
+[lib]
+name = "gproxy_host_tauri"
+path = "src/lib.rs"
+
+[[bin]]
+name = "gproxy-desktop"
+path = "src/main.rs"
+
+[features]
+# A desktop instance is one SQLite file with every channel compiled in. There
+# is no operator here to pick a backend, so the feature set is the product's
+# rather than a deployment's: the cache is this process's memory because there
+# is no second instance to share one with, and file storage is local because
+# there is a filesystem and no bucket.
+default = ["channels", "memory", "fs", "bundled-vocabulary"]
+channels = ["gproxy/channels"]
+memory = ["gproxy/memory"]
+fs = ["gproxy/fs"]
+bundled-vocabulary = ["gproxy/bundled-vocabulary"]
+
+[dependencies]
+# The reduction layer in front of the host's router, and nothing else.
+axum = { workspace = true }
+gproxy = { workspace = true }
+gproxy-app = { workspace = true }
+gproxy-core = { workspace = true }
+gproxy-host-axum = { workspace = true }
+gproxy-sdk = { workspace = true }
+gproxy-seaorm = { workspace = true }
+# One argument type the command table names: a credential's lifecycle status.
+gproxy-store = { workspace = true }
+# The master key this shell mints on first run, and nothing else.
+getrandom = { workspace = true }
+http = { workspace = true }
+# The system credential store. `v1` is the platform-native store per OS —
+# Secret Service on Linux, the Keychain on macOS, the Credential Manager on
+# Windows — which is exactly the set this shell wants and nothing more.
+keyring = { workspace = true }
+# Builds a command's name out of its surface, family and method. A table of
+# two hundred entries has to derive its identifiers from the declaration, or
+# the declaration stops being the single place they are written down.
+paste = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tauri = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+# The one configuration file a desktop instance reads, in the schema the server
+# already has. Nothing here defines a second one.
+toml = { workspace = true }
+tracing = { workspace = true }
+
+[build-dependencies]
+tauri-build = { workspace = true }
+
+[dev-dependencies]
+# `test` gives Tauri's `MockRuntime`, which is what lets `tests/assembly.rs`
+# dispatch through the real command table on a machine with no display server.
+tauri = { workspace = true, features = ["test"] }
+tempfile = { workspace = true }
+serde_json = { workspace = true }
+# `examples/headless.rs` is the one place in this crate that installs a log
+# subscriber of its own; the binary uses `gproxy::telemetry`.
+tracing-subscriber = { workspace = true }
+# The data-plane tests speak HTTP/1.1 over a `TcpStream` by hand rather than
+# through a client crate. Two requests to loopback are four lines of bytes, and
+# a real client would bring a proxy resolver that reads `HTTP_PROXY` out of the
+# developer's shell and route the test somewhere else.
+tokio = { workspace = true, features = ["io-util", "macros", "rt-multi-thread"] }
