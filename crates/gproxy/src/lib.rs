@@ -38,6 +38,7 @@
 //! | `bootstrap admin` | create the first administrator, idempotently |
 //! | `export` | the instance's configuration as one JSON document |
 //! | `import` | replay such a document, merging or replacing |
+//! | `service` | install, remove or inspect the unit this machine's init system runs |
 
 pub mod bootstrap;
 pub mod cli;
@@ -47,6 +48,7 @@ pub mod error;
 pub mod instance;
 pub mod rotate;
 pub mod serve;
+pub mod service;
 pub mod telemetry;
 pub mod transfer;
 
@@ -61,6 +63,12 @@ pub use error::{Error, Result};
 pub async fn run(cli: Cli) -> Result<()> {
     let settings = config::settings(&cli)?;
     telemetry::init(&settings.telemetry)?;
+
+    // Kept before the `match`, which moves `cli.command`. The unit `service
+    // install` writes has to name the `--config` file this invocation read,
+    // and `Settings` is the result of the layering — it has deliberately
+    // forgotten which file produced it.
+    let config_path = cli.options.config.clone();
 
     match cli.command.unwrap_or(Command::Serve) {
         Command::Serve => serve::run(settings).await,
@@ -93,5 +101,8 @@ pub async fn run(cli: Cli) -> Result<()> {
             instance.app.gproxy().shutdown();
             Ok(())
         }
+        // No database, no network, no runtime work: this one only reads the
+        // resolved configuration and writes a file the init system will read.
+        Command::Service { action } => service::run(&action, &settings, config_path.as_deref()),
     }
 }

@@ -333,7 +333,7 @@ fn telemetry(options: &cli::Options) -> Result<TelemetryOptions> {
 /// gates — rotating every secret in the database, and serving the console —
 /// are both things an operator would not notice the absence of until it
 /// mattered.
-fn boolean(value: &str, name: &str) -> Result<bool> {
+pub(crate) fn boolean(value: &str, name: &str) -> Result<bool> {
     match value.trim().to_ascii_lowercase().as_str() {
         "1" | "true" | "yes" | "on" => Ok(true),
         "" | "0" | "false" | "no" | "off" => Ok(false),
