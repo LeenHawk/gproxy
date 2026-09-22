@@ -56,6 +56,8 @@ pub enum ResponseServiceTier {
     Priority,
     #[serde(rename = "fast")]
     Fast,
+    #[serde(rename = "ultrafast")]
+    Ultrafast,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]

@@ -73,6 +73,11 @@ pub fn gemini_to_openai(
     );
     out.input = Some(input);
     *flow = ids;
+    crate::transform::generate::openai_controls::target_reasoning(
+        &model,
+        &mut out.reasoning,
+        &mut report,
+    );
     Ok(Converted { value: out, report })
 }
 
@@ -85,6 +90,14 @@ pub fn openai_to_gemini(
     let mut input = input.into_declared();
     super::openai_state(&input)?;
     let mut report = Report::default();
+    let mut projected_input = input.input.take().flatten();
+    crate::transform::generate::openai_controls::project_input(
+        &mut projected_input,
+        &mut input.reasoning,
+        &mut report,
+    );
+    input.input = projected_input.map(Some);
+
     let mut tools = input.tools.take().flatten();
     let mut history = input.input.take().flatten();
     let mut choice = input.tool_choice.take().flatten();

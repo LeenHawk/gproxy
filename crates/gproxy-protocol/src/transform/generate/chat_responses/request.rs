@@ -80,6 +80,7 @@ pub fn chat_to_responses_request_with_calls(
         &mut report,
     );
     *flow = ids;
+    crate::transform::generate::openai_controls::target_responses(&mut output, &mut report);
     Ok(Converted {
         value: output,
         report,
@@ -93,6 +94,7 @@ pub fn responses_to_chat_request(
     let model = target_model.into();
 
     let mut report = Report::default();
+    crate::transform::generate::openai_controls::project_request(&mut input, &mut report)?;
     let bindings = super::client_tools::Bindings::new(&input)?;
     bindings.lower(&mut input, &mut report)?;
     let mut output = chat::GenerateContentRequestBody::builder(Vec::new(), model).build();
@@ -125,6 +127,7 @@ pub fn responses_to_chat_request(
     output.user = input.user;
     crate::transform::instructions::chat(&mut output.messages, &output.model, &mut report);
 
+    crate::transform::generate::openai_controls::target_chat(&mut output, &mut report);
     Ok(Converted {
         value: output,
         report,

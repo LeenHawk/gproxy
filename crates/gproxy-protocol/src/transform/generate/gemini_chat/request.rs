@@ -83,6 +83,7 @@ pub(crate) fn gemini_to_openai_request_with_calls(
     }
     crate::transform::instructions::chat(&mut out.messages, &out.model, &mut report);
     *identity = ids;
+    crate::transform::generate::openai_controls::target_chat(&mut out, &mut report);
     Ok(Converted { value: out, report })
 }
 

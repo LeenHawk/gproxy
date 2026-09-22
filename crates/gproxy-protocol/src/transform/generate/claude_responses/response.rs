@@ -170,8 +170,10 @@ fn convert_to_claude(
         }
         None => return Err(TransformError::missing_metadata("response.status")),
     };
-    let reason = if completed {
-        if input.incomplete_details.is_some() {
+    let steered = input.incomplete_details.as_ref().and_then(|v| v.reason)
+        == Some(r::ResponseIncompleteReason::Steered);
+    let reason = if completed || steered {
+        if completed && input.incomplete_details.is_some() {
             return Err(TransformError::invalid_result(
                 "incomplete_details",
                 "completed response has incomplete details",
@@ -185,7 +187,9 @@ fn convert_to_claude(
                 .and_then(|v| v.reason)
                 .ok_or_else(|| TransformError::missing_metadata("incomplete_details.reason"))?
             {
-                r::ResponseIncompleteReason::MaxOutputTokens => c::StopReason::MaxTokens,
+                r::ResponseIncompleteReason::MaxOutputTokens
+                | r::ResponseIncompleteReason::MaxMessages => c::StopReason::MaxTokens,
+                r::ResponseIncompleteReason::Steered => c::StopReason::EndTurn,
                 r::ResponseIncompleteReason::ContentFilter => c::StopReason::Refusal,
             },
         )
@@ -224,7 +228,8 @@ fn convert_to_claude(
         r::ServiceTier::Auto
         | r::ServiceTier::Flex
         | r::ServiceTier::Scale
-        | r::ServiceTier::Fast => {
+        | r::ServiceTier::Fast
+        | r::ServiceTier::Ultrafast => {
             report.omitted(
                 "service_tier",
                 "Claude has no equivalent effective service tier",

@@ -5,7 +5,9 @@ use crate::{
     transform::generate::stream::responses::ResponsesStreamCollector,
     wire::{
         DeclaredFields,
-        openai::responses::websocket::{ClientEvent, ErrorMessage, RequestMessage, ServerMessage},
+        openai::responses::websocket::{
+            ClientEvent, ErrorMessage, RequestMessage, ServerEvent, ServerMessage,
+        },
     },
 };
 use futures_core::Stream;
@@ -40,7 +42,12 @@ impl<'a> ResponsesWsTurn<'a> {
         session: &'a mut ResponsesWsSession,
         mut request: RequestMessage,
     ) -> Result<Self, TransformError> {
-        let ClientEvent::ResponseCreate(body) = &mut request.event;
+        let ClientEvent::ResponseCreate(body) = &mut request.event else {
+            return Err(TransformError::unsupported(
+                "responses.websocket.steer",
+                "steering requires a duplex continuation driver, not a single response turn",
+            ));
+        };
         if body.background.flatten() == Some(true) {
             return Err(TransformError::unsupported(
                 "responses.websocket.background",
@@ -210,7 +217,12 @@ impl<'a> ResponsesWsTurn<'a> {
         if message.stream_id != self.lane {
             return Err(invalid("WebSocket event belongs to another lane"));
         }
-        let event = message.event;
+        let ServerEvent::Response(event) = message.event else {
+            return Err(TransformError::unsupported(
+                "responses.websocket.steer",
+                "steering events require a duplex continuation driver",
+            ));
+        };
         if matches!(event, StreamEvent::Failed(_) | StreamEvent::Error(_)) {
             self.session.failure = Some(Box::new(event.clone()));
         }

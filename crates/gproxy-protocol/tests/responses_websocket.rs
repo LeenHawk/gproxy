@@ -11,6 +11,7 @@ fn response_create_uses_flat_native_fields_and_preserves_extensions() {
     #[allow(clippy::infallible_destructuring_match)]
     let body = match &event {
         ClientEvent::ResponseCreate(body) => body,
+        ClientEvent::ResponseSteer(_) => panic!("unexpected steering event"),
         #[cfg(not(feature = "exhaustive"))]
         _ => panic!("unexpected event"),
     };

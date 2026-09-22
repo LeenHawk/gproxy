@@ -26,6 +26,7 @@ pub(super) fn item_id(item: &r::ResponseOutputItem) -> Option<&str> {
         r::ResponseOutputItem::ToolSearchCall(v) => Some(&v.id),
         r::ResponseOutputItem::ToolSearchOutput(v) => Some(&v.id),
         r::ResponseOutputItem::AdditionalTools(v) => Some(&v.id),
+        r::ResponseOutputItem::ConfigurationUpdate(v) => v.id.as_ref().and_then(Option::as_deref),
         r::ResponseOutputItem::Compaction(v) => Some(&v.id),
         r::ResponseOutputItem::ImageGenerationCall(v) => Some(&v.id),
         r::ResponseOutputItem::CodeInterpreterCall(v) => Some(&v.id),

@@ -111,6 +111,7 @@ impl ClaudeToResponsesStream {
                     .transpose()?;
                 (
                     Some(r::ResponseOutputItem::FunctionCall(i::FunctionCall {
+                        async_: None,
                         type_: i::FunctionCallType::FunctionCall,
                         arguments: String::new(),
                         call_id,

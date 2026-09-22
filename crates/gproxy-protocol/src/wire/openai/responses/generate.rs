@@ -377,6 +377,15 @@ pub enum PromptCachingMode {
 pub struct PromptCacheOptions {
     #[serde(
         default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub comparison_response_id: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prewarm: Option<bool>,
+
+    #[serde(
+        default,
         deserialize_with = "present_optional",
         skip_serializing_if = "Option::is_none"
     )]
@@ -429,6 +438,8 @@ pub enum ServiceTier {
     Priority,
     #[serde(rename = "fast")]
     Fast,
+    #[serde(rename = "ultrafast")]
+    Ultrafast,
 }
 #[derive(
     Debug,

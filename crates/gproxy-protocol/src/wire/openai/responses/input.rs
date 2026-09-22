@@ -265,6 +265,7 @@ pub struct InputMessage {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum InputItem {
+    ConfigurationUpdate(ConfigurationUpdate),
     OutputMessage(ResponseOutputMessage),
     Message(InputMessage),
     Easy(EasyInputMessage),
@@ -430,6 +431,9 @@ pub struct ResponseOutputRefusal {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct FunctionCall {
+    #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
+    pub async_: Option<bool>,
+
     #[serde(rename = "type")]
     pub type_: FunctionCallType,
     pub arguments: String,
@@ -1116,6 +1120,43 @@ pub struct FileSearchResult {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ImageGenerationCall {
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub action: Option<Option<ImageAction>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub background: Option<Option<ImageBackground>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub output_format: Option<Option<ImageOutputFormat>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub quality: Option<Option<ImageQuality>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub revised_prompt: Option<Option<String>>,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub size: Option<Option<String>>,
+
     #[serde(rename = "type")]
     pub type_: ImageGenerationCallType,
     pub id: String,
@@ -1154,6 +1195,9 @@ pub struct CodeInterpreterCall {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CustomToolCall {
+    #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
+    pub async_: Option<bool>,
+
     #[serde(rename = "type")]
     pub type_: CustomToolCallType,
     pub call_id: String,
@@ -2286,4 +2330,68 @@ pub enum TextVerbosity {
     Low,
     Medium,
     High,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ConfigurationUpdateType {
+    ConfigurationUpdate,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct ConfigurationUpdate {
+    #[serde(rename = "type")]
+    pub type_: ConfigurationUpdateType,
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub id: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<ConfigurationReasoning>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct ConfigurationReasoning {
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub effort: Option<Option<ReasoningEffort>>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
 }

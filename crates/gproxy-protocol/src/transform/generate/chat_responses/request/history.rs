@@ -247,7 +247,8 @@ pub(super) fn to_chat(
                     messages.push(c::ChatMessage::Assistant(message));
                 }
             }
-            r::InputItem::Compaction(_)
+            r::InputItem::ConfigurationUpdate(_)
+            | r::InputItem::Compaction(_)
             | r::InputItem::ComputerCall(_)
             | r::InputItem::ComputerCallOutput(_)
             | r::InputItem::WebSearchCall(_)

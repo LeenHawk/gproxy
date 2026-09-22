@@ -96,6 +96,7 @@ pub(super) fn to_responses(
             c::ServiceTier::Scale => r::ServiceTier::Scale,
             c::ServiceTier::Priority => r::ServiceTier::Priority,
             c::ServiceTier::Fast => r::ServiceTier::Fast,
+            c::ServiceTier::Ultrafast => r::ServiceTier::Ultrafast,
         })
     });
     out.reasoning = input.reasoning_effort.map(|effort| {
@@ -231,6 +232,7 @@ pub(super) fn to_chat(
             r::ServiceTier::Scale => c::ServiceTier::Scale,
             r::ServiceTier::Priority => c::ServiceTier::Priority,
             r::ServiceTier::Fast => c::ServiceTier::Fast,
+            r::ServiceTier::Ultrafast => c::ServiceTier::Ultrafast,
         })
     });
     if let Some(config) = input.reasoning.as_ref().and_then(Option::as_ref) {

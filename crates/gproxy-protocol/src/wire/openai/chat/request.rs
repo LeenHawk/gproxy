@@ -552,6 +552,8 @@ pub enum ServiceTier {
     Priority,
     #[serde(rename = "fast")]
     Fast,
+    #[serde(rename = "ultrafast")]
+    Ultrafast,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]

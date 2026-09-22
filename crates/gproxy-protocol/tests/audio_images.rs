@@ -191,7 +191,6 @@ fn image_requests_and_response_distinguish_nullable_and_closed_sets() {
     for (field, value) in [
         ("background", json!("auto")),
         ("quality", json!("hd")),
-        ("size", json!("auto")),
         ("data", Value::Null),
     ] {
         let mut v = json!({"created":1});

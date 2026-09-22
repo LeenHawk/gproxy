@@ -18,6 +18,9 @@ pub type ResponseInstructions = input::Input;
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct GenerateContentResponseBody {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt_cache_diagnostics: Option<super::diagnostics::PromptCacheDiagnostics>,
+
     pub id: String,
     pub created_at: i64,
     #[wire(required)]
@@ -188,6 +191,9 @@ pub enum ResponseObject {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseError {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub misalignment: Option<MisalignmentDetails>,
+
     pub code: ResponseErrorCode,
     pub message: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -260,6 +266,10 @@ pub struct ResponseIncompleteDetails {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseIncompleteReason {
+    #[serde(rename = "max_messages")]
+    MaxMessages,
+    #[serde(rename = "steered")]
+    Steered,
     #[serde(rename = "max_output_tokens")]
     MaxOutputTokens,
     #[serde(rename = "content_filter")]
@@ -272,6 +282,13 @@ pub enum ResponseIncompleteReason {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponsePromptCacheOptions {
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub comparison_response_id: Option<Option<String>>,
+
     pub mode: generate::PromptCachingMode,
     pub ttl: generate::PromptCacheTtl,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -412,13 +429,14 @@ pub struct ResponseOutputTokensDetails {
     pub rest: Rest,
 }
 
-/// Exactly the 28 output variants; input-only messages/references/triggers are excluded.
+/// Native output items; input-only messages/references/triggers are excluded.
 /// Same-shape items are reused; response-specific required fields use separate structs.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ResponseOutputItem {
+    ConfigurationUpdate(input::ConfigurationUpdate),
     Message(input::ResponseOutputMessage),
     FileSearchCall(input::FileSearchCall),
     FunctionCall(input::FunctionCall),
@@ -864,6 +882,45 @@ pub struct ResponseCustomToolCallOutput {
         skip_serializing_if = "Option::is_none"
     )]
     pub created_by: Option<String>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct MisalignmentDetails {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detailed_explanation: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub steer: Option<MisalignmentSteer>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct MisalignmentSteer {
+    pub message: String,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
 }

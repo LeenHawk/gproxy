@@ -196,7 +196,12 @@ pub fn decode_request(
             "use decode_message and preserve the explicit output lane",
         ));
     }
-    let ClientEvent::ResponseCreate(request) = message.event;
+    let ClientEvent::ResponseCreate(request) = message.event else {
+        return Err(TransformError::unsupported(
+            "responses.websocket.steer",
+            "steering has no equivalent cross-protocol generation operation",
+        ));
+    };
     Ok(request)
 }
 
@@ -228,7 +233,12 @@ pub fn decode_message(
             "prefill-only warmup has no equivalent selected cross-protocol generation operation",
         ));
     }
-    let ClientEvent::ResponseCreate(request) = &mut message.event;
+    let ClientEvent::ResponseCreate(request) = &mut message.event else {
+        return Err(TransformError::unsupported(
+            "responses.websocket.steer",
+            "steering has no equivalent cross-protocol generation operation",
+        ));
+    };
     if request.background.flatten() == Some(true) {
         return Err(TransformError::unsupported(
             "responses.websocket.background",

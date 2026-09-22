@@ -72,6 +72,7 @@ pub fn synthesize_responses_stream(
     created.incomplete_details = None;
     created.completed_at = None;
     created.usage = None;
+    created.prompt_cache_diagnostics = None;
     emitter.push(|sequence_number| {
         s::StreamEvent::Created(s::ResponseCreated {
             sequence_number,
