@@ -25,7 +25,7 @@ key, and prints the two secrets once.
 | Command | What it does |
 |---|---|
 | `gproxy serve` | Rotate the master key if asked, bootstrap if the instance is new, bind, serve. **The default** — `gproxy` with no subcommand is `gproxy serve`. |
-| `gproxy migrate` | Create or incrementally synchronize the schema, then exit. |
+| `gproxy migrate` | Create the schema or apply pending migrations, then exit. |
 | `gproxy bootstrap admin` | Create the first administrator. Idempotent. |
 | `gproxy export --out <PATH>` | Write this instance's configuration as one JSON document. |
 | `gproxy import --in <PATH>` | Replay such a document into this instance. |
@@ -54,7 +54,11 @@ is answering.
 gproxy migrate --dsn postgres://gproxy@db/gproxy
 ```
 
-`serve` synchronizes the schema too. The separate command exists for a
+`serve` runs the same SeaORM migrations. Empty databases receive the current
+schema and a `seaql_migrations` ledger; existing databases apply pending entries.
+Tables without that ledger, or a ledger newer than this build, are refused before
+DDL. `gproxy migrate --status` reads migration status without creating tables.
+ The separate command exists for a
 deployment that runs migrations as their own step, with one writer, before any
 instance starts — which is what more than one instance over one database
 requires.
@@ -68,6 +72,17 @@ gproxy bootstrap admin --user admin --password "…" --api-key "sk-…"
 `--user`, `--password` and `--api-key` are aliases for the global
 `--admin-user`, `--admin-password` and `--admin-api-key`, so the same values
 work on `serve`.
+
+### Automatic v3 upgrade
+
+Start with the same data directory and `GPROXY_MASTER_KEY`. v4 recognizes the
+v3 SQLite database, imports a snapshot beside it, and replaces the original path
+only after success, keeping a `gproxy.db.v3-*.bak` backup. Passwords and API keys
+remain valid. `gproxy migrate` follows the same path.
+
+`import --from-v3` remains available for separately importing a backup or JSON;
+it is not required for a normal upgrade. See the
+[migration guide](../../docs/src/content/docs/deployment/v3-to-v4.md).
 
 ### `export` / `import`
 

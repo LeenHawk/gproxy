@@ -25,6 +25,7 @@ use gproxy::{
     instance::{self, Instance},
 };
 use gproxy_app::{AppConfig, config::StoreBackendConfig};
+use sea_orm::EntityTrait;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
@@ -232,6 +233,7 @@ async fn a_v3_deployment_becomes_a_working_v4_one() {
         &document,
         Some(&source_key()),
         &settings.admin,
+        false,
     )
     .await
     .expect("import the v3 export");
@@ -424,6 +426,7 @@ async fn importing_the_same_document_twice_is_the_same_deployment() {
             &document,
             Some(&source_key()),
             &settings.admin,
+            false,
         )
         .await
         .unwrap_or_else(|error| panic!("import {attempt} failed: {error}"));
@@ -465,10 +468,16 @@ async fn the_wrong_master_key_fails_the_whole_import_and_writes_nothing() {
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect();
-    let error = gproxy::v3::import(&instance.app, &document, Some(&wrong), &settings.admin)
-        .await
-        .unwrap_err()
-        .to_string();
+    let error = gproxy::v3::import(
+        &instance.app,
+        &document,
+        Some(&wrong),
+        &settings.admin,
+        false,
+    )
+    .await
+    .unwrap_err()
+    .to_string();
     assert!(error.contains("--source-master-key"), "{error}");
     assert!(error.contains("refused as a whole"), "{error}");
 
@@ -489,7 +498,7 @@ async fn a_sealed_export_without_a_key_says_which_flag_is_missing() {
     let document = write_document(directory.path(), &v3_export());
     let instance = open(&settings).await;
 
-    let error = gproxy::v3::import(&instance.app, &document, None, &settings.admin)
+    let error = gproxy::v3::import(&instance.app, &document, None, &settings.admin, false)
         .await
         .unwrap_err()
         .to_string();
@@ -513,6 +522,7 @@ async fn a_key_under_a_digest_rule_this_build_does_not_know_is_refused() {
         &document,
         Some(&source_key()),
         &settings.admin,
+        false,
     )
     .await
     .unwrap_err()
@@ -538,6 +548,7 @@ async fn an_export_taken_without_secrets_is_refused_before_anything_is_written()
         &document,
         Some(&source_key()),
         &settings.admin,
+        false,
     )
     .await
     .unwrap_err()
@@ -566,6 +577,7 @@ async fn a_destination_that_already_has_configuration_is_refused() {
         &document,
         Some(&source_key()),
         &settings.admin,
+        false,
     )
     .await
     .unwrap_err()
@@ -589,7 +601,7 @@ async fn a_v4_export_handed_to_from_v3_says_which_flag_to_use() {
     gproxy::transfer::export(&instance.app, &v4, false)
         .await
         .unwrap();
-    let error = gproxy::v3::import(&instance.app, &v4, None, &settings.admin)
+    let error = gproxy::v3::import(&instance.app, &v4, None, &settings.admin, false)
         .await
         .unwrap_err()
         .to_string();
@@ -614,7 +626,7 @@ async fn a_plaintext_v3_deployment_arrives_sealed() {
     let document = write_document(directory.path(), &export);
     let instance = open(&settings).await;
 
-    gproxy::v3::import(&instance.app, &document, None, &settings.admin)
+    gproxy::v3::import(&instance.app, &document, None, &settings.admin, false)
         .await
         .expect("a plaintext v3 export needs no key");
 
@@ -665,4 +677,237 @@ where
     let mut rows = all(repository).await;
     assert_eq!(rows.len(), 1, "expected exactly one row");
     rows.remove(0)
+}
+
+/// A skipped channel must not leave references to its provider or credentials.
+#[tokio::test]
+async fn skipping_an_unmappable_provider_cascades_and_rounds_v3_prices() {
+    let directory = tempfile::tempdir().unwrap();
+    let settings = settings(directory.path(), AdminOptions::default());
+    let mut export = v3_export();
+    let data = &mut export["data"];
+    data["providers"].as_array_mut().unwrap().push(json!({
+        "id": 99, "name": "legacy", "channel": "groq", "enabled": true
+    }));
+    let mut credential = data["credentials"][0].clone();
+    credential["config"]["id"] = json!(99);
+    credential["config"]["provider_id"] = json!(99);
+    data["credentials"].as_array_mut().unwrap().push(credential);
+    data["permissions"].as_array_mut().unwrap().push(json!({
+        "id": 99, "subject_kind": "user", "subject_id": 2,
+        "provider_id": 99, "allowed": true
+    }));
+    data["route_members"].as_array_mut().unwrap().push(json!({
+        "id": 99, "route_id": 1, "provider_id": 99,
+        "upstream_model": "legacy", "enabled": true
+    }));
+    data["quotas"].as_array_mut().unwrap().push(json!({
+        "id": 99, "subject_kind": "credential", "subject_id": 99,
+        "quota_total": "10", "enabled": true
+    }));
+    data["price_rules"] = json!([
+        {"id": 1, "provider_id": 1, "model_pattern": "*", "enabled": true},
+        {"id": 99, "provider_id": 99, "model_pattern": "*", "enabled": true}
+    ]);
+    data["price_rates"] = json!([
+        {"id": 1, "rule_id": 1, "metric": "input_tokens", "unit_size": 1000000, "price": "0.0416666666666667"},
+        {"id": 99, "rule_id": 99, "metric": "input_tokens", "unit_size": 1000000, "price": "1"}
+    ]);
+    let document = write_document(directory.path(), &export);
+    let instance = open(&settings).await;
+    let key = source_key();
+    assert!(
+        gproxy::v3::import(&instance.app, &document, Some(&key), &settings.admin, false)
+            .await
+            .is_err()
+    );
+    gproxy::v3::import(&instance.app, &document, Some(&key), &settings.admin, true)
+        .await
+        .unwrap();
+    let store = instance.app.gproxy().store();
+    assert_eq!(one(store.providers()).await.id, "v3-providers-1");
+    assert_eq!(one(store.credentials()).await.id, "v3-credentials-1");
+    assert_eq!(
+        one(store.price_rates()).await.value.to_string(),
+        "0.041666667"
+    );
+    use gproxy_store::entity::{identity::permission, limits::quota, routing::route_member};
+    assert!(
+        store
+            .permissions()
+            .query(permission::Entity::find())
+            .await
+            .unwrap()
+            .iter()
+            .all(|row| row.provider_id.as_deref() != Some("v3-providers-99"))
+    );
+    assert!(
+        store
+            .quotas()
+            .query(quota::Entity::find())
+            .await
+            .unwrap()
+            .iter()
+            .all(|row| row.owner_id != "v3-credentials-99")
+    );
+    assert!(
+        store
+            .route_members()
+            .query(route_member::Entity::find())
+            .await
+            .unwrap()
+            .iter()
+            .all(|row| row.provider_id != "v3-providers-99")
+    );
+    instance.app.gproxy().shutdown();
+}
+
+async fn v3_database(directory: &std::path::Path) -> String {
+    use sea_orm::{ConnectionTrait, Database, DbBackend, Statement};
+    let db = Database::connect(format!(
+        "sqlite://{}?mode=rwc",
+        directory.join("gproxy.db").display()
+    ))
+    .await
+    .unwrap();
+    for sql in [
+        "CREATE TABLE schema_migrations (version integer PRIMARY KEY)",
+        "INSERT INTO schema_migrations VALUES (1)",
+        "CREATE TABLE settings (key text PRIMARY KEY, value_json text)",
+        "CREATE TABLE users (id integer PRIMARY KEY, name text, enabled integer, is_admin integer, password_hash text)",
+        "CREATE TABLE user_keys (id integer PRIMARY KEY, user_id integer, prefix text, enabled integer, digest blob, digest_version integer)",
+        "CREATE TABLE providers (id integer PRIMARY KEY, name text, channel text, settings_json text, enabled integer)",
+        "INSERT INTO providers VALUES (1, 'upstream', 'custom', '{\"base_url\":\"http://127.0.0.1:1/v1\"}', 1)",
+        "CREATE TABLE credentials (id integer PRIMARY KEY, provider_id integer, ciphertext blob, wrapped_key blob, payload_nonce blob, key_nonce blob, enabled integer, kind text)",
+    ] {
+        db.execute_unprepared(sql).await.unwrap();
+    }
+    // v3 used the same Argon2 PHC format; a password shorter than v4's new-user
+    // policy still authenticates because this upgrade preserves the hash.
+    let hash = gproxy_app::auth::password::hash("old").unwrap();
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Sqlite,
+        "INSERT INTO users VALUES (1, 'root', 1, 1, ?)",
+        [hash.clone().into()],
+    ))
+    .await
+    .unwrap();
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Sqlite,
+        "INSERT INTO user_keys VALUES (1, 1, 'sk-', 1, ?, 1)",
+        [v3_digest(ADMIN_KEY).into()],
+    ))
+    .await
+    .unwrap();
+    let sealed = sealed_credential(&upstream_secret());
+    let blobs: Vec<sea_orm::Value> = ["ciphertext", "wrapped_key", "payload_nonce", "key_nonce"]
+        .iter()
+        .map(|field| {
+            serde_json::from_value::<Vec<u8>>(sealed[field].clone())
+                .unwrap()
+                .into()
+        })
+        .collect();
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Sqlite,
+        "INSERT INTO credentials VALUES (1, 1, ?, ?, ?, ?, 1, 'api_key')",
+        blobs,
+    ))
+    .await
+    .unwrap();
+    db.close().await.unwrap();
+    hash
+}
+
+#[tokio::test]
+async fn startup_upgrades_v3_in_place_and_keeps_passwords_keys_and_a_backup() {
+    let directory = tempfile::tempdir().unwrap();
+    let hash = v3_database(directory.path()).await;
+    let mut settings = settings(directory.path(), AdminOptions::default());
+    settings.config.master_key.key = gproxy_app::config::MasterKey::Hex(source_key());
+    let first = open(&settings).await;
+    let user = one(first.app.gproxy().store().users()).await;
+    assert_eq!(user.password_hash.as_deref(), Some(hash.as_str()));
+    assert!(gproxy_app::auth::password::verify(
+        "old",
+        user.password_hash.as_deref().unwrap()
+    ));
+    let data = first.app.data();
+    assert!(
+        first
+            .app
+            .authenticator(&data)
+            .authenticate_token(ADMIN_KEY)
+            .await
+            .is_ok()
+    );
+    assert_eq!(
+        one(first.app.gproxy().store().credentials()).await.id,
+        "v3-credentials-1"
+    );
+    let backups: Vec<_> = std::fs::read_dir(directory.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "bak"))
+        .collect();
+    assert_eq!(backups.len(), 1);
+    let source = gproxy::v3::source::read(&backups[0]).await.unwrap();
+    assert_eq!(
+        source.data.users[0].password_hash.as_deref(),
+        Some(hash.as_str())
+    );
+    first.app.gproxy().shutdown();
+    drop(first);
+    let second = open(&settings).await;
+    assert_eq!(all(second.app.gproxy().store().users()).await.len(), 1);
+    assert_eq!(
+        std::fs::read_dir(directory.path())
+            .unwrap()
+            .filter(|entry| entry
+                .as_ref()
+                .unwrap()
+                .path()
+                .extension()
+                .is_some_and(|ext| ext == "bak"))
+            .count(),
+        1
+    );
+    second.app.gproxy().shutdown();
+}
+
+#[tokio::test]
+async fn a_failed_automatic_import_leaves_v3_in_place_for_the_next_start() {
+    use sea_orm::Database;
+    let directory = tempfile::tempdir().unwrap();
+    v3_database(directory.path()).await;
+    let mut settings = settings(directory.path(), AdminOptions::default());
+    settings.config.master_key.key = gproxy_app::config::MasterKey::Hex("ab".repeat(32));
+    assert!(
+        instance::open(&settings, instance::OpenOptions::management())
+            .await
+            .is_err()
+    );
+    let source = Database::connect(format!(
+        "sqlite://{}?mode=ro",
+        directory.path().join("gproxy.db").display()
+    ))
+    .await
+    .unwrap();
+    assert!(matches!(
+        gproxy::v3::detect::inspect(&source).await.unwrap(),
+        gproxy::v3::detect::Verdict::Version3 { .. }
+    ));
+    source.close().await.unwrap();
+    settings.config.master_key.key = gproxy_app::config::MasterKey::Hex(source_key());
+    let instance = open(&settings).await;
+    let data = instance.app.data();
+    assert!(
+        instance
+            .app
+            .authenticator(&data)
+            .authenticate_token(ADMIN_KEY)
+            .await
+            .is_ok()
+    );
+    instance.app.gproxy().shutdown();
 }

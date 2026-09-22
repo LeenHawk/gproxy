@@ -46,11 +46,10 @@
 //! - a destination that already holds rows this migration did not write.
 //!
 //! The last one is the "empty or nearly so" rule made explicit. The check runs
-//! before anything is written and names the table it found, so a half-import
-//! is not reachable: either the destination is fresh and the whole document
-//! lands, or nothing is attempted. A **re-run** is allowed and is the supported
-//! recovery: the ids are deterministic, so every write is an upsert onto the
-//! row the last run made.
+//! before anything is written and names the table it found. Configuration and
+//! identity are separate write phases; a failure after writing begins is
+//! recovered by rerunning the same input. IDs are deterministic, so writes
+//! target the rows the previous run made.
 //!
 //! # What is not migrated
 //!
@@ -68,6 +67,7 @@ pub mod ids;
 pub mod report;
 pub mod secret;
 pub mod source;
+pub(crate) mod upgrade;
 
 pub use report::Report;
 
@@ -97,13 +97,14 @@ use document::Document;
 ///
 /// The order is: read, refuse, translate, write the configuration through the
 /// sdk, write the identity through the app, set one password, mark the source,
-/// reload. Every refusal happens before the first write, so an operator either
-/// gets the whole deployment or an untouched database.
+/// reload. The destination and credential keys are checked before writing;
+/// an interruption during the write phases is recovered by rerunning the import.
 pub async fn import<C>(
     app: &Arc<App<C>>,
     input: &Path,
     source_master_key: Option<&str>,
     admin: &AdminOptions,
+    skip_unmappable: bool,
 ) -> Result<Report>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
@@ -127,8 +128,7 @@ where
         );
         let mut report = Report::default();
         report.warn(format!(
-            "{} was already imported into this instance and was not read again. Remove the \
-             `{marker}` row from `settings` to force a re-import.",
+            "{} was already imported into this instance; nothing was changed. The completed import is recorded in the destination audit trail as `{marker}`.",
             input.display()
         ));
         return Ok(report);
@@ -141,7 +141,7 @@ where
     })?;
     check_the_key_matches_the_document(&document, &bridge)?;
 
-    let translated = config::translate(&document, &bridge, now_ms())?;
+    let translated = config::translate(&document, &bridge, now_ms(), skip_unmappable)?;
     let mut report = translated.report;
 
     // The configuration half: one sdk transaction, one revision bump, and the
@@ -175,7 +175,7 @@ where
     app.reload_all().await?;
 
     // The identity half: `gproxy-app`'s own families, one row at a time.
-    report.absorb(identity::write(app, &document, &bridge).await?);
+    report.absorb(identity::write(app, &document, &bridge, &translated.dropped_providers).await?);
     admin_password(app, &document, admin, &mut report).await?;
     if let Some(marker) = marker {
         mark_imported(app, &marker).await?;
@@ -313,8 +313,8 @@ fn read_document(input: &Path) -> Result<Document> {
 /// somebody's configuration, and merging a whole v3 deployment into it would
 /// produce a result neither side asked for and that no single command can undo.
 ///
-/// Checked before the first write, so the answer is always "everything" or
-/// "nothing", never "as far as it got".
+/// Checked before the first write. A later write failure is recovered by
+/// rerunning the same input, using the deterministic IDs.
 async fn refuse_a_populated_destination<C>(app: &Arc<App<C>>) -> Result<()>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
@@ -408,11 +408,14 @@ where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
     let Some(password) = admin.password.as_deref() else {
-        report.warn(
-            "no --admin-password was given, so no migrated user can sign in to the console. \
-             Re-run the import with --admin-password to set one; the API keys already work."
-                .to_owned(),
-        );
+        if document
+            .data
+            .users
+            .iter()
+            .any(|user| user.is_admin && user.password_hash.is_none())
+        {
+            report.warn("an imported administrator has no password hash; use --admin-password when importing a JSON export".to_owned());
+        }
         return Ok(());
     };
     let named = document
@@ -456,8 +459,7 @@ where
         .set_password(&ids::id("users", chosen.id), password)
         .await?;
     report.warn(format!(
-        "`{}` was given the supplied --admin-password; every other migrated user still has \
-         none and must be reset from the console",
+        "`{}` was given the supplied --admin-password",
         chosen.name
     ));
     Ok(())

@@ -53,8 +53,8 @@ pub mod serve;
 pub mod service;
 pub mod telemetry;
 pub mod transfer;
-pub mod v3;
 pub mod update;
+pub mod v3;
 
 pub use cli::{Cli, Command};
 pub use config::Settings;
@@ -102,6 +102,7 @@ pub async fn run(cli: Cli) -> Result<()> {
         Command::Import {
             input,
             from_v3,
+            skip_unmappable_providers,
             mode,
             source_master_key,
         } => {
@@ -112,6 +113,7 @@ pub async fn run(cli: Cli) -> Result<()> {
                     document,
                     source_master_key.as_deref(),
                     &settings.admin,
+                    skip_unmappable_providers,
                 )
                 .await
                 .map(|report| report.announce()),

@@ -101,7 +101,11 @@ impl OpenOptions {
 /// migration step wants one writer touching DDL and no instance loading a
 /// snapshot out of a half-migrated database.
 pub async fn migrate(config: &AppConfig, status_only: bool) -> Result<()> {
-    let store = Store::new(connect(config).await?);
+    let store = Store::new(if status_only {
+        open_connection(config).await?
+    } else {
+        connect(config).await?
+    });
     if status_only {
         for (name, status) in store.migration_report().await? {
             println!("{status:<8} {name}");
@@ -119,7 +123,11 @@ pub async fn migrate(config: &AppConfig, status_only: bool) -> Result<()> {
     tracing::info!(
         installed = report.installed,
         applied = report.applied.len(),
-        at = report.ledger.last().map(String::as_str).unwrap_or("nothing"),
+        at = report
+            .ledger
+            .last()
+            .map(String::as_str)
+            .unwrap_or("nothing"),
         "{}",
         report.summary()
     );
@@ -130,7 +138,15 @@ pub async fn migrate(config: &AppConfig, status_only: bool) -> Result<()> {
 pub async fn open(settings: &Settings, options: OpenOptions) -> Result<Instance> {
     let config = &settings.config;
     let connection = connect(config).await?;
+    assemble(settings, options, connection).await
+}
 
+pub(crate) async fn assemble(
+    settings: &Settings,
+    options: OpenOptions,
+    connection: Connection,
+) -> Result<Instance> {
+    let config = &settings.config;
     // One `Store` over a clone of the connection, for the two things that have
     // to happen before a handle can exist. `DatabaseConnection` is a handle to
     // the same pool, so this is not a second connection.
@@ -201,21 +217,21 @@ pub async fn open(settings: &Settings, options: OpenOptions) -> Result<Instance>
 /// because the rotation step needs a `Store` over it *before* a handle exists,
 /// and the builder does not give its connection back.
 ///
-/// # A database this build does not own is refused here
-///
-/// Every command that touches a database comes through this function, so this
-/// is where a v3 file is recognised and refused — see [`crate::v3::detect`].
-/// Putting it in a command would mean `serve` was safe and `migrate` was not,
-/// and `migrate` is the one that runs the DDL. The check is `SELECT`-only and
-/// happens before any caller can reach `Store::sync`.
+/// A v3 SQLite database is migrated before the caller receives a connection.
+/// Other foreign schemas are refused before DDL.
 pub async fn connect(config: &AppConfig) -> Result<Connection> {
     let connection = open_connection(config).await?;
-    match crate::v3::detect::inspect(&connection).await {
+    match crate::v3::detect::inspect(&connection).await? {
         crate::v3::detect::Verdict::Ours => Ok(connection),
-        crate::v3::detect::Verdict::Version3 { tells } => Err(crate::v3::detect::refuse_version3(
-            &describe(config),
-            &tells,
-        )),
+        crate::v3::detect::Verdict::Version3 { .. } => {
+            let StoreBackendConfig::Sqlite { path } = &config.store else {
+                return Err(Error::other(
+                    "automatic v3 migration requires a SQLite file",
+                ));
+            };
+            crate::v3::upgrade::run(config, &resolve(config, path), connection).await?;
+            open_connection(config).await
+        }
         crate::v3::detect::Verdict::Foreign { tables } => {
             Err(crate::v3::detect::refuse_foreign(&describe(config), tables))
         }
@@ -234,7 +250,7 @@ fn describe(config: &AppConfig) -> String {
     }
 }
 
-async fn open_connection(config: &AppConfig) -> Result<Connection> {
+pub(crate) async fn open_connection(config: &AppConfig) -> Result<Connection> {
     match &config.store {
         StoreBackendConfig::Sqlite { path } => {
             let path = resolve(config, path);

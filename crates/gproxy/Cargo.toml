@@ -99,6 +99,7 @@ getrandom = { workspace = true }
 # `regex::escape`, for the one v3 rewrite action that names literal text where
 # v4 wants a pattern. Compiling the result is core's job, not this crate's.
 regex = { workspace = true }
+rust_decimal = { workspace = true }
 # The two update downloads: a signed manifest and one release archive. It
 # follows redirects, which a GitHub release asset URL is; that is safe here
 # because the signature and the sha256 are checked after the bytes arrive.
@@ -112,6 +113,7 @@ serde_json = { workspace = true }
 # for recording an import it has already performed.
 # The artifact's integrity check, before the archive is parsed.
 sha2 = { workspace = true }
+tempfile = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 toml = { workspace = true }

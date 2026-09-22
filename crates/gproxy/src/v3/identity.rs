@@ -41,9 +41,8 @@
 //! - **`operation_group`.** v3 grouped operations behind a name; v4's
 //!   permission names one `gproxy_protocol::Operation` or every one of them.
 //!   A grouped rule becomes an every-operation rule and says so.
-//! - **Passwords.** v3's export carries no `password_hash`, so no migrated user
-//!   can sign in to the console until one is set. See
-//!   [`super::admin_password`].
+//! - **Passwords.** SQLite imports preserve v3's Argon2 PHC hashes. JSON exports
+//!   without hashes can use [`super::admin_password`] to set one.
 
 use std::{collections::HashSet, sync::Arc};
 
@@ -81,7 +80,12 @@ const UNKNOWN_PREFIX: &str = "v3";
 /// `bridge` is used only for the keys v3 was told to keep revealable: their
 /// text is in the document, sealed, and carrying it across means v4's `reveal`
 /// keeps answering for them.
-pub async fn write<C>(app: &Arc<App<C>>, document: &Document, bridge: &Bridge) -> Result<Report>
+pub async fn write<C>(
+    app: &Arc<App<C>>,
+    document: &Document,
+    bridge: &Bridge,
+    dropped_providers: &std::collections::BTreeSet<i64>,
+) -> Result<Report>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
@@ -101,7 +105,7 @@ where
     let keys = api_keys(app, data, &users, bridge, &mut report).await?;
     app.reload_all().await?;
 
-    permissions(app, data, &users, &keys, &mut report).await?;
+    permissions(app, data, &users, &keys, dropped_providers, &mut report).await?;
     rate_limits(app, data, &users, &keys, &mut report).await?;
     app.reload_all().await?;
 
@@ -256,12 +260,24 @@ where
                 .await
                 .map_err(|error| named("user", row.id, error))?;
         }
+        if let Some(hash) = &row.password_hash {
+            use sea_orm::ActiveValue::Set;
+            app.gproxy()
+                .store()
+                .users()
+                .update_many(vec![user::ActiveModel {
+                    id: Set(id.clone()),
+                    password_hash: Set(Some(hash.clone())),
+                    ..Default::default()
+                }])
+                .await?;
+        }
         landed.insert(id);
     }
     report.count("users", landed.len() as u64);
-    if !data.users.is_empty() {
+    if data.users.iter().any(|user| user.password_hash.is_none()) {
         report.warn(
-            "no migrated user has a console password: v3's export does not carry password \
+            "some imported users have no console password: v3's JSON export does not carry password \
              hashes. Pass --admin-password to give the v3 administrator one, and reset the \
              rest from the console."
                 .to_owned(),
@@ -495,6 +511,7 @@ async fn permissions<C>(
     data: &document::Data,
     users: &HashSet<String>,
     keys: &HashSet<String>,
+    dropped_providers: &std::collections::BTreeSet<i64>,
     report: &mut Report,
 ) -> Result<()>
 where
@@ -507,6 +524,17 @@ where
             "permission {} ({}:{})",
             row.id, row.subject_kind, row.subject_id
         );
+        if row
+            .provider_id
+            .is_some_and(|id| dropped_providers.contains(&id))
+        {
+            report.drop_row(
+                "permissions",
+                named_row,
+                "its provider was left behind by --skip-unmappable-providers",
+            );
+            continue;
+        }
         let Some(subject) = subject(&row.subject_kind, row.subject_id, users, keys) else {
             report.drop_row(
                 "permissions",

@@ -22,7 +22,7 @@ cargo run -p gproxy -- serve
 | 命令 | 作用 |
 |---|---|
 | `gproxy serve` | 按需轮换主密钥、实例是新的就 bootstrap、绑定、服务。**默认命令**——不带子命令的 `gproxy` 就是 `gproxy serve`。 |
-| `gproxy migrate` | 创建或增量同步 schema，然后退出。 |
+| `gproxy migrate` | 创建 schema 或应用待执行迁移，然后退出。 |
 | `gproxy bootstrap admin` | 建第一个管理员。幂等。 |
 | `gproxy export --out <PATH>` | 把本实例的配置写成一份 JSON 文档。 |
 | `gproxy import --in <PATH>` | 把这样一份文档回放进本实例。 |
@@ -49,7 +49,11 @@ gproxy serve --host 0.0.0.0 --port 7070 --data-dir /var/lib/gproxy
 gproxy migrate --dsn postgres://gproxy@db/gproxy
 ```
 
-`serve` 也会同步 schema。单独的命令是给「把迁移当作独立步骤、单写者、在任何实例
+`serve` 也会执行同一套 SeaORM 迁移。空库创建当前 schema 并写入
+`seaql_migrations`；已有库按账本执行待应用迁移，不再自动猜测表结构变化。
+有表却没有账本，或账本比当前构建新时，会在 DDL 前拒绝。
+`gproxy migrate --status` 只读取迁移状态，不创建表。
+单独的命令是给「把迁移当作独立步骤、单写者、在任何实例
 启动之前跑」的部署用的——多实例共用一个数据库时必须这样做。
 
 ### `bootstrap admin`
@@ -60,6 +64,15 @@ gproxy bootstrap admin --user admin --password "…" --api-key "sk-…"
 
 `--user`、`--password`、`--api-key` 是全局的 `--admin-user`、`--admin-password`、
 `--admin-api-key` 的别名，所以同样的值对 `serve` 也有效。
+
+### 从 v3 自动迁移
+
+保持原数据目录和 `GPROXY_MASTER_KEY`，按原命令启动即可。v4 自动识别 v3 SQLite，
+先在旁边完成转换，成功后替换原路径并保留 `gproxy.db.v3-*.bak`。原密码与 API key
+继续有效，失败时不切换数据库。`gproxy migrate` 也走同一路径。
+
+`import --from-v3` 仅用于另外导入备份或 JSON，不是正常升级的必需步骤。
+详见[迁移指南](../../docs/src/content/docs/zh-cn/deployment/v3-to-v4.md)。
 
 ### `export` / `import`
 

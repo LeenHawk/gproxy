@@ -324,13 +324,18 @@ pub enum Command {
         )]
         input: Option<PathBuf>,
 
-        /// Migrate a **v3** deployment instead: the document is v3's own
-        /// export (`POST /admin/api/export`), not this command's. Providers,
+        /// Migrate a **v3** deployment from its SQLite database (read-only) or
+        /// its export (`POST /admin/api/export`). Providers,
         /// credentials, routing, pricing, quotas, users and API keys come
         /// across; usage and logs do not. Requires a database that is empty
         /// apart from an earlier run of the same import.
         #[arg(long, value_name = "PATH", conflicts_with = "input")]
         from_v3: Option<PathBuf>,
+
+        /// Leave providers whose channels cannot be translated, and their linked rows,
+        /// out of the v3 import. Every omitted row is included in the report.
+        #[arg(long, requires = "from_v3")]
+        skip_unmappable_providers: bool,
 
         /// `merge` writes what the document names and leaves the rest alone;
         /// `replace` additionally deletes rows of an exported kind that the
