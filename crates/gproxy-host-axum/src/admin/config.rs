@@ -548,7 +548,17 @@ async fn patch_settings<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { manage!(state, scope, "settings", settings().update(patch)) }).await
+    crate::send(async move {
+        gate!("settings", scope);
+        match state.app().gproxy().manage().settings().update(patch).await {
+            Ok(settings) => match state.app().reload_all().await {
+                Ok(_) => crate::error::ok_json(&settings),
+                Err(error) => ErrorResponse(error).into_response(),
+            },
+            Err(error) => reply_sdk::<gproxy_sdk::dto::SettingsDto>(Err(error)),
+        }
+    })
+    .await
 }
 
 // --------------------------------------------------------------- rewrite --

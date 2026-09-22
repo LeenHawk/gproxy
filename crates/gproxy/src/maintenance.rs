@@ -18,6 +18,7 @@ pub async fn clean(
     now: i64,
 ) -> Result<u64> {
     let mut removed = 0;
+    let mut reclaim = false;
     if let Some(days) = days {
         let cutoff = now.saturating_sub(i64::from(days) * 86_400_000);
         loop {
@@ -32,6 +33,7 @@ pub async fn clean(
     if let Some(max_mb) = max_mb.filter(|value| *value > 0) {
         if db.get_database_backend() == DbBackend::Sqlite {
             let limit = max_mb.saturating_mul(1024 * 1024);
+            reclaim = physical_bytes(db).await? > limit;
             while occupied_bytes(db).await? > limit {
                 let count = prune(db, now).await?;
                 removed += count;
@@ -46,7 +48,7 @@ pub async fn clean(
             }
         }
     }
-    if removed > 0 {
+    if removed > 0 || reclaim {
         if db.get_database_backend() == DbBackend::Sqlite {
             // Reclaim freed pages so the on-disk size reflects the cleanup.
             db.execute_unprepared("VACUUM").await?;
@@ -56,6 +58,17 @@ pub async fn clean(
         tracing::info!(removed, "request history cleanup completed");
     }
     Ok(removed)
+}
+
+async fn physical_bytes(db: &DatabaseConnection) -> Result<i64> {
+    let row = db
+        .query_one_raw(sea_orm::Statement::from_string(
+            DbBackend::Sqlite,
+            "SELECT page_count * page_size AS bytes FROM pragma_page_count(), pragma_page_size()",
+        ))
+        .await?
+        .unwrap();
+    Ok(row.try_get("", "bytes")?)
 }
 
 async fn occupied_bytes(db: &DatabaseConnection) -> Result<i64> {
@@ -77,24 +90,24 @@ async fn occupied_bytes(db: &DatabaseConnection) -> Result<i64> {
 async fn prune(db: &DatabaseConnection, cutoff: i64) -> Result<u64> {
     let store = Store::new(db.clone());
     let captures: Vec<String> = capture_record::Entity::find()
+        .select_only()
+        .column(capture_record::Column::Id)
         .filter(capture_record::Column::EndedAtMs.lt(cutoff))
         .filter(capture_record::Column::State.ne(capture_record::CaptureState::InProgress))
         .order_by_asc(capture_record::Column::EndedAtMs)
         .limit(BATCH)
+        .into_tuple()
         .all(db)
-        .await?
-        .into_iter()
-        .map(|row| row.id)
-        .collect();
+        .await?;
     let usage: Vec<String> = usage_record::Entity::find()
+        .select_only()
+        .column(usage_record::Column::RequestId)
         .filter(usage_record::Column::EndedAtMs.lt(cutoff))
         .order_by_asc(usage_record::Column::EndedAtMs)
         .limit(BATCH)
+        .into_tuple()
         .all(db)
-        .await?
-        .into_iter()
-        .map(|row| row.request_id)
-        .collect();
+        .await?;
     // Capture events and links have cascading foreign keys. Usage is history,
     // not the settled quota counters, billing entries or subscription windows.
     store.capture_records().delete_many(&captures).await?;

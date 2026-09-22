@@ -12,8 +12,14 @@
 use std::sync::OnceLock;
 use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, prelude::*, reload};
 
-type Output = Box<dyn Layer<Registry> + Send + Sync>;
-static RELOAD: OnceLock<reload::Handle<Output, Registry>> = OnceLock::new();
+type FilteredRegistry =
+    tracing_subscriber::layer::Layered<reload::Layer<EnvFilter, Registry>, Registry>;
+type Output = Box<dyn Layer<FilteredRegistry> + Send + Sync>;
+struct Handles {
+    filter: reload::Handle<EnvFilter, Registry>,
+    output: reload::Handle<Output, FilteredRegistry>,
+}
+static RELOAD: OnceLock<Handles> = OnceLock::new();
 
 use crate::{
     Error, Result,
@@ -30,26 +36,24 @@ pub fn init(options: &TelemetryOptions) -> Result<()> {
             format!("`{}` is not a tracing filter: {error}", options.filter),
         )
     })?;
-    let (layer, handle) = reload::Layer::new(output(options.format, filter));
+    let (filter, filter_handle) = reload::Layer::new(filter);
+    let (layer, handle) = reload::Layer::new(output(options.format));
     tracing_subscriber::registry()
+        .with(filter)
         .with(layer)
         .try_init()
         .map_err(|error| Error::other(format!("installing the log subscriber: {error}")))?;
-    let _ = RELOAD.set(handle);
+    let _ = RELOAD.set(Handles {
+        filter: filter_handle,
+        output: handle,
+    });
     Ok(())
 }
 
-fn output(format: LogFormat, filter: EnvFilter) -> Output {
+fn output(format: LogFormat) -> Output {
     match format {
-        LogFormat::Text => fmt::layer()
-            .with_writer(std::io::stderr)
-            .with_filter(filter)
-            .boxed(),
-        LogFormat::Json => fmt::layer()
-            .json()
-            .with_writer(std::io::stderr)
-            .with_filter(filter)
-            .boxed(),
+        LogFormat::Text => fmt::layer().with_writer(std::io::stderr).boxed(),
+        LogFormat::Json => fmt::layer().json().with_writer(std::io::stderr).boxed(),
     }
 }
 
@@ -64,7 +68,12 @@ pub fn configure(level: &str, format: &str) -> Result<()> {
         EnvFilter::try_new(directives(level)).map_err(|error| Error::other(error.to_string()))?;
     if let Some(handle) = RELOAD.get() {
         handle
-            .reload(output(format, filter))
+            .filter
+            .reload(filter)
+            .map_err(|error| Error::other(error.to_string()))?;
+        handle
+            .output
+            .reload(output(format))
             .map_err(|error| Error::other(error.to_string()))?;
     }
     Ok(())

@@ -383,3 +383,40 @@ pub fn connection_config(
         pool_max_idle_per_host: profile.pool_max_idle_per_host,
     })
 }
+
+#[cfg(test)]
+mod vocabulary_settings_tests {
+    use super::*;
+    #[tokio::test]
+    async fn disabling_custom_vocabularies_drops_cached_vocabularies_but_keeps_estimation() {
+        use sea_orm::Set;
+        let db = sea_orm::Database::connect("sqlite::memory:").await.unwrap();
+        let store = gproxy_store::Store::new(db);
+        store.sync().await.unwrap();
+        let vocabulary = gproxy_tokenizer::Vocabulary::from_bytes(br#"{"version":"1.0","model":{"type":"WordLevel","vocab":{"[UNK]":0,"hello":1},"unk_token":"[UNK]"}}"#).unwrap();
+        for enabled in [true, false, true] {
+            store
+                .settings()
+                .update(gproxy_store::entity::config::setting::ActiveModel {
+                    enable_tokenizer_vocabs: Set(enabled),
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+            let data = store.load_control_data().await.unwrap();
+            let out = assemble(
+                &data,
+                &ChannelRegistry::new(),
+                &crate::PlaintextCodec,
+                &gproxy_client::ClientPool::default(),
+                HashMap::from([("fixture".to_owned(), vocabulary.clone())]),
+                None,
+                0,
+            )
+            .await
+            .unwrap();
+            let estimator = out.data.estimation.unwrap();
+            assert_eq!(estimator.vocabulary("fixture").is_some(), enabled);
+        }
+    }
+}
