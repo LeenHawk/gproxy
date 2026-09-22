@@ -197,6 +197,9 @@
     "metadata": "中繼資料（JSON）",
     "status": "狀態",
     "upstreamName": "上游模型",
-    "modelId": "模型目錄 ID"
+    "modelId": "模型目錄 ID",
+    "filename": "檔案",
+    "sizeBytes": "大小",
+    "linkedModels": "關聯模型"
   }
 }

@@ -13,7 +13,7 @@
 //! no edit at all — the item simply appears for them.
 
 import {
-  Boxes, Building2, ChartLine, CircleUserRound, CreditCard, Fingerprint, Gauge,
+  BookOpenText, Boxes, Building2, ChartLine, CircleUserRound, CreditCard, Fingerprint, Gauge,
   KeyRound, LayoutDashboard, Layers, ListChecks, MonitorSmartphone, Network,
   ReceiptText, ScrollText, Settings2, ShieldCheck, SlidersHorizontal, UsersRound, Waypoints,
   type LucideIcon,
@@ -100,7 +100,7 @@ const BILLING: NavSection = {
   ],
 }
 
-const SYSTEM: NavSection = { id: "system", icon: Settings2, items: [{ id: "settings", route: "/settings", needs: SETTINGS_ACCESS, icon: Settings2 }] }
+const SYSTEM: NavSection = { id: "system", icon: Settings2, items: [{ id: "settings", route: "/settings", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "tokenizer", route: "/tokenizer", needs: SETTINGS_ACCESS, icon: BookOpenText }] }
 
 const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, PEOPLE, ACCESS, BILLING, SYSTEM]
 

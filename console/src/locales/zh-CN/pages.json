@@ -259,5 +259,22 @@
     "dev": "开发版",
     "beta": "测试版",
     "release": "稳定版"
+  },
+  "tokenizer": {
+    "download": "下载词表",
+    "downloaded": "词表已下载",
+    "enabled": "自定义词表已启用",
+    "disabled": "自定义词表已停用",
+    "downloadDisabled": "下载已关闭，可在全局设置中开启。",
+    "empty": "暂无词表",
+    "default": "默认",
+    "setDefault": "设为默认",
+    "unsetDefault": "取消默认",
+    "bind": "关联模型",
+    "delete": "删除 {{name}} 并解除模型关联？",
+    "repo": "Hugging Face 仓库",
+    "noBinding": "不关联模型",
+    "downloading": "正在下载…",
+    "noModels": "暂无目录模型"
   }
 }

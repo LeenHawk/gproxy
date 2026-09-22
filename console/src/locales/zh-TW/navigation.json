@@ -24,7 +24,8 @@
     "providers": "供應商",
     "credentials": "憑證",
     "provider-models": "模型",
-    "settings": "全域設定"
+    "settings": "全域設定",
+    "tokenizer": "詞表管理"
   },
   "create": {
     "keys": "新建金鑰",

@@ -38,6 +38,8 @@ describe("the navigation", () => {
     expect(mayEnter(derived("admin"), "/identity/users")).toBe(true)
     expect(mayEnter(derived("user"), "/keys")).toBe(true)
     expect(mayEnter(derived("user"), "/settings")).toBe(false)
+    expect(mayEnter(derived("user"), "/tokenizer")).toBe(false)
+    expect(mayEnter(derived("admin"), "/tokenizer")).toBe(true)
     expect(mayEnter(derived("user"), "/providers/p1/models")).toBe(false)
     expect(mayEnter(derived("admin"), "/providers/p1/models")).toBe(true)
   })

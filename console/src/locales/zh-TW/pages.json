@@ -259,5 +259,22 @@
     "dev": "開發版",
     "beta": "測試版",
     "release": "穩定版"
+  },
+  "tokenizer": {
+    "download": "下載詞表",
+    "downloaded": "詞表已下載",
+    "enabled": "自訂詞表已啟用",
+    "disabled": "自訂詞表已停用",
+    "downloadDisabled": "下載已關閉，可在全域設定中開啟。",
+    "empty": "尚無詞表",
+    "default": "預設",
+    "setDefault": "設為預設",
+    "unsetDefault": "取消預設",
+    "bind": "關聯模型",
+    "delete": "刪除 {{name}} 並解除模型關聯？",
+    "repo": "Hugging Face 儲存庫",
+    "noBinding": "不關聯模型",
+    "downloading": "正在下載…",
+    "noModels": "尚無目錄模型"
   }
 }

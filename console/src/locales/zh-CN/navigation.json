@@ -24,7 +24,8 @@
     "providers": "供应商",
     "credentials": "凭证",
     "provider-models": "模型",
-    "settings": "全局设置"
+    "settings": "全局设置",
+    "tokenizer": "词表管理"
   },
   "create": {
     "keys": "新建密钥",

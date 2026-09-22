@@ -197,6 +197,9 @@
     "metadata": "元数据（JSON）",
     "status": "状态",
     "upstreamName": "上游模型",
-    "modelId": "模型目录 ID"
+    "modelId": "模型目录 ID",
+    "filename": "文件",
+    "sizeBytes": "大小",
+    "linkedModels": "关联模型"
   }
 }
