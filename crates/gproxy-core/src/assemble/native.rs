@@ -282,7 +282,15 @@ pub async fn assemble(
                 })
                 .collect();
             Arc::new(crate::estimate::Estimator::new(
-                vocabularies,
+                if control
+                    .settings
+                    .as_ref()
+                    .is_some_and(|s| !s.enable_tokenizer_vocabs)
+                {
+                    Default::default()
+                } else {
+                    vocabularies
+                },
                 control
                     .settings
                     .as_ref()

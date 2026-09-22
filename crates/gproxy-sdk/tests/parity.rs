@@ -788,6 +788,18 @@ async fn the_source_token_round_trips_sealed() {
 #[tokio::test]
 async fn a_fetched_vocabulary_is_stored_and_selected() {
     let gproxy = instance(None, true).await;
+    gproxy
+        .manage()
+        .settings()
+        .update(gproxy_sdk::dto::SettingsPatch {
+            instance: Some(gproxy_sdk::dto::InstanceSettingsPatch {
+                enable_tokenizer_download: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
     let model = gproxy
         .manage()
         .models()
@@ -860,6 +872,18 @@ async fn a_fetched_vocabulary_is_stored_and_selected() {
 #[tokio::test]
 async fn a_missing_vocabulary_keeps_the_upstream_status() {
     let gproxy = instance(None, true).await;
+    gproxy
+        .manage()
+        .settings()
+        .update(gproxy_sdk::dto::SettingsPatch {
+            instance: Some(gproxy_sdk::dto::InstanceSettingsPatch {
+                enable_tokenizer_download: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
     gproxy.client.script(vec![Scripted::Reply(
         StatusCode::NOT_FOUND,
         Vec::new(),
@@ -894,6 +918,18 @@ async fn a_missing_vocabulary_keeps_the_upstream_status() {
 #[tokio::test]
 async fn without_file_storage_a_vocabulary_has_nowhere_to_go() {
     let gproxy = instance(None, false).await;
+    gproxy
+        .manage()
+        .settings()
+        .update(gproxy_sdk::dto::SettingsPatch {
+            instance: Some(gproxy_sdk::dto::InstanceSettingsPatch {
+                enable_tokenizer_download: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
     let error = gproxy
         .manage()
         .tokenizer()
@@ -905,4 +941,20 @@ async fn without_file_storage_a_vocabulary_has_nowhere_to_go() {
         .unwrap_err();
     assert!(matches!(error, SdkError::Unsupported(_)), "{error}");
     assert_eq!(error.status_code(), 501);
+}
+
+#[tokio::test]
+async fn disabling_vocabulary_download_prevents_any_upstream_request() {
+    let gproxy = instance(None, true).await;
+    let error = gproxy
+        .manage()
+        .tokenizer()
+        .fetch(TokenizerFetch {
+            repo: "test/tokenizer".into(),
+            ..Default::default()
+        })
+        .await
+        .unwrap_err();
+    assert!(error.to_string().contains("disabled"));
+    assert!(gproxy.client.seen().is_empty());
 }

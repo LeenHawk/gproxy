@@ -59,6 +59,13 @@ impl<C: BatchConnectionTrait> Core<C> {
         control: &gproxy_store::ControlData,
         previous: &CoreData,
     ) -> CoreResult<crate::assemble::VocabularyMap> {
+        if control
+            .settings
+            .as_ref()
+            .is_some_and(|s| !s.enable_tokenizer_vocabs)
+        {
+            return Ok(Default::default());
+        }
         let mut wanted: Vec<String> = control
             .models
             .iter()

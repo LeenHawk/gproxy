@@ -63,24 +63,52 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> SettingsManage<'_, C> {
                 row.connection_profile_id = Set(value);
             }
             if let Some(value) = instance.cors_origins {
-                row.cors_origins =
-                    Set(array(Some(value), "corsOrigins")?.unwrap_or_else(empty_array));
+                let origins = value
+                    .as_array()
+                    .ok_or_else(|| SdkError::invalid("corsOrigins must be an array"))?
+                    .iter()
+                    .map(|value| {
+                        let text = value
+                            .as_str()
+                            .ok_or_else(|| SdkError::invalid("origin must be text"))?;
+                        let url = url::Url::parse(text)
+                            .map_err(|_| SdkError::invalid("invalid CORS origin"))?;
+                        if !matches!(url.scheme(), "http" | "https")
+                            || url.host_str().is_none()
+                            || !url.username().is_empty()
+                            || url.password().is_some()
+                            || url.path() != "/"
+                            || url.query().is_some()
+                            || url.fragment().is_some()
+                        {
+                            return Err(SdkError::invalid("CORS entries must be HTTP(S) origins"));
+                        }
+                        Ok(url.origin().ascii_serialization())
+                    })
+                    .collect::<SdkResult<Vec<_>>>()?;
+                row.cors_origins = Set(serde_json::json!(origins));
             }
             if let Some(value) = instance.trusted_proxies {
-                row.trusted_proxies =
-                    Set(array(Some(value), "trustedProxies")?.unwrap_or_else(empty_array));
+                let proxies = value
+                    .as_array()
+                    .ok_or_else(|| SdkError::invalid("trustedProxies must be an array"))?
+                    .iter()
+                    .map(|value| {
+                        value
+                            .as_str()
+                            .unwrap_or_default()
+                            .parse::<std::net::IpAddr>()
+                            .map(|ip| ip.to_string())
+                            .map_err(|_| SdkError::invalid("trusted proxy must be an IP address"))
+                    })
+                    .collect::<SdkResult<Vec<_>>>()?;
+                row.trusted_proxies = Set(serde_json::json!(proxies));
             }
             if let Some(value) = instance.max_attempts {
                 if value == 0 {
                     return Err(SdkError::invalid("maxAttempts must be positive"));
                 }
                 row.max_attempts = Set(value);
-            }
-            if let Some(value) = instance.max_in_flight {
-                row.max_in_flight = Set(value);
-            }
-            if let Some(value) = instance.file_upload_max_in_flight {
-                row.file_upload_max_in_flight = Set(value);
             }
             if let Some(value) = instance.enable_settlement {
                 row.enable_settlement = Set(value);
@@ -140,9 +168,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> SettingsManage<'_, C> {
                     None => None,
                 });
             }
-            if let Some(value) = instance.default_file_storage_name {
-                row.default_file_storage_name = Set(crud::optional_text(value));
-            }
             if let Some(value) = instance.retention_days {
                 row.retention_days = Set(value);
             }
@@ -153,7 +178,16 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> SettingsManage<'_, C> {
                 row.max_database_size_mb = Set(value);
             }
             if let Some(value) = instance.update_channel {
-                row.update_channel = Set(crud::optional_text(value));
+                let value = crud::optional_text(value);
+                if value
+                    .as_deref()
+                    .is_some_and(|v| !matches!(v, "dev" | "beta" | "release"))
+                {
+                    return Err(SdkError::invalid(
+                        "updateChannel must be dev, beta or release",
+                    ));
+                }
+                row.update_channel = Set(value);
             }
             if let Some(value) = instance.enable_auto_update_check {
                 row.enable_auto_update_check = Set(value);
@@ -182,10 +216,21 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> SettingsManage<'_, C> {
                 row.enable_tracing = Set(value);
             }
             if let Some(value) = logging.log_level {
-                row.log_level = Set(crud::text(&value, "logLevel")?.to_ascii_lowercase());
+                let value = crud::text(&value, "logLevel")?.to_ascii_lowercase();
+                if !matches!(
+                    value.as_str(),
+                    "off" | "error" | "warn" | "info" | "debug" | "trace"
+                ) {
+                    return Err(SdkError::invalid("unsupported logLevel"));
+                }
+                row.log_level = Set(value);
             }
             if let Some(value) = logging.log_format {
-                row.log_format = Set(crud::text(&value, "logFormat")?.to_ascii_lowercase());
+                let value = crud::text(&value, "logFormat")?.to_ascii_lowercase();
+                if !matches!(value.as_str(), "text" | "json") {
+                    return Err(SdkError::invalid("logFormat must be text or json"));
+                }
+                row.log_format = Set(value);
             }
             if let Some(value) = logging.request_header_blacklist {
                 row.request_header_blacklist =
