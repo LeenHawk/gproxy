@@ -51,10 +51,10 @@ export function UsersPage() {
       ]}
       fields={[
         { name: "name", kind: "text", required: true },
-        { name: "password", kind: "password", createOnly: true, help: true },
+        { name: "password", kind: "password", createOnly: true },
         { name: "role", kind: "select", options: ROLES },
         { name: "enabled", kind: "switch" },
-        { name: "oauthClientAllowlist", kind: "lines", nullable: true, help: true },
+        { name: "oauthClientAllowlist", kind: "lines", nullable: true },
       ]}
     />
   )
@@ -101,12 +101,12 @@ export function ApiKeysPage() {
         fields={[
           { name: "userId", kind: "text", required: true, createOnly: true },
           { name: "name", kind: "text", required: true },
-          { name: "organizationId", kind: "text", nullable: true, help: true },
+          { name: "organizationId", kind: "text", nullable: true },
           { name: "teamId", kind: "text", nullable: true },
           { name: "subscriptionId", kind: "text", nullable: true },
           { name: "expiresAtMs", kind: "datetime", nullable: true },
           { name: "enabled", kind: "switch" },
-          { name: "retainSecret", kind: "switch", createOnly: true, help: true },
+          { name: "retainSecret", kind: "switch", createOnly: true },
         ]}
         rowActions={(row) => (
           <>
@@ -114,8 +114,7 @@ export function ApiKeysPage() {
               <Button variant="ghost" size="sm" onClick={() => reveal.mutate(row.id)}>{t("actions.reveal")}</Button>
             ) : null}
             <ConfirmButton
-              title={t("confirm.rotateTitle")}
-              description={t("confirm.rotateDescription", { name: row.name })}
+              title={t("confirm.rotateTitle", { name: row.name })}
               confirmLabel={t("actions.rotate")}
               onConfirm={() => rotate.mutate(row.id)}
             >
@@ -149,7 +148,7 @@ export function OrganizationsPage() {
         ]}
         fields={[
           { name: "name", kind: "text", required: true },
-          { name: "oauthClientAllowlist", kind: "lines", nullable: true, help: true },
+          { name: "oauthClientAllowlist", kind: "lines", nullable: true },
         ]}
         rowActions={(row) => (
           <Button variant="ghost" size="sm" onClick={() => setMembers(row)}>{t("actions.members")}</Button>
@@ -190,7 +189,7 @@ export function TeamsPage() {
           // budgets and bound keys were all scoped under the parent.
           { name: "organizationId", kind: "text", required: true, createOnly: true },
           { name: "name", kind: "text", required: true },
-          { name: "oauthClientAllowlist", kind: "lines", nullable: true, help: true },
+          { name: "oauthClientAllowlist", kind: "lines", nullable: true },
         ]}
         rowActions={(row) => (
           <Button variant="ghost" size="sm" onClick={() => setMembers(row)}>{t("actions.members")}</Button>
@@ -227,12 +226,12 @@ export function PermissionsPage() {
       ]}
       fields={[
         { name: "action", kind: "select", options: ACTIONS, required: true },
-        { name: "modelPattern", kind: "text", help: true },
-        { name: "userId", kind: "text", nullable: true, help: true },
+        { name: "modelPattern", kind: "text" },
+        { name: "userId", kind: "text", nullable: true },
         { name: "apiKeyId", kind: "text", nullable: true },
         { name: "providerId", kind: "text", nullable: true },
         { name: "operation", kind: "text", nullable: true },
-        { name: "priority", kind: "number", help: true },
+        { name: "priority", kind: "number" },
       ]}
     />
   )
@@ -257,8 +256,8 @@ export function RateLimitsPage() {
         { key: "enabled", cell: (row) => <BoolCell value={row.enabled} /> },
       ]}
       fields={[
-        { name: "metric", kind: "text", required: true, help: true },
-        { name: "limitValue", kind: "text", required: true, help: true },
+        { name: "metric", kind: "text", required: true },
+        { name: "limitValue", kind: "text", required: true },
         { name: "periodSeconds", kind: "number", required: true },
         { name: "userId", kind: "text", nullable: true },
         { name: "apiKeyId", kind: "text", nullable: true },
@@ -290,7 +289,7 @@ export function PlansPage() {
       fields={[
         { name: "poolId", kind: "text", required: true },
         { name: "name", kind: "text", required: true },
-        { name: "codexPlanType", kind: "text", nullable: true, help: true },
+        { name: "codexPlanType", kind: "text", nullable: true },
         { name: "claudeSubscriptionType", kind: "text", nullable: true },
         { name: "claudeRateLimitTier", kind: "text", nullable: true },
         { name: "enabled", kind: "switch" },
@@ -320,7 +319,7 @@ export function PlanLimitsPage() {
         { name: "windowKey", kind: "text", required: true },
         { name: "limit", kind: "text", required: true },
         { name: "period", kind: "select", options: PERIODS, required: true },
-        { name: "periodSeconds", kind: "number", nullable: true, help: true },
+        { name: "periodSeconds", kind: "number", nullable: true },
         { name: "modelPattern", kind: "text", nullable: true },
       ]}
     />
@@ -346,9 +345,9 @@ export function SubscriptionsPage() {
       ]}
       fields={[
         { name: "userId", kind: "text", required: true, createOnly: true },
-        { name: "planId", kind: "text", required: true, help: true },
+        { name: "planId", kind: "text", required: true },
         { name: "enabled", kind: "switch" },
-        { name: "startsAtMs", kind: "datetime", help: true },
+        { name: "startsAtMs", kind: "datetime" },
         { name: "expiresAtMs", kind: "datetime", nullable: true },
       ]}
     />
@@ -400,7 +399,7 @@ export function PoolMembersPage() {
       fields={[
         { name: "poolId", kind: "text", required: true },
         { name: "credentialId", kind: "text", required: true },
-        { name: "sourceKey", kind: "text", required: true, help: true },
+        { name: "sourceKey", kind: "text", required: true },
         { name: "enabled", kind: "switch" },
       ]}
     />
@@ -438,16 +437,15 @@ export function OAuthClientsPage() {
       fields={[
         // The id *is* the `client_id` a third-party binary was built with, so
         // it is required rather than generated, and immutable afterwards.
-        { name: "id", kind: "text", required: true, createOnly: true, help: true },
+        { name: "id", kind: "text", required: true, createOnly: true },
         { name: "name", kind: "text", required: true },
-        { name: "redirectUris", kind: "lines", help: true },
+        { name: "redirectUris", kind: "lines" },
         { name: "enabled", kind: "switch" },
       ]}
       rowActions={(row) =>
         row.deletedAtMs === null ? (
           <ConfirmButton
-            title={t("confirm.retireTitle")}
-            description={t("confirm.retireDescription", { name: row.name })}
+            title={t("confirm.retireTitle", { name: row.name })}
             confirmLabel={t("actions.retire")}
             onConfirm={() => retire.mutate(row.id)}
           >

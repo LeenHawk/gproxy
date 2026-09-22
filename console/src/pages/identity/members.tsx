@@ -22,7 +22,7 @@ import { DataTable, IdCell } from "@/components/data-table"
 import { EmptyNotice, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle,
+  Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -94,10 +94,9 @@ export function MembersDialog({ scope, scopeId, scopeName, open, onOpenChange }:
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl" closeLabel={t("actions.close")}>
+      <DialogContent aria-describedby={undefined} className="sm:max-w-2xl" closeLabel={t("actions.close")}>
         <DialogHeader>
-          <DialogTitle>{t("members.title")}</DialogTitle>
-          <DialogDescription>{t("members.description", { name: scopeName })}</DialogDescription>
+          <DialogTitle>{t("members.title")} · {scopeName}</DialogTitle>
         </DialogHeader>
         <DialogBody className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
@@ -143,8 +142,7 @@ export function MembersDialog({ scope, scopeId, scopeName, open, onOpenChange }:
               empty={<EmptyNotice title={t("members.emptyTitle")} />}
               actions={(row) => (
                 <ConfirmButton
-                  title={t("confirm.removeMemberTitle")}
-                  description={t("confirm.removeMemberDescription", { name: row.userId })}
+                  title={t("confirm.removeMemberTitle", { name: row.userId })}
                   confirmLabel={t("actions.remove")}
                   onConfirm={() => remove.mutate(row.userId)}
                 >

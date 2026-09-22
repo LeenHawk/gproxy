@@ -3,8 +3,7 @@
     "navigation": "导航"
   },
   "signIn": {
-    "title": "登录",
-    "description": "控制台与自助门户是同一个应用；你看到的，就是这个实例说你能做的。"
+    "title": "登录"
   },
   "actions": {
     "add": "添加",
@@ -31,12 +30,9 @@
   },
   "state": {
     "emptyTitle": "这里还是空的",
-    "emptyDescription": "没有匹配的行。新建一条，或放宽筛选条件。",
     "failed": "请求失败",
     "forbidden": "无权访问",
-    "forbiddenDescription": "这个实例不允许你访问该页面。如果这不符合预期，请让运维检查你的作用域。",
-    "notFoundTitle": "没有这个页面",
-    "notFoundDescription": "该地址在这个控制台里没有对应页面。"
+    "notFoundTitle": "没有这个页面"
   },
   "form": {
     "choose": "请选择…"
@@ -47,18 +43,12 @@
     "next": "下一页"
   },
   "confirm": {
-    "deleteTitle": "删除这一行？",
-    "deleteDescription": "{{name}} 将被删除，且无法撤销。",
-    "removeMemberTitle": "移除该成员？",
-    "removeMemberDescription": "{{name}} 将失去这个作用域的成员身份，以及随之而来的角色。",
-    "retireTitle": "停用这个客户端？",
-    "retireDescription": "{{name}} 将不可再用。它签发过的授权仍然指向它，所以历史记录仍可解析。",
-    "revokeTitle": "结束这个会话？",
-    "revokeDescription": "会话 {{name}} 将立即结束，持有者需要重新登录。",
-    "revokeGrantTitle": "吊销这个授权？",
-    "revokeGrantDescription": "{{name}} 将立即失去访问权限，包括它还持有的刷新令牌。",
-    "rotateTitle": "轮换这把密钥？",
-    "rotateDescription": "{{name}} 会拿到新的密钥，旧的立即失效。所有在用的地方都需要更新。"
+    "deleteTitle": "删除 {{name}}？",
+    "removeMemberTitle": "移除 {{name}}？",
+    "retireTitle": "停用 {{name}}？",
+    "revokeTitle": "结束会话 {{name}}？",
+    "revokeGrantTitle": "吊销 {{name}}？",
+    "rotateTitle": "轮换 {{name}} 并停用旧密钥？"
   },
   "toast": {
     "added": "已添加",
@@ -190,24 +180,5 @@
     "teamId": "团队",
     "userId": "用户",
     "windowKey": "窗口"
-  },
-  "help": {
-    "codexPlanType": "面向客户端的线上标签，描述的是这个网关套餐，不是你买到的上游权益。",
-    "expiresAtMs": "留空表示永不过期。",
-    "id": "第三方程序编译进去的 client_id。它不能在这里生成，之后也不能改。",
-    "limitValue": "十进制文本而非数字：额度必须原样穿过 JavaScript 的 Number。",
-    "metric": "requests、concurrency，或宿主会计数的任意计量名。",
-    "modelPattern": "模型名上的通配：* 与 ?，整串匹配。* 同时匹配没有指定模型的请求。",
-    "oauthClientAllowlist": "每行一个客户端 ID。留空表示继承上一层；写成空列表则拒绝所有客户端。",
-    "organizationId": "这一项同时决定预算链、权限主体和这把密钥能看到哪些凭证——只在这里设定一次，绝不从请求头取。",
-    "password": "可选。没有密码的账号无法登录，这正是纯 API key 账号的形态。",
-    "periodSeconds": "固定周期必填且为正；其余周期不使用。",
-    "planId": "套餐额度在签发时即已复制：把已签发的订阅指向别的套餐不会调整既有窗口。",
-    "priority": "数值大者优先。同优先级下拒绝胜过允许。",
-    "redirectUris": "每行一个。回调地址按整串精确匹配，不做前缀匹配。",
-    "retainSecret": "留一份密封副本，以便日后查看。默认关闭：实例复现不出来的密钥，数据库泄露时也交不出去。",
-    "sourceKey": "规范化的签发方加上游订阅标识。同一个真实订阅被多份凭证导入时，靠它去重。",
-    "startsAtMs": "固定时长额度从这个锚点开始计算。留空则以签发时刻为锚点。",
-    "userId": "一条规则要么指向用户，要么指向密钥，不能两者都写。"
   }
 }

@@ -12,7 +12,7 @@ import { signIn } from "@/api/session"
 import { SESSION_KEY } from "@/capability/session"
 import { ErrorNotice } from "@/components/state"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 
@@ -39,8 +39,11 @@ export function SignInPage() {
     <main className="flex min-h-dvh items-center justify-center bg-background px-4 py-10 text-foreground">
       <Card className="w-full max-w-sm">
         <CardHeader>
+          <div className="mb-2 flex items-center gap-3">
+            <img src={`${import.meta.env.BASE_URL}favicon-96x96.png`} alt="" className="size-10" />
+            <span className="text-lg font-semibold">GPROXY</span>
+          </div>
           <CardTitle>{t("signIn.title")}</CardTitle>
-          <CardDescription>{t("signIn.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit}>

@@ -3,8 +3,7 @@
     "navigation": "Navigation"
   },
   "signIn": {
-    "title": "Sign in",
-    "description": "This console and the self-service portal are one application; what you see is what this instance says you may do."
+    "title": "Sign in"
   },
   "actions": {
     "add": "Add",
@@ -31,12 +30,9 @@
   },
   "state": {
     "emptyTitle": "Nothing here yet",
-    "emptyDescription": "No row matches. Create one, or widen the filter.",
     "failed": "The request failed",
     "forbidden": "Not permitted",
-    "forbiddenDescription": "This instance does not let you reach that. If you expected to, ask an operator to check your scope.",
-    "notFoundTitle": "No such page",
-    "notFoundDescription": "This console has no page at that address."
+    "notFoundTitle": "No such page"
   },
   "form": {
     "choose": "Choose…"
@@ -47,18 +43,12 @@
     "next": "Next"
   },
   "confirm": {
-    "deleteTitle": "Delete this row?",
-    "deleteDescription": "{{name}} will be removed. This cannot be undone.",
-    "removeMemberTitle": "Remove this member?",
-    "removeMemberDescription": "{{name}} loses their membership of this scope, and any role that came with it.",
-    "retireTitle": "Retire this client?",
-    "retireDescription": "{{name}} stops being usable. Its existing grants keep naming it, so session history still resolves.",
-    "revokeTitle": "End this session?",
-    "revokeDescription": "Session {{name}} ends immediately and its holder has to sign in again.",
-    "revokeGrantTitle": "Revoke this authorization?",
-    "revokeGrantDescription": "{{name}} loses its access immediately, including any refresh token it still holds.",
-    "rotateTitle": "Rotate this key?",
-    "rotateDescription": "{{name}} gets a new secret and the old one stops working at once. Anything using it has to be updated."
+    "deleteTitle": "Delete {{name}}?",
+    "removeMemberTitle": "Remove {{name}}?",
+    "retireTitle": "Retire {{name}}?",
+    "revokeTitle": "End session {{name}}?",
+    "revokeGrantTitle": "Revoke {{name}}?",
+    "rotateTitle": "Rotate {{name}} and invalidate its old key?"
   },
   "toast": {
     "added": "Added",
@@ -190,24 +180,5 @@
     "teamId": "Team",
     "userId": "User",
     "windowKey": "Window"
-  },
-  "help": {
-    "codexPlanType": "A client-facing wire label for this gateway plan, not a purchased upstream entitlement.",
-    "expiresAtMs": "Leave empty for a key that never expires.",
-    "id": "The client_id the third-party binary was built with. It cannot be generated here, and cannot be changed afterwards.",
-    "limitValue": "A decimal amount, as text: a limit has to survive a JavaScript number unchanged.",
-    "metric": "requests, concurrency, or any counter name the host charges.",
-    "modelPattern": "A glob over the model name: * and ?, anchored. * also matches a request that names no model.",
-    "oauthClientAllowlist": "One client id per line. Empty inherits the level above; a list of none denies every client.",
-    "organizationId": "The binding that decides the budget chain, the permission subject and which credentials this key may reach — all at once, and only here.",
-    "password": "Optional. An account created without one cannot sign in until a password is set, which is what an API-key-only account is.",
-    "periodSeconds": "Required and positive for a fixed period; unused otherwise.",
-    "planId": "The plan's limits are copied at issuance: re-pointing an issued subscription does not resize existing windows.",
-    "priority": "Higher wins. A deny beats an allow at the same priority.",
-    "redirectUris": "One per line. A redirect is matched exactly, never by prefix.",
-    "retainSecret": "Keep a sealed copy so the key can be revealed later. Off by default: a key the instance cannot reproduce is a key a database leak does not hand over.",
-    "sourceKey": "The canonical issuer plus upstream subscription identity. It is what deduplicates one real subscription imported under several credentials.",
-    "startsAtMs": "The anchor fixed-duration allowances are measured from. Empty anchors at the moment it is issued.",
-    "userId": "A rule names a user or a key, never both."
   }
 }

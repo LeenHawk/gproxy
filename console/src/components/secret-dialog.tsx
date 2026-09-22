@@ -10,23 +10,21 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
 import { copyText } from "@/lib/copy-text"
 
-export function SecretDialog({ token, onClose, description }: {
+export function SecretDialog({ token, onClose }: {
   token: string | null
   onClose: () => void
-  description?: string
 }) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   return (
     <Dialog open={token !== null} onOpenChange={(open) => { if (!open) { setCopied(false); onClose() } }}>
-      <DialogContent className="sm:max-w-lg" closeLabel={t("actions.close")}>
+      <DialogContent aria-describedby={undefined} className="sm:max-w-lg" closeLabel={t("actions.close")}>
         <DialogHeader>
           <DialogTitle>{t("keys.secretTitle")}</DialogTitle>
-          <DialogDescription>{description ?? t("keys.secretHint")}</DialogDescription>
         </DialogHeader>
         <DialogBody>
           <code className="block w-full rounded-lg border border-border bg-muted/40 p-3 font-mono text-xs break-all select-all">

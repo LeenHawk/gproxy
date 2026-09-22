@@ -27,7 +27,7 @@ export function RequestsPage() {
   const list = useQuery({ queryKey: ["portal", "requests"], queryFn: portal.requests })
   return (
     <Page>
-      <PageHeader title={t("nav.requests")} description={t("description.requests")} />
+      <PageHeader title={t("nav.requests")} />
       <QueryState isPending={list.isPending} error={list.error}>
         <DataTable
           columns={[
@@ -48,7 +48,7 @@ export function RequestsPage() {
           ]}
           rows={list.data ?? []}
           rowKey={(row) => row.requestId}
-          empty={<EmptyNotice title={t("requests.emptyTitle")} description={t("requests.emptyDescription")} />}
+          empty={<EmptyNotice title={t("requests.emptyTitle")} />}
         />
       </QueryState>
     </Page>

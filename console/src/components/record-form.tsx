@@ -20,9 +20,9 @@ import { useTranslation } from "react-i18next"
 import { ErrorNotice } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
+import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
@@ -41,8 +41,6 @@ export type FormField = {
   choices?: ReadonlyArray<{ value: string; label: string }>
   /** Refuse an empty value on a create. */
   required?: boolean
-  /** Render `help.<name>` under the control. */
-  help?: boolean
   /** Offered when creating and not when editing: the column is immutable. */
   createOnly?: boolean
   /** The patch clears this column with `null` rather than omitting it. */
@@ -148,7 +146,6 @@ type DialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   title: string
-  description?: string
   fields: ReadonlyArray<FormField>
   /** The row being edited; absent when creating. */
   original?: Record<string, unknown>
@@ -194,7 +191,6 @@ function RecordForm({ fields, original, mode, onSubmit, pending, error, extra, o
               value={values[field.name] ?? ""}
               onChange={(next) => setValues((current) => ({ ...current, [field.name]: next }))}
             />
-            {field.help ? <FieldDescription>{t(`help.${field.name}`)}</FieldDescription> : null}
           </Field>
         ))}
         {extra}
@@ -214,13 +210,12 @@ function RecordForm({ fields, original, mode, onSubmit, pending, error, extra, o
 
 export function RecordDialog(props: DialogProps) {
   const { t } = useTranslation()
-  const { open, onOpenChange, title, description, original } = props
+  const { open, onOpenChange, title, original } = props
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" closeLabel={t("actions.close")}>
+      <DialogContent aria-describedby={undefined} className="sm:max-w-md" closeLabel={t("actions.close")}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
         {open ? <RecordForm {...props} key={String(original?.id ?? "new")} /> : null}
       </DialogContent>

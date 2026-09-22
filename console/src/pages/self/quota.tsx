@@ -12,7 +12,7 @@ export function QuotaPage() {
   const windows = useQuery({ queryKey: ["portal", "quota"], queryFn: portal.quota })
   return (
     <Page>
-      <PageHeader title={t("nav.quota")} description={t("description.quota")} />
+      <PageHeader title={t("nav.quota")} />
       <QueryState isPending={windows.isPending} error={windows.error}>
         <QuotaWindows windows={windows.data ?? []} />
       </QueryState>

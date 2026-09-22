@@ -133,7 +133,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         >
           {open ? <X /> : <Menu />}
         </Button>
-        <Link to="/" className="font-mono text-sm font-semibold tracking-tight">gproxy</Link>
+        <Link to="/" className="flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight">
+          <img src={`${import.meta.env.BASE_URL}favicon-96x96.png`} alt="" className="size-7" />
+          <span>GPROXY</span>
+        </Link>
         <span className="ml-auto flex items-center gap-1">
           <LanguageMenu />
           <ThemeToggle />

@@ -23,7 +23,7 @@ function tone(percent: number | null) {
 export function QuotaWindows({ windows }: { windows: Array<PortalQuotaWindowDto> }) {
   const { t, i18n } = useTranslation()
   if (windows.length === 0) {
-    return <EmptyNotice title={t("quota.emptyTitle")} description={t("quota.emptyDescription")} />
+    return <EmptyNotice title={t("quota.emptyTitle")} />
   }
   const amount = (value: string, unit: string) =>
     unit === "USD" ? formatCost(value, i18n.language) : formatNumber(value, i18n.language)

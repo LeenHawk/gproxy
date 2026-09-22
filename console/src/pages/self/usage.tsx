@@ -51,7 +51,7 @@ export function UsagePage() {
 
   return (
     <Page>
-      <PageHeader title={t("nav.usage")} description={t("description.usage")} />
+      <PageHeader title={t("nav.usage")} />
       <div className="flex flex-wrap gap-2">
         {(Object.keys(RANGES) as Array<RangeKey>).map((key) => (
           <Button
@@ -109,7 +109,7 @@ export function UsagePage() {
                 ]}
                 rows={usage.data.groups}
                 rowKey={(row) => row.key ?? "none"}
-                empty={<EmptyNotice title={t("usage.emptyTitle")} description={t("usage.emptyDescription")} />}
+                empty={<EmptyNotice title={t("usage.emptyTitle")} />}
               />
             </PageSection>
           </div>

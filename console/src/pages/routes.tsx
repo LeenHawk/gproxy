@@ -55,7 +55,7 @@ function NotFound() {
   return (
     <Page>
       <PageHeader title={t("state.notFoundTitle")} />
-      <EmptyNotice title={t("state.notFoundTitle")} description={t("state.notFoundDescription")} />
+      <EmptyNotice title={t("state.notFoundTitle")} />
     </Page>
   )
 }
@@ -65,7 +65,7 @@ function Forbidden() {
   return (
     <Page>
       <PageHeader title={t("state.forbidden")} />
-      <EmptyNotice title={t("state.forbidden")} description={t("state.forbiddenDescription")} />
+      <EmptyNotice title={t("state.forbidden")} />
     </Page>
   )
 }
