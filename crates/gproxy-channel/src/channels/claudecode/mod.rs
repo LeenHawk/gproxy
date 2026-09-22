@@ -63,22 +63,21 @@ pub const DEFAULT_TOKEN_URL: &str = "https://platform.claude.com/v1/oauth/token"
 /// The manual-callback redirect the CLI registers (v3 `auth.rs`).
 pub const DEFAULT_REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/callback";
 pub const DEFAULT_CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-/// The five `user:*` scopes a refresh asks for by default (v3 `auth.rs`).
-pub const OAUTH_SCOPE: &str =
-    "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload";
-/// Interactive login adds `org:create_api_key` (v3 `auth.rs`, CLI 2.1.252).
+/// Default refresh scopes verified against CLI 2.1.280, including plugins.
+pub const OAUTH_SCOPE: &str = "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins";
+/// Interactive login adds `org:create_api_key` (CLI 2.1.280).
 pub const LOGIN_SCOPE: &str = concat!(
     "org:create_api_key ",
-    "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
+    "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins"
 );
 pub const OAUTH_BETA: &str = "oauth-2025-04-20";
-/// The CLI version the channel impersonates; v3 `auth.rs` (newer than the
-/// 2.1.252 sample, which carries the same header set).
-pub const CLI_VERSION: &str = "2.1.258";
-pub const CLI_USER_AGENT: &str = "claude-cli/2.1.258 (external, cli)";
+/// The CLI version the channel impersonates; audited in
+/// `design/claudecode-2.1.280.md` against the installed binary and local capture.
+pub const CLI_VERSION: &str = "2.1.280";
+pub const CLI_USER_AGENT: &str = "claude-cli/2.1.280 (external, cli)";
 pub const ANTHROPIC_VERSION: &str = "2023-06-01";
 /// Optional scopes a refresh preserves when the credential already has them.
-const PRESERVED_SCOPES: &[&str] = &["user:projects:read", "user:projects:write", "user:plugins"];
+const PRESERVED_SCOPES: &[&str] = &["user:projects:read", "user:projects:write"];
 /// Bodies the channel reads itself (login, refresh, usage) are small.
 const MAX_SERVICE_BODY: usize = 1024 * 1024;
 const DEFAULT_EXPIRES_IN_SECS: i64 = 3600;
@@ -401,7 +400,7 @@ fn stainless_arch() -> &'static str {
 }
 
 /// A client user agent is honoured only when it is the impersonated CLI
-/// version with a plausible entrypoint, e.g. `claude-cli/2.1.258 (external,
+/// version with a plausible entrypoint, e.g. `claude-cli/2.1.280 (external,
 /// sdk-cli)`; anything else becomes the CLI's own (v3 `auth.rs`).
 fn valid_cli_user_agent(value: &str) -> bool {
     value

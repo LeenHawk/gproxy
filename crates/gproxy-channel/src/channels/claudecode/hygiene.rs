@@ -94,11 +94,11 @@ const BILLING_PREFIX: &str = "x-anthropic-billing-header:";
 /// `metadata.user_id` JSON the backend correlates it with (v3 `cch.rs`;
 /// captured in `samples/claude-code-2.1.252/messages-oauth-wire.json`).
 ///
-/// The block is rebuilt in the CLI's own order (2.1.252 `KUt`):
+/// The block is rebuilt in the CLI's own order (2.1.280):
 /// `cc_version` (ours, with the computed suffix), `cc_entrypoint` (the
 /// client's, default `cli`), `cch=00000`, then the optional fragments the
 /// client sent when they pass the CLI's own validation: `cc_workload`,
-/// `cc_is_subagent=true`, `cc_prev_req`, `cc_prompt_id`. Unknown keys and
+/// `cc_is_subagent=true`, `cc_prev_req`, `cc_prompt_id`, `cc_turn_origin`. Unknown keys and
 /// invalid values are dropped; they would only fingerprint the proxy. Two
 /// fragments the CLI always sends on the OAuth path are synthesized when the
 /// client left them out: `cc_prev_req` from `prev_req`, the `request-id` of
@@ -191,6 +191,9 @@ pub(super) fn inject_billing(
         )),
     };
     text.push_str(&format!(" cc_prompt_id={prompt};"));
+    if let Some(origin) = field("cc_turn_origin").filter(|value| is_turn_origin(value)) {
+        text.push_str(&format!(" cc_turn_origin={origin};"));
+    }
 
     let billing = json!({"type": "text", "text": text});
     match existing {
@@ -216,6 +219,15 @@ fn is_token(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
+/// CLI 2.1.280: `^[a-z][a-z_]{0,31}$`.
+fn is_turn_origin(value: &str) -> bool {
+    (1..=32).contains(&value.len())
+        && value.as_bytes()[0].is_ascii_lowercase()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte == b'_')
 }
 
 /// `^req_[A-Za-z0-9_-]{1,36}$` (2.1.252 `KUt`).
