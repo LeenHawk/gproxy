@@ -132,6 +132,8 @@ pub struct Team {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct User {
+    #[serde(default)]
+    pub password_hash: Option<String>,
     pub id: i64,
     pub name: String,
     #[serde(default)]

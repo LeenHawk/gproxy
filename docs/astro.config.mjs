@@ -218,6 +218,11 @@ export default defineConfig({
               translations: { 'zh-CN': '从源码构建' },
             },
             {
+              label: 'Migrating v3 to v4',
+              slug: 'deployment/v3-to-v4',
+              translations: { 'zh-CN': '从 v3 迁移到 v4' },
+            },
+            {
               label: 'Edge (Cloudflare Workers)',
               slug: 'deployment/edge',
               translations: { 'zh-CN': '边缘部署（Cloudflare Workers）' },

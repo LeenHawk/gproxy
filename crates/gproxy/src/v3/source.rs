@@ -51,6 +51,7 @@
 
 use std::{collections::BTreeMap, path::Path};
 
+use gproxy_seaorm::SchemaSyncConnectionTrait;
 use sea_orm::{ConnectionTrait, Database, DatabaseConnection, QueryResult, Statement};
 use serde_json::{Value, json};
 
@@ -69,7 +70,7 @@ pub async fn read(path: &Path) -> Result<Document> {
     let connection = open(path).await?;
     // The same check every other entry point makes, for the opposite reason:
     // here a database that is *not* v3's is the error.
-    match super::detect::inspect(&connection).await {
+    match super::detect::inspect(&connection).await? {
         super::detect::Verdict::Version3 { .. } => {}
         _ => {
             return Err(Error::other(format!(
@@ -86,22 +87,46 @@ pub async fn read(path: &Path) -> Result<Document> {
         // The file always has its secrets; only the admin API's export can
         // omit them.
         secrets: document::Secrets::Included,
-        // Whether they are sealed is decided by what is in the rows, not by a
-        // marker: a v3 instance with no master key wrote plain JSON into the
-        // same columns. `settings.master_key_fingerprint` says which, and is
-        // read below into `data.settings`.
-        source_key: match data.settings.contains_key(MASTER_KEY_FINGERPRINT) {
-            true => Some(document::SourceKey::Sealed {
-                fingerprint: String::new(),
-            }),
-            false => Some(document::SourceKey::Plaintext),
-        },
+        source_key: Some(source_key(&data)),
         data,
     })
 }
 
-/// v3 wrote this key exactly when it had a master key, so its presence is how
-/// the file says whether its secrets are sealed.
+/// Whether this file's secrets are sealed, decided from **the rows**.
+///
+/// The obvious check is `settings.master_key_fingerprint`, and it is wrong: v3
+/// writes that key with a `null` value when it has no master key, so its
+/// presence says nothing. The local development database is exactly that — the
+/// key is there, its value is `null`, and every credential's `wrapped_key`,
+/// `payload_nonce` and `key_nonce` are empty.
+///
+/// So the envelopes decide. A sealed one carries a wrapped key and two nonces;
+/// an unsealed one is bare JSON in `ciphertext` with the other three columns
+/// empty (`v3:crates/gproxy-app/src/secrets.rs`). One sealed row anywhere means
+/// the instance had a key, which is what `--source-master-key` has to match.
+fn source_key(data: &document::Data) -> document::SourceKey {
+    let sealed = data
+        .credentials
+        .iter()
+        .filter_map(|row| row.secret.as_ref())
+        .chain(data.user_keys.iter().filter_map(|row| row.secret.as_ref()))
+        .any(|envelope| !envelope.is_plaintext());
+    match sealed {
+        true => document::SourceKey::Sealed {
+            fingerprint: data
+                .settings
+                .get(MASTER_KEY_FINGERPRINT)
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned(),
+        },
+        false => document::SourceKey::Plaintext,
+    }
+}
+
+/// The setting v3 writes when it has a master key — and also, with a `null`
+/// value, when it does not. Only good for the fingerprint text; see
+/// [`source_key`].
 const MASTER_KEY_FINGERPRINT: &str = "master_key_fingerprint";
 
 async fn open(path: &Path) -> Result<DatabaseConnection> {
@@ -117,188 +142,226 @@ async fn open(path: &Path) -> Result<DatabaseConnection> {
 }
 
 async fn data(connection: &DatabaseConnection) -> Result<document::Data> {
+    let tables = connection.table_names().await?;
     Ok(document::Data {
-        organizations: rows(connection, ORGANIZATIONS, organization).await?,
-        teams: rows(connection, TEAMS, team).await?,
-        users: rows(connection, USERS, user).await?,
-        providers: rows(connection, PROVIDERS, provider).await?,
-        credentials: rows(connection, CREDENTIALS, credential).await?,
-        user_keys: rows(connection, USER_KEYS, user_key).await?,
-        quotas: rows(connection, QUOTAS, quota).await?,
-        price_rules: rows(connection, PRICE_RULES, price_rule).await?,
-        price_rates: rows(connection, PRICE_RATES, price_rate).await?,
-        routes: rows(connection, ROUTES, route).await?,
-        route_members: rows(connection, ROUTE_MEMBERS, route_member).await?,
-        aliases: rows(connection, ALIASES, alias).await?,
-        model_aliases: rows(connection, EXPOSED_MODELS, model_alias).await?,
-        routing_rules: rows(connection, ROUTING_RULES, routing_rule).await?,
-        rule_sets: rows(connection, RULE_SETS, rule_set).await?,
-        rules: rows(connection, RULES, rule).await?,
-        provider_rule_sets: rows(connection, PROVIDER_RULE_SETS, provider_rule_set).await?,
+        organizations: rows(connection, &tables, "organizations", organization).await?,
+        teams: rows(connection, &tables, "teams", team).await?,
+        users: rows(connection, &tables, "users", user).await?,
+        providers: rows(connection, &tables, "providers", provider).await?,
+        credentials: rows(connection, &tables, "credentials", credential).await?,
+        user_keys: rows(connection, &tables, "user_keys", user_key).await?,
+        quotas: rows(connection, &tables, "quotas", quota).await?,
+        price_rules: rows(connection, &tables, "price_rules", price_rule).await?,
+        price_rates: rows(connection, &tables, "price_rates", price_rate).await?,
+        routes: rows(connection, &tables, "routes", route).await?,
+        route_members: rows(connection, &tables, "route_members", route_member).await?,
+        aliases: rows(connection, &tables, "aliases", alias).await?,
+        model_aliases: rows(connection, &tables, "exposed_models", model_alias).await?,
+        routing_rules: rows(connection, &tables, "routing_rules", routing_rule).await?,
+        rule_sets: rows(connection, &tables, "rule_sets", rule_set).await?,
+        rules: rows(connection, &tables, "rules", rule).await?,
+        provider_rule_sets: rows(connection, &tables, "provider_rule_sets", provider_rule_set)
+            .await?,
         // The three v3's own export forgets are ordinary tables in the file,
         // so the direct route has them without any splicing.
-        permissions: rows(connection, PERMISSIONS, permission).await?,
-        rate_limits: rows(connection, RATE_LIMITS, rate_limit).await?,
-        provider_models: rows(connection, PROVIDER_MODELS, provider_model).await?,
+        permissions: rows(connection, &tables, "permissions", permission).await?,
+        rate_limits: rows(connection, &tables, "rate_limits", rate_limit).await?,
+        provider_models: rows(connection, &tables, "provider_models", provider_model).await?,
         settings: settings(connection).await?,
     })
 }
 
-/// Every statement this module runs, in one place so a schema question has one
-/// answer. Column order is the argument order of the readers below, and the
-/// names are production's `.schema` rather than the `v3` branch's entities:
-/// what an operator has is what the live database looks like.
-const ORGANIZATIONS: &str = "SELECT id, name, enabled FROM organizations ORDER BY id";
-const TEAMS: &str = "SELECT id, organization_id, name, enabled FROM teams ORDER BY id";
-const USERS: &str = "SELECT id, name, organization_id, team_id, enabled, is_admin \
-                     FROM users ORDER BY id";
-const PROVIDERS: &str = "SELECT id, name, channel, settings_json, enabled, label, proxy_url, \
-                         credential_strategy FROM providers ORDER BY id";
-const CREDENTIALS: &str = "SELECT id, provider_id, label, ciphertext, wrapped_key, \
-                           payload_nonce, key_nonce, version, enabled, weight, rpm_limit, \
-                           tpm_limit, proxy_url, kind FROM credentials ORDER BY id";
-const USER_KEYS: &str = "SELECT id, user_id, digest, digest_version, prefix, label, \
-                         expires_at, enabled, ciphertext, wrapped_key, payload_nonce, \
-                         key_nonce FROM user_keys ORDER BY id";
-const QUOTAS: &str = "SELECT id, subject_kind, subject_id, quota_total, quota_daily, \
-                      quota_weekly, quota_monthly, quota_5h, quota_7d, enabled \
-                      FROM quotas ORDER BY id";
-const PRICE_RULES: &str = "SELECT id, provider_id, model_pattern, tiers_json, priority, \
-                           enabled FROM price_rules ORDER BY id";
-const PRICE_RATES: &str = "SELECT id, rule_id, metric, unit_size, price, conditions_json, \
-                           priority FROM price_rates ORDER BY id";
-const ROUTES: &str = "SELECT id, name, strategy, max_attempts, enabled FROM routes ORDER BY id";
-const ROUTE_MEMBERS: &str = "SELECT id, route_id, provider_id, upstream_model, tier, weight, \
-                             enabled FROM route_members ORDER BY id";
-const ALIASES: &str = "SELECT id, alias, target, provider_id, priority, enabled \
-                       FROM aliases ORDER BY id";
-const EXPOSED_MODELS: &str = "SELECT id, name, route_id, enabled FROM exposed_models ORDER BY id";
-const ROUTING_RULES: &str = "SELECT id, provider_id, operation, kind, implementation, \
-                             dest_operation, dest_kind, sort_order, enabled, origin \
-                             FROM routing_rules ORDER BY id";
-const RULE_SETS: &str = "SELECT id, name, description, enabled FROM rule_sets ORDER BY id";
-const RULES: &str = "SELECT id, rule_set_id, kind, config_json, filter_model_pattern, \
-                     filter_operations_json, filter_header_pattern, sort_order, enabled \
-                     FROM rules ORDER BY id";
-const PROVIDER_RULE_SETS: &str = "SELECT id, provider_id, rule_set_id, sort_order, enabled \
-                                  FROM provider_rule_sets ORDER BY id";
-const PERMISSIONS: &str = "SELECT id, subject_kind, subject_id, provider_id, operation_group, \
-                           model_pattern, allowed FROM permissions ORDER BY id";
-const RATE_LIMITS: &str = "SELECT id, subject_kind, subject_id, requests, window_seconds \
-                           FROM rate_limits ORDER BY id";
-const PROVIDER_MODELS: &str = "SELECT id, provider_id, model_id, display_name, context_window, \
-                               max_output_tokens, enabled FROM provider_models ORDER BY id";
+/// Every table this module reads. `SELECT *`, not a column list, and every
+/// value is then taken **by name**.
+///
+/// That is not laziness, it is the one thing this module has to get right. v3's
+/// schema grew over ten versions and an operator's file can be at any of them:
+/// the local development database here is at version 7, where `routes` has no
+/// `strategy` (added at 9) and `permissions` has no `model_pattern` (added at
+/// 8), while production is at 10 and has both. A fixed column list fails on
+/// `no such column: strategy` against a database that is *perfectly valid v3*
+/// and whose configuration migrates fine without it.
+///
+/// So a column that is not there reads as absent and the row takes v3's own
+/// default for it, and only a column that has existed since version 1 is
+/// required.
+const TABLES: [(&str, &str); 20] = [
+    ("organizations", "SELECT * FROM organizations ORDER BY id"),
+    ("teams", "SELECT * FROM teams ORDER BY id"),
+    ("users", "SELECT * FROM users ORDER BY id"),
+    ("providers", "SELECT * FROM providers ORDER BY id"),
+    ("credentials", "SELECT * FROM credentials ORDER BY id"),
+    ("user_keys", "SELECT * FROM user_keys ORDER BY id"),
+    ("quotas", "SELECT * FROM quotas ORDER BY id"),
+    ("price_rules", "SELECT * FROM price_rules ORDER BY id"),
+    ("price_rates", "SELECT * FROM price_rates ORDER BY id"),
+    ("routes", "SELECT * FROM routes ORDER BY id"),
+    ("route_members", "SELECT * FROM route_members ORDER BY id"),
+    ("aliases", "SELECT * FROM aliases ORDER BY id"),
+    ("exposed_models", "SELECT * FROM exposed_models ORDER BY id"),
+    ("routing_rules", "SELECT * FROM routing_rules ORDER BY id"),
+    ("rule_sets", "SELECT * FROM rule_sets ORDER BY id"),
+    ("rules", "SELECT * FROM rules ORDER BY id"),
+    (
+        "provider_rule_sets",
+        "SELECT * FROM provider_rule_sets ORDER BY id",
+    ),
+    ("permissions", "SELECT * FROM permissions ORDER BY id"),
+    ("rate_limits", "SELECT * FROM rate_limits ORDER BY id"),
+    (
+        "provider_models",
+        "SELECT * FROM provider_models ORDER BY id",
+    ),
+];
+
+fn statement_for(table: &str) -> &'static str {
+    TABLES
+        .iter()
+        .find(|(name, _)| *name == table)
+        .map(|(_, sql)| *sql)
+        .expect("every table read here is in TABLES")
+}
+
 const SETTINGS: &str = "SELECT key, value_json FROM settings ORDER BY key";
 
-/// Run one statement and convert each row. The error names the table, because
-/// a v3 database old enough to be missing a column is a real possibility and
-/// "no such column: origin" on its own says nothing about what to do.
+/// Run one table's statement and convert each row.
+///
+/// A table that is not there at all is empty rather than fatal: v3 created
+/// every one of these at schema version 1, but a hand-trimmed database is a
+/// thing operators produce, and refusing to migrate the other nineteen tables
+/// because of it would help nobody.
 async fn rows<T>(
     connection: &DatabaseConnection,
-    sql: &'static str,
+    tables: &[String],
+    table: &'static str,
     convert: fn(&QueryResult) -> Result<T>,
 ) -> Result<Vec<T>> {
-    let statement = Statement::from_string(connection.get_database_backend(), sql.to_owned());
-    let found = connection.query_all_raw(statement).await.map_err(|error| {
-        Error::other(format!(
-            "reading the v3 database failed on `{sql}`: {error}. The file may have been \
-             written by a v3 older than 3.0.16, whose schema this migration does not read."
-        ))
-    })?;
-    found.iter().map(convert).collect()
+    if !tables.iter().any(|name| name == table) {
+        tracing::warn!(
+            table,
+            "this v3 database has no such table; migrating without it"
+        );
+        return Ok(Vec::new());
+    }
+    let statement = Statement::from_string(connection.get_database_backend(), statement_for(table));
+    let found = connection.query_all_raw(statement).await?;
+    found
+        .iter()
+        .map(convert)
+        .collect::<Result<Vec<T>>>()
+        .map_err(|error| Error::other(format!("reading v3 `{table}`: {error}")))
 }
 
 // ------------------------------------------------------- column readers --
+//
+// Everything is taken by **name**, and the optional readers treat "no such
+// column" exactly as they treat NULL. That is what lets one reader cover v3's
+// ten schema versions: a column added at version 8 is simply absent in a
+// version 7 file, and the row takes v3's own default for it.
+//
+// Only a column that has existed since version 1 uses a required reader, and a
+// required column that is missing is a real error — a `users` table with no
+// `name` is not an old v3 database, it is a damaged one.
 
-fn integer(row: &QueryResult, index: usize) -> Result<i64> {
-    row.try_get_by_index::<i64>(index)
-        .map_err(|error| Error::other(format!("v3 column {index} is not an integer: {error}")))
+/// A column that has existed since v3's first schema version.
+fn integer(row: &QueryResult, column: &str) -> Result<i64> {
+    row.try_get::<i64>("", column)
+        .map_err(|error| Error::other(format!("column `{column}` is not an integer: {error}")))
 }
 
-fn optional_integer(row: &QueryResult, index: usize) -> Result<Option<i64>> {
-    row.try_get_by_index::<Option<i64>>(index)
-        .map_err(|error| Error::other(format!("v3 column {index} is not an integer: {error}")))
+/// Absent, NULL, or a value. The first two are the same answer.
+fn optional_integer(row: &QueryResult, column: &str) -> Option<i64> {
+    row.try_get::<Option<i64>>("", column).ok().flatten()
 }
 
-fn text(row: &QueryResult, index: usize) -> Result<String> {
-    row.try_get_by_index::<String>(index)
-        .map_err(|error| Error::other(format!("v3 column {index} is not text: {error}")))
+fn text(row: &QueryResult, column: &str) -> Result<String> {
+    row.try_get::<String>("", column)
+        .map_err(|error| Error::other(format!("column `{column}` is not text: {error}")))
 }
 
-fn optional_text(row: &QueryResult, index: usize) -> Result<Option<String>> {
-    row.try_get_by_index::<Option<String>>(index)
-        .map_err(|error| Error::other(format!("v3 column {index} is not text: {error}")))
+fn optional_text(row: &QueryResult, column: &str) -> Option<String> {
+    row.try_get::<Option<String>>("", column).ok().flatten()
 }
 
-fn blob(row: &QueryResult, index: usize) -> Result<Vec<u8>> {
-    row.try_get_by_index::<Vec<u8>>(index)
-        .map_err(|error| Error::other(format!("v3 column {index} is not a blob: {error}")))
+fn blob(row: &QueryResult, column: &str) -> Result<Vec<u8>> {
+    row.try_get::<Vec<u8>>("", column)
+        .map_err(|error| Error::other(format!("column `{column}` is not a blob: {error}")))
 }
 
-fn optional_blob(row: &QueryResult, index: usize) -> Result<Option<Vec<u8>>> {
-    row.try_get_by_index::<Option<Vec<u8>>>(index)
-        .map_err(|error| Error::other(format!("v3 column {index} is not a blob: {error}")))
+fn optional_blob(row: &QueryResult, column: &str) -> Option<Vec<u8>> {
+    row.try_get::<Option<Vec<u8>>>("", column).ok().flatten()
 }
 
-/// v3 stored every boolean as an integer.
-fn flag(row: &QueryResult, index: usize) -> Result<bool> {
-    Ok(integer(row, index)? != 0)
+/// v3 stored every boolean as an integer. `default` is what v3's own column
+/// default was, for a file predating the column.
+fn flag(row: &QueryResult, column: &str, default: bool) -> bool {
+    optional_integer(row, column).map_or(default, |value| value != 0)
 }
 
 /// A JSON text column. v3 wrote valid JSON into every one of them, but a
 /// hand-edited row is possible and losing the whole migration to one is not
 /// worth it: an unparseable value becomes null and the row keeps its shape.
-fn json(row: &QueryResult, index: usize) -> Result<Value> {
-    Ok(optional_text(row, index)?
+fn json(row: &QueryResult, column: &str) -> Value {
+    optional_text(row, column)
         .and_then(|text| serde_json::from_str(&text).ok())
-        .unwrap_or(Value::Null))
+        .unwrap_or(Value::Null)
 }
 
 /// A decimal kept as text, which is how v3 stored money.
-fn decimal(row: &QueryResult, index: usize) -> Result<Option<String>> {
-    optional_text(row, index)
+fn decimal(row: &QueryResult, column: &str) -> Option<String> {
+    optional_text(row, column)
+}
+
+/// An integer column narrowed to `u32`, with v3's default for an absent one.
+fn count(row: &QueryResult, column: &str, default: u32) -> u32 {
+    optional_integer(row, column)
+        .and_then(|value| u32::try_from(value).ok())
+        .unwrap_or(default)
 }
 
 // --------------------------------------------------------- row readers --
-
 fn organization(row: &QueryResult) -> Result<document::Organization> {
     Ok(document::Organization {
-        id: integer(row, 0)?,
-        name: text(row, 1)?,
-        enabled: flag(row, 2)?,
+        id: integer(row, "id")?,
+        name: text(row, "name")?,
+        enabled: flag(row, "enabled", true),
     })
 }
 
 fn team(row: &QueryResult) -> Result<document::Team> {
     Ok(document::Team {
-        id: integer(row, 0)?,
-        organization_id: integer(row, 1)?,
-        name: text(row, 2)?,
-        enabled: flag(row, 3)?,
+        id: integer(row, "id")?,
+        organization_id: integer(row, "organization_id")?,
+        name: text(row, "name")?,
+        enabled: flag(row, "enabled", true),
     })
 }
 
 fn user(row: &QueryResult) -> Result<document::User> {
     Ok(document::User {
-        id: integer(row, 0)?,
-        name: text(row, 1)?,
-        organization_id: optional_integer(row, 2)?,
-        team_id: optional_integer(row, 3)?,
-        enabled: flag(row, 4)?,
-        is_admin: flag(row, 5)?,
+        password_hash: optional_text(row, "password_hash"),
+        id: integer(row, "id")?,
+        name: text(row, "name")?,
+        organization_id: optional_integer(row, "organization_id"),
+        team_id: optional_integer(row, "team_id"),
+        enabled: flag(row, "enabled", true),
+        // Added at schema version 1 with a `0` default.
+        is_admin: flag(row, "is_admin", false),
     })
 }
 
 fn provider(row: &QueryResult) -> Result<document::Provider> {
     Ok(document::Provider {
-        id: integer(row, 0)?,
-        name: text(row, 1)?,
-        channel: text(row, 2)?,
-        settings: json(row, 3)?,
-        enabled: flag(row, 4)?,
-        label: optional_text(row, 5)?,
-        proxy_url: optional_text(row, 6)?,
-        credential_strategy: optional_text(row, 7)?,
+        id: integer(row, "id")?,
+        name: text(row, "name")?,
+        channel: text(row, "channel")?,
+        settings: json(row, "settings_json"),
+        enabled: flag(row, "enabled", true),
+        label: optional_text(row, "label"),
+        proxy_url: optional_text(row, "proxy_url"),
+        credential_strategy: optional_text(row, "credential_strategy"),
+        // v3's TLS fingerprint and traffic policy have no v4 form; they are
+        // not read rather than read and dropped.
         tls_fingerprint: None,
         traffic_policy: None,
     })
@@ -307,159 +370,166 @@ fn provider(row: &QueryResult) -> Result<document::Provider> {
 fn credential(row: &QueryResult) -> Result<document::Credential> {
     Ok(document::Credential {
         config: document::CredentialConfig {
-            id: integer(row, 0)?,
-            provider_id: integer(row, 1)?,
-            label: optional_text(row, 2)?,
-            version: integer(row, 7)?.max(0) as u64,
-            enabled: flag(row, 8)?,
-            weight: u32::try_from(integer(row, 9)?).unwrap_or(100),
-            rpm_limit: optional_integer(row, 10)?.and_then(|v| u32::try_from(v).ok()),
-            tpm_limit: optional_integer(row, 11)?.and_then(|v| u64::try_from(v).ok()),
-            proxy_url: optional_text(row, 12)?,
-            kind: text(row, 13)?,
+            id: integer(row, "id")?,
+            provider_id: integer(row, "provider_id")?,
+            label: optional_text(row, "label"),
+            version: optional_integer(row, "version").unwrap_or(1).max(0) as u64,
+            enabled: flag(row, "enabled", true),
+            // v3's column default.
+            weight: count(row, "weight", 100),
+            rpm_limit: optional_integer(row, "rpm_limit").and_then(|v| u32::try_from(v).ok()),
+            tpm_limit: optional_integer(row, "tpm_limit").and_then(|v| u64::try_from(v).ok()),
+            proxy_url: optional_text(row, "proxy_url"),
+            // v3's column default, for a file predating the column.
+            kind: optional_text(row, "kind").unwrap_or_else(|| "api_key".to_owned()),
         },
         secret: Some(document::Envelope {
-            ciphertext: blob(row, 3)?,
-            wrapped_key: blob(row, 4)?,
-            payload_nonce: blob(row, 5)?,
-            key_nonce: blob(row, 6)?,
+            ciphertext: blob(row, "ciphertext")?,
+            wrapped_key: blob(row, "wrapped_key")?,
+            payload_nonce: blob(row, "payload_nonce")?,
+            key_nonce: blob(row, "key_nonce")?,
         }),
     })
 }
 
 fn user_key(row: &QueryResult) -> Result<document::UserKey> {
     // Nullable in v3: only a key created as revealable kept its text.
-    let ciphertext = optional_blob(row, 8)?;
-    let secret = ciphertext.map(|ciphertext| document::Envelope {
+    let secret = optional_blob(row, "ciphertext").map(|ciphertext| document::Envelope {
         ciphertext,
-        wrapped_key: optional_blob(row, 9).ok().flatten().unwrap_or_default(),
-        payload_nonce: optional_blob(row, 10).ok().flatten().unwrap_or_default(),
-        key_nonce: optional_blob(row, 11).ok().flatten().unwrap_or_default(),
+        wrapped_key: optional_blob(row, "wrapped_key").unwrap_or_default(),
+        payload_nonce: optional_blob(row, "payload_nonce").unwrap_or_default(),
+        key_nonce: optional_blob(row, "key_nonce").unwrap_or_default(),
     });
     Ok(document::UserKey {
         config: document::UserKeyConfig {
-            id: integer(row, 0)?,
-            user_id: integer(row, 1)?,
-            prefix: optional_text(row, 4)?,
-            label: optional_text(row, 5)?,
-            expires_at: optional_integer(row, 6)?,
-            enabled: flag(row, 7)?,
+            id: integer(row, "id")?,
+            user_id: integer(row, "user_id")?,
+            prefix: optional_text(row, "prefix"),
+            label: optional_text(row, "label"),
+            expires_at: optional_integer(row, "expires_at"),
+            enabled: flag(row, "enabled", true),
         },
-        digest: blob(row, 2)?,
-        digest_version: u32::try_from(integer(row, 3)?).unwrap_or(0),
+        digest: blob(row, "digest")?,
+        // v3's column default, and the only version it ever wrote.
+        digest_version: count(row, "digest_version", document::DIGEST_VERSION),
         secret,
     })
 }
 
 fn quota(row: &QueryResult) -> Result<document::Quota> {
     Ok(document::Quota {
-        id: integer(row, 0)?,
-        subject_kind: text(row, 1)?,
-        subject_id: integer(row, 2)?,
-        quota_total: decimal(row, 3)?,
-        quota_daily: decimal(row, 4)?,
-        quota_weekly: decimal(row, 5)?,
-        quota_monthly: decimal(row, 6)?,
-        quota_5h: decimal(row, 7)?,
-        quota_7d: decimal(row, 8)?,
-        enabled: flag(row, 9)?,
+        id: integer(row, "id")?,
+        subject_kind: text(row, "subject_kind")?,
+        subject_id: integer(row, "subject_id")?,
+        quota_total: decimal(row, "quota_total"),
+        quota_daily: decimal(row, "quota_daily"),
+        quota_weekly: decimal(row, "quota_weekly"),
+        quota_monthly: decimal(row, "quota_monthly"),
+        quota_5h: decimal(row, "quota_5h"),
+        quota_7d: decimal(row, "quota_7d"),
+        enabled: flag(row, "enabled", true),
     })
 }
 
 fn price_rule(row: &QueryResult) -> Result<document::PriceRule> {
     Ok(document::PriceRule {
-        id: integer(row, 0)?,
-        provider_id: optional_integer(row, 1)?,
-        model_pattern: text(row, 2)?,
-        tiers: match json(row, 3)? {
+        id: integer(row, "id")?,
+        provider_id: optional_integer(row, "provider_id"),
+        model_pattern: text(row, "model_pattern")?,
+        tiers: match json(row, "tiers_json") {
             Value::Null => None,
             value => Some(value),
         },
-        priority: integer(row, 4)?,
-        enabled: flag(row, 5)?,
+        priority: optional_integer(row, "priority").unwrap_or_default(),
+        enabled: flag(row, "enabled", true),
     })
 }
 
 fn price_rate(row: &QueryResult) -> Result<document::PriceRate> {
     Ok(document::PriceRate {
-        id: integer(row, 0)?,
-        rule_id: integer(row, 1)?,
-        metric: text(row, 2)?,
-        unit_size: u64::try_from(integer(row, 3)?).unwrap_or(1),
-        price: text(row, 4)?,
-        conditions: match json(row, 5)? {
+        id: integer(row, "id")?,
+        rule_id: integer(row, "rule_id")?,
+        metric: text(row, "metric")?,
+        unit_size: optional_integer(row, "unit_size")
+            .and_then(|value| u64::try_from(value).ok())
+            .unwrap_or(1),
+        price: text(row, "price")?,
+        conditions: match json(row, "conditions_json") {
             Value::Null => None,
             value => Some(value),
         },
-        priority: integer(row, 6)?,
+        priority: optional_integer(row, "priority").unwrap_or_default(),
     })
 }
 
 fn route(row: &QueryResult) -> Result<document::Route> {
     Ok(document::Route {
-        id: integer(row, 0)?,
-        name: text(row, 1)?,
-        strategy: optional_text(row, 2)?,
-        max_attempts: u32::try_from(integer(row, 3)?).unwrap_or(1),
-        enabled: flag(row, 4)?,
+        id: integer(row, "id")?,
+        name: text(row, "name")?,
+        // Added at schema version 9 (`RouteStrategies`) with a `weighted`
+        // default, and absent from every earlier file — including the local
+        // development database, which is at version 7.
+        strategy: optional_text(row, "strategy"),
+        max_attempts: count(row, "max_attempts", 1),
+        enabled: flag(row, "enabled", true),
     })
 }
 
 fn route_member(row: &QueryResult) -> Result<document::RouteMember> {
     Ok(document::RouteMember {
-        id: integer(row, 0)?,
-        route_id: integer(row, 1)?,
-        provider_id: integer(row, 2)?,
-        upstream_model: text(row, 3)?,
-        tier: u32::try_from(integer(row, 4)?).unwrap_or(0),
-        weight: u32::try_from(integer(row, 5)?).unwrap_or(100),
-        enabled: flag(row, 6)?,
+        id: integer(row, "id")?,
+        route_id: integer(row, "route_id")?,
+        provider_id: integer(row, "provider_id")?,
+        upstream_model: text(row, "upstream_model")?,
+        tier: count(row, "tier", 0),
+        weight: count(row, "weight", 100),
+        enabled: flag(row, "enabled", true),
     })
 }
 
 fn alias(row: &QueryResult) -> Result<document::Alias> {
     Ok(document::Alias {
-        id: integer(row, 0)?,
-        alias: text(row, 1)?,
-        target: text(row, 2)?,
-        provider_id: optional_integer(row, 3)?,
-        priority: integer(row, 4)?,
-        enabled: flag(row, 5)?,
+        id: integer(row, "id")?,
+        alias: text(row, "alias")?,
+        target: text(row, "target")?,
+        provider_id: optional_integer(row, "provider_id"),
+        priority: optional_integer(row, "priority").unwrap_or_default(),
+        enabled: flag(row, "enabled", true),
     })
 }
 
 fn model_alias(row: &QueryResult) -> Result<document::ModelAlias> {
     Ok(document::ModelAlias {
-        id: integer(row, 0)?,
-        name: text(row, 1)?,
-        route_id: integer(row, 2)?,
-        enabled: flag(row, 3)?,
+        id: integer(row, "id")?,
+        name: text(row, "name")?,
+        route_id: integer(row, "route_id")?,
+        enabled: flag(row, "enabled", true),
     })
 }
 
 fn routing_rule(row: &QueryResult) -> Result<document::RoutingRule> {
     Ok(document::RoutingRule {
-        id: integer(row, 0)?,
-        provider_id: integer(row, 1)?,
-        operation: text(row, 2)?,
-        kind: text(row, 3)?,
-        implementation: text(row, 4)?,
-        dest_operation: optional_text(row, 5)?,
-        dest_kind: optional_text(row, 6)?,
-        sort_order: integer(row, 7)?,
-        enabled: flag(row, 8)?,
+        id: integer(row, "id")?,
+        provider_id: integer(row, "provider_id")?,
+        operation: text(row, "operation")?,
+        kind: text(row, "kind")?,
+        implementation: text(row, "implementation")?,
+        dest_operation: optional_text(row, "dest_operation"),
+        dest_kind: optional_text(row, "dest_kind"),
+        sort_order: optional_integer(row, "sort_order").unwrap_or_default(),
+        enabled: flag(row, "enabled", true),
         // The column the export DTO has no field for, and the one that decides
         // whether a row is operator intent or a seeded channel default.
-        origin: optional_text(row, 9)?,
+        origin: optional_text(row, "origin"),
     })
 }
 
 fn rule_set(row: &QueryResult) -> Result<document::RuleSet> {
     Ok(document::RuleSet {
-        id: integer(row, 0)?,
-        name: text(row, 1)?,
-        description: optional_text(row, 2)?,
-        enabled: flag(row, 3)?,
+        id: integer(row, "id")?,
+        name: text(row, "name")?,
+        description: optional_text(row, "description"),
+        enabled: flag(row, "enabled", true),
     })
 }
 
@@ -468,21 +538,21 @@ fn rule_set(row: &QueryResult) -> Result<document::RuleSet> {
 /// tagged object there; the locate is `{"type": …, "value": …}` there and
 /// `{"path": …}` here.
 fn rule(row: &QueryResult) -> Result<document::Rule> {
-    let id = integer(row, 0)?;
-    let kind = text(row, 2)?;
-    let stored = json(row, 3)?;
+    let id = integer(row, "id")?;
+    let kind = text(row, "kind")?;
+    let stored = json(row, "config_json");
     let config = rule_config(&kind, &stored).ok_or_else(|| {
         Error::other(format!(
-            "v3 rule {id} has kind `{kind}` with a config this migration cannot read. v3 wrote \
+            "rule {id} has kind `{kind}` with a config this migration cannot read. v3 wrote \
              five kinds: system_text, cache_breakpoint, rewrite, transform, header."
         ))
     })?;
     Ok(document::Rule {
         id,
-        rule_set_id: integer(row, 1)?,
+        rule_set_id: integer(row, "rule_set_id")?,
         config,
-        filter_model_pattern: optional_text(row, 4)?,
-        filter_operations: match json(row, 5)? {
+        filter_model_pattern: optional_text(row, "filter_model_pattern"),
+        filter_operations: match json(row, "filter_operations_json") {
             Value::Array(items) => Some(
                 items
                     .into_iter()
@@ -491,9 +561,9 @@ fn rule(row: &QueryResult) -> Result<document::Rule> {
             ),
             _ => None,
         },
-        filter_header_pattern: optional_text(row, 6)?,
-        sort_order: integer(row, 7)?,
-        enabled: flag(row, 8)?,
+        filter_header_pattern: optional_text(row, "filter_header_pattern"),
+        sort_order: optional_integer(row, "sort_order").unwrap_or_default(),
+        enabled: flag(row, "enabled", true),
     })
 }
 
@@ -524,46 +594,56 @@ fn rule_config(kind: &str, stored: &Value) -> Option<document::RuleConfig> {
 
 fn provider_rule_set(row: &QueryResult) -> Result<document::ProviderRuleSet> {
     Ok(document::ProviderRuleSet {
-        id: integer(row, 0)?,
-        provider_id: integer(row, 1)?,
-        rule_set_id: integer(row, 2)?,
-        sort_order: integer(row, 3)?,
-        enabled: flag(row, 4)?,
+        id: integer(row, "id")?,
+        provider_id: integer(row, "provider_id")?,
+        rule_set_id: integer(row, "rule_set_id")?,
+        sort_order: optional_integer(row, "sort_order").unwrap_or_default(),
+        enabled: flag(row, "enabled", true),
     })
 }
 
 fn permission(row: &QueryResult) -> Result<document::Permission> {
     Ok(document::Permission {
-        id: integer(row, 0)?,
-        subject_kind: text(row, 1)?,
-        subject_id: integer(row, 2)?,
-        provider_id: optional_integer(row, 3)?,
-        operation_group: optional_text(row, 4)?,
-        model_pattern: optional_text(row, 5)?,
-        allowed: flag(row, 6)?,
+        id: integer(row, "id")?,
+        subject_kind: text(row, "subject_kind")?,
+        subject_id: integer(row, "subject_id")?,
+        provider_id: optional_integer(row, "provider_id"),
+        operation_group: optional_text(row, "operation_group"),
+        // Added at schema version 8 (`ModelPermissions`); absent in a version
+        // 7 file, where a rule covered every model.
+        model_pattern: optional_text(row, "model_pattern"),
+        allowed: flag(row, "allowed", false),
     })
 }
 
 fn rate_limit(row: &QueryResult) -> Result<document::RateLimit> {
     Ok(document::RateLimit {
-        id: integer(row, 0)?,
-        subject_kind: text(row, 1)?,
-        subject_id: integer(row, 2)?,
-        requests: u64::try_from(integer(row, 3)?).unwrap_or(0),
-        window_seconds: u64::try_from(integer(row, 4)?).unwrap_or(60),
+        id: integer(row, "id")?,
+        subject_kind: text(row, "subject_kind")?,
+        subject_id: integer(row, "subject_id")?,
+        requests: optional_integer(row, "requests")
+            .and_then(|value| u64::try_from(value).ok())
+            .unwrap_or_default(),
+        window_seconds: optional_integer(row, "window_seconds")
+            .and_then(|value| u64::try_from(value).ok())
+            .unwrap_or(60),
     })
 }
 
 fn provider_model(row: &QueryResult) -> Result<document::ProviderModel> {
     Ok(document::ProviderModel {
-        id: integer(row, 0)?,
-        provider_id: integer(row, 1)?,
-        model_id: text(row, 2)?,
-        display_name: optional_text(row, 3)?,
-        context_window: optional_integer(row, 4)?,
-        max_output_tokens: optional_integer(row, 5)?,
+        id: integer(row, "id")?,
+        provider_id: integer(row, "provider_id")?,
+        model_id: text(row, "model_id")?,
+        display_name: optional_text(row, "display_name"),
+        // v3 spread a model's capabilities over forty columns and five side
+        // tables. Only the two v4's metadata has a home for are read; the rest
+        // is reported as not migrated.
+        context_window: optional_integer(row, "context_window")
+            .or_else(|| optional_integer(row, "max_context_window")),
+        max_output_tokens: optional_integer(row, "max_output_tokens"),
         metadata: Value::Null,
-        enabled: flag(row, 6)?,
+        enabled: flag(row, "enabled", true),
     })
 }
 
@@ -577,7 +657,7 @@ async fn settings(connection: &DatabaseConnection) -> Result<BTreeMap<String, Va
         .map_err(|error| Error::other(format!("reading v3 settings: {error}")))?;
     let mut out = BTreeMap::new();
     for row in &found {
-        out.insert(text(row, 0)?, json(row, 1)?);
+        out.insert(text(row, "key")?, json(row, "value_json"));
     }
     Ok(out)
 }

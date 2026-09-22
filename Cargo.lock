@@ -2726,6 +2726,7 @@ dependencies = [
  "http",
  "regex",
  "reqwest 0.13.5",
+ "rust_decimal",
  "sea-orm",
  "self-replace",
  "semver",

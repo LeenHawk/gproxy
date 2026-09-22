@@ -52,7 +52,7 @@
 //!
 //! Every one of those is named row by row in the [`Report`], not summarized.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use gproxy_sdk::dto::{
     ConfigurationDataDto, ConfigurationExportDto, ConnectionProfileDto, CredentialDto,
@@ -83,12 +83,18 @@ const RPM_PERIOD_SECONDS: i64 = 60;
 pub struct Configuration {
     pub export: ConfigurationExportDto,
     pub report: Report,
+    pub dropped_providers: BTreeSet<i64>,
 }
 
 /// Translate the configuration half. `bridge` opens v3's sealed credentials and
 /// re-seals them for the sdk; `timestamp` is what every `created_at_ms` column
 /// v3 never had becomes.
-pub fn translate(document: &Document, bridge: &Bridge, timestamp: i64) -> Result<Configuration> {
+pub fn translate(
+    document: &Document,
+    bridge: &Bridge,
+    timestamp: i64,
+    skip_unmappable: bool,
+) -> Result<Configuration> {
     let mut report = Report::default();
     let data = &document.data;
 
@@ -99,9 +105,16 @@ pub fn translate(document: &Document, bridge: &Bridge, timestamp: i64) -> Result
     // so every secret is opened first, the providers are translated from them,
     // and only then is each secret re-sealed, minus whatever moved out of it.
     let opened = open_secrets(data, bridge)?;
-    let providers = providers(data, &opened, &profiles, timestamp, &mut report)?;
+    let providers = providers(
+        data,
+        &opened,
+        &profiles,
+        timestamp,
+        skip_unmappable,
+        &mut report,
+    )?;
     let credentials = credentials(data, &opened, &providers, bridge, &profiles, &mut report)?;
-    let (price_rules, price_tiers) = price_rules(data, &mut report);
+    let (price_rules, price_tiers) = price_rules(data, &providers, &mut report);
     let (rewrite_rules, rule_sets) = rewrite_rules(data, &mut report);
 
     report.count("connection_profiles", profiles.rows.len() as u64);
@@ -112,24 +125,91 @@ pub fn translate(document: &Document, bridge: &Bridge, timestamp: i64) -> Result
     report.count("rewrite_rules", rewrite_rules.len() as u64);
     report.count("rewrite_rule_sets", rule_sets.len() as u64);
 
-    let provider_models: Vec<ProviderModelDto> =
-        data.provider_models.iter().map(provider_model).collect();
+    let provider_models: Vec<ProviderModelDto> = data
+        .provider_models
+        .iter()
+        .filter(|row| {
+            providers.kept(row.provider_id) || {
+                providers.cascade(
+                    &mut report,
+                    "provider_models",
+                    format!("model {} ({})", row.id, row.model_id),
+                    row.provider_id,
+                );
+                false
+            }
+        })
+        .map(provider_model)
+        .collect();
     report.count("provider_models", provider_models.len() as u64);
 
     let routes: Vec<RouteDto> = data.routes.iter().map(route).collect();
     report.count("routes", routes.len() as u64);
-    let route_members: Vec<RouteMemberDto> = data.route_members.iter().map(route_member).collect();
+    let route_members: Vec<RouteMemberDto> = data
+        .route_members
+        .iter()
+        .filter(|row| {
+            providers.kept(row.provider_id) || {
+                providers.cascade(
+                    &mut report,
+                    "route_members",
+                    format!("member {} of route {}", row.id, row.route_id),
+                    row.provider_id,
+                );
+                false
+            }
+        })
+        .map(route_member)
+        .collect();
     report.count("route_members", route_members.len() as u64);
     let exposed_models: Vec<ExposedModelDto> =
         data.model_aliases.iter().map(exposed_model).collect();
     report.count("exposed_models", exposed_models.len() as u64);
 
-    let price_rates: Vec<PriceRateDto> = data.price_rates.iter().map(price_rate).collect();
+    // Only the rates of rules that survived: a rate whose rule was left behind
+    // would name a price rule the import has never heard of.
+    let kept_rules: BTreeSet<i64> = data
+        .price_rules
+        .iter()
+        .filter(|row| row.provider_id.is_none_or(|id| providers.kept(id)))
+        .map(|row| row.id)
+        .collect();
+    let mut price_rates: Vec<PriceRateDto> = data
+        .price_rates
+        .iter()
+        .filter(|row| {
+            if kept_rules.contains(&row.rule_id) {
+                true
+            } else {
+                report.drop_row(
+                    "price_rates",
+                    format!("rate {}", row.id),
+                    "its price rule was left behind",
+                );
+                false
+            }
+        })
+        .map(price_rate)
+        .collect();
+    for rate in &mut price_rates {
+        rate.value = money(&rate.value, &rate.id, &mut report)?;
+    }
     report.count("price_rates", price_rates.len() as u64);
 
     let provider_rewrite_rule_sets: Vec<ProviderRuleSetDto> = data
         .provider_rule_sets
         .iter()
+        .filter(|row| {
+            providers.kept(row.provider_id) || {
+                providers.cascade(
+                    &mut report,
+                    "provider_rule_sets",
+                    format!("attachment {} of rule set {}", row.id, row.rule_set_id),
+                    row.provider_id,
+                );
+                false
+            }
+        })
         .map(|row| provider_rule_set(row, timestamp))
         .collect();
     report.count(
@@ -137,8 +217,11 @@ pub fn translate(document: &Document, bridge: &Bridge, timestamp: i64) -> Result
         provider_rewrite_rule_sets.len() as u64,
     );
 
-    let mut quotas = quotas(data, &mut report);
-    quotas.extend(credential_limits(data, &mut report));
+    let mut quotas = quotas(data, &providers, &mut report);
+    quotas.extend(credential_limits(data, &providers, &mut report));
+    for quota in &mut quotas {
+        quota.limit_value = money(&quota.limit_value, &quota.id, &mut report)?;
+    }
     report.count("quotas", quotas.len() as u64);
 
     refuse_unmappable(data, &mut report);
@@ -177,6 +260,7 @@ pub fn translate(document: &Document, bridge: &Bridge, timestamp: i64) -> Result
             },
         },
         report,
+        dropped_providers: providers.dropped,
     })
 }
 
@@ -295,6 +379,28 @@ struct Providers {
     /// v3 provider id → keys its credentials no longer carry, because the
     /// channel recipe lifted them into the provider row.
     strip: BTreeMap<i64, Vec<&'static str>>,
+    /// v3 provider ids left behind under `--skip-unmappable-providers`.
+    /// Everything that points at one has to be left behind with it, or the
+    /// import would refuse on a dangling reference.
+    dropped: BTreeSet<i64>,
+}
+
+impl Providers {
+    fn kept(&self, provider_id: i64) -> bool {
+        !self.dropped.contains(&provider_id)
+    }
+
+    /// Report one row that is only being left behind because its provider was.
+    fn cascade(&self, report: &mut Report, table: &'static str, row: String, provider_id: i64) {
+        report.drop_row(
+            table,
+            row,
+            format!(
+                "its provider ({provider_id}) was left behind by \
+                 --skip-unmappable-providers"
+            ),
+        );
+    }
 }
 
 fn providers(
@@ -302,10 +408,12 @@ fn providers(
     opened: &Opened,
     profiles: &Profiles,
     timestamp: i64,
+    skip_unmappable: bool,
     report: &mut Report,
 ) -> Result<Providers> {
     let mut rows = Vec::with_capacity(data.providers.len());
     let mut strip = BTreeMap::new();
+    let mut dropped = BTreeSet::new();
     for row in &data.providers {
         // v3 had a `name` and a display `label`; v4 has one name, and the
         // label is the one a person chose.
@@ -317,12 +425,34 @@ fn providers(
             .unwrap_or(row.name.as_str())
             .to_owned();
         // The channel is a rule, not a rename: see [`super::channels`].
-        let translated = channels::provider(
+        let translated = match channels::provider(
             &row.channel,
             &name,
             &row.settings,
             &opened.of_provider(data, row.id),
-        )?;
+        ) {
+            Ok(translated) => translated,
+            // Loud by default: a provider whose channel has no v4 form is a
+            // provider that cannot serve a request, and importing it would be
+            // the silent dead row this migration exists to avoid. The operator
+            // can say "leave those behind" once, deliberately, and then it is
+            // reported instead of refused.
+            Err(error) if skip_unmappable => {
+                report.drop_row(
+                    "providers",
+                    format!("provider {} ({name}), channel `{}`", row.id, row.channel),
+                    error.to_string(),
+                );
+                dropped.insert(row.id);
+                continue;
+            }
+            Err(error) => {
+                return Err(Error::other(format!(
+                    "{error}\n\nOr re-run with --skip-unmappable-providers to leave this \
+                     provider and everything that points at it behind, and migrate the rest."
+                )));
+            }
+        };
         if let Some(note) = translated.note {
             report.warn(format!("provider {} ({name}): {note}", row.id));
         }
@@ -340,7 +470,11 @@ fn providers(
             created_at_ms: timestamp,
         });
     }
-    Ok(Providers { rows, strip })
+    Ok(Providers {
+        rows,
+        strip,
+        dropped,
+    })
 }
 
 /// v4 requires `config` to be an object; v3 stored whatever the channel put
@@ -409,6 +543,19 @@ fn credentials(
     use base64::Engine;
     let mut out = Vec::with_capacity(data.credentials.len());
     for row in &data.credentials {
+        if !providers.kept(row.config.provider_id) {
+            providers.cascade(
+                report,
+                "credentials",
+                format!(
+                    "credential {} ({})",
+                    row.config.id,
+                    row.config.label.as_deref().unwrap_or("unlabelled")
+                ),
+                row.config.provider_id,
+            );
+            continue;
+        }
         let id = ids::id("credentials", row.config.id);
         // Opened in one pass before the providers were translated, because two
         // of v4's channel recipes are built out of these.
@@ -552,11 +699,25 @@ fn provider_model(row: &document::ProviderModel) -> ProviderModelDto {
 
 fn price_rules(
     data: &document::Data,
+    providers: &Providers,
     report: &mut Report,
 ) -> (Vec<PriceRuleDto>, Vec<PriceTierDto>) {
     let mut rules = Vec::with_capacity(data.price_rules.len());
     let mut tiers = Vec::new();
     for row in &data.price_rules {
+        // A global rule (no provider) always survives; a provider-scoped one
+        // goes wherever its provider went.
+        if let Some(provider_id) = row.provider_id
+            && !providers.kept(provider_id)
+        {
+            providers.cascade(
+                report,
+                "price_rules",
+                format!("rule {} ({})", row.id, row.model_pattern),
+                provider_id,
+            );
+            continue;
+        }
         let id = ids::id("price_rules", row.id);
         rules.push(PriceRuleDto {
             id: id.clone(),
@@ -629,6 +790,20 @@ fn price_tiers(rule_id: &str, row: &document::PriceRule, report: &mut Report) ->
         .collect()
 }
 
+/// Use the store's own rounding rule when v3's decimal exceeds its scale.
+fn money(value: &str, row: &str, report: &mut Report) -> Result<String> {
+    let decimal = rust_decimal::Decimal::from_str_exact(value)
+        .map_err(|error| Error::other(format!("{row}: invalid amount `{value}`: {error}")))?;
+    let rounded = gproxy_seaorm::FixedDecimal::rounded(decimal)
+        .map_err(|error| Error::other(format!("{row}: amount `{value}` cannot fit v4: {error}")))?;
+    if rounded.decimal() != decimal {
+        report.warn(format!(
+            "{row}: amount {value} was rounded to {rounded} at v4's 9-decimal scale"
+        ));
+    }
+    Ok(rounded.to_string())
+}
+
 fn price_rate(row: &document::PriceRate) -> PriceRateDto {
     PriceRateDto {
         id: ids::id("price_rates", row.id),
@@ -666,9 +841,24 @@ fn price_unit(metric: &str) -> &'static str {
 /// under the names the admission chain uses (`api_key`, `user`, `team`, `org`,
 /// `credential`), and each non-null column becomes one row keyed by the column
 /// it came from.
-fn quotas(data: &document::Data, report: &mut Report) -> Vec<QuotaDto> {
+fn quotas(data: &document::Data, providers: &Providers, report: &mut Report) -> Vec<QuotaDto> {
     let mut out = Vec::new();
     for row in &data.quotas {
+        if row.subject_kind == "credential"
+            && let Some(credential) = data
+                .credentials
+                .iter()
+                .find(|c| c.config.id == row.subject_id)
+            && !providers.kept(credential.config.provider_id)
+        {
+            providers.cascade(
+                report,
+                "quotas",
+                format!("quota {}", row.id),
+                credential.config.provider_id,
+            );
+            continue;
+        }
         let Some((owner_kind, owner_id)) = owner(&row.subject_kind, row.subject_id) else {
             report.drop_row(
                 "quotas",
@@ -717,9 +907,16 @@ fn quotas(data: &document::Data, report: &mut Report) -> Vec<QuotaDto> {
 
 /// v3's per-credential request ceiling, as the operator limit v4 spells it
 /// with. `tpm_limit` has no v4 form and is reported by [`credentials`].
-fn credential_limits(data: &document::Data, report: &mut Report) -> Vec<QuotaDto> {
+fn credential_limits(
+    data: &document::Data,
+    providers: &Providers,
+    report: &mut Report,
+) -> Vec<QuotaDto> {
     let mut out = Vec::new();
     for row in &data.credentials {
+        if !providers.kept(row.config.provider_id) {
+            continue;
+        }
         let Some(rpm) = row.config.rpm_limit.filter(|limit| *limit > 0) else {
             continue;
         };
@@ -940,6 +1137,7 @@ mod tests {
             &document(data),
             &Bridge::new(None).unwrap(),
             1_700_000_000_000,
+            false,
         )
         .unwrap()
     }
@@ -1008,7 +1206,7 @@ mod tests {
         let document = document(json!({"credentials": [
             {"config": {"id": 1, "provider_id": 1, "label": "prod"}, "secret": null}
         ]}));
-        let error = translate(&document, &Bridge::new(None).unwrap(), 0)
+        let error = translate(&document, &Bridge::new(None).unwrap(), 0, false)
             .unwrap_err()
             .to_string();
         assert!(error.contains("include_secrets"), "{error}");

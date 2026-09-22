@@ -108,7 +108,7 @@ async fn migrate_refuses_a_database_this_build_did_not_create() {
     let settings = settings(directory.path(), AdminOptions::default());
     let connection = instance::connect(&settings.config).await.unwrap();
     for statement in [
-        "CREATE TABLE schema_migrations (version varchar NOT NULL PRIMARY KEY)",
+        "CREATE TABLE unrelated_migrations (version varchar NOT NULL PRIMARY KEY)",
         "CREATE TABLE users (id integer NOT NULL PRIMARY KEY, name varchar)",
     ] {
         connection.execute_unprepared(statement).await.unwrap();
@@ -119,15 +119,22 @@ async fn migrate_refuses_a_database_this_build_did_not_create() {
         .await
         .expect_err("a database with a foreign schema")
         .to_string();
-    assert!(error.contains(gproxy_store::MIGRATION_LEDGER), "{error}");
+    assert!(error.contains("neither GPROXY"), "{error}");
     assert!(error.contains("schema_migrations"), "{error}");
-    assert_eq!(tables(&settings).await, ["schema_migrations", "users"]);
+    assert_eq!(tables(&settings).await, ["unrelated_migrations", "users"]);
 }
 
 /// The tables in the instance's database, sorted, engine-owned ones excluded.
 async fn tables(settings: &Settings) -> Vec<String> {
     use sea_orm::{ConnectionTrait, DbBackend, Statement};
-    let connection = instance::connect(&settings.config).await.unwrap();
+    let connection = sea_orm::Database::connect(format!(
+        "sqlite://{}?mode=ro",
+        std::path::Path::new(settings.config.data_dir.as_deref().unwrap())
+            .join("gproxy.db")
+            .display()
+    ))
+    .await
+    .unwrap();
     let mut names: Vec<String> = connection
         .query_all_raw(Statement::from_string(
             DbBackend::Sqlite,
