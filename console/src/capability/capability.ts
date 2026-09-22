@@ -23,6 +23,7 @@
 //! instance-admin management pages through the adapter below.
 
 import type { PortalContextDto } from "@/generated/app"
+import { SETTINGS_ACCESS } from "@/api/settings"
 import { PROVIDERS_READ } from "@/api/configuration"
 
 /**
@@ -116,6 +117,7 @@ function fromPortalContext(context: PortalContextDto) {
   if (context.user.role === "admin") {
     scopes.push({ kind: "instance" })
     capabilities.add(PROVIDERS_READ)
+    capabilities.add(SETTINGS_ACCESS)
     for (const family of IDENTITY_FAMILIES) capabilities.add(`identity.${family}`)
   }
   for (const entry of context.organizations) {

@@ -256,6 +256,20 @@ revision 提交**，因此任何一处被拒绝的文档什么也不会留下。
 
 ## settings 行
 
+控制台的「系统 → 全局设置」直接修改该行；只提交已修改字段，不覆盖其他设置。
+实例名称显示在侧栏及网页标题，版本和完整 Git hash 可从 `/info` 读取。
+
+- `corsOrigins`、`trustedProxies` 按当前快照读取；启动值只在新建 settings 行时初始化。
+- 原生 `gproxy serve` 跟随数据库更新进程日志级别／格式、更新通道和自动检查开关。
+- `enableTokenizerVocabs=false` 停用自定义词表并回退内置计数；不删除词表文件。
+- `enableTokenizerDownload=false` 拒绝新下载；已有词表是否使用由前一个开关控制。
+- `retentionDays` 清理超过保留期的已结束请求历史、抓包及其事件；未设置时不按时间清理。
+- `maxDatabaseSizeMb` 以 MiB 限制 SQLite 历史数据占用，从最旧的已完成记录开始清理并回收空页。
+  未设置或 0 不启用此限制。配置和进行中的请求不删除，因此该值不是整个数据库的硬配额。
+  自动清理由原生服务每分钟执行；已结算账目、配额计数、配置及审计记录保持不变。
+- `defaultFileStorageName`、`maxInFlight`、`fileUploadMaxInFlight` 已移除，不是可设置项。
+
+
 运行期设置在数据库里，改了不用重启。
 
 ```sh
@@ -271,7 +285,6 @@ curl -s -X PATCH http://127.0.0.1:7070/admin/api/settings \
 | --- | --- | --- |
 | `instanceName` | `default` | 随用量一起记录 |
 | `maxAttempts` | `6` | 一个计划上游尝试次数的硬上限；路由自己的预算被它钳住 |
-| `maxInFlight` | `1024` | 并发请求数 |
 | `requestTimeoutMs` | `600000` | 整请求截止时间 |
 | `streamIdleTimeoutMs` | `60000` | 流单元之间的间隔 |
 | `maxRequestBodyBytes` | `67108864` | 超过它的流式体保持流式，计划随之裁剪为单个目标 |

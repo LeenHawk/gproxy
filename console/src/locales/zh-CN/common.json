@@ -80,7 +80,8 @@
     "people": "成员与组织",
     "access": "访问控制",
     "billing": "套餐与资源",
-    "providers": "供应商"
+    "providers": "供应商",
+    "system": "系统"
   },
   "range": {
     "day": "24 小时",

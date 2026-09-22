@@ -22,7 +22,7 @@ describe("the navigation", () => {
 
   it("groups operator navigation by task", () => {
     const sections = sectionsFor(derived("admin"))
-    expect(sections.map((section) => section.id)).toEqual(["self", "providers", "people", "access", "billing"])
+    expect(sections.map((section) => section.id)).toEqual(["self", "providers", "people", "access", "billing", "system"])
   })
 
   // `canSeeLogs` is an instance setting, not a role: the item disappears
@@ -37,6 +37,7 @@ describe("the navigation", () => {
     expect(mayEnter(derived("user"), "/identity/users")).toBe(false)
     expect(mayEnter(derived("admin"), "/identity/users")).toBe(true)
     expect(mayEnter(derived("user"), "/keys")).toBe(true)
+    expect(mayEnter(derived("user"), "/settings")).toBe(false)
     expect(mayEnter(derived("user"), "/providers/p1/models")).toBe(false)
     expect(mayEnter(derived("admin"), "/providers/p1/models")).toBe(true)
   })

@@ -6,10 +6,11 @@
 //! instance operator sees that section and the administrative groups, in the same
 //! shell, without a second application being loaded.
 
-import { useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { ChevronRight, ChevronsUpDown, CircleUserRound, Languages, LogOut, Menu, Moon, Search, Sun, Waypoints } from "lucide-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { INFO_KEY, instanceInfo } from "@/api/settings"
 import { signOut } from "@/api/session"
 import { PROVIDERS_READ, PROVIDER_NAV_KEY, providerDirectory, providerPath } from "@/api/configuration"
 import { useConsoleContext } from "@/capability/session"
@@ -93,10 +94,13 @@ function AccountMenu() {
 }
 
 function Brand({ onNavigate }: { onNavigate?: () => void }) {
+  const info = useQuery({ queryKey: INFO_KEY, queryFn: instanceInfo })
+  const name = info.data?.instanceName === "default" ? "GPROXY" : info.data?.instanceName ?? "GPROXY"
+  useEffect(() => { document.title = name }, [name])
   return (
     <Link to="/" onClick={onNavigate} className="flex shrink-0 items-center gap-2.5 font-semibold tracking-tight">
       <img src={`${import.meta.env.BASE_URL}favicon-96x96.png`} alt="" className="size-9" />
-      <span>GPROXY</span>
+      <span className="max-w-36 truncate" title={name}>{name}</span>
     </Link>
   )
 }
@@ -167,6 +171,7 @@ function Sidebar({ sections, route, onNavigate }: {
   route: string
   onNavigate?: () => void
 }) {
+  const info = useQuery({ queryKey: INFO_KEY, queryFn: instanceInfo })
   return (
     <div className="flex h-full min-h-0 flex-col bg-sidebar text-sidebar-foreground">
       <div className="flex h-16 shrink-0 items-center px-5"><Brand onNavigate={onNavigate} /></div>
@@ -175,7 +180,10 @@ function Sidebar({ sections, route, onNavigate }: {
         <Navigation sections={sections} route={route} onNavigate={onNavigate} />
       </div>
       <Separator />
-      <div className="shrink-0 p-3"><AccountMenu /></div>
+      <div className="shrink-0 p-3">
+        <AccountMenu />
+        {info.data ? <div className="mt-2 flex justify-between px-3 text-xs text-muted-foreground"><span>v{info.data.version}</span><code title={info.data.hash}>{info.data.hash.slice(0, 9)}</code></div> : null}
+      </div>
     </div>
   )
 }

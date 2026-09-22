@@ -27,6 +27,7 @@ export default defineConfig({
   resolve: { alias: { "@": path.join(consoleDir, "src") } },
   server: {
     proxy: {
+      "/info": { target: backend, changeOrigin: true },
       // `changeOrigin` plus an explicit `origin` is what gets a dev request
       // past the same-origin check the host applies to unsafe methods.
       "/admin/api": { target: backend, changeOrigin: true, headers: { origin: backend } },

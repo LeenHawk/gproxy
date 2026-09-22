@@ -80,7 +80,8 @@
     "people": "成員與組織",
     "access": "存取控制",
     "billing": "方案與資源",
-    "providers": "供應商"
+    "providers": "供應商",
+    "system": "系統"
   },
   "range": {
     "day": "24 小時",

@@ -19,6 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
+import { SETTINGS_ACCESS } from "@/api/settings"
 import { PROVIDERS_READ } from "@/api/configuration"
 
 import { SELF_LOGS_READ, SELF_READ, type Capability, type ConsoleContext } from "@/capability/capability"
@@ -99,7 +100,9 @@ const BILLING: NavSection = {
   ],
 }
 
-const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, PEOPLE, ACCESS, BILLING]
+const SYSTEM: NavSection = { id: "system", icon: Settings2, items: [{ id: "settings", route: "/settings", needs: SETTINGS_ACCESS, icon: Settings2 }] }
+
+const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, PEOPLE, ACCESS, BILLING, SYSTEM]
 
 /** The sections this caller sees, with the items they may reach. */
 export function sectionsFor(context: ConsoleContext): Array<NavSection> {
