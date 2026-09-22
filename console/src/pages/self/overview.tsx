@@ -59,7 +59,7 @@ export function OverviewPage() {
 
   return (
     <Page>
-      <PageHeader title={t("overview.title", { name: context.userName })} description={t("description.overview")} />
+      <PageHeader title={t("overview.title", { name: context.userName })} />
 
       <PageSection title={t("overview.subscription")}>
         <SubscriptionCard />
@@ -67,7 +67,6 @@ export function OverviewPage() {
 
       <PageSection
         title={t("overview.usage")}
-        description={t("overview.usageDescription")}
         actions={<Link to="/usage" className="text-sm underline underline-offset-4">{t("actions.details")}</Link>}
       >
         <QueryState isPending={usage.isPending} error={usage.error} rows={2}>

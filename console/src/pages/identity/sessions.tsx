@@ -37,7 +37,7 @@ export function SessionsPage() {
 
   return (
     <Page>
-      <PageHeader title={t("nav.sessions")} description={t("description.sessions")} />
+      <PageHeader title={t("nav.sessions")} />
       <Input
         className="max-w-xs"
         placeholder={t("fields.userId")}
@@ -58,8 +58,7 @@ export function SessionsPage() {
             empty={<EmptyNotice title={t("state.emptyTitle")} />}
             actions={(row) => (
               <ConfirmButton
-                title={t("confirm.revokeTitle")}
-                description={t("confirm.revokeDescription", { name: row.id })}
+                title={t("confirm.revokeTitle", { name: row.id })}
                 confirmLabel={t("actions.revoke")}
                 onConfirm={() => revoke.mutate(row.id)}
               >

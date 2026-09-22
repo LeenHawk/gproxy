@@ -92,7 +92,7 @@ function ScopesCard() {
   const { t } = useTranslation()
   const context = useConsoleContext()
   if (context.organizations.length === 0 && context.teams.length === 0) {
-    return <EmptyNotice title={t("account.noScopes")} description={t("account.noScopesDescription")} />
+    return <EmptyNotice title={t("account.noScopes")} />
   }
   return (
     <ul className="space-y-2">
@@ -166,11 +166,10 @@ function GrantsCard() {
         ]}
         rows={list.data ?? []}
         rowKey={(row) => row.id}
-        empty={<EmptyNotice title={t("account.noGrants")} description={t("account.noGrantsDescription")} />}
+        empty={<EmptyNotice title={t("account.noGrants")} />}
         actions={(row) => (
           <ConfirmButton
-            title={t("confirm.revokeGrantTitle")}
-            description={t("confirm.revokeGrantDescription", { name: row.clientName ?? row.clientId })}
+            title={t("confirm.revokeGrantTitle", { name: row.clientName ?? row.clientId })}
             confirmLabel={t("actions.revoke")}
             onConfirm={() => revoke.mutate(row.id)}
           >
@@ -187,19 +186,19 @@ export function AccountPage() {
   const context = useConsoleContext()
   return (
     <Page>
-      <PageHeader title={t("nav.account")} description={t("description.account")} />
+      <PageHeader title={t("nav.account")} />
       {context.has(SELF_PASSWORD_CHANGE) ? (
-        <PageSection title={t("account.password")} description={t("account.passwordDescription")}>
+        <PageSection title={t("account.password")}>
           <PasswordCard />
         </PageSection>
       ) : null}
-      <PageSection title={t("account.scopes")} description={t("account.scopesDescription")}>
+      <PageSection title={t("account.scopes")}>
         <ScopesCard />
       </PageSection>
-      <PageSection title={t("account.sessions")} description={t("account.sessionsDescription")}>
+      <PageSection title={t("account.sessions")}>
         <SessionsCard />
       </PageSection>
-      <PageSection title={t("account.grants")} description={t("account.grantsDescription")}>
+      <PageSection title={t("account.grants")}>
         <GrantsCard />
       </PageSection>
     </Page>

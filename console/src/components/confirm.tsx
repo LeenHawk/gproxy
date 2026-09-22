@@ -1,17 +1,15 @@
-//! Destructive actions, and the two things a console owes them: a sentence
-//! that names what is about to happen, and a second click.
+//! Destructive actions name their target and ask for confirmation.
 
 import { useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 
-export function ConfirmButton({ title, description, confirmLabel, onConfirm, children, disabled }: {
+export function ConfirmButton({ title, confirmLabel, onConfirm, children, disabled }: {
   title: string
-  description: string
   confirmLabel?: string
   onConfirm: () => void
   children: ReactNode
@@ -23,10 +21,9 @@ export function ConfirmButton({ title, description, confirmLabel, onConfirm, chi
     <>
       <Button variant="ghost" size="sm" disabled={disabled} onClick={() => setOpen(true)}>{children}</Button>
       <AlertDialog open={open} onOpenChange={setOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent aria-describedby={undefined}>
           <AlertDialogHeader>
-            <AlertDialogTitle>{title}</AlertDialogTitle>
-            <AlertDialogDescription>{description}</AlertDialogDescription>
+            <AlertDialogTitle className="wrap-anywhere">{title}</AlertDialogTitle>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t("actions.cancel")}</AlertDialogCancel>

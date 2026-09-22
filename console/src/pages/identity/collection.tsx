@@ -101,7 +101,6 @@ export function CollectionPage<D, W, P>({
     <Page>
       <PageHeader
         title={t(`nav.${id}`)}
-        description={t(`description.${id}`)}
         actions={
           <Button size="sm" onClick={() => setCreating(true)}>
             <Plus /> {t("actions.new")}
@@ -122,15 +121,14 @@ export function CollectionPage<D, W, P>({
             columns={columns}
             rows={list.data?.items ?? []}
             rowKey={rowId}
-            empty={<EmptyNotice title={t("state.emptyTitle")} description={t("state.emptyDescription")} />}
+            empty={<EmptyNotice title={t("state.emptyTitle")} />}
             actions={(row) => (
               <>
                 {rowActions?.(row)}
                 <Button variant="ghost" size="sm" onClick={() => setEditing(row)}>{t("actions.edit")}</Button>
                 {deletable ? (
                   <ConfirmButton
-                    title={t("confirm.deleteTitle")}
-                    description={t("confirm.deleteDescription", { name: rowLabel(row) })}
+                    title={t("confirm.deleteTitle", { name: rowLabel(row) })}
                     onConfirm={() => removed.mutate(rowId(row))}
                   >
                     {t("actions.delete")}

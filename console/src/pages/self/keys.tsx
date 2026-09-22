@@ -22,7 +22,7 @@ import { Page, PageHeader } from "@/components/page"
 import { RecordDialog, type FormField } from "@/components/record-form"
 import { SecretDialog } from "@/components/secret-dialog"
 import { EmptyNotice, QueryState } from "@/components/state"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Alert, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 
 const KEYS = ["portal", "keys"] as const
@@ -61,12 +61,11 @@ export function KeysPage() {
 
   const fields: Array<FormField> = [
     { name: "name", kind: "text", required: true },
-    { name: "expiresAtMs", kind: "datetime", help: true },
+    { name: "expiresAtMs", kind: "datetime" },
     ...(context.organizations.length
       ? [{
         name: "organizationId",
         kind: "select" as const,
-        help: true,
         choices: context.organizations.map((entry) => ({ value: entry.id, label: entry.name })),
       }]
       : []),
@@ -77,14 +76,13 @@ export function KeysPage() {
         choices: context.teams.map((entry) => ({ value: entry.id, label: entry.name })),
       }]
       : []),
-    { name: "retainSecret", kind: "switch", help: true },
+    { name: "retainSecret", kind: "switch" },
   ]
 
   return (
     <Page>
       <PageHeader
         title={t("nav.keys")}
-        description={t("description.keys")}
         actions={
           mayWrite ? (
             <Button size="sm" onClick={() => setCreating(true)}><Plus /> {t("actions.new")}</Button>
@@ -94,7 +92,6 @@ export function KeysPage() {
       {mayWrite ? null : (
         <Alert>
           <AlertTitle>{t("keys.readOnlyTitle")}</AlertTitle>
-          <AlertDescription>{t("keys.readOnlyDescription")}</AlertDescription>
         </Alert>
       )}
       <QueryState isPending={list.isPending} error={list.error}>
@@ -109,7 +106,7 @@ export function KeysPage() {
           ]}
           rows={list.data ?? []}
           rowKey={(row) => row.id}
-          empty={<EmptyNotice title={t("keys.emptyTitle")} description={t("keys.emptyDescription")} />}
+          empty={<EmptyNotice title={t("keys.emptyTitle")} />}
           actions={(row) => (
             <>
               {row.hasSecret ? (
@@ -118,16 +115,14 @@ export function KeysPage() {
               {mayWrite ? (
                 <>
                   <ConfirmButton
-                    title={t("confirm.rotateTitle")}
-                    description={t("confirm.rotateDescription", { name: row.name })}
+                    title={t("confirm.rotateTitle", { name: row.name })}
                     confirmLabel={t("actions.rotate")}
                     onConfirm={() => rotate.mutate(row.id)}
                   >
                     {t("actions.rotate")}
                   </ConfirmButton>
                   <ConfirmButton
-                    title={t("confirm.deleteTitle")}
-                    description={t("confirm.deleteDescription", { name: row.name })}
+                    title={t("confirm.deleteTitle", { name: row.name })}
                     onConfirm={() => remove.mutate(row.id)}
                   >
                     {t("actions.delete")}

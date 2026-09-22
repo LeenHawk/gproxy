@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next"
 import type { ReactNode } from "react"
 import { ApiError } from "@/api/client"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
+import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 
 export function LoadingRows({ rows = 4 }: { rows?: number }) {
@@ -55,12 +55,11 @@ export function ErrorNotice({ error }: { error: unknown }) {
   )
 }
 
-export function EmptyNotice({ title, description }: { title: string; description?: string }) {
+export function EmptyNotice({ title }: { title: string }) {
   return (
     <Empty>
       <EmptyHeader>
         <EmptyTitle>{title}</EmptyTitle>
-        {description ? <EmptyDescription>{description}</EmptyDescription> : null}
       </EmptyHeader>
     </Empty>
   )

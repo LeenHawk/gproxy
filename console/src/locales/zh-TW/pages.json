@@ -3,7 +3,6 @@
     "title": "你好，{{name}}",
     "subscription": "訂閱",
     "usage": "最近七天",
-    "usageDescription": "視窗內這個帳號發出的全部請求的合計。",
     "quota": "預算",
     "noSubscription": "這個帳號目前沒有生效的訂閱。",
     "noExpiry": "不到期",
@@ -11,54 +10,40 @@
   },
   "keys": {
     "emptyTitle": "還沒有金鑰",
-    "emptyDescription": "鑄造一把，把用戶端指向這個閘道。",
     "readOnlyTitle": "此處唯讀",
-    "readOnlyDescription": "你是透過自己授權過的程式登入的，被借出的權杖不能再鑄造長期憑證。要改金鑰，請用密碼登入。",
     "secretTitle": "現在就複製",
-    "secretHint": "這是執行個體唯一一次顯示它。遺失就只能輪換。",
     "copied": "已複製到剪貼簿",
     "copyFailed": "剪貼簿不可用，請選取文字手動複製。"
   },
   "models": {
-    "emptyTitle": "沒有公開任何模型",
-    "emptyDescription": "這個執行個體還沒有設定供應者，或沒有一個能到達你。"
+    "emptyTitle": "沒有公開任何模型"
   },
   "usage": {
     "trend": "視窗內的費用",
     "groups": "分組",
     "truncated": "掃描觸及列數上限。這些數字描述的是 {{scanned}} 筆記錄，不是視窗內的全部。",
-    "emptyTitle": "這個視窗裡沒有記錄",
-    "emptyDescription": "你沒有請求落在這個區間內。"
+    "emptyTitle": "這個視窗裡沒有記錄"
   },
   "quota": {
     "emptyTitle": "沒有預算約束",
-    "emptyDescription": "你的鏈路上——金鑰、帳號、訂閱、團隊、組織——沒有任何一層設了額度。",
     "pattern": "涵蓋 {{pattern}}",
     "permanent": "不重設",
     "resets": "{{at}} 重設"
   },
   "requests": {
-    "emptyTitle": "沒有最近請求",
-    "emptyDescription": "要麼你還沒發過請求，要麼這個執行個體關掉了入口的請求記錄。"
+    "emptyTitle": "沒有最近請求"
   },
   "account": {
     "password": "密碼",
-    "passwordDescription": "更改密碼會結束你開啟的其他所有工作階段。",
     "passwordChanged": "密碼已更改",
     "scopes": "作用域",
-    "scopesDescription": "你所屬的組織與團隊，以及各自的角色。",
     "noScopes": "沒有作用域",
-    "noScopesDescription": "這個帳號不屬於任何組織或團隊。",
     "sessions": "工作階段",
-    "sessionsDescription": "你開啟的每一個主控台或入口登入，包括目前這個。",
     "grants": "已授權的程式",
-    "grantsDescription": "你授予過存取權的第三方用戶端。撤銷會立即中斷它。",
-    "noGrants": "沒有授權",
-    "noGrantsDescription": "沒有程式持有這個帳號的授權。"
+    "noGrants": "沒有授權"
   },
   "members": {
     "title": "成員",
-    "description": "誰屬於 {{name}}，各自是什麼角色。",
     "emptyTitle": "還沒有成員"
   }
 }

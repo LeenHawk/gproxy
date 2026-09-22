@@ -35,7 +35,7 @@ export function AuditPage() {
 
   return (
     <Page>
-      <PageHeader title={t("nav.audit")} description={t("description.audit")} />
+      <PageHeader title={t("nav.audit")} />
       <div className="flex flex-wrap gap-2">
         <Input
           className="max-w-xs"
