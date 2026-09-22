@@ -23,7 +23,8 @@
     "audit": "审计",
     "providers": "供应商",
     "credentials": "凭证",
-    "provider-models": "模型"
+    "provider-models": "模型",
+    "settings": "全局设置"
   },
   "create": {
     "keys": "新建密钥",

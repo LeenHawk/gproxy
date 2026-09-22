@@ -271,6 +271,20 @@ calls, it would break **every later reload of the whole instance**.
 
 ## The Settings Row
 
+**System → Global settings** edits this row and sends only changed fields.
+The instance name appears in the sidebar and document title. `/info` reports the
+instance name, binary version and full Git commit hash.
+
+- CORS origins and trusted proxies follow the published snapshot; startup values initialize a new settings row only.
+- Native `gproxy serve` follows database changes to the process log level/format, update channel and scheduled-check switch.
+- `enableTokenizerVocabs=false` drops custom vocabularies from estimation and uses the built-in fallback without deleting files.
+- `enableTokenizerDownload=false` refuses new downloads independently of using existing vocabularies.
+- `retentionDays` prunes completed request history, captures and capture events older than the selected age. Unset disables age cleanup.
+- `maxDatabaseSizeMb` limits SQLite history occupancy in MiB, deleting oldest completed records and reclaiming freed pages. Unset or zero disables the limit. Configuration and active work are retained, so this is not a hard quota on the whole database.
+- The native service runs cleanup every minute. Settled balances, quota counters, configuration and audit records are retained.
+- `defaultFileStorageName`, `maxInFlight` and `fileUploadMaxInFlight` have been removed.
+
+
 Runtime settings live in the database and take effect without a restart.
 
 ```sh
@@ -284,9 +298,8 @@ One row, two groups. The instance group:
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `instanceName` | `default` | recorded with usage |
+| `instanceName` | `default` | console identity |
 | `maxAttempts` | `6` | hard ceiling on a plan's upstream attempts; a route's own budget is capped by it |
-| `maxInFlight` | `1024` | concurrent requests |
 | `requestTimeoutMs` | `600000` | whole-request deadline |
 | `streamIdleTimeoutMs` | `60000` | gap between stream units |
 | `maxRequestBodyBytes` | `67108864` | a streaming body over this stays a stream, and the plan is cut to one target |

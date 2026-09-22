@@ -28,6 +28,8 @@ import { UsagePage } from "@/pages/self/usage"
 import { ProvidersPage } from "@/pages/providers"
 import { ProviderDetailPage } from "@/pages/providers/detail"
 
+import { SettingsPage } from "@/pages/settings"
+
 const ROUTES: Record<string, () => React.ReactElement> = {
   "/": OverviewPage,
   "/keys": KeysPage,
@@ -37,6 +39,7 @@ const ROUTES: Record<string, () => React.ReactElement> = {
   "/requests": RequestsPage,
   "/account": AccountPage,
   "/providers": ProvidersPage,
+  "/settings": SettingsPage,
   "/identity/users": UsersPage,
   "/identity/api-keys": ApiKeysPage,
   "/identity/organizations": OrganizationsPage,

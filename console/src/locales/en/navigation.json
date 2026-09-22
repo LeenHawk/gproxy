@@ -23,7 +23,8 @@
     "audit": "Audit",
     "providers": "Providers",
     "credentials": "Credentials",
-    "provider-models": "Models"
+    "provider-models": "Models",
+    "settings": "Global settings"
   },
   "create": {
     "keys": "New key",

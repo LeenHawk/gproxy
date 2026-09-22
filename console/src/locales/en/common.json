@@ -80,7 +80,8 @@
     "people": "People & teams",
     "access": "Access control",
     "billing": "Plans & resources",
-    "providers": "Providers"
+    "providers": "Providers",
+    "system": "System"
   },
   "range": {
     "day": "24 hours",
