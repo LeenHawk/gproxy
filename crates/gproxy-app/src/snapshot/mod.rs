@@ -54,6 +54,8 @@ use std::{collections::HashMap, sync::Arc};
 /// tracing field or an error body that formats the whole snapshot would put
 /// them in a log. The manual `Debug` reports sizes only.
 pub struct AppData {
+    /// Global settings published with this revision; never serialized with secrets.
+    pub settings: Option<gproxy_store::entity::config::setting::Model>,
     /// `settings.config_revision` this was assembled from.
     pub revision: i64,
     /// The logging switches of this revision, for the downstream capture. Set
@@ -122,6 +124,7 @@ impl AppData {
         }
         Ok(Self {
             revision,
+            settings: None,
             observation: ObservationSwitches::default(),
             keys: ApiKeyIndex::build(&identity.api_keys, &users, now_ms),
             memberships: MembershipIndex::build(
@@ -155,6 +158,7 @@ impl AppData {
     pub fn empty() -> Self {
         Self {
             revision: i64::MIN,
+            settings: None,
             observation: ObservationSwitches::default(),
             keys: ApiKeyIndex::default(),
             memberships: MembershipIndex::default(),

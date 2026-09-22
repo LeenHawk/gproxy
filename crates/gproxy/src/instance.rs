@@ -116,10 +116,16 @@ pub async fn migrate(config: &AppConfig, status_only: bool) -> Result<()> {
     // The settings row is a precondition for every write that follows, and
     // creating it here is what lets `serve` start against this database without
     // doing any DDL of its own.
-    store
-        .settings()
-        .update(setting::ActiveModel::default())
-        .await?;
+    if store.settings().get().await?.is_none() {
+        store
+            .settings()
+            .update(setting::ActiveModel {
+                cors_origins: sea_orm::Set(serde_json::json!(config.cors_origins)),
+                trusted_proxies: sea_orm::Set(serde_json::json!(config.trusted_proxies)),
+                ..Default::default()
+            })
+            .await?;
+    }
     tracing::info!(
         installed = report.installed,
         applied = report.applied.len(),
@@ -152,10 +158,16 @@ pub(crate) async fn assemble(
     // the same pool, so this is not a second connection.
     let store = Store::new(connection.clone());
     store.sync().await?;
-    store
-        .settings()
-        .update(setting::ActiveModel::default())
-        .await?;
+    if store.settings().get().await?.is_none() {
+        store
+            .settings()
+            .update(setting::ActiveModel {
+                cors_origins: sea_orm::Set(serde_json::json!(config.cors_origins)),
+                trusted_proxies: sea_orm::Set(serde_json::json!(config.trusted_proxies)),
+                ..Default::default()
+            })
+            .await?;
+    }
 
     let secrets = rotate::run(&store, &config.master_key).await?;
 

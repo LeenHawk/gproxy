@@ -239,6 +239,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> App<C> {
         // so a request that pinned this snapshot captures under the policy of
         // the revision it was decided under.
         data.observation = ObservationSwitches::from_settings(all.control.settings.as_ref());
+        data.settings = all.control.settings;
         self.snapshot.publish_if_newer(Arc::new(data));
         Ok(revision)
     }

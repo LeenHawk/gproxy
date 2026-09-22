@@ -139,7 +139,7 @@ fn secure_cookie<C>(state: &HostState<C>, request: &Request) -> bool {
     crate::policy::client_scheme(
         peer,
         request.headers(),
-        &state.app().config().trusted_proxies,
+        &crate::runtime_settings::trusted_proxies(state.app()),
     ) == "https"
 }
 

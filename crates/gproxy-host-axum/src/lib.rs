@@ -104,6 +104,7 @@ pub mod oauth;
 pub mod policy;
 pub mod portal;
 pub mod response;
+pub mod runtime_settings;
 pub mod session;
 pub mod update;
 // Two implementations of one module: hyper's upgrade natively, and a refusal
@@ -228,6 +229,7 @@ where
 {
     Router::new()
         .route("/healthz", get(healthz::<C>))
+        .route("/info", get(runtime_settings::info::<C>))
         .route(
             &format!("{}/{{id}}", gproxy_app::publication::PUBLICATION_PATH),
             get(publication::<C>),
