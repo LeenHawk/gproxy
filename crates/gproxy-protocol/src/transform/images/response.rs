@@ -336,7 +336,7 @@ pub fn image_response_from_responses(
                 {
                     return Err(invalid("image tool did not complete"));
                 }
-                let image = decode_image(
+                let mut image = decode_image(
                     call.result
                         .as_deref()
                         .ok_or_else(|| invalid("missing image result"))?,
@@ -344,6 +344,7 @@ pub fn image_response_from_responses(
                     max_bytes,
                 )?;
 
+                image.revised_prompt = call.revised_prompt.clone().flatten();
                 if out.replace(image).is_some() {
                     return Err(invalid("expected exactly one image per call"));
                 }

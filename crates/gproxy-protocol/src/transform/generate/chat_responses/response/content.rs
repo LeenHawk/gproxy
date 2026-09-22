@@ -174,6 +174,7 @@ pub(super) fn to_responses(
             0,
         )?;
         output.push(r::ResponseOutputItem::FunctionCall(i::FunctionCall {
+            async_: None,
             type_: i::FunctionCallType::FunctionCall,
             arguments: call.arguments,
             call_id,
@@ -217,6 +218,7 @@ pub(super) fn to_responses(
                     index,
                 )?;
                 output.push(bindings.restore(i::FunctionCall {
+                    async_: None,
                     type_: i::FunctionCallType::FunctionCall,
                     arguments: call.function.arguments,
                     call_id,
@@ -252,6 +254,7 @@ pub(super) fn to_responses(
                     index,
                 )?;
                 output.push(r::ResponseOutputItem::CustomToolCall(i::CustomToolCall {
+                    async_: None,
                     type_: i::CustomToolCallType::CustomToolCall,
                     call_id,
                     input: call.custom.input,
@@ -333,6 +336,12 @@ pub(super) fn to_chat(
                 }
             }
             r::ResponseOutputItem::FunctionCall(call) => {
+                if call.async_ == Some(true) {
+                    report.omitted(
+                        "output.async",
+                        "target tool calls have no asynchronous continuation marker",
+                    );
+                }
                 if matches!(call.status, Some(i::ItemStatus::InProgress))
                     || (completed && matches!(call.status, Some(i::ItemStatus::Incomplete)))
                 {
@@ -370,6 +379,12 @@ pub(super) fn to_chat(
                 }));
             }
             r::ResponseOutputItem::CustomToolCall(call) => {
+                if call.async_ == Some(true) {
+                    report.omitted(
+                        "output.async",
+                        "target tool calls have no asynchronous continuation marker",
+                    );
+                }
                 if call.namespace.is_some()
                     || call
                         .caller
@@ -413,6 +428,7 @@ pub(super) fn to_chat(
             | r::ResponseOutputItem::ToolSearchCall(_)
             | r::ResponseOutputItem::ToolSearchOutput(_)
             | r::ResponseOutputItem::AdditionalTools(_)
+            | r::ResponseOutputItem::ConfigurationUpdate(_)
             | r::ResponseOutputItem::Compaction(_)
             | r::ResponseOutputItem::ImageGenerationCall(_)
             | r::ResponseOutputItem::CodeInterpreterCall(_)

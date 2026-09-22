@@ -70,6 +70,10 @@ pub enum ImageQuality {
     High,
     #[serde(rename = "auto")]
     Auto,
+    #[serde(rename = "xhigh")]
+    Xhigh,
+    #[serde(rename = "max")]
+    Max,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -114,9 +118,13 @@ pub enum EditedImageQuality {
     High,
     #[serde(rename = "auto")]
     Auto,
+    #[serde(rename = "xhigh")]
+    Xhigh,
+    #[serde(rename = "max")]
+    Max,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum EditedImageSize {
@@ -128,6 +136,8 @@ pub enum EditedImageSize {
     Landscape,
     #[serde(rename = "1024x1536")]
     Portrait,
+    #[serde(untagged)]
+    Custom(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -150,9 +160,13 @@ pub enum OutputImageQuality {
     Medium,
     #[serde(rename = "high")]
     High,
+    #[serde(rename = "xhigh")]
+    Xhigh,
+    #[serde(rename = "max")]
+    Max,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum OutputImageSize {
@@ -162,6 +176,8 @@ pub enum OutputImageSize {
     Portrait,
     #[serde(rename = "1536x1024")]
     Landscape,
+    #[serde(untagged)]
+    Custom(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

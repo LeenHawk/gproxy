@@ -418,7 +418,16 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
                 }
                 continue;
             }
-            let ClientEvent::ResponseCreate(input) = message.event;
+            let ClientEvent::ResponseCreate(input) = message.event else {
+                let _ = out
+                    .send(Ok(error_frame(
+                        400,
+                        lane,
+                        "steering has no equivalent cross-protocol generation operation".into(),
+                    )))
+                    .await;
+                continue;
+            };
             let access = owned.access();
             let created = now_ms().div_euclid(1000);
             let stream_target = StreamTarget {

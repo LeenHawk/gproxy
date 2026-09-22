@@ -99,7 +99,7 @@ pub fn claude_to_openai(
         }
         Some(cc::ThinkingConfig::Adaptive(_)) | None => {}
     }
-    Ok(Converted {
+    let mut converted = Converted {
         value: chat::GenerateContentRequestBody {
             messages,
             model: target_model,
@@ -153,7 +153,9 @@ pub fn claude_to_openai(
             rest: Rest::new(),
         },
         report,
-    })
+    };
+    super::super::openai_controls::target_chat(&mut converted.value, &mut converted.report);
+    Ok(converted)
 }
 
 pub fn openai_to_claude(
@@ -295,7 +297,8 @@ pub fn openai_to_claude(
                     chat::ServiceTier::Flex
                     | chat::ServiceTier::Scale
                     | chat::ServiceTier::Priority
-                    | chat::ServiceTier::Fast,
+                    | chat::ServiceTier::Fast
+                    | chat::ServiceTier::Ultrafast,
                 ) => {
                     report.omitted("service_tier", "Claude has no matching tier");
                     None

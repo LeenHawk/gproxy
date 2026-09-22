@@ -324,7 +324,10 @@ fn all_four_directions_split_n_and_retain_real_usage() {
             assert!(result.response.usage.is_none());
             assert!(result.response.background.is_none());
             assert!(result.response.quality.is_none());
-            assert!(result.response.size.is_none());
+            assert_eq!(
+                serde_json::to_value(result.response.size.as_ref().unwrap()).unwrap(),
+                json!("1x1")
+            );
             assert_eq!(progress.attempted_calls(), 2);
             assert!(progress.calls().iter().all(|c| c.usage.is_some()));
             for v in host.sent_json() {

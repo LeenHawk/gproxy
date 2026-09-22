@@ -433,7 +433,7 @@ pub async fn generate<A: ResourceAccess, U: Upstream>(
                 (1024, 1024) => Some(o::OutputImageSize::Square),
                 (1536, 1024) => Some(o::OutputImageSize::Landscape),
                 (1024, 1536) => Some(o::OutputImageSize::Portrait),
-                _ => None,
+                (width, height) => Some(o::OutputImageSize::Custom(format!("{width}x{height}"))),
             }
         } else {
             None

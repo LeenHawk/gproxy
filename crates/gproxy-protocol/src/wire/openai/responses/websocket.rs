@@ -1,14 +1,9 @@
 //! Responses WebSocket messages, separate from the HTTP upgrade handshake.
 //!
-//! Sources: `upstream_docs/openai/docs/Responses.md`, "Responses Client Event"
-//! and "Responses Server Event". The client `response.create` object has the
-//! older snapshot shares the HTTP request and 53 SSE event shapes. The current
-//! official WebSocket mode guide additionally declares lane/prefill controls
-//! and nested WS errors; the message envelopes below keep these WS-only fields
-//! separate from HTTP DTOs. The operational adapter does not use HTTP stream
-//! or background controls.
-//! The transport adapter serializes these JSON messages into WebSocket text
-//! messages; it remains responsible for the independent duplex connection.
+//! Sources: the Responses WebSocket events reference and WebSocket mode guide.
+//! Lane/prefill controls stay separate from HTTP DTOs. Steering has its own
+//! acknowledgements, pending inputs, and automatic continuation lifecycle.
+//! The transport/host owns the duplex connection and continuation orchestration.
 
 use super::{generate::GenerateContentRequestBody, stream::StreamEvent};
 
@@ -16,12 +11,32 @@ use super::{generate::GenerateContentRequestBody, stream::StreamEvent};
 #[serde(tag = "type")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+// Preserve the established by-value response.create constructor.
+#[allow(clippy::large_enum_variant)]
 pub enum ClientEvent {
     #[serde(rename = "response.create")]
     ResponseCreate(GenerateContentRequestBody),
+    #[serde(rename = "response.steer")]
+    ResponseSteer(super::steering::SteerRequest),
 }
 
-pub type ServerEvent = StreamEvent;
+/// Generation and steering have distinct lifecycles on the same connection.
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    serde::Serialize,
+    serde::Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(untagged)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+// Match the by-value event DTOs used by native generation streams.
+#[allow(clippy::large_enum_variant)]
+pub enum ServerEvent {
+    Steering(super::steering::SteeringEvent),
+    Response(StreamEvent),
+}
 pub type HandshakeRequest = crate::WireRequest<()>;
 pub type HandshakeResponse = crate::WireResponse<()>;
 
@@ -55,7 +70,7 @@ pub struct ServerMessage {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stream_id: Option<String>,
     #[serde(flatten)]
-    pub event: StreamEvent,
+    pub event: ServerEvent,
 }
 #[derive(
     Debug,

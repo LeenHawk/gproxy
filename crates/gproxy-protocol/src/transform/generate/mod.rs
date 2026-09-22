@@ -10,6 +10,7 @@ pub(crate) mod client_tools;
 pub mod gemini_chat;
 pub mod gemini_responses;
 pub mod gemini_schema;
+pub(crate) mod openai_controls;
 
 pub(crate) mod reasoning_details;
 pub mod stream;

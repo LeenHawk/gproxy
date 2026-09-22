@@ -116,6 +116,8 @@ fn options(input: &ImageInput) -> Result<Options, TransformError> {
                     o::ImageQuality::Low => Ok(rt::ImageQuality::Low),
                     o::ImageQuality::Medium => Ok(rt::ImageQuality::Medium),
                     o::ImageQuality::High => Ok(rt::ImageQuality::High),
+                    o::ImageQuality::Xhigh => Ok(rt::ImageQuality::Xhigh),
+                    o::ImageQuality::Max => Ok(rt::ImageQuality::Max),
                     o::ImageQuality::Auto => Ok(rt::ImageQuality::Auto),
                     _ => Err(unsupported("quality")),
                 })
@@ -146,14 +148,17 @@ fn options(input: &ImageInput) -> Result<Options, TransformError> {
                 o::EditedImageQuality::Low => rt::ImageQuality::Low,
                 o::EditedImageQuality::Medium => rt::ImageQuality::Medium,
                 o::EditedImageQuality::High => rt::ImageQuality::High,
+                o::EditedImageQuality::Xhigh => rt::ImageQuality::Xhigh,
+                o::EditedImageQuality::Max => rt::ImageQuality::Max,
                 o::EditedImageQuality::Auto => rt::ImageQuality::Auto,
             });
-            let size = v.size.flatten().map(|s| {
+            let size = v.size.clone().flatten().map(|s| {
                 match s {
                     o::EditedImageSize::Auto => "auto",
                     o::EditedImageSize::Square => "1024x1024",
                     o::EditedImageSize::Landscape => "1536x1024",
                     o::EditedImageSize::Portrait => "1024x1536",
+                    o::EditedImageSize::Custom(ref size) => size,
                 }
                 .to_owned()
             });

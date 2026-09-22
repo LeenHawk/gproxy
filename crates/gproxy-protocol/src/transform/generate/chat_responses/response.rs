@@ -156,8 +156,10 @@ pub fn responses_to_chat_response(
         }
         None => return Err(TransformError::missing_metadata("response.status")),
     };
-    let terminal_reason = if completed {
-        if input.incomplete_details.is_some() {
+    let steered = input.incomplete_details.as_ref().and_then(|v| v.reason)
+        == Some(r::ResponseIncompleteReason::Steered);
+    let terminal_reason = if completed || steered {
+        if completed && input.incomplete_details.is_some() {
             return Err(TransformError::invalid_result(
                 "incomplete_details",
                 "completed response has incomplete details",
@@ -171,7 +173,9 @@ pub fn responses_to_chat_response(
                 .and_then(|v| v.reason)
                 .ok_or_else(|| TransformError::missing_metadata("incomplete_details.reason"))?
             {
-                r::ResponseIncompleteReason::MaxOutputTokens => c::FinishReason::Length,
+                r::ResponseIncompleteReason::MaxOutputTokens
+                | r::ResponseIncompleteReason::MaxMessages => c::FinishReason::Length,
+                r::ResponseIncompleteReason::Steered => c::FinishReason::Stop,
                 r::ResponseIncompleteReason::ContentFilter => c::FinishReason::ContentFilter,
             },
         )
@@ -272,6 +276,7 @@ pub(crate) fn tier_to_responses(value: c::ResponseServiceTier) -> g::ServiceTier
         c::ResponseServiceTier::Scale => g::ServiceTier::Scale,
         c::ResponseServiceTier::Priority => g::ServiceTier::Priority,
         c::ResponseServiceTier::Fast => g::ServiceTier::Fast,
+        c::ResponseServiceTier::Ultrafast => g::ServiceTier::Ultrafast,
     }
 }
 
@@ -283,5 +288,6 @@ pub(crate) fn tier_to_chat(value: g::ServiceTier) -> c::ResponseServiceTier {
         g::ServiceTier::Scale => c::ResponseServiceTier::Scale,
         g::ServiceTier::Priority => c::ResponseServiceTier::Priority,
         g::ServiceTier::Fast => c::ResponseServiceTier::Fast,
+        g::ServiceTier::Ultrafast => c::ResponseServiceTier::Ultrafast,
     }
 }

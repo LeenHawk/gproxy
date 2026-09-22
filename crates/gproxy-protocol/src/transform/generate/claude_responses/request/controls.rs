@@ -189,7 +189,8 @@ pub(super) fn to_claude(
             r::ServiceTier::Flex
             | r::ServiceTier::Scale
             | r::ServiceTier::Priority
-            | r::ServiceTier::Fast,
+            | r::ServiceTier::Fast
+            | r::ServiceTier::Ultrafast,
         ) => {
             report.omitted("service_tier", "Claude has no matching tier");
             None

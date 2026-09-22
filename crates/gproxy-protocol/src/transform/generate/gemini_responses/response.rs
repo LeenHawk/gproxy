@@ -296,7 +296,9 @@ pub fn responses_to_gemini_response_with_modalities(
             .and_then(|v| v.reason)
             .ok_or_else(|| TransformError::missing_metadata("incomplete.reason"))?
         {
-            r::ResponseIncompleteReason::MaxOutputTokens => g::FinishReason::MaxTokens,
+            r::ResponseIncompleteReason::MaxOutputTokens
+            | r::ResponseIncompleteReason::MaxMessages => g::FinishReason::MaxTokens,
+            r::ResponseIncompleteReason::Steered => g::FinishReason::Stop,
             r::ResponseIncompleteReason::ContentFilter => g::FinishReason::Safety,
         }
     };
@@ -355,6 +357,12 @@ pub fn responses_to_gemini_response_with_modalities(
                 }
             }
             r::ResponseOutputItem::FunctionCall(call) => {
+                if call.async_ == Some(true) {
+                    report.omitted(
+                        "output.async",
+                        "target tool calls have no asynchronous continuation marker",
+                    );
+                }
                 if call.status == Some(i::ItemStatus::InProgress)
                     || completed && call.status == Some(i::ItemStatus::Incomplete)
                 {
@@ -409,6 +417,7 @@ pub fn responses_to_gemini_response_with_modalities(
             | r::ResponseOutputItem::ToolSearchCall(_)
             | r::ResponseOutputItem::ToolSearchOutput(_)
             | r::ResponseOutputItem::AdditionalTools(_)
+            | r::ResponseOutputItem::ConfigurationUpdate(_)
             | r::ResponseOutputItem::Compaction(_)
             | r::ResponseOutputItem::CodeInterpreterCall(_)
             | r::ResponseOutputItem::LocalShellCall(_)

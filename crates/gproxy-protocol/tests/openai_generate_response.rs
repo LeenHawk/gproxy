@@ -43,12 +43,14 @@ fn output_fixtures() -> Vec<Value> {
 }
 
 #[test]
-fn all_28_output_variants_preserve_known_fields_and_extensions() {
-    let fixtures = output_fixtures();
-    assert_eq!(fixtures.len(), 28);
+fn all_output_variants_preserve_known_fields_and_extensions() {
+    let mut fixtures = output_fixtures();
+    fixtures.push(json!({"type":"configuration_update","id":"cfg1","reasoning":{"effort":"high"}}));
+    assert_eq!(fixtures.len(), 29);
     for wire in fixtures {
         let value: ResponseOutputItem = serde_json::from_value(wire.clone()).unwrap();
         match &value {
+            ResponseOutputItem::ConfigurationUpdate(x) => assert!(x.rest.is_empty()),
             ResponseOutputItem::FileSearchCall(x) => {
                 assert!(x.rest.is_empty(), "FileSearchCall: {:?}", x.rest)
             }

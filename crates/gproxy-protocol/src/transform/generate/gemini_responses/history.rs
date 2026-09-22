@@ -110,7 +110,8 @@ pub(crate) fn to_gemini(
                     "item reference resolved history",
                 ));
             }
-            r::InputItem::Compaction(_)
+            r::InputItem::ConfigurationUpdate(_)
+            | r::InputItem::Compaction(_)
             | r::InputItem::ComputerCall(_)
             | r::InputItem::ComputerCallOutput(_)
             | r::InputItem::WebSearchCall(_)

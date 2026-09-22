@@ -64,6 +64,7 @@ pub fn gemini_to_responses_request(
         &mut report,
     );
     *flow = ids;
+    crate::transform::generate::openai_controls::target_responses(&mut out, &mut report);
     Ok(Converted { value: out, report })
 }
 
@@ -77,6 +78,7 @@ pub fn responses_to_gemini_request(
     let mut input = input.into_declared();
     let mut out = g::GenerateContentRequestBody::builder(Vec::new()).build();
     let mut report = Report::default();
+    crate::transform::generate::openai_controls::project_request(&mut input, &mut report)?;
     super::super::client_tools::Bindings::for_target(&input, crate::Dialect::Gemini)?
         .lower(&mut input, &mut report)?;
     super::config::to_gemini(&input, &mut out, &mut report)?;

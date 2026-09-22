@@ -336,6 +336,7 @@ impl ChatToResponsesStream {
                 // Emit only after the complete action can be validated, preserving
                 // the original client executor and call/item identity roles.
                 let item = self.client_tools.restore(i::FunctionCall {
+                    async_: None,
                     type_: i::FunctionCallType::FunctionCall,
                     arguments: t.arguments,
                     call_id,
@@ -366,6 +367,7 @@ impl ChatToResponsesStream {
                 continue;
             }
             let item = self.client_tools.restore(i::FunctionCall {
+                async_: None,
                 type_: i::FunctionCallType::FunctionCall,
                 arguments: String::new(),
                 call_id: call_id.clone(),
@@ -407,6 +409,7 @@ impl ChatToResponsesStream {
                 },
             ))?;
             let item = self.client_tools.restore(i::FunctionCall {
+                async_: None,
                 type_: i::FunctionCallType::FunctionCall,
                 arguments: t.arguments,
                 call_id,

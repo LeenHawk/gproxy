@@ -115,6 +115,7 @@ pub(super) fn item(
             (false, v.status == i::ProgramOutputStatus::Incomplete)
         }
         r::ResponseOutputItem::AdditionalTools(_)
+        | r::ResponseOutputItem::ConfigurationUpdate(_)
         | r::ResponseOutputItem::Compaction(_)
         | r::ResponseOutputItem::Program(_)
         | r::ResponseOutputItem::ApplyPatchCallOutput(_)

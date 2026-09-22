@@ -227,6 +227,7 @@ pub fn responses_text(input: r::GenerateContentResponseBody) -> Result<String, T
             | r::ResponseOutputItem::ToolSearchCall(_)
             | r::ResponseOutputItem::ToolSearchOutput(_)
             | r::ResponseOutputItem::AdditionalTools(_)
+            | r::ResponseOutputItem::ConfigurationUpdate(_)
             | r::ResponseOutputItem::Compaction(_)
             | r::ResponseOutputItem::ImageGenerationCall(_)
             | r::ResponseOutputItem::CodeInterpreterCall(_)

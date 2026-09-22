@@ -54,6 +54,9 @@ pub enum Tool {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct FunctionTool {
+    #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
+    pub async_: Option<bool>,
+
     pub name: String,
     #[wire(required)]
     #[serde(deserialize_with = "required_nullable")]
@@ -335,6 +338,9 @@ pub struct DomainSecret {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CustomTool {
+    #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
+    pub async_: Option<bool>,
+
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -573,6 +579,8 @@ pub enum ImageOutputFormat {
 #[serde(rename_all = "snake_case")]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ImageQuality {
+    Xhigh,
+    Max,
     Low,
     Medium,
     High,
@@ -925,6 +933,8 @@ pub enum NamespaceToolDefinition {
 #[serde(rename_all = "snake_case")]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NamespaceFunctionTool {
+    #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
+    pub async_: Option<bool>,
     pub name: String,
     #[serde(
         default,
@@ -967,6 +977,8 @@ pub struct NamespaceFunctionTool {
 #[serde(rename_all = "snake_case")]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct NamespaceCustomTool {
+    #[serde(rename = "async", skip_serializing_if = "Option::is_none")]
+    pub async_: Option<bool>,
     pub name: String,
     #[serde(
         default,

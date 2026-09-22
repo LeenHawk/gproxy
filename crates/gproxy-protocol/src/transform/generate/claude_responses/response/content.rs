@@ -150,6 +150,7 @@ pub(super) fn to_responses(
                     .transpose()?
                     .flatten();
                 bindings.restore(r::FunctionCall {
+                    async_: None,
                     type_: r::FunctionCallType::FunctionCall,
                     arguments: serde_json::to_string(&block.input)?,
                     call_id,
@@ -311,6 +312,12 @@ pub(super) fn to_claude(
                 }
             }
             r::ResponseOutputItem::FunctionCall(call) => {
+                if call.async_ == Some(true) {
+                    report.omitted(
+                        "output.async",
+                        "target tool calls have no asynchronous continuation marker",
+                    );
+                }
                 if call.name.is_empty() || !calls.insert(call.call_id.clone()) {
                     return Err(TransformError::invalid_result(
                         "output.function_call",
@@ -426,6 +433,7 @@ pub(super) fn to_claude(
             | r::ResponseOutputItem::ToolSearchCall(_)
             | r::ResponseOutputItem::ToolSearchOutput(_)
             | r::ResponseOutputItem::AdditionalTools(_)
+            | r::ResponseOutputItem::ConfigurationUpdate(_)
             | r::ResponseOutputItem::Compaction(_)
             | r::ResponseOutputItem::ImageGenerationCall(_)
             | r::ResponseOutputItem::CodeInterpreterCall(_)

@@ -66,6 +66,7 @@ impl GeminiResponseContext {
             }
         }
         Ok(r::GenerateContentResponseBody {
+            prompt_cache_diagnostics: None,
             id,
             created_at,
             model,
