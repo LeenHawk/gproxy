@@ -35,7 +35,8 @@
     "notFoundTitle": "没有这个页面"
   },
   "form": {
-    "choose": "请选择…"
+    "choose": "请选择…",
+    "invalidJson": "JSON 格式不正确，请检查后重试。"
   },
   "pagination": {
     "position": "第 {{page}} / {{pages}} 页 · 共 {{total}} 行",
@@ -78,7 +79,8 @@
     "self": "我的账号",
     "people": "成员与组织",
     "access": "访问控制",
-    "billing": "套餐与资源"
+    "billing": "套餐与资源",
+    "providers": "供应商"
   },
   "range": {
     "day": "24 小时",
@@ -109,7 +111,9 @@
     "in_progress": "进行中",
     "completed": "已完成",
     "failed": "失败",
-    "cancelled": "已取消"
+    "cancelled": "已取消",
+    "active": "可用",
+    "dead": "不可用"
   },
   "fields": {
     "action": "动作",
@@ -181,6 +185,17 @@
     "subscriptionId": "订阅",
     "teamId": "团队",
     "userId": "用户",
-    "windowKey": "窗口"
+    "windowKey": "窗口",
+    "channel": "渠道",
+    "baseUrl": "接口地址",
+    "connectionProfileId": "连接配置 ID",
+    "config": "配置（JSON）",
+    "label": "名称",
+    "authKind": "认证方式",
+    "secret": "密钥数据（JSON）",
+    "metadata": "元数据（JSON）",
+    "status": "状态",
+    "upstreamName": "上游模型",
+    "modelId": "模型目录 ID"
   }
 }

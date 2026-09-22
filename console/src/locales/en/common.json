@@ -35,7 +35,8 @@
     "notFoundTitle": "No such page"
   },
   "form": {
-    "choose": "Choose…"
+    "choose": "Choose…",
+    "invalidJson": "Invalid JSON. Check the value and try again."
   },
   "pagination": {
     "position": "Page {{page}} of {{pages}} · {{total}} rows",
@@ -78,7 +79,8 @@
     "self": "Your account",
     "people": "People & teams",
     "access": "Access control",
-    "billing": "Plans & resources"
+    "billing": "Plans & resources",
+    "providers": "Providers"
   },
   "range": {
     "day": "24 hours",
@@ -109,7 +111,9 @@
     "in_progress": "In progress",
     "completed": "Completed",
     "failed": "Failed",
-    "cancelled": "Cancelled"
+    "cancelled": "Cancelled",
+    "active": "Active",
+    "dead": "Unavailable"
   },
   "fields": {
     "action": "Action",
@@ -181,6 +185,17 @@
     "subscriptionId": "Subscription",
     "teamId": "Team",
     "userId": "User",
-    "windowKey": "Window"
+    "windowKey": "Window",
+    "channel": "Channel",
+    "baseUrl": "Base URL",
+    "connectionProfileId": "Connection profile ID",
+    "config": "Configuration (JSON)",
+    "label": "Label",
+    "authKind": "Authentication",
+    "secret": "Secret (JSON)",
+    "metadata": "Metadata (JSON)",
+    "status": "Status",
+    "upstreamName": "Upstream model",
+    "modelId": "Catalog model ID"
   }
 }

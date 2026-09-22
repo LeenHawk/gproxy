@@ -15,15 +15,18 @@
 import {
   Boxes, Building2, ChartLine, CircleUserRound, CreditCard, Fingerprint, Gauge,
   KeyRound, LayoutDashboard, Layers, ListChecks, MonitorSmartphone, Network,
-  ReceiptText, ScrollText, Settings2, ShieldCheck, SlidersHorizontal, UsersRound,
+  ReceiptText, ScrollText, Settings2, ShieldCheck, SlidersHorizontal, UsersRound, Waypoints,
   type LucideIcon,
 } from "lucide-react"
+
+import { PROVIDERS_READ } from "@/api/configuration"
 
 import { SELF_LOGS_READ, SELF_READ, type Capability, type ConsoleContext } from "@/capability/capability"
 
 export type NavItem = {
   /** Also the i18n key under `nav.` and the route's identity. */
   id: string
+  label?: string
   route: string
   needs: Capability
   icon: LucideIcon
@@ -53,6 +56,12 @@ const SELF: NavSection = {
     { id: "requests", route: "/requests", needs: SELF_LOGS_READ, icon: ScrollText },
     { id: "account", route: "/account", needs: SELF_READ, icon: Settings2 },
   ],
+}
+
+const PROVIDERS: NavSection = {
+  id: "providers",
+  icon: Waypoints,
+  items: [{ id: "providers", route: "/providers", needs: PROVIDERS_READ, icon: Waypoints }],
 }
 
 const PEOPLE: NavSection = {
@@ -90,7 +99,7 @@ const BILLING: NavSection = {
   ],
 }
 
-const SECTIONS: ReadonlyArray<NavSection> = [SELF, PEOPLE, ACCESS, BILLING]
+const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, PEOPLE, ACCESS, BILLING]
 
 /** The sections this caller sees, with the items they may reach. */
 export function sectionsFor(context: ConsoleContext): Array<NavSection> {
@@ -101,6 +110,7 @@ export function sectionsFor(context: ConsoleContext): Array<NavSection> {
 
 /** Whether this caller may enter a route, by the same table the sidebar uses. */
 export function mayEnter(context: ConsoleContext, route: string) {
-  const item = SECTIONS.flatMap((section) => section.items).find((entry) => entry.route === route)
+  const target = route.startsWith("/providers/") ? "/providers" : route
+  const item = SECTIONS.flatMap((section) => section.items).find((entry) => entry.route === target)
   return item ? context.has(item.needs) : true
 }

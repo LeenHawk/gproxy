@@ -45,5 +45,10 @@
   "members": {
     "title": "Members",
     "emptyTitle": "No members yet"
+  },
+  "providers": {
+    "all": "All providers",
+    "search": "Find a provider",
+    "settings": "Settings"
   }
 }

@@ -45,5 +45,10 @@
   "members": {
     "title": "成员",
     "emptyTitle": "还没有成员"
+  },
+  "providers": {
+    "all": "全部供应商",
+    "search": "搜索供应商",
+    "settings": "设置"
   }
 }
