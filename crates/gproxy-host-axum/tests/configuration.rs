@@ -796,3 +796,47 @@ async fn an_unknown_configuration_path_is_a_404_and_not_a_401() {
         assert_eq!(answer.status, StatusCode::NOT_FOUND, "{path}");
     }
 }
+
+#[tokio::test]
+async fn global_network_and_instance_info_follow_settings_without_restart() {
+    let host = instance().await;
+    let saved = call(
+        &host,
+        Method::PATCH,
+        "/admin/api/settings",
+        json!({"instance": {
+            "instanceName": "Live gateway", "corsOrigins": ["https://client.example/"],
+            "trustedProxies": ["192.0.2.10"]
+        }}),
+    )
+    .await;
+    assert_eq!(saved.status, StatusCode::OK, "{}", saved.text());
+    host.publish().await;
+    let info = host.send(get("/info")).await.json();
+    assert_eq!(info["instanceName"], "Live gateway");
+    assert_eq!(info["version"], env!("CARGO_PKG_VERSION"));
+    assert!(!info["hash"].as_str().unwrap().is_empty());
+    let mut request = get("/v1/models");
+    request
+        .headers_mut()
+        .insert("origin", "https://client.example".parse().unwrap());
+    let response = host.send(request).await;
+    assert_eq!(
+        response.headers["access-control-allow-origin"],
+        "https://client.example"
+    );
+    assert_eq!(
+        gproxy_host_axum::runtime_settings::trusted_proxies(&host.app),
+        ["192.0.2.10"]
+    );
+    let saved = call(
+        &host,
+        Method::PATCH,
+        "/admin/api/settings",
+        json!({"instance": {"corsOrigins": [], "trustedProxies": []}}),
+    )
+    .await;
+    assert_eq!(saved.status, StatusCode::OK);
+    host.publish().await;
+    assert!(gproxy_host_axum::runtime_settings::cors_origins(&host.app).is_empty());
+}

@@ -73,8 +73,8 @@ where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
     crate::send(async move {
-        let origins = &state.app().config().cors_origins;
-        let origin = policy::allowed_origin(request.headers(), origins);
+        let origins = crate::runtime_settings::cors_origins(state.app());
+        let origin = policy::allowed_origin(request.headers(), &origins);
         if policy::is_preflight(request.method(), request.headers()) {
             // A preflight is never forwarded: it asks this instance what it
             // will accept, and the upstream has no opinion about that.
@@ -95,9 +95,9 @@ where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
     let peer = crate::peer_ip(&request);
-    let trusted = &state.app().config().trusted_proxies;
-    let client_ip = policy::client_ip(peer, request.headers(), trusted).to_string();
-    let scheme = policy::client_scheme(peer, request.headers(), trusted);
+    let trusted = crate::runtime_settings::trusted_proxies(state.app());
+    let client_ip = policy::client_ip(peer, request.headers(), &trusted).to_string();
+    let scheme = policy::client_scheme(peer, request.headers(), &trusted);
 
     let (mut parts, body) = request.into_parts();
     let body = match to_bytes(body, crate::MAX_BODY_BYTES).await {

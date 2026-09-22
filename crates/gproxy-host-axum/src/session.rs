@@ -61,7 +61,7 @@ where
         None => authenticator.authenticate_request(headers).await?,
     };
     if caller.kind == CallerKind::Session {
-        verify_same_origin(method, headers, &app.config().cors_origins)?;
+        verify_same_origin(method, headers, &crate::runtime_settings::cors_origins(app))?;
     }
     Ok(caller)
 }
