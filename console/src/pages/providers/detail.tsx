@@ -8,14 +8,14 @@ import type { ChannelDescriptor, ProviderDto } from "@/generated/sdk"
 import { BoolCell, InstantCell, MaybeCell } from "@/components/cells"
 import { ConfirmButton } from "@/components/confirm"
 import { Page, PageHeader } from "@/components/page"
-import { RecordDialog } from "@/components/record-form"
+import { ProviderDialog, ProviderForm } from "@/pages/providers/provider-form"
 import { ErrorNotice, QueryState } from "@/components/state"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CollectionPage } from "@/pages/identity/collection"
-import { authKinds, credentialFields, modelFields, providerFields } from "@/pages/providers/fields"
+import { authKinds, credentialFields, modelFields } from "@/pages/providers/fields"
 import { useNavigate } from "@/lib/router"
 
 export function ProviderDetailPage({ providerId, tab }: { providerId: string; tab: string }) {
@@ -108,20 +108,11 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
             fields={modelFields}
           />
         </TabsContent>
-        <TabsContent value="settings" className="flex flex-col gap-6">
-          <dl className="grid gap-6 sm:grid-cols-2">
-            <div><dt className="text-sm text-muted-foreground">{t("fields.name")}</dt><dd className="mt-1 break-all">{provider.name}</dd></div>
-            <div><dt className="text-sm text-muted-foreground">{t("fields.channel")}</dt><dd className="mt-1">{channel?.displayName ?? provider.channel}</dd></div>
-            <div><dt className="text-sm text-muted-foreground">{t("fields.baseUrl")}</dt><dd className="mt-1 break-all">{provider.baseUrl ?? "—"}</dd></div>
-            <div><dt className="text-sm text-muted-foreground">{t("fields.connectionProfileId")}</dt><dd className="mt-1 break-all">{provider.connectionProfileId ?? "—"}</dd></div>
-          </dl>
-          <div>
-            <h2 className="mb-2 text-sm font-medium">{t("fields.config")}</h2>
-            <pre className="overflow-x-auto rounded-lg border border-border bg-muted/30 p-4 font-mono text-sm">{JSON.stringify(provider.config, null, 2)}</pre>
-          </div>
+        <TabsContent value="settings">
+          <ProviderForm key={`${provider.id}-${JSON.stringify(provider)}`} provider={provider} catalog={catalog} onSubmit={(body) => update.mutate(body)} pending={update.isPending} error={update.error} />
         </TabsContent>
       </Tabs>
-      <RecordDialog open={editing} onOpenChange={setEditing} title={t("edit.providers")} mode="edit" fields={providerFields(catalog)} original={provider} onSubmit={(body) => update.mutate(body)} pending={update.isPending} error={update.error} />
+      <ProviderDialog open={editing} onOpenChange={setEditing} provider={provider} catalog={catalog} onSubmit={(body) => update.mutate(body)} pending={update.isPending} error={update.error} />
     </Page>
   )
 }

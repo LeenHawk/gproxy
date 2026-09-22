@@ -1,16 +1,4 @@
-import type { ChannelDescriptor } from "@/generated/sdk"
 import type { FormField } from "@/components/record-form"
-
-export function providerFields(channels: Array<ChannelDescriptor>): Array<FormField> {
-  return [
-    { name: "name", kind: "text", required: true },
-    { name: "channel", kind: "select", required: true, choices: channels.map((channel) => ({ value: channel.id, label: channel.displayName })) },
-    { name: "baseUrl", kind: "text", nullable: true },
-    { name: "connectionProfileId", kind: "text", nullable: true },
-    { name: "config", kind: "json" },
-    { name: "enabled", kind: "switch" },
-  ]
-}
 
 export const authKinds = [
   { value: "api_key", label: "API Key" },

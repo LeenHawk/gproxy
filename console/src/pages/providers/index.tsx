@@ -5,7 +5,7 @@ import { BoolCell, MaybeCell } from "@/components/cells"
 import { QueryState } from "@/components/state"
 import { CollectionPage } from "@/pages/identity/collection"
 import { Link } from "@/lib/router"
-import { providerFields } from "@/pages/providers/fields"
+import { ProviderDialog } from "@/pages/providers/provider-form"
 
 export function ProvidersPage() {
   const catalog = useQuery({ queryKey: ["configuration", "channels"], queryFn: channels })
@@ -28,7 +28,8 @@ export function ProvidersPage() {
           { key: "baseUrl", cell: (row) => <MaybeCell value={row.baseUrl} /> },
           { key: "enabled", cell: (row) => <BoolCell value={row.enabled} /> },
         ]}
-        fields={providerFields(catalog.data ?? [])}
+        fields={[]}
+        renderForm={({ original, ...props }) => <ProviderDialog {...props} provider={original} catalog={catalog.data ?? []} />}
       />
     </QueryState>
   )
