@@ -17,13 +17,12 @@ fn main() {
         if let Ok(output) = std::process::Command::new("git")
             .args(["rev-parse", "--git-path", name])
             .output()
+            && output.status.success()
         {
-            if output.status.success() {
-                println!(
-                    "cargo:rerun-if-changed={}",
-                    String::from_utf8_lossy(&output.stdout).trim()
-                );
-            }
+            println!(
+                "cargo:rerun-if-changed={}",
+                String::from_utf8_lossy(&output.stdout).trim()
+            );
         }
     }
     println!("cargo:rustc-env=GPROXY_BUILD_HASH={hash}");

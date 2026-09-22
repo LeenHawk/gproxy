@@ -283,7 +283,7 @@ curl -s -X PATCH http://127.0.0.1:7070/admin/api/settings \
 
 | 键 | 默认 | 含义 |
 | --- | --- | --- |
-| `instanceName` | `default` | 随用量一起记录 |
+| `instanceName` | `default` | 控制台名称 |
 | `maxAttempts` | `6` | 一个计划上游尝试次数的硬上限；路由自己的预算被它钳住 |
 | `requestTimeoutMs` | `600000` | 整请求截止时间 |
 | `streamIdleTimeoutMs` | `60000` | 流单元之间的间隔 |

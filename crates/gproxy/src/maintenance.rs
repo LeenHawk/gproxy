@@ -30,22 +30,22 @@ pub async fn clean(
             tokio::task::yield_now().await;
         }
     }
-    if let Some(max_mb) = max_mb.filter(|value| *value > 0) {
-        if db.get_database_backend() == DbBackend::Sqlite {
-            let limit = max_mb.saturating_mul(1024 * 1024);
-            reclaim = physical_bytes(db).await? > limit;
-            while occupied_bytes(db).await? > limit {
-                let count = prune(db, now).await?;
-                removed += count;
-                if count == 0 {
-                    tracing::warn!(
-                        max_mb,
-                        "database exceeds its history budget; remaining data is configuration or active work"
-                    );
-                    break;
-                }
-                tokio::task::yield_now().await;
+    if let Some(max_mb) = max_mb.filter(|value| *value > 0)
+        && db.get_database_backend() == DbBackend::Sqlite
+    {
+        let limit = max_mb.saturating_mul(1024 * 1024);
+        reclaim = physical_bytes(db).await? > limit;
+        while occupied_bytes(db).await? > limit {
+            let count = prune(db, now).await?;
+            removed += count;
+            if count == 0 {
+                tracing::warn!(
+                    max_mb,
+                    "database exceeds its history budget; remaining data is configuration or active work"
+                );
+                break;
             }
+            tokio::task::yield_now().await;
         }
     }
     if removed > 0 || reclaim {
