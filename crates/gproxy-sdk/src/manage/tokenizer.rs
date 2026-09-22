@@ -179,6 +179,18 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Tokenizer<'_, C> {
     /// [`Tokenizer::progress`] on another. A host that wants it in the
     /// background spawns this future itself.
     pub async fn fetch(&self, request: TokenizerFetch) -> SdkResult<VocabularyDto> {
+        if !self
+            .writer
+            .store()
+            .settings()
+            .get()
+            .await?
+            .is_some_and(|settings| settings.enable_tokenizer_download)
+        {
+            return Err(SdkError::invalid(
+                "tokenizer downloads are disabled in global settings",
+            ));
+        }
         let storage = self
             .writer
             .core()

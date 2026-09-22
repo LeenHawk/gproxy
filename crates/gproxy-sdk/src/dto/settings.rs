@@ -39,8 +39,6 @@ impl From<setting::Model> for SettingsDto {
                 cors_origins: row.cors_origins,
                 trusted_proxies: row.trusted_proxies,
                 max_attempts: row.max_attempts,
-                max_in_flight: row.max_in_flight,
-                file_upload_max_in_flight: row.file_upload_max_in_flight,
                 enable_settlement: row.enable_settlement,
                 enable_usage: row.enable_usage,
                 config_revision: row.config_revision,
@@ -57,7 +55,6 @@ impl From<setting::Model> for SettingsDto {
                 has_tokenizer_auth_token: row
                     .tokenizer_auth_token
                     .is_some_and(|token| !token.is_empty()),
-                default_file_storage_name: row.default_file_storage_name,
                 retention_days: row.retention_days,
                 max_database_size_mb: row.max_database_size_mb,
                 update_channel: row.update_channel,
@@ -84,8 +81,6 @@ pub struct InstanceSettingsDto {
     #[cfg_attr(feature = "ts", ts(type = "string[]"))]
     pub trusted_proxies: Value,
     pub max_attempts: u32,
-    pub max_in_flight: u32,
-    pub file_upload_max_in_flight: u32,
     pub enable_settlement: bool,
     pub enable_usage: bool,
     pub config_revision: i64,
@@ -102,7 +97,6 @@ pub struct InstanceSettingsDto {
     /// The vocabulary source token is sealed like a credential secret; only
     /// its presence is reported.
     pub has_tokenizer_auth_token: bool,
-    pub default_file_storage_name: Option<String>,
     pub retention_days: Option<u32>,
     pub max_database_size_mb: Option<i64>,
     pub update_channel: Option<String>,
@@ -165,10 +159,6 @@ pub struct InstanceSettingsPatch {
     #[serde(default)]
     pub max_attempts: Option<u32>,
     #[serde(default)]
-    pub max_in_flight: Option<u32>,
-    #[serde(default)]
-    pub file_upload_max_in_flight: Option<u32>,
-    #[serde(default)]
     pub enable_settlement: Option<bool>,
     #[serde(default)]
     pub enable_usage: Option<bool>,
@@ -196,8 +186,6 @@ pub struct InstanceSettingsPatch {
     /// removes it and downloads anonymously again.
     #[serde(default, deserialize_with = "double_option")]
     pub tokenizer_auth_token: Option<Option<String>>,
-    #[serde(default, deserialize_with = "double_option")]
-    pub default_file_storage_name: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     pub retention_days: Option<Option<u32>>,
     #[serde(default, deserialize_with = "double_option")]

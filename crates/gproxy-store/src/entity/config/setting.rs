@@ -35,11 +35,6 @@ pub struct Model {
     // Execution
     #[sea_orm(default_value = 6)]
     pub max_attempts: u32,
-    #[sea_orm(default_value = 1024)]
-    pub max_in_flight: u32,
-    /// Zero uses the existing unrestricted upload-concurrency setting.
-    #[sea_orm(default_value = 0)]
-    pub file_upload_max_in_flight: u32,
     /// Usage extraction, pricing and quota settlement.
     #[sea_orm(default_value = true)]
     pub enable_settlement: bool,
@@ -111,8 +106,6 @@ pub struct Model {
     pub query_parameter_blacklist: Json,
 
     // Files and maintenance
-    /// Name of a host-configured gproxy-file operator; None uses the host default.
-    pub default_file_storage_name: Option<String>,
     /// None uses the application's retention default.
     pub retention_days: Option<u32>,
     /// Saved preference for database cleanup; does not describe S3 object storage.
