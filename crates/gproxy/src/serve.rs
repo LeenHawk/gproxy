@@ -57,7 +57,7 @@ pub async fn run(settings: Settings, updates: update::UpdateOptions) -> Result<(
     // replace. Nothing is downloaded here — `start` arms a timer whose every
     // tick produces a report.
     let updater = update::Updater::for_settings(&settings, updates)?;
-    updater.start();
+    let runtime = crate::runtime::start(&instance.app, updater.clone());
 
     let state = HostState::new(instance.app.clone()).with_updates(updater.clone());
     let console = state.console().is_enabled();
@@ -88,6 +88,7 @@ pub async fn run(settings: Settings, updates: update::UpdateOptions) -> Result<(
     instance.app.shutdown();
     // The scheduled check stops when the last `Arc` goes, which is here: the
     // router held one through `HostState`, and `axum::serve` has returned it.
+    drop(runtime);
     drop(updater);
     result.map_err(|error| Error::io("serving", error))
 }
