@@ -141,6 +141,13 @@ pub(crate) fn to_gemini(
                     out.extend(parts);
                 }
             }
+            c::ContentBlock::ToolUse(v) if v.toolset_name.is_some() => {
+                report.omitted(
+                    "toolset_name",
+                    "native toolset member has no target definition",
+                );
+                continue;
+            }
             c::ContentBlock::ToolUse(v) => {
                 if v.caller.is_some() {
                     report.omitted("tool_use.caller", "caller has no target representation");
@@ -157,6 +164,13 @@ pub(crate) fn to_gemini(
                 if v.cache_control.is_some() {
                     report.omitted("tool_use.cache_control", "Gemini has no block cache field");
                 }
+            }
+            c::ContentBlock::ToolResult(v) if v.toolset_name.is_some() => {
+                report.omitted(
+                    "toolset_name",
+                    "native toolset member has no target definition",
+                );
+                continue;
             }
             c::ContentBlock::ToolResult(v) => {
                 let (id, name) = calls.result(Some(&v.tool_use_id), None)?;
@@ -191,6 +205,7 @@ pub(crate) fn to_gemini(
             | c::ContentBlock::McpToolUse(_)
             | c::ContentBlock::McpToolResult(_)
             | c::ContentBlock::ContainerUpload(_)
+            | c::ContentBlock::McpToolListing(_)
             | c::ContentBlock::Compaction(_)
             | c::ContentBlock::MidConversationSystem(_)
             | c::ContentBlock::ToolAddition(_)

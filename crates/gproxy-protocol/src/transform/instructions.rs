@@ -23,7 +23,7 @@ impl Position {
 
 // Recognize model families with vendor prefixes and version/date suffixes,
 // without treating e.g. opus-4-80 as opus-4-8.
-fn family(model: &str, name: &str) -> bool {
+pub(crate) fn family(model: &str, name: &str) -> bool {
     model.match_indices(name).any(|(start, _)| {
         (start == 0 || matches!(model.as_bytes()[start - 1], b'/' | b'.' | b':'))
             && model[start + name.len()..]

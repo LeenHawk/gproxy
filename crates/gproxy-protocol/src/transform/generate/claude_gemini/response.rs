@@ -67,6 +67,15 @@ pub fn claude_to_gemini_response(
                 "content.redacted_thinking",
                 "Gemini has no Claude opaque redacted block",
             ),
+            c::ResponseContentBlock::ToolUse(v)
+                if v.toolset_name.as_ref().is_some_and(Option::is_some) =>
+            {
+                report.omitted(
+                    "toolset_name",
+                    "native toolset member has no target definition",
+                );
+                continue;
+            }
             c::ResponseContentBlock::ToolUse(v) => {
                 let id = calls.call(
                     Some(v.id),
@@ -97,6 +106,7 @@ pub fn claude_to_gemini_response(
             | c::ResponseContentBlock::McpToolUse(_)
             | c::ResponseContentBlock::McpToolResult(_)
             | c::ResponseContentBlock::ContainerUpload(_)
+            | c::ResponseContentBlock::McpToolListing(_)
             | c::ResponseContentBlock::Compaction(_)
             | c::ResponseContentBlock::Fallback(_) => {
                 continue;

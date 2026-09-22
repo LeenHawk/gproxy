@@ -20,9 +20,15 @@ pub fn claude_to_gemini(
 ) -> Result<Converted<g::CountTokensRequestBody>, TransformError> {
     super::policy(policy, crate::Dialect::Gemini)?;
     let model = super::model(target_model)?;
-    let input = input.into_declared();
+    let mut input = input.into_declared();
 
     let mut report = Report::default();
+    crate::transform::generate::claude_controls::project_messages(
+        &mut input.messages,
+        &mut input.tools,
+        &mut input.output_config,
+        &mut report,
+    );
     let mut ids = flow.clone();
     let mut calls = pair::history::Calls::default();
     for (id, name) in context.tool_names {
@@ -145,6 +151,12 @@ pub fn gemini_to_claude(
     }
     crate::transform::instructions::claude(&mut out.messages, &out.model, &mut report);
     *flow = ids;
+    crate::transform::generate::claude_controls::target(
+        &out.model,
+        &mut out.thinking,
+        &mut out.tool_choice,
+        &mut report,
+    );
     Ok(Converted { value: out, report })
 }
 

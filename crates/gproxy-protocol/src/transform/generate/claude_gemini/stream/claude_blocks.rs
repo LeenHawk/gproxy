@@ -88,7 +88,9 @@ impl Blocks {
                 )
             }
             c::ResponseContentBlock::RedactedThinking(_) => (Payload::Omitted, 0),
-            c::ResponseContentBlock::ToolUse(v) => {
+            c::ResponseContentBlock::ToolUse(v)
+                if v.toolset_name.as_ref().is_none_or(Option::is_none) =>
+            {
                 if self.tool_count >= self.limits.max_tools {
                     return Err(limit());
                 }

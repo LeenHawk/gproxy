@@ -59,6 +59,13 @@ pub struct MessageStartEvent {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct StreamMessage {
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub input_transformations: Option<Option<Vec<response::InputTransformation>>>,
+
     #[serde(rename = "type")]
     pub type_: StreamMessageType,
     pub id: String,
@@ -243,6 +250,13 @@ pub struct ContentBlockStopEvent {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct MessageDeltaEvent {
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub input_transformations: Option<Option<Vec<response::InputTransformation>>>,
+
     #[serde(
         default,
         deserialize_with = "present_nullable",

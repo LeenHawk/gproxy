@@ -37,9 +37,10 @@ pub fn claude_to_responses_request(
 ) -> Result<Converted<r::GenerateContentRequestBody>, TransformError> {
     let model = target_model.into();
 
-    let input = input.into_declared();
+    let mut input = input.into_declared();
     let mut ids = flow.clone();
     let mut report = Report::default();
+    super::super::claude_controls::project(&mut input, &mut report);
     let mut out = r::GenerateContentRequestBody::builder().build();
     controls::to_responses(&input, &mut out, &mut report)?;
     out.model = Some(model.clone());
@@ -157,6 +158,12 @@ pub fn responses_to_claude_request(
     if !system.is_empty() {
         out.system = Some(crate::claude::count_tokens::SystemPrompt::Blocks(system));
     }
+    crate::transform::generate::claude_controls::target(
+        &out.model,
+        &mut out.thinking,
+        &mut out.tool_choice,
+        &mut report,
+    );
     Ok(Converted { value: out, report })
 }
 

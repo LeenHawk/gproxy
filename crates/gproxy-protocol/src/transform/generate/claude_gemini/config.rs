@@ -92,7 +92,7 @@ pub(super) fn to_gemini(
 
 fn display(v: cc::ThinkingDisplay) -> bool {
     match v {
-        cc::ThinkingDisplay::Summarized => true,
+        cc::ThinkingDisplay::Summarized | cc::ThinkingDisplay::Updates => true,
         cc::ThinkingDisplay::Omitted => false,
     }
 }
@@ -191,10 +191,12 @@ pub(super) fn to_claude(
                 cc::ThinkingDisabled::builder().build(),
             )),
             Some(-1) => Some(cc::ThinkingConfig::Adaptive(cc::ThinkingAdaptive {
+                block_binding: None,
                 display,
                 rest: Default::default(),
             })),
             Some(n) if n > 0 => Some(cc::ThinkingConfig::Enabled(cc::ThinkingEnabled {
+                block_binding: None,
                 budget_tokens: n,
                 display,
                 rest: Default::default(),
@@ -213,6 +215,7 @@ pub(super) fn to_claude(
                     };
                     out.output_config = Some(cc::OutputConfig::builder().effort(effort).build());
                     Some(cc::ThinkingConfig::Adaptive(cc::ThinkingAdaptive {
+                        block_binding: None,
                         display,
                         rest: Default::default(),
                     }))

@@ -56,6 +56,7 @@ pub fn synthesize_claude_stream(
     sink.emit(s::StreamEvent::MessageStart(Box::new(
         s::MessageStartEvent {
             message: s::StreamMessage {
+                input_transformations: input.input_transformations.clone(),
                 type_: input.type_,
                 id: input.id,
                 container: input.container,
@@ -145,6 +146,7 @@ pub fn synthesize_claude_stream(
     }
     sink.emit(s::StreamEvent::MessageDelta(Box::new(
         s::MessageDeltaEvent {
+            input_transformations: None,
             context_management: input.context_management,
             delta: s::MessageDelta {
                 container: None,

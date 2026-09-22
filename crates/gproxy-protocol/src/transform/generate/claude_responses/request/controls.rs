@@ -65,23 +65,32 @@ pub(super) fn to_responses(
         Some(cc::ThinkingConfig::Enabled(_)) => {
             report.omitted("thinking.budget", "Responses has no token budget control");
         }
-        Some(cc::ThinkingConfig::Adaptive(config)) => {
-            if effort.is_none() {
-                report.omitted(
-                    "adaptive target reasoning effort",
-                    "field has no target representation",
-                );
-            }
-            if config.display.is_some() {
-                report.omitted("thinking.display", "field has no target representation");
-            }
+        Some(cc::ThinkingConfig::Adaptive(_)) if effort.is_none() => {
+            report.omitted(
+                "adaptive target reasoning effort",
+                "field has no target representation",
+            );
         }
-        None => {}
+        Some(cc::ThinkingConfig::Adaptive(_)) | None => {}
     }
     if let Some(effort) = effort {
         out.reasoning = Some(Some(
             i::ReasoningConfig::builder().effort(Some(effort)).build(),
         ));
+    }
+    let display = match &input.thinking {
+        Some(cc::ThinkingConfig::Adaptive(v)) => v.display,
+        Some(cc::ThinkingConfig::Enabled(v)) => v.display,
+        _ => None,
+    };
+    if matches!(
+        display,
+        Some(cc::ThinkingDisplay::Summarized | cc::ThinkingDisplay::Updates)
+    ) {
+        out.reasoning
+            .get_or_insert_with(|| Some(i::ReasoningConfig::builder().build()))
+            .get_or_insert_with(|| i::ReasoningConfig::builder().build())
+            .summary = Some(Some(i::ReasoningSummary::Auto));
     }
     let current = input.output_config.as_ref().and_then(|v| v.format.as_ref());
 

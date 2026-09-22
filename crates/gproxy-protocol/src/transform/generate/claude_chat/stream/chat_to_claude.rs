@@ -199,6 +199,7 @@ impl ChatToClaudeStream {
             );
         }
         let message = s::StreamMessage {
+            input_transformations: None,
             type_: c::GenerateContentResponseBodyType::Tag,
             id,
             container: None,

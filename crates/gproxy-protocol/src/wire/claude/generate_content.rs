@@ -15,6 +15,9 @@ use super::{
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct GenerateContentRequestBody {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub compaction: Option<CompactionConfig>,
+
     pub max_tokens: i64,
     pub messages: Vec<Message>,
     pub model: String,
@@ -229,6 +232,13 @@ pub enum GenerateContentResponseBodyType {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct GenerateContentResponseBody {
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub input_transformations: Option<Option<Vec<InputTransformation>>>,
+
     #[serde(rename = "type")]
     pub type_: GenerateContentResponseBodyType,
     pub id: String,
@@ -1007,6 +1017,7 @@ pub enum ResponseContentBlock {
     BashCodeExecutionToolResult(ResponseBashCodeExecutionToolResultBlock),
     TextEditorCodeExecutionToolResult(ResponseTextEditorCodeExecutionToolResultBlock),
     ToolSearchToolResult(ResponseToolSearchToolResultBlock),
+    McpToolListing(content::McpToolListingBlock),
     McpToolUse(ResponseMcpToolUseBlock),
     McpToolResult(ResponseMcpToolResultBlock),
     ContainerUpload(ResponseContainerUploadBlock),
@@ -1242,6 +1253,13 @@ pub enum ResponseToolUseBlockType {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseToolUseBlock {
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub toolset_name: Option<Option<String>>,
+
     #[serde(rename = "type")]
     pub type_: ResponseToolUseBlockType,
     pub id: String,
@@ -1967,6 +1985,13 @@ pub enum ResponseCompactionBlockType {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ResponseCompactionBlock {
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub signature: Option<Option<String>>,
+
     #[serde(rename = "type")]
     pub type_: ResponseCompactionBlockType,
     #[serde(
@@ -2034,4 +2059,100 @@ pub struct FallbackRefusalTrigger {
     pub category: Option<Option<RefusalCategory>>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum CompactionConfigType {
+    Summarize,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct CompactionConfig {
+    #[serde(rename = "type")]
+    pub type_: CompactionConfigType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub instructions: Option<String>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct InputTransformation {
+    #[serde(rename = "type")]
+    pub type_: InputTransformationType,
+    pub path: String,
+    pub reason: ThinkingBindingMismatchReason,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum InputTransformationType {
+    ThinkingDropped,
+    ThinkingMismatchAllowed,
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ThinkingBindingMismatchReason {
+    ModelBindingMismatch,
+    PrefixBindingMismatch,
+    OrganizationBindingMismatch,
+    EndUserBindingMismatch,
+    #[serde(other)]
+    Unknown,
 }

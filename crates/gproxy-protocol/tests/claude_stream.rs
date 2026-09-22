@@ -302,6 +302,7 @@ fn all_seventeen_response_block_kinds_are_valid_stream_starts() {
                 response::ResponseContentBlock::ToolSearchToolResult(x) => {
                     assert!(x.rest.is_empty())
                 }
+                response::ResponseContentBlock::McpToolListing(x) => assert!(x.rest.is_empty()),
                 response::ResponseContentBlock::McpToolUse(x) => assert!(x.rest.is_empty()),
                 response::ResponseContentBlock::McpToolResult(x) => assert!(x.rest.is_empty()),
                 response::ResponseContentBlock::ContainerUpload(x) => assert!(x.rest.is_empty()),

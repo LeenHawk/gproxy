@@ -66,6 +66,7 @@ pub fn claude_text(input: c::GenerateContentResponseBody) -> Result<String, Tran
             | c::ResponseContentBlock::McpToolUse(_)
             | c::ResponseContentBlock::McpToolResult(_)
             | c::ResponseContentBlock::ContainerUpload(_)
+            | c::ResponseContentBlock::McpToolListing(_)
             | c::ResponseContentBlock::Compaction(_)
             | c::ResponseContentBlock::Fallback(_) => {
                 return Err(TransformError::invalid_result(

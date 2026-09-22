@@ -15,9 +15,15 @@ pub fn claude_to_openai(
 ) -> Result<Converted<o::CountTokensRequestBody>, TransformError> {
     super::policy(policy, crate::Dialect::OpenAi)?;
     let model = super::model(target_model)?;
-    let input = input.into_declared();
+    let mut input = input.into_declared();
     let mut ids = flow.clone();
     let mut report = Report::default();
+    crate::transform::generate::claude_controls::project_messages(
+        &mut input.messages,
+        &mut input.tools,
+        &mut input.output_config,
+        &mut report,
+    );
     let mut out = o::CountTokensRequestBody::builder().build();
     out.model = Some(Some(model.clone()));
     super::controls::claude_to_openai(&input, &mut out, &mut report)?;
@@ -140,5 +146,11 @@ pub fn openai_to_claude(
     if !system.is_empty() {
         out.system = Some(c::SystemPrompt::Blocks(system));
     }
+    crate::transform::generate::claude_controls::target(
+        &out.model,
+        &mut out.thinking,
+        &mut out.tool_choice,
+        &mut report,
+    );
     Ok(Converted { value: out, report })
 }

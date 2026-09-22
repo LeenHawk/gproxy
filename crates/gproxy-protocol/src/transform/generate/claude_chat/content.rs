@@ -66,6 +66,13 @@ pub(crate) fn claude_message_to_openai(
                             rest: Rest::new(),
                         }))
                     }
+                    c::ContentBlock::ToolResult(v) if v.toolset_name.is_some() => {
+                        report.omitted(
+                            "toolset_name",
+                            "native toolset member has no target definition",
+                        );
+                        continue;
+                    }
                     c::ContentBlock::ToolResult(block) => {
                         let text = match &block.content {
                             Some(c::ToolResultContent::Text(text)) => text.clone(),
@@ -83,7 +90,7 @@ pub(crate) fn claude_message_to_openai(
                                         }
                                         Ok(serde_json::json!({"type":"tool_reference","tool_name":reference.tool_name}).to_string())
                                     }
-                                    c::ToolResultContentBlock::Image(_) | c::ToolResultContentBlock::SearchResult(_) | c::ToolResultContentBlock::Document(_) => {
+                                    c::ToolResultContentBlock::BrowserState(_) | c::ToolResultContentBlock::Image(_) | c::ToolResultContentBlock::SearchResult(_) | c::ToolResultContentBlock::Document(_) => {
                                         report.omitted("tool_result.content", "Chat tool messages have no non-text part");
                                         Ok(String::new())
                                     },
@@ -169,6 +176,7 @@ pub(crate) fn claude_message_to_openai(
                         );
                     }
                     c::ContentBlock::ContainerUpload(_)
+                    | c::ContentBlock::McpToolListing(_)
                     | c::ContentBlock::Compaction(_)
                     | c::ContentBlock::MidConversationSystem(_)
                     | c::ContentBlock::ToolAddition(_)
@@ -205,6 +213,13 @@ pub(crate) fn claude_message_to_openai(
                             prompt_cache_breakpoint: None,
                             rest: Rest::new(),
                         }))
+                    }
+                    c::ContentBlock::ToolUse(v) if v.toolset_name.is_some() => {
+                        report.omitted(
+                            "toolset_name",
+                            "native toolset member has no target definition",
+                        );
+                        continue;
                     }
                     c::ContentBlock::ToolUse(block) => {
                         calls.push(chat::MessageToolCall::Function(chat::ChatToolCall {
@@ -245,6 +260,7 @@ pub(crate) fn claude_message_to_openai(
                     | c::ContentBlock::Document(_)
                     | c::ContentBlock::SearchResult(_)
                     | c::ContentBlock::ContainerUpload(_)
+                    | c::ContentBlock::McpToolListing(_)
                     | c::ContentBlock::Compaction(_)
                     | c::ContentBlock::MidConversationSystem(_)
                     | c::ContentBlock::ToolAddition(_)
@@ -280,24 +296,33 @@ pub(crate) fn openai_message_to_claude(
 ) -> Result<Vec<c::Message>, TransformError> {
     match message {
         chat::ChatMessage::System(message) => Ok(vec![c::Message {
+            clear_at: None,
+            output_config: None,
             role: c::Role::System,
             content: c::MessageContent::Text(chat_text(&message.content)),
             rest: Rest::new(),
         }]),
         chat::ChatMessage::Developer(message) => Ok(vec![c::Message {
+            clear_at: None,
+            output_config: None,
             role: c::Role::System,
             content: c::MessageContent::Text(chat_text(&message.content)),
             rest: Rest::new(),
         }]),
         chat::ChatMessage::User(message) => Ok(vec![c::Message {
+            clear_at: None,
+            output_config: None,
             role: c::Role::User,
             content: c::MessageContent::Blocks(openai_user_blocks(&message.content, report)?),
             rest: Rest::new(),
         }]),
         chat::ChatMessage::Tool(message) => Ok(vec![c::Message {
+            clear_at: None,
+            output_config: None,
             role: c::Role::User,
             content: c::MessageContent::Blocks(vec![c::ContentBlock::ToolResult(
                 c::ToolResultBlock {
+                    toolset_name: None,
                     type_: c::ToolResultBlockType::Tag,
                     tool_use_id: super::util::request_id(&message.tool_call_id)?,
                     content: Some(c::ToolResultContent::Text(chat_text(&message.content))),
@@ -361,6 +386,7 @@ pub(crate) fn openai_message_to_claude(
                 for call in calls {
                     if let chat::MessageToolCall::Function(call) = call {
                         blocks.push(c::ContentBlock::ToolUse(c::ToolUseBlock {
+                            toolset_name: None,
                             type_: c::ToolUseBlockType::Tag,
                             id: super::util::request_id(&call.id)?,
                             input: parse_tool_arguments(
@@ -381,6 +407,8 @@ pub(crate) fn openai_message_to_claude(
                 blocks.push(text_block(refusal.clone()));
             }
             Ok(vec![c::Message {
+                clear_at: None,
+                output_config: None,
                 role: c::Role::Assistant,
                 content: c::MessageContent::Blocks(blocks),
                 rest: Rest::new(),

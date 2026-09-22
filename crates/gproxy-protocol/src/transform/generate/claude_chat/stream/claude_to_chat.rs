@@ -189,7 +189,9 @@ impl ClaudeToChatStream {
                             );
                         }
                     }
-                    c::ResponseContentBlock::ToolUse(tool) => {
+                    c::ResponseContentBlock::ToolUse(tool)
+                        if tool.toolset_name.as_ref().is_none_or(Option::is_none) =>
+                    {
                         if self.next_tool >= self.limits.max_tools {
                             return Err(limit());
                         }
@@ -397,7 +399,12 @@ impl ClaudeToChatStream {
             .ok_or_else(|| invalid("source consumed"))?
             .finish()?
             .value;
-        let finish = chat_finish(source.stop_reason)?;
+        let finish = if source.stop_reason == c::StopReason::ToolUse && self.next_tool == 0
+            && source.content.iter().any(|block| matches!(block, c::ResponseContentBlock::ToolUse(v) if v.toolset_name.as_ref().is_some_and(Option::is_some))) {
+            o::FinishReason::Stop
+        } else {
+            chat_finish(source.stop_reason)?
+        };
         if source.stop_reason == c::StopReason::Refusal {
             self.report.changed("refusal","Claude refusal is learned after text delivery; streamed text remains content and terminal is content_filter");
         }

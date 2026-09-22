@@ -4,7 +4,9 @@ use serde_json::Value;
 use super::content::{CacheControl, CitationsConfig};
 use crate::Rest;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -32,7 +34,9 @@ pub struct Tool {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -149,12 +153,14 @@ pub enum AllowedCaller {
     CodeExecution20260521,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 #[allow(clippy::large_enum_variant)]
 pub enum ToolUnion {
+    BrowserToolset20260801(BrowserToolset20260801),
+    ComputerToolset20260801(ComputerToolset20260801),
     Custom(Tool),
     Mcp(McpToolset),
     Bash20241022(BashTool20241022),
@@ -183,11 +189,16 @@ pub enum ToolUnion {
     ToolSearchRegex20251119(ToolSearchRegexTool20251119),
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct McpToolset {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tools: Option<Vec<McpListedTool>>,
+
     pub mcp_server_name: String,
     #[serde(rename = "type")]
     pub type_: McpToolsetType,
@@ -201,7 +212,9 @@ pub struct McpToolset {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -214,7 +227,9 @@ pub struct McpToolConfig {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -251,7 +266,9 @@ pub enum BashTool20241022Type {
     #[serde(rename = "bash_20241022")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -288,7 +305,9 @@ pub enum BashTool20250124Type {
     #[serde(rename = "bash_20250124")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -325,7 +344,9 @@ pub enum CodeExecutionTool20250522Type {
     #[serde(rename = "code_execution_20250522")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -360,7 +381,9 @@ pub enum CodeExecutionTool20250825Type {
     #[serde(rename = "code_execution_20250825")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -395,7 +418,9 @@ pub enum CodeExecutionTool20260120Type {
     #[serde(rename = "code_execution_20260120")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -430,7 +455,9 @@ pub enum CodeExecutionTool20260521Type {
     #[serde(rename = "code_execution_20260521")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -465,7 +492,9 @@ pub enum MemoryTool20250818Type {
     #[serde(rename = "memory_20250818")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -502,7 +531,9 @@ pub enum ComputerTool20241022Type {
     #[serde(rename = "computer_20241022")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -543,7 +574,9 @@ pub enum ComputerTool20250124Type {
     #[serde(rename = "computer_20250124")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -584,7 +617,9 @@ pub enum ComputerTool20251124Type {
     #[serde(rename = "computer_20251124")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -627,7 +662,9 @@ pub enum TextEditorTool20241022Type {
     #[serde(rename = "text_editor_20241022")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -664,7 +701,9 @@ pub enum TextEditorTool20250124Type {
     #[serde(rename = "text_editor_20250124")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -701,7 +740,9 @@ pub enum TextEditorTool20250429Type {
     #[serde(rename = "text_editor_20250429")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -738,7 +779,9 @@ pub enum TextEditorTool20250728Type {
     #[serde(rename = "text_editor_20250728")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -777,7 +820,9 @@ pub enum WebSearchTool20250305Type {
     #[serde(rename = "web_search_20250305")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -820,7 +865,9 @@ pub enum WebFetchTool20250910Type {
     #[serde(rename = "web_fetch_20250910")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -865,7 +912,9 @@ pub enum WebSearchTool20260209Type {
     #[serde(rename = "web_search_20260209")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -908,7 +957,9 @@ pub enum WebFetchTool20260209Type {
     #[serde(rename = "web_fetch_20260209")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -953,7 +1004,9 @@ pub enum WebFetchTool20260309Type {
     #[serde(rename = "web_fetch_20260309")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -1000,7 +1053,9 @@ pub enum WebSearchTool20260318Type {
     #[serde(rename = "web_search_20260318")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -1045,7 +1100,9 @@ pub enum WebFetchTool20260318Type {
     #[serde(rename = "web_fetch_20260318")]
     Tag,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -1079,7 +1136,9 @@ pub struct WebFetchTool20260318 {
     pub rest: Rest,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -1123,7 +1182,9 @@ pub enum ToolSearchBm25Tool20251119Type {
     #[serde(rename = "tool_search_tool_bm25")]
     Unversioned,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -1160,7 +1221,9 @@ pub enum ToolSearchRegexTool20251119Type {
     #[serde(rename = "tool_search_tool_regex")]
     Unversioned,
 }
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder,
+)]
 #[serde(rename_all = "snake_case")]
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
@@ -1227,4 +1290,254 @@ pub enum AdvisorTool20260301Name {
 pub enum AdvisorTool20260301Type {
     #[serde(rename = "advisor_20260301")]
     Tag,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct McpListedTool {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub input_schema: JsonSchema,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum BrowserToolset20260801Type {
+    #[serde(rename = "browser_toolset_20260801")]
+    Tag,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct BrowserToolset20260801 {
+    #[serde(rename = "type")]
+    pub type_: BrowserToolset20260801Type,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_control: Option<CacheControl>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub configs: Option<BrowserToolsetConfigs>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allowed_callers: Option<Vec<AllowedCaller>>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct BrowserToolsetConfigs {
+    #[serde(rename = "type")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub type_: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub close_tab: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub double_click: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_upload: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub find: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub form_input: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub get_page_text: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hold_key: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hover: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub javascript_exec: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub left_click: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub left_click_drag: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub left_mouse_down: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub left_mouse_up: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub list_tabs: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub middle_click: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mouse_move: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub navigate: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub new_tab: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub read_console: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub read_network: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub read_page: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub right_click: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub screenshot: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scroll: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scroll_to: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub switch_tab: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub triple_click: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub zoom: Option<ToolsetMemberConfig>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ComputerToolset20260801Type {
+    #[serde(rename = "computer_toolset_20260801")]
+    Tag,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct ComputerToolset20260801 {
+    #[serde(rename = "type")]
+    pub type_: ComputerToolset20260801Type,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_control: Option<CacheControl>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub configs: Option<ComputerToolsetConfigs>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct ComputerToolsetConfigs {
+    #[serde(rename = "type")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub type_: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor_position: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub double_click: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hold_key: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub left_click: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub left_click_drag: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub left_mouse_down: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub left_mouse_up: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub middle_click: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mouse_move: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub right_click: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub screenshot: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scroll: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub triple_click: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wait: Option<ToolsetMemberConfig>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub zoom: Option<ToolsetMemberConfig>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct ToolsetMemberConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub defer_loading: Option<bool>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
 }

@@ -366,7 +366,9 @@ fn claude_result_block(block: &claude::content::ToolResultContentBlock, out: &mu
         ToolResultContentBlock::Text(b) => out.push(&b.text),
         ToolResultContentBlock::Document(b) => claude_document(b, out),
         ToolResultContentBlock::SearchResult(b) => claude_search_result(b, out),
-        ToolResultContentBlock::Image(_) | ToolResultContentBlock::ToolReference(_) => {}
+        ToolResultContentBlock::Image(_)
+        | ToolResultContentBlock::BrowserState(_)
+        | ToolResultContentBlock::ToolReference(_) => {}
     }
 }
 

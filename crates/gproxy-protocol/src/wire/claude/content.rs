@@ -24,6 +24,11 @@ where
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct Message {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clear_at: Option<SystemMessageClearAt>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_config: Option<SystemMessageOutputConfig>,
+
     pub role: Role,
     pub content: MessageContent,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -80,6 +85,7 @@ pub enum ContentBlock {
     BashCodeExecutionToolResult(BashCodeExecutionToolResultBlock),
     TextEditorCodeExecutionToolResult(TextEditorCodeExecutionToolResultBlock),
     ToolSearchToolResult(ToolSearchToolResultBlock),
+    McpToolListing(McpToolListingBlock),
     McpToolUse(McpToolUseBlock),
     McpToolResult(McpToolResultBlock),
     ContainerUpload(ContainerUploadBlock),
@@ -439,6 +445,9 @@ pub struct RedactedThinkingBlock {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ToolUseBlock {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub toolset_name: Option<String>,
+
     #[serde(rename = "type")]
     pub type_: ToolUseBlockType,
     pub id: String,
@@ -458,6 +467,9 @@ pub struct ToolUseBlock {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ToolResultBlock {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub toolset_name: Option<String>,
+
     #[serde(rename = "type")]
     pub type_: ToolResultBlockType,
     pub tool_use_id: String,
@@ -482,6 +494,7 @@ pub enum ToolResultContent {
 #[serde(untagged)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ToolResultContentBlock {
+    BrowserState(BrowserStateBlock),
     Text(TextBlock),
     Image(ImageBlock),
     SearchResult(SearchResultBlock),
@@ -832,6 +845,13 @@ pub struct ContainerUploadBlock {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct CompactionBlock {
+    #[serde(
+        default,
+        deserialize_with = "present_nullable_string",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub signature: Option<Option<String>>,
+
     #[serde(rename = "type")]
     pub type_: CompactionType,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -901,7 +921,7 @@ pub enum ToolAdditionType {
 pub struct ToolAdditionBlock {
     #[serde(rename = "type")]
     pub type_: ToolAdditionType,
-    pub tool: ToolChangeReference,
+    pub tool: ToolAdditionReference,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_control: Option<CacheControl>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
@@ -1521,6 +1541,15 @@ pub enum MidConversationContent {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
+pub enum ToolAdditionReference {
+    Tool(ToolReference),
+    Mcp(McpToolReference),
+    Toolset(McpToolsetReference),
+    Definition(ToolDefinition),
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+#[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum ToolChangeReference {
     Tool(ToolReference),
     Mcp(McpToolReference),
@@ -1670,4 +1699,261 @@ pub enum SearchResultBlockType {
 pub enum ToolReferenceBlockType {
     #[serde(rename = "tool_reference")]
     Tag,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum SystemMessageClearAt {
+    NextUserMessage,
+    Never,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct SystemMessageOutputConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effort: Option<super::count_tokens::Effort>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ToolDefinitionType {
+    ToolDefinition,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct ToolDefinition {
+    #[serde(rename = "type")]
+    pub type_: ToolDefinitionType,
+    pub definition: Box<super::tools::ToolUnion>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum McpToolListingType {
+    McpToolListing,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct McpToolListingBlock {
+    #[serde(rename = "type")]
+    pub type_: McpToolListingType,
+    pub mcp_server_name: String,
+    pub tools: Vec<super::tools::McpListedTool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_control: Option<CacheControl>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum BrowserStateType {
+    BrowserState,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct BrowserStateBlock {
+    #[serde(rename = "type")]
+    pub type_: BrowserStateType,
+    pub tabs: Vec<BrowserStateTab>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_control: Option<CacheControl>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state_changes: Option<Vec<BrowserStateChange>>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct BrowserStateTab {
+    pub tab_id: String,
+    pub title: String,
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub active: Option<bool>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct BrowserTabOpened {
+    pub tab_id: String,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct BrowserDownloadStarted {
+    pub download_id: String,
+    pub url: String,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct BrowserDownloadCompleted {
+    pub download_id: String,
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<u64>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct BrowserDownloadFailed {
+    pub download_id: String,
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum BrowserStateChange {
+    TabOpened(BrowserTabOpened),
+    DownloadStarted(BrowserDownloadStarted),
+    DownloadCompleted(BrowserDownloadCompleted),
+    DownloadFailed(BrowserDownloadFailed),
 }

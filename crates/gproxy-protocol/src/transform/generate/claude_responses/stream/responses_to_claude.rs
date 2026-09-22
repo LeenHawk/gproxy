@@ -305,6 +305,7 @@ impl ResponsesToClaudeStream {
             usage.service_tier = Some(tier);
         }
         let message = cs::StreamMessage {
+            input_transformations: None,
             type_: c::GenerateContentResponseBodyType::Tag,
             id: id.clone(),
             container: None,
