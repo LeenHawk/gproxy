@@ -896,6 +896,17 @@ impl Host {
 
     pub async fn with_config(config: AppConfig) -> Self {
         let (gproxy, client) = handle().await;
+        // Match native first-start initialization: subsequent policy reads use the row.
+        gproxy
+            .store()
+            .settings()
+            .update(gproxy_store::entity::config::setting::ActiveModel {
+                cors_origins: sea_orm::Set(serde_json::json!(config.cors_origins)),
+                trusted_proxies: sea_orm::Set(serde_json::json!(config.trusted_proxies)),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
         let app = Arc::new(App::new(gproxy, config));
         let router = gproxy_host_axum::router(HostState::new(app.clone()));
         Self {
