@@ -3,20 +3,11 @@
 //!
 //! # The data-version gate, and what it compares against in v4
 //!
-//! v3 numbered its migrations, so the manifest's `min_compatible_data_version`
-//! had an obvious counterpart: `SchemaVersion::LATEST.number()`. v4's store
-//! has no such number — `Store::sync` reconciles the schema against the entity
-//! definitions instead, so there is no ordered list to take a maximum of.
-//!
-//! So the counterpart here is [`DATA_VERSION`]: a hand-maintained generation
-//! of the *data layout*, bumped when a release stops being able to open a
-//! database an older one wrote. The gate is unchanged in meaning — a release
-//! that declares a floor above this number is refused before anything is
-//! downloaded — but the number is now a deliberate statement rather than a
-//! derived one, and that has a consequence worth writing down:
-//! `scripts/build-update-manifest.sh` still derives its `minimum` from
-//! `crates/gproxy-store/src/schema/catalog.rs`, **a file v4 does not have**.
-//! Whoever revives the release pipeline has to point it at this constant.
+//! [`DATA_VERSION`] is the data-layout generation, separate from the store's
+//! append-only migration ledger. Bump it when a release can no longer migrate
+//! an older layout. `scripts/build-update-manifest.sh` reads this constant for
+//! the signed manifest's compatibility floor, and the updater checks it before
+//! downloading an artifact.
 
 use semver::Version;
 

@@ -9,19 +9,19 @@ assets_dir="${ASSETS_DIR:-dist/native}"
 output="${OUT:-dist/release/manifest.json}"
 notes_url="${NOTES_URL:-}"
 version="${VERSION:-${TAG#v}}"
-channel="${CHANNEL:-releases}"
+channel="${CHANNEL:-release}"
 prefix="${ASSET_PREFIX:-}"
 
 case "$channel" in
-  releases | dev)
+  release | beta)
     scripts/release-metadata.sh verify-tag "$TAG"
     if [ "$version" != "$(scripts/release-metadata.sh version)" ]; then
       echo "manifest version $version does not match workspace version" >&2
       exit 1
     fi
     ;;
-  staging)
-    test -n "$version" || { echo "staging manifest version is required" >&2; exit 1; }
+  dev)
+    test -n "$version" || { echo "dev manifest commit is required" >&2; exit 1; }
     ;;
   *)
     echo "unsupported update channel: $channel" >&2
@@ -31,8 +31,8 @@ esac
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
 command -v openssl >/dev/null || { echo "openssl is required" >&2; exit 1; }
 
-schema_file="crates/gproxy-store/src/schema/catalog.rs"
-minimum="$(sed -n 's/^    Initial = \([0-9][0-9]*\),$/\1/p' "$schema_file")"
+schema_file="crates/gproxy/src/update/version.rs"
+minimum="$(sed -n 's/^pub const DATA_VERSION: u32 = \([0-9][0-9]*\);$/\1/p' "$schema_file")"
 if [ -z "$minimum" ]; then
   echo "could not derive minimum schema version" >&2
   exit 1
@@ -73,6 +73,22 @@ while IFS=$'\t' read -r target artifact os; do
     artifacts="$(jq -c --arg t "$apk_target" --arg u "$apk_url" --arg s "$apk_sha" \
       --argjson z "$apk_size" '. + [{target_triple:$t,url:$u,sha256:$s,size:$z}]' \
       <<<"$artifacts")"
+
+    # The Tauri app has its own package identity. Never offer the legacy
+    # server-wrapper APK as an update to it. App builds can join the same
+    # signed manifest when their APK and hash are supplied alongside these.
+    app_artifact="${artifact/gproxy-/gproxy-tauri-}"
+    app_apk="$assets_dir/$prefix$app_artifact.apk"
+    if [ -f "$app_apk" ]; then
+      app_sha="$(awk '{print $1}' "$app_apk.sha256")"
+      app_size="$(stat -c%s "$app_apk")"
+      app_target="$target-tauri-apk"
+      app_url="https://github.com/$REPO/releases/download/$TAG/$prefix$app_artifact.apk"
+      printf '%s|%s|%s|%s\n' "$app_target" "$app_url" "$app_sha" "$app_size" >> "$payload"
+      artifacts="$(jq -c --arg t "$app_target" --arg u "$app_url" --arg s "$app_sha" \
+        --argjson z "$app_size" '. + [{target_triple:$t,url:$u,sha256:$s,size:$z}]' \
+        <<<"$artifacts")"
+    fi
   fi
 done < <(jq -r '.include[] | [.target,.artifact,.os] | @tsv' scripts/release-targets.json)
 

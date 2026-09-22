@@ -12,13 +12,21 @@
 //! [`super::manifest`] — so the host being asked is the one the release
 //! publisher named, not one a manifest mirror inserted.
 //!
-//! # The shape it expects
+//! # The shape it expects, and what the pipeline currently sends
 //!
-//! GitHub's releases API answers `{"body": "…"}`, which is what
-//! `scripts/build-update-manifest.sh` puts in `NOTES_URL` when it puts
-//! anything there. Anything that is not that JSON shape yields `None` and the
-//! URL itself is reported instead, which is all a console needs to render a
-//! link.
+//! GitHub's releases *API* answers `{"body": "…"}`, and that is the one shape
+//! this parses. What `.github/workflows/release.yml` currently puts in
+//! `NOTES_URL` is the release's **HTML page**
+//! (`/releases/tag/{tag}`), which is not that shape — so against today's
+//! pipeline this returns `None` and the URL itself is what a console links to
+//! and what `gproxy update --check` prints.
+//!
+//! That is a deliberate order of preference rather than a gap. The link is the
+//! thing an operator must have before installing, it is covered by the
+//! manifest's signature, and it costs nothing; the text is a convenience that
+//! appears the day the pipeline points `NOTES_URL` at
+//! `api.github.com/repos/{repo}/releases/tags/{tag}` instead. Nothing here
+//! needs to change for that to start working.
 
 use serde::Deserialize;
 
