@@ -295,15 +295,10 @@ async fn a_guarded_migration_is_a_no_op_where_the_baseline_already_did_it() {
         "the migration did not run where it had work to do"
     );
     for db in [&fresh, &existing] {
-        assert_eq!(
-            Store::new(db.clone())
-                .migration_report()
-                .await
-                .unwrap()
-                .len(),
-            1,
-            "the store's own migrator still reports only what it carries"
-        );
+        let before = columns(db, "users").await;
+        let error = Store::new(db.clone()).migrate().await.unwrap_err();
+        assert!(error.to_string().contains("m20260922_000001_add_a_column"));
+        assert_eq!(columns(db, "users").await, before);
         assert_eq!(
             db.migration_report::<Later>()
                 .await

@@ -296,8 +296,8 @@ impl<C: SchemaSyncConnectionTrait> Store<C> {
 
     /// Every migration this build carries, with what the ledger says about it.
     ///
-    /// Reads; never writes, beyond the ledger table SeaORM creates if it is
-    /// absent. Safe to call against a database this process is not migrating.
+    /// Reads only, including when the ledger is absent. Safe to call against
+    /// a database this process is not migrating.
     pub async fn migration_report(&self) -> Result<Vec<(String, MigrationStatus)>> {
         Ok(self.db.migration_report::<Migrator>().await?)
     }
