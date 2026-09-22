@@ -1,24 +1,12 @@
-//! The seam the sdk's configuration families land on. **Nothing here calls
-//! anything, on purpose.**
-//!
-//! As of `db524db8` the routes exist: `/admin/api` mounts the handle's half —
-//! 17 families and their extras — next to the identity half in
-//! `crates/gproxy-host-axum/src/admin/config.rs`. What does not exist is a
-//! console for them: providers, credentials, models, routes, settings,
-//! pricing, rewrite, endpoints, transfer, connectivity and the tokenizer are
-//! each a page with real shape to it, and this phase deliberately delivers the
-//! shell, sign-in and the identity and self-service surfaces rather than a
-//! thin pass over twenty more tables.
-//!
-//! The TypeScript is already there — `console/src/generated/sdk` has every one
-//! of these DTOs — so what a configuration page needs is this file turning
-//! into the same `family` factory [`@/api/admin`](./admin.ts) uses, and a
-//! `configuration` section in `@/capability/navigation`.
-//!
-//! The table below is transcribed from `config.rs`'s router, in its order. It
-//! is written down rather than left implicit so that "the console has no
-//! configuration pages" is a statement about this console and not a question
-//! about the server.
+//! Typed access to the SDK configuration routes mounted under `/admin/api`.
+
+import type {
+  ChannelDescriptor, CredentialDto, CredentialPatch, CredentialWrite,
+  ProviderDto, ProviderPatch, ProviderWrite,
+  ProviderModelDto, ProviderModelPatch, ProviderModelWrite,
+} from "@/generated/sdk"
+import { family } from "@/api/admin"
+import { api } from "@/api/client"
 
 /** The configuration collection routes, relative to `/admin/api`. */
 export const CONFIGURATION_FAMILIES = {
@@ -56,3 +44,26 @@ export const CONFIGURATION_OPERATIONS = {
 } as const
 
 export type ConfigurationFamily = keyof typeof CONFIGURATION_FAMILIES
+
+export const PROVIDERS_READ = "configuration.providers"
+export const PROVIDER_NAV_KEY = ["admin", "/providers", "navigation"] as const
+
+export const providers = family<ProviderDto, Partial<ProviderWrite>, Partial<ProviderPatch>>(CONFIGURATION_FAMILIES.providers)
+export const credentials = family<CredentialDto, Partial<CredentialWrite>, Partial<CredentialPatch>>(CONFIGURATION_FAMILIES.credentials)
+export const providerModels = family<ProviderModelDto, Partial<ProviderModelWrite>, Partial<ProviderModelPatch>>(CONFIGURATION_FAMILIES.providerModels)
+export const channels = () => api<Array<ChannelDescriptor>>("/admin/api/channels")
+
+/** The sidebar needs the whole provider directory, not the first API page. */
+export async function providerDirectory() {
+  const rows: Array<ProviderDto> = []
+  let page = 1
+  while (true) {
+    const result = await providers.list({ page, pageSize: 500 })
+    rows.push(...result.items)
+    if (rows.length >= result.total || result.items.length === 0) break
+    page += 1
+  }
+  return rows.sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export const providerPath = (id: string) => `/providers/${encodeURIComponent(id)}`

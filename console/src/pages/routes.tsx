@@ -25,6 +25,8 @@ import { OverviewPage } from "@/pages/self/overview"
 import { QuotaPage } from "@/pages/self/quota"
 import { RequestsPage } from "@/pages/self/requests"
 import { UsagePage } from "@/pages/self/usage"
+import { ProvidersPage } from "@/pages/providers"
+import { ProviderDetailPage } from "@/pages/providers/detail"
 
 const ROUTES: Record<string, () => React.ReactElement> = {
   "/": OverviewPage,
@@ -34,6 +36,7 @@ const ROUTES: Record<string, () => React.ReactElement> = {
   "/quota": QuotaPage,
   "/requests": RequestsPage,
   "/account": AccountPage,
+  "/providers": ProvidersPage,
   "/identity/users": UsersPage,
   "/identity/api-keys": ApiKeysPage,
   "/identity/organizations": OrganizationsPage,
@@ -75,6 +78,12 @@ export function Routes() {
   const context = useConsoleContext()
   useScrollReset(route)
 
+  const provider = /^\/providers\/([^/]+)(?:\/(credentials|models|settings))?$/.exec(route)
+  if (provider) {
+    if (!mayEnter(context, route)) return <Forbidden />
+    const providerId = decodeURIComponent(provider[1])
+    return <ProviderDetailPage key={providerId} providerId={providerId} tab={provider[2] ?? "credentials"} />
+  }
   const Match = ROUTES[route]
   if (!Match) return <NotFound />
   if (!mayEnter(context, route)) return <Forbidden />

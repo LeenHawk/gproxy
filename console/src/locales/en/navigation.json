@@ -20,7 +20,10 @@
     "pool-members": "Pool members",
     "oauth-clients": "OAuth clients",
     "sessions": "Sessions",
-    "audit": "Audit"
+    "audit": "Audit",
+    "providers": "Providers",
+    "credentials": "Credentials",
+    "provider-models": "Models"
   },
   "create": {
     "keys": "New key",
@@ -35,7 +38,10 @@
     "subscriptions": "New subscription",
     "pools": "New pool",
     "pool-members": "New pool member",
-    "oauth-clients": "Register a client"
+    "oauth-clients": "Register a client",
+    "providers": "New provider",
+    "credentials": "New credential",
+    "provider-models": "New model"
   },
   "edit": {
     "users": "Edit user",
@@ -49,6 +55,9 @@
     "subscriptions": "Edit subscription",
     "pools": "Edit pool",
     "pool-members": "Edit pool member",
-    "oauth-clients": "Edit client"
+    "oauth-clients": "Edit client",
+    "providers": "Edit provider",
+    "credentials": "Edit credential",
+    "provider-models": "Edit model"
   }
 }

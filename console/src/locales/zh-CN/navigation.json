@@ -20,7 +20,10 @@
     "pool-members": "资源池成员",
     "oauth-clients": "OAuth 客户端",
     "sessions": "会话",
-    "audit": "审计"
+    "audit": "审计",
+    "providers": "供应商",
+    "credentials": "凭证",
+    "provider-models": "模型"
   },
   "create": {
     "keys": "新建密钥",
@@ -35,7 +38,10 @@
     "subscriptions": "新建订阅",
     "pools": "新建资源池",
     "pool-members": "新建资源池成员",
-    "oauth-clients": "注册客户端"
+    "oauth-clients": "注册客户端",
+    "providers": "新建供应商",
+    "credentials": "新建凭证",
+    "provider-models": "新建模型"
   },
   "edit": {
     "users": "编辑用户",
@@ -49,6 +55,9 @@
     "subscriptions": "编辑订阅",
     "pools": "编辑资源池",
     "pool-members": "编辑资源池成员",
-    "oauth-clients": "编辑客户端"
+    "oauth-clients": "编辑客户端",
+    "providers": "编辑供应商",
+    "credentials": "编辑凭证",
+    "provider-models": "编辑模型"
   }
 }

@@ -8,9 +8,10 @@
 
 import { useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { ChevronRight, ChevronsUpDown, CircleUserRound, Languages, LogOut, Menu, Moon, Sun } from "lucide-react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { ChevronRight, ChevronsUpDown, CircleUserRound, Languages, LogOut, Menu, Moon, Search, Sun, Waypoints } from "lucide-react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { signOut } from "@/api/session"
+import { PROVIDERS_READ, PROVIDER_NAV_KEY, providerDirectory, providerPath } from "@/api/configuration"
 import { useConsoleContext } from "@/capability/session"
 import { sectionsFor, type NavSection } from "@/capability/navigation"
 import { Button } from "@/components/ui/button"
@@ -18,6 +19,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { SUPPORTED_LANGS, setLanguage, type LangCode } from "@/i18n"
@@ -105,6 +107,7 @@ function Navigation({ sections, route, onNavigate }: {
   onNavigate?: () => void
 }) {
   const { t } = useTranslation()
+  const [providerSearch, setProviderSearch] = useState("")
   return (
     <nav className="flex flex-col gap-3" aria-label={t("shell.navigation")}>
       {sections.map((section) => {
@@ -120,8 +123,16 @@ function Navigation({ sections, route, onNavigate }: {
               <span className="flex-1">{t(`section.${section.id}`)}</span>
               <ChevronRight className="size-3.5 shrink-0 transition-transform group-open/section:rotate-90 motion-reduce:transition-none" aria-hidden="true" />
             </summary>
+            {section.id === "providers" ? (
+              <div className="mt-1 mb-2 ml-5 pl-3">
+                <InputGroup>
+                  <InputGroupAddon><Search /></InputGroupAddon>
+                  <InputGroupInput aria-label={t("providers.search")} placeholder={t("providers.search")} value={providerSearch} onChange={(event) => setProviderSearch(event.target.value)} />
+                </InputGroup>
+              </div>
+            ) : null}
             <ul className="mt-1 ml-5 flex flex-col gap-1 border-l border-sidebar-border pb-1 pl-3">
-              {section.items.map((item) => {
+              {section.items.filter((item) => section.id !== "providers" || item.id === "providers" || item.label?.toLowerCase().includes(providerSearch.toLowerCase())).map((item) => {
                 const Icon = item.icon
                 const active = route === item.route
                 return (
@@ -138,7 +149,7 @@ function Navigation({ sections, route, onNavigate }: {
                       )}
                     >
                       <Icon className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-                      <span className="truncate">{t(`nav.${item.id}`)}</span>
+                      <span className="truncate">{item.label ?? t(`nav.${item.id}`)}</span>
                     </Link>
                   </li>
                 )
@@ -173,16 +184,26 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation()
   const context = useConsoleContext()
   const route = useRoute()
-  const sections = sectionsFor(context)
-  const section = sections.find((group) => group.items.some((item) => item.route === route))
-  const item = section?.items.find((item) => item.route === route)
+  const navRoute = /^\/providers\/[^/]+/.exec(route)?.[0] ?? route
+  const directory = useQuery({ queryKey: PROVIDER_NAV_KEY, queryFn: providerDirectory, enabled: context.has(PROVIDERS_READ) })
+  const sections = sectionsFor(context).map((section) => section.id === "providers" ? {
+    ...section,
+    items: [
+      ...section.items.map((item) => ({ ...item, label: t("providers.all") })),
+      ...(directory.data ?? []).map((provider) => ({
+        id: `provider-${provider.id}`, label: provider.name, route: providerPath(provider.id), needs: PROVIDERS_READ, icon: Waypoints,
+      })),
+    ],
+  } : section)
+  const section = sections.find((group) => group.items.some((item) => item.route === navRoute))
+  const item = section?.items.find((item) => item.route === navRoute)
   const ActiveIcon = item?.icon
   const [open, setOpen] = useState(false)
 
   return (
     <div className="min-h-dvh bg-background text-foreground lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
       <aside className="sticky top-0 hidden h-dvh border-r border-sidebar-border lg:block">
-        <Sidebar sections={sections} route={route} />
+        <Sidebar sections={sections} route={navRoute} />
       </aside>
       <div className="min-w-0">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border bg-background/95 px-4 backdrop-blur lg:px-8">
@@ -194,7 +215,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </SheetTrigger>
             <SheetContent side="left" closeLabel={t("actions.close")} aria-describedby={undefined} className="gap-0 data-[side=left]:w-72 data-[side=left]:sm:max-w-72">
               <SheetTitle className="sr-only">{t("shell.navigation")}</SheetTitle>
-              <Sidebar sections={sections} route={route} onNavigate={() => setOpen(false)} />
+              <Sidebar sections={sections} route={navRoute} onNavigate={() => setOpen(false)} />
             </SheetContent>
           </Sheet>
           <div className="lg:hidden"><Brand /></div>
@@ -203,7 +224,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <span className="text-muted-foreground">{t(`section.${section.id}`)}</span>
               <ChevronRight className="size-3.5 text-muted-foreground" aria-hidden="true" />
               <ActiveIcon className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-              <span className="truncate font-medium">{t(`nav.${item.id}`)}</span>
+              <span className="truncate font-medium">{item.label ?? t(`nav.${item.id}`)}</span>
             </div>
           ) : null}
           <div className="ml-auto flex shrink-0 items-center gap-1">

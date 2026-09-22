@@ -18,23 +18,12 @@
 //! re-derived that from a role string would be a second, divergent copy of an
 //! authorization decision.
 //!
-//! # The swap point
-//!
-//! **`GET /admin/api/context`** is the endpoint this module is written
-//! against: it answers with the scopes a caller may act as (with their display
-//! names), the current one, and the capabilities to render, and it is
-//! reachable by every authenticated caller whatever their scope. It is being
-//! built in parallel and does not exist yet.
-//!
-//! Until it does, [`consoleContext`] derives the same shape from
-//! `GET /portal/api/context`, which is the only capability-like answer on the
-//! wire today. That derivation — and the one role comparison in this
-//! repository's front end — is [`fromPortalContext`] below. When
-//! `/admin/api/context` lands, that function is replaced by a parse of its
-//! payload and **no other file changes**: the navigation, the route guard and
-//! every page already read capability names and scopes, never roles.
+//! The backend also exposes `/admin/api/context` for scoped administration.
+//! This console still uses the portal context for its session and exposes
+//! instance-admin management pages through the adapter below.
 
 import type { PortalContextDto } from "@/generated/app"
+import { PROVIDERS_READ } from "@/api/configuration"
 
 /**
  * One scope a caller may administer in.
@@ -109,13 +98,10 @@ export type ConsoleContext = {
  * `PortalContextDto` carries three kinds of fact and this maps each one:
  *
  * - `user.role === "admin"` — an instance operator, who by today's route table
- *   may reach every `/admin/api` family; so every `identity.*` capability;
- * - a membership whose per-scope `role` is `admin` — a scope this caller will
- *   be able to administer once the scoped routes exist. It becomes an
- *   [`AdminScope`] but grants **no** `identity.*` capability, because
- *   `/admin/api` is guarded by `is_instance_admin()` from end to end today and
- *   an organization administrator shown those pages would get a 403 from every
- *   one of them;
+ *   may reach the identity families and provider configuration;
+ * - a membership whose per-scope `role` is `admin` becomes an [`AdminScope`].
+ *   Scoped management is not exposed by this adapter; only instance operators
+ *   receive the management navigation here;
  * - `features.*` — three facts the host already computes about this caller,
  *   two of them about an OAuth-grant caller being refused the writing half of
  *   the account it was lent, and one an instance setting.
@@ -129,6 +115,7 @@ function fromPortalContext(context: PortalContextDto) {
 
   if (context.user.role === "admin") {
     scopes.push({ kind: "instance" })
+    capabilities.add(PROVIDERS_READ)
     for (const family of IDENTITY_FAMILIES) capabilities.add(`identity.${family}`)
   }
   for (const entry of context.organizations) {

@@ -6,14 +6,6 @@
 //! family that gains a route in Rust gains it here by being spelled out, and a
 //! family that does not is five lines.
 //!
-//! # What is deliberately missing
-//!
-//! The sdk's management families — providers, credentials, models, routes,
-//! settings, quotas, pricing, rewrite, endpoints, transfer, connectivity,
-//! tokenizer, catalog — have **no HTTP routes yet**; see
-//! [`@/api/configuration`](../api/configuration.ts) for the seam they will
-//! land on. Nothing in this file invents one.
-//!
 //! # Request shapes are `Partial`
 //!
 //! `ts-rs` renders `Option<T>` as `T | null` rather than `field?: T`, which is
@@ -87,7 +79,7 @@ export type Family<D, W, P> = {
   remove: (id: string) => Promise<void>
 }
 
-function family<D, W, P>(path: string): Family<D, W, P> {
+export function family<D, W, P>(path: string): Family<D, W, P> {
   const item = (id: string) => `${BASE}${path}/${encodeURIComponent(id)}`
   return {
     path,

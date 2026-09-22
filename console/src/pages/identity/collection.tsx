@@ -15,7 +15,7 @@
 import { useState, type ReactNode } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { Plus } from "lucide-react"
+import { Pencil, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import type { Family, ListFilter } from "@/api/admin"
 import { ConfirmButton } from "@/components/confirm"
@@ -31,6 +31,7 @@ const PAGE_SIZE = 25
 export type CollectionProps<D, W, P> = {
   /** The nav id: `nav.<id>` names it, `description.<id>` explains it. */
   id: string
+  embedded?: boolean
   family: Family<D, W, P>
   columns: Array<Column<D>>
   fields: ReadonlyArray<FormField>
@@ -52,7 +53,7 @@ export type CollectionProps<D, W, P> = {
 }
 
 export function CollectionPage<D, W, P>({
-  id, family, columns, fields, rowId, rowLabel, searchable, filter,
+  id, family, columns, fields, rowId, rowLabel, searchable, filter, embedded = false,
   rowActions, deletable = true, onCreated, create,
 }: CollectionProps<D, W, P>) {
   const { t } = useTranslation()
@@ -97,24 +98,28 @@ export function CollectionPage<D, W, P>({
     onError: (error: Error) => toast.error(error.message),
   })
 
+  const add = (
+    <Button size="sm" onClick={() => setCreating(true)}>
+      <Plus data-icon="inline-start" /> {t("actions.new")}
+    </Button>
+  )
+  const searchInput = searchable ? (
+    <Input
+      className="max-w-xs"
+      aria-label={t("actions.search")}
+      placeholder={t("actions.search")}
+      value={search}
+      onChange={(event) => { setSearch(event.target.value); setPage(1) }}
+    />
+  ) : null
+
   return (
     <Page>
-      <PageHeader
-        title={t(`nav.${id}`)}
-        actions={
-          <Button size="sm" onClick={() => setCreating(true)}>
-            <Plus /> {t("actions.new")}
-          </Button>
-        }
-      />
-      {searchable ? (
-        <Input
-          className="max-w-xs"
-          placeholder={t("actions.search")}
-          value={search}
-          onChange={(event) => { setSearch(event.target.value); setPage(1) }}
-        />
-      ) : null}
+      {embedded ? (
+        <div className="flex items-center justify-between gap-3">{searchInput}<div className="ml-auto">{add}</div></div>
+      ) : (
+        <><PageHeader title={t(`nav.${id}`)} actions={add} />{searchInput}</>
+      )}
       <QueryState isPending={list.isPending} error={list.error}>
         <div className="space-y-3">
           <DataTable
@@ -125,13 +130,13 @@ export function CollectionPage<D, W, P>({
             actions={(row) => (
               <>
                 {rowActions?.(row)}
-                <Button variant="ghost" size="sm" onClick={() => setEditing(row)}>{t("actions.edit")}</Button>
+                <Button variant="ghost" size="sm" onClick={() => setEditing(row)}><Pencil data-icon="inline-start" />{t("actions.edit")}</Button>
                 {deletable ? (
                   <ConfirmButton
                     title={t("confirm.deleteTitle", { name: rowLabel(row) })}
                     onConfirm={() => removed.mutate(rowId(row))}
                   >
-                    {t("actions.delete")}
+                    <Trash2 data-icon="inline-start" />{t("actions.delete")}
                   </ConfirmButton>
                 ) : null}
               </>

@@ -35,7 +35,8 @@
     "notFoundTitle": "沒有這個頁面"
   },
   "form": {
-    "choose": "請選擇…"
+    "choose": "請選擇…",
+    "invalidJson": "JSON 格式不正確，請檢查後重試。"
   },
   "pagination": {
     "position": "第 {{page}} / {{pages}} 頁 · 共 {{total}} 列",
@@ -78,7 +79,8 @@
     "self": "我的帳號",
     "people": "成員與組織",
     "access": "存取控制",
-    "billing": "方案與資源"
+    "billing": "方案與資源",
+    "providers": "供應商"
   },
   "range": {
     "day": "24 小時",
@@ -109,7 +111,9 @@
     "in_progress": "進行中",
     "completed": "已完成",
     "failed": "失敗",
-    "cancelled": "已取消"
+    "cancelled": "已取消",
+    "active": "可用",
+    "dead": "無法使用"
   },
   "fields": {
     "action": "動作",
@@ -181,6 +185,17 @@
     "subscriptionId": "訂閱",
     "teamId": "團隊",
     "userId": "使用者",
-    "windowKey": "視窗"
+    "windowKey": "視窗",
+    "channel": "管道",
+    "baseUrl": "介面位址",
+    "connectionProfileId": "連線設定 ID",
+    "config": "設定（JSON）",
+    "label": "名稱",
+    "authKind": "驗證方式",
+    "secret": "金鑰資料（JSON）",
+    "metadata": "中繼資料（JSON）",
+    "status": "狀態",
+    "upstreamName": "上游模型",
+    "modelId": "模型目錄 ID"
   }
 }

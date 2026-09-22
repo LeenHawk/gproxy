@@ -29,7 +29,7 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { fromLocalInput, toLocalInput } from "@/lib/format"
 
-export type FieldKind = "text" | "password" | "number" | "switch" | "select" | "lines" | "datetime"
+export type FieldKind = "text" | "password" | "number" | "switch" | "select" | "lines" | "datetime" | "json"
 
 export type FormField = {
   /** The DTO field name, and the i18n key under `fields.`. */
@@ -53,6 +53,7 @@ function readValue(field: FormField, row: Record<string, unknown> | undefined): 
   const raw = row?.[field.name]
   if (field.kind === "switch") return raw === undefined || raw === null ? true : Boolean(raw)
   if (raw === undefined || raw === null) return ""
+  if (field.kind === "json") return JSON.stringify(raw, null, 2)
   if (field.kind === "lines") return Array.isArray(raw) ? raw.join("\n") : String(raw)
   if (field.kind === "datetime") return typeof raw === "number" ? toLocalInput(raw) : ""
   return String(raw)
@@ -66,6 +67,7 @@ function writeValue(field: FormField, value: string | boolean): unknown {
     return entries.length ? entries : null
   }
   if (!text.trim()) return null
+  if (field.kind === "json") return JSON.parse(text) as unknown
   if (field.kind === "number") {
     const parsed = Number(text)
     return Number.isFinite(parsed) ? parsed : null
@@ -127,14 +129,16 @@ function Control({ field, value, onChange }: {
       </Select>
     )
   }
-  if (field.kind === "lines") {
+  if (field.kind === "lines" || field.kind === "json") {
     return (
       <Textarea
         id={id}
         rows={3}
+        autoComplete="off"
+        spellCheck={false}
         value={String(value)}
         onChange={(event) => onChange(event.target.value)}
-        className="font-mono text-xs"
+        className="font-mono"
       />
     )
   }
@@ -174,12 +178,25 @@ function RecordForm({ fields, original, mode, onSubmit, pending, error, extra, o
     return seeded
   })
 
+  const [parseError, setParseError] = useState<Error | null>(null)
+  const submit = () => {
+    let body: Record<string, unknown>
+    try {
+      body = mode === "create" ? buildWrite(offered, values) : buildPatch(offered, values, original)
+    } catch {
+      setParseError(new Error(t("form.invalidJson")))
+      return
+    }
+    setParseError(null)
+    onSubmit(body)
+  }
+
   const missing = offered.some((field) => field.required && mode === "create" && !String(values[field.name] ?? "").trim())
 
   return (
     <>
       <DialogBody className="space-y-4">
-        {error ? <ErrorNotice error={error} /> : null}
+        {parseError || error ? <ErrorNotice error={parseError ?? error} /> : null}
         {offered.map((field) => (
           <Field key={field.name} orientation={field.kind === "switch" ? "horizontal" : "vertical"}>
             <FieldLabel htmlFor={`field-${field.name}`}>
@@ -199,7 +216,7 @@ function RecordForm({ fields, original, mode, onSubmit, pending, error, extra, o
         <Button variant="outline" onClick={() => onOpenChange(false)}>{t("actions.cancel")}</Button>
         <Button
           disabled={pending || missing}
-          onClick={() => onSubmit(mode === "create" ? buildWrite(offered, values) : buildPatch(offered, values, original))}
+          onClick={submit}
         >
           {mode === "create" ? t("actions.create") : t("actions.save")}
         </Button>

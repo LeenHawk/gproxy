@@ -45,5 +45,10 @@
   "members": {
     "title": "成員",
     "emptyTitle": "還沒有成員"
+  },
+  "providers": {
+    "all": "全部供應商",
+    "search": "搜尋供應商",
+    "settings": "設定"
   }
 }

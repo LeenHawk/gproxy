@@ -20,7 +20,10 @@
     "pool-members": "資源池成員",
     "oauth-clients": "OAuth 用戶端",
     "sessions": "工作階段",
-    "audit": "稽核"
+    "audit": "稽核",
+    "providers": "供應商",
+    "credentials": "憑證",
+    "provider-models": "模型"
   },
   "create": {
     "keys": "新建金鑰",
@@ -35,7 +38,10 @@
     "subscriptions": "新建訂閱",
     "pools": "新建資源池",
     "pool-members": "新建資源池成員",
-    "oauth-clients": "註冊用戶端"
+    "oauth-clients": "註冊用戶端",
+    "providers": "新增供應商",
+    "credentials": "新增憑證",
+    "provider-models": "新增模型"
   },
   "edit": {
     "users": "編輯使用者",
@@ -49,6 +55,9 @@
     "subscriptions": "編輯訂閱",
     "pools": "編輯資源池",
     "pool-members": "編輯資源池成員",
-    "oauth-clients": "編輯用戶端"
+    "oauth-clients": "編輯用戶端",
+    "providers": "編輯供應商",
+    "credentials": "編輯憑證",
+    "provider-models": "編輯模型"
   }
 }
