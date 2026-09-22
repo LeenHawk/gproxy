@@ -90,6 +90,7 @@ struct Broken {
     version: Option<String>,
     /// Publish a build for a platform that is not this one.
     wrong_target: bool,
+    tauri_apk: bool,
 }
 
 impl Release {
@@ -106,7 +107,9 @@ impl Release {
         } else {
             hex(&Sha256::digest(&artifact))
         };
-        let target = if broken.wrong_target {
+        let target = if broken.tauri_apk {
+            format!("{}-tauri-apk", version::target())
+        } else if broken.wrong_target {
             "sparc64-unknown-netbsd".to_owned()
         } else {
             version::target()
@@ -543,4 +546,58 @@ async fn asking_for_a_restart_in_the_none_mode_does_nothing_at_all() {
     assert!(applied.changed);
     assert_eq!(applied.restart, "none");
     assert_eq!(release.on_disk(), NEW_BINARY);
+}
+
+#[tokio::test]
+async fn the_app_stages_only_a_verified_tauri_apk_and_leaves_the_executable_alone() {
+    let release = Release::publish(Broken {
+        tauri_apk: true,
+        ..Default::default()
+    })
+    .await;
+    let apk = release
+        .default_updater()
+        .stage_apk()
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        std::fs::read(&apk).unwrap(),
+        archive(&[("gproxy", NEW_BINARY)])
+    );
+    assert_eq!(
+        std::fs::read_to_string(apk.with_file_name("install-apk.pending")).unwrap(),
+        "999.0.0"
+    );
+    assert_eq!(release.on_disk(), OLD_BINARY);
+
+    for broken in [
+        Broken {
+            tauri_apk: true,
+            wrong_key: true,
+            ..Default::default()
+        },
+        Broken {
+            tauri_apk: true,
+            wrong_hash: true,
+            ..Default::default()
+        },
+        Broken {
+            tauri_apk: true,
+            future_data_version: true,
+            ..Default::default()
+        },
+        Broken::default(),
+    ] {
+        let release = Release::publish(broken).await;
+        assert!(release.default_updater().stage_apk().await.is_err());
+        assert!(
+            !release
+                .directory
+                .path()
+                .join(".update/install-apk.pending")
+                .exists()
+        );
+        assert_eq!(release.on_disk(), OLD_BINARY);
+    }
 }

@@ -109,10 +109,25 @@ impl Channel {
 
     /// Where the signed manifest for this channel lives when the operator did
     /// not name a URL.
+    ///
+    /// These three are the client half of the contract
+    /// `.github/workflows/release.yml` writes, and each one is a *floating*
+    /// location rather than a version, because an updater that had to know the
+    /// next version's tag could never find it:
+    ///
+    /// | Channel | Published by | Resolves through |
+    /// |---|---|---|
+    /// | `dev` | a push to `dev` | the `nightly` release, force-moved to the new commit |
+    /// | `beta` | a pre-release tag | the `beta` release, force-moved to the newest pre-release |
+    /// | `release` | a clean version tag | GitHub's own `latest`, which the release is marked as |
+    ///
+    /// `release` is v3's URL unchanged. The other two are not: v3 published
+    /// its rolling channel under a tag literally named `dev`, and v4 uses
+    /// `nightly` for it — the tag `dev` is now a *branch*.
     pub fn default_manifest_url(self) -> String {
         match self {
             Self::Dev => {
-                "https://github.com/LeenHawk/gproxy/releases/download/dev/manifest.json".into()
+                "https://github.com/LeenHawk/gproxy/releases/download/nightly/manifest.json".into()
             }
             Self::Beta => {
                 "https://github.com/LeenHawk/gproxy/releases/download/beta/manifest.json".into()
@@ -487,7 +502,9 @@ mod tests {
         assert_eq!(urls.len(), 3);
         assert!(urls[0].contains("/latest/download/"), "{}", urls[0]);
         assert!(urls[1].ends_with("beta/manifest.json"), "{}", urls[1]);
-        assert!(urls[2].ends_with("dev/manifest.json"), "{}", urls[2]);
+        // `nightly`, not `dev`: the pipeline publishes the rolling channel
+        // under a floating release tagged `nightly`, and `dev` is a branch.
+        assert!(urls[2].ends_with("nightly/manifest.json"), "{}", urls[2]);
 
         // A named URL wins for every channel: that is what makes a private
         // mirror, and the end-to-end test, possible.

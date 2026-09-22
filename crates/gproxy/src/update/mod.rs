@@ -345,6 +345,37 @@ impl Updater {
         self.install(channel, &manifest, restart_after).await
     }
 
+    /// Download a verified Tauri APK for Android's package installer.
+    /// The app has its own artifact key: the legacy `-apk` entries package the
+    /// server and have a different Android application id.
+    pub async fn stage_apk(&self) -> Outcome<Option<PathBuf>> {
+        let channel = self.options.channel;
+        let manifest = self.fetch_manifest(channel).await?;
+        version::compatible(manifest.min_compatible_data_version, DATA_VERSION)?;
+        let target = format!("{}-tauri-apk", version::target());
+        let artifact = manifest.artifact(&target)?;
+        if !version::available(channel, &manifest.version)?.1 {
+            return Ok(None);
+        }
+        let bytes = download::artifact(&self.client, artifact).await?;
+        std::fs::create_dir_all(&self.staging)
+            .map_err(|error| UpdateError::io("creating the APK staging directory", error))?;
+        let marker = self.staging.join("install-apk.pending");
+        if marker.exists() {
+            std::fs::remove_file(&marker)
+                .map_err(|error| UpdateError::io("clearing the previous APK marker", error))?;
+        }
+        let pending = self.staging.join("gproxy-update.apk.tmp");
+        let apk = self.staging.join("gproxy-update.apk");
+        std::fs::write(&pending, bytes)
+            .map_err(|error| UpdateError::io("staging the verified APK", error))?;
+        std::fs::rename(&pending, &apk)
+            .map_err(|error| UpdateError::io("publishing the verified APK", error))?;
+        std::fs::write(marker, manifest.version)
+            .map_err(|error| UpdateError::io("marking the APK ready to install", error))?;
+        Ok(Some(apk))
+    }
+
     /// Put the previous executable back.
     pub async fn rollback_now(&self, restart_after: bool) -> Outcome<AppliedUpdate> {
         swap::rollback(self.executable()?)?;
