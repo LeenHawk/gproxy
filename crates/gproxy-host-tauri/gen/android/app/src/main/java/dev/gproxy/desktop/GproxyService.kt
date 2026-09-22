@@ -185,6 +185,16 @@ class GproxyService : Service() {
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentIntent(openTheWindow())
             .addAction(
+                android.R.drawable.stat_sys_download,
+                getString(R.string.gproxy_action_update),
+                PendingIntent.getActivity(
+                    this,
+                    2,
+                    Intent(this, GproxyUpdateActivity::class.java),
+                    PendingIntent.FLAG_IMMUTABLE,
+                ),
+            )
+            .addAction(
                 android.R.drawable.ic_menu_close_clear_cancel,
                 getString(R.string.gproxy_action_stop),
                 PendingIntent.getService(

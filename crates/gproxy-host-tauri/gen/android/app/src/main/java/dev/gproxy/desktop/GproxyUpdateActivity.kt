@@ -8,6 +8,8 @@ import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
+import android.widget.TextView
+import android.view.Gravity
 
 /**
  * Installing the APK that was downloaded.
@@ -29,20 +31,50 @@ import android.widget.Toast
  *   silently refused, so it is checked first and the settings screen comes up
  *   instead.
  *
- * ## What this does not do
- *
- * It does not download and it does not verify. The bytes and the signature
- * check belong to whatever writes [GproxyUpdateProvider.markerFile] — the
- * marker is the downloader's statement that the APK beside it is complete and
- * checked — and this activity refuses to start without one. Wiring the
- * download itself to `gproxy`'s update channel is the follow-up; splitting it
- * this way is what keeps "we have not verified anything" from being a thing
- * this file can accidentally lie about.
+ * The native updater downloads and verifies on a worker thread. It publishes
+ * the marker only after signature, compatibility, size and hash checks pass.
  */
 class GproxyUpdateActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        continueInstall()
+        GproxyNative.configure(this)
+        if (GproxyUpdateProvider.hasPendingUpdate(this)) {
+            continueInstall()
+            return
+        }
+        setContentView(TextView(this).apply {
+            setText(R.string.gproxy_update_checking)
+            gravity = Gravity.CENTER
+        })
+        Thread({
+            val result = runCatching { GproxyNative.update() }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = { response ->
+                        when {
+                            response.has("error") -> showFailure(response.getString("error"))
+                            response.getBoolean("ready") -> continueInstall()
+                            else -> {
+                                Toast.makeText(this, R.string.gproxy_update_current, Toast.LENGTH_LONG).show()
+                                finish()
+                            }
+                        }
+                    },
+                    onFailure = { showFailure(it.toString()) },
+                )
+            }
+        }, "gproxy-update").start()
+    }
+
+    private fun showFailure(reason: String) {
+        Log.e(TAG, "update failed: $reason")
+        android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.gproxy_update_failed)
+            .setMessage(reason)
+            .setPositiveButton(android.R.string.ok) { _, _ -> finish() }
+            .setOnCancelListener { finish() }
+            .show()
     }
 
     @Deprecated("startActivityForResult is the API that exists on a bare Activity")
