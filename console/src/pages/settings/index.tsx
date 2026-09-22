@@ -34,6 +34,7 @@ import { groups, settingsPatch, type SettingField } from "@/pages/settings/schem
 
 export function SettingsPage() {
   const { t } = useTranslation()
+  const [tab, setTab] = useState("general")
   const data = useQuery({ queryKey: SETTINGS_KEY, queryFn: readSettings })
   const info = useQuery({ queryKey: INFO_KEY, queryFn: instanceInfo })
   return (
@@ -50,13 +51,13 @@ export function SettingsPage() {
         }
       />
       <QueryState isPending={data.isPending} error={data.error}>
-        {data.data ? <SettingsForm key={data.data.instance.configRevision} original={data.data} /> : null}
+        {data.data ? <SettingsForm key={data.data.instance.configRevision} original={data.data} tab={tab} onTabChange={setTab} /> : null}
       </QueryState>
     </Page>
   )
 }
 
-function SettingsForm({ original }: { original: SettingsDto }) {
+function SettingsForm({ original, tab, onTabChange }: { original: SettingsDto; tab: string; onTabChange: (tab: string) => void }) {
   const { t } = useTranslation()
   const id = useId()
   const client = useQueryClient()
@@ -177,7 +178,7 @@ function SettingsForm({ original }: { original: SettingsDto }) {
   return (
     <form onSubmit={submit} className="flex min-w-0 flex-col gap-6">
       {saved.error ? <ErrorNotice error={saved.error} /> : null}
-      <Tabs defaultValue="general" className="gap-6">
+      <Tabs value={tab} onValueChange={onTabChange} className="gap-6">
         <TabsList variant="line" className="max-w-full">
           {groups.map((group) => (
             <TabsTrigger key={group.id} value={group.id}>
