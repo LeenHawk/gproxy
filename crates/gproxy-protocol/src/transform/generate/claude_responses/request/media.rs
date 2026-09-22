@@ -182,6 +182,7 @@ pub(super) fn result_to_responses(
                         c::ToolResultContentBlock::Image(block) => image(block.source)?,
                         c::ToolResultContentBlock::Document(doc) => document(doc)?,
                         c::ToolResultContentBlock::SearchResult(_)
+                        | c::ToolResultContentBlock::BrowserState(_)
                         | c::ToolResultContentBlock::ToolReference(_) => {
                             return Err(TransformError::unsupported(
                                 "tool_result",
@@ -279,6 +280,7 @@ pub(super) fn result_to_claude(
                         | c::ContentBlock::McpToolUse(_)
                         | c::ContentBlock::McpToolResult(_)
                         | c::ContentBlock::ContainerUpload(_)
+                        | c::ContentBlock::McpToolListing(_)
                         | c::ContentBlock::Compaction(_)
                         | c::ContentBlock::MidConversationSystem(_)
                         | c::ContentBlock::ToolAddition(_)

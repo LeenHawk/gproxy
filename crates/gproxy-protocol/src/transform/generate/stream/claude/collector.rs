@@ -249,6 +249,7 @@ impl ClaudeStreamCollector {
             .ok_or_else(|| invalid("stream", "missing message_start"))?;
         Ok(Converted {
             value: c::GenerateContentResponseBody {
+                input_transformations: m.input_transformations,
                 type_: m.type_,
                 id: m.id,
                 container: m.container,

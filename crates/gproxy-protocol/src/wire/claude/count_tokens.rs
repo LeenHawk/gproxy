@@ -369,6 +369,9 @@ pub enum ThinkingConfig {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ThinkingEnabled {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub block_binding: Option<ThinkingBlockBinding>,
+
     pub budget_tokens: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display: Option<ThinkingDisplay>,
@@ -393,6 +396,9 @@ pub struct ThinkingDisabled {
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ThinkingAdaptive {
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub block_binding: Option<ThinkingBlockBinding>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub display: Option<ThinkingDisplay>,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
@@ -404,6 +410,7 @@ pub struct ThinkingAdaptive {
 pub enum ThinkingDisplay {
     Summarized,
     Omitted,
+    Updates,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -493,4 +500,39 @@ pub struct CountTokensContextManagementResponse {
     pub original_input_tokens: i64,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::WireBuilder,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub struct ThinkingBlockBinding {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prefix_mismatch_behavior: Option<ThinkingPrefixMismatchBehavior>,
+    #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub rest: Rest,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    gproxy_protocol_macros::DeclaredFields,
+)]
+#[serde(rename_all = "snake_case")]
+#[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
+pub enum ThinkingPrefixMismatchBehavior {
+    Error,
+    DropBlock,
 }

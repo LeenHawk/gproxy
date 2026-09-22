@@ -26,9 +26,10 @@ pub fn claude_to_gemini_request(
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
 ) -> Result<Converted<g::GenerateContentRequestBody>, TransformError> {
-    let input = input.into_declared();
+    let mut input = input.into_declared();
     let mut ids = flow.clone();
     let mut report = Report::default();
+    super::super::claude_controls::project(&mut input, &mut report);
     let config = super::config::to_gemini(&input, &mut report)?;
     let (tools, tool_config) =
         super::tools::to_gemini(input.tools, input.tool_choice, &mut report)?;
@@ -175,5 +176,11 @@ pub fn gemini_to_claude_request(
     }
     crate::transform::instructions::claude(&mut out.messages, &out.model, &mut report);
     *flow = ids;
+    crate::transform::generate::claude_controls::target(
+        &out.model,
+        &mut out.thinking,
+        &mut out.tool_choice,
+        &mut report,
+    );
     Ok(Converted { value: out, report })
 }

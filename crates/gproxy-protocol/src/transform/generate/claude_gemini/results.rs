@@ -19,6 +19,13 @@ pub(super) fn to_gemini(
             let mut texts = Vec::new();
             for block in blocks {
                 match block {
+                    c::ToolResultContentBlock::BrowserState(_) => {
+                        report.omitted(
+                            "tool_result.browser_state",
+                            "target has no browser state block",
+                        );
+                        continue;
+                    }
                     c::ToolResultContentBlock::Text(v) => {
                         if v.citations.is_some() || v.cache_control.is_some() {
                             report.omitted(

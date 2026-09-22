@@ -18,6 +18,9 @@ pub fn claude_to_openai(
 ) -> Result<Converted<chat::GenerateContentRequestBody>, TransformError> {
     let target_model = target_model.into();
     let mut report = Report::default();
+    let mut projected = input.clone();
+    super::super::claude_controls::project(&mut projected, &mut report);
+    let input = &projected;
     super::requirements::claude(input, &mut report)?;
     let mut messages = Vec::new();
     if let Some(system) = &input.system {
@@ -258,8 +261,9 @@ pub fn openai_to_claude(
     } else {
         output_effort.map(|_| cc::ThinkingConfig::Adaptive(cc::ThinkingAdaptive::builder().build()))
     };
-    Ok(Converted {
+    let mut converted = Converted {
         value: cg::GenerateContentRequestBody {
+            compaction: None,
             max_tokens,
             messages,
             model: target_model,
@@ -314,7 +318,14 @@ pub fn openai_to_claude(
             rest: Rest::new(),
         },
         report,
-    })
+    };
+    super::super::claude_controls::target(
+        &converted.value.model,
+        &mut converted.value.thinking,
+        &mut converted.value.tool_choice,
+        &mut converted.report,
+    );
+    Ok(converted)
 }
 
 fn apply_parallel(choice: Option<cc::ToolChoice>, parallel: bool) -> cc::ToolChoice {

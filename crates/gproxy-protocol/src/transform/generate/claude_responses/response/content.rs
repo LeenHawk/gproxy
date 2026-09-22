@@ -96,6 +96,15 @@ pub(super) fn to_responses(
                     rest: Default::default(),
                 })
             }
+            c::ResponseContentBlock::ToolUse(v)
+                if v.toolset_name.as_ref().is_some_and(Option::is_some) =>
+            {
+                report.omitted(
+                    "toolset_name",
+                    "native toolset member has no target definition",
+                );
+                continue;
+            }
             c::ResponseContentBlock::ToolUse(block) => {
                 if block.name.is_empty() || !calls.insert(block.id.clone()) {
                     return Err(TransformError::invalid_result(
@@ -218,6 +227,7 @@ pub(super) fn to_responses(
             | c::ResponseContentBlock::TextEditorCodeExecutionToolResult(_)
             | c::ResponseContentBlock::ToolSearchToolResult(_)
             | c::ResponseContentBlock::ContainerUpload(_)
+            | c::ResponseContentBlock::McpToolListing(_)
             | c::ResponseContentBlock::Compaction(_)
             | c::ResponseContentBlock::Fallback(_) => {
                 continue;
@@ -361,6 +371,7 @@ pub(super) fn to_claude(
                 result
                     .blocks
                     .push(c::ResponseContentBlock::ToolUse(c::ResponseToolUseBlock {
+                        toolset_name: None,
                         type_: c::ResponseToolUseBlockType::Tag,
                         id,
                         input,

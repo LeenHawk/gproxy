@@ -57,6 +57,13 @@ pub(crate) fn to_responses(
                         r::MessageContent::Parts(vec![super::media::document(doc)?]),
                     ));
                 }
+                c::ContentBlock::ToolUse(v) if v.toolset_name.is_some() => {
+                    report.omitted(
+                        "toolset_name",
+                        "native toolset member has no target definition",
+                    );
+                    continue;
+                }
                 c::ContentBlock::ToolUse(call) => {
                     if call
                         .caller
@@ -107,6 +114,13 @@ pub(crate) fn to_responses(
                         .id(item_id)
                         .build(),
                     ));
+                }
+                c::ContentBlock::ToolResult(v) if v.toolset_name.is_some() => {
+                    report.omitted(
+                        "toolset_name",
+                        "native toolset member has no target definition",
+                    );
+                    continue;
                 }
                 c::ContentBlock::ToolResult(result) => {
                     if role != r::MessageRole::User {
@@ -268,6 +282,7 @@ pub(crate) fn to_responses(
                 | c::ContentBlock::TextEditorCodeExecutionToolResult(_)
                 | c::ContentBlock::ToolSearchToolResult(_)
                 | c::ContentBlock::ContainerUpload(_)
+                | c::ContentBlock::McpToolListing(_)
                 | c::ContentBlock::Compaction(_)
                 | c::ContentBlock::MidConversationSystem(_)
                 | c::ContentBlock::ToolAddition(_)

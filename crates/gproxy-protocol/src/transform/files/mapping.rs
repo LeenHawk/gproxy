@@ -78,6 +78,13 @@ pub fn openai_to_claude(
         .ok_or_else(|| TransformError::missing_metadata("file.bytes"))?;
     Ok(Converted {
         value: claude::files::FileMetadata {
+            expires_at: facts
+                .expires_at
+                .as_ref()
+                .map(|v| iso(v).map(Some))
+                .map(crate::transform::optional)
+                .transpose()?
+                .flatten(),
             id,
             created_at: created,
             filename,
@@ -355,6 +362,13 @@ pub fn gemini_to_claude(
         .ok_or_else(|| TransformError::missing_metadata("file.created_at"))?)?;
     Ok(Converted {
         value: claude::files::FileMetadata {
+            expires_at: facts
+                .expires_at
+                .as_ref()
+                .map(|v| iso(v).map(Some))
+                .map(crate::transform::optional)
+                .transpose()?
+                .flatten(),
             id,
             created_at: created,
             filename: facts

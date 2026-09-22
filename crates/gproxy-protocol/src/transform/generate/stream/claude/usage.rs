@@ -25,6 +25,9 @@ pub(super) fn merge(m: &mut StreamMessage, e: MessageDeltaEvent) -> Result<(), T
     if e.delta.container.is_some() {
         m.container = e.delta.container;
     }
+    if e.input_transformations.is_some() {
+        m.input_transformations = e.input_transformations;
+    }
     if e.context_management.is_some() {
         m.context_management = e.context_management;
     }

@@ -274,6 +274,7 @@ fn convert_to_claude(
         }
     }
     let value = c::GenerateContentResponseBody {
+        input_transformations: None,
         type_: c::GenerateContentResponseBodyType::Tag,
         id,
         container: None,

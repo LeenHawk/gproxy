@@ -28,6 +28,15 @@ pub fn claude_response_to_openai(
                 }
                 text.push(block.text.clone());
             }
+            cg::ResponseContentBlock::ToolUse(v)
+                if v.toolset_name.as_ref().is_some_and(Option::is_some) =>
+            {
+                report.omitted(
+                    "toolset_name",
+                    "native toolset member has no target definition",
+                );
+                continue;
+            }
             cg::ResponseContentBlock::ToolUse(block) => {
                 tool_calls.push(chat::MessageToolCall::Function(chat::ChatToolCall {
                     id: super::util::response_id(&block.id)?,
@@ -58,6 +67,7 @@ pub fn claude_response_to_openai(
             | cg::ResponseContentBlock::McpToolUse(_)
             | cg::ResponseContentBlock::McpToolResult(_)
             | cg::ResponseContentBlock::ContainerUpload(_)
+            | cg::ResponseContentBlock::McpToolListing(_)
             | cg::ResponseContentBlock::Compaction(_)
             | cg::ResponseContentBlock::Fallback(_) => {
                 continue;
@@ -68,6 +78,7 @@ pub fn claude_response_to_openai(
         cg::StopReason::MaxTokens | cg::StopReason::ModelContextWindowExceeded => {
             chat::FinishReason::Length
         }
+        cg::StopReason::ToolUse if tool_calls.is_empty() && input.content.iter().any(|block| matches!(block, cg::ResponseContentBlock::ToolUse(v) if v.toolset_name.as_ref().is_some_and(Option::is_some))) => chat::FinishReason::Stop,
         cg::StopReason::ToolUse => chat::FinishReason::ToolCalls,
         cg::StopReason::Refusal => chat::FinishReason::ContentFilter,
         cg::StopReason::PauseTurn | cg::StopReason::Compaction => chat::FinishReason::Stop,
@@ -77,6 +88,10 @@ pub fn claude_response_to_openai(
         (input.container.is_some(), "container"),
         (input.context_management.is_some(), "context_management"),
         (input.diagnostics.is_some(), "diagnostics"),
+        (
+            input.input_transformations.is_some(),
+            "input_transformations",
+        ),
         (input.stop_details.is_some(), "stop_details"),
         (input.stop_sequence.is_some(), "stop_sequence"),
     ] {
@@ -233,6 +248,7 @@ pub fn openai_response_to_claude(
                 let input = input.as_object().cloned().expect("object checked");
                 content.push(cg::ResponseContentBlock::ToolUse(
                     cg::ResponseToolUseBlock {
+                        toolset_name: None,
                         type_: cg::ResponseToolUseBlockType::Tag,
                         id: super::util::response_id(&call.id)?,
                         input,
@@ -259,6 +275,7 @@ pub fn openai_response_to_claude(
     };
     Ok(Converted {
         value: cg::GenerateContentResponseBody {
+            input_transformations: None,
             type_: cg::GenerateContentResponseBodyType::Tag,
             id: input.id.clone(),
             container: None,

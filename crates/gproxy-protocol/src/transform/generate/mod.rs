@@ -3,6 +3,7 @@
 
 pub mod chat_responses;
 pub mod claude_chat;
+pub(crate) mod claude_controls;
 pub mod claude_gemini;
 pub mod claude_responses;
 pub(crate) mod client_tools;

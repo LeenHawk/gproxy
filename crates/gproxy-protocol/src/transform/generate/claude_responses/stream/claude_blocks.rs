@@ -72,7 +72,9 @@ impl ClaudeToResponsesStream {
                     Some(v.thinking),
                 )
             }
-            c::ResponseContentBlock::ToolUse(v) => {
+            c::ResponseContentBlock::ToolUse(v)
+                if v.toolset_name.as_ref().is_none_or(Option::is_none) =>
+            {
                 self.count_tool()?;
                 if v.name.is_empty() {
                     return Err(invalid("empty tool name"));

@@ -10,6 +10,12 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct FileMetadata {
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub expires_at: Option<Option<String>>,
     pub id: String,
     pub created_at: String,
     pub filename: String,
@@ -64,6 +70,10 @@ pub enum FileScopeType {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ListFilesQuery {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ids: Option<Vec<String>>,
     #[serde(
         default,
         deserialize_with = "present_optional",
@@ -96,6 +106,12 @@ pub struct ListFilesQuery {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ListFilesResponseBody {
+    #[serde(
+        default,
+        deserialize_with = "present_nullable",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub next_page: Option<Option<String>>,
     pub data: Vec<FileMetadata>,
     #[serde(
         default,
@@ -147,6 +163,7 @@ pub enum DeletedFileType {
 #[cfg_attr(not(feature = "exhaustive"), non_exhaustive)]
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct UploadFileForm {
+    pub expires_in_seconds: Option<i64>,
     pub file: MultipartPart,
 }
 pub type UploadFileRequest = WireRequest<UploadFileForm>;
@@ -169,4 +186,12 @@ where
     T: Deserialize<'de>,
 {
     T::deserialize(d).map(Some)
+}
+
+fn present_nullable<'de, D, T>(d: D) -> Result<Option<Option<T>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(d).map(Some)
 }
