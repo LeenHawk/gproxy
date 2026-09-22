@@ -34,3 +34,28 @@ pub async fn info<C>(State(state): State<HostState<C>>) -> Response {
         "hash": env!("GPROXY_BUILD_HASH"),
     }))
 }
+
+/// CORS applies to management routes as well as the inference fallback.
+pub async fn cors<C>(
+    State(state): State<HostState<C>>,
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Response
+where
+    C: gproxy_seaorm::BatchConnectionTrait + Send + Sync + 'static,
+{
+    crate::send(async move {
+        let origins = cors_origins(state.app());
+        let origin = crate::policy::allowed_origin(request.headers(), &origins);
+        if crate::policy::is_preflight(request.method(), request.headers()) {
+            use axum::response::IntoResponse;
+            return crate::policy::apply_preflight_cors(
+                http::StatusCode::NO_CONTENT.into_response(),
+                origin.as_ref(),
+                request.headers(),
+            );
+        }
+        crate::policy::apply_cors(next.run(request).await, origin.as_ref())
+    })
+    .await
+}

@@ -241,6 +241,10 @@ where
         // larger than this is refused before it is buffered, which is the
         // point: the limit is a memory bound, not a policy.
         .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            runtime_settings::cors::<C>,
+        ))
         .with_state(state)
 }
 

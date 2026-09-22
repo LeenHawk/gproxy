@@ -72,22 +72,7 @@ pub async fn handle<C>(State(state): State<HostState<C>>, request: Request) -> R
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move {
-        let origins = crate::runtime_settings::cors_origins(state.app());
-        let origin = policy::allowed_origin(request.headers(), &origins);
-        if policy::is_preflight(request.method(), request.headers()) {
-            // A preflight is never forwarded: it asks this instance what it
-            // will accept, and the upstream has no opinion about that.
-            return policy::apply_preflight_cors(
-                StatusCode::NO_CONTENT.into_response(),
-                origin.as_ref(),
-                request.headers(),
-            );
-        }
-        let response = dispatch(&state, request).await;
-        policy::apply_cors(response, origin.as_ref())
-    })
-    .await
+    crate::send(async move { dispatch(&state, request).await }).await
 }
 
 async fn dispatch<C>(state: &HostState<C>, request: Request) -> Response

@@ -106,9 +106,9 @@ pub struct Model {
     pub query_parameter_blacklist: Json,
 
     // Files and maintenance
-    /// None uses the application's retention default.
+    /// Completed request history retention; None disables age-based cleanup.
     pub retention_days: Option<u32>,
-    /// Saved preference for database cleanup; does not describe S3 object storage.
+    /// SQLite history budget in MiB; None or zero disables size-based cleanup.
     pub max_database_size_mb: Option<i64>,
     /// None follows the application's build channel.
     pub update_channel: Option<String>,

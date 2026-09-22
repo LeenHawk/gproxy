@@ -172,6 +172,14 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> SettingsManage<'_, C> {
                 row.retention_days = Set(value);
             }
             if let Some(value) = instance.max_database_size_mb {
+                if value.is_some_and(|size| size > 0)
+                    && self.writer.store().connection().get_database_backend()
+                        != sea_orm::DbBackend::Sqlite
+                {
+                    return Err(SdkError::invalid(
+                        "database size cleanup is supported only for SQLite",
+                    ));
+                }
                 if value.is_some_and(|size| size < 0) {
                     return Err(SdkError::invalid("maxDatabaseSizeMb must not be negative"));
                 }
