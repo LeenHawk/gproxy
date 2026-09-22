@@ -119,6 +119,7 @@ pub struct Updater {
     /// source — see that module for why the trust root is not configurable.
     signing_key: Option<String>,
     options: UpdateOptions,
+    runtime: Mutex<Option<(Channel, bool)>>,
     recorded: Mutex<Recorded>,
     /// The scheduled check, aborted when this value is dropped. The task holds
     /// a `Weak` back, so the two do not keep each other alive.
@@ -184,6 +185,7 @@ impl Updater {
             executable,
             signing_key: config::SIGNING_PUBLIC_KEY.map(str::to_owned),
             options,
+            runtime: Mutex::new(None),
             recorded: Mutex::new(Recorded::default()),
             task: Mutex::new(None),
         }))
@@ -221,9 +223,36 @@ impl Updater {
             executable: Some(executable.to_owned()),
             signing_key,
             options,
+            runtime: Mutex::new(None),
             recorded: Mutex::new(Recorded::default()),
             task: Mutex::new(None),
         })
+    }
+
+    pub fn configure(self: &Arc<Self>, channel: Option<&str>, enabled: bool) -> Outcome<()> {
+        let channel = channel
+            .map(Channel::parse)
+            .transpose()?
+            .unwrap_or(self.options.channel);
+        let mut runtime = self.runtime.lock().unwrap();
+        if *runtime == Some((channel, enabled)) {
+            return Ok(());
+        }
+        *runtime = Some((channel, enabled));
+        drop(runtime);
+        if let Some(task) = self.task.lock().unwrap().take() {
+            task.abort();
+        }
+        self.start();
+        Ok(())
+    }
+
+    fn interval(&self) -> Option<u64> {
+        match *self.runtime.lock().unwrap() {
+            Some((_, true)) => Some(self.options.interval_secs.unwrap_or(DEFAULT_INTERVAL_SECS)),
+            Some((_, false)) => None,
+            None => self.options.interval_secs,
+        }
     }
 
     pub fn options(&self) -> &UpdateOptions {
@@ -243,7 +272,7 @@ impl Updater {
     /// couple a network poll of a release host to the correctness of every
     /// request's configuration.
     pub fn start(self: &Arc<Self>) {
-        let Some(interval) = self.options.interval_secs else {
+        let Some(interval) = self.interval() else {
             tracing::debug!(
                 "scheduled update checks are switched off; `gproxy update --check` still works"
             );
@@ -281,7 +310,7 @@ impl Updater {
     /// One scheduled check: record it, say something if there is news, and
     /// install only if the operator asked for that.
     async fn scheduled_check(self: &Arc<Self>) {
-        let channel = self.options.channel;
+        let channel = self.channel(None).expect("configured channel");
         let report = match self.fetch_manifest(channel).await {
             Ok(manifest) => self.report(channel, &manifest).await,
             Err(error) => Err(error),
@@ -349,7 +378,7 @@ impl Updater {
     /// The app has its own artifact key: the legacy `-apk` entries package the
     /// server and have a different Android application id.
     pub async fn stage_apk(&self) -> Outcome<Option<PathBuf>> {
-        let channel = self.options.channel;
+        let channel = self.channel(None).expect("configured channel");
         let manifest = self.fetch_manifest(channel).await?;
         version::compatible(manifest.min_compatible_data_version, DATA_VERSION)?;
         let target = format!("{}-tauri-apk", version::target());
@@ -399,7 +428,11 @@ impl Updater {
     fn channel(&self, requested: Option<&str>) -> Outcome<Channel> {
         match requested {
             Some(value) => Channel::parse(value),
-            None => Ok(self.options.channel),
+            None => Ok(self
+                .runtime
+                .lock()
+                .unwrap()
+                .map_or(self.options.channel, |(channel, _)| channel)),
         }
     }
 
@@ -542,7 +575,7 @@ impl UpdateService for Updater {
         UpdateSchedule {
             last_check: recorded.last_check.clone(),
             last_error: recorded.last_error.clone(),
-            interval_secs: self.options.interval_secs,
+            interval_secs: self.interval(),
             automatic: self.options.automatic,
         }
     }
@@ -875,5 +908,23 @@ mod tests {
         assert_send(updater.rollback());
         fn assert_sync<T: Send + Sync>(_: &T) {}
         assert_sync(&*updater);
+    }
+}
+
+#[cfg(test)]
+mod runtime_tests {
+    use super::*;
+    #[tokio::test]
+    async fn settings_can_stop_and_restart_scheduled_checks() {
+        let dir = tempfile::tempdir().unwrap();
+        let updater = Updater::new(dir.path(), UpdateOptions::default()).unwrap();
+        updater.configure(Some("beta"), false).unwrap();
+        assert_eq!(updater.channel(None).unwrap(), Channel::Beta);
+        assert!(updater.interval().is_none());
+        updater.configure(Some("dev"), true).unwrap();
+        assert_eq!(updater.channel(None).unwrap(), Channel::Dev);
+        assert!(updater.task.lock().unwrap().is_some());
+        updater.configure(None, false).unwrap();
+        assert!(updater.task.lock().unwrap().is_none());
     }
 }

@@ -9,7 +9,11 @@
 //! that `GPROXY_LOG_FILTER` beats an ambient `RUST_LOG` rather than the other way
 //! round.
 
-use tracing_subscriber::{EnvFilter, fmt, prelude::*};
+use std::sync::OnceLock;
+use tracing_subscriber::{EnvFilter, Layer, Registry, fmt, prelude::*, reload};
+
+type Output = Box<dyn Layer<Registry> + Send + Sync>;
+static RELOAD: OnceLock<reload::Handle<Output, Registry>> = OnceLock::new();
 
 use crate::{
     Error, Result,
@@ -26,19 +30,44 @@ pub fn init(options: &TelemetryOptions) -> Result<()> {
             format!("`{}` is not a tracing filter: {error}", options.filter),
         )
     })?;
-    let registry = tracing_subscriber::registry().with(filter);
-    let installed = match options.format {
-        // Logs go to stderr, so `export --out -` and the one-time credential
-        // disclosure keep standard output to themselves. A command whose output
-        // is piped into a file must not find log lines in it.
-        LogFormat::Text => registry
-            .with(fmt::layer().with_writer(std::io::stderr))
-            .try_init(),
-        LogFormat::Json => registry
-            .with(fmt::layer().json().with_writer(std::io::stderr))
-            .try_init(),
+    let (layer, handle) = reload::Layer::new(output(options.format, filter));
+    tracing_subscriber::registry()
+        .with(layer)
+        .try_init()
+        .map_err(|error| Error::other(format!("installing the log subscriber: {error}")))?;
+    let _ = RELOAD.set(handle);
+    Ok(())
+}
+
+fn output(format: LogFormat, filter: EnvFilter) -> Output {
+    match format {
+        LogFormat::Text => fmt::layer()
+            .with_writer(std::io::stderr)
+            .with_filter(filter)
+            .boxed(),
+        LogFormat::Json => fmt::layer()
+            .json()
+            .with_writer(std::io::stderr)
+            .with_filter(filter)
+            .boxed(),
+    }
+}
+
+/// Replace filter and formatter together, without restarting the process.
+pub fn configure(level: &str, format: &str) -> Result<()> {
+    let format = match format {
+        "text" => LogFormat::Text,
+        "json" => LogFormat::Json,
+        _ => return Err(Error::other("log format must be text or json")),
     };
-    installed.map_err(|error| Error::other(format!("installing the log subscriber: {error}")))
+    let filter =
+        EnvFilter::try_new(directives(level)).map_err(|error| Error::other(error.to_string()))?;
+    if let Some(handle) = RELOAD.get() {
+        handle
+            .reload(output(format, filter))
+            .map_err(|error| Error::other(error.to_string()))?;
+    }
+    Ok(())
 }
 
 /// The one target this binary silences, and why.
