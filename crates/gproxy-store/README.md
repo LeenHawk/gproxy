@@ -76,36 +76,36 @@ It carries no notification transport: `subscribe` yields the initial
 let cache: Arc<dyn Cache> = Arc::new(StoreCache::new(store.clone()));
 ```
 
-## Initialization and incremental schema sync
+## Initialization and versioned migrations
 
 ```rust
 let store = Store::new(connection);
-let report = store.sync().await?;
-// Surface report.warnings with the host logger, then initialize application data.
+let report = store.migrate().await?;
+// Log report.summary(), then initialize application data.
 ```
 
-The connection may be any `BatchConnectionTrait`: a native SeaORM connection,
-Workers D1, or gproxy-seaorm's libSQL/Turso connection on every target.
-`Store::sync` and `schema(backend)` share one entity registry. Sync creates missing
-tables for a new database and incrementally synchronizes an existing schema;
-repeat calls preserve rows. `gproxy-seaorm::SchemaSyncConnectionTrait` dispatches
-to native SeaORM schema sync or the D1 discovery/planner/batch implementation.
-Native `schema-sync` is enabled by the adapter; applications still select their
-SeaORM database driver and runtime. D1 does not link native drivers.
+An empty database is created from the entity registry and receives a
+`seaql_migrations` ledger. An existing managed database runs pending entries
+of `gproxy_store::Migrator` through SeaORM. Tables without that ledger, or a
+ledger containing migrations this build does not know, are refused before DDL.
+`Store::sync()` remains a startup-compatible name for this operation; it no
+longer infers `ALTER TABLE` statements from entity differences.
 
-Run explicitly during startup, before serving requests, with one schema writer.
-Store construction does no I/O; sync neither creates default settings/admins nor
-runs versioned migrations. It adds supported missing columns/indexes and follows
-backend sync rules for renamed columns/indexes. Types, data conversions, existing
-foreign-key changes and other unsupported changes require explicit migrations;
-there is no promise of one atomic migration transaction across native backends.
-`SyncReport.warnings` carries D1 type-difference warnings; native SeaORM emits its
-diagnostics through logging. An empty list is not proof that every schema change
-was applied. Handle errors and diagnostics before considering startup complete.
+Run with one schema writer before serving requests. Construction does no I/O,
+and migration does not create settings or administrators. Native connections
+and D1 can drive the runner; a libSQL connection can create a fresh schema and
+read an up-to-date one, but pending migrations need a native connection to that
+database. D1 uses its batch/proxy adapter rather than interactive transactions.
 
-The older `schema(backend).apply(&db)` remains a one-shot create operation; it
-fails when tables already exist and should not be called on every startup.
-No existing database is updated unless the caller explicitly invokes these APIs.
+Append migrations under `src/migration/mYYYYMMDD_NNNNNN_description.rs` and
+append them to `Migrator::migrations()`. The baseline reads today's registry,
+so subsequent migrations must also work when their schema change is already
+present on a fresh install. Use `gproxy_seaorm::SchemaProbeExt` for backend
+inspection. Never rewrite a released migration; append a correction. The full
+convention is documented in [the migration module](src/migration/mod.rs).
+
+`schema(backend).apply(&db)` is a low-level one-shot table creation API. Use
+`Store::migrate()` for application startup so the ledger is recorded too.
 
 ## Exact amounts and schema changes
 

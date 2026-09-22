@@ -50,28 +50,30 @@ SQL 错误回滚事务写入；条件更新零行只返回冲突／行数，不�
 客户端退役，以及 agent 分配预留／启用／失败／当前目标读取。设备轮询及结果交付由签发层
 负责，可用通用查询读取持久状态；订阅发放与价格计算仍由 core 完成。
 
-## 首次初始化与增量 schema 同步
+## 首次初始化与版本化迁移
 
 ```rust
 let store = Store::new(connection);
-let report = store.sync().await?;
-// 将 report.warnings 交给宿主日志，再初始化业务数据。
+let report = store.migrate().await?;
+// 记录 report.summary()，再初始化业务数据。
 ```
 
-`Store::sync` 与 `schema(backend)` 共用一份实体注册清单。空库自动建表，已有库增量同步，
-重复调用保留数据。由 `gproxy-seaorm::SchemaSyncConnectionTrait` 分别调用原生 SeaORM
-schema sync 或 D1 的结构发现／规划／batch 执行。适配器已启用原生 `schema-sync`；
-应用仍需选择 SeaORM 数据库驱动及运行时，D1 不链接原生驱动。
+空库按实体注册表创建，并记录 `seaql_migrations` 账本。已有托管数据库通过 SeaORM
+执行 `gproxy_store::Migrator` 中尚未应用的迁移。有表却没有账本，或账本含有当前
+构建不认识的迁移时，在执行 DDL 前拒绝。`Store::sync()` 保留为兼容现有启动调用的
+入口，行为与 `migrate()` 相同，不再根据实体差异自行推导 `ALTER TABLE`。
 
-在启动阶段、开始接收请求前显式调用，由一个 schema 写入者执行。构造 Store 不做 I/O；
-sync 不创建默认设置／管理员，也不自动运行版本化迁移。支持补充缺少的列和索引，改名／
-索引调整遵循后端 sync 规则。类型修改、数据转换、已有外键变化等不支持的改动仍需显式
-migration；不承诺原生所有后端的一次 sync 都是单个原子事务。
-`SyncReport.warnings` 返回 D1 列类型差异；原生 SeaORM 的诊断通过日志输出。空列表不表示
-所有结构变化都已完成；启动成功前应处理错误和诊断。
+由单写者在接收请求前执行。构造 Store 不做 I/O，迁移也不创建设置行或管理员。
+原生连接与 D1 可以驱动迁移；libSQL 连接支持创建空库、读取已处于当前版本的库，
+有待执行迁移时需要通过原生连接完成。D1 使用 batch/proxy 适配，不使用交互式事务。
 
-原有 `schema(backend).apply(&db)` 保留为一次性建表入口，已有表时会失败，不能每次启动
-都调用。只有宿主显式调用这些 API 才会修改数据库，本次没有更新任何既有数据库。
+新增迁移放在 `src/migration/mYYYYMMDD_NNNNNN_description.rs`，并追加到
+`Migrator::migrations()`。baseline 读取当前实体注册表，因此后续迁移要能处理
+新库已经包含该结构变更的情况，结构检查使用 `gproxy_seaorm::SchemaProbeExt`。
+发布过的迁移不修改，通过追加迁移修正；完整约定见[迁移模块](src/migration/mod.rs)。
+
+`schema(backend).apply(&db)` 是底层一次性建表入口。应用启动使用
+`Store::migrate()`，让 schema 与账本一起建立。
 
 ## 精确金额与 schema 变更
 

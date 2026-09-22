@@ -93,7 +93,7 @@ pub trait SchemaSyncConnectionTrait: ConnectionTrait {
         } else {
             Vec::new()
         };
-        Ok(status_against::<M>(&applied))
+        status_against::<M>(&applied)
     }
 }
 
@@ -113,8 +113,21 @@ fn no_runner() -> DbErr {
 
 /// The migrator's declared order, each entry marked against a ledger read
 /// separately. What every connection's status report is assembled from.
-fn status_against<M: MigratorTrait>(applied: &[String]) -> Vec<(String, MigrationStatus)> {
-    M::migrations()
+fn status_against<M: MigratorTrait>(
+    applied: &[String],
+) -> Result<Vec<(String, MigrationStatus)>, DbErr> {
+    let migrations = M::migrations();
+    for version in applied {
+        if !migrations
+            .iter()
+            .any(|migration| migration.name() == version)
+        {
+            return Err(DbErr::Migration(format!(
+                "this database has migration `{version}`, which this build does not carry; use the build that created it or a newer one"
+            )));
+        }
+    }
+    Ok(migrations
         .into_iter()
         .map(|migration| {
             let name = migration.name().to_owned();
@@ -125,7 +138,7 @@ fn status_against<M: MigratorTrait>(applied: &[String]) -> Vec<(String, Migratio
             };
             (name, status)
         })
-        .collect()
+        .collect())
 }
 
 /// Native SeaORM connections.
