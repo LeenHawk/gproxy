@@ -8,7 +8,7 @@
     "requests": "最近請求",
     "account": "帳號",
     "users": "使用者",
-    "api-keys": "API 金鑰",
+    "api-keys": "使用者金鑰",
     "organizations": "組織",
     "teams": "團隊",
     "permissions": "權限",
@@ -28,7 +28,7 @@
   "create": {
     "keys": "新建金鑰",
     "users": "新建使用者",
-    "api-keys": "鑄造金鑰",
+    "api-keys": "新增使用者金鑰",
     "organizations": "新建組織",
     "teams": "新建團隊",
     "permissions": "新建規則",
@@ -45,7 +45,7 @@
   },
   "edit": {
     "users": "編輯使用者",
-    "api-keys": "編輯金鑰",
+    "api-keys": "編輯使用者金鑰",
     "organizations": "編輯組織",
     "teams": "編輯團隊",
     "permissions": "編輯規則",

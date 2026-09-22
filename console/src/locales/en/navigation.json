@@ -8,7 +8,7 @@
     "requests": "Recent requests",
     "account": "Account",
     "users": "Users",
-    "api-keys": "API keys",
+    "api-keys": "User keys",
     "organizations": "Organizations",
     "teams": "Teams",
     "permissions": "Permissions",
@@ -28,7 +28,7 @@
   "create": {
     "keys": "New key",
     "users": "New user",
-    "api-keys": "Mint a key",
+    "api-keys": "Create user key",
     "organizations": "New organization",
     "teams": "New team",
     "permissions": "New rule",
@@ -45,7 +45,7 @@
   },
   "edit": {
     "users": "Edit user",
-    "api-keys": "Edit key",
+    "api-keys": "Edit user key",
     "organizations": "Edit organization",
     "teams": "Edit team",
     "permissions": "Edit rule",
