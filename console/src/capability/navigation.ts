@@ -12,6 +12,13 @@
 //! administrator `identity.teams` and not `identity.users`, this table needs
 //! no edit at all — the item simply appears for them.
 
+import {
+  Boxes, Building2, ChartLine, CircleUserRound, CreditCard, Fingerprint, Gauge,
+  KeyRound, LayoutDashboard, Layers, ListChecks, MonitorSmartphone, Network,
+  ReceiptText, ScrollText, Settings2, ShieldCheck, SlidersHorizontal, UsersRound,
+  type LucideIcon,
+} from "lucide-react"
+
 import { SELF_LOGS_READ, SELF_READ, type Capability, type ConsoleContext } from "@/capability/capability"
 
 export type NavItem = {
@@ -19,11 +26,13 @@ export type NavItem = {
   id: string
   route: string
   needs: Capability
+  icon: LucideIcon
 }
 
 export type NavSection = {
   /** Also the i18n key under `section.`. */
   id: string
+  icon: LucideIcon
   items: Array<NavItem>
 }
 
@@ -34,38 +43,54 @@ export type NavSection = {
  */
 const SELF: NavSection = {
   id: "self",
+  icon: CircleUserRound,
   items: [
-    { id: "overview", route: "/", needs: SELF_READ },
-    { id: "keys", route: "/keys", needs: SELF_READ },
-    { id: "models", route: "/models", needs: SELF_READ },
-    { id: "usage", route: "/usage", needs: SELF_READ },
-    { id: "quota", route: "/quota", needs: SELF_READ },
-    { id: "requests", route: "/requests", needs: SELF_LOGS_READ },
-    { id: "account", route: "/account", needs: SELF_READ },
+    { id: "overview", route: "/", needs: SELF_READ, icon: LayoutDashboard },
+    { id: "keys", route: "/keys", needs: SELF_READ, icon: KeyRound },
+    { id: "models", route: "/models", needs: SELF_READ, icon: Boxes },
+    { id: "usage", route: "/usage", needs: SELF_READ, icon: ChartLine },
+    { id: "quota", route: "/quota", needs: SELF_READ, icon: Gauge },
+    { id: "requests", route: "/requests", needs: SELF_LOGS_READ, icon: ScrollText },
+    { id: "account", route: "/account", needs: SELF_READ, icon: Settings2 },
   ],
 }
 
-const IDENTITY: NavSection = {
-  id: "identity",
+const PEOPLE: NavSection = {
+  id: "people",
+  icon: UsersRound,
   items: [
-    { id: "users", route: "/identity/users", needs: "identity.users" },
-    { id: "api-keys", route: "/identity/api-keys", needs: "identity.api-keys" },
-    { id: "organizations", route: "/identity/organizations", needs: "identity.organizations" },
-    { id: "teams", route: "/identity/teams", needs: "identity.teams" },
-    { id: "permissions", route: "/identity/permissions", needs: "identity.permissions" },
-    { id: "rate-limits", route: "/identity/rate-limits", needs: "identity.rate-limits" },
-    { id: "plans", route: "/identity/plans", needs: "identity.plans" },
-    { id: "plan-limits", route: "/identity/plan-limits", needs: "identity.plans" },
-    { id: "subscriptions", route: "/identity/subscriptions", needs: "identity.subscriptions" },
-    { id: "pools", route: "/identity/pools", needs: "identity.pools" },
-    { id: "pool-members", route: "/identity/pool-members", needs: "identity.pools" },
-    { id: "oauth-clients", route: "/identity/oauth-clients", needs: "identity.oauth-clients" },
-    { id: "sessions", route: "/identity/sessions", needs: "identity.sessions" },
-    { id: "audit", route: "/identity/audit", needs: "identity.audit" },
+    { id: "users", route: "/identity/users", needs: "identity.users", icon: UsersRound },
+    { id: "organizations", route: "/identity/organizations", needs: "identity.organizations", icon: Building2 },
+    { id: "teams", route: "/identity/teams", needs: "identity.teams", icon: UsersRound },
   ],
 }
 
-const SECTIONS: ReadonlyArray<NavSection> = [SELF, IDENTITY]
+const ACCESS: NavSection = {
+  id: "access",
+  icon: ShieldCheck,
+  items: [
+    { id: "api-keys", route: "/identity/api-keys", needs: "identity.api-keys", icon: KeyRound },
+    { id: "permissions", route: "/identity/permissions", needs: "identity.permissions", icon: ShieldCheck },
+    { id: "rate-limits", route: "/identity/rate-limits", needs: "identity.rate-limits", icon: Gauge },
+    { id: "oauth-clients", route: "/identity/oauth-clients", needs: "identity.oauth-clients", icon: Fingerprint },
+    { id: "sessions", route: "/identity/sessions", needs: "identity.sessions", icon: MonitorSmartphone },
+    { id: "audit", route: "/identity/audit", needs: "identity.audit", icon: ListChecks },
+  ],
+}
+
+const BILLING: NavSection = {
+  id: "billing",
+  icon: CreditCard,
+  items: [
+    { id: "plans", route: "/identity/plans", needs: "identity.plans", icon: CreditCard },
+    { id: "plan-limits", route: "/identity/plan-limits", needs: "identity.plans", icon: SlidersHorizontal },
+    { id: "subscriptions", route: "/identity/subscriptions", needs: "identity.subscriptions", icon: ReceiptText },
+    { id: "pools", route: "/identity/pools", needs: "identity.pools", icon: Layers },
+    { id: "pool-members", route: "/identity/pool-members", needs: "identity.pools", icon: Network },
+  ],
+}
+
+const SECTIONS: ReadonlyArray<NavSection> = [SELF, PEOPLE, ACCESS, BILLING]
 
 /** The sections this caller sees, with the items they may reach. */
 export function sectionsFor(context: ConsoleContext): Array<NavSection> {

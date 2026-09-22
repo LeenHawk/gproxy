@@ -3,21 +3,23 @@
 //! The sidebar is built from [`sectionsFor`], which is built from the caller's
 //! capabilities — that is the whole of v4's answer to v3's two surfaces. An
 //! ordinary account sees the self-service section and nothing else; an
-//! instance operator sees that section *and* the identity one, in the same
+//! instance operator sees that section and the administrative groups, in the same
 //! shell, without a second application being loaded.
 
 import { useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { LogOut, Menu, Moon, Sun, X } from "lucide-react"
+import { ChevronRight, ChevronsUpDown, CircleUserRound, Languages, LogOut, Menu, Moon, Sun } from "lucide-react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { signOut } from "@/api/session"
 import { useConsoleContext } from "@/capability/session"
-import { sectionsFor } from "@/capability/navigation"
+import { sectionsFor, type NavSection } from "@/capability/navigation"
 import { Button } from "@/components/ui/button"
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Separator } from "@/components/ui/separator"
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { SUPPORTED_LANGS, setLanguage, type LangCode } from "@/i18n"
 import { Link, useRoute } from "@/lib/router"
 import { useTheme } from "@/lib/theme-context"
@@ -39,7 +41,7 @@ function LanguageMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm">{t(`language.${i18n.language as LangCode}`)}</Button>
+        <Button variant="ghost" size="sm"><Languages data-icon="inline-start" />{t(`language.${i18n.language as LangCode}`)}</Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuRadioGroup value={i18n.language} onValueChange={(value) => void setLanguage(value as LangCode)}>
@@ -66,112 +68,150 @@ function AccountMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="max-w-40 truncate">{context.userName}</Button>
+        <Button variant="ghost" className="w-full justify-start gap-3">
+          <CircleUserRound data-icon="inline-start" />
+          <span className="min-w-0 flex-1 truncate text-left">{context.userName}</span>
+          <ChevronsUpDown data-icon="inline-end" />
+        </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent side="top" align="start" className="w-56">
         <DropdownMenuLabel className="font-normal">
           <span className="block truncate text-sm">{context.userName}</span>
           <span className="block text-xs text-muted-foreground">{t(`scope.${context.scope?.kind ?? "none"}`)}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={end.isPending} onSelect={() => end.mutate()}>
-          <LogOut /> {t("actions.signOut")}
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem disabled={end.isPending} onSelect={() => end.mutate()}>
+            <LogOut /> {t("actions.signOut")}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )
 }
 
-function Navigation({ onNavigate }: { onNavigate?: () => void }) {
-  const { t } = useTranslation()
-  const context = useConsoleContext()
-  const route = useRoute()
+function Brand({ onNavigate }: { onNavigate?: () => void }) {
   return (
-    <nav className="space-y-6" aria-label={t("shell.navigation")}>
-      {sectionsFor(context).map((section) => (
-        <div key={section.id} className="space-y-1">
-          <p className="px-3 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            {t(`section.${section.id}`)}
-          </p>
-          {section.items.map((item) => (
-            <Link
-              key={item.id}
-              to={item.route}
-              onClick={onNavigate}
-              className={cn(
-                // Taller below `lg`: a 28px row is a comfortable menu item
-                // for a cursor and a miss for a thumb, and this drawer is the
-                // only way to navigate on a phone.
-                "block rounded-md px-3 py-2 text-sm transition-colors lg:py-1.5",
-                route === item.route
-                  ? "bg-accent font-medium text-accent-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
-              )}
-            >
-              {t(`nav.${item.id}`)}
-            </Link>
-          ))}
-        </div>
-      ))}
+    <Link to="/" onClick={onNavigate} className="flex shrink-0 items-center gap-2.5 font-semibold tracking-tight">
+      <img src={`${import.meta.env.BASE_URL}favicon-96x96.png`} alt="" className="size-9" />
+      <span>GPROXY</span>
+    </Link>
+  )
+}
+
+function Navigation({ sections, route, onNavigate }: {
+  sections: Array<NavSection>
+  route: string
+  onNavigate?: () => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <nav className="flex flex-col gap-3" aria-label={t("shell.navigation")}>
+      {sections.map((section) => {
+        const current = section.items.some((item) => item.route === route)
+        const SectionIcon = section.icon
+        return (
+          <details key={section.id} open={current} className="group/section">
+            <summary className={cn(
+              "flex cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium outline-none transition-colors hover:bg-sidebar-accent/60 focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden",
+              current ? "text-sidebar-foreground" : "text-muted-foreground",
+            )}>
+              <SectionIcon className="size-4.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+              <span className="flex-1">{t(`section.${section.id}`)}</span>
+              <ChevronRight className="size-3.5 shrink-0 transition-transform group-open/section:rotate-90 motion-reduce:transition-none" aria-hidden="true" />
+            </summary>
+            <ul className="mt-1 ml-5 flex flex-col gap-1 border-l border-sidebar-border pb-1 pl-3">
+              {section.items.map((item) => {
+                const Icon = item.icon
+                const active = route === item.route
+                return (
+                  <li key={item.id}>
+                    <Link
+                      to={item.route}
+                      onClick={onNavigate}
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "flex min-h-9 items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                        active
+                          ? "bg-sidebar-accent font-medium text-sidebar-primary"
+                          : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+                      )}
+                    >
+                      <Icon className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+                      <span className="truncate">{t(`nav.${item.id}`)}</span>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </details>
+        )
+      })}
     </nav>
+  )
+}
+
+function Sidebar({ sections, route, onNavigate }: {
+  sections: Array<NavSection>
+  route: string
+  onNavigate?: () => void
+}) {
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-sidebar text-sidebar-foreground">
+      <div className="flex h-16 shrink-0 items-center px-5"><Brand onNavigate={onNavigate} /></div>
+      <Separator />
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-4">
+        <Navigation sections={sections} route={route} onNavigate={onNavigate} />
+      </div>
+      <Separator />
+      <div className="shrink-0 p-3"><AccountMenu /></div>
+    </div>
   )
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation()
+  const context = useConsoleContext()
+  const route = useRoute()
+  const sections = sectionsFor(context)
+  const section = sections.find((group) => group.items.some((item) => item.route === route))
+  const item = section?.items.find((item) => item.route === route)
+  const ActiveIcon = item?.icon
   const [open, setOpen] = useState(false)
+
   return (
-    <div className="min-h-dvh bg-background text-foreground">
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-background/95 px-4 backdrop-blur">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="lg:hidden"
-          aria-label={t("shell.navigation")}
-          aria-expanded={open}
-          onClick={() => setOpen((value) => !value)}
-        >
-          {open ? <X /> : <Menu />}
-        </Button>
-        <Link to="/" className="flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight">
-          <img src={`${import.meta.env.BASE_URL}favicon-96x96.png`} alt="" className="size-7" />
-          <span>GPROXY</span>
-        </Link>
-        <span className="ml-auto flex items-center gap-1">
-          <LanguageMenu />
-          <ThemeToggle />
-          <AccountMenu />
-        </span>
-      </header>
-      <div className="mx-auto flex w-full max-w-[1600px]">
-        {/*
-          The scrim is what makes the drawer a drawer: it dismisses on a tap
-          anywhere outside, which is the gesture a phone user already has. It
-          is a button rather than a div so the same dismissal is reachable
-          from a keyboard, and it is only mounted while the drawer is open.
-        */}
-        {open ? (
-          <button
-            type="button"
-            aria-label={t("actions.close")}
-            className="fixed inset-x-0 top-14 bottom-0 z-20 bg-foreground/20 lg:hidden"
-            onClick={() => setOpen(false)}
-          />
-        ) : null}
-        <aside
-          className={cn(
-            "w-60 shrink-0 border-r border-border px-2 py-6",
-            // Below `lg` the navigation floats *over* the page rather than
-            // beside it. As a column it took 240 of a 390px viewport and left
-            // the page it had just navigated to 150px to render in, which is
-            // not a narrow layout but a broken one.
-            "max-lg:fixed max-lg:top-14 max-lg:bottom-0 max-lg:left-0 max-lg:z-30 max-lg:overflow-y-auto max-lg:overscroll-contain max-lg:bg-background",
-            open ? "block" : "hidden lg:block",
-          )}
-        >
-          <Navigation onNavigate={() => setOpen(false)} />
-        </aside>
-        <main className="min-w-0 flex-1 px-4 py-6 lg:px-8">{children}</main>
+    <div className="min-h-dvh bg-background text-foreground lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
+      <aside className="sticky top-0 hidden h-dvh border-r border-sidebar-border lg:block">
+        <Sidebar sections={sections} route={route} />
+      </aside>
+      <div className="min-w-0">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border bg-background/95 px-4 backdrop-blur lg:px-8">
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="lg:hidden" aria-label={t("shell.navigation")}>
+                <Menu />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" closeLabel={t("actions.close")} aria-describedby={undefined} className="gap-0 data-[side=left]:w-72 data-[side=left]:sm:max-w-72">
+              <SheetTitle className="sr-only">{t("shell.navigation")}</SheetTitle>
+              <Sidebar sections={sections} route={route} onNavigate={() => setOpen(false)} />
+            </SheetContent>
+          </Sheet>
+          <div className="lg:hidden"><Brand /></div>
+          {section && item && ActiveIcon ? (
+            <div className="hidden min-w-0 items-center gap-2.5 text-sm lg:flex">
+              <span className="text-muted-foreground">{t(`section.${section.id}`)}</span>
+              <ChevronRight className="size-3.5 text-muted-foreground" aria-hidden="true" />
+              <ActiveIcon className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
+              <span className="truncate font-medium">{t(`nav.${item.id}`)}</span>
+            </div>
+          ) : null}
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <LanguageMenu />
+            <ThemeToggle />
+          </div>
+        </header>
+        <main className="mx-auto w-full min-w-0 max-w-[1400px] px-4 py-6 lg:px-8">{children}</main>
       </div>
     </div>
   )

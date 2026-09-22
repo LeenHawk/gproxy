@@ -76,7 +76,9 @@
   },
   "section": {
     "self": "Your account",
-    "identity": "Identity"
+    "people": "People & teams",
+    "access": "Access control",
+    "billing": "Plans & resources"
   },
   "range": {
     "day": "24 hours",

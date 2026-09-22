@@ -74,11 +74,12 @@ export function useNavigate() {
  * "open in new tab", the status bar — keep working; only an unmodified left
  * click is intercepted.
  */
-export function Link({ to, className, children, onClick }: {
+export function Link({ to, className, children, onClick, "aria-current": ariaCurrent }: {
   to: string
   className?: string
   children: ReactNode
   onClick?: () => void
+  "aria-current"?: "page"
 }) {
   const handle = (event: MouseEvent<HTMLAnchorElement>) => {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
@@ -86,5 +87,5 @@ export function Link({ to, className, children, onClick }: {
     onClick?.()
     navigate(to)
   }
-  return <a href={href(to)} className={className} onClick={handle}>{children}</a>
+  return <a href={href(to)} className={className} onClick={handle} aria-current={ariaCurrent}>{children}</a>
 }
