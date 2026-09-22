@@ -76,7 +76,9 @@
   },
   "section": {
     "self": "我的帳號",
-    "identity": "身分"
+    "people": "成員與組織",
+    "access": "存取控制",
+    "billing": "方案與資源"
   },
   "range": {
     "day": "24 小時",

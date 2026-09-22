@@ -34,6 +34,11 @@
   --color-state-critical: var(--state-critical);
   --color-state-disabled: var(--state-disabled);
   --color-state-info: var(--state-info);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-border: var(--sidebar-border);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -44,6 +49,11 @@
 }
 
 :root {
+  --sidebar: oklch(0.978 0.003 260);
+  --sidebar-foreground: oklch(0.29 0.012 260);
+  --sidebar-accent: oklch(0.944 0.025 260);
+  --sidebar-primary: oklch(0.49 0.19 264);
+  --sidebar-border: oklch(0.916 0.007 260);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -74,6 +84,11 @@
 }
 
 .dark {
+  --sidebar: oklch(0.17 0.005 260);
+  --sidebar-foreground: oklch(0.88 0.011 260);
+  --sidebar-accent: oklch(0.28 0.045 260);
+  --sidebar-primary: oklch(0.78 0.115 255);
+  --sidebar-border: oklch(0.3 0.009 260);
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.92 0 0);
   --card: oklch(0.18 0 0);

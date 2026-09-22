@@ -76,7 +76,9 @@
   },
   "section": {
     "self": "我的账号",
-    "identity": "身份"
+    "people": "成员与组织",
+    "access": "访问控制",
+    "billing": "套餐与资源"
   },
   "range": {
     "day": "24 小时",

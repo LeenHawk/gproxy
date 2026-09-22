@@ -20,9 +20,9 @@ describe("the navigation", () => {
     expect(sections.map((section) => section.id)).toEqual(["self"])
   })
 
-  it("shows an operator both sections, in one shell", () => {
+  it("groups operator navigation by task", () => {
     const sections = sectionsFor(derived("admin"))
-    expect(sections.map((section) => section.id)).toEqual(["self", "identity"])
+    expect(sections.map((section) => section.id)).toEqual(["self", "people", "access", "billing"])
   })
 
   // `canSeeLogs` is an instance setting, not a role: the item disappears
