@@ -1,7 +1,7 @@
 //! Typed access to the SDK configuration routes mounted under `/admin/api`.
 
 import type {
-  ChannelDescriptor, CredentialDto, CredentialPatch, CredentialWrite,
+  ConnectionProfileDto, Page, ChannelDescriptor, CredentialDto, CredentialPatch, CredentialWrite,
   ProviderDto, ProviderPatch, ProviderWrite,
   ProviderModelDto, ProviderModelPatch, ProviderModelWrite,
 } from "@/generated/sdk"
@@ -67,3 +67,14 @@ export async function providerDirectory() {
 }
 
 export const providerPath = (id: string) => `/providers/${encodeURIComponent(id)}`
+
+export async function connectionProfiles() {
+  const rows: Array<ConnectionProfileDto> = []
+  let page = 1
+  while (true) {
+    const result = await api<Page<ConnectionProfileDto>>(`/admin/api/connection-profiles?page=${page}&pageSize=500`)
+    rows.push(...result.items)
+    if (rows.length >= result.total || result.items.length === 0) return rows
+    page += 1
+  }
+}

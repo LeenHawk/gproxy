@@ -31,6 +31,7 @@ const PAGE_SIZE = 25
 export type CollectionProps<D, W, P> = {
   /** The nav id: `nav.<id>` names it, `description.<id>` explains it. */
   id: string
+  renderForm?: (props: { open: boolean; onOpenChange: (open: boolean) => void; original?: D; onSubmit: (body: Record<string, unknown>) => void; pending: boolean; error: unknown }) => ReactNode
   embedded?: boolean
   family: Family<D, W, P>
   columns: Array<Column<D>>
@@ -54,7 +55,7 @@ export type CollectionProps<D, W, P> = {
 
 export function CollectionPage<D, W, P>({
   id, family, columns, fields, rowId, rowLabel, searchable, filter, embedded = false,
-  rowActions, deletable = true, onCreated, create,
+  rowActions, deletable = true, onCreated, create, renderForm,
 }: CollectionProps<D, W, P>) {
   const { t } = useTranslation()
   const client = useQueryClient()
@@ -151,7 +152,7 @@ export function CollectionPage<D, W, P>({
         </div>
       </QueryState>
 
-      <RecordDialog
+      {renderForm ? renderForm({ open: creating, onOpenChange: setCreating, onSubmit: (body) => created.mutate(body), pending: created.isPending, error: created.error }) : <RecordDialog
         open={creating}
         onOpenChange={setCreating}
         mode="create"
@@ -160,8 +161,8 @@ export function CollectionPage<D, W, P>({
         onSubmit={(body) => created.mutate(body)}
         pending={created.isPending}
         error={created.error}
-      />
-      <RecordDialog
+      />}
+      {renderForm ? renderForm({ open: editing !== null, onOpenChange: (open) => { if (!open) setEditing(null) }, original: editing ?? undefined, onSubmit: (body) => editing && updated.mutate({ id: rowId(editing), body }), pending: updated.isPending, error: updated.error }) : <RecordDialog
         open={editing !== null}
         onOpenChange={(open) => { if (!open) setEditing(null) }}
         mode="edit"
@@ -171,7 +172,7 @@ export function CollectionPage<D, W, P>({
         onSubmit={(body) => editing && updated.mutate({ id: rowId(editing), body })}
         pending={updated.isPending}
         error={updated.error}
-      />
+      />}
     </Page>
   )
 }
