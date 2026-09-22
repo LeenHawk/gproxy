@@ -385,6 +385,36 @@ pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeStatus(
     })
 }
 
+/// Fetch and verify an APK on the update activity's worker thread. Installation
+/// stays with Android, which asks the user before replacing the application.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeUpdate(
+    mut env: JNIEnv<'_>,
+    _this: JObject<'_>,
+) -> jstring {
+    guarded(std::ptr::null_mut(), || {
+        static DOWNLOAD: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+        let result = (|| -> Result<bool, String> {
+            let dir = data_dir().map_err(|error| error.to_string())?;
+            let updater = gproxy::update::Updater::new(&dir, Default::default())
+                .map_err(|error| error.to_string())?;
+            engine::runtime()
+                .map_err(|error| error.to_string())?
+                .block_on(async {
+                    let _download = DOWNLOAD.lock().await;
+                    updater.stage_apk().await
+                })
+                .map(|apk| apk.is_some())
+                .map_err(|error| error.to_string())
+        })();
+        let response = match result {
+            Ok(ready) => serde_json::json!({"ready": ready}),
+            Err(error) => serde_json::json!({"ready": false, "error": error}),
+        };
+        java_string(&mut env, &response.to_string())
+    })
+}
+
 /// `GproxyNative.shutdown()`: close the socket and stop the sync.
 ///
 /// The caller ends the process immediately afterwards — see

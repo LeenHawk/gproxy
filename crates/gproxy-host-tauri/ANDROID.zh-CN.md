@@ -90,8 +90,18 @@ state 交给了 261 条命令；不存在一种诚实的「停止」能让这些
 件系统安装器读不到，而从 Android 7 起,指向它的 `file://` URI 是
 `FileUriExposedException` 而不是一次安装。
 
-**它不下载，也不校验。** 字节和签名校验属于「写 marker 文件的那一方」；没有
-marker，activity 直接拒绝往下走。见下面的「未经验证的部分」。
+前台通知的 **Update** 按钮打开更新界面。工作线程复用 `gproxy update` 的 Rust
+校验路径：ed25519 签名、通道、数据兼容版本、长度和 SHA-256。校验后先落盘
+`gproxy-update.apk`，再写 `install-apk.pending`，最后交给 Android 安装器确认。
+不会按计划自动安装。
+
+清单使用 `<target-triple>-tauri-apk` 条目，与旧版 `-apk` 分开，后者的应用 ID
+不同。将 `gproxy-tauri-android-aarch64.apk`（或 `gproxy-tauri-android-x86_64.apk`）
+及其 `.sha256` 放在原生产物旁，`scripts/build-update-manifest.sh` 会将它纳入签名
+清单。构建时提供 `GPROXY_UPDATE_PUBKEY`；滚动构建还需
+`GPROXY_BUILD_CHANNEL=dev` 和 `GPROXY_BUILD_HASH`。APK 必须使用与已安装应用
+相同的 Android 签名密钥。本次不新增应用 CI 任务；清单缺少该产物时明确报不可用，
+不会退回旧版壳 APK。
 
 ## 为什么网关是进程，而不是窗口
 
@@ -167,6 +177,12 @@ pnpm install
 ```sh
 cd crates/gproxy-host-tauri
 export NDK_HOME=/path/to/Android/Sdk/ndk/30.0.15729638
+export ANDROID_NDK_HOME="$NDK_HOME"
+# NDK 30 requires a versioned target when bindgen reads its headers.
+export BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android=--target=aarch64-linux-android28
+export BINDGEN_EXTRA_CLANG_ARGS_x86_64_linux_android=--target=x86_64-linux-android28
+export BINDGEN_EXTRA_CLANG_ARGS_armv7_linux_androideabi=--target=armv7a-linux-androideabi28
+export BINDGEN_EXTRA_CLANG_ARGS_i686_linux_android=--target=i686-linux-android28
 
 pnpm android:build:arm64                          # release APK，只出 arm64
 pnpm exec tauri android build --apk               # 四个 ABI 全出
@@ -265,10 +281,8 @@ dev.gproxy.desktop.GproxyNative -> dev.gproxy.desktop.GproxyNative:
 - **前台服务从未发出过通知**；「进程能在切到后台后存活」是依据 Android 文档行
   为的推断，不是观察结果。
 - **开机接收器从未被触发过。**
-- **应用内更新只完成了一半。** provider 和安装 Intent 已写好并能编译；但没有任
-  何东西会去下载 APK、或写出那个让 activity 得以继续的 marker 文件。把它接到
-  `gproxy` 的更新通道是剩下的工作——而刻意留白的正是那一半，因为它无法在未校验
-  签名的情况下假装自己校验过。
+- **应用内更新尚未在设备上验证。** 下载和校验由本地签名清单测试覆盖；系统安装器、
+  未知来源授权界面和替换已安装 APK，仍需要设备及使用相同密钥签名的版本验证。
 - **release APK 未签名。** 没有 signing config 时 Gradle 产出的就是
   `app-universal-release-unsigned.apk`，它不能直接安装。debug APK 用本机
   debug key 签过。

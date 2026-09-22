@@ -103,9 +103,21 @@ a file in this app's private storage is unreadable by the system installer and
 a `file://` URI aimed at it has been a `FileUriExposedException` since
 Android 7.
 
-**It does not download and it does not verify.** The bytes and the signature
-check belong to whatever writes the marker file; the activity refuses to start
-without one. See "What is not verified" below.
+The foreground notification's **Update** action opens the updater. A worker
+calls the same Rust manifest and artifact verification used by `gproxy update`:
+ed25519 signature, channel, data-layout floor, size and SHA-256. It stages
+`gproxy-update.apk` and then `install-apk.pending`; only that completed pair is
+handed to Android's installer. Nothing installs on a schedule.
+
+The manifest entry is `<target-triple>-tauri-apk`, separate from the legacy
+`-apk` entries: those use a different application id. Supply
+`gproxy-tauri-android-aarch64.apk` (or `gproxy-tauri-android-x86_64.apk`) and its
+`.sha256` beside the native artifacts to include it in
+`scripts/build-update-manifest.sh`. Build with `GPROXY_UPDATE_PUBKEY` and, for
+rolling builds, `GPROXY_BUILD_CHANNEL=dev` and `GPROXY_BUILD_HASH`. The APK must
+be signed with the same Android signing key as the installed app. This change
+does not add an Android application CI job; a manifest without the app artifact
+reports it unavailable instead of offering the old wrapper APK.
 
 ## Why the process, and not the window, is the gateway
 
@@ -189,6 +201,12 @@ is ever re-run, re-apply the patch — it is commented in place.
 ```sh
 cd crates/gproxy-host-tauri
 export NDK_HOME=/path/to/Android/Sdk/ndk/30.0.15729638
+export ANDROID_NDK_HOME="$NDK_HOME"
+# NDK 30 requires a versioned target when bindgen reads its headers.
+export BINDGEN_EXTRA_CLANG_ARGS_aarch64_linux_android=--target=aarch64-linux-android28
+export BINDGEN_EXTRA_CLANG_ARGS_x86_64_linux_android=--target=x86_64-linux-android28
+export BINDGEN_EXTRA_CLANG_ARGS_armv7_linux_androideabi=--target=armv7a-linux-androideabi28
+export BINDGEN_EXTRA_CLANG_ARGS_i686_linux_android=--target=i686-linux-android28
 
 pnpm android:build:arm64          # release APK, arm64 only
 pnpm exec tauri android build --apk               # all four ABIs
@@ -291,11 +309,10 @@ of a built APK.
   that the process survives backgrounding is a claim about Android's documented
   behaviour, not an observation.
 - **The boot receiver has never fired.**
-- **The in-app update is half of a feature.** The provider and the install
-  intent are written and compiled; nothing downloads an APK or writes the
-  marker file that would let the activity proceed. Wiring it to `gproxy`'s
-  update channel is the remaining work, and it is deliberately the half that
-  cannot silently claim to have verified a signature.
+- **The in-app update has not been exercised on a device.** Download and
+  verification are covered by a local signed-manifest test. The package installer,
+  unknown-source permission screen and replacing an installed APK still need a
+  device and matching signed releases.
 - **The release APK is unsigned.** `app-universal-release-unsigned.apk` is what
   Gradle produces without a signing config, and it cannot be installed as-is.
   The debug APK is signed with the local debug key.

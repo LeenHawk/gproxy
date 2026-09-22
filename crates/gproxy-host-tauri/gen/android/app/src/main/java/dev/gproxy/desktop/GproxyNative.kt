@@ -66,6 +66,9 @@ object GproxyNative {
     /** What this process has right now, assembling nothing. */
     fun status(): Status = parse(nativeStatus())
 
+    /** Runs on a worker: the native updater verifies and stages the APK. */
+    fun update(): JSONObject = JSONObject(nativeUpdate() ?: error("the updater answered nothing"))
+
     /**
      * Close the data plane's socket and stop the background sync.
      *
@@ -121,6 +124,8 @@ object GproxyNative {
     private external fun nativeStart(): String?
 
     private external fun nativeStatus(): String?
+
+    private external fun nativeUpdate(): String?
 
     private external fun nativeShutdown()
 }
