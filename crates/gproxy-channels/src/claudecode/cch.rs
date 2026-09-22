@@ -42,23 +42,34 @@ pub(super) fn inject(body: &mut Value, secret: &Value, session_id: &str) {
             .and_then(Value::as_str)
             .is_some_and(|text| text.starts_with("x-anthropic-billing-header:"))
     });
-    let entrypoint = existing
+    let sent = existing
         .and_then(|index| blocks[index].get("text"))
         .and_then(Value::as_str)
-        .and_then(|text| billing_field(text, "cc_entrypoint"))
-        .filter(|value| {
-            value
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-        })
+        .unwrap_or_default();
+    let field = |name| billing_field(sent, name);
+    let entrypoint = field("cc_entrypoint")
+        .filter(|value| is_token(value))
         .unwrap_or("cli");
-    let billing = json!({
-        "type": "text",
-        "text": format!(
-            "x-anthropic-billing-header: cc_version={}.{suffix}; cc_entrypoint={entrypoint}; cch=00000;",
-            super::auth::CLI_VERSION,
-        ),
-    });
+    let mut text = format!(
+        "x-anthropic-billing-header: cc_version={}.{suffix}; cc_entrypoint={entrypoint}; cch=00000;",
+        super::auth::CLI_VERSION,
+    );
+    if let Some(workload) = field("cc_workload").filter(|value| is_token(value)) {
+        text.push_str(&format!(" cc_workload={workload};"));
+    }
+    if field("cc_is_subagent") == Some("true") {
+        text.push_str(" cc_is_subagent=true;");
+    }
+    if let Some(request) = field("cc_prev_req").filter(|value| is_request_id(value)) {
+        text.push_str(&format!(" cc_prev_req={request};"));
+    }
+    if let Some(prompt) = field("cc_prompt_id").filter(|value| is_uuid(value)) {
+        text.push_str(&format!(" cc_prompt_id={prompt};"));
+    }
+    if let Some(origin) = field("cc_turn_origin").filter(|value| is_turn_origin(value)) {
+        text.push_str(&format!(" cc_turn_origin={origin};"));
+    }
+    let billing = json!({"type": "text", "text": text});
     if let Some(index) = existing {
         blocks[index] = billing;
     } else {
@@ -67,11 +78,43 @@ pub(super) fn inject(body: &mut Value, secret: &Value, session_id: &str) {
 }
 
 fn billing_field<'a>(text: &'a str, name: &str) -> Option<&'a str> {
-    text.split(';')
+    text.strip_prefix("x-anthropic-billing-header:")
+        .unwrap_or(text)
+        .split(';')
         .map(str::trim)
         .find_map(|field| field.strip_prefix(name)?.strip_prefix('='))
         .map(str::trim)
         .filter(|value| !value.is_empty())
+}
+
+fn is_token(value: &str) -> bool {
+    !value.is_empty()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
+fn is_turn_origin(value: &str) -> bool {
+    (1..=32).contains(&value.len())
+        && value.as_bytes()[0].is_ascii_lowercase()
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte == b'_')
+}
+
+fn is_request_id(value: &str) -> bool {
+    value
+        .strip_prefix("req_")
+        .is_some_and(|rest| (1..=36).contains(&rest.len()) && is_token(rest))
+}
+
+fn is_uuid(value: &str) -> bool {
+    let groups: Vec<&str> = value.split('-').collect();
+    groups.len() == 5
+        && groups
+            .iter()
+            .zip([8, 4, 4, 4, 12])
+            .all(|(group, len)| group.len() == len && group.bytes().all(|b| b.is_ascii_hexdigit()))
 }
 
 fn first_user_text(body: &Value) -> &str {

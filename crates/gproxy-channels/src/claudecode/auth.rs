@@ -10,15 +10,14 @@ pub(super) const TOKEN_URL: &str = "https://platform.claude.com/v1/oauth/token";
 pub(super) const COOKIE_TOKEN_URL: &str = "https://api.anthropic.com/v1/oauth/token";
 pub(super) const DEFAULT_REDIRECT_URI: &str = "https://platform.claude.com/oauth/code/callback";
 pub(super) const CLIENT_ID: &str = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-pub(super) const OAUTH_SCOPE: &str =
-    "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload";
+pub(super) const OAUTH_SCOPE: &str = "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins";
 pub(super) const LOGIN_SCOPE: &str = concat!(
     "org:create_api_key ",
-    "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
+    "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins"
 );
 pub(super) const OAUTH_BETA: &str = "oauth-2025-04-20";
-pub(super) const CLI_VERSION: &str = "2.1.258";
-pub(super) const CLI_USER_AGENT: &str = "claude-cli/2.1.258 (external, cli)";
+pub(super) const CLI_VERSION: &str = "2.1.280";
+pub(super) const CLI_USER_AGENT: &str = "claude-cli/2.1.280 (external, cli)";
 pub(super) const ANTHROPIC_VERSION: &str = "2023-06-01";
 const EXPIRY_SKEW_SECONDS: i64 = 30 * 60;
 
@@ -259,10 +258,7 @@ fn refresh_scope(secret: &Value) -> String {
         .flatten()
         .filter_map(Value::as_str);
     for scope in stored {
-        if matches!(
-            scope,
-            "user:projects:read" | "user:projects:write" | "user:plugins"
-        ) && !scopes.contains(&scope)
+        if matches!(scope, "user:projects:read" | "user:projects:write") && !scopes.contains(&scope)
         {
             scopes.push(scope);
         }
