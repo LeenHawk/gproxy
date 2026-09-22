@@ -63,7 +63,7 @@ reqwest_native = { workspace = true, optional = true }
 # The Codex CLI links the system OpenSSL on glibc targets and builds it from
 # source on musl; here it is always built from source on Linux so it can share
 # a binary with wreq's BoringSSL (see the `reqwest-native` feature).
-[target.'cfg(target_os = "linux")'.dependencies]
+[target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
 openssl-sys = { version = "0.9", optional = true, features = ["vendored"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
