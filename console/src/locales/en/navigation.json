@@ -24,7 +24,8 @@
     "providers": "Providers",
     "credentials": "Credentials",
     "provider-models": "Models",
-    "settings": "Global settings"
+    "settings": "Global settings",
+    "tokenizer": "Vocabularies"
   },
   "create": {
     "keys": "New key",

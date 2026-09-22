@@ -197,6 +197,9 @@
     "metadata": "Metadata (JSON)",
     "status": "Status",
     "upstreamName": "Upstream model",
-    "modelId": "Catalog model ID"
+    "modelId": "Catalog model ID",
+    "filename": "File",
+    "sizeBytes": "Size",
+    "linkedModels": "Linked models"
   }
 }

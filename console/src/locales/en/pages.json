@@ -259,5 +259,22 @@
     "dev": "Dev",
     "beta": "Beta",
     "release": "Release"
+  },
+  "tokenizer": {
+    "download": "Download vocabulary",
+    "downloaded": "Vocabulary downloaded",
+    "enabled": "Custom vocabularies enabled",
+    "disabled": "Custom vocabularies disabled",
+    "downloadDisabled": "Downloads are disabled. Enable them in Global settings.",
+    "empty": "No vocabularies",
+    "default": "Default",
+    "setDefault": "Set as default",
+    "unsetDefault": "Clear default",
+    "bind": "Linked models",
+    "delete": "Delete {{name}} and clear its model bindings?",
+    "repo": "Hugging Face repository",
+    "noBinding": "No model binding",
+    "downloading": "Downloading…",
+    "noModels": "No catalog models"
   }
 }
