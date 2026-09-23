@@ -160,19 +160,28 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
             "WebSocket operations are passthrough only over HTTP",
         )));
     }
-    let want_replay =
-        converting || request.max_attempts.get() > 1 || !request_rules.body.is_empty();
+    let remap_model = !converting
+        && upstream_model
+            .as_deref()
+            .is_some_and(|model| request.attribution.model.as_deref() != Some(model));
+    let want_replay = converting
+        || remap_model
+        || request.max_attempts.get() > 1
+        || !request_rules.body.is_empty();
     let (mut wire, replayable) =
         prepare::buffer_request(wire, want_replay, limits.max_request_body_bytes).await;
-    if converting && !replayable {
+    if (converting || remap_model) && !replayable {
         funnel.finish(UsageState::Failed).await;
         return Err(CoreError::Transform(TransformError::new(
             TransformErrorKind::Limit,
             "client.body",
-            "request body exceeds the buffering limit required for conversion",
+            "request body exceeds the buffering limit required for conversion or model mapping",
         )));
     }
     if !converting {
+        if let Some(model) = upstream_model.as_deref() {
+            prepare::apply_model(&mut wire, operation.dialect, model);
+        }
         if !request_rules.headers.is_empty() {
             apply_headers(&request_rules.headers, &mut wire.headers)?;
         }
