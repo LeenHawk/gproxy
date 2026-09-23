@@ -39,7 +39,7 @@ crate 组织：
 | `workers`（隐含 `fetch`） | 同上，加 Cloudflare Workers 升级：带 `Upgrade: websocket` 的 `fetch`，取 `response.webSocket` 后 `accept()` 暴露为协议 socket | 流式 | 支持，且带上游鉴权头 |
 | `reqwest`（默认） | reqwest 自带的 Fetch 兜底 | 请求体先缓冲 | 不支持 |
 
-同时启用时 `fetch` 优先。profile 仍用于选择 client，但代理、TLS 指纹、重定向和连接池
+同时启用时 `fetch` 优先。profile 仍用于选择 client，但代理、TLS 指纹和连接池
 是原生概念，这里忽略，由 JS 宿主决定。宿主自己有传输时（Workers 的 `Fetch` 带 service
 binding 与 `cf` 选项、Deno 的 `createHttpClient` 带代理或 CA、其他目标上的 `wasi:http`
 封装）实现 `OutboundClient`，用 `ClientPool::with_client` 或按 profile 的
@@ -138,12 +138,16 @@ wreq-util 的 serde 名称，未知名称在构造 wreq Client 时报错。
 }
 ```
 
-指纹仅对 wreq 生效：两个 reqwest 后端遇到任何指纹配置都以 `Error::InvalidConfig` 拒绝，
-而不是悄悄换一种身份发出去。未知字段或未编译的后端均明确报错。正常证书校验始终开启。
+wreq 应用完整伪装。reqwest 应用自定义指纹中的默认请求头、支持的 TLS 版本、
+HTTP/1 或 HTTP/2 选择、流与连接窗口大小、帧大小和请求头列表大小。密码套件、GREASE、
+TLS 扩展顺序及 HTTP/2 顺序等不支持的项跳过。具名 wreq-util 预设仅在 wreq 上可用；
+跨后端预设使用 `kind: custom`。显式请求头优先于指纹默认请求头。
+edge/Fetch 应用宿主允许的默认请求头，重定向次数为 0 时不跟随，大于 0 时交给宿主跟随；
+实际跳转上限由宿主决定。未知字段或未编译的后端仍明确报错。正常证书校验始终开启。
 配置不做预校验；底层构造错误返回给调用方。
 
 `Backend::ReqwestNative` 按 Codex CLI 的方式构造 reqwest 0.12：原生 TLS、h2 默认
-SETTINGS、不解压、没有重试层，因此配置了解压开关或 `retry: default` 会被拒绝。它的
+SETTINGS、不解压、没有重试层，因此跳过解压开关和 `retry: default`；原生 TLS API 不支持的 TLS 1.3 版本选择也会跳过。它的
 WebSocket 变体（池的 `get_websocket`）是 rustls 的 `reqwest` client，与 CLI 自己的
 WebSocket 走 rustls 一致，所以该 feature 隐含 `reqwest`。Linux 上 OpenSSL 从源码构建
 （`openssl-src`，构建需要 `perl` 与 `make`），同时启用 `wreq` 时 BoringSSL 以符号前缀方式

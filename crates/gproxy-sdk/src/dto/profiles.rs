@@ -21,7 +21,7 @@ pub struct ConnectionProfileDto {
     /// `direct`, `system` or `explicit`.
     pub proxy_mode: String,
     pub proxy_url: Option<String>,
-    /// A `gproxy-client` emulation object, or null. Only meaningful with `wreq`.
+    /// A `gproxy-client` emulation object, or null. wreq applies the full identity; other clients apply supported custom fields.
     #[cfg_attr(feature = "ts", ts(type = "unknown | null"))]
     pub emulation: Option<Value>,
     pub gzip: bool,

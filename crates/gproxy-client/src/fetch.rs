@@ -23,6 +23,8 @@ use wasm_bindgen_futures::JsFuture;
 #[derive(Clone)]
 pub struct FetchClient {
     fetch: Function,
+    default_headers: HeaderMap,
+    follow_redirects: bool,
 }
 
 impl std::fmt::Debug for FetchClient {
@@ -70,7 +72,18 @@ impl FetchClient {
             .ok()
             .and_then(|f| f.dyn_into::<Function>().ok())
             .ok_or_else(|| Error::Host("no global fetch function".into()))?;
-        Ok(Self { fetch })
+        Ok(Self {
+            fetch,
+            default_headers: HeaderMap::new(),
+            follow_redirects: false,
+        })
+    }
+
+    pub(crate) fn with_config(config: &crate::ConnectionConfig) -> Result<Self, Error> {
+        let mut client = Self::new()?;
+        client.default_headers = config.default_headers()?;
+        client.follow_redirects = config.redirect_max_hops > 0;
+        Ok(client)
     }
 
     async fn call(&self, request: web_sys::Request) -> Result<web_sys::Response, CapabilityError> {
@@ -88,12 +101,30 @@ impl FetchClient {
     }
 
     fn request(
+        &self,
         parts: &http::request::Parts,
         body: Option<HttpBody>,
     ) -> Result<web_sys::Request, CapabilityError> {
         let init = web_sys::RequestInit::new();
         init.set_method(parts.method.as_str());
+        init.set_redirect(if self.follow_redirects {
+            web_sys::RequestRedirect::Follow
+        } else {
+            web_sys::RequestRedirect::Manual
+        });
         let headers = web_sys::Headers::new().map_err(start_error)?;
+        for (name, value) in &self.default_headers {
+            if !parts.headers.contains_key(name) {
+                headers
+                    .append(
+                        name.as_str(),
+                        value
+                            .to_str()
+                            .map_err(|_| invalid("default header is not text"))?,
+                    )
+                    .map_err(start_error)?;
+            }
+        }
         for (name, value) in &parts.headers {
             let value = value
                 .to_str()
@@ -170,7 +201,7 @@ impl OutboundClient for FetchClient {
     ) -> CapabilityFuture<'a, Result<WireResponse<HttpBody>, CapabilityError>> {
         Box::pin(async move {
             let (parts, body) = request.into_parts();
-            let response = self.call(Self::request(&parts, Some(body))?).await?;
+            let response = self.call(self.request(&parts, Some(body))?).await?;
             let (status, headers) = Self::head(&response)?;
             Ok(WireResponse {
                 status,
@@ -205,7 +236,7 @@ impl OutboundClient for FetchClient {
                     .headers
                     .insert(http::header::SEC_WEBSOCKET_PROTOCOL, value);
             }
-            let response = self.call(Self::request(&parts, None)?).await?;
+            let response = self.call(self.request(&parts, None)?).await?;
             let (status, headers) = Self::head(&response)?;
             if status != StatusCode::SWITCHING_PROTOCOLS {
                 return Ok(UpstreamConnection::Rejected(WireResponse {
