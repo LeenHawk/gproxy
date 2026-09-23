@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Signal, LoaderCircle } from "lucide-react"
 import { useMutation } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { api, json } from "@/api/client"
@@ -29,7 +30,7 @@ export function EgressTest({ scope, proxy, disabled }: { scope: ProxyScope; prox
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const probe = useMutation({ mutationFn: () => { const { parent, ...target } = scope; return api<ConnectivityResultDto>("/admin/api/connectivity/test", json("POST", { ...target, ...(proxy === undefined || (parent && proxy === null) ? {} : { proxy }) })) } })
-  return <><Button type="button" size="sm" variant="outline" disabled={disabled || probe.isPending} onClick={e => { e.stopPropagation(); setOpen(true); probe.mutate() }}>{t(probe.isPending ? "proxy.testing" : "proxy.test")}</Button>
+  return <><Button type="button" size="icon-sm" variant="outline" aria-label={t(probe.isPending ? "proxy.testing" : "proxy.test")} title={t("proxy.test")} disabled={disabled || probe.isPending} onClick={e => { e.stopPropagation(); setOpen(true); probe.mutate() }}>{probe.isPending ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <Signal aria-hidden="true" />}</Button>
     <Dialog open={open} onOpenChange={setOpen}><DialogContent className="sm:max-w-lg" closeLabel={t("actions.close")} aria-describedby={undefined}><DialogHeader><DialogTitle>{t("proxy.test")}</DialogTitle></DialogHeader><DialogBody className="flex flex-col gap-3">
       {probe.isPending ? <p>{t("proxy.testing")}</p> : null}{probe.error ? <ErrorNotice error={probe.error} /> : null}
       {probe.data ? <><p>{t(probe.data.ok ? "proxy.success" : "proxy.failed")} · {probe.data.latencyMs} ms</p><p>{t("proxy.source")}: {t(`proxy.sources.${scope.parent && proxy ? "custom" : probe.data.proxySource}`)}</p>

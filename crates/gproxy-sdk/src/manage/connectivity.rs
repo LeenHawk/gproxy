@@ -453,8 +453,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
         Ok(client)
     }
 
-    /// The context a probe executes under: no budgets, no session, one
-    /// attempt, a bounded deadline and an attribution that names it a probe.
+    /// Probes have no budgets or session and a bounded deadline. Discovery
+    /// permits a replay after OAuth refresh; generation tests remain one attempt.
     fn context(
         &self,
         snapshot: &Arc<CoreData>,
@@ -490,7 +490,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
                 credentials,
             },
             budgets: Vec::new(),
-            max_attempts: NonZeroU32::MIN,
+            // A one-attempt request cannot replay after a 401 refresh. Listing
+            // models must allow the refreshed credential to fetch the directory.
+            max_attempts: if operation.operation == Operation::ListModels {
+                NonZeroU32::new(2).expect("nonzero discovery attempts")
+            } else {
+                NonZeroU32::MIN
+            },
             started_at_ms: rt::now_ms(),
             deadline: Some(Instant::now() + PROBE_TIMEOUT),
             cancellation: Default::default(),
