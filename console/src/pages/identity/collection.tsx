@@ -40,6 +40,7 @@ export type CollectionProps<D, W, P> = {
   /** What the delete confirmation names. */
   rowLabel: (row: D) => string
   /** The family's `search` filter answers on a natural name column. */
+  createLabel?: string
   searchable?: boolean
   /** Filters held constant for this page, e.g. a parent id. */
   filter?: ListFilter
@@ -55,7 +56,7 @@ export type CollectionProps<D, W, P> = {
 
 export function CollectionPage<D, W, P>({
   id, family, columns, fields, rowId, rowLabel, searchable, filter, embedded = false,
-  rowActions, deletable = true, onCreated, create, renderForm,
+  rowActions, deletable = true, onCreated, create, renderForm, createLabel,
 }: CollectionProps<D, W, P>) {
   const { t } = useTranslation()
   const client = useQueryClient()
@@ -101,7 +102,7 @@ export function CollectionPage<D, W, P>({
 
   const add = (
     <Button size="sm" onClick={() => setCreating(true)}>
-      <Plus data-icon="inline-start" /> {t("actions.new")}
+      <Plus data-icon="inline-start" /> {createLabel ?? t("actions.new")}
     </Button>
   )
   const searchInput = searchable ? (
@@ -156,7 +157,7 @@ export function CollectionPage<D, W, P>({
         open={creating}
         onOpenChange={setCreating}
         mode="create"
-        title={t(`create.${id}`)}
+        title={createLabel ?? t(`create.${id}`)}
         fields={fields}
         onSubmit={(body) => created.mutate(body)}
         pending={created.isPending}

@@ -21,14 +21,11 @@
     "provider-models": "模型",
     "settings": "全局设置",
     "tokenizer": "词表管理",
-    "routes": "路由",
-    "route-members": "路由成员",
-    "exposed-models": "对外模型名",
     "rule-sets": "规则集",
     "rules": "重写规则",
-    "provider-rule-sets": "绑定规则集",
-    "operation-rules": "操作规则",
-    "operation-endpoints": "操作端点",
+    "provider-rule-sets": "规则集",
+    "operation-rules": "路由规则",
+    "operation-endpoints": "端点 URL",
     "update": "系统更新"
   },
   "create": {
@@ -43,14 +40,11 @@
     "providers": "新建供应商",
     "credentials": "新建凭证",
     "provider-models": "新建模型",
-    "routes": "新建路由",
-    "route-members": "新建路由成员",
-    "exposed-models": "新建对外模型名",
     "rule-sets": "新建规则集",
     "rules": "新建重写规则",
     "provider-rule-sets": "新建绑定规则集",
-    "operation-rules": "新建操作规则",
-    "operation-endpoints": "新建操作端点"
+    "operation-rules": "添加路由规则",
+    "operation-endpoints": "添加端点"
   },
   "edit": {
     "users": "编辑用户",
@@ -63,13 +57,10 @@
     "providers": "编辑供应商",
     "credentials": "编辑凭证",
     "provider-models": "编辑模型",
-    "routes": "编辑路由",
-    "route-members": "编辑路由成员",
-    "exposed-models": "编辑对外模型名",
     "rule-sets": "编辑规则集",
     "rules": "编辑重写规则",
     "provider-rule-sets": "编辑绑定规则集",
-    "operation-rules": "编辑操作规则",
-    "operation-endpoints": "编辑操作端点"
+    "operation-rules": "编辑路由规则",
+    "operation-endpoints": "编辑端点"
   }
 }

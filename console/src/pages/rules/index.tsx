@@ -9,7 +9,7 @@ import { BoolCell } from "@/components/cells"
 import { ConfirmButton } from "@/components/confirm"
 import { ErrorNotice, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export function RuleSetsPage() {
@@ -30,8 +30,8 @@ function RuleDetails({ set, onClose }: { set: RuleSetDto; onClose: () => void })
   const [preset, setPreset] = useState("")
   const presets = useQuery({ queryKey: ["rule-presets"], queryFn: rulePresets })
   const applied = useMutation({ mutationFn: () => applyPreset(set.id, preset), onSuccess: async () => { await client.invalidateQueries({ queryKey: ["admin", "/rules"] }); toast.success(t("toast.saved")) } })
-  return <Dialog open onOpenChange={(open) => { if (!open && !applied.isPending) onClose() }}><DialogContent className="sm:max-w-6xl" closeLabel={t("actions.close")}>
-    <DialogHeader><DialogTitle>{t("rules.title", { name: set.name })}</DialogTitle><DialogDescription>{t("rules.help")}</DialogDescription></DialogHeader>
+  return <Dialog open onOpenChange={(open) => { if (!open && !applied.isPending) onClose() }}><DialogContent className="sm:max-w-6xl" closeLabel={t("actions.close")} aria-describedby={undefined}>
+    <DialogHeader><DialogTitle>{t("rules.title", { name: set.name })}</DialogTitle></DialogHeader>
     <DialogBody>
       <QueryState isPending={presets.isPending} error={presets.error}><div className="mb-4 flex flex-wrap items-center gap-2">
         <Select value={preset} onValueChange={setPreset}><SelectTrigger aria-label={t("rules.preset")}><SelectValue placeholder={t("rules.preset")} /></SelectTrigger><SelectContent><SelectGroup>{presets.data?.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectGroup></SelectContent></Select>

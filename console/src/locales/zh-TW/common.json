@@ -81,7 +81,8 @@
     "people": "成員與組織",
     "access": "存取控制",
     "providers": "供應商",
-    "system": "系統"
+    "system": "系統",
+    "rules": "規則集"
   },
   "range": {
     "day": "24 小時",
@@ -221,7 +222,7 @@
     "filterHeaderPattern": "標頭比對",
     "filterEventPattern": "事件比對",
     "filterOperationKeys": "操作篩選（JSON 陣列）",
-    "dialect": "協定方言",
+    "dialect": "協定",
     "transport": "傳輸方式",
     "url": "完整 URL"
   }
