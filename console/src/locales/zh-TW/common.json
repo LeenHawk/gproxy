@@ -113,7 +113,18 @@
     "failed": "失敗",
     "cancelled": "已取消",
     "active": "可用",
-    "dead": "無法使用"
+    "dead": "無法使用",
+    "round_robin": "輪詢",
+    "weighted": "加權",
+    "failover": "故障轉移",
+    "request": "請求",
+    "response": "回應",
+    "both": "請求與回應",
+    "body": "本文",
+    "header": "標頭",
+    "query": "查詢參數",
+    "http": "HTTP",
+    "websocket": "WebSocket"
   },
   "fields": {
     "action": "動作",
@@ -193,6 +204,25 @@
     "filename": "檔案",
     "sizeBytes": "大小",
     "linkedModels": "關聯模型",
-    "anchorAtMs": "週期起始時間"
+    "anchorAtMs": "週期起始時間",
+    "strategy": "策略",
+    "upstreamModel": "上游模型",
+    "tier": "優先層級（越小越優先）",
+    "weight": "權重",
+    "ruleSetId": "規則集",
+    "sortOrder": "執行順序（越小越先）",
+    "phase": "執行階段",
+    "target": "作用目標",
+    "targetName": "標頭／查詢參數名稱",
+    "paths": "本文路徑（每行一項）",
+    "pattern": "正規表示式",
+    "replacement": "替換內容（可留空）",
+    "filterModelPattern": "模型比對（萬用字元）",
+    "filterHeaderPattern": "標頭比對",
+    "filterEventPattern": "事件比對",
+    "filterOperationKeys": "操作篩選（JSON 陣列）",
+    "dialect": "協定方言",
+    "transport": "傳輸方式",
+    "url": "完整 URL"
   }
 }

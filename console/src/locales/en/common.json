@@ -113,7 +113,18 @@
     "failed": "Failed",
     "cancelled": "Cancelled",
     "active": "Active",
-    "dead": "Unavailable"
+    "dead": "Unavailable",
+    "round_robin": "Round robin",
+    "weighted": "Weighted",
+    "failover": "Failover",
+    "request": "Request",
+    "response": "Response",
+    "both": "Both",
+    "body": "Body",
+    "header": "Header",
+    "query": "Query",
+    "http": "HTTP",
+    "websocket": "WebSocket"
   },
   "fields": {
     "action": "Action",
@@ -193,6 +204,25 @@
     "filename": "File",
     "sizeBytes": "Size",
     "linkedModels": "Linked models",
-    "anchorAtMs": "Window anchor"
+    "anchorAtMs": "Window anchor",
+    "strategy": "Strategy",
+    "upstreamModel": "Upstream model",
+    "tier": "Priority tier (lower first)",
+    "weight": "Weight",
+    "ruleSetId": "Rule set",
+    "sortOrder": "Order (lower first)",
+    "phase": "Phase",
+    "target": "Target",
+    "targetName": "Header / query name",
+    "paths": "Body paths (one per line)",
+    "pattern": "Regular expression",
+    "replacement": "Replacement (may be empty)",
+    "filterModelPattern": "Model filter (glob)",
+    "filterHeaderPattern": "Header filter",
+    "filterEventPattern": "Event filter",
+    "filterOperationKeys": "Operation filters (JSON array)",
+    "dialect": "Dialect",
+    "transport": "Transport",
+    "url": "Full URL"
   }
 }

@@ -300,5 +300,22 @@
     },
     "name": "Rule name",
     "limit": "Spending limit ({{unit}})"
+  },
+  "routing": {
+    "configure": "Members & model names",
+    "title": "Route · {{name}}",
+    "help": "Add providers and their upstream model names, then publish a model name for clients. Lower tiers are preferred; the weighted strategy distributes requests by weight within a tier."
+  },
+  "rules": {
+    "manage": "Manage rules",
+    "title": "Rules · {{name}}",
+    "help": "Rules run in order. Body targets use dot paths; header/query targets use a name. Attach the set in a provider to activate it. Operation filters accept [{\"operation\":\"generate_content\",\"dialect\":\"openai\"}].",
+    "preset": "Choose a preset",
+    "apply": "Apply preset",
+    "presetConfirm": "Replace every rule in this set with the selected preset?",
+    "bindingHelp": "Attached sets run in this order. Create and edit reusable sets in Rule sets.",
+    "dialects": "Native dialects, in preference order (one per line)",
+    "operationHelp": "Override native dialects for an operation, e.g. generate_content. Enter dialect IDs such as openai, openai_chat, claude or gemini, one per line. The first is the conversion target when the client dialect is not native. Delete the rule to inherit channel defaults.",
+    "endpointHelp": "Override the full URL for one operation, dialect and transport. This replaces the channel URL including its path."
   }
 }

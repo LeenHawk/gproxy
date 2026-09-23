@@ -300,5 +300,22 @@
     },
     "name": "規則名稱",
     "limit": "金額上限（{{unit}}）"
+  },
+  "routing": {
+    "configure": "成員與模型名稱",
+    "title": "路由 · {{name}}",
+    "help": "先新增供應商及上游模型，再設定客戶端使用的對外模型名稱。層級越小越優先；加權策略在同層級按權重分配。"
+  },
+  "rules": {
+    "manage": "管理規則",
+    "title": "規則 · {{name}}",
+    "help": "規則按順序執行。本文目標使用點分路徑，標頭／查詢參數使用名稱。需在供應商中綁定規則集才會生效。操作篩選格式為 [{\"operation\":\"generate_content\",\"dialect\":\"openai\"}]。",
+    "preset": "選擇預設",
+    "apply": "套用預設",
+    "presetConfirm": "使用所選預設取代此規則集內的全部規則？",
+    "bindingHelp": "綁定的規則集按順序執行。可在規則集頁面新增和編輯可重用規則。",
+    "dialects": "原生協定優先順序（每行一項）",
+    "operationHelp": "依操作覆寫原生協定，例如 generate_content。每行填入 openai、openai_chat、claude 或 gemini 等協定識別；客戶端協定不在清單內時，轉換到第一項。刪除規則可恢復渠道預設值。",
+    "endpointHelp": "為指定操作、協定和傳輸方式覆寫完整 URL，包含路徑。"
   }
 }

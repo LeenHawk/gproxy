@@ -136,7 +136,7 @@ function Navigation({ sections, route, onNavigate }: {
               </div>
             ) : null}
             <ul className="mt-1 ml-5 flex flex-col gap-1 border-l border-sidebar-border pb-1 pl-3">
-              {section.items.filter((item) => section.id !== "providers" || item.id === "providers" || item.label?.toLowerCase().includes(providerSearch.toLowerCase())).map((item) => {
+              {section.items.filter((item) => section.id !== "providers" || !item.route.startsWith("/providers/") || item.label?.toLowerCase().includes(providerSearch.toLowerCase())).map((item) => {
                 const Icon = item.icon
                 const active = route === item.route
                 return (
@@ -197,7 +197,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const sections = sectionsFor(context).map((section) => section.id === "providers" ? {
     ...section,
     items: [
-      ...section.items.map((item) => ({ ...item, label: t("providers.all") })),
+      ...section.items.map((item) => ({ ...item, label: item.id === "providers" ? t("providers.all") : t(`nav.${item.id}`) })),
       ...(directory.data ?? []).map((provider) => ({
         id: `provider-${provider.id}`, label: provider.name, route: providerPath(provider.id), needs: PROVIDERS_READ, icon: Waypoints,
       })),

@@ -113,7 +113,18 @@
     "failed": "失败",
     "cancelled": "已取消",
     "active": "可用",
-    "dead": "不可用"
+    "dead": "不可用",
+    "round_robin": "轮询",
+    "weighted": "加权",
+    "failover": "故障转移",
+    "request": "请求",
+    "response": "响应",
+    "both": "请求与响应",
+    "body": "正文",
+    "header": "请求头",
+    "query": "查询参数",
+    "http": "HTTP",
+    "websocket": "WebSocket"
   },
   "fields": {
     "action": "动作",
@@ -193,6 +204,25 @@
     "filename": "文件",
     "sizeBytes": "大小",
     "linkedModels": "关联模型",
-    "anchorAtMs": "周期起始时间"
+    "anchorAtMs": "周期起始时间",
+    "strategy": "策略",
+    "upstreamModel": "上游模型",
+    "tier": "优先层级（越小越优先）",
+    "weight": "权重",
+    "ruleSetId": "规则集",
+    "sortOrder": "执行顺序（越小越先）",
+    "phase": "执行阶段",
+    "target": "作用目标",
+    "targetName": "请求头／查询参数名",
+    "paths": "正文路径（每行一项）",
+    "pattern": "正则表达式",
+    "replacement": "替换内容（可留空）",
+    "filterModelPattern": "模型匹配（通配符）",
+    "filterHeaderPattern": "请求头匹配",
+    "filterEventPattern": "事件匹配",
+    "filterOperationKeys": "操作筛选（JSON 数组）",
+    "dialect": "协议方言",
+    "transport": "传输方式",
+    "url": "完整 URL"
   }
 }
