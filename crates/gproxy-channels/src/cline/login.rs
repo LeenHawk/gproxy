@@ -102,7 +102,7 @@ fn unwrap_envelope(value: Value) -> Result<Value, ChannelError> {
 fn secret(value: Value) -> Result<Value, ChannelError> {
     let access = crate::shared::login::field(&value, "accessToken")
         .ok_or_else(|| ChannelError::Login("Cline registration missing accessToken".into()))?;
-    let mut secret = json!({ "api_key":access, "access_token":access });
+    let mut secret = json!({ "access_token":access });
     if let Some(refresh) = crate::shared::login::field(&value, "refreshToken") {
         secret["refresh_token"] = Value::String(refresh.into());
     }
@@ -135,4 +135,20 @@ struct WorkOsTokens {
 
 const fn default_interval() -> u64 {
     5
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn login_stores_oauth_separately_from_api_keys() {
+        let secret = super::secret(serde_json::json!({
+            "accessToken":"login", "refreshToken":"refresh",
+            "userInfo":{"clineUserId":"user", "email":"user@example.test"}
+        }))
+        .unwrap();
+        assert_eq!(secret["access_token"], "login");
+        assert_eq!(secret["refresh_token"], "refresh");
+        assert_eq!(secret["user_id"], "user");
+        assert!(secret.get("api_key").is_none());
+    }
 }

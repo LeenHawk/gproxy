@@ -23,17 +23,17 @@ export function ProviderModelVariants({ modelId, channel, rows, exposeBase, onRo
   const remove = (index: number) => onRowsChange(rows.filter((_, itemIndex) => itemIndex !== index))
   const placeholder = `${modelId.trim() || "gpt-5"}-thinking-high`
 
-  return <FieldSet data-field-span="full">
+  return <FieldSet data-field-span="full" className="min-w-0">
     <FieldLegend variant="label">{t("providers.models.variants")}</FieldLegend>
     <FieldDescription>{t("providers.models.variantsHint")}</FieldDescription>
     <FieldGroup className="gap-3 sm:grid-cols-1">
       {rows.length === 0 ? <FieldDescription>{t("providers.models.variantsEmpty")}</FieldDescription> : null}
-      {rows.map((row, index) => <div key={index} className="grid gap-2 rounded-md border bg-muted/20 p-3">
+      {rows.map((row, index) => <div key={index} className="grid min-w-0 grid-cols-1 gap-2 rounded-md border bg-muted/20 p-3">
         <Field orientation="horizontal">
           <Input id={`${id}-variant-${index}`} name="model-variant" className="machine-text text-xs" value={row.name} placeholder={placeholder} aria-label={t("providers.models.variantName")} onChange={(event) => setName(index, event.target.value)} />
           <Button type="button" size="icon-sm" variant="ghost" aria-label={t("providers.models.variantRemove")} onClick={() => remove(index)}><XIcon aria-hidden /></Button>
         </Field>
-        <div className="flex items-center justify-between gap-3 text-xs">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 text-xs">
           <span className="min-w-0 truncate text-muted-foreground">{row.actions.length > 0 ? row.actions.map((action) => action.path).join(", ") : t("providers.models.variantNoBehavior")}</span>
           <Button type="button" size="sm" variant="outline" onClick={() => setPicking(index)}>{t("providers.models.variantSetBehavior")}</Button>
         </div>

@@ -18,15 +18,42 @@ pub(super) fn apply(headers: &mut http::HeaderMap, secret: &Value) -> Result<(),
 
 pub(super) fn bearer(secret: &Value) -> Result<String, ChannelError> {
     if let Some(token) = field(secret, "access_token") {
-        return Ok(if token.to_ascii_lowercase().starts_with("workos:") {
-            token.into()
-        } else {
-            format!("workos:{token}")
-        });
+        return Ok(login_bearer(token));
     }
+    let key = field(secret, "api_key")
+        .ok_or_else(|| ChannelError::Secret("access_token or api_key missing".into()))?;
+    Ok(if is_login_token(key) {
+        login_bearer(key)
+    } else {
+        key.into()
+    })
+}
+
+// Older releases copied the login token into api_key during login and refresh.
+pub(super) fn api_key(secret: &Value) -> Option<&str> {
     field(secret, "api_key")
-        .map(str::to_owned)
-        .ok_or_else(|| ChannelError::Secret("access_token or api_key missing".into()))
+        .filter(|key| Some(*key) != field(secret, "access_token") && !is_login_token(key))
+}
+
+fn login_bearer(token: &str) -> String {
+    if token.to_ascii_lowercase().starts_with("workos:") {
+        token.into()
+    } else {
+        format!("workos:{token}")
+    }
+}
+
+fn is_login_token(token: &str) -> bool {
+    if token.to_ascii_lowercase().starts_with("workos:") {
+        return true;
+    }
+    let parts: Vec<_> = token.split('.').collect();
+    parts.len() == 3
+        && base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(parts[0])
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+            .is_some_and(|header| header.get("alg").and_then(Value::as_str).is_some())
 }
 
 pub(super) fn token_expiry(token: &str) -> Option<i64> {

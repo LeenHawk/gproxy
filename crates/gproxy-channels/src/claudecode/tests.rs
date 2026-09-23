@@ -78,6 +78,7 @@ fn authcode_start_uses_full_interactive_scope() {
     );
     assert!(started.authorize_url.contains("org%3Acreate_api_key"));
     assert!(started.authorize_url.contains("user%3Ainference"));
+    assert!(started.authorize_url.contains("user%3Aplugins"));
 }
 
 #[test]
@@ -106,7 +107,7 @@ fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
     headers.insert("authorization", "Bearer downstream".parse().unwrap());
     headers.insert(
         http::header::USER_AGENT,
-        "claude-cli/2.1.258 (external, sdk-cli)".parse().unwrap(),
+        "claude-cli/2.1.280 (external, sdk-cli)".parse().unwrap(),
     );
     let body = Bytes::from(
         json!({
@@ -116,7 +117,7 @@ fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
             "top_p": 0.9,
             "top_k": 40,
             "system": [
-                {"type":"text", "text":"x-anthropic-billing-header: cc_version=2.1.258.abc; cc_entrypoint=sdk-cli;"},
+                {"type":"text", "text":"x-anthropic-billing-header: cc_version=2.1.280.abc; cc_entrypoint=sdk-cli;"},
                 {"type":"text", "text":" policy "},
                 {"type":"text", "text":" ", "cache_control":{"type":"ephemeral"}}
             ],
@@ -154,7 +155,7 @@ fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
     assert_eq!(prepared.request.headers()["x-app"], "cli");
     assert_eq!(
         prepared.request.headers()[http::header::USER_AGENT],
-        "claude-cli/2.1.258 (external, sdk-cli)"
+        "claude-cli/2.1.280 (external, sdk-cli)"
     );
     assert_eq!(
         prepared.request.headers()["x-claude-code-session-id"],
@@ -178,7 +179,7 @@ fn prepare_applies_cli_shape_hygiene_cch_and_exact_endpoints() {
     assert_eq!(shaped["system"][1]["cache_control"]["type"], "ephemeral");
     assert_eq!(
         shaped["system"][0]["text"],
-        "x-anthropic-billing-header: cc_version=2.1.258.5e8; cc_entrypoint=sdk-cli; cch=00000;"
+        "x-anthropic-billing-header: cc_version=2.1.280.b74; cc_entrypoint=sdk-cli; cch=00000;"
     );
     let ids: Value = serde_json::from_str(shaped["metadata"]["user_id"].as_str().unwrap()).unwrap();
     assert_eq!(ids["device_id"], "device-1");
@@ -389,7 +390,7 @@ fn refresh_uses_profile_and_preserves_rotating_secret_fields() {
         "refresh_token":"old-refresh",
         "expires_at_ms":1,
         "account_uuid":"account",
-        "scopes":["user:inference", "user:projects:read", "user:plugins"]
+        "scopes":["user:inference", "user:projects:read"]
     });
     let settings = json!({});
     let future = ClaudeCodeChannel
@@ -421,7 +422,7 @@ fn refresh_uses_profile_and_preserves_rotating_secret_fields() {
     assert_eq!(body["refresh_token"], "old-refresh");
     assert_eq!(
         body["scope"],
-        "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:projects:read user:plugins"
+        "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload user:plugins user:projects:read"
     );
 }
 
@@ -479,5 +480,60 @@ fn ready<F: Future>(future: F) -> F::Output {
     match future.as_mut().poll(&mut context) {
         Poll::Ready(value) => value,
         Poll::Pending => panic!("test future unexpectedly pending"),
+    }
+}
+
+#[test]
+fn billing_preserves_cli_280_fragments_and_rejects_invalid_values() {
+    let billing = |text: &str| {
+        let mut body = json!({
+            "system": [{"type": "text", "text": text}],
+            "messages": [{"role": "user", "content": "Reply with captured"}]
+        });
+        super::cch::inject(&mut body, &json!({"device_id": "device"}), "session");
+        body["system"][0]["text"].as_str().unwrap().to_owned()
+    };
+    assert_eq!(
+        billing(concat!(
+            "x-anthropic-billing-header: cc_turn_origin=tool_result; cc_entrypoint=sdk-cli; ",
+            "cc_prompt_id=0B1C2D3E-4F50-4A6B-8C7D-8E9F0A1B2C3D; cc_prev_req=req_abc-123_; ",
+            "cc_workload=agent_run; cc_is_subagent=true; cch=11111; unknown=drop;"
+        )),
+        concat!(
+            "x-anthropic-billing-header: cc_version=2.1.280.7c4; cc_entrypoint=sdk-cli; cch=00000; ",
+            "cc_workload=agent_run; cc_is_subagent=true; cc_prev_req=req_abc-123_; ",
+            "cc_prompt_id=0B1C2D3E-4F50-4A6B-8C7D-8E9F0A1B2C3D; cc_turn_origin=tool_result;"
+        )
+    );
+    assert_eq!(
+        billing(concat!(
+            "x-anthropic-billing-header: cc_entrypoint=sdk/cli; cc_workload=bad value; ",
+            "cc_is_subagent=false; cc_prev_req=bad; cc_prompt_id=bad; cc_turn_origin=User;"
+        )),
+        "x-anthropic-billing-header: cc_version=2.1.280.7c4; cc_entrypoint=cli; cch=00000;"
+    );
+    for invalid in [
+        "User",
+        "_user",
+        "user-1",
+        "user1",
+        "",
+        "abcdefghijklmnopqrstuvwxyzabcdefg",
+        "用户",
+    ] {
+        assert!(
+            !billing(&format!(
+                "x-anthropic-billing-header: cc_turn_origin={invalid};"
+            ))
+            .contains("cc_turn_origin=")
+        );
+    }
+    for valid in ["u", "tool_result", "abcdefghijklmnopqrstuvwxyzabcdef"] {
+        assert!(
+            billing(&format!(
+                "x-anthropic-billing-header: cc_turn_origin={valid};"
+            ))
+            .ends_with(&format!(" cc_turn_origin={valid};"))
+        );
     }
 }

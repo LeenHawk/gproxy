@@ -51,12 +51,12 @@ export function VariantPresetPicker({ modelId, channel, initialActions, onApply,
     return { suffix, actions: [...actions, ...initial.preserved.filter((action) => !paths.has(action.path))] }
   }, [groups, initial.preserved, picks, upstream, upstreamPath])
 
-  return <div className="grid gap-3 rounded-md border bg-muted/30 p-3">
+  return <div className="grid min-w-0 grid-cols-1 gap-3 rounded-md border bg-muted/30 p-3">
     <Field>
       <FieldLabel>{t("providers.models.variantPicker.protocol")}</FieldLabel>
       <Select value={protocol} onValueChange={(value) => { setProtocol(value as VariantProtocol); setPicks({}) }}>
-        <SelectTrigger><SelectValue /></SelectTrigger>
-        <SelectContent>{(Object.keys(VARIANT_PROTOCOL_LABELS) as Array<VariantProtocol>).map((value) => <SelectItem key={value} value={value}>{VARIANT_PROTOCOL_LABELS[value]}</SelectItem>)}</SelectContent>
+        <SelectTrigger className="min-w-0 [&_[data-slot=select-value]]:block [&_[data-slot=select-value]]:truncate"><SelectValue /></SelectTrigger>
+        <SelectContent position="popper" className="max-w-[var(--radix-select-content-available-width)] [&_[data-slot=select-item]]:whitespace-normal [&_[data-slot=select-item]]:break-words">{(Object.keys(VARIANT_PROTOCOL_LABELS) as Array<VariantProtocol>).map((value) => <SelectItem key={value} value={value}>{VARIANT_PROTOCOL_LABELS[value]}</SelectItem>)}</SelectContent>
       </Select>
     </Field>
     {groups.map((group) => <Field key={group.key}>
@@ -65,8 +65,8 @@ export function VariantPresetPicker({ modelId, channel, initialActions, onApply,
         setPicks((current) => ({ ...current, [group.key]: value }))
         if (group.key === sourceKey && value !== NONE) setUpstream("")
       }}>
-        <SelectTrigger><SelectValue /></SelectTrigger>
-        <SelectContent>
+        <SelectTrigger className="min-w-0 [&_[data-slot=select-value]]:block [&_[data-slot=select-value]]:truncate"><SelectValue /></SelectTrigger>
+        <SelectContent position="popper" className="max-w-[var(--radix-select-content-available-width)] [&_[data-slot=select-item]]:whitespace-normal [&_[data-slot=select-item]]:break-words">
           <SelectItem value={NONE}>{t("providers.models.variantPicker.none")}</SelectItem>
           {group.entries.map((entry, index) => <SelectItem key={`${entry.suffix}-${index}`} value={String(index)}>{entry.suffix} — {entry.label}</SelectItem>)}
         </SelectContent>
@@ -80,7 +80,7 @@ export function VariantPresetPicker({ modelId, channel, initialActions, onApply,
       }} />
       <FieldDescription>{t("providers.models.variantPicker.upstreamHint")}</FieldDescription>
     </Field> : null}
-    <div className="rounded-md border bg-background p-3 text-xs">
+    <div className="min-w-0 rounded-md border bg-background p-3 text-xs [overflow-wrap:anywhere]">
       <p className="text-muted-foreground">{t("providers.models.variantPicker.suggestedName")}</p>
       <p className="machine-text mt-1">{selection.suffix ? `${modelId}${selection.suffix}` : (modelId || "—")}</p>
       {selection.actions.length > 0 ? <div className="mt-3 grid gap-1">

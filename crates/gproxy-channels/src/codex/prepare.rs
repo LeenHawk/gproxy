@@ -149,6 +149,16 @@ pub(super) fn surface(
             headers.insert(http::header::ACCEPT, accept);
         }
     }
+    // Match core-plugins/remote.rs: preserve an explicit product selection,
+    // and default authenticated plugin catalog/sharing calls to Codex.
+    if source.upstream_path == "/ps/plugins"
+        || source.upstream_path.starts_with("/ps/plugins/")
+        || source.upstream_path.starts_with("/public/plugins/")
+    {
+        headers
+            .entry("oai-product-sku")
+            .or_insert(http::HeaderValue::from_static("codex"));
+    }
     let uri = if websocket { websocket_uri(uri)? } else { uri };
     let mut request = http::Request::builder()
         .method(&source.method)
