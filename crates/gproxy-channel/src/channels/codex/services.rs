@@ -536,11 +536,22 @@ fn forward<B>(
     let (_, backend) = base_urls(account.provider);
     let path = canonical_path(&request.path).ok_or(ChannelError::UnsupportedService)?;
     let allowlist = HeaderAllowlist::from_view_for(account.provider, super::CLI_HEADERS)?;
-    let headers = backend_headers(
+    let mut headers = backend_headers(
         &config,
         &identity,
         Some((&request.headers, allowlist.as_ref())),
     )?;
+    // core-plugins/remote.rs sends OAI-Product-Sku for catalog and sharing
+    // calls. Keep the client's selected product (or a static override), and
+    // use the CLI default only when it supplied none.
+    if path.starts_with("/backend-api/ps/plugins/")
+        || path == "/backend-api/ps/plugins"
+        || path.starts_with("/backend-api/public/plugins/")
+    {
+        headers
+            .entry("oai-product-sku")
+            .or_insert(HeaderValue::from_static("codex"));
+    }
     let uri = backend_url(&backend, &path, forwarded_query(request.query), websocket);
     let mut builder = http::Request::builder().method(request.method).uri(uri);
     if let Some(map) = builder.headers_mut() {

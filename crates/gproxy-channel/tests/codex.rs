@@ -883,7 +883,47 @@ async fn catalog_routes_forward_under_every_view_with_the_credential_identity() 
     assert_eq!(h["accept"], "text/event-stream");
     assert_eq!(h["mcp-session-id"], "mcp-1");
     assert_eq!(h["x-codex-foo"], "bar");
+    assert_eq!(h["oai-product-sku"], "codex");
     assert_eq!(h.get_all("authorization").iter().count(), 1);
+}
+
+#[tokio::test]
+async fn plugin_product_and_extensions_survive_header_filtering() {
+    let config = json!({"allowed_headers": []});
+    let secret = secret("at-1");
+    let metadata = json!({});
+    let response = json!({"plugins":[{"id":"p1","extensions":{"future":true}}]});
+    let client = ScriptClient::new(vec![reply(StatusCode::OK, response.clone())]);
+    let accounts = [account(&config, &secret, &metadata, &client)];
+    let admin = ScriptCaller::admin("a");
+    let mut request = service_request(
+        Method::GET,
+        "/ps/plugins/installed",
+        Some("includeExtensions=true&scope=all"),
+        "",
+    );
+    request.headers.insert(
+        "oai-product-sku",
+        HeaderValue::from_static("custom-product"),
+    );
+    let result = Codex
+        .services()
+        .unwrap()
+        .call(context(
+            &accounts,
+            &admin,
+            ServiceView::Credential("c".into()),
+            request,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(body_json(result).await, response);
+    let sent = client.sent();
+    assert_eq!(
+        sent[0].1,
+        "https://chatgpt.com/backend-api/ps/plugins/installed?includeExtensions=true&scope=all"
+    );
+    assert_eq!(sent[0].2["oai-product-sku"], "custom-product");
 }
 
 #[tokio::test]
