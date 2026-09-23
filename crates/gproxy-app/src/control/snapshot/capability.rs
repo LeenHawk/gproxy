@@ -202,21 +202,38 @@ fn common<'a, T: PartialEq>(mut values: impl Iterator<Item = Option<&'a T>>) -> 
 /// omitted. Discovery refreshes these; the operator's edits outlive the refresh.
 pub(super) fn provider_catalogue(
     stored: &gproxy_store::records::ControlSnapshot,
-) -> Vec<gproxy_core::ExposedModel> {
+) -> Result<Vec<gproxy_core::ExposedModel>, gproxy_store::StoreError> {
     let providers = stored
         .providers
         .iter()
         .filter(|provider| provider.enabled)
         .map(|provider| (provider.id, provider.name.as_str()))
         .collect::<BTreeMap<_, _>>();
-    stored
-        .provider_models
-        .iter()
-        .filter(|model| model.enabled)
-        .filter_map(|model| {
-            let provider = providers.get(&model.provider_id)?;
-            Some(gproxy_core::ExposedModel {
-                id: format!("{provider}/{}", model.model_id),
+    let mut catalogue = Vec::new();
+    for model in stored.provider_models.iter().filter(|model| model.enabled) {
+        let Some(provider) = providers.get(&model.provider_id) else {
+            continue;
+        };
+        let parsed = gproxy_store::records::parse_model_variants(model.variants.as_ref()).map_err(
+            |message| gproxy_store::StoreError::InvalidData {
+                field: "model variants",
+                message: format!("{}: {message}", model.model_id),
+            },
+        )?;
+        let names = parsed
+            .expose_base
+            .then_some(model.model_id.as_str())
+            .into_iter()
+            .chain(
+                parsed
+                    .names
+                    .iter()
+                    .map(String::as_str)
+                    .filter(|name| *name != model.model_id),
+            );
+        for name in names {
+            catalogue.push(gproxy_core::ExposedModel {
+                id: format!("{provider}/{name}"),
                 display_name: model.display_name.clone(),
                 context_window: model.context_window,
                 max_output_tokens: model.max_output_tokens,
@@ -224,7 +241,8 @@ pub(super) fn provider_catalogue(
                 thinking_adaptive_supported: model.thinking_adaptive_supported,
                 thinking_enabled_supported: model.thinking_enabled_supported,
                 metadata: model.metadata.clone(),
-            })
-        })
-        .collect()
+            });
+        }
+    }
+    Ok(catalogue)
 }

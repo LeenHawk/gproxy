@@ -18,7 +18,7 @@ impl CompiledSnapshot {
         validate_windows(&stored)?;
         let effective = super::super::settings::EffectiveSettings::read(&stored.settings, runtime)?;
         let stored = Arc::new(stored);
-        let provider_catalogue = super::capability::provider_catalogue(stored.as_ref());
+        let provider_catalogue = super::capability::provider_catalogue(stored.as_ref())?;
         let providers = stored
             .providers
             .iter()
