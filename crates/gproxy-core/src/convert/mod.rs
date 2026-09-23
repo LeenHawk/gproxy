@@ -23,5 +23,9 @@ mod video;
 pub(crate) use call::{Call, ClientRequest, Converted};
 pub(crate) use dispatch::dispatch;
 pub use endpoints::generate_endpoint;
-pub use route::{Route, RouteError, route};
+pub use route::{
+    Route, RouteError, RoutingMappings, conversion_targets, default_route, local_supported,
+    resolve_route, route, validate_mapping,
+};
+pub(crate) mod local;
 pub use spec::{is_websocket, response_framing, spec_for};

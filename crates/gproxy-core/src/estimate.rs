@@ -62,6 +62,21 @@ impl Estimator {
         Tokenizer::for_model(model, file).unwrap_or_else(|_| Tokenizer::character_estimate())
     }
 
+    pub(crate) fn count_input(
+        &self,
+        key: OperationKey,
+        provider: &str,
+        model: Option<&str>,
+        body: &[u8],
+    ) -> Result<u64, String> {
+        let mut text = Text::default();
+        wire_text(key, body, &mut text)
+            .ok_or_else(|| "invalid token-count request body".to_owned())?;
+        self.tokenizer(provider, model)
+            .count(&text.0.join("\n"))
+            .map_err(|e| e.to_string())
+    }
+
     /// Fill the token counts the upstream did not report. `operation` is the
     /// native key of the exchange, which names the wire shape of
     /// `request_body`; `response_bytes` is what was read of the body, whole

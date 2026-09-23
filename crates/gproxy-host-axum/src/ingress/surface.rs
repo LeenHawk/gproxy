@@ -85,6 +85,7 @@ surfaces! {
     POST "/v1/chat/completions" => GenerateContent / OpenAiChat, stream: StreamGenerateContent;
     POST "/v1/messages" => GenerateContent / Claude, stream: StreamGenerateContent;
     POST "/v1/messages/count_tokens" => CountTokens / Claude;
+    POST "/v1/responses/input_tokens" => CountTokens / OpenAi;
     POST "/v1beta/models/{model}:generateContent" => GenerateContent / Gemini, model: "model";
     POST "/v1beta/models/{model}:streamGenerateContent" => StreamGenerateContent / Gemini, model: "model";
     POST "/v1beta/models/{model}:countTokens" => CountTokens / Gemini, model: "model";

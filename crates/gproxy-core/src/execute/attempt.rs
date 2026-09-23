@@ -140,6 +140,24 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
             return Err(error.into());
         }
     };
+    if route == Route::Unsupported {
+        return Err(CoreError::Transform(TransformError::unsupported(
+            "route",
+            format!(
+                "{:?} / {:?} is not supported by provider {}",
+                operation.operation, operation.dialect, provider.entity.id
+            ),
+        )));
+    }
+    let local = route == Route::Local
+        && !(provider
+            .channel
+            .local_operations()
+            .contains(&operation.operation)
+            && provider
+                .channel
+                .native_dialects(prepare::provider_view(&provider), operation.operation)
+                .contains(&operation.dialect));
     let inbound_headers = wire.headers.clone();
     let rewrite_context = RewriteContext {
         operation,
@@ -152,7 +170,7 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
     let request_rules = select_rules(&snapshot, &provider, Phase::Request, &rewrite_context);
     let response_rules = select_rules(&snapshot, &provider, Phase::Response, &rewrite_context);
 
-    let converting = matches!(route, Route::Convert { .. } | Route::Synthesize { .. });
+    let converting = matches!(route, Route::TransformTo { .. });
     if converting && convert::is_websocket(operation) {
         funnel.finish(UsageState::Failed).await;
         return Err(CoreError::Transform(TransformError::unsupported(
@@ -165,12 +183,13 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
             .as_deref()
             .is_some_and(|model| request.attribution.model.as_deref() != Some(model));
     let want_replay = converting
+        || local
         || remap_model
         || request.max_attempts.get() > 1
         || !request_rules.body.is_empty();
     let (mut wire, replayable) =
         prepare::buffer_request(wire, want_replay, limits.max_request_body_bytes).await;
-    if (converting || remap_model) && !replayable {
+    if (converting || remap_model || local) && !replayable {
         funnel.finish(UsageState::Failed).await;
         return Err(CoreError::Transform(TransformError::new(
             TransformErrorKind::Limit,
@@ -196,6 +215,17 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
         {
             wire.body = HttpBody::Bytes(Bytes::from(rewritten));
         }
+    }
+    if local {
+        let mut response = convert::local::run(&request, &wire)?;
+        apply_headers(&response_rules.headers, &mut response.headers)?;
+        if let HttpBody::Bytes(bytes) = &response.body
+            && let Some(rewritten) = apply_body(&response_rules.body, bytes)?
+        {
+            response.body = HttpBody::Bytes(Bytes::from(rewritten));
+        }
+        let settled = funnel.finish(UsageState::Completed).await;
+        return Ok(HttpExecution::new(response, completion, settled));
     }
     let attempts = if replayable {
         request.max_attempts.get()
@@ -324,7 +354,7 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
         let capability = limits.capability(budget);
         let cancellation = request.cancellation.clone();
         let dispatched: Result<Answer, Fault> = match route {
-            Route::Passthrough => {
+            Route::Passthrough | Route::Local => {
                 let exchange = Exchange::new(
                     funnel.clone(),
                     attempt.clone(),
@@ -372,7 +402,8 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     }
                 }
             }
-            Route::Convert { upstream } | Route::Synthesize { upstream } => {
+            Route::TransformTo { target } => {
+                let upstream = target.dialect;
                 let upstream_host = AttemptUpstream::new(
                     funnel.clone(),
                     attempt.clone(),
@@ -407,7 +438,9 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     conversation_key: &conversation_key,
                     provider_id: &provider.entity.id,
                     now_ms: now,
-                    synthesize: matches!(route, Route::Synthesize { .. }),
+                    synthesize: operation.operation
+                        == gproxy_protocol::Operation::StreamGenerateContent
+                        && target.operation == gproxy_protocol::Operation::GenerateContent,
                 };
                 let converted = tokio::select! {
                     biased;
@@ -431,6 +464,7 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     }),
                 })
             }
+            Route::Unsupported => unreachable!("unsupported route rejected before attempting"),
         };
         let finished_at = now_ms();
         let answer = match dispatched {

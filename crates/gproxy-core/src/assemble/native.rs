@@ -257,45 +257,46 @@ pub async fn assemble(
 
     // Which custom vocabulary each provider model counts with: the catalog
     // model's file, else the Setting default; tokenizer selection is lazy.
+    let local_tokenizer = {
+        let files: HashMap<&str, &str> = control
+            .models
+            .iter()
+            .filter_map(|m| Some((m.id.as_str(), m.vocabulary_file_id.as_deref()?)))
+            .collect();
+        let models = control
+            .provider_models
+            .iter()
+            .filter(|pm| pm.enabled)
+            .filter_map(|pm| {
+                let file = files.get(pm.model_id.as_deref()?)?;
+                Some((
+                    (pm.provider_id.clone(), pm.upstream_name.clone()),
+                    (*file).to_owned(),
+                ))
+            })
+            .collect();
+        Arc::new(crate::estimate::Estimator::new(
+            if control
+                .settings
+                .as_ref()
+                .is_some_and(|s| !s.enable_tokenizer_vocabs)
+            {
+                Default::default()
+            } else {
+                vocabularies
+            },
+            control
+                .settings
+                .as_ref()
+                .and_then(|s| s.default_vocabulary_file_id.clone()),
+            models,
+        ))
+    };
     let estimation = control
         .settings
         .as_ref()
-        .is_none_or(|settings| settings.enable_usage || settings.enable_settlement)
-        .then(|| {
-            let files: HashMap<&str, &str> = control
-                .models
-                .iter()
-                .filter_map(|m| Some((m.id.as_str(), m.vocabulary_file_id.as_deref()?)))
-                .collect();
-            let models = control
-                .provider_models
-                .iter()
-                .filter(|pm| pm.enabled)
-                .filter_map(|pm| {
-                    let file = files.get(pm.model_id.as_deref()?)?;
-                    Some((
-                        (pm.provider_id.clone(), pm.upstream_name.clone()),
-                        (*file).to_owned(),
-                    ))
-                })
-                .collect();
-            Arc::new(crate::estimate::Estimator::new(
-                if control
-                    .settings
-                    .as_ref()
-                    .is_some_and(|s| !s.enable_tokenizer_vocabs)
-                {
-                    Default::default()
-                } else {
-                    vocabularies
-                },
-                control
-                    .settings
-                    .as_ref()
-                    .and_then(|s| s.default_vocabulary_file_id.clone()),
-                models,
-            ))
-        });
+        .is_none_or(|s| s.enable_usage || s.enable_settlement)
+        .then(|| local_tokenizer.clone());
     // Caller budgets and pricing: an unusable row is skipped, never fatal,
     // so one bad price rule cannot keep a snapshot from publishing. Rows
     // owned by a credential or provider are limits, handled above.
@@ -321,6 +322,7 @@ pub async fn assemble(
             observation: crate::ObservationSettings::from_setting(control.settings.as_ref()),
             limits,
             estimation,
+            local_tokenizer,
             budgets,
             credential_limits,
             pricing,

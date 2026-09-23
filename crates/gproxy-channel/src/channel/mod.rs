@@ -199,9 +199,25 @@ pub trait BaseChannel: Send + Sync {
         self.default_connection()
     }
 
+    /// An explicit conversion destination for channels accepting multiple native wires.
+    fn default_conversion_target(
+        &self,
+        provider: ProviderView<'_>,
+        source: OperationKey,
+    ) -> Option<OperationKey> {
+        let _ = (provider, source);
+        None
+    }
+
+    /// Native methods which produce their answer without an upstream request.
+    fn local_operations(&self) -> &'static [Operation] {
+        &[]
+    }
+
     /// The wire dialects this provider's upstream accepts natively for an
-    /// operation, in preference order. The host uses it to choose between
-    /// passthrough and conversion; a per-provider OperationRule may override it.
+    /// operation. The collection declares support, not preference. The host uses it to choose between
+    /// default mappings. Explicit provider mappings are keyed by operation
+    /// and incoming dialect, not by position in this collection.
     /// Empty means the channel declares nothing and configuration must decide.
     fn native_dialects(&self, provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         let _ = (provider, operation);

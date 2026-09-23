@@ -242,7 +242,7 @@ async fn unknown_jobs_multipart_creates_and_list_delete_are_refused() {
         else {
             panic!("{operation:?} must be refused")
         };
-        assert!(error.to_string().contains("listed or deleted"), "{error}");
+        assert!(error.to_string().contains("not supported"), "{error}");
     }
     assert!(h.client.seen.lines().is_empty());
 }

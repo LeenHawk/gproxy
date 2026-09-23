@@ -1,13 +1,17 @@
 //! Per-provider operation overrides: remapped operations and per-method URLs.
 
+use gproxy_core::convert::{
+    Route, RoutingMappings, conversion_targets, default_route, local_supported, resolve_route,
+    validate_mapping,
+};
 use gproxy_protocol::{Dialect, Operation};
+use gproxy_protocol::{OperationKey, spec::OPERATION_SPECS};
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::{
     Repository,
     entity::upstream::{operation_endpoint, operation_rule},
 };
 use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, Select, Set};
-use strum::IntoEnumIterator;
 
 use super::{
     Scope, Writer,
@@ -18,6 +22,7 @@ use crate::{
     dto::{
         BatchItem, ListQuery, OperationEndpointDto, OperationEndpointPatch, OperationEndpointWrite,
         OperationRoutingDto, OperationRuleDto, OperationRulePatch, OperationRuleWrite, Page,
+        RoutingMappingDto, RoutingMappingWrite, RoutingTargetDto,
     },
 };
 
@@ -99,45 +104,166 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> OperationRules<'_, C> {
             .operation_rules()
             .query(
                 operation_rule::Entity::find()
-                    .filter(operation_rule::Column::ProviderId.eq(provider_id))
-                    .filter(operation_rule::Column::Action.eq("dialects")),
+                    .filter(operation_rule::Column::ProviderId.eq(provider_id)),
             )
             .await?;
         let mut rows = Vec::new();
-        for operation in Operation::iter() {
-            let defaults: Vec<String> = channel
-                .native_dialects(view, operation)
-                .into_iter()
-                .map(|d| d.id().to_owned())
-                .collect();
-            let rule = saved.iter().find(|rule| rule.operation == operation.id());
-            if defaults.is_empty() && rule.is_none() {
-                continue;
-            }
-            let configured: Vec<Dialect> = rule
-                .and_then(|rule| rule.target.clone())
-                .map(serde_json::from_value)
-                .transpose()
-                .map_err(|error| {
-                    SdkError::invalid(format!(
-                        "invalid routing rule for {}: {error}",
-                        operation.id()
-                    ))
-                })?
-                .unwrap_or_default();
-            let dialects = if configured.is_empty() {
-                defaults.clone()
-            } else {
-                configured.into_iter().map(|d| d.id().to_owned()).collect()
+        for spec in OPERATION_SPECS {
+            let key = spec.key;
+            let rule = saved
+                .iter()
+                .find(|rule| rule.operation == key.operation.id());
+            let custom = match rule {
+                Some(rule) if rule.action == "routing" => rule
+                    .target
+                    .as_ref()
+                    .and_then(|v| v.get(key.dialect.id()))
+                    .is_some(),
+                Some(_) => true,
+                None => false,
             };
+            let mapping = resolve_route(channel.as_ref(), view, rule, key)
+                .map_err(|e| SdkError::invalid(e.to_string()))?;
             rows.push(OperationRoutingDto {
-                operation: operation.id().into(),
-                default_dialects: defaults,
-                dialects,
-                rule: rule.cloned().map(Into::into),
+                operation: key.operation.id().into(),
+                dialect: key.dialect.id().into(),
+                default_mapping: mapping_dto(default_route(channel.as_ref(), view, key)),
+                mapping: mapping_dto(mapping),
+                custom,
+                local_available: local_supported(key),
+                targets: conversion_targets(key)
+                    .into_iter()
+                    .map(target_dto)
+                    .collect(),
             });
         }
         Ok(rows)
+    }
+
+    pub async fn set_mapping(
+        &self,
+        provider_id: &str,
+        source_operation: &str,
+        source_dialect: &str,
+        write: RoutingMappingWrite,
+    ) -> SdkResult<Vec<OperationRoutingDto>> {
+        let source = operation_key(source_operation, source_dialect)?;
+        let mapping = match write.implementation.as_str() {
+            "passthrough" if write.target.is_none() => Route::Passthrough,
+            "local" if write.target.is_none() => Route::Local,
+            "unsupported" if write.target.is_none() => Route::Unsupported,
+            "transform_to" => {
+                let target = write
+                    .target
+                    .ok_or_else(|| SdkError::invalid("a conversion needs a target"))?;
+                Route::TransformTo {
+                    target: operation_key(&target.operation, &target.dialect)?,
+                }
+            }
+            _ => {
+                return Err(SdkError::invalid(
+                    "invalid routing implementation or target",
+                ));
+            }
+        };
+        validate_mapping(source, mapping).map_err(SdkError::invalid)?;
+        self.save_mapping(provider_id, source, Some(mapping))
+            .await?;
+        self.effective(provider_id).await
+    }
+
+    pub async fn reset_mapping(
+        &self,
+        provider_id: &str,
+        source_operation: &str,
+        source_dialect: &str,
+    ) -> SdkResult<Vec<OperationRoutingDto>> {
+        self.save_mapping(
+            provider_id,
+            operation_key(source_operation, source_dialect)?,
+            None,
+        )
+        .await?;
+        self.effective(provider_id).await
+    }
+
+    async fn save_mapping(
+        &self,
+        provider_id: &str,
+        source: OperationKey,
+        mapping: Option<Route>,
+    ) -> SdkResult<()> {
+        self.provider(provider_id).await?;
+        let current = self
+            .writer
+            .store()
+            .operation_rules()
+            .query(
+                operation_rule::Entity::find()
+                    .filter(operation_rule::Column::ProviderId.eq(provider_id))
+                    .filter(operation_rule::Column::Operation.eq(source.operation.id())),
+            )
+            .await?
+            .into_iter()
+            .next();
+        let mut mappings: RoutingMappings = match &current {
+            Some(row) if row.action == "routing" => {
+                serde_json::from_value(row.target.clone().unwrap_or(serde_json::json!({})))
+                    .map_err(|e| SdkError::invalid(e.to_string()))?
+            }
+            Some(_) => self
+                .effective(provider_id)
+                .await?
+                .into_iter()
+                .filter(|r| r.operation == source.operation.id())
+                .map(|r| {
+                    Ok((
+                        r.dialect
+                            .parse()
+                            .map_err(|_| SdkError::invalid("invalid source protocol"))?,
+                        dto_mapping(r.mapping)?,
+                    ))
+                })
+                .collect::<SdkResult<_>>()?,
+            None => Default::default(),
+        };
+        if let Some(mapping) = mapping {
+            mappings.insert(source.dialect, mapping);
+        } else {
+            mappings.remove(&source.dialect);
+        }
+        match current {
+            Some(row) if mappings.is_empty() => self.delete(&row.id).await?,
+            Some(row) => {
+                self.update(
+                    &row.id,
+                    OperationRulePatch {
+                        action: Some("routing".into()),
+                        target: Some(Some(
+                            serde_json::to_value(mappings)
+                                .map_err(|e| SdkError::invalid(e.to_string()))?,
+                        )),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            }
+            None if !mappings.is_empty() => {
+                self.create(OperationRuleWrite {
+                    provider_id: provider_id.into(),
+                    operation: source.operation.id().into(),
+                    action: "routing".into(),
+                    target: Some(
+                        serde_json::to_value(mappings)
+                            .map_err(|e| SdkError::invalid(e.to_string()))?,
+                    ),
+                    ..Default::default()
+                })
+                .await?;
+            }
+            _ => {}
+        }
+        Ok(())
     }
 
     pub async fn list(&self, query: ListQuery) -> SdkResult<Page<OperationRuleDto>> {
@@ -226,6 +352,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for OperationRule
         let id = crud::id_or_new(write.id.as_deref());
         let provider_id = self.provider(&write.provider_id).await?;
         let operation = operation(&write.operation)?;
+        validate_routing_config(&operation, &write.action, write.target.as_ref())?;
         self.unique_pair(&provider_id, &operation, None).await?;
         let row = operation_rule::ActiveModel {
             id: Set(id.clone()),
@@ -242,6 +369,15 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for OperationRule
         current: &operation_rule::Model,
         patch: OperationRulePatch,
     ) -> SdkResult<operation_rule::ActiveModel> {
+        validate_routing_config(
+            patch.operation.as_deref().unwrap_or(&current.operation),
+            patch.action.as_deref().unwrap_or(&current.action),
+            patch
+                .target
+                .as_ref()
+                .map(|v| v.as_ref())
+                .unwrap_or(current.target.as_ref()),
+        )?;
         let mut row = operation_rule::ActiveModel {
             id: Set(current.id.clone()),
             ..Default::default()
@@ -439,4 +575,78 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for OperationEndp
         }
         Ok(row)
     }
+}
+
+fn operation_key(operation: &str, dialect: &str) -> SdkResult<OperationKey> {
+    Ok(OperationKey {
+        operation: operation
+            .parse()
+            .map_err(|_| SdkError::invalid("unknown operation"))?,
+        dialect: dialect
+            .parse()
+            .map_err(|_| SdkError::invalid("unknown protocol"))?,
+    })
+}
+fn target_dto(key: OperationKey) -> RoutingTargetDto {
+    RoutingTargetDto {
+        operation: key.operation.id().into(),
+        dialect: key.dialect.id().into(),
+    }
+}
+fn mapping_dto(mapping: Route) -> RoutingMappingDto {
+    let (implementation, target) = match mapping {
+        Route::Passthrough => ("passthrough", None),
+        Route::Local => ("local", None),
+        Route::Unsupported => ("unsupported", None),
+        Route::TransformTo { target } => ("transform_to", Some(target_dto(target))),
+    };
+    RoutingMappingDto {
+        implementation: implementation.into(),
+        target,
+    }
+}
+fn dto_mapping(mapping: RoutingMappingDto) -> SdkResult<Route> {
+    Ok(match mapping.implementation.as_str() {
+        "passthrough" => Route::Passthrough,
+        "local" => Route::Local,
+        "unsupported" => Route::Unsupported,
+        "transform_to" => {
+            let t = mapping
+                .target
+                .ok_or_else(|| SdkError::invalid("missing route target"))?;
+            Route::TransformTo {
+                target: operation_key(&t.operation, &t.dialect)?,
+            }
+        }
+        _ => return Err(SdkError::invalid("invalid route implementation")),
+    })
+}
+
+fn validate_routing_config(
+    operation: &str,
+    action: &str,
+    target: Option<&serde_json::Value>,
+) -> SdkResult<()> {
+    let operation: Operation = operation
+        .parse()
+        .map_err(|_| SdkError::invalid("unknown operation"))?;
+    match action {
+        "deny" if target.is_none() => {}
+        "routing" => {
+            let mappings: RoutingMappings =
+                serde_json::from_value(target.cloned().unwrap_or(serde_json::json!({})))
+                    .map_err(|e| SdkError::invalid(e.to_string()))?;
+            for (dialect, mapping) in mappings {
+                validate_mapping(OperationKey { operation, dialect }, mapping)
+                    .map_err(SdkError::invalid)?;
+            }
+        }
+        "dialects" => {
+            let _: Vec<Dialect> =
+                serde_json::from_value(target.cloned().unwrap_or(serde_json::json!([])))
+                    .map_err(|e| SdkError::invalid(e.to_string()))?;
+        }
+        _ => return Err(SdkError::invalid("unknown routing action")),
+    }
+    Ok(())
 }

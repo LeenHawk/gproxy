@@ -41,6 +41,7 @@ pub struct CoreData {
     /// Local token estimation for exchanges without reported usage; None when
     /// the Setting row disables usage.
     pub estimation: Option<Arc<crate::estimate::Estimator>>,
+    pub local_tokenizer: Arc<crate::estimate::Estimator>,
     /// Enabled caller budgets (`quotas` rows with metric `cost`), resolved
     /// per request from the owners the host names.
     pub budgets: Vec<Arc<crate::budget::BudgetData>>,

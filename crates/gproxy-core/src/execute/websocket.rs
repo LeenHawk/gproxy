@@ -74,7 +74,14 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
 
     match convert::route(&provider, operation) {
         Ok(Route::Passthrough) => {}
-        Ok(Route::Convert { upstream } | Route::Synthesize { upstream }) => {
+        Ok(Route::Local | Route::Unsupported) => {
+            return Err(CoreError::Transform(TransformError::unsupported(
+                "route",
+                "this WebSocket route is not supported",
+            )));
+        }
+        Ok(Route::TransformTo { target }) => {
+            let upstream = target.dialect;
             if operation.dialect != Dialect::OpenAiResponsesWebSocket {
                 funnel.finish(UsageState::Failed).await;
                 return Err(CoreError::Transform(TransformError::unsupported(

@@ -1,53 +1,45 @@
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react"
-import type { OperationRuleDto } from "@/generated/sdk"
-import { operationChoices } from "@/pages/providers/operation-options"
-import { dialects } from "@/pages/providers/config-schema"
+import type { OperationRoutingDto, RoutingMappingWrite } from "@/generated/sdk"
 import { ErrorNotice } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-type Props = { open: boolean; onOpenChange: (open: boolean) => void; original?: OperationRuleDto; defaults?: { operation: string; dialects: string[] }; onSubmit: (body: Record<string, unknown>) => void; pending: boolean; error: unknown }
+type Props = { open: boolean; onOpenChange: (open: boolean) => void; row?: OperationRoutingDto; rows: OperationRoutingDto[]; onSubmit: (row: OperationRoutingDto, write: RoutingMappingWrite) => void; pending: boolean; error: unknown }
 export function RoutingRuleDialog(props: Props) {
   const { t } = useTranslation()
   return <Dialog open={props.open} onOpenChange={(open) => { if (!props.pending) props.onOpenChange(open) }}><DialogContent className="sm:max-w-lg" closeLabel={t("actions.close")} aria-describedby={undefined}>
-    <DialogHeader><DialogTitle>{t(props.original || props.defaults ? "edit.operation-rules" : "create.operation-rules")}</DialogTitle></DialogHeader>
-    {props.open ? <RoutingRuleForm key={props.original?.id ?? "new"} {...props} /> : null}
+    <DialogHeader><DialogTitle>{t(props.row ? "edit.operation-rules" : "create.operation-rules")}</DialogTitle></DialogHeader>
+    {props.open ? <RoutingRuleForm key={props.row ? `${props.row.operation}:${props.row.dialect}` : "new"} {...props} /> : null}
   </DialogContent></Dialog>
 }
-function RoutingRuleForm({ original, defaults, onSubmit, pending, error }: Props) {
+function RoutingRuleForm({ row, rows, onSubmit, pending, error }: Props) {
   const { t } = useTranslation()
-  const [operation, setOperation] = useState(original?.operation ?? defaults?.operation ?? "generate_content")
-  const [targets, setTargets] = useState<string[]>(Array.isArray(original?.target) ? original.target as string[] : defaults?.dialects ?? [])
-  const move = (index: number, offset: number) => setTargets((current) => {
-    const next = [...current]
-    ;[next[index], next[index + offset]] = [next[index + offset], next[index]]
-    return next
-  })
-  return <form onSubmit={(e) => { e.preventDefault(); onSubmit({ operation, action: "dialects", target: targets }) }} className="flex min-h-0 flex-col">
-    <DialogBody>
-      {error ? <ErrorNotice error={error} /> : null}
-      <FieldGroup className="sm:grid-cols-1">
-        <Field><FieldLabel htmlFor="routing-operation">{t("fields.operation")}</FieldLabel>
-          <Select value={operation} disabled={pending} onValueChange={setOperation}><SelectTrigger id="routing-operation"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{operationChoices.map(({ value }) => <SelectItem key={value} value={value}>{t(`operation.${value}`, { defaultValue: value })}</SelectItem>)}</SelectGroup></SelectContent></Select>
-        </Field>
-        <Field><FieldLabel>{t("rules.dialects")}</FieldLabel>
-          {targets.map((value, index) => <div key={index} className="flex items-center gap-1">
-            <Select value={value} disabled={pending} onValueChange={(next) => setTargets((current) => current.map((v, i) => i === index ? next : v))}>
-              <SelectTrigger aria-label={t("rules.protocolNumber", { index: index + 1 })} className="min-w-0 flex-1"><SelectValue placeholder={t("form.choose")} /></SelectTrigger>
-              <SelectContent><SelectGroup>{dialects.map((d) => <SelectItem key={d} value={d} disabled={d !== value && targets.includes(d)}>{t(`providerOption.${d}`)}</SelectItem>)}</SelectGroup></SelectContent>
-            </Select>
-            <Button type="button" size="icon-sm" variant="ghost" disabled={pending || index === 0} aria-label={t("rules.moveUp")} onClick={() => move(index, -1)}><ArrowUp /></Button>
-            <Button type="button" size="icon-sm" variant="ghost" disabled={pending || index === targets.length - 1} aria-label={t("rules.moveDown")} onClick={() => move(index, 1)}><ArrowDown /></Button>
-            <Button type="button" size="icon-sm" variant="ghost" disabled={pending} aria-label={t("actions.remove")} onClick={() => setTargets((current) => current.filter((_, i) => i !== index))}><Trash2 /></Button>
-          </div>)}
-          <Button type="button" variant="outline" size="sm" className="self-start" disabled={pending || targets.length >= dialects.length} onClick={() => setTargets((current) => [...current, ""])}><Plus data-icon="inline-start" />{t("rules.addProtocol")}</Button>
-        </Field>
-      </FieldGroup>
-    </DialogBody>
-    <DialogFooter><Button type="submit" disabled={pending || !targets.length || targets.some((v) => !v)}>{t(original || defaults ? "actions.save" : "actions.create")}</Button></DialogFooter>
+  const initial = row ?? rows.find((r) => r.operation === "generate_content" && r.dialect === "openai_chat") ?? rows[0]
+  const [source, setSource] = useState(initial)
+  const [implementation, setImplementation] = useState(initial?.mapping.implementation ?? "passthrough")
+  const [targetOperation, setTargetOperation] = useState(initial?.mapping.target?.operation ?? "")
+  const [targetDialect, setTargetDialect] = useState(initial?.mapping.target?.dialect ?? "")
+  const selectSource = (next: OperationRoutingDto) => {
+    setSource(next); setImplementation(next.mapping.implementation)
+    setTargetOperation(next.mapping.target?.operation ?? ""); setTargetDialect(next.mapping.target?.dialect ?? "")
+  }
+  if (!source) return null
+  const targets = source.targets
+  const validTarget = targets.some((v) => v.operation === targetOperation && v.dialect === targetDialect)
+  const choice = (id: string, label: string, value: string, options: Array<{ value: string; label: string; disabled?: boolean }>, onChange: (v: string) => void, disabled = false) => <Field><FieldLabel htmlFor={id}>{label}</FieldLabel><Select value={value} disabled={pending || disabled} onValueChange={onChange}><SelectTrigger id={id}><SelectValue placeholder={t("form.choose")} /></SelectTrigger><SelectContent><SelectGroup>{options.map((o) => <SelectItem key={o.value} value={o.value} disabled={o.disabled}>{o.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
+  return <form onSubmit={(e) => { e.preventDefault(); onSubmit(source, { implementation, target: implementation === "transform_to" ? { operation: targetOperation, dialect: targetDialect } : null }) }} className="flex min-h-0 flex-col">
+    <DialogBody>{error ? <ErrorNotice error={error} /> : null}<FieldGroup className="sm:grid-cols-1">
+      {choice("routing-operation", t("fields.operation"), source.operation, [...new Set(rows.map((r) => r.operation))].map((value) => ({ value, label: t(`operation.${value}`, { defaultValue: value }) })), (value) => selectSource(rows.find((r) => r.operation === value)!), !!row)}
+      {choice("routing-source", t("rules.incoming"), source.dialect, rows.filter((r) => r.operation === source.operation).map((r) => ({ value: r.dialect, label: t(`rules.protocols.${r.dialect}`) })), (value) => selectSource(rows.find((r) => r.operation === source.operation && r.dialect === value)!), !!row)}
+      {choice("routing-implementation", t("rules.behavior"), implementation, ["passthrough", "transform_to", "local", "unsupported"].map((value) => ({ value, label: t(`rules.implementations.${value}`), disabled: value === "local" ? !source.localAvailable : value === "transform_to" ? targets.length === 0 : false })), setImplementation)}
+      {implementation === "transform_to" ? <>
+        {choice("routing-target-operation", t("rules.targetOperation"), targetOperation, [...new Set(targets.map((r) => r.operation))].map((value) => ({ value, label: t(`operation.${value}`, { defaultValue: value }) })), (value) => { setTargetOperation(value); setTargetDialect("") })}
+        {choice("routing-target-protocol", t("rules.targetProtocol"), targetDialect, targets.filter((r) => r.operation === targetOperation).map((r) => ({ value: r.dialect, label: t(`rules.protocols.${r.dialect}`) })), setTargetDialect)}
+      </> : null}
+    </FieldGroup></DialogBody>
+    <DialogFooter><Button type="submit" disabled={pending || (implementation === "transform_to" && !validTarget)}>{t("actions.save")}</Button></DialogFooter>
   </form>
 }

@@ -371,6 +371,30 @@ impl<C> Gproxy<C> {
         request: &ResolveRequest<'_>,
         now_ms: i64,
     ) -> Option<(Vec<Arc<CredentialData>>, u8)> {
+        if matches!(
+            gproxy_core::convert::route(&candidate.provider, request.operation),
+            Ok(gproxy_core::convert::Route::Local)
+        ) && !(candidate
+            .provider
+            .channel
+            .local_operations()
+            .contains(&request.operation.operation)
+            && candidate
+                .provider
+                .channel
+                .native_dialects(
+                    gproxy_channel::channel::ProviderView {
+                        id: &candidate.provider.entity.id,
+                        channel: &candidate.provider.entity.channel,
+                        base_url: candidate.provider.entity.base_url.as_deref(),
+                        config: &candidate.provider.entity.config,
+                    },
+                    request.operation.operation,
+                )
+                .contains(&request.operation.dialect))
+        {
+            return Some((Vec::new(), 0));
+        }
         let model = candidate.upstream_model.as_deref();
         let operation = request.operation.operation;
         let mut usable = Vec::new();

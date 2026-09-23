@@ -1,15 +1,17 @@
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { bindings, ruleSetDirectory, operationRules, endpoints, effectiveRouting } from "@/api/routing-rules"
+import { bindings, ruleSetDirectory, endpoints, effectiveRouting, saveRoutingMapping, resetRoutingMapping, applyDefaultRouting } from "@/api/routing-rules"
 import { CollectionPage } from "@/pages/identity/collection"
 import { BoolCell } from "@/components/cells"
+import { Switch } from "@/components/ui/switch"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { DataTable } from "@/components/data-table"
 import { ConfirmButton } from "@/components/confirm"
 import { toast } from "sonner"
-import type { OperationRoutingDto } from "@/generated/sdk"
+import type { OperationRoutingDto, RoutingMappingWrite } from "@/generated/sdk"
 import { EmptyNotice, ErrorNotice, QueryState } from "@/components/state"
 import { operationChoices } from "@/pages/providers/operation-options"
 import { dialects } from "@/pages/providers/config-schema"
@@ -31,29 +33,37 @@ export function ProviderOperations({ providerId }: { providerId: string }) {
   const [editing, setEditing] = useState<OperationRoutingDto | "new" | null>(null)
   const list = useQuery({ queryKey: ["admin", "/providers", "routing", providerId], queryFn: () => effectiveRouting(providerId) })
   const current = editing && editing !== "new" ? editing : undefined
+  const [showUnsupported, setShowUnsupported] = useState(false)
+  const [search, setSearch] = useState("")
+  const rows = (list.data ?? []).filter((r) => (showUnsupported || r.mapping.implementation !== "unsupported" || r.custom) && `${t(`operation.${r.operation}`, { defaultValue: r.operation })} ${t(`rules.protocols.${r.dialect}`)}`.toLowerCase().includes(search.toLowerCase()))
   const invalidate = () => client.invalidateQueries({ queryKey: ["admin", "/providers", "routing", providerId] })
   const saved = useMutation({
-    mutationFn: (body: Record<string, unknown>) => current?.rule ? operationRules.update(current.rule.id, body) : operationRules.create({ ...body, providerId, action: "dialects" }),
+    mutationFn: ({ row, write }: { row: OperationRoutingDto; write: RoutingMappingWrite }) => saveRoutingMapping(providerId, row.operation, row.dialect, write),
     onSuccess: async () => { setEditing(null); await invalidate(); toast.success(t("toast.saved")) },
   })
-  const reset = useMutation({ mutationFn: (id: string) => operationRules.remove(id), onSuccess: async () => { await invalidate(); toast.success(t("toast.saved")) } })
+  const reset = useMutation({ mutationFn: (row: OperationRoutingDto) => resetRoutingMapping(providerId, row.operation, row.dialect), onSuccess: async () => { await invalidate(); toast.success(t("toast.saved")) } })
+  const defaults = useMutation({
+    mutationFn: () => applyDefaultRouting(providerId),
+    onSuccess: async () => { await Promise.all([invalidate(), client.invalidateQueries({ queryKey: ["admin", "/operation-endpoints"] })]); toast.success(t("toast.saved")) },
+  })
+  const pending = reset.isPending || defaults.isPending || saved.isPending
   return <>
-    <div className="mb-4 flex justify-end"><Button size="sm" onClick={() => { saved.reset(); setEditing("new") }}>{t("create.operation-rules")}</Button></div>
-    {reset.error ? <ErrorNotice error={reset.error} /> : null}
+    <div className="mb-4 flex flex-wrap items-center gap-3"><Input className="max-w-xs" aria-label={t("actions.search")} placeholder={t("actions.search")} value={search} onChange={(e) => setSearch(e.target.value)} /><label className="flex items-center gap-2 text-sm"><Switch checked={showUnsupported} onCheckedChange={setShowUnsupported} />{t("rules.showUnsupported")}</label><Button size="sm" disabled={pending || !list.data} onClick={() => { saved.reset(); setEditing("new") }}>{t("create.operation-rules")}</Button><Button variant="outline" size="sm" disabled={pending || !list.data} onClick={() => defaults.mutate()}>{t("rules.applyDefaults")}</Button></div>
+    {reset.error || defaults.error ? <ErrorNotice error={reset.error || defaults.error} /> : null}
     <QueryState isPending={list.isPending} error={list.error}>
-      <DataTable rows={list.data ?? []} rowKey={(r) => r.operation} empty={<EmptyNotice title={t("rules.noRoutes")} />}
+      <DataTable rows={rows} rowKey={(r) => `${r.operation}:${r.dialect}`} empty={<EmptyNotice title={t("rules.noRoutes")} />}
         columns={[
           { key: "operation", cell: (r) => t(`operation.${r.operation}`, { defaultValue: r.operation }) },
-          { key: "target", header: t("rules.dialects"), cell: (r) => r.dialects.map((value) => t(`providerOption.${value}`, { defaultValue: value })).join(" · ") || "—" },
-          { key: "source", header: t("rules.source"), cell: (r) => <Badge variant={r.rule ? "secondary" : "outline"}>{t(r.rule ? "rules.custom" : "rules.default")}</Badge> },
+          { key: "dialect", header: t("rules.incoming"), cell: (r) => t(`rules.protocols.${r.dialect}`) },
+          { key: "implementation", header: t("rules.behavior"), cell: (r) => <span className="inline-flex flex-wrap items-center gap-2"><Badge variant={r.mapping.implementation === "unsupported" ? "destructive" : "secondary"}>{t(`rules.implementations.${r.mapping.implementation}`)}</Badge>{r.mapping.target ? <span>{t(`operation.${r.mapping.target.operation}`, { defaultValue: r.mapping.target.operation })} · {t(`rules.protocols.${r.mapping.target.dialect}`)}</span> : null}</span> },
         ]}
         actions={(row) => <>
-          <Button variant="ghost" size="sm" disabled={reset.isPending} onClick={() => { saved.reset(); setEditing(row) }}>{t("actions.edit")}</Button>
-          {row.rule ? <ConfirmButton disabled={reset.isPending} title={t("rules.resetConfirm")} confirmLabel={t("rules.reset")} onConfirm={() => reset.mutate(row.rule!.id)}>{t("rules.reset")}</ConfirmButton> : null}
+          <Button variant="ghost" size="sm" disabled={pending} onClick={() => { saved.reset(); setEditing(row) }}>{t("actions.edit")}</Button>
+          {row.custom ? <ConfirmButton disabled={pending} title={t("rules.resetConfirm")} confirmLabel={t("rules.reset")} onConfirm={() => reset.mutate(row)}>{t("rules.reset")}</ConfirmButton> : null}
         </>}
       />
     </QueryState>
-    <RoutingRuleDialog open={editing !== null} onOpenChange={(open) => { if (!open && !saved.isPending) setEditing(null) }} original={current?.rule ?? undefined} defaults={current ? { operation: current.operation, dialects: current.dialects } : undefined} onSubmit={(body) => saved.mutate(body)} pending={saved.isPending} error={saved.error} />
+    <RoutingRuleDialog open={editing !== null} onOpenChange={(open) => { if (!open && !saved.isPending) setEditing(null) }} row={current} rows={list.data ?? []} onSubmit={(row, write) => saved.mutate({ row, write })} pending={saved.isPending} error={saved.error} />
   </>
 }
 export function ProviderEndpoints({ providerId }: { providerId: string }) {

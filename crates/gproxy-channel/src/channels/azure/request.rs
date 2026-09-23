@@ -61,6 +61,11 @@ impl BaseChannel for Azure {
     /// surface at all. A resource without Anthropic deployments simply fails
     /// upstream; which models a provider actually has is routing configuration,
     /// not something this channel can know.
+    fn default_conversion_target(&self, _provider: ProviderView<'_>, source: gproxy_protocol::OperationKey) -> Option<gproxy_protocol::OperationKey> {
+        matches!(source.operation, Operation::GenerateContent | Operation::StreamGenerateContent)
+            .then_some(gproxy_protocol::OperationKey { operation: source.operation, dialect: Dialect::OpenAi })
+    }
+
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
             Operation::GenerateContent | Operation::StreamGenerateContent => {

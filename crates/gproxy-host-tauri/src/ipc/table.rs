@@ -297,6 +297,8 @@ ipc_table! {
 
     manage endpoints_operation_rules [.endpoints().operation_rules()] {
         effective[id];
+        set_mapping[provider_id, source_operation, source_dialect](write: sdk::RoutingMappingWrite);
+        reset_mapping[provider_id, source_operation, source_dialect];
         list(query: sdk::ListQuery);
         get[id];
         create(write: sdk::OperationRuleWrite);

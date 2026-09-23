@@ -202,7 +202,7 @@ async fn url_delivery_and_claude_targets_are_refused_before_any_call() {
     else {
         panic!("Claude has no image generation")
     };
-    assert!(error.to_string().contains("image generation"), "{error}");
+    assert!(error.to_string().contains("CreateImage"), "{error}");
     assert!(h.client.seen.lines().is_empty());
 }
 

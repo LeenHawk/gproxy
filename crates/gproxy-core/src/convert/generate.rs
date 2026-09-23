@@ -291,23 +291,32 @@ macro_rules! drive {
 pub(crate) async fn streamed<C: BatchConnectionTrait + Send + Sync + 'static>(
     call: &Call<'_, C>,
 ) -> Result<Converted, TransformError> {
+    if call.synthesize {
+        let client = call.client.dialect;
+        let settings = stream_settings(call.limits, client, call.request.query);
+        let completion = Completion::Synthesize {
+            framing: settings.client_framing,
+            events: settings.events,
+            include_usage: client != Dialect::OpenAiChat || chat_includes_usage(call.body()),
+        };
+        return if client == call.target {
+            Box::pin(invoke_native_complete(call, completion)).await
+        } else {
+            Box::pin(invoke_complete(call, completion)).await
+        };
+    }
+    Box::pin(invoke_stream(call)).await
+}
+
+async fn invoke_stream<C: BatchConnectionTrait + Send + Sync + 'static>(
+    call: &Call<'_, C>,
+) -> Result<Converted, TransformError> {
     let client = call.client.dialect;
     let target = call.target;
     let upstream = call.upstream;
     let body = call.body();
     let limits = call.limits;
     let settings = stream_settings(limits, client, call.request.query);
-    if call.synthesize {
-        return invoke_complete(
-            call,
-            Completion::Synthesize {
-                framing: settings.client_framing,
-                events: settings.events,
-                include_usage: client != Dialect::OpenAiChat || chat_includes_usage(body),
-            },
-        )
-        .await;
-    }
     if target == Dialect::OpenAiResponsesWebSocket {
         return super::responses_ws::over_websocket(call, settings).await;
     }
@@ -662,7 +671,94 @@ fn complete<Cl: SynthesizedClient>(
 pub(crate) async fn buffered<C: BatchConnectionTrait + Send + Sync>(
     call: &Call<'_, C>,
 ) -> Result<Converted, TransformError> {
-    invoke_complete(call, Completion::Buffered).await
+    Box::pin(invoke_complete(call, Completion::Buffered)).await
+}
+
+// Keep native synthesis out of the multi-protocol conversion dispatch frame.
+async fn invoke_native_complete<C: BatchConnectionTrait + Send + Sync>(
+    call: &Call<'_, C>,
+    completion: Completion,
+) -> Result<Converted, TransformError> {
+    let target = call.target;
+    let upstream = call.upstream;
+    let body = call.body();
+    let limits = call.limits;
+    let key = OperationKey {
+        operation: Operation::GenerateContent,
+        dialect: target,
+    };
+    let endpoint = super::generate_endpoint(target, call.model()?, false)?;
+    let mut value: serde_json::Value = decode(body, limits)?;
+    if target != Dialect::Gemini {
+        let object = value
+            .as_object_mut()
+            .ok_or_else(|| TransformError::shape("request", "expected an object"))?;
+        object.insert("stream".into(), serde_json::json!(false));
+        object.remove("stream_options");
+        object.insert("model".into(), serde_json::json!(call.model()?));
+    }
+    macro_rules! native {
+        ($input:ty, $output:ty) => {
+            Box::pin(async move {
+                let input: $input = serde_json::from_value(value)
+                    .map_err(|e| TransformError::shape("request", e.to_string()))?;
+                let request = gproxy_protocol::WireRequest {
+                    method: http::Method::POST,
+                    path: endpoint.path.clone(),
+                    query: endpoint.query.clone(),
+                    headers: {
+                        let mut headers = call.request.headers.clone();
+                        headers.insert(
+                            http::header::ACCEPT,
+                            http::HeaderValue::from_static("application/json"),
+                        );
+                        headers
+                    },
+                    body: input,
+                };
+                match Box::pin(gproxy_protocol::adapt::invoke_json::<_, _, $output>(
+                    upstream, &key, request, limits,
+                ))
+                .await?
+                {
+                    gproxy_protocol::adapt::JsonInvocation::Rejected(response) => {
+                        Ok(Converted::Rejected(response))
+                    }
+                    gproxy_protocol::adapt::JsonInvocation::Success(response) => complete(
+                        GenerationOutcome::Success {
+                            response,
+                            report: Default::default(),
+                        },
+                        completion,
+                        limits,
+                    ),
+                }
+            })
+            .await
+        };
+    }
+    return match target {
+        Dialect::OpenAi => native!(
+            r::GenerateContentRequestBody,
+            r::GenerateContentResponseBody
+        ),
+        Dialect::OpenAiChat => native!(
+            h::GenerateContentRequestBody,
+            h::GenerateContentResponseBody
+        ),
+        Dialect::Claude => native!(
+            c::GenerateContentRequestBody,
+            c::GenerateContentResponseBody
+        ),
+        Dialect::Gemini => native!(
+            g::GenerateContentRequestBody,
+            g::GenerateContentResponseBody
+        ),
+        _ => Err(TransformError::unsupported(
+            "route",
+            "no buffered WebSocket synthesis",
+        )),
+    };
 }
 
 /// One complete generation for `client -> target`: decode the client's
@@ -686,6 +782,9 @@ async fn invoke_complete<C: BatchConnectionTrait + Send + Sync>(
         dialect: target,
     };
     let endpoint = super::generate_endpoint(target, &state.target.model, false)?;
+    if client == target {
+        return Box::pin(invoke_native_complete(call, completion)).await;
+    }
     let identities = GenerationIdentity::new(namespace(), namespace(), client, target)?;
     let created = call.now_ms.div_euclid(1000);
     let synthesizing = matches!(completion, Completion::Synthesize { .. });

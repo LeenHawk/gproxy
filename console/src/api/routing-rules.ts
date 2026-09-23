@@ -1,5 +1,5 @@
 import { family } from "@/api/admin"
-import { api } from "@/api/client"
+import { api, json } from "@/api/client"
 import type { RuleSetDto, RuleSetWrite, RuleSetPatch, RewriteRuleDto, RewriteRuleWrite, RewriteRulePatch, ProviderRuleSetDto, ProviderRuleSetWrite, ProviderRuleSetPatch, OperationRuleDto, OperationRuleWrite, OperationRulePatch, OperationEndpointDto, OperationEndpointWrite, OperationEndpointPatch, RulePresetDto } from "@/generated/sdk"
 export const ruleSets = family<RuleSetDto, Partial<RuleSetWrite>, Partial<RuleSetPatch>>("/rule-sets")
 const ruleFamily = family<RewriteRuleDto, Partial<RewriteRuleWrite>, Partial<RewriteRulePatch>>("/rules")
@@ -19,3 +19,9 @@ export async function ruleSetDirectory() {
 }
 
 export const effectiveRouting = (providerId: string) => api<import("@/generated/sdk").OperationRoutingDto[]>(`/admin/api/providers/${encodeURIComponent(providerId)}/routing`)
+
+const mappingPath = (providerId: string, operation: string, dialect: string) => `/admin/api/providers/${encodeURIComponent(providerId)}/routing/${encodeURIComponent(operation)}/${encodeURIComponent(dialect)}`
+export const saveRoutingMapping = (providerId: string, operation: string, dialect: string, write: import("@/generated/sdk").RoutingMappingWrite) => api<import("@/generated/sdk").OperationRoutingDto[]>(mappingPath(providerId, operation, dialect), json("PUT", write))
+export const resetRoutingMapping = (providerId: string, operation: string, dialect: string) => api<import("@/generated/sdk").OperationRoutingDto[]>(mappingPath(providerId, operation, dialect), { method: "DELETE" })
+
+export const applyDefaultRouting = (providerId: string) => api<{ cleared: number }>(`/admin/api/providers/${encodeURIComponent(providerId)}/routing-defaults/reset`, { method: "POST" })
