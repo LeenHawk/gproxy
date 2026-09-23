@@ -17,7 +17,7 @@
 //! straight away.
 
 use super::auth;
-use super::config::{CopilotCliConfig, ID};
+use super::config::{DEFAULT_CLIENT_ID, CopilotCliConfig, ID};
 use crate::OutboundClient;
 use crate::channel::{
     ChannelError, CredentialRefresh, CredentialUpdate, DeviceAuthorization, DevicePoll,
@@ -144,7 +144,7 @@ impl OAuthDeviceCode for super::CopilotCli {
                 config.device_authorization_url(),
                 form_headers(),
                 Some(form(&[
-                    ("client_id", config.client_id()),
+                    ("client_id", DEFAULT_CLIENT_ID),
                     ("scope", config.scope()),
                 ])),
             )
@@ -182,7 +182,7 @@ impl OAuthDeviceCode for super::CopilotCli {
                 config.token_url(),
                 form_headers(),
                 Some(form(&[
-                    ("client_id", config.client_id()),
+                    ("client_id", DEFAULT_CLIENT_ID),
                     ("device_code", &authorization.device_code),
                     ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
                 ])),

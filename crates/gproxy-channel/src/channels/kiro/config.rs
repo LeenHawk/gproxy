@@ -40,12 +40,6 @@ pub struct KiroConfig {
     /// `google` (v3's `login_provider` login parameter, which v4 has no place
     /// for — a login takes no per-attempt parameters).
     pub login_provider: String,
-    /// An IAM Identity Center client an operator registered once by hand with
-    /// AWS OIDC `RegisterClient`. The authorization-code login registers its
-    /// own client and needs neither; this pair is the fallback for a portal
-    /// that refuses to register one. The device login needs neither either.
-    pub sso_client_id: Option<String>,
-    pub sso_client_secret: Option<String>,
     /// The IdC portal the authorization code is issued by.
     pub sso_start_url: Option<String>,
     /// Replaces the SDK user agent on every request.
@@ -62,8 +56,6 @@ impl Default for KiroConfig {
             management_base_url: None,
             profile_arn: None,
             login_provider: "github".into(),
-            sso_client_id: None,
-            sso_client_secret: None,
             sso_start_url: None,
             user_agent: None,
             headers: BTreeMap::new(),

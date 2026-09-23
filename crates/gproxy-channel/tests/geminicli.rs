@@ -171,7 +171,7 @@ fn descriptor_declares_the_login_and_the_keys_it_reads() {
     assert!(descriptor.capabilities.refresh);
     assert!(descriptor.capabilities.quota_query);
     assert!(!descriptor.capabilities.websocket);
-    for key in ["base_url", "project_id", "client_id", "allowed_headers"] {
+    for key in ["base_url", "allowed_headers"] {
         assert!(descriptor.config_key(key).is_some(), "missing key {key}");
     }
     assert_eq!(
@@ -425,21 +425,6 @@ fn a_credential_without_a_project_or_a_token_is_invalid() {
     )
     .expect_err("no access token");
     assert!(matches!(error, ChannelError::InvalidCredential));
-
-    // A provider may supply the project when the login could not.
-    let config = json!({"project_id": "proj-config"});
-    let prepared = prepare(
-        &config,
-        credential(&no_project, &metadata),
-        Operation::GenerateContent,
-        request(
-            HeaderMap::new(),
-            "/v1beta/models/m:generateContent",
-            json!({}),
-        ),
-    )
-    .expect("prepared");
-    assert_eq!(body_json(&prepared)["project"], "proj-config");
 }
 
 // -------------------------------------------------------------- responses

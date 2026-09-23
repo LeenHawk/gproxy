@@ -485,11 +485,6 @@ impl BaseChannel for Codex {
                     "OAuth issuer used for login and refresh; defaults to https://auth.openai.com.",
                 ),
                 ConfigKey::optional(
-                    "client_id",
-                    ConfigKeyKind::String,
-                    "OAuth client id; defaults to the Codex CLI's.",
-                ),
-                ConfigKey::optional(
                     "originator",
                     ConfigKeyKind::String,
                     "The `originator` the backend sees; defaults to codex_cli_rs.",

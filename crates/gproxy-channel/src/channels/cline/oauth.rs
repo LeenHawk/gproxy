@@ -14,7 +14,7 @@
 //! account token is minted by Cline from the refresh token it handed out.
 
 use super::auth;
-use super::config::{ClineConfig, ID, base_url};
+use super::config::{DEFAULT_CLIENT_ID, ClineConfig, ID, base_url};
 use crate::channel::{
     ChannelError, CredentialRefresh, CredentialUpdate, DeviceAuthorization, DevicePoll,
     LoginContext, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
@@ -151,7 +151,7 @@ impl OAuthDeviceCode for super::Cline {
                 Method::POST,
                 config.device_authorization_url(),
                 headers("application/x-www-form-urlencoded"),
-                Some(form(&[("client_id", config.client_id())])),
+                Some(form(&[("client_id", DEFAULT_CLIENT_ID)])),
             )
             .await?;
             if !status.is_success() {
@@ -189,7 +189,7 @@ impl OAuthDeviceCode for super::Cline {
                 Some(form(&[
                     ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
                     ("device_code", &authorization.device_code),
-                    ("client_id", config.client_id()),
+                    ("client_id", DEFAULT_CLIENT_ID),
                 ])),
             )
             .await?;

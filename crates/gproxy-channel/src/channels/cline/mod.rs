@@ -79,11 +79,6 @@ impl BaseChannel for Cline {
                     "Cline API origin, `/api/v1` included; defaults to https://api.cline.bot/api/v1. Provider column, not config JSON.",
                 ),
                 ConfigKey::optional(
-                    "client_id",
-                    ConfigKeyKind::String,
-                    "WorkOS client the device login presents; defaults to Cline's own.",
-                ),
-                ConfigKey::optional(
                     "device_authorization_url",
                     ConfigKeyKind::String,
                     "Where the device login starts; defaults to WorkOS's device authorization endpoint.",

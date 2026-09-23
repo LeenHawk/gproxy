@@ -29,7 +29,6 @@ pub struct GrokBuildConfig {
     /// Origin the billing probe reads; defaults to the chat proxy, which is
     /// the only surface that answers it.
     pub usage_base_url: Option<String>,
-    pub oauth_client_id: String,
     pub oauth_device_code_url: String,
     pub oauth_token_url: String,
     /// Replaces the CLI user agent on every request.
@@ -43,7 +42,6 @@ impl Default for GrokBuildConfig {
         Self {
             media_base_url: DEFAULT_MEDIA_BASE_URL.into(),
             usage_base_url: None,
-            oauth_client_id: DEFAULT_CLIENT_ID.into(),
             oauth_device_code_url: DEFAULT_DEVICE_CODE_URL.into(),
             oauth_token_url: DEFAULT_TOKEN_URL.into(),
             user_agent: None,
@@ -58,9 +56,7 @@ impl GrokBuildConfig {
             .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
     }
 
-    pub(super) fn client_id(&self) -> &str {
-        non_empty(&self.oauth_client_id).unwrap_or(DEFAULT_CLIENT_ID)
-    }
+
 
     pub(super) fn device_code_url(&self) -> &str {
         non_empty(&self.oauth_device_code_url).unwrap_or(DEFAULT_DEVICE_CODE_URL)

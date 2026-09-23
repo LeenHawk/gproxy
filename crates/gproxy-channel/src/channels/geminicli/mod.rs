@@ -81,11 +81,6 @@ pub const GOOG_API_CLIENT: &str = "gl-node/22.20.0";
 pub struct GeminiCliConfig {
     pub authorize_url: String,
     pub token_url: String,
-    pub client_id: String,
-    pub client_secret: String,
-    /// Cloud project to use instead of the one the login discovered; also
-    /// the hint the login sends to `loadCodeAssist`/`onboardUser`.
-    pub project_id: Option<String>,
     /// Replaces the CLI user agent on every Code Assist request.
     pub user_agent: Option<String>,
     /// Static headers added to every Code Assist request.
@@ -97,9 +92,6 @@ impl Default for GeminiCliConfig {
         Self {
             authorize_url: DEFAULT_AUTHORIZE_URL.into(),
             token_url: DEFAULT_TOKEN_URL.into(),
-            client_id: DEFAULT_CLIENT_ID.into(),
-            client_secret: DEFAULT_CLIENT_SECRET.into(),
-            project_id: None,
             user_agent: None,
             headers: std::collections::BTreeMap::new(),
         }
@@ -208,20 +200,9 @@ pub(super) fn access_token<'a>(credential: &CredentialView<'a>) -> Result<&'a st
         .ok_or(ChannelError::InvalidCredential)
 }
 
-/// The Cloud project the Code Assist calls are billed to. Learned at login
-/// and read here; an explicit `config.project_id` overrides it.
-pub(super) fn project(
-    config: &GeminiCliConfig,
-    credential: &CredentialView<'_>,
-) -> Result<String, ChannelError> {
-    config
-        .project_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|project| !project.is_empty())
-        .or_else(|| fact(credential, "project_id"))
-        .map(str::to_owned)
-        .ok_or(ChannelError::InvalidCredential)
+/// The Cloud project discovered for this credential at login.
+pub(super) fn project(credential: &CredentialView<'_>) -> Result<String, ChannelError> {
+    fact(credential, "project_id").map(str::to_owned).ok_or(ChannelError::InvalidCredential)
 }
 
 fn header_value(value: &str) -> Result<HeaderValue, ChannelError> {
@@ -313,7 +294,7 @@ impl GeminiCli {
     fn build(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
         let config = GeminiCliConfig::from_view(ctx.provider)?;
         let token = access_token(&ctx.credential)?;
-        let project = project(&config, &ctx.credential)?;
+        let project = project(&ctx.credential)?;
         let operation = ctx.operation.operation;
         let allowlist = HeaderAllowlist::from_view_for(ctx.provider, CLI_HEADERS)?;
         let WireRequest {
@@ -462,21 +443,6 @@ impl BaseChannel for GeminiCli {
                     "Google OAuth token endpoint used by the code exchange and by refresh.",
                 ),
                 ConfigKey::optional(
-                    "client_id",
-                    ConfigKeyKind::String,
-                    "OAuth client id; defaults to the Gemini CLI's own.",
-                ),
-                ConfigKey::optional(
-                    "client_secret",
-                    ConfigKeyKind::String,
-                    "Installed-app client secret that goes with client_id; defaults to the CLI's.",
-                ),
-                ConfigKey::optional(
-                    "project_id",
-                    ConfigKeyKind::String,
-                    "Cloud project for Code Assist; overrides the one the login discovered and is the hint the login sends.",
-                ),
-                ConfigKey::optional(
                     "user_agent",
                     ConfigKeyKind::String,
                     "Replaces the CLI user agent on every Code Assist request.",
@@ -564,7 +530,7 @@ pub(super) fn quota_request(
     credential: &CredentialView<'_>,
 ) -> Result<(String, HeaderMap, Bytes), ChannelError> {
     let token = access_token(credential)?;
-    let project = project(config, credential)?;
+    let project = project(credential)?;
     let mut headers = HeaderMap::new();
     apply_headers(&mut headers, config, token, "", true)?;
     let body = code_assist::encode(&json!({ "project": project }), |message| {

@@ -1,7 +1,7 @@
 //! OAuth login, device authorization and credential refresh.
 
 use super::common::{invalid_response, send_json};
-use super::{Codex, CodexConfig};
+use super::{Codex, CodexConfig, DEFAULT_CLIENT_ID};
 use crate::OutboundClient;
 use crate::channel::{
     AuthorizationCode, AuthorizationRequest, AuthorizationStart, ChannelError, CredentialRefresh,
@@ -154,7 +154,7 @@ async fn exchange_code(
         ("grant_type", "authorization_code"),
         ("code", code),
         ("redirect_uri", redirect_uri),
-        ("client_id", &config.client_id),
+        ("client_id", DEFAULT_CLIENT_ID),
         ("code_verifier", code_verifier),
     ]);
     let (status, _, bytes) = send_json(
@@ -194,7 +194,7 @@ impl OAuthAuthorizationCode for Codex {
             let config = CodexConfig::from_view(context.provider)?;
             let query = form_encode(&[
                 ("response_type", "code"),
-                ("client_id", &config.client_id),
+                ("client_id", DEFAULT_CLIENT_ID),
                 ("redirect_uri", request.redirect_uri),
                 ("scope", OAUTH_SCOPE),
                 ("code_challenge", request.code_challenge),
@@ -270,7 +270,7 @@ impl OAuthDeviceCode for Codex {
                 &format!("{issuer}/api/accounts/deviceauth/usercode"),
                 json_headers(),
                 Some(
-                    json!({"client_id": config.client_id})
+                    json!({"client_id": DEFAULT_CLIENT_ID})
                         .to_string()
                         .into_bytes(),
                 ),
@@ -365,7 +365,7 @@ impl CredentialRefresh for Codex {
                 })?;
             let url = format!("{}/oauth/token", config.issuer.trim_end_matches('/'));
             let body = json!({
-                "client_id": config.client_id,
+                "client_id": DEFAULT_CLIENT_ID,
                 "grant_type": "refresh_token",
                 "refresh_token": refresh_token,
             });

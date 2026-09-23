@@ -12,7 +12,7 @@
 //! refresh and the operation path present the same machine.
 
 use super::auth;
-use super::config::{DEFAULT_CODE_BASE_URL, ID, KimiConfig};
+use super::config::{DEFAULT_CLIENT_ID, DEFAULT_CODE_BASE_URL, ID, KimiConfig};
 use crate::channel::{
     ChannelError, CredentialRefresh, CredentialUpdate, DeviceAuthorization, DevicePoll,
     LoginContext, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
@@ -151,7 +151,7 @@ impl OAuthDeviceCode for super::Kimi {
                 Method::POST,
                 &format!("{}/api/oauth/device_authorization", config.oauth_host()),
                 login_headers(&config, &device)?,
-                Some(form(&[("client_id", config.client_id())])),
+                Some(form(&[("client_id", DEFAULT_CLIENT_ID)])),
             )
             .await?;
             if !status.is_success() {
@@ -212,7 +212,7 @@ impl OAuthDeviceCode for super::Kimi {
                 login_headers(&config, device)?,
                 Some(form(&[
                     ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
-                    ("client_id", config.client_id()),
+                    ("client_id", DEFAULT_CLIENT_ID),
                     ("device_code", &authorization.device_code),
                 ])),
             )
@@ -276,7 +276,7 @@ impl CredentialRefresh for super::Kimi {
                 &format!("{}/api/oauth/token", config.oauth_host()),
                 login_headers(&config, &device)?,
                 Some(form(&[
-                    ("client_id", config.client_id()),
+                    ("client_id", DEFAULT_CLIENT_ID),
                     ("grant_type", "refresh_token"),
                     ("refresh_token", refresh_token),
                 ])),

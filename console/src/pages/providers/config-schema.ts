@@ -26,7 +26,7 @@ export const dialects = ["openai", "openai_chat", "claude", "gemini", "openai_re
 
 export function controlFor(field: ConfigKey): ControlKind {
   if (choices[field.name]) return "choice"
-  if (["client_secret", "sso_client_secret", "quota_api_key"].includes(field.name)) return "password"
+  if (["quota_api_key"].includes(field.name)) return "password"
   if (field.name === "allowed_headers" || field.name === "fallback_models") return "list"
   if (["headers", "models", "endpoints"].includes(field.name)) return "pairs"
   if (field.name === "dialects") return "dialects"

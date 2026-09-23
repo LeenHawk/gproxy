@@ -16,7 +16,6 @@ pub const DEFAULT_ORIGINATOR: &str = "codex_cli_rs";
 pub struct CodexConfig {
     /// OAuth issuer for login and refresh.
     pub issuer: String,
-    pub client_id: String,
     /// The `originator` the backend sees; Codex CLI's by default.
     pub originator: String,
     /// Replaces the CLI-shaped `User-Agent`
@@ -39,7 +38,6 @@ impl Default for CodexConfig {
     fn default() -> Self {
         Self {
             issuer: DEFAULT_ISSUER.into(),
-            client_id: DEFAULT_CLIENT_ID.into(),
             originator: DEFAULT_ORIGINATOR.into(),
             user_agent: None,
             headers: BTreeMap::new(),

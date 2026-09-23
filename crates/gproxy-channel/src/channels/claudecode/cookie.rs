@@ -77,14 +77,13 @@ pub(super) async fn exchange(
         client,
         &base,
         claude_ai,
-        config,
         &cookie,
         &organization,
         &state,
         &challenge,
     )
     .await?;
-    let tokens = token_exchange(client, &base, claude_ai, config, &verifier, &state, &code).await?;
+    let tokens = token_exchange(client, &base, claude_ai, &verifier, &state, &code).await?;
     let mut fields = BTreeMap::new();
     fields.insert("account_uuid".into(), Value::String(organization));
     let mut credential = credential_from_tokens(tokens, None, Vec::new(), fields)?;
@@ -186,7 +185,6 @@ async fn authorize(
     client: &dyn OutboundClient,
     base: &str,
     claude_ai: &str,
-    config: &ClaudecodeConfig,
     cookie: &str,
     organization: &str,
     state: &str,
@@ -194,7 +192,7 @@ async fn authorize(
 ) -> Result<String, ChannelError> {
     let payload = json!({
         "response_type": "code",
-        "client_id": config.client_id,
+        "client_id": super::DEFAULT_CLIENT_ID,
         "organization_uuid": organization,
         "redirect_uri": super::DEFAULT_REDIRECT_URI,
         "scope": super::OAUTH_SCOPE,
@@ -241,14 +239,13 @@ async fn token_exchange(
     client: &dyn OutboundClient,
     base: &str,
     claude_ai: &str,
-    config: &ClaudecodeConfig,
     verifier: &str,
     state: &str,
     code: &str,
 ) -> Result<TokenResponse, ChannelError> {
     let body = form_encode(&[
         ("grant_type", "authorization_code"),
-        ("client_id", &config.client_id),
+        ("client_id", super::DEFAULT_CLIENT_ID),
         ("code", code),
         ("redirect_uri", super::DEFAULT_REDIRECT_URI),
         ("code_verifier", verifier),

@@ -629,16 +629,6 @@ impl BaseChannel for Kiro {
                     "Identity provider the device login opens: github or google.",
                 ),
                 ConfigKey::optional(
-                    "sso_client_id",
-                    ConfigKeyKind::String,
-                    "An IAM Identity Center client registered once by hand with AWS OIDC RegisterClient. Only needed when the portal refuses dynamic registration; the authorization-code login registers its own client otherwise.",
-                ),
-                ConfigKey::optional(
-                    "sso_client_secret",
-                    ConfigKeyKind::String,
-                    "The secret that goes with sso_client_id. A client the login registered for itself is sealed with the credential instead, never written here and never published as metadata.",
-                ),
-                ConfigKey::optional(
                     "sso_start_url",
                     ConfigKeyKind::String,
                     "The Identity Center portal the authorization code is issued by; defaults to the Builder ID portal.",

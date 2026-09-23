@@ -853,8 +853,8 @@ async fn the_desktop_refresh_rotates_and_a_named_refusal_is_definitive() {
 
 #[tokio::test]
 async fn an_identity_center_credential_renews_against_aws_oidc() {
-    let config = json!({"sso_client_id": "cid", "sso_client_secret": "csec"});
-    let secret = json!({"access_token": "a", "refresh_token": "r"});
+    let config = json!({});
+    let secret = json!({"access_token": "a", "refresh_token": "r", "client_id": "cid", "client_secret": "csec"});
     let metadata = json!({"region": "eu-west-1"});
     let rotated = ScriptClient::new(vec![reply(
         StatusCode::OK,
@@ -876,7 +876,7 @@ async fn an_identity_center_credential_renews_against_aws_oidc() {
     assert_eq!(body["grantType"], "refresh_token");
     assert_eq!(
         body["clientSecret"], "csec",
-        "a credential that registered no client of its own falls back to configuration"
+        "the imported credential retains its registered client"
     );
 }
 
@@ -899,12 +899,8 @@ fn authorization_request<'a>() -> AuthorizationRequest<'a> {
 
 #[tokio::test]
 async fn the_identity_center_login_registers_its_own_client_and_carries_it_to_the_exchange() {
-    // An operator pair is configured as well, so every assertion below also
-    // says that the registered client is the one that wins.
     let config = json!({
         "region": "eu-west-1",
-        "sso_client_id": "operator-id",
-        "sso_client_secret": "operator-secret",
         "sso_start_url": "https://acme.awsapps.com/start",
     });
     let registrar = ScriptClient::new(vec![reply(
@@ -978,7 +974,7 @@ async fn the_identity_center_login_registers_its_own_client_and_carries_it_to_th
     assert_eq!(body["clientId"], "dyn-id");
     assert_eq!(
         body["clientSecret"], "dyn-secret",
-        "the exchange redeems with the client that was registered, not the configured one"
+        "the exchange redeems with the client registered for this login"
     );
     assert_eq!(body["codeVerifier"], "verifier-1");
 
@@ -1009,74 +1005,8 @@ async fn the_identity_center_login_registers_its_own_client_and_carries_it_to_th
 }
 
 #[tokio::test]
-async fn a_refused_registration_falls_back_to_the_operator_configured_client() {
-    let config = json!({
-        "region": "eu-west-1",
-        "sso_client_id": "operator-id",
-        "sso_client_secret": "operator-secret",
-    });
-    let refused = ScriptClient::new(vec![reply(
-        StatusCode::BAD_REQUEST,
-        json!({"__type": "UnsupportedOperationException"}),
-    )]);
-    let started = Kiro
-        .authorize(login(&config, &refused), authorization_request())
-        .await
-        .expect("an authorize url");
-    assert!(
-        started.authorize_url.contains("client_id=operator-id"),
-        "{}",
-        started.authorize_url
-    );
-    assert!(
-        started.provider_state.is_empty(),
-        "nothing was minted, so nothing is carried"
-    );
-
-    let exchanger = ScriptClient::new(vec![reply(
-        StatusCode::OK,
-        json!({"accessToken": "at", "refreshToken": "rt", "expiresIn": 3600}),
-    )]);
-    let acquired = Kiro
-        .exchange(
-            login(&config, &exchanger),
-            AuthorizationCode {
-                code: "code-1",
-                redirect_uri: &started.redirect_uri,
-                code_verifier: "verifier-1",
-                state: "st-1",
-                provider_state: &started.provider_state,
-            },
-        )
-        .await
-        .expect("a credential");
-    let (_, _, _, body) = exchanger.sent().into_iter().next().unwrap();
-    let body: Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(body["clientId"], "operator-id");
-    assert_eq!(body["clientSecret"], "operator-secret");
-    // A client the operator owns stays theirs: configuration is the one source
-    // of truth, and a stale copy sealed here would outlive their next rotation.
-    assert!(!acquired.provider_fields.contains_key("client_id"));
-    assert!(acquired.provider_secrets.is_empty());
-
-    // Neither registered nor configured is no login at all.
-    let bare = json!({"region": "eu-west-1"});
-    let refused = ScriptClient::new(vec![reply(
-        StatusCode::BAD_REQUEST,
-        json!({"__type": "UnsupportedOperationException"}),
-    )]);
-    assert!(matches!(
-        Kiro.authorize(login(&bare, &refused), authorization_request())
-            .await,
-        Err(ChannelError::InvalidConfig(_))
-    ));
-}
-
-#[tokio::test]
 async fn a_refresh_renews_with_the_client_the_login_registered() {
-    // Configured too, and it must lose: the refresh token is bound to the
-    // client that redeemed the code.
-    let config = json!({"sso_client_id": "operator-id", "sso_client_secret": "operator-secret"});
+    let config = json!({});
     let secret = json!({"access_token": "a", "refresh_token": "r",
                         "provider_fields": {"client_id": "dyn-id", "region": "eu-west-1"},
                         "provider_secrets": {"client_secret": "dyn-secret"}});
@@ -1212,7 +1142,6 @@ fn the_descriptor_names_both_ways_in_and_the_keys_a_form_needs() {
         "auth_base_url",
         "management_base_url",
         "login_provider",
-        "sso_client_id",
         "allowed_headers",
     ] {
         assert!(descriptor.config_key(key).is_some(), "{key}");

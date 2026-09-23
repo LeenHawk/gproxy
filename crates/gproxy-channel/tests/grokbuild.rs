@@ -835,7 +835,6 @@ fn the_descriptor_names_the_one_way_in_and_the_keys_a_form_needs() {
     for key in [
         "media_base_url",
         "usage_base_url",
-        "oauth_client_id",
         "oauth_token_url",
         "user_agent",
         "allowed_headers",

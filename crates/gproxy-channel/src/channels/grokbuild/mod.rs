@@ -250,11 +250,6 @@ impl BaseChannel for GrokBuild {
                     "Origin the billing probe reads; defaults to the chat proxy, which is the only surface that answers it.",
                 ),
                 ConfigKey::optional(
-                    "oauth_client_id",
-                    ConfigKeyKind::String,
-                    "OAuth client id; defaults to the Grok Build CLI's own.",
-                ),
-                ConfigKey::optional(
                     "oauth_device_code_url",
                     ConfigKeyKind::String,
                     "Device authorization endpoint; defaults to https://auth.x.ai/oauth2/device/code.",

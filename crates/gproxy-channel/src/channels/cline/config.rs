@@ -18,8 +18,6 @@ pub const DEFAULT_TOKEN_URL: &str = "https://api.workos.com/user_management/auth
 #[derive(Debug, Deserialize)]
 #[serde(default)]
 pub struct ClineConfig {
-    /// WorkOS client the device login presents; defaults to Cline's own.
-    pub client_id: String,
     /// Where the device login starts.
     pub device_authorization_url: String,
     /// Where the device login polls for the WorkOS token pair.
@@ -31,7 +29,6 @@ pub struct ClineConfig {
 impl Default for ClineConfig {
     fn default() -> Self {
         Self {
-            client_id: DEFAULT_CLIENT_ID.into(),
             device_authorization_url: DEFAULT_DEVICE_AUTHORIZATION_URL.into(),
             token_url: DEFAULT_TOKEN_URL.into(),
             headers: BTreeMap::new(),
@@ -50,9 +47,7 @@ impl ClineConfig {
         if value.is_empty() { fallback } else { value }
     }
 
-    pub(super) fn client_id(&self) -> &str {
-        Self::or_default(&self.client_id, DEFAULT_CLIENT_ID)
-    }
+
 
     pub(super) fn device_authorization_url(&self) -> &str {
         Self::or_default(

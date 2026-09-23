@@ -11,7 +11,7 @@
 //! travels in `provider_fields` — a login fact the host persists, not
 //! something `prepare` reparses.
 
-use super::config::{GrokBuildConfig, ID, OAUTH_SCOPE};
+use super::config::{DEFAULT_CLIENT_ID, GrokBuildConfig, ID, OAUTH_SCOPE};
 use super::{form_encode, unix_now_ms};
 use crate::channel::{
     ChannelError, CredentialRefresh, CredentialUpdate, DeviceAuthorization, DevicePoll,
@@ -120,7 +120,7 @@ impl OAuthDeviceCode for super::GrokBuild {
                 config.device_code_url(),
                 form_headers(),
                 Some(
-                    form_encode(&[("client_id", config.client_id()), ("scope", OAUTH_SCOPE)])
+                    form_encode(&[("client_id", DEFAULT_CLIENT_ID), ("scope", OAUTH_SCOPE)])
                         .into_bytes(),
                 ),
             )
@@ -167,7 +167,7 @@ impl OAuthDeviceCode for super::GrokBuild {
                 Some(
                     form_encode(&[
                         ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
-                        ("client_id", config.client_id()),
+                        ("client_id", DEFAULT_CLIENT_ID),
                         ("device_code", &authorization.device_code),
                     ])
                     .into_bytes(),
@@ -236,7 +236,7 @@ impl CredentialRefresh for super::GrokBuild {
                 Some(
                     form_encode(&[
                         ("grant_type", "refresh_token"),
-                        ("client_id", config.client_id()),
+                        ("client_id", DEFAULT_CLIENT_ID),
                         ("refresh_token", refresh_token),
                     ])
                     .into_bytes(),
