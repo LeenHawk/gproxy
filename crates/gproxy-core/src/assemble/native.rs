@@ -166,13 +166,19 @@ pub async fn assemble(
             .as_deref()
             .or(provider.entity.connection_profile_id.as_deref())
             .or(default_profile_id);
-        let config = match explicit {
+        let mut config = match explicit {
             Some(id) => resolve(id)?,
             None => provider
                 .channel
                 .default_connection_for(gproxy_channel::channel::ConnectionPurpose::Request)
                 .unwrap_or_default(),
         };
+        config.proxy = super::resolve_proxy(
+            row.proxy.as_ref(),
+            provider.entity.proxy.as_ref(),
+            control.settings.as_ref().and_then(|s| s.proxy.as_ref()),
+        )?
+        .0;
         let client_error = |source| AssemblyError::Client {
             credential_id: row.id.clone(),
             source,
@@ -340,7 +346,7 @@ pub async fn assemble(
 pub fn connection_config(
     profile: &connection_profile::Model,
 ) -> Result<gproxy_client::ConnectionConfig, AssemblyError> {
-    use connection_profile::{Backend, ProxyMode, RetryPolicy};
+    use connection_profile::{Backend, RetryPolicy};
     use gproxy_client as client;
     let invalid = |reason: &str| AssemblyError::InvalidConnectionProfile {
         id: profile.id.clone(),
@@ -352,17 +358,7 @@ pub fn connection_config(
             Backend::Wreq => client::Backend::Wreq,
             Backend::ReqwestNative => client::Backend::ReqwestNative,
         },
-        proxy: match profile.proxy_mode {
-            ProxyMode::Direct => client::ProxyConfig::Direct,
-            ProxyMode::System => client::ProxyConfig::System,
-            ProxyMode::Explicit => client::ProxyConfig::Explicit {
-                url: profile
-                    .proxy_url
-                    .clone()
-                    .filter(|url| !url.trim().is_empty())
-                    .ok_or_else(|| invalid("explicit proxy mode requires proxy_url"))?,
-            },
-        },
+        proxy: client::ProxyConfig::Direct,
         emulation: profile
             .emulation
             .as_ref()

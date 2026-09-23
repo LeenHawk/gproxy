@@ -306,6 +306,7 @@ fn snapshot(rules: Vec<Arc<RewriteRuleData>>) -> (CoreData, ProviderData) {
             channel: "test".into(),
             base_url: None,
             connection_profile_id: None,
+            proxy: None,
             config: json!({}),
             enabled: true,
             created_at_ms: 0,

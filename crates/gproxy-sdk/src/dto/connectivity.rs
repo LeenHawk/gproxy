@@ -43,6 +43,15 @@ pub enum ConnectivityScope {
 pub struct ConnectivityTest {
     #[serde(flatten)]
     pub scope: ConnectivityScope,
+    /// Omitted tests saved settings; null previews inheritance at this scope.
+    #[serde(default, deserialize_with = "super::double_option")]
+    #[cfg_attr(
+        feature = "ts",
+        ts(
+            type = "{ mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null"
+        )
+    )]
+    pub proxy: Option<Option<serde_json::Value>>,
 }
 
 /// What the edge looks like from here. `ip` and `colo` come from Cloudflare's
@@ -53,6 +62,11 @@ pub struct ConnectivityTest {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ConnectivityResultDto {
+    pub ipv4: Option<ConnectivityProbeDto>,
+    pub ipv6: Option<ConnectivityProbeDto>,
+    pub ipv4_error: Option<String>,
+    pub ipv6_error: Option<String>,
+    pub proxy_source: String,
     pub ok: bool,
     /// Measured across the whole exchange, including the body read, and
     /// reported for a failure too.
@@ -112,4 +126,15 @@ pub struct DiscoveredModelDto {
     pub has_default_price: bool,
     #[cfg_attr(feature = "ts", ts(type = "Record<string, unknown>"))]
     pub metadata: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct ConnectivityProbeDto {
+    pub ip: String,
+    pub location: Option<String>,
+    pub colo: Option<String>,
+    pub latency_ms: u64,
 }

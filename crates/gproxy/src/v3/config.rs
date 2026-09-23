@@ -11,7 +11,7 @@
 //! | v3 | v4 | |
 //! |---|---|---|
 //! | `providers` | `providers` | direct; `settings` becomes `config`, and a `base_url` inside it is lifted into v4's column |
-//! | `providers.proxy_url`, `credentials.proxy_url` | `connection_profiles` | one profile per distinct URL, `proxy_mode = explicit` |
+//! | `providers.proxy_url`, `credentials.proxy_url` | scoped `proxy` | independent proxy overrides |
 //! | `credentials` | `credentials` | direct; `kind` is v4's `auth_kind`; the secret is opened and re-sealed |
 //! | `credentials.rpm_limit` | `quotas` | an operator limit: `requests` per 60 seconds on that credential |
 //! | `routes`, `route_members` | same | direct |
@@ -55,10 +55,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use gproxy_sdk::dto::{
-    ConfigurationDataDto, ConfigurationExportDto, ConnectionProfileDto, CredentialDto,
-    EXPORT_FORMAT_VERSION, ExportCredentialDto, ExposedModelDto, ModelDto, PriceRateDto,
-    PriceRuleDto, PriceTierDto, ProviderDto, ProviderModelDto, ProviderRuleSetDto, QuotaDto,
-    RewriteRuleDto, RouteDto, RouteMemberDto, RuleSetDto, SealedSecretDto,
+    ConfigurationDataDto, ConfigurationExportDto, CredentialDto, EXPORT_FORMAT_VERSION,
+    ExportCredentialDto, ExposedModelDto, ModelDto, PriceRateDto, PriceRuleDto, PriceTierDto,
+    ProviderDto, ProviderModelDto, ProviderRuleSetDto, QuotaDto, RewriteRuleDto, RouteDto,
+    RouteMemberDto, RuleSetDto, SealedSecretDto,
 };
 use serde_json::Value;
 
@@ -98,26 +98,18 @@ pub fn translate(
     let mut report = Report::default();
     let data = &document.data;
 
-    let profiles = Profiles::collect(data);
     // The order matters and is not the document's. Two of v4's channel recipes
     // need a credential's *opened* secret to build the provider row — v3 kept
     // Cloudflare's account id in the credential and v4 needs it in the origin —
     // so every secret is opened first, the providers are translated from them,
     // and only then is each secret re-sealed, minus whatever moved out of it.
     let opened = open_secrets(data, bridge)?;
-    let providers = providers(
-        data,
-        &opened,
-        &profiles,
-        timestamp,
-        skip_unmappable,
-        &mut report,
-    )?;
-    let credentials = credentials(data, &opened, &providers, bridge, &profiles, &mut report)?;
+    let providers = providers(data, &opened, timestamp, skip_unmappable, &mut report)?;
+    let credentials = credentials(data, &opened, &providers, bridge, &mut report)?;
     let (price_rules, price_tiers) = price_rules(data, &providers, &mut report);
     let (rewrite_rules, rule_sets) = rewrite_rules(data, &mut report);
 
-    report.count("connection_profiles", profiles.rows.len() as u64);
+    report.count("connection_profiles", 0);
     report.count("credentials", credentials.len() as u64);
     report.count("providers", providers.rows.len() as u64);
     report.count("price_rules", price_rules.len() as u64);
@@ -235,7 +227,7 @@ pub fn translate(
             // ephemeral key, so there is exactly one codec in the document.
             secrets: vec![gproxy_sdk::dto::CODEC_AES_GCM.to_owned()],
             data: ConfigurationDataDto {
-                connection_profiles: profiles.rows,
+                connection_profiles: Vec::new(),
                 providers: providers.rows,
                 credentials,
                 // v3 had no shared model catalog: a model existed per provider.
@@ -266,68 +258,10 @@ pub fn translate(
 
 // ------------------------------------------------------------- providers --
 
-/// v3 put a proxy URL on a provider and on a credential; v4 puts the whole
-/// outbound client configuration in a `connection_profiles` row and points at
-/// it. One profile per distinct URL, named from the URL so a re-run mints the
-/// same ids and an operator can tell which is which.
-struct Profiles {
-    rows: Vec<ConnectionProfileDto>,
-    /// proxy URL → profile id.
-    by_url: BTreeMap<String, String>,
-}
-
-impl Profiles {
-    fn collect(data: &document::Data) -> Self {
-        let mut urls: Vec<String> = data
-            .providers
-            .iter()
-            .filter_map(|row| row.proxy_url.as_deref())
-            .chain(
-                data.credentials
-                    .iter()
-                    .filter_map(|row| row.config.proxy_url.as_deref()),
-            )
-            .map(str::trim)
-            .filter(|url| !url.is_empty())
-            .map(str::to_owned)
-            .collect();
-        // Sorted and deduplicated, so the index a profile gets depends on the
-        // document and not on the order this happened to walk it.
-        urls.sort();
-        urls.dedup();
-
-        let mut rows = Vec::with_capacity(urls.len());
-        let mut by_url = BTreeMap::new();
-        for (index, url) in urls.into_iter().enumerate() {
-            let id = ids::part("connection_profiles", index as i64, "proxy");
-            rows.push(ConnectionProfileDto {
-                id: id.clone(),
-                name: format!("v3 proxy {}", index + 1),
-                // v3 had no client backend choice: it used one HTTP client.
-                backend: "reqwest".into(),
-                proxy_mode: "explicit".into(),
-                proxy_url: Some(url.clone()),
-                emulation: None,
-                gzip: true,
-                brotli: true,
-                deflate: true,
-                zstd: true,
-                redirect_max_hops: 0,
-                retry: "default".into(),
-                connect_timeout_ms: 0,
-                pool_idle_timeout_ms: 0,
-                pool_max_idle_per_host: 0,
-                created_at_ms: 0,
-            });
-            by_url.insert(url, id);
-        }
-        Self { rows, by_url }
-    }
-
-    fn id(&self, url: Option<&String>) -> Option<String> {
-        let url = url.map(|url| url.trim())?;
-        self.by_url.get(url).cloned()
-    }
+fn proxy(url: Option<&String>) -> Option<Value> {
+    url.map(|url| url.trim())
+        .filter(|url| !url.is_empty())
+        .map(|url| serde_json::json!({"mode":"explicit", "url":url}))
 }
 
 /// Every v3 credential's secret, opened once. Keyed by the v3 credential id,
@@ -406,7 +340,6 @@ impl Providers {
 fn providers(
     data: &document::Data,
     opened: &Opened,
-    profiles: &Profiles,
     timestamp: i64,
     skip_unmappable: bool,
     report: &mut Report,
@@ -464,7 +397,8 @@ fn providers(
             name,
             channel: translated.channel,
             base_url: translated.base_url,
-            connection_profile_id: profiles.id(row.proxy_url.as_ref()),
+            connection_profile_id: None,
+            proxy: proxy(row.proxy_url.as_ref()),
             config: translated.config,
             enabled: row.enabled,
             created_at_ms: timestamp,
@@ -537,7 +471,6 @@ fn credentials(
     opened: &Opened,
     providers: &Providers,
     bridge: &Bridge,
-    profiles: &Profiles,
     report: &mut Report,
 ) -> Result<Vec<ExportCredentialDto>> {
     use base64::Engine;
@@ -607,7 +540,8 @@ fn credentials(
                 // keeps a peer's cached credential from looking newer than the
                 // row it was replaced by.
                 version: i64::try_from(row.config.version).unwrap_or(1).max(1),
-                connection_profile_id: profiles.id(row.config.proxy_url.as_ref()),
+                connection_profile_id: None,
+                proxy: proxy(row.config.proxy_url.as_ref()),
                 metadata: Value::Object(serde_json::Map::new()),
                 // v3's credentials had no expiry column; an OAuth credential's
                 // expiry lived inside the secret and v4's refresh re-reads it.
@@ -1177,7 +1111,7 @@ mod tests {
     }
 
     #[test]
-    fn one_profile_is_minted_per_distinct_proxy_and_shared_by_everything_that_used_it() {
+    fn proxy_overrides_stay_on_providers_without_changing_http_clients() {
         let out = translated(json!({
             "providers": [
                 {"id": 1, "name": "a", "channel": "openai", "proxy_url": "http://p:8080"},
@@ -1185,21 +1119,15 @@ mod tests {
                 {"id": 3, "name": "c", "channel": "openai"}
             ]
         }));
-        assert_eq!(out.export.data.connection_profiles.len(), 1);
-        let profile = &out.export.data.connection_profiles[0];
-        assert_eq!(profile.proxy_mode, "explicit");
-        assert_eq!(profile.proxy_url.as_deref(), Some("http://p:8080"));
-        let ids: Vec<_> = out
-            .export
-            .data
-            .providers
-            .iter()
-            .map(|row| row.connection_profile_id.clone())
-            .collect();
+        assert!(out.export.data.connection_profiles.is_empty());
+        let rows = &out.export.data.providers;
         assert_eq!(
-            ids,
-            [Some(profile.id.clone()), Some(profile.id.clone()), None]
+            rows[0].proxy,
+            Some(json!({"mode":"explicit","url":"http://p:8080"}))
         );
+        assert_eq!(rows[1].proxy, rows[0].proxy);
+        assert!(rows[2].proxy.is_none());
+        assert!(rows.iter().all(|p| p.connection_profile_id.is_none()));
     }
 
     #[test]

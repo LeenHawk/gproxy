@@ -80,6 +80,7 @@ where
         // The provider's own chain is right for a credential nobody configured
         // a profile for.
         connection_profile_id: Set(None),
+        proxy: Set(None),
         metadata: Set(metadata),
         expires_at_ms: Set(acquired.expires_at_ms),
         status: Set(CredentialStatus::Active),

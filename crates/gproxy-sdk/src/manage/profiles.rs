@@ -18,7 +18,6 @@ use crate::{
 };
 
 const BACKENDS: [&str; 3] = ["reqwest", "wreq", "reqwest_native"];
-const PROXY_MODES: [&str; 3] = ["direct", "system", "explicit"];
 const RETRIES: [&str; 2] = ["never", "default"];
 
 pub struct ConnectionProfiles<'a, C> {
@@ -81,14 +80,6 @@ fn emulation(value: Option<Value>) -> SdkResult<Option<Value>> {
     }
 }
 
-/// An explicit proxy needs a URL; every other mode ignores one.
-fn proxy_url(value: Option<String>) -> SdkResult<Option<String>> {
-    match crud::optional_text(value) {
-        Some(value) => Ok(Some(crud::url(&value, "proxyUrl")?)),
-        None => Ok(None),
-    }
-}
-
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for ConnectionProfiles<'_, C> {
     type Entity = profile::Entity;
     type Dto = ConnectionProfileDto;
@@ -119,17 +110,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for ConnectionPro
         write: ConnectionProfileWrite,
     ) -> SdkResult<(profile::ActiveModel, String)> {
         let id = crud::id_or_new(write.id.as_deref());
-        let mode: profile::ProxyMode = crud::enumerated(
-            write.proxy_mode.as_deref().unwrap_or("direct"),
-            "proxyMode",
-            &PROXY_MODES,
-        )?;
-        let url = proxy_url(write.proxy_url)?;
-        if mode == profile::ProxyMode::Explicit && url.is_none() {
-            return Err(SdkError::invalid(
-                "proxyUrl is required when proxyMode is `explicit`",
-            ));
-        }
         let row = profile::ActiveModel {
             id: Set(id.clone()),
             name: Set(self.name(&write.name, None).await?),
@@ -138,8 +118,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for ConnectionPro
                 "backend",
                 &BACKENDS,
             )?),
-            proxy_mode: Set(mode),
-            proxy_url: Set(url),
             emulation: Set(emulation(write.emulation)?),
             gzip: Set(write.gzip.unwrap_or(false)),
             brotli: Set(write.brotli.unwrap_or(false)),
@@ -173,27 +151,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for ConnectionPro
         }
         if let Some(backend) = patch.backend {
             row.backend = Set(crud::enumerated(&backend, "backend", &BACKENDS)?);
-        }
-        let mode = match patch.proxy_mode {
-            Some(mode) => {
-                let mode: profile::ProxyMode = crud::enumerated(&mode, "proxyMode", &PROXY_MODES)?;
-                row.proxy_mode = Set(mode);
-                mode
-            }
-            None => current.proxy_mode,
-        };
-        let url = match patch.proxy_url {
-            Some(value) => {
-                let url = proxy_url(value)?;
-                row.proxy_url = Set(url.clone());
-                url
-            }
-            None => current.proxy_url.clone(),
-        };
-        if mode == profile::ProxyMode::Explicit && url.is_none() {
-            return Err(SdkError::invalid(
-                "proxyUrl is required when proxyMode is `explicit`",
-            ));
         }
         if let Some(value) = patch.emulation {
             row.emulation = Set(emulation(value)?);

@@ -327,7 +327,8 @@
     "logFormat": "程序日誌格式",
     "requestHeaderBlacklist": "請求头遮蔽名單",
     "responseHeaderBlacklist": "回應头遮蔽名單",
-    "queryParameterBlacklist": "查詢參數遮蔽名單"
+    "queryParameterBlacklist": "查詢參數遮蔽名單",
+    "proxy": "全域代理"
   },
   "settingsGroup": {
     "general": "一般",
@@ -605,6 +606,32 @@
       "rule": "價格規則",
       "rate": "費率",
       "tier": "階梯"
+    }
+  },
+  "proxy": {
+    "inherit": "繼承上層",
+    "direct": "直接連線（不使用代理）",
+    "system": "系統代理",
+    "explicit": "指定代理",
+    "url": "代理 URL",
+    "test": "檢測出口 IP",
+    "testing": "正在檢測出口 IP…",
+    "success": "連線成功",
+    "failed": "連線失敗",
+    "source": "代理來源",
+    "provider": "供應商代理",
+    "sources": {
+      "global": "全域",
+      "provider": "供應商",
+      "credential": "憑證",
+      "direct": "預設直接連線",
+      "custom": "目前填寫"
+    },
+    "errors": {
+      "timeout": "檢測逾時",
+      "transport": "無法連線至檢測服務",
+      "http_status": "檢測服務回傳錯誤",
+      "invalid_response": "檢測未回傳預期的 IP 位址"
     }
   }
 }

@@ -4,7 +4,7 @@
  * Identity, network, execution limits and maintenance. `config_revision` is
  * read-only: it is the write path's own counter.
  */
-export type InstanceSettingsDto = { instanceName: string, oauthClientAllowlist: string[] | null, connectionProfileId: string | null, corsOrigins: string[], trustedProxies: string[], maxAttempts: number, enableSettlement: boolean, enableUsage: boolean, configRevision: number, requestTimeoutMs: number, streamIdleTimeoutMs: number, maxRequestBodyBytes: number, maxResponseBodyBytes: number, maxStreamEventBytes: number, maxWsFrameBytes: number, maxMultipartParts: number, enableTokenizerVocabs: boolean, enableTokenizerDownload: boolean, defaultVocabularyFileId: string | null,
+export type InstanceSettingsDto = { instanceName: string, oauthClientAllowlist: string[] | null, connectionProfileId: string | null, proxy: { mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null, corsOrigins: string[], trustedProxies: string[], maxAttempts: number, enableSettlement: boolean, enableUsage: boolean, configRevision: number, requestTimeoutMs: number, streamIdleTimeoutMs: number, maxRequestBodyBytes: number, maxResponseBodyBytes: number, maxStreamEventBytes: number, maxWsFrameBytes: number, maxMultipartParts: number, enableTokenizerVocabs: boolean, enableTokenizerDownload: boolean, defaultVocabularyFileId: string | null,
 /**
  * The vocabulary source token is sealed like a credential secret; only
  * its presence is reported.

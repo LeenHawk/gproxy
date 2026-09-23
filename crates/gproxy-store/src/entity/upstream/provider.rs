@@ -17,6 +17,8 @@ pub struct Model {
     /// None inherits Setting.connection_profile_id; a credential may override it.
     #[sea_orm(indexed)]
     pub connection_profile_id: Option<String>,
+    /// Outbound proxy override. None inherits the parent scope; global None is direct.
+    pub proxy: Option<Json>,
     pub config: Json,
     #[sea_orm(default_value = true)]
     pub enabled: bool,

@@ -63,6 +63,7 @@ exported!(
     Page<Dummy>,
     // connectivity
     ConnectivityResultDto,
+    ConnectivityProbeDto,
     ConnectivityScope,
     ConnectivityTest,
     DiscoveredModelDto,

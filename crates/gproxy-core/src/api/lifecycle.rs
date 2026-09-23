@@ -148,26 +148,37 @@ impl<C: BatchConnectionTrait> Core<C> {
         provider_id: &str,
         purpose: gproxy_channel::channel::ConnectionPurpose,
     ) -> CoreResult<Arc<dyn gproxy_client::OutboundClient>> {
+        self.provider_client_for_proxy(provider_id, purpose, None)
+            .await
+    }
+
+    pub(crate) async fn provider_client_for_proxy(
+        &self,
+        provider_id: &str,
+        purpose: gproxy_channel::channel::ConnectionPurpose,
+        credential_proxy: Option<&serde_json::Value>,
+    ) -> CoreResult<Arc<dyn gproxy_client::OutboundClient>> {
         let snapshot = self.snapshot();
         let provider = snapshot.providers.get(provider_id).ok_or_else(|| {
             CoreError::InvalidTarget(format!("unknown or disabled provider `{provider_id}`"))
         })?;
-        let profile_id = match &provider.entity.connection_profile_id {
-            Some(id) => Some(id.clone()),
-            None => self
-                .store
-                .settings()
-                .get()
-                .await?
-                .and_then(|settings| settings.connection_profile_id),
-        };
-        let config = match profile_id {
-            Some(id) => self.connection_profile_config(&id).await?,
+        let settings = self.store.settings().get().await?;
+        let profile_id = provider.entity.connection_profile_id.as_deref().or(settings
+            .as_ref()
+            .and_then(|s| s.connection_profile_id.as_deref()));
+        let mut config = match profile_id {
+            Some(id) => self.connection_profile_config(id).await?,
             None => provider
                 .channel
                 .default_connection_for(purpose)
                 .unwrap_or_default(),
         };
+        config.proxy = crate::assemble::resolve_proxy(
+            credential_proxy,
+            provider.entity.proxy.as_ref(),
+            settings.as_ref().and_then(|s| s.proxy.as_ref()),
+        )?
+        .0;
         let client: Arc<dyn gproxy_client::OutboundClient> =
             self.clients.get(&config).await.map_err(|source| {
                 crate::AssemblyError::ProviderClient {

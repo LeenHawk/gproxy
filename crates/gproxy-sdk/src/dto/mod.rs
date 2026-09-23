@@ -51,8 +51,8 @@ pub use catalog::{
 };
 pub use common::{BatchItem, BatchPatch, ListQuery, Page, double_option};
 pub use connectivity::{
-    ConnectivityResultDto, ConnectivityScope, ConnectivityTest, DiscoveredModelDto, ModelTest,
-    ModelTestResultDto,
+    ConnectivityProbeDto, ConnectivityResultDto, ConnectivityScope, ConnectivityTest,
+    DiscoveredModelDto, ModelTest, ModelTestResultDto,
 };
 pub use control::{
     CredentialDto, CredentialPatch, CredentialSummaryDto, CredentialWrite, ModelDto, ModelPatch,

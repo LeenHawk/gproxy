@@ -334,6 +334,7 @@ mod tests {
             secret: Vec::new(),
             version: 0,
             connection_profile_id: None,
+            proxy: None,
             metadata: json!({}),
             expires_at_ms: None,
             status: CredentialStatus::default(),

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { Boxes, KeyRound, Pencil, Settings2 } from "lucide-react"
+import { Boxes, KeyRound, Settings2 } from "lucide-react"
 import { toast } from "sonner"
 import { channels, credentials, providers, providerPath, connectionProfiles } from "@/api/configuration"
 import type { ChannelDescriptor, ProviderDto } from "@/generated/sdk"
@@ -10,13 +10,13 @@ import { Page, PageHeader, PageSection } from "@/components/page"
 import { ProviderForm } from "@/pages/providers/provider-form"
 import { ErrorNotice, QueryState } from "@/components/state"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CollectionPage } from "@/pages/identity/collection"
 import { authKinds, credentialFields } from "@/pages/providers/fields"
 import { ProviderRules, ProviderOperations, ProviderEndpoints } from "@/pages/providers/rules"
 import { ProviderModels } from "@/pages/providers/models"
+import { EgressTest } from "@/components/proxy-control"
 import { useNavigate } from "@/lib/router"
 
 export function ProviderDetailPage({ providerId, tab }: { providerId: string; tab: string }) {
@@ -59,7 +59,6 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
         actions={<>
           <Badge variant="outline">{channel?.displayName ?? provider.channel}</Badge>
           <Switch aria-label={t("fields.enabled")} checked={provider.enabled} disabled={update.isPending} onCheckedChange={(enabled) => update.mutate({ enabled })} />
-          <Button size="sm" variant="outline" onClick={() => navigate(`${providerPath(provider.id)}/settings`)}><Pencil data-icon="inline-start" />{t("actions.edit")}</Button>
           <ConfirmButton title={t("confirm.deleteTitle", { name: provider.name })} disabled={remove.isPending} onConfirm={() => remove.mutate()}>{t("actions.delete")}</ConfirmButton>
         </>}
       />
@@ -93,7 +92,8 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
               { key: "enabled", cell: (row) => <BoolCell value={row.enabled} /> },
               { key: "expiresAtMs", cell: (row) => <InstantCell value={row.expiresAtMs} /> },
             ]}
-            fields={credentialFields.map((field) => field.name === "connectionProfileId" ? { ...field, kind: "select" as const, choices: (profiles.data ?? []).map((profile) => ({ value: profile.id, label: profile.name })) } : field)}
+            rowActions={row => <EgressTest scope={{ scope: "credential", credential_id: row.id }} />}
+            fields={credentialFields.map((field) => field.name === "proxy" ? { ...field, proxyScope: (original?: Record<string, unknown>) => original?.id ? { scope: "credential" as const, credential_id: String(original.id) } : { scope: "provider" as const, provider_id: provider.id, parent: true } } : field.name === "connectionProfileId" ? { ...field, kind: "select" as const, choices: (profiles.data ?? []).map((profile) => ({ value: profile.id, label: profile.name })) } : field)}
           />
         </QueryState></TabsContent>
         <TabsContent value="models"><ProviderModels provider={provider} /></TabsContent>

@@ -157,6 +157,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Providers<'_,
             channel: Set(self.channel(&write.channel)?),
             base_url: Set(base_url),
             connection_profile_id: Set(self.profile(write.connection_profile_id).await?),
+            proxy: Set(crud::proxy(write.proxy)?),
             config: Set(crud::object(write.config, "config")?),
             enabled: Set(write.enabled.unwrap_or(true)),
             created_at_ms: Set(crate::rt::now_ms()),
@@ -184,6 +185,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Providers<'_,
                 Some(value) => Some(crud::url(&value, "baseUrl")?),
                 None => None,
             });
+        }
+        if let Some(proxy) = patch.proxy {
+            model.proxy = Set(crud::proxy(proxy)?);
         }
         if let Some(profile) = patch.connection_profile_id {
             model.connection_profile_id = Set(self.profile(profile).await?);

@@ -327,7 +327,8 @@
     "logFormat": "Process log format",
     "requestHeaderBlacklist": "Redacted request headers",
     "responseHeaderBlacklist": "Redacted response headers",
-    "queryParameterBlacklist": "Redacted query parameters"
+    "queryParameterBlacklist": "Redacted query parameters",
+    "proxy": "Global proxy"
   },
   "settingsGroup": {
     "general": "General",
@@ -605,6 +606,32 @@
       "rule": "Price rule",
       "rate": "Rate",
       "tier": "Tier"
+    }
+  },
+  "proxy": {
+    "inherit": "Inherit",
+    "direct": "Direct (no proxy)",
+    "system": "System proxy",
+    "explicit": "Custom proxy",
+    "url": "Proxy URL",
+    "test": "Check egress IP",
+    "testing": "Checking egress IP…",
+    "success": "Connected",
+    "failed": "Connection failed",
+    "source": "Proxy source",
+    "provider": "Provider proxy",
+    "sources": {
+      "global": "Global",
+      "provider": "Provider",
+      "credential": "Credential",
+      "direct": "Direct default",
+      "custom": "Current input"
+    },
+    "errors": {
+      "timeout": "Probe timed out",
+      "transport": "Could not connect to the probe service",
+      "http_status": "Probe service returned an error",
+      "invalid_response": "Probe did not return the expected IP address"
     }
   }
 }

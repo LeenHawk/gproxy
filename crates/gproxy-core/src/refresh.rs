@@ -165,9 +165,10 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             && row.connection_profile_id.is_none()
         {
             Some(
-                self.provider_client_for(
+                self.provider_client_for_proxy(
                     &provider.entity.id,
                     gproxy_channel::channel::ConnectionPurpose::CookieLogin,
+                    row.proxy.as_ref(),
                 )
                 .await?,
             )

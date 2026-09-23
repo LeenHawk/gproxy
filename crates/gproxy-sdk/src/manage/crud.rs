@@ -413,3 +413,23 @@ fn id_column<E: EntityTrait>() -> E::Column {
         .expect("one primary key")
         .into_column()
 }
+
+pub(crate) fn proxy(value: Option<serde_json::Value>) -> SdkResult<Option<serde_json::Value>> {
+    let Some(value) = value.filter(|v| !v.is_null()) else {
+        return Ok(None);
+    };
+    let mut proxy: gproxy_client::ProxyConfig = serde_json::from_value(value).map_err(|_| {
+        crate::SdkError::invalid("proxy must be direct, system, or explicit with a URL")
+    })?;
+    if let gproxy_client::ProxyConfig::Explicit { url } = &mut proxy {
+        let parsed = url::Url::parse(url.trim())
+            .map_err(|_| crate::SdkError::invalid("invalid proxy URL"))?;
+        if parsed.host_str().is_none() {
+            return Err(crate::SdkError::invalid("proxy URL requires a host"));
+        }
+        *url = parsed[..url::Position::BeforePath].to_owned();
+    }
+    Ok(Some(
+        serde_json::to_value(proxy).expect("proxy serialization"),
+    ))
+}

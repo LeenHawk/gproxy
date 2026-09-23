@@ -5,7 +5,7 @@ export type ProviderDto = { id: string, name: string,
  * The channel implementation this provider speaks through; must be one
  * of `Gproxy::channels()`.
  */
-channel: string, baseUrl: string | null, connectionProfileId: string | null, 
+channel: string, baseUrl: string | null, connectionProfileId: string | null, proxy: { mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null,
 /**
  * Channel-specific configuration; always a JSON object.
  */

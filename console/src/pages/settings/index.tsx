@@ -10,6 +10,7 @@ import {
   saveSettings,
   vocabularies,
 } from "@/api/settings"
+import { ProxyControl, type ProxySettings } from "@/components/proxy-control"
 import { connectionProfiles } from "@/api/configuration"
 import { SESSION_KEY } from "@/capability/session"
 import type { SettingsDto } from "@/generated/sdk"
@@ -92,6 +93,7 @@ function SettingsForm({ original, tab, onTabChange }: { original: SettingsDto; t
   function control(field: SettingField) {
     const value = (draft[field.group] as Record<string, unknown>)[field.name]
     const inputId = `${id}-${field.name}`
+    if (field.kind === "proxy") return <ProxyControl id={inputId} value={value as ProxySettings} onChange={v => change(field, v)} scope={{ scope: "global" }} />
     if (field.kind === "switch")
       return <Switch id={inputId} checked={Boolean(value)} onCheckedChange={(v) => change(field, v)} />
     if (field.kind === "list")

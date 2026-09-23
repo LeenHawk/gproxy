@@ -25,6 +25,8 @@ pub struct Model {
     /// Credential then Provider selections override this entire profile.
     #[sea_orm(indexed)]
     pub connection_profile_id: Option<String>,
+    /// Outbound proxy override. None inherits the parent scope; global None is direct.
+    pub proxy: Option<Json>,
     /// JSON array of browser origin strings.
     #[sea_orm(default_value = "[]")]
     pub cors_origins: Json,

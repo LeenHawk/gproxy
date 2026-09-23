@@ -3,7 +3,7 @@ import type { SettingsWrite } from "@/api/settings"
 export type SettingField = {
   group: "instance" | "logging"
   name: string
-  kind: "text" | "number" | "switch" | "list" | "choice" | "profile" | "vocabulary" | "allowlist"
+  kind: "text" | "number" | "switch" | "list" | "choice" | "profile" | "vocabulary" | "allowlist" | "proxy"
   min?: number
   nullable?: boolean
   options?: Array<string>
@@ -30,6 +30,7 @@ export const groups = [
   {
     id: "network",
     fields: [
+      instance("proxy", "proxy", { nullable: true }),
       instance("connectionProfileId", "profile", { nullable: true }),
       instance("corsOrigins", "list"),
       instance("trustedProxies", "list"),

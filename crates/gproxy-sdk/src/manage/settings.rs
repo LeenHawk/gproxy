@@ -50,6 +50,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> SettingsManage<'_, C> {
             if let Some(value) = instance.oauth_client_allowlist {
                 row.oauth_client_allowlist = Set(array(value, "oauthClientAllowlist")?);
             }
+            if let Some(value) = instance.proxy {
+                row.proxy = Set(crud::proxy(value)?);
+            }
             if let Some(value) = instance.connection_profile_id {
                 let value = crud::optional_text(value);
                 if let Some(id) = &value {

@@ -8,6 +8,7 @@ fn settings() -> setting::Model {
         instance_name: "default".into(),
         oauth_client_allowlist: None,
         connection_profile_id: None,
+        proxy: None,
         cors_origins: serde_json::json!([]),
         trusted_proxies: serde_json::json!([]),
         max_attempts: 6,
