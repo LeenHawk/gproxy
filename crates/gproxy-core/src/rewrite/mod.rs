@@ -5,7 +5,7 @@
 
 mod apply;
 mod compile;
-mod json_path;
+pub(crate) mod json_path;
 mod select;
 mod stream;
 

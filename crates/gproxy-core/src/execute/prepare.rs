@@ -116,3 +116,36 @@ pub(crate) fn credential_view<'a>(
         expires_at_ms: version.expires_at_ms,
     }
 }
+
+/// Bind the resolved model on a native JSON request without changing any other
+/// wire bytes. Gemini also carries its model in the request path.
+pub(crate) fn apply_model(
+    request: &mut WireRequest<HttpBody>,
+    dialect: gproxy_protocol::Dialect,
+    model: &str,
+) {
+    if let HttpBody::Bytes(bytes) = &request.body
+        && let Ok(text) = std::str::from_utf8(bytes)
+        && let Some(rewritten) = crate::rewrite::json_path::rewrite_at_paths(
+            text,
+            &[vec![crate::PathSegment::Key("model".into())]],
+            &mut |old| (old != model).then(|| model.to_owned()),
+        )
+    {
+        request.body = HttpBody::Bytes(Bytes::from(rewritten));
+        request.headers.remove(http::header::CONTENT_LENGTH);
+    }
+    if dialect == gproxy_protocol::Dialect::Gemini
+        && let Some((prefix, tail)) = request.path.split_once("/models/")
+    {
+        let suffix = tail.find(':').map(|at| &tail[at..]).unwrap_or("");
+        let model = model.strip_prefix("models/").unwrap_or(model);
+        const SEGMENT: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
+            .remove(b'-')
+            .remove(b'_')
+            .remove(b'.')
+            .remove(b'~');
+        let encoded = percent_encoding::utf8_percent_encode(model, SEGMENT);
+        request.path = format!("{prefix}/models/{encoded}{suffix}");
+    }
+}
