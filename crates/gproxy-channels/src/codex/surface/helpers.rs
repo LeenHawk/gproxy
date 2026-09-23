@@ -101,6 +101,7 @@ pub(super) fn forwarded_headers(input: &HeaderMap) -> HeaderMap {
         "content-type",
         "cache-control",
         "mcp-session-id",
+        "oai-product-sku",
         "last-event-id",
         "x-codex-turn-metadata",
         "x-codex-installation-id",
@@ -259,5 +260,55 @@ fn hex(byte: u8) -> Option<u8> {
         b'a'..=b'f' => Some(byte - b'a' + 10),
         b'A'..=b'F' => Some(byte - b'A' + 10),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn plugin_product_survives_surface_forwarding_and_defaults_only_for_plugins() {
+        for path in [
+            "/ps/plugins/installed",
+            "/public/plugins/workspace",
+            "/wham/usage",
+        ] {
+            for product in [None, Some("custom-product")] {
+                let mut headers = HeaderMap::new();
+                if let Some(product) = product {
+                    headers.insert("oai-product-sku", HeaderValue::from_static(product));
+                }
+                let source = request(
+                    "catalog",
+                    Method::GET,
+                    path.into(),
+                    Some("includeExtensions=true&key=remove"),
+                    &headers,
+                    Bytes::new(),
+                    None,
+                );
+                let prepared = crate::codex::prepare::surface(
+                    &source,
+                    false,
+                    &json!({}),
+                    &json!({"access_token":"token"}),
+                )
+                .unwrap();
+                assert_eq!(
+                    prepared.request.uri().query(),
+                    Some("includeExtensions=true")
+                );
+                let expected = product.or_else(|| (path != "/wham/usage").then_some("codex"));
+                assert_eq!(
+                    prepared
+                        .request
+                        .headers()
+                        .get("oai-product-sku")
+                        .map(|v| v.to_str().unwrap()),
+                    expected,
+                );
+            }
+        }
     }
 }
