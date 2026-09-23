@@ -298,7 +298,10 @@ async fn rejected_embedding_call_returns_the_native_rejection_and_claude_is_unsu
     )
     .await
     .expect_err("Claude has no embeddings API");
-    assert!(format!("{error:?}").contains("embeddings"), "{error:?}");
+    assert!(
+        format!("{error:?}").contains("CreateEmbedding"),
+        "{error:?}"
+    );
 }
 
 fn guardian_request(stream: bool) -> Value {

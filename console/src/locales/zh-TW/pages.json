@@ -303,18 +303,29 @@
     "preset": "選擇預設",
     "apply": "套用預設",
     "presetConfirm": "使用所選預設取代此規則集內的全部規則？",
-    "dialects": "上游協定（依優先順序）",
-    "protocolNumber": "協定 {{index}}",
-    "moveUp": "上移",
-    "moveDown": "下移",
-    "addProtocol": "新增協定",
     "attach": "綁定規則集",
     "noRoutes": "此渠道暫無預設路由",
-    "source": "來源",
-    "default": "預設",
-    "custom": "自訂",
     "reset": "恢復預設",
-    "resetConfirm": "刪除此覆寫並恢復渠道預設規則？"
+    "resetConfirm": "刪除此覆寫並恢復渠道預設規則？",
+    "incoming": "入站協定",
+    "behavior": "處理方式",
+    "targetOperation": "目標操作",
+    "targetProtocol": "目標協定",
+    "showUnsupported": "顯示不支援的映射",
+    "implementations": {
+      "passthrough": "直通",
+      "transform_to": "轉換",
+      "local": "本機執行",
+      "unsupported": "不支援"
+    },
+    "protocols": {
+      "openai": "OpenAI",
+      "openai_chat": "OpenAI Chat Completions",
+      "claude": "Claude",
+      "gemini": "Gemini",
+      "openai_responses_websocket": "OpenAI Responses WebSocket"
+    },
+    "applyDefaults": "套用預設路由"
   },
   "update": {
     "current": "目前版本",

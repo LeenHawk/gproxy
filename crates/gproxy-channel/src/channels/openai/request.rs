@@ -221,6 +221,11 @@ impl BaseChannel for OpenAi {
 
     /// Everything OpenAI serves is native OpenAI; conversations additionally
     /// have the Chat Completions and the Responses-over-WebSocket shapes.
+    fn default_conversion_target(&self, _provider: ProviderView<'_>, source: gproxy_protocol::OperationKey) -> Option<gproxy_protocol::OperationKey> {
+        matches!(source.operation, Operation::GenerateContent | Operation::StreamGenerateContent)
+            .then_some(gproxy_protocol::OperationKey { operation: source.operation, dialect: Dialect::OpenAi })
+    }
+
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
             Operation::GenerateContent | Operation::StreamGenerateContent => vec![

@@ -215,7 +215,11 @@ where
         OperationRulePatch,
         "operation-rules"
     )
-    .route("/providers/{id}/routing", get(provider_routing::<C>));
+    .route("/providers/{id}/routing", get(provider_routing::<C>))
+    .route(
+        "/providers/{id}/routing/{operation}/{dialect}",
+        put(set_provider_routing::<C>).delete(reset_provider_routing::<C>),
+    );
     let router = config_family!(
         router,
         "/operation-endpoints",
@@ -945,6 +949,48 @@ where
             scope,
             "operation-rules",
             endpoints().operation_rules().effective(&id)
+        )
+    })
+    .await
+}
+
+async fn set_provider_routing<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Path((id, operation, dialect)): Path<(String, String, String)>,
+    Json(write): Json<gproxy_sdk::dto::RoutingMappingWrite>,
+) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    crate::send(async move {
+        manage!(
+            state,
+            scope,
+            "operation-rules",
+            endpoints()
+                .operation_rules()
+                .set_mapping(&id, &operation, &dialect, write)
+        )
+    })
+    .await
+}
+async fn reset_provider_routing<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Path((id, operation, dialect)): Path<(String, String, String)>,
+) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    crate::send(async move {
+        manage!(
+            state,
+            scope,
+            "operation-rules",
+            endpoints()
+                .operation_rules()
+                .reset_mapping(&id, &operation, &dialect)
         )
     })
     .await

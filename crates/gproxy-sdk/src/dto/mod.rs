@@ -61,7 +61,8 @@ pub use control::{
 };
 pub use endpoints::{
     OperationEndpointDto, OperationEndpointPatch, OperationEndpointWrite, OperationRoutingDto,
-    OperationRuleDto, OperationRulePatch, OperationRuleWrite,
+    OperationRuleDto, OperationRulePatch, OperationRuleWrite, RoutingMappingDto,
+    RoutingMappingWrite, RoutingTargetDto,
 };
 pub use login::{
     AuthCodeComplete, AuthCodeStart, AuthCodeStarted, CookieExchange, CredentialCreated,

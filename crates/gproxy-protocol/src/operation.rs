@@ -230,7 +230,10 @@ impl Dialect {
 ///
 /// Construct directly from an operation and dialect. Supported combinations
 /// are defined by transform and channel support tables, not by this type.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(deny_unknown_fields)]
 pub struct OperationKey {
     pub operation: Operation,
     pub dialect: Dialect,

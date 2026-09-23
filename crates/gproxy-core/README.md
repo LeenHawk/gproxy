@@ -129,12 +129,18 @@ directions and settles when it ends or is dropped.
 
 ## Conversion
 
-`convert::route` asks the channel which dialects the provider speaks natively
-for the operation (an `OperationRule` with `action = "dialects"` overrides it):
-a native client dialect passes through, otherwise the first declared dialect is
-the conversion target. A streaming client against an upstream that only
-generates buffered is served by `Route::Synthesize`: one buffered upstream call,
-then the client's native stream lifecycle replayed from the result.
+`convert::route` resolves an exact `(operation, incoming dialect)` mapping to
+`Passthrough`, `TransformTo { target: OperationKey }`, `Local` or `Unsupported`.
+Channel declarations supply defaults. A provider's `action = "routing"` row
+stores typed mappings keyed by incoming dialect; editing or resetting one key
+preserves the others. Legacy `dialects` rows are read as support sets, never as
+preference lists. A channel can declare an explicit conversion target; otherwise
+only an unambiguous supported edge is selected. Ambiguous mappings stay unsupported.
+
+Local handlers expose the configured model directory and count request text with
+the selected tokenizer without making an upstream call. Channel-local model
+methods retain their own credential-backed implementation. An explicit streamed
+to buffered generation mapping synthesizes the client's stream from the result.
 
 Conversion runs protocol's adaptation flows over `AttemptUpstream`, so every
 native call inside a flow is captured, metered and rewritten like a passthrough

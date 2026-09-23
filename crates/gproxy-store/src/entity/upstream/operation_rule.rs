@@ -13,7 +13,8 @@ pub struct Model {
     #[sea_orm(unique_key = "operation")]
     pub operation: String,
     pub action: String,
-    /// Optional target OperationKey/configuration; action variants remain for review.
+    /// `routing`: a typed map from source protocol to its implementation.
+    /// `dialects` is the legacy support-set representation; order has no meaning.
     pub target: Option<Json>,
     #[sea_orm(belongs_to, from = "provider_id", to = "id", on_delete = "Cascade")]
     pub provider: BelongsTo<super::provider::Entity>,

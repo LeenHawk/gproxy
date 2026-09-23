@@ -30,7 +30,7 @@ const USAGE: CustomUsage = CustomUsage;
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 pub struct CustomConfig {
-    /// Dialects the upstream accepts, in preference order. Empty means the
+    /// Dialects the upstream accepts. Empty means the
     /// canonical dialect of every family (`openai`, `claude`, `gemini`) plus
     /// `openai_chat`, i.e. "whatever the client sends, forward it".
     pub dialects: Vec<Dialect>,
@@ -170,7 +170,7 @@ impl BaseChannel for Custom {
                 ConfigKey::optional(
                     "dialects",
                     ConfigKeyKind::Json,
-                    "Wire dialects the upstream accepts natively, in preference order. Empty accepts openai, openai_chat, claude and gemini.",
+                    "Wire dialects the upstream accepts natively. Empty accepts openai, openai_chat, claude and gemini.",
                 ),
                 ConfigKey::optional(
                     "auth_header",

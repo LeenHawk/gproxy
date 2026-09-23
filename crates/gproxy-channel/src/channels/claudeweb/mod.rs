@@ -253,6 +253,8 @@ impl BaseChannel for ClaudeWeb {
         Some(default_connection())
     }
 
+    fn local_operations(&self) -> &'static [Operation] { &[Operation::ListModels] }
+
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
             Operation::GenerateContent

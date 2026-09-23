@@ -303,18 +303,29 @@
     "preset": "Choose a preset",
     "apply": "Apply preset",
     "presetConfirm": "Replace every rule in this set with the selected preset?",
-    "dialects": "Upstream protocols (priority order)",
-    "protocolNumber": "Protocol {{index}}",
-    "moveUp": "Move up",
-    "moveDown": "Move down",
-    "addProtocol": "Add protocol",
     "attach": "Attach rule set",
     "noRoutes": "No channel routing defaults",
-    "source": "Source",
-    "default": "Default",
-    "custom": "Custom",
     "reset": "Restore default",
-    "resetConfirm": "Remove this override and restore the channel default?"
+    "resetConfirm": "Remove this override and restore the channel default?",
+    "incoming": "Incoming protocol",
+    "behavior": "Behavior",
+    "targetOperation": "Target operation",
+    "targetProtocol": "Target protocol",
+    "showUnsupported": "Show unsupported",
+    "implementations": {
+      "passthrough": "Passthrough",
+      "transform_to": "Convert to",
+      "local": "Local execution",
+      "unsupported": "Unsupported"
+    },
+    "protocols": {
+      "openai": "OpenAI",
+      "openai_chat": "OpenAI Chat Completions",
+      "claude": "Claude",
+      "gemini": "Gemini",
+      "openai_responses_websocket": "OpenAI Responses WebSocket"
+    },
+    "applyDefaults": "Apply default routes"
   },
   "update": {
     "current": "Running version",

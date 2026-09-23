@@ -303,18 +303,29 @@
     "preset": "选择预设",
     "apply": "应用预设",
     "presetConfirm": "用所选预设替换此规则集中的全部规则？",
-    "dialects": "上游协议（按优先顺序）",
-    "protocolNumber": "协议 {{index}}",
-    "moveUp": "上移",
-    "moveDown": "下移",
-    "addProtocol": "添加协议",
     "attach": "绑定规则集",
     "noRoutes": "此渠道暂无默认路由",
-    "source": "来源",
-    "default": "默认",
-    "custom": "自定义",
     "reset": "恢复默认",
-    "resetConfirm": "删除此覆盖并恢复渠道默认规则？"
+    "resetConfirm": "删除此覆盖并恢复渠道默认规则？",
+    "incoming": "入站协议",
+    "behavior": "处理方式",
+    "targetOperation": "目标操作",
+    "targetProtocol": "目标协议",
+    "showUnsupported": "显示不支持的映射",
+    "implementations": {
+      "passthrough": "直通",
+      "transform_to": "转换",
+      "local": "本地执行",
+      "unsupported": "不支持"
+    },
+    "protocols": {
+      "openai": "OpenAI",
+      "openai_chat": "OpenAI Chat Completions",
+      "claude": "Claude",
+      "gemini": "Gemini",
+      "openai_responses_websocket": "OpenAI Responses WebSocket"
+    },
+    "applyDefaults": "应用默认路由"
   },
   "update": {
     "current": "当前版本",

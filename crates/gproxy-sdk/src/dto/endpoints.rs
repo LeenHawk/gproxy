@@ -136,14 +136,44 @@ pub struct OperationEndpointPatch {
     pub enabled: Option<bool>,
 }
 
-/// Channel defaults and any saved override for one operation of a provider.
+/// One exact operation/protocol key accepted by a conversion driver.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct RoutingTargetDto {
+    pub operation: String,
+    pub dialect: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct RoutingMappingDto {
+    pub implementation: String,
+    pub target: Option<RoutingTargetDto>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct OperationRoutingDto {
     pub operation: String,
-    pub default_dialects: Vec<String>,
-    pub dialects: Vec<String>,
-    pub rule: Option<OperationRuleDto>,
+    pub dialect: String,
+    pub default_mapping: RoutingMappingDto,
+    pub mapping: RoutingMappingDto,
+    pub custom: bool,
+    pub local_available: bool,
+    pub targets: Vec<RoutingTargetDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct RoutingMappingWrite {
+    pub implementation: String,
+    pub target: Option<RoutingTargetDto>,
 }
