@@ -64,7 +64,6 @@ use crate::{
 };
 
 const BACKENDS: [&str; 3] = ["reqwest", "wreq", "reqwest_native"];
-const PROXY_MODES: [&str; 3] = ["direct", "system", "explicit"];
 const RETRIES: [&str; 2] = ["never", "default"];
 const STATUSES: [&str; 2] = ["active", "dead"];
 const STRATEGIES: [&str; 3] = ["round_robin", "weighted", "failover"];
@@ -281,6 +280,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Transfer<'_, C> {
                 setting::ActiveModel {
                     id: Set(setting::GLOBAL_SETTINGS_ID),
                     connection_profile_id: Set(None),
+                    proxy: Set(None),
                     default_vocabulary_file_id: Set(None),
                     ..Default::default()
                 },
@@ -535,7 +535,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Transfer<'_, C> {
 
         if let Some(settings) = &data.settings {
             statements.push(BatchStatement::Execute(store.settings().update_statement(
-                rows::settings(settings, &known, &files, &mut report.warnings),
+                rows::settings(settings, &known, &files, &mut report.warnings)?,
             )?));
             report.updated += 1;
         }
@@ -941,12 +941,6 @@ mod rows {
             id: Set(dto.id.clone()),
             name: Set(dto.name.clone()),
             backend: Set(crud::enumerated(&dto.backend, "backend", &BACKENDS)?),
-            proxy_mode: Set(crud::enumerated(
-                &dto.proxy_mode,
-                "proxyMode",
-                &PROXY_MODES,
-            )?),
-            proxy_url: Set(dto.proxy_url.clone()),
             emulation: Set(dto.emulation.clone()),
             gzip: Set(dto.gzip),
             brotli: Set(dto.brotli),
@@ -968,6 +962,7 @@ mod rows {
             channel: Set(crud::text(&dto.channel, "channel")?),
             base_url: Set(dto.base_url.clone()),
             connection_profile_id: Set(dto.connection_profile_id.clone()),
+            proxy: Set(crud::proxy(dto.proxy.clone())?),
             config: Set(crud::object(Some(dto.config.clone()), "config")?),
             enabled: Set(dto.enabled),
             created_at_ms: Set(dto.created_at_ms),
@@ -1007,6 +1002,7 @@ mod rows {
             auth_kind: Set(crud::text(&row.auth_kind, "authKind")?),
             version: Set(row.version),
             connection_profile_id: Set(row.connection_profile_id.clone()),
+            proxy: Set(crud::proxy(row.proxy.clone())?),
             metadata: Set(crud::object(Some(row.metadata.clone()), "metadata")?),
             expires_at_ms: Set(row.expires_at_ms),
             status: Set(crud::enumerated(&row.status, "status", &STATUSES)?),
@@ -1286,7 +1282,7 @@ mod rows {
         known: &Known,
         files: &HashSet<String>,
         warnings: &mut Vec<String>,
-    ) -> setting::ActiveModel {
+    ) -> SdkResult<setting::ActiveModel> {
         let instance = &dto.instance;
         let logging = &dto.logging;
         let profile = match &instance.connection_profile_id {
@@ -1307,11 +1303,12 @@ mod rows {
             }
             other => other.clone(),
         };
-        setting::ActiveModel {
+        Ok(setting::ActiveModel {
             id: Set(setting::GLOBAL_SETTINGS_ID),
             instance_name: Set(instance.instance_name.clone()),
             oauth_client_allowlist: Set(instance.oauth_client_allowlist.clone()),
             connection_profile_id: Set(profile),
+            proxy: Set(crud::proxy(instance.proxy.clone())?),
             cors_origins: Set(instance.cors_origins.clone()),
             trusted_proxies: Set(instance.trusted_proxies.clone()),
             max_attempts: Set(instance.max_attempts.max(1)),
@@ -1344,6 +1341,6 @@ mod rows {
             response_header_blacklist: Set(logging.response_header_blacklist.clone()),
             query_parameter_blacklist: Set(logging.query_parameter_blacklist.clone()),
             ..Default::default()
-        }
+        })
     }
 }

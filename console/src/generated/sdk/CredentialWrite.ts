@@ -8,4 +8,4 @@ authKind: string,
 /**
  * Plaintext on the way in, sealed before it reaches the database.
  */
-secret: unknown, enabled: boolean | null, metadata: unknown | null, connectionProfileId: string | null, expiresAtMs: number | null, organizationId: string | null, teamId: string | null, userId: string | null, };
+secret: unknown, enabled: boolean | null, metadata: unknown | null, connectionProfileId: string | null, proxy: { mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null, expiresAtMs: number | null, organizationId: string | null, teamId: string | null, userId: string | null, };

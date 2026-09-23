@@ -17,7 +17,7 @@ organizationId: string | null, teamId: string | null, userId: string | null, lab
 /**
  * Bumped by every secret or lifecycle write; peers reload on a change.
  */
-version: number, connectionProfileId: string | null, metadata: unknown, expiresAtMs: number | null, 
+version: number, connectionProfileId: string | null, proxy: { mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null, metadata: unknown, expiresAtMs: number | null,
 /**
  * `active` or `dead`.
  */

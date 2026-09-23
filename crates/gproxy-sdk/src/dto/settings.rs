@@ -36,6 +36,7 @@ impl From<setting::Model> for SettingsDto {
                 instance_name: row.instance_name,
                 oauth_client_allowlist: row.oauth_client_allowlist,
                 connection_profile_id: row.connection_profile_id,
+                proxy: row.proxy,
                 cors_origins: row.cors_origins,
                 trusted_proxies: row.trusted_proxies,
                 max_attempts: row.max_attempts,
@@ -76,6 +77,14 @@ pub struct InstanceSettingsDto {
     #[cfg_attr(feature = "ts", ts(type = "string[] | null"))]
     pub oauth_client_allowlist: Option<Value>,
     pub connection_profile_id: Option<String>,
+    #[serde(default)]
+    #[cfg_attr(
+        feature = "ts",
+        ts(
+            type = "{ mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null"
+        )
+    )]
+    pub proxy: Option<Value>,
     #[cfg_attr(feature = "ts", ts(type = "string[]"))]
     pub cors_origins: Value,
     #[cfg_attr(feature = "ts", ts(type = "string[]"))]
@@ -150,6 +159,14 @@ pub struct InstanceSettingsPatch {
     pub oauth_client_allowlist: Option<Option<Value>>,
     #[serde(default, deserialize_with = "double_option")]
     pub connection_profile_id: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    #[cfg_attr(
+        feature = "ts",
+        ts(
+            type = "{ mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null"
+        )
+    )]
+    pub proxy: Option<Option<Value>>,
     #[serde(default)]
     #[cfg_attr(feature = "ts", ts(type = "string[] | null"))]
     pub cors_origins: Option<Value>,

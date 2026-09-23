@@ -230,6 +230,7 @@
     "url": "完整 URL",
     "backend": "客戶端",
     "proxyMode": "代理模式",
-    "emulation": "客戶端偽裝"
+    "emulation": "客戶端偽裝",
+    "proxy": "代理"
   }
 }

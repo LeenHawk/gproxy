@@ -230,6 +230,7 @@
     "url": "Full URL",
     "backend": "Client",
     "proxyMode": "Proxy",
-    "emulation": "Client identity"
+    "emulation": "Client identity",
+    "proxy": "Proxy"
   }
 }

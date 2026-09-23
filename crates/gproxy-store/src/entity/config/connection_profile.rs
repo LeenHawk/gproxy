@@ -1,4 +1,4 @@
-//! Reusable, complete outbound connection settings. No profile inheritance or version.
+//! Reusable HTTP transport settings; proxy routing is configured by scope. No profile inheritance or version.
 //! The host validates these fields with gproxy-client before saving/using them.
 
 use sea_orm::entity::prelude::*;
@@ -13,12 +13,6 @@ pub struct Model {
     pub name: String,
     #[sea_orm(default_value = "reqwest")]
     pub backend: Backend,
-    #[sea_orm(default_value = "direct")]
-    pub proxy_mode: ProxyMode,
-    /// Required only for Explicit; may contain proxy credentials. Treat as secret
-    /// configuration in management APIs/logs, not as public profile metadata.
-    #[sea_orm(column_type = "Text")]
-    pub proxy_url: Option<String>,
     /// Optional gproxy-client EmulationConfig object: profile, platform,
     /// http2, headers. Only valid with Wreq; None uses the backend's normal TLS.
     pub emulation: Option<Json>,
@@ -76,15 +70,4 @@ pub enum Backend {
     /// `reqwest-native`); the Codex CLI's HTTP stack.
     #[sea_orm(string_value = "reqwest_native")]
     ReqwestNative,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
-#[sea_orm(rs_type = "String", db_type = "String(StringLen::N(16))")]
-pub enum ProxyMode {
-    #[sea_orm(string_value = "direct")]
-    Direct,
-    #[sea_orm(string_value = "system")]
-    System,
-    #[sea_orm(string_value = "explicit")]
-    Explicit,
 }

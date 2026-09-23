@@ -592,6 +592,7 @@ async fn a_trace_answers_with_the_egress_address() {
         .manage()
         .connectivity()
         .test(ConnectivityTest {
+            proxy: None,
             scope: ConnectivityScope::Global,
         })
         .await
@@ -617,6 +618,7 @@ async fn an_unreachable_network_is_a_result_not_an_error() {
         .manage()
         .connectivity()
         .test(ConnectivityTest {
+            proxy: None,
             scope: ConnectivityScope::Proxy {
                 url: "http://127.0.0.1:9".to_owned(),
             },

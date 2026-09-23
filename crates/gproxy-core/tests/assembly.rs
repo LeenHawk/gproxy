@@ -288,6 +288,7 @@ async fn connection_chain(store: &Store<DatabaseConnection>) {
         .update(setting::ActiveModel {
             config_revision: Set(1),
             connection_profile_id: Set(Some("slow".into())),
+            proxy: Set(None),
             ..Default::default()
         })
         .await
@@ -308,6 +309,7 @@ async fn connection_chain(store: &Store<DatabaseConnection>) {
         name: Set(id.into()),
         channel: Set(channel.into()),
         connection_profile_id: Set(profile.map(str::to_owned)),
+        proxy: Set(None),
         config: Set(json!({})),
         created_at_ms: Set(0),
         ..Default::default()

@@ -402,11 +402,22 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Tokenizer<'_, C> {
             .body(HttpBody::Bytes(Bytes::new()))
             .map_err(|error| SdkError::invalid(format!("invalid vocabulary URL: {error}")))?;
 
+        let settings = self.writer.store().settings().get().await?;
+        let proxy = gproxy_core::assemble::resolve_proxy(
+            None,
+            None,
+            settings.as_ref().and_then(|s| s.proxy.as_ref()),
+        )
+        .map_err(gproxy_core::CoreError::from)?
+        .0;
         let client = self
             .writer
             .core()
             .clients()
-            .get(&gproxy_client::ConnectionConfig::default())
+            .get(&gproxy_client::ConnectionConfig {
+                proxy,
+                ..Default::default()
+            })
             .await
             .map_err(|error| SdkError::invalid(format!("no usable client: {error}")))?;
         let response = client

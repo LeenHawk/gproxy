@@ -34,6 +34,8 @@ pub struct Model {
     /// None inherits Provider.connection_profile_id, then Setting.connection_profile_id.
     #[sea_orm(indexed)]
     pub connection_profile_id: Option<String>,
+    /// Outbound proxy override. None inherits the parent scope; global None is direct.
+    pub proxy: Option<Json>,
     pub metadata: Json,
     /// Access-token expiry for OAuth; updated atomically with secret/version.
     pub expires_at_ms: Option<i64>,

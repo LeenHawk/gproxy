@@ -4,4 +4,4 @@ export type ProviderWrite = {
 /**
  * Supplied ids let a host import its own; blank or absent mints one.
  */
-id: string | null, name: string, channel: string, baseUrl: string | null, connectionProfileId: string | null, config: unknown | null, enabled: boolean | null, };
+id: string | null, name: string, channel: string, baseUrl: string | null, connectionProfileId: string | null, proxy: { mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null, config: unknown | null, enabled: boolean | null, };

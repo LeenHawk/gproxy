@@ -23,6 +23,8 @@ pub type VocabularyMap = HashMap<String, gproxy_tokenizer::Vocabulary>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AssemblyError {
+    #[error("invalid outbound proxy configuration")]
+    InvalidProxy,
     #[error("provider `{provider_id}` names unregistered channel `{channel}`")]
     UnknownChannel {
         provider_id: String,
@@ -132,4 +134,25 @@ pub fn block_from_row(row: &credential_block::Model) -> Result<CredentialBlock, 
         source,
         observed_at_ms: row.observed_at_ms,
     })
+}
+
+/// Credential → provider → global, independently of HTTP transport selection.
+/// Explicit direct/system modes terminate inheritance just like an explicit URL.
+pub fn resolve_proxy(
+    credential: Option<&serde_json::Value>,
+    provider: Option<&serde_json::Value>,
+    global: Option<&serde_json::Value>,
+) -> Result<(gproxy_client::ProxyConfig, &'static str), AssemblyError> {
+    for (value, source) in [
+        (credential, "credential"),
+        (provider, "provider"),
+        (global, "global"),
+    ] {
+        if let Some(value) = value.filter(|v| !v.is_null()) {
+            return serde_json::from_value(value.clone())
+                .map(|proxy| (proxy, source))
+                .map_err(|_| AssemblyError::InvalidProxy);
+        }
+    }
+    Ok((gproxy_client::ProxyConfig::Direct, "direct"))
 }

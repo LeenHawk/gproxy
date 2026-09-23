@@ -327,7 +327,8 @@
     "logFormat": "进程日志格式",
     "requestHeaderBlacklist": "请求头脱敏名单",
     "responseHeaderBlacklist": "响应头脱敏名单",
-    "queryParameterBlacklist": "查询参数脱敏名单"
+    "queryParameterBlacklist": "查询参数脱敏名单",
+    "proxy": "全局代理"
   },
   "settingsGroup": {
     "general": "常规",
@@ -605,6 +606,32 @@
       "rule": "价格规则",
       "rate": "费率",
       "tier": "阶梯"
+    }
+  },
+  "proxy": {
+    "inherit": "继承上级",
+    "direct": "直连（不使用代理）",
+    "system": "系统代理",
+    "explicit": "指定代理",
+    "url": "代理 URL",
+    "test": "检测出口 IP",
+    "testing": "正在检测出口 IP…",
+    "success": "连接成功",
+    "failed": "连接失败",
+    "source": "代理来源",
+    "provider": "供应商代理",
+    "sources": {
+      "global": "全局",
+      "provider": "供应商",
+      "credential": "凭证",
+      "direct": "默认直连",
+      "custom": "当前填写"
+    },
+    "errors": {
+      "timeout": "检测超时",
+      "transport": "无法连接检测服务",
+      "http_status": "检测服务返回错误",
+      "invalid_response": "检测未返回预期的 IP 地址"
     }
   }
 }

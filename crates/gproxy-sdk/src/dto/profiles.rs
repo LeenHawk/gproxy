@@ -6,9 +6,7 @@ use serde_json::Value;
 use super::double_option;
 use gproxy_store::entity::config::connection_profile as profile;
 
-/// A profile as management sees it. `proxy_url` is returned so a console can
-/// edit it; it may carry proxy credentials, which is why the management API
-/// is an operator surface and its responses are not for a caller's eyes.
+/// A reusable HTTP transport configuration, independent of outbound proxy selection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
@@ -18,9 +16,6 @@ pub struct ConnectionProfileDto {
     pub name: String,
     /// `reqwest`, `wreq` or `reqwest_native`.
     pub backend: String,
-    /// `direct`, `system` or `explicit`.
-    pub proxy_mode: String,
-    pub proxy_url: Option<String>,
     /// A `gproxy-client` emulation object, or null. wreq applies the full identity; other clients apply supported custom fields.
     #[cfg_attr(feature = "ts", ts(type = "unknown | null"))]
     pub emulation: Option<Value>,
@@ -43,8 +38,6 @@ impl From<profile::Model> for ConnectionProfileDto {
             id: row.id,
             name: row.name,
             backend: backend_name(row.backend).to_owned(),
-            proxy_mode: proxy_mode_name(row.proxy_mode).to_owned(),
-            proxy_url: row.proxy_url,
             emulation: row.emulation,
             gzip: row.gzip,
             brotli: row.brotli,
@@ -68,14 +61,6 @@ pub(crate) fn backend_name(backend: profile::Backend) -> &'static str {
     }
 }
 
-pub(crate) fn proxy_mode_name(mode: profile::ProxyMode) -> &'static str {
-    match mode {
-        profile::ProxyMode::Direct => "direct",
-        profile::ProxyMode::System => "system",
-        profile::ProxyMode::Explicit => "explicit",
-    }
-}
-
 pub(crate) fn retry_name(retry: profile::RetryPolicy) -> &'static str {
     match retry {
         profile::RetryPolicy::Never => "never",
@@ -93,10 +78,6 @@ pub struct ConnectionProfileWrite {
     pub name: String,
     #[serde(default)]
     pub backend: Option<String>,
-    #[serde(default)]
-    pub proxy_mode: Option<String>,
-    #[serde(default)]
-    pub proxy_url: Option<String>,
     #[serde(default)]
     #[cfg_attr(feature = "ts", ts(type = "unknown | null"))]
     pub emulation: Option<Value>,
@@ -129,10 +110,6 @@ pub struct ConnectionProfilePatch {
     pub name: Option<String>,
     #[serde(default)]
     pub backend: Option<String>,
-    #[serde(default)]
-    pub proxy_mode: Option<String>,
-    #[serde(default, deserialize_with = "double_option")]
-    pub proxy_url: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     #[cfg_attr(feature = "ts", ts(type = "unknown | null"))]
     pub emulation: Option<Option<Value>>,

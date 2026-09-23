@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import type { ChannelDescriptor, ProviderDto, ProviderWrite } from "@/generated/sdk"
 import { connectionProfiles } from "@/api/configuration"
+import { ProxyControl, type ProxySettings } from "@/components/proxy-control"
 import { ErrorNotice, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -37,6 +38,7 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
   const [channel, setChannel] = useState(provider?.channel ?? catalog[0]?.id ?? "")
   const [baseUrl, setBaseUrl] = useState(provider?.baseUrl ?? "")
   const [profile, setProfile] = useState(provider?.connectionProfileId ?? "__default")
+  const [proxy, setProxy] = useState<ProxySettings>(provider?.proxy ?? null)
   const [enabled, setEnabled] = useState(provider?.enabled ?? true)
   const [configs, setConfigs] = useState<Record<string, ConfigObject>>({
     [channel]: (provider?.config ?? {}) as ConfigObject,
@@ -62,6 +64,7 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
       channel,
       baseUrl: baseUrl.trim() || null,
       connectionProfileId: profile === "__default" ? null : profile,
+      proxy,
       enabled,
       config,
     })
@@ -122,6 +125,7 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
             </Select>
           </QueryState>
         </Field>
+        <Field data-field-span="full"><FieldLabel htmlFor={`${id}-proxy`}>{t("proxy.provider")}</FieldLabel><ProxyControl id={`${id}-proxy`} value={proxy} onChange={setProxy} scope={provider ? { scope: "provider", provider_id: provider.id } : { scope: "global", parent: true }} /></Field>
         <Field>
           <FieldLabel htmlFor={`${id}-enabled`}>{t("fields.enabled")}</FieldLabel>
           <Switch id={`${id}-enabled`} checked={enabled} onCheckedChange={setEnabled} />

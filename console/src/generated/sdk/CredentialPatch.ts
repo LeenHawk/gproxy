@@ -8,4 +8,4 @@ export type CredentialPatch = { label: string | null | null, authKind: string | 
 /**
  * Resealed and version-bumped; peers then reload this credential alone.
  */
-secret: unknown | null, enabled: boolean | null, metadata: unknown | null, connectionProfileId: string | null | null, expiresAtMs: number | null | null, organizationId: string | null | null, teamId: string | null | null, userId: string | null | null, };
+secret: unknown | null, enabled: boolean | null, metadata: unknown | null, connectionProfileId: string | null | null, proxy: { mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null, expiresAtMs: number | null | null, organizationId: string | null | null, teamId: string | null | null, userId: string | null | null, };

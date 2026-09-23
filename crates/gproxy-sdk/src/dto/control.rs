@@ -19,6 +19,14 @@ pub struct ProviderDto {
     pub channel: String,
     pub base_url: Option<String>,
     pub connection_profile_id: Option<String>,
+    #[serde(default)]
+    #[cfg_attr(
+        feature = "ts",
+        ts(
+            type = "{ mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null"
+        )
+    )]
+    pub proxy: Option<Value>,
     /// Channel-specific configuration; always a JSON object.
     #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub config: Value,
@@ -34,6 +42,7 @@ impl From<provider::Model> for ProviderDto {
             channel: row.channel,
             base_url: row.base_url,
             connection_profile_id: row.connection_profile_id,
+            proxy: row.proxy,
             config: row.config,
             enabled: row.enabled,
             created_at_ms: row.created_at_ms,
@@ -56,6 +65,14 @@ pub struct ProviderWrite {
     #[serde(default)]
     pub connection_profile_id: Option<String>,
     #[serde(default)]
+    #[cfg_attr(
+        feature = "ts",
+        ts(
+            type = "{ mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null"
+        )
+    )]
+    pub proxy: Option<Value>,
+    #[serde(default)]
     #[cfg_attr(feature = "ts", ts(type = "unknown | null"))]
     pub config: Option<Value>,
     #[serde(default)]
@@ -75,6 +92,14 @@ pub struct ProviderPatch {
     pub base_url: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     pub connection_profile_id: Option<Option<String>>,
+    #[serde(default, deserialize_with = "double_option")]
+    #[cfg_attr(
+        feature = "ts",
+        ts(
+            type = "{ mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null"
+        )
+    )]
+    pub proxy: Option<Option<Value>>,
     #[serde(default)]
     #[cfg_attr(feature = "ts", ts(type = "unknown | null"))]
     pub config: Option<Value>,
@@ -101,6 +126,14 @@ pub struct CredentialDto {
     /// Bumped by every secret or lifecycle write; peers reload on a change.
     pub version: i64,
     pub connection_profile_id: Option<String>,
+    #[serde(default)]
+    #[cfg_attr(
+        feature = "ts",
+        ts(
+            type = "{ mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null"
+        )
+    )]
+    pub proxy: Option<Value>,
     #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub metadata: Value,
     pub expires_at_ms: Option<i64>,
@@ -123,6 +156,7 @@ impl From<credential::Model> for CredentialDto {
             has_secret: !row.secret.is_empty(),
             version: row.version,
             connection_profile_id: row.connection_profile_id,
+            proxy: row.proxy,
             metadata: row.metadata,
             expires_at_ms: row.expires_at_ms,
             status: status_name(row.status).to_owned(),
@@ -162,6 +196,14 @@ pub struct CredentialWrite {
     #[serde(default)]
     pub connection_profile_id: Option<String>,
     #[serde(default)]
+    #[cfg_attr(
+        feature = "ts",
+        ts(
+            type = "{ mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null"
+        )
+    )]
+    pub proxy: Option<Value>,
+    #[serde(default)]
     pub expires_at_ms: Option<i64>,
     #[serde(default)]
     pub organization_id: Option<String>,
@@ -194,6 +236,14 @@ pub struct CredentialPatch {
     #[serde(default, deserialize_with = "double_option")]
     pub connection_profile_id: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
+    #[cfg_attr(
+        feature = "ts",
+        ts(
+            type = "{ mode: 'direct' } | { mode: 'system' } | { mode: 'explicit', url: string } | null"
+        )
+    )]
+    pub proxy: Option<Option<Value>>,
+    #[serde(default, deserialize_with = "double_option")]
     pub expires_at_ms: Option<Option<i64>>,
     #[serde(default, deserialize_with = "double_option")]
     pub organization_id: Option<Option<String>>,
@@ -214,6 +264,7 @@ impl CredentialPatch {
             && self.enabled.is_none()
             && self.metadata.is_none()
             && self.connection_profile_id.is_none()
+            && self.proxy.is_none()
             && self.organization_id.is_none()
             && self.team_id.is_none()
             && self.user_id.is_none()

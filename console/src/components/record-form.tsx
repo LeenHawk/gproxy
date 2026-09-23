@@ -17,6 +17,7 @@
 
 import { useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
+import { ProxyControl, type ProxySettings, type ProxyScope } from "@/components/proxy-control"
 import { ErrorNotice } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import {
@@ -29,11 +30,12 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { fromLocalInput, toLocalInput } from "@/lib/format"
 
-export type FieldKind = "text" | "password" | "number" | "switch" | "select" | "lines" | "datetime" | "json"
+export type FieldKind = "text" | "password" | "number" | "switch" | "select" | "lines" | "datetime" | "json" | "proxy"
 
 export type FormField = {
   /** The DTO field name, and the i18n key under `fields.`. */
   name: string
+  proxyScope?: (original?: Record<string, unknown>) => ProxyScope
   label?: string
   kind: FieldKind
   /** Choices for `select`, labelled from `values.<option>`. */
@@ -54,7 +56,7 @@ function readValue(field: FormField, row: Record<string, unknown> | undefined): 
   const raw = row?.[field.name]
   if (field.kind === "switch") return raw === undefined || raw === null ? true : Boolean(raw)
   if (raw === undefined || raw === null) return ""
-  if (field.kind === "json") return JSON.stringify(raw, null, 2)
+  if (field.kind === "json" || field.kind === "proxy") return JSON.stringify(raw, null, 2)
   if (field.kind === "lines") return Array.isArray(raw) ? raw.join("\n") : String(raw)
   if (field.kind === "datetime") return typeof raw === "number" ? toLocalInput(raw) : ""
   return String(raw)
@@ -68,7 +70,7 @@ function writeValue(field: FormField, value: string | boolean): unknown {
     return entries.length ? entries : null
   }
   if (!text.trim()) return null
-  if (field.kind === "json") return JSON.parse(text) as unknown
+  if (field.kind === "json" || field.kind === "proxy") return JSON.parse(text) as unknown
   if (field.kind === "number") {
     const parsed = Number(text)
     return Number.isFinite(parsed) ? parsed : null
@@ -107,13 +109,15 @@ export function buildPatch(
   return body
 }
 
-function Control({ field, value, onChange }: {
+function Control({ field, value, onChange, original }: {
+  original?: Record<string, unknown>
   field: FormField
   value: string | boolean
   onChange: (value: string | boolean) => void
 }) {
   const { t } = useTranslation()
   const id = `field-${field.name}`
+  if (field.kind === "proxy") return <ProxyControl id={id} value={value ? JSON.parse(String(value)) as ProxySettings : null} onChange={v => onChange(v ? JSON.stringify(v) : "")} scope={field.proxyScope?.(original) ?? { scope: "global" }} />
   if (field.kind === "switch") {
     return <Switch id={id} checked={Boolean(value)} onCheckedChange={(next) => onChange(next)} />
   }
@@ -207,6 +211,7 @@ function RecordForm({ fields, original, mode, onSubmit, pending, error, extra, o
             </FieldLabel>
             <Control
               field={field}
+              original={original}
               value={values[field.name] ?? ""}
               onChange={(next) => setValues((current) => ({ ...current, [field.name]: next }))}
             />

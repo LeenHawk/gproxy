@@ -757,10 +757,27 @@ impl<C: BatchConnectionTrait + Send + Sync> Resources<'_, C> {
         let mut hops = 0;
         loop {
             self.authorise(&url).await?;
+            let settings = self
+                .core
+                .store()
+                .settings()
+                .get()
+                .await
+                .map_err(|_| transport("global proxy settings unavailable"))?;
+            let proxy = crate::assemble::resolve_proxy(
+                None,
+                None,
+                settings.as_ref().and_then(|s| s.proxy.as_ref()),
+            )
+            .map_err(|_| invalid("invalid global proxy".into()))?
+            .0;
             let client = self
                 .core
                 .clients()
-                .get(&gproxy_client::ConnectionConfig::default())
+                .get(&gproxy_client::ConnectionConfig {
+                    proxy,
+                    ..Default::default()
+                })
                 .await
                 .map_err(|e| transport(format!("outbound client unavailable: {e}")))?;
             let request = http::Request::builder()

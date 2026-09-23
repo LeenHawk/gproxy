@@ -16,7 +16,7 @@ fn connection_profiles_are_registered_and_references_restrict_deletion() {
         let registry = format!("{:?}", gproxy_store::schema(backend));
         assert!(registry.contains("connection_profiles"));
         let profile = ddl(backend, connection_profile::Entity);
-        assert!(profile.contains("proxy_mode"));
+        assert!(!profile.contains("proxy_mode"));
         assert!(profile.contains("emulation"));
         assert!(!profile.contains("version"));
         for sql in [

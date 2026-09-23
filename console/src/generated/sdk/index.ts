@@ -18,6 +18,7 @@ export * from "./ConfigurationExportDto";
 export * from "./ConnectionProfileDto";
 export * from "./ConnectionProfilePatch";
 export * from "./ConnectionProfileWrite";
+export * from "./ConnectivityProbeDto";
 export * from "./ConnectivityResultDto";
 export * from "./ConnectivityScope";
 export * from "./ConnectivityTest";

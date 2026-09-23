@@ -453,6 +453,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
             secret: Set(self.seal(&id, &write.secret)?),
             version: Set(0),
             connection_profile_id: Set(self.profile(write.connection_profile_id).await?),
+            proxy: Set(crud::proxy(write.proxy)?),
             metadata: Set(crud::object(write.metadata, "metadata")?),
             expires_at_ms: Set(write.expires_at_ms),
             status: Set(CredentialStatus::Active),
@@ -488,6 +489,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
         }
         if let Some(metadata) = patch.metadata {
             row.metadata = Set(crud::object(Some(metadata), "metadata")?);
+        }
+        if let Some(proxy) = patch.proxy {
+            row.proxy = Set(crud::proxy(proxy)?);
         }
         if let Some(profile) = patch.connection_profile_id {
             row.connection_profile_id = Set(self.profile(profile).await?);

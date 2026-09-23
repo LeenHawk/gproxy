@@ -22,7 +22,7 @@ use std::{collections::BTreeSet, num::NonZeroU32, sync::Arc, time::Duration};
 
 use futures_util::StreamExt;
 use gproxy_channel::channel::{NormalizedUsage, ProviderView};
-use gproxy_client::{ConnectionConfig, OutboundClient, ProxyConfig};
+use gproxy_client::{ConnectionConfig, OutboundClient};
 use gproxy_core::{
     CoreData, CredentialData, ExecutionTarget, ProviderData, RequestContext, UsageAttribution,
 };
@@ -40,8 +40,8 @@ use super::{Scope, Writer, catalog, crud};
 use crate::{
     SdkError, SdkResult,
     dto::{
-        ConnectivityResultDto, ConnectivityScope, ConnectivityTest, DiscoveredModelDto, ModelTest,
-        ModelTestResultDto, UsageTokensDto,
+        ConnectivityProbeDto, ConnectivityResultDto, ConnectivityScope, ConnectivityTest,
+        DiscoveredModelDto, ModelTest, ModelTestResultDto, UsageTokensDto,
     },
     rt,
 };
@@ -49,7 +49,8 @@ use crate::{
 /// Cloudflare reports the address and the edge it saw the request arrive from,
 /// which is exactly the question a proxy test asks: not "did a TCP connection
 /// open" but "who does the upstream think I am".
-const TRACE_URL: &str = "https://www.cloudflare.com/cdn-cgi/trace";
+const TRACE_V4_URL: &str = "https://1.1.1.1/cdn-cgi/trace";
+const TRACE_V6_URL: &str = "https://[2606:4700:4700::1111]/cdn-cgi/trace";
 /// A trace body is a few hundred bytes. Anything larger is not a trace.
 const TRACE_MAX_BYTES: usize = 8 * 1024;
 /// Short on purpose: an operator is watching this run.
@@ -77,33 +78,40 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
     /// Ask Cloudflare what this deployment looks like from outside, through
     /// the client chain the named scope would use.
     ///
-    /// The scope decides the chain, exactly as assembly does: a credential's
-    /// own profile, else its provider's, else the channel's default, else the
-    /// instance default. `Proxy` is the odd one out — it tests a URL that is
-    /// not configured anywhere yet, which is the point of having it.
+    /// HTTP profiles and proxies resolve independently, exactly as assembly
+    /// does: credential, provider, then global. Without a profile, the channel
+    /// supplies its HTTP defaults. A draft proxy previews the current scope
+    /// without writing it; null resumes inheritance.
     pub async fn test(&self, request: ConnectivityTest) -> SdkResult<ConnectivityResultDto> {
-        let client = self.probe_client(&request.scope).await?;
+        let (client, source) = self.probe_client(&request).await?;
         let started = Instant::now();
-        let outcome = rt::timeout(TRACE_TIMEOUT, trace(client.as_ref())).await;
-        let latency_ms = elapsed(started);
-        Ok(match outcome {
-            None => ConnectivityResultDto {
-                latency_ms,
-                error: Some("connectivity probe timed out".to_owned()),
-                ..Default::default()
+        let (v4, v6) = futures_util::future::join(
+            rt::timeout(TRACE_TIMEOUT, trace(client.as_ref(), TRACE_V4_URL, false)),
+            rt::timeout(TRACE_TIMEOUT, trace(client.as_ref(), TRACE_V6_URL, true)),
+        )
+        .await;
+        let v4 = v4.unwrap_or_else(|| Err("timeout".into()));
+        let v6 = v6.unwrap_or_else(|| Err("timeout".into()));
+        let ipv4_error = v4.as_ref().err().cloned();
+        let ipv6_error = v6.as_ref().err().cloned();
+        let ipv4 = v4.ok();
+        let ipv6 = v6.ok();
+        let primary = ipv4.as_ref().or(ipv6.as_ref());
+        Ok(ConnectivityResultDto {
+            ok: primary.is_some(),
+            latency_ms: elapsed(started),
+            ip: primary.map(|p| p.ip.clone()),
+            colo: primary.and_then(|p| p.colo.clone()),
+            error: if primary.is_some() {
+                None
+            } else {
+                ipv4_error.clone()
             },
-            Some(Err(error)) => ConnectivityResultDto {
-                latency_ms,
-                error: Some(error),
-                ..Default::default()
-            },
-            Some(Ok(trace)) => ConnectivityResultDto {
-                ok: true,
-                latency_ms,
-                ip: trace.0,
-                colo: trace.1,
-                error: None,
-            },
+            ipv4,
+            ipv6,
+            ipv4_error,
+            ipv6_error,
+            proxy_source: source.into(),
         })
     }
 
@@ -330,46 +338,94 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
     }
 
     /// The client a probe of this scope should go out through.
-    async fn probe_client(&self, scope: &ConnectivityScope) -> SdkResult<Arc<dyn OutboundClient>> {
-        match scope {
-            ConnectivityScope::Global => {
-                let profile = self
-                    .writer
-                    .store()
-                    .settings()
-                    .get()
-                    .await?
-                    .and_then(|settings| settings.connection_profile_id);
-                let config = match profile {
-                    Some(id) => self.profile_config(&id).await?,
-                    None => ConnectionConfig::default(),
-                };
-                self.client(config).await
-            }
-            // The provider chain already lives in core; reimplementing it here
-            // would be a second answer to the same question.
-            ConnectivityScope::Provider { provider_id } => {
-                Ok(self.writer.core().provider_client(provider_id).await?)
-            }
-            // A credential's client is resolved once at assembly and held on
-            // the snapshot, so this is the very transport its calls use.
-            ConnectivityScope::Credential { credential_id } => self
-                .writer
-                .core()
-                .snapshot()
-                .credentials
-                .get(credential_id)
-                .map(|credential| credential.client.clone())
-                .ok_or_else(|| SdkError::not_found("credential", credential_id.clone())),
-            ConnectivityScope::Proxy { url } => {
-                let url = crud::url(url, "url")?;
+    async fn probe_client(
+        &self,
+        request: &ConnectivityTest,
+    ) -> SdkResult<(Arc<dyn OutboundClient>, &'static str)> {
+        if let ConnectivityScope::Proxy { url } = &request.scope {
+            let value = crud::proxy(Some(json!({"mode":"explicit", "url":url})))?.expect("proxy");
+            let proxy =
+                serde_json::from_value(value).map_err(|_| SdkError::invalid("invalid proxy"))?;
+            return Ok((
                 self.client(ConnectionConfig {
-                    proxy: ProxyConfig::Explicit { url },
-                    ..ConnectionConfig::default()
+                    proxy,
+                    ..Default::default()
                 })
-                .await
+                .await?,
+                "custom",
+            ));
+        }
+        let settings = self.writer.store().settings().get().await?;
+        let credential = if let ConnectivityScope::Credential { credential_id } = &request.scope {
+            Some(
+                self.writer
+                    .store()
+                    .credentials()
+                    .get_many(std::slice::from_ref(credential_id))
+                    .await?
+                    .into_iter()
+                    .next()
+                    .flatten()
+                    .ok_or_else(|| SdkError::not_found("credential", credential_id))?,
+            )
+        } else {
+            None
+        };
+        let provider_id = match &request.scope {
+            ConnectivityScope::Provider { provider_id } => Some(provider_id.as_str()),
+            _ => credential.as_ref().map(|c| c.provider_id.as_str()),
+        };
+        let provider = if let Some(id) = provider_id {
+            Some(
+                self.writer
+                    .store()
+                    .providers()
+                    .get_many(&[id.to_owned()])
+                    .await?
+                    .into_iter()
+                    .next()
+                    .flatten()
+                    .ok_or_else(|| SdkError::not_found("provider", id))?,
+            )
+        } else {
+            None
+        };
+        let profile = credential
+            .as_ref()
+            .and_then(|c| c.connection_profile_id.as_deref())
+            .or(provider
+                .as_ref()
+                .and_then(|p| p.connection_profile_id.as_deref()))
+            .or(settings
+                .as_ref()
+                .and_then(|s| s.connection_profile_id.as_deref()));
+        let mut config = match profile {
+            Some(id) => self.profile_config(id).await?,
+            None => provider
+                .as_ref()
+                .and_then(|p| self.writer.core().channels().get(&p.channel))
+                .and_then(|channel| {
+                    channel
+                        .default_connection_for(gproxy_channel::channel::ConnectionPurpose::Request)
+                })
+                .unwrap_or_default(),
+        };
+        let draft = request.proxy.clone().map(crud::proxy).transpose()?;
+        let mut credential_proxy = credential.as_ref().and_then(|c| c.proxy.as_ref());
+        let mut provider_proxy = provider.as_ref().and_then(|p| p.proxy.as_ref());
+        let mut global_proxy = settings.as_ref().and_then(|s| s.proxy.as_ref());
+        if let Some(draft) = &draft {
+            match request.scope {
+                ConnectivityScope::Credential { .. } => credential_proxy = draft.as_ref(),
+                ConnectivityScope::Provider { .. } => provider_proxy = draft.as_ref(),
+                _ => global_proxy = draft.as_ref(),
             }
         }
+        let (proxy, source) =
+            gproxy_core::assemble::resolve_proxy(credential_proxy, provider_proxy, global_proxy)
+                .map_err(gproxy_core::CoreError::from)?;
+        config.proxy = proxy;
+        Ok((self.client(config).await?, source))
     }
 
     async fn profile_config(&self, id: &str) -> SdkResult<ConnectionConfig> {
@@ -599,22 +655,24 @@ fn tokens(usage: &NormalizedUsage) -> UsageTokensDto {
 
 /// `GET https://www.cloudflare.com/cdn-cgi/trace`, and the `ip=` and `colo=`
 /// lines out of the `key=value` body it answers with.
-async fn trace(client: &dyn OutboundClient) -> Result<(Option<String>, Option<String>), String> {
+async fn trace(
+    client: &dyn OutboundClient,
+    url: &str,
+    ipv6: bool,
+) -> Result<ConnectivityProbeDto, String> {
+    let started = Instant::now();
     let request = http::Request::builder()
         .method(http::Method::GET)
-        .uri(TRACE_URL)
+        .uri(url)
         .header(http::header::ACCEPT, "text/plain")
         .body(HttpBody::Bytes(Bytes::new()))
-        .map_err(|error| error.to_string())?;
+        .map_err(|_| "transport".to_owned())?;
     let response = client
         .send(request)
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(|_| "transport".to_owned())?;
     if !response.status.is_success() {
-        return Err(format!(
-            "connectivity probe returned {}",
-            response.status.as_u16()
-        ));
+        return Err("http_status".to_owned());
     }
     let body = read(response.body, TRACE_MAX_BYTES).await;
     let text = String::from_utf8_lossy(&body);
@@ -624,11 +682,16 @@ async fn trace(client: &dyn OutboundClient) -> Result<(Option<String>, Option<St
             (name.trim() == key).then(|| found.trim().to_owned())
         })
     };
-    let ip = value("ip").filter(|value| !value.is_empty());
-    if ip.is_none() {
-        return Err("connectivity probe did not report an egress address".to_owned());
-    }
-    Ok((ip, value("colo").filter(|value| !value.is_empty())))
+    let ip = value("ip")
+        .and_then(|value| value.parse::<std::net::IpAddr>().ok())
+        .filter(|ip| ip.is_ipv6() == ipv6)
+        .ok_or_else(|| "invalid_response".to_owned())?;
+    Ok(ConnectivityProbeDto {
+        ip: ip.to_string(),
+        location: value("loc"),
+        colo: value("colo"),
+        latency_ms: elapsed(started),
+    })
 }
 
 /// Read a body up to `max_bytes`, keeping whatever arrived. A truncated or
