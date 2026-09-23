@@ -87,6 +87,7 @@ exported!(
     OperationEndpointPatch,
     OperationEndpointWrite,
     OperationRuleDto,
+    OperationRoutingDto,
     OperationRulePatch,
     OperationRuleWrite,
     // login

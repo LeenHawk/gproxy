@@ -308,7 +308,13 @@
     "moveUp": "上移",
     "moveDown": "下移",
     "addProtocol": "添加协议",
-    "attach": "绑定规则集"
+    "attach": "绑定规则集",
+    "noRoutes": "此渠道暂无默认路由",
+    "source": "来源",
+    "default": "默认",
+    "custom": "自定义",
+    "reset": "恢复默认",
+    "resetConfirm": "删除此覆盖并恢复渠道默认规则？"
   },
   "update": {
     "current": "当前版本",

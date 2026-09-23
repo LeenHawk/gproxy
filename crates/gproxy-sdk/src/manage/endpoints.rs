@@ -7,6 +7,7 @@ use gproxy_store::{
     entity::upstream::{operation_endpoint, operation_rule},
 };
 use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, Select, Set};
+use strum::IntoEnumIterator;
 
 use super::{
     Scope, Writer,
@@ -16,7 +17,7 @@ use crate::{
     SdkError, SdkResult,
     dto::{
         BatchItem, ListQuery, OperationEndpointDto, OperationEndpointPatch, OperationEndpointWrite,
-        OperationRuleDto, OperationRulePatch, OperationRuleWrite, Page,
+        OperationRoutingDto, OperationRuleDto, OperationRulePatch, OperationRuleWrite, Page,
     },
 };
 
@@ -69,6 +70,76 @@ pub struct OperationRules<'a, C> {
 }
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> OperationRules<'_, C> {
+    pub async fn effective(&self, provider_id: &str) -> SdkResult<Vec<OperationRoutingDto>> {
+        let provider = self
+            .writer
+            .store()
+            .providers()
+            .get_many(&[provider_id.to_owned()])
+            .await?
+            .into_iter()
+            .next()
+            .flatten()
+            .ok_or_else(|| SdkError::not_found("provider", provider_id))?;
+        let channel = self
+            .writer
+            .core()
+            .channels()
+            .get(&provider.channel)
+            .ok_or_else(|| SdkError::invalid(format!("unknown channel `{}`", provider.channel)))?;
+        let view = gproxy_channel::channel::ProviderView {
+            id: &provider.id,
+            channel: &provider.channel,
+            base_url: provider.base_url.as_deref(),
+            config: &provider.config,
+        };
+        let saved = self
+            .writer
+            .store()
+            .operation_rules()
+            .query(
+                operation_rule::Entity::find()
+                    .filter(operation_rule::Column::ProviderId.eq(provider_id))
+                    .filter(operation_rule::Column::Action.eq("dialects")),
+            )
+            .await?;
+        let mut rows = Vec::new();
+        for operation in Operation::iter() {
+            let defaults: Vec<String> = channel
+                .native_dialects(view, operation)
+                .into_iter()
+                .map(|d| d.id().to_owned())
+                .collect();
+            let rule = saved.iter().find(|rule| rule.operation == operation.id());
+            if defaults.is_empty() && rule.is_none() {
+                continue;
+            }
+            let configured: Vec<Dialect> = rule
+                .and_then(|rule| rule.target.clone())
+                .map(serde_json::from_value)
+                .transpose()
+                .map_err(|error| {
+                    SdkError::invalid(format!(
+                        "invalid routing rule for {}: {error}",
+                        operation.id()
+                    ))
+                })?
+                .unwrap_or_default();
+            let dialects = if configured.is_empty() {
+                defaults.clone()
+            } else {
+                configured.into_iter().map(|d| d.id().to_owned()).collect()
+            };
+            rows.push(OperationRoutingDto {
+                operation: operation.id().into(),
+                default_dialects: defaults,
+                dialects,
+                rule: rule.cloned().map(Into::into),
+            });
+        }
+        Ok(rows)
+    }
+
     pub async fn list(&self, query: ListQuery) -> SdkResult<Page<OperationRuleDto>> {
         crud::list(self, query).await
     }

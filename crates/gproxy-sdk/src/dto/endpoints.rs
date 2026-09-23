@@ -135,3 +135,15 @@ pub struct OperationEndpointPatch {
     #[serde(default)]
     pub enabled: Option<bool>,
 }
+
+/// Channel defaults and any saved override for one operation of a provider.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct OperationRoutingDto {
+    pub operation: String,
+    pub default_dialects: Vec<String>,
+    pub dialects: Vec<String>,
+    pub rule: Option<OperationRuleDto>,
+}

@@ -296,6 +296,7 @@ ipc_table! {
     }
 
     manage endpoints_operation_rules [.endpoints().operation_rules()] {
+        effective[id];
         list(query: sdk::ListQuery);
         get[id];
         create(write: sdk::OperationRuleWrite);

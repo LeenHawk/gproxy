@@ -71,6 +71,7 @@ export * from "./ModelWrite";
 export * from "./OperationEndpointDto";
 export * from "./OperationEndpointPatch";
 export * from "./OperationEndpointWrite";
+export * from "./OperationRoutingDto";
 export * from "./OperationRuleDto";
 export * from "./OperationRulePatch";
 export * from "./OperationRuleWrite";

@@ -308,7 +308,13 @@
     "moveUp": "上移",
     "moveDown": "下移",
     "addProtocol": "新增協定",
-    "attach": "綁定規則集"
+    "attach": "綁定規則集",
+    "noRoutes": "此渠道暫無預設路由",
+    "source": "來源",
+    "default": "預設",
+    "custom": "自訂",
+    "reset": "恢復預設",
+    "resetConfirm": "刪除此覆寫並恢復渠道預設規則？"
   },
   "update": {
     "current": "目前版本",
