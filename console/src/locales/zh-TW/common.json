@@ -26,7 +26,8 @@
     "save": "儲存",
     "search": "搜尋",
     "signIn": "登入",
-    "signOut": "登出"
+    "signOut": "登出",
+    "refresh": "重新整理"
   },
   "state": {
     "emptyTitle": "這裡還是空的",
@@ -191,6 +192,7 @@
     "modelId": "模型目錄 ID",
     "filename": "檔案",
     "sizeBytes": "大小",
-    "linkedModels": "關聯模型"
+    "linkedModels": "關聯模型",
+    "anchorAtMs": "週期起始時間"
   }
 }

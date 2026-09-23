@@ -272,5 +272,35 @@
     "noBinding": "No model binding",
     "downloading": "Downloading…",
     "noModels": "No catalog models"
+  },
+  "userQuota": {
+    "action": "Spending limits",
+    "title": "Spending limits · {{name}}",
+    "description": "All API keys and OAuth calls for this user share these budgets. Every enabled rule applies.",
+    "add": "Add spending limit",
+    "edit": "Edit spending limit",
+    "help": "New limits are in USD; 0 blocks requests. Usage depends on configured pricing and settlement. Changing the amount does not reset usage. For a custom period, enter a positive duration in seconds; the anchor is optional.",
+    "empty": "No user spending limits",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "enable": "Enable",
+    "disable": "Disable",
+    "amount": "Used {{used}} / {{limit}} {{unit}}",
+    "allModels": "All models",
+    "resetAt": "Resets: {{at}}",
+    "never": "Never",
+    "reset": "Reset usage",
+    "resetConfirm": "Reset usage for {{name}} and start a new window?",
+    "deleteConfirm": "Delete {{name}}? This removes this spending restriction and retains historical usage.",
+    "periods": {
+      "5h": "Every 5 hours",
+      "1d": "Every 24 hours",
+      "7d": "Every 7 days",
+      "1m": "Calendar month (UTC)",
+      "total": "Lifetime",
+      "custom": "Custom period"
+    },
+    "name": "Rule name",
+    "limit": "Spending limit ({{unit}})"
   }
 }

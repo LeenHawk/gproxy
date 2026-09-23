@@ -34,6 +34,7 @@ export type FieldKind = "text" | "password" | "number" | "switch" | "select" | "
 export type FormField = {
   /** The DTO field name, and the i18n key under `fields.`. */
   name: string
+  label?: string
   kind: FieldKind
   /** Choices for `select`, labelled from `values.<option>`. */
   options?: ReadonlyArray<string>
@@ -200,7 +201,7 @@ function RecordForm({ fields, original, mode, onSubmit, pending, error, extra, o
         {offered.map((field) => (
           <Field key={field.name} orientation={field.kind === "switch" ? "horizontal" : "vertical"}>
             <FieldLabel htmlFor={`field-${field.name}`}>
-              {t(`fields.${field.name}`)}
+              {field.label ?? t(`fields.${field.name}`)}
               {field.required && mode === "create" ? <span aria-hidden className="text-destructive"> *</span> : null}
             </FieldLabel>
             <Control
