@@ -401,12 +401,7 @@ pub(super) fn smithy_headers(
     );
     headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(AMZ_JSON));
     headers.insert(header::ACCEPT, HeaderValue::from_static("*/*"));
-    let user_agent = config
-        .user_agent
-        .as_deref()
-        .map(str::trim)
-        .filter(|agent| !agent.is_empty());
-    let banner = user_agent.unwrap_or(target.user_agent());
+    let banner = target.user_agent();
     headers.insert(
         header::USER_AGENT,
         HeaderValue::from_str(banner).map_err(|_| invalid_config("user_agent"))?,
@@ -632,11 +627,6 @@ impl BaseChannel for Kiro {
                     "sso_start_url",
                     ConfigKeyKind::String,
                     "The Identity Center portal the authorization code is issued by; defaults to the Builder ID portal.",
-                ),
-                ConfigKey::optional(
-                    "user_agent",
-                    ConfigKeyKind::String,
-                    "Replaces the AWS SDK banner on every request.",
                 ),
                 ConfigKey::optional(
                     "headers",

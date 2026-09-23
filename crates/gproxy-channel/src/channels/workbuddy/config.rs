@@ -22,8 +22,6 @@ pub struct WorkBuddyConfig {
     pub ide_type: String,
     /// The intent the agent surface is asked for; the CLI sends `craft`.
     pub agent_intent: String,
-    /// Replaces the whole user agent.
-    pub user_agent: Option<String>,
     /// Static headers added to every request.
     pub headers: BTreeMap<String, String>,
 }
@@ -35,7 +33,6 @@ impl Default for WorkBuddyConfig {
             ide_name: "CLI".into(),
             ide_type: "CLI".into(),
             agent_intent: "craft".into(),
-            user_agent: None,
             headers: BTreeMap::new(),
         }
     }
@@ -52,11 +49,7 @@ impl WorkBuddyConfig {
     }
 
     pub(super) fn user_agent(&self) -> String {
-        self.user_agent
-            .as_deref()
-            .and_then(non_empty)
-            .map(str::to_owned)
-            .unwrap_or_else(|| format!("WorkBuddy/{}", self.ide_version()))
+        format!("WorkBuddy/{}", self.ide_version())
     }
 }
 

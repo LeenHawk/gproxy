@@ -519,12 +519,9 @@ fn service_headers(
         HeaderName::from_static("x-stainless-arch"),
         HeaderValue::from_static(stainless_arch()),
     );
-    let user_agent = match &config.user_agent {
-        Some(agent) => header_value(agent)?,
-        None => client_user_agent
-            .filter(|value| value.to_str().is_ok_and(valid_cli_user_agent))
-            .unwrap_or_else(|| HeaderValue::from_static(CLI_USER_AGENT)),
-    };
+    let user_agent = client_user_agent
+        .filter(|value| value.to_str().is_ok_and(valid_cli_user_agent))
+        .unwrap_or_else(|| HeaderValue::from_static(CLI_USER_AGENT));
     headers.insert(header::USER_AGENT, user_agent);
     headers.insert(
         header::ACCEPT,

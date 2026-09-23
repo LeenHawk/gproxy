@@ -81,8 +81,6 @@ pub const GOOG_API_CLIENT: &str = "gl-node/22.20.0";
 pub struct GeminiCliConfig {
     pub authorize_url: String,
     pub token_url: String,
-    /// Replaces the CLI user agent on every Code Assist request.
-    pub user_agent: Option<String>,
     /// Static headers added to every Code Assist request.
     pub headers: std::collections::BTreeMap<String, String>,
 }
@@ -92,7 +90,6 @@ impl Default for GeminiCliConfig {
         Self {
             authorize_url: DEFAULT_AUTHORIZE_URL.into(),
             token_url: DEFAULT_TOKEN_URL.into(),
-            user_agent: None,
             headers: std::collections::BTreeMap::new(),
         }
     }
@@ -211,10 +208,7 @@ fn header_value(value: &str) -> Result<HeaderValue, ChannelError> {
 
 /// `GeminiCLI-tui/0.55.1/<model> (...)`: the CLI appends the model it is
 /// about to call to its version (v3 `prepare.rs::user_agent`).
-fn user_agent(config: &GeminiCliConfig, model: &str) -> String {
-    if let Some(agent) = config.user_agent.as_deref() {
-        return agent.to_owned();
-    }
+fn user_agent(model: &str) -> String {
     match model.trim() {
         "" => CLI_USER_AGENT.to_owned(),
         model => CLI_USER_AGENT.replacen(
@@ -249,7 +243,7 @@ pub(super) fn apply_headers(
     );
     headers.insert(
         header::USER_AGENT,
-        header_value(&user_agent(config, model))?,
+        header_value(&user_agent(model))?,
     );
     if !json_only {
         headers.insert(
@@ -441,11 +435,6 @@ impl BaseChannel for GeminiCli {
                     "token_url",
                     ConfigKeyKind::String,
                     "Google OAuth token endpoint used by the code exchange and by refresh.",
-                ),
-                ConfigKey::optional(
-                    "user_agent",
-                    ConfigKeyKind::String,
-                    "Replaces the CLI user agent on every Code Assist request.",
                 ),
                 ConfigKey::optional(
                     "headers",

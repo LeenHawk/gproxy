@@ -120,7 +120,6 @@
     "token_url": "Token url",
     "usage_accounting": "Usage accounting",
     "usage_base_url": "Usage base url",
-    "user_agent": "User agent",
     "vscode_version": "Vscode version"
   },
   "providerOption": {

@@ -89,8 +89,6 @@ const HIGH_REASONING_BUDGET: i64 = 10_001;
 pub struct AntigravityConfig {
     pub authorize_url: String,
     pub token_url: String,
-    /// Replaces the editor's user agent on every Code Assist request.
-    pub user_agent: Option<String>,
     /// Static headers added to every Code Assist request.
     pub headers: std::collections::BTreeMap<String, String>,
 }
@@ -100,7 +98,6 @@ impl Default for AntigravityConfig {
         Self {
             authorize_url: DEFAULT_AUTHORIZE_URL.into(),
             token_url: DEFAULT_TOKEN_URL.into(),
-            user_agent: None,
             headers: std::collections::BTreeMap::new(),
         }
     }
@@ -248,7 +245,7 @@ pub(super) fn apply_headers(
     }
     headers.insert(
         header::USER_AGENT,
-        header_value(config.user_agent.as_deref().unwrap_or(CLI_USER_AGENT))?,
+        HeaderValue::from_static(CLI_USER_AGENT),
     );
     for (name, value) in &config.headers {
         headers.insert(
@@ -460,11 +457,6 @@ impl BaseChannel for Antigravity {
                     "token_url",
                     ConfigKeyKind::String,
                     "Google OAuth token endpoint used by the code exchange and by refresh.",
-                ),
-                ConfigKey::optional(
-                    "user_agent",
-                    ConfigKeyKind::String,
-                    "Replaces the editor's user agent on every Code Assist request.",
                 ),
                 ConfigKey::optional(
                     "headers",

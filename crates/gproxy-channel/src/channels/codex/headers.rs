@@ -119,10 +119,7 @@ pub(super) fn backend_headers(
         HeaderName::from_static("originator"),
         header_value(&config.originator)?,
     );
-    let agent = match &config.user_agent {
-        Some(agent) => agent.clone(),
-        None => agent::user_agent(&config.originator),
-    };
+    let agent = agent::user_agent(&config.originator);
     headers.insert(header::USER_AGENT, header_value(&agent)?);
     for (name, value) in &config.headers {
         headers.insert(
