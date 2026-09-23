@@ -28,7 +28,8 @@
     "rules": "重寫規則",
     "provider-rule-sets": "綁定規則集",
     "operation-rules": "操作規則",
-    "operation-endpoints": "操作端點"
+    "operation-endpoints": "操作端點",
+    "update": "系統更新"
   },
   "create": {
     "keys": "新建金鑰",

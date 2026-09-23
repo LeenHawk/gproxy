@@ -317,5 +317,28 @@
     "dialects": "Native dialects, in preference order (one per line)",
     "operationHelp": "Override native dialects for an operation, e.g. generate_content. Enter dialect IDs such as openai, openai_chat, claude or gemini, one per line. The first is the conversion target when the client dialect is not native. Delete the rule to inherit channel defaults.",
     "endpointHelp": "Override the full URL for one operation, dialect and transport. This replaces the channel URL including its path."
+  },
+  "update": {
+    "current": "Running version",
+    "unsupported": "This host does not support self-update",
+    "channel": "Update channel",
+    "channelHelp": "This choice is for this check/install only. Change the default and scheduled checks in Global settings.",
+    "schedule": "Check every {{seconds}} seconds",
+    "noSchedule": "Scheduled checks disabled",
+    "autoInstall": "Automatic installation enabled",
+    "manualInstall": "Manual installation",
+    "checking": "Checking…",
+    "check": "Check for updates",
+    "install": "Install update",
+    "rollback": "Roll back",
+    "installConfirm": "Install {{version}}? The service may restart and interrupt connections.",
+    "rollbackConfirm": "Restore the previous executable? The service may restart.",
+    "installing": "Working… The service may restart; reload after it returns.",
+    "installed": "Executable replaced. Version: {{version}}; restart: {{restart}}. Reload when the service is ready.",
+    "unchanged": "No executable change was needed.",
+    "available": "Update available: {{version}}",
+    "latest": "No newer version found",
+    "notes": "Release notes",
+    "notChecked": "No check result for this channel yet."
   }
 }
