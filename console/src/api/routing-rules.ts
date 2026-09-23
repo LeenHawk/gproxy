@@ -17,3 +17,5 @@ export async function ruleSetDirectory() {
     if (rows.length >= result.total || result.items.length === 0) return rows
   }
 }
+
+export const effectiveRouting = (providerId: string) => api<import("@/generated/sdk").OperationRoutingDto[]>(`/admin/api/providers/${encodeURIComponent(providerId)}/routing`)

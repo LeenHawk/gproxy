@@ -98,6 +98,7 @@ bundled-vocabulary = ["gproxy-core/bundled-vocabulary"]
 ts = ["dep:ts-rs", "ts-rs/no-serde-warnings", "gproxy-channel/ts"]
 
 [dependencies]
+strum = { workspace = true }
 arc-swap = { workspace = true }
 base64 = { workspace = true }
 futures-util = { workspace = true }

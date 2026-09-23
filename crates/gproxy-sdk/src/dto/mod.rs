@@ -60,8 +60,8 @@ pub use control::{
     ProviderPatch, ProviderWrite,
 };
 pub use endpoints::{
-    OperationEndpointDto, OperationEndpointPatch, OperationEndpointWrite, OperationRuleDto,
-    OperationRulePatch, OperationRuleWrite,
+    OperationEndpointDto, OperationEndpointPatch, OperationEndpointWrite, OperationRoutingDto,
+    OperationRuleDto, OperationRulePatch, OperationRuleWrite,
 };
 pub use login::{
     AuthCodeComplete, AuthCodeStart, AuthCodeStarted, CookieExchange, CredentialCreated,

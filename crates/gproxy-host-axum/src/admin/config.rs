@@ -214,7 +214,8 @@ where
         OperationRuleWrite,
         OperationRulePatch,
         "operation-rules"
-    );
+    )
+    .route("/providers/{id}/routing", get(provider_routing::<C>));
     let router = config_family!(
         router,
         "/operation-endpoints",
@@ -926,6 +927,25 @@ where
             Ok(token) => crate::error::ok_json(&serde_json::json!({ "token": token })),
             Err(error) => ErrorResponse(AppError::from(error)).into_response(),
         }
+    })
+    .await
+}
+
+async fn provider_routing<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Path(id): Path<String>,
+) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    crate::send(async move {
+        manage!(
+            state,
+            scope,
+            "operation-rules",
+            endpoints().operation_rules().effective(&id)
+        )
     })
     .await
 }

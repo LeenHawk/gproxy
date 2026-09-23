@@ -308,7 +308,13 @@
     "moveUp": "Move up",
     "moveDown": "Move down",
     "addProtocol": "Add protocol",
-    "attach": "Attach rule set"
+    "attach": "Attach rule set",
+    "noRoutes": "No channel routing defaults",
+    "source": "Source",
+    "default": "Default",
+    "custom": "Custom",
+    "reset": "Restore default",
+    "resetConfirm": "Remove this override and restore the channel default?"
   },
   "update": {
     "current": "Running version",

@@ -10,18 +10,18 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-type Props = { open: boolean; onOpenChange: (open: boolean) => void; original?: OperationRuleDto; onSubmit: (body: Record<string, unknown>) => void; pending: boolean; error: unknown }
+type Props = { open: boolean; onOpenChange: (open: boolean) => void; original?: OperationRuleDto; defaults?: { operation: string; dialects: string[] }; onSubmit: (body: Record<string, unknown>) => void; pending: boolean; error: unknown }
 export function RoutingRuleDialog(props: Props) {
   const { t } = useTranslation()
   return <Dialog open={props.open} onOpenChange={(open) => { if (!props.pending) props.onOpenChange(open) }}><DialogContent className="sm:max-w-lg" closeLabel={t("actions.close")} aria-describedby={undefined}>
-    <DialogHeader><DialogTitle>{t(props.original ? "edit.operation-rules" : "create.operation-rules")}</DialogTitle></DialogHeader>
+    <DialogHeader><DialogTitle>{t(props.original || props.defaults ? "edit.operation-rules" : "create.operation-rules")}</DialogTitle></DialogHeader>
     {props.open ? <RoutingRuleForm key={props.original?.id ?? "new"} {...props} /> : null}
   </DialogContent></Dialog>
 }
-function RoutingRuleForm({ original, onSubmit, pending, error }: Props) {
+function RoutingRuleForm({ original, defaults, onSubmit, pending, error }: Props) {
   const { t } = useTranslation()
-  const [operation, setOperation] = useState(original?.operation ?? "generate_content")
-  const [targets, setTargets] = useState<string[]>(Array.isArray(original?.target) ? original.target as string[] : [])
+  const [operation, setOperation] = useState(original?.operation ?? defaults?.operation ?? "generate_content")
+  const [targets, setTargets] = useState<string[]>(Array.isArray(original?.target) ? original.target as string[] : defaults?.dialects ?? [])
   const move = (index: number, offset: number) => setTargets((current) => {
     const next = [...current]
     ;[next[index], next[index + offset]] = [next[index + offset], next[index]]
@@ -48,6 +48,6 @@ function RoutingRuleForm({ original, onSubmit, pending, error }: Props) {
         </Field>
       </FieldGroup>
     </DialogBody>
-    <DialogFooter><Button type="submit" disabled={pending || !targets.length || targets.some((v) => !v)}>{t(original ? "actions.save" : "actions.create")}</Button></DialogFooter>
+    <DialogFooter><Button type="submit" disabled={pending || !targets.length || targets.some((v) => !v)}>{t(original || defaults ? "actions.save" : "actions.create")}</Button></DialogFooter>
   </form>
 }
