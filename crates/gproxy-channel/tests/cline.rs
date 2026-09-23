@@ -658,7 +658,7 @@ fn the_descriptor_offers_both_ways_in() {
     );
     assert!(descriptor.capabilities.refresh);
     assert!(descriptor.capabilities.quota_query);
-    for key in ["base_url", "client_id", "token_url", "headers"] {
+    for key in ["base_url", "token_url", "headers"] {
         assert!(descriptor.config_key(key).is_some(), "{key}");
     }
     assert!(

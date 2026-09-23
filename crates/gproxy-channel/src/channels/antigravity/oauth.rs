@@ -34,8 +34,8 @@ fn metadata(_project: Option<&str>) -> Value {
 
 fn tool(config: &AntigravityConfig) -> GoogleTool<'_> {
     GoogleTool {
-        client_id: non_empty(&config.client_id, DEFAULT_CLIENT_ID),
-        client_secret: non_empty(&config.client_secret, DEFAULT_CLIENT_SECRET),
+        client_id: DEFAULT_CLIENT_ID,
+        client_secret: DEFAULT_CLIENT_SECRET,
         token_url: non_empty(&config.token_url, DEFAULT_TOKEN_URL),
         redirect_uri: DEFAULT_REDIRECT_URI,
         scope: OAUTH_SCOPE,
@@ -82,7 +82,7 @@ impl OAuthAuthorizationCode for Antigravity {
                 grant.code,
                 grant.redirect_uri,
                 grant.code_verifier,
-                config.project_id.as_deref(),
+                None,
             )
             .await
         })
@@ -101,7 +101,7 @@ impl CredentialRefresh for Antigravity {
                 &tool(&config),
                 &base_url(context.provider),
                 context.credential.secret,
-                config.project_id.as_deref(),
+                None,
             )
             .await
         })

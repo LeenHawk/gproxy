@@ -170,7 +170,7 @@ fn descriptor_declares_the_login_and_the_keys_it_reads() {
     assert!(descriptor.capabilities.refresh);
     assert!(descriptor.capabilities.quota_query);
     assert!(!descriptor.capabilities.services);
-    for key in ["base_url", "project_id", "user_agent", "allowed_headers"] {
+    for key in ["base_url", "user_agent", "allowed_headers"] {
         assert!(descriptor.config_key(key).is_some(), "missing key {key}");
     }
     assert_eq!(

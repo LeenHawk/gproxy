@@ -33,7 +33,6 @@ pub struct OpenCodeConfig {
     pub tier: Tier,
     /// Where the device login and the refresh talk.
     pub console_base_url: String,
-    pub client_id: String,
     /// Static headers added to every upstream request.
     pub headers: BTreeMap<String, String>,
     /// Place `cache_control` where a client embeds a magic cache string in a
@@ -49,7 +48,6 @@ impl Default for OpenCodeConfig {
         Self {
             tier: Tier::Zen,
             console_base_url: DEFAULT_CONSOLE_BASE_URL.into(),
-            client_id: DEFAULT_CLIENT_ID.into(),
             headers: BTreeMap::new(),
             enable_claude_magic_cache: false,
             enable_openai_magic_cache: false,
@@ -63,10 +61,7 @@ impl OpenCodeConfig {
             .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
     }
 
-    pub(super) fn client_id(&self) -> &str {
-        let id = self.client_id.trim();
-        if id.is_empty() { DEFAULT_CLIENT_ID } else { id }
-    }
+
 
     /// The console origin the login used, when one was recorded, else the
     /// configured one, else OpenCode's.

@@ -89,11 +89,6 @@ const HIGH_REASONING_BUDGET: i64 = 10_001;
 pub struct AntigravityConfig {
     pub authorize_url: String,
     pub token_url: String,
-    pub client_id: String,
-    pub client_secret: String,
-    /// Cloud project to use instead of the one the login discovered; also
-    /// the hint the login sends to `loadCodeAssist`/`onboardUser`.
-    pub project_id: Option<String>,
     /// Replaces the editor's user agent on every Code Assist request.
     pub user_agent: Option<String>,
     /// Static headers added to every Code Assist request.
@@ -105,9 +100,6 @@ impl Default for AntigravityConfig {
         Self {
             authorize_url: DEFAULT_AUTHORIZE_URL.into(),
             token_url: DEFAULT_TOKEN_URL.into(),
-            client_id: DEFAULT_CLIENT_ID.into(),
-            client_secret: DEFAULT_CLIENT_SECRET.into(),
-            project_id: None,
             user_agent: None,
             headers: std::collections::BTreeMap::new(),
         }
@@ -222,18 +214,9 @@ pub(super) fn access_token<'a>(credential: &CredentialView<'a>) -> Result<&'a st
         .ok_or(ChannelError::InvalidCredential)
 }
 
-/// The Cloud project the Code Assist calls are billed to. Learned at login
-/// and read here; an explicit `config.project_id` overrides it.
-pub(super) fn project(
-    config: &AntigravityConfig,
-    credential: &CredentialView<'_>,
-) -> Result<String, ChannelError> {
-    config
-        .project_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|project| !project.is_empty())
-        .or_else(|| fact(credential, "project_id"))
+/// The Cloud project discovered for this credential at login.
+pub(super) fn project(credential: &CredentialView<'_>) -> Result<String, ChannelError> {
+    fact(credential, "project_id")
         .map(str::to_owned)
         .ok_or(ChannelError::InvalidCredential)
 }
@@ -356,7 +339,7 @@ impl Antigravity {
             Operation::ListModels | Operation::GetModel => (Bytes::from_static(b"{}"), false),
             Operation::CountTokens => (code_assist::count_envelope(&buffered, &model)?, false),
             Operation::GenerateContent | Operation::StreamGenerateContent => {
-                let project = project(&config, &ctx.credential)?;
+                let project = project(&ctx.credential)?;
                 let bytes = code_assist::envelope(&buffered, &model, &project)?;
                 let mut envelope: Value = serde_json::from_slice(&bytes)
                     .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
@@ -477,21 +460,6 @@ impl BaseChannel for Antigravity {
                     "token_url",
                     ConfigKeyKind::String,
                     "Google OAuth token endpoint used by the code exchange and by refresh.",
-                ),
-                ConfigKey::optional(
-                    "client_id",
-                    ConfigKeyKind::String,
-                    "OAuth client id; defaults to Antigravity's own.",
-                ),
-                ConfigKey::optional(
-                    "client_secret",
-                    ConfigKeyKind::String,
-                    "Installed-app client secret that goes with client_id; defaults to Antigravity's.",
-                ),
-                ConfigKey::optional(
-                    "project_id",
-                    ConfigKeyKind::String,
-                    "Cloud project for Code Assist; overrides the one the login discovered and is the hint the login sends.",
                 ),
                 ConfigKey::optional(
                     "user_agent",

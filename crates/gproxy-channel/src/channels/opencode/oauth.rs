@@ -7,7 +7,7 @@
 //! `opencode/auth.rs`). The console origin travels in `provider_fields` so a
 //! refresh returns to the same one the login used.
 
-use super::config::{ID, OpenCodeConfig};
+use super::config::{DEFAULT_CLIENT_ID, ID, OpenCodeConfig};
 use super::request::fact;
 use crate::channel::{
     ChannelError, CredentialRefresh, CredentialUpdate, DeviceAuthorization, DevicePoll,
@@ -111,7 +111,7 @@ impl OAuthDeviceCode for super::OpenCode {
                 &format!("{base}/auth/device/code"),
                 json_headers(),
                 Some(
-                    json!({ "client_id": config.client_id() })
+                    json!({ "client_id": DEFAULT_CLIENT_ID })
                         .to_string()
                         .into_bytes(),
                 ),
@@ -165,7 +165,7 @@ impl OAuthDeviceCode for super::OpenCode {
                     json!({
                         "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
                         "device_code": authorization.device_code,
-                        "client_id": config.client_id(),
+                        "client_id": DEFAULT_CLIENT_ID,
                     })
                     .to_string()
                     .into_bytes(),
@@ -227,7 +227,7 @@ impl CredentialRefresh for super::OpenCode {
                     json!({
                         "grant_type": "refresh_token",
                         "refresh_token": refresh_token,
-                        "client_id": config.client_id(),
+                        "client_id": DEFAULT_CLIENT_ID,
                     })
                     .to_string()
                     .into_bytes(),

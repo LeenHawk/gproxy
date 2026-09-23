@@ -81,11 +81,6 @@ impl BaseChannel for Kimi {
                     "Where the device login and refresh talk; defaults to https://auth.kimi.com.",
                 ),
                 ConfigKey::optional(
-                    "client_id",
-                    ConfigKeyKind::String,
-                    "OAuth client the device login presents; defaults to the Kimi Code CLI's.",
-                ),
-                ConfigKey::optional(
                     "cli_version",
                     ConfigKeyKind::String,
                     "Version announced in user-agent and x-msh-version.",

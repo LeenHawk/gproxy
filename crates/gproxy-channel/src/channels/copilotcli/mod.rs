@@ -130,11 +130,6 @@ impl BaseChannel for CopilotCli {
                     "Where the Copilot token is minted and the seat probed; defaults to https://api.github.com.",
                 ),
                 ConfigKey::optional(
-                    "client_id",
-                    ConfigKeyKind::String,
-                    "GitHub OAuth app the device login presents; defaults to the Copilot CLI's.",
-                ),
-                ConfigKey::optional(
                     "device_authorization_url",
                     ConfigKeyKind::String,
                     "Where the device login starts; defaults to GitHub's device code endpoint.",

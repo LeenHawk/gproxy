@@ -38,7 +38,6 @@ pub struct KimiConfig {
     pub product: Option<Product>,
     /// Where the device login and the refresh talk.
     pub oauth_host: String,
-    pub client_id: String,
     /// The Kimi Code CLI version announced in `user-agent` and `x-msh-version`.
     pub cli_version: String,
     /// The machine the CLI claims to run on. v3 read the host environment;
@@ -57,7 +56,6 @@ impl Default for KimiConfig {
         Self {
             product: None,
             oauth_host: DEFAULT_OAUTH_HOST.into(),
-            client_id: DEFAULT_CLIENT_ID.into(),
             cli_version: DEFAULT_CLI_VERSION.into(),
             device_name: None,
             device_model: None,
@@ -99,8 +97,5 @@ impl KimiConfig {
         }
     }
 
-    pub(super) fn client_id(&self) -> &str {
-        let id = self.client_id.trim();
-        if id.is_empty() { DEFAULT_CLIENT_ID } else { id }
-    }
+
 }

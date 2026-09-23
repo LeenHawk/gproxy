@@ -90,7 +90,6 @@ const SESSION_WINDOW_MS: i64 = 20 * 60 * 1000;
 pub struct ClaudecodeConfig {
     pub authorize_url: String,
     pub token_url: String,
-    pub client_id: String,
     /// The claude.ai origin the cookie login talks to.
     pub claude_ai_url: String,
     /// Replaces the CLI user agent on every backend request.
@@ -108,7 +107,6 @@ impl Default for ClaudecodeConfig {
         Self {
             authorize_url: DEFAULT_AUTHORIZE_URL.into(),
             token_url: DEFAULT_TOKEN_URL.into(),
-            client_id: DEFAULT_CLIENT_ID.into(),
             claude_ai_url: DEFAULT_CLAUDE_AI_URL.into(),
             user_agent: None,
             headers: BTreeMap::new(),
@@ -600,11 +598,6 @@ impl BaseChannel for Claudecode {
                     "token_url",
                     ConfigKeyKind::String,
                     "OAuth token endpoint used by the code exchange and by refresh.",
-                ),
-                ConfigKey::optional(
-                    "client_id",
-                    ConfigKeyKind::String,
-                    "OAuth client id; defaults to the Claude Code CLI's.",
                 ),
                 ConfigKey::optional(
                     "claude_ai_url",
@@ -1164,7 +1157,7 @@ impl OAuthAuthorizationCode for Claudecode {
             };
             let query = form_encode(&[
                 ("code", "true"),
-                ("client_id", &config.client_id),
+                ("client_id", DEFAULT_CLIENT_ID),
                 ("response_type", "code"),
                 ("redirect_uri", redirect_uri),
                 ("scope", LOGIN_SCOPE),
@@ -1192,7 +1185,7 @@ impl OAuthAuthorizationCode for Claudecode {
             let config = ClaudecodeConfig::from_view(context.provider)?;
             let body = json!({
                 "grant_type": "authorization_code",
-                "client_id": config.client_id,
+                "client_id": DEFAULT_CLIENT_ID,
                 "code": grant.code,
                 "redirect_uri": grant.redirect_uri,
                 "code_verifier": grant.code_verifier,
@@ -1259,7 +1252,7 @@ impl CredentialRefresh for Claudecode {
             }
             let body = json!({
                 "grant_type": "refresh_token",
-                "client_id": config.client_id,
+                "client_id": DEFAULT_CLIENT_ID,
                 "refresh_token": refresh_token,
                 "scope": scopes.join(" "),
             });

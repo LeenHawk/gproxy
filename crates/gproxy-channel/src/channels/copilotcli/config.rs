@@ -80,8 +80,6 @@ pub struct CopilotCliConfig {
     pub account_type: Option<AccountType>,
     /// Where the Copilot token is minted and the account probed.
     pub github_api_url: String,
-    /// OAuth client the device login presents; defaults to the CLI's own.
-    pub client_id: String,
     pub device_authorization_url: String,
     pub token_url: String,
     /// The scope the device login asks for.
@@ -97,7 +95,6 @@ impl Default for CopilotCliConfig {
         Self {
             account_type: None,
             github_api_url: DEFAULT_GITHUB_API_URL.into(),
-            client_id: DEFAULT_CLIENT_ID.into(),
             device_authorization_url: DEFAULT_DEVICE_AUTHORIZATION_URL.into(),
             token_url: DEFAULT_TOKEN_URL.into(),
             scope: DEFAULT_SCOPE.into(),
@@ -122,9 +119,7 @@ impl CopilotCliConfig {
         Self::or_default(&self.github_api_url, DEFAULT_GITHUB_API_URL).trim_end_matches('/')
     }
 
-    pub(super) fn client_id(&self) -> &str {
-        Self::or_default(&self.client_id, DEFAULT_CLIENT_ID)
-    }
+
 
     pub(super) fn device_authorization_url(&self) -> &str {
         Self::or_default(

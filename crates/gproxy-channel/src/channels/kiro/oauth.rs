@@ -17,23 +17,15 @@
 //! the resulting id and secret to the exchange in the login session's `extra`
 //! field. v4 does the same through `AuthorizationStart::provider_state`, the
 //! pocket both login flows carry: `authorize` calls `RegisterClient` (RFC 7591)
-//! and puts the pair there, and `exchange` reads it back. Nothing about that
-//! pair reaches `provider_fields`, which the host publishes as credential
-//! metadata — the id is public and goes there, the secret is sealed with the
+//! and puts the pair there, and `exchange` reads it back. The public id goes
+//! into `provider_fields` for credential metadata; the secret is sealed with the
 //! tokens in `provider_secrets` because the refresh needs it and the login
 //! session it arrived in is gone by then.
 //!
 //! An Identity Center that has dynamic registration disabled refuses that call.
-//! The operator-configured `sso_client_id`/`sso_client_secret` pair is the
-//! fallback for exactly that case, and then nothing client-related is persisted
-//! on the credential: the configuration is already the source of truth, and a
-//! stale copy sealed beside the tokens would outlive an operator's rotation. A
-//! credential imported from v3 keeps refreshing too, because its flat
-//! `client_id`/`client_secret` are read as a fallback.
-//!
-//! Facts the login learns — the profile ARN the runtime plane needs, the
-//! region and portal an IdC credential belongs to — travel in
-//! `provider_fields`, and `prepare` reads them back out of the metadata.
+//! Identity Center clients are registered during login and stored with that
+//! credential. Imported credentials may carry the same pair in v3's flat
+//! `client_id` / `client_secret` fields.
 
 use super::config::{DEFAULT_REDIRECT_URI, ID, KiroConfig, OAUTH_SCOPE, validate_region};
 use super::{fact, form_encode, json_headers, non_empty, send, unix_now_ms};
@@ -269,8 +261,8 @@ impl OAuthDeviceCode for super::Kiro {
 impl OAuthAuthorizationCode for super::Kiro {
     /// The AWS OIDC browser step, preceded by the dynamic client registration
     /// the Kiro CLI performs. The pair it mints belongs to this login alone, so
-    /// it rides to the exchange in `provider_state`; an Identity Center that
-    /// refuses to register falls back to the operator's configured pair.
+    /// it rides to the exchange in `provider_state`. Registration failure
+    /// stops this login.
     fn authorize<'a>(
         &'a self,
         context: LoginContext<'a>,
@@ -283,26 +275,17 @@ impl OAuthAuthorizationCode for super::Kiro {
                 "" => DEFAULT_REDIRECT_URI,
                 uri => uri,
             };
-            let mut provider_state = BTreeMap::new();
-            let client_id =
-                match register_client(context.client, &region, redirect_uri, config.start_url())
+            let (client_id, client_secret) =
+                register_client(context.client, &region, redirect_uri, config.start_url())
                     .await?
-                {
-                    Some((id, secret)) => {
-                        provider_state.insert(CLIENT_ID.into(), Value::String(id.clone()));
-                        provider_state.insert(CLIENT_SECRET.into(), Value::String(secret));
-                        id
-                    }
-                    // Nothing was minted, so nothing is carried: the exchange
-                    // reads the same configuration this did.
-                    None => configured_client(&config)
-                        .ok_or_else(|| {
-                            ChannelError::InvalidConfig(
-                                "AWS OIDC would not register a client and no `sso_client_id`/`sso_client_secret` is configured".into(),
-                            )
-                        })?
-                        .0,
-                };
+                    .ok_or_else(|| {
+                        ChannelError::InvalidConfig(
+                            "AWS OIDC did not register a client for this login".into(),
+                        )
+                    })?;
+            let mut provider_state = BTreeMap::new();
+            provider_state.insert(CLIENT_ID.into(), Value::String(client_id.clone()));
+            provider_state.insert(CLIENT_SECRET.into(), Value::String(client_secret));
             let query = form_encode(&[
                 ("response_type", "code"),
                 ("client_id", &client_id),
@@ -327,15 +310,10 @@ impl OAuthAuthorizationCode for super::Kiro {
     ) -> OperationFuture<'a, OAuthCredential> {
         Box::pin(async move {
             let config = KiroConfig::from_view(context.provider)?;
-            // What `authorize` registered wins: the code was issued to that
-            // client and no other can redeem it.
-            let registered = state_client(grant.provider_state);
-            let (client_id, client_secret) = registered
-                .clone()
-                .or_else(|| configured_client(&config))
-                .ok_or_else(|| {
+            let (client_id, client_secret) =
+                state_client(grant.provider_state).ok_or_else(|| {
                     ChannelError::InvalidConfig(
-                        "this login registered no Identity Center client and none is configured as `sso_client_id`/`sso_client_secret`".into(),
+                        "OAuth login state has no registered Identity Center client".into(),
                     )
                 })?;
             let region = config.region()?.to_owned();
@@ -376,14 +354,8 @@ impl OAuthAuthorizationCode for super::Kiro {
             );
             field(&mut fields, "profile_arn", reply.profile_arn);
             let mut secrets = BTreeMap::new();
-            if let Some((id, secret)) = registered {
-                // Only a client this login registered has to be persisted: it
-                // exists nowhere else, and the refresh token is bound to it.
-                // The id is a public fact; the secret is sealed with the
-                // tokens, where no console can render it.
-                fields.insert(CLIENT_ID.into(), Value::String(id));
-                secrets.insert(CLIENT_SECRET.into(), Value::String(secret));
-            }
+            fields.insert(CLIENT_ID.into(), Value::String(client_id));
+            secrets.insert(CLIENT_SECRET.into(), Value::String(client_secret));
             Ok(credential(
                 access,
                 Some(refresh),
@@ -444,40 +416,6 @@ fn state_client(provider_state: &BTreeMap<String, Value>) -> Option<(String, Str
     value(CLIENT_ID).zip(value(CLIENT_SECRET))
 }
 
-/// The pair an operator registered by hand and wrote into the provider config.
-fn configured_client(config: &KiroConfig) -> Option<(String, String)> {
-    let value = |configured: Option<&str>| {
-        configured
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(str::to_owned)
-    };
-    value(config.sso_client_id.as_deref()).zip(value(config.sso_client_secret.as_deref()))
-}
-
-/// The registered IdC client a credential renews with: the one its own login
-/// registered, then the operator-configured pair. The credential's own comes
-/// first because a refresh token is bound to the client the code was issued to,
-/// and two credentials on one provider may have registered separately.
-///
-/// Both halves must come from the same place. Half of one client and half of
-/// another is not a client, and AWS would answer `invalid_client` to it — a
-/// definitive refusal, which would kill a credential that is in fact fine.
-fn sso_client(
-    config: &KiroConfig,
-    credential: Option<&CredentialView<'_>>,
-) -> Result<(String, String), ChannelError> {
-    credential
-        .and_then(own_client)
-        .or_else(|| configured_client(config))
-        .ok_or_else(|| {
-            ChannelError::InvalidConfig(
-                "an Identity Center credential needs `sso_client_id` and `sso_client_secret`"
-                    .into(),
-            )
-        })
-}
-
 /// The client a credential carries: the id is a public fact, so `fact` finds it
 /// wherever the host put it; the secret is read out of the sealed secret alone
 /// — this channel's `provider_secrets` pocket, then the flat key a v3
@@ -496,11 +434,9 @@ fn own_client(credential: &CredentialView<'_>) -> Option<(String, String)> {
 }
 
 /// An Identity Center credential is one that names a registered client, in
-/// its own secret or in provider configuration together with a region.
-fn is_identity_center(config: &KiroConfig, credential: &CredentialView<'_>) -> bool {
-    fact(credential, CLIENT_ID).is_some()
-        || fact(credential, "region").is_some()
-        || configured_client(config).is_some()
+/// its own credential, or that carries an Identity Center region.
+fn is_identity_center(credential: &CredentialView<'_>) -> bool {
+    fact(credential, CLIENT_ID).is_some() || fact(credential, "region").is_some()
 }
 
 /// AWS names a definitive refusal in `__type` or `error`; anything else may
@@ -538,8 +474,9 @@ impl CredentialRefresh for super::Kiro {
                 .ok_or_else(|| {
                     ChannelError::RefreshRejected("credential has no refresh token".into())
                 })?;
-            let (url, body) = if is_identity_center(&config, &context.credential) {
-                let (client_id, client_secret) = sso_client(&config, Some(&context.credential))?;
+            let (url, body) = if is_identity_center(&context.credential) {
+                let (client_id, client_secret) =
+                    own_client(&context.credential).ok_or(ChannelError::InvalidCredential)?;
                 let region = fact(&context.credential, "region")
                     .map(str::to_owned)
                     .unwrap_or_else(|| config.region.clone());

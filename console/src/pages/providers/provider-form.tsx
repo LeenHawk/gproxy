@@ -47,8 +47,9 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
     queryFn: connectionProfiles,
   })
   const descriptor = catalog.find((item) => item.id === channel)
-  const config = configs[channel] ?? {}
-  const fields = descriptor?.configKeys.filter((field) => field.name !== "base_url") ?? []
+  const hiddenKeys = ["client_id", "client_secret", "oauth_client_id", "sso_client_id", "sso_client_secret", ...(["antigravity", "geminicli"].includes(channel) ? ["project_id"] : [])]
+  const config = Object.fromEntries(Object.entries(configs[channel] ?? {}).filter(([key]) => !hiddenKeys.includes(key)))
+  const fields = descriptor?.configKeys.filter((field) => field.name !== "base_url" && !hiddenKeys.includes(field.name)) ?? []
   const change = (key: string, value: unknown) =>
     setConfigs((previous) => ({
       ...previous,

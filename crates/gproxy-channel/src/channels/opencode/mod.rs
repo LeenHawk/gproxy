@@ -89,11 +89,6 @@ impl BaseChannel for OpenCode {
                     "Where the device login and the refresh talk; defaults to https://console.opencode.ai.",
                 ),
                 ConfigKey::optional(
-                    "client_id",
-                    ConfigKeyKind::String,
-                    "OAuth client the device login presents; defaults to the opencode CLI's.",
-                ),
-                ConfigKey::optional(
                     "headers",
                     ConfigKeyKind::HeaderList,
                     "Static headers added to every upstream request.",
