@@ -75,7 +75,9 @@ fn rotate(secret: &Value, response: &Value) -> Result<Value, ChannelError> {
     let root = output
         .as_object_mut()
         .ok_or_else(|| ChannelError::Refresh("Cline secret must be an object".into()))?;
-    root.insert("api_key".into(), Value::String(access.into()));
+    if super::auth::api_key(secret).is_none() {
+        root.remove("api_key");
+    }
     root.insert("access_token".into(), Value::String(access.into()));
     if let Some(refresh) = data
         .get("refreshToken")

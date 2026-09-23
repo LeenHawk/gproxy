@@ -60,7 +60,7 @@ pub(super) fn prepare(
         .header("accept", "application/json")
         .body(Bytes::new())
         .map_err(|_| ChannelError::Prepare("Invalid Cline quota request".into()))?;
-    if let Some(key) = super::auth::field(secret, "api_key").filter(|_| source == "plan_usage") {
+    if let Some(key) = super::auth::api_key(secret).filter(|_| source == "plan_usage") {
         request.headers_mut().insert(
             http::header::AUTHORIZATION,
             http::HeaderValue::from_str(&format!("Bearer {key}"))

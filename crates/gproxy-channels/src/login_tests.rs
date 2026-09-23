@@ -94,7 +94,7 @@ fn copilot_device_login_and_first_refresh() {
 }
 
 #[test]
-fn cline_device_login_registers_api_key_and_refreshes() {
+fn cline_device_login_registers_oauth_tokens_and_refreshes() {
     let channel = crate::ClineChannel;
     let http = MockHttp::new(&[
         (
@@ -136,10 +136,11 @@ fn cline_device_login_registers_api_key_and_refreshes() {
         CredentialKind::ApiKey,
     );
     assert_eq!(acquired.secret["user_id"], "user-1");
-    assert_eq!(
-        refresh(&channel, &http, &acquired.secret, &settings)["api_key"],
-        "cline-b"
-    );
+    assert!(acquired.secret.get("api_key").is_none());
+    let rotated = refresh(&channel, &http, &acquired.secret, &settings);
+    assert_eq!(rotated["access_token"], "cline-b");
+    assert_eq!(rotated["refresh_token"], "cline-r2");
+    assert!(rotated.get("api_key").is_none());
 }
 
 #[test]
