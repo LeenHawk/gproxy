@@ -9,7 +9,10 @@
     "readOnlyTitle": "此處唯讀",
     "secretTitle": "現在就複製",
     "copied": "已複製到剪貼簿",
-    "copyFailed": "剪貼簿不可用，請選取文字手動複製。"
+    "copyFailed": "剪貼簿不可用，請選取文字手動複製。",
+    "hide": "隱藏金鑰",
+    "notRetained": "未保留金鑰明文",
+    "value": "金鑰"
   },
   "models": {
     "emptyTitle": "沒有公開任何模型"

@@ -9,7 +9,10 @@
     "readOnlyTitle": "Read-only here",
     "secretTitle": "Copy this now",
     "copied": "Copied to the clipboard",
-    "copyFailed": "The clipboard is unavailable; select the text and copy it."
+    "copyFailed": "The clipboard is unavailable; select the text and copy it.",
+    "hide": "Hide key",
+    "notRetained": "Plaintext was not retained",
+    "value": "API key"
   },
   "models": {
     "emptyTitle": "No models are exposed"

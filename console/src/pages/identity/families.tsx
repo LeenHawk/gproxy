@@ -18,6 +18,7 @@ import * as admin from "@/api/admin"
 import { BoolCell, InstantCell, MaybeCell } from "@/components/cells"
 import { ConfirmButton } from "@/components/confirm"
 import { IdCell } from "@/components/data-table"
+import { KeySecretCell } from "@/components/key-secret-cell"
 import { SecretDialog } from "@/components/secret-dialog"
 import { Button } from "@/components/ui/button"
 import type {
@@ -78,11 +79,6 @@ export function ApiKeysPage() {
     onSuccess: (created) => { setToken(created.token); void invalidate() },
     onError: (error: Error) => toast.error(error.message),
   })
-  const reveal = useMutation({
-    mutationFn: (id: string) => admin.apiKeys.reveal(id),
-    onSuccess: (secret) => setToken(secret.token),
-    onError: (error: Error) => toast.error(error.message),
-  })
 
   return (
     <>
@@ -96,12 +92,11 @@ export function ApiKeysPage() {
         rowLabel={(row) => row.name}
         columns={[
           { key: "name", cell: (row) => row.name },
-          { key: "prefix", cell: (row) => <IdCell value={row.prefix} /> },
+          { key: "prefix", header: t("keys.value"), cell: (row) => <KeySecretCell key={`${row.id}:${row.prefix}`} prefix={row.prefix} revealable={row.hasSecret && row.kind !== "oauth"} reveal={() => admin.apiKeys.reveal(row.id)} /> },
           { key: "kind", cell: (row) => <MaybeCell value={row.kind} /> },
           { key: "userId", cell: (row) => <IdCell value={row.userId} /> },
           { key: "enabled", cell: (row) => <BoolCell value={row.enabled} /> },
           { key: "expiresAtMs", cell: (row) => <InstantCell value={row.expiresAtMs} /> },
-          { key: "hasSecret", cell: (row) => <BoolCell value={row.hasSecret} /> },
         ]}
         fields={[
           { name: "userId", kind: "text", required: true, createOnly: true },
@@ -114,9 +109,6 @@ export function ApiKeysPage() {
         ]}
         rowActions={(row) => (
           <>
-            {row.hasSecret ? (
-              <Button variant="ghost" size="sm" onClick={() => reveal.mutate(row.id)}>{t("actions.reveal")}</Button>
-            ) : null}
             <ConfirmButton
               title={t("confirm.rotateTitle", { name: row.name })}
               confirmLabel={t("actions.rotate")}
