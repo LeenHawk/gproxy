@@ -46,6 +46,8 @@ export type CollectionProps<D, W, P> = {
   filter?: ListFilter
   /** Row actions this family has and the others do not. */
   rowActions?: (row: D) => ReactNode
+  onOpen?: (row: D) => void
+  onEdit?: (row: D) => void
   /** Some families retire rather than delete; some cannot be deleted at all. */
   deletable?: boolean
   /** A family whose create answers with more than the row — a minted key. */
@@ -56,7 +58,7 @@ export type CollectionProps<D, W, P> = {
 
 export function CollectionPage<D, W, P>({
   id, family, columns, fields, rowId, rowLabel, searchable, filter, embedded = false,
-  rowActions, deletable = true, onCreated, create, renderForm, createLabel,
+  rowActions, onOpen, onEdit, deletable = true, onCreated, create, renderForm, createLabel,
 }: CollectionProps<D, W, P>) {
   const { t } = useTranslation()
   const client = useQueryClient()
@@ -128,11 +130,12 @@ export function CollectionPage<D, W, P>({
             columns={columns}
             rows={list.data?.items ?? []}
             rowKey={rowId}
+            onRowClick={onOpen}
             empty={<EmptyNotice title={t("state.emptyTitle")} />}
             actions={(row) => (
               <>
                 {rowActions?.(row)}
-                <Button variant="ghost" size="sm" onClick={() => setEditing(row)}><Pencil data-icon="inline-start" />{t("actions.edit")}</Button>
+                <Button variant="ghost" size="sm" onClick={() => onEdit ? onEdit(row) : setEditing(row)}><Pencil data-icon="inline-start" />{t("actions.edit")}</Button>
                 {deletable ? (
                   <ConfirmButton
                     title={t("confirm.deleteTitle", { name: rowLabel(row) })}

@@ -1,4 +1,3 @@
-import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { Boxes, KeyRound, Pencil, Settings2 } from "lucide-react"
@@ -8,15 +7,16 @@ import type { ChannelDescriptor, ProviderDto } from "@/generated/sdk"
 import { BoolCell, InstantCell, MaybeCell } from "@/components/cells"
 import { ConfirmButton } from "@/components/confirm"
 import { Page, PageHeader, PageSection } from "@/components/page"
-import { ProviderDialog, ProviderForm } from "@/pages/providers/provider-form"
+import { ProviderForm } from "@/pages/providers/provider-form"
 import { ErrorNotice, QueryState } from "@/components/state"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CollectionPage } from "@/pages/identity/collection"
-import { authKinds, credentialFields, modelFields } from "@/pages/providers/fields"
+import { authKinds, credentialFields } from "@/pages/providers/fields"
 import { ProviderRules, ProviderOperations, ProviderEndpoints } from "@/pages/providers/rules"
+import { ProviderModelDialog } from "@/pages/providers/model-form"
 import { useNavigate } from "@/lib/router"
 
 export function ProviderDetailPage({ providerId, tab }: { providerId: string; tab: string }) {
@@ -33,7 +33,6 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
   const { t } = useTranslation()
   const client = useQueryClient()
   const navigate = useNavigate()
-  const [editing, setEditing] = useState(false)
   const profiles = useQuery({ queryKey: ["admin", "/connection-profiles", "directory"], queryFn: connectionProfiles })
   const channel = catalog.find((entry) => entry.id === provider.channel)
   const saved = () => {
@@ -42,7 +41,7 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
   }
   const update = useMutation({
     mutationFn: (body: Parameters<typeof providers.update>[1]) => providers.update(provider.id, body),
-    onSuccess: () => { setEditing(false); saved() },
+    onSuccess: saved,
   })
   const remove = useMutation({
     mutationFn: () => providers.remove(provider.id),
@@ -60,11 +59,11 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
         actions={<>
           <Badge variant="outline">{channel?.displayName ?? provider.channel}</Badge>
           <Switch aria-label={t("fields.enabled")} checked={provider.enabled} disabled={update.isPending} onCheckedChange={(enabled) => update.mutate({ enabled })} />
-          <Button size="sm" variant="outline" onClick={() => setEditing(true)}><Pencil data-icon="inline-start" />{t("actions.edit")}</Button>
+          <Button size="sm" variant="outline" onClick={() => navigate(`${providerPath(provider.id)}/settings`)}><Pencil data-icon="inline-start" />{t("actions.edit")}</Button>
           <ConfirmButton title={t("confirm.deleteTitle", { name: provider.name })} disabled={remove.isPending} onConfirm={() => remove.mutate()}>{t("actions.delete")}</ConfirmButton>
         </>}
       />
-      {!editing && update.error ? <ErrorNotice error={update.error} /> : null}
+      {update.error ? <ErrorNotice error={update.error} /> : null}
       {remove.error ? <ErrorNotice error={remove.error} /> : null}
       <Tabs value={tab} onValueChange={(value) => navigate(`${providerPath(provider.id)}/${value}`)} className="gap-6">
         <TabsList variant="line" className="max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto">
@@ -112,7 +111,8 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
               { key: "modelId", cell: (row) => <MaybeCell value={row.modelId} mono /> },
               { key: "enabled", cell: (row) => <BoolCell value={row.enabled} /> },
             ]}
-            fields={modelFields}
+            fields={[]}
+            renderForm={({ original, ...props }) => <ProviderModelDialog {...props} model={original} />}
           />
         </TabsContent>
         <TabsContent value="settings" className="flex flex-col gap-6">
@@ -120,7 +120,6 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
           <PageSection title={t("nav.operation-endpoints")}><ProviderEndpoints providerId={provider.id} /></PageSection>
         </TabsContent>
       </Tabs>
-      <ProviderDialog open={editing} onOpenChange={setEditing} provider={provider} catalog={catalog} onSubmit={(body) => update.mutate(body)} pending={update.isPending} error={update.error} />
     </Page>
   )
 }

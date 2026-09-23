@@ -4,10 +4,11 @@ import { channels, providers, providerPath } from "@/api/configuration"
 import { BoolCell, MaybeCell } from "@/components/cells"
 import { QueryState } from "@/components/state"
 import { CollectionPage } from "@/pages/identity/collection"
-import { Link } from "@/lib/router"
+import { Link, useNavigate } from "@/lib/router"
 import { ProviderDialog } from "@/pages/providers/provider-form"
 
 export function ProvidersPage() {
+  const navigate = useNavigate()
   const catalog = useQuery({ queryKey: ["configuration", "channels"], queryFn: channels })
   return (
     <QueryState isPending={catalog.isPending} error={catalog.error}>
@@ -17,6 +18,8 @@ export function ProvidersPage() {
         searchable
         rowId={(row) => row.id}
         rowLabel={(row) => row.name}
+        onOpen={(row) => navigate(providerPath(row.id))}
+        onEdit={(row) => navigate(`${providerPath(row.id)}/settings`)}
         columns={[
           { key: "name", cell: (row) => (
             <Link to={providerPath(row.id)} className="inline-flex items-center gap-2 font-medium hover:underline">
