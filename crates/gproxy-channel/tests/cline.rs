@@ -544,7 +544,7 @@ async fn a_refusal_of_the_refresh_token_is_definitive_and_a_rotation_keeps_the_r
         .await
         .unwrap();
     assert_eq!(update.secret["access_token"], "new-account");
-    assert_eq!(update.secret["api_key"], "new-account");
+    assert!(update.secret.get("api_key").is_none());
     assert_eq!(update.secret["refresh_token"], "new-refresh");
     assert_eq!(update.secret["user_id"], "user-1");
     let (url, _, body) = rotated.call(0);
@@ -552,6 +552,100 @@ async fn a_refusal_of_the_refresh_token_is_definitive_and_a_rotation_keeps_the_r
     let sent: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(sent["refreshToken"], "rt");
     assert_eq!(sent["grantType"], "refresh_token");
+}
+
+async fn assert_plan_authorization(secret: &Value, expected: &str) {
+    let config = json!({});
+    let client = OneShot::new(
+        StatusCode::OK,
+        json!({"success": true, "data": {"limits": [
+            {"type": "five_hour", "percentUsed": 25},
+            {"type": "weekly", "percentUsed": 10}
+        ]}})
+        .to_string(),
+    );
+    let snapshot = Cline
+        .query(CredentialContext {
+            provider: provider("cline", &config, None),
+            credential: credential("oauth", secret, &Value::Null),
+            client: &client,
+        })
+        .await
+        .unwrap();
+    let (url, headers, _) = client.call(0);
+    assert_eq!(
+        url,
+        "https://api.cline.bot/api/v1/users/me/plan/usage-limits"
+    );
+    assert_eq!(headers["authorization"], expected);
+    assert_eq!(snapshot.entries.len(), 2);
+}
+
+#[tokio::test]
+async fn plan_auth_distinguishes_keys_tokens_and_legacy_copies() {
+    for (secret, expected) in [
+        (json!({"api_key":"sk-manual"}), "Bearer sk-manual"),
+        (json!({"access_token":"old"}), "Bearer workos:old"),
+        (
+            json!({"api_key":"sk-manual", "access_token":"old"}),
+            "Bearer sk-manual",
+        ),
+        (
+            json!({"api_key":"old", "access_token":"old"}),
+            "Bearer workos:old",
+        ),
+        (
+            json!({"api_key":" old ", "access_token":"old"}),
+            "Bearer workos:old",
+        ),
+        (
+            json!({"api_key":"workos:old", "access_token":"workos:old"}),
+            "Bearer workos:old",
+        ),
+    ] {
+        assert_plan_authorization(&secret, expected).await;
+    }
+}
+
+#[tokio::test]
+async fn rotating_oauth_preserves_manual_keys_and_repairs_legacy_copies() {
+    let config = json!({});
+    for key in [None, Some("sk-manual"), Some("old")] {
+        let mut secret = json!({"access_token":"old", "refresh_token":"rt"});
+        if let Some(key) = key {
+            secret["api_key"] = json!(key);
+        }
+        // A second rotation checks that the removed legacy copy cannot
+        // reappear as a stale API key after the first token replacement.
+        for token in ["new", "newer"] {
+            let client = OneShot::new(
+                StatusCode::OK,
+                json!({"success":true,"data":{"accessToken":token}}).to_string(),
+            );
+            let update = CredentialRefresh::refresh(
+                &Cline,
+                CredentialContext {
+                    provider: provider("cline", &config, None),
+                    credential: credential("oauth", &secret, &Value::Null),
+                    client: &client,
+                },
+            )
+            .await
+            .unwrap();
+            // This is the full replacement returned to Core for persistence.
+            secret = update.secret;
+            assert_eq!(secret["access_token"], token);
+            assert_eq!(secret["refresh_token"], "rt");
+            let expected = if key == Some("sk-manual") {
+                assert_eq!(secret["api_key"], "sk-manual");
+                "Bearer sk-manual".to_owned()
+            } else {
+                assert!(secret.get("api_key").is_none());
+                format!("Bearer workos:{token}")
+            };
+            assert_plan_authorization(&secret, &expected).await;
+        }
+    }
 }
 
 #[test]
