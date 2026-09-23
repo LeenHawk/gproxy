@@ -127,8 +127,8 @@ impl<C: BatchConnectionTrait> Core<C> {
     /// The outbound client a provider-level call should use when no credential
     /// has been chosen yet — a login flow, a connectivity probe. It is the same
     /// chain assembly walks for a credential, minus the credential level:
-    /// provider profile → the channel's own default client → the Setting
-    /// default profile → the built-in defaults. Clients are pooled by effective
+    /// provider profile → Setting default profile → channel default client →
+    /// built-in defaults. Clients are pooled by effective
     /// configuration, so this is the very client the provider's credentials get
     /// when they name no profile of their own. The provider is resolved in the
     /// active snapshot, so it must be enabled and already loaded.
@@ -140,21 +140,18 @@ impl<C: BatchConnectionTrait> Core<C> {
         let provider = snapshot.providers.get(provider_id).ok_or_else(|| {
             CoreError::InvalidTarget(format!("unknown or disabled provider `{provider_id}`"))
         })?;
-        let config = match provider.entity.connection_profile_id.as_deref() {
-            Some(id) => self.connection_profile_config(id).await?,
-            None => match provider.channel.default_connection() {
-                Some(config) => config,
-                None => match self
-                    .store
-                    .settings()
-                    .get()
-                    .await?
-                    .and_then(|settings| settings.connection_profile_id)
-                {
-                    Some(id) => self.connection_profile_config(&id).await?,
-                    None => gproxy_client::ConnectionConfig::default(),
-                },
-            },
+        let profile_id = match &provider.entity.connection_profile_id {
+            Some(id) => Some(id.clone()),
+            None => self
+                .store
+                .settings()
+                .get()
+                .await?
+                .and_then(|settings| settings.connection_profile_id),
+        };
+        let config = match profile_id {
+            Some(id) => self.connection_profile_config(&id).await?,
+            None => provider.channel.default_connection().unwrap_or_default(),
         };
         let client: Arc<dyn gproxy_client::OutboundClient> =
             self.clients.get(&config).await.map_err(|source| {
