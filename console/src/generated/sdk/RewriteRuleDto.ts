@@ -9,7 +9,7 @@ export type RewriteRuleDto = { id: string, ruleSetId: string,
 /**
  * `request`, `response` or `both`.
  */
-phase: string, 
+phase: string, action: string,
 /**
  * `body`, `header` or `query`.
  */

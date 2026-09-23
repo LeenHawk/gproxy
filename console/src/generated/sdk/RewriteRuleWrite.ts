@@ -4,4 +4,4 @@ export type RewriteRuleWrite = { id: string | null,
 /**
  * Ignored by `replace_rules`, which owns the set it is replacing.
  */
-ruleSetId: string | null, phase: string | null, target: string | null, targetName: string | null, paths: string[] | null, pattern: string, replacement: string, filterOperationKeys: { operation: string, dialect: string }[] | null, filterModelPattern: string | null, filterHeaderPattern: string | null, filterEventPattern: string | null, sortOrder: number | null, enabled: boolean | null, };
+ruleSetId: string | null, phase: string | null, action: string | null, target: string | null, targetName: string | null, paths: string[] | null, pattern: string, replacement: string, filterOperationKeys: { operation: string, dialect: string }[] | null, filterModelPattern: string | null, filterHeaderPattern: string | null, filterEventPattern: string | null, sortOrder: number | null, enabled: boolean | null, };

@@ -12,4 +12,4 @@ known: boolean,
  * Whether the bundled catalog can price it without an operator writing a
  * rule by hand.
  */
-hasDefaultPrice: boolean, };
+hasDefaultPrice: boolean, metadata: Record<string, unknown>, };

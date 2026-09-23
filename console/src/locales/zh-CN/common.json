@@ -126,7 +126,9 @@
     "header": "请求头",
     "query": "查询参数",
     "http": "HTTP",
-    "websocket": "WebSocket"
+    "websocket": "WebSocket",
+    "replace": "文本替换",
+    "set": "设置字段"
   },
   "fields": {
     "action": "动作",

@@ -126,7 +126,9 @@
     "header": "標頭",
     "query": "查詢參數",
     "http": "HTTP",
-    "websocket": "WebSocket"
+    "websocket": "WebSocket",
+    "replace": "文字替換",
+    "set": "設定欄位"
   },
   "fields": {
     "action": "動作",

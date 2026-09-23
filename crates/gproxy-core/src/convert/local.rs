@@ -49,45 +49,40 @@ pub(crate) fn run(
                 .models
                 .iter()
                 .filter(|m| m.enabled)
-                .map(|m| {
-                    let mut value = m
-                        .metadata
-                        .get("supplements")
-                        .and_then(|s| s.get(key.dialect.id()))
-                        .cloned()
-                        .filter(Value::is_object)
-                        .unwrap_or_else(|| json!({}));
-                    let object = value.as_object_mut().expect("model object");
-                    match key.dialect {
-                        Dialect::Gemini => {
-                            object.insert(
-                                "name".into(),
-                                json!(format!(
-                                    "models/{}",
-                                    m.upstream_name.trim_start_matches("models/")
-                                )),
-                            );
+                .flat_map(|m| {
+                    m.exposed_names().into_iter().map(|name| {
+                        let mut value = super::models::local_metadata(
+                            &m.metadata,
+                            key.dialect,
+                            &provider.entity.name,
+                        );
+                        let object = value.as_object_mut().expect("model object");
+                        match key.dialect {
+                            Dialect::Gemini => {
+                                object.insert(
+                                    "name".into(),
+                                    json!(format!("models/{}", name.trim_start_matches("models/"))),
+                                );
+                            }
+                            Dialect::Claude => {
+                                object.insert("id".into(), json!(name));
+                                object.insert("type".into(), json!("model"));
+                                object.entry("display_name").or_insert_with(|| json!(name));
+                                object
+                                    .entry("created_at")
+                                    .or_insert_with(|| json!("1970-01-01T00:00:00Z"));
+                            }
+                            _ => {
+                                object.insert("id".into(), json!(name));
+                                object.insert("object".into(), json!("model"));
+                                object.entry("created").or_insert(json!(0));
+                                object
+                                    .entry("owned_by")
+                                    .or_insert_with(|| json!(provider.entity.name));
+                            }
                         }
-                        Dialect::Claude => {
-                            object.insert("id".into(), json!(m.upstream_name));
-                            object.insert("type".into(), json!("model"));
-                            object
-                                .entry("display_name")
-                                .or_insert_with(|| json!(m.upstream_name));
-                            object
-                                .entry("created_at")
-                                .or_insert_with(|| json!("1970-01-01T00:00:00Z"));
-                        }
-                        _ => {
-                            object.insert("id".into(), json!(m.upstream_name));
-                            object.insert("object".into(), json!("model"));
-                            object.entry("created").or_insert(json!(0));
-                            object
-                                .entry("owned_by")
-                                .or_insert_with(|| json!(provider.entity.name));
-                        }
-                    }
-                    value
+                        value
+                    })
                 })
                 .collect();
             models.sort_by_key(|m| {
@@ -100,8 +95,9 @@ pub(crate) fn run(
             if key.operation == Operation::GetModel {
                 let name = context
                     .target
-                    .upstream_model
+                    .requested_model
                     .as_deref()
+                    .or(context.target.upstream_model.as_deref())
                     .unwrap_or_default()
                     .trim_start_matches("models/");
                 models.into_iter().find(|m| m.get("id").or_else(|| m.get("name")).and_then(Value::as_str).is_some_and(|id| id.trim_start_matches("models/") == name))

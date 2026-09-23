@@ -69,6 +69,7 @@ fn only(h: &Harness, credential_id: &str, request_id: &str, attempts: u32) -> Ar
     let target = h.target("q");
     Arc::new(RequestContext {
         target: ExecutionTarget {
+            requested_model: None,
             credentials: target
                 .credentials
                 .iter()

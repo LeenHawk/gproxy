@@ -198,6 +198,78 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ProviderModels<'_, C> {
         Ok(Some(id))
     }
 
+    async fn metadata(
+        &self,
+        provider_id: &str,
+        name: &str,
+        metadata: serde_json::Value,
+        exclude: Option<&str>,
+    ) -> SdkResult<serde_json::Value> {
+        let mut names = std::collections::HashSet::from([name.to_owned()]);
+        if let Some(variants) = metadata.get("variants") {
+            let variants = variants
+                .as_array()
+                .ok_or_else(|| crate::SdkError::invalid("variants must be an array of names"))?;
+            for value in variants {
+                let alias = value
+                    .as_str()
+                    .filter(|s| !s.trim().is_empty() && s.trim() == *s && !s.contains(['*', '?']))
+                    .ok_or_else(|| {
+                        crate::SdkError::invalid("variant names must be nonempty literal names")
+                    })?;
+                if !names.insert(alias.to_owned()) {
+                    return Err(crate::SdkError::invalid(
+                        "duplicate variant or base model name",
+                    ));
+                }
+            }
+        }
+        if metadata.get("expose_base").is_some_and(|v| !v.is_boolean()) {
+            return Err(crate::SdkError::invalid("expose_base must be boolean"));
+        }
+        for key in [
+            "context_window",
+            "max_context_window",
+            "max_output_tokens",
+            "auto_compact_token_limit",
+            "truncation_limit",
+        ] {
+            if metadata
+                .get(key)
+                .is_some_and(|v| !v.is_null() && v.as_u64().is_none())
+            {
+                return Err(crate::SdkError::invalid(format!(
+                    "{key} must be a nonnegative integer"
+                )));
+            }
+        }
+        for row in self
+            .writer
+            .store()
+            .provider_models()
+            .query(
+                provider_model::Entity::find()
+                    .filter(provider_model::Column::ProviderId.eq(provider_id)),
+            )
+            .await?
+        {
+            if Some(row.id.as_str()) == exclude {
+                continue;
+            }
+            if names.contains(&row.upstream_name)
+                || row
+                    .variant_names()
+                    .iter()
+                    .any(|alias| names.contains(*alias))
+            {
+                return Err(crate::SdkError::invalid(
+                    "model or variant name is already used by this provider",
+                ));
+            }
+        }
+        Ok(metadata)
+    }
+
     async fn unique_pair(
         &self,
         provider_id: &str,
@@ -258,12 +330,20 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for ProviderModel
         let provider_id = self.provider(&write.provider_id).await?;
         let upstream_name = crud::text(&write.upstream_name, "upstreamName")?;
         self.unique_pair(&provider_id, &upstream_name, None).await?;
+        let metadata = self
+            .metadata(
+                &provider_id,
+                &upstream_name,
+                crud::object(write.metadata, "metadata")?,
+                None,
+            )
+            .await?;
         let row = provider_model::ActiveModel {
             id: Set(id.clone()),
             provider_id: Set(provider_id),
             upstream_name: Set(upstream_name),
             model_id: Set(self.catalog_model(write.model_id).await?),
-            metadata: Set(crud::object(write.metadata, "metadata")?),
+            metadata: Set(metadata),
             enabled: Set(write.enabled.unwrap_or(true)),
         };
         Ok((row, id))
@@ -301,9 +381,13 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for ProviderModel
         if let Some(model_id) = patch.model_id {
             row.model_id = Set(self.catalog_model(model_id).await?);
         }
-        if let Some(metadata) = patch.metadata {
-            row.metadata = Set(crud::object(Some(metadata), "metadata")?);
-        }
+        let metadata = crud::object(
+            Some(patch.metadata.unwrap_or_else(|| current.metadata.clone())),
+            "metadata",
+        )?;
+        row.metadata = Set(self
+            .metadata(&provider_id, &upstream_name, metadata, Some(&current.id))
+            .await?);
         if let Some(enabled) = patch.enabled {
             row.enabled = Set(enabled);
         }

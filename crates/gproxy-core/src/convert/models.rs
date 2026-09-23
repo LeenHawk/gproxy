@@ -53,13 +53,18 @@ fn supplements<T: DeserializeOwned + Clone, C>(
 ) -> BTreeMap<String, T> {
     let mut map = BTreeMap::new();
     for model in &call.upstream.attempt().request.target.provider.models {
-        let Some(value) = model
+        let value = model
             .metadata
             .get("supplements")
             .and_then(|s| s.get(family))
-        else {
-            continue;
-        };
+            .cloned()
+            .unwrap_or_else(|| {
+                supplement_metadata(
+                    &model.metadata,
+                    family,
+                    &call.upstream.attempt().request.target.provider.entity.name,
+                )
+            });
         let Ok(supplement) = serde_json::from_value::<T>(value.clone()) else {
             continue;
         };
@@ -332,4 +337,97 @@ pub(crate) async fn run<C: BatchConnectionTrait + Send + Sync>(
             format!("{other:?} is not a model directory operation"),
         )),
     }
+}
+
+fn supplement_metadata(
+    metadata: &serde_json::Value,
+    family: &str,
+    provider: &str,
+) -> serde_json::Value {
+    use serde_json::json;
+    match family {
+        "openai" => {
+            json!({"owned_by": metadata.get("owned_by").and_then(serde_json::Value::as_str).unwrap_or(provider), "created": metadata.get("created")})
+        }
+        "gemini" => {
+            json!({"base_model_id": metadata.get("base_model_id").and_then(serde_json::Value::as_str).unwrap_or(""), "version": metadata.get("version").and_then(serde_json::Value::as_str).unwrap_or("")})
+        }
+        "claude" => {
+            let flag = |key: &str| {
+                metadata
+                    .get(key)
+                    .and_then(serde_json::Value::as_bool)
+                    .unwrap_or(false)
+            };
+            let modality = |key: &str| {
+                metadata
+                    .get("input_modalities")
+                    .and_then(serde_json::Value::as_array)
+                    .is_some_and(|v| v.iter().any(|x| x.as_str() == Some(key)))
+            };
+            json!({"display_name": metadata.get("display_name"), "created_at": metadata.get("created_at"), "allowed_fallback_models": [], "max_input_tokens": metadata.get("context_window"), "max_tokens": metadata.get("max_output_tokens"), "capabilities": {
+                "batch": flag("batch_supported"), "citations": flag("citations_supported"), "code_execution": flag("code_execution_supported"), "image_input": modality("image"), "pdf_input": flag("pdf_input_supported"), "structured_outputs": flag("structured_outputs_supported"),
+                "context_management": {"supported": flag("context_management_supported"), "clear_thinking_20251015": false, "clear_tool_uses_20250919": false, "compact_20260112": false},
+                "effort": {"supported": false, "low": false, "medium": false, "high": false, "xhigh": false, "max": false},
+                "thinking": {"supported": flag("thinking_supported"), "adaptive": flag("thinking_adaptive_supported"), "enabled": flag("thinking_enabled_supported")}
+            }})
+        }
+        _ => json!({}),
+    }
+}
+
+pub(super) fn local_metadata(
+    metadata: &serde_json::Value,
+    dialect: Dialect,
+    provider: &str,
+) -> serde_json::Value {
+    use serde_json::{Value, json};
+    let mut value = metadata
+        .get("supplements")
+        .and_then(|s| s.get(dialect.id()))
+        .filter(|v| v.is_object())
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let object = value.as_object_mut().expect("object");
+    let fields: &[(&str, &str)] = match dialect {
+        Dialect::Claude => &[
+            ("display_name", "display_name"),
+            ("context_window", "max_input_tokens"),
+            ("max_output_tokens", "max_tokens"),
+        ],
+        Dialect::Gemini => &[
+            ("display_name", "displayName"),
+            ("description", "description"),
+            ("context_window", "inputTokenLimit"),
+            ("max_output_tokens", "outputTokenLimit"),
+            ("generation_methods", "supportedGenerationMethods"),
+            ("thinking_supported", "thinking"),
+        ],
+        _ => &[
+            ("display_name", "display_name"),
+            ("description", "description"),
+            ("context_window", "context_window"),
+            ("max_context_window", "max_context_window"),
+            ("max_output_tokens", "max_output_tokens"),
+            ("thinking_supported", "thinking_supported"),
+            ("input_modalities", "input_modalities"),
+            ("output_modalities", "output_modalities"),
+            ("supported_parameters", "supported_parameters"),
+            ("reasoning_levels", "reasoning_levels"),
+            ("default_reasoning_level", "default_reasoning_level"),
+            ("service_tiers", "service_tiers"),
+            ("default_service_tier", "default_service_tier"),
+        ],
+    };
+    for (from, to) in fields {
+        if let Some(v) = metadata.get(from).filter(|v| !v.is_null()) {
+            object.insert((*to).into(), v.clone());
+        }
+    }
+    if dialect == Dialect::OpenAi {
+        object
+            .entry("owned_by")
+            .or_insert(Value::String(provider.into()));
+    }
+    value
 }

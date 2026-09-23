@@ -2,9 +2,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { Boxes, KeyRound, Pencil, Settings2 } from "lucide-react"
 import { toast } from "sonner"
-import { channels, credentials, providers, providerModels, providerPath, connectionProfiles } from "@/api/configuration"
+import { channels, credentials, providers, providerPath, connectionProfiles } from "@/api/configuration"
 import type { ChannelDescriptor, ProviderDto } from "@/generated/sdk"
-import { BoolCell, InstantCell, MaybeCell } from "@/components/cells"
+import { BoolCell, InstantCell } from "@/components/cells"
 import { ConfirmButton } from "@/components/confirm"
 import { Page, PageHeader, PageSection } from "@/components/page"
 import { ProviderForm } from "@/pages/providers/provider-form"
@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CollectionPage } from "@/pages/identity/collection"
 import { authKinds, credentialFields } from "@/pages/providers/fields"
 import { ProviderRules, ProviderOperations, ProviderEndpoints } from "@/pages/providers/rules"
-import { ProviderModelDialog } from "@/pages/providers/model-form"
+import { ProviderModels } from "@/pages/providers/models"
 import { useNavigate } from "@/lib/router"
 
 export function ProviderDetailPage({ providerId, tab }: { providerId: string; tab: string }) {
@@ -96,25 +96,7 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
             fields={credentialFields.map((field) => field.name === "connectionProfileId" ? { ...field, kind: "select" as const, choices: (profiles.data ?? []).map((profile) => ({ value: profile.id, label: profile.name })) } : field)}
           />
         </QueryState></TabsContent>
-        <TabsContent value="models">
-          <CollectionPage
-            embedded
-            id="provider-models"
-            family={providerModels}
-            filter={{ providerId: provider.id }}
-            create={(body) => providerModels.create({ ...body, providerId: provider.id })}
-            searchable
-            rowId={(row) => row.id}
-            rowLabel={(row) => row.upstreamName}
-            columns={[
-              { key: "upstreamName", cell: (row) => row.upstreamName },
-              { key: "modelId", cell: (row) => <MaybeCell value={row.modelId} mono /> },
-              { key: "enabled", cell: (row) => <BoolCell value={row.enabled} /> },
-            ]}
-            fields={[]}
-            renderForm={({ original, ...props }) => <ProviderModelDialog {...props} model={original} />}
-          />
-        </TabsContent>
+        <TabsContent value="models"><ProviderModels provider={provider} /></TabsContent>
         <TabsContent value="settings" className="flex flex-col gap-6">
           <ProviderForm key={`${provider.id}-${JSON.stringify(provider)}`} provider={provider} catalog={catalog} onSubmit={(body) => update.mutate(body)} pending={update.isPending} error={update.error} />
           <PageSection title={t("nav.operation-endpoints")}><ProviderEndpoints providerId={provider.id} /></PageSection>

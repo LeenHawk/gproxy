@@ -99,11 +99,11 @@ impl<C> Portal<'_, C> {
         for provider in core.providers.values() {
             let channel = &provider.entity.channel;
             for model in &provider.models {
-                let entry = names
-                    .entry(format!("{channel}/{}", model.upstream_name))
-                    .or_default();
-                entry.provider_ids.insert(provider.entity.id.clone());
-                entry.channel_ids.insert(channel.clone());
+                for name in model.exposed_names() {
+                    let entry = names.entry(format!("{channel}/{name}")).or_default();
+                    entry.provider_ids.insert(provider.entity.id.clone());
+                    entry.channel_ids.insert(channel.clone());
+                }
             }
         }
 

@@ -162,7 +162,7 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
     let rewrite_context = RewriteContext {
         operation,
         upstream_model: upstream_model.as_deref(),
-        requested_model: None,
+        requested_model: request.target.requested_model.as_deref(),
         request_headers: &inbound_headers,
     };
     // Passthrough rules apply to the client's request once; conversion applies

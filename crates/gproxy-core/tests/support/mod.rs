@@ -988,6 +988,7 @@ impl Harness {
             })
             .collect();
         ExecutionTarget {
+            requested_model: None,
             provider,
             upstream_model: Some("gpt-x".into()),
             credentials,

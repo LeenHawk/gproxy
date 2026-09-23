@@ -71,6 +71,8 @@ pub struct RewriteRuleDto {
     pub rule_set_id: String,
     /// `request`, `response` or `both`.
     pub phase: String,
+    #[serde(default = "default_action")]
+    pub action: String,
     /// `body`, `header` or `query`.
     pub target: String,
     pub target_name: Option<String>,
@@ -100,6 +102,7 @@ impl From<rewrite_rule::Model> for RewriteRuleDto {
             id: row.id,
             rule_set_id: row.rule_set_id,
             phase: row.phase,
+            action: row.action,
             target: target_name(row.target).to_owned(),
             target_name: row.target_name,
             paths: row.paths,
@@ -138,6 +141,8 @@ pub struct RewriteRuleWrite {
     #[serde(default)]
     pub phase: Option<String>,
     #[serde(default)]
+    pub action: Option<String>,
+    #[serde(default)]
     pub target: Option<String>,
     #[serde(default)]
     pub target_name: Option<String>,
@@ -171,6 +176,8 @@ pub struct RewriteRuleWrite {
 pub struct RewriteRulePatch {
     #[serde(default)]
     pub phase: Option<String>,
+    #[serde(default)]
+    pub action: Option<String>,
     #[serde(default)]
     pub target: Option<String>,
     #[serde(default, deserialize_with = "double_option")]
@@ -253,4 +260,8 @@ pub struct ProviderRuleSetPatch {
     pub sort_order: Option<i64>,
     #[serde(default)]
     pub enabled: Option<bool>,
+}
+
+fn default_action() -> String {
+    "replace".into()
 }

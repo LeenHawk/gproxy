@@ -109,6 +109,7 @@ pub struct Plan {
 /// the balancing facts the caller may want to log.
 #[derive(Clone)]
 pub struct Target {
+    pub requested_model: Option<String>,
     pub provider: Arc<ProviderData>,
     pub upstream_model: Option<String>,
     /// Non-empty, and every one belongs to `provider`.
@@ -183,7 +184,18 @@ impl<C> Gproxy<C> {
         let named = matched.candidates.len();
         let now = now_ms();
         let mut ranked = Vec::with_capacity(named);
-        for candidate in matched.candidates {
+        for mut candidate in matched.candidates {
+            let requested_model = candidate.upstream_model.clone();
+            if let Some(name) = candidate.upstream_model.as_deref() {
+                if let Some(model) = candidate
+                    .provider
+                    .models
+                    .iter()
+                    .find(|m| m.enabled && m.variant_names().contains(&name))
+                {
+                    candidate.upstream_model = Some(model.upstream_name.clone());
+                }
+            }
             if let Some(channel) = request.channel
                 && candidate.provider.entity.channel != channel
             {
@@ -202,6 +214,7 @@ impl<C> Gproxy<C> {
             };
             ranked.push(balance::Ranked {
                 target: Target {
+                    requested_model,
                     provider: candidate.provider,
                     upstream_model: candidate.upstream_model,
                     credentials,
@@ -303,10 +316,11 @@ impl<C> Gproxy<C> {
                 .iter()
                 .copied()
                 .filter(|provider| {
-                    provider
-                        .models
-                        .iter()
-                        .any(|model| model.upstream_name == tail)
+                    provider.models.iter().any(|model| {
+                        model.enabled
+                            && (model.upstream_name == tail
+                                || model.variant_names().contains(&tail))
+                    })
                 })
                 .collect();
             let chosen = if listed.is_empty() {

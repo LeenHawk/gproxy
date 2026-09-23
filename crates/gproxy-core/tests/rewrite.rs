@@ -45,6 +45,7 @@ impl Default for Rule {
 fn rule(id: &str, spec: Rule) -> Arc<RewriteRuleData> {
     Arc::new(
         compile_rule(Arc::new(rewrite_rule::Model {
+            action: "replace".into(),
             id: id.into(),
             rule_set_id: "set".into(),
             phase: spec.phase.into(),
