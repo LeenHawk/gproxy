@@ -17,9 +17,10 @@ import { useConsoleContext } from "@/capability/session"
 import { SELF_KEYS_WRITE } from "@/capability/capability"
 import { BoolCell, InstantCell, MaybeCell } from "@/components/cells"
 import { ConfirmButton } from "@/components/confirm"
-import { DataTable, IdCell } from "@/components/data-table"
+import { DataTable } from "@/components/data-table"
 import { Page, PageHeader } from "@/components/page"
 import { RecordDialog, type FormField } from "@/components/record-form"
+import { KeySecretCell } from "@/components/key-secret-cell"
 import { SecretDialog } from "@/components/secret-dialog"
 import { EmptyNotice, QueryState } from "@/components/state"
 import { Alert, AlertTitle } from "@/components/ui/alert"
@@ -46,11 +47,6 @@ export function KeysPage() {
   const rotate = useMutation({
     mutationFn: portal.keys.rotate,
     onSuccess: (created) => { setToken(created.token); void invalidate() },
-    onError: fail,
-  })
-  const reveal = useMutation({
-    mutationFn: portal.keys.reveal,
-    onSuccess: (secret) => setToken(secret.token),
     onError: fail,
   })
   const remove = useMutation({
@@ -98,7 +94,7 @@ export function KeysPage() {
         <DataTable
           columns={[
             { key: "name", cell: (row) => row.name },
-            { key: "prefix", cell: (row) => <IdCell value={row.prefix} /> },
+            { key: "prefix", header: t("keys.value"), cell: (row) => <KeySecretCell key={`${row.id}:${row.prefix}`} prefix={row.prefix} revealable={row.hasSecret} reveal={() => portal.keys.reveal(row.id)} /> },
             { key: "organizationId", cell: (row) => <MaybeCell value={row.organizationId} mono /> },
             { key: "teamId", cell: (row) => <MaybeCell value={row.teamId} mono /> },
             { key: "expiresAtMs", cell: (row) => <InstantCell value={row.expiresAtMs} /> },
@@ -109,9 +105,6 @@ export function KeysPage() {
           empty={<EmptyNotice title={t("keys.emptyTitle")} />}
           actions={(row) => (
             <>
-              {row.hasSecret ? (
-                <Button variant="ghost" size="sm" onClick={() => reveal.mutate(row.id)}>{t("actions.reveal")}</Button>
-              ) : null}
               {mayWrite ? (
                 <>
                   <ConfirmButton

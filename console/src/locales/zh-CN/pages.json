@@ -9,7 +9,10 @@
     "readOnlyTitle": "此处只读",
     "secretTitle": "现在就复制",
     "copied": "已复制到剪贴板",
-    "copyFailed": "剪贴板不可用，请选中文本手动复制。"
+    "copyFailed": "剪贴板不可用，请选中文本手动复制。",
+    "hide": "隐藏密钥",
+    "notRetained": "未保留密钥明文",
+    "value": "密钥"
   },
   "models": {
     "emptyTitle": "没有暴露任何模型"
