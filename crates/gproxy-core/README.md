@@ -61,9 +61,13 @@ tells the caller a person must log in again.
 The client is resolved per credential, first match wins, whole configuration
 replaced (no field merging): the credential's `connection_profile_id` → the
 provider's → the Setting's default profile → the channel's
-`BaseChannel::default_connection()` (a captured CLI fingerprint) →
+`BaseChannel::default_connection_for(Request)` →
 `ConnectionConfig::default()`. A referenced profile that is missing or invalid
 fails the whole assembly.
+
+Codex defaults to reqwest; Claude Code API calls use wreq without emulation.
+Claude Code cookie login (including cookie-based token recovery) and Claude Web
+use browser-emulated wreq. Explicit credential/provider/global profiles still win.
 
 Availability is one `CredentialBlocks` cache payload per credential, rebuilt
 from `credential_blocks` rows on load. Each block names a channel `QuotaScope`,

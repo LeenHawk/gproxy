@@ -4,7 +4,7 @@
 use gproxy_protocol::capability::CapabilityFuture;
 use serde_json::Value;
 
-use super::{ChannelError, CredentialContext};
+use super::{ChannelError, ConnectionPurpose, CredentialContext, CredentialView};
 
 pub type RefreshContext<'a> = CredentialContext<'a>;
 
@@ -17,6 +17,11 @@ pub struct CredentialUpdate {
 }
 
 pub trait CredentialRefresh: Send + Sync {
+    fn connection_purpose(&self, credential: &CredentialView<'_>) -> ConnectionPurpose {
+        let _ = credential;
+        ConnectionPurpose::Request
+    }
+
     fn refresh<'a>(
         &'a self,
         context: RefreshContext<'a>,

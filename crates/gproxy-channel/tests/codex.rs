@@ -229,14 +229,14 @@ fn credential<'a>(secret: &'a Value, metadata: &'a Value) -> CredentialView<'a> 
 fn default_connection_is_the_cli_transport_identity() {
     use gproxy_client::{Backend, RetryPolicy};
     let config = Codex.default_connection().expect("channel default");
-    assert_eq!(config.backend, Backend::ReqwestNative);
+    assert_eq!(config.backend, Backend::Reqwest);
     assert!(
         config.emulation.is_none(),
-        "native TLS as the CLI's reqwest"
+        "plain reqwest without an emulation profile"
     );
     assert!(
         !(config.gzip || config.brotli || config.deflate || config.zstd),
-        "reqwest 0.12 default features decode nothing"
+        "response decompression remains disabled"
     );
     assert_eq!(config.retry, RetryPolicy::Never);
     assert_eq!(

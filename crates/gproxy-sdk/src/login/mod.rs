@@ -330,7 +330,14 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Login<'_, C> {
         if cookie.is_empty() {
             return Err(SdkError::invalid("cookie must not be blank"));
         }
-        let client = self.inner.core.provider_client(&provider.entity.id).await?;
+        let client = self
+            .inner
+            .core
+            .provider_client_for(
+                &provider.entity.id,
+                gproxy_channel::channel::ConnectionPurpose::CookieLogin,
+            )
+            .await?;
         let acquired = flow
             .exchange_cookie(
                 LoginContext {

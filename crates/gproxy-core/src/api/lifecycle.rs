@@ -136,6 +136,18 @@ impl<C: BatchConnectionTrait> Core<C> {
         &self,
         provider_id: &str,
     ) -> CoreResult<Arc<dyn gproxy_client::OutboundClient>> {
+        self.provider_client_for(
+            provider_id,
+            gproxy_channel::channel::ConnectionPurpose::Request,
+        )
+        .await
+    }
+
+    pub async fn provider_client_for(
+        &self,
+        provider_id: &str,
+        purpose: gproxy_channel::channel::ConnectionPurpose,
+    ) -> CoreResult<Arc<dyn gproxy_client::OutboundClient>> {
         let snapshot = self.snapshot();
         let provider = snapshot.providers.get(provider_id).ok_or_else(|| {
             CoreError::InvalidTarget(format!("unknown or disabled provider `{provider_id}`"))
@@ -151,7 +163,10 @@ impl<C: BatchConnectionTrait> Core<C> {
         };
         let config = match profile_id {
             Some(id) => self.connection_profile_config(&id).await?,
-            None => provider.channel.default_connection().unwrap_or_default(),
+            None => provider
+                .channel
+                .default_connection_for(purpose)
+                .unwrap_or_default(),
         };
         let client: Arc<dyn gproxy_client::OutboundClient> =
             self.clients.get(&config).await.map_err(|source| {

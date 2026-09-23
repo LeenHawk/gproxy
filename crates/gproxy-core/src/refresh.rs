@@ -147,7 +147,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             return Ok(summary(credential_id, &row_version));
         }
 
-        let context = CredentialContext {
+        let mut context = CredentialContext {
             provider: crate::assemble::provider_view(&provider.entity),
             credential: CredentialView {
                 id: credential_id,
@@ -160,6 +160,23 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             },
             client: credential.client.as_ref(),
         };
+        let cookie_client = if refresher.connection_purpose(&context.credential)
+            == gproxy_channel::channel::ConnectionPurpose::CookieLogin
+            && row.connection_profile_id.is_none()
+        {
+            Some(
+                self.provider_client_for(
+                    &provider.entity.id,
+                    gproxy_channel::channel::ConnectionPurpose::CookieLogin,
+                )
+                .await?,
+            )
+        } else {
+            None
+        };
+        if let Some(client) = &cookie_client {
+            context.client = client.as_ref();
+        }
         let update = match refresher.refresh(context).await {
             Ok(update) => update,
             Err(ChannelError::RefreshRejected(reason)) => {

@@ -53,7 +53,7 @@ use crate::channel::{
     CookieLogin, CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OperationContext, OperationFuture,
     ProviderView, QuotaModel, QuotaQuery, UsageExtractor, UsageStream,
 };
-use gproxy_client::{Backend, ConnectionConfig, EmulationConfig};
+use gproxy_client::{ConnectionConfig};
 
 pub const ID: &str = "claudeweb";
 /// Bootstrap replies carry the whole front-end configuration.
@@ -191,30 +191,10 @@ fn local_response(content_type: &'static str, body: Bytes) -> WireResponse<HttpB
 /// claude.ai browser session looks like from the outside. The default
 /// client for providers that name no connection profile.
 pub fn default_connection() -> ConnectionConfig {
-    ConnectionConfig {
-        backend: Backend::Wreq,
-        emulation: Some(EmulationConfig::Preset {
-            profile: "chrome_149".into(),
-            platform: host_platform().into(),
-            http2: true,
-            headers: true,
-        }),
-        gzip: true,
-        brotli: true,
-        deflate: true,
-        zstd: true,
-        ..ConnectionConfig::default()
-    }
+    super::shared::browser_connection()
 }
 
-/// wreq-util's platform name for the host (`std::env::consts::OS`).
-fn host_platform() -> &'static str {
-    match std::env::consts::OS {
-        "macos" => "macos",
-        "windows" => "windows",
-        _ => "linux",
-    }
-}
+
 
 impl BaseChannel for ClaudeWeb {
     fn id(&self) -> &'static str {

@@ -81,3 +81,33 @@ pub(crate) mod services_common;
     feature = "vertexexpress"
 ))]
 pub(crate) mod vendor_usage;
+
+#[cfg(any(feature = "claudecode", feature = "claudeweb"))]
+pub(crate) fn browser_connection() -> gproxy_client::ConnectionConfig {
+    use gproxy_client::{Backend, ConnectionConfig, EmulationConfig};
+
+    ConnectionConfig {
+        backend: Backend::Wreq,
+        emulation: Some(EmulationConfig::Preset {
+            profile: "chrome_149".into(),
+            platform: host_platform().into(),
+            http2: true,
+            headers: true,
+        }),
+        gzip: true,
+        brotli: true,
+        deflate: true,
+        zstd: true,
+        ..ConnectionConfig::default()
+    }
+}
+
+#[cfg(any(feature = "claudecode", feature = "claudeweb"))]
+/// wreq-util's platform name for the host (`std::env::consts::OS`).
+fn host_platform() -> &'static str {
+    match std::env::consts::OS {
+        "macos" => "macos",
+        "windows" => "windows",
+        _ => "linux",
+    }
+}
