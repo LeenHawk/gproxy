@@ -57,10 +57,15 @@ pub(super) fn bearer(credential: &CredentialView<'_>) -> Result<String, ChannelE
         .ok_or(ChannelError::InvalidCredential)
 }
 
-/// A pasted key, when the credential has one. The plan-usage probe presents
-/// it verbatim rather than as an account token (v3 `cline/quota.rs`).
+/// Older refreshes copied the access token into the API-key slot. Recognize
+/// that copy before rotation changes the access token it can be compared to.
+pub(super) fn legacy_token_copy(secret: &Value) -> bool {
+    text(secret.get("access_token")).is_some_and(|token| text(secret.get("api_key")) == Some(token))
+}
+
+/// A pasted key, excluding the token copy written by older refreshes.
 pub(super) fn api_key<'a>(credential: &CredentialView<'a>) -> Option<&'a str> {
-    text(credential.secret.get("api_key"))
+    text(credential.secret.get("api_key")).filter(|_| !legacy_token_copy(credential.secret))
 }
 
 /// The expiry encoded in a WorkOS access token: its JWT payload's `exp`, in

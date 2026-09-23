@@ -286,10 +286,12 @@ impl CredentialRefresh for super::Cline {
             let object = secret
                 .as_object_mut()
                 .ok_or(ChannelError::InvalidCredential)?;
+            // Remove only a known legacy token copy, before its old value
+            // becomes indistinguishable from an independently pasted key.
+            if auth::legacy_token_copy(context.credential.secret) {
+                object.remove("api_key");
+            }
             object.insert("access_token".into(), json!(rotated.access_token));
-            // A pasted key and an account token are the same field to the
-            // upstream; v3 kept both names in step and so does this.
-            object.insert("api_key".into(), json!(rotated.access_token));
             if let Some(refresh) = &rotated.refresh_token {
                 object.insert("refresh_token".into(), json!(refresh));
             }
