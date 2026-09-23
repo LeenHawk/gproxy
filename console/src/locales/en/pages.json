@@ -178,7 +178,7 @@
   },
   "providerForm": {
     "default": "Channel default",
-    "connection": "Connection profile",
+    "connection": "Request client",
     "item": "Item {{index}}",
     "key": "Name",
     "value": "Value",
@@ -187,7 +187,7 @@
   "setting": {
     "instanceName": "Instance name",
     "oauthClientAllowlist": "Allowed OAuth clients",
-    "connectionProfileId": "Default connection profile",
+    "connectionProfileId": "Default request client",
     "corsOrigins": "Allowed CORS origins",
     "trustedProxies": "Trusted proxy IPs",
     "maxAttempts": "Maximum attempts",
@@ -364,5 +364,29 @@
     "guardian_review": "Review content",
     "guardian_classify": "Classify content",
     "create_conversation": "Create conversation"
+  },
+  "clientProfile": {
+    "name": "Name",
+    "backend": "Client",
+    "reqwest": "reqwest (Rustls)",
+    "reqwest_native": "reqwest (native TLS)",
+    "wreq": "wreq",
+    "proxyMode": "Proxy",
+    "direct": "Direct",
+    "system": "System proxy",
+    "explicit": "Custom proxy",
+    "proxyUrl": "Proxy URL",
+    "retry": "Transport retry",
+    "never": "Disabled",
+    "default": "Client default",
+    "connectTimeoutMs": "Connect timeout (ms)",
+    "poolIdleTimeoutMs": "Idle connection timeout (ms)",
+    "poolMaxIdlePerHost": "Idle connections per host",
+    "redirectMaxHops": "Maximum redirects",
+    "basic": "General",
+    "emulation": "Client identity",
+    "transport": "Connection",
+    "none": "No emulation",
+    "custom": "Custom fingerprint (JSON)"
   }
 }

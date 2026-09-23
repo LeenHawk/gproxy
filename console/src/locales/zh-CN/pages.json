@@ -178,7 +178,7 @@
   },
   "providerForm": {
     "default": "使用渠道默认值",
-    "connection": "连接配置",
+    "connection": "请求客户端",
     "item": "第 {{index}} 项",
     "key": "名称",
     "value": "值",
@@ -187,7 +187,7 @@
   "setting": {
     "instanceName": "实例名称",
     "oauthClientAllowlist": "允许的 OAuth 客户端",
-    "connectionProfileId": "默认连接配置",
+    "connectionProfileId": "默认请求客户端",
     "corsOrigins": "允许的跨域来源",
     "trustedProxies": "受信代理 IP",
     "maxAttempts": "最多尝试次数",
@@ -364,5 +364,29 @@
     "guardian_review": "内容审核",
     "guardian_classify": "内容分类",
     "create_conversation": "创建会话"
+  },
+  "clientProfile": {
+    "name": "名称",
+    "backend": "客户端",
+    "reqwest": "reqwest（Rustls）",
+    "reqwest_native": "reqwest（原生 TLS）",
+    "wreq": "wreq",
+    "proxyMode": "代理模式",
+    "direct": "直连",
+    "system": "系统代理",
+    "explicit": "指定代理",
+    "proxyUrl": "代理 URL",
+    "retry": "传输重试",
+    "never": "关闭",
+    "default": "客户端默认",
+    "connectTimeoutMs": "连接超时（毫秒）",
+    "poolIdleTimeoutMs": "空闲连接超时（毫秒）",
+    "poolMaxIdlePerHost": "每个主机的空闲连接数",
+    "redirectMaxHops": "最大重定向次数",
+    "basic": "基本",
+    "emulation": "客户端伪装",
+    "transport": "连接",
+    "none": "不设置伪装",
+    "custom": "自定义指纹（JSON）"
   }
 }

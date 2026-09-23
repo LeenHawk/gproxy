@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { Boxes, KeyRound, Pencil, Settings2 } from "lucide-react"
 import { toast } from "sonner"
-import { channels, credentials, providers, providerModels, providerPath } from "@/api/configuration"
+import { channels, credentials, providers, providerModels, providerPath, connectionProfiles } from "@/api/configuration"
 import type { ChannelDescriptor, ProviderDto } from "@/generated/sdk"
 import { BoolCell, InstantCell, MaybeCell } from "@/components/cells"
 import { ConfirmButton } from "@/components/confirm"
@@ -34,6 +34,7 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
   const client = useQueryClient()
   const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
+  const profiles = useQuery({ queryKey: ["admin", "/connection-profiles", "directory"], queryFn: connectionProfiles })
   const channel = catalog.find((entry) => entry.id === provider.channel)
   const saved = () => {
     void client.invalidateQueries({ queryKey: ["admin", "/providers"] })
@@ -75,7 +76,7 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
         </TabsList>
         <TabsContent value="rules"><ProviderRules providerId={provider.id} /></TabsContent>
         <TabsContent value="routing"><ProviderOperations providerId={provider.id} /></TabsContent>
-        <TabsContent value="credentials">
+        <TabsContent value="credentials"><QueryState isPending={profiles.isPending} error={profiles.error}>
           <CollectionPage
             embedded
             id="credentials"
@@ -88,13 +89,14 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
             columns={[
               { key: "label", cell: (row) => row.label ?? row.id },
               { key: "authKind", cell: (row) => authKinds.find((kind) => kind.value === row.authKind)?.label ?? row.authKind },
+              { key: "connectionProfileId", cell: (row) => profiles.data?.find((profile) => profile.id === row.connectionProfileId)?.name ?? t("form.unset") },
               { key: "status", cell: (row) => <Badge variant={row.status === "active" ? "success" : "destructive"}>{t(`values.${row.status}`)}</Badge> },
               { key: "enabled", cell: (row) => <BoolCell value={row.enabled} /> },
               { key: "expiresAtMs", cell: (row) => <InstantCell value={row.expiresAtMs} /> },
             ]}
-            fields={credentialFields}
+            fields={credentialFields.map((field) => field.name === "connectionProfileId" ? { ...field, kind: "select" as const, choices: (profiles.data ?? []).map((profile) => ({ value: profile.id, label: profile.name })) } : field)}
           />
-        </TabsContent>
+        </QueryState></TabsContent>
         <TabsContent value="models">
           <CollectionPage
             embedded

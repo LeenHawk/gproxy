@@ -37,7 +37,8 @@
   },
   "form": {
     "choose": "Choose…",
-    "invalidJson": "Invalid JSON. Check the value and try again."
+    "invalidJson": "Invalid JSON. Check the value and try again.",
+    "unset": "Inherit"
   },
   "pagination": {
     "position": "Page {{page}} of {{pages}} · {{total}} rows",
@@ -193,7 +194,7 @@
     "windowKey": "Window",
     "channel": "Channel",
     "baseUrl": "Base URL",
-    "connectionProfileId": "Connection profile ID",
+    "connectionProfileId": "Request client",
     "config": "Configuration (JSON)",
     "label": "Label",
     "authKind": "Authentication",
@@ -224,6 +225,9 @@
     "filterOperationKeys": "Operation filters (JSON array)",
     "dialect": "Protocol",
     "transport": "Transport",
-    "url": "Full URL"
+    "url": "Full URL",
+    "backend": "Client",
+    "proxyMode": "Proxy",
+    "emulation": "Client identity"
   }
 }

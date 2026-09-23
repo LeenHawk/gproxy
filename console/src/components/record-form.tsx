@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dialog"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { fromLocalInput, toLocalInput } from "@/lib/format"
@@ -120,13 +120,14 @@ function Control({ field, value, onChange }: {
   if (field.kind === "select") {
     const choices = field.choices ?? (field.options ?? []).map((option) => ({ value: option, label: t(`values.${option}`) }))
     return (
-      <Select value={String(value)} onValueChange={onChange}>
+      <Select value={String(value) || "__unset"} onValueChange={(next) => onChange(next === "__unset" ? "" : next)}>
         <SelectTrigger id={id}><SelectValue placeholder={t("form.choose")} /></SelectTrigger>
-        <SelectContent>
+        <SelectContent><SelectGroup>
+          {field.nullable ? <SelectItem value="__unset">{t("form.unset")}</SelectItem> : null}
           {choices.map((choice) => (
             <SelectItem key={choice.value} value={choice.value}>{choice.label}</SelectItem>
           ))}
-        </SelectContent>
+        </SelectGroup></SelectContent>
       </Select>
     )
   }

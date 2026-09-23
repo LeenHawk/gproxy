@@ -26,7 +26,8 @@
     "provider-rule-sets": "規則集",
     "operation-rules": "路由規則",
     "operation-endpoints": "端點 URL",
-    "update": "系統更新"
+    "update": "系統更新",
+    "connection-profiles": "請求客戶端"
   },
   "create": {
     "keys": "新建金鑰",
@@ -44,7 +45,8 @@
     "rules": "新增重寫規則",
     "provider-rule-sets": "新增綁定規則集",
     "operation-rules": "新增路由規則",
-    "operation-endpoints": "新增端點"
+    "operation-endpoints": "新增端點",
+    "connection-profiles": "新增請求客戶端"
   },
   "edit": {
     "users": "編輯使用者",
@@ -61,6 +63,7 @@
     "rules": "編輯重寫規則",
     "provider-rule-sets": "編輯綁定規則集",
     "operation-rules": "編輯路由規則",
-    "operation-endpoints": "編輯端點"
+    "operation-endpoints": "編輯端點",
+    "connection-profiles": "編輯請求客戶端"
   }
 }

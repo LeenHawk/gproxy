@@ -28,6 +28,7 @@ import { ProvidersPage } from "@/pages/providers"
 import { ProviderDetailPage } from "@/pages/providers/detail"
 
 import { RuleSetsPage } from "@/pages/rules"
+import { ClientsPage } from "@/pages/clients"
 import { UpdatePage } from "@/pages/update"
 import { SettingsPage } from "@/pages/settings"
 import { TokenizerPage } from "@/pages/tokenizer"
@@ -44,6 +45,7 @@ const ROUTES: Record<string, () => React.ReactElement> = {
   "/settings": SettingsPage,
   "/rule-sets": RuleSetsPage,
   "/update": UpdatePage,
+  "/clients": ClientsPage,
   "/tokenizer": TokenizerPage,
   "/identity/users": UsersPage,
   "/identity/api-keys": ApiKeysPage,

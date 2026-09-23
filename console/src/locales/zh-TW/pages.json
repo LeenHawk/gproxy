@@ -178,7 +178,7 @@
   },
   "providerForm": {
     "default": "使用渠道預設值",
-    "connection": "連線設定",
+    "connection": "請求客戶端",
     "item": "第 {{index}} 項",
     "key": "名稱",
     "value": "值",
@@ -187,7 +187,7 @@
   "setting": {
     "instanceName": "執行個體名稱",
     "oauthClientAllowlist": "允許的 OAuth 用戶端",
-    "connectionProfileId": "預設連線設定",
+    "connectionProfileId": "預設請求客戶端",
     "corsOrigins": "允許的跨域来源",
     "trustedProxies": "受信任代理 IP",
     "maxAttempts": "最多嘗試次數",
@@ -364,5 +364,29 @@
     "guardian_review": "內容審核",
     "guardian_classify": "內容分類",
     "create_conversation": "建立對話"
+  },
+  "clientProfile": {
+    "name": "名稱",
+    "backend": "客戶端",
+    "reqwest": "reqwest（Rustls）",
+    "reqwest_native": "reqwest（原生 TLS）",
+    "wreq": "wreq",
+    "proxyMode": "代理模式",
+    "direct": "直連",
+    "system": "系統代理",
+    "explicit": "指定代理",
+    "proxyUrl": "代理 URL",
+    "retry": "傳輸重試",
+    "never": "關閉",
+    "default": "客戶端預設",
+    "connectTimeoutMs": "連線逾時（毫秒）",
+    "poolIdleTimeoutMs": "閒置連線逾時（毫秒）",
+    "poolMaxIdlePerHost": "每個主機的閒置連線數",
+    "redirectMaxHops": "最大重新導向次數",
+    "basic": "基本",
+    "emulation": "客戶端偽裝",
+    "transport": "連線",
+    "none": "不設定偽裝",
+    "custom": "自訂指紋（JSON）"
   }
 }
