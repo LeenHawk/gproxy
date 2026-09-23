@@ -168,7 +168,10 @@ pub async fn assemble(
             .or(default_profile_id);
         let config = match explicit {
             Some(id) => resolve(id)?,
-            None => provider.channel.default_connection().unwrap_or_default(),
+            None => provider
+                .channel
+                .default_connection_for(gproxy_channel::channel::ConnectionPurpose::Request)
+                .unwrap_or_default(),
         };
         let client_error = |source| AssemblyError::Client {
             credential_id: row.id.clone(),

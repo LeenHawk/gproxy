@@ -50,15 +50,11 @@ impl CodexConfig {
     }
 }
 
-/// The Codex CLI's transport: reqwest 0.12 with its default features, so
-/// native TLS (OpenSSL on Linux) for HTTP with h2's stock SETTINGS, no
-/// response decompression, redirects followed; WebSocket over rustls
-/// (`tokio-tungstenite`), which is what the pool's WebSocket client of this
-/// backend is. The default client for providers that name no connection
-/// profile. Host profiles override it whole.
+/// Default Codex transport: reqwest without an emulation profile.
+/// Explicit host profiles override the whole configuration.
 pub fn default_connection() -> ConnectionConfig {
     ConnectionConfig {
-        backend: Backend::ReqwestNative,
+        backend: Backend::Reqwest,
         emulation: None,
         redirect_max_hops: 10,
         ..ConnectionConfig::default()

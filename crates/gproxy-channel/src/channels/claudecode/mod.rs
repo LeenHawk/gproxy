@@ -41,7 +41,7 @@ use crate::channel::{
 };
 use crate::channels::shared::cache;
 use futures_util::StreamExt;
-use gproxy_client::{Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, TlsVersion};
+use gproxy_client::{Backend, ConnectionConfig};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse, capability::StateWrite,
     connection::Bytes,
@@ -122,50 +122,11 @@ impl ClaudecodeConfig {
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Claudecode;
 
-/// The CLI's TLS identity, the default client for providers that name no
-/// connection profile. Claude Code 2.1.252 is Bun 1.4.1, whose `fetch` runs
-/// BoringSSL through uSockets (`packages/bun-usockets/src/crypto/openssl.c`,
-/// `src/http/lib.rs::configure_http_client_with_alpn`): a TLS 1.2 floor, no
-/// cipher, curve or signature-algorithm list of its own (BoringSSL's
-/// defaults, spelled out here so a wreq/BoringSSL upgrade cannot move them),
-/// ALPN `http/1.1` only, SCT and OCSP stapling requested, no GREASE and no
-/// extension permutation. `SSL_OP_LEGACY_SERVER_CONNECT` does not change the
-/// ClientHello. Auto-decompression stays on as in v3.
+/// Ordinary API requests use wreq without an emulation profile.
 pub fn default_connection() -> ConnectionConfig {
     ConnectionConfig {
         backend: Backend::Wreq,
-        emulation: Some(EmulationConfig::Custom(Fingerprint {
-            alpn: vec![Alpn::Http1],
-            min_tls: Some(TlsVersion::Tls12),
-            max_tls: Some(TlsVersion::Tls13),
-            cipher_list: Some(
-                concat!(
-                    "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:",
-                    "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:",
-                    "ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:",
-                    "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:",
-                    "ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES128-SHA:",
-                    "ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA:",
-                    "AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA:AES256-SHA"
-                )
-                .into(),
-            ),
-            curves_list: Some("X25519:P-256:P-384".into()),
-            sigalgs_list: Some(
-                concat!(
-                    "ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256:rsa_pkcs1_sha256:",
-                    "ecdsa_secp384r1_sha384:rsa_pss_rsae_sha384:rsa_pkcs1_sha384:",
-                    "rsa_pss_rsae_sha512:rsa_pkcs1_sha512:rsa_pkcs1_sha1"
-                )
-                .into(),
-            ),
-            preserve_tls13_cipher_list: Some(false),
-            grease: Some(false),
-            ocsp_stapling: Some(true),
-            signed_cert_timestamps: Some(true),
-            http2: None,
-            headers: None,
-        })),
+        emulation: None,
         gzip: true,
         brotli: true,
         deflate: true,
@@ -619,6 +580,14 @@ impl BaseChannel for Claudecode {
     fn default_connection(&self) -> Option<ConnectionConfig> {
         Some(default_connection())
     }
+
+    fn default_connection_for(&self, purpose: crate::channel::ConnectionPurpose) -> Option<ConnectionConfig> {
+        Some(match purpose {
+            crate::channel::ConnectionPurpose::Request => default_connection(),
+            crate::channel::ConnectionPurpose::CookieLogin => super::shared::browser_connection(),
+        })
+    }
+
 
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
@@ -1214,6 +1183,14 @@ impl OAuthAuthorizationCode for Claudecode {
 }
 
 impl CredentialRefresh for Claudecode {
+    fn connection_purpose(&self, credential: &CredentialView<'_>) -> crate::channel::ConnectionPurpose {
+        if non_empty(credential.secret.get("refresh_token")).is_none() && non_empty(credential.secret.get("cookie")).is_some() {
+            crate::channel::ConnectionPurpose::CookieLogin
+        } else {
+            crate::channel::ConnectionPurpose::Request
+        }
+    }
+
     /// JSON `refresh_token` grant with the default scope plus any optional
     /// scopes the credential already holds (v3 `auth.rs`). A credential that
     /// only has a claude.ai cookie re-mints its tokens through the cookie.

@@ -136,6 +136,13 @@ pub struct PrepareContext<'a, B = HttpBody> {
     pub endpoint_override: Option<&'a str>,
 }
 
+/// Transport defaults vary between API calls and browser cookie login.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConnectionPurpose {
+    Request,
+    CookieLogin,
+}
+
 /// Channel identity plus independently overridable operation methods.
 ///
 /// Only `id` is required. Preparation defaults to UnsupportedOperation.
@@ -179,12 +186,17 @@ pub trait BaseChannel: Send + Sync {
     }
 
     /// The outbound client this channel's upstream expects when nothing names
-    /// one: the host resolves credential profile → provider profile → this →
-    /// the Setting default → `ConnectionConfig::default()`. Channels whose
+    /// one: the host resolves credential profile → provider profile → Setting default → this → `ConnectionConfig::default()`. Channels whose
     /// upstream fingerprints its clients return the captured client identity;
     /// any explicit host profile on the credential or provider still wins.
     fn default_connection(&self) -> Option<ConnectionConfig> {
         None
+    }
+
+    /// A login may need a browser transport while normal API traffic does not.
+    fn default_connection_for(&self, purpose: ConnectionPurpose) -> Option<ConnectionConfig> {
+        let _ = purpose;
+        self.default_connection()
     }
 
     /// The wire dialects this provider's upstream accepts natively for an
