@@ -28,7 +28,8 @@
     "rules": "Rewrite rules",
     "provider-rule-sets": "Attached rule sets",
     "operation-rules": "Operation rules",
-    "operation-endpoints": "Operation endpoints"
+    "operation-endpoints": "Operation endpoints",
+    "update": "Updates"
   },
   "create": {
     "keys": "New key",

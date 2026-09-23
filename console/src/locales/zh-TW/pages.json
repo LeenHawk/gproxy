@@ -317,5 +317,28 @@
     "dialects": "原生協定優先順序（每行一項）",
     "operationHelp": "依操作覆寫原生協定，例如 generate_content。每行填入 openai、openai_chat、claude 或 gemini 等協定識別；客戶端協定不在清單內時，轉換到第一項。刪除規則可恢復渠道預設值。",
     "endpointHelp": "為指定操作、協定和傳輸方式覆寫完整 URL，包含路徑。"
+  },
+  "update": {
+    "current": "目前版本",
+    "unsupported": "目前宿主不支援線上更新",
+    "channel": "更新通道",
+    "channelHelp": "此選擇僅用於本次檢查／安裝。預設通道和自動檢查請在全域設定調整。",
+    "schedule": "每 {{seconds}} 秒檢查一次",
+    "noSchedule": "自動檢查已關閉",
+    "autoInstall": "自動安裝已開啟",
+    "manualInstall": "手動安裝",
+    "checking": "正在檢查…",
+    "check": "檢查更新",
+    "install": "安裝更新",
+    "rollback": "回復版本",
+    "installConfirm": "安裝 {{version}}？服務可能重新啟動並中斷連線。",
+    "rollbackConfirm": "恢復上一份程式？服務可能重新啟動。",
+    "installing": "正在執行… 服務可能重新啟動，恢復後請重新整理。",
+    "installed": "程式已替換。版本：{{version}}；重新啟動方式：{{restart}}。服務恢復後請重新整理。",
+    "unchanged": "無需替換程式。",
+    "available": "可用更新：{{version}}",
+    "latest": "暫無更新版本",
+    "notes": "版本說明",
+    "notChecked": "尚未檢查此通道。"
   }
 }
