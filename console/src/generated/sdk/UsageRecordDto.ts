@@ -5,33 +5,33 @@ import type { UsageTokensDto } from "./UsageTokensDto";
 /**
  * One persisted request.
  */
-export type UsageRecordDto = { 
+export type UsageRecordDto = {
 /**
  * The downstream exchange or websocket turn this usage belongs to, which
  * is also the id of its downstream `capture_records` row.
  */
-requestId: string, userId: string | null, apiKeyId: string | null, subscriptionId: string | null, 
+requestId: string, userId: string | null, apiKeyId: string | null,
 /**
  * The name the caller asked for, falling back to the upstream model.
  */
-model: string, operation: string, 
+model: string, operation: string,
 /**
  * The settlement state core recorded: `settled`, `failed`, … .
  */
-state: string | null, 
+state: string | null,
 /**
  * `complete`, `partial` or `unknown`.
  */
-completeness: string | null, tokens: UsageTokensDto, 
+completeness: string | null, tokens: UsageTokensDto,
 /**
  * The settled charge, from the indexed column rather than the document.
  */
-cost: string | null, currency: string | null, 
+cost: string | null, currency: string | null,
 /**
  * One entry per upstream attempt that produced usage, which is where a
  * provider and a credential are named.
  */
-exchanges: Array<UsageExchangeDto>, 
+exchanges: Array<UsageExchangeDto>,
 /**
  * The whole document, so nothing above is a lossy summary of it.
  */

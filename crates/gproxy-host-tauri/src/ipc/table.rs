@@ -121,50 +121,10 @@ ipc_table! {
         batch(items: Vec<app::BatchItem<app::RateLimitWrite, app::RateLimitPatch>>);
     }
 
-    admin subscriptions [.subscriptions()] {
-        list(query: app::ListQuery);
-        get[id];
-        create(write: app::SubscriptionWrite);
-        update[id](patch: app::SubscriptionPatch);
-        delete[id];
-        batch(items: Vec<app::BatchItem<app::SubscriptionWrite, app::SubscriptionPatch>>);
-    }
 
-    admin pools [.pools()] {
-        list(query: app::ListQuery);
-        get[id];
-        create(write: app::PoolWrite);
-        update[id](patch: app::PoolPatch);
-        delete[id];
-        batch(items: Vec<app::BatchItem<app::PoolWrite, app::PoolPatch>>);
-    }
 
-    admin pool_members [.pool_members()] {
-        list(query: app::ListQuery);
-        get[id];
-        create(write: app::PoolMemberWrite);
-        update[id](patch: app::PoolMemberPatch);
-        delete[id];
-        batch(items: Vec<app::BatchItem<app::PoolMemberWrite, app::PoolMemberPatch>>);
-    }
 
-    admin plans [.plans()] {
-        list(query: app::ListQuery);
-        get[id];
-        create(write: app::PlanWrite);
-        update[id](patch: app::PlanPatch);
-        delete[id];
-        batch(items: Vec<app::BatchItem<app::PlanWrite, app::PlanPatch>>);
-    }
 
-    admin plan_limits [.plan_limits()] {
-        list(query: app::ListQuery);
-        get[id];
-        create(write: app::PlanLimitWrite);
-        update[id](patch: app::PlanLimitPatch);
-        delete[id];
-        batch(items: Vec<app::BatchItem<app::PlanLimitWrite, app::PlanLimitPatch>>);
-    }
 
     // An OAuth client is retired, not deleted: the grants it issued still
     // name it, so the row survives and stops being usable.

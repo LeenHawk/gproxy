@@ -82,10 +82,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> PortalKeys<'_, C> {
                 name: write.name,
                 organization_id: write.organization_id,
                 team_id: write.team_id,
-                // Not offered: a subscription is issued to a user by an
-                // operator, and which one a key spends is part of that
-                // decision rather than a self-service choice.
-                subscription_id: None,
                 expires_at_ms: write.expires_at_ms,
                 enabled: None,
                 retain_secret: write.retain_secret,

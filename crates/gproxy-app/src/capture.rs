@@ -38,7 +38,7 @@
 //!
 //! # What a downstream record does not claim
 //!
-//! `provider_id`, `credential_id` and `pool_id` stay unset. A request that was
+//! `provider_id` and `credential_id` stay unset. A request that was
 //! retried reached two providers with two credentials, and a column that can
 //! hold one of them would have to pick; the edges in `capture_links` answer
 //! that question without picking. `metrics` stays unset too — the schema

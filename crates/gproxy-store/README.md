@@ -152,7 +152,6 @@ with one entity per file:
 | `routing` | ExposedModel, Route, RouteMember |
 | `identity` | Organization, Team, OrganizationMember, TeamMember, User, ApiKey, UserSession, Permission, AuditEvent |
 | `oauth` | Client, Grant, Code, Token, Device |
-| `subscription` | Pool, PoolMember, Plan, PlanLimit, Subscription |
 | `limits` | RateLimit, Quota, QuotaWindow, QuotaSettlement, CredentialQuotaCycle, CredentialBlock |
 | `pricing` | PriceRule, PriceRate, PriceTier |
 | `usage` | UsageRecord, CaptureRecord, CaptureLink, CaptureEvent |
@@ -162,6 +161,10 @@ with one entity per file:
 Fields, primary/unique keys, relations, and delete actions are declared directly
 with SeaORM attributes. `schema(backend)` registers all entities with SeaORM's
 schema builder.
+
+Gateway-issued plans, plan limits, subscriptions and resource pools have been removed.
+Fresh databases omit their tables and binding columns. Existing databases retain
+those unused tables and columns; startup does not purge historical data.
 
 The schema covers upstreams and routing, users and API keys, policies and quotas,
 pricing, historical usage and calls, file metadata, resource bindings, protocol
@@ -202,7 +205,7 @@ Review decisions currently expressed in the code:
   Routing definitions have no organization, team or user ownership.
 - Permissions/rate limits currently target users or API keys. A quota targets
   one owner `(owner_kind, owner_id)`; kinds are host-defined strings (suggested:
-  `user`, `api_key`, `subscription`, `pool`, `team`, `org`) with no foreign key,
+  `user`, `api_key`, `team`, `org`) with no foreign key,
   so the host write layer must enforce ownership consistency and clean up. Two
   kinds are reserved by core for upstream-side limits rather than caller
   budgets: `credential` (one credential) and `provider` (every credential of a
@@ -408,7 +411,7 @@ Code/refresh consumption, token insertion and session statistics must commit in
 one atomic operation. `exchange_tokens_many` enforces this using a fresh random
 `consumed_by` receipt for each attempt. `issue_many` checks key owner/kind and
 device/grant client consistency; the issuer validates consent, scopes and redirect policy. `resolve_access_many` checks expiry,
-revocation, client/grant/user/key/subscription state; core must call it for each
+revocation, client/grant/user/key state; core must call it for each
 request and new WS turn and apply authorization/PKCE policy.
 
 Use revoked_at/deleted_at for revocation and client deletion to retain history;
@@ -472,68 +475,6 @@ into this project. Unsupported backends return an explicit error. This adds four
 nullable columns; existing rows inherit, and no database schema update is run
 automatically.
 
-## Subscription aggregation and allocation
-
-[`subscription`](src/entity/subscription/mod.rs) models gateway-issued virtual subscriptions:
-
-```text
-Credential -> PoolMember -> Pool -> Plan -> Subscription -> API keys / OAuth sessions
-                                      PlanLimit -> Quota (owner_kind subscription)
-Pool/subscription Quota -> QuotaWindow -> QuotaSettlement
-```
-
-PoolMember binds a credential and a channel-defined canonical source_key for the
-real upstream subscription. A source contributes to one pool only; downstream
-allocations split its capacity. Token refresh does not create a new source, and
-membership does not change credential ownership. Pool-owned quotas (owner_kind `pool`) are provisioned
-budgets; actual available capacity comes from member CredentialQuotaCycle observations.
-Configured budgets are not upstream-reported remaining capacity.
-
-Plans define gateway display names and Codex/Claude Code presentation fields.
-PlanLimit defines default windows, dollar allowances (limit, in USD) and model scopes.
-Issuance copies these into Quota rows owned by the subscription with metric = cost and
-unit = USD, optionally adjusting the dollar allocation.
-Template edits do not retroactively resize/reset issued limits; changed terms use a
-new plan. Subscriptions bind users and plans with start/expiry/enabled state. API
-keys select a subscription; OAuth follows its internal key, so multiple sessions
-share the same allocation. Key and subscription owners must match. A disabled or
-expired subscription cannot fall back to unrestricted access. Plan.enabled controls
-new issuance; Pool.enabled controls whether its capacity may continue serving work.
-
-Group source capacities only by compatible metric, unit, model scope and window
-class. Five-hour and seven-day constraints on one source are simultaneous limits,
-not additive capacity. Preserve each source's reset time. Percentages without an
-absolute basis remain unknown, not summed; stale/incomplete observations are not
-zero consumption. Conversion and observation freshness require future aggregation
-logic. Downstream allowances are always USD: token/cache/tool/media quantities
-are priced in USD before charging. Subscription pricing rules must use USD; no
-implicit currency mixing is defined. Upstream percentages/token limits describe
-serving capacity, not dollar balances. Pool dollar budgets are explicitly configured
-or separately estimated. Provisioning checks outstanding USD allocations against
-compatible pool budgets; different windows/scopes cannot be naively summed.
-
-Fixed downstream windows use subscription start/Quota.anchor_at_ms; calendar
-windows use UTC and total quotas never reset. Upstream resets do not clear downstream
-consumption. Client adapters use window_key (primary/secondary/etc.) to show the
-subscriber's USD allowance, spent/remaining USD and reset (deriving percentages
-from the dollar ledger where required), not all pool balances or
-upstream account identities. Gateway plan labels do not change upstream entitlements.
-
-Runtime candidates intersect route targets, pool members and existing credential
-permissions. Subscription switches affect later requests/WS turns, not in-flight
-work. Historical UsageRecord.subscription_id and upstream CaptureRecord.pool_id
-retain attribution. Pool quota settlement uses physical upstream call IDs once;
-subscription settlement uses downstream request IDs once. Shared-call allocation
-still requires an explicit settlement policy. New OAuth logins must not silently
-create fresh independent allowances.
-
-Existing QuotaWindow/QuotaSettlement remain the only consumption ledger. Deleting
-a subscription deletes its keys, OAuth grants and quota configuration, while historical
-windows/settlements/usage survive. Prefer disabling/expiry to retain configuration.
-Plans with issued subscriptions cannot be physically deleted. Batch CRUD and
-consumption settlement are available; aggregation, provisioning, reservations,
-candidate filtering and client subscription rendering remain core work.
-
 ## Cloud-agent affinity and exhaustion handoff
 
 [`AgentSession`](src/entity/resource/agent_session.rs) identifies a stable logical
@@ -541,8 +482,7 @@ session by user, service/routing scope and downstream affinity_key, independentl
 a captured WS connection. Reuse the same eligible credential until confirmed
 exhaustion for the required workload; a transient rate limit is not proof of quota
 exhaustion. After switching, stick to the replacement even if an older credential
-resets. Routing/model permissions and subscription-pool eligibility still apply.
-The downstream subscription and USD ledger do not change.
+resets. Routing/model permissions still apply. The existing usage ledger does not change.
 
 Each [`AgentAssignment`](src/entity/resource/agent_assignment.rs) stores a target,
 previous active generation, reason/evidence references and preparation/activation/

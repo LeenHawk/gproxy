@@ -599,7 +599,6 @@ fn handmade(app: &TestApp, id: &str) -> DownstreamCapture {
         api_key_id: Some("k-alice".into()),
         organization_id: None,
         team_id: None,
-        subscription_id: None,
         grant: None,
         kind: CallerKind::ApiKey,
     };
@@ -608,7 +607,6 @@ fn handmade(app: &TestApp, id: &str) -> DownstreamCapture {
         attribution: UsageAttribution {
             user_id: Some("alice".into()),
             api_key_id: Some("k-alice".into()),
-            subscription_id: None,
             model: Some("test/m1".into()),
         },
         budgets: Vec::new(),

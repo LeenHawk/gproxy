@@ -8,32 +8,32 @@
  * different things to do something about. Every owner here is one the caller
  * is themselves part of: the chain is built from their own key binding.
  */
-export type PortalQuotaWindowDto = { 
+export type PortalQuotaWindowDto = {
 /**
- * `api_key`, `user`, `subscription`, `team` or `org`.
+ * `api_key`, `user`, `team` or `org`.
  */
-ownerKind: string, ownerId: string, 
+ownerKind: string, ownerId: string,
 /**
  * The budget's stable key within its owner, e.g. `primary`.
  */
-windowKey: string, 
+windowKey: string,
 /**
  * `5h`, `1d`, `7d`, `1m`, `total`, …
  */
-period: string, 
+period: string,
 /**
  * The glob this budget covers, absent when it covers everything.
  */
-modelPattern: string | null, 
+modelPattern: string | null,
 /**
  * `USD` for a cost budget.
  */
-unit: string, used: string, limit: string, 
+unit: string, used: string, limit: string,
 /**
  * On the 0..100 scale, to two decimals. None when the limit is zero,
  * which is a switched-off subject rather than a ratio.
  */
-usedPercent: string | null, startsAtMs: number, 
+usedPercent: string | null, startsAtMs: number,
 /**
  * None for a permanent (`total`) window.
  */

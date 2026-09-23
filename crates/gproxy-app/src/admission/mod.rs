@@ -280,8 +280,8 @@ impl<'a, C> Admission<'a, C> {
 pub(crate) mod support {
     use crate::{Caller, CallerKind};
 
-    /// A plain API-key caller holding key `k1`, with no organization, team or
-    /// subscription. Tests narrow one field at a time from here.
+    /// A plain API-key caller holding key `k1`, with no organization or
+    /// team binding. Tests narrow one field at a time from here.
     pub(crate) fn caller(user_id: &str, role: &str) -> Caller {
         Caller {
             user_id: user_id.into(),
@@ -289,7 +289,6 @@ pub(crate) mod support {
             api_key_id: Some("k1".into()),
             organization_id: None,
             team_id: None,
-            subscription_id: None,
             grant: None,
             kind: CallerKind::ApiKey,
         }

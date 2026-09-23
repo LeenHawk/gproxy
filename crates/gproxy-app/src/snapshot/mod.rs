@@ -37,7 +37,6 @@ use gproxy_store::{
         identity::{organization, team, user},
         limits::rate_limit,
         oauth,
-        subscription::{plan, plan_limit, pool, pool_member, user_subscription},
         upstream::credential,
     },
 };
@@ -74,13 +73,6 @@ pub struct AppData {
     /// Configured limits; the live counters are in the cache. Admission
     /// selects the applicable ones per request.
     pub rate_limits: Vec<rate_limit::Model>,
-    pub subscriptions: HashMap<String, user_subscription::Model>,
-    pub plans: HashMap<String, plan::Model>,
-    /// plan_id → its allowance rows.
-    pub plan_limits: HashMap<String, Vec<plan_limit::Model>>,
-    pub pools: HashMap<String, pool::Model>,
-    /// pool_id → the credentials that back it.
-    pub pool_members: HashMap<String, Vec<pool_member::Model>>,
     pub oauth_clients: HashMap<String, oauth::client::Model>,
 }
 
@@ -108,20 +100,6 @@ impl AppData {
         now_ms: i64,
     ) -> Result<Self, AppError> {
         let users: HashMap<String, user::Model> = by_id(&identity.users, |row| &row.id);
-        let mut plan_limits: HashMap<String, Vec<plan_limit::Model>> = HashMap::new();
-        for row in &identity.plan_limits {
-            plan_limits
-                .entry(row.plan_id.clone())
-                .or_default()
-                .push(row.clone());
-        }
-        let mut pool_members: HashMap<String, Vec<pool_member::Model>> = HashMap::new();
-        for row in &identity.pool_members {
-            pool_members
-                .entry(row.pool_id.clone())
-                .or_default()
-                .push(row.clone());
-        }
         Ok(Self {
             revision,
             settings: None,
@@ -143,11 +121,6 @@ impl AppData {
             organizations: by_id(&identity.organizations, |row| &row.id),
             teams: by_id(&identity.teams, |row| &row.id),
             rate_limits: identity.rate_limits.clone(),
-            subscriptions: by_id(&identity.subscriptions, |row| &row.id),
-            plans: by_id(&identity.plans, |row| &row.id),
-            plan_limits,
-            pools: by_id(&identity.pools, |row| &row.id),
-            pool_members,
             oauth_clients: by_id(&identity.oauth_clients, |row| &row.id),
         })
     }
@@ -169,11 +142,6 @@ impl AppData {
             organizations: HashMap::new(),
             teams: HashMap::new(),
             rate_limits: Vec::new(),
-            subscriptions: HashMap::new(),
-            plans: HashMap::new(),
-            plan_limits: HashMap::new(),
-            pools: HashMap::new(),
-            pool_members: HashMap::new(),
             oauth_clients: HashMap::new(),
         }
     }

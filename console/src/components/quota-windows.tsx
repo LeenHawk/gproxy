@@ -1,7 +1,7 @@
 //! The caller's budget windows, as meters.
 //!
 //! `PortalQuotaWindowDto` reports the owner of every window because the chain
-//! is `[key, user, subscription, team, organization]` and "I am out of my own
+//! is `[key, user, team, organization]` and "I am out of my own
 //! allowance" and "my team is out of its allowance" are two different things
 //! to do something about. The owner is therefore the first thing each row
 //! says, not a footnote.

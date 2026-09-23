@@ -35,24 +35,9 @@ import type {
   PermissionDto,
   PermissionPatch,
   PermissionWrite,
-  PlanDto,
-  PlanLimitDto,
-  PlanLimitPatch,
-  PlanLimitWrite,
-  PlanPatch,
-  PlanWrite,
-  PoolDto,
-  PoolMemberDto,
-  PoolMemberPatch,
-  PoolMemberWrite,
-  PoolPatch,
-  PoolWrite,
   RateLimitDto,
   RateLimitPatch,
   RateLimitWrite,
-  SubscriptionDto,
-  SubscriptionPatch,
-  SubscriptionWrite,
   TeamDto,
   TeamMemberDto,
   TeamPatch,
@@ -120,11 +105,6 @@ export const organizations = family<OrganizationDto, OrganizationWrite, Organiza
 export const teams = family<TeamDto, TeamWrite, TeamPatch>("/teams")
 export const permissions = family<PermissionDto, PermissionWrite, PermissionPatch>("/permissions")
 export const rateLimits = family<RateLimitDto, RateLimitWrite, RateLimitPatch>("/rate-limits")
-export const subscriptions = family<SubscriptionDto, SubscriptionWrite, SubscriptionPatch>("/subscriptions")
-export const pools = family<PoolDto, PoolWrite, PoolPatch>("/pools")
-export const poolMembers = family<PoolMemberDto, PoolMemberWrite, PoolMemberPatch>("/pool-members")
-export const plans = family<PlanDto, PlanWrite, PlanPatch>("/plans")
-export const planLimits = family<PlanLimitDto, PlanLimitWrite, PlanLimitPatch>("/plan-limits")
 
 /**
  * An OAuth client is **retired**, not deleted: the grants it issued still name

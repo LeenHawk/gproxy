@@ -216,7 +216,6 @@ fn record(row: capture_record::Model) -> CaptureRecordDto {
         api_key_id: row.api_key_id,
         provider_id: row.provider_id,
         credential_id: row.credential_id,
-        pool_id: row.pool_id,
         agent_assignment_id: row.agent_assignment_id,
         model: row.model,
         operation: row.operation,

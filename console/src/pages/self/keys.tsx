@@ -1,6 +1,6 @@
 //! The caller's own gateway keys.
 //!
-//! What a key is bound to — an organization, a team, a subscription — decides
+//! What a key is bound to — an organization or a team — decides
 //! the budget chain, the permission subject and which credentials it may reach,
 //! all at once and at mint time. It is never taken from a request header, so
 //! the choice is made here or not at all; the two selects are populated from

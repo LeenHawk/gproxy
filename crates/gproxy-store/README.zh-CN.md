@@ -48,7 +48,7 @@ SQL 错误回滚事务写入；条件更新零行只返回冲突／行数，不�
 状态变更、改写规则替换及
 有序加载、额度幂等结算、带过期语义的协议状态 CAS、OAuth 签发／轮换／撤销／设备批准／
 客户端退役，以及 agent 分配预留／启用／失败／当前目标读取。设备轮询及结果交付由签发层
-负责，可用通用查询读取持久状态；订阅发放与价格计算仍由 core 完成。
+负责，可用通用查询读取持久状态；价格计算仍由 core 完成。
 
 ## 首次初始化与版本化迁移
 
@@ -113,7 +113,6 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
 | `routing` 路由 | ExposedModel、Route、RouteMember |
 | `identity` 身份 | Organization、Team、OrganizationMember、TeamMember、User、ApiKey、UserSession、Permission、AuditEvent |
 | `oauth` 下游授权 | Client、Grant、Code、Token、Device |
-| `subscription` 订阅 | Pool、PoolMember、Plan、PlanLimit、Subscription |
 | `limits` 额度 | RateLimit、Quota、QuotaWindow、QuotaSettlement、CredentialQuotaCycle、CredentialBlock |
 | `pricing` 定价 | PriceRule、PriceRate、PriceTier |
 | `usage` 用量 | UsageRecord、CaptureRecord、CaptureLink、CaptureEvent |
@@ -122,6 +121,9 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
 
 字段、主键／唯一键、关系和删除行为直接写在 SeaORM 属性中。
 `schema(backend)` 把实体注册到 SeaORM schema builder。
+
+已移除网关套餐、套餐限额、用户订阅和资源池。新数据库不再创建相关表与绑定列；
+已有数据库保留这些不再读取的旧表与列，启动时不会清空历史数据。
 
 结构覆盖上游与路由、用户与 API Key、权限与额度、定价、历史用量与调用、文件元数据、
 资源映射、协议续接状态和设置。
@@ -150,7 +152,7 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
 - ProviderModel 可关联全局模型，删除模型资料时清空该可选引用。
 - 路由结构为对外模型名 → Route → Provider／上游模型成员；不设置组织、团队、用户归属。
 - Permission、RateLimit 暂留 user／API key 归属。Quota 归一个 `(owner_kind, owner_id)`，
-  kind 是宿主定义的字符串（建议 `user`／`api_key`／`subscription`／`pool`／`team`／`org`），
+  kind 是宿主定义的字符串（建议 `user`／`api_key`／`team`／`org`），
   不建外键，归属一致性由宿主写入层校验。core 保留两种 kind 表示上游侧上限而非调用方预算：
   `credential`（一把凭证）与 `provider`（该 provider 的每把凭证），metric `requests`／unit
   `count` 或 metric `cost`／unit `USD`。
@@ -312,7 +314,7 @@ Client.id 就是公开的 OAuth client_id；Grant 关联 GProxy 用户及一个 
 授权码与 refresh token 的消费、令牌插入、登录／刷新统计必须在同一原子操作内提交。
 `exchange_tokens_many` 使用每次尝试新生成的随机 `consumed_by` 消费凭据，保护后续令牌写入
 和统计更新。`issue_many` 检查 key 用户／类型及设备与授权的客户端一致性；签发层校验用户同意、scopes 和回调策略。
-`resolve_access_many` 检查 token 过期、撤销、Grant、Client、用户、内部 key 和订阅状态；
+`resolve_access_many` 检查 token 过期、撤销、Grant、Client、用户和内部 key 状态；
 core 必须在每次访问及 WS 新轮次调用，并负责用户授权和 PKCE 策略。
 
 撤销授权使用 revoked_at，客户端删除使用 deleted_at，保留会话历史；重新启用客户端
@@ -360,62 +362,13 @@ SeaORM 条件。D1 使用 SQLite JSON 扩展。当前开源 `sea-orm 2.0.3` 只�
 MySQL 后端，MSSQL 属于单独的 SeaORM X，项目未接入；不支持的后端明确报错。
 此次增加四个可空列，既有数据默认继承；未自动执行数据库 schema 更新。
 
-## 订阅聚合与切分
-
-[`subscription`](src/entity/subscription/mod.rs) 表达上游订阅池向下游发放 GProxy 虚拟订阅：
-
-```text
-Credential → PoolMember → Pool → Plan → Subscription → 多个 API Key / OAuth 会话
-                               └─ PlanLimit → 复制为订阅的 Quota
-Pool 的 Quota、订阅的 Quota → QuotaWindow → QuotaSettlement
-```
-
-- PoolMember 绑定一个上游凭证，以渠道提供的真实订阅 source_key 去重。一个真实订阅
-  只计入一个池，切分发生在下游；更新 token 不创建新的容量来源。池成员不改变凭证归属。
-- Pool 的 Quota 是可分配的预算；上游实际可用量来自成员的 CredentialQuotaCycle 观测。
-  两者分开保存，不能把运营配置的预算当成上游报告的剩余量。
-- Plan 定义 GProxy 套餐名称和 Codex／Claude Code 的展示字段。PlanLimit 定义每个订户的
-  默认窗口、美元额度 `limit` 及模型范围；发放时复制到 subscription_id 归属的 Quota，
-  固定使用 `metric = cost`、`unit = USD`，
-  可在发放时调整额度。更改模板不追溯修改已有额度，已发放的套餐通过新 Plan 变更条款。
-- Subscription 绑定用户和套餐，具有生效、到期、启用状态；API Key.subscription_id 指向
-  所选订阅，OAuth 通过内部 key 共享同一关系。key 和订阅必须属于同一用户。暂停或到期
-  后必须拒绝继续使用该订阅，不能退回无订阅模式；Plan.enabled 只控制新发放，Pool.enabled
-  则控制该池是否继续承接请求。
-
-额度聚合按同一指标、单位、模型范围及窗口类别分组。同一来源的五小时／七天限制是
-同时生效的约束，不是两份可以相加的容量。不同账号保留各自重置时间，不为池捏造统一
-的上游重置点。只有百分比而无对应基数时，绝对额度保持未知；过期或不完整观测不能
-当作零用量。容量换算及观测有效性由后续聚合实现明确处理。
-
-下游统一使用 USD 账本：输入输出、缓存、工具、图像等用量按价格规则转换为 USD 后扣款。
-订阅计费要求价格规则以 USD 计价，不隐式混算其他币种。上游百分比、token 限制只描述
-承接能力，不能直接相加成美元余额。池的可分配 USD 预算需要明确配置或另行估算。
-例如池预算 $1000、每份订阅分配 $100；同窗口和范围的已分配金额应在发放／调整时校验。
-窗口不一致时不能直接相加。下游固定周期
-由订阅生效时间／Quota.anchor_at_ms 锚定，日周月使用 UTC，总量不重置；不随某个上游
-账号重置而清空下游已用量。primary、secondary 等 window_key 供客户端适配器选择展示窗口。
-下游展示自己分到的 USD 总额度、USD 已用／剩余及重置时间（协议要求百分比时由美元账本计算），不暴露各上游账号，也不直接展示整个池的
-全部剩余额度。客户端套餐标签是 GProxy 分配视图，不改变真实上游订阅权益。
-
-执行候选须同时满足路由目标、池成员、现有凭证使用权限。API Key 切换订阅只影响后续
-请求／WS 新轮次；已开始的请求固定原订阅和池，历史 UsageRecord.subscription_id 与
-上游 CaptureRecord.pool_id 保持不变。池预算按上游实际调用 ID 结算一次，用户预算按下游
-请求 ID 结算一次；共享上游调用的下游费用分摊仍需显式结算策略。登录新的 OAuth 会话
-不应自动复制出一份新额度。
-
-复用现有配额窗口和幂等扣账表，持久化层没有第二套订阅用量账本。删除订阅会删除其 key、
-OAuth 授权及配置配额，但历史窗口、结算、请求用量仍保留；通常通过停用／到期保留配置。
-存在已发放订阅时不允许物理删除套餐。已有批量 CRUD 和幂等结算；尚未实现聚合计算、发放、
-配额预占、候选筛选或 Codex／Claude Code 订阅接口渲染。
-
 ## 云端 agent 粘性与耗尽切换
 
 [`AgentSession`](src/entity/resource/agent_session.rs) 是稳定的逻辑会话，按用户、服务／路由
 scope 和下游 affinity_key 唯一标识；它与 CaptureRecord 的一次 WS 连接不是同一个概念。
-固定策略为尽量使用同一份符合路由、模型、权限和订阅池要求的凭证，确认所需额度耗尽后
+固定策略为尽量使用同一份符合路由、模型和权限要求的凭证，确认所需额度耗尽后
 才因额度原因切换；普通瞬时限流不能直接认定订阅耗尽。切换成功后继续粘住新凭证，
-旧凭证重置不会触发切回。会话的下游订阅及 USD 账本保持不变。
+旧凭证重置不会触发切回。既有用量账本保持不变。
 
 [`AgentAssignment`](src/entity/resource/agent_assignment.rs) 每代保存目标 Provider／Credential、
 前一有效代、触发原因／额度观测或请求关联，以及准备、启用、替换、失败／结果未知状态。

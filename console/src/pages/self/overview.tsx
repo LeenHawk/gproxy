@@ -2,9 +2,8 @@
 //! dashboard.
 //!
 //! Most callers are not operators, and the console's root belongs to the
-//! majority. What it answers is the three questions somebody actually arrives
-//! with: what am I subscribed to, how much have I got left, and what has it
-//! cost me this week.
+//! majority. What it answers is the questions somebody actually arrives
+//! with: how much have I got left, and what has it cost me this week.
 
 import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
@@ -14,33 +13,9 @@ import { Page, PageHeader, PageSection } from "@/components/page"
 import { QuotaWindows } from "@/components/quota-windows"
 import { QueryState } from "@/components/state"
 import { UsageSummary } from "@/components/usage-summary"
-import { Badge } from "@/components/ui/badge"
 import { Link } from "@/lib/router"
-import { formatInstant } from "@/lib/format"
 
 const WEEK = 604_800_000
-
-function SubscriptionCard() {
-  const { t, i18n } = useTranslation()
-  const context = useConsoleContext()
-  const subscription = context.subscription
-  if (!subscription) {
-    return <p className="text-sm text-muted-foreground">{t("overview.noSubscription")}</p>
-  }
-  return (
-    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3 text-sm">
-      <span className="font-medium">{subscription.planName ?? subscription.planId}</span>
-      <Badge variant={subscription.enabled ? "success" : "outline"}>
-        {subscription.enabled ? t("values.yes") : t("values.no")}
-      </Badge>
-      <span className="text-muted-foreground">
-        {subscription.expiresAtMs === null
-          ? t("overview.noExpiry")
-          : t("overview.expires", { at: formatInstant(subscription.expiresAtMs, i18n.language) })}
-      </span>
-    </div>
-  )
-}
 
 export function OverviewPage() {
   const { t } = useTranslation()
@@ -60,10 +35,6 @@ export function OverviewPage() {
   return (
     <Page>
       <PageHeader title={t("overview.title", { name: context.userName })} />
-
-      <PageSection title={t("overview.subscription")}>
-        <SubscriptionCard />
-      </PageSection>
 
       <PageSection
         title={t("overview.usage")}

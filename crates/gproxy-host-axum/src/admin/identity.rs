@@ -25,9 +25,7 @@ use gproxy_app::{
     dto::{
         ApiKeyPatch, ApiKeyWrite, AuditQuery, ListQuery, MemberWrite, OAuthClientPatch,
         OAuthClientWrite, OrganizationPatch, OrganizationWrite, PermissionPatch, PermissionWrite,
-        PlanLimitPatch, PlanLimitWrite, PlanPatch, PlanWrite, PoolMemberPatch, PoolMemberWrite,
-        PoolPatch, PoolWrite, RateLimitPatch, RateLimitWrite, SubscriptionPatch, SubscriptionWrite,
-        TeamPatch, TeamWrite, UserPatch, UserWrite,
+        RateLimitPatch, RateLimitWrite, TeamPatch, TeamWrite, UserPatch, UserWrite,
     },
 };
 use gproxy_seaorm::BatchConnectionTrait;
@@ -95,32 +93,6 @@ where
         RateLimitWrite,
         RateLimitPatch,
         "rate-limits"
-    );
-    let router = family!(
-        router,
-        "/subscriptions",
-        subscriptions,
-        SubscriptionWrite,
-        SubscriptionPatch,
-        "subscriptions"
-    );
-    let router = family!(router, "/pools", pools, PoolWrite, PoolPatch, "pools");
-    let router = family!(
-        router,
-        "/pool-members",
-        pool_members,
-        PoolMemberWrite,
-        PoolMemberPatch,
-        "pool-members"
-    );
-    let router = family!(router, "/plans", plans, PlanWrite, PlanPatch, "plans");
-    let router = family!(
-        router,
-        "/plan-limits",
-        plan_limits,
-        PlanLimitWrite,
-        PlanLimitPatch,
-        "plan-limits"
     );
     // An OAuth client is retired, not deleted: the grants it issued still
     // name it, so the row survives and stops being usable.

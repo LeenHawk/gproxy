@@ -13,9 +13,8 @@
 //! no edit at all — the item simply appears for them.
 
 import {
-  BookOpenText, Boxes, Building2, ChartLine, CircleUserRound, CreditCard, Fingerprint, Gauge,
-  KeyRound, LayoutDashboard, Layers, ListChecks, MonitorSmartphone, Network,
-  ReceiptText, ScrollText, Settings2, ShieldCheck, SlidersHorizontal, UsersRound, Waypoints,
+  BookOpenText, Boxes, Building2, ChartLine, CircleUserRound, Fingerprint, Gauge,
+  KeyRound, LayoutDashboard, ListChecks, MonitorSmartphone, ScrollText, Settings2, ShieldCheck, UsersRound, Waypoints,
   type LucideIcon,
 } from "lucide-react"
 
@@ -88,21 +87,9 @@ const ACCESS: NavSection = {
   ],
 }
 
-const BILLING: NavSection = {
-  id: "billing",
-  icon: CreditCard,
-  items: [
-    { id: "plans", route: "/identity/plans", needs: "identity.plans", icon: CreditCard },
-    { id: "plan-limits", route: "/identity/plan-limits", needs: "identity.plans", icon: SlidersHorizontal },
-    { id: "subscriptions", route: "/identity/subscriptions", needs: "identity.subscriptions", icon: ReceiptText },
-    { id: "pools", route: "/identity/pools", needs: "identity.pools", icon: Layers },
-    { id: "pool-members", route: "/identity/pool-members", needs: "identity.pools", icon: Network },
-  ],
-}
-
 const SYSTEM: NavSection = { id: "system", icon: Settings2, items: [{ id: "settings", route: "/settings", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "tokenizer", route: "/tokenizer", needs: SETTINGS_ACCESS, icon: BookOpenText }] }
 
-const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, PEOPLE, ACCESS, BILLING, SYSTEM]
+const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, PEOPLE, ACCESS, SYSTEM]
 
 /** The sections this caller sees, with the items they may reach. */
 export function sectionsFor(context: ConsoleContext): Array<NavSection> {

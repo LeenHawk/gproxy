@@ -439,7 +439,6 @@ mod tests {
             crate::operations::Scope::Permissions.name(),
             crate::operations::Scope::Keys.name(),
             crate::operations::Scope::RateLimits.name(),
-            crate::operations::Scope::Subscriptions.name(),
             crate::operations::Scope::OAuthClients.name(),
             // The sdk's, and both of them reach AppData: an owner column and
             // the observation switches.

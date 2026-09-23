@@ -134,7 +134,7 @@ impl<'a> ScopeOwner<'a> {
     /// The budget kinds are the five `admission::attribution` writes — and
     /// `credential` and `provider`, which are operator limits sharing the
     /// table. Everything this scope model does not name is `Instance`: a
-    /// `user`, `api_key` or `subscription` budget is a person's, not an
+    /// `user` or `api_key` budget is a person's, not an
     /// organization's, and an operator limit is machinery. The split between a
     /// budget and a limit is by `owner_kind`, not by route, so the same
     /// function answers for both.
@@ -636,7 +636,6 @@ mod tests {
             api_key_id: matches!(kind, CallerKind::ApiKey).then(|| "k1".to_owned()),
             organization_id: None,
             team_id: None,
-            subscription_id: None,
             grant: None,
             kind,
         }
@@ -698,7 +697,7 @@ mod tests {
         let scope = AdminScope::Organization("acme".into());
         // The `quotas` table holds budgets and operator limits side by side;
         // the split is by owner kind, and these two are machinery.
-        for kind in ["credential", "provider", "api_key", "subscription"] {
+        for kind in ["credential", "provider", "api_key"] {
             assert!(!scope.admits(ScopeOwner::from_pair(kind, "anything"), &data));
         }
         assert!(scope.admits(ScopeOwner::from_pair("org", "acme"), &data));

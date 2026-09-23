@@ -26,9 +26,6 @@ pub struct ListQuery {
     pub team_id: Option<String>,
     pub provider_id: Option<String>,
     pub credential_id: Option<String>,
-    pub pool_id: Option<String>,
-    pub plan_id: Option<String>,
-    pub subscription_id: Option<String>,
     pub enabled: Option<bool>,
 }
 

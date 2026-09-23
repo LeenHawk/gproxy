@@ -57,6 +57,43 @@ async fn audit_rows(host: &Host) -> Vec<audit_event::Model> {
 // -------------------------------------------------------------- /admin/api --
 
 #[tokio::test]
+async fn retired_subscription_families_are_not_exposed() {
+    let host = instance().await;
+    let context = host.send(keyed(get("/admin/api/context"), "k-root")).await;
+    assert_eq!(context.status, StatusCode::OK);
+    let context = context.json();
+    for family in [
+        "plans",
+        "plan-limits",
+        "subscriptions",
+        "pools",
+        "pool-members",
+    ] {
+        for method in [Method::GET, Method::POST] {
+            let answer = host
+                .send(keyed(
+                    request(method, &format!("/admin/api/{family}")),
+                    "k-root",
+                ))
+                .await;
+            assert_eq!(
+                answer.status,
+                StatusCode::NOT_FOUND,
+                "{family}: {}",
+                answer.text()
+            );
+        }
+        assert!(
+            context["sections"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|section| section["id"] != family)
+        );
+    }
+}
+
+#[tokio::test]
 async fn the_operator_surface_needs_a_credential_and_an_instance_admin() {
     let host = instance().await;
 

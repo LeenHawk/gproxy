@@ -18,10 +18,6 @@ pub struct Model {
     pub id: String,
     #[sea_orm(indexed)]
     pub user_id: String,
-    /// Selected virtual subscription, also used by OAuth via its internal key.
-    /// Must belong to user_id. None keeps ordinary non-subscription key behavior.
-    #[sea_orm(indexed)]
-    pub subscription_id: Option<String>,
     /// Set when the key is bound to an organization.
     #[sea_orm(indexed)]
     pub organization_id: Option<String>,
@@ -50,9 +46,6 @@ pub struct Model {
     /// Deleting the team deletes its bound keys, for the same reason.
     #[sea_orm(belongs_to, from = "team_id", to = "id", on_delete = "Cascade")]
     pub team: BelongsTo<Option<super::team::Entity>>,
-    /// Deleting a subscription deletes its keys instead of silently unbinding limits.
-    #[sea_orm(belongs_to, from = "subscription_id", to = "id", on_delete = "Cascade")]
-    pub subscription: BelongsTo<Option<crate::entity::subscription::user_subscription::Entity>>,
     #[sea_orm(has_many)]
     pub permissions: HasMany<super::permission::Entity>,
     #[sea_orm(has_many)]

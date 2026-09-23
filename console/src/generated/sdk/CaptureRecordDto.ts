@@ -4,24 +4,24 @@ import type { LogBodyDto } from "./LogBodyDto";
 /**
  * One captured exchange in full, downstream or upstream.
  */
-export type CaptureRecordDto = { id: string, initiatorRequestId: string | null, attemptId: string | null, attemptOrdinal: number | null, 
+export type CaptureRecordDto = { id: string, initiatorRequestId: string | null, attemptId: string | null, attemptOrdinal: number | null,
 /**
  * `downstream` or `upstream`.
  */
-side: string, 
+side: string,
 /**
  * `http`, `ws_connection` or `ws_turn`.
  */
-kind: string, sessionId: string | null, streamKey: string | null, userId: string | null, apiKeyId: string | null, providerId: string | null, credentialId: string | null, poolId: string | null, agentAssignmentId: string | null, model: string | null, operation: string | null, requestMethod: string | null, requestUrl: string | null, requestQuery: string | null, 
+kind: string, sessionId: string | null, streamKey: string | null, userId: string | null, apiKeyId: string | null, providerId: string | null, credentialId: string | null, agentAssignmentId: string | null, model: string | null, operation: string | null, requestMethod: string | null, requestUrl: string | null, requestQuery: string | null,
 /**
  * `[[name, value], …]`, repeated headers preserved.
  */
-requestHeaders: [string, string][] | null, requestBody: LogBodyDto, 
+requestHeaders: [string, string][] | null, requestBody: LogBodyDto,
 /**
  * `buffered`, `bytes`, `sse`, `ndjson`, `json_array` or `websocket`.
  * Anything but `buffered` means the body is in the events, not the row.
  */
-requestFraming: string, responseStatus: number | null, responseHeaders: [string, string][] | null, responseBody: LogBodyDto, responseFraming: string, clientIp: string | null, 
+requestFraming: string, responseStatus: number | null, responseHeaders: [string, string][] | null, responseBody: LogBodyDto, responseFraming: string, clientIp: string | null,
 /**
  * Upstream-native usage for this one exchange, when the channel reported
  * any. Billed usage is on the usage record, not here.

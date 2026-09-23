@@ -4,7 +4,7 @@ English | [简体中文](README.zh-CN.md)
 
 The GPROXY v4 product layer: who is calling, what they are allowed to do, and
 the operations that change either. It owns identity (users, gateway API keys,
-organizations, teams, permissions, subscriptions, rate limits, the OAuth
+organizations, teams, permissions, rate limits, the OAuth
 issuer, audit), admission, and the typed admin/portal/issuer operations.
 
 It owns no server. There is no HTTP framework here, no router, no runtime, no
@@ -30,7 +30,7 @@ isolate is single-threaded. The futures `App`'s own methods return are still
 
 ```text
 transport (host)
-  → auth        Caller   { user, role, api key, organization, team, subscription, grant }
+  → auth        Caller   { user, role, api key, organization, team, grant }
   → admission   Admitted { allowed providers, allowed credentials, budget owners,
                            scope, session identity, rate-limit permit }
   → App::call   the engine executes with exactly those, and nothing re-derives them
@@ -96,14 +96,13 @@ revision apart in the middle of a request. A request takes one
 
 | Index | Answers |
 |---|---|
-| `ApiKeyIndex` | digest → `ApiKeyIdentity` (key, user, role, organization, team, subscription, kind, expiry) |
+| `ApiKeyIndex` | digest → `ApiKeyIdentity` (key, user, role, organization, team, kind, expiry) |
 | `MembershipIndex` | user → organizations and teams with roles, plus each team's parent organization |
 | `CredentialOwnership` | credential → `Shared` / `User` / `Team` / `Org`, and whether a caller may select it |
 | `PermissionSet` | `(subject, provider, model, operation)` → `Allow` / `Deny(reason)`, and the allowed provider set |
 | `ClientAllowlist` | whether a user may authorize a given OAuth client |
 
-alongside `users`, `organizations`, `teams`, `rate_limits`, `subscriptions`,
-`plans`, `plan_limits`, `pools`, `pool_members` and `oauth_clients` as maps.
+alongside `users`, `organizations`, `teams`, `rate_limits`, `oauth_clients` as maps.
 
 `publish_if_newer` is monotonic by revision, the same contract as
 `Core::publish_snapshot`: reloads race — a poll and a notification fire for the
@@ -152,7 +151,7 @@ asking.
 
 | Kind | Credential | Binding |
 |---|---|---|
-| `ApiKey` | a gateway key in `Authorization: Bearer`, `x-api-key` or `x-goog-api-key` | the key row's organization, team and subscription |
+| `ApiKey` | a gateway key in `Authorization: Bearer`, `x-api-key` or `x-goog-api-key` | the key row's organization and team |
 | `OAuthGrant` | an issued access token, resolved through `resolve_access_many` | the grant's internal key row, plus a `GrantContext` |
 | `Session` | a console or portal cookie backed by `user_sessions` | none: a session acts as the person |
 
@@ -197,7 +196,7 @@ prefix yields one digest, not two.
   produce it again. The two string columns share `encode_key_hash`, so one
   encoding is used everywhere here.
 - **Grant liveness is not re-implemented.** `resolve_access_many` checks the
-  token, the grant, the client, the user, the internal key, the subscription and
+  token, the grant, the client, the user, the internal key and
   the client allowlist in the same statement that reads the token, so a
   concurrent revocation cannot slip between a check and a use.
 
@@ -271,7 +270,7 @@ of the team it is bound to.
 It is the key's binding rather than the holder's memberships because a user
 can belong to two organizations while a key belongs to one. If membership
 decided it, every key of a multi-org user would reach every organization's
-subscriptions, and no key could ever be narrower than its holder. The binding
+credentials, and no key could ever be narrower than its holder. The binding
 is on the row: the client does not send it and cannot choose it, and it is the
 same value the budget chain and the permission subject read, so what a request
 may see, what it may spend and who pays cannot disagree.
@@ -283,8 +282,8 @@ exists to permit" are different failures, and the second is resolution's
 
 ### The budget chain
 
-`[api_key?, user, subscription?, team?, org?]`, skipping the parts that are
-not set, with the bare kind strings `api_key` / `user` / `subscription` /
+`[api_key?, user, team?, org?]`, skipping the parts that are
+not set, with the bare kind strings `api_key` / `user` /
 `team` / `org`. Core matches those verbatim against `quotas.owner_kind` and
 knows no hierarchy between them: **every** enabled budget of **any** owner in
 the chain applies, so the order is what a log reports, not a precedence.
@@ -553,7 +552,7 @@ has already been answered by then and an `Err` must not become a response.
 edge pointed at a record that was never written, the record alone is retried:
 losing the request's log line over a missing edge is the worse of the two.
 
-`provider_id`, `credential_id`, `pool_id` and `metrics` stay unset on a
+`provider_id`, `credential_id` and `metrics` stay unset on a
 downstream row. A retried request reached two providers with two credentials
 and a single column would have to pick one; the edges answer that without
 picking, and billed usage is the `usage_records` row.
@@ -593,11 +592,6 @@ single generic shape, plus whatever else that family genuinely needs.
 | `team_members()` | `team_members` | `add`, `set_role`, `remove` over the composite key |
 | `permissions()` | `permissions` | `batch` — a rule set is edited as a whole |
 | `rate_limits()` | `rate_limits` | `batch` |
-| `subscriptions()` | `subscriptions` | `batch` |
-| `pools()` | `subscription_pools` | `batch` |
-| `pool_members()` | `subscription_pool_members` | `batch` |
-| `plans()` | `subscription_plans` | `batch` |
-| `plan_limits()` | `subscription_plan_limits` | `batch` |
 | `oauth_clients()` | `oauth_clients` | `retire` instead of delete |
 | `sessions()` | `user_sessions` | `list`, `revoke`, `revoke_all`, `purge_expired` |
 | `audit()` | `audit_events` | `record`, `try_record`, `query` |
@@ -688,7 +682,7 @@ revision left it rather than a re-read a peer could already have changed.
 
 Afterwards the writer publishes `Invalidation::ConfigurationChanged { revision,
 scopes }` on `gproxy-core`'s invalidation topic, with this crate's own scope
-names: `identity`, `permissions`, `keys`, `rate_limits`, `subscriptions`,
+names: `identity`, `permissions`, `keys`, `rate_limits`,
 `oauth_clients`. Publication is best effort — a cache that refuses it costs the
 deployment one poll interval, not correctness.
 
@@ -746,17 +740,14 @@ upgraded one end in exactly the same state.
   will end up with, not the half it mentioned. On the upgrade path these
   columns carry no foreign key at all, so for two of the three this is the only
   check there is.
-- **A key may only select its own user's subscription.**
 - **A permission rule and a rate limit take exactly one subject.** Neither is a
   row `PermissionSet::build` drops on the floor; both is an intersection the
   snapshot still honours — a v3 database may hold one — but which nobody writing
   a rule means, so the write is refused rather than silently misread later.
 - **`action` is `allow` or `deny`**, `role` is `admin` or `user`, a membership
-  role is `member` or `admin`, a plan period is one of `total / fixed / day /
-  week / month`, and a `fixed` window needs a positive duration.
+  role is `member` or `admin`.
 - **`periodSeconds` is positive** and **`limitValue` is not negative**; zero is
   a legitimate ceiling that switches a subject off without deleting its row.
-- **`startsAtMs <= expiresAtMs`** whenever both are known.
 - **The last enabled administrator cannot be deleted, disabled or demoted.**
   The instance role is not a membership and cannot be granted by anybody who is
   not already an admin, so losing it is unrecoverable without going to the
@@ -986,7 +977,7 @@ portal.password().change(change).await?;
 
 | Operation | Answers |
 |---|---|
-| `context()` | user, organizations, teams, subscription, feature flags |
+| `context()` | user, organizations, teams, feature flags |
 | `models()` | every exposed name and `channel/model` form, each with `permitted` |
 | `keys()` | `list`, `create`, `rotate`, `reveal`, `delete` over the caller's own |
 | `usage(query)` | summary, optional grouped cut, optional trend |

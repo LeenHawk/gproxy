@@ -3,7 +3,7 @@
 [English](README.md) | 简体中文
 
 GPROXY v4 的产品层：谁在调用、允许他做什么，以及改变这两者的操作。它拥有身份
-（用户、网关 API key、组织、团队、权限、订阅、限流、OAuth issuer、审计）、准入，
+（用户、网关 API key、组织、团队、权限、限流、OAuth issuer、审计）、准入，
 以及带类型的管理面／门户／issuer 操作。
 
 它不拥有任何 server。这里没有 HTTP 框架、没有路由器、没有运行时、没有 CLI，也没有
@@ -24,7 +24,7 @@ Cloudflare Worker 里——本 crate 能为 `wasm32-unknown-unknown` 构建，�
 
 ```text
 传输层（宿主）
-  → auth        Caller   { 用户、角色、api key、组织、团队、订阅、grant }
+  → auth        Caller   { 用户、角色、api key、组织、团队、grant }
   → admission   Admitted { 允许的 Provider 集、允许的凭证集、预算 owner 链、
                            scope、会话身份、限流许可 }
   → App::call   引擎只按这些执行，下游不再重新推导任何一项
@@ -84,14 +84,14 @@ let outcome = app.call(&caller, request).await?;
 
 | 索引 | 回答 |
 |---|---|
-| `ApiKeyIndex` | 摘要 → `ApiKeyIdentity`（key、用户、角色、组织、团队、订阅、kind、过期） |
+| `ApiKeyIndex` | 摘要 → `ApiKeyIdentity`（key、用户、角色、组织、团队、kind、过期） |
 | `MembershipIndex` | 用户 → 带角色的组织与团队，外加每个团队的父组织 |
 | `CredentialOwnership` | 凭证 → `Shared` / `User` / `Team` / `Org`，以及调用方能否选中它 |
 | `PermissionSet` | `(主体, Provider, 模型, 操作)` → `Allow` / `Deny(原因)`，以及允许的 Provider 集 |
 | `ClientAllowlist` | 某用户是否可以授权某个 OAuth client |
 
 此外还以 map 形式带着 `users`、`organizations`、`teams`、`rate_limits`、
-`subscriptions`、`plans`、`plan_limits`、`pools`、`pool_members` 与 `oauth_clients`。
+`oauth_clients`。
 
 `publish_if_newer` 按 revision 单调，与 `Core::publish_snapshot` 是同一份契约：
 重载会竞争——同一次写入既触发轮询又触发通知，先开始的慢重载可能后完成——而快照回退
@@ -129,7 +129,7 @@ OAuth client 允许列表在这里评估，同时也在 SQL 里评估。
 
 | 种类 | 凭证 | 绑定 |
 |---|---|---|
-| `ApiKey` | `Authorization: Bearer`、`x-api-key` 或 `x-goog-api-key` 里的网关 key | key 行上的组织、团队与订阅 |
+| `ApiKey` | `Authorization: Bearer`、`x-api-key` 或 `x-goog-api-key` 里的网关 key | key 行上的组织与团队 |
 | `OAuthGrant` | 已签发的 access token，经 `resolve_access_many` 解析 | grant 的内部 key 行，外加一个 `GrantContext` |
 | `Session` | 由 `user_sessions` 支撑的控制台／门户 cookie | 没有：会话就是这个人本身 |
 
@@ -164,7 +164,7 @@ token 只产生一个摘要，不是两个。
   `oauth_tokens.token_hash` 存的都是文本的 SHA-256。明文只在创建时返回一次，实例无法
   再次产出它。两个字符串列共用 `encode_key_hash`，因此这里只有一种编码。
 - **grant 的有效性不在这里重新实现。** `resolve_access_many` 在读取 token 的同一条语句里
-  检查 token、grant、client、用户、内部 key、订阅与 client 允许列表，因此并发的撤销无法
+  检查 token、grant、client、用户、内部 key 与 client 允许列表，因此并发的撤销无法
   从「检查」和「使用」之间溜过去。
 
 ### CSRF 在哪里生效
@@ -222,7 +222,7 @@ Provider 的规则是他自己就能删掉的规则；把这条绕过写明，�
 `organization_id`，或它所绑定团队的父组织）。
 
 之所以取 key 的绑定而不是持有者的成员关系：一个用户可以同时属于两个组织，而一个 key
-只属于一个。如果由成员关系决定，多组织用户的每一个 key 都能够到每个组织的订阅，也就
+只属于一个。如果由成员关系决定，多组织用户的每一个 key 都能够到每个组织的凭证，也就
 永远无法发出一个比持有者更窄的 key。绑定写在行上：客户端既不发送它也无法选择它，而且
 预算链与权限主体读的是同一个值，因此"能看到什么""能花什么""谁付钱"不可能互相矛盾。
 
@@ -232,8 +232,8 @@ Provider 的规则是他自己就能删掉的规则；把这条绕过写明，�
 
 ### 预算链
 
-`[api_key?, user, subscription?, team?, org?]`，缺失的部分跳过，kind 就是裸字符串
-`api_key` / `user` / `subscription` / `team` / `org`。core 拿它们逐字匹配
+`[api_key?, user, team?, org?]`，缺失的部分跳过，kind 就是裸字符串
+`api_key` / `user` / `team` / `org`。core 拿它们逐字匹配
 `quotas.owner_kind`，且不认为它们之间有任何层级：链上**任意** owner 的**每一条**启用
 预算都会生效，所以这个顺序是日志里的呈现顺序，不是优先级。
 
@@ -443,7 +443,7 @@ upstream_id 打破并列」。
 变成响应。`App::call` 在自己的失败路径上丢弃它。若 batch 因为某条边指向了从未写入的记录
 而失败，则单独重试写记录本身：为一条缺失的边丢掉请求自己的日志行，是两者中更糟的那个。
 
-下游行的 `provider_id`、`credential_id`、`pool_id` 和 `metrics` 保持为空。重试过的请求
+下游行的 `provider_id`、`credential_id` 和 `metrics` 保持为空。重试过的请求
 碰了两个 Provider、两份凭证，单个列只能二选一；边不必二选一就能回答，而计费用量是
 `usage_records` 那一行。
 
@@ -475,11 +475,6 @@ id 存在过。这里不校验 scope：id 本身就是随机的秘密，链接�
 | `team_members()` | `team_members` | 复合主键上的 `add`、`set_role`、`remove` |
 | `permissions()` | `permissions` | `batch`——规则集整体编辑 |
 | `rate_limits()` | `rate_limits` | `batch` |
-| `subscriptions()` | `subscriptions` | `batch` |
-| `pools()` | `subscription_pools` | `batch` |
-| `pool_members()` | `subscription_pool_members` | `batch` |
-| `plans()` | `subscription_plans` | `batch` |
-| `plan_limits()` | `subscription_plan_limits` | `batch` |
 | `oauth_clients()` | `oauth_clients` | 用 `retire` 代替 delete |
 | `sessions()` | `user_sessions` | `list`、`revoke`、`revoke_all`、`purge_expired` |
 | `audit()` | `audit_events` | `record`、`try_record`、`query` |
@@ -553,7 +548,7 @@ patch 校验两次，按当前的行和按改完的行，所以一行既不会�
 
 写入之后，writer 在 `gproxy-core` 的失效主题上发布
 `Invalidation::ConfigurationChanged { revision, scopes }`，scope 用本 crate 自己的名字：
-`identity`、`permissions`、`keys`、`rate_limits`、`subscriptions`、`oauth_clients`。
+`identity`、`permissions`、`keys`、`rate_limits`、`oauth_clients`。
 发布是尽力而为——cache 拒收只让部署多等一个轮询间隔，不影响正确性。
 
 **这里与 sdk 的 `manage::Writer` 有何不同，为什么。** sdk 先重载再通知，因为对等实例不能
@@ -594,15 +589,12 @@ id 密封，因此把密封块拷到别的行上是打不开的。保留默认�
 - **key 的绑定检查三件事**：组织与团队存在、key 的用户是它们的成员、两者同时设置时团队的
   父组织*就是*该组织。patch 会按行最终会持有的绑定重新校验，而不是只看 patch 提到的那一半。
   在升级路径上这两列根本没有外键，所以三者里有两者只有这一道检查。
-- **key 只能选自己用户的订阅。**
 - **权限规则与限流规则都只接受一个主体。** 一个都没有，是 `PermissionSet::build` 会直接丢弃
   的行；两个都有，是快照仍然承认的交集——v3 库里可能存在这种行——但没有人写规则时是这个意思，
   因此写入时就拒绝，而不是存下来日后被误读。
 - **`action` 是 `allow` 或 `deny`**，`role` 是 `admin` 或 `user`，成员角色是 `member` 或
-  `admin`，plan 的 period 取 `total / fixed / day / week / month` 之一，`fixed` 窗口必须有
-  正的时长。
+  `admin`。
 - **`periodSeconds` 为正**，**`limitValue` 不为负**；0 是合法上限，表示不删行地关停某个主体。
-- 两端都已知时，**`startsAtMs <= expiresAtMs`**。
 - **最后一个启用的管理员不能被删除、禁用或降级。** 实例角色不是成员身份，不是管理员的人无法
   授予它，所以一旦丢失，只能去数据库里救。计数从数据库读而不是从快照读：落后一个 revision 的
   快照仍会列出刚被删掉的管理员，于是放行对真正最后一个管理员的删除。
@@ -777,7 +769,7 @@ portal.password().change(change).await?;
 
 | 操作 | 返回 |
 |---|---|
-| `context()` | 用户、组织、团队、订阅、功能开关 |
+| `context()` | 用户、组织、团队、功能开关 |
 | `models()` | 全部暴露名与 `渠道/模型` 形式，各带 `permitted` |
 | `keys()` | 对调用方自己的 key 做 `list`、`create`、`rotate`、`reveal`、`delete` |
 | `usage(query)` | 汇总，可选的分组切片，可选的趋势 |

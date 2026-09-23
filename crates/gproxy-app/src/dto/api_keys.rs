@@ -22,7 +22,6 @@ pub struct ApiKeyDto {
     pub kind: String,
     pub organization_id: Option<String>,
     pub team_id: Option<String>,
-    pub subscription_id: Option<String>,
     pub expires_at_ms: Option<i64>,
     pub enabled: bool,
     /// Whether the instance retained a sealed copy of the key text, i.e.
@@ -40,7 +39,6 @@ impl From<api_key::Model> for ApiKeyDto {
             kind: kind_name(row.kind).to_owned(),
             organization_id: row.organization_id,
             team_id: row.team_id,
-            subscription_id: row.subscription_id,
             expires_at_ms: row.expires_at_ms,
             enabled: row.enabled,
             has_secret: row.secret.is_some(),
@@ -72,8 +70,6 @@ pub struct ApiKeyWrite {
     #[serde(default)]
     pub team_id: Option<String>,
     #[serde(default)]
-    pub subscription_id: Option<String>,
-    #[serde(default)]
     pub expires_at_ms: Option<i64>,
     #[serde(default)]
     pub enabled: Option<bool>,
@@ -95,8 +91,6 @@ pub struct ApiKeyPatch {
     pub organization_id: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     pub team_id: Option<Option<String>>,
-    #[serde(default, deserialize_with = "double_option")]
-    pub subscription_id: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     pub expires_at_ms: Option<Option<i64>>,
     #[serde(default)]

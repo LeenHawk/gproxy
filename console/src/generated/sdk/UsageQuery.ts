@@ -3,7 +3,7 @@
 /**
  * What an aggregate filters on, and how far it is allowed to read.
  */
-export type UsageQuery = { fromMs: number | null, toMs: number | null, userId: string | null, apiKeyId: string | null, subscriptionId: string | null, model: string | null, operation: string | null, 
+export type UsageQuery = { fromMs: number | null, toMs: number | null, userId: string | null, apiKeyId: string | null, model: string | null, operation: string | null,
 /**
  * How many matching records the aggregation may read before it stops and
  * says so. Absent means `query::MAX_SCAN_ROWS`; the value is clamped to

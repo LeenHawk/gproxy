@@ -127,7 +127,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Observer for StoreObserver
                 request_id: Set(report.request_id.clone()),
                 user_id: Set(request.attribution.user_id.clone()),
                 api_key_id: Set(request.attribution.api_key_id.clone()),
-                subscription_id: Set(request.attribution.subscription_id.clone()),
                 model: Set(request
                     .attribution
                     .model

@@ -1,7 +1,7 @@
 //! Stable logical cloud-agent session, independent of any socket or credential.
 //! Reuse the current eligible credential until confirmed quota exhaustion; after
 //! switching, keep the new one even when an older credential's quota resets.
-//! Routing/model permissions and subscription-pool eligibility still apply.
+//! Routing/model permissions still apply.
 
 use sea_orm::entity::prelude::*;
 
@@ -22,12 +22,6 @@ pub struct Model {
     /// Original authorization context, retained if configuration is removed.
     /// The host must reauthorize the caller; a missing key is not unrestricted access.
     pub api_key_id: Option<String>,
-    /// Fixed downstream USD allocation across credential switches. Historical
-    /// reference: removing a subscription must not erase its cloud resources.
-    #[sea_orm(indexed)]
-    pub subscription_id: Option<String>,
-    /// Historical pool selection; no fallback to another pool if it disappears.
-    pub pool_id: Option<String>,
     /// Optimistic revision for reservation/activation and all session state writes.
     /// Each assignment uses its reservation revision as a never-reused generation.
     #[sea_orm(default_value = 0)]

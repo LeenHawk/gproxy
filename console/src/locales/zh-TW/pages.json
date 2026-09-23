@@ -1,12 +1,8 @@
 {
   "overview": {
     "title": "你好，{{name}}",
-    "subscription": "訂閱",
     "usage": "最近七天",
-    "quota": "預算",
-    "noSubscription": "這個帳號目前沒有生效的訂閱。",
-    "noExpiry": "不到期",
-    "expires": "{{at}} 到期"
+    "quota": "預算"
   },
   "keys": {
     "emptyTitle": "還沒有金鑰",

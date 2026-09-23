@@ -63,9 +63,6 @@ export const IDENTITY_FAMILIES = [
   "teams",
   "permissions",
   "rate-limits",
-  "plans",
-  "subscriptions",
-  "pools",
   "oauth-clients",
   "sessions",
   "audit",
@@ -83,7 +80,6 @@ export type ConsoleContext = {
   hasPassword: boolean
   organizations: PortalContextDto["organizations"]
   teams: PortalContextDto["teams"]
-  subscription: PortalContextDto["subscription"]
   /** Every scope this caller may act as, widest first. Empty is ordinary. */
   scopes: Array<AdminScope>
   /** The scope in force. `null` when the caller administers nothing. */
@@ -152,7 +148,6 @@ export function consoleContext(context: PortalContextDto): ConsoleContext {
     hasPassword: context.user.hasPassword,
     organizations: context.organizations,
     teams: context.teams,
-    subscription: context.subscription,
     scopes,
     scope: scopes[0] ?? null,
     capabilities,

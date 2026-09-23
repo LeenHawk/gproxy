@@ -1,12 +1,8 @@
 {
   "overview": {
     "title": "Hello, {{name}}",
-    "subscription": "Subscription",
     "usage": "The last seven days",
-    "quota": "Budgets",
-    "noSubscription": "No subscription is in force for this account.",
-    "noExpiry": "No expiry",
-    "expires": "Expires {{at}}"
+    "quota": "Budgets"
   },
   "keys": {
     "emptyTitle": "No keys yet",

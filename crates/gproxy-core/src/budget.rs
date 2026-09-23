@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Who a request is charged to: one owner of a `quotas` row, `(kind, id)`.
-/// Kinds are host-defined strings (`user`, `api_key`, `team`, `org`, `pool`,
+/// Kinds are host-defined strings (`user`, `api_key`, `team`, `org`,
 /// ... whatever levels the host's organisation has); core matches them
 /// verbatim against `owner_kind` and knows no hierarchy between them. The
 /// host lists every owner a request spends for, and every enabled budget of

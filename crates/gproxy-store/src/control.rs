@@ -55,11 +55,6 @@ pub struct IdentityData {
     pub team_members: Vec<entity::identity::team_member::Model>,
     pub permissions: Vec<entity::identity::permission::Model>,
     pub rate_limits: Vec<entity::limits::rate_limit::Model>,
-    pub pools: Vec<entity::subscription::pool::Model>,
-    pub pool_members: Vec<entity::subscription::pool_member::Model>,
-    pub plans: Vec<entity::subscription::plan::Model>,
-    pub plan_limits: Vec<entity::subscription::plan_limit::Model>,
-    pub subscriptions: Vec<entity::subscription::user_subscription::Model>,
     pub oauth_clients: Vec<entity::oauth::client::Model>,
 }
 
@@ -170,11 +165,6 @@ fn identity_queries(backend: DbBackend) -> Result<Vec<BatchQuery>> {
         ordered::<entity::identity::team_member::Entity>().batch_query(backend)?,
         ordered::<entity::identity::permission::Entity>().batch_query(backend)?,
         ordered::<entity::limits::rate_limit::Entity>().batch_query(backend)?,
-        ordered::<entity::subscription::pool::Entity>().batch_query(backend)?,
-        ordered::<entity::subscription::pool_member::Entity>().batch_query(backend)?,
-        ordered::<entity::subscription::plan::Entity>().batch_query(backend)?,
-        ordered::<entity::subscription::plan_limit::Entity>().batch_query(backend)?,
-        ordered::<entity::subscription::user_subscription::Entity>().batch_query(backend)?,
         ordered::<entity::oauth::client::Entity>().batch_query(backend)?,
     ])
 }
@@ -189,11 +179,6 @@ fn identity_data(sets: &mut Sets) -> Result<IdentityData> {
         team_members: take(sets)?,
         permissions: take(sets)?,
         rate_limits: take(sets)?,
-        pools: take(sets)?,
-        pool_members: take(sets)?,
-        plans: take(sets)?,
-        plan_limits: take(sets)?,
-        subscriptions: take(sets)?,
         oauth_clients: take(sets)?,
     })
 }

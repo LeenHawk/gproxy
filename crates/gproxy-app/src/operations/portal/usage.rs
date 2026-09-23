@@ -38,10 +38,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Portal<'_, C> {
             // by the time the engine sees this value.
             user_id: Some(self.caller().user_id.clone()),
             api_key_id: query.api_key_id,
-            // Same reasoning: a subscription is an owner a caller could name
-            // to read somebody else's aggregate, so the portal never sets it
-            // and the user filter would exclude it anyway.
-            subscription_id: None,
             model: query.model,
             operation: query.operation,
             max_scan_rows: None,
@@ -84,7 +80,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Portal<'_, C> {
     /// The current window of every budget that applies to the caller.
     ///
     /// The owners are [`budgets::chain`] of the caller's own binding — the
-    /// key, the user, the subscription, the team, the organization — which is
+    /// key, the user, the team, the organization — which is
     /// the same list the data plane charges. So this answers "what will stop
     /// my next request", not an approximation of it, and it cannot name an
     /// owner the caller is not part of: the chain is derived from the caller,

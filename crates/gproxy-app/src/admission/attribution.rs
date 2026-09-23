@@ -11,8 +11,7 @@ use gproxy_core::UsageAttribution;
 ///
 /// `user_id` is always set: every caller this crate produces is a person,
 /// even when it arrived as a key or a grant. `api_key_id` is absent for a
-/// console/portal session, and `subscription_id` for a key with no plan
-/// attached.
+/// console/portal session.
 ///
 /// The model is the one the **client asked for**, not the upstream model the
 /// engine resolves it to. A usage row has to be readable against what the
@@ -27,7 +26,6 @@ pub fn attribution(caller: &Caller, model: Option<&str>) -> UsageAttribution {
     UsageAttribution {
         user_id: Some(caller.user_id.clone()),
         api_key_id: caller.api_key_id.clone(),
-        subscription_id: caller.subscription_id.clone(),
         model: model.map(str::to_owned),
     }
 }
@@ -39,12 +37,10 @@ mod tests {
 
     #[test]
     fn a_key_caller_attributes_to_its_key_and_its_person() {
-        let mut key = caller("alice", "user");
-        key.subscription_id = Some("s1".into());
+        let key = caller("alice", "user");
         let attribution = attribution(&key, Some("gpt-4o"));
         assert_eq!(attribution.user_id.as_deref(), Some("alice"));
         assert_eq!(attribution.api_key_id.as_deref(), Some("k1"));
-        assert_eq!(attribution.subscription_id.as_deref(), Some("s1"));
         assert_eq!(attribution.model.as_deref(), Some("gpt-4o"));
     }
 
@@ -56,7 +52,6 @@ mod tests {
         let attribution = attribution(&person, None);
         assert_eq!(attribution.user_id.as_deref(), Some("alice"));
         assert_eq!(attribution.api_key_id, None);
-        assert_eq!(attribution.subscription_id, None);
         assert_eq!(attribution.model, None);
     }
 }
