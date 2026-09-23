@@ -26,7 +26,8 @@
     "save": "保存",
     "search": "搜索",
     "signIn": "登录",
-    "signOut": "退出登录"
+    "signOut": "退出登录",
+    "refresh": "刷新"
   },
   "state": {
     "emptyTitle": "这里还是空的",
@@ -191,6 +192,7 @@
     "modelId": "模型目录 ID",
     "filename": "文件",
     "sizeBytes": "大小",
-    "linkedModels": "关联模型"
+    "linkedModels": "关联模型",
+    "anchorAtMs": "周期起始时间"
   }
 }

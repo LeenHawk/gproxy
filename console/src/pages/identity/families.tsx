@@ -24,6 +24,7 @@ import type {
   ApiKeyCreated, ApiKeyDto, OAuthClientDto, OrganizationDto, PermissionDto, RateLimitDto, TeamDto, UserDto,
 } from "@/generated/app"
 import { CollectionPage } from "@/pages/identity/collection"
+import { UserQuotasDialog } from "@/pages/identity/user-quotas"
 import { MembersDialog } from "@/pages/identity/members"
 
 const ROLES = ["user", "admin"] as const
@@ -32,29 +33,35 @@ const ACTIONS = ["allow", "deny"] as const
 // ----------------------------------------------------------------- users --
 
 export function UsersPage() {
+  const { t } = useTranslation()
+  const [quotaUser, setQuotaUser] = useState<UserDto | null>(null)
   return (
-    <CollectionPage
-      id="users"
-      family={admin.users}
-      searchable
-      rowId={(row: UserDto) => row.id}
-      rowLabel={(row) => row.name}
-      columns={[
-        { key: "name", cell: (row) => row.name },
-        { key: "role", cell: (row) => <MaybeCell value={row.role} /> },
-        { key: "enabled", cell: (row) => <BoolCell value={row.enabled} /> },
-        { key: "hasPassword", cell: (row) => <BoolCell value={row.hasPassword} /> },
-        { key: "createdAtMs", cell: (row) => <InstantCell value={row.createdAtMs} /> },
-        { key: "id", cell: (row) => <IdCell value={row.id} /> },
-      ]}
-      fields={[
-        { name: "name", kind: "text", required: true },
-        { name: "password", kind: "password", createOnly: true },
-        { name: "role", kind: "select", options: ROLES },
-        { name: "enabled", kind: "switch" },
-        { name: "oauthClientAllowlist", kind: "lines", nullable: true },
-      ]}
-    />
+    <>
+      <CollectionPage
+        id="users"
+        rowActions={(row) => <Button variant="ghost" size="sm" onClick={() => setQuotaUser(row)}>{t("userQuota.action")}</Button>}
+        family={admin.users}
+        searchable
+        rowId={(row: UserDto) => row.id}
+        rowLabel={(row) => row.name}
+        columns={[
+          { key: "name", cell: (row) => row.name },
+          { key: "role", cell: (row) => <MaybeCell value={row.role} /> },
+          { key: "enabled", cell: (row) => <BoolCell value={row.enabled} /> },
+          { key: "hasPassword", cell: (row) => <BoolCell value={row.hasPassword} /> },
+          { key: "createdAtMs", cell: (row) => <InstantCell value={row.createdAtMs} /> },
+          { key: "id", cell: (row) => <IdCell value={row.id} /> },
+        ]}
+        fields={[
+          { name: "name", kind: "text", required: true },
+          { name: "password", kind: "password", createOnly: true },
+          { name: "role", kind: "select", options: ROLES },
+          { name: "enabled", kind: "switch" },
+          { name: "oauthClientAllowlist", kind: "lines", nullable: true },
+        ]}
+      />
+      {quotaUser ? <UserQuotasDialog key={quotaUser.id} userId={quotaUser.id} userName={quotaUser.name} onClose={() => setQuotaUser(null)} /> : null}
+    </>
   )
 }
 

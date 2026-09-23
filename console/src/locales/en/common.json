@@ -26,7 +26,8 @@
     "save": "Save",
     "search": "Search",
     "signIn": "Sign in",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "refresh": "Refresh"
   },
   "state": {
     "emptyTitle": "Nothing here yet",
@@ -191,6 +192,7 @@
     "modelId": "Catalog model ID",
     "filename": "File",
     "sizeBytes": "Size",
-    "linkedModels": "Linked models"
+    "linkedModels": "Linked models",
+    "anchorAtMs": "Window anchor"
   }
 }

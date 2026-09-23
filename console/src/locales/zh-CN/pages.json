@@ -272,5 +272,35 @@
     "noBinding": "不关联模型",
     "downloading": "正在下载…",
     "noModels": "暂无目录模型"
+  },
+  "userQuota": {
+    "action": "限额",
+    "title": "用户限额 · {{name}}",
+    "description": "该用户的所有 API 密钥和 OAuth 调用共用额度；所有启用的规则同时生效。",
+    "add": "新增限额",
+    "edit": "编辑限额",
+    "help": "新增额度以美元计，0 表示禁止请求。用量依赖已配置的价格和结算。修改金额不会重置已用额度。自定义周期需填写正整数秒数，起始时间可留空。",
+    "empty": "未设置用户金额限额",
+    "enabled": "已启用",
+    "disabled": "已停用",
+    "enable": "启用",
+    "disable": "停用",
+    "amount": "已用 {{used}} / 上限 {{limit}} {{unit}}",
+    "allModels": "所有模型",
+    "resetAt": "重置时间：{{at}}",
+    "never": "不自动重置",
+    "reset": "重置已用额度",
+    "resetConfirm": "清空「{{name}}」的已用额度并开始新窗口？",
+    "deleteConfirm": "删除「{{name}}」？此项金额限制将解除，历史用量保留。",
+    "periods": {
+      "5h": "每 5 小时",
+      "1d": "每 24 小时",
+      "7d": "每 7 天",
+      "1m": "自然月（UTC）",
+      "total": "累计总额",
+      "custom": "自定义周期"
+    },
+    "name": "规则名称",
+    "limit": "金额上限（{{unit}}）"
   }
 }
