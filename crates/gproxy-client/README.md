@@ -49,8 +49,10 @@ by feature rather than by platform crate:
 | `reqwest` (default) | reqwest's own Fetch fallback | Request bodies are buffered | No |
 
 When more than one is enabled `fetch` wins. Profiles still select clients, but
-proxies, TLS emulation, redirects and socket pools are native concerns and are
-ignored: the JS host decides them. A host with its own transport (Workers
+custom fingerprint headers are applied where the host accepts them. Native
+proxy, TLS and socket settings are skipped. Fetch maps zero redirect hops to
+manual redirects and positive values to host-managed following; the host sets
+the actual hop limit. A host with its own transport (Workers
 `Fetch` with service bindings and `cf` options, Deno `createHttpClient` with
 proxies or CAs, or a `wasi:http` shim on other targets) implements
 `OutboundClient` and installs it with `ClientPool::with_client` or a per-profile
@@ -158,15 +160,20 @@ ordered list of `[name, value]` default headers sent with their original casing.
 }
 ```
 
-Emulation applies only to wreq: the reqwest backends reject any emulation with
-`Error::InvalidConfig` instead of silently sending a different identity. Unknown
-fields and disabled backends fail explicitly. Normal certificate verification
+wreq applies the complete emulation. reqwest applies custom default headers,
+supported TLS versions, HTTP/1-only or HTTP/2-only selection, stream/connection
+window sizes, maximum frame size and maximum header-list size. Cipher lists,
+GREASE, TLS extension order and HTTP/2 ordering are skipped outside wreq. Named
+wreq-util presets are wreq-only; portable presets use `kind: custom`. Explicit
+request headers override fingerprint default headers. Unknown fields and
+disabled backends fail explicitly. Normal certificate verification
 remains enabled. Configuration is not pre-validated; backend construction errors
 are returned to the caller.
 
 `Backend::ReqwestNative` builds reqwest 0.12 exactly as the Codex CLI does: native
 TLS, h2's stock SETTINGS, no decompression and no retry layer, so a profile
-asking for a decoder or `retry: default` is refused. Its WebSocket variant (the
+asking for a decoder or `retry: default` skips those unavailable options.
+The native TLS API also has no TLS 1.3 min/max selector; those selectors are skipped. Its WebSocket variant (the
 pool's `get_websocket`) is the rustls `reqwest` client, as the CLI's own
 WebSocket is rustls; the feature therefore implies `reqwest`. On Linux OpenSSL
 is built from source (`openssl-src`, so `perl` and `make` are build

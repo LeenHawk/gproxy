@@ -10,6 +10,61 @@ use {
     std::time::Duration,
 };
 
+// reqwest exposes part of the custom fingerprint through its public builder.
+// TLS ciphers, extension ordering, GREASE and HTTP/2 ordering remain wreq-only.
+#[cfg(all(
+    any(feature = "reqwest", feature = "reqwest-native"),
+    not(target_arch = "wasm32")
+))]
+macro_rules! portable_fingerprint {
+    ($builder:ident, $config:ident, $backend:ident, $native:expr, $http1:expr) => {
+        $builder = $builder.default_headers($config.default_headers()?);
+        if let Some(crate::EmulationConfig::Custom(fp)) = &$config.emulation {
+            let version = |value| match value {
+                crate::TlsVersion::Tls10 => $backend::tls::Version::TLS_1_0,
+                crate::TlsVersion::Tls11 => $backend::tls::Version::TLS_1_1,
+                crate::TlsVersion::Tls12 => $backend::tls::Version::TLS_1_2,
+                crate::TlsVersion::Tls13 => $backend::tls::Version::TLS_1_3,
+            };
+            // native-tls exposes no TLS 1.3 protocol selector.
+            if let Some(v) = fp
+                .min_tls
+                .filter(|v| !$native || *v != crate::TlsVersion::Tls13)
+            {
+                $builder = $builder.min_tls_version(version(v));
+            }
+            if let Some(v) = fp
+                .max_tls
+                .filter(|v| !$native || *v != crate::TlsVersion::Tls13)
+            {
+                $builder = $builder.max_tls_version(version(v));
+            }
+            if !$http1 {
+                if fp.alpn == [crate::Alpn::Http1] {
+                    $builder = $builder.http1_only();
+                }
+                if fp.alpn == [crate::Alpn::Http2] {
+                    $builder = $builder.http2_prior_knowledge();
+                }
+                if let Some(h2) = &fp.http2 {
+                    if let Some(value) = h2.initial_window_size {
+                        $builder = $builder.http2_initial_stream_window_size(value);
+                    }
+                    if let Some(value) = h2.initial_connection_window_size {
+                        $builder = $builder.http2_initial_connection_window_size(value);
+                    }
+                    if let Some(value) = h2.max_frame_size {
+                        $builder = $builder.http2_max_frame_size(value);
+                    }
+                    if let Some(value) = h2.max_header_list_size {
+                        $builder = $builder.http2_max_header_list_size(value);
+                    }
+                }
+            }
+        }
+    };
+}
+
 /// Shared clients retain the backends' native request, response and streaming APIs.
 /// Cloning either backend handle shares its internal socket pool.
 #[cfg(not(target_arch = "wasm32"))]
@@ -50,8 +105,8 @@ impl std::fmt::Debug for Client {
 impl Client {
     #[cfg(feature = "fetch")]
     pub(crate) fn build(config: &ConnectionConfig, http1_only: bool) -> Result<Self, Error> {
-        let _ = (config, http1_only);
-        crate::FetchClient::new().map(Self::Fetch)
+        let _ = http1_only;
+        crate::FetchClient::with_config(config).map(Self::Fetch)
     }
     #[cfg(all(feature = "reqwest", not(feature = "fetch")))]
     pub(crate) fn build(config: &ConnectionConfig, http1_only: bool) -> Result<Self, Error> {
@@ -114,17 +169,15 @@ impl Client {
 /// Fetch decides transport details on WASM: only the client handle is built.
 #[cfg(all(feature = "reqwest", not(feature = "fetch"), target_arch = "wasm32"))]
 fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest::Client, Error> {
-    let _ = (config, http1_only);
-    reqwest::Client::builder().build().map_err(Error::Reqwest)
+    let _ = http1_only;
+    reqwest::Client::builder()
+        .default_headers(config.default_headers()?)
+        .build()
+        .map_err(Error::Reqwest)
 }
 
 #[cfg(all(feature = "reqwest", not(target_arch = "wasm32")))]
 fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest::Client, Error> {
-    // reqwest has no fingerprint control; silently sending a different identity
-    // than the profile asked for would defeat the profile.
-    if config.emulation.is_some() {
-        return Err(Error::InvalidConfig("emulation requires the wreq backend"));
-    }
     let mut builder = reqwest::Client::builder()
         .connect_timeout(Duration::from_millis(config.connect_timeout_ms.into()))
         .pool_idle_timeout(Duration::from_millis(config.pool_idle_timeout_ms.into()))
@@ -152,27 +205,15 @@ fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest:
             .no_proxy()
             .proxy(reqwest::Proxy::all(url).map_err(Error::Reqwest)?),
     };
+    portable_fingerprint!(builder, config, reqwest, false, http1_only);
     builder.build().map_err(Error::Reqwest)
 }
 
 /// reqwest 0.12 as the Codex CLI builds it: native TLS, no decompression
 /// (the CLI enables none of reqwest's codec features) and no retry layer,
-/// so a profile asking for either is refused rather than quietly ignored.
+/// so those profile fields are skipped on this backend.
 #[cfg(all(feature = "reqwest-native", not(target_arch = "wasm32")))]
 fn build_reqwest_native(config: &ConnectionConfig) -> Result<reqwest_native::Client, Error> {
-    if config.emulation.is_some() {
-        return Err(Error::InvalidConfig("emulation requires the wreq backend"));
-    }
-    if config.gzip || config.brotli || config.deflate || config.zstd {
-        return Err(Error::InvalidConfig(
-            "the reqwest_native backend has no response decompression",
-        ));
-    }
-    if config.retry != RetryPolicy::Never {
-        return Err(Error::InvalidConfig(
-            "the reqwest_native backend has no retry policy",
-        ));
-    }
     let mut builder = reqwest_native::Client::builder()
         .use_native_tls()
         .connect_timeout(Duration::from_millis(config.connect_timeout_ms.into()))
@@ -190,6 +231,7 @@ fn build_reqwest_native(config: &ConnectionConfig) -> Result<reqwest_native::Cli
             .no_proxy()
             .proxy(reqwest_native::Proxy::all(url).map_err(Error::ReqwestNative)?),
     };
+    portable_fingerprint!(builder, config, reqwest_native, true, false);
     builder.build().map_err(Error::ReqwestNative)
 }
 

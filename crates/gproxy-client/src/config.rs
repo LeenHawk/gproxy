@@ -242,7 +242,8 @@ pub struct Fingerprint {
 pub struct ConnectionConfig {
     pub backend: Backend,
     pub proxy: ProxyConfig,
-    /// Only the wreq backend can present an emulation; reqwest rejects one.
+    /// wreq applies the full identity. Other backends apply the supported
+    /// subset of custom fingerprints; wreq-only preset identities are skipped.
     pub emulation: Option<EmulationConfig>,
     /// Enable automatic response decompression for each content encoding.
     /// Defaults preserve encoded response bytes and headers.
@@ -434,5 +435,23 @@ impl Fingerprint {
             builder = builder.default_headers(map).orig_headers(original);
         }
         Ok(builder)
+    }
+}
+
+impl ConnectionConfig {
+    /// The portable part of a custom fingerprint. Explicit request headers
+    /// retain precedence, just as they do with wreq's default headers.
+    pub(crate) fn default_headers(&self) -> Result<http::HeaderMap, Error> {
+        let mut headers = http::HeaderMap::new();
+        if let Some(EmulationConfig::Custom(fingerprint)) = &self.emulation {
+            for (name, value) in fingerprint.headers.iter().flatten() {
+                let name = http::HeaderName::from_bytes(name.as_bytes())
+                    .map_err(|_| Error::InvalidConfig("invalid emulation header name"))?;
+                let value = http::HeaderValue::from_str(value)
+                    .map_err(|_| Error::InvalidConfig("invalid emulation header value"))?;
+                headers.append(name, value);
+            }
+        }
+        Ok(headers)
     }
 }

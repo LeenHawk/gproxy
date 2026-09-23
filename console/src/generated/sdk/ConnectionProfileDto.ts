@@ -15,7 +15,7 @@ backend: string,
  */
 proxyMode: string, proxyUrl: string | null, 
 /**
- * A `gproxy-client` emulation object, or null. Only meaningful with `wreq`.
+ * A `gproxy-client` emulation object, or null. wreq applies the full identity; other clients apply supported custom fields.
  */
 emulation: unknown | null, gzip: boolean, brotli: boolean, deflate: boolean, zstd: boolean, redirectMaxHops: number, 
 /**

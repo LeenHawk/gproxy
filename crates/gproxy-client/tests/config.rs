@@ -219,7 +219,7 @@ async fn custom_fingerprints_build_on_wreq() {
 
 #[cfg(all(feature = "reqwest-native", not(target_arch = "wasm32")))]
 #[tokio::test]
-async fn reqwest_native_builds_and_refuses_what_the_cli_never_enables() {
+async fn reqwest_native_builds_with_the_supported_profile_options() {
     let pool = ClientPool::default();
     let config = ConnectionConfig {
         backend: Backend::ReqwestNative,
@@ -250,10 +250,7 @@ async fn reqwest_native_builds_and_refuses_what_the_cli_never_enables() {
             ..config.clone()
         },
     ] {
-        assert!(matches!(
-            pool.get(&bad).await.unwrap_err().as_ref(),
-            gproxy_client::Error::InvalidConfig(_)
-        ));
+        assert!(pool.get(&bad).await.is_ok());
     }
     assert_eq!(
         serde_json::to_value(Backend::ReqwestNative).unwrap(),
@@ -263,7 +260,7 @@ async fn reqwest_native_builds_and_refuses_what_the_cli_never_enables() {
 
 #[cfg(all(feature = "reqwest", not(target_arch = "wasm32")))]
 #[tokio::test]
-async fn reqwest_rejects_any_emulation() {
+async fn reqwest_accepts_the_supported_part_of_emulation() {
     let pool = ClientPool::default();
     for emulation in [
         custom_fingerprint(),
@@ -279,9 +276,6 @@ async fn reqwest_rejects_any_emulation() {
             emulation: Some(emulation),
             ..Default::default()
         };
-        assert!(matches!(
-            pool.get(&config).await.unwrap_err().as_ref(),
-            gproxy_client::Error::InvalidConfig(_)
-        ));
+        assert!(pool.get(&config).await.is_ok());
     }
 }
