@@ -113,17 +113,7 @@ pub(super) fn apply(
     }
     headers.insert(
         header::USER_AGENT,
-        HeaderValue::from_str(
-            config
-                .user_agent
-                .as_deref()
-                .map(str::trim)
-                .filter(|agent| !agent.is_empty())
-                .unwrap_or(CLI_USER_AGENT),
-        )
-        .map_err(|_| {
-            ChannelError::InvalidConfig("Grok Build: `user_agent` is not a value".into())
-        })?,
+        HeaderValue::from_static(CLI_USER_AGENT),
     );
     if let Some(conversation) = conversation.map(str::trim).filter(|id| !id.is_empty()) {
         insert(headers, "x-grok-conv-id", conversation)?;

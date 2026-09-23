@@ -92,8 +92,6 @@ pub struct ClaudecodeConfig {
     pub token_url: String,
     /// The claude.ai origin the cookie login talks to.
     pub claude_ai_url: String,
-    /// Replaces the CLI user agent on every backend request.
-    pub user_agent: Option<String>,
     /// Static headers added to every backend request.
     pub headers: BTreeMap<String, String>,
     /// Place `cache_control` where a client embeds a magic cache string in
@@ -108,7 +106,6 @@ impl Default for ClaudecodeConfig {
             authorize_url: DEFAULT_AUTHORIZE_URL.into(),
             token_url: DEFAULT_TOKEN_URL.into(),
             claude_ai_url: DEFAULT_CLAUDE_AI_URL.into(),
-            user_agent: None,
             headers: BTreeMap::new(),
             enable_claude_magic_cache: false,
         }
@@ -471,11 +468,9 @@ fn apply_headers(
         HeaderName::from_static("x-stainless-arch"),
         HeaderValue::from_static(stainless_arch()),
     );
-    let user_agent = config.user_agent.as_deref().unwrap_or_else(|| {
-        client_user_agent
-            .filter(|value| valid_cli_user_agent(value))
-            .unwrap_or(CLI_USER_AGENT)
-    });
+    let user_agent = client_user_agent
+        .filter(|value| valid_cli_user_agent(value))
+        .unwrap_or(CLI_USER_AGENT);
     headers.insert(header::USER_AGENT, header_value(user_agent)?);
     headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
     headers.insert(
@@ -603,11 +598,6 @@ impl BaseChannel for Claudecode {
                     "claude_ai_url",
                     ConfigKeyKind::String,
                     "The claude.ai origin the cookie login talks to.",
-                ),
-                ConfigKey::optional(
-                    "user_agent",
-                    ConfigKeyKind::String,
-                    "Replaces the CLI user agent on every backend request.",
                 ),
                 ConfigKey::optional(
                     "headers",

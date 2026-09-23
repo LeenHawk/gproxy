@@ -120,7 +120,6 @@
     "token_url": "令牌地址",
     "usage_accounting": "上游费用统计",
     "usage_base_url": "用量查询地址",
-    "user_agent": "User-Agent",
     "vscode_version": "VS Code 版本"
   },
   "providerOption": {

@@ -490,11 +490,6 @@ impl BaseChannel for Codex {
                     "The `originator` the backend sees; defaults to codex_cli_rs.",
                 ),
                 ConfigKey::optional(
-                    "user_agent",
-                    ConfigKeyKind::String,
-                    "Replaces the CLI-shaped User-Agent.",
-                ),
-                ConfigKey::optional(
                     "headers",
                     ConfigKeyKind::HeaderList,
                     "Static headers added to every backend request.",

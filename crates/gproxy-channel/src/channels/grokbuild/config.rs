@@ -31,8 +31,6 @@ pub struct GrokBuildConfig {
     pub usage_base_url: Option<String>,
     pub oauth_device_code_url: String,
     pub oauth_token_url: String,
-    /// Replaces the CLI user agent on every request.
-    pub user_agent: Option<String>,
     /// Static headers added to every request.
     pub headers: BTreeMap<String, String>,
 }
@@ -44,7 +42,6 @@ impl Default for GrokBuildConfig {
             usage_base_url: None,
             oauth_device_code_url: DEFAULT_DEVICE_CODE_URL.into(),
             oauth_token_url: DEFAULT_TOKEN_URL.into(),
-            user_agent: None,
             headers: BTreeMap::new(),
         }
     }

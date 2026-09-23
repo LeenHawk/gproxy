@@ -260,11 +260,6 @@ impl BaseChannel for GrokBuild {
                     "Token endpoint used by the device poll and by refresh; defaults to https://auth.x.ai/oauth2/token.",
                 ),
                 ConfigKey::optional(
-                    "user_agent",
-                    ConfigKeyKind::String,
-                    "Replaces the grok-shell user agent on every request.",
-                ),
-                ConfigKey::optional(
                     "headers",
                     ConfigKeyKind::HeaderList,
                     "Static headers added to every request.",

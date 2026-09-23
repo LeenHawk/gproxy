@@ -351,11 +351,6 @@ impl BaseChannel for WorkBuddy {
                     "The intent x-agent-intent asks the agent surface for; the CLI says craft.",
                 ),
                 ConfigKey::optional(
-                    "user_agent",
-                    ConfigKeyKind::String,
-                    "Replaces the WorkBuddy/<version> user agent on every request.",
-                ),
-                ConfigKey::optional(
                     "headers",
                     ConfigKeyKind::HeaderList,
                     "Static headers added to every request.",

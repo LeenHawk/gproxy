@@ -42,8 +42,6 @@ pub struct KiroConfig {
     pub login_provider: String,
     /// The IdC portal the authorization code is issued by.
     pub sso_start_url: Option<String>,
-    /// Replaces the SDK user agent on every request.
-    pub user_agent: Option<String>,
     /// Static headers added to every request.
     pub headers: BTreeMap<String, String>,
 }
@@ -57,7 +55,6 @@ impl Default for KiroConfig {
             profile_arn: None,
             login_provider: "github".into(),
             sso_start_url: None,
-            user_agent: None,
             headers: BTreeMap::new(),
         }
     }

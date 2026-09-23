@@ -5,7 +5,7 @@
 //! model family (`seven_day_opus`, `limits[].kind == weekly_scoped`) match
 //! by `claude-<family>` prefix.
 
-use super::{Claudecode, ClaudecodeConfig, account, base_url, fact, invalid_response, send};
+use super::{Claudecode, account, base_url, fact, invalid_response, send};
 use crate::channel::{
     ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
     QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel,
@@ -285,7 +285,6 @@ impl QuotaQuery for Claudecode {
     /// endpoint serves an aggressively rate-limited bucket (v3 `quota.rs`).
     fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
-            let config = ClaudecodeConfig::from_view(context.provider)?;
             let account = account(&context.credential)?;
             let mut headers = HeaderMap::new();
             headers.insert(
@@ -298,12 +297,7 @@ impl QuotaQuery for Claudecode {
             );
             headers.insert(
                 header::USER_AGENT,
-                super::header_value(
-                    config
-                        .user_agent
-                        .as_deref()
-                        .unwrap_or(super::CLI_USER_AGENT),
-                )?,
+                HeaderValue::from_static(super::CLI_USER_AGENT),
             );
             headers.insert(
                 "anthropic-beta",

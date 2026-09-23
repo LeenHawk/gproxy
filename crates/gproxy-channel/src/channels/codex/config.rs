@@ -18,9 +18,6 @@ pub struct CodexConfig {
     pub issuer: String,
     /// The `originator` the backend sees; Codex CLI's by default.
     pub originator: String,
-    /// Replaces the CLI-shaped `User-Agent`
-    /// (`codex_cli_rs/<version> (<os> <version>; <arch>) <terminal>`).
-    pub user_agent: Option<String>,
     /// Static headers added to every backend request.
     pub headers: BTreeMap<String, String>,
     /// Place `prompt_cache_breakpoint` where a client embeds a magic cache
@@ -39,7 +36,6 @@ impl Default for CodexConfig {
         Self {
             issuer: DEFAULT_ISSUER.into(),
             originator: DEFAULT_ORIGINATOR.into(),
-            user_agent: None,
             headers: BTreeMap::new(),
             enable_openai_magic_cache: false,
             synthesize_cli_identity: true,

@@ -967,7 +967,6 @@ fn the_descriptor_names_the_one_way_in_and_the_keys_a_form_needs() {
         "ide_version",
         "ide_name",
         "agent_intent",
-        "user_agent",
         "headers",
         "allowed_headers",
     ] {
