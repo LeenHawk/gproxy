@@ -37,7 +37,8 @@
   },
   "form": {
     "choose": "请选择…",
-    "invalidJson": "JSON 格式不正确，请检查后重试。"
+    "invalidJson": "JSON 格式不正确，请检查后重试。",
+    "unset": "继承"
   },
   "pagination": {
     "position": "第 {{page}} / {{pages}} 页 · 共 {{total}} 行",
@@ -193,7 +194,7 @@
     "windowKey": "窗口",
     "channel": "渠道",
     "baseUrl": "接口地址",
-    "connectionProfileId": "连接配置 ID",
+    "connectionProfileId": "请求客户端",
     "config": "配置（JSON）",
     "label": "名称",
     "authKind": "认证方式",
@@ -224,6 +225,9 @@
     "filterOperationKeys": "操作筛选（JSON 数组）",
     "dialect": "协议",
     "transport": "传输方式",
-    "url": "完整 URL"
+    "url": "完整 URL",
+    "backend": "客户端",
+    "proxyMode": "代理模式",
+    "emulation": "客户端伪装"
   }
 }

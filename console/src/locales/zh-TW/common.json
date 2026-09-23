@@ -37,7 +37,8 @@
   },
   "form": {
     "choose": "請選擇…",
-    "invalidJson": "JSON 格式不正確，請檢查後重試。"
+    "invalidJson": "JSON 格式不正確，請檢查後重試。",
+    "unset": "繼承"
   },
   "pagination": {
     "position": "第 {{page}} / {{pages}} 頁 · 共 {{total}} 列",
@@ -193,7 +194,7 @@
     "windowKey": "視窗",
     "channel": "管道",
     "baseUrl": "介面位址",
-    "connectionProfileId": "連線設定 ID",
+    "connectionProfileId": "請求客戶端",
     "config": "設定（JSON）",
     "label": "名稱",
     "authKind": "驗證方式",
@@ -224,6 +225,9 @@
     "filterOperationKeys": "操作篩選（JSON 陣列）",
     "dialect": "協定",
     "transport": "傳輸方式",
-    "url": "完整 URL"
+    "url": "完整 URL",
+    "backend": "客戶端",
+    "proxyMode": "代理模式",
+    "emulation": "客戶端偽裝"
   }
 }

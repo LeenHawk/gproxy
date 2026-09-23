@@ -43,7 +43,7 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
   })
   const [resets, setResets] = useState<Record<string, number>>({})
   const profiles = useQuery({
-    queryKey: ["configuration", "connection-profiles"],
+    queryKey: ["admin", "/connection-profiles", "directory"],
     queryFn: connectionProfiles,
   })
   const descriptor = catalog.find((item) => item.id === channel)
@@ -111,7 +111,7 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  <SelectItem value="__default">{t("providerForm.default")}</SelectItem>
+                  <SelectItem value="__default">{t("form.unset")}</SelectItem>
                   {profiles.data?.map((row) => (
                     <SelectItem key={row.id} value={row.id}>
                       {row.name}

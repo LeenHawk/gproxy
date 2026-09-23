@@ -26,7 +26,8 @@
     "provider-rule-sets": "Rule sets",
     "operation-rules": "Routing rules",
     "operation-endpoints": "Endpoint URLs",
-    "update": "Updates"
+    "update": "Updates",
+    "connection-profiles": "Request clients"
   },
   "create": {
     "keys": "New key",
@@ -44,7 +45,8 @@
     "rules": "New Rewrite rules",
     "provider-rule-sets": "New Attached rule sets",
     "operation-rules": "Add routing rule",
-    "operation-endpoints": "Add endpoint"
+    "operation-endpoints": "Add endpoint",
+    "connection-profiles": "New request client"
   },
   "edit": {
     "users": "Edit user",
@@ -61,6 +63,7 @@
     "rules": "Edit Rewrite rules",
     "provider-rule-sets": "Edit Attached rule sets",
     "operation-rules": "Edit routing rule",
-    "operation-endpoints": "Edit endpoint"
+    "operation-endpoints": "Edit endpoint",
+    "connection-profiles": "Edit request client"
   }
 }

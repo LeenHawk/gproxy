@@ -65,7 +65,7 @@ function SettingsForm({ original, tab, onTabChange }: { original: SettingsDto; t
   const [resetEpoch, setResetEpoch] = useState(0)
   const [token, setToken] = useState<string | null | undefined>(undefined)
   const profiles = useQuery({
-    queryKey: ["configuration", "connection-profiles"],
+    queryKey: ["admin", "/connection-profiles", "directory"],
     queryFn: connectionProfiles,
   })
   const files = useQuery({ queryKey: ["configuration", "vocabularies"], queryFn: vocabularies })
