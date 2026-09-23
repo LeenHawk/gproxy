@@ -15,10 +15,3 @@ export const credentialFields: Array<FormField> = [
   { name: "metadata", kind: "json" },
   { name: "enabled", kind: "switch" },
 ]
-
-export const modelFields: Array<FormField> = [
-  { name: "upstreamName", kind: "text", required: true },
-  { name: "modelId", kind: "text", nullable: true },
-  { name: "metadata", kind: "json" },
-  { name: "enabled", kind: "switch" },
-]

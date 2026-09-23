@@ -69,13 +69,14 @@ const CELL_CAP = "max-w-[18rem] truncate"
 const ACTION_ROW =
   "flex w-max max-w-40 flex-wrap items-center justify-end gap-x-1 gap-y-2 sm:max-w-none sm:flex-nowrap"
 
-export function DataTable<T>({ columns, rows, rowKey, empty, actions }: {
+export function DataTable<T>({ columns, rows, rowKey, empty, actions, onRowClick }: {
   columns: Array<Column<T>>
   rows: Array<T>
   rowKey: (row: T) => string
   empty: ReactNode
   /** Rendered in a last, right-aligned column when given. */
   actions?: (row: T) => ReactNode
+  onRowClick?: (row: T) => void
 }) {
   const { t } = useTranslation()
   if (rows.length === 0) return <>{empty}</>
@@ -100,7 +101,10 @@ export function DataTable<T>({ columns, rows, rowKey, empty, actions }: {
         </TableHeader>
         <TableBody>
           {rows.map((row) => (
-            <TableRow key={rowKey(row)}>
+            <TableRow key={rowKey(row)} className={onRowClick ? "cursor-pointer" : undefined} onClick={onRowClick ? (event) => {
+              if (!event.currentTarget.contains(event.target as Node)) return
+              if (!(event.target as HTMLElement).closest("a, button, input, select, textarea, [role='switch']")) onRowClick(row)
+            } : undefined}>
               {columns.map((column) => (
                 <TableCell key={column.key} className={cn(CELL_CAP, column.className)}>{column.cell(row)}</TableCell>
               ))}
