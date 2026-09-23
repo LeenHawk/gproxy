@@ -300,5 +300,22 @@
     },
     "name": "规则名称",
     "limit": "金额上限（{{unit}}）"
+  },
+  "routing": {
+    "configure": "成员与模型名",
+    "title": "路由 · {{name}}",
+    "help": "先添加供应商及其上游模型，再配置客户端使用的对外模型名。层级越小越优先；加权策略在同层级按权重分配。"
+  },
+  "rules": {
+    "manage": "管理规则",
+    "title": "规则 · {{name}}",
+    "help": "规则按顺序执行。正文目标使用点分路径，请求头／查询参数使用名称。需要在供应商中绑定规则集才会生效。操作筛选格式为 [{\"operation\":\"generate_content\",\"dialect\":\"openai\"}]。",
+    "preset": "选择预设",
+    "apply": "应用预设",
+    "presetConfirm": "用所选预设替换此规则集中的全部规则？",
+    "bindingHelp": "绑定的规则集按顺序执行。可在规则集页面创建和编辑可复用规则。",
+    "dialects": "原生协议优先顺序（每行一项）",
+    "operationHelp": "按操作覆盖原生协议，例如 generate_content。每行填写 openai、openai_chat、claude 或 gemini 等协议标识；客户端协议不在列表中时，转换到第一项。删除规则可恢复渠道默认值。",
+    "endpointHelp": "为指定操作、协议和传输方式覆盖完整 URL，包含路径。"
   }
 }

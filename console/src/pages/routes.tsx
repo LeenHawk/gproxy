@@ -27,6 +27,8 @@ import { UsagePage } from "@/pages/self/usage"
 import { ProvidersPage } from "@/pages/providers"
 import { ProviderDetailPage } from "@/pages/providers/detail"
 
+import { RoutingPage } from "@/pages/routing"
+import { RuleSetsPage } from "@/pages/rules"
 import { SettingsPage } from "@/pages/settings"
 import { TokenizerPage } from "@/pages/tokenizer"
 
@@ -40,6 +42,8 @@ const ROUTES: Record<string, () => React.ReactElement> = {
   "/account": AccountPage,
   "/providers": ProvidersPage,
   "/settings": SettingsPage,
+  "/routing": RoutingPage,
+  "/rule-sets": RuleSetsPage,
   "/tokenizer": TokenizerPage,
   "/identity/users": UsersPage,
   "/identity/api-keys": ApiKeysPage,
@@ -77,7 +81,7 @@ export function Routes() {
   const context = useConsoleContext()
   useScrollReset(route)
 
-  const provider = /^\/providers\/([^/]+)(?:\/(credentials|models|settings))?$/.exec(route)
+  const provider = /^\/providers\/([^/]+)(?:\/(credentials|models|settings|rules|operations|endpoints))?$/.exec(route)
   if (provider) {
     if (!mayEnter(context, route)) return <Forbidden />
     const providerId = decodeURIComponent(provider[1])

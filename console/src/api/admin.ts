@@ -51,7 +51,7 @@ import { api, json, query } from "@/api/client"
 
 const BASE = "/admin/api"
 
-export type ListFilter = Partial<ListQuery>
+export type ListFilter = Partial<ListQuery & import("@/generated/sdk").ListQuery>
 export type AuditFilter = Partial<AuditQuery>
 
 /** The five routes `family!` declares, for one family. */

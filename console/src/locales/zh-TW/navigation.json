@@ -20,7 +20,15 @@
     "credentials": "憑證",
     "provider-models": "模型",
     "settings": "全域設定",
-    "tokenizer": "詞表管理"
+    "tokenizer": "詞表管理",
+    "routes": "路由",
+    "route-members": "路由成員",
+    "exposed-models": "對外模型名稱",
+    "rule-sets": "規則集",
+    "rules": "重寫規則",
+    "provider-rule-sets": "綁定規則集",
+    "operation-rules": "操作規則",
+    "operation-endpoints": "操作端點"
   },
   "create": {
     "keys": "新建金鑰",
@@ -33,7 +41,15 @@
     "oauth-clients": "註冊用戶端",
     "providers": "新增供應商",
     "credentials": "新增憑證",
-    "provider-models": "新增模型"
+    "provider-models": "新增模型",
+    "routes": "新增路由",
+    "route-members": "新增路由成員",
+    "exposed-models": "新增對外模型名稱",
+    "rule-sets": "新增規則集",
+    "rules": "新增重寫規則",
+    "provider-rule-sets": "新增綁定規則集",
+    "operation-rules": "新增操作規則",
+    "operation-endpoints": "新增操作端點"
   },
   "edit": {
     "users": "編輯使用者",
@@ -45,6 +61,14 @@
     "oauth-clients": "編輯用戶端",
     "providers": "編輯供應商",
     "credentials": "編輯憑證",
-    "provider-models": "編輯模型"
+    "provider-models": "編輯模型",
+    "routes": "編輯路由",
+    "route-members": "編輯路由成員",
+    "exposed-models": "編輯對外模型名稱",
+    "rule-sets": "編輯規則集",
+    "rules": "編輯重寫規則",
+    "provider-rule-sets": "編輯綁定規則集",
+    "operation-rules": "編輯操作規則",
+    "operation-endpoints": "編輯操作端點"
   }
 }

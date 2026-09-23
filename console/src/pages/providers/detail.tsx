@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { CollectionPage } from "@/pages/identity/collection"
 import { authKinds, credentialFields, modelFields } from "@/pages/providers/fields"
+import { ProviderRules, ProviderOperations, ProviderEndpoints } from "@/pages/providers/rules"
 import { useNavigate } from "@/lib/router"
 
 export function ProviderDetailPage({ providerId, tab }: { providerId: string; tab: string }) {
@@ -65,11 +66,17 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
       {!editing && update.error ? <ErrorNotice error={update.error} /> : null}
       {remove.error ? <ErrorNotice error={remove.error} /> : null}
       <Tabs value={tab} onValueChange={(value) => navigate(`${providerPath(provider.id)}/${value}`)} className="gap-6">
-        <TabsList variant="line">
+        <TabsList variant="line" className="max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto">
           <TabsTrigger value="credentials"><KeyRound />{t("nav.credentials")}</TabsTrigger>
           <TabsTrigger value="models"><Boxes />{t("nav.provider-models")}</TabsTrigger>
+          <TabsTrigger value="rules">{t("nav.provider-rule-sets")}</TabsTrigger>
+          <TabsTrigger value="operations">{t("nav.operation-rules")}</TabsTrigger>
+          <TabsTrigger value="endpoints">{t("nav.operation-endpoints")}</TabsTrigger>
           <TabsTrigger value="settings"><Settings2 />{t("providers.settings")}</TabsTrigger>
         </TabsList>
+        <TabsContent value="rules"><ProviderRules providerId={provider.id} /></TabsContent>
+        <TabsContent value="operations"><ProviderOperations providerId={provider.id} /></TabsContent>
+        <TabsContent value="endpoints"><ProviderEndpoints providerId={provider.id} /></TabsContent>
         <TabsContent value="credentials">
           <CollectionPage
             embedded

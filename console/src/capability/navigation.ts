@@ -61,7 +61,7 @@ const SELF: NavSection = {
 const PROVIDERS: NavSection = {
   id: "providers",
   icon: Waypoints,
-  items: [{ id: "providers", route: "/providers", needs: PROVIDERS_READ, icon: Waypoints }],
+  items: [{ id: "providers", route: "/providers", needs: PROVIDERS_READ, icon: Waypoints }, { id: "routes", route: "/routing", needs: PROVIDERS_READ, icon: Waypoints }, { id: "rule-sets", route: "/rule-sets", needs: PROVIDERS_READ, icon: ListChecks }],
 }
 
 const PEOPLE: NavSection = {
