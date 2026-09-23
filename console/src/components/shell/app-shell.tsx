@@ -117,6 +117,7 @@ function Navigation({ sections, route, onNavigate }: {
       {sections.map((section) => {
         const current = section.items.some((item) => item.route === route)
         const SectionIcon = section.icon
+        if (section.id === "rules") return <Link key={section.id} to="/rule-sets" onClick={onNavigate} aria-current={current ? "page" : undefined} className={cn("flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-sidebar-accent/60", current ? "bg-sidebar-accent text-sidebar-foreground" : "text-muted-foreground")}><SectionIcon className="size-4.5 shrink-0" aria-hidden /><span>{t("nav.rule-sets")}</span></Link>
         return (
           <details key={section.id} open={current} className="group/section">
             <summary className={cn(
@@ -124,7 +125,7 @@ function Navigation({ sections, route, onNavigate }: {
               current ? "text-sidebar-foreground" : "text-muted-foreground",
             )}>
               <SectionIcon className="size-4.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-              <span className="flex-1">{t(`section.${section.id}`)}</span>
+              {section.id === "providers" ? <Link to="/providers" className="flex-1" onClick={onNavigate}>{t("nav.providers")}</Link> : <span className="flex-1">{t(`section.${section.id}`)}</span>}
               <ChevronRight className="size-3.5 shrink-0 transition-transform group-open/section:rotate-90 motion-reduce:transition-none" aria-hidden="true" />
             </summary>
             {section.id === "providers" ? (
@@ -136,7 +137,7 @@ function Navigation({ sections, route, onNavigate }: {
               </div>
             ) : null}
             <ul className="mt-1 ml-5 flex flex-col gap-1 border-l border-sidebar-border pb-1 pl-3">
-              {section.items.filter((item) => section.id !== "providers" || !item.route.startsWith("/providers/") || item.label?.toLowerCase().includes(providerSearch.toLowerCase())).map((item) => {
+              {section.items.filter((item) => section.id !== "providers" || (item.id !== "providers" && item.label?.toLowerCase().includes(providerSearch.toLowerCase()))).map((item) => {
                 const Icon = item.icon
                 const active = route === item.route
                 return (
@@ -197,7 +198,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const sections = sectionsFor(context).map((section) => section.id === "providers" ? {
     ...section,
     items: [
-      ...section.items.map((item) => ({ ...item, label: item.id === "providers" ? t("providers.all") : t(`nav.${item.id}`) })),
+      ...section.items.map((item) => ({ ...item, label: item.id === "providers" ? t("nav.providers") : t(`nav.${item.id}`) })),
       ...(directory.data ?? []).map((provider) => ({
         id: `provider-${provider.id}`, label: provider.name, route: providerPath(provider.id), needs: PROVIDERS_READ, icon: Waypoints,
       })),

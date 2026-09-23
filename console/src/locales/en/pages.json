@@ -46,7 +46,6 @@
     "emptyTitle": "No members yet"
   },
   "providers": {
-    "all": "All providers",
     "search": "Find a provider",
     "settings": "Settings"
   },
@@ -273,10 +272,8 @@
   "userQuota": {
     "action": "Spending limits",
     "title": "Spending limits · {{name}}",
-    "description": "All API keys and OAuth calls for this user share these budgets. Every enabled rule applies.",
     "add": "Add spending limit",
     "edit": "Edit spending limit",
-    "help": "New limits are in USD; 0 blocks requests. Usage depends on configured pricing and settlement. Changing the amount does not reset usage. For a custom period, enter a positive duration in seconds; the anchor is optional.",
     "empty": "No user spending limits",
     "enabled": "Enabled",
     "disabled": "Disabled",
@@ -300,28 +297,23 @@
     "name": "Rule name",
     "limit": "Spending limit ({{unit}})"
   },
-  "routing": {
-    "configure": "Members & model names",
-    "title": "Route · {{name}}",
-    "help": "Add providers and their upstream model names, then publish a model name for clients. Lower tiers are preferred; the weighted strategy distributes requests by weight within a tier."
-  },
   "rules": {
     "manage": "Manage rules",
     "title": "Rules · {{name}}",
-    "help": "Rules run in order. Body targets use dot paths; header/query targets use a name. Attach the set in a provider to activate it. Operation filters accept [{\"operation\":\"generate_content\",\"dialect\":\"openai\"}].",
     "preset": "Choose a preset",
     "apply": "Apply preset",
     "presetConfirm": "Replace every rule in this set with the selected preset?",
-    "bindingHelp": "Attached sets run in this order. Create and edit reusable sets in Rule sets.",
-    "dialects": "Native dialects, in preference order (one per line)",
-    "operationHelp": "Override native dialects for an operation, e.g. generate_content. Enter dialect IDs such as openai, openai_chat, claude or gemini, one per line. The first is the conversion target when the client dialect is not native. Delete the rule to inherit channel defaults.",
-    "endpointHelp": "Override the full URL for one operation, dialect and transport. This replaces the channel URL including its path."
+    "dialects": "Upstream protocols (priority order)",
+    "protocolNumber": "Protocol {{index}}",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "addProtocol": "Add protocol",
+    "attach": "Attach rule set"
   },
   "update": {
     "current": "Running version",
     "unsupported": "This host does not support self-update",
     "channel": "Update channel",
-    "channelHelp": "This choice is for this check/install only. Change the default and scheduled checks in Global settings.",
     "schedule": "Check every {{seconds}} seconds",
     "noSchedule": "Scheduled checks disabled",
     "autoInstall": "Automatic installation enabled",
@@ -339,5 +331,38 @@
     "latest": "No newer version found",
     "notes": "Release notes",
     "notChecked": "No check result for this channel yet."
+  },
+  "operation": {
+    "list_models": "List Models",
+    "get_model": "Get Model",
+    "count_tokens": "Count Tokens",
+    "generate_content": "Generate Content",
+    "stream_generate_content": "Stream Generate Content",
+    "summarize_memory": "Summarize Memory",
+    "compact_content": "Compact Content",
+    "create_image": "Create Image",
+    "edit_image": "Edit Image",
+    "web_search": "Standalone Web Search",
+    "rerank": "Rerank",
+    "create_embedding": "Create Embedding",
+    "batch_create_embedding": "Batch Create Embedding",
+    "create_speech": "Create Speech",
+    "create_transcription": "Create Transcription",
+    "create_translation": "Create Translation",
+    "create_realtime_call": "Create Realtime Call",
+    "create_video": "Create Video",
+    "retrieve_video": "Retrieve Video",
+    "list_videos": "List Videos",
+    "delete_video": "Delete Video",
+    "download_video_content": "Download Video Content",
+    "create_file": "Upload File",
+    "list_files": "List Files",
+    "retrieve_file": "Retrieve File",
+    "retrieve_file_content": "Retrieve File Content",
+    "delete_file": "Delete File",
+    "connect_realtime": "Connect Realtime",
+    "guardian_review": "Review content",
+    "guardian_classify": "Classify content",
+    "create_conversation": "Create conversation"
   }
 }

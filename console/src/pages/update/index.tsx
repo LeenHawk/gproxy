@@ -33,7 +33,6 @@ export function UpdatePage() {
     {unsupported ? <EmptyNotice title={t("update.unsupported")} /> : <QueryState isPending={schedule.isPending} error={schedule.error}>
       {settings.error ? <ErrorNotice error={settings.error} /> : null}
       <Field className="max-w-xs"><FieldLabel htmlFor="update-channel">{t("update.channel")}</FieldLabel><Select value={channel} disabled={busy} onValueChange={(v) => { setSelected(v); checked.reset() }}><SelectTrigger id="update-channel"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{["dev", "beta", "release"].map((v) => <SelectItem value={v} key={v}>{t(`settingsOption.${v}`)}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
-      <p className="text-sm text-muted-foreground">{t("update.channelHelp")}</p>
       <p>{schedule.data?.interval_secs ? t("update.schedule", { seconds: schedule.data.interval_secs }) : t("update.noSchedule")} · {t(schedule.data?.automatic ? "update.autoInstall" : "update.manualInstall")}</p>
       <div className="flex flex-wrap items-center gap-2">
         <Button disabled={busy} onClick={() => checked.mutate(channel)}>{checked.isPending ? t("update.checking") : t("update.check")}</Button>

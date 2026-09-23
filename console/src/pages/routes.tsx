@@ -27,7 +27,6 @@ import { UsagePage } from "@/pages/self/usage"
 import { ProvidersPage } from "@/pages/providers"
 import { ProviderDetailPage } from "@/pages/providers/detail"
 
-import { RoutingPage } from "@/pages/routing"
 import { RuleSetsPage } from "@/pages/rules"
 import { UpdatePage } from "@/pages/update"
 import { SettingsPage } from "@/pages/settings"
@@ -43,7 +42,6 @@ const ROUTES: Record<string, () => React.ReactElement> = {
   "/account": AccountPage,
   "/providers": ProvidersPage,
   "/settings": SettingsPage,
-  "/routing": RoutingPage,
   "/rule-sets": RuleSetsPage,
   "/update": UpdatePage,
   "/tokenizer": TokenizerPage,
@@ -83,11 +81,11 @@ export function Routes() {
   const context = useConsoleContext()
   useScrollReset(route)
 
-  const provider = /^\/providers\/([^/]+)(?:\/(credentials|models|settings|rules|operations|endpoints))?$/.exec(route)
+  const provider = /^\/providers\/([^/]+)(?:\/(credentials|models|settings|rules|routing|operations|endpoints))?$/.exec(route)
   if (provider) {
     if (!mayEnter(context, route)) return <Forbidden />
     const providerId = decodeURIComponent(provider[1])
-    return <ProviderDetailPage key={providerId} providerId={providerId} tab={provider[2] ?? "credentials"} />
+    return <ProviderDetailPage key={providerId} providerId={providerId} tab={provider[2] === "operations" ? "routing" : provider[2] === "endpoints" ? "settings" : provider[2] ?? "credentials"} />
   }
   const Match = ROUTES[route]
   if (!Match) return <NotFound />

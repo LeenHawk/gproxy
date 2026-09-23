@@ -61,8 +61,10 @@ const SELF: NavSection = {
 const PROVIDERS: NavSection = {
   id: "providers",
   icon: Waypoints,
-  items: [{ id: "providers", route: "/providers", needs: PROVIDERS_READ, icon: Waypoints }, { id: "routes", route: "/routing", needs: PROVIDERS_READ, icon: Waypoints }, { id: "rule-sets", route: "/rule-sets", needs: PROVIDERS_READ, icon: ListChecks }],
+  items: [{ id: "providers", route: "/providers", needs: PROVIDERS_READ, icon: Waypoints }],
 }
+
+const RULES: NavSection = { id: "rules", icon: ListChecks, items: [{ id: "rule-sets", route: "/rule-sets", needs: PROVIDERS_READ, icon: ListChecks }] }
 
 const PEOPLE: NavSection = {
   id: "people",
@@ -89,7 +91,7 @@ const ACCESS: NavSection = {
 
 const SYSTEM: NavSection = { id: "system", icon: Settings2, items: [{ id: "settings", route: "/settings", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "tokenizer", route: "/tokenizer", needs: SETTINGS_ACCESS, icon: BookOpenText }, { id: "update", route: "/update", needs: SETTINGS_ACCESS, icon: Settings2 }] }
 
-const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, PEOPLE, ACCESS, SYSTEM]
+const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, RULES, PEOPLE, ACCESS, SYSTEM]
 
 /** The sections this caller sees, with the items they may reach. */
 export function sectionsFor(context: ConsoleContext): Array<NavSection> {

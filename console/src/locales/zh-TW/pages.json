@@ -46,7 +46,6 @@
     "emptyTitle": "還沒有成員"
   },
   "providers": {
-    "all": "全部供應商",
     "search": "搜尋供應商",
     "settings": "設定"
   },
@@ -273,10 +272,8 @@
   "userQuota": {
     "action": "限額",
     "title": "使用者限額 · {{name}}",
-    "description": "此使用者的所有 API 金鑰和 OAuth 呼叫共用額度；所有啟用的規則同時生效。",
     "add": "新增限額",
     "edit": "編輯限額",
-    "help": "新增額度以美元計，0 表示禁止請求。用量依賴已設定的價格和結算。修改金額不會重設已用額度。自訂週期需填寫正整數秒數，起始時間可留空。",
     "empty": "尚未設定使用者金額限額",
     "enabled": "已啟用",
     "disabled": "已停用",
@@ -300,28 +297,23 @@
     "name": "規則名稱",
     "limit": "金額上限（{{unit}}）"
   },
-  "routing": {
-    "configure": "成員與模型名稱",
-    "title": "路由 · {{name}}",
-    "help": "先新增供應商及上游模型，再設定客戶端使用的對外模型名稱。層級越小越優先；加權策略在同層級按權重分配。"
-  },
   "rules": {
     "manage": "管理規則",
     "title": "規則 · {{name}}",
-    "help": "規則按順序執行。本文目標使用點分路徑，標頭／查詢參數使用名稱。需在供應商中綁定規則集才會生效。操作篩選格式為 [{\"operation\":\"generate_content\",\"dialect\":\"openai\"}]。",
     "preset": "選擇預設",
     "apply": "套用預設",
     "presetConfirm": "使用所選預設取代此規則集內的全部規則？",
-    "bindingHelp": "綁定的規則集按順序執行。可在規則集頁面新增和編輯可重用規則。",
-    "dialects": "原生協定優先順序（每行一項）",
-    "operationHelp": "依操作覆寫原生協定，例如 generate_content。每行填入 openai、openai_chat、claude 或 gemini 等協定識別；客戶端協定不在清單內時，轉換到第一項。刪除規則可恢復渠道預設值。",
-    "endpointHelp": "為指定操作、協定和傳輸方式覆寫完整 URL，包含路徑。"
+    "dialects": "上游協定（依優先順序）",
+    "protocolNumber": "協定 {{index}}",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "addProtocol": "新增協定",
+    "attach": "綁定規則集"
   },
   "update": {
     "current": "目前版本",
     "unsupported": "目前宿主不支援線上更新",
     "channel": "更新通道",
-    "channelHelp": "此選擇僅用於本次檢查／安裝。預設通道和自動檢查請在全域設定調整。",
     "schedule": "每 {{seconds}} 秒檢查一次",
     "noSchedule": "自動檢查已關閉",
     "autoInstall": "自動安裝已開啟",
@@ -339,5 +331,38 @@
     "latest": "暫無更新版本",
     "notes": "版本說明",
     "notChecked": "尚未檢查此通道。"
+  },
+  "operation": {
+    "list_models": "列出模型",
+    "get_model": "取得模型",
+    "count_tokens": "統計 Token",
+    "generate_content": "產生內容",
+    "stream_generate_content": "串流產生內容",
+    "summarize_memory": "總結記憶",
+    "compact_content": "壓縮內容",
+    "create_image": "建立圖像",
+    "edit_image": "編輯圖像",
+    "web_search": "獨立網頁搜尋",
+    "rerank": "重新排序",
+    "create_embedding": "建立嵌入",
+    "batch_create_embedding": "批次建立嵌入",
+    "create_speech": "語音合成",
+    "create_transcription": "語音轉寫",
+    "create_translation": "語音翻譯",
+    "create_realtime_call": "建立即時通話",
+    "create_video": "建立影片",
+    "retrieve_video": "取得影片",
+    "list_videos": "列出影片",
+    "delete_video": "刪除影片",
+    "download_video_content": "下載影片內容",
+    "create_file": "上傳檔案",
+    "list_files": "列出檔案",
+    "retrieve_file": "取得檔案",
+    "retrieve_file_content": "取得檔案內容",
+    "delete_file": "刪除檔案",
+    "connect_realtime": "連線即時工作階段",
+    "guardian_review": "內容審核",
+    "guardian_classify": "內容分類",
+    "create_conversation": "建立對話"
   }
 }

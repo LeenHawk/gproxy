@@ -21,14 +21,11 @@
     "provider-models": "Models",
     "settings": "Global settings",
     "tokenizer": "Vocabularies",
-    "routes": "Routes",
-    "route-members": "Route members",
-    "exposed-models": "Public model names",
     "rule-sets": "Rule sets",
     "rules": "Rewrite rules",
-    "provider-rule-sets": "Attached rule sets",
-    "operation-rules": "Operation rules",
-    "operation-endpoints": "Operation endpoints",
+    "provider-rule-sets": "Rule sets",
+    "operation-rules": "Routing rules",
+    "operation-endpoints": "Endpoint URLs",
     "update": "Updates"
   },
   "create": {
@@ -43,14 +40,11 @@
     "providers": "New provider",
     "credentials": "New credential",
     "provider-models": "New model",
-    "routes": "New Routes",
-    "route-members": "New Route members",
-    "exposed-models": "New Public model names",
     "rule-sets": "New Rule sets",
     "rules": "New Rewrite rules",
     "provider-rule-sets": "New Attached rule sets",
-    "operation-rules": "New Operation rules",
-    "operation-endpoints": "New Operation endpoints"
+    "operation-rules": "Add routing rule",
+    "operation-endpoints": "Add endpoint"
   },
   "edit": {
     "users": "Edit user",
@@ -63,13 +57,10 @@
     "providers": "Edit provider",
     "credentials": "Edit credential",
     "provider-models": "Edit model",
-    "routes": "Edit Routes",
-    "route-members": "Edit Route members",
-    "exposed-models": "Edit Public model names",
     "rule-sets": "Edit Rule sets",
     "rules": "Edit Rewrite rules",
     "provider-rule-sets": "Edit Attached rule sets",
-    "operation-rules": "Edit Operation rules",
-    "operation-endpoints": "Edit Operation endpoints"
+    "operation-rules": "Edit routing rule",
+    "operation-endpoints": "Edit endpoint"
   }
 }

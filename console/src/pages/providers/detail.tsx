@@ -7,7 +7,7 @@ import { channels, credentials, providers, providerModels, providerPath } from "
 import type { ChannelDescriptor, ProviderDto } from "@/generated/sdk"
 import { BoolCell, InstantCell, MaybeCell } from "@/components/cells"
 import { ConfirmButton } from "@/components/confirm"
-import { Page, PageHeader } from "@/components/page"
+import { Page, PageHeader, PageSection } from "@/components/page"
 import { ProviderDialog, ProviderForm } from "@/pages/providers/provider-form"
 import { ErrorNotice, QueryState } from "@/components/state"
 import { Badge } from "@/components/ui/badge"
@@ -70,13 +70,11 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
           <TabsTrigger value="credentials"><KeyRound />{t("nav.credentials")}</TabsTrigger>
           <TabsTrigger value="models"><Boxes />{t("nav.provider-models")}</TabsTrigger>
           <TabsTrigger value="rules">{t("nav.provider-rule-sets")}</TabsTrigger>
-          <TabsTrigger value="operations">{t("nav.operation-rules")}</TabsTrigger>
-          <TabsTrigger value="endpoints">{t("nav.operation-endpoints")}</TabsTrigger>
+          <TabsTrigger value="routing">{t("nav.operation-rules")}</TabsTrigger>
           <TabsTrigger value="settings"><Settings2 />{t("providers.settings")}</TabsTrigger>
         </TabsList>
         <TabsContent value="rules"><ProviderRules providerId={provider.id} /></TabsContent>
-        <TabsContent value="operations"><ProviderOperations providerId={provider.id} /></TabsContent>
-        <TabsContent value="endpoints"><ProviderEndpoints providerId={provider.id} /></TabsContent>
+        <TabsContent value="routing"><ProviderOperations providerId={provider.id} /></TabsContent>
         <TabsContent value="credentials">
           <CollectionPage
             embedded
@@ -115,8 +113,9 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
             fields={modelFields}
           />
         </TabsContent>
-        <TabsContent value="settings">
+        <TabsContent value="settings" className="flex flex-col gap-6">
           <ProviderForm key={`${provider.id}-${JSON.stringify(provider)}`} provider={provider} catalog={catalog} onSubmit={(body) => update.mutate(body)} pending={update.isPending} error={update.error} />
+          <PageSection title={t("nav.operation-endpoints")}><ProviderEndpoints providerId={provider.id} /></PageSection>
         </TabsContent>
       </Tabs>
       <ProviderDialog open={editing} onOpenChange={setEditing} provider={provider} catalog={catalog} onSubmit={(body) => update.mutate(body)} pending={update.isPending} error={update.error} />

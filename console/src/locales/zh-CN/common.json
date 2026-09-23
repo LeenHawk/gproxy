@@ -81,7 +81,8 @@
     "people": "成员与组织",
     "access": "访问控制",
     "providers": "供应商",
-    "system": "系统"
+    "system": "系统",
+    "rules": "规则集"
   },
   "range": {
     "day": "24 小时",
@@ -221,7 +222,7 @@
     "filterHeaderPattern": "请求头匹配",
     "filterEventPattern": "事件匹配",
     "filterOperationKeys": "操作筛选（JSON 数组）",
-    "dialect": "协议方言",
+    "dialect": "协议",
     "transport": "传输方式",
     "url": "完整 URL"
   }

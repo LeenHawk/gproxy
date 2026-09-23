@@ -10,7 +10,7 @@ import { RecordDialog, type FormField } from "@/components/record-form"
 import { EmptyNotice, ErrorNotice, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatInstant } from "@/lib/format"
 
@@ -56,17 +56,15 @@ export function UserQuotasDialog({ userId, userName, onClose }: { userId: string
   ]
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !saved.isPending && !action.isPending) onClose() }}>
-      <DialogContent className="sm:max-w-3xl" aria-describedby="user-quota-description" closeLabel={t("actions.close")}>
+      <DialogContent className="sm:max-w-3xl" aria-describedby={undefined} closeLabel={t("actions.close")}>
         <DialogHeader>
           <DialogTitle>{t("userQuota.title", { name: userName })}</DialogTitle>
-          <DialogDescription id="user-quota-description">{t("userQuota.description")}</DialogDescription>
         </DialogHeader>
         <DialogBody>
           <div className="mb-4 flex flex-wrap gap-2">
             <Button size="sm" disabled={action.isPending} onClick={() => { saved.reset(); setEditing("new") }}><Plus data-icon="inline-start" />{t("userQuota.add")}</Button>
             <Button variant="outline" size="sm" disabled={list.isFetching || status.isFetching} onClick={() => void invalidate()}><RefreshCw data-icon="inline-start" />{t("actions.refresh")}</Button>
           </div>
-          <p className="mb-4 text-sm text-muted-foreground">{t("userQuota.help")}</p>
           {action.error || status.error ? <ErrorNotice error={action.error ?? status.error} /> : null}
           <QueryState isPending={list.isPending} error={list.error}>
             {!list.data?.length ? <EmptyNotice title={t("userQuota.empty")} /> : (
@@ -109,7 +107,6 @@ export function UserQuotasDialog({ userId, userName, onClose }: { userId: string
           onSubmit={(body) => saved.mutate(body)}
           pending={saved.isPending}
           error={saved.error}
-          extra={<p className="text-sm text-muted-foreground">{t("userQuota.help")}</p>}
         />
       </DialogContent>
     </Dialog>

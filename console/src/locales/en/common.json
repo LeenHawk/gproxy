@@ -81,7 +81,8 @@
     "people": "People & teams",
     "access": "Access control",
     "providers": "Providers",
-    "system": "System"
+    "system": "System",
+    "rules": "Rule sets"
   },
   "range": {
     "day": "24 hours",
@@ -221,7 +222,7 @@
     "filterHeaderPattern": "Header filter",
     "filterEventPattern": "Event filter",
     "filterOperationKeys": "Operation filters (JSON array)",
-    "dialect": "Dialect",
+    "dialect": "Protocol",
     "transport": "Transport",
     "url": "Full URL"
   }

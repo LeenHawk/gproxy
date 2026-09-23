@@ -46,7 +46,6 @@
     "emptyTitle": "还没有成员"
   },
   "providers": {
-    "all": "全部供应商",
     "search": "搜索供应商",
     "settings": "设置"
   },
@@ -273,10 +272,8 @@
   "userQuota": {
     "action": "限额",
     "title": "用户限额 · {{name}}",
-    "description": "该用户的所有 API 密钥和 OAuth 调用共用额度；所有启用的规则同时生效。",
     "add": "新增限额",
     "edit": "编辑限额",
-    "help": "新增额度以美元计，0 表示禁止请求。用量依赖已配置的价格和结算。修改金额不会重置已用额度。自定义周期需填写正整数秒数，起始时间可留空。",
     "empty": "未设置用户金额限额",
     "enabled": "已启用",
     "disabled": "已停用",
@@ -300,28 +297,23 @@
     "name": "规则名称",
     "limit": "金额上限（{{unit}}）"
   },
-  "routing": {
-    "configure": "成员与模型名",
-    "title": "路由 · {{name}}",
-    "help": "先添加供应商及其上游模型，再配置客户端使用的对外模型名。层级越小越优先；加权策略在同层级按权重分配。"
-  },
   "rules": {
     "manage": "管理规则",
     "title": "规则 · {{name}}",
-    "help": "规则按顺序执行。正文目标使用点分路径，请求头／查询参数使用名称。需要在供应商中绑定规则集才会生效。操作筛选格式为 [{\"operation\":\"generate_content\",\"dialect\":\"openai\"}]。",
     "preset": "选择预设",
     "apply": "应用预设",
     "presetConfirm": "用所选预设替换此规则集中的全部规则？",
-    "bindingHelp": "绑定的规则集按顺序执行。可在规则集页面创建和编辑可复用规则。",
-    "dialects": "原生协议优先顺序（每行一项）",
-    "operationHelp": "按操作覆盖原生协议，例如 generate_content。每行填写 openai、openai_chat、claude 或 gemini 等协议标识；客户端协议不在列表中时，转换到第一项。删除规则可恢复渠道默认值。",
-    "endpointHelp": "为指定操作、协议和传输方式覆盖完整 URL，包含路径。"
+    "dialects": "上游协议（按优先顺序）",
+    "protocolNumber": "协议 {{index}}",
+    "moveUp": "上移",
+    "moveDown": "下移",
+    "addProtocol": "添加协议",
+    "attach": "绑定规则集"
   },
   "update": {
     "current": "当前版本",
     "unsupported": "当前宿主不支持在线更新",
     "channel": "更新通道",
-    "channelHelp": "此选择仅用于本次检查／安装。默认通道和自动检查请在全局设置中调整。",
     "schedule": "每 {{seconds}} 秒检查一次",
     "noSchedule": "自动检查已关闭",
     "autoInstall": "自动安装已开启",
@@ -339,5 +331,38 @@
     "latest": "暂无更新版本",
     "notes": "版本说明",
     "notChecked": "尚未检查此通道。"
+  },
+  "operation": {
+    "list_models": "列出模型",
+    "get_model": "获取模型",
+    "count_tokens": "统计 Token",
+    "generate_content": "生成内容",
+    "stream_generate_content": "流式生成内容",
+    "summarize_memory": "总结记忆",
+    "compact_content": "压缩内容",
+    "create_image": "创建图像",
+    "edit_image": "编辑图像",
+    "web_search": "独立网页搜索",
+    "rerank": "重排序",
+    "create_embedding": "创建嵌入",
+    "batch_create_embedding": "批量创建嵌入",
+    "create_speech": "语音合成",
+    "create_transcription": "语音转写",
+    "create_translation": "语音翻译",
+    "create_realtime_call": "创建实时通话",
+    "create_video": "创建视频",
+    "retrieve_video": "获取视频",
+    "list_videos": "列出视频",
+    "delete_video": "删除视频",
+    "download_video_content": "下载视频内容",
+    "create_file": "上传文件",
+    "list_files": "列出文件",
+    "retrieve_file": "获取文件",
+    "retrieve_file_content": "获取文件内容",
+    "delete_file": "删除文件",
+    "connect_realtime": "连接实时会话",
+    "guardian_review": "内容审核",
+    "guardian_classify": "内容分类",
+    "create_conversation": "创建会话"
   }
 }
