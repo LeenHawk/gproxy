@@ -60,8 +60,8 @@ tells the caller a person must log in again.
 
 The client is resolved per credential, first match wins, whole configuration
 replaced (no field merging): the credential's `connection_profile_id` → the
-provider's → the channel's `BaseChannel::default_connection()` (a captured CLI
-fingerprint for claudecode and codex) → the Setting's default profile →
+provider's → the Setting's default profile → the channel's
+`BaseChannel::default_connection()` (a captured CLI fingerprint) →
 `ConnectionConfig::default()`. A referenced profile that is missing or invalid
 fails the whole assembly.
 

@@ -333,11 +333,11 @@ async fn connection_chain(store: &Store<DatabaseConnection>) {
         .unwrap();
 }
 
-/// Credential profile → provider profile → channel default → Setting default
+/// Credential profile → provider profile → Setting default → channel default
 /// → built-in default. Clients are pooled by effective configuration, so
 /// pointer identity tells which configuration a credential resolved to.
 #[tokio::test]
-async fn channel_default_connection_sits_between_provider_profile_and_setting_default() {
+async fn setting_default_connection_overrides_the_channel_default() {
     let store = database().await;
     connection_chain(&store).await;
     let core = core(store).await;
@@ -346,15 +346,15 @@ async fn channel_default_connection_sits_between_provider_profile_and_setting_de
     let client = |id: &str| data.credentials[id].client.clone();
     assert!(
         Arc::ptr_eq(&client("fp_1"), &client("fp_2")),
-        "one client per channel default"
+        "one client per effective explicit profile"
     );
     assert!(
-        !Arc::ptr_eq(&client("fp_1"), &client("plain_1")),
-        "the channel default beats the Setting default the plain provider got"
+        Arc::ptr_eq(&client("fp_1"), &client("plain_1")),
+        "both inherit the explicit Setting default"
     );
     assert!(
-        !Arc::ptr_eq(&client("fp_1"), &client("fp_profiled_1")),
-        "a provider profile beats the channel default"
+        Arc::ptr_eq(&client("fp_1"), &client("fp_profiled_1")),
+        "the provider explicitly selects the same profile"
     );
     assert!(
         Arc::ptr_eq(&client("plain_1"), &client("fp_profiled_1")),
@@ -377,7 +377,7 @@ async fn provider_client_resolves_the_chain_without_a_credential() {
     let fingerprinted = core.provider_client("fp").await.unwrap();
     assert!(
         Arc::ptr_eq(&fingerprinted, &credential_client("fp_1")),
-        "the channel's default_connection built this client"
+        "the explicit Setting default built this client"
     );
     assert!(
         Arc::ptr_eq(
@@ -391,11 +391,11 @@ async fn provider_client_resolves_the_chain_without_a_credential() {
             &core.provider_client("fp_profiled").await.unwrap(),
             &credential_client("fp_profiled_1")
         ),
-        "a provider profile beats the channel default here too"
+        "the provider explicitly selects the same profile here too"
     );
     assert!(
-        !Arc::ptr_eq(&fingerprinted, &credential_client("plain_1")),
-        "the two chains must not collapse onto one client"
+        Arc::ptr_eq(&fingerprinted, &credential_client("plain_1")),
+        "both chains resolve to the same explicit Setting profile"
     );
     assert!(core.provider_client("absent").await.is_err());
 }

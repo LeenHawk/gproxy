@@ -49,8 +49,8 @@ profile、渠道为该凭证声明的 `QuotaDimension`，以及共享的 `Creden
 说明原因，`CoreError::CredentialDead` 告诉调用方需要有人重新登录。
 
 client 按凭证解析，先命中者胜、整份替换不逐字段合并：凭证的 `connection_profile_id` →
-Provider 的 → 渠道的 `BaseChannel::default_connection()`（claudecode 与 codex 内置的 CLI
-指纹）→ Setting 的默认 profile → `ConnectionConfig::default()`。引用的 profile 缺失或
+Provider 的 → Setting 的默认 profile → 渠道的 `BaseChannel::default_connection()`
+（内置 CLI 指纹）→ `ConnectionConfig::default()`。引用的 profile 缺失或
 非法时整次装配失败。
 
 可用性是每凭证一份 `CredentialBlocks` cache 载荷，加载时从 `credential_blocks` 行重建。
