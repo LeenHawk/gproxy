@@ -16,10 +16,6 @@ pub struct Model {
     pub user_id: Option<String>,
     #[sea_orm(indexed)]
     pub api_key_id: Option<String>,
-    /// Historical allocation at request time; changing the key's subscription
-    /// must not reattribute old usage. No configuration FK.
-    #[sea_orm(indexed)]
-    pub subscription_id: Option<String>,
     pub model: String,
     pub operation: String,
     pub metrics: Json,

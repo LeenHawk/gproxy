@@ -20,10 +20,7 @@ mod support;
 
 use gproxy_app::{
     App, Operations,
-    dto::{
-        PlanWrite, PoolWrite, PortalKeyCreate, PortalPasswordChange, PortalUsageQuery,
-        SubscriptionWrite, UserPatch, UserWrite,
-    },
+    dto::{PortalKeyCreate, PortalPasswordChange, PortalUsageQuery, UserPatch, UserWrite},
 };
 use gproxy_sdk::dto::{
     ExposedModelWrite, InstanceSettingsPatch, RouteMemberWrite, RouteWrite, SettingsPatch,
@@ -112,52 +109,6 @@ async fn context_renders_the_callers_own_memberships_and_roles() {
         !context.features.can_see_console,
         "a plain user is not offered the operator console"
     );
-}
-
-#[tokio::test]
-async fn context_reports_the_subscription_the_caller_actually_holds() {
-    let app = fixture().await;
-    {
-        let data = app.data();
-        let ops = Operations::new(app.gproxy(), &data, app.config());
-        ops.pools()
-            .create(PoolWrite {
-                id: Some("pool".into()),
-                name: "pool".into(),
-                ..PoolWrite::default()
-            })
-            .await
-            .unwrap();
-        ops.plans()
-            .create(PlanWrite {
-                id: Some("gold".into()),
-                pool_id: "pool".into(),
-                name: "Gold".into(),
-                ..PlanWrite::default()
-            })
-            .await
-            .unwrap();
-        for (id, user) in [("sub-alice", "alice"), ("sub-bob", "bob")] {
-            ops.subscriptions()
-                .create(SubscriptionWrite {
-                    id: Some(id.into()),
-                    user_id: user.into(),
-                    plan_id: "gold".into(),
-                    ..SubscriptionWrite::default()
-                })
-                .await
-                .unwrap();
-        }
-    }
-    app.reload_all().await.unwrap();
-
-    let alice = support::caller_for(&app, "ka").await;
-    let data = app.data();
-    let ops = Operations::new(app.gproxy(), &data, app.config());
-    let subscription = ops.portal(&alice).context().await.unwrap().subscription;
-    let subscription = subscription.expect("alice holds one");
-    assert_eq!(subscription.id, "sub-alice");
-    assert_eq!(subscription.plan_name.as_deref(), Some("Gold"));
 }
 
 // -------------------------------------------------------------- models ----

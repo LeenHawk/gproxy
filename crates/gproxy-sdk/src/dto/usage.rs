@@ -87,7 +87,6 @@ pub struct UsageRecordDto {
     pub request_id: String,
     pub user_id: Option<String>,
     pub api_key_id: Option<String>,
-    pub subscription_id: Option<String>,
     /// The name the caller asked for, falling back to the upstream model.
     pub model: String,
     pub operation: String,
@@ -123,7 +122,6 @@ impl From<usage_record::Model> for UsageRecordDto {
             request_id: row.request_id,
             user_id: row.user_id,
             api_key_id: row.api_key_id,
-            subscription_id: row.subscription_id,
             model: row.model,
             operation: row.operation,
             state: text(row.metrics.get("state")),
@@ -239,7 +237,6 @@ pub struct UsageRecordQuery {
     pub to_ms: Option<i64>,
     pub user_id: Option<String>,
     pub api_key_id: Option<String>,
-    pub subscription_id: Option<String>,
     pub model: Option<String>,
     pub operation: Option<String>,
     pub request_id: Option<String>,
@@ -259,7 +256,6 @@ pub struct UsageQuery {
     pub to_ms: Option<i64>,
     pub user_id: Option<String>,
     pub api_key_id: Option<String>,
-    pub subscription_id: Option<String>,
     pub model: Option<String>,
     pub operation: Option<String>,
     /// How many matching records the aggregation may read before it stops and
@@ -277,7 +273,6 @@ pub struct UsageQuery {
 pub enum UsageGroupBy {
     User,
     ApiKey,
-    Subscription,
     /// The name the caller asked for, as stored on the record.
     Model,
     Operation,

@@ -12,6 +12,5 @@ pub mod oauth;
 pub mod pricing;
 pub mod resource;
 pub mod routing;
-pub mod subscription;
 pub mod upstream;
 pub mod usage;

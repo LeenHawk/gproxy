@@ -8,16 +8,16 @@
  * not use is ignored rather than rejected. `page` is 1-based; both fields
  * have defaults, so an empty query is a valid first page.
  */
-export type ListQuery = { 
+export type ListQuery = {
 /**
  * 1-based. Zero and absent both mean the first page.
  */
-page: number | null, 
+page: number | null,
 /**
  * Clamped to 1..=500; absent means 50.
  */
-pageSize: number | null, 
+pageSize: number | null,
 /**
  * Case-insensitive substring of the family's natural name column.
  */
-search: string | null, userId: string | null, apiKeyId: string | null, organizationId: string | null, teamId: string | null, providerId: string | null, credentialId: string | null, poolId: string | null, planId: string | null, subscriptionId: string | null, enabled: boolean | null, };
+search: string | null, userId: string | null, apiKeyId: string | null, organizationId: string | null, teamId: string | null, providerId: string | null, credentialId: string | null, enabled: boolean | null, };

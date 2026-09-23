@@ -265,36 +265,6 @@ pub const ADMIN_SECTIONS: &[AdminSection] = &[
         capabilities: READ_WRITE,
     },
     AdminSection {
-        id: "subscriptions",
-        path: "/subscriptions",
-        minimum: SectionScope::Instance,
-        capabilities: READ_WRITE,
-    },
-    AdminSection {
-        id: "pools",
-        path: "/pools",
-        minimum: SectionScope::Instance,
-        capabilities: READ_WRITE,
-    },
-    AdminSection {
-        id: "pool-members",
-        path: "/pool-members",
-        minimum: SectionScope::Instance,
-        capabilities: READ_WRITE,
-    },
-    AdminSection {
-        id: "plans",
-        path: "/plans",
-        minimum: SectionScope::Instance,
-        capabilities: READ_WRITE,
-    },
-    AdminSection {
-        id: "plan-limits",
-        path: "/plan-limits",
-        minimum: SectionScope::Instance,
-        capabilities: READ_WRITE,
-    },
-    AdminSection {
         id: "oauth-clients",
         path: "/oauth-clients",
         minimum: SectionScope::Instance,

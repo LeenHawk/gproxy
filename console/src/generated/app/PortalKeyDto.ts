@@ -7,11 +7,11 @@
  * `user` keys, because an `oauth` key belongs to a grant and is managed by
  * revoking that grant.
  */
-export type PortalKeyDto = { id: string, name: string, 
+export type PortalKeyDto = { id: string, name: string,
 /**
  * The first characters of the key body, for telling two keys apart.
  */
-prefix: string, organizationId: string | null, teamId: string | null, subscriptionId: string | null, expiresAtMs: number | null, enabled: boolean, 
+prefix: string, organizationId: string | null, teamId: string | null, expiresAtMs: number | null, enabled: boolean,
 /**
  * Whether the instance retained a sealed copy, i.e. whether `reveal` can
  * answer for this key.

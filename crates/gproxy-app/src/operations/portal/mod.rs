@@ -80,8 +80,8 @@ use crate::{
     AppConfig, AppData, AppError, Caller, CallerKind, Result,
     auth::{Authenticator, IssuedSession, password as password_policy},
     dto::{
-        PortalContextDto, PortalFeaturesDto, PortalOrganizationDto, PortalSubscriptionDto,
-        PortalTeamDto, PortalUserDto, UserSessionDto,
+        PortalContextDto, PortalFeaturesDto, PortalOrganizationDto, PortalTeamDto, PortalUserDto,
+        UserSessionDto,
     },
 };
 
@@ -162,8 +162,8 @@ impl<'a, C> Portal<'a, C> {
 }
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Portal<'_, C> {
-    /// Everything a portal loads first: the caller, their scopes, their
-    /// subscription and what this instance offers them.
+    /// Everything a portal loads first: the caller, their scopes and
+    /// what this instance offers them.
     ///
     /// One database read — the settings row, for the recent-requests switch —
     /// and the rest from the snapshot the request already pinned.
@@ -210,7 +210,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Portal<'_, C> {
             },
             organizations,
             teams,
-            subscription: self.subscription(),
             features: self.features().await?,
         })
     }
@@ -231,31 +230,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Portal<'_, C> {
             .next()
             .flatten()
             .ok_or_else(|| AppError::not_found("user", &self.caller.user_id))
-    }
-
-    /// The subscription in force: the one the calling key selected, or — when
-    /// it selected none — the caller's own enabled subscription.
-    ///
-    /// Never somebody else's: the key-selected id was validated as the key
-    /// holder's when the key was bound, and the fallback is filtered by user
-    /// id here.
-    fn subscription(&self) -> Option<PortalSubscriptionDto> {
-        let data = self.data();
-        let row = match &self.caller.subscription_id {
-            Some(id) => data
-                .subscriptions
-                .get(id)
-                .filter(|row| row.user_id == self.caller.user_id)?,
-            None => data
-                .subscriptions
-                .values()
-                .filter(|row| row.user_id == self.caller.user_id && row.enabled)
-                // Deterministic when a user holds several: the newest wins,
-                // and the id breaks a tie within one millisecond.
-                .max_by(|a, b| (a.created_at_ms, &a.id).cmp(&(b.created_at_ms, &b.id)))?,
-        };
-        let plan_name = data.plans.get(&row.plan_id).map(|plan| plan.name.clone());
-        Some(PortalSubscriptionDto::new(row, plan_name))
     }
 
     /// The feature flags, from configuration and the caller's role. Nothing

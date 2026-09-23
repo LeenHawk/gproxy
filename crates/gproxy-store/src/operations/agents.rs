@@ -3,7 +3,6 @@ use crate::{
     Repository, Result, StoreError,
     entity::{
         resource::{agent_assignment as assignment, agent_session as session, resource_binding},
-        subscription::{pool, pool_member},
         upstream::{credential, provider},
     },
     error::invalid,
@@ -42,25 +41,6 @@ pub struct AssignmentFailure {
 }
 
 fn target_available(provider_id: Expr, credential_id: Expr) -> SelectStatement {
-    let member = Query::select()
-        .expr(Expr::val(1))
-        .from(pool_member::Entity)
-        .inner_join(
-            pool::Entity,
-            Expr::col((pool_member::Entity, pool_member::Column::PoolId))
-                .equals((pool::Entity, pool::Column::Id)),
-        )
-        .and_where(
-            Expr::col((pool_member::Entity, pool_member::Column::PoolId))
-                .equals((session::Entity, session::Column::PoolId)),
-        )
-        .and_where(
-            Expr::col((pool_member::Entity, pool_member::Column::CredentialId))
-                .equals((credential::Entity, credential::Column::Id)),
-        )
-        .and_where(pool_member::Column::Enabled.eq(true))
-        .and_where(pool::Column::Enabled.eq(true))
-        .to_owned();
     Query::select()
         .expr(Expr::val(1))
         .from(credential::Entity)
@@ -73,33 +53,14 @@ fn target_available(provider_id: Expr, credential_id: Expr) -> SelectStatement {
         .and_where(Expr::col((provider::Entity, provider::Column::Id)).eq(provider_id))
         .and_where(credential::Column::Enabled.eq(true))
         .and_where(provider::Column::Enabled.eq(true))
-        .cond_where(
-            Condition::any()
-                .add(session::Column::PoolId.is_null())
-                .add(Expr::exists(member)),
-        )
         .to_owned()
 }
 fn live_session(now: i64) -> Condition {
-    let mut subscriptions = super::oauth::eligible_subscriptions(now);
-    subscriptions.and_where(
-        Expr::col((
-            crate::entity::subscription::user_subscription::Entity,
-            crate::entity::subscription::user_subscription::Column::UserId,
-        ))
-        .equals((session::Entity, session::Column::UserId)),
-    );
-    Condition::all()
-        .add(
-            Condition::any()
-                .add(session::Column::ExpiresAtMs.is_null())
-                .add(session::Column::ExpiresAtMs.gt(now)),
-        )
-        .add(
-            Condition::any()
-                .add(session::Column::SubscriptionId.is_null())
-                .add(session::Column::SubscriptionId.in_subquery(subscriptions)),
-        )
+    Condition::all().add(
+        Condition::any()
+            .add(session::Column::ExpiresAtMs.is_null())
+            .add(session::Column::ExpiresAtMs.gt(now)),
+    )
 }
 fn proof(input: &AssignmentActivation, next: i64) -> SelectStatement {
     session::Entity::find_by_id(input.session_id.clone())
@@ -149,7 +110,7 @@ impl<C: BatchConnectionTrait> Repository<'_, C, session::Entity> {
             .collect()
     }
     /// Core establishes quota exhaustion/permissions. Store reserves the target
-    /// and generation atomically and rechecks target/pool/subscription liveness.
+    /// and generation atomically and rechecks target and session liveness.
     pub async fn reserve_assignments_many(
         &self,
         requests: Vec<AssignmentReservation>,

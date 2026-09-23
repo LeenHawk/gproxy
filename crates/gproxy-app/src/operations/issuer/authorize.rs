@@ -190,7 +190,7 @@ impl<C: BatchConnectionTrait> Issuer<'_, C> {
     /// the same transaction; None is the browser flow.
     ///
     /// The internal key is bound to **the caller's own binding**: their
-    /// organization, team and subscription, whatever they are. In practice the
+    /// organization and team, whatever they are. In practice the
     /// consent screen is a portal session, which carries none of those — a
     /// session acts as the person, not as a key — so the usual outcome is an
     /// unbound key that pays from the user's own chain. When an API-key caller
@@ -216,7 +216,6 @@ impl<C: BatchConnectionTrait> Issuer<'_, C> {
             api_key: api_key::ActiveModel {
                 id: Set(key_id.clone()),
                 user_id: Set(caller.user_id.clone()),
-                subscription_id: Set(caller.subscription_id.clone()),
                 organization_id: Set(caller.organization_id.clone()),
                 team_id: Set(caller.team_id.clone()),
                 name: Set(format!("oauth: {}", validated.client.name)),
@@ -266,7 +265,7 @@ impl<C: BatchConnectionTrait> Issuer<'_, C> {
             .unwrap_or(CasOutcome::Conflict);
         if outcome != CasOutcome::Applied {
             // The statements re-checked the client, the user, the allowlist,
-            // the subscription and — for a device flow — that the pending
+            // and — for a device flow — that the pending
             // authorization was still pending. One of them changed since
             // `validate` ran, which is exactly the race this batch exists to
             // lose safely.

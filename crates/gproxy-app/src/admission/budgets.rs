@@ -1,15 +1,15 @@
 //! Who a request is charged to.
 //!
 //! The chain is the calling key's binding read top to bottom, narrowest owner
-//! first: `api_key`, `user`, `subscription`, `team`, `org`. Core takes the
+//! first: `api_key`, `user`, `team`, `org`. Core takes the
 //! whole list and applies **every** enabled `quotas` row belonging to **any**
 //! owner in it, so the order here is not precedence — all of them must pass —
 //! it is the order the owners are reported in, which is what a log, an error
 //! and the console read.
 //!
-//! The kinds are the bare strings `api_key`, `user`, `subscription`, `team`
+//! The kinds are the bare strings `api_key`, `user`, `team`
 //! and `org`. Core compares them verbatim against `quotas.owner_kind` and
-//! knows no hierarchy between them, so these five spellings are a contract
+//! knows no hierarchy between them, so these four spellings are a contract
 //! with the rows an operator has already written: renaming one silently
 //! detaches every budget that names it.
 
@@ -21,7 +21,7 @@ use gproxy_core::BudgetOwner;
 ///
 /// A session caller has no key, so its chain starts at `user`. An OAuth-grant
 /// caller has the same chain as the key behind the grant — the grant's
-/// internal key id, its user, its subscription, its team, its organization —
+/// internal key id, its user, its team, its organization —
 /// because a grant spends the account it was issued against, not a budget of
 /// its own. Giving a grant its own budget owner would mean a limit that no
 /// operator wrote and that disappears when the grant is revoked.
@@ -34,14 +34,11 @@ use gproxy_core::BudgetOwner;
 /// exhaust an organization's allowance from a team key they never associated
 /// with it. An operator who wants both binds the key to both.
 pub fn chain(caller: &Caller) -> Vec<BudgetOwner> {
-    let mut owners = Vec::with_capacity(5);
+    let mut owners = Vec::with_capacity(4);
     if let Some(api_key_id) = &caller.api_key_id {
         owners.push(BudgetOwner::new("api_key", api_key_id));
     }
     owners.push(BudgetOwner::new("user", &caller.user_id));
-    if let Some(subscription_id) = &caller.subscription_id {
-        owners.push(BudgetOwner::new("subscription", subscription_id));
-    }
     if let Some(team_id) = &caller.team_id {
         owners.push(BudgetOwner::new("team", team_id));
     }
@@ -77,17 +74,6 @@ mod tests {
     }
 
     #[test]
-    fn a_subscription_sits_between_the_user_and_the_team() {
-        let mut key = caller("alice", "user");
-        key.subscription_id = Some("s1".into());
-        key.team_id = Some("core".into());
-        assert_eq!(
-            rendered(&key),
-            ["api_key:k1", "user:alice", "subscription:s1", "team:core"]
-        );
-    }
-
-    #[test]
     fn a_team_key_charges_the_team_and_not_its_parent_organization() {
         let mut key = caller("alice", "user");
         key.team_id = Some("core".into());
@@ -95,20 +81,13 @@ mod tests {
     }
 
     #[test]
-    fn the_whole_chain_is_five_owners_in_a_fixed_order() {
+    fn the_whole_chain_is_four_owners_in_a_fixed_order() {
         let mut key = caller("alice", "user");
-        key.subscription_id = Some("s1".into());
         key.team_id = Some("core".into());
         key.organization_id = Some("acme".into());
         assert_eq!(
             rendered(&key),
-            [
-                "api_key:k1",
-                "user:alice",
-                "subscription:s1",
-                "team:core",
-                "org:acme"
-            ]
+            ["api_key:k1", "user:alice", "team:core", "org:acme"]
         );
     }
 
@@ -135,11 +114,10 @@ mod tests {
     #[test]
     fn the_kinds_are_the_strings_the_quota_rows_hold() {
         let mut key = caller("alice", "user");
-        key.subscription_id = Some("s1".into());
         key.team_id = Some("core".into());
         key.organization_id = Some("acme".into());
         let owners = chain(&key);
         let kinds: Vec<&str> = owners.iter().map(|owner| owner.kind.as_str()).collect();
-        assert_eq!(kinds, ["api_key", "user", "subscription", "team", "org"]);
+        assert_eq!(kinds, ["api_key", "user", "team", "org"]);
     }
 }

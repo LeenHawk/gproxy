@@ -194,7 +194,6 @@ pub struct CaptureRecordDto {
     pub api_key_id: Option<String>,
     pub provider_id: Option<String>,
     pub credential_id: Option<String>,
-    pub pool_id: Option<String>,
     pub agent_assignment_id: Option<String>,
     pub model: Option<String>,
     pub operation: Option<String>,

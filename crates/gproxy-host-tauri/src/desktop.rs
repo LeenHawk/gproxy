@@ -270,7 +270,6 @@ async fn resolve_gateway_key(
             name: GATEWAY_KEY_NAME.to_owned(),
             organization_id: None,
             team_id: None,
-            subscription_id: None,
             expires_at_ms: None,
             enabled: Some(true),
             // The keychain is the copy that matters; the database keeping a
@@ -297,7 +296,6 @@ async fn local_administrator(app: &Arc<App<Connection>>) -> StartResult<Caller> 
         api_key_id: None,
         organization_id: None,
         team_id: None,
-        subscription_id: None,
         grant: None,
         kind: CallerKind::Session,
     })

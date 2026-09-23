@@ -116,7 +116,6 @@ fn person(user_id: &str) -> Caller {
         api_key_id: None,
         organization_id: None,
         team_id: None,
-        subscription_id: None,
         grant: None,
         kind: CallerKind::Session,
     }

@@ -168,7 +168,6 @@ where
         name: BOOTSTRAP_KEY_NAME.to_owned(),
         organization_id: None,
         team_id: None,
-        subscription_id: None,
         expires_at_ms: None,
         enabled: Some(true),
         // The operator is told the key once here, so there is no reason for the

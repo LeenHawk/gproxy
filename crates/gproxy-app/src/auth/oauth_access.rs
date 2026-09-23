@@ -10,8 +10,8 @@
 //! resolves the token and the whole chain behind it in one statement: the
 //! token is an access token, unexpired, unrevoked; the grant is unrevoked; the
 //! client is enabled and not soft-deleted; the user is enabled; the internal
-//! key is enabled, unexpired and of `kind = OAuth`; the subscription, if any,
-//! is eligible; and the client allowlist admits the pairing. A check done in
+//! key is enabled, unexpired and of `kind = OAuth`; and the client allowlist
+//! admits the pairing. A check done in
 //! the same statement as the read cannot be raced by a concurrent revocation.
 
 use super::{Authenticator, Caller, CallerKind, GrantContext};
@@ -58,7 +58,6 @@ impl<C: BatchConnectionTrait> Authenticator<'_, C> {
             api_key_id: Some(grant.api_key_id.clone()),
             organization_id: key.as_ref().and_then(|row| row.organization_id.clone()),
             team_id: key.as_ref().and_then(|row| row.team_id.clone()),
-            subscription_id: key.as_ref().and_then(|row| row.subscription_id.clone()),
             grant: Some(GrantContext {
                 grant_id: grant.id,
                 client_id: grant.client_id,
@@ -69,7 +68,7 @@ impl<C: BatchConnectionTrait> Authenticator<'_, C> {
         }))
     }
 
-    /// The grant's internal key binding: organization, team and subscription.
+    /// The grant's internal key binding: organization and team.
     ///
     /// The snapshot answers when it can. It often cannot: an OAuth key is
     /// created by the authorization that issued the grant, so a token redeemed
@@ -82,7 +81,6 @@ impl<C: BatchConnectionTrait> Authenticator<'_, C> {
             return Ok(Some(Binding {
                 organization_id: identity.organization_id.clone(),
                 team_id: identity.team_id.clone(),
-                subscription_id: identity.subscription_id.clone(),
             }));
         }
         let row = self
@@ -96,7 +94,6 @@ impl<C: BatchConnectionTrait> Authenticator<'_, C> {
         Ok(row.map(|row: api_key::Model| Binding {
             organization_id: row.organization_id,
             team_id: row.team_id,
-            subscription_id: row.subscription_id,
         }))
     }
 }
@@ -104,7 +101,6 @@ impl<C: BatchConnectionTrait> Authenticator<'_, C> {
 struct Binding {
     organization_id: Option<String>,
     team_id: Option<String>,
-    subscription_id: Option<String>,
 }
 
 /// `oauth_grants.scopes` is JSON. The issuer writes an array of strings; a

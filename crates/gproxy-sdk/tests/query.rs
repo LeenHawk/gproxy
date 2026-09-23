@@ -36,7 +36,6 @@ struct Seed<'a> {
     started_at_ms: i64,
     user_id: Option<&'a str>,
     api_key_id: Option<&'a str>,
-    subscription_id: Option<&'a str>,
     model: &'a str,
     operation: &'a str,
     /// input, output, cached input, reasoning.
@@ -53,7 +52,6 @@ impl Default for Seed<'_> {
             started_at_ms: 0,
             user_id: None,
             api_key_id: None,
-            subscription_id: None,
             model: "m-1",
             operation: "generate_content",
             tokens: (0, 0, 0, 0),
@@ -119,7 +117,6 @@ async fn usage(gproxy: &Handle, seed: Seed<'_>) {
             request_id: Set(seed.request_id.into()),
             user_id: Set(seed.user_id.map(str::to_owned)),
             api_key_id: Set(seed.api_key_id.map(str::to_owned)),
-            subscription_id: Set(seed.subscription_id.map(str::to_owned)),
             model: Set(seed.model.into()),
             operation: Set(seed.operation.into()),
             metrics: Set(metrics),

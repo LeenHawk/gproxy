@@ -4,11 +4,11 @@
  * A minted or rotated key. `token` is the only time the plaintext travels,
  * apart from an explicit reveal of a key that retained one.
  */
-export type PortalKeyCreated = { token: string, id: string, name: string, 
+export type PortalKeyCreated = { token: string, id: string, name: string,
 /**
  * The first characters of the key body, for telling two keys apart.
  */
-prefix: string, organizationId: string | null, teamId: string | null, subscriptionId: string | null, expiresAtMs: number | null, enabled: boolean, 
+prefix: string, organizationId: string | null, teamId: string | null, expiresAtMs: number | null, enabled: boolean,
 /**
  * Whether the instance retained a sealed copy, i.e. whether `reveal` can
  * answer for this key.

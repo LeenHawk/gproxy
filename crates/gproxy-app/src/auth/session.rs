@@ -2,7 +2,7 @@
 //!
 //! A session is the third caller kind and the only one that is not a key: it
 //! acts as the person. It therefore carries no `api_key_id` and no
-//! organization, team or subscription binding. That is not an omission — a key
+//! organization or team binding. That is not an omission — a key
 //! binding is a fixed scope chosen when the key was created, while a console
 //! user works across every organization they are a member of, and which one an
 //! operation touches is an argument of that operation, checked against
@@ -100,7 +100,6 @@ impl<C: BatchConnectionTrait> Authenticator<'_, C> {
             api_key_id: None,
             organization_id: None,
             team_id: None,
-            subscription_id: None,
             grant: None,
             kind: CallerKind::Session,
         })

@@ -450,16 +450,3 @@ pub(crate) fn one_subject(
         ))),
     }
 }
-
-/// A range whose ends are both known must not be inverted. An open end is not
-/// a range error: a subscription with no expiry is the normal case.
-pub(crate) fn ordered_range(start: Option<i64>, end: Option<i64>) -> Result<()> {
-    if let (Some(start), Some(end)) = (start, end)
-        && start > end
-    {
-        return Err(AppError::invalid(
-            "startsAtMs must not be after expiresAtMs",
-        ));
-    }
-    Ok(())
-}

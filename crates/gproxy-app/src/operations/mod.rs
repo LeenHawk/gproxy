@@ -1,5 +1,5 @@
 //! The identity write surface: users, gateway keys, organizations, teams,
-//! memberships, permissions, rate limits, subscriptions, pools, plans, OAuth
+//! memberships, permissions, rate limits, OAuth
 //! clients, sessions and the audit trail.
 //!
 //! Every family is `list / get / create / update / delete` over one table,
@@ -75,13 +75,10 @@ mod members;
 mod oauth_clients;
 mod organizations;
 mod permissions;
-mod plans;
-mod pools;
 pub mod portal;
 mod rate_limits;
 mod scoped;
 mod sessions;
-mod subscriptions;
 mod users;
 
 pub use api_keys::ApiKeys;
@@ -90,15 +87,12 @@ pub use members::{OrganizationMembers, TeamMembers};
 pub use oauth_clients::OAuthClients;
 pub use organizations::{Organizations, Teams};
 pub use permissions::Permissions;
-pub use plans::{PlanLimits, Plans};
-pub use pools::{PoolMembers, Pools};
 pub use portal::{
     MAX_PORTAL_MODELS, MAX_RECENT_REQUESTS, Portal, PortalKeys, PortalOAuthSessions, PortalPassword,
 };
 pub use rate_limits::RateLimits;
 pub use scoped::{ScopedCredentials, ScopedManage, ScopedQuotas};
 pub use sessions::Sessions;
-pub use subscriptions::Subscriptions;
 pub use users::Users;
 
 pub(crate) use crud::random_id;
@@ -129,8 +123,6 @@ pub enum Scope {
     /// Configured rate limits. The counters live in the cache and are not
     /// affected by a write.
     RateLimits,
-    /// Pools, plans, plan limits and issued subscriptions.
-    Subscriptions,
     /// The registered OAuth client list.
     OAuthClients,
 }
@@ -143,7 +135,6 @@ impl Scope {
             Self::Permissions => "permissions",
             Self::Keys => "keys",
             Self::RateLimits => "rate_limits",
-            Self::Subscriptions => "subscriptions",
             Self::OAuthClients => "oauth_clients",
         }
     }
@@ -224,21 +215,6 @@ impl<'a, C> Operations<'a, C> {
     }
     pub fn rate_limits(&self) -> RateLimits<'a, C> {
         RateLimits::new(self.writer())
-    }
-    pub fn subscriptions(&self) -> Subscriptions<'a, C> {
-        Subscriptions::new(self.writer())
-    }
-    pub fn pools(&self) -> Pools<'a, C> {
-        Pools::new(self.writer())
-    }
-    pub fn pool_members(&self) -> PoolMembers<'a, C> {
-        PoolMembers::new(self.writer())
-    }
-    pub fn plans(&self) -> Plans<'a, C> {
-        Plans::new(self.writer())
-    }
-    pub fn plan_limits(&self) -> PlanLimits<'a, C> {
-        PlanLimits::new(self.writer())
     }
     pub fn oauth_clients(&self) -> OAuthClients<'a, C> {
         OAuthClients::new(self.writer())
@@ -386,7 +362,6 @@ mod tests {
         assert_eq!(Scope::Permissions.name(), "permissions");
         assert_eq!(Scope::Keys.name(), "keys");
         assert_eq!(Scope::RateLimits.name(), "rate_limits");
-        assert_eq!(Scope::Subscriptions.name(), "subscriptions");
         assert_eq!(Scope::OAuthClients.name(), "oauth_clients");
     }
 

@@ -40,12 +40,9 @@ mod oauth;
 mod oauth_clients;
 mod organizations;
 mod permissions;
-mod plans;
-mod pools;
 mod portal;
 mod rate_limits;
 mod sessions;
-mod subscriptions;
 mod teams;
 mod users;
 
@@ -68,17 +65,14 @@ pub use oauth::{
 pub use oauth_clients::{OAuthClientDto, OAuthClientPatch, OAuthClientWrite};
 pub use organizations::{OrganizationDto, OrganizationPatch, OrganizationWrite};
 pub use permissions::{PermissionDto, PermissionPatch, PermissionWrite};
-pub use plans::{PlanDto, PlanLimitDto, PlanLimitPatch, PlanLimitWrite, PlanPatch, PlanWrite};
-pub use pools::{PoolDto, PoolMemberDto, PoolMemberPatch, PoolMemberWrite, PoolPatch, PoolWrite};
 pub use portal::{
     PortalContextDto, PortalFeaturesDto, PortalKeyCreate, PortalKeyCreated, PortalKeyDto,
     PortalKeySecretDto, PortalLogin, PortalModelDto, PortalOAuthSessionDto, PortalOrganizationDto,
-    PortalPasswordChange, PortalQuotaWindowDto, PortalRequestDto, PortalSessionDto,
-    PortalSubscriptionDto, PortalTeamDto, PortalUsageDto, PortalUsageQuery, PortalUserDto,
+    PortalPasswordChange, PortalQuotaWindowDto, PortalRequestDto, PortalSessionDto, PortalTeamDto,
+    PortalUsageDto, PortalUsageQuery, PortalUserDto,
 };
 pub use rate_limits::{RateLimitDto, RateLimitPatch, RateLimitWrite};
 pub use sessions::UserSessionDto;
-pub use subscriptions::{SubscriptionDto, SubscriptionPatch, SubscriptionWrite};
 pub use teams::{TeamDto, TeamPatch, TeamWrite};
 pub use users::{PasswordWrite, UserDto, UserPatch, UserWrite};
 

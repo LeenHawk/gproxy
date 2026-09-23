@@ -20,7 +20,7 @@
 use gproxy_sdk::dto::{
     LogEntryDto, UsageGroupBy, UsageGroupDto, UsageSummaryDto, UsageTrendPointDto,
 };
-use gproxy_store::entity::{identity::api_key, oauth::grant, subscription::user_subscription};
+use gproxy_store::entity::{identity::api_key, oauth::grant};
 use serde::{Deserialize, Serialize};
 
 use super::ApiKeyDto;
@@ -40,9 +40,6 @@ pub struct PortalContextDto {
     /// *not* listed here; the team is, with its `organizationId`.
     pub organizations: Vec<PortalOrganizationDto>,
     pub teams: Vec<PortalTeamDto>,
-    /// The subscription in force: the one the calling key selected, or the
-    /// caller's own enabled subscription when the key selected none.
-    pub subscription: Option<PortalSubscriptionDto>,
     pub features: PortalFeaturesDto,
 }
 
@@ -83,34 +80,6 @@ pub struct PortalTeamDto {
     /// `member` or `admin`, scoped to this team. An organization admin is not
     /// automatically a team admin.
     pub role: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
-pub struct PortalSubscriptionDto {
-    pub id: String,
-    pub plan_id: String,
-    /// The plan's display name, so a portal does not have to resolve the id.
-    /// None when the plan row is gone.
-    pub plan_name: Option<String>,
-    pub enabled: bool,
-    pub starts_at_ms: i64,
-    pub expires_at_ms: Option<i64>,
-}
-
-impl PortalSubscriptionDto {
-    pub(crate) fn new(row: &user_subscription::Model, plan_name: Option<String>) -> Self {
-        Self {
-            id: row.id.clone(),
-            plan_id: row.plan_id.clone(),
-            plan_name,
-            enabled: row.enabled,
-            starts_at_ms: row.starts_at_ms,
-            expires_at_ms: row.expires_at_ms,
-        }
-    }
 }
 
 /// What this instance lets this caller do, so a portal can hide a tab rather
@@ -181,7 +150,6 @@ pub struct PortalKeyDto {
     pub prefix: String,
     pub organization_id: Option<String>,
     pub team_id: Option<String>,
-    pub subscription_id: Option<String>,
     pub expires_at_ms: Option<i64>,
     pub enabled: bool,
     /// Whether the instance retained a sealed copy, i.e. whether `reveal` can
@@ -197,7 +165,6 @@ impl From<ApiKeyDto> for PortalKeyDto {
             prefix: key.prefix,
             organization_id: key.organization_id,
             team_id: key.team_id,
-            subscription_id: key.subscription_id,
             expires_at_ms: key.expires_at_ms,
             enabled: key.enabled,
             has_secret: key.has_secret,
@@ -328,7 +295,7 @@ pub struct PortalUsageDto {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct PortalQuotaWindowDto {
-    /// `api_key`, `user`, `subscription`, `team` or `org`.
+    /// `api_key`, `user`, `team` or `org`.
     pub owner_kind: String,
     pub owner_id: String,
     /// The budget's stable key within its owner, e.g. `primary`.

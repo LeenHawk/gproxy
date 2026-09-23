@@ -62,8 +62,6 @@ pub struct Model {
     pub team: BelongsTo<Option<crate::entity::identity::team::Entity>>,
     #[sea_orm(belongs_to, from = "user_id", to = "id", on_delete = "Cascade")]
     pub user: BelongsTo<Option<crate::entity::identity::user::Entity>>,
-    #[sea_orm(has_one)]
-    pub subscription_pool_member: HasOne<crate::entity::subscription::pool_member::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

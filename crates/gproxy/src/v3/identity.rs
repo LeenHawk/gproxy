@@ -445,7 +445,6 @@ where
             // addressed the key itself.
             organization_id: None,
             team_id: None,
-            subscription_id: None,
             expires_at_ms: row.config.expires_at,
             enabled: Some(row.config.enabled),
             retain_secret: None,

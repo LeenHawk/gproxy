@@ -114,7 +114,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ApiKeys<'_, C> {
     /// source kept a revealable copy; it is sealed exactly as a minted key's
     /// would be, so [`ApiKeys::reveal`] keeps answering after the migration.
     ///
-    /// Everything else — the user, the binding, the subscription, the revision
+    /// Everything else — the user, the binding, the revision
     /// commit — is [`ApiKeys::create`]'s, because it is the same code.
     pub async fn adopt_digest(
         &self,
@@ -173,9 +173,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ApiKeys<'_, C> {
         let team_id = crud::optional_text(write.team_id);
         self.validate_binding(&user_id, organization_id.as_deref(), team_id.as_deref())
             .await?;
-        let subscription_id = crud::optional_text(write.subscription_id);
-        self.validate_subscription(&user_id, subscription_id.as_deref())
-            .await?;
 
         let secret = match retained {
             Some(token) => Some(self.seal(&id, token)?),
@@ -184,7 +181,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ApiKeys<'_, C> {
         let row = api_key::ActiveModel {
             id: Set(id.clone()),
             user_id: Set(user_id),
-            subscription_id: Set(subscription_id),
             organization_id: Set(organization_id),
             team_id: Set(team_id),
             name: Set(crud::text(&write.name, "name")?),
@@ -329,34 +325,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ApiKeys<'_, C> {
         Ok(())
     }
 
-    /// A subscription a key selects has to be the key holder's own. The
-    /// entity says so and no foreign key can express it.
-    async fn validate_subscription(
-        &self,
-        user_id: &str,
-        subscription_id: Option<&str>,
-    ) -> Result<()> {
-        let Some(subscription_id) = subscription_id else {
-            return Ok(());
-        };
-        let row = self
-            .writer
-            .store()
-            .subscriptions()
-            .get_many(&[subscription_id.to_owned()])
-            .await?
-            .into_iter()
-            .next()
-            .flatten()
-            .ok_or_else(|| AppError::not_found("subscription", subscription_id))?;
-        if row.user_id != user_id {
-            return Err(AppError::invalid(format!(
-                "subscription `{subscription_id}` belongs to another user"
-            )));
-        }
-        Ok(())
-    }
-
     /// Snapshot first, database second.
     ///
     /// The snapshot can legitimately be a revision behind — a membership
@@ -454,9 +422,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for ApiKeys<'_, C
         if let Some(team_id) = crud::optional_text(query.team_id.clone()) {
             select = select.filter(api_key::Column::TeamId.eq(team_id));
         }
-        if let Some(subscription_id) = crud::optional_text(query.subscription_id.clone()) {
-            select = select.filter(api_key::Column::SubscriptionId.eq(subscription_id));
-        }
         if let Some(enabled) = query.enabled {
             select = select.filter(api_key::Column::Enabled.eq(enabled));
         }
@@ -495,9 +460,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for ApiKeys<'_, C
         if let Some(team_id) = patch.team_id.clone() {
             row.team_id = Set(crud::optional_text(team_id));
         }
-        if let Some(subscription_id) = patch.subscription_id {
-            row.subscription_id = Set(crud::optional_text(subscription_id));
-        }
         if let Some(expires_at_ms) = patch.expires_at_ms {
             row.expires_at_ms = Set(expires_at_ms);
         }
@@ -514,9 +476,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for ApiKeys<'_, C
             team_id.as_deref(),
         )
         .await?;
-        let subscription_id = resulting(&row.subscription_id, &current.subscription_id);
-        self.validate_subscription(&current.user_id, subscription_id.as_deref())
-            .await?;
         Ok(row)
     }
 }

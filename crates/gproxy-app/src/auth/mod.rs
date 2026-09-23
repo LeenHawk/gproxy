@@ -9,7 +9,7 @@
 //!   OAuth grant's internal key and is refused when presented as a bearer key;
 //! - an **OAuth access token**, resolved through the store's
 //!   `resolve_access_many`, which checks the grant's liveness, the client, the
-//!   user, the key and the subscription in the same statement that reads it;
+//!   user and the key in the same statement that reads it;
 //! - a **console or portal session**, backed by `user_sessions`, which acts as
 //!   the person rather than as a key.
 //!
@@ -52,7 +52,7 @@ use http::HeaderMap;
 /// Who is calling, after the credential has been checked and before anything
 /// has been decided about what they may do.
 ///
-/// `organization_id`, `team_id` and `subscription_id` come from the API key
+/// `organization_id` and `team_id` come from the API key
 /// row (or, for a grant, from the grant's internal key row) and never from a
 /// request header. That single binding decides the budget owner chain, the
 /// permission subject and the credential-visibility boundary at once, so a
@@ -67,7 +67,6 @@ pub struct Caller {
     pub api_key_id: Option<String>,
     pub organization_id: Option<String>,
     pub team_id: Option<String>,
-    pub subscription_id: Option<String>,
     /// Set only for [`CallerKind::OAuthGrant`], and what the issuer's scope
     /// policy is evaluated against.
     pub grant: Option<GrantContext>,
@@ -119,7 +118,6 @@ impl Caller {
             api_key_id: Some(identity.api_key_id.clone()),
             organization_id: identity.organization_id.clone(),
             team_id: identity.team_id.clone(),
-            subscription_id: identity.subscription_id.clone(),
             grant: None,
             kind: CallerKind::ApiKey,
         }
@@ -316,7 +314,6 @@ mod tests {
             api_key_id: Some("k1".into()),
             organization_id: None,
             team_id: None,
-            subscription_id: None,
             grant: None,
             kind: CallerKind::ApiKey,
         };

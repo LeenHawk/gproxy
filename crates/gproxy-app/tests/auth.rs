@@ -348,7 +348,6 @@ async fn an_access_token_resolves_to_its_grant_and_the_keys_binding() {
     assert_eq!(caller.api_key_id.as_deref(), Some("k-oauth"));
     assert_eq!(caller.team_id.as_deref(), Some("core"));
     assert_eq!(caller.organization_id, None);
-    assert_eq!(caller.subscription_id, None);
 
     let grant = caller.grant.as_ref().unwrap();
     assert_eq!(grant.grant_id, "g-bob");
@@ -430,7 +429,6 @@ async fn a_session_is_created_used_and_revoked() {
     assert_eq!(caller.api_key_id, None);
     assert_eq!(caller.organization_id, None);
     assert_eq!(caller.team_id, None);
-    assert_eq!(caller.subscription_id, None);
     assert_eq!(caller.subject().api_key_id, None);
 
     assert!(auth.revoke_session(&issued.token).await.unwrap());

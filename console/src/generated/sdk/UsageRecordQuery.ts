@@ -4,11 +4,11 @@
  * What a record listing filters on. Timestamps bound `started_at_ms`:
  * `from_ms` is inclusive, `to_ms` exclusive.
  */
-export type UsageRecordQuery = { fromMs: number | null, toMs: number | null, userId: string | null, apiKeyId: string | null, subscriptionId: string | null, model: string | null, operation: string | null, requestId: string | null, 
+export type UsageRecordQuery = { fromMs: number | null, toMs: number | null, userId: string | null, apiKeyId: string | null, model: string | null, operation: string | null, requestId: string | null,
 /**
  * 1-based. Zero and absent both mean the first page.
  */
-page: number | null, 
+page: number | null,
 /**
  * Clamped to 1..=500; absent means 50.
  */

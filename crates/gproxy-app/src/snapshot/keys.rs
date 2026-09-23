@@ -37,7 +37,6 @@ pub struct ApiKeyIdentity {
     pub user_role: String,
     pub organization_id: Option<String>,
     pub team_id: Option<String>,
-    pub subscription_id: Option<String>,
     /// `OAuth` keys carry a grant's identity and are not bearer API keys. The
     /// authentication layer refuses to accept one presented as a bearer key.
     pub kind: ApiKeyKind,
@@ -62,7 +61,6 @@ impl ApiKeyIdentity {
             user_role: user_role.to_string(),
             organization_id: key.organization_id.clone(),
             team_id: key.team_id.clone(),
-            subscription_id: key.subscription_id.clone(),
             kind: key.kind,
             enabled: key.enabled,
             expires_at_ms: key.expires_at_ms,
@@ -205,7 +203,6 @@ mod tests {
         api_key::Model {
             id: id.into(),
             user_id: user_id.into(),
-            subscription_id: None,
             organization_id: None,
             team_id: None,
             name: id.into(),
@@ -250,13 +247,11 @@ mod tests {
         let mut row = key_row("k1", "u1", "sk-live");
         row.organization_id = Some("org".into());
         row.team_id = Some("team".into());
-        row.subscription_id = Some("sub".into());
         row.kind = ApiKeyKind::OAuth;
         let index = ApiKeyIndex::build(&[row], &users(vec![user_row("u1", true)]), 0);
         let found = index.lookup(&digest_of("sk-live")).unwrap();
         assert_eq!(found.organization_id.as_deref(), Some("org"));
         assert_eq!(found.team_id.as_deref(), Some("team"));
-        assert_eq!(found.subscription_id.as_deref(), Some("sub"));
         assert_eq!(found.kind, ApiKeyKind::OAuth);
     }
 

@@ -4,7 +4,6 @@ use crate::{
     entity::{
         identity::{api_key, user},
         oauth::{client, code, device, grant, token},
-        subscription::{plan, pool, user_subscription},
     },
     error::{invalid, receipt},
     repository::affected,
@@ -103,45 +102,11 @@ fn equality<
     Expr::col(a).equals(b)
 }
 
-pub(crate) fn eligible_subscriptions(now: i64) -> SelectStatement {
-    Query::select()
-        .column((user_subscription::Entity, user_subscription::Column::Id))
-        .from(user_subscription::Entity)
-        .inner_join(
-            plan::Entity,
-            equality(
-                (user_subscription::Entity, user_subscription::Column::PlanId),
-                (plan::Entity, plan::Column::Id),
-            ),
-        )
-        .inner_join(
-            pool::Entity,
-            equality(
-                (plan::Entity, plan::Column::PoolId),
-                (pool::Entity, pool::Column::Id),
-            ),
-        )
-        .and_where(user_subscription::Column::Enabled.eq(true))
-        .and_where(user_subscription::Column::StartsAtMs.lte(now))
-        .cond_where(
-            Condition::any()
-                .add(user_subscription::Column::ExpiresAtMs.is_null())
-                .add(user_subscription::Column::ExpiresAtMs.gt(now)),
-        )
-        .and_where(pool::Column::Enabled.eq(true))
-        .to_owned()
-}
-
 fn live_grants(
     backend: sea_orm::DbBackend,
     now: i64,
     selected_client: Option<&str>,
 ) -> Result<SelectStatement> {
-    let mut subscriptions = eligible_subscriptions(now);
-    subscriptions.and_where(equality(
-        (user_subscription::Entity, user_subscription::Column::UserId),
-        (grant::Entity, grant::Column::UserId),
-    ));
     let mut query = Query::select();
     query
         .column((grant::Entity, grant::Column::Id))
@@ -186,11 +151,6 @@ fn live_grants(
             Condition::any()
                 .add(api_key::Column::ExpiresAtMs.is_null())
                 .add(api_key::Column::ExpiresAtMs.gt(now)),
-        )
-        .cond_where(
-            Condition::any()
-                .add(api_key::Column::SubscriptionId.is_null())
-                .add(api_key::Column::SubscriptionId.in_subquery(subscriptions)),
         );
     if let Some(id) = selected_client {
         query.and_where(grant::Column::ClientId.eq(id));
@@ -517,13 +477,6 @@ impl<C: BatchConnectionTrait> Repository<'_, C, grant::Entity> {
                     Expr::val(user_id.clone()),
                     Expr::val(client_id.clone()),
                 )?);
-            if let Some(Some(subscription)) = auth.api_key.subscription_id.try_as_ref().cloned() {
-                let mut eligible = eligible_subscriptions(auth.now_ms);
-                eligible
-                    .and_where(user_subscription::Column::Id.eq(subscription))
-                    .and_where(user_subscription::Column::UserId.eq(user_id));
-                allowed = allowed.add(Expr::exists(eligible));
-            }
             let receipt = receipt()?;
             indices.push(batch.len());
             if let Some(device) = &auth.device {

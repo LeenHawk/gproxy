@@ -1,12 +1,8 @@
 {
   "overview": {
     "title": "你好，{{name}}",
-    "subscription": "订阅",
     "usage": "最近七天",
-    "quota": "预算",
-    "noSubscription": "这个账号当前没有生效的订阅。",
-    "noExpiry": "不过期",
-    "expires": "{{at}} 到期"
+    "quota": "预算"
   },
   "keys": {
     "emptyTitle": "还没有密钥",

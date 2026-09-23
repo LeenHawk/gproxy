@@ -148,6 +148,5 @@ pub enum UsageState {
 pub struct UsageAttribution {
     pub user_id: Option<String>,
     pub api_key_id: Option<String>,
-    pub subscription_id: Option<String>,
     pub model: Option<String>,
 }

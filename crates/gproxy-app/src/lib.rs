@@ -1,6 +1,6 @@
 //! The GPROXY v4 product layer: who is calling, what they may do, and the
 //! operations that change that. It owns identity (users, gateway API keys,
-//! organizations, teams, permissions, subscriptions, rate limits, the OAuth
+//! organizations, teams, permissions, rate limits, the OAuth
 //! issuer, audit), admission, and the typed admin/portal/issuer operations.
 //!
 //! What it deliberately does not own: an HTTP framework, a router, a runtime,

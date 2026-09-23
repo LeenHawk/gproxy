@@ -6,7 +6,7 @@
 //!
 //! The field lists are the DTOs' write and patch shapes, in the DTO's order.
 //! Where a column is immutable the field is `createOnly` (a team's
-//! organization, a subscription's user), and where it is nullable the field is
+//! organization), and where it is nullable the field is
 //! `nullable`, which is what makes an emptied input send the `null` that
 //! `double_option` turns into "clear it".
 
@@ -21,15 +21,13 @@ import { IdCell } from "@/components/data-table"
 import { SecretDialog } from "@/components/secret-dialog"
 import { Button } from "@/components/ui/button"
 import type {
-  ApiKeyCreated, ApiKeyDto, OAuthClientDto, OrganizationDto, PermissionDto, PlanDto,
-  PoolDto, RateLimitDto, SubscriptionDto, TeamDto, UserDto,
+  ApiKeyCreated, ApiKeyDto, OAuthClientDto, OrganizationDto, PermissionDto, RateLimitDto, TeamDto, UserDto,
 } from "@/generated/app"
 import { CollectionPage } from "@/pages/identity/collection"
 import { MembersDialog } from "@/pages/identity/members"
 
 const ROLES = ["user", "admin"] as const
 const ACTIONS = ["allow", "deny"] as const
-const PERIODS = ["total", "fixed", "day", "week", "month"] as const
 
 // ----------------------------------------------------------------- users --
 
@@ -103,7 +101,6 @@ export function ApiKeysPage() {
           { name: "name", kind: "text", required: true },
           { name: "organizationId", kind: "text", nullable: true },
           { name: "teamId", kind: "text", nullable: true },
-          { name: "subscriptionId", kind: "text", nullable: true },
           { name: "expiresAtMs", kind: "datetime", nullable: true },
           { name: "enabled", kind: "switch" },
           { name: "retainSecret", kind: "switch", createOnly: true },
@@ -262,144 +259,6 @@ export function RateLimitsPage() {
         { name: "userId", kind: "text", nullable: true },
         { name: "apiKeyId", kind: "text", nullable: true },
         { name: "modelPattern", kind: "text", nullable: true },
-        { name: "enabled", kind: "switch" },
-      ]}
-    />
-  )
-}
-
-// ----------------------------------------------------------------- plans --
-
-export function PlansPage() {
-  return (
-    <CollectionPage
-      id="plans"
-      family={admin.plans}
-      searchable
-      rowId={(row: PlanDto) => row.id}
-      rowLabel={(row) => row.name}
-      columns={[
-        { key: "name", cell: (row) => row.name },
-        { key: "poolId", cell: (row) => <IdCell value={row.poolId} /> },
-        { key: "codexPlanType", cell: (row) => <MaybeCell value={row.codexPlanType} /> },
-        { key: "claudeSubscriptionType", cell: (row) => <MaybeCell value={row.claudeSubscriptionType} /> },
-        { key: "enabled", cell: (row) => <BoolCell value={row.enabled} /> },
-        { key: "id", cell: (row) => <IdCell value={row.id} /> },
-      ]}
-      fields={[
-        { name: "poolId", kind: "text", required: true },
-        { name: "name", kind: "text", required: true },
-        { name: "codexPlanType", kind: "text", nullable: true },
-        { name: "claudeSubscriptionType", kind: "text", nullable: true },
-        { name: "claudeRateLimitTier", kind: "text", nullable: true },
-        { name: "enabled", kind: "switch" },
-      ]}
-    />
-  )
-}
-
-/** A plan's allowances. Its own family, as `/admin/api/plan-limits` is. */
-export function PlanLimitsPage() {
-  return (
-    <CollectionPage
-      id="plan-limits"
-      family={admin.planLimits}
-      rowId={(row) => row.id}
-      rowLabel={(row) => row.windowKey}
-      columns={[
-        { key: "planId", cell: (row) => <IdCell value={row.planId} /> },
-        { key: "windowKey", cell: (row) => row.windowKey },
-        { key: "limit", cell: (row) => <IdCell value={row.limit} /> },
-        { key: "period", cell: (row) => <MaybeCell value={row.period} /> },
-        { key: "periodSeconds", cell: (row) => <MaybeCell value={row.periodSeconds?.toString() ?? null} /> },
-        { key: "modelPattern", cell: (row) => <MaybeCell value={row.modelPattern} mono /> },
-      ]}
-      fields={[
-        { name: "planId", kind: "text", required: true, createOnly: true },
-        { name: "windowKey", kind: "text", required: true },
-        { name: "limit", kind: "text", required: true },
-        { name: "period", kind: "select", options: PERIODS, required: true },
-        { name: "periodSeconds", kind: "number", nullable: true },
-        { name: "modelPattern", kind: "text", nullable: true },
-      ]}
-    />
-  )
-}
-
-// --------------------------------------------------------- subscriptions --
-
-export function SubscriptionsPage() {
-  return (
-    <CollectionPage
-      id="subscriptions"
-      family={admin.subscriptions}
-      rowId={(row: SubscriptionDto) => row.id}
-      rowLabel={(row) => row.id}
-      columns={[
-        { key: "userId", cell: (row) => <IdCell value={row.userId} /> },
-        { key: "planId", cell: (row) => <IdCell value={row.planId} /> },
-        { key: "enabled", cell: (row) => <BoolCell value={row.enabled} /> },
-        { key: "startsAtMs", cell: (row) => <InstantCell value={row.startsAtMs} /> },
-        { key: "expiresAtMs", cell: (row) => <InstantCell value={row.expiresAtMs} /> },
-        { key: "id", cell: (row) => <IdCell value={row.id} /> },
-      ]}
-      fields={[
-        { name: "userId", kind: "text", required: true, createOnly: true },
-        { name: "planId", kind: "text", required: true },
-        { name: "enabled", kind: "switch" },
-        { name: "startsAtMs", kind: "datetime" },
-        { name: "expiresAtMs", kind: "datetime", nullable: true },
-      ]}
-    />
-  )
-}
-
-// ----------------------------------------------------------------- pools --
-
-export function PoolsPage() {
-  return (
-    <CollectionPage
-      id="pools"
-      family={admin.pools}
-      searchable
-      rowId={(row: PoolDto) => row.id}
-      rowLabel={(row) => row.name}
-      columns={[
-        { key: "name", cell: (row) => row.name },
-        { key: "enabled", cell: (row) => <BoolCell value={row.enabled} /> },
-        { key: "createdAtMs", cell: (row) => <InstantCell value={row.createdAtMs} /> },
-        { key: "id", cell: (row) => <IdCell value={row.id} /> },
-      ]}
-      fields={[
-        { name: "name", kind: "text", required: true },
-        { name: "enabled", kind: "switch" },
-      ]}
-    />
-  )
-}
-
-/**
- * The upstream subscriptions a pool draws on. `sourceKey` is the canonical
- * issuer plus upstream subscription identity, which is what deduplicates one
- * real subscription imported under several credentials.
- */
-export function PoolMembersPage() {
-  return (
-    <CollectionPage
-      id="pool-members"
-      family={admin.poolMembers}
-      rowId={(row) => row.id}
-      rowLabel={(row) => row.sourceKey}
-      columns={[
-        { key: "poolId", cell: (row) => <IdCell value={row.poolId} /> },
-        { key: "credentialId", cell: (row) => <IdCell value={row.credentialId} /> },
-        { key: "sourceKey", cell: (row) => <IdCell value={row.sourceKey} /> },
-        { key: "enabled", cell: (row) => <BoolCell value={row.enabled} /> },
-      ]}
-      fields={[
-        { name: "poolId", kind: "text", required: true },
-        { name: "credentialId", kind: "text", required: true },
-        { name: "sourceKey", kind: "text", required: true },
         { name: "enabled", kind: "switch" },
       ]}
     />

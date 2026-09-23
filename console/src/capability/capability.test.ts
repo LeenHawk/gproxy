@@ -7,7 +7,6 @@ function context(overrides: Partial<PortalContextDto> = {}): PortalContextDto {
     user: { id: "u1", name: "ada", role: "user", hasPassword: true },
     organizations: [],
     teams: [],
-    subscription: null,
     features: { canCreateKeys: true, canChangePassword: true, canSeeLogs: true, canSeeConsole: false },
     ...overrides,
   }

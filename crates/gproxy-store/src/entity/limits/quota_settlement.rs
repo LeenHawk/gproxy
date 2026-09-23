@@ -1,6 +1,4 @@
 //! A request contribution to a quota window. Independent of removable usage-detail records.
-//! Subscription quotas use downstream request/turn IDs; pool quotas use actual
-//! upstream CaptureRecord IDs, so shared calls are not counted per downstream link.
 
 use gproxy_seaorm::FixedDecimal;
 use sea_orm::entity::prelude::*;

@@ -34,10 +34,6 @@ pub struct Model {
     pub provider_id: Option<String>,
     #[sea_orm(indexed)]
     pub credential_id: Option<String>,
-    /// Historical backing pool for upstream work, used for physical pool settlement.
-    /// Retained independently of later membership/configuration changes.
-    #[sea_orm(indexed)]
-    pub pool_id: Option<String>,
     /// Historical agent assignment pinned when this call/socket/turn began.
     /// Never rewritten after a handoff; distinct from the captured WS session_id.
     #[sea_orm(indexed)]

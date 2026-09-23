@@ -54,7 +54,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Usage<'_, C> {
             to_ms: query.to_ms,
             user_id: filter(&query.user_id),
             api_key_id: filter(&query.api_key_id),
-            subscription_id: filter(&query.subscription_id),
             model: filter(&query.model),
             operation: filter(&query.operation),
             request_id: filter(&query.request_id),
@@ -265,7 +264,6 @@ struct Filters<'a> {
     to_ms: Option<i64>,
     user_id: Option<&'a str>,
     api_key_id: Option<&'a str>,
-    subscription_id: Option<&'a str>,
     model: Option<&'a str>,
     operation: Option<&'a str>,
     request_id: Option<&'a str>,
@@ -278,7 +276,6 @@ impl<'a> From<&'a UsageQuery> for Filters<'a> {
             to_ms: query.to_ms,
             user_id: filter(&query.user_id),
             api_key_id: filter(&query.api_key_id),
-            subscription_id: filter(&query.subscription_id),
             model: filter(&query.model),
             operation: filter(&query.operation),
             request_id: None,
@@ -304,9 +301,6 @@ impl Filters<'_> {
         if let Some(api_key_id) = self.api_key_id {
             condition = condition.add(C::ApiKeyId.eq(api_key_id));
         }
-        if let Some(subscription_id) = self.subscription_id {
-            condition = condition.add(C::SubscriptionId.eq(subscription_id));
-        }
         if let Some(model) = self.model {
             condition = condition.add(C::Model.eq(model));
         }
@@ -326,7 +320,7 @@ fn key_of(row: &usage_record::Model, group_by: UsageGroupBy) -> Option<String> {
     match group_by {
         UsageGroupBy::User => row.user_id.clone(),
         UsageGroupBy::ApiKey => row.api_key_id.clone(),
-        UsageGroupBy::Subscription => row.subscription_id.clone(),
+
         UsageGroupBy::Model => Some(row.model.clone()),
         UsageGroupBy::Operation => Some(row.operation.clone()),
         // Handled by `group_by_provider`: a provider is not a column.

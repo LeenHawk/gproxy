@@ -8,7 +8,6 @@ function derived(role: string, canSeeLogs = true) {
     user: { id: "u1", name: "ada", role, hasPassword: true },
     organizations: [],
     teams: [],
-    subscription: null,
     features: { canCreateKeys: true, canChangePassword: true, canSeeLogs, canSeeConsole: false },
   }
   return consoleContext(context)
@@ -22,7 +21,7 @@ describe("the navigation", () => {
 
   it("groups operator navigation by task", () => {
     const sections = sectionsFor(derived("admin"))
-    expect(sections.map((section) => section.id)).toEqual(["self", "providers", "people", "access", "billing", "system"])
+    expect(sections.map((section) => section.id)).toEqual(["self", "providers", "people", "access", "system"])
   })
 
   // `canSeeLogs` is an instance setting, not a role: the item disappears

@@ -102,20 +102,6 @@ exported!(
     PermissionDto,
     PermissionPatch,
     PermissionWrite,
-    // plans
-    PlanDto,
-    PlanLimitDto,
-    PlanLimitPatch,
-    PlanLimitWrite,
-    PlanPatch,
-    PlanWrite,
-    // pools
-    PoolDto,
-    PoolMemberDto,
-    PoolMemberPatch,
-    PoolMemberWrite,
-    PoolPatch,
-    PoolWrite,
     // portal
     PortalContextDto,
     PortalFeaturesDto,
@@ -131,7 +117,6 @@ exported!(
     PortalQuotaWindowDto,
     PortalRequestDto,
     PortalSessionDto,
-    PortalSubscriptionDto,
     PortalTeamDto,
     PortalUsageDto,
     PortalUsageQuery,
@@ -142,10 +127,6 @@ exported!(
     RateLimitWrite,
     // sessions
     UserSessionDto,
-    // subscriptions
-    SubscriptionDto,
-    SubscriptionPatch,
-    SubscriptionWrite,
     // teams
     TeamDto,
     TeamPatch,
