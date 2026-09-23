@@ -162,16 +162,48 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
         // The body has to be read to the end before the funnel can settle, and
         // a failure's body is also the only place the upstream says why.
         let payload = read(response.body, TRACE_MAX_BYTES).await;
-        let usage = rt::timeout(TRACE_TIMEOUT, settled)
+        let report = rt::timeout(TRACE_TIMEOUT, settled)
             .await
-            .and_then(Result::ok)
-            .and_then(|report| reported(&report));
+            .and_then(Result::ok);
+        let usage = report.as_ref().and_then(reported);
+        let credential_label = report
+            .as_ref()
+            .and_then(|r| r.exchanges.first())
+            .and_then(|e| snapshot.credentials.get(&e.credential_id))
+            .map(|c| c.label.clone().unwrap_or_else(|| c.id.clone()));
+        let reply = serde_json::from_slice::<Value>(&payload)
+            .ok()
+            .and_then(|v| {
+                v.pointer("/choices/0/message/content")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+                    .or_else(|| {
+                        v.get("content").and_then(Value::as_array).map(|a| {
+                            a.iter()
+                                .filter_map(|x| x.get("text").and_then(Value::as_str))
+                                .collect::<Vec<_>>()
+                                .join("")
+                        })
+                    })
+                    .or_else(|| {
+                        v.pointer("/output/0/content/0/text")
+                            .and_then(Value::as_str)
+                            .map(str::to_owned)
+                    })
+                    .or_else(|| {
+                        v.pointer("/candidates/0/content/parts/0/text")
+                            .and_then(Value::as_str)
+                            .map(str::to_owned)
+                    })
+            });
         Ok(ModelTestResultDto {
             ok: status.is_success(),
             latency_ms: elapsed(started),
             status: status.as_u16(),
             model,
             usage,
+            reply,
+            credential_label,
             error: (!status.is_success()).then(|| upstream_error(status, &payload)),
         })
     }
@@ -237,6 +269,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
             .map(|upstream_name| DiscoveredModelDto {
                 known: known.contains(upstream_name.as_str()),
                 has_default_price: catalog::has_default_price(&upstream_name),
+                metadata: discovered_metadata(dialect, &document, &upstream_name),
                 upstream_name,
             })
             .collect())
@@ -374,6 +407,15 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
         credentials: Vec<Arc<CredentialData>>,
         upstream_model: Option<String>,
     ) -> Arc<RequestContext> {
+        let requested_model = upstream_model.clone();
+        let upstream_model = upstream_model.map(|name| {
+            provider
+                .models
+                .iter()
+                .find(|m| m.enabled && m.variant_names().contains(&name.as_str()))
+                .map(|m| m.upstream_name.clone())
+                .unwrap_or(name)
+        });
         Arc::new(RequestContext {
             request_id: crate::ids::random_id(),
             attribution: UsageAttribution {
@@ -386,6 +428,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
             session: None,
             operation,
             target: ExecutionTarget {
+                requested_model,
                 provider: provider.clone(),
                 upstream_model,
                 credentials,
@@ -619,4 +662,60 @@ fn upstream_error(status: http::StatusCode, body: &[u8]) -> String {
 
 fn elapsed(started: Instant) -> u64 {
     u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX)
+}
+
+fn discovered_metadata(dialect: Dialect, document: &Value, name: &str) -> Value {
+    let list = if dialect == Dialect::Gemini {
+        "models"
+    } else {
+        "data"
+    };
+    let item = document
+        .get(list)
+        .and_then(Value::as_array)
+        .and_then(|rows| {
+            rows.iter().find(|row| {
+                row.get("id")
+                    .or_else(|| row.get("name"))
+                    .and_then(Value::as_str)
+                    .is_some_and(|n| n.trim_start_matches("models/") == name)
+            })
+        });
+    let mut result = serde_json::Map::new();
+    if let Some(item) = item {
+        for (key, aliases) in [
+            ("display_name", &["display_name", "displayName"][..]),
+            ("description", &["description"][..]),
+            (
+                "context_window",
+                &["context_window", "max_input_tokens", "inputTokenLimit"][..],
+            ),
+            (
+                "max_output_tokens",
+                &["max_output_tokens", "max_tokens", "outputTokenLimit"][..],
+            ),
+            (
+                "thinking_supported",
+                &["thinking_supported", "thinking"][..],
+            ),
+            ("input_modalities", &["input_modalities"][..]),
+            ("output_modalities", &["output_modalities"][..]),
+            ("supported_parameters", &["supported_parameters"][..]),
+            ("reasoning_levels", &["reasoning_levels"][..]),
+            ("service_tiers", &["service_tiers"][..]),
+            (
+                "generation_methods",
+                &["generation_methods", "supportedGenerationMethods"][..],
+            ),
+        ] {
+            if let Some(value) = aliases
+                .iter()
+                .find_map(|alias| item.get(alias))
+                .filter(|v| !v.is_null())
+            {
+                result.insert(key.into(), value.clone());
+            }
+        }
+    }
+    Value::Object(result)
 }

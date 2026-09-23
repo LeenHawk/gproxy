@@ -126,7 +126,9 @@
     "header": "Header",
     "query": "Query",
     "http": "HTTP",
-    "websocket": "WebSocket"
+    "websocket": "WebSocket",
+    "replace": "Replace text",
+    "set": "Set field"
   },
   "fields": {
     "action": "Action",

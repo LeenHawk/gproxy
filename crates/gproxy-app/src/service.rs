@@ -276,6 +276,7 @@ impl<C: BatchConnectionTrait + Send + Sync> App<C> {
         Ok((
             plan,
             ExecutionTarget {
+                requested_model: None,
                 provider,
                 // A service has no model.
                 upstream_model: None,

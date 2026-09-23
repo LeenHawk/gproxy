@@ -103,7 +103,7 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
     let rewrite_context = RewriteContext {
         operation,
         upstream_model: upstream_model.as_deref(),
-        requested_model: None,
+        requested_model: request.target.requested_model.as_deref(),
         request_headers: &inbound_headers,
     };
     let request_rules = select_rules(&snapshot, &provider, Phase::Request, &rewrite_context);
@@ -603,7 +603,28 @@ impl Sink<WsFrame> for ObservedSink {
         if frame_len(&frame) as u64 > self.max {
             return Err(transport_error("frame exceeds the frame limit"));
         }
-        let frame = rewrite_text(&self.rules, frame)?;
+        let mut frame = rewrite_text(&self.rules, frame)?;
+        if let (WsFrame::Text(text), Some(model)) = (
+            &mut frame,
+            self.exchange
+                .context
+                .attempt
+                .request
+                .target
+                .upstream_model
+                .as_deref(),
+        ) {
+            if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(text) {
+                if value.get("type").and_then(serde_json::Value::as_str) == Some("response.create")
+                {
+                    value["model"] = serde_json::Value::String(model.into());
+                    *text = value.to_string();
+                }
+            }
+        }
+        if frame_len(&frame) as u64 > self.max {
+            return Err(transport_error("rewritten frame exceeds the frame limit"));
+        }
         if self.exchange.wants_full_capture() {
             self.exchange.record(CaptureEvent::Frame {
                 direction: CaptureDirection::Request,

@@ -146,6 +146,7 @@ fn rule_model(
         id: crud::id_or_new(write.id.as_deref()),
         rule_set_id: rule_set_id.to_owned(),
         phase,
+        action: write.action.unwrap_or_else(|| "replace".into()),
         target,
         target_name: crud::optional_text(write.target_name),
         paths: write.paths,
@@ -170,6 +171,7 @@ fn active_rule(model: rewrite_rule::Model) -> rewrite_rule::ActiveModel {
         id: Set(model.id),
         rule_set_id: Set(model.rule_set_id),
         phase: Set(model.phase),
+        action: Set(model.action),
         target: Set(model.target),
         target_name: Set(model.target_name),
         paths: Set(model.paths),
@@ -376,6 +378,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for RewriteRules<
         patch: RewriteRulePatch,
     ) -> SdkResult<rewrite_rule::ActiveModel> {
         let mut merged = current.clone();
+        if let Some(action) = patch.action {
+            merged.action = action;
+        }
         if let Some(phase) = patch.phase {
             let phase = crud::text(&phase, "phase")?.to_ascii_lowercase();
             if !PHASES.contains(&phase.as_str()) {

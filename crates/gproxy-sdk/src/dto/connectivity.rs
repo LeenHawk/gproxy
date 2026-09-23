@@ -93,6 +93,8 @@ pub struct ModelTestResultDto {
     /// What the upstream reported it spent. Absent when it reported nothing,
     /// which is not the same as zero.
     pub usage: Option<UsageTokensDto>,
+    pub reply: Option<String>,
+    pub credential_label: Option<String>,
     pub error: Option<String>,
 }
 
@@ -108,4 +110,6 @@ pub struct DiscoveredModelDto {
     /// Whether the bundled catalog can price it without an operator writing a
     /// rule by hand.
     pub has_default_price: bool,
+    #[cfg_attr(feature = "ts", ts(type = "Record<string, unknown>"))]
+    pub metadata: serde_json::Value,
 }

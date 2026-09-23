@@ -146,6 +146,7 @@ fn context(
     let target = h.target("p");
     Arc::new(RequestContext {
         target: ExecutionTarget {
+            requested_model: None,
             upstream_model: Some(model.into()),
             credentials: target
                 .credentials

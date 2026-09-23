@@ -17,6 +17,8 @@ pub use stream::StreamRewriter;
 
 #[derive(Debug, thiserror::Error)]
 pub enum RewriteError {
+    #[error("invalid JSON for set rule: {0}")]
+    InvalidJson(String),
     /// A selected header value is not visible ASCII/UTF-8; it is never decoded lossily.
     #[error("header `{0}` has a value that cannot be processed as text")]
     NonTextHeader(String),

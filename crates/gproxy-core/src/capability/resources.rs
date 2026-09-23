@@ -182,7 +182,7 @@ impl<C: Send + Sync> Upstream for ScopeUpstream<'_, C> {
             let context = RewriteContext {
                 operation: *target,
                 upstream_model: self.scope.target.upstream_model.as_deref(),
-                requested_model: None,
+                requested_model: self.scope.target.requested_model.as_deref(),
                 request_headers: &empty,
             };
             let request_rules = select_rules(&snapshot, provider, Phase::Request, &context);

@@ -185,6 +185,7 @@ async fn repeated_server_errors_trip_a_failure_block_and_the_last_answer_is_retu
     let ctx = h.context("r1", 4, Some("s1"));
     let one_credential = Arc::new(RequestContext {
         target: ExecutionTarget {
+            requested_model: None,
             provider: ctx.target.provider.clone(),
             upstream_model: ctx.target.upstream_model.clone(),
             credentials: vec![ctx.target.credentials[0].clone()],

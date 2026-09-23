@@ -490,6 +490,7 @@ impl Prepared {
             session: self.session.clone(),
             operation: self.operation,
             target: ExecutionTarget {
+                requested_model: target.requested_model,
                 provider: target.provider,
                 upstream_model: target.upstream_model,
                 credentials: target.credentials,

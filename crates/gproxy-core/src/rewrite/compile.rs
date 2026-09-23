@@ -12,6 +12,8 @@ use std::{collections::HashSet, sync::Arc};
 pub enum RewriteCompileError {
     #[error("unknown phase `{0}`")]
     InvalidPhase(String),
+    #[error("invalid rewrite action: {0}")]
+    InvalidAction(String),
     #[error("header and query targets require target_name")]
     MissingTargetName,
     #[error("target_name is only valid for header and query targets")]
@@ -86,6 +88,21 @@ pub fn compile_rule(
             }
         }
     };
+    let set_value = match entity.action.as_str() {
+        "replace" => None,
+        "set" => {
+            if !matches!(&target, RewriteTarget::Body { paths: Some(_) }) {
+                return Err(RewriteCompileError::InvalidAction(
+                    "set requires body paths".into(),
+                ));
+            }
+            Some(
+                serde_json::from_str(&entity.replacement)
+                    .map_err(|error| RewriteCompileError::InvalidAction(error.to_string()))?,
+            )
+        }
+        action => return Err(RewriteCompileError::InvalidAction(action.into())),
+    };
     let pattern = Regex::new(&entity.pattern)
         .map_err(|error| RewriteCompileError::InvalidPattern(error.to_string()))?;
     let operation_keys = entity
@@ -118,6 +135,7 @@ pub fn compile_rule(
         entity,
         phase,
         pattern,
+        set_value,
         target,
         operation_keys,
         model_matcher,

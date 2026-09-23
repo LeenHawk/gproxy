@@ -154,6 +154,7 @@ fn resources<'a, C: BatchConnectionTrait + Send + Sync>(
         ResourceScope {
             scope: call.state_scope.scope.clone(),
             target: ExecutionTarget {
+                requested_model: None,
                 provider: target.provider.clone(),
                 upstream_model: target.upstream_model.clone(),
                 credentials: target.credentials.clone(),

@@ -42,6 +42,7 @@ fn agent_context(
     let ctx = h.context(request_id, attempts, None);
     Arc::new(RequestContext {
         target: ExecutionTarget {
+            requested_model: None,
             provider: ctx.target.provider.clone(),
             upstream_model: ctx.target.upstream_model.clone(),
             credentials: ctx.target.credentials.clone(),

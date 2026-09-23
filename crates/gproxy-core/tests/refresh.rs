@@ -71,6 +71,7 @@ async fn force_refresh_rotates_the_secret_persists_by_cas_and_publishes() {
     let ctx = h.context("r1", 1, None);
     let one = std::sync::Arc::new(gproxy_core::RequestContext {
         target: gproxy_core::ExecutionTarget {
+            requested_model: None,
             provider: ctx.target.provider.clone(),
             upstream_model: ctx.target.upstream_model.clone(),
             credentials: vec![ctx.target.credentials[0].clone()],
@@ -227,6 +228,7 @@ async fn unauthorized_upstream_forces_one_refresh_and_retries_the_same_credentia
     let ctx = h.context("r1", 3, Some("s1"));
     let one = std::sync::Arc::new(gproxy_core::RequestContext {
         target: gproxy_core::ExecutionTarget {
+            requested_model: None,
             provider: ctx.target.provider.clone(),
             upstream_model: ctx.target.upstream_model.clone(),
             credentials: vec![ctx.target.credentials[0].clone()],
@@ -295,6 +297,7 @@ async fn material_near_expiry_is_refreshed_before_the_attempt_pins_it() {
     let ctx = h.context("r1", 1, None);
     let one = std::sync::Arc::new(gproxy_core::RequestContext {
         target: gproxy_core::ExecutionTarget {
+            requested_model: None,
             provider: ctx.target.provider.clone(),
             upstream_model: ctx.target.upstream_model.clone(),
             credentials: vec![ctx.target.credentials[0].clone()],

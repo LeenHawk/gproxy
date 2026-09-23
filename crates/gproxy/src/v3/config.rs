@@ -1033,6 +1033,7 @@ fn rewrite_rules(
                 }
             };
             rules.push(RewriteRuleDto {
+                action: "replace".into(),
                 id: ids::part("rules", row.id, &index.to_string()),
                 rule_set_id: ids::id("rule_sets", row.rule_set_id),
                 phase: match phase.as_str() {

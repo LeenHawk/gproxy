@@ -110,7 +110,7 @@ impl Upstream for AttemptUpstream {
             let context = RewriteContext {
                 operation: *target,
                 upstream_model: request_context.target.upstream_model.as_deref(),
-                requested_model: None,
+                requested_model: request_context.target.requested_model.as_deref(),
                 request_headers: &self.inbound_headers,
             };
             let request_rules = select_rules(
@@ -185,7 +185,7 @@ impl Upstream for AttemptUpstream {
             let context = RewriteContext {
                 operation: *target,
                 upstream_model: request_context.target.upstream_model.as_deref(),
-                requested_model: None,
+                requested_model: request_context.target.requested_model.as_deref(),
                 request_headers: &self.inbound_headers,
             };
             let request_rules = select_rules(

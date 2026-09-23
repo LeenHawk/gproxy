@@ -10,4 +10,4 @@ status: number, model: string,
  * What the upstream reported it spent. Absent when it reported nothing,
  * which is not the same as zero.
  */
-usage: UsageTokensDto | null, error: string | null, };
+usage: UsageTokensDto | null, reply: string | null, credentialLabel: string | null, error: string | null, };

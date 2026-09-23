@@ -49,6 +49,8 @@ pub struct ExecutionTarget {
     pub provider: Arc<ProviderData>,
     /// None for operations such as listing models that have no selected model.
     pub upstream_model: Option<String>,
+    /// Original model name used by request rewrite filters, before alias resolution.
+    pub requested_model: Option<String>,
     pub credentials: Vec<Arc<CredentialData>>,
 }
 #[derive(Clone)]

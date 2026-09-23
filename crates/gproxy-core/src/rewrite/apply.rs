@@ -129,11 +129,10 @@ pub fn apply_unit(
     apply_text(&applicable, data)
 }
 
-/// Text and JSON-path rules interleave in rule order, each on the previous
-/// rule's output. Path rules splice selected strings in place; the payload is
-/// never parsed into a tree or re-serialized, so an untouched key, number or
-/// whitespace run keeps its original bytes. A non-JSON payload makes path
-/// rules no-ops.
+/// Rules interleave in order, each on the previous rule's output. Regex path
+/// replacements splice selected strings and preserve all other bytes. Set
+/// actions parse JSON and assign typed values, creating missing object keys;
+/// malformed JSON is an error rather than an apparently successful assignment.
 fn apply_text(rules: &[Arc<RewriteRuleData>], input: &str) -> Result<Option<String>, RewriteError> {
     let mut current: Cow<'_, str> = Cow::Borrowed(input);
     let mut changed = false;
@@ -141,21 +140,35 @@ fn apply_text(rules: &[Arc<RewriteRuleData>], input: &str) -> Result<Option<Stri
         let RewriteTarget::Body { paths } = &rule.target else {
             continue;
         };
-        let next = match paths {
-            None => match rule
-                .pattern
-                .replace_all(&current, rule.entity.replacement.as_str())
-            {
-                Cow::Borrowed(_) => None,
-                Cow::Owned(replaced) => Some(replaced),
-            },
-            Some(paths) => rewrite_at_paths(&current, paths, &mut |text| match rule
-                .pattern
-                .replace_all(text, rule.entity.replacement.as_str())
-            {
-                Cow::Borrowed(_) => None,
-                Cow::Owned(replaced) => Some(replaced),
-            }),
+        let next = if let Some(value) = &rule.set_value {
+            let mut document: serde_json::Value = serde_json::from_str(&current)
+                .map_err(|error| RewriteError::InvalidJson(error.to_string()))?;
+            let before = document.clone();
+            for path in paths.as_ref().expect("compiled set paths") {
+                set_json(&mut document, path, value)?;
+            }
+            if document == before {
+                None
+            } else {
+                Some(document.to_string())
+            }
+        } else {
+            match paths {
+                None => match rule
+                    .pattern
+                    .replace_all(&current, rule.entity.replacement.as_str())
+                {
+                    Cow::Borrowed(_) => None,
+                    Cow::Owned(replaced) => Some(replaced),
+                },
+                Some(paths) => rewrite_at_paths(&current, paths, &mut |text| match rule
+                    .pattern
+                    .replace_all(text, rule.entity.replacement.as_str())
+                {
+                    Cow::Borrowed(_) => None,
+                    Cow::Owned(replaced) => Some(replaced),
+                }),
+            }
         };
         if let Some(next) = next {
             current = Cow::Owned(next);
@@ -163,4 +176,65 @@ fn apply_text(rules: &[Arc<RewriteRuleData>], input: &str) -> Result<Option<Stri
         }
     }
     Ok(changed.then(|| current.into_owned()))
+}
+
+fn set_json(
+    current: &mut serde_json::Value,
+    path: &[crate::PathSegment],
+    value: &serde_json::Value,
+) -> Result<(), RewriteError> {
+    use crate::PathSegment;
+    use serde_json::{Value, json};
+    let Some((segment, rest)) = path.split_first() else {
+        *current = value.clone();
+        return Ok(());
+    };
+    if current.is_null() {
+        *current = match segment {
+            PathSegment::Index(_) => json!([]),
+            _ => json!({}),
+        };
+    }
+    match segment {
+        PathSegment::Key(key) => {
+            let object = current
+                .as_object_mut()
+                .ok_or_else(|| RewriteError::InvalidJson(format!("expected object at {key}")))?;
+            set_json(
+                object.entry(key.clone()).or_insert(Value::Null),
+                rest,
+                value,
+            )
+        }
+        PathSegment::Index(index) => {
+            let array = current
+                .as_array_mut()
+                .ok_or_else(|| RewriteError::InvalidJson("expected array".into()))?;
+            if *index > array.len() {
+                return Err(RewriteError::InvalidJson(
+                    "array index out of bounds".into(),
+                ));
+            }
+            if *index == array.len() {
+                array.push(Value::Null);
+            }
+            set_json(&mut array[*index], rest, value)
+        }
+        PathSegment::Wildcard => {
+            match current {
+                Value::Array(items) => {
+                    for item in items {
+                        set_json(item, rest, value)?;
+                    }
+                }
+                Value::Object(items) => {
+                    for item in items.values_mut() {
+                        set_json(item, rest, value)?;
+                    }
+                }
+                _ => {}
+            }
+            Ok(())
+        }
+    }
 }
