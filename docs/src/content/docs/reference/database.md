@@ -16,8 +16,8 @@ independently of persistence.
 | --- | --- | --- |
 | `sqlite` (default) | `<data-dir>/gproxy.db` | Bundled SQLite, one file. Foreign keys enabled. |
 | `libsql` | `GPROXY_LIBSQL_URL` + `GPROXY_LIBSQL_AUTH_TOKEN` | Hrana over HTTP at `<url>/v2/pipeline`; works with Turso and any libSQL server. The only backend on edge. |
-| `postgres` | `GPROXY_DSN=postgres://user:<password>@host:5432/gproxy` | `tokio-postgres`, a single connection behind a lock; each migration batch runs in a transaction. The connection is opened without TLS; keep the database on a private network or a local socket. |
-| `mysql` | `GPROXY_DSN=mysql://user:<password>@host:3306/gproxy` | `mysql_async` connection pool with rustls TLS support; migration batches run in a transaction. |
+| `postgres` | `GPROXY_DSN=postgres://user:<password>@host:5432/gproxy` | `tokio-postgres`, a single connection behind a lock; each migration batch runs in a transaction. Append `?sslmode=require` to require rustls TLS with certificate and hostname verification against bundled Mozilla roots (including Neon); `sslmode=disable` selects plaintext. |
+| `mysql` | `GPROXY_DSN=mysql://user:<password>@host:3306/gproxy` | `mysql_async` connection pool; append `?require_ssl=true` to require rustls TLS with certificate and hostname verification; migration batches run in a transaction. |
 
 ```bash
 GPROXY_PERSISTENCE=postgres \

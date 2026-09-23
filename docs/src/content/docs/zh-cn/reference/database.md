@@ -14,8 +14,8 @@ description: "四种 SQL 后端及其选择方式、schema 迁移与表分组、
 | --- | --- | --- |
 | `sqlite`（默认） | `<data-dir>/gproxy.db` | 内置 SQLite，单文件。启用外键。 |
 | `libsql` | `GPROXY_LIBSQL_URL` + `GPROXY_LIBSQL_AUTH_TOKEN` | 通过 HTTP 的 Hrana 协议，端点为 `<url>/v2/pipeline`；适用于 Turso 和任何 libSQL 服务器。Edge 上唯一的后端。 |
-| `postgres` | `GPROXY_DSN=postgres://user:<password>@host:5432/gproxy` | `tokio-postgres`，单个连接加锁串行；每个迁移批次在一个事务中执行。连接不启用 TLS；请把数据库放在私有网络或本地 socket 上。 |
-| `mysql` | `GPROXY_DSN=mysql://user:<password>@host:3306/gproxy` | `mysql_async` 连接池，支持 rustls TLS；迁移批次在事务中执行。 |
+| `postgres` | `GPROXY_DSN=postgres://user:<password>@host:5432/gproxy` | `tokio-postgres`，单个连接加锁串行；每个迁移批次在一个事务中执行。追加 `?sslmode=require` 可强制使用 rustls TLS，通过内置 Mozilla 根证书校验证书及主机名（支持 Neon）；`sslmode=disable` 选择明文连接。 |
+| `mysql` | `GPROXY_DSN=mysql://user:<password>@host:3306/gproxy` | `mysql_async` 连接池，追加 `?require_ssl=true` 可强制使用 rustls TLS 并校验证书及主机名；迁移批次在事务中执行。 |
 
 ```bash
 GPROXY_PERSISTENCE=postgres \

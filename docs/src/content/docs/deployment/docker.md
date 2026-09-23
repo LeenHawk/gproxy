@@ -98,8 +98,13 @@ that sealed it. Rotation uses `GPROXY_MASTER_KEY_NEXT` and
 | Redis cache | `GPROXY_REDIS_URL=redis://cache:6379` (or `rediss://`) |
 | Upstash cache | `UPSTASH_URL=https://<name>.upstash.io`, `UPSTASH_TOKEN=<token>`; set both or neither |
 
-The PostgreSQL connection is opened without TLS, so keep the database on a
-private network. The libSQL URL must be an absolute `http(s)` URL; the store
+For PostgreSQL services such as Neon, append `?sslmode=require` to the DSN.
+TLS verifies the server certificate and hostname against bundled Mozilla roots.
+For MySQL, append `?require_ssl=true` to require TLS with certificate and hostname
+verification. PostgreSQL `sslmode=disable` and MySQL `require_ssl=false` explicitly
+select plaintext for local/private database deployments.
+
+The libSQL URL must be an absolute `http(s)` URL; the store
 speaks Hrana over HTTP, and with `libsql` persistence the cache is a libSQL
 table unless Redis or Upstash is configured. The default cache is
 in-process: running more than one replica requires Redis or Upstash so that

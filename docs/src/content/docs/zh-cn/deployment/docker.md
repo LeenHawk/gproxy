@@ -93,7 +93,12 @@ volumes:
 | Redis 缓存 | `GPROXY_REDIS_URL=redis://cache:6379`（或 `rediss://`） |
 | Upstash 缓存 | `UPSTASH_URL=https://<name>.upstash.io`、`UPSTASH_TOKEN=<token>`；两者同时设置或同时不设 |
 
-PostgreSQL 连接不使用 TLS，请把数据库放在私有网络内。libSQL URL 必须是绝对的
+Neon 等 PostgreSQL 服务请在 DSN 后追加 `?sslmode=require`，TLS 会使用内置
+Mozilla 根证书校验服务端证书及主机名。MySQL 请追加 `?require_ssl=true`，
+启用强制 TLS 及证书、主机名校验。本地或私有网络中的数据库可显式使用
+PostgreSQL `sslmode=disable` 或 MySQL `require_ssl=false` 选择明文连接。
+
+libSQL URL 必须是绝对的
 `http(s)` URL；store 通过 HTTP 上的 Hrana 通信，并且在 `libsql` 持久化下，除非
 配置了 Redis 或 Upstash，缓存就是一张 libSQL 表。默认缓存是进程内的：运行多个副本
 时必须使用 Redis 或 Upstash，配额、限流和 OAuth 刷新租约才能共享。即使使用外部

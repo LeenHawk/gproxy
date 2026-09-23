@@ -1,6 +1,7 @@
 use bytes::BytesMut;
+use tokio_postgres::GenericClient;
 use tokio_postgres::types::{FromSql, IsNull, ToSql, Type, to_sql_checked};
-use tokio_postgres::{GenericClient, NoTls};
+use tokio_postgres_rustls::MakeRustlsConnect;
 
 use super::{DbValue, Executor, QueryResult, Row, Statement};
 use crate::StoreError;
@@ -12,9 +13,13 @@ pub(super) struct Postgres {
 
 impl Postgres {
     pub(super) async fn connect(dsn: &str) -> Result<Self, StoreError> {
-        let (client, connection) = tokio_postgres::connect(dsn, NoTls)
+        let config = dsn.parse::<tokio_postgres::Config>().map_err(|_| {
+            StoreError::Database("invalid PostgreSQL connection configuration".into())
+        })?;
+        let (client, connection) = config
+            .connect(MakeRustlsConnect::with_webpki_roots())
             .await
-            .map_err(|_| StoreError::Database("PostgreSQL connection failed".into()))?;
+            .map_err(|error| super::connection_error("PostgreSQL", &error))?;
         tokio::spawn(async move {
             let _ = connection.await;
         });

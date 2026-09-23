@@ -11,8 +11,7 @@ pub(super) struct Mysql {
 
 impl Mysql {
     pub(super) fn connect(dsn: &str) -> Result<Self, StoreError> {
-        let options = Opts::from_url(dsn)
-            .map_err(|_| StoreError::Database("MySQL configuration failed".into()))?;
+        let options = Opts::from_url(dsn).map_err(|error| configuration_error(&error))?;
         Ok(Self {
             pool: Pool::new(options),
         })
@@ -168,8 +167,19 @@ fn decode_row(row: mysql_async::Row, columns: &[mysql_async::Column]) -> Result<
     Ok(Row::new(values))
 }
 
-fn connection_error(_: impl std::fmt::Display) -> StoreError {
-    StoreError::Database("MySQL connection failed".into())
+fn connection_error(error: mysql_async::Error) -> StoreError {
+    super::connection_error("MySQL", &error)
+}
+
+fn configuration_error(error: &mysql_async::UrlError) -> StoreError {
+    // Invalid parameter values may contain credentials; only name the option.
+    let detail = match error {
+        mysql_async::UrlError::InvalidParamValue { param, .. } => {
+            format!("invalid value for parameter `{param}`")
+        }
+        _ => error.to_string(),
+    };
+    StoreError::Database(format!("MySQL configuration failed: {detail}"))
 }
 fn database_error(error: impl std::fmt::Display) -> StoreError {
     StoreError::Database(format!("MySQL: {error}"))

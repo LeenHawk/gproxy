@@ -109,3 +109,15 @@ pub(crate) async fn open(config: BackendConfig) -> Result<SharedExecutor, StoreE
         }
     }
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+fn connection_error(database: &str, error: &(dyn std::error::Error + 'static)) -> StoreError {
+    let mut message = format!("{database} connection failed: {error}");
+    let mut source = error.source();
+    while let Some(error) = source {
+        message.push_str(": ");
+        message.push_str(&error.to_string());
+        source = error.source();
+    }
+    StoreError::Database(message)
+}
