@@ -43,13 +43,6 @@ impl From<setting::Model> for SettingsDto {
                 enable_settlement: row.enable_settlement,
                 enable_usage: row.enable_usage,
                 config_revision: row.config_revision,
-                request_timeout_ms: row.request_timeout_ms,
-                stream_idle_timeout_ms: row.stream_idle_timeout_ms,
-                max_request_body_bytes: row.max_request_body_bytes,
-                max_response_body_bytes: row.max_response_body_bytes,
-                max_stream_event_bytes: row.max_stream_event_bytes,
-                max_ws_frame_bytes: row.max_ws_frame_bytes,
-                max_multipart_parts: row.max_multipart_parts,
                 enable_tokenizer_vocabs: row.enable_tokenizer_vocabs,
                 enable_tokenizer_download: row.enable_tokenizer_download,
                 default_vocabulary_file_id: row.default_vocabulary_file_id,
@@ -66,11 +59,11 @@ impl From<setting::Model> for SettingsDto {
     }
 }
 
-/// Identity, network, execution limits and maintenance. `config_revision` is
+/// Identity, network, execution policy and maintenance. `config_revision` is
 /// read-only: it is the write path's own counter.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct InstanceSettingsDto {
     pub instance_name: String,
@@ -93,13 +86,6 @@ pub struct InstanceSettingsDto {
     pub enable_settlement: bool,
     pub enable_usage: bool,
     pub config_revision: i64,
-    pub request_timeout_ms: u32,
-    pub stream_idle_timeout_ms: u32,
-    pub max_request_body_bytes: i64,
-    pub max_response_body_bytes: i64,
-    pub max_stream_event_bytes: i64,
-    pub max_ws_frame_bytes: i64,
-    pub max_multipart_parts: u32,
     pub enable_tokenizer_vocabs: bool,
     pub enable_tokenizer_download: bool,
     pub default_vocabulary_file_id: Option<String>,
@@ -149,7 +135,7 @@ pub struct SettingsPatch {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct InstanceSettingsPatch {
     #[serde(default)]
@@ -179,20 +165,6 @@ pub struct InstanceSettingsPatch {
     pub enable_settlement: Option<bool>,
     #[serde(default)]
     pub enable_usage: Option<bool>,
-    #[serde(default)]
-    pub request_timeout_ms: Option<u32>,
-    #[serde(default)]
-    pub stream_idle_timeout_ms: Option<u32>,
-    #[serde(default)]
-    pub max_request_body_bytes: Option<i64>,
-    #[serde(default)]
-    pub max_response_body_bytes: Option<i64>,
-    #[serde(default)]
-    pub max_stream_event_bytes: Option<i64>,
-    #[serde(default)]
-    pub max_ws_frame_bytes: Option<i64>,
-    #[serde(default)]
-    pub max_multipart_parts: Option<u32>,
     #[serde(default)]
     pub enable_tokenizer_vocabs: Option<bool>,
     #[serde(default)]

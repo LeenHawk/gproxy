@@ -22,7 +22,7 @@ use serde::{Serialize, de::DeserializeOwned};
 /// Gemini's documented `batchEmbedContents` ceiling per request.
 const MAX_ITEMS_PER_CALL: usize = 100;
 /// Upper bound on native calls one client request may fan out into.
-const MAX_CALLS: usize = 64;
+const MAX_CALLS: usize = usize::MAX;
 
 fn codec(error: gproxy_protocol::codec::CodecError) -> TransformError {
     TransformError::with_source(

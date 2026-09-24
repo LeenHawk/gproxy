@@ -948,7 +948,7 @@ mod rows {
             zstd: Set(dto.zstd),
             redirect_max_hops: Set(dto.redirect_max_hops),
             retry: Set(crud::enumerated(&dto.retry, "retry", &RETRIES)?),
-            connect_timeout_ms: Set(dto.connect_timeout_ms),
+
             pool_idle_timeout_ms: Set(dto.pool_idle_timeout_ms),
             pool_max_idle_per_host: Set(dto.pool_max_idle_per_host),
             created_at_ms: Set(dto.created_at_ms),
@@ -1314,13 +1314,7 @@ mod rows {
             max_attempts: Set(instance.max_attempts.max(1)),
             enable_settlement: Set(instance.enable_settlement),
             enable_usage: Set(instance.enable_usage),
-            request_timeout_ms: Set(instance.request_timeout_ms),
-            stream_idle_timeout_ms: Set(instance.stream_idle_timeout_ms),
-            max_request_body_bytes: Set(instance.max_request_body_bytes),
-            max_response_body_bytes: Set(instance.max_response_body_bytes),
-            max_stream_event_bytes: Set(instance.max_stream_event_bytes),
-            max_ws_frame_bytes: Set(instance.max_ws_frame_bytes),
-            max_multipart_parts: Set(instance.max_multipart_parts),
+
             enable_tokenizer_vocabs: Set(instance.enable_tokenizer_vocabs),
             enable_tokenizer_download: Set(instance.enable_tokenizer_download),
             default_vocabulary_file_id: Set(vocabulary),

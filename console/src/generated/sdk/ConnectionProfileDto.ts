@@ -3,16 +3,16 @@
 /**
  * A reusable HTTP transport configuration, independent of outbound proxy selection.
  */
-export type ConnectionProfileDto = { id: string, name: string, 
+export type ConnectionProfileDto = { id: string, name: string,
 /**
  * `reqwest`, `wreq` or `reqwest_native`.
  */
-backend: string, 
+backend: string,
 /**
  * A `gproxy-client` emulation object, or null. wreq applies the full identity; other clients apply supported custom fields.
  */
-emulation: unknown | null, gzip: boolean, brotli: boolean, deflate: boolean, zstd: boolean, redirectMaxHops: number, 
+emulation: unknown | null, gzip: boolean, brotli: boolean, deflate: boolean, zstd: boolean, redirectMaxHops: number,
 /**
  * `never` or `default`.
  */
-retry: string, connectTimeoutMs: number, poolIdleTimeoutMs: number, poolMaxIdlePerHost: number, createdAtMs: number, };
+retry: string, poolIdleTimeoutMs: number, poolMaxIdlePerHost: number, createdAtMs: number, };

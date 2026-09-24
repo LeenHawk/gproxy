@@ -41,11 +41,6 @@ pub const PROTOCOL_VERSION: &str = "1";
 pub const ACCEPT_ENCODING: &str = "gzip";
 pub const USER_AGENT: &str = "connect-es/2.0.0";
 
-/// Ceiling on one frame, for both its advertised length and the size it may
-/// inflate to. The reference bounds both at the same value for the same
-/// reason: a high-ratio frame from a hostile upstream must not be able to
-/// exhaust memory before the error is caught.
-pub const MAX_FRAME_BYTES: usize = 16 * 1024 * 1024;
 
 const FLAG_COMPRESSED: u8 = 0x01;
 const FLAG_END_STREAM: u8 = 0x02;
@@ -104,11 +99,6 @@ impl FrameReader {
             let header = &self.buffer[consumed..consumed + 5];
             let flags = header[0];
             let length = u32::from_be_bytes([header[1], header[2], header[3], header[4]]) as usize;
-            if length > MAX_FRAME_BYTES {
-                return Err(invalid(format!(
-                    "Connect frame of {length} bytes exceeds the {MAX_FRAME_BYTES} byte limit"
-                )));
-            }
             if self.buffer.len() - consumed - 5 < length {
                 break;
             }
@@ -173,7 +163,7 @@ fn inflate_gzip(bytes: &[u8]) -> Result<Vec<u8>, ChannelError> {
     let deflate = bytes
         .get(offset..bytes.len() - 8)
         .ok_or_else(|| invalid("truncated gzip member"))?;
-    let inflated = miniz_oxide::inflate::decompress_to_vec_with_limit(deflate, MAX_FRAME_BYTES)
+    let inflated = miniz_oxide::inflate::decompress_to_vec(deflate)
         .map_err(|error| invalid(format!("Connect frame decompression failed: {error:?}")))?;
     let size = &bytes[bytes.len() - 4..];
     let expected = u32::from_le_bytes([size[0], size[1], size[2], size[3]]);

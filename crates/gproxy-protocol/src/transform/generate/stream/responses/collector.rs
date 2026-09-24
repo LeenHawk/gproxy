@@ -17,11 +17,11 @@ pub struct ResponsesStreamLimits {
 impl Default for ResponsesStreamLimits {
     fn default() -> Self {
         Self {
-            max_events: 100_000,
-            max_bytes: 16 * 1024 * 1024,
-            max_items: 4096,
-            max_text_bytes: 16 * 1024 * 1024,
-            max_json_bytes: 16 * 1024 * 1024,
+            max_events: usize::MAX,
+            max_bytes: usize::MAX,
+            max_items: usize::MAX,
+            max_text_bytes: usize::MAX,
+            max_json_bytes: usize::MAX,
         }
     }
 }

@@ -232,6 +232,11 @@ mod native {
             .request(parts.method, parts.uri.to_string())
             .headers(parts.headers)
             .upgrade()
+            .web_socket_config(
+                tungstenite::protocol::WebSocketConfig::default()
+                    .max_message_size(None)
+                    .max_frame_size(None),
+            )
             .protocols(protocols)
             .send()
             .await
@@ -347,6 +352,8 @@ mod native {
         let protocols = split_handshake_headers(&mut parts.headers);
         let response = client
             .websocket(parts.uri.to_string())
+            .max_message_size(usize::MAX)
+            .max_frame_size(usize::MAX)
             .headers(parts.headers)
             .protocols(protocols)
             .send()

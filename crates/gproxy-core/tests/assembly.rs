@@ -84,7 +84,7 @@ impl BaseChannel for FingerprintedChannel {
     }
     fn default_connection(&self) -> Option<gproxy_client::ConnectionConfig> {
         Some(gproxy_client::ConnectionConfig {
-            connect_timeout_ms: 4_321,
+            pool_max_idle_per_host: 7,
             ..Default::default()
         })
     }
@@ -118,7 +118,7 @@ async fn seed(store: &Store<DatabaseConnection>) {
         .settings()
         .update(setting::ActiveModel {
             config_revision: Set(3),
-            max_response_body_bytes: Set(1024),
+
             ..Default::default()
         })
         .await
@@ -277,7 +277,7 @@ async fn connection_chain(store: &Store<DatabaseConnection>) {
         .create_many(vec![connection_profile::ActiveModel {
             id: Set("slow".into()),
             name: Set("slow".into()),
-            connect_timeout_ms: Set(9_999),
+            pool_max_idle_per_host: Set(9),
             created_at_ms: Set(0),
             ..Default::default()
         }])
@@ -411,7 +411,7 @@ async fn load_assembles_providers_credentials_rules_endpoints_and_warms_blocks()
     assert_eq!(outcome.loaded_revision, ConfigRevision(3));
     assert!(outcome.published);
     let data = core.snapshot();
-    assert_eq!(data.limits.max_response_body_bytes, 1024);
+    assert_eq!(data.limits.max_response_body_bytes, u64::MAX);
     assert_eq!(data.providers.len(), 1);
     let p1 = &data.providers["p1"];
     assert_eq!(p1.channel.id(), "test");

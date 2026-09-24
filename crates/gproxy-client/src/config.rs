@@ -254,7 +254,6 @@ pub struct ConnectionConfig {
     /// Zero returns redirects as responses; positive values follow up to this many hops.
     pub redirect_max_hops: u32,
     pub retry: RetryPolicy,
-    pub connect_timeout_ms: u32,
     /// Zero disables retention of idle connections.
     pub pool_idle_timeout_ms: u32,
     /// Idle connections per host, not a concurrency limit. Zero disables retention.
@@ -273,7 +272,7 @@ impl Default for ConnectionConfig {
             zstd: false,
             redirect_max_hops: 0,
             retry: RetryPolicy::Never,
-            connect_timeout_ms: 10_000,
+
             pool_idle_timeout_ms: 90_000,
             pool_max_idle_per_host: 32,
         }

@@ -3,9 +3,7 @@
 //! Any invalid row fails the whole assembly so the previous snapshot stays.
 
 use crate::CredentialStrategy;
-use crate::{
-    BlockSource, CoreData, CredentialBlock, LimitsError, RewriteCompileError, SecretError,
-};
+use crate::{BlockSource, CoreData, CredentialBlock, RewriteCompileError, SecretError};
 use gproxy_channel::channel::{CredentialView, ProviderView, QuotaScope};
 use gproxy_protocol::Operation;
 use gproxy_store::entity::{
@@ -56,8 +54,6 @@ pub enum AssemblyError {
         #[source]
         source: SecretError,
     },
-    #[error(transparent)]
-    Limits(#[from] LimitsError),
     #[error("operation endpoint `{id}` is invalid: {reason}")]
     InvalidEndpoint { id: String, reason: String },
     #[error("rewrite rule `{rule_id}` failed to compile")]

@@ -108,7 +108,6 @@ store 当前仅为 entity 草案。代理 URL 可能包含认证信息，序列�
   "zstd": true,
   "redirect_max_hops": 5,
   "retry": "default",
-  "connect_timeout_ms": 10000,
   "pool_idle_timeout_ms": 90000,
   "pool_max_idle_per_host": 32
 }

@@ -14,10 +14,10 @@ pub struct StreamLimits {
 impl Default for StreamLimits {
     fn default() -> Self {
         Self {
-            max_events: 100_000,
-            max_bytes: 16 * 1024 * 1024,
-            max_items: 4096,
-            max_tool_calls: 4096,
+            max_events: usize::MAX,
+            max_bytes: usize::MAX,
+            max_items: usize::MAX,
+            max_tool_calls: usize::MAX,
         }
     }
 }

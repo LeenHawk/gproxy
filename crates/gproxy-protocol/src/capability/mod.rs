@@ -29,9 +29,9 @@ pub type CapabilityFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
 /// The limits a capability instance is required to enforce.
 ///
-/// There is no implicit unlimited configuration. Hosts must return the limits
-/// bound to this particular instance and continue enforcing stream idle and
-/// byte limits after an operation has returned a streaming body.
+/// Hosts may opt into bounds for a particular instance. `Duration::MAX` disables
+/// a timer and integer maxima impose no additional size cap. Explicit finite
+/// limits continue to apply after an operation returns a streaming body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CapabilityLimits {
     /// Total wall-clock time allowed for one operation, including body transfer.

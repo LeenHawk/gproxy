@@ -2838,6 +2838,7 @@ dependencies = [
  "thiserror 2.0.20",
  "tokio",
  "tokio-tungstenite 0.30.0",
+ "tungstenite 0.28.0",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",

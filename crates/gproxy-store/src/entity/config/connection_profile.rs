@@ -30,8 +30,6 @@ pub struct Model {
     pub redirect_max_hops: u32,
     #[sea_orm(default_value = "never")]
     pub retry: RetryPolicy,
-    #[sea_orm(default_value = 10000)]
-    pub connect_timeout_ms: u32,
     /// Zero disables retention of idle connections.
     #[sea_orm(default_value = 90000)]
     pub pool_idle_timeout_ms: u32,

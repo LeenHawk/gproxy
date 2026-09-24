@@ -187,8 +187,7 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
         || remap_model
         || request.max_attempts.get() > 1
         || !request_rules.body.is_empty();
-    let (mut wire, replayable) =
-        prepare::buffer_request(wire, want_replay, limits.max_request_body_bytes).await;
+    let (mut wire, replayable) = prepare::buffer_request(wire, want_replay).await;
     if (converting || remap_model || local) && !replayable {
         funnel.finish(UsageState::Failed).await;
         return Err(CoreError::Transform(TransformError::new(

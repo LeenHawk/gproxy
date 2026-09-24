@@ -11,7 +11,7 @@ repository.workspace = true
 default = ["reqwest"]
 # Native reqwest backend; on wasm32 the reqwest Fetch fallback (HTTP only,
 # buffered request bodies).
-reqwest = ["dep:reqwest", "dep:reqwest-websocket"]
+reqwest = ["dep:reqwest", "dep:reqwest-websocket", "dep:tungstenite"]
 wreq = ["dep:wreq", "dep:wreq-util"]
 # Native only: reqwest 0.12 over the platform's native TLS (OpenSSL on Linux,
 # Secure Transport on macOS, SChannel on Windows), the Codex CLI's HTTP stack.
@@ -52,6 +52,7 @@ thiserror = { workspace = true }
 url = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tungstenite = { version = "0.28", default-features = false, optional = true }
 futures-util = { workspace = true, features = ["sink"] }
 moka = { workspace = true }
 tokio = { workspace = true, features = ["rt"] }

@@ -69,12 +69,12 @@ pub(super) fn responses_effort(value: &str) -> Option<r::ReasoningEffort> {
 
 pub(super) fn default_history_limits() -> CodecLimits {
     CodecLimits {
-        max_buffer_bytes: 8 * 1024 * 1024,
-        max_value_bytes: 8 * 1024 * 1024,
-        max_body_bytes: 8 * 1024 * 1024,
-        max_line_bytes: 8 * 1024 * 1024,
-        max_part_bytes: 8 * 1024 * 1024,
-        max_parts: 1024,
+        max_buffer_bytes: u64::MAX,
+        max_value_bytes: u64::MAX,
+        max_body_bytes: u64::MAX,
+        max_line_bytes: u64::MAX,
+        max_part_bytes: u64::MAX,
+        max_parts: usize::MAX,
     }
 }
 

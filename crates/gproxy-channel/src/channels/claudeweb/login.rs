@@ -5,7 +5,7 @@ use gproxy_protocol::connection::Bytes;
 use http::StatusCode;
 
 use super::{
-    ClaudeWeb, ClaudeWebConfig, MAX_SERVICE_BODY, auth,
+    ClaudeWeb, ClaudeWebConfig, auth,
     bootstrap::{self, BootstrapFailure},
     id, now_ms, prepare, read_body,
 };
@@ -35,7 +35,7 @@ async fn fetch_bootstrap(
     );
     let request = prepare::session_get(&url, cookie, device_id, &base)?;
     let response = client.send(request).await?;
-    let body = read_body(response.body, MAX_SERVICE_BODY).await?;
+    let body = read_body(response.body).await?;
     Ok((response.status, body))
 }
 

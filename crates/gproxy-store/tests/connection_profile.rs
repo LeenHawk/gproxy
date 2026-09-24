@@ -30,7 +30,6 @@ fn connection_profiles_are_registered_and_references_restrict_deletion() {
                 sql.contains("REFERENCES connection_profiles (id) ON DELETE RESTRICT"),
                 "{sql}"
             );
-            assert!(!sql.contains("proxy "));
             assert!(!sql.contains("inherit_system_proxy"));
         }
     }

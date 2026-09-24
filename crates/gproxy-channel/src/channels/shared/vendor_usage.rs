@@ -27,11 +27,6 @@ use crate::channel::{ChannelError, NormalizedUsage, UsageCompleteness};
 use gproxy_protocol::{Dialect, WireFamily};
 use serde_json::Value;
 
-/// Cap on how much of an accumulated stream is scanned for usage events. The
-/// host already enforces the real transfer limits; this only bounds the work
-/// a metering pass does on a body that turned out not to be JSON.
-const MAX_SSE_EVENTS: usize = 4096;
-
 /// Usage from one buffered response body, or from an accumulated SSE stream.
 ///
 /// The host hands the extractor whatever the exchange accumulated: a complete
@@ -57,7 +52,6 @@ pub(crate) fn from_body(
 fn from_event_stream(dialect: Dialect, body: &[u8]) -> Option<NormalizedUsage> {
     let text = std::str::from_utf8(body).ok()?;
     let mut merged: Option<NormalizedUsage> = None;
-    let mut seen = 0usize;
     for line in text.lines() {
         let Some(payload) = line.strip_prefix("data:") else {
             continue;
@@ -65,10 +59,6 @@ fn from_event_stream(dialect: Dialect, body: &[u8]) -> Option<NormalizedUsage> {
         let payload = payload.trim();
         if payload.is_empty() || payload == "[DONE]" {
             continue;
-        }
-        seen += 1;
-        if seen > MAX_SSE_EVENTS {
-            break;
         }
         let Ok(value) = serde_json::from_str::<Value>(payload) else {
             continue;

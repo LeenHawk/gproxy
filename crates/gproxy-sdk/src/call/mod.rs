@@ -207,8 +207,8 @@ impl<C> Gproxy<C> {
 impl<C: BatchConnectionTrait + Send + Sync + 'static> CallBuilder<'_, C> {
     /// Resolve, then walk the plan.
     ///
-    /// The body is buffered once so it can be replayed against each target. A
-    /// streaming body larger than `max_request_body_bytes` cannot be replayed;
+    /// The body is buffered once so it can be replayed against each target.
+    /// A failing streaming body cannot be replayed;
     /// rather than failing the request, the plan is cut down to its first
     /// target and the body is forwarded as a stream.
     pub async fn send(self) -> SdkResult<HttpExecution> {
@@ -226,7 +226,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> CallBuilder<'_, C> {
             body,
         } = request;
         let snapshot = gproxy.core().snapshot();
-        let mut payload = Payload::buffer(body, snapshot.limits.max_request_body_bytes).await;
+        let mut payload = Payload::buffer(body).await;
         let json = payload.json();
         let mut prepared = options
             .prepare(gproxy, snapshot, operation, &headers, json.as_ref())
@@ -548,24 +548,20 @@ fn stops_the_call(error: &CoreError) -> bool {
         | E::InvalidTarget(_)
         | E::NotImplemented(_) => true,
         // This instance is broken; the providers are not.
-        E::Store(_) | E::Cache(_) | E::Secret(_) | E::Limits(_) | E::Assembly(_) | E::File(_) => {
-            true
-        }
+        E::Store(_) | E::Cache(_) | E::Secret(_) | E::Assembly(_) | E::File(_) => true,
     }
 }
 
 /// The request body, buffered once so every target can be sent the same bytes.
 enum Payload {
     Bytes(Bytes),
-    /// Too large to buffer, or already failing: forwarded once, to one target.
+    /// A failing body: forwarded once so the original transport error is preserved.
     Stream(Option<HttpBody>),
 }
 
 impl Payload {
-    /// Read a streaming body into memory, up to the snapshot's request cap.
-    /// Past the cap the prefix is put back in front of the rest and the body
-    /// stays a stream: a 40 MiB upload is not worth failing over.
-    async fn buffer(body: HttpBody, max_bytes: u64) -> Self {
+    /// Buffer the complete request; size does not change routing behavior.
+    async fn buffer(body: HttpBody) -> Self {
         match body {
             HttpBody::Bytes(bytes) => Self::Bytes(bytes),
             HttpBody::Stream(mut stream) => {
@@ -576,13 +572,6 @@ impl Payload {
                         Ok(chunk) => {
                             total += chunk.len() as u64;
                             collected.push(chunk);
-                            if total > max_bytes {
-                                let prefix =
-                                    futures_util::stream::iter(collected.into_iter().map(Ok));
-                                return Self::Stream(Some(HttpBody::Stream(Box::pin(
-                                    prefix.chain(stream),
-                                ))));
-                            }
                         }
                         Err(error) => {
                             // Replay what arrived and let the error surface

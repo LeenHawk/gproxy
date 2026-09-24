@@ -143,12 +143,12 @@ async fn multipart(body: HttpBody, boundary: String) -> Result<Bytes, ChannelErr
         body,
         boundary,
         CodecLimits {
-            max_buffer_bytes: 64 * 1024,
-            max_line_bytes: 64 * 1024,
-            max_value_bytes: 4 * 1024 * 1024,
-            max_body_bytes: 4 * 1024 * 1024,
-            max_part_bytes: 4 * 1024 * 1024,
-            max_parts: 32,
+            max_buffer_bytes: u64::MAX,
+            max_line_bytes: u64::MAX,
+            max_value_bytes: u64::MAX,
+            max_body_bytes: u64::MAX,
+            max_part_bytes: u64::MAX,
+            max_parts: usize::MAX,
         },
     )
     .map_err(codec_error)?;
