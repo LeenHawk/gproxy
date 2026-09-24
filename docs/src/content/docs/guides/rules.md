@@ -41,11 +41,11 @@ A set is a name, an optional description and an `enabled` flag. It is attached
 to one or more providers; an attachment has its own `sortOrder` and `enabled`.
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/rule-sets \
+curl -s -X POST http://127.0.0.1:8787/admin/api/rule-sets \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"name":"demo"}'
 
-curl -s -X POST http://127.0.0.1:7070/admin/api/provider-rule-sets \
+curl -s -X POST http://127.0.0.1:8787/admin/api/provider-rule-sets \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…","ruleSetId":"…","sortOrder":0}'
 ```
@@ -54,7 +54,7 @@ A whole set is replaced in one call, which is how a set is edited as a unit
 rather than row by row:
 
 ```sh
-curl -s -X PUT http://127.0.0.1:7070/admin/api/rule-sets/{id}/rules \
+curl -s -X PUT http://127.0.0.1:8787/admin/api/rule-sets/{id}/rules \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '[ … ]'
 ```
@@ -62,7 +62,7 @@ curl -s -X PUT http://127.0.0.1:7070/admin/api/rule-sets/{id}/rules \
 ## A Rule
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/rules \
+curl -s -X POST http://127.0.0.1:8787/admin/api/rules \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"ruleSetId":"…","phase":"request","target":"body",
        "paths":["messages.*.content"],
@@ -161,7 +161,7 @@ Six application-compatibility presets ship. Each makes one client application
 look like a generic one to an upstream that recognises it.
 
 ```sh
-curl -s http://127.0.0.1:7070/admin/api/rule-presets -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/admin/api/rule-presets -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 ```text
@@ -174,7 +174,7 @@ cursor      Cursor          application    1 rule
 ```
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/rule-sets/{id}/rule-presets/opencode \
+curl -s -X POST http://127.0.0.1:8787/admin/api/rule-sets/{id}/rule-presets/opencode \
   -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
@@ -198,7 +198,7 @@ new provider, which is the difference from v3: there is no seeded
 seeded row.
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/operation-rules \
+curl -s -X POST http://127.0.0.1:8787/admin/api/operation-rules \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…","operation":"generate_content",
        "action":"dialects","target":["claude","openai_chat"]}'
@@ -224,7 +224,7 @@ default path appended — the channel's own path parameters are resolved by that
 method:
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/operation-endpoints \
+curl -s -X POST http://127.0.0.1:8787/admin/api/operation-endpoints \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…","operation":"generate_content","dialect":"openai_chat",
        "url":"https://elsewhere.example/v1/chat/completions"}'
@@ -236,7 +236,7 @@ and the channel's default path.
 Both are dropped together by one reset:
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/providers/{id}/routing-defaults/reset \
+curl -s -X POST http://127.0.0.1:8787/admin/api/providers/{id}/routing-defaults/reset \
   -H "Authorization: Bearer $GPROXY_KEY"
 ```
 

@@ -13,7 +13,7 @@ what came back.
 ## 1. Start the Instance
 
 ```sh
-./target/release/gproxy serve --data-dir ./data --port 7070
+./target/release/gproxy serve --data-dir ./data --port 8787
 ```
 
 The first start prints the administrator and one gateway API key, once, to
@@ -41,7 +41,7 @@ nor the cache, so a load balancer polling it cannot become the load that fails
 it:
 
 ```sh
-curl -s http://127.0.0.1:7070/healthz
+curl -s http://127.0.0.1:8787/healthz
 ```
 
 ```json
@@ -54,7 +54,7 @@ A channel is the adapter for one upstream family, and only the ones compiled in
 exist. The list comes from the binary, not the database:
 
 ```sh
-curl -s http://127.0.0.1:7070/admin/api/channels \
+curl -s http://127.0.0.1:8787/admin/api/channels \
   -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
@@ -73,7 +73,7 @@ A provider is one saved connection on a channel. `custom` is the generic
 API-key channel: any endpoint that speaks OpenAI, Claude or Gemini natively.
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/providers \
+curl -s -X POST http://127.0.0.1:8787/admin/api/providers \
   -H "Authorization: Bearer $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{
@@ -106,7 +106,7 @@ export PROVIDER=5a45fd807be02516a1626eedd528859d
 ## 4. Add a Credential
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/credentials \
+curl -s -X POST http://127.0.0.1:8787/admin/api/credentials \
   -H "Authorization: Bearer $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d "{\"providerId\":\"$PROVIDER\",\"label\":\"main key\",
@@ -136,7 +136,7 @@ You can already send a request. The provider mount needs no route and no
 exposed name:
 
 ```sh
-curl -s http://127.0.0.1:7070/openai-main/v1/chat/completions \
+curl -s http://127.0.0.1:8787/openai-main/v1/chat/completions \
   -H "Authorization: Bearer $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Say hello."}]}'
@@ -145,7 +145,7 @@ curl -s http://127.0.0.1:7070/openai-main/v1/chat/completions \
 The `provider/model` form does the same thing from the aggregated mount:
 
 ```sh
-curl -s http://127.0.0.1:7070/v1/chat/completions \
+curl -s http://127.0.0.1:8787/v1/chat/completions \
   -H "Authorization: Bearer $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{"model":"openai-main/gpt-4o-mini","messages":[{"role":"user","content":"Say hello."}]}'
@@ -158,7 +158,7 @@ public name that points at one. Together they are how a client stops naming
 your infrastructure.
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/routes \
+curl -s -X POST http://127.0.0.1:8787/admin/api/routes \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"name":"main"}'
 ```
@@ -171,12 +171,12 @@ curl -s -X POST http://127.0.0.1:7070/admin/api/routes \
 ```sh
 export ROUTE=33a88261f571347c7f0408c3bd2e2164
 
-curl -s -X POST http://127.0.0.1:7070/admin/api/route-members \
+curl -s -X POST http://127.0.0.1:8787/admin/api/route-members \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d "{\"routeId\":\"$ROUTE\",\"providerId\":\"$PROVIDER\",
        \"upstreamModel\":\"gpt-4o-mini\"}"
 
-curl -s -X POST http://127.0.0.1:7070/admin/api/exposed-models \
+curl -s -X POST http://127.0.0.1:8787/admin/api/exposed-models \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d "{\"routeId\":\"$ROUTE\",\"name\":\"fast\"}"
 ```
@@ -199,7 +199,7 @@ request.
 ## 7. Send the Request
 
 ```sh
-curl -s http://127.0.0.1:7070/v1/chat/completions \
+curl -s http://127.0.0.1:8787/v1/chat/completions \
   -H "Authorization: Bearer $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{"model":"fast","messages":[{"role":"user","content":"Say hello."}]}'
@@ -208,7 +208,7 @@ curl -s http://127.0.0.1:7070/v1/chat/completions \
 ## 8. See What It Cost
 
 ```sh
-curl -s http://127.0.0.1:7070/portal/api/usage \
+curl -s http://127.0.0.1:8787/portal/api/usage \
   -H "Authorization: Bearer $GPROXY_KEY"
 ```
 

@@ -66,7 +66,7 @@ first request.
 ## Run It
 
 ```sh
-./target/release/gproxy serve --data-dir ./data --port 7070
+./target/release/gproxy serve --data-dir ./data --port 8787
 ```
 
 A first start creates the database and the schema, creates one administrator,
@@ -94,7 +94,7 @@ WARN gproxy::serve: upstream credential secrets are stored UNENCRYPTED: no
 INFO gproxy::serve: no console bundle is compiled into this binary and no
      directory was named, so /console answers 404. …
 INFO gproxy::bootstrap: created the first administrator user="admin"
-INFO gproxy::serve: gproxy is listening address=127.0.0.1:7070 revision=2 console=false
+INFO gproxy::serve: gproxy is listening address=127.0.0.1:8787 revision=2 console=false
 ```
 
 Both of those lines are true and deliberate. Read on.
@@ -176,7 +176,7 @@ Two front doors, one instance:
   and `/admin/api` and `/portal/api` answer 404 there, so the gateway key never
   doubles as an administrative one.
 
-Port 7071 is one above the server's 7070 so the two can run side by side, and
+Port 7071 is distinct from the server's 8787 so the two can run side by side, and
 it is fixed rather than random: a client's base URL is typed once and kept.
 
 The master key is minted on first run and kept in the platform keychain

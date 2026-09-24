@@ -24,7 +24,7 @@ instance forwards. A new upstream surface must not require a new route here.
 | — | everything else | the ingress fallback |
 
 ```sh
-curl -s http://127.0.0.1:7070/healthz
+curl -s http://127.0.0.1:8787/healthz
 ```
 
 ```json

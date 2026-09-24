@@ -37,11 +37,11 @@ OpenAI Chat 请求会先转成 Claude Messages，所以它的规则寻址的是 
 有自己的 `sortOrder` 和 `enabled`。
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/rule-sets \
+curl -s -X POST http://127.0.0.1:8787/admin/api/rule-sets \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"name":"demo"}'
 
-curl -s -X POST http://127.0.0.1:7070/admin/api/provider-rule-sets \
+curl -s -X POST http://127.0.0.1:8787/admin/api/provider-rule-sets \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…","ruleSetId":"…","sortOrder":0}'
 ```
@@ -49,7 +49,7 @@ curl -s -X POST http://127.0.0.1:7070/admin/api/provider-rule-sets \
 整套规则可以一次替换，这也是把规则集当作一个整体来编辑而不是逐行改的方式：
 
 ```sh
-curl -s -X PUT http://127.0.0.1:7070/admin/api/rule-sets/{id}/rules \
+curl -s -X PUT http://127.0.0.1:8787/admin/api/rule-sets/{id}/rules \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '[ … ]'
 ```
@@ -57,7 +57,7 @@ curl -s -X PUT http://127.0.0.1:7070/admin/api/rule-sets/{id}/rules \
 ## 一条规则
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/rules \
+curl -s -X POST http://127.0.0.1:8787/admin/api/rules \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"ruleSetId":"…","phase":"request","target":"body",
        "paths":["messages.*.content"],
@@ -142,7 +142,7 @@ Provider 上启用的挂载按 `(sortOrder, id)` 顺序运行，每个集合内�
 内置六套应用兼容预设。每一套都让某个客户端应用在识别它的上游面前看起来像一个通用客户端。
 
 ```sh
-curl -s http://127.0.0.1:7070/admin/api/rule-presets -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/admin/api/rule-presets -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 ```text
@@ -155,7 +155,7 @@ cursor      Cursor          application    1 条规则
 ```
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/rule-sets/{id}/rule-presets/opencode \
+curl -s -X POST http://127.0.0.1:8787/admin/api/rule-sets/{id}/rule-presets/opencode \
   -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
@@ -176,7 +176,7 @@ v3 那两套 cache 预设随 `cache_breakpoint` 规则 kind 一起消失了。v4
 运维者的行区分，因为根本没有被种下的行。
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/operation-rules \
+curl -s -X POST http://127.0.0.1:8787/admin/api/operation-rules \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…","operation":"generate_content",
        "action":"dialects","target":["claude","openai_chat"]}'
@@ -198,7 +198,7 @@ curl -s -X POST http://127.0.0.1:7070/admin/api/operation-rules \
 默认路径的 base URL——渠道自己的路径参数由那个方法解析：
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/operation-endpoints \
+curl -s -X POST http://127.0.0.1:8787/admin/api/operation-endpoints \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…","operation":"generate_content","dialect":"openai_chat",
        "url":"https://elsewhere.example/v1/chat/completions"}'
@@ -209,7 +209,7 @@ curl -s -X POST http://127.0.0.1:7070/admin/api/operation-endpoints \
 两者由同一个重置一起清掉：
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/providers/{id}/routing-defaults/reset \
+curl -s -X POST http://127.0.0.1:8787/admin/api/providers/{id}/routing-defaults/reset \
   -H "Authorization: Bearer $GPROXY_KEY"
 ```
 

@@ -47,7 +47,7 @@ around it.
 A route is a named pool with its own balancing strategy and attempt budget.
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/routes \
+curl -s -X POST http://127.0.0.1:8787/admin/api/routes \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"name":"main","strategy":"round_robin","maxAttempts":6}'
 ```
@@ -66,7 +66,7 @@ curl -s -X POST http://127.0.0.1:7070/admin/api/routes \
 ## Members
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/route-members \
+curl -s -X POST http://127.0.0.1:8787/admin/api/route-members \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"routeId":"…","providerId":"…","upstreamModel":"gpt-4o-mini",
        "tier":0,"weight":100}'
@@ -114,7 +114,7 @@ An exposed model is the public name a client sends. It is what stops clients
 naming your infrastructure.
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/exposed-models \
+curl -s -X POST http://127.0.0.1:8787/admin/api/exposed-models \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"routeId":"…","name":"fast"}'
 ```
@@ -128,7 +128,7 @@ makes `acme` a mount, and `/acme/v1/chat/completions` with `{"model":"fast"}`
 resolves `acme/fast`.
 
 ```sh
-curl -s http://127.0.0.1:7070/acme/v1/chat/completions \
+curl -s http://127.0.0.1:8787/acme/v1/chat/completions \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"model":"fast","messages":[{"role":"user","content":"hi"}]}'
 ```
@@ -157,7 +157,7 @@ Two tables, and neither is required for routing.
 **`provider_models`** records which upstream names a provider serves:
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/provider-models \
+curl -s -X POST http://127.0.0.1:8787/admin/api/provider-models \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…","upstreamName":"gpt-4o-mini"}'
 ```
@@ -179,7 +179,7 @@ material, not a prerequisite.
 ### Filling it from the upstream
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/models/discover \
+curl -s -X POST http://127.0.0.1:8787/admin/api/models/discover \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…"}'
 ```
@@ -199,8 +199,8 @@ knew about — is a snapshot taken when the asset was generated, not a live
 directory:
 
 ```sh
-curl -s http://127.0.0.1:7070/admin/api/default-model-catalog -H "Authorization: Bearer $GPROXY_KEY"
-curl -s -X POST http://127.0.0.1:7070/admin/api/default-model-catalog/apply-prices \
+curl -s http://127.0.0.1:8787/admin/api/default-model-catalog -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X POST http://127.0.0.1:8787/admin/api/default-model-catalog/apply-prices \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…","modelIds":["gpt-4o-mini"],"overwrite":false}'
 ```
@@ -215,7 +215,7 @@ upstream's own catalogue. The list of names *you* publish is the portal's, and
 it omits nothing:
 
 ```sh
-curl -s http://127.0.0.1:7070/portal/api/models -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/portal/api/models -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 ```json

@@ -57,8 +57,8 @@ report before it was stopped.
 ### Reading it back
 
 ```sh
-curl -s http://127.0.0.1:7070/portal/api/usage -H "Authorization: Bearer $GPROXY_KEY"
-curl -s 'http://127.0.0.1:7070/portal/api/usage?groupBy=provider' -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/portal/api/usage -H "Authorization: Bearer $GPROXY_KEY"
+curl -s 'http://127.0.0.1:8787/portal/api/usage?groupBy=provider' -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 ```json
@@ -104,9 +104,9 @@ instances converge on the same row, and an expired window is never deleted —
 the next request simply opens the next one, and history is the full list.
 
 ```sh
-curl -s 'http://127.0.0.1:7070/admin/api/quotas/status?owners=user:alice,team:t1' \
+curl -s 'http://127.0.0.1:8787/admin/api/quotas/status?owners=user:alice,team:t1' \
   -H "Authorization: Bearer $GPROXY_KEY"
-curl -s -X POST http://127.0.0.1:7070/admin/api/quotas/{id}/reset \
+curl -s -X POST http://127.0.0.1:8787/admin/api/quotas/{id}/reset \
   -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
@@ -134,7 +134,7 @@ for every physical send; only a host sees the inbound HTTP exchange, so the
 | websocket frames | one event per frame | one event per frame, buffered |
 
 ```sh
-curl -s -X PATCH http://127.0.0.1:7070/admin/api/settings \
+curl -s -X PATCH http://127.0.0.1:8787/admin/api/settings \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"logging":{"enableUpstreamLogBody":true}}'
 ```
@@ -202,7 +202,7 @@ derived from the **matched route**, so a new route cannot forget to name
 itself:
 
 ```sh
-curl -s 'http://127.0.0.1:7070/admin/api/audit?limit=4' -H "Authorization: Bearer $GPROXY_KEY"
+curl -s 'http://127.0.0.1:8787/admin/api/audit?limit=4' -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 ```json

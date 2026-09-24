@@ -38,7 +38,7 @@ outside:
 ## OpenAI Chat Completions
 
 ```sh
-curl -s http://127.0.0.1:7070/v1/chat/completions \
+curl -s http://127.0.0.1:8787/v1/chat/completions \
   -H "Authorization: Bearer $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{"model":"fast","messages":[{"role":"user","content":"Say hello."}]}'
@@ -47,7 +47,7 @@ curl -s http://127.0.0.1:7070/v1/chat/completions \
 ## OpenAI Responses
 
 ```sh
-curl -s http://127.0.0.1:7070/v1/responses \
+curl -s http://127.0.0.1:8787/v1/responses \
   -H "Authorization: Bearer $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{"model":"fast","input":"Say hello."}'
@@ -56,7 +56,7 @@ curl -s http://127.0.0.1:7070/v1/responses \
 ## Claude Messages
 
 ```sh
-curl -s http://127.0.0.1:7070/v1/messages \
+curl -s http://127.0.0.1:8787/v1/messages \
   -H "x-api-key: $GPROXY_KEY" \
   -H 'anthropic-version: 2023-06-01' \
   -H 'content-type: application/json' \
@@ -79,7 +79,7 @@ arrives as Claude Messages:
 Gemini carries the model in the path:
 
 ```sh
-curl -s "http://127.0.0.1:7070/v1beta/models/fast:generateContent" \
+curl -s "http://127.0.0.1:8787/v1beta/models/fast:generateContent" \
   -H "x-goog-api-key: $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{"contents":[{"parts":[{"text":"Say hello."}]}]}'
@@ -104,7 +104,7 @@ For the three body-flag dialects, add `"stream": true`. The response is
 server-sent events in that format's own event shape:
 
 ```sh
-curl -sN http://127.0.0.1:7070/v1/chat/completions \
+curl -sN http://127.0.0.1:8787/v1/chat/completions \
   -H "Authorization: Bearer $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{"model":"fast","stream":true,
@@ -133,7 +133,7 @@ Gemini says it in the path instead. Without a query the stream is Gemini's
 incremental JSON array; `?alt=sse` selects server-sent events:
 
 ```sh
-curl -sN "http://127.0.0.1:7070/v1beta/models/fast:streamGenerateContent?alt=sse" \
+curl -sN "http://127.0.0.1:8787/v1beta/models/fast:streamGenerateContent?alt=sse" \
   -H "x-goog-api-key: $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{"contents":[{"parts":[{"text":"Count to three."}]}]}'
@@ -145,7 +145,7 @@ produced.
 ## Listing Models
 
 ```sh
-curl -s http://127.0.0.1:7070/v1/models -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/v1/models -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 `GET /v1/models` is **forwarded to a provider** in v4 and answers with that
@@ -154,7 +154,7 @@ list of names *you* publish is the portal's, and it marks each one with whether
 this caller may call it:
 
 ```sh
-curl -s http://127.0.0.1:7070/portal/api/models -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/portal/api/models -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 ```json
@@ -170,13 +170,13 @@ model 404s" and "you are not allowed this model" the same observation.
 
 ```sh
 # aggregated — the model name decides everything
-curl -s http://127.0.0.1:7070/v1/chat/completions … -d '{"model":"fast",…}'
+curl -s http://127.0.0.1:8787/v1/chat/completions … -d '{"model":"fast",…}'
 
 # namespace — exposing `acme/fast` creates the namespace `acme`
-curl -s http://127.0.0.1:7070/acme/v1/chat/completions … -d '{"model":"fast",…}'
+curl -s http://127.0.0.1:8787/acme/v1/chat/completions … -d '{"model":"fast",…}'
 
 # provider — that provider and nothing else
-curl -s http://127.0.0.1:7070/openai-main/v1/chat/completions … -d '{"model":"gpt-4o-mini",…}'
+curl -s http://127.0.0.1:8787/openai-main/v1/chat/completions … -d '{"model":"gpt-4o-mini",…}'
 ```
 
 A mount narrows by **prefixing the model name**: `/acme/v1/messages` with
@@ -223,8 +223,8 @@ recorded with its usage row and its capture, and the caller's own view of both
 is the portal:
 
 ```sh
-curl -s http://127.0.0.1:7070/portal/api/usage    -H "Authorization: Bearer $GPROXY_KEY"
-curl -s http://127.0.0.1:7070/portal/api/requests -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/portal/api/usage    -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/portal/api/requests -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 See [Usage, Logs & Audit](/guides/observability/) for what is recorded, what is

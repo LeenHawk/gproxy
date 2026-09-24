@@ -33,7 +33,7 @@ GPROXY **只在启动时读一次**进程配置。入口点之下没有任何模
 | --- | --- | --- | --- |
 | `GPROXY_CONFIG` | `--config`、`-c` | — | 装任意配置字段的 TOML 文件 |
 | `GPROXY_HOST` | `--host` | `127.0.0.1` | 监听地址（一个 IP，不是主机名） |
-| `GPROXY_PORT` | `--port`、`-p` | `7070` | 监听端口 |
+| `GPROXY_PORT` | `--port`、`-p` | `8787` | 监听端口 |
 | `GPROXY_DATA_DIR` | `--data-dir` | `data` | 相对路径相对它解析的根 |
 | `GPROXY_PERSISTENCE` | `--persistence` | `sqlite` | `sqlite`、`postgres` 或 `mysql` |
 | `GPROXY_DSN` | `--dsn` | — | 连接串；没有 `--persistence` 时由它自己点明后端 |
@@ -86,7 +86,7 @@ GPROXY **只在启动时读一次**进程配置。入口点之下没有任何模
 
 ```toml
 host = "0.0.0.0"
-port = 7070
+port = 8787
 data_dir = "/var/lib/gproxy"
 public_base_url = "https://gproxy.example.com"
 cors_origins = ["https://console.example.com"]
@@ -273,8 +273,8 @@ revision 提交**，因此任何一处被拒绝的文档什么也不会留下。
 运行期设置在数据库里，改了不用重启。
 
 ```sh
-curl -s http://127.0.0.1:7070/admin/api/settings  -H "Authorization: Bearer $GPROXY_KEY"
-curl -s -X PATCH http://127.0.0.1:7070/admin/api/settings \
+curl -s http://127.0.0.1:8787/admin/api/settings  -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X PATCH http://127.0.0.1:8787/admin/api/settings \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"instance":{"maxAttempts":4}}'
 ```

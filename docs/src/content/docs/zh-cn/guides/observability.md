@@ -47,8 +47,8 @@ token 计数、它们背后的按交换明细、结算状态和定价结果。
 ## 读回来
 
 ```sh
-curl -s http://127.0.0.1:7070/portal/api/usage -H "Authorization: Bearer $GPROXY_KEY"
-curl -s 'http://127.0.0.1:7070/portal/api/usage?groupBy=provider' -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/portal/api/usage -H "Authorization: Bearer $GPROXY_KEY"
+curl -s 'http://127.0.0.1:8787/portal/api/usage?groupBy=provider' -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 ```json
@@ -87,9 +87,9 @@ owner 的**每一个**启用预算都适用，而且全部都要有余量。顺�
 窗口从不删除——下一个请求只是开下一个，而历史就是全部行。
 
 ```sh
-curl -s 'http://127.0.0.1:7070/admin/api/quotas/status?owners=user:alice,team:t1' \
+curl -s 'http://127.0.0.1:8787/admin/api/quotas/status?owners=user:alice,team:t1' \
   -H "Authorization: Bearer $GPROXY_KEY"
-curl -s -X POST http://127.0.0.1:7070/admin/api/quotas/{id}/reset \
+curl -s -X POST http://127.0.0.1:8787/admin/api/quotas/{id}/reset \
   -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
@@ -113,7 +113,7 @@ curl -s -X POST http://127.0.0.1:7070/admin/api/quotas/{id}/reset \
 | WebSocket 帧 | 每帧一个事件 | 每帧一个事件，缓冲 |
 
 ```sh
-curl -s -X PATCH http://127.0.0.1:7070/admin/api/settings \
+curl -s -X PATCH http://127.0.0.1:8787/admin/api/settings \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"logging":{"enableUpstreamLogBody":true}}'
 ```
@@ -167,7 +167,7 @@ Provider、用过两把凭证，单独一列只能挑一个。边在不挑的前
 给自己命名：
 
 ```sh
-curl -s 'http://127.0.0.1:7070/admin/api/audit?limit=4' -H "Authorization: Bearer $GPROXY_KEY"
+curl -s 'http://127.0.0.1:8787/admin/api/audit?limit=4' -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 ```json

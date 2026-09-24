@@ -21,7 +21,7 @@ description: v4 完整的入站表、挂载点语法、OAuth 与管理路由、W
 | — | 其余一切 | 入站兜底 |
 
 ```sh
-curl -s http://127.0.0.1:7070/healthz
+curl -s http://127.0.0.1:8787/healthz
 ```
 
 ```json

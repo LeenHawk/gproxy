@@ -75,7 +75,7 @@ fn default_host() -> String {
 }
 
 fn default_port() -> u16 {
-    7070
+    8787
 }
 
 /// Where the durable configuration and usage live. Which variants a build can
@@ -287,7 +287,7 @@ mod tests {
         let config: AppConfig = serde_json::from_str("{}").unwrap();
         assert_eq!(config, AppConfig::default());
         assert_eq!(config.host, "127.0.0.1");
-        assert_eq!(config.port, 7070);
+        assert_eq!(config.port, 8787);
         assert_eq!(config.session_ttl_secs, 2_592_000);
         assert_eq!(config.oauth.access_ttl_secs, 3600);
         assert_eq!(config.oauth.refresh_ttl_secs, 2_592_000);

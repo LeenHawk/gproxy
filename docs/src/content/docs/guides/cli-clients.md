@@ -138,15 +138,15 @@ GET  /.well-known/oauth-authorization-server{mount}/v1
 ```
 
 ```sh
-curl -s http://127.0.0.1:7070/v1/.well-known/oauth-authorization-server
+curl -s http://127.0.0.1:8787/v1/.well-known/oauth-authorization-server
 ```
 
 ```json
-{"issuer":"http://127.0.0.1:7070/v1",
- "authorization_endpoint":"http://127.0.0.1:7070/v1/oauth/authorize",
- "token_endpoint":"http://127.0.0.1:7070/v1/oauth/token",
- "device_authorization_endpoint":"http://127.0.0.1:7070/v1/oauth/device/code",
- "revocation_endpoint":"http://127.0.0.1:7070/v1/oauth/revoke",
+{"issuer":"http://127.0.0.1:8787/v1",
+ "authorization_endpoint":"http://127.0.0.1:8787/v1/oauth/authorize",
+ "token_endpoint":"http://127.0.0.1:8787/v1/oauth/token",
+ "device_authorization_endpoint":"http://127.0.0.1:8787/v1/oauth/device/code",
+ "revocation_endpoint":"http://127.0.0.1:8787/v1/oauth/revoke",
  "response_types_supported":["code"],
  "grant_types_supported":["authorization_code","refresh_token",
    "urn:ietf:params:oauth:grant-type:device_code"],

@@ -117,7 +117,7 @@ function Navigation({ sections, route, onNavigate }: {
       {sections.map((section) => {
         const current = section.items.some((item) => item.route === route)
         const SectionIcon = section.icon
-        if (section.id === "rules") return <Link key={section.id} to="/rule-sets" onClick={onNavigate} aria-current={current ? "page" : undefined} className={cn("flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-sidebar-accent/60", current ? "bg-sidebar-accent text-sidebar-foreground" : "text-muted-foreground")}><SectionIcon className="size-4.5 shrink-0" aria-hidden /><span>{t("nav.rule-sets")}</span></Link>
+        if (section.standalone || section.id === "rules") return <Link key={section.id} to={section.items[0].route} onClick={onNavigate} aria-current={current ? "page" : undefined} className={cn("flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-sidebar-accent/60", current ? "bg-sidebar-accent text-sidebar-foreground" : "text-muted-foreground")}><SectionIcon className="size-4.5 shrink-0" aria-hidden /><span>{t(`nav.${section.items[0].id}`)}</span></Link>
         return (
           <details key={section.id} open={current} className="group/section">
             <summary className={cn(
@@ -230,8 +230,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="lg:hidden"><Brand /></div>
           {section && item && ActiveIcon ? (
             <div className="hidden min-w-0 items-center gap-2.5 text-sm lg:flex">
-              <span className="text-muted-foreground">{t(`section.${section.id}`)}</span>
-              <ChevronRight className="size-3.5 text-muted-foreground" aria-hidden="true" />
+              {!section.standalone ? <><span className="text-muted-foreground">{t(`section.${section.id}`)}</span>
+              <ChevronRight className="size-3.5 text-muted-foreground" aria-hidden="true" /></> : null}
               <ActiveIcon className="size-4 shrink-0" strokeWidth={1.75} aria-hidden="true" />
               <span className="truncate font-medium">{item.label ?? t(`nav.${item.id}`)}</span>
             </div>

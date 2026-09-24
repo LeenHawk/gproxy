@@ -178,7 +178,7 @@ fn the_default_is_what_is_left() {
     let cli = Cli::try_parse_from(["gproxy", "serve"]).unwrap();
     let settings = config::settings(&cli).unwrap();
     assert_eq!(settings.config.host, "127.0.0.1");
-    assert_eq!(settings.config.port, 7070);
+    assert_eq!(settings.config.port, 8787);
     assert_eq!(
         settings.config.data_dir.as_deref(),
         Some(config::DEFAULT_DATA_DIR)
