@@ -1,6 +1,6 @@
 //! Destructive actions name their target and ask for confirmation.
 
-import { useState, type ReactNode } from "react"
+import { useState, type ComponentProps, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -8,19 +8,20 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 
-export function ConfirmButton({ title, confirmLabel, onConfirm, children, disabled, iconOnly = false }: {
+export function ConfirmButton({ title, confirmLabel, onConfirm, children, disabled, iconOnly = false, variant = "ghost" }: {
   title: string
   confirmLabel?: string
   onConfirm: () => void
   children: ReactNode
   disabled?: boolean
   iconOnly?: boolean
+  variant?: ComponentProps<typeof Button>["variant"]
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   return (
     <>
-      <Button variant="ghost" size={iconOnly ? "icon-sm" : "sm"} title={iconOnly ? title : undefined} aria-label={iconOnly ? title : undefined} disabled={disabled} onClick={() => setOpen(true)}>{children}</Button>
+      <Button variant={variant} size={iconOnly ? "icon-sm" : "sm"} title={iconOnly ? title : undefined} aria-label={iconOnly ? title : undefined} disabled={disabled} onClick={() => setOpen(true)}>{children}</Button>
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent aria-describedby={undefined}>
           <AlertDialogHeader>
