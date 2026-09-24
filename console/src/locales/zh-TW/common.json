@@ -36,6 +36,8 @@
     "notFoundTitle": "沒有這個頁面"
   },
   "form": {
+    "all": "全部",
+    "useCustom": "使用「{{value}}」",
     "choose": "請選擇…",
     "invalidJson": "JSON 格式不正確，請檢查後重試。",
     "unset": "繼承"
@@ -134,6 +136,7 @@
     "disabled": "已停用"
   },
   "fields": {
+    "permissionEffect": "權限效果",
     "action": "動作",
     "actions": "操作",
     "actorUserId": "操作者",
