@@ -65,7 +65,15 @@ fn from_event_stream(dialect: Dialect, body: &[u8]) -> Option<NormalizedUsage> {
         };
         if let Some(usage) = from_value(dialect, &value) {
             merged = Some(match merged {
-                Some(previous) => merge(previous, usage),
+                Some(previous) => {
+                    let breakdown = dialect != Dialect::Claude
+                        || value
+                            .get("usage")
+                            .or_else(|| value.pointer("/message/usage"))
+                            .and_then(|u| u.get("cache_creation"))
+                            .is_some_and(Value::is_object);
+                    merge(previous, usage, breakdown)
+                }
                 None => usage,
             });
         }
@@ -74,7 +82,11 @@ fn from_event_stream(dialect: Dialect, body: &[u8]) -> Option<NormalizedUsage> {
 }
 
 /// Later counts win field by field; an absent field leaves the earlier one.
-fn merge(mut into: NormalizedUsage, from: NormalizedUsage) -> NormalizedUsage {
+fn merge(
+    mut into: NormalizedUsage,
+    from: NormalizedUsage,
+    cache_breakdown: bool,
+) -> NormalizedUsage {
     fn take(target: &mut Option<u64>, value: Option<u64>) {
         if value.is_some() {
             *target = value;
@@ -86,14 +98,21 @@ fn merge(mut into: NormalizedUsage, from: NormalizedUsage) -> NormalizedUsage {
         &mut into.tokens.cached_input_tokens,
         from.tokens.cached_input_tokens,
     );
-    take(
-        &mut into.tokens.cache_creation_5m_tokens,
-        from.tokens.cache_creation_5m_tokens,
-    );
-    take(
-        &mut into.tokens.cache_creation_1h_tokens,
-        from.tokens.cache_creation_1h_tokens,
-    );
+    // A trailing aggregate is not a new 5-minute measurement. Preserve the
+    // input-side cache accounting unless the later frame supplies a breakdown.
+    if cache_breakdown
+        || (into.tokens.cache_creation_5m_tokens.is_none()
+            && into.tokens.cache_creation_1h_tokens.is_none())
+    {
+        take(
+            &mut into.tokens.cache_creation_5m_tokens,
+            from.tokens.cache_creation_5m_tokens,
+        );
+        take(
+            &mut into.tokens.cache_creation_1h_tokens,
+            from.tokens.cache_creation_1h_tokens,
+        );
+    }
     take(
         &mut into.tokens.reasoning_tokens,
         from.tokens.reasoning_tokens,
@@ -246,4 +265,47 @@ fn gemini(usage: &Value) -> Option<NormalizedUsage> {
             .insert("tool_use_prompt_tokens".into(), count.into());
     }
     Some(normalized)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn claude_trailing_totals_preserve_buckets_and_explicit_updates_replace_them() {
+        for (five, hour) in [(0, 20), (7, 13), (20, 0)] {
+            let start = json!({"type":"message_start","message":{"usage":{"input_tokens":10,"output_tokens":0,
+                "cache_creation":{"ephemeral_5m_input_tokens":five,"ephemeral_1h_input_tokens":hour}}}});
+            let delta = json!({"type":"message_delta","usage":{"input_tokens":10,"output_tokens":5,"cache_creation_input_tokens":20}});
+            let wire = format!("data: {start}\n\ndata: {delta}\n\n");
+            let merged = from_body(Dialect::Claude, wire.as_bytes())
+                .unwrap()
+                .unwrap();
+            assert_eq!(merged.tokens.cache_creation_5m_tokens, Some(five));
+            assert_eq!(merged.tokens.cache_creation_1h_tokens, Some(hour));
+            assert_eq!(merged.tokens.output_tokens, Some(5));
+            let update = json!({"type":"message_delta","usage":{"output_tokens":6,
+                "cache_creation":{"ephemeral_5m_input_tokens":2,"ephemeral_1h_input_tokens":22}}});
+            let merged = from_body(
+                Dialect::Claude,
+                format!("{wire}data: {update}\n\n").as_bytes(),
+            )
+            .unwrap()
+            .unwrap();
+            assert_eq!(merged.tokens.cache_creation_5m_tokens, Some(2));
+            assert_eq!(merged.tokens.cache_creation_1h_tokens, Some(22));
+        }
+        let flat = from_body(
+            Dialect::Claude,
+            br#"{"usage":{"input_tokens":10,"output_tokens":5,"cache_creation_input_tokens":7}}"#,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            flat.tokens.cache_creation_5m_tokens,
+            Some(7),
+            "preserve the legacy flat-only fallback"
+        );
+    }
 }
