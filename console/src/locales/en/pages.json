@@ -634,5 +634,38 @@
       "http_status": "Probe service returned an error",
       "invalid_response": "Probe did not return the expected IP address"
     }
+  },
+  "catalog": {
+    "help": "Defaults fill missing upstream metadata; local overrides take precedence. Existing provider settings are preserved on import.",
+    "count": "{{count}} models",
+    "display_name": "Display name",
+    "description": "Description",
+    "context_window": "Context window",
+    "max_output_tokens": "Maximum output tokens",
+    "input_modalities": "Input modalities",
+    "output_modalities": "Output modalities",
+    "supported_parameters": "Supported parameters",
+    "capabilities": "Capabilities",
+    "referencePrice": "Input / output USD/1M",
+    "source": "Source",
+    "local": "Local override",
+    "bundled": "Bundled",
+    "details": "Details",
+    "applyPrice": "Apply default price",
+    "reset": "Remove local entry",
+    "applied": "Created {{created}}, kept {{skipped}}, unmatched {{unmatched}}",
+    "referenceHelp": "Reference prices from OpenRouter, not a provider quote. Missing prices are unknown, not free. Tier prices are USD per million tokens.",
+    "tierFields": {
+      "inputPrice": "Input",
+      "outputPrice": "Output",
+      "cacheReadPrice": "Cache read",
+      "cacheCreation5mPrice": "Cache write 5m",
+      "cacheCreation30mPrice": "Cache write 30m",
+      "cacheCreation1hPrice": "Cache write 1h",
+      "imageOutputPrice": "Image output",
+      "audioInputPrice": "Audio input",
+      "audioOutputPrice": "Audio output",
+      "cachedAudioInputPrice": "Cached audio input"
+    }
   }
 }

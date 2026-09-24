@@ -33,6 +33,8 @@ import { UpdatePage } from "@/pages/update"
 import { SettingsPage } from "@/pages/settings"
 import { TokenizerPage } from "@/pages/tokenizer"
 
+import { ModelCatalogPage } from "@/pages/model-catalog"
+
 const ROUTES: Record<string, () => React.ReactElement> = {
   "/": OverviewPage,
   "/keys": KeysPage,
@@ -42,6 +44,7 @@ const ROUTES: Record<string, () => React.ReactElement> = {
   "/requests": RequestsPage,
   "/account": AccountPage,
   "/providers": ProvidersPage,
+  "/model-catalog": ModelCatalogPage,
   "/settings": SettingsPage,
   "/rule-sets": RuleSetsPage,
   "/update": UpdatePage,

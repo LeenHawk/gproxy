@@ -27,7 +27,8 @@
     "operation-rules": "Routing rules",
     "operation-endpoints": "Endpoint URLs",
     "update": "Updates",
-    "connection-profiles": "Request clients"
+    "connection-profiles": "Request clients",
+    "model-catalog": "Model catalog"
   },
   "create": {
     "keys": "New key",

@@ -634,5 +634,38 @@
       "http_status": "检测服务返回错误",
       "invalid_response": "检测未返回预期的 IP 地址"
     }
+  },
+  "catalog": {
+    "help": "默认元数据补全上游缺失字段，本地覆盖值优先。导入时保留已有渠道设置。",
+    "count": "{{count}} 个模型",
+    "display_name": "显示名称",
+    "description": "描述",
+    "context_window": "上下文窗口",
+    "max_output_tokens": "最大输出 Token",
+    "input_modalities": "输入模态",
+    "output_modalities": "输出模态",
+    "supported_parameters": "支持参数",
+    "capabilities": "能力",
+    "referencePrice": "输入 / 输出 USD/百万",
+    "source": "来源",
+    "local": "本地覆盖",
+    "bundled": "内置",
+    "details": "详情",
+    "applyPrice": "应用默认价格",
+    "reset": "移除本地条目",
+    "applied": "新增 {{created}}，保留 {{skipped}}，未匹配 {{unmatched}}",
+    "referenceHelp": "OpenRouter 参考价格，并非渠道报价。缺失价格表示未知，不代表免费。分段价格单位为美元 / 百万 Token。",
+    "tierFields": {
+      "inputPrice": "输入",
+      "outputPrice": "输出",
+      "cacheReadPrice": "缓存读取",
+      "cacheCreation5mPrice": "缓存写入 5 分钟",
+      "cacheCreation30mPrice": "缓存写入 30 分钟",
+      "cacheCreation1hPrice": "缓存写入 1 小时",
+      "imageOutputPrice": "图片输出",
+      "audioInputPrice": "音频输入",
+      "audioOutputPrice": "音频输出",
+      "cachedAudioInputPrice": "缓存音频输入"
+    }
   }
 }

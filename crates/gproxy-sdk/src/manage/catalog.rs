@@ -304,6 +304,24 @@ fn model_for<'a>(catalog: &'a DefaultModelCatalogDto, name: &str) -> Option<&'a 
     matches.next().is_none().then_some(found)
 }
 
+/// Metadata defaults are copied into imported provider rows, never live-linked.
+pub(crate) fn default_metadata(name: &str) -> Value {
+    let Some(model) = catalog().ok().and_then(|catalog| model_for(catalog, name)) else {
+        return json!({});
+    };
+    let mut metadata = model.metadata.clone();
+    for (key, value) in [
+        ("display_name", json!(model.display_name)),
+        ("context_window", json!(model.context_window)),
+        ("max_output_tokens", json!(model.max_output_tokens)),
+    ] {
+        if !value.is_null() {
+            metadata.insert(key.into(), value);
+        }
+    }
+    Value::Object(metadata)
+}
+
 /// The price book whose `*fragment*` covers `name`, preferring the longest
 /// fragment. That is the same ordering `priority` encodes, so the rule this
 /// picks is the rule that would have won at settlement.
@@ -406,6 +424,12 @@ fn tier_model(rule_id: &str, tier: &DefaultModelTierDto) -> SdkResult<price_tier
             "cacheCreation1hPrice",
         )?),
         image_output_per_million: Set(money(&tier.image_output_price, "imageOutputPrice")?),
+        audio_input_per_million: Set(money(&tier.audio_input_price, "audioInputPrice")?),
+        audio_output_per_million: Set(money(&tier.audio_output_price, "audioOutputPrice")?),
+        cached_audio_input_per_million: Set(money(
+            &tier.cached_audio_input_price,
+            "cachedAudioInputPrice",
+        )?),
         ..Default::default()
     })
 }

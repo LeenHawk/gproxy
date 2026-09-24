@@ -634,5 +634,38 @@
       "http_status": "檢測服務回傳錯誤",
       "invalid_response": "檢測未回傳預期的 IP 位址"
     }
+  },
+  "catalog": {
+    "help": "預設中繼資料補全上游缺失欄位，本機覆寫值優先。匯入時保留既有渠道設定。",
+    "count": "{{count}} 個模型",
+    "display_name": "顯示名稱",
+    "description": "描述",
+    "context_window": "上下文視窗",
+    "max_output_tokens": "最大輸出 Token",
+    "input_modalities": "輸入模態",
+    "output_modalities": "輸出模態",
+    "supported_parameters": "支援參數",
+    "capabilities": "能力",
+    "referencePrice": "輸入 / 輸出 USD/百萬",
+    "source": "來源",
+    "local": "本機覆寫",
+    "bundled": "內建",
+    "details": "詳情",
+    "applyPrice": "套用預設價格",
+    "reset": "移除本機項目",
+    "applied": "新增 {{created}}，保留 {{skipped}}，未匹配 {{unmatched}}",
+    "referenceHelp": "OpenRouter 參考價格，並非渠道報價。缺失價格表示未知，不代表免費。分段價格單位為美元 / 百萬 Token。",
+    "tierFields": {
+      "inputPrice": "輸入",
+      "outputPrice": "輸出",
+      "cacheReadPrice": "快取讀取",
+      "cacheCreation5mPrice": "快取寫入 5 分鐘",
+      "cacheCreation30mPrice": "快取寫入 30 分鐘",
+      "cacheCreation1hPrice": "快取寫入 1 小時",
+      "imageOutputPrice": "圖片輸出",
+      "audioInputPrice": "音訊輸入",
+      "audioOutputPrice": "音訊輸出",
+      "cachedAudioInputPrice": "快取音訊輸入"
+    }
   }
 }

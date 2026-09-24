@@ -27,7 +27,8 @@
     "operation-rules": "路由规则",
     "operation-endpoints": "端点 URL",
     "update": "系统更新",
-    "connection-profiles": "请求客户端"
+    "connection-profiles": "请求客户端",
+    "model-catalog": "模型总表"
   },
   "create": {
     "keys": "新建密钥",

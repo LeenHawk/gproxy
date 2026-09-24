@@ -118,6 +118,12 @@ pub struct DefaultModelTierDto {
     pub cache_creation_1h_price: Option<String>,
     #[serde(default)]
     pub image_output_price: Option<String>,
+    #[serde(default)]
+    pub audio_input_price: Option<String>,
+    #[serde(default)]
+    pub audio_output_price: Option<String>,
+    #[serde(default)]
+    pub cached_audio_input_price: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
