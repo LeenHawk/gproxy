@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url"
 const MODELS_URL = "https://openrouter.ai/api/v1/models?limit=1000&output_modalities=all"
 const scriptPath = fileURLToPath(import.meta.url)
 const root = path.resolve(path.dirname(scriptPath), "..")
-const outputPath = path.join(root, "crates", "gproxy-admin", "assets", "default-model-catalog.json")
+const outputPath = path.join(root, "crates", "gproxy-sdk", "assets", "default-model-catalog.json")
 const DECIMAL = /^(?:0|[1-9]\d*)(?:\.\d+)?$/
 const SUPPORTED_OUTPUT_MODALITIES = new Set(["text", "image", "embeddings", "rerank"])
 const TOKEN_UNIT = 1_000_000
@@ -82,6 +82,9 @@ function tiers(pricing, author, modelId) {
     )
     assign("cache_creation_1h_price", override.input_cache_write_1h)
     assign("image_output_price", override.image_output)
+    assign("audio_input_price", override.audio)
+    assign("audio_output_price", override.audio_output)
+    assign("cached_audio_input_price", override.input_audio_cache)
     return result
   })
 }
@@ -123,6 +126,9 @@ export function buildCatalog(payload, fetchedAt = new Date().toISOString()) {
     if (outputModalities.includes("rerank")) rerankModels += 1
     models.push({
       model_id: model.id,
+      description: model.description ?? null,
+      metadata_source: { catalog: "openrouter", url: `https://openrouter.ai/${model.id}`, fetched_at: fetchedAt },
+      source_pricing: model.pricing ?? null,
       display_name: typeof model.name === "string" && model.name.trim() ? model.name : null,
       context_window: contextWindow,
       max_output_tokens: maxOutputTokens ?? null,
@@ -188,6 +194,7 @@ export function applyCodexCatalog(catalog, payload, revision = "unknown") {
       }
       catalog.models.push(target)
     }
+    target.codex_source = { revision, url: "https://github.com/openai/codex/blob/" + revision + "/codex-rs/models-manager/models.json" }
     const assign = (name, value) => {
       if (value !== undefined && value !== null) target[name] = value
     }

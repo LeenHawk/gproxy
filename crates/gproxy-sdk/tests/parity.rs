@@ -546,6 +546,42 @@ async fn the_catalogues_are_readable_and_the_prices_are_idempotent() {
 }
 
 #[tokio::test]
+async fn catalog_audio_tiers_keep_their_units_when_applied() {
+    let gproxy = instance(None, false).await;
+    gproxy
+        .manage()
+        .catalog()
+        .apply_default_prices(ApplyDefaultPricesRequest {
+            provider_id: None,
+            model_ids: vec!["google/gemini-2.5-pro".to_owned()],
+            overwrite: false,
+        })
+        .await
+        .unwrap();
+    let rules = gproxy
+        .manage()
+        .pricing()
+        .rules()
+        .list(ListQuery::default())
+        .await
+        .unwrap();
+    let tiers = gproxy
+        .manage()
+        .pricing()
+        .tiers()
+        .list(ListQuery {
+            price_rule_id: Some(rules.items[0].id.clone()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let tier = &tiers.items[0];
+    assert_eq!(tier.min_prompt_tokens, 200000);
+    assert_eq!(tier.audio_input_per_million.as_deref(), Some("2.5"));
+    assert_eq!(tier.cached_audio_input_per_million.as_deref(), Some("0.25"));
+}
+
+#[tokio::test]
 async fn a_rule_preset_becomes_rewrite_rules() {
     let gproxy = instance(None, false).await;
     let set = gproxy
@@ -746,6 +782,110 @@ async fn discovery_reads_both_directory_shapes() {
         .await
         .unwrap();
     assert!(again.is_empty());
+}
+
+#[tokio::test]
+async fn discovery_applies_catalog_and_local_overrides_without_replacing_provider_edits() {
+    let gproxy = instance(None, false).await;
+    let provider = provider(&gproxy, "metadata").await;
+    credential(&gproxy, &provider.id, "k1").await;
+    gproxy
+        .manage()
+        .models()
+        .create(gproxy_sdk::dto::ModelWrite {
+            name: "anthropic/claude-sonnet-4".to_owned(),
+            metadata: Some(json!({"context_window": 123456, "display_name": "Local Sonnet"})),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    gproxy.client.script(vec![json_reply(json!({"data": [
+        {"id": "claude-sonnet-4", "context_window": 999, "max_output_tokens": 1234},
+        {"id": "unknown-model"},
+        {"id": "upstream-only", "name": "Upstream only", "context_length": 4096,
+         "architecture": {"input_modalities": ["audio"], "output_modalities": ["text"]},
+         "top_provider": {"max_completion_tokens": 256}}
+    ]}))]);
+    let found = gproxy
+        .manage()
+        .connectivity()
+        .discover_models(&provider.id, None)
+        .await
+        .unwrap();
+    let upstream = found
+        .iter()
+        .find(|row| row.upstream_name == "upstream-only")
+        .unwrap();
+    assert_eq!(upstream.metadata["context_window"], 4096);
+    assert_eq!(upstream.metadata["max_output_tokens"], 256);
+    assert_eq!(upstream.metadata["display_name"], "Upstream only");
+    assert_eq!(upstream.metadata["input_modalities"], json!(["audio"]));
+    let sonnet = found
+        .iter()
+        .find(|row| row.upstream_name == "claude-sonnet-4")
+        .unwrap();
+    assert_eq!(sonnet.metadata["context_window"], 123456);
+    assert_eq!(sonnet.metadata["max_output_tokens"], 1234);
+    assert_eq!(sonnet.metadata["display_name"], "Local Sonnet");
+    assert!(
+        sonnet.metadata["input_modalities"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("image"))
+    );
+    assert_eq!(
+        found
+            .iter()
+            .find(|row| row.upstream_name == "unknown-model")
+            .unwrap()
+            .metadata,
+        json!({})
+    );
+    gproxy
+        .manage()
+        .connectivity()
+        .apply_discovered(&provider.id, vec!["claude-sonnet-4".to_owned()])
+        .await
+        .unwrap();
+    let rows = gproxy
+        .manage()
+        .provider_models()
+        .list(ListQuery {
+            provider_id: Some(provider.id.clone()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    let row = &rows.items[0];
+    assert_eq!(row.metadata["context_window"], 123456);
+    gproxy
+        .manage()
+        .provider_models()
+        .update(
+            &row.id,
+            gproxy_sdk::dto::ProviderModelPatch {
+                metadata: Some(json!({"context_window": 77})),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    gproxy
+        .manage()
+        .connectivity()
+        .apply_discovered(&provider.id, vec!["claude-sonnet-4".to_owned()])
+        .await
+        .unwrap();
+    assert_eq!(
+        gproxy
+            .manage()
+            .provider_models()
+            .get(&row.id)
+            .await
+            .unwrap()
+            .metadata["context_window"],
+        77
+    );
 }
 
 // ---------------------------------------------------------------------------

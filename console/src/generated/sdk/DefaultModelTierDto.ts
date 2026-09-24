@@ -4,4 +4,4 @@
  * A long-context or service-tier override. Every price is optional and every
  * absent one inherits the rule's rates.
  */
-export type DefaultModelTierDto = { serviceTier: string | null, minPromptTokens: number | null, multiplier: string | null, inputPrice: string | null, outputPrice: string | null, cacheReadPrice: string | null, cacheCreation5mPrice: string | null, cacheCreation30mPrice: string | null, cacheCreation1hPrice: string | null, imageOutputPrice: string | null, };
+export type DefaultModelTierDto = { serviceTier: string | null, minPromptTokens: number | null, multiplier: string | null, inputPrice: string | null, outputPrice: string | null, cacheReadPrice: string | null, cacheCreation5mPrice: string | null, cacheCreation30mPrice: string | null, cacheCreation1hPrice: string | null, imageOutputPrice: string | null, audioInputPrice: string | null, audioOutputPrice: string | null, cachedAudioInputPrice: string | null, };

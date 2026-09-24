@@ -31,7 +31,7 @@ use gproxy_protocol::{
     connection::{Bytes, HeaderMap},
 };
 use gproxy_seaorm::{BatchConnectionTrait, BatchStatement};
-use gproxy_store::entity::upstream::provider_model;
+use gproxy_store::entity::upstream::{model, provider_model};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::{Value, json};
 use web_time::Instant;
@@ -272,12 +272,22 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
             .iter()
             .map(|row| row.upstream_name.as_str())
             .collect();
+        let defaults = self
+            .writer
+            .store()
+            .models()
+            .query(model::Entity::find())
+            .await?;
         Ok(model_names(dialect, &document)
             .into_iter()
             .map(|upstream_name| DiscoveredModelDto {
                 known: known.contains(upstream_name.as_str()),
                 has_default_price: catalog::has_default_price(&upstream_name),
-                metadata: discovered_metadata(dialect, &document, &upstream_name),
+                metadata: import_metadata(
+                    &upstream_name,
+                    &defaults,
+                    discovered_metadata(dialect, &document, &upstream_name),
+                ),
                 upstream_name,
             })
             .collect())
@@ -310,6 +320,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
             .map(|row| row.upstream_name)
             .collect();
 
+        let defaults = self
+            .writer
+            .store()
+            .models()
+            .query(model::Entity::find())
+            .await?;
         let mut added = Vec::new();
         let mut statements = Vec::new();
         for name in upstream_names {
@@ -324,7 +340,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Connectivity<'_, C> {
                         provider_id: Set(provider_id.clone()),
                         upstream_name: Set(name.clone()),
                         model_id: Set(None),
-                        metadata: Set(Value::Object(Default::default())),
+                        metadata: Set(import_metadata(&name, &defaults, json!({}))),
                         enabled: Set(true),
                     },
                 )?,
@@ -757,7 +773,12 @@ fn discovered_metadata(dialect: Dialect, document: &Value, name: &str) -> Value 
             ("description", &["description"][..]),
             (
                 "context_window",
-                &["context_window", "max_input_tokens", "inputTokenLimit"][..],
+                &[
+                    "context_window",
+                    "context_length",
+                    "max_input_tokens",
+                    "inputTokenLimit",
+                ][..],
             ),
             (
                 "max_output_tokens",
@@ -785,6 +806,53 @@ fn discovered_metadata(dialect: Dialect, document: &Value, name: &str) -> Value 
                 result.insert(key.into(), value.clone());
             }
         }
+    }
+    if let Some(item) = item {
+        for (key, pointer) in [
+            ("input_modalities", "/architecture/input_modalities"),
+            ("output_modalities", "/architecture/output_modalities"),
+            ("max_output_tokens", "/top_provider/max_completion_tokens"),
+        ] {
+            if let Some(value) = item.pointer(pointer).filter(|value| !value.is_null()) {
+                result.entry(key).or_insert_with(|| value.clone());
+            }
+        }
+        if item.get("id").is_some() {
+            if let Some(name) = item.get("name").filter(|value| value.is_string()) {
+                result.entry("display_name").or_insert_with(|| name.clone());
+            }
+        }
+    }
+    Value::Object(result)
+}
+
+/// Fill upstream omissions, then apply the operator's explicit global overrides.
+fn import_metadata(name: &str, defaults: &[model::Model], upstream: Value) -> Value {
+    let mut result = catalog::default_metadata(name)
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    if let Some(upstream) = upstream.as_object() {
+        result.extend(
+            upstream
+                .iter()
+                .filter(|(_, value)| !value.is_null())
+                .map(|(key, value)| (key.clone(), value.clone())),
+        );
+    }
+    let basename = |name: &str| name.rsplit('/').next().unwrap_or(name).to_ascii_lowercase();
+    let exact = defaults
+        .iter()
+        .find(|row| row.name.eq_ignore_ascii_case(name));
+    let matched = exact.or_else(|| {
+        let mut matches = defaults
+            .iter()
+            .filter(|row| basename(&row.name) == basename(name));
+        let first = matches.next()?;
+        matches.next().is_none().then_some(first)
+    });
+    if let Some(local) = matched.and_then(|row| row.metadata.as_object()) {
+        result.extend(local.clone());
     }
     Value::Object(result)
 }

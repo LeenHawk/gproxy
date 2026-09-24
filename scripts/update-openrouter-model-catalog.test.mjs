@@ -129,3 +129,18 @@ test("overlays Codex capabilities and adds Codex-only models", () => {
   assert(catalog.models.some((entry) => entry.model_id === "openai/codex-only"))
   assert.equal(catalog.source.codex_revision, "abc123")
 })
+
+test("retains source evidence and audio prices above context thresholds", () => {
+  const catalog = buildCatalog({ data: [{
+    id: "google/audio-test", name: "Audio test", description: "Source description",
+    architecture: { input_modalities: ["audio"], output_modalities: ["text"] },
+    supported_parameters: [], pricing: { prompt: "0.000002", completion: "0.000012",
+      overrides: [{ min_prompt_tokens: 200000, audio: "0.000004", input_audio_cache: "0.0000004" }] },
+  }] }, "2026-09-24T00:00:00.000Z")
+  const model = catalog.models[0]
+  assert.equal(model.pricing.tiers[0].audio_input_price, "4")
+  assert.equal(model.pricing.tiers[0].cached_audio_input_price, "0.4")
+  assert.equal(model.metadata_source.fetched_at, "2026-09-24T00:00:00.000Z")
+  assert.equal(model.source_pricing.overrides[0].audio, "0.000004")
+  assert.equal(model.description, "Source description")
+})

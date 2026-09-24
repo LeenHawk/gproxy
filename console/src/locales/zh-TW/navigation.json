@@ -27,7 +27,8 @@
     "operation-rules": "路由規則",
     "operation-endpoints": "端點 URL",
     "update": "系統更新",
-    "connection-profiles": "請求客戶端"
+    "connection-profiles": "請求客戶端",
+    "model-catalog": "模型總表"
   },
   "create": {
     "keys": "新建金鑰",

@@ -234,3 +234,13 @@ count and a channel, which say how redundant a name is without naming the
 machinery. The `provider/model` form also resolves and is deliberately **not**
 listed — its left half is a renameable row, and printing it would hand users a
 name that stops working when somebody edits a provider.
+
+### Model catalog and default metadata
+
+The Console's **Model catalog** (`/console/model-catalog`) lists bundled models, context and output limits, modalities, supported parameters, reference rates and pricing tiers. Search the catalog, save local metadata overrides or add your own models. Removing a local entry leaves its bundled model visible.
+
+Discovery matches the full model ID first, then a unique basename; ambiguous names receive no defaults. Merge order is bundled defaults → non-null upstream fields → local overrides. Console imports fill only missing fields on existing provider models. Metadata is copied at import time; catalog edits do not automatically change previously imported provider rows.
+
+Default prices are an OpenRouter snapshot, not every provider's contract. Details show the source link and fetch time. Applying default prices creates global pricing rules without replacing an existing rule with the same pattern. The price editor manages rates, context tiers and service tiers. Provider-specific rules take precedence over global rules.
+
+Refresh the bundled asset with `node scripts/update-openrouter-model-catalog.mjs`, or use `--input response.json` for an offline refresh. The public model endpoint needs no key; an optional credential is read only from `OPENROUTER_API_KEY`. The generator retains raw `source_pricing` for review and maps only supported billing units. Missing or dynamic prices do not mean free. Before supplementing from official price pages, verify the exact model version, region, unit and threshold rather than guessing a missing rate.

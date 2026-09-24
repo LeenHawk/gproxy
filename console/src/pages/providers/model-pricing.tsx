@@ -20,12 +20,12 @@ const profiles: Record<string, string[]> = {
   tools: ["web_searches", "web_fetches", "file_searches", "code_interpreter_sessions", "tool_calls", "requests"],
 }
 const tokenTiers = ["inputPerMillion", "outputPerMillion", "cacheReadPerMillion", "cacheCreation5mPerMillion", "cacheCreation30mPerMillion", "cacheCreation1hPerMillion", "reasoningPerMillion", "imageInputPerMillion", "imageOutputPerMillion", "audioInputPerMillion", "cachedAudioInputPerMillion", "audioOutputPerMillion", "videoInputPerMillion", "videoPerMillion"]
-export function ModelPricingDialog({ providerId, model, onClose }: { providerId: string; model: string; onClose: () => void }) {
+export function ModelPricingDialog({ providerId, model, onClose }: { providerId: string | null; model: string; onClose: () => void }) {
   const { t } = useTranslation(), client = useQueryClient()
   const [profile, setProfile] = useState("generation"), [selected, setSelected] = useState<string | null>(null)
   const [editing, setEditing] = useState<{ kind: "rule" | "rate" | "tier"; row?: PriceRuleDto | PriceRateDto | PriceTierDto; metric?: string } | null>(null)
-  const list = useQuery({ queryKey: ["admin", "/price-rules", providerId], queryFn: () => directory(priceRules, { providerId }) })
-  const candidates = list.data?.filter(r => r.modelPattern === model) ?? []
+  const list = useQuery({ queryKey: ["admin", "/price-rules", providerId], queryFn: () => directory(priceRules, providerId ? { providerId } : {}) })
+  const candidates = list.data?.filter(r => r.modelPattern === model && r.providerId === providerId) ?? []
   const rule = candidates.find(r => r.id === selected) ?? candidates.find(r => r.operation === null) ?? candidates[0]
   const rates = useQuery({ queryKey: ["admin", "/price-rates", rule?.id], queryFn: () => directory(priceRates, { priceRuleId: rule!.id }), enabled: !!rule })
   const tiers = useQuery({ queryKey: ["admin", "/price-tiers", rule?.id], queryFn: () => directory(priceTiers, { priceRuleId: rule!.id }), enabled: !!rule })
