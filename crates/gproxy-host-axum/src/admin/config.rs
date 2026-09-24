@@ -730,7 +730,18 @@ async fn import<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { manage!(state, scope, "transfer", transfer().import(request)) }).await
+    crate::send(async move {
+        gate!("transfer", scope);
+        match state.app().gproxy().manage().transfer().import(request).await {
+            Ok(mut report) => {
+                if state.app().reload_all().await.is_err() {
+                    report.warnings.push("Configuration was imported, but runtime reload failed. Retry reload or restart the instance.".to_owned());
+                }
+                crate::error::ok_json(&report)
+            }
+            Err(error) => reply_sdk::<gproxy_sdk::dto::ImportReportDto>(Err(error)),
+        }
+    }).await
 }
 
 // ---------------------------------------------------------- connectivity --

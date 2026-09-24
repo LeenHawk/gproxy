@@ -1,164 +1,123 @@
 ---
-title: Console, Portal & Public Site
-description: "The three web surfaces served by the gproxy binary, what each console section manages, and how the console is built and embedded"
+title: Console and Scoped Administration
+description: "Manage credentials, upstream sign-in, routes, quotas, pricing and configuration transfer in the v4 Console."
 ---
 
-The `gproxy` binary serves one React application at three paths. The build
-is embedded into the binary, so there is nothing else to deploy.
+The v4 Console is served at `/console`. One application contains personal
+pages and administrative pages. Sign in using the deployment's configured
+account; the Console uses `/portal/api/login` and an HttpOnly session cookie.
 
-| Path | Surface | API | Audience |
-| --- | --- | --- | --- |
-| `/` | Public site | none | anyone reaching the port |
-| `/admin` and `/admin/*` | Operator console | `/admin/api/**` | administrators |
-| `/portal` | User portal | `/portal/api/**` | users with a password |
+## Management Scope
 
-Everything else on the port is gateway traffic authenticated by API key
-(see [Routing & Endpoints](/reference/routing-table/)).
+The Console combines personal features from `/portal/api/context` with the
+management sections returned by `/admin/api/context`. Instance administrators
+manage the gateway. Organization and team administrators manage credentials
+and quotas within their current scope.
 
-## First Boot
+If you administer multiple organizations or teams, choose a scope in the
+account menu. Management requests send the server-provided scope selector in
+`x-gproxy-admin-scope`. Switching scope closes open editors and login flows
+and replaces the scope's query cache. A pending write must finish before
+switching. Personal pages remain available independently of management scope.
 
-`GET /admin/api/session` reports `setup_required: true` until an
-administrator exists. The console then shows **Create the administrator**;
-`POST /admin/api/setup` accepts one username and password, creates the first
-admin, opens a session and records an `auth.setup` audit event. The form is
-rate limited to four attempts per minute per source address.
+## Configuration Pages
 
-To skip the form, start the binary with `GPROXY_ADMIN_PASSWORD` (and
-optionally `GPROXY_ADMIN_USER`, default `admin`). The account is created on
-first run, an admin API key is generated or taken from
-`GPROXY_BOOTSTRAP_ADMIN_API_KEY`, and `GPROXY_BOOTSTRAP_CHANNELS` can create
-empty providers for the listed channel ids. The bootstrap key and channels
-apply only on first run, but the named administrator's password is
-reapplied on every start, so remove `GPROXY_ADMIN_PASSWORD` once you have
-logged in. See [Configuration](/reference/configuration/).
-
-## Signing In
-
-The console signs in with `POST /admin/api/login` and holds a
-`gproxy_admin_session` cookie: HttpOnly, `SameSite=Strict`, scoped to
-`/admin`, valid for 12 hours. Mutating calls made with the cookie must be
-same-origin. Scripts call the admin API with
-`Authorization: Bearer <api-key>` where the key belongs to a user flagged
-`is_admin`; bearer calls skip the same-origin check. Login and logout are
-audited as `auth.login` and `auth.logout`.
-
-## Console Sections
-
-The sidebar lists ten sections. Paths are real URLs you can bookmark.
-
-| Section | Path | What it manages |
-| --- | --- | --- |
-| Overview | `/admin` | Healthy-credential ratio, credentials needing attention, requests and settled cost over 24 h, hourly usage trend for 7 days, spending by provider, quota windows and upstream cycles at or above 80 %. |
-| Providers | `/admin/providers` | Provider list and detail tabs: Credentials (pool, login wizard, health, quota cycles), Models (served models, variants, per-model pricing), Rules, Routing, Settings (channel fields, endpoint overrides, proxy, TLS fingerprint, forwarded metadata). |
-| Load balancing | `/admin/routes` | Routes: name, maximum attempts, members (provider, pinned credential, upstream model, failover tier, weight), model mappings with exposed metadata, routing and model aliases. |
-| Rules | `/admin/rules` | Rule sets, their mutation rules with effective order, and provider attachments. |
-| Identity | `/admin/identity` | Organizations, teams, users and API keys; permissions, rate limits and quotas at each scope, with inherited values shown. |
-| Statistics | `/admin/usage` | Tabs Usage, Admin actions (`/admin/audit`) and Request audit (`/admin/logs`). |
-| Pricing | `/admin/pricing` | Price rules by model pattern, dimensional rates, context and service-tier ladders. |
-| Tokenizers | `/admin/tokenizers` | Vocabulary switch, automatic fetching, default vocabulary, Hugging Face token, cached vocabularies (fetch with progress, delete). |
-| Updates | `/admin/update` | Update channel and automatic-check preference, signed update check, apply, roll back, release notes. Native builds only. |
-| Settings | `/admin/settings` | Instance settings, global metadata blacklist, retention and capture, configuration export and import, portal setting, login autostart. |
-
-An update banner appears above every page when automatic checking is on and
-a newer build exists on the selected channel. A native binary also shows the
-signed announcement feed. The sidebar footer prints the build identity:
-version, channel, short hash and installation kind.
-
-## Instance Settings
-
-`GET` and `PATCH /admin/api/instance-settings` carry these keys; the
-Settings, Tokenizers and Updates pages edit subsets of the same record.
-
-| Key | Meaning |
+| Console path | Capability |
 | --- | --- |
-| `instance_name` | Label written into every usage row's dimensions. Default `default`. |
-| `proxy` | Default upstream proxy URL, used after credential and provider overrides. |
-| `inherit_system_proxy` | Honour `HTTP_PROXY` and `HTTPS_PROXY` when no explicit proxy applies. Off by default. |
-| `enable_usage` | Persist usage rows after settlement. Default on; admission and billing still run when off. |
-| `enable_tokenizer_vocabs`, `enable_tokenizer_download`, `default_tokenizer_vocab` | Count tokens with real vocabularies, fetch missing ones automatically, and the fallback vocabulary. |
-| `file_upload_max_in_flight` | Concurrent file uploads; `0` is unlimited. `GPROXY_FILE_UPLOAD_MAX_IN_FLIGHT` overrides it. |
-| `retention_days`, `max_database_size_mb` | Observability cleanup bounds; at least one must be set before body capture can be enabled. |
-| `enable_downstream_log`, `enable_downstream_log_body`, `enable_upstream_log`, `enable_upstream_log_body`, `disable_log_redaction` | Wire capture and redaction, see [Usage, Logs & Audit](/guides/observability/). |
-| `update_channel`, `enable_auto_update_check` | `releases`, `staging` or `dev`; unset follows the channel the binary was built for. |
-| `traffic_blacklist` | Extra request headers, response headers and query parameters stripped instance-wide before any channel allow-list. |
+| `/console/providers` | Provider configuration, credentials, models, protocol conversion, rewrite bindings and endpoint overrides |
+| `/console/credentials` | Credentials grouped by provider, including scoped tenant administration |
+| `/console/model-routes` | Cross-provider routes, members, weights, fallback tiers and public model names |
+| `/console/quotas` | Caller budgets and provider/credential limits |
+| `/console/rule-sets` | Rewrite rules, ordering and whole-set saves |
+| `/console/transfer` | Configuration export and import |
+| `/console/clients` | Reusable connection profiles |
+| `/console/settings` | Instance and logging settings |
+| `/console/tokenizer` | Vocabulary downloads and model vocabulary bindings |
+| `/console/update` | Available update operations for the host |
 
-The portal's one setting, whether users may see recent settled requests,
-lives in `GET` and `PATCH /admin/api/portal-settings`. **Test connectivity**
-on the Settings page probes egress through the saved proxy chain and reports
-the address the upstream would see.
+The provider's **Routing** tab controls operation/protocol conversion. **Model
+routes** choose among upstream providers; these are separate settings.
 
-## Theme and Language
+Configuration tables support current-page selection and batch deletion; rows
+with an enabled flag also support batch enable/disable. Filtering, changing
+page, or changing management scope clears the selection. Each batch uses the
+existing transactional configuration API.
 
-Every surface offers English, 简体中文 and 繁體中文. The console and portal
-also offer light, dark and system themes; the choice is stored in the
-browser under `gproxy-console-theme`. The public site shows the language
-menu only.
+## Credentials and Upstream Sign-in
 
-## Deep Links
+Open a provider's credentials, or choose its group on the Credentials page.
+New credentials and sign-in flows inherit that provider. Ownership choices
+are restricted to the current administrative scope. Tenant directories expose
+provider labels and supported actions, not gateway configuration.
 
-| URL | Opens |
-| --- | --- |
-| `/admin/providers/<id>/<tab>` | A provider on `credentials`, `models`, `rules`, `routing` or `settings`; `/credentials/<credentialId>` opens one credential. |
-| `/admin/routes/<id>/models`, `/admin/routes/<id>/settings`, `/admin/routes/new` | A route tab, or the create form. |
-| `/admin/identity/<users\|teams\|organizations>/<id>` | An identity entity. `/admin/keys/...` is an alias. |
-| `/admin/logs/<request_id>` | One captured request with its upstream attempts. |
-| `/portal?oauth_return=/<path>` | After portal login, continue to a same-origin path; CLI sign-in flows use it. |
+The details action offers saved quota observations, local limits, lifecycle
+status, secret reveal, and the refresh/query/reset operations supported by the
+channel. Upstream quota reset, local limit reset and health reset are separate
+actions. Model discovery and generation tests can target a particular
+credential. Generation tests make a real upstream request.
 
-## Keyboard and Small Screens
+**Add by signing in** offers the channel's supported methods:
 
-Table rows and cards that open a detail are focusable and respond to Enter
-and Space. Sidebar and workspace resize handles accept the arrow keys, Home
-and End, and remember their width. Below the `lg` breakpoint the sidebar
-becomes a horizontal, scrollable bar; below `md` the list-and-detail
-workspaces show one pane at a time with a Back button, and data tables
-render as cards.
+- Browser authorization: start, open the authorization link, then paste the
+  full callback URL including `code` and `state`. A registered loopback
+  callback may fail to load in the browser; copy its address anyway. This
+  Console does not run a local callback listener.
+- Device code: open the verification link and enter the displayed code. The
+  Console polls at the interval returned by the backend and stops on success,
+  denial, expiry or closing the window.
+- Cookie exchange: submit an existing browser session cookie to the channel.
 
-## User Portal
+Login sessions are bound to the initiating user, administrative scope and
+credential owner. Completion returns a credential ID, not its secret. Closing
+an unfinished flow stops the UI; cached sessions expire naturally. Refreshing
+the page does not restore the login wizard.
 
-Any user with a password can sign in at `/portal` (`POST /portal/api/login`;
-cookie `gproxy_portal_session`, 12 hours). Administrators create users and
-set their initial password under Identity; users change it in the portal.
+All upstream login routes are POSTs under `/admin/api/credential-login`:
+`/authcode/start`, `/authcode/complete`, `/device/start`, `/device/poll` and
+`/cookie/exchange`. They use the credentials section's scope checks. Scoped
+credential discovery and testing use
+`/admin/api/credentials/{id}/models/discover` and `/models/test` respectively.
 
-| Panel | What it does |
-| --- | --- |
-| Account | Change the password. Create API keys with prefix `sk` (API clients) or `at` (Codex access-token login) and an optional label; the key is shown once. List and revoke own keys. |
-| Connect | Pick an allowed model and copy a ready-to-run snippet: curl, OpenAI Python, Claude Python, Gemini Python, Codex CLI config, Claude Code environment. Snippets are limited to the wire formats the model can serve. |
-| Allowed models | Live routes the account may call, with their capabilities. |
-| Usage and cost | Settled requests, input, output and cached tokens, and cost over 1, 7 or 30 days. |
-| Quota windows | Spending windows applied to the user, team and organization: total, daily, weekly, monthly, 5-hour and 7-day. |
-| Recent settled requests | The latest 20 requests with provider, operation, upstream model, tokens, cost and latency. Shown only when the administrator enables it; bodies are never shown. |
+## Quotas and Prices
 
-Keys have the form `<prefix>-gp-<random>`. The Codex and Claude Code
-snippets are explained in [CLI Clients](/guides/cli-clients/).
+Caller budgets support user, API key, organization, team and pool ownership.
+Provider and credential limits also support request counts. The editor sends
+costs as decimal strings in USD and request counts with unit `count`. Period,
+anchor, custom duration and model pattern use the existing backend contract.
+Pool IDs are entered explicitly; there is no separate pool directory.
 
-## Public Site
+User, API key, organization, team, provider and credential views include a
+quota shortcut. Budget reset calls `/quotas/{id}/reset`; operator limit reset
+calls `/quotas/{id}/limit-reset` and does not reset an upstream account.
 
-`/` is a landing page: a request-translation example that switches between
-OpenAI Chat, Claude Messages and Gemini, the execution funnel, the product
-claims, connection examples with a model placeholder, and links to the
-admin console, the portal, the source repository and the licence.
+Price rules may apply to all providers or one provider, and model patterns
+support `*` and `?`. Multiple operation-specific rules can coexist. Edit global prices from the Models page and provider-specific prices from a
+provider's Models tab. These existing model dialogs manage rules, dimensional
+rates and context/service tiers together.
 
-## Building and Embedding the Console
+## Import and Export
 
-The console lives in `console/` and is managed with pnpm.
+The transfer document contains gateway configuration, not identities, usage
+or request logs. Export omits credential secrets by default. Including secrets
+exports the stored sealing format. Import accepts the current v4 envelope.
 
-```bash
-cd console
-pnpm install
-pnpm build      # tsc -b, vite build, then scripts/sync-to-embed.mjs
-```
+The file summary shows version and record counts; it is not a server-side dry
+run. **Merge** updates matching IDs and keeps unmentioned records. **Replace**
+also deletes unmentioned records of the exported configuration kinds.
 
-The last step copies `console/dist/` into
-`crates/gproxy-host-axum/assets/web/`, which `rust-embed` compiles into the
-binary. Rebuild `gproxy` afterwards. A binary built without that directory
-still serves the API; requests to `/` answer
-`web assets are not embedded; run pnpm build in console/ and rebuild gproxy`.
+For encrypted secrets from another master key, supply the source key so the
+backend can reseal them. Without it, encrypted blobs require the same key at
+the destination. The UI clears the source key after submission.
 
-For development, `pnpm dev` starts Vite and proxies the admin and portal
-APIs to a running backend. Finish console changes with `pnpm lint` and
-`pnpm test`. Types under `console/src/generated/` are produced from the Rust
-DTOs by `ts-rs` during `cargo test` and are never edited by hand.
+Import is transactional. After it commits, the host reloads runtime settings.
+Read the returned warnings and skipped counts: a reload failure is reported
+as an already-imported configuration with a runtime warning, not as a rolled
+back import.
 
-The embedded `index.html` is served for `/`, `/admin`, `/admin/*` and
-`/portal`; hashed files under `/assets/` are cached for a year, the HTML is
-`no-cache`, and `/build-info.js` injects the build identity.
+## Building the Console
+
+Run `pnpm --dir console lint`, `pnpm --dir console test`, and
+`pnpm --dir console build`. The build type-checks, bundles with Vite and copies
+assets to the embedded Console directory. Native binary builds can then serve
+that bundle under `/console`; Edge deployments serve the same bundle as static
+assets in front of the gateway.

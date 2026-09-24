@@ -32,9 +32,17 @@ import { UpdatePage } from "@/pages/update"
 import { SettingsPage } from "@/pages/settings"
 import { TokenizerPage } from "@/pages/tokenizer"
 
+import { CredentialsPage } from "@/pages/credentials"
+import { QuotasPage } from "@/pages/quotas"
+import { ModelRoutesPage } from "@/pages/model-routes"
+import { TransferPage } from "@/pages/transfer"
 import { ModelCatalogPage } from "@/pages/model-catalog"
 
 const ROUTES: Record<string, () => React.ReactElement> = {
+  "/credentials": CredentialsPage,
+  "/quotas": QuotasPage,
+  "/model-routes": ModelRoutesPage,
+  "/transfer": TransferPage,
   "/": OverviewPage,
   "/keys": KeysPage,
   "/models": ModelsPage,

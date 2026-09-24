@@ -5,7 +5,7 @@ import type {
   ProviderDto, ProviderPatch, ProviderWrite,
   ProviderModelDto, ProviderModelPatch, ProviderModelWrite,
 } from "@/generated/sdk"
-import { family } from "@/api/admin"
+import { configFamily as family } from "@/api/config-family"
 import { api } from "@/api/client"
 
 /** The configuration collection routes, relative to `/admin/api`. */

@@ -1,3 +1,4 @@
+import { invalidateConfiguration } from "@/api/invalidation"
 import { usePagination } from "@/lib/use-pagination"
 //! One page for twelve families.
 //!
@@ -26,6 +27,8 @@ import { Page, PageHeader } from "@/components/page"
 import { RecordDialog, type FormField } from "@/components/record-form"
 import { EmptyNotice, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
+import { useConfigBatch } from "@/components/config-batch"
+import type { BatchItem } from "@/generated/sdk"
 import { Input } from "@/components/ui/input"
 
 
@@ -35,13 +38,14 @@ export type CollectionProps<D, W, P> = {
   renderForm?: (props: { open: boolean; onOpenChange: (open: boolean) => void; original?: D; onSubmit: (body: Record<string, unknown>) => void; pending: boolean; error: unknown }) => ReactNode
   embedded?: boolean
   paginate?: boolean
-  family: Family<D, W, P>
+  family: Family<D, W, P> & { batch?: (items: BatchItem<W, P>[]) => Promise<(D | null)[]> }
   columns: Array<Column<D>>
   fields: ReadonlyArray<FormField>
   rowId: (row: D) => string
   /** What the delete confirmation names. */
   rowLabel: (row: D) => string
   /** The family's `search` filter answers on a natural name column. */
+  batchEnabled?: boolean
   createLabel?: string
   searchable?: boolean
   /** Filters held constant for this page, e.g. a parent id. */
@@ -52,6 +56,7 @@ export type CollectionProps<D, W, P> = {
   onEdit?: (row: D) => void
   /** Some families retire rather than delete; some cannot be deleted at all. */
   deletable?: boolean
+  creatable?: boolean
   /** A family whose create answers with more than the row — a minted key. */
   onCreated?: (created: unknown) => void
   /** Replaces `family.create` when the mint returns a richer shape. */
@@ -60,7 +65,7 @@ export type CollectionProps<D, W, P> = {
 
 export function CollectionPage<D, W, P>({
   id, family, columns, fields, rowId, rowLabel, searchable, filter, embedded = false,
-  rowActions, onOpen, onEdit, deletable = true, onCreated, create, renderForm, createLabel, paginate = true,
+  rowActions, onOpen, onEdit, deletable = true, creatable = true, onCreated, create, renderForm, createLabel, paginate = true, batchEnabled = fields.some(field => field.name === "enabled"),
 }: CollectionProps<D, W, P>) {
   const { t } = useTranslation()
   const client = useQueryClient()
@@ -68,6 +73,7 @@ export function CollectionPage<D, W, P>({
   const [search, setSearch] = useState("")
   const [editing, setEditing] = useState<D | null>(null)
   const [creating, setCreating] = useState(false)
+  const selectionKey = JSON.stringify([family.path, filter, search, page, pageSize])
 
   const request: ListFilter = { ...filter, page, pageSize, search: search.trim() || undefined }
   const key = ["admin", family.path, request, paginate] as const
@@ -78,7 +84,7 @@ export function CollectionPage<D, W, P>({
   } })
   if (paginate && list.data && page > Math.max(1, Math.ceil(list.data.total / pageSize))) setPage(Math.max(1, Math.ceil(list.data.total / pageSize)))
 
-  const invalidate = () => client.invalidateQueries({ queryKey: ["admin", family.path] })
+  const invalidate = () => invalidateConfiguration(client, family.path)
 
   const created = useMutation({
     mutationFn: (body: Record<string, unknown>) => (create ?? ((value) => family.create(value as W)))(body),
@@ -109,8 +115,11 @@ export function CollectionPage<D, W, P>({
     onError: (error: Error) => toast.error(error.message),
   })
 
+  const batch = useConfigBatch({ family, context: selectionKey, rows: (list.data?.items ?? []).map(row => ({ id: rowId(row) })), enableToggle: batchEnabled, deletable })
+  const tableColumns = family.batch ? [{ key: "selection", header: t("management.select"), cell: (row: D) => batch.checkbox(rowId(row), rowLabel(row)) }, ...columns] : columns
+
   const add = (
-    <Button size="sm" onClick={() => setCreating(true)}>
+    <Button size="sm" disabled={!creatable} onClick={() => setCreating(true)}>
       <Plus data-icon="inline-start" /> {createLabel ?? t("actions.new")}
     </Button>
   )
@@ -131,10 +140,11 @@ export function CollectionPage<D, W, P>({
       ) : (
         <><PageHeader title={t(`nav.${id}`)} actions={add} />{searchInput}</>
       )}
+      {batch.toolbar}
       <QueryState isPending={list.isPending} error={list.error}>
         <div className="space-y-3">
           <DataTable paginate={false}
-            columns={columns}
+            columns={tableColumns}
             rows={list.data?.items ?? []}
             rowKey={rowId}
             onRowClick={onOpen}

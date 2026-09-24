@@ -220,7 +220,7 @@ function RecordForm({ fields, original, mode, onSubmit, pending, error, extra, o
         {extra}
       </DialogBody>
       <DialogFooter>
-        <Button variant="outline" onClick={() => onOpenChange(false)}>{t("actions.cancel")}</Button>
+        <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>{t("actions.cancel")}</Button>
         <Button
           disabled={pending || missing}
           onClick={submit}
@@ -236,7 +236,7 @@ export function RecordDialog(props: DialogProps) {
   const { t } = useTranslation()
   const { open, onOpenChange, title, original } = props
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={value => { if (!props.pending) onOpenChange(value) }}>
       <DialogContent aria-describedby={undefined} className="sm:max-w-md" closeLabel={t("actions.close")}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>

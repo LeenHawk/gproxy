@@ -397,6 +397,7 @@ macro_rules! scoped_family {
 
 mod config;
 mod context;
+mod credential_login;
 mod identity;
 
 /// `/admin/api`, to be nested under that prefix.
@@ -417,7 +418,9 @@ pub fn router<C>(state: HostState<C>) -> Router<HostState<C>>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    let mut families = identity::routes().merge(config::routes());
+    let mut families = identity::routes()
+        .merge(config::routes())
+        .merge(credential_login::routes());
     if state.updates().is_some() {
         families = families.merge(crate::update::routes::<C>());
     }

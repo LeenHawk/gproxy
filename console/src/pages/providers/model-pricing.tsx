@@ -39,7 +39,7 @@ export function ModelPricingDialog({ providerId, model, onClose }: { providerId:
       body = { ...body, conditions: pairs.length ? Object.fromEntries(pairs) : null }
     }
     return editing!.row ? priceRates.update(editing!.row.id, body) : priceRates.create({ ...body, priceRuleId: rule!.id })
-  }, onSuccess: async () => { setEditing(null); await refresh() } })
+  }, onSuccess: async row => { if (editing?.kind === "rule") setSelected(row.id); setEditing(null); await refresh() } })
   const remove = useMutation({ mutationFn: ({ kind, id }: { kind: "rule" | "rate" | "tier"; id: string }) => kind === "rule" ? priceRules.remove(id) : kind === "rate" ? priceRates.remove(id) : priceTiers.remove(id), onSuccess: refresh })
   const open = (next: NonNullable<typeof editing>) => { save.reset(); setEditing(next) }
   const field = (name: string, kind: FormField["kind"] = "text", nullable = true): FormField => ({ name, kind, nullable, label: t(`modelUI.priceFields.${name}`) })
@@ -50,6 +50,7 @@ export function ModelPricingDialog({ providerId, model, onClose }: { providerId:
     <DialogHeader><DialogTitle>{model} · {t("providers.models.pricing")}</DialogTitle></DialogHeader><DialogBody>
       <QueryState isPending={list.isPending} error={list.error}>
         {!rule ? <Button onClick={() => open({ kind: "rule" })}>{t("modelUI.createPrice")}</Button> : <div className="flex flex-col gap-4">
+          <Button className="self-start" variant="outline" onClick={() => open({ kind: "rule" })}>{t("management.newPriceRule")}</Button>
           {candidates.length > 1 ? <Select value={rule.id} onValueChange={setSelected}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{candidates.map(r => <SelectItem key={r.id} value={r.id}>{r.operation ?? t("modelUI.allOperations")} · {r.currency} · {r.priority}</SelectItem>)}</SelectGroup></SelectContent></Select> : null}
           <Tabs defaultValue="rates"><TabsList><TabsTrigger value="rates">{t("modelUI.rates")}</TabsTrigger><TabsTrigger value="tiers">{t("modelUI.tiers")}</TabsTrigger><TabsTrigger value="settings">{t("providers.settings")}</TabsTrigger></TabsList>
             <TabsContent value="settings"><div className="flex flex-wrap items-center gap-3"><span>{rule.currency} · {rule.operation ?? t("modelUI.allOperations")}</span><Button onClick={() => open({ kind: "rule", row: rule })}>{t("actions.edit")}</Button><ConfirmButton title={t("confirm.deleteTitle", { name: model })} onConfirm={() => remove.mutate({ kind: "rule", id: rule.id })}>{t("actions.delete")}</ConfirmButton></div></TabsContent>

@@ -44,10 +44,23 @@ export class ApiError extends Error {
  */
 export const UNAUTHORIZED_EVENT = "gproxy:unauthorized"
 
+let adminScope: string | null = null
+let scopeHeader = "x-gproxy-admin-scope"
+let scopeAbort = new AbortController()
+export function setAdminScope(selector: string | null, header = scopeHeader) {
+  if (selector !== adminScope) { scopeAbort.abort(); scopeAbort = new AbortController() }
+  adminScope = selector
+  scopeHeader = header
+}
+export function getAdminScope() { return adminScope }
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   if (!headers.has("accept")) headers.set("accept", "application/json")
-  const response = await fetch(path, { ...init, credentials: "same-origin", headers })
+  const managed = path.startsWith("/admin/api/")
+  if (managed && adminScope && !headers.has(scopeHeader)) headers.set(scopeHeader, adminScope)
+  const signal = managed ? (init?.signal ? AbortSignal.any([init.signal, scopeAbort.signal]) : scopeAbort.signal) : init?.signal
+  const response = await fetch(path, { ...init, signal, credentials: "same-origin", headers })
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null)
     const envelope = isEnvelope(body) ? body.error : null

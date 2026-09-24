@@ -840,17 +840,7 @@ fn import_metadata(name: &str, defaults: &[model::Model], upstream: Value) -> Va
                 .map(|(key, value)| (key.clone(), value.clone())),
         );
     }
-    let basename = |name: &str| name.rsplit('/').next().unwrap_or(name).to_ascii_lowercase();
-    let exact = defaults
-        .iter()
-        .find(|row| row.name.eq_ignore_ascii_case(name));
-    let matched = exact.or_else(|| {
-        let mut matches = defaults
-            .iter()
-            .filter(|row| basename(&row.name) == basename(name));
-        let first = matches.next()?;
-        matches.next().is_none().then_some(first)
-    });
+    let matched = catalog::matching_model(defaults, name, |row| &row.name);
     if let Some(local) = matched.and_then(|row| row.metadata.as_object()) {
         result.extend(local.clone());
     }

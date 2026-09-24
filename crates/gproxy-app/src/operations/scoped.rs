@@ -155,6 +155,123 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedCredentials<'_, C> {
         Ok(self.manage().batch(items).await?)
     }
 
+    pub fn owners(&self) -> Vec<crate::dto::CredentialOwnerOptionDto> {
+        let mut rows = Vec::new();
+        for row in self.data.organizations.values() {
+            if self
+                .scope
+                .admits(ScopeOwner::Organization(&row.id), self.data)
+            {
+                rows.push(crate::dto::CredentialOwnerOptionDto {
+                    kind: "org".to_owned(),
+                    id: row.id.clone(),
+                    name: row.name.clone(),
+                });
+            }
+        }
+        for row in self.data.teams.values() {
+            if self.scope.admits(ScopeOwner::Team(&row.id), self.data) {
+                rows.push(crate::dto::CredentialOwnerOptionDto {
+                    kind: "team".to_owned(),
+                    id: row.id.clone(),
+                    name: row.name.clone(),
+                });
+            }
+        }
+        if self.scope.is_instance() {
+            for row in self.data.users.values() {
+                rows.push(crate::dto::CredentialOwnerOptionDto {
+                    kind: "user".to_owned(),
+                    id: row.id.clone(),
+                    name: row.name.clone(),
+                });
+            }
+        }
+        rows.sort_by(|a, b| {
+            a.kind
+                .cmp(&b.kind)
+                .then(a.name.cmp(&b.name))
+                .then(a.id.cmp(&b.id))
+        });
+        rows
+    }
+
+    pub async fn providers(&self) -> Result<Vec<crate::dto::CredentialProviderDto>> {
+        // The execution snapshot excludes disabled providers. The directory
+        // must still name them so their existing credentials remain editable.
+        let channels = self.gproxy.channels();
+        let mut rows = Vec::new();
+        let mut page = 1;
+        loop {
+            let result = self
+                .gproxy
+                .manage()
+                .providers()
+                .list(ListQuery {
+                    page: Some(page),
+                    page_size: Some(500),
+                    ..Default::default()
+                })
+                .await?;
+            let done = result.items.is_empty()
+                || result.offset + result.items.len() as u64 >= result.total;
+            for provider in result.items {
+                let descriptor = channels
+                    .iter()
+                    .find(|channel| channel.id == provider.channel);
+                rows.push(crate::dto::CredentialProviderDto {
+                    id: provider.id,
+                    name: provider.name,
+                    channel: provider.channel,
+                    enabled: provider.enabled,
+                    login_modes: descriptor
+                        .map(|channel| channel.login_modes.clone())
+                        .unwrap_or_default(),
+                    capabilities: descriptor
+                        .map(|channel| channel.capabilities)
+                        .unwrap_or_default(),
+                });
+            }
+            if done {
+                break;
+            }
+            page += 1;
+        }
+        rows.sort_by(|a, b| a.name.cmp(&b.name).then(a.id.cmp(&b.id)));
+        Ok(rows)
+    }
+
+    pub async fn discover_models(
+        &self,
+        id: &str,
+    ) -> Result<Vec<gproxy_sdk::dto::DiscoveredModelDto>> {
+        let row = self.get(id).await?;
+        Ok(self
+            .gproxy
+            .manage()
+            .connectivity()
+            .discover_models(&row.provider_id, Some(id))
+            .await?)
+    }
+
+    pub async fn model_test(
+        &self,
+        id: &str,
+        model: String,
+    ) -> Result<gproxy_sdk::dto::ModelTestResultDto> {
+        let row = self.get(id).await?;
+        Ok(self
+            .gproxy
+            .manage()
+            .connectivity()
+            .model_test(gproxy_sdk::dto::ModelTest {
+                provider_id: row.provider_id,
+                model,
+                credential_id: Some(id.to_owned()),
+            })
+            .await?)
+    }
+
     pub async fn reveal_secret(&self, id: &str) -> Result<Value> {
         self.admit(id).await?;
         Ok(self.manage().reveal_secret(id).await?)

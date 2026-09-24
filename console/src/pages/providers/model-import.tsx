@@ -1,3 +1,5 @@
+import { defaultPriceFor } from "@/lib/model-catalog"
+import { CredentialPicker } from "@/components/credential-picker"
 import { usePagination } from "@/lib/use-pagination"
 import { Pagination } from "@/components/data-table"
 import { useState } from "react"
@@ -15,11 +17,12 @@ import { Input } from "@/components/ui/input"
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 export function ModelImportDialog({ mode, providerId, models, onClose, onSaved }: { mode: "models" | "prices"; providerId: string; models: ProviderModelDto[]; onClose: () => void; onSaved: () => Promise<unknown> }) {
   const { t } = useTranslation()
+  const [credentialId, setCredentialId] = useState<string | null>(null)
   const [search, setSearch] = useState(""), [selected, setSelected] = useState<Set<string>>(new Set()), [prices, setPrices] = useState(true)
   const { page, pageSize, setPage, setPageSize } = usePagination(search)
   const catalog = useQuery({ queryKey: ["default-model-catalog"], queryFn: defaultModels })
-  const discovery = useQuery({ queryKey: ["discover-models", providerId], queryFn: () => discoverModels(providerId), enabled: mode === "models", retry: false, staleTime: 0 })
-  const rows = mode === "models" ? (discovery.data ?? []).map(m => ({ name: m.upstreamName, metadata: m.metadata, price: m.hasDefaultPrice })) : (catalog.data?.models ?? []).filter(m => m.pricing).map(m => ({ name: m.modelId, metadata: { display_name: m.displayName, context_window: m.contextWindow, max_output_tokens: m.maxOutputTokens }, price: true }))
+  const discovery = useQuery({ queryKey: ["discover-models", providerId, credentialId], queryFn: () => discoverModels(providerId, credentialId), enabled: mode === "models", retry: false, staleTime: 0 })
+  const rows = mode === "models" ? (discovery.data ?? []).map(m => ({ name: m.upstreamName, metadata: m.metadata, price: m.hasDefaultPrice })) : models.filter(model => defaultPriceFor(catalog.data?.models ?? [], model.upstreamName)).map(model => ({ name: model.upstreamName, metadata: object(model.metadata), price: true }))
   const visible = rows.filter(r => `${r.name} ${object(r.metadata).display_name ?? ""}`.toLowerCase().includes(search.toLowerCase()))
   const currentPage = Math.min(page, Math.max(1, Math.ceil(visible.length / pageSize)))
   const all = visible.length > 0 && visible.every(r => selected.has(r.name))
@@ -32,11 +35,12 @@ export function ModelImportDialog({ mode, providerId, models, onClose, onSaved }
       if (existing) { if (JSON.stringify(metadata) !== JSON.stringify(existing.metadata)) await providerModels.update(existing.id, { metadata }) }
       else await providerModels.create({ providerId, upstreamName: item.name, metadata, enabled: true })
     }
-    if (mode === "prices" || prices) await applyDefaultPrices(providerId, picked.filter(r => r.price).map(r => r.name))
+    const pricedNames = picked.filter(row => row.price).map(row => row.name)
+    if ((mode === "prices" || prices) && pricedNames.length) await applyDefaultPrices(providerId, pricedNames)
   }, onSuccess: async () => { await onSaved(); toast.success(t("toast.saved")); onClose() } })
   return <Dialog open onOpenChange={open => { if (!open && !apply.isPending) onClose() }}><DialogContent className="sm:max-w-3xl" aria-describedby={undefined}>
     <DialogHeader><DialogTitle>{t(mode === "models" ? "providers.models.pullTitle" : "modelUI.defaultPrices")}</DialogTitle></DialogHeader>
-    <DialogBody className="flex flex-col gap-3"><QueryState isPending={catalog.isPending || (mode === "models" && discovery.isPending)} error={catalog.error || discovery.error}>
+    <DialogBody className="flex flex-col gap-3">{mode === "models" ? <CredentialPicker providerId={providerId} value={credentialId} onChange={id => { setCredentialId(id); setSelected(new Set()); setPage(1) }} disabled={apply.isPending} /> : null}<QueryState isPending={catalog.isPending || (mode === "models" && discovery.isPending)} error={catalog.error || discovery.error}>
       <div className="flex gap-2"><Input aria-label={t("actions.search")} placeholder={t("actions.search")} value={search} onChange={e => setSearch(e.target.value)} />{mode === "models" ? <Button variant="outline" onClick={() => void discovery.refetch()} disabled={discovery.isFetching}>{t("modelUI.refresh")}</Button> : null}</div>
       <label className="flex items-center gap-2"><Checkbox checked={all} onCheckedChange={() => setSelected(previous => { const next = new Set(previous); visible.forEach(r => all ? next.delete(r.name) : next.add(r.name)); return next })} />{t("modelUI.selectAll")} ({selected.size}/{rows.length})</label>
       {mode === "models" ? <label className="flex items-center gap-2"><Checkbox checked={prices} onCheckedChange={v => setPrices(v === true)} />{t("modelUI.importPrices")}</label> : null}

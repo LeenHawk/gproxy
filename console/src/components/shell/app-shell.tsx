@@ -6,10 +6,11 @@
 //! instance operator sees that section and the administrative groups, in the same
 //! shell, without a second application being loaded.
 
+import { toast } from "sonner"
 import { useEffect, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { ChevronRight, ChevronsUpDown, CircleUserRound, Languages, LogOut, Menu, Moon, Sun } from "lucide-react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { INFO_KEY, instanceInfo } from "@/api/settings"
 import { signOut } from "@/api/session"
 import { useConsoleContext } from "@/capability/session"
@@ -19,6 +20,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { SUPPORTED_LANGS, setLanguage, type LangCode } from "@/i18n"
@@ -65,6 +67,7 @@ function AccountMenu() {
   // answer *and* re-asks for the session, which is what renders the sign-in
   // page. `onSettled` rather than `onSuccess`, because a sign-out whose
   // request failed still has to end the session on this side.
+  const busy = useIsMutating() > 0
   const end = useMutation({ mutationFn: signOut, onSettled: () => client.resetQueries() })
   return (
     <DropdownMenu>
@@ -81,6 +84,9 @@ function AccountMenu() {
           <span className="block text-xs text-muted-foreground">{t(`scope.${context.scope?.kind ?? "none"}`)}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {context.scopes.length > 1 ? <DropdownMenuRadioGroup value={context.scope?.selector ?? ""} onValueChange={value => { void context.switchScope?.(value).catch(error => { toast.error(String(error)) }) }}>
+          {context.scopes.map(scope => <DropdownMenuRadioItem key={scope.selector} value={scope.selector} disabled={busy}>{scope.name ?? t(`scope.${scope.kind}`)}</DropdownMenuRadioItem>)}
+        </DropdownMenuRadioGroup> : null}
         <DropdownMenuGroup>
           <DropdownMenuItem disabled={end.isPending} onSelect={() => end.mutate()}>
             <LogOut /> {t("actions.signOut")}
@@ -221,7 +227,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             <ThemeToggle />
           </div>
         </header>
-        <main className="mx-auto w-full min-w-0 max-w-[1400px] px-4 py-6 lg:px-8">{children}</main>
+        <main className="mx-auto w-full min-w-0 max-w-[1400px] px-4 py-6 lg:px-8">
+          {!context.scope && context.scopes.length ? <div className="mb-6 flex flex-col gap-2"><p>{t("management.chooseScope")}</p><Select onValueChange={value => { void context.switchScope?.(value).catch(error => toast.error(String(error))) }}><SelectTrigger aria-label={t("management.chooseScope")}><SelectValue placeholder={t("management.chooseScope")} /></SelectTrigger><SelectContent><SelectGroup>{context.scopes.map(scope => <SelectItem key={scope.selector} value={scope.selector}>{scope.name ?? t(`scope.${scope.kind}`)}</SelectItem>)}</SelectGroup></SelectContent></Select></div> : null}
+          {children}
+        </main>
       </div>
     </div>
   )

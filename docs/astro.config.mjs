@@ -161,9 +161,9 @@ export default defineConfig({
               translations: { 'zh-CN': 'CLI 客户端' },
             },
             {
-              label: 'Console, Portal & Public Site',
+              label: 'Console & Scoped Administration',
               slug: 'guides/console',
-              translations: { 'zh-CN': '控制台、门户与公开站点' },
+              translations: { 'zh-CN': '控制台与范围管理' },
             },
             {
               label: 'Usage, Logs & Audit',

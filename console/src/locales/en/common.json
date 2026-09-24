@@ -84,7 +84,8 @@
     "access": "Access control",
     "providers": "Providers",
     "system": "System",
-    "rules": "Rule sets"
+    "rules": "Rule sets",
+    "management": "Management"
   },
   "range": {
     "day": "24 hours",
@@ -173,7 +174,7 @@
     "outputTokens": "Output",
     "password": "Password",
     "period": "Period",
-    "periodSeconds": "Period (seconds)",
+    "periodSeconds": "Custom period (seconds)",
     "permitted": "Permitted",
     "prefix": "Prefix",
     "priority": "Priority",
@@ -195,7 +196,7 @@
     "state": "State",
     "teamId": "Team",
     "userId": "User",
-    "windowKey": "Window",
+    "windowKey": "Window name",
     "channel": "Channel",
     "baseUrl": "Base URL",
     "connectionProfileId": "Request client",
@@ -213,7 +214,7 @@
     "anchorAtMs": "Window anchor",
     "strategy": "Strategy",
     "upstreamModel": "Upstream model",
-    "tier": "Priority tier (lower first)",
+    "tier": "Tier",
     "weight": "Weight",
     "ruleSetId": "Rule set",
     "sortOrder": "Order (lower first)",
@@ -233,6 +234,12 @@
     "backend": "Client",
     "proxyMode": "Proxy",
     "emulation": "Client identity",
-    "proxy": "Proxy"
+    "proxy": "Proxy",
+    "routeId": "Route",
+    "observedAtMs": "Observed at",
+    "resetsAtMs": "Resets at",
+    "ownerId": "Owner ID",
+    "maxAttempts": "Maximum attempts",
+    "currency": "Currency"
   }
 }

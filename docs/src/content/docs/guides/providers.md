@@ -161,6 +161,12 @@ asking for one a channel does not offer is refused.
 | Device code | start → poll, repeatedly | A code typed on another device |
 | Cookie exchange | exchange | A session cookie the person already has |
 
+In the Console, open the provider's Credentials tab and choose **Add by signing in**.
+The browser flow accepts the full callback URL; device-code polling is automatic.
+The five POST operations live under `/admin/api/credential-login` and bind the
+pending session to its initiating user and administrative scope. See
+[Console administration](/guides/console/#credentials-and-upstream-sign-in).
+
 GPROXY owns everything that is not the upstream's business. The **PKCE
 verifier** is 32 random bytes minted locally, never sent; only its S256 digest
 reaches the authorize URL, so an intercepted code is useless without it. The

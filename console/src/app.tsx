@@ -51,7 +51,7 @@ function Gate() {
     return <SignInPage />
   }
   return (
-    <ConsoleContextProvider context={session.data}>
+    <ConsoleContextProvider key={`${session.data.user.id}:${session.data.admin?.scope?.selector ?? "none"}`} context={session.data}>
       <AppShell><Routes /></AppShell>
     </ConsoleContextProvider>
   )

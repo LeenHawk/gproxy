@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { applyCodexCatalog, buildCatalog, perMillion } from "./update-openrouter-model-catalog.mjs"
+import { applyCodexCatalog, buildCatalog, normalizeCatalogNames, perMillion } from "./update-openrouter-model-catalog.mjs"
 
 test("converts exact OpenRouter token decimals to per-million prices", () => {
   assert.equal(perMillion("0.00000625"), "6.25")
@@ -70,23 +70,23 @@ test("maps v3 usage metrics and omits dynamic and unsupported price units", () =
   assert.equal(catalog.source.priced_models, 2)
   assert.equal(catalog.source.dynamic_price_models, 2)
   assert.deepEqual(catalog.models.filter((model) => model.pricing).map((model) => model.model_id), [
-    "anthropic/claude-test",
-    "openai/gpt-test",
+    "claude-test",
+    "gpt-test",
   ])
-  const claude = catalog.models[0]
+  const claude = catalog.models.find((model) => model.model_id === "claude-test")
   assert.equal(claude.context_window, 200000)
   assert.equal(claude.max_output_tokens, 64000)
   assert.deepEqual(claude.input_modalities, ["image", "text"])
   assert(claude.pricing.rates.some((rate) =>
     rate.metric === "cache_creation_5m_tokens" && rate.price === "3.75"))
-  const openai = catalog.models.find((model) => model.model_id === "openai/gpt-test")
+  const openai = catalog.models.find((model) => model.model_id === "gpt-test")
   assert.deepEqual(openai.pricing.tiers, [{ min_prompt_tokens: 200000, input_price: "2" }])
   assert(openai.pricing.rates.some((rate) =>
     rate.metric === "cache_creation_30m_tokens" && rate.unit_size === 1_000_000))
   assert(openai.pricing.rates.some((rate) =>
     rate.metric === "web_searches" && rate.unit_size === 1 && rate.price === "0.005"))
-  assert.equal(catalog.models.find((model) => model.model_id === "openrouter/auto").pricing, null)
-  assert.equal(catalog.models.find((model) => model.model_id === "openai/whisper-test").pricing, null)
+  assert.equal(catalog.models.find((model) => model.model_id === "auto").pricing, null)
+  assert.equal(catalog.models.find((model) => model.model_id === "whisper-test").pricing, null)
 })
 
 test("rejects duplicate global basename patterns", () => {
@@ -121,12 +121,12 @@ test("overlays Codex capabilities and adds Codex-only models", () => {
     supported_reasoning_levels: [{ effort: "high", description: "Deep" }],
     service_tiers: [],
   }, { slug: "codex-only", input_modalities: ["text"] }] }, "abc123")
-  const model = catalog.models.find((entry) => entry.model_id === "openai/gpt-test")
+  const model = catalog.models.find((entry) => entry.model_id === "gpt-test")
   assert.equal(model.context_window, 2000)
   assert.equal(model.instructions, "Use tools carefully.")
   assert.equal(model.supported_reasoning_levels[0].effort, "high")
   assert(model.supported_parameters.includes("reasoning_effort"))
-  assert(catalog.models.some((entry) => entry.model_id === "openai/codex-only"))
+  assert(catalog.models.some((entry) => entry.model_id === "codex-only"))
   assert.equal(catalog.source.codex_revision, "abc123")
 })
 
@@ -143,4 +143,15 @@ test("retains source evidence and audio prices above context thresholds", () => 
   assert.equal(model.metadata_source.fetched_at, "2026-09-24T00:00:00.000Z")
   assert.equal(model.source_pricing.overrides[0].audio, "0.000004")
   assert.equal(model.description, "Source description")
+})
+
+
+test("normalizes existing catalog names without changing prices or provenance", () => {
+  const catalog = { models: [{ model_id: "anthropic/claude-test", pricing: { model_pattern: "*claude-test*" }, metadata_source: { url: "https://openrouter.ai/anthropic/claude-test" } }] }
+  const pricing = catalog.models[0].pricing
+  normalizeCatalogNames(catalog)
+  assert.equal(catalog.models[0].model_id, "claude-test")
+  assert.equal(catalog.models[0].pricing, pricing)
+  assert.equal(catalog.models[0].metadata_source.url, "https://openrouter.ai/anthropic/claude-test")
+  assert.throws(() => normalizeCatalogNames({ models: [{ model_id: "one/shared", pricing: null }, { model_id: "two/SHARED", pricing: null }] }), /duplicate.*basename/)
 })

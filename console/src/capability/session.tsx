@@ -4,18 +4,15 @@
 //! sign-in page or the shell is rendered: a 401 is not an error to report, it
 //! is the answer "nobody".
 //!
-//! Today the query is `GET /portal/api/context`; when `/admin/api/context`
-//! lands it is that, and the change is confined to this file and to
-//! [`consoleContext`](@/capability/capability). `retry: false` matters —
-//! TanStack Query's default of three attempts with a backoff would make an
-//! ordinary signed-out visit take a couple of seconds to show a form.
+//! The portal establishes the session; the admin context supplies its scopes
+//! and management sections. Each scope owns an independent query cache.
 
-import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query"
-import { createContext, useCallback, useContext, useEffect, type ReactNode } from "react"
-import { ApiError, UNAUTHORIZED_EVENT } from "@/api/client"
-import { context as fetchContext } from "@/api/session"
+import { QueryClient, QueryClientProvider, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query"
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react"
+import { ApiError, UNAUTHORIZED_EVENT, setAdminScope } from "@/api/client"
+import { context as fetchContext, type SessionContext } from "@/api/session"
 import { consoleContext, type ConsoleContext } from "@/capability/capability"
-import type { PortalContextDto } from "@/generated/app"
+import { LoadingRows } from "@/components/state"
 
 export const SESSION_KEY = ["session", "context"] as const
 
@@ -34,20 +31,34 @@ export function useConsoleContext() {
   return value
 }
 
-export function ConsoleContextProvider({ context, children }: { context: PortalContextDto; children: ReactNode }) {
-  return <Context.Provider value={consoleContext(context)}>{children}</Context.Provider>
+export function ConsoleContextProvider({ context, children }: { context: SessionContext; children: ReactNode }) {
+  const root = useQueryClient()
+  const selector = context.admin?.scope?.selector ?? "none"
+  // A separate cache per caller/scope prevents late responses from entering
+  // the new scope even when a transport cannot cancel its old request.
+  const [scopedClient] = useState(() => new QueryClient({ defaultOptions: { queries: {
+    staleTime: 10_000, refetchOnWindowFocus: false,
+    retry: (attempt, error) => !(error instanceof ApiError && [401, 403].includes(error.status)) && attempt < 1,
+  } } }))
+  const [switching, setSwitching] = useState(false)
+  useEffect(() => () => { void scopedClient.cancelQueries(); scopedClient.clear() }, [scopedClient])
+  const switchScope = async (next: string) => {
+    if (switching || scopedClient.isMutating() || !context.admin?.scopes.some(scope => scope.selector === next)) return
+    setSwitching(true)
+    await Promise.all([scopedClient.cancelQueries(), root.cancelQueries({ queryKey: SESSION_KEY })])
+    setAdminScope(next, context.admin.scopeHeader)
+    try { root.setQueryData(SESSION_KEY, await fetchContext()) }
+    catch (error) { setAdminScope(context.admin.scope?.selector ?? null); throw error }
+    finally { setSwitching(false) }
+  }
+  return <Context.Provider value={{ ...consoleContext(context), switchScope }}>
+    {switching ? <LoadingRows /> : <QueryClientProvider client={scopedClient}><div key={`${context.user.id}:${selector}`}>{children}</div></QueryClientProvider>}
+  </Context.Provider>
 }
 
-export function useSessionContext(): UseQueryResult<PortalContextDto, ApiError> {
-  return useQuery<PortalContextDto, ApiError>({
-    queryKey: SESSION_KEY,
-    queryFn: fetchContext,
-    retry: false,
-    // A session that ended elsewhere should be noticed on the next glance at
-    // the tab rather than on the next click that fails.
-    refetchOnWindowFocus: true,
-    staleTime: 30_000,
-  })
+export function useSessionContext(): UseQueryResult<SessionContext, ApiError> {
+  return useQuery<SessionContext, ApiError>({ queryKey: SESSION_KEY, queryFn: fetchContext,
+    retry: false, refetchOnWindowFocus: true, staleTime: 30_000 })
 }
 
 /**
@@ -70,10 +81,13 @@ export function useUnauthorizedReset() {
   const client = useQueryClient()
   const reset = useCallback(() => {
     if (!client.getQueryData(SESSION_KEY)) return
+    setAdminScope(null)
     void client.resetQueries()
   }, [client])
   useEffect(() => {
+    const refresh = () => { void client.invalidateQueries({ queryKey: SESSION_KEY }) }
+    window.addEventListener("gproxy:context-refresh", refresh)
     window.addEventListener(UNAUTHORIZED_EVENT, reset)
-    return () => window.removeEventListener(UNAUTHORIZED_EVENT, reset)
-  }, [reset])
+    return () => { window.removeEventListener(UNAUTHORIZED_EVENT, reset); window.removeEventListener("gproxy:context-refresh", refresh) }
+  }, [reset, client])
 }

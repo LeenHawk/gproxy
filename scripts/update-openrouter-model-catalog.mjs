@@ -89,6 +89,23 @@ function tiers(pricing, author, modelId) {
   })
 }
 
+export function modelBasename(name) {
+  return name.trim().slice(name.trim().lastIndexOf("/") + 1)
+}
+
+/** Canonical directory names; raw upstream IDs remain in source evidence. */
+export function normalizeCatalogNames(catalog) {
+  const names = new Set()
+  for (const model of catalog.models) {
+    const name = modelBasename(model.model_id)
+    if (!name || names.has(name.toLowerCase())) throw new Error(`duplicate or empty catalog model basename: ${name}`)
+    names.add(name.toLowerCase())
+    model.model_id = name
+  }
+  catalog.models.sort((left, right) => left.model_id.localeCompare(right.model_id))
+  return catalog
+}
+
 export function buildCatalog(payload, fetchedAt = new Date().toISOString()) {
   if (!payload || !Array.isArray(payload.data)) {
     throw new Error("OpenRouter response does not contain a data array")
@@ -149,7 +166,7 @@ export function buildCatalog(payload, fetchedAt = new Date().toISOString()) {
     patterns.add(model.pricing.model_pattern)
   }
   const pricedModels = models.filter((model) => model.pricing != null)
-  return {
+  return normalizeCatalogNames({
     schema_version: 2,
     source: {
       catalog: "openrouter",
@@ -165,7 +182,7 @@ export function buildCatalog(payload, fetchedAt = new Date().toISOString()) {
         model.pricing.rates.some((rate) => rate.metric === "image_output_tokens")).length,
     },
     models,
-  }
+  })
 }
 
 export function applyCodexCatalog(catalog, payload, revision = "unknown") {
@@ -177,13 +194,13 @@ export function applyCodexCatalog(catalog, payload, revision = "unknown") {
     if (typeof source?.slug !== "string" || !source.slug.trim()) {
       throw new Error(`invalid Codex model slug: ${String(source?.slug)}`)
     }
-    const exact = catalog.models.find((model) => model.model_id === `openai/${source.slug}`)
+    const exact = catalog.models.find((model) => model.model_id === source.slug)
     const matches = catalog.models.filter((model) =>
       model.model_id.slice(model.model_id.lastIndexOf("/") + 1) === source.slug)
     let target = exact ?? (matches.length === 1 ? matches[0] : null)
     if (!target) {
       target = {
-        model_id: `openai/${source.slug}`,
+        model_id: source.slug,
         display_name: null,
         context_window: null,
         max_output_tokens: null,
@@ -239,7 +256,7 @@ export function applyCodexCatalog(catalog, payload, revision = "unknown") {
     context_models: catalog.models.filter((model) => model.context_window != null).length,
     output_limit_models: catalog.models.filter((model) => model.max_output_tokens != null).length,
   }
-  return catalog
+  return normalizeCatalogNames(catalog)
 }
 
 function modelPricing(model, outputModalities, dynamic) {
