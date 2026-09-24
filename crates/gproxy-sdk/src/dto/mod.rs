@@ -69,8 +69,8 @@ pub use login::{
     CredentialOwner, DevicePollOutcome, DeviceStart, DeviceStarted,
 };
 pub use logs::{
-    CaptureEventDto, CaptureRecordDto, LogBodyDto, LogBodyEncoding, LogDetailDto, LogEntryDto,
-    LogPageDto, LogQuery,
+    CaptureDetailDto, CaptureEventDto, CaptureRecordDto, LogBodyDto, LogBodyEncoding, LogDetailDto,
+    LogEntryDto, LogPageDto, LogQuery,
 };
 pub use pricing::{
     PriceRateDto, PriceRatePatch, PriceRateWrite, PriceRuleDto, PriceRulePatch, PriceRuleWrite,

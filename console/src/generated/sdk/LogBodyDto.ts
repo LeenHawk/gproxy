@@ -13,7 +13,7 @@ export type LogBodyDto = {
  */
 state: string, encoding: LogBodyEncoding, 
 /**
- * The cap cut `content` short. `bytes` still counts the whole body.
+ * Compatibility field: false, because reads return the complete stored payload.
  */
 truncated: boolean, 
 /**

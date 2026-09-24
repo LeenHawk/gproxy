@@ -20,7 +20,7 @@
 //! | body gate | `enable_upstream_log_body` | `enable_downstream_log_body` |
 //! | redaction | `disable_log_redaction` | the same switch, the same field list |
 //! | id | its own, opaque | **the request id**, which is also the usage row's |
-//! | body storage | `capture_events`, streamed | the inline column, buffered and capped |
+//! | body storage | `capture_events`, streamed | the inline column, buffered |
 //! | websocket frames | `capture_events`, per frame | `capture_events`, per frame, buffered |
 //! | failure | logged, never fails the request | logged, never fails the request |
 //!
@@ -32,9 +32,8 @@
 //! `enable_downstream_log` off [`DownstreamCapture::open`] answers `None` and
 //! there is no capture at all, and with `enable_downstream_log_body` off the
 //! request body is never copied and [`DownstreamCapture::record_response_chunk`]
-//! returns immediately. What is stored is capped at
-//! [`MAX_CAPTURED_BODY_BYTES`]; a body over it is cut, and the row's
-//! `*_body_state` says `Partial` so a reader knows the cut happened.
+//! returns immediately. When enabled, received bodies and frames are retained
+//! without a logging-size cutoff.
 //!
 //! # What a downstream record does not claim
 //!
@@ -66,24 +65,6 @@ use crate::{Admitted, AppError, Caller, DataPlaneRequest, now_ms};
 /// spells them. Re-exported so a host can name one without depending on
 /// `gproxy-store`.
 pub use event::{CaptureDirection, CaptureEventKind};
-
-/// How much of one downstream body is stored, per direction.
-///
-/// The same 64 KiB the sdk's log detail hands back
-/// (`gproxy_sdk::query::MAX_BODY_BYTES`), so a stored body is never larger
-/// than what can be read out of it again, and a streamed answer cannot grow a
-/// row without bound while the request is still open.
-pub const MAX_CAPTURED_BODY_BYTES: usize = 64 * 1024;
-
-/// How much of one socket's traffic is stored, across both directions.
-///
-/// A websocket record buffers its frames until the socket ends, and a realtime
-/// session runs for as long as a person keeps talking. Without a bound the row
-/// a two-hour call produces would be built in memory for two hours, so the
-/// capture stops recording once it has this much and says so with a `Partial`
-/// body state. The same 64 KiB as a body, for the same reason: it is what the
-/// log reader hands back.
-pub const MAX_CAPTURED_FRAME_BYTES: usize = MAX_CAPTURED_BODY_BYTES;
 
 /// What a redacted value is replaced by. The same marker core writes, so the
 /// two sides of one request read alike.
@@ -242,21 +223,14 @@ pub struct DownstreamCapture {
     /// The row as it is known so far. Mutated in place by the response
     /// recorders, exactly as core's observer patches its own.
     row: record::ActiveModel,
-    request_truncated: bool,
-    /// Response bytes for the inline column, already capped.
+    /// Received response bytes for the inline column.
     response_body: Vec<u8>,
-    response_truncated: bool,
     /// Kept out of the row so the final state can be decided from it.
     status: Option<i32>,
     /// One row per websocket message, in the order the socket saw them across
     /// both directions. Empty for an HTTP exchange, which uses the inline
     /// body columns instead.
     events: Vec<event::ActiveModel>,
-    /// Payload bytes already held in `events`, against
-    /// [`MAX_CAPTURED_FRAME_BYTES`].
-    event_bytes: usize,
-    /// Whether a frame was dropped because the budget ran out.
-    events_truncated: bool,
     /// upstream capture id → the `(started_at_ms, attempt_ordinal)` it is
     /// ordered by. A map rather than a list because `(downstream_id,
     /// upstream_id)` is the primary key of an edge: a report handed over twice
@@ -299,17 +273,61 @@ impl DownstreamCapture {
         caller: &Caller,
         admitted: &Admitted,
     ) -> Option<Self> {
+        Self::open_exchange(
+            switches,
+            &request.request_id,
+            &request.parts,
+            &request.body,
+            caller,
+            admitted.attribution.model.clone(),
+            request.operation.operation.id(),
+            request.client_ip.clone(),
+        )
+    }
+
+    /// A channel service is logged without charging a model-call admission lease.
+    pub fn open_service(
+        switches: &ObservationSwitches,
+        request: &crate::ServiceRequestIn,
+        caller: &Caller,
+        client_ip: Option<String>,
+    ) -> Option<Self> {
+        let mut capture = Self::open_exchange(
+            switches,
+            &request.request_id,
+            &request.parts,
+            &request.body,
+            caller,
+            None,
+            "service",
+            client_ip,
+        )?;
+        capture.row.provider_id = Set(Some(request.provider_id.clone()));
+        Some(capture)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn open_exchange(
+        switches: &ObservationSwitches,
+        request_id: &str,
+        parts: &http::request::Parts,
+        body: &[u8],
+        caller: &Caller,
+        model: Option<String>,
+        operation: &str,
+        client_ip: Option<String>,
+    ) -> Option<Self> {
         if !switches.downstream_log {
             return None;
         }
-        let (request_body, request_truncated) = capture_body(&request.body, switches);
-        let uri = &request.parts.uri;
+        let request_body = capture_body(body, switches);
+        let uri = &parts.uri;
         let row = record::ActiveModel {
-            id: Set(request.request_id.clone()),
+            id: Set(request_id.to_owned()),
             // A downstream record initiates itself. The column still carries
             // the request id so the two sides of one request join on the same
             // value whichever row you start from.
-            initiator_request_id: Set(Some(request.request_id.clone())),
+            initiator_request_id: Set(Some(request_id.to_owned())),
             side: Set(record::CaptureSide::Downstream),
             // Promoted to `WsConnection` by `record_response_head` if the
             // handshake is accepted.
@@ -318,13 +336,13 @@ impl DownstreamCapture {
             // makes it optional for core's benefit, and here it is always
             // known.
             user_id: Set(Some(caller.user_id.clone())),
-            api_key_id: Set(admitted.attribution.api_key_id.clone()),
+            api_key_id: Set(caller.api_key_id.clone()),
             // The name the client asked for, which is what a log is read
             // against. The upstream name a route resolved it to is on the
             // upstream records.
-            model: Set(admitted.attribution.model.clone()),
-            operation: Set(Some(request.operation.operation.id().into())),
-            request_method: Set(Some(request.parts.method.to_string())),
+            model: Set(model),
+            operation: Set(Some(operation.into())),
+            request_method: Set(Some(parts.method.to_string())),
             request_url: Set(Some(uri.path().to_owned())),
             request_query: Set(uri.query().map(|query| {
                 if switches.redact {
@@ -333,29 +351,25 @@ impl DownstreamCapture {
                     query.to_owned()
                 }
             })),
-            request_headers: Set(Some(headers_json(&request.parts.headers, switches.redact))),
+            request_headers: Set(Some(headers_json(&parts.headers, switches.redact))),
             request_body: Set(request_body),
             // Both directions use the inline column, which the schema spells
             // `Buffered`; the other framings mean "read the events instead",
             // and this side writes none.
             request_framing: Set(record::BodyFraming::Buffered),
             response_framing: Set(record::BodyFraming::Buffered),
-            client_ip: Set(request.client_ip.clone()),
+            client_ip: Set(client_ip),
             state: Set(record::CaptureState::InProgress),
             started_at_ms: Set(now_ms()),
             ..Default::default()
         };
         Some(Self {
-            id: request.request_id.clone(),
+            id: request_id.to_owned(),
             switches: *switches,
             row,
-            request_truncated,
             response_body: Vec::new(),
-            response_truncated: false,
             status: None,
             events: Vec::new(),
-            event_bytes: 0,
-            events_truncated: false,
             links: BTreeMap::new(),
         })
     }
@@ -382,7 +396,7 @@ impl DownstreamCapture {
         }
     }
 
-    /// Append response bytes, up to [`MAX_CAPTURED_BODY_BYTES`].
+    /// Append every received response byte when body capture is enabled.
     ///
     /// A no-op with `enable_downstream_log_body` off, so a host can call it
     /// unconditionally on every chunk without checking the switch. Redaction
@@ -392,13 +406,7 @@ impl DownstreamCapture {
         if !self.switches.downstream_log_body || bytes.is_empty() {
             return;
         }
-        let room = MAX_CAPTURED_BODY_BYTES.saturating_sub(self.response_body.len());
-        if room < bytes.len() {
-            self.response_body.extend_from_slice(&bytes[..room]);
-            self.response_truncated = true;
-        } else {
-            self.response_body.extend_from_slice(bytes);
-        }
+        self.response_body.extend_from_slice(bytes);
     }
 
     /// One websocket message, recorded as a `capture_events` row.
@@ -421,8 +429,6 @@ impl DownstreamCapture {
     /// A no-op with `enable_downstream_log_body` off, exactly like
     /// [`DownstreamCapture::record_response_chunk`]: a frame *is* the body of
     /// a socket, so it is gated by the body switch rather than by a third one.
-    /// Recording also stops once [`MAX_CAPTURED_FRAME_BYTES`] have been kept,
-    /// which marks the row `Partial`.
     pub fn record_frame(&mut self, direction: CaptureDirection, frame: CapturedFrame<'_>) {
         if !self.switches.downstream_log_body {
             return;
@@ -432,16 +438,8 @@ impl DownstreamCapture {
         // carried nothing still reads as an empty buffered exchange.
         self.row.request_framing = Set(record::BodyFraming::WebSocket);
         self.row.response_framing = Set(record::BodyFraming::WebSocket);
-        if self.event_bytes >= MAX_CAPTURED_FRAME_BYTES {
-            self.events_truncated = true;
-            return;
-        }
         let (kind, payload) = frame.encode();
         let payload = redacted(&payload, self.switches.redact).into_owned();
-        // Whole frames only. The column preserves message boundaries, so half
-        // a frame would be a message the socket never carried; the budget is
-        // allowed one overshoot and then closes.
-        self.event_bytes = self.event_bytes.saturating_add(payload.len());
         self.events.push(event::ActiveModel {
             capture_id: Set(self.id.clone()),
             sequence: Set(self.events.len() as i64),
@@ -615,13 +613,9 @@ impl DownstreamCapture {
             id,
             switches,
             mut row,
-            request_truncated,
             response_body,
-            mut response_truncated,
             status,
             events,
-            event_bytes: _,
-            events_truncated,
             links,
         } = self;
 
@@ -643,31 +637,16 @@ impl DownstreamCapture {
             CaptureOutcome::Failed { error } => (record::CaptureState::Failed, Some(error.clone())),
         };
 
-        let response_body = switches.downstream_log_body.then(|| {
-            let mut bytes = redacted(&response_body, switches.redact).into_owned();
-            // Redaction can lengthen a body when a masked value was shorter
-            // than the marker. The cap is a storage limit, so it wins.
-            if bytes.len() > MAX_CAPTURED_BODY_BYTES {
-                bytes.truncate(MAX_CAPTURED_BODY_BYTES);
-                response_truncated = true;
-            }
-            bytes
-        });
+        let response_body = switches
+            .downstream_log_body
+            .then(|| redacted(&response_body, switches.redact).into_owned());
 
         row.state = Set(state);
         row.error = Set(error);
         row.ended_at_ms = Set(Some(now_ms()));
-        // A socket's traffic is in the events, and it is one stream in both
-        // directions: a frame budget that ran out cuts both columns, because
-        // it is not knowable which direction the frames it dropped were.
-        row.request_body_state = Set(body_state(
-            switches.downstream_log_body,
-            request_truncated || events_truncated,
-            true,
-        ));
+        row.request_body_state = Set(body_state(switches.downstream_log_body, true));
         row.response_body_state = Set(body_state(
             switches.downstream_log_body,
-            response_truncated || events_truncated,
             outcome == CaptureOutcome::Complete,
         ));
         row.response_body = Set(response_body);
@@ -717,28 +696,21 @@ impl DownstreamCapture {
 
 /// `NotCaptured` when the switch is off, `Partial` when what is stored is not
 /// the whole of what passed, `Complete` otherwise.
-fn body_state(captured: bool, truncated: bool, whole: bool) -> record::CaptureBodyState {
+fn body_state(captured: bool, whole: bool) -> record::CaptureBodyState {
     if !captured {
         record::CaptureBodyState::NotCaptured
-    } else if truncated || !whole {
+    } else if !whole {
         record::CaptureBodyState::Partial
     } else {
         record::CaptureBodyState::Complete
     }
 }
 
-/// The request body as it will be stored, and whether it was cut.
-///
-/// Redaction runs before the cut, never after: a body long enough to be
-/// truncated must not be a way of getting a secret past the policy.
-fn capture_body(body: &[u8], switches: &ObservationSwitches) -> (Option<Vec<u8>>, bool) {
-    if !switches.downstream_log_body {
-        return (None, false);
-    }
-    let bytes = redacted(body, switches.redact);
-    let truncated = bytes.len() > MAX_CAPTURED_BODY_BYTES;
-    let kept = bytes.len().min(MAX_CAPTURED_BODY_BYTES);
-    (Some(bytes[..kept].to_vec()), truncated)
+/// The complete request body under the configured redaction policy.
+fn capture_body(body: &[u8], switches: &ObservationSwitches) -> Option<Vec<u8>> {
+    switches
+        .downstream_log_body
+        .then(|| redacted(body, switches.redact).into_owned())
 }
 
 /// The same field names core's observer treats as secret, so a downstream and
@@ -813,8 +785,7 @@ fn redact_query(query: &str) -> String {
 /// **A body that is not JSON is stored as received.** There is no key to match
 /// on, and guessing at secrets in opaque bytes would corrupt the capture
 /// without reliably hiding anything — which is one more reason
-/// `enable_downstream_log_body` is off by default. A response truncated at the
-/// cap is in this class: the cut left it unparseable.
+/// `enable_downstream_log_body` is off by default.
 fn redacted(body: &[u8], redact: bool) -> Cow<'_, [u8]> {
     if !redact {
         return Cow::Borrowed(body);
@@ -900,16 +871,19 @@ mod tests {
     }
 
     #[test]
-    fn a_body_is_redacted_before_it_is_cut() {
+    fn a_large_body_is_redacted_without_losing_other_content() {
         let switches = ObservationSwitches {
             downstream_log_body: true,
             ..ObservationSwitches::default()
         };
-        let secret = "s".repeat(MAX_CAPTURED_BODY_BYTES);
-        let body = json!({"token": secret, "model": "m1"}).to_string();
-        let (stored, truncated) = capture_body(body.as_bytes(), &switches);
-        let stored = stored.unwrap();
-        assert!(!truncated, "masking shrank it below the cap");
+        let secret = "s".repeat(128 * 1024);
+        let body =
+            json!({"token": secret, "model": "m1", "content": "a".repeat(128 * 1024)}).to_string();
+        let stored = capture_body(body.as_bytes(), &switches).unwrap();
+        assert_eq!(
+            serde_json::from_slice::<Value>(&stored).unwrap()["content"],
+            "a".repeat(128 * 1024)
+        );
         assert!(
             !String::from_utf8_lossy(&stored).contains("ssss"),
             "the secret must not survive because the body was long"
@@ -920,17 +894,16 @@ mod tests {
     fn the_body_switch_is_read_before_anything_is_copied() {
         let switches = ObservationSwitches::default();
         assert!(!switches.downstream_log_body);
-        assert_eq!(capture_body(b"a prompt", &switches), (None, false));
+        assert_eq!(capture_body(b"a prompt", &switches), None);
     }
 
     #[test]
-    fn a_state_reports_the_cut_and_the_switch_apart() {
+    fn a_state_reports_interruption_and_the_switch_apart() {
         use record::CaptureBodyState as S;
-        assert_eq!(body_state(false, false, true), S::NotCaptured);
-        assert_eq!(body_state(true, false, true), S::Complete);
-        assert_eq!(body_state(true, true, true), S::Partial);
+        assert_eq!(body_state(false, true), S::NotCaptured);
+        assert_eq!(body_state(true, true), S::Complete);
         assert_eq!(
-            body_state(true, false, false),
+            body_state(true, false),
             S::Partial,
             "a stream that stopped early is partial even if nothing was cut"
         );

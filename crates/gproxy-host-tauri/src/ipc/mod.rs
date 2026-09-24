@@ -163,6 +163,22 @@ macro_rules! ipc_call {
     }};
 }
 
+/// IPC management/query operations follow the HTTP audit policy. Do not retain
+/// command arguments or return values: either may contain credentials.
+pub async fn audit(desktop: &Desktop, action: &str, result: &IpcResult<serde_json::Value>) {
+    let mut entry = gproxy_app::AuditEntry::new(action).by(desktop.caller());
+    entry.detail = match result {
+        Ok(_) => serde_json::json!({ "transport": "ipc", "status": 200 }),
+        Err(error) => {
+            entry.outcome = "error".into();
+            serde_json::json!({ "transport": "ipc", "status": error.status, "code": error.code })
+        }
+    };
+    gproxy_app::Audit::new(desktop.app().gproxy().store())
+        .try_record(entry)
+        .await;
+}
+
 /// Rebuild the identity snapshot if the command that just ran moved the
 /// revision.
 ///
@@ -238,10 +254,14 @@ macro_rules! ipc_table {
                     $( $($argument: $type,)+ )?
                 ) -> $crate::IpcResult<::serde_json::Value> {
                     let desktop = &*desktop;
-                    ipc_call!(
+                    let answer = ipc_call!(
                         $surface, desktop, $chain, $method,
                         ( $( $(&$borrowed,)+ )? $( $($argument,)+ )? )
-                    )
+                    );
+                    $crate::ipc::audit(desktop,
+                        concat!(stringify!($surface), ".", stringify!($family), ".", stringify!($method)),
+                        &answer).await;
+                    answer
                 }
             }
         )+ )+

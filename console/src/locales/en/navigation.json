@@ -32,7 +32,10 @@
     "routes": "Model routes",
     "route-members": "Route members",
     "exposed-models": "Public model names",
-    "transfer": "Configuration transfer"
+    "transfer": "Configuration transfer",
+    "globalUsage": "Global usage",
+    "downstreamLogs": "Downstream logs",
+    "upstreamLogs": "Upstream logs"
   },
   "create": {
     "keys": "New key",

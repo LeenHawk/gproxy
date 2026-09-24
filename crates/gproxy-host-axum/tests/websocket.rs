@@ -617,7 +617,10 @@ async fn a_vendor_service_socket_upgrades_under_a_credential_view() {
     // rule: services run outside the observation funnel.
     tokio::time::sleep(Duration::from_millis(50)).await;
     assert!(usage_rows(&host).await.is_empty());
-    assert!(records(&host).await.is_empty());
+    let captured = records(&host).await;
+    assert_eq!(captured.len(), 1);
+    assert_eq!(captured[0].side, capture_record::CaptureSide::Downstream);
+    assert_eq!(captured[0].operation.as_deref(), Some("service"));
 }
 
 #[tokio::test(flavor = "multi_thread")]

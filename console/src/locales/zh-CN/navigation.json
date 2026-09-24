@@ -32,7 +32,10 @@
     "routes": "模型路由",
     "route-members": "路由成员",
     "exposed-models": "公开模型名",
-    "transfer": "配置导入导出"
+    "transfer": "配置导入导出",
+    "globalUsage": "全局用量",
+    "downstreamLogs": "下游日志",
+    "upstreamLogs": "上游日志"
   },
   "create": {
     "keys": "新建密钥",

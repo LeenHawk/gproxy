@@ -178,6 +178,12 @@ async fn an_organization_scope_sees_two_families_and_only_its_own_rows() {
         "/admin/api/teams",
         "/admin/api/permissions",
         "/admin/api/audit",
+        "/admin/api/usage",
+        "/admin/api/usage/records",
+        "/admin/api/logs/downstream",
+        "/admin/api/logs/upstream",
+        "/admin/api/logs/captures/unknown",
+        "/admin/api/logs/downstream/unknown",
         "/admin/api/channels",
         "/admin/api/tokenizer-vocabs",
     ] {

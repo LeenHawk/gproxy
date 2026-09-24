@@ -9,8 +9,8 @@
 //!
 //! A detail is a tree: the downstream record, the upstream attempts reached
 //! through `capture_links`, and the stream events of all of them. Bodies are
-//! capped at [`MAX_BODY_BYTES`] and events at [`MAX_DETAIL_EVENTS`]; both cuts
-//! are reported on the answer.
+//! returned in full. Events are limited by [`MAX_DETAIL_EVENTS`], with the
+//! event-list cut reported separately on the answer.
 //!
 //! Nothing here redacts. Core's observer applied the deployment's logging
 //! redaction policy as it wrote these rows, so a host must not assume a second
@@ -23,14 +23,15 @@ use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::entity::usage::{capture_event, capture_link, capture_record};
 use sea_orm::{
     ActiveEnum, ColumnTrait, Condition, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+    QueryTrait,
 };
 
-use super::{MAX_BODY_BYTES, MAX_DETAIL_EVENTS, filter};
+use super::{MAX_DETAIL_EVENTS, filter};
 use crate::{
     SdkError, SdkResult,
     dto::{
-        CaptureEventDto, CaptureRecordDto, LogBodyDto, LogDetailDto, LogEntryDto, LogPageDto,
-        LogQuery, UsageRecordDto,
+        CaptureDetailDto, CaptureEventDto, CaptureRecordDto, LogBodyDto, LogDetailDto, LogEntryDto,
+        LogPageDto, LogQuery, UsageRecordDto,
     },
     handle::Inner,
 };
@@ -54,9 +55,23 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Logs<'_, C> {
     /// unchanged for the next page; a `cursor` without its `cursor_id` still
     /// works but may repeat the rows of its own millisecond.
     pub async fn list(&self, query: LogQuery) -> SdkResult<LogPageDto> {
+        self.list_side(query, capture_record::CaptureSide::Downstream)
+            .await
+    }
+
+    /// Physical upstream exchanges, including attempts without a retained downstream row.
+    pub async fn upstream(&self, query: LogQuery) -> SdkResult<LogPageDto> {
+        self.list_side(query, capture_record::CaptureSide::Upstream)
+            .await
+    }
+
+    async fn list_side(
+        &self,
+        query: LogQuery,
+        side: capture_record::CaptureSide,
+    ) -> SdkResult<LogPageDto> {
         use capture_record::Column as C;
-        let mut condition =
-            Condition::all().add(C::Side.eq(capture_record::CaptureSide::Downstream));
+        let mut condition = Condition::all().add(C::Side.eq(side));
         if let Some(from_ms) = query.from_ms {
             condition = condition.add(C::StartedAtMs.gte(from_ms));
         }
@@ -69,11 +84,36 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Logs<'_, C> {
         if let Some(api_key_id) = filter(&query.api_key_id) {
             condition = condition.add(C::ApiKeyId.eq(api_key_id));
         }
-        if let Some(provider_id) = filter(&query.provider_id) {
-            condition = condition.add(C::ProviderId.eq(provider_id));
+        let mut upstream_filter = Condition::all();
+        let provider = filter(&query.provider_id);
+        let credential = filter(&query.credential_id);
+        if let Some(provider_id) = provider {
+            upstream_filter = upstream_filter.add(C::ProviderId.eq(provider_id));
         }
-        if let Some(credential_id) = filter(&query.credential_id) {
-            condition = condition.add(C::CredentialId.eq(credential_id));
+        if let Some(credential_id) = credential {
+            upstream_filter = upstream_filter.add(C::CredentialId.eq(credential_id));
+        }
+        if provider.is_some() || credential.is_some() {
+            if side == capture_record::CaptureSide::Downstream {
+                let upstream_ids = capture_record::Entity::find()
+                    .select_only()
+                    .column(C::Id)
+                    .filter(C::Side.eq(capture_record::CaptureSide::Upstream))
+                    .filter(upstream_filter.clone())
+                    .into_query();
+                let downstream_ids = capture_link::Entity::find()
+                    .select_only()
+                    .column(capture_link::Column::DownstreamId)
+                    .filter(capture_link::Column::UpstreamId.in_subquery(upstream_ids))
+                    .into_query();
+                condition = condition.add(
+                    Condition::any()
+                        .add(upstream_filter)
+                        .add(C::Id.in_subquery(downstream_ids)),
+                );
+            } else {
+                condition = condition.add(upstream_filter);
+            }
         }
         if let Some(model) = filter(&query.model) {
             condition = condition.add(C::Model.eq(model));
@@ -87,7 +127,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Logs<'_, C> {
         // A downstream record's id is the request id, so there is nothing to
         // look up in `initiator_request_id` here.
         if let Some(request_id) = filter(&query.request_id) {
-            condition = condition.add(C::Id.eq(request_id));
+            condition = condition.add(
+                Condition::any()
+                    .add(C::Id.eq(request_id))
+                    .add(C::InitiatorRequestId.eq(request_id)),
+            );
         }
         if let Some(cursor) = query.cursor {
             condition = condition.add(match filter(&query.cursor_id) {
@@ -128,6 +172,35 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Logs<'_, C> {
         })
     }
 
+    /// One physical exchange and its events, regardless of downstream retention.
+    pub async fn capture(&self, capture_id: &str) -> SdkResult<CaptureDetailDto> {
+        let store = &self.inner.store;
+        let row = store
+            .capture_records()
+            .get_many(&[capture_id.to_owned()])
+            .await?
+            .into_iter()
+            .next()
+            .flatten()
+            .ok_or_else(|| SdkError::not_found("capture record", capture_id))?;
+        let mut events = store
+            .capture_events()
+            .query(
+                capture_event::Entity::find()
+                    .filter(capture_event::Column::CaptureId.eq(capture_id))
+                    .order_by_asc(capture_event::Column::Sequence)
+                    .limit(MAX_DETAIL_EVENTS + 1),
+            )
+            .await?;
+        let events_truncated = events.len() as u64 > MAX_DETAIL_EVENTS;
+        events.truncate(MAX_DETAIL_EVENTS as usize);
+        Ok(CaptureDetailDto {
+            record: record(row),
+            events: events.into_iter().map(event).collect(),
+            events_truncated,
+        })
+    }
+
     /// One request and everything captured under it: the downstream record,
     /// every upstream attempt linked to it, their stream events, and the
     /// settled usage row when there is one.
@@ -140,6 +213,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Logs<'_, C> {
             .into_iter()
             .next()
             .flatten()
+            .filter(|row| row.side == capture_record::CaptureSide::Downstream)
             .ok_or_else(|| SdkError::not_found("capture record", request_id))?;
 
         // Links, not `initiator_request_id`: a link is the causal edge, and it
@@ -199,7 +273,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Logs<'_, C> {
     }
 }
 
-/// A captured exchange with both of its bodies bounded.
+/// A captured exchange with all stored body bytes.
 fn record(row: capture_record::Model) -> CaptureRecordDto {
     CaptureRecordDto {
         request_body: body(row.request_body_state, row.request_body.as_deref()),
@@ -248,17 +322,17 @@ fn body(state: capture_record::CaptureBodyState, bytes: Option<&[u8]>) -> LogBod
     let name = state.to_value();
     match bytes {
         Some(bytes) if state != capture_record::CaptureBodyState::NotCaptured => {
-            LogBodyDto::new(name, bytes, MAX_BODY_BYTES)
+            LogBodyDto::new(name, bytes)
         }
         _ => LogBodyDto::absent(name),
     }
 }
 
 /// An event's payload is always exactly the bytes that were stored for it, so
-/// its state is `complete` by construction; only the byte cap can cut it.
+/// its state is `complete` by construction and all stored bytes are returned.
 fn event(row: capture_event::Model) -> CaptureEventDto {
     CaptureEventDto {
-        payload: LogBodyDto::new("complete".to_owned(), &row.payload, MAX_BODY_BYTES),
+        payload: LogBodyDto::new("complete".to_owned(), &row.payload),
         capture_id: row.capture_id,
         sequence: row.sequence,
         turn_id: row.turn_id,

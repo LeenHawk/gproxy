@@ -52,7 +52,7 @@
 //! upstream is told politely first, and before [`Pump::drain_upstream`], whose
 //! read is what lets core observe it.
 //!
-//! A service socket has no token, because it has no `Trailer`: see [`service`].
+//! A service socket retains a capture-only trailer, without model usage or leases.
 //!
 //! # What is pumped
 //!
@@ -253,17 +253,6 @@ where
     relay(status, headers, body)
 }
 
-/// The same answer with nothing to settle, for a service socket.
-async fn refused_service(response: WireResponse<HttpBody>) -> Response {
-    let WireResponse {
-        status,
-        headers,
-        body,
-    } = response;
-    let (body, _) = collect(body).await;
-    relay(status, headers, body)
-}
-
 /// One buffered upstream response, framed by its length.
 fn relay(status: StatusCode, headers: HeaderMap, body: Bytes) -> Response {
     let length = body.len() as u64;
@@ -306,13 +295,9 @@ async fn collect(body: HttpBody) -> (Bytes, bool) {
 /// Step 4, for a channel's vendor service that is a socket — Codex's
 /// remote-control server is the one in the tree.
 ///
-/// A service takes no lease, opens no capture and settles no usage, and that
-/// is `gproxy-app`'s decision rather than this module's: "services run outside
-/// the observation funnel", so there is nothing here to hold open and nothing
-/// to write at the end. It takes no cancellation token either, for the same
-/// reason plus a harder one: neither `ServiceRequestIn` nor core's
-/// `ServiceRequest` has a field to put one in, so a departed client cannot be
-/// reported to a service call at all. See the crate README.
+/// A service records its downstream handshake and frames without acquiring a
+/// model-call lease or settling usage. The capture-only trailer is finalized
+/// by the same pump as model traffic; the core service API has no cancellation token.
 ///
 /// Which credential the socket may speak for is the channel's: the Codex
 /// channel refuses a synthesized view outright, so `x-gproxy-view:
@@ -324,16 +309,28 @@ pub async fn service<C>(
     caller: &Caller,
     request: ServiceRequestIn,
     max_frame_bytes: u64,
+    capture: Option<gproxy_app::capture::DownstreamCapture>,
 ) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
+    let mut trailer = Trailer::service(app.clone(), capture);
     match app.connect_service(caller, request).await {
-        Err(error) => crate::ErrorResponse(error).into_response(),
-        Ok(UpstreamConnection::Rejected(response)) => refused_service(response).await,
+        Err(error) => {
+            let response = crate::ErrorResponse(error).into_response();
+            if let Some(capture) = trailer.capture_mut() {
+                capture.record_response_head(response.status(), response.headers());
+            }
+            trailer.settle(CaptureOutcome::Interrupted).await;
+            response
+        }
+        Ok(UpstreamConnection::Rejected(response)) => refused(trailer, response).await,
         Ok(UpstreamConnection::Connected { handshake, socket }) => {
             let negotiated = sanitize(handshake.headers);
-            accept::<C>(upgrade, socket, max_frame_bytes, None, &negotiated)
+            if let Some(capture) = trailer.capture_mut() {
+                capture.record_response_head(StatusCode::SWITCHING_PROTOCOLS, &negotiated);
+            }
+            accept::<C>(upgrade, socket, max_frame_bytes, Some(trailer), &negotiated)
         }
     }
 }
@@ -390,8 +387,7 @@ struct Pump<C> {
     incoming: WsReceiver,
     outgoing: WsSender,
     limit: u64,
-    /// `None` for a vendor service socket, which took no lease and carries no
-    /// cancellation token.
+    /// Owns model usage/leases for model traffic, capture only for services.
     trailer: Option<Trailer<C>>,
 }
 

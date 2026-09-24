@@ -347,9 +347,9 @@ await，只能 spawn。
 数。core 眼中的调用方要靠它去找这个人的用量；一个请求内部对「这是谁」出现两个答案，正是
 单一 `Caller` 规则要防的那个 bug。
 
-两侧都不记 capture。core 自己就不给服务写上游记录，所以下游记录无边可连，读起来会像一个
-没有碰过任何上游的请求；而且服务也没有 `Admitted` 可供归属。厂商的 profile 页面，恰恰是
-请求日志唯一不该收的东西。
+宿主用 `DownstreamCapture::open_service` 记录渠道服务的下游 HTTP 交换和 WebSocket 帧，
+归属来自已认证的调用者，不获取模型准入租约，也不结算用量。Core 服务路径仍在模型上游尝试
+采集链路之外，因此服务记录没有上游关联，不代表它一定没有向厂商发起请求。
 
 ## 下游 capture
 
@@ -364,7 +364,7 @@ await，只能 spawn。
 | 正文开关 | `enable_upstream_log_body` | `enable_downstream_log_body` |
 | 遮蔽 | `disable_log_redaction` | 同一个开关，同一张字段名单 |
 | id | 自己的，不透明 | **请求 id**，也就是 usage 行的键 |
-| 正文存放 | `capture_events`，流式 | 内联列，缓冲并设上限 |
+| 正文存放 | `capture_events`，流式 | 内联列，缓冲 |
 | WebSocket 帧 | `capture_events`，一帧一行 | `capture_events`，一帧一行，缓冲 |
 
 四个开关都从请求所钉住的那个 revision 的 `settings` 行读出，与装配 `AppData` 是同一次
@@ -402,21 +402,19 @@ capture.record_frame(CaptureDirection::Request, CapturedFrame::Text(text));
 谁都没产生过的 `WsTurn`。
 
 帧和别的正文一样受 `enable_downstream_log_body` 控制——帧本来就是 socket 的正文——
-并在累计 `MAX_CAPTURED_FRAME_BYTES` 后停止记录，行标记为 `Partial`。realtime 会话
-有人说多久就跑多久，而它产出的那一行在 socket 结束前一直建在内存里。
+开启后保留收到的全部帧，在 socket 结束后写入日志。
 
 ### 先问再拷
 
 `enable_downstream_log` 关闭时，`DownstreamCapture::open` 返回 `None`：不分配、不拷贝
 正文、不写行。`enable_downstream_log_body` 关闭时正文同样不拷贝，`*_body_state` 记作
-`NotCaptured`——读的人据此分辨「本来就没有正文」和「我们选择不留」。留下来的每个方向上限
-64 KiB——和 sdk 日志详情往外发时切的是同一刀——超出的正文截断存放，状态写 `Partial`。
+`NotCaptured`——读的人据此分辨「本来就没有正文」和「我们选择不留」。开启后保留收到的完整
+正文，日志详情也完整返回已存正文；`Partial` 表示交换中断，而非日志大小截断。
 
 遮蔽按 core 自己那张名单处理头名、查询参数和 JSON 字段（`authorization`、`cookie`、
 `api_key`、`access_token`……），使一个请求的两侧藏起同样的东西；core 的辅助函数是私有的，
-所以这里是同一张名单的第二份实现，而不是调用。请求正文**先遮蔽再截断**，长度永远不能成为
-绕过策略的办法。不是 JSON 的正文没有键可匹配，按收到的样子存——这也是正文开关默认关闭的
-理由之一。
+所以这里是同一张名单的第二份实现，而不是调用。请求正文写入前脱敏，不按日志大小截断。
+不是 JSON 的正文没有键可匹配，按收到的样子存——这也是正文开关默认关闭的理由之一。
 
 ### 边
 

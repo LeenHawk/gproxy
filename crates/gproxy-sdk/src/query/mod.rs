@@ -45,11 +45,6 @@ pub(crate) const SCAN_CHUNK: u64 = 1_000;
 /// caller that meant a different bucket width.
 pub const MAX_TREND_BUCKETS: i64 = 5_000;
 
-/// How much of one captured body travels in a detail response. A captured
-/// server-sent-event stream can be megabytes, and neither a JSON response nor
-/// a browser wants them inline; what is cut is reported rather than hidden.
-pub const MAX_BODY_BYTES: usize = 64 * 1024;
-
 /// How many capture events one detail response carries, across the downstream
 /// record and all of its upstream attempts.
 pub const MAX_DETAIL_EVENTS: u64 = 2_000;

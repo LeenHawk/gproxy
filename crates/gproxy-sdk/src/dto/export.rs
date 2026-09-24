@@ -105,7 +105,7 @@ exported!(
     DeviceStart,
     DeviceStarted,
     // logs
-    CaptureEventDto,
+    CaptureDetailDto, CaptureEventDto,
     CaptureRecordDto,
     LogBodyDto,
     LogBodyEncoding,

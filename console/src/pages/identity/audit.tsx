@@ -1,11 +1,7 @@
 import { usePagination } from "@/lib/use-pagination"
 //! The audit trail.
 //!
-//! Reads are not audited — a management list is what a console fetches on
-//! every page load, and a trail that is 95% `list` is a trail nobody reads —
-//! so every row here is a write somebody made. `detail` is the redacted
-//! summary the operation wrote and never a secret, which is why it can be
-//! shown verbatim.
+//! Non-channel API operations, including reads; model and vendor service traffic uses request logs.
 
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"

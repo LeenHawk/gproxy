@@ -90,12 +90,45 @@ where
             axum::routing::delete(revoke_grant::<C>),
         )
         .route("/password", post(change_password::<C>))
-        .route_layer(axum::middleware::from_fn_with_state(state, guard::<C>));
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            guard::<C>,
+        ));
 
     Router::new()
         .route("/login", post(login::<C>))
         .route("/logout", post(logout::<C>))
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            session_audit::<C>,
+        ))
         .merge(guarded)
+}
+
+/// Login and logout are management operations too, including rejected attempts.
+async fn session_audit<C: BatchConnectionTrait + Send + Sync + 'static>(
+    State(state): State<HostState<C>>,
+    request: Request,
+    next: Next,
+) -> Response {
+    crate::send(async move {
+        let method = request.method().clone();
+        let source = crate::admin::audit_source(&state, &request);
+        let action = session::audit_action("portal", crate::matched_path(&request), &method);
+        let headers = request.headers().clone();
+        let caller = if crate::matched_path(&request).ends_with("/login") {
+            None
+        } else {
+            session::authenticate(state.app(), &method, &headers)
+                .await
+                .ok()
+        };
+        let response = next.run(request).await;
+        let caller = response.extensions().get::<Caller>().cloned().or(caller);
+        crate::admin::audit(state, caller, action, &method, response.status(), source).await;
+        response
+    })
+    .await
 }
 
 /// Authenticate, hand the caller to the handler, run, refresh, audit.
@@ -114,15 +147,21 @@ where
         let method = request.method().clone();
         let headers = request.headers().clone();
         let action = session::audit_action("portal", crate::matched_path(&request), &method);
+        let source_ip = crate::admin::audit_source(&state, &request);
         let caller = match session::authenticate(state.app(), &method, &headers).await {
             Ok(caller) => caller,
-            Err(error) => return ErrorResponse(error).into_response(),
+            Err(error) => {
+                let response = ErrorResponse(error).into_response();
+                crate::admin::audit(state, None, action, &method, response.status(), source_ip)
+                    .await;
+                return response;
+            }
         };
         request.extensions_mut().insert(caller.clone());
         let response = next.run(request).await;
         let status = response.status();
         crate::admin::settle(&state, &method).await;
-        crate::admin::audit(state, caller, action, &method, status).await;
+        crate::admin::audit(state, Some(caller), action, &method, status, source_ip).await;
         response
     })
     .await
@@ -175,11 +214,21 @@ where
             Ok(issued) => issued,
             Err(error) => return ErrorResponse(error).into_response(),
         };
-        let response = crate::error::ok_json(&serde_json::json!({
+        let mut response = crate::error::ok_json(&serde_json::json!({
             "sessionId": issued.id,
             "token": issued.token,
             "expiresAtMs": issued.expires_at_ms,
         }));
+        // Attribute sign-in to the newly authenticated account, never to an
+        // old cookie carried by a browser switching accounts.
+        if let Ok(caller) = state
+            .app()
+            .authenticator(&data)
+            .authenticate_session(&issued.token, crate::now_ms())
+            .await
+        {
+            response.extensions_mut().insert(caller);
+        }
         match session::set_cookie(&issued.token, state.app().config().session_ttl_secs, secure) {
             Some(cookie) => session::with_cookie(response, cookie),
             None => response,
