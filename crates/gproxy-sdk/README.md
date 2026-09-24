@@ -512,6 +512,13 @@ management list is a bounded set a person pages through, while a request log is
 an append-only stream whose head keeps moving as it is read, and an offset page
 over that repeats or skips rows.
 
+Usage includes only operations that can produce inference or metered tool usage.
+Model catalog reads, token counting, resource management and signaling-only calls
+are excluded from both new usage rows and historical query results; they remain
+in request logs. Summaries retain cache hits and separate cache writes for 5-minute,
+30-minute and 1-hour retention, alongside the total cache-write count. The console
+calculates cache hit rate as hits / (uncached input + hits + all cache writes).
+
 ### Aggregation happens in Rust, over a scan cap
 
 `usage_records.metrics` is one JSON document per request — normalized token

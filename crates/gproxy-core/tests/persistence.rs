@@ -454,7 +454,8 @@ async fn channel_internal_calls_get_distinct_logs_and_buffered_return_settles() 
     let (response, completion) = execution.into_parts();
     assert_eq!(read(response.body).await, "{\"data\":[]}");
     let report = completion.await.unwrap();
-    assert_eq!(report.exchanges.len(), 2);
+    assert!(report.exchanges.is_empty());
+    assert_eq!(report.state, UsageState::Skipped);
     let rows = captures(&h).await;
     assert_eq!(rows.len(), 2);
     assert!(
@@ -464,7 +465,10 @@ async fn channel_internal_calls_get_distinct_logs_and_buffered_return_settles() 
     );
     assert_ne!(rows[0].id, rows[1].id);
     assert_ne!(rows[0].request_url, rows[1].request_url);
-    assert_eq!(usages(&h).await[0].metrics["tokens"]["input_tokens"], 3);
+    assert!(
+        usages(&h).await.is_empty(),
+        "model catalog calls only produce logs, not usage rows"
+    );
 }
 
 #[tokio::test]

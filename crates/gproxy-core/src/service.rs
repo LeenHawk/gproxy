@@ -210,7 +210,14 @@ impl<C: BatchConnectionTrait + Send + Sync> TargetCaller<'_, C> {
                 .store()
                 .usage_records()
                 .query(
-                    usage_record::Entity::find().filter(usage_record::Column::UserId.eq(user_id)),
+                    usage_record::Entity::find()
+                        .filter(usage_record::Column::UserId.eq(user_id))
+                        .filter(
+                            usage_record::Column::Operation.is_in(
+                                gproxy_protocol::Operation::usage_operations()
+                                    .map(gproxy_protocol::Operation::id),
+                            ),
+                        ),
                 )
                 .await
                 .map_err(host_error)?,

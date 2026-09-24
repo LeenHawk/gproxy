@@ -13,6 +13,8 @@ import { Page, PageHeader, PageSection } from "@/components/page"
 import { EmptyNotice, QueryState } from "@/components/state"
 import { UsageSummary } from "@/components/usage-summary"
 import { Button } from "@/components/ui/button"
+import { CACHE_TOKEN_FIELDS, formatCacheHitRate, formatUsageTokens } from "@/lib/usage"
+import type { UsageGroupDto } from "@/generated/sdk"
 import type { UsageGroupBy } from "@/generated/app"
 import { formatCost, formatCount, formatInstant } from "@/lib/format"
 
@@ -109,6 +111,8 @@ export function UsagePage({ global = false, renderRecords }: { global?: boolean;
                   { key: "requests", cell: (row) => formatCount(row.summary.requests, i18n.language) },
                   { key: "inputTokens", cell: (row) => formatCount(row.summary.inputTokens, i18n.language) },
                   { key: "outputTokens", cell: (row) => formatCount(row.summary.outputTokens, i18n.language) },
+                  ...CACHE_TOKEN_FIELDS.map(key => ({ key, cell: (row: UsageGroupDto) => formatUsageTokens(row.summary[key], i18n.language) })),
+                  { key: "cacheHitRate", cell: (row) => formatCacheHitRate(row.summary, i18n.language) },
                   { key: "cost", cell: (row) => formatCost(row.summary.cost, i18n.language) },
                 ]}
                 rows={usage.data.groups}

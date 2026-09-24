@@ -6,6 +6,7 @@
 
 import { useTranslation } from "react-i18next"
 import type { UsageSummaryDto } from "@/generated/app"
+import { CACHE_TOKEN_FIELDS, formatCacheHitRate, formatUsageTokens } from "@/lib/usage"
 import { formatCost, formatCount } from "@/lib/format"
 
 export function UsageSummary({ summary }: { summary: UsageSummaryDto }) {
@@ -15,12 +16,13 @@ export function UsageSummary({ summary }: { summary: UsageSummaryDto }) {
     ["cost", formatCost(summary.cost, i18n.language)],
     ["inputTokens", formatCount(summary.inputTokens, i18n.language)],
     ["outputTokens", formatCount(summary.outputTokens, i18n.language)],
-    ["cachedInputTokens", formatCount(summary.cachedInputTokens, i18n.language)],
     ["reasoningTokens", formatCount(summary.reasoningTokens, i18n.language)],
+    ...CACHE_TOKEN_FIELDS.map(key => [key, formatUsageTokens(summary[key], i18n.language)] as [string, string]),
+    ["cacheHitRate", formatCacheHitRate(summary, i18n.language)],
   ]
   return (
-    <div className="space-y-2">
-      <dl className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+    <div className="flex flex-col gap-2">
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         {figures.map(([key, value]) => (
           <div key={key} className="rounded-lg border border-border p-3">
             <dt className="text-xs text-muted-foreground">{t(`fields.${key}`)}</dt>
@@ -28,6 +30,7 @@ export function UsageSummary({ summary }: { summary: UsageSummaryDto }) {
           </div>
         ))}
       </dl>
+      <p className="text-xs text-muted-foreground">{t("usage.cacheHitRateHelp")}</p>
       {summary.truncated ? (
         <p className="text-xs text-state-warning">
           {t("usage.truncated", { scanned: formatCount(summary.scanned, i18n.language) })}

@@ -3,25 +3,24 @@
 /**
  * Totals over the records a scan covered.
  */
-export type UsageSummaryDto = { requests: number, inputTokens: number, outputTokens: number, cachedInputTokens: number, 
+export type UsageSummaryDto = { requests: number, inputTokens: number, outputTokens: number, cachedInputTokens: number,
 /**
- * The 5-minute, 30-minute and 1-hour cache writes together: three
- * separate columns in one number, because no console prices them apart.
+ * Total cache writes across all three retention periods.
  */
-cacheCreationTokens: number, 
+cacheCreationTokens: number, cacheCreation5mTokens: number, cacheCreation30mTokens: number, cacheCreation1hTokens: number,
 /**
  * Part of `output_tokens`, listed rather than added.
  */
-reasoningTokens: number, 
+reasoningTokens: number,
 /**
  * A normalized decimal string, `"0"` when nothing was priced.
  */
-cost: string, 
+cost: string,
 /**
  * None when no record in the scan carried a currency, or when two
  * disagreed: summing dollars and euros into one number would be a lie.
  */
-currency: string | null, 
+currency: string | null,
 /**
  * The scan stopped at its row cap. The numbers describe `scanned`
  * records, not every record the filters match.

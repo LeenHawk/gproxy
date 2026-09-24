@@ -183,9 +183,11 @@ pub struct UsageSummaryDto {
     pub input_tokens: u64,
     pub output_tokens: u64,
     pub cached_input_tokens: u64,
-    /// The 5-minute, 30-minute and 1-hour cache writes together: three
-    /// separate columns in one number, because no console prices them apart.
+    /// Total cache writes across all three retention periods.
     pub cache_creation_tokens: u64,
+    pub cache_creation_5m_tokens: u64,
+    pub cache_creation_30m_tokens: u64,
+    pub cache_creation_1h_tokens: u64,
     /// Part of `output_tokens`, listed rather than added.
     pub reasoning_tokens: u64,
     /// A normalized decimal string, `"0"` when nothing was priced.

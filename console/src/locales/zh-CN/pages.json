@@ -21,7 +21,8 @@
     "trend": "窗口内的费用",
     "groups": "分组",
     "truncated": "扫描触到了行数上限。这些数字描述的是 {{scanned}} 条记录，不是窗口内的全部。",
-    "emptyTitle": "这个窗口里没有记录"
+    "emptyTitle": "这个窗口里没有记录",
+    "cacheHitRateHelp": "按已报告的 Token 统计：缓存命中率 = 缓存命中 ÷（普通输入 + 缓存命中 + 缓存写入）。无输入数据时显示 —。"
   },
   "quota": {
     "emptyTitle": "没有预算约束",

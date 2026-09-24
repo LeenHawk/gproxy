@@ -31,7 +31,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Observer for StoreObserver
     fn policy(&self, request: &RequestContext) -> ObservationPolicy {
         let s = request.snapshot.observation;
         ObservationPolicy {
-            usage: s.settlement || s.usage,
+            usage: (s.settlement || s.usage) && request.operation.operation.produces_usage(),
             capture: if !s.upstream_log {
                 CapturePolicy::Off
             } else if s.upstream_log_body {
@@ -101,7 +101,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Observer for StoreObserver
         report: &'a UsageReport,
     ) -> CapabilityFuture<'a, ()> {
         Box::pin(async move {
-            if !request.snapshot.observation.usage {
+            if !request.snapshot.observation.usage || !request.operation.operation.produces_usage()
+            {
                 return;
             }
             let aggregate = if report.exchanges.is_empty() {
