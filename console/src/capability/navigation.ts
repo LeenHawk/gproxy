@@ -94,7 +94,7 @@ const ACCESS: NavSection = {
 
 const SYSTEM: NavSection = { id: "system", icon: Settings2, items: [{ id: "settings", route: "/settings", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "tokenizer", route: "/tokenizer", needs: SETTINGS_ACCESS, icon: BookOpenText }, { id: "update", route: "/update", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "connection-profiles", route: "/clients", needs: "configuration.connection-profiles", icon: Settings2 }] }
 
-const MANAGEMENT: NavSection = { id: "management", icon: Settings2, items: [
+const MANAGEMENT: NavSection = { id: "management", icon: Waypoints, standalone: true, items: [
   { id: "routes", route: "/model-routes", needs: "configuration.routes", icon: Waypoints },
 ] }
 const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, MODEL_CATALOG, RULES, MANAGEMENT, PEOPLE, ACCESS, SYSTEM]
