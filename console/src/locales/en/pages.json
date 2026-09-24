@@ -47,6 +47,7 @@
     "emptyTitle": "No members yet"
   },
   "providers": {
+    "routePrefix": "Route prefix",
     "search": "Find a provider",
     "settings": "Settings",
     "models": {

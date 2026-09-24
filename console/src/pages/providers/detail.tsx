@@ -60,6 +60,7 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
           <ConfirmButton title={t("confirm.deleteTitle", { name: provider.name })} disabled={remove.isPending} onConfirm={() => remove.mutate()}>{t("actions.delete")}</ConfirmButton>
         </>}
       />
+      <p className="break-all text-sm text-muted-foreground">{t("providers.routePrefix")}: <code>/{provider.name}</code></p>
       {update.error ? <ErrorNotice error={update.error} /> : null}
       {remove.error ? <ErrorNotice error={remove.error} /> : null}
       <Tabs value={tab} onValueChange={(value) => navigate(`${providerPath(provider.id)}/${value}`)} className="gap-6">

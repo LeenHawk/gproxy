@@ -47,6 +47,7 @@
     "emptyTitle": "還沒有成員"
   },
   "providers": {
+    "routePrefix": "路由前綴",
     "search": "搜尋供應商",
     "settings": "設定",
     "models": {
