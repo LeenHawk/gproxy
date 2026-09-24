@@ -35,6 +35,7 @@ impl CompiledSnapshot {
                 let credential_strategy = match provider.credential_strategy.as_str() {
                     "round_robin" => CredentialStrategy::RoundRobin,
                     "sticky" => CredentialStrategy::Sticky,
+                    "earliest_reset" => CredentialStrategy::EarliestReset,
                     value => {
                         return Err(StoreError::InvalidData {
                             field: "provider credential_strategy",

@@ -283,14 +283,18 @@ impl ControlPlane for SnapshotControl {
         mode: &RoutingMode,
         affinity: Option<i64>,
     ) -> Result<Plan, CoreError> {
-        let mut plan = self.snapshot.load().resolve_preprocessed(
-            model,
-            mode,
-            affinity,
-            &self.credential_health.load(),
-            &self.rotation,
-        )?;
-        pressure::apply(&mut plan, &self.credential_pressure.load(), unix_now());
+        let snapshot = self.snapshot.load();
+        let pressure = self.credential_pressure.load();
+        let health = self.credential_health.load();
+        let now = unix_now();
+        let selection = balance::SelectionState {
+            health: &health,
+            pressure: &pressure,
+            now,
+        };
+        let mut plan =
+            snapshot.resolve_preprocessed(model, mode, affinity, &selection, &self.rotation)?;
+        pressure::apply(&mut plan, &pressure, &snapshot.strategies, now);
         Ok(plan)
     }
 
@@ -381,6 +385,7 @@ async fn load_pressure(store: &Store) -> Result<CredentialPressureMap, StoreErro
                     version: pressure.version,
                     last_observed_at: pressure.last_observed_at,
                     used_percent: pressure.used_percent,
+                    scope: pressure.scope,
                     period_end: pressure.period_end,
                 },
             );
@@ -402,6 +407,7 @@ fn cycle_pressure(cycle: &CredentialQuotaCycleRecord) -> Option<CredentialPressu
         version: cycle.version,
         last_observed_at: cycle.last_observed_at,
         used_percent,
+        scope: cycle.tracking.scope.clone(),
         period_end: (cycle.boundary_source == QuotaBoundarySource::Upstream)
             .then_some(cycle.period_end)
             .flatten(),

@@ -39,7 +39,7 @@ Two v2 id pairs are canonicalized on import: `kimiapi` and `kimicode` become
 | Route name (`name`) | Unique identifier. It is also the named prefix in URLs, for example `/openai-main/v1/chat/completions`. |
 | Display name (`label`) | Optional text shown in the console. |
 | Channel | One of the ids above. Fixed after creation. |
-| Credential strategy | `round_robin` (default) or `sticky`. See below. |
+| Credential strategy | `round_robin` (default), `sticky`, or `earliest_reset`. See below. |
 | Provider proxy URL | Overrides the instance proxy for this provider. Credentials can override it again. |
 | Client fingerprint | Optional TLS/HTTP profile: a preset or custom JSON. Credentials can override it. |
 | Forwarded metadata | Which caller headers and query parameters pass upstream, and which response headers return. Defaults come from the channel. |
@@ -108,6 +108,28 @@ Selection is a deterministic counter rotation, never random.
 | --- | --- |
 | `round_robin` | Each request advances a counter per route member; the counter picks a credential in proportion to weight. |
 | `sticky` | The slot is derived from the caller's API key (or its session id when the client sends one), so one key stays on one credential until the pool changes. |
+| `earliest_reset` | Prefer usable quota with the soonest upcoming upstream reset for the requested model; equal dates use weighted rotation. |
+
+### Earliest Reset Strategy
+
+Set a provider's `credential_strategy` to `earliest_reset` (Console: **Earliest
+quota reset first**). It is opt-in: existing round-robin and sticky providers
+keep their behavior. No database migration is required.
+
+- Consider only live quota windows whose model scope includes the resolved
+  upstream model. Separate model families do not consume each other's quota.
+- Prefer the earliest future upstream reset across the applicable windows
+  (for example five-hour and weekly). A window at 90–99% is still usable and
+  is not demoted by the legacy near-limit policy in this mode.
+- If any applicable live window is exhausted, keep that credential last as a
+  fallback, regardless of a different window's remaining quota. Dead
+  credentials remain excluded; route tiers and provider balancing are unchanged.
+- Unknown or past reset dates do not beat a known usable future reset. If no
+  usable dates are known, fall back to weighted rotation; equal dates also
+  rotate by weight within that bucket only. Health ordering still applies.
+- Scheduling uses cached upstream observations. Quota refresh updates the
+  choice without a restart; selection does not perform a synchronous quota
+  probe, invent a new deadline, or refresh an OAuth token to obtain quota.
 
 ### Per-Credential Limits
 

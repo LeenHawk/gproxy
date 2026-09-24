@@ -19,10 +19,10 @@ pub(super) fn provider(
     }
     if !matches!(
         request.credential_strategy.as_str(),
-        "round_robin" | "sticky"
+        "round_robin" | "sticky" | "earliest_reset"
     ) {
         return Err(AdminError::BadRequest(
-            "credential_strategy must be round_robin or sticky".into(),
+            "credential_strategy must be round_robin, sticky, or earliest_reset".into(),
         ));
     }
     if !state
