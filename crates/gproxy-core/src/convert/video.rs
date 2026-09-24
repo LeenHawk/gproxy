@@ -35,7 +35,7 @@ use http::{HeaderMap, HeaderValue, Method, StatusCode};
 
 /// The Gemini API prefix every Veo path hangs off.
 const OPERATION_PREFIX: &str = "/v1beta/";
-const MAX_RESOURCE_FACTS: usize = 8;
+const MAX_RESOURCE_FACTS: usize = usize::MAX;
 /// Sora's documented defaults when the client omits duration or size; Veo's
 /// exact 720p mapping supports both 720p orientations.
 const DEFAULTS: NativeVideoDefaults = NativeVideoDefaults {

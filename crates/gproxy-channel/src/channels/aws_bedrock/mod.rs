@@ -94,8 +94,6 @@ use endpoint::Plane;
 
 pub const ID: &str = "aws_bedrock";
 
-/// A foundation-model directory page is a few hundred kilobytes at most.
-const MAX_MODEL_BODY: usize = 8 * 1024 * 1024;
 
 const STREAMED_BODY: &str =
     "AWS SigV4 signs the payload hash, so a streamed request body cannot be sent to Bedrock";
@@ -354,7 +352,7 @@ async fn directory(
     if !response.status.is_success() {
         return Ok(response);
     }
-    let body = read_body(response.body, MAX_MODEL_BODY).await?;
+    let body = read_body(response.body).await?;
     let rewritten = models::rewrite(&body, operation == Operation::GetModel)?;
     let mut headers = response.headers;
     headers.insert(
@@ -422,7 +420,7 @@ fn translate(body: HttpBody) -> ByteStream {
     ))
 }
 
-async fn read_body(body: HttpBody, limit: usize) -> Result<Bytes, ChannelError> {
+async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
     match body {
         HttpBody::Bytes(bytes) => Ok(bytes),
         HttpBody::Stream(mut stream) => {
@@ -431,11 +429,6 @@ async fn read_body(body: HttpBody, limit: usize) -> Result<Bytes, ChannelError> 
                 let chunk =
                     chunk.map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
                 out.extend_from_slice(&chunk);
-                if out.len() > limit {
-                    return Err(ChannelError::InvalidResponse(
-                        "the AWS model directory exceeds the read limit".into(),
-                    ));
-                }
             }
             Ok(Bytes::from(out))
         }

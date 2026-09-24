@@ -14,7 +14,7 @@ use std::time::{Duration, SystemTime};
 
 /// How long continuation state written for a conversion stays valid.
 pub(super) const STATE_TTL: Duration = Duration::from_secs(24 * 60 * 60);
-pub(super) const STATE_MAX_RECORDS: usize = 64;
+pub(super) const STATE_MAX_RECORDS: usize = usize::MAX;
 
 /// The client's request as a conversion family reads it: the addressing parts
 /// plus the already-buffered body.

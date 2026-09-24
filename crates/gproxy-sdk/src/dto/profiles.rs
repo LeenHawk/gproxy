@@ -9,7 +9,7 @@ use gproxy_store::entity::config::connection_profile as profile;
 /// A reusable HTTP transport configuration, independent of outbound proxy selection.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ConnectionProfileDto {
     pub id: String,
@@ -26,7 +26,6 @@ pub struct ConnectionProfileDto {
     pub redirect_max_hops: u32,
     /// `never` or `default`.
     pub retry: String,
-    pub connect_timeout_ms: u32,
     pub pool_idle_timeout_ms: u32,
     pub pool_max_idle_per_host: u32,
     pub created_at_ms: i64,
@@ -45,7 +44,7 @@ impl From<profile::Model> for ConnectionProfileDto {
             zstd: row.zstd,
             redirect_max_hops: row.redirect_max_hops,
             retry: retry_name(row.retry).to_owned(),
-            connect_timeout_ms: row.connect_timeout_ms,
+
             pool_idle_timeout_ms: row.pool_idle_timeout_ms,
             pool_max_idle_per_host: row.pool_max_idle_per_host,
             created_at_ms: row.created_at_ms,
@@ -70,7 +69,7 @@ pub(crate) fn retry_name(retry: profile::RetryPolicy) -> &'static str {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ConnectionProfileWrite {
     #[serde(default)]
@@ -94,8 +93,6 @@ pub struct ConnectionProfileWrite {
     #[serde(default)]
     pub retry: Option<String>,
     #[serde(default)]
-    pub connect_timeout_ms: Option<u32>,
-    #[serde(default)]
     pub pool_idle_timeout_ms: Option<u32>,
     #[serde(default)]
     pub pool_max_idle_per_host: Option<u32>,
@@ -103,7 +100,7 @@ pub struct ConnectionProfileWrite {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ConnectionProfilePatch {
     #[serde(default)]
@@ -125,8 +122,6 @@ pub struct ConnectionProfilePatch {
     pub redirect_max_hops: Option<u32>,
     #[serde(default)]
     pub retry: Option<String>,
-    #[serde(default)]
-    pub connect_timeout_ms: Option<u32>,
     #[serde(default)]
     pub pool_idle_timeout_ms: Option<u32>,
     #[serde(default)]

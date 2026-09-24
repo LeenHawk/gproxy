@@ -136,7 +136,7 @@ use http::{HeaderValue, StatusCode, header};
 /// transcript in it is legitimately megabytes; the limit exists to stop an
 /// unbounded buffer, not to express a product policy. It applies to the data
 /// plane and to the management surfaces alike.
-pub const MAX_BODY_BYTES: usize = 64 * 1024 * 1024;
+pub const MAX_BODY_BYTES: usize = usize::MAX;
 
 /// Everything a handler needs: the instance, the console bundle, and whatever
 /// the host could supply that this crate cannot decide for itself.
@@ -240,7 +240,7 @@ where
         // Applied after the routes so it covers the fallback too. A body
         // larger than this is refused before it is buffered, which is the
         // point: the limit is a memory bound, not a policy.
-        .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
+        .layer(DefaultBodyLimit::disable())
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             runtime_settings::cors::<C>,

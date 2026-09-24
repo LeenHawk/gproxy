@@ -9,7 +9,7 @@
 //!   the other dialects see them bare.
 //! * A client filter the target cannot express (OpenAI `purpose`/`order`,
 //!   Claude `before_id`/`scope_id`) is rejected rather than silently dropped.
-//! * Listing follows upstream pages to a bounded depth and applies the client's
+//! * Listing follows upstream pages and applies the client's
 //!   `limit` itself; the continuation cursor is the last upstream id.
 //! * Files reaching OpenAI from a Claude or Gemini upstream report purpose
 //!   `user_data`: the only purpose those file APIs model.
@@ -45,8 +45,8 @@ use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde::{Serialize, de::DeserializeOwned};
 use std::collections::BTreeMap;
 
-const MAX_LIST_PAGES: usize = 16;
-const MAX_LIST_FILES: usize = 10_000;
+const MAX_LIST_PAGES: usize = usize::MAX;
+const MAX_LIST_FILES: usize = usize::MAX;
 
 /// The three file API shapes; OpenAI Chat shares OpenAI's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

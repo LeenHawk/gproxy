@@ -174,7 +174,7 @@ Review decisions currently expressed in the code:
 
 - Business IDs are caller-assigned strings; timestamps use Unix milliseconds.
   Global settings uses row `id = 1`, with explicit network, execution, execution-limit
-  (timeouts and byte caps core derives its finite limits from), `config_revision`,
+  (routing and observation policies), `config_revision`,
   tokenizer, logging, storage-selection, maintenance and portal fields.
 - Providers are global. Each credential references a provider and has one owner:
   an organization, a team, or a user. The owner IDs are separate from provider configuration.

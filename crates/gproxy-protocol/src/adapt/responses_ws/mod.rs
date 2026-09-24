@@ -51,12 +51,12 @@ pub struct ResponsesWsLimits {
 impl Default for ResponsesWsLimits {
     fn default() -> Self {
         Self {
-            max_frame_bytes: 1024 * 1024,
-            max_event_bytes: 1024 * 1024,
-            max_receive_bytes: 16 * 1024 * 1024,
-            max_send_bytes: 16 * 1024 * 1024,
-            max_receive_frames: 100_000,
-            max_send_frames: 100_000,
+            max_frame_bytes: usize::MAX,
+            max_event_bytes: usize::MAX,
+            max_receive_bytes: usize::MAX,
+            max_send_bytes: usize::MAX,
+            max_receive_frames: usize::MAX,
+            max_send_frames: usize::MAX,
             allow_binary: false,
             collector: ResponsesStreamLimits::default(),
         }

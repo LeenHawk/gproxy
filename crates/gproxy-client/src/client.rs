@@ -179,7 +179,6 @@ fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest:
 #[cfg(all(feature = "reqwest", not(target_arch = "wasm32")))]
 fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest::Client, Error> {
     let mut builder = reqwest::Client::builder()
-        .connect_timeout(Duration::from_millis(config.connect_timeout_ms.into()))
         .pool_idle_timeout(Duration::from_millis(config.pool_idle_timeout_ms.into()))
         .pool_max_idle_per_host(config.pool_max_idle_per_host as usize)
         .redirect(if config.redirect_max_hops == 0 {
@@ -216,7 +215,6 @@ fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest:
 fn build_reqwest_native(config: &ConnectionConfig) -> Result<reqwest_native::Client, Error> {
     let mut builder = reqwest_native::Client::builder()
         .use_native_tls()
-        .connect_timeout(Duration::from_millis(config.connect_timeout_ms.into()))
         .pool_idle_timeout(Duration::from_millis(config.pool_idle_timeout_ms.into()))
         .pool_max_idle_per_host(config.pool_max_idle_per_host as usize)
         .redirect(if config.redirect_max_hops == 0 {
@@ -242,7 +240,6 @@ fn build_wreq(config: &ConnectionConfig, http1_only: bool) -> Result<wreq::Clien
         builder = emulation.apply(builder)?;
     }
     builder = builder
-        .connect_timeout(Duration::from_millis(config.connect_timeout_ms.into()))
         .pool_idle_timeout(Duration::from_millis(config.pool_idle_timeout_ms.into()))
         .pool_max_idle_per_host(config.pool_max_idle_per_host as usize)
         .redirect(if config.redirect_max_hops == 0 {

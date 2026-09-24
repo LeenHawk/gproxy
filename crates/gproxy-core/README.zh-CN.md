@@ -13,7 +13,7 @@
 | `builder` | `Core::builder(store)`：cache、secret codec 必填；默认使用 Store 落库 observer，可显式替换；渠道注册进 `ChannelRegistry`；可选 client 池与文件存储 |
 | `data` / `runtime` / `context` | 执行快照、原子凭证材料、block 与窗口 key、已解析目标与请求／attempt／exchange 上下文、用量报告 |
 | `secret` | `SecretCodec`：默认 `AesGcmCodec`（AES-256-GCM 信封，每凭证数据密钥，凭证 ID 进 AAD），`PlaintextCodec` 需显式选择 |
-| `limits` | 由 Setting 行得到 `ExecutionLimits`，派生所有 `CapabilityLimits` 与 `CodecLimits`；没有无限模式 |
+| `limits` | 供库调用者显式指定的限额；网关默认不添加大小、数量或时间预算 |
 | `assemble` | ControlData 行装配成 `CoreData`：profile 到池化 client、渠道查找、开秘、endpoint 校验、规则编译、`QuotaModel` 维度、自定义词表、存活 block |
 | `rewrite` | 规则编译、按阶段／操作／模型／头选择、Body/Header/Query 应用、保留原字节的逐单元流改写（SSE、JSON 数组、NDJSON） |
 | `select` / `availability` | 允许集合内按策略、亲和与 block 选凭证；失败 streak 与冷却 |
@@ -96,8 +96,7 @@ context 操作。每个方法返回 `Execution<T>`：protocol 响应或连接，
 scope 的失败 streak 并重试，到三次写冷却 block。预算或候选耗尽时返回最后一个上游
 回答。每个回答的头都交给 `QuotaHeaders`，成功时同样观测账号额度。
 
-交回的每个响应 body 都是一条观测流：capture、用量观测、逐单元响应改写、读取上限、
-空闲超时与取消；结束或丢弃它恰好结算请求一次，且用量在任何结算前先记录。
+交回的每个响应 body 都是一条观测流：capture、用量观测、逐单元响应改写与取消；结束或丢弃它恰好结算请求一次，且用量在任何结算前先记录。
 `Execution` 只能凭漏斗的 `Settled` 证明构造。WebSocket 操作以同一循环完成握手；建立
 的 socket 双向 capture、计量与改写，结束或丢弃时结算。
 

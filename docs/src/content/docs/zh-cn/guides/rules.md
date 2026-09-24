@@ -134,8 +134,7 @@ Provider 上启用的挂载按 `(sortOrder, id)` 顺序运行，每个集合内�
 单元绝不是网络 chunk，而且不会有任何东西把活的流缓冲到结束。
 
 除非有规则改了它的载荷，帧逐字节通过。SSE 只替换 `data:` 行，所以注释、`event:`、`id:`、
-`retry:` 行和 `[DONE]` 哨兵原样保留。超过 `settings.maxStreamEventBytes`（默认 1 MiB）的
-单元是错误，而不是无界缓冲。
+`retry:` 行和 `[DONE]` 哨兵原样保留。Gproxy 不额外限制事件大小。
 
 ## 预设
 

@@ -101,7 +101,7 @@ No per-field merging or profile-to-profile inheritance is performed.
 | `gzip`, `brotli`, `deflate`, `zstd` | Independent automatic decompression switches, default false |
 | `redirect_max_hops` | 0 disables following; positive values limit redirect hops |
 | `retry` | `never` (default) or `default` (native backend retry policy) |
-| `connect_timeout_ms`, `pool_idle_timeout_ms`, `pool_max_idle_per_host` | Same fields |
+| `pool_idle_timeout_ms`, `pool_max_idle_per_host` | Same fields |
 
 This mapping/inheritance belongs to the future host management/execution layer;
 the client crate does not query the database. Store remains an entity draft.
@@ -127,7 +127,6 @@ Example effective configuration:
   "zstd": true,
   "redirect_max_hops": 5,
   "retry": "default",
-  "connect_timeout_ms": 10000,
   "pool_idle_timeout_ms": 90000,
   "pool_max_idle_per_host": 32
 }
@@ -218,7 +217,7 @@ are applied after the preset.
 `retry = "default"` restores each backend's safe protocol-NACK retry policy
 (currently at most two retries); it does not retry arbitrary HTTP errors or add a
 status-code classifier. `never` disables these native retries. Application routing
-attempts are a separate host policy. HTTP error status codes remain responses. There is a connect timeout but no whole-response timeout,
+attempts are a separate host policy. HTTP error status codes remain responses. There is no client-wide connect or whole-response timeout,
 so long generation streams are not cut off by a client-wide deadline. Cancellation,
 per-request deadlines and concurrency limits belong to the caller.
 

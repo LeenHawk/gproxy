@@ -64,8 +64,6 @@ use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
 use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 
-/// Login, refresh, quota and the catalogue all answer small documents.
-const MAX_ABILITY_BODY: usize = 1024 * 1024;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct WorkBuddy;
@@ -159,11 +157,6 @@ pub(super) async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
                 let chunk =
                     chunk.map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
                 out.extend_from_slice(&chunk);
-                if out.len() > MAX_ABILITY_BODY {
-                    return Err(ChannelError::InvalidResponse(
-                        "the reply exceeds the read limit".into(),
-                    ));
-                }
             }
             Ok(Bytes::from(out))
         }

@@ -48,8 +48,8 @@ impl Default for NoState {
     fn default() -> Self {
         Self {
             limits: CapabilityLimits {
-                operation_total: std::time::Duration::from_secs(600),
-                stream_idle: std::time::Duration::from_secs(60),
+                operation_total: std::time::Duration::MAX,
+                stream_idle: std::time::Duration::MAX,
                 read_bytes: 0,
                 write_bytes: 0,
                 ws_frame_bytes: 0,

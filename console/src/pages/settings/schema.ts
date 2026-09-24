@@ -40,13 +40,6 @@ export const groups = [
     id: "execution",
     fields: [
       instance("maxAttempts", "number", { min: 1 }),
-      instance("requestTimeoutMs", "number", { min: 1 }),
-      instance("streamIdleTimeoutMs", "number", { min: 1 }),
-      instance("maxRequestBodyBytes", "number", { min: 1 }),
-      instance("maxResponseBodyBytes", "number", { min: 1 }),
-      instance("maxStreamEventBytes", "number", { min: 1 }),
-      instance("maxWsFrameBytes", "number", { min: 1 }),
-      instance("maxMultipartParts", "number", { min: 1 }),
       instance("enableSettlement", "switch"),
       instance("enableUsage", "switch"),
     ],

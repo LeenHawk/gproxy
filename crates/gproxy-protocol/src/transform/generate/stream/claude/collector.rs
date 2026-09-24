@@ -22,10 +22,10 @@ pub struct ClaudeStreamLimits {
 impl Default for ClaudeStreamLimits {
     fn default() -> Self {
         Self {
-            max_events: 100_000,
-            max_text_bytes: 16 * 1024 * 1024,
-            max_json_bytes: 16 * 1024 * 1024,
-            max_blocks: 100_000,
+            max_events: usize::MAX,
+            max_text_bytes: usize::MAX,
+            max_json_bytes: usize::MAX,
+            max_blocks: usize::MAX,
         }
     }
 }

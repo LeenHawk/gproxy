@@ -23,8 +23,6 @@ const DIMENSIONS: &[&str] = &["requests", "tokens"];
 const DAY_SECONDS: i64 = 24 * 60 * 60;
 /// The report covers the seven complete UTC days before today.
 const REPORT_DAYS: i64 = 7;
-/// A page of the report is small JSON; nothing here streams.
-const MAX_REPORT_BYTES: usize = 1024 * 1024;
 /// A guard against a cursor loop; seven days never needs this many pages.
 const MAX_REPORT_PAGES: usize = 32;
 
@@ -130,9 +128,6 @@ async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
             while let Some(chunk) = stream.next().await {
                 let chunk = chunk.map_err(|error| invalid_response(error.to_string()))?;
                 out.extend_from_slice(&chunk);
-                if out.len() > MAX_REPORT_BYTES {
-                    return Err(invalid_response("cost report exceeds the read limit"));
-                }
             }
             Ok(Bytes::from(out))
         }

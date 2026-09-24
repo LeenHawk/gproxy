@@ -354,10 +354,6 @@ use crate::channel::{
     QuotaModel, QuotaQuery, UsageExtractor, UsageStream, forwardable,
 };
 
-/// Client requests may embed base64 images.
-const MAX_REQUEST_BODY: usize = 64 * 1024 * 1024;
-/// Account replies and upstream error bodies.
-const MAX_SERVICE_BODY: usize = 16 * 1024 * 1024;
 
 /// The channel. Stateless: one instance serves every provider that names it.
 #[derive(Debug, Default, Clone, Copy)]
@@ -379,7 +375,7 @@ fn now_secs() -> u64 {
         .unwrap_or_default()
 }
 
-async fn read_body(body: HttpBody, limit: usize) -> Result<Bytes, ChannelError> {
+async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
     match body {
         HttpBody::Bytes(bytes) => Ok(bytes),
         HttpBody::Stream(mut stream) => {
@@ -388,11 +384,6 @@ async fn read_body(body: HttpBody, limit: usize) -> Result<Bytes, ChannelError> 
                 let chunk =
                     chunk.map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
                 out.extend_from_slice(&chunk);
-                if out.len() > limit {
-                    return Err(ChannelError::InvalidResponse(
-                        "body exceeds the read limit".into(),
-                    ));
-                }
             }
             Ok(Bytes::from(out))
         }
@@ -404,7 +395,7 @@ async fn call(
     request: http::Request<HttpBody>,
 ) -> Result<(StatusCode, Bytes), ChannelError> {
     let WireResponse { status, body, .. } = client.send(request).await?;
-    Ok((status, read_body(body, MAX_SERVICE_BODY).await?))
+    Ok((status, read_body(body).await?))
 }
 
 fn body_stream(body: HttpBody) -> ByteStream {
@@ -443,7 +434,7 @@ async fn start(context: OperationContext<'_>) -> Result<stream::Turn, ChannelErr
             connect::CHAT_PATH
         ),
     };
-    let body = read_body(context.request.body, MAX_REQUEST_BODY).await?;
+    let body = read_body(context.request.body).await?;
     let value = request::parse(&body)?;
     let prepared = request::build(&value, &config, &auth)?;
 
@@ -479,7 +470,7 @@ async fn start(context: OperationContext<'_>) -> Result<stream::Turn, ChannelErr
         .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
     let response = context.client.send(request).await?;
     if !response.status.is_success() {
-        let body = read_body(response.body, MAX_SERVICE_BODY).await?;
+        let body = read_body(response.body).await?;
         return Err(error::from_response(response.status, &body));
     }
     let codec = stream::Codec::new(

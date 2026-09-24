@@ -56,10 +56,6 @@ use crate::channel::{
 use gproxy_client::{ConnectionConfig};
 
 pub const ID: &str = "claudeweb";
-/// Bootstrap replies carry the whole front-end configuration.
-const MAX_SERVICE_BODY: usize = 16 * 1024 * 1024;
-/// Client requests may embed base64 images destined for upload.
-const MAX_REQUEST_BODY: usize = 64 * 1024 * 1024;
 
 /// Provider `config` JSON understood by this channel. Unknown keys are ignored.
 #[derive(Debug, Deserialize)]
@@ -157,7 +153,7 @@ fn system_time(unix_ms: i64) -> std::time::SystemTime {
     std::time::UNIX_EPOCH + std::time::Duration::from_millis(unix_ms.max(0).unsigned_abs())
 }
 
-async fn read_body(body: HttpBody, limit: usize) -> Result<Bytes, ChannelError> {
+async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
     match body {
         HttpBody::Bytes(bytes) => Ok(bytes),
         HttpBody::Stream(mut stream) => {
@@ -165,11 +161,6 @@ async fn read_body(body: HttpBody, limit: usize) -> Result<Bytes, ChannelError> 
             while let Some(chunk) = stream.next().await {
                 let chunk = chunk.map_err(|e| ChannelError::InvalidResponse(e.to_string()))?;
                 out.extend_from_slice(&chunk);
-                if out.len() > limit {
-                    return Err(ChannelError::InvalidResponse(
-                        "body exceeds the read limit".into(),
-                    ));
-                }
             }
             Ok(Bytes::from(out))
         }
