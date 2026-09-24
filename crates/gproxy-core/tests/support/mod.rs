@@ -191,6 +191,11 @@ impl BaseChannel for TestChannel {
         {
             return Vec::new();
         }
+        if operation == Operation::GenerateContent
+            && provider.config.get("streaming_only") == Some(&json!(true))
+        {
+            return Vec::new();
+        }
         let configured: Vec<Dialect> = provider
             .config
             .get("dialects")

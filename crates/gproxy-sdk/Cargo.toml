@@ -143,4 +143,4 @@ gproxy-file = { workspace = true, features = ["fs"] }
 http = { workspace = true }
 rust_decimal = { workspace = true }
 tempfile = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time", "test-util"] }

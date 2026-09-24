@@ -5,6 +5,7 @@
 
 pub(crate) mod lifecycle;
 mod operations;
+mod keepalive;
 
 use crate::{ConfigRevision, CredentialStatus, UsageReport};
 use gproxy_channel::ChannelError;

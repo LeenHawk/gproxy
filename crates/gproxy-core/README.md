@@ -140,6 +140,12 @@ Local handlers expose the configured model directory and count request text with
 the selected tokenizer without making an upstream call. Channel-local model
 methods retain their own credential-backed implementation. An explicit streamed
 to buffered generation mapping synthesizes the client's stream from the result.
+The reverse mapping collects the native stream into a complete client response;
+Codex HTTP generation defaults to streaming Responses for both response modes.
+For SSE calls that may use buffered generation, the SDK sends a comment heartbeat
+every 15 seconds while waiting. Fast failures retain their HTTP status; after the
+first heartbeat, late failures are SSE error events. Retries and settlement remain
+inside the pending execution. Gemini JSON-array responses receive no SSE comments.
 
 Conversion runs protocol's adaptation flows over `AttemptUpstream`, so every
 native call inside a flow is captured, metered and rewritten like a passthrough

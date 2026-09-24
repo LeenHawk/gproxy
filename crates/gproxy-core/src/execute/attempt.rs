@@ -437,6 +437,8 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     conversation_key: &conversation_key,
                     provider_id: &provider.entity.id,
                     now_ms: now,
+                    collect: operation.operation == gproxy_protocol::Operation::GenerateContent
+                        && target.operation == gproxy_protocol::Operation::StreamGenerateContent,
                     synthesize: operation.operation
                         == gproxy_protocol::Operation::StreamGenerateContent
                         && target.operation == gproxy_protocol::Operation::GenerateContent,
