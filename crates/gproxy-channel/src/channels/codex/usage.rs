@@ -23,7 +23,7 @@ pub(super) const SSE_LIMITS: CodecLimits = CodecLimits {
     max_parts: 0,
 };
 /// Responses `usage` -> normalized. Reported input counts include cached
-/// tokens; the normalized input excludes them.
+/// reads and writes; the normalized input excludes both.
 fn usage_from_value(usage: &Value) -> Option<NormalizedUsage> {
     let input = usage.get("input_tokens")?.as_u64()?;
     let output = usage.get("output_tokens").and_then(Value::as_u64);
@@ -31,13 +31,18 @@ fn usage_from_value(usage: &Value) -> Option<NormalizedUsage> {
         .pointer("/input_tokens_details/cached_tokens")
         .or_else(|| usage.pointer("/input_token_details/cached_tokens"))
         .and_then(Value::as_u64);
+    let cache_write = usage
+        .pointer("/input_tokens_details/cache_write_tokens")
+        .and_then(Value::as_u64)
+        .or_else(|| usage.pointer("/input_token_details/cache_write_tokens").and_then(Value::as_u64));
     let reasoning = usage
         .pointer("/output_tokens_details/reasoning_tokens")
         .and_then(Value::as_u64);
     let mut normalized = NormalizedUsage::default();
-    normalized.tokens.input_tokens = Some(input.saturating_sub(cached.unwrap_or(0)));
+    normalized.tokens.input_tokens = Some(input.saturating_sub(cached.unwrap_or(0)).saturating_sub(cache_write.unwrap_or(0)));
     normalized.tokens.output_tokens = output;
     normalized.tokens.cached_input_tokens = cached;
+    normalized.tokens.cache_creation_30m_tokens = cache_write;
     normalized.tokens.reasoning_tokens = reasoning;
     for (prefix, details) in [
         ("input", "input_token_details"),
@@ -273,6 +278,36 @@ mod tests {
             active: BTreeSet::new(),
         }
     }
+    #[test]
+    fn cache_writes_are_30m_and_not_ordinary_input_in_json_sse_and_websocket() {
+        for details in ["input_tokens_details", "input_token_details"] {
+            let usage = json!({"input_tokens":100,"output_tokens":20,
+                details:{"cached_tokens":40,"cache_write_tokens":3}});
+            let body = json!({"usage":usage}).to_string();
+            let buffered = usage_from_response_json(body.as_bytes()).unwrap();
+            assert_eq!(buffered.tokens.input_tokens, Some(57));
+            assert_eq!(buffered.tokens.cached_input_tokens, Some(40));
+            assert_eq!(buffered.tokens.cache_creation_30m_tokens, Some(3));
+            let event = json!({"type":"response.completed","response":{"id":"r1","usage":usage}}).to_string();
+            let mut sse = observer(Operation::StreamGenerateContent);
+            sse.sse = Some(SseDecoder::new(SSE_LIMITS));
+            for chunk in format!("data: {event}\n\n").as_bytes().chunks(7) {
+                sse.observe(UsageFrame::HttpChunk(chunk)).unwrap();
+            }
+            assert_eq!(sse.snapshot().unwrap().tokens, buffered.tokens);
+            let mut ws = observer(Operation::ConnectRealtime);
+            let frame = WsFrame::Text(event.into());
+            ws.observe(UsageFrame::WebSocket(&frame)).unwrap();
+            ws.observe(UsageFrame::WebSocket(&frame)).unwrap();
+            assert_eq!(ws.snapshot().unwrap().tokens, buffered.tokens, "repeated terminal events are not double counted");
+        }
+        let zero = usage_from_value(&json!({"input_tokens":10,"output_tokens":2,
+            "input_tokens_details":{"cache_write_tokens":0}})).unwrap();
+        assert_eq!(zero.tokens.cache_creation_30m_tokens, Some(0));
+        let absent = usage_from_value(&json!({"input_tokens":10,"output_tokens":2})).unwrap();
+        assert_eq!(absent.tokens.cache_creation_30m_tokens, None);
+    }
+
     #[test]
     fn realtime_accumulates_unique_responses_and_tracks_audio_and_interruption() {
         let mut observer = observer(Operation::ConnectRealtime);

@@ -50,7 +50,10 @@ fn tokens(dialect: Dialect, usage: &Value) -> Option<NormalizedUsage> {
             // Claude's input count already excludes both cache counters.
             let input = u64_at(usage, "/input_tokens");
             let output = u64_at(usage, "/output_tokens");
-            input?;
+            // message_delta may contain only output and cache counts.
+            if input.is_none() && output.is_none() {
+                return None;
+            }
             normalized.tokens.input_tokens = input;
             normalized.tokens.output_tokens = output;
             normalized.tokens.cached_input_tokens = u64_at(usage, "/cache_read_input_tokens");
@@ -136,7 +139,7 @@ pub(crate) fn from_root(dialect: Dialect, root: &Value, enrich: Enrich) -> Optio
 /// Replace the fields `later` establishes, keeping what it leaves unknown.
 /// Claude splits one response's usage across `message_start` and
 /// `message_delta`; the delta is authoritative for what it names.
-fn merge(into: &mut NormalizedUsage, later: NormalizedUsage) {
+fn merge(into: &mut NormalizedUsage, later: NormalizedUsage, cache_breakdown: bool) {
     fn replace(target: &mut Option<u64>, value: Option<u64>) {
         if value.is_some() {
             *target = value;
@@ -148,14 +151,20 @@ fn merge(into: &mut NormalizedUsage, later: NormalizedUsage) {
         &mut into.tokens.cached_input_tokens,
         later.tokens.cached_input_tokens,
     );
-    replace(
-        &mut into.tokens.cache_creation_5m_tokens,
-        later.tokens.cache_creation_5m_tokens,
-    );
-    replace(
-        &mut into.tokens.cache_creation_1h_tokens,
-        later.tokens.cache_creation_1h_tokens,
-    );
+    // Preserve the input-side buckets when a delta only restates their total.
+    if cache_breakdown
+        || (into.tokens.cache_creation_5m_tokens.is_none()
+            && into.tokens.cache_creation_1h_tokens.is_none())
+    {
+        replace(
+            &mut into.tokens.cache_creation_5m_tokens,
+            later.tokens.cache_creation_5m_tokens,
+        );
+        replace(
+            &mut into.tokens.cache_creation_1h_tokens,
+            later.tokens.cache_creation_1h_tokens,
+        );
+    }
     replace(
         &mut into.tokens.reasoning_tokens,
         later.tokens.reasoning_tokens,
@@ -203,7 +212,11 @@ impl CompatibleObserver {
             (self.enrich)(&event, usage, &mut parsed);
             self.awaiting_delta = !terminal;
             match &mut self.usage {
-                Some(existing) => merge(existing, parsed),
+                Some(existing) => merge(
+                    existing,
+                    parsed,
+                    usage.get("cache_creation").is_some_and(Value::is_object),
+                ),
                 None => self.usage = Some(parsed),
             }
             return;
@@ -300,6 +313,42 @@ mod tests {
 
     /// A channel with nothing of its own to add.
     fn no_enrich(_: &Value, _: &Value, _: &mut NormalizedUsage) {}
+
+    #[test]
+    fn claude_trailing_totals_preserve_buckets_and_explicit_updates_replace_them() {
+        for (five, hour) in [(0, 20), (7, 13), (20, 0)] {
+            let mut observer = observer(
+                Dialect::Claude,
+                UsageTransport::Http {
+                    framing: Some(gproxy_protocol::connection::StreamFraming::Sse),
+                },
+                no_enrich,
+            );
+            let start = json!({"type":"message_start","message":{"usage":{"input_tokens":10,"output_tokens":0,
+                "cache_creation":{"ephemeral_5m_input_tokens":five,"ephemeral_1h_input_tokens":hour}}}});
+            let delta = json!({"type":"message_delta","usage":{"output_tokens":5,"cache_creation_input_tokens":20}});
+            for chunk in format!("data: {start}\n\ndata: {delta}\n\n")
+                .as_bytes()
+                .chunks(11)
+            {
+                observer.observe(UsageFrame::HttpChunk(chunk)).unwrap();
+            }
+            let merged = observer.snapshot().unwrap();
+            assert_eq!(merged.tokens.cache_creation_5m_tokens, Some(five));
+            assert_eq!(merged.tokens.cache_creation_1h_tokens, Some(hour));
+            assert_eq!(merged.tokens.output_tokens, Some(5));
+            let update = json!({"type":"message_delta","usage":{"output_tokens":6,
+                "cache_creation":{"ephemeral_5m_input_tokens":2,"ephemeral_1h_input_tokens":22}}});
+            observer
+                .observe(UsageFrame::HttpChunk(
+                    format!("data: {update}\n\n").as_bytes(),
+                ))
+                .unwrap();
+            let merged = observer.finish(UsageStreamEnd::Complete).unwrap().unwrap();
+            assert_eq!(merged.tokens.cache_creation_5m_tokens, Some(2));
+            assert_eq!(merged.tokens.cache_creation_1h_tokens, Some(22));
+        }
+    }
 
     #[test]
     fn each_shape_reports_exclusive_input_tokens() {
