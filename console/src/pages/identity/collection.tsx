@@ -117,7 +117,7 @@ export function CollectionPage<D, W, P>({
   })
 
   const batch = useConfigBatch({ family, context: selectionKey, rows: (list.data?.items ?? []).map(row => ({ id: rowId(row) })), enableToggle: batchEnabled, deletable })
-  const tableColumns = family.batch ? [{ key: "selection", header: t("management.select"), cell: (row: D) => batch.checkbox(rowId(row), rowLabel(row)) }, ...columns] : columns
+  const tableColumns = batch.active ? [{ key: "selection", header: t("management.select"), cell: (row: D) => batch.checkbox(rowId(row), rowLabel(row)) }, ...columns] : columns
 
   const add = (
     <Button size="sm" disabled={!creatable} onClick={() => setCreating(true)}>
