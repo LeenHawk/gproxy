@@ -188,7 +188,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation()
   const context = useConsoleContext()
   const route = useRoute()
-  const navRoute = route.startsWith("/providers/") ? "/providers" : route
+  const navRoute = route.startsWith("/providers/") ? "/providers" : route === "/settings/transfer" ? "/settings" : route
   const sections = sectionsFor(context)
   const section = sections.find((group) => group.items.some((item) => item.route === navRoute))
   const item = section?.items.find((item) => item.route === navRoute)
