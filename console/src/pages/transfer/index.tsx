@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { navigate } from "@/lib/router"
-import { parseConfiguration } from "@/api/transfer"
+import { normalizeSourceMasterKey, parseConfiguration } from "@/api/transfer"
 import { api, json } from "@/api/client"
 import type { ConfigurationExportDto, ImportReportDto } from "@/generated/sdk"
 import { PageSection } from "@/components/page"
@@ -34,7 +34,10 @@ export function TransferPanel() {
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   } })
   const imported = useMutation({ mutationFn: async () => {
-    try { return await api<ImportReportDto>("/admin/api/import", json("POST", { export: document, mode, sourceMasterKey: masterKey.trim() || null })) }
+    let sourceMasterKey: string | null
+    try { sourceMasterKey = normalizeSourceMasterKey(masterKey) }
+    catch { throw new Error(t("management.sourceKeyInvalid")) }
+    try { return await api<ImportReportDto>("/admin/api/import", json("POST", { export: document, mode, sourceMasterKey })) }
     finally { setMasterKey("") }
   }, onSuccess: async () => { setDocument(null); await client.invalidateQueries(); window.dispatchEvent(new Event("gproxy:context-refresh")) } })
   const busy = imported.isPending || exported.isPending
