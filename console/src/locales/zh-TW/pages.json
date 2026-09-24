@@ -509,11 +509,12 @@
     "poolIdleTimeoutMs": "閒置連線逾時（毫秒）",
     "poolMaxIdlePerHost": "每個主機的閒置連線數",
     "redirectMaxHops": "最大重新導向次數",
-    "basic": "基本",
-    "emulation": "客戶端偽裝",
-    "transport": "連線",
+    "emulation": "模擬預設",
     "none": "不設定偽裝",
-    "custom": "自訂指紋（JSON）"
+    "custom": "自訂指紋（JSON）",
+    "advanced": "進階設定",
+    "searchPresets": "搜尋預設…",
+    "noPresets": "沒有符合的預設"
   },
   "modelUI": {
     "invalidVariants": "變體名稱不能重複或為空，也不能包含萬用字元。",

@@ -6,7 +6,7 @@ import { api, json } from "@/api/client"
 import type { ConnectivityResultDto } from "@/generated/sdk"
 import { ErrorNotice } from "@/components/state"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group"
 import { Field, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -16,21 +16,21 @@ export function ProxyControl({ id, value, onChange, scope }: { id: string; value
   const { t } = useTranslation()
   const inherit = scope.parent || scope.scope !== "global"
   return <div className="flex min-w-0 flex-col gap-3">
-    <Select value={value?.mode ?? (inherit ? "inherit" : "direct")} onValueChange={mode => onChange(mode === "inherit" ? null : mode === "explicit" ? { mode, url: value?.mode === "explicit" ? value.url : "" } : { mode: mode as "direct" | "system" })}>
+    <div className="flex min-w-0 items-center gap-2"><div className="min-w-0 flex-1"><Select value={value?.mode ?? (inherit ? "inherit" : "direct")} onValueChange={mode => onChange(mode === "inherit" ? null : mode === "explicit" ? { mode, url: value?.mode === "explicit" ? value.url : "" } : { mode: mode as "direct" | "system" })}>
       <SelectTrigger id={id} className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>
         {inherit ? <SelectItem value="inherit">{t("proxy.inherit")}</SelectItem> : null}
         <SelectItem value="direct">{t("proxy.direct")}</SelectItem><SelectItem value="system">{t("proxy.system")}</SelectItem><SelectItem value="explicit">{t("proxy.explicit")}</SelectItem>
       </SelectGroup></SelectContent>
-    </Select>
-    {value?.mode === "explicit" ? <Field><FieldLabel htmlFor={`${id}-url`}>{t("proxy.url")}</FieldLabel><Input id={`${id}-url`} type="url" required placeholder="http://127.0.0.1:10808" value={value.url} onChange={e => onChange({ mode: "explicit", url: e.target.value })} /></Field> : null}
-    <div><EgressTest scope={scope} proxy={value} disabled={value?.mode === "explicit" && !value.url.trim()} /></div>
+    </Select></div>{value?.mode !== "explicit" ? <EgressTest scope={scope} proxy={value} /> : null}</div>
+    {value?.mode === "explicit" ? <Field><FieldLabel htmlFor={`${id}-url`}>{t("proxy.url")}</FieldLabel><InputGroup><InputGroupInput id={`${id}-url`} type="url" required placeholder="http://127.0.0.1:10808" value={value.url} onChange={e => onChange({ mode: "explicit", url: e.target.value })} /><InputGroupAddon align="inline-end"><EgressTest inset scope={scope} proxy={value} disabled={!value.url.trim()} /></InputGroupAddon></InputGroup></Field> : null}
   </div>
 }
-export function EgressTest({ scope, proxy, disabled }: { scope: ProxyScope; proxy?: ProxySettings; disabled?: boolean }) {
+export function EgressTest({ scope, proxy, disabled, inset = false }: { scope: ProxyScope; proxy?: ProxySettings; disabled?: boolean; inset?: boolean }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const probe = useMutation({ mutationFn: () => { const { parent, ...target } = scope; return api<ConnectivityResultDto>("/admin/api/connectivity/test", json("POST", { ...target, ...(proxy === undefined || (parent && proxy === null) ? {} : { proxy }) })) } })
-  return <><Button type="button" size="icon-sm" variant="outline" aria-label={t(probe.isPending ? "proxy.testing" : "proxy.test")} title={t("proxy.test")} disabled={disabled || probe.isPending} onClick={e => { e.stopPropagation(); setOpen(true); probe.mutate() }}>{probe.isPending ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <Signal aria-hidden="true" />}</Button>
+  const Trigger = inset ? InputGroupButton : Button
+  return <><Trigger type="button" size={inset ? "icon-xs" : "icon-sm"} variant={inset ? "ghost" : "outline"} aria-label={t(probe.isPending ? "proxy.testing" : "proxy.test")} title={t("proxy.test")} disabled={disabled || probe.isPending} onClick={e => { e.stopPropagation(); setOpen(true); probe.mutate() }}>{probe.isPending ? <LoaderCircle className="animate-spin" aria-hidden="true" /> : <Signal aria-hidden="true" />}</Trigger>
     <Dialog open={open} onOpenChange={setOpen}><DialogContent className="sm:max-w-lg" closeLabel={t("actions.close")} aria-describedby={undefined}><DialogHeader><DialogTitle>{t("proxy.test")}</DialogTitle></DialogHeader><DialogBody className="flex flex-col gap-3">
       {probe.isPending ? <p>{t("proxy.testing")}</p> : null}{probe.error ? <ErrorNotice error={probe.error} /> : null}
       {probe.data ? <><p>{t(probe.data.ok ? "proxy.success" : "proxy.failed")} · {probe.data.latencyMs} ms</p><p>{t("proxy.source")}: {t(`proxy.sources.${scope.parent && proxy ? "custom" : probe.data.proxySource}`)}</p>

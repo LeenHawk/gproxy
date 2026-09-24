@@ -47,6 +47,7 @@ gproxy-protocol = { workspace = true }
 gproxy-seaorm = { workspace = true, optional = true, features = ["libsql"] }
 http = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
 url = { workspace = true }
 
@@ -87,9 +88,6 @@ web-sys = { workspace = true, optional = true, features = [
     "Response",
     "WebSocket",
 ] }
-
-[dev-dependencies]
-serde_json = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 tokio = { workspace = true, features = ["io-util"] }

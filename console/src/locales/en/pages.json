@@ -509,11 +509,12 @@
     "poolIdleTimeoutMs": "Idle connection timeout (ms)",
     "poolMaxIdlePerHost": "Idle connections per host",
     "redirectMaxHops": "Maximum redirects",
-    "basic": "General",
-    "emulation": "Client identity",
-    "transport": "Connection",
+    "emulation": "Emulation preset",
     "none": "No emulation",
-    "custom": "Custom fingerprint (JSON)"
+    "custom": "Custom fingerprint (JSON)",
+    "advanced": "Advanced settings",
+    "searchPresets": "Search presets…",
+    "noPresets": "No matching presets"
   },
   "modelUI": {
     "invalidVariants": "Variant names must be unique, nonempty, and contain no wildcards.",

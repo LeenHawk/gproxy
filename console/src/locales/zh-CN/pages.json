@@ -509,11 +509,12 @@
     "poolIdleTimeoutMs": "空闲连接超时（毫秒）",
     "poolMaxIdlePerHost": "每个主机的空闲连接数",
     "redirectMaxHops": "最大重定向次数",
-    "basic": "基本",
-    "emulation": "客户端伪装",
-    "transport": "连接",
+    "emulation": "模拟预设",
     "none": "不设置伪装",
-    "custom": "自定义指纹（JSON）"
+    "custom": "自定义指纹（JSON）",
+    "advanced": "高级设置",
+    "searchPresets": "搜索预设…",
+    "noPresets": "没有匹配的预设"
   },
   "modelUI": {
     "invalidVariants": "变体名称不能重复或为空，也不能包含通配符。",

@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react"
+import { useId, useState, type FormEvent } from "react"
+import { ChevronDown, ChevronsUpDown } from "lucide-react"
 import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { family } from "@/api/admin"
@@ -13,7 +14,9 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 
 const profiles = family<ConnectionProfileDto, Partial<ConnectionProfileWrite>, Partial<ConnectionProfilePatch>>("/connection-profiles")
 const options: Record<string, string[]> = { backend: ["reqwest", "reqwest_native", "wreq"], retry: ["never", "default"] }
@@ -42,7 +45,10 @@ function ProfileForm({ original, presets, onSubmit, pending, error }: Props) {
   const [identity, setIdentity] = useState(() => original?.emulation ? presets.find((p) => JSON.stringify(p.emulation) === JSON.stringify(original.emulation))?.id ?? "__custom" : "__none")
   const [custom, setCustom] = useState(JSON.stringify(original?.emulation ?? { kind: "custom", headers: [] }, null, 2))
   const [parseError, setParseError] = useState<Error | null>(null)
-  const change = (key: string, value: string | boolean) => setValues((current) => ({ ...current, [key]: value }))
+  const change = (key: string, value: string | boolean) => {
+    if (key === "backend" && value !== "wreq" && identity.startsWith("wreq:")) setIdentity("__none")
+    setValues((current) => ({ ...current, [key]: value }))
+  }
   const submit = (e: FormEvent) => {
     e.preventDefault()
     try {
@@ -55,12 +61,25 @@ function ProfileForm({ original, presets, onSubmit, pending, error }: Props) {
   }
   const text = (key: string, type = "text", required = false) => <Field key={key}><FieldLabel htmlFor={`profile-${key}`}>{t(`clientProfile.${key}`)}</FieldLabel><Input id={`profile-${key}`} type={type} value={String(values[key])} disabled={pending} required={required} min={type === "number" ? 0 : undefined} step={type === "number" ? 1 : undefined} onChange={(e) => change(key, e.target.value)} /></Field>
   const choice = (key: string) => <Field key={key}><FieldLabel htmlFor={`profile-${key}`}>{t(`clientProfile.${key}`)}</FieldLabel><Select value={String(values[key])} disabled={pending} onValueChange={(v) => change(key, v)}><SelectTrigger id={`profile-${key}`}><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{options[key].map((v) => <SelectItem key={v} value={v}>{t(`clientProfile.${v}`)}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
-  return <form onSubmit={submit} className="flex min-h-0 flex-col"><DialogBody>
+  return <form onSubmit={submit} className="flex min-h-0 flex-col"><DialogBody className="flex flex-col gap-5">
     {parseError || error ? <ErrorNotice error={parseError ?? error} /> : null}
-    <Tabs defaultValue="basic"><TabsList><TabsTrigger value="basic">{t("clientProfile.basic")}</TabsTrigger><TabsTrigger value="identity">{t("clientProfile.emulation")}</TabsTrigger><TabsTrigger value="transport">{t("clientProfile.transport")}</TabsTrigger></TabsList>
-      <TabsContent value="basic"><FieldGroup>{text("name", "text", true)}{choice("backend")}</FieldGroup></TabsContent>
-      <TabsContent value="identity"><FieldGroup className="sm:grid-cols-1"><Field><FieldLabel htmlFor="profile-identity">{t("clientProfile.emulation")}</FieldLabel><Select value={identity} disabled={pending} onValueChange={(next) => { if (next === "__custom") { const preset = presets.find((p) => p.id === identity); if (preset) setCustom(JSON.stringify(preset.emulation, null, 2)) } setIdentity(next) }}><SelectTrigger id="profile-identity"><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="__none">{t("clientProfile.none")}</SelectItem>{presets.map((p) => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}<SelectItem value="__custom">{t("clientProfile.custom")}</SelectItem></SelectGroup></SelectContent></Select></Field>{identity === "__custom" ? <Field><FieldLabel htmlFor="profile-custom">{t("clientProfile.custom")}</FieldLabel><Textarea id="profile-custom" rows={12} value={custom} disabled={pending} onChange={(e) => setCustom(e.target.value)} className="font-mono" /></Field> : null}</FieldGroup></TabsContent>
-      <TabsContent value="transport"><FieldGroup>{choice("retry")}{numbers.map((key) => text(key, "number", true))}{decoders.map((key) => <Field key={key} orientation="horizontal"><FieldLabel htmlFor={`profile-${key}`}>{key}</FieldLabel><Switch id={`profile-${key}`} checked={Boolean(values[key])} disabled={pending} onCheckedChange={(v) => change(key, v)} /></Field>)}</FieldGroup></TabsContent>
-    </Tabs>
+    <FieldGroup>{text("name", "text", true)}{choice("backend")}</FieldGroup>
+      <FieldGroup className="sm:grid-cols-1"><Field><FieldLabel className="sr-only" htmlFor="profile-identity">{t("clientProfile.emulation")}</FieldLabel><EmulationPicker value={identity} disabled={pending} presets={presets} onChange={(next) => { if (next === "__custom") { const preset = presets.find((p) => p.id === identity); if (preset) setCustom(JSON.stringify(preset.emulation, null, 2)) } if (next.startsWith("wreq:")) change("backend", "wreq"); setIdentity(next) }} /></Field>{identity === "__custom" ? <Field><FieldLabel htmlFor="profile-custom">{t("clientProfile.custom")}</FieldLabel><Textarea id="profile-custom" rows={12} value={custom} disabled={pending} onChange={(e) => setCustom(e.target.value)} className="font-mono" /></Field> : null}</FieldGroup>
+    <Collapsible><CollapsibleTrigger asChild><Button type="button" variant="outline" className="group w-full justify-between">{t("clientProfile.advanced")}<ChevronDown className="transition-transform group-data-[state=open]:rotate-180" aria-hidden="true" /></Button></CollapsibleTrigger><CollapsibleContent className="pt-4"><FieldGroup>{choice("retry")}{numbers.map((key) => text(key, "number", true))}{decoders.map((key) => <Field key={key} orientation="horizontal"><FieldLabel htmlFor={`profile-${key}`}>{key}</FieldLabel><Switch id={`profile-${key}`} checked={Boolean(values[key])} disabled={pending} onCheckedChange={(v) => change(key, v)} /></Field>)}</FieldGroup></CollapsibleContent></Collapsible>
   </DialogBody><DialogFooter><Button type="submit" disabled={pending || !String(values.name).trim()}>{t(original ? "actions.save" : "actions.create")}</Button></DialogFooter></form>
+}
+
+function EmulationPicker({ value, onChange, presets, disabled }: { value: string; onChange: (value: string) => void; presets: TlsPresetDto[]; disabled: boolean }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const listId = useId()
+  const choices = [{ id: "__none", label: t("clientProfile.none") }, ...presets, { id: "__custom", label: t("clientProfile.custom") }]
+  return <Popover modal open={open} onOpenChange={setOpen}>
+    <PopoverTrigger asChild><Button id="profile-identity" type="button" role="combobox" aria-expanded={open} aria-controls={listId} aria-label={t("clientProfile.emulation")} disabled={disabled} variant="outline" className="w-full min-w-0 justify-between"><span className="truncate">{choices.find(c => c.id === value)?.label}</span><ChevronsUpDown aria-hidden="true" /></Button></PopoverTrigger>
+    <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-0">
+      <Command><CommandInput placeholder={t("clientProfile.searchPresets")} aria-label={t("clientProfile.searchPresets")} /><CommandList id={listId}><CommandEmpty>{t("clientProfile.noPresets")}</CommandEmpty><CommandGroup>
+        {choices.map(choice => <CommandItem key={choice.id} value={choice.id} keywords={[choice.label]} data-checked={choice.id === value} onSelect={() => { onChange(choice.id); setOpen(false) }}>{choice.label}</CommandItem>)}
+      </CommandGroup></CommandList></Command>
+    </PopoverContent>
+  </Popover>
 }

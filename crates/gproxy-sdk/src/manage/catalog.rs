@@ -414,10 +414,9 @@ fn tier_model(rule_id: &str, tier: &DefaultModelTierDto) -> SdkResult<price_tier
 // TLS presets.
 // ---------------------------------------------------------------------------
 
-/// The six client identities v3 shipped, expressed as
-/// `gproxy_client::EmulationConfig::Custom` objects. They are what the four
-/// agent CLIs and the two browsers-in-disguise actually present, which is what
-/// makes a provider that fingerprints its clients answer at all.
+/// The legacy CLI fingerprints, followed by the named emulations supported
+/// by the compiled wreq backend. Browser profiles come from wreq-util itself
+/// rather than a separate version list that can drift from the client.
 fn tls_presets() -> Vec<TlsPresetDto> {
     let simple = |id: &str, label: &str, user_agent: &str, curves: &str| TlsPresetDto {
         id: id.to_owned(),
@@ -433,7 +432,7 @@ fn tls_presets() -> Vec<TlsPresetDto> {
             "headers": [["user-agent", user_agent]],
         }),
     };
-    vec![
+    let mut presets = vec![
         TlsPresetDto {
             id: "claude".to_owned(),
             label: "Claude CLI".to_owned(),
@@ -504,7 +503,37 @@ fn tls_presets() -> Vec<TlsPresetDto> {
             "copilot/1.0.61 (linux v24.16.0) term/unknown",
             "X25519:P-256:P-384",
         ),
-    ]
+    ];
+    for profile in gproxy_client::emulation_profiles() {
+        let (family, version) = profile.split_once('_').unwrap_or((&profile, ""));
+        let family = match family {
+            "chrome" => "Chrome",
+            "edge" => "Edge",
+            "firefox" => "Firefox",
+            "safari" => "Safari",
+            "opera" => "Opera",
+            "okhttp" => "OkHttp",
+            other => other,
+        };
+        let platform = if profile.starts_with("safari_ios") || profile.starts_with("safari_ipad") {
+            "ios"
+        } else if profile.starts_with("safari_") {
+            "macos"
+        } else if profile.starts_with("okhttp_") {
+            "android"
+        } else {
+            match std::env::consts::OS {
+                "windows" => "windows",
+                "macos" => "macos",
+                _ => "linux",
+            }
+        };
+        presets.push(TlsPresetDto {
+            id: format!("wreq:{profile}"), label: format!("{family} {}", version.replace('_', " ")),
+            emulation: json!({"kind":"preset", "profile":profile, "platform":platform, "http2":true, "headers":true}),
+        });
+    }
+    presets
 }
 
 // ---------------------------------------------------------------------------
