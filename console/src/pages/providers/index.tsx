@@ -1,3 +1,6 @@
+import { useConsoleContext } from "@/capability/session"
+import { PROVIDERS_READ } from "@/api/configuration"
+import { ScopedProvidersPage } from "./scoped"
 import { useConfigBatch } from "@/components/config-batch"
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -17,6 +20,11 @@ import { ProviderDialog } from "@/pages/providers/provider-form"
 import { ProviderDetailPage } from "@/pages/providers/detail"
 
 export function ProvidersPage({ providerId, tab = "credentials" }: { providerId?: string; tab?: string }) {
+  const context = useConsoleContext()
+  return context.has(PROVIDERS_READ) ? <InstanceProvidersPage providerId={providerId} tab={tab} /> : <ScopedProvidersPage providerId={providerId} tab={tab} />
+}
+
+function InstanceProvidersPage({ providerId, tab }: { providerId?: string; tab: string }) {
   const { t } = useTranslation(), navigate = useNavigate(), client = useQueryClient()
   const [search, setSearch] = useState("")
   const { page, pageSize, setPage, setPageSize } = usePagination(search)

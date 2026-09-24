@@ -55,6 +55,7 @@ export type CollectionProps<D, W, P> = {
   onOpen?: (row: D) => void
   onEdit?: (row: D) => void
   /** Some families retire rather than delete; some cannot be deleted at all. */
+  rowDeletable?: boolean
   deletable?: boolean
   creatable?: boolean
   /** A family whose create answers with more than the row — a minted key. */
@@ -65,7 +66,7 @@ export type CollectionProps<D, W, P> = {
 
 export function CollectionPage<D, W, P>({
   id, family, columns, fields, rowId, rowLabel, searchable, filter, embedded = false,
-  rowActions, onOpen, onEdit, deletable = true, creatable = true, onCreated, create, renderForm, createLabel, paginate = true, batchEnabled = fields.some(field => field.name === "enabled"),
+  rowActions, onOpen, onEdit, deletable = true, rowDeletable = deletable, creatable = true, onCreated, create, renderForm, createLabel, paginate = true, batchEnabled = fields.some(field => field.name === "enabled"),
 }: CollectionProps<D, W, P>) {
   const { t } = useTranslation()
   const client = useQueryClient()
@@ -153,7 +154,7 @@ export function CollectionPage<D, W, P>({
               <>
                 {rowActions?.(row)}
                 <Button variant="ghost" size="sm" onClick={() => onEdit ? onEdit(row) : setEditing(row)}><Pencil data-icon="inline-start" />{t("actions.edit")}</Button>
-                {deletable ? (
+                {rowDeletable ? (
                   <ConfirmButton
                     title={t("confirm.deleteTitle", { name: rowLabel(row) })}
                     onConfirm={() => removed.mutate(rowId(row))}
@@ -173,7 +174,7 @@ export function CollectionPage<D, W, P>({
         </div>
       </QueryState>
 
-      {renderForm ? renderForm({ open: creating, onOpenChange: setCreating, onSubmit: (body) => created.mutate(body), pending: created.isPending, error: created.error }) : <RecordDialog
+      {creating ? (renderForm ? renderForm({ open: creating, onOpenChange: setCreating, onSubmit: (body) => created.mutate(body), pending: created.isPending, error: created.error }) : <RecordDialog
         open={creating}
         onOpenChange={setCreating}
         mode="create"
@@ -182,8 +183,8 @@ export function CollectionPage<D, W, P>({
         onSubmit={(body) => created.mutate(body)}
         pending={created.isPending}
         error={created.error}
-      />}
-      {renderForm ? renderForm({ open: editing !== null, onOpenChange: (open) => { if (!open) setEditing(null) }, original: editing ?? undefined, onSubmit: (body) => editing && updated.mutate({ id: rowId(editing), body }), pending: updated.isPending, error: updated.error }) : <RecordDialog
+      />) : null}
+      {editing !== null ? (renderForm ? renderForm({ open: editing !== null, onOpenChange: (open) => { if (!open) setEditing(null) }, original: editing ?? undefined, onSubmit: (body) => editing && updated.mutate({ id: rowId(editing), body }), pending: updated.isPending, error: updated.error }) : <RecordDialog
         open={editing !== null}
         onOpenChange={(open) => { if (!open) setEditing(null) }}
         mode="edit"
@@ -193,7 +194,7 @@ export function CollectionPage<D, W, P>({
         onSubmit={(body) => editing && updated.mutate({ id: rowId(editing), body })}
         pending={updated.isPending}
         error={updated.error}
-      />}
+      />) : null}
     </Page>
   )
 }

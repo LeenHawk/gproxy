@@ -2,7 +2,7 @@
   "overview": {
     "title": "你好，{{name}}",
     "usage": "最近七天",
-    "quota": "預算"
+    "quota": "費用預算"
   },
   "keys": {
     "emptyTitle": "還沒有金鑰",
@@ -380,10 +380,6 @@
     "noModels": "尚無目錄模型"
   },
   "userQuota": {
-    "action": "限額",
-    "title": "使用者限額 · {{name}}",
-    "reset": "重設已用額度",
-    "resetConfirm": "清空「{{name}}」的已用額度並開始新視窗？",
     "periods": {
       "5h": "每 5 小時",
       "1d": "每 24 小時",
@@ -666,7 +662,6 @@
     "owner": "歸屬",
     "shared": "執行個體共用",
     "global": "所有供應商",
-    "pool": "Pool（填寫 ID）",
     "cost": "費用（USD）",
     "requests": "請求次數",
     "loginAdd": "登入新增憑證",
@@ -746,5 +741,75 @@
     "chooseScope": "選擇管理範圍",
     "newPriceRule": "新增另一條價格規則",
     "cleanupFailed": "記錄已刪除，但關聯規則清理失敗：{{message}}"
+  },
+  "limits": {
+    "providerDefaults": "預設憑證限額",
+    "providerHelp": "每條規則分別限制此供應商下的每個憑證。憑證可用同名規則單獨設定；實際用量在個別憑證內檢視。",
+    "credentialHelp": "啟用的憑證規則覆蓋供應商的同名預設規則。停用單獨設定後會重新使用預設規則，不表示取消限額。",
+    "budgetHelp": "費用預算僅屬於目前物件，以 USD 按所選週期計量。",
+    "budget": "費用預算",
+    "local": "本機限額",
+    "basic": "基本設定",
+    "upstream": "上游額度",
+    "upstreamHelp": "這裡顯示上游帳號回報的額度。查詢上游額度不會修改本機限額。",
+    "notRunning": "目前憑證未參與排程，暫不顯示生效限額用量。",
+    "readOnly": "這裡顯示實際生效的限額，由執行個體管理員修改。",
+    "defaultRule": "預設限額",
+    "defaultBudget": "預設預算",
+    "ruleName": "規則名稱",
+    "measure": "限制類型",
+    "costLimit": "費用上限（USD）",
+    "requestLimit": "請求次數上限",
+    "appliesTo": "適用模型",
+    "allModels": "全部模型",
+    "advanced": "進階選項",
+    "add": "新增限額",
+    "addBudget": "新增預算",
+    "edit": "編輯規則",
+    "override": "單獨設定",
+    "restore": "恢復繼承",
+    "restoreConfirm": "刪除此憑證的「{{name}}」單獨設定，恢復使用供應商預設規則？",
+    "inherited": "繼承自供應商",
+    "custom": "憑證單獨設定",
+    "enabled": "已啟用",
+    "disabled": "已停用",
+    "disabledOverride": "這條單獨設定已停用，目前使用供應商預設規則。",
+    "used": "已使用",
+    "remaining": "剩餘額度",
+    "resetsAt": "下次重設",
+    "never": "不自動重設",
+    "reset": "重設用量",
+    "resetAll": "重設適用憑證用量",
+    "resetConfirm": "重設「{{name}}」目前視窗的用量？",
+    "resetAllConfirm": "重設目前繼承「{{name}}」規則的所有憑證用量？已有單獨設定的憑證不受影響。",
+    "empty": "尚未設定本機限額",
+    "emptyBudget": "尚未設定費用預算",
+    "noObservation": "尚未取得上游額度",
+    "unlimited": "不限",
+    "observedAt": "最近查詢",
+    "blockedUntil": "暫時無法使用，解除時間：{{at}}",
+    "more": "更多操作",
+    "changeStatus": "修改憑證狀態",
+    "maintenance": {
+      "secret": "憑證密鑰",
+      "status": "憑證狀態",
+      "health": "重設健康狀態",
+      "delete": "刪除憑證",
+      "test": "測試憑證"
+    },
+    "resetOutcome": {
+      "reset": "上游額度已重設。",
+      "nothing_to_reset": "目前沒有需要重設的上游額度。",
+      "no_credit": "沒有可用的上游重設次數。",
+      "already_redeemed": "此次上游重設次數已使用。"
+    },
+    "anchor": "週期起點",
+    "nameTaken": "目前物件已有同名規則，請使用不同的規則名稱。"
+  },
+  "keyBudget": {
+    "enable": "設定此密鑰的費用預算",
+    "inherit": "不額外設定密鑰預算，仍受適用的使用者、團隊和組織預算約束。",
+    "adminOnly": "此密鑰的費用預算由管理員在密鑰設定中設定。",
+    "activeHelp": "達到預算後，停止此密鑰在適用範圍內的請求。"
   }
 }

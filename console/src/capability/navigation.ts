@@ -53,7 +53,6 @@ const SELF: NavSection = {
     { id: "keys", route: "/keys", needs: SELF_READ, icon: KeyRound },
     { id: "models", route: "/models", needs: SELF_READ, icon: Boxes },
     { id: "usage", route: "/usage", needs: SELF_READ, icon: ChartLine },
-    { id: "quota", route: "/quota", needs: SELF_READ, icon: Gauge },
     { id: "requests", route: "/requests", needs: SELF_LOGS_READ, icon: ScrollText },
     { id: "account", route: "/account", needs: SELF_READ, icon: Settings2 },
   ],
@@ -96,23 +95,35 @@ const ACCESS: NavSection = {
 const SYSTEM: NavSection = { id: "system", icon: Settings2, items: [{ id: "settings", route: "/settings", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "tokenizer", route: "/tokenizer", needs: SETTINGS_ACCESS, icon: BookOpenText }, { id: "update", route: "/update", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "connection-profiles", route: "/clients", needs: "configuration.connection-profiles", icon: Settings2 }] }
 
 const MANAGEMENT: NavSection = { id: "management", icon: Settings2, items: [
-  { id: "credentials", route: "/credentials", needs: "configuration.credentials", icon: KeyRound },
-  { id: "quotas", route: "/quotas", needs: "configuration.quotas", icon: Gauge },
   { id: "routes", route: "/model-routes", needs: "configuration.routes", icon: Waypoints },
 ] }
 const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, MODEL_CATALOG, RULES, MANAGEMENT, PEOPLE, ACCESS, SYSTEM]
 
-/** The sections this caller sees, with the items they may reach. */
-export function sectionsFor(context: ConsoleContext): Array<NavSection> {
-  return SECTIONS
-    .map((section) => ({ ...section, items: section.items.filter((item) => context.has(item.needs)) }))
-    .filter((section) => section.items.length > 0)
+/** Tenant pages reuse existing object routes and their scoped APIs, never identity CRUD. */
+function sectionsForScope(context: ConsoleContext): ReadonlyArray<NavSection> {
+  const tenant = context.scope?.kind === "organization" || context.scope?.kind === "team"
+  if (!tenant) return SECTIONS
+  return SECTIONS.map(section => {
+    if (section.id === "providers") return { ...section, items: section.items.map(item => ({ ...item, needs: "configuration.credentials" })) }
+    if (section.id === "people") return { ...section, items: section.items
+      .filter(item => context.has("configuration.credentials") && (item.id === "teams" || (item.id === "organizations" && context.scope?.kind === "organization")))
+      .map(item => ({ ...item, needs: "configuration.quotas" })) }
+    return section
+  })
 }
 
-/** Whether this caller may enter a route, by the same table the sidebar uses. */
+/** The sections this caller sees, with the items they may reach. */
+export function sectionsFor(context: ConsoleContext): Array<NavSection> {
+  return sectionsForScope(context)
+    .map(section => ({ ...section, items: section.items.filter(item => context.has(item.needs)) }))
+    .filter(section => section.items.length > 0)
+}
+
+/** Known but unavailable routes remain forbidden, including the other tenant scopes. */
 export function mayEnter(context: ConsoleContext, route: string) {
   if (route === "/transfer" || route === "/settings/transfer") return context.has(SETTINGS_ACCESS) && context.has("configuration.transfer")
+  if (route.startsWith("/providers/") && !context.has(PROVIDERS_READ) && !/^\/providers\/[^/]+(?:\/credentials)?$/.test(route)) return false
   const target = route.startsWith("/providers/") ? "/providers" : route
-  const item = SECTIONS.flatMap((section) => section.items).find((entry) => entry.route === target)
-  return item ? context.has(item.needs) : true
+  if (!SECTIONS.some(section => section.items.some(item => item.route === target))) return true
+  return sectionsFor(context).some(section => section.items.some(item => item.route === target))
 }

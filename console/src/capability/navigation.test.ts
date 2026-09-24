@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { consoleContext } from "@/capability/capability"
 import { mayEnter, sectionsFor } from "@/capability/navigation"
-import { adminContext } from "@/test/context"
+import { adminContext, portalContext, orgScope } from "@/test/context"
 import type { PortalContextDto } from "@/generated/app"
 
 function derived(role: string, canSeeLogs = true) {
@@ -25,11 +25,31 @@ describe("the navigation", () => {
     expect(sections.map((section) => section.id)).toEqual(["self", "providers", "model-catalog", "rules", "management", "people", "access", "system"])
   })
 
-  it("keeps pricing on model pages rather than a duplicate navigation entry", () => {
+  it("keeps pricing, credentials and quotas in their owning pages", () => {
     const routes = sectionsFor(derived("admin")).flatMap(section => section.items.map(item => item.route))
     expect(routes).toContain("/model-catalog")
     expect(routes).toContain("/providers")
     expect(routes).not.toContain("/price-rules")
+    expect(routes).not.toContain("/credentials")
+    expect(routes).not.toContain("/quotas")
+    expect(routes).not.toContain("/quota")
+  })
+
+  it("gives scoped administrators object-context credential and budget entry points only", () => {
+    const scoped = consoleContext({ ...portalContext(), admin: adminContext(["credentials", "quotas"], orgScope) })
+    const paths = sectionsFor(scoped).flatMap(section => section.items.map(item => item.route))
+    expect(paths).toContain("/providers")
+    expect(paths).toContain("/identity/organizations")
+    expect(paths).toContain("/identity/teams")
+    expect(paths).not.toContain("/identity/users")
+    expect(paths).not.toContain("/credentials")
+    expect(paths).not.toContain("/quotas")
+    expect(mayEnter(scoped, "/providers/p1/credentials")).toBe(true)
+    expect(mayEnter(scoped, "/providers/p1/settings")).toBe(false)
+    expect(mayEnter(scoped, "/providers/p1/models")).toBe(false)
+    const team = consoleContext({ ...portalContext(), admin: adminContext(["credentials", "quotas"], { ...orgScope, kind: "team", id: "t1", selector: "team:t1" }) })
+    expect(mayEnter(team, "/identity/teams")).toBe(true)
+    expect(mayEnter(team, "/identity/organizations")).toBe(false)
   })
 
   // `canSeeLogs` is an instance setting, not a role: the item disappears
@@ -38,6 +58,7 @@ describe("the navigation", () => {
     const items = sectionsFor(derived("user", false))[0].items.map((item) => item.id)
     expect(items).not.toContain("requests")
     expect(items).toContain("overview")
+    expect(items).not.toContain("quota")
   })
 
   it("refuses a route the caller has no capability for", () => {

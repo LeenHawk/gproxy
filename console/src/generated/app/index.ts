@@ -2,6 +2,7 @@ export * from "./AdminContextDto";
 export * from "./AdminContextUserDto";
 export * from "./AdminScopeDto";
 export * from "./AdminSectionDto";
+export * from "./ApiKeyBudgetWrite";
 export * from "./ApiKeyCreated";
 export * from "./ApiKeyDto";
 export * from "./ApiKeyPatch";

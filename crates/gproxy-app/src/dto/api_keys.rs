@@ -78,6 +78,28 @@ pub struct ApiKeyWrite {
     /// leak does not hand over.
     #[serde(default)]
     pub retain_secret: Option<bool>,
+    /// Optional initial cost budget, committed atomically with the key.
+    #[serde(default)]
+    pub budget: Option<ApiKeyBudgetWrite>,
+}
+
+/// A key's initial cost budget. Ownership and metric are assigned by the server.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct ApiKeyBudgetWrite {
+    pub limit_value: String,
+    #[serde(default)]
+    pub window_key: Option<String>,
+    #[serde(default)]
+    pub period: Option<String>,
+    #[serde(default)]
+    pub period_seconds: Option<i64>,
+    #[serde(default)]
+    pub anchor_at_ms: Option<i64>,
+    #[serde(default)]
+    pub model_pattern: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

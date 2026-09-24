@@ -1,7 +1,9 @@
+import { useIsMutating } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { ManagementDialog } from "@/components/management-dialog"
 import { QuotasPanel } from "@/pages/quotas"
 export function UserQuotasDialog({ userId, userName, onClose }: { userId: string; userName: string; onClose: () => void }) {
   const { t } = useTranslation()
-  return <ManagementDialog title={t("userQuota.title", { name: userName })} onClose={onClose}><QuotasPanel ownerKind="user" ownerId={userId} /></ManagementDialog>
+  const busy = useIsMutating() > 0
+  return <ManagementDialog className="sm:max-w-2xl" busy={busy} title={`${userName} · ${t("limits.budget")}`} onClose={onClose}><QuotasPanel ownerKind="user" ownerId={userId} /></ManagementDialog>
 }

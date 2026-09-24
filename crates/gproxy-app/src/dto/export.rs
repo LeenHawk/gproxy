@@ -55,6 +55,7 @@ exported!(
     AdminScopeDto,
     AdminSectionDto,
     // api keys
+    ApiKeyBudgetWrite,
     ApiKeyCreated,
     ApiKeyDto,
     ApiKeyPatch,

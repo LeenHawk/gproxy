@@ -85,6 +85,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> PortalKeys<'_, C> {
                 expires_at_ms: write.expires_at_ms,
                 enabled: None,
                 retain_secret: write.retain_secret,
+                budget: None,
             })
             .await?;
         Ok(PortalKeyCreated {

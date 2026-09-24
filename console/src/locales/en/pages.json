@@ -2,7 +2,7 @@
   "overview": {
     "title": "Hello, {{name}}",
     "usage": "The last seven days",
-    "quota": "Budgets"
+    "quota": "Cost budgets"
   },
   "keys": {
     "emptyTitle": "No keys yet",
@@ -380,10 +380,6 @@
     "noModels": "No catalog models"
   },
   "userQuota": {
-    "action": "Spending limits",
-    "title": "Spending limits · {{name}}",
-    "reset": "Reset usage",
-    "resetConfirm": "Reset usage for {{name}} and start a new window?",
     "periods": {
       "5h": "Every 5 hours",
       "1d": "Every 24 hours",
@@ -666,7 +662,6 @@
     "owner": "Ownership",
     "shared": "Instance shared",
     "global": "All providers",
-    "pool": "Pool (enter ID)",
     "cost": "Cost (USD)",
     "requests": "Request count",
     "loginAdd": "Add by signing in",
@@ -746,5 +741,75 @@
     "chooseScope": "Choose a management scope",
     "newPriceRule": "Add another price rule",
     "cleanupFailed": "Records were deleted, but related rule cleanup failed: {{message}}"
+  },
+  "limits": {
+    "providerDefaults": "Default credential limits",
+    "providerHelp": "Each rule limits each credential separately. Credentials may override a rule with the same name. View usage on the individual credential.",
+    "credentialHelp": "Enabled credential rules replace provider defaults with the same name. Disabling an override restores the default; it does not remove all limits.",
+    "budgetHelp": "This budget belongs to the current object. Amounts are in USD and are counted over the selected period.",
+    "budget": "Cost budget",
+    "local": "Local limits",
+    "basic": "Basic settings",
+    "upstream": "Upstream allowance",
+    "upstreamHelp": "These readings come from the upstream account. Querying them does not change your local limits.",
+    "notRunning": "This credential is not currently available for execution. Live limit usage is unavailable.",
+    "readOnly": "These are the effective limits. An instance administrator can change them.",
+    "defaultRule": "Default limit",
+    "defaultBudget": "Default budget",
+    "ruleName": "Rule name",
+    "measure": "Limit type",
+    "costLimit": "Cost limit (USD)",
+    "requestLimit": "Request limit",
+    "appliesTo": "Applies to models",
+    "allModels": "All models",
+    "advanced": "Advanced options",
+    "add": "Add limit",
+    "addBudget": "Add budget",
+    "edit": "Edit rule",
+    "override": "Set for this credential",
+    "restore": "Restore inheritance",
+    "restoreConfirm": "Remove “{{name}}” from this credential and use its provider default?",
+    "inherited": "Inherited from provider",
+    "custom": "Credential override",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "disabledOverride": "This override is disabled. The provider default currently applies.",
+    "used": "Used",
+    "remaining": "Remaining",
+    "resetsAt": "Next reset",
+    "never": "No automatic reset",
+    "reset": "Reset usage",
+    "resetAll": "Reset all covered credentials",
+    "resetConfirm": "Reset usage for the current “{{name}}” window?",
+    "resetAllConfirm": "Reset “{{name}}” usage for every credential currently inheriting this rule? Credential overrides are unaffected.",
+    "empty": "No local limits configured",
+    "emptyBudget": "No cost budget configured",
+    "noObservation": "No upstream allowance has been observed",
+    "unlimited": "Unlimited",
+    "observedAt": "Last observed",
+    "blockedUntil": "Unavailable until {{at}}",
+    "more": "More actions",
+    "changeStatus": "Change credential status",
+    "maintenance": {
+      "secret": "Credential secret",
+      "status": "Credential status",
+      "health": "Reset health state",
+      "delete": "Delete credential",
+      "test": "Test credential"
+    },
+    "resetOutcome": {
+      "reset": "Upstream allowance reset.",
+      "nothing_to_reset": "No upstream allowance needs resetting.",
+      "no_credit": "No upstream reset credit is available.",
+      "already_redeemed": "This reset credit has already been used."
+    },
+    "anchor": "Period start",
+    "nameTaken": "A rule with this name already exists for this object. Choose a different name."
+  },
+  "keyBudget": {
+    "enable": "Set a budget for this key",
+    "inherit": "No additional key budget. Applicable user, team and organization budgets still apply.",
+    "adminOnly": "An administrator can set this key's cost budget in its settings.",
+    "activeHelp": "Requests covered by this budget stop when it is exhausted."
   }
 }

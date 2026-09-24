@@ -1,3 +1,9 @@
+import { KeyCreateDialog } from "@/components/keys/create-dialog"
+import { KeySettingsDialog } from "@/components/keys/settings-dialog"
+import type { FormField } from "@/components/record-form"
+import { directory } from "@/api/models"
+import { useConsoleContext } from "@/capability/session"
+import { ScopedBudgetObjects } from "./scoped-budgets"
 import { QuotaButton } from "@/pages/quotas"
 //! The identity families, each one a declaration.
 //!
@@ -12,7 +18,7 @@ import { QuotaButton } from "@/pages/quotas"
 //! `double_option` turns into "clear it".
 
 import { useState } from "react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import * as admin from "@/api/admin"
@@ -41,7 +47,7 @@ export function UsersPage() {
     <>
       <CollectionPage
         id="users"
-        rowActions={(row) => <Button variant="ghost" size="sm" onClick={() => setQuotaUser(row)}>{t("userQuota.action")}</Button>}
+        rowActions={(row) => <Button variant="ghost" size="sm" onClick={() => setQuotaUser(row)}>{t("limits.budget")}</Button>}
         family={admin.users}
         searchable
         rowId={(row: UserDto) => row.id}
@@ -72,6 +78,18 @@ export function UsersPage() {
 export function ApiKeysPage() {
   const { t } = useTranslation()
   const client = useQueryClient()
+  const context = useConsoleContext()
+  const [editing, setEditing] = useState<{ row: ApiKeyDto; tab: "basic" | "budget" } | null>(null)
+  const users = useQuery({ queryKey: ["admin", "/users", "directory"], queryFn: () => directory(admin.users) })
+  const fields: FormField[] = [
+    { name: "userId", kind: "select", required: true, createOnly: true, choices: (users.data ?? []).map(user => ({ value: user.id, label: user.name })) },
+    { name: "name", kind: "text", required: true },
+    { name: "organizationId", kind: "text", nullable: true },
+    { name: "teamId", kind: "text", nullable: true },
+    { name: "expiresAtMs", kind: "datetime", nullable: true },
+    { name: "enabled", kind: "switch" },
+    { name: "retainSecret", kind: "switch", createOnly: true },
+  ]
   const [token, setToken] = useState<string | null>(null)
   const invalidate = () => client.invalidateQueries({ queryKey: ["admin", admin.apiKeys.path] })
 
@@ -88,7 +106,7 @@ export function ApiKeysPage() {
         family={admin.apiKeys}
         searchable
         create={(body) => admin.createApiKey(body as Parameters<typeof admin.createApiKey>[0])}
-        onCreated={(created) => setToken((created as ApiKeyCreated).token)}
+        onCreated={(created) => { setToken((created as ApiKeyCreated).token); void client.invalidateQueries({ queryKey: ["portal", "keys"] }); void client.invalidateQueries({ queryKey: ["admin", "/quotas"] }) }}
         rowId={(row: ApiKeyDto) => row.id}
         rowLabel={(row) => row.name}
         columns={[
@@ -99,18 +117,12 @@ export function ApiKeysPage() {
           { key: "enabled", cell: (row) => <BoolCell value={row.enabled} /> },
           { key: "expiresAtMs", cell: (row) => <InstantCell value={row.expiresAtMs} /> },
         ]}
-        fields={[
-          { name: "userId", kind: "text", required: true, createOnly: true },
-          { name: "name", kind: "text", required: true },
-          { name: "organizationId", kind: "text", nullable: true },
-          { name: "teamId", kind: "text", nullable: true },
-          { name: "expiresAtMs", kind: "datetime", nullable: true },
-          { name: "enabled", kind: "switch" },
-          { name: "retainSecret", kind: "switch", createOnly: true },
-        ]}
+        fields={fields}
+        onEdit={row => setEditing({ row, tab: "basic" })}
+        renderForm={props => <KeyCreateDialog {...props} error={props.error ?? users.error} pending={props.pending || users.isPending} fields={fields} defaults={{ userId: context.userId, enabled: true, retainSecret: true }} title={t("create.api-keys")} canSetBudget={context.has("configuration.quotas.write")} />}
+
         rowActions={(row) => (
           <>
-            <QuotaButton ownerKind="api_key" ownerId={row.id} name={row.name} />
             <ConfirmButton
               title={t("confirm.rotateTitle", { name: row.name })}
               confirmLabel={t("actions.rotate")}
@@ -121,6 +133,7 @@ export function ApiKeysPage() {
           </>
         )}
       />
+      {editing ? <KeySettingsDialog apiKey={editing.row} fields={fields} initialTab={editing.tab} onClose={() => setEditing(null)} /> : null}
       <SecretDialog token={token} onClose={() => setToken(null)} />
     </>
   )
@@ -129,6 +142,11 @@ export function ApiKeysPage() {
 // --------------------------------------------------------- organizations --
 
 export function OrganizationsPage() {
+  const context = useConsoleContext()
+  return context.has("identity.organizations") ? <InstanceOrganizationsPage /> : <ScopedBudgetObjects kind="org" />
+}
+
+function InstanceOrganizationsPage() {
   const { t } = useTranslation()
   const [members, setMembers] = useState<OrganizationDto | null>(null)
   return (
@@ -166,6 +184,11 @@ export function OrganizationsPage() {
 // ----------------------------------------------------------------- teams --
 
 export function TeamsPage() {
+  const context = useConsoleContext()
+  return context.has("identity.teams") ? <InstanceTeamsPage /> : <ScopedBudgetObjects kind="team" />
+}
+
+function InstanceTeamsPage() {
   const { t } = useTranslation()
   const [members, setMembers] = useState<TeamDto | null>(null)
   return (

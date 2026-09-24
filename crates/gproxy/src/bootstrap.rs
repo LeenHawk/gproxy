@@ -173,6 +173,7 @@ where
         // The operator is told the key once here, so there is no reason for the
         // database to keep a copy it could leak.
         retain_secret: Some(false),
+        budget: None,
     };
     let generated_key = match options.api_key.as_deref() {
         // Adopted, not generated: the operator already has this text, so it is
