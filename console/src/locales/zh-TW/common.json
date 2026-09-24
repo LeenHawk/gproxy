@@ -142,7 +142,7 @@
     "actions": "操作",
     "actorUserId": "操作者",
     "apiKeyId": "金鑰",
-    "cachedInputTokens": "快取輸入",
+    "cachedInputTokens": "快取命中",
     "channelIds": "通道",
     "clientName": "用戶端",
     "cost": "費用",
@@ -244,6 +244,10 @@
     "resetsAtMs": "重設時間",
     "ownerId": "歸屬 ID",
     "maxAttempts": "最大嘗試次數",
-    "currency": "幣別"
+    "currency": "幣別",
+    "cacheCreation5mTokens": "快取寫入（5 分鐘）",
+    "cacheCreation30mTokens": "快取寫入（30 分鐘）",
+    "cacheCreation1hTokens": "快取寫入（1 小時）",
+    "cacheHitRate": "快取命中率"
   }
 }

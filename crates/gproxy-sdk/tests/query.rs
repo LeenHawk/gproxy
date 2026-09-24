@@ -171,7 +171,7 @@ async fn three_records(gproxy: &Handle) {
             user_id: Some("u-2"),
             api_key_id: Some("k-1"),
             model: "m-1",
-            operation: "count_tokens",
+            operation: "create_embedding",
             tokens: (1, 2, 0, 0),
             ..Default::default()
         },
@@ -321,7 +321,7 @@ async fn records_page_newest_first_and_honour_every_filter() {
         ),
         (
             UsageRecordQuery {
-                operation: Some("count_tokens".into()),
+                operation: Some("create_embedding".into()),
                 ..Default::default()
             },
             vec!["r-3"],
@@ -1099,4 +1099,77 @@ async fn log_details_return_full_large_text_binary_and_event_payloads() {
     let standalone = gproxy.query().logs().capture("full-payload").await.unwrap();
     assert_eq!(standalone.record.request_body.content, text);
     assert_eq!(standalone.events[0].payload.content, text);
+}
+
+#[tokio::test]
+async fn cache_write_periods_survive_summary_groups_and_trend_while_metadata_ops_are_excluded() {
+    let gproxy = support::sdk().await;
+    let store = gproxy.store();
+    let tokens = json!({"input_tokens":10,"output_tokens":20,"cached_input_tokens":50,
+        "cache_creation_5m_tokens":11,"cache_creation_30m_tokens":22,"cache_creation_1h_tokens":33});
+    let mut rows = Vec::new();
+    for (id, op) in [
+        ("infer-a", "generate_content"),
+        ("infer-b", "generate_content"),
+        ("models", "list_models"),
+        ("count", "count_tokens"),
+        ("file", "retrieve_file"),
+        ("video", "retrieve_video"),
+        ("conversation", "create_conversation"),
+    ] {
+        rows.push(usage_record::ActiveModel {
+            request_id: Set(id.into()), user_id: Set(Some("u".into())), model: Set("m".into()),
+            operation: Set(op.into()), started_at_ms: Set(100),
+            metrics: Set(json!({"tokens": tokens, "exchanges":[{"provider_id":"p","usage":{"tokens":tokens}}]})),
+            ..Default::default()
+        });
+    }
+    store.usage_records().create_many(rows).await.unwrap();
+    let query = gproxy.query();
+    let usage = query.usage();
+    let summary = usage.summary(UsageQuery::default()).await.unwrap();
+    assert_eq!(summary.requests, 2);
+    assert_eq!(summary.cached_input_tokens, 100);
+    assert_eq!(summary.cache_creation_5m_tokens, 22);
+    assert_eq!(summary.cache_creation_30m_tokens, 44);
+    assert_eq!(summary.cache_creation_1h_tokens, 66);
+    assert_eq!(summary.cache_creation_tokens, 132);
+    for group_by in [UsageGroupBy::Model, UsageGroupBy::Provider] {
+        let groups = usage
+            .group(UsageGroupQuery {
+                filter: UsageQuery::default(),
+                group_by,
+            })
+            .await
+            .unwrap();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].summary.cache_creation_5m_tokens, 22);
+        assert_eq!(groups[0].summary.cache_creation_30m_tokens, 44);
+        assert_eq!(groups[0].summary.cache_creation_1h_tokens, 66);
+    }
+    let trend = usage
+        .trend(UsageTrendQuery {
+            filter: UsageQuery {
+                from_ms: Some(0),
+                to_ms: Some(200),
+                ..Default::default()
+            },
+            bucket_ms: 200,
+        })
+        .await
+        .unwrap();
+    assert_eq!(trend[0].summary.requests, 2);
+    assert_eq!(trend[0].summary.cache_creation_tokens, 132);
+    assert_eq!(trend[0].summary.cache_creation_30m_tokens, 44);
+    let records = usage.records(UsageRecordQuery::default()).await.unwrap();
+    assert_eq!(records.total, 2);
+    assert_eq!(records.items[0].tokens.cache_creation_1h_tokens, Some(33));
+    let excluded = usage
+        .summary(UsageQuery {
+            operation: Some("list_models".into()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(excluded.requests, 0);
 }

@@ -96,6 +96,50 @@ pub enum Operation {
 }
 
 impl Operation {
+    /// Whether this operation performs inference or a metered tool action.
+    /// Catalog, token-counting, resource management and signaling-only calls
+    /// belong in request logs, not request-level usage statistics.
+    pub const fn produces_usage(self) -> bool {
+        match self {
+            Self::GenerateContent
+            | Self::StreamGenerateContent
+            | Self::GuardianReview
+            | Self::GuardianClassify
+            | Self::CompactContent
+            | Self::SummarizeMemory
+            | Self::CreateEmbedding
+            | Self::BatchCreateEmbedding
+            | Self::Rerank
+            | Self::WebSearch
+            | Self::CreateImage
+            | Self::EditImage
+            | Self::CreateSpeech
+            | Self::CreateTranscription
+            | Self::CreateTranslation
+            | Self::CreateVideo
+            | Self::ConnectRealtime => true,
+            Self::ListModels
+            | Self::GetModel
+            | Self::CountTokens
+            | Self::CreateConversation
+            | Self::CreateFile
+            | Self::ListFiles
+            | Self::RetrieveFile
+            | Self::RetrieveFileContent
+            | Self::DeleteFile
+            | Self::RetrieveVideo
+            | Self::ListVideos
+            | Self::DeleteVideo
+            | Self::DownloadVideoContent
+            | Self::CreateRealtimeCall => false,
+        }
+    }
+
+    /// Shared by persistence and historical usage queries.
+    pub fn usage_operations() -> impl Iterator<Item = Self> {
+        <Self as strum::IntoEnumIterator>::iter().filter(|op| op.produces_usage())
+    }
+
     /// Stable persistence id.
     pub fn id(self) -> &'static str {
         self.into()
@@ -263,6 +307,31 @@ mod tests {
     /// names, so without this test renaming a variant would silently rewrite
     /// what is already stored in a database. Order and count are pinned too,
     /// which is what makes adding an operation a deliberate act.
+    #[test]
+    fn only_inference_and_metered_tool_operations_produce_usage() {
+        for op in [
+            Operation::ListModels,
+            Operation::GetModel,
+            Operation::CountTokens,
+            Operation::CreateConversation,
+            Operation::CreateFile,
+            Operation::ListFiles,
+            Operation::RetrieveFile,
+            Operation::RetrieveFileContent,
+            Operation::DeleteFile,
+            Operation::RetrieveVideo,
+            Operation::ListVideos,
+            Operation::DeleteVideo,
+            Operation::DownloadVideoContent,
+            Operation::CreateRealtimeCall,
+        ] {
+            assert!(!op.produces_usage(), "{}", op.id());
+        }
+        assert!(Operation::GenerateContent.produces_usage());
+        assert!(Operation::CreateEmbedding.produces_usage());
+        assert!(Operation::ConnectRealtime.produces_usage());
+    }
+
     #[test]
     fn operation_ids_are_pinned() {
         let ids: Vec<&'static str> = Operation::iter().map(Operation::id).collect();

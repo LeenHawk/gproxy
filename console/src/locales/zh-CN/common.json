@@ -142,7 +142,7 @@
     "actions": "操作",
     "actorUserId": "操作者",
     "apiKeyId": "密钥",
-    "cachedInputTokens": "缓存输入",
+    "cachedInputTokens": "缓存命中",
     "channelIds": "渠道",
     "clientName": "客户端",
     "cost": "费用",
@@ -244,6 +244,10 @@
     "resetsAtMs": "重置时间",
     "ownerId": "归属 ID",
     "maxAttempts": "最大尝试次数",
-    "currency": "币种"
+    "currency": "币种",
+    "cacheCreation5mTokens": "缓存写入（5 分钟）",
+    "cacheCreation30mTokens": "缓存写入（30 分钟）",
+    "cacheCreation1hTokens": "缓存写入（1 小时）",
+    "cacheHitRate": "缓存命中率"
   }
 }

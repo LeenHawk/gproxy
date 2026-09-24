@@ -288,7 +288,9 @@ impl Filters<'_> {
     /// adjacent ranges cover every record exactly once.
     fn condition(&self) -> Condition {
         use usage_record::Column as C;
-        let mut condition = Condition::all();
+        let mut condition = Condition::all().add(C::Operation.is_in(
+            gproxy_protocol::Operation::usage_operations().map(gproxy_protocol::Operation::id),
+        ));
         if let Some(from_ms) = self.from_ms {
             condition = condition.add(C::StartedAtMs.gte(from_ms));
         }
@@ -369,7 +371,9 @@ struct Totals {
     input_tokens: u64,
     output_tokens: u64,
     cached_input_tokens: u64,
-    cache_creation_tokens: u64,
+    cache_creation_5m_tokens: u64,
+    cache_creation_30m_tokens: u64,
+    cache_creation_1h_tokens: u64,
     reasoning_tokens: u64,
     cost: Decimal,
     currency: Currency,
@@ -395,15 +399,15 @@ impl Totals {
         add(&mut self.output_tokens, tokens.output_tokens);
         add(&mut self.cached_input_tokens, tokens.cached_input_tokens);
         add(
-            &mut self.cache_creation_tokens,
+            &mut self.cache_creation_5m_tokens,
             tokens.cache_creation_5m_tokens,
         );
         add(
-            &mut self.cache_creation_tokens,
+            &mut self.cache_creation_30m_tokens,
             tokens.cache_creation_30m_tokens,
         );
         add(
-            &mut self.cache_creation_tokens,
+            &mut self.cache_creation_1h_tokens,
             tokens.cache_creation_1h_tokens,
         );
         add(&mut self.reasoning_tokens, tokens.reasoning_tokens);
@@ -436,7 +440,13 @@ impl Totals {
             input_tokens: self.input_tokens,
             output_tokens: self.output_tokens,
             cached_input_tokens: self.cached_input_tokens,
-            cache_creation_tokens: self.cache_creation_tokens,
+            cache_creation_tokens: self
+                .cache_creation_5m_tokens
+                .saturating_add(self.cache_creation_30m_tokens)
+                .saturating_add(self.cache_creation_1h_tokens),
+            cache_creation_5m_tokens: self.cache_creation_5m_tokens,
+            cache_creation_30m_tokens: self.cache_creation_30m_tokens,
+            cache_creation_1h_tokens: self.cache_creation_1h_tokens,
             reasoning_tokens: self.reasoning_tokens,
             cost: self.cost.normalize().to_string(),
             currency: match self.currency {
