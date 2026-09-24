@@ -47,3 +47,26 @@ pub use reqwest_native;
 pub use {reqwest, reqwest_websocket};
 #[cfg(all(feature = "wreq", not(target_arch = "wasm32")))]
 pub use {wreq, wreq_util};
+
+/// Names accepted by the compiled wreq backend, using its serialization contract.
+/// Builds without native wreq must not advertise browser emulations.
+pub fn emulation_profiles() -> Vec<String> {
+    #[cfg(all(feature = "wreq", not(target_arch = "wasm32")))]
+    {
+        wreq_util::Profile::VARIANTS
+            .iter()
+            .rev()
+            .map(|profile| {
+                serde_json::to_value(profile)
+                    .expect("profile serialization")
+                    .as_str()
+                    .expect("profile name")
+                    .to_owned()
+            })
+            .collect()
+    }
+    #[cfg(not(all(feature = "wreq", not(target_arch = "wasm32"))))]
+    {
+        Vec::new()
+    }
+}
