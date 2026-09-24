@@ -15,6 +15,83 @@ use crate::host::CredentialId;
 use crate::{Core, InitError};
 
 #[test]
+fn antigravity_claude_preserves_output_limits_after_protocol_conversion() {
+    use gproxy_channel_api::PrepareCtx;
+    use gproxy_protocol::{ContentGenerationKind as Kind, Operation, OperationKey};
+
+    let secret = json!({"access_token":"access","project_id":"p1"});
+    let settings = json!({});
+    let headers = http::HeaderMap::new();
+    let model = "claude-opus-4-6-thinking";
+    for stream in [false, true] {
+        let operation = if stream {
+            Operation::StreamGenerateContent
+        } else {
+            Operation::GenerateContent
+        };
+        let destination = OperationKey::content(operation, Kind::GeminiGenerateContent);
+        for (kind, mut input, expected) in [
+            (
+                Kind::OpenAiChat,
+                json!({"max_tokens":128_000}),
+                Some(128_000),
+            ),
+            (
+                Kind::OpenAiChat,
+                json!({"max_completion_tokens":32}),
+                Some(32),
+            ),
+            (
+                Kind::OpenAiChat,
+                json!({"max_tokens":128_000,"max_completion_tokens":64}),
+                Some(64),
+            ),
+            (Kind::OpenAiChat, json!({}), None),
+            (
+                Kind::ClaudeMessages,
+                json!({"max_tokens":128_000}),
+                Some(128_000),
+            ),
+        ] {
+            input["model"] = json!("free/claude-opus-4-6");
+            input["stream"] = json!(stream);
+            input["messages"] = json!([{"role":"user","content":"hi"}]);
+            let converted = gproxy_transform::request(
+                OperationKey::content(operation, kind),
+                destination,
+                Bytes::from(serde_json::to_vec(&input).unwrap()),
+                model,
+                stream,
+            )
+            .unwrap();
+            let prepared = gproxy_channels::AntigravityChannel
+                .prepare(PrepareCtx {
+                    session_id: None,
+                    key: destination,
+                    stream,
+                    method: &Method::POST,
+                    path: "/v1/chat/completions",
+                    query: None,
+                    headers: &headers,
+                    body: &converted,
+                    upstream_model: model,
+                    provider_settings: &settings,
+                    secret: &secret,
+                })
+                .unwrap();
+            let envelope: serde_json::Value =
+                serde_json::from_slice(prepared.request.body()).unwrap();
+            assert_eq!(envelope["model"], model);
+            assert_eq!(
+                envelope["request"]["generationConfig"]["maxOutputTokens"],
+                json!(expected),
+                "{kind:?}, stream={stream}"
+            );
+        }
+    }
+}
+
+#[test]
 fn transformed_claude_attempts_settle_native_usage_before_relay() -> Result<(), InitError> {
     for stream in [false, true] {
         let host = MemoryHost::new(false);
