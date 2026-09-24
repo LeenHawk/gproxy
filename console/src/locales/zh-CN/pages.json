@@ -650,7 +650,9 @@
       "cachedAudioInputPrice": "缓存音频输入"
     },
     "limits": "Token 上限",
-    "tierCount": "分段价 · {{count}}"
+    "tierCount": "分段价 · {{count}}",
+    "searchPlaceholder": "搜索模型或供应商实例",
+    "providerInstances": "供应商实例"
   },
   "management": {
     "select": "选择",

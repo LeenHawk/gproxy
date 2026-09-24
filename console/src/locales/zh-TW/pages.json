@@ -650,7 +650,9 @@
       "cachedAudioInputPrice": "快取音訊輸入"
     },
     "limits": "Token 上限",
-    "tierCount": "分段價 · {{count}}"
+    "tierCount": "分段價 · {{count}}",
+    "searchPlaceholder": "搜尋模型或供應商實例",
+    "providerInstances": "供應商實例"
   },
   "management": {
     "select": "選擇",

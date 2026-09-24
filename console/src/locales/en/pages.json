@@ -650,7 +650,9 @@
       "cachedAudioInputPrice": "Cached audio input"
     },
     "limits": "Token limits",
-    "tierCount": "Tiered · {{count}}"
+    "tierCount": "Tiered · {{count}}",
+    "searchPlaceholder": "Search models or provider instances",
+    "providerInstances": "Provider instances"
   },
   "management": {
     "select": "Select",
