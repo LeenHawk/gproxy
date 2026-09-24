@@ -275,6 +275,7 @@ async fn resolve_gateway_key(
             // The keychain is the copy that matters; the database keeping a
             // second one would be a second place to lose it from.
             retain_secret: Some(false),
+            budget: None,
         })
         .await?;
     // The key has to authenticate on the very next request, not after the next

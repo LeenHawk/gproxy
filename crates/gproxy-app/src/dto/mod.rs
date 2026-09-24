@@ -53,7 +53,9 @@ mod users;
 mod export;
 
 pub use admin_context::{AdminContextDto, AdminContextUserDto, AdminScopeDto, AdminSectionDto};
-pub use api_keys::{ApiKeyCreated, ApiKeyDto, ApiKeyPatch, ApiKeySecretDto, ApiKeyWrite};
+pub use api_keys::{
+    ApiKeyBudgetWrite, ApiKeyCreated, ApiKeyDto, ApiKeyPatch, ApiKeySecretDto, ApiKeyWrite,
+};
 pub use audit::{AuditEventDto, AuditQuery};
 pub use common::{BatchItem, BatchPatch, ListQuery, Page, double_option};
 pub use credential_management::{CredentialOwnerOptionDto, CredentialProviderDto};

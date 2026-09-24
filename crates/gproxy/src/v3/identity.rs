@@ -448,6 +448,7 @@ where
             expires_at_ms: row.config.expires_at,
             enabled: Some(row.config.enabled),
             retain_secret: None,
+            budget: None,
         };
         let app_data = app.data();
         let operations = Operations::new(app.gproxy(), &app_data, app.config());

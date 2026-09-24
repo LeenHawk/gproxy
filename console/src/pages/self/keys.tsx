@@ -1,3 +1,7 @@
+import { KeyCreateDialog } from "@/components/keys/create-dialog"
+import { KeySettingsDialog } from "@/components/keys/settings-dialog"
+import { createApiKey } from "@/api/admin"
+import type { ApiKeyWrite, PortalKeyDto } from "@/generated/app"
 //! The caller's own gateway keys.
 //!
 //! What a key is bound to — an organization or a team — decides
@@ -19,7 +23,7 @@ import { BoolCell, InstantCell, MaybeCell } from "@/components/cells"
 import { ConfirmButton } from "@/components/confirm"
 import { DataTable } from "@/components/data-table"
 import { Page, PageHeader } from "@/components/page"
-import { RecordDialog, type FormField } from "@/components/record-form"
+import { type FormField } from "@/components/record-form"
 import { KeySecretCell } from "@/components/key-secret-cell"
 import { SecretDialog } from "@/components/secret-dialog"
 import { EmptyNotice, QueryState } from "@/components/state"
@@ -32,6 +36,8 @@ export function KeysPage() {
   const { t } = useTranslation()
   const client = useQueryClient()
   const context = useConsoleContext()
+  const maySetBudget = context.has("identity.api-keys.write") && context.has("configuration.quotas.write")
+  const [editing, setEditing] = useState<{ row: PortalKeyDto; tab: "basic" | "budget" } | null>(null)
   const mayWrite = context.has(SELF_KEYS_WRITE)
   const [creating, setCreating] = useState(false)
   const [token, setToken] = useState<string | null>(null)
@@ -41,8 +47,8 @@ export function KeysPage() {
   const fail = (error: Error) => toast.error(error.message)
 
   const create = useMutation({
-    mutationFn: (body: Record<string, unknown>) => portal.keys.create(body as Parameters<typeof portal.keys.create>[0]),
-    onSuccess: (created) => { setCreating(false); setToken(created.token); void invalidate() },
+    mutationFn: (body: Record<string, unknown>) => maySetBudget ? createApiKey({ ...body, userId: context.userId } as ApiKeyWrite) : portal.keys.create(body as Parameters<typeof portal.keys.create>[0]),
+    onSuccess: (created) => { setCreating(false); setToken(created.token); void invalidate(); void client.invalidateQueries({ queryKey: ["admin", "/api-keys"] }); void client.invalidateQueries({ queryKey: ["admin", "/quotas"] }) },
   })
   const rotate = useMutation({
     mutationFn: portal.keys.rotate,
@@ -57,11 +63,12 @@ export function KeysPage() {
 
   const fields: Array<FormField> = [
     { name: "name", kind: "text", required: true },
-    { name: "expiresAtMs", kind: "datetime" },
+    { name: "expiresAtMs", kind: "datetime", nullable: true },
     ...(context.organizations.length
       ? [{
         name: "organizationId",
         kind: "select" as const,
+        nullable: true,
         choices: context.organizations.map((entry) => ({ value: entry.id, label: entry.name })),
       }]
       : []),
@@ -69,6 +76,7 @@ export function KeysPage() {
       ? [{
         name: "teamId",
         kind: "select" as const,
+        nullable: true,
         choices: context.teams.map((entry) => ({ value: entry.id, label: entry.name })),
       }]
       : []),
@@ -105,6 +113,7 @@ export function KeysPage() {
           empty={<EmptyNotice title={t("keys.emptyTitle")} />}
           actions={(row) => (
             <>
+              {maySetBudget ? <Button size="sm" variant="ghost" onClick={() => setEditing({ row, tab: "basic" })}>{t("actions.edit")}</Button> : null}
               {mayWrite ? (
                 <>
                   <ConfirmButton
@@ -127,16 +136,17 @@ export function KeysPage() {
         />
       </QueryState>
 
-      <RecordDialog
+      <KeyCreateDialog
+        canSetBudget={maySetBudget}
         open={creating}
         onOpenChange={setCreating}
-        mode="create"
         title={t("create.keys")}
         fields={fields}
         onSubmit={(body) => create.mutate(body)}
         pending={create.isPending}
         error={create.error}
       />
+      {editing ? <KeySettingsDialog apiKey={editing.row} fields={[...fields.filter(field => field.name !== "retainSecret"), { name: "enabled", kind: "switch" }]} initialTab={editing.tab} onClose={() => setEditing(null)} /> : null}
       <SecretDialog token={token} onClose={() => setToken(null)} />
     </Page>
   )

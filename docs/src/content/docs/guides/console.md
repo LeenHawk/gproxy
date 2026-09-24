@@ -7,12 +7,17 @@ The v4 Console is served at `/console`. One application contains personal
 pages and administrative pages. Sign in using the deployment's configured
 account; the Console uses `/portal/api/login` and an HttpOnly session cookie.
 
+Personal cost budgets are displayed read-only on Overview, alongside usage.
+There is no separate personal quota page; administrators edit budgets on the
+corresponding user, API key, organization or team.
+
 ## Management Scope
 
 The Console combines personal features from `/portal/api/context` with the
 management sections returned by `/admin/api/context`. Instance administrators
-manage the gateway. Organization and team administrators manage credentials
-and quotas within their current scope.
+manage the gateway. Organization and team administrators use the same Providers
+entry for their credentials. Their Organizations and Teams pages show only
+admitted objects and cost budgets, without identity CRUD or provider configuration.
 
 If you administer multiple organizations or teams, choose a scope in the
 account menu. Management requests send the server-provided scope selector in
@@ -25,9 +30,7 @@ switching. Personal pages remain available independently of management scope.
 | Console path | Capability |
 | --- | --- |
 | `/console/providers` | Provider configuration, credentials, models, protocol conversion, rewrite bindings and endpoint overrides |
-| `/console/credentials` | Credentials grouped by provider, including scoped tenant administration |
 | `/console/model-routes` | Cross-provider routes, members, weights, fallback tiers and public model names |
-| `/console/quotas` | Caller budgets and provider/credential limits |
 | `/console/rule-sets` | Rewrite rules, ordering and whole-set saves |
 | `/console/transfer` | Configuration export and import |
 | `/console/clients` | Reusable connection profiles |
@@ -45,16 +48,16 @@ existing transactional configuration API.
 
 ## Credentials and Upstream Sign-in
 
-Open a provider's credentials, or choose its group on the Credentials page.
-New credentials and sign-in flows inherit that provider. Ownership choices
+Open the provider's Credentials tab to manage its credentials. New credentials
+and sign-in flows inherit that provider. Ownership choices
 are restricted to the current administrative scope. Tenant directories expose
 provider labels and supported actions, not gateway configuration.
 
-The details action offers saved quota observations, local limits, lifecycle
-status, secret reveal, and the refresh/query/reset operations supported by the
-channel. Upstream quota reset, local limit reset and health reset are separate
-actions. Model discovery and generation tests can target a particular
-credential. Generation tests make a real upstream request.
+Editing a credential opens one panel with **Basic settings**, **Local limits**
+and **Upstream allowance** tabs. The credential row also opens Local limits
+directly. Secret reveal, refresh, lifecycle status, health reset and model tests
+are in **More actions**. Upstream readings are presented as amounts and reset
+times; generation tests make a real upstream request.
 
 **Add by signing in** offers the channel's supported methods:
 
@@ -80,15 +83,33 @@ credential discovery and testing use
 
 ## Quotas and Prices
 
-Caller budgets support user, API key, organization, team and pool ownership.
-Provider and credential limits also support request counts. The editor sends
-costs as decimal strings in USD and request counts with unit `count`. Period,
-anchor, custom duration and model pattern use the existing backend contract.
-Pool IDs are entered explicitly; there is no separate pool directory.
+Administrators can set a key budget directly below its name in the **New key**
+form, both in personal Keys and in User keys. The key and initial budget commit
+in one transaction; invalid budgets create no key. Existing keys open a single
+editor with **Basic settings** and **Cost budget** tabs. Ordinary users keep
+the self-service key flow; administrators manage their budgets.
 
-User, API key, organization, team, provider and credential views include a
-quota shortcut. Budget reset calls `/quotas/{id}/reset`; operator limit reset
-calls `/quotas/{id}/limit-reset` and does not reset an upstream account.
+Open **Cost budget** on a user, API key, organization or team. Rules are added
+and edited inside that panel, without another dialog. Costs remain decimal
+strings in USD; provider/credential request limits use unit `count`.
+
+A provider's **Settings → Default credential limits** applies each rule to
+**each credential separately**, not to a shared provider budget. The page shows
+configuration; individual credentials show usage and reset times. An enabled
+credential rule with the same rule name overrides the provider default.
+**Restore inheritance** deletes that credential override. Disabling an override
+also allows an enabled default to apply again; it does not mean unlimited use.
+
+Credential limit cards show their source, configured cap, actual usage and next
+reset. Tenant administrators can read effective credential limits; instance
+administrators configure operator limits. Period, amount/count, model pattern
+and enablement are edited in place. Custom duration and fixed-period anchors
+are advanced options.
+
+Resetting a provider default affects every credential currently inheriting it,
+so its confirmation names that scope. An inherited card has no credential-only
+reset button. Credential overrides and caller budgets reset only their own
+rule. None of these actions resets the upstream account allowance.
 
 Price rules may apply to all providers or one provider, and model patterns
 support `*` and `?`. Multiple operation-specific rules can coexist. Edit global prices from the Models page and provider-specific prices from a

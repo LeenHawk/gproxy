@@ -1,4 +1,4 @@
-import { QuotaButton } from "@/pages/quotas"
+import { QuotasPanel } from "@/pages/quotas"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { Boxes, KeyRound, Settings2 } from "lucide-react"
@@ -55,7 +55,6 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
       <PageHeader
         title={provider.name}
         actions={<>
-          <QuotaButton ownerKind="provider" ownerId={provider.id} name={provider.name} />
           <Badge variant="outline">{channel?.displayName ?? provider.channel}</Badge>
           <Switch aria-label={t("fields.enabled")} checked={provider.enabled} disabled={update.isPending} onCheckedChange={(enabled) => update.mutate({ enabled })} />
           <ConfirmButton title={t("confirm.deleteTitle", { name: provider.name })} disabled={remove.isPending} onConfirm={() => remove.mutate()}>{t("actions.delete")}</ConfirmButton>
@@ -77,6 +76,7 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
         <TabsContent value="models"><ProviderModels provider={provider} /></TabsContent>
         <TabsContent value="settings" className="flex flex-col gap-6">
           <ProviderForm key={`${provider.id}-${JSON.stringify(provider)}`} provider={provider} catalog={catalog} onSubmit={(body) => update.mutate(body)} pending={update.isPending} error={update.error} />
+          <PageSection title={t("limits.providerDefaults")}><QuotasPanel ownerKind="provider" ownerId={provider.id} /></PageSection>
           <PageSection title={t("nav.operation-endpoints")}><ProviderEndpoints providerId={provider.id} /></PageSection>
         </TabsContent>
       </Tabs>

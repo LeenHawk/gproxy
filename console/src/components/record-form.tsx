@@ -15,7 +15,7 @@
 //! operators editing two different columns of one row would overwrite each
 //! other with values neither of them typed.
 
-import { useState, type ReactNode } from "react"
+import { Fragment, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { ProxyControl, type ProxySettings, type ProxyScope } from "@/components/proxy-control"
 import { ErrorNotice } from "@/components/state"
@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button"
 import {
   Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
-import { Field, FieldLabel } from "@/components/ui/field"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
@@ -162,9 +162,13 @@ type DialogProps = {
   mode: "create" | "edit"
   onSubmit: (body: Record<string, unknown>) => void
   pending?: boolean
+  submitDisabled?: boolean
   error?: unknown
   /** Rendered under the fields, for the one-off controls a family needs. */
   extra?: ReactNode
+  extraAfter?: string
+  advancedExtra?: ReactNode
+  advancedFields?: readonly string[]
 }
 
 /**
@@ -175,7 +179,7 @@ type DialogProps = {
  * who cancels a half-typed edit and reopens it gets the row back rather than
  * their abandoned draft, and React never has to cascade a render to do it.
  */
-function RecordForm({ fields, original, mode, onSubmit, pending, error, extra, onOpenChange }: DialogProps) {
+function RecordForm({ fields, original, mode, onSubmit, pending, submitDisabled, error, extra, extraAfter, advancedExtra, advancedFields, onOpenChange, inline = false }: DialogProps & { inline?: boolean }) {
   const { t } = useTranslation()
   const offered = fields.filter((field) => mode === "create" || !field.createOnly)
   const [values, setValues] = useState<FormValues>(() => {
@@ -199,37 +203,29 @@ function RecordForm({ fields, original, mode, onSubmit, pending, error, extra, o
 
   const missing = offered.some((field) => field.required && mode === "create" && !String(values[field.name] ?? "").trim())
 
-  return (
-    <>
-      <DialogBody className="space-y-4">
-        {parseError || error ? <ErrorNotice error={parseError ?? error} /> : null}
-        {offered.map((field) => (
-          <Field key={field.name} orientation={field.kind === "switch" ? "horizontal" : "vertical"}>
-            <FieldLabel htmlFor={`field-${field.name}`}>
-              {field.label ?? t(`fields.${field.name}`)}
-              {field.required && mode === "create" ? <span aria-hidden className="text-destructive"> *</span> : null}
-            </FieldLabel>
-            <Control
-              field={field}
-              original={original}
-              value={values[field.name] ?? ""}
-              onChange={(next) => setValues((current) => ({ ...current, [field.name]: next }))}
-            />
-          </Field>
-        ))}
-        {extra}
-      </DialogBody>
-      <DialogFooter>
-        <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>{t("actions.cancel")}</Button>
-        <Button
-          disabled={pending || missing}
-          onClick={submit}
-        >
-          {mode === "create" ? t("actions.create") : t("actions.save")}
-        </Button>
-      </DialogFooter>
-    </>
-  )
+  const renderField = (field: FormField) => <Fragment key={field.name}><Field orientation={field.kind === "switch" ? "horizontal" : "vertical"}>
+    <FieldLabel htmlFor={`field-${field.name}`}>{field.label ?? t(`fields.${field.name}`)}{field.required && mode === "create" ? <span aria-hidden className="text-destructive"> *</span> : null}</FieldLabel>
+    <Control field={field} original={original} value={values[field.name] ?? ""} onChange={next => setValues(current => ({ ...current, [field.name]: next }))} />
+  </Field>{extraAfter === field.name ? extra : null}</Fragment>
+  const secondary = offered.filter(field => advancedFields?.includes(field.name))
+  const controls = <>
+    {parseError || error ? <ErrorNotice error={parseError ?? error} /> : null}
+    <fieldset disabled={pending}><FieldGroup className="sm:grid-cols-1">
+      {offered.filter(field => !advancedFields?.includes(field.name)).map(renderField)}
+      {!extraAfter ? extra : null}
+      {secondary.length || advancedExtra ? <details className="group">
+        <summary className="cursor-pointer text-sm font-medium text-muted-foreground hover:text-foreground">{t("limits.advanced")}</summary>
+        <FieldGroup className="pt-5 sm:grid-cols-1">{advancedExtra}{secondary.map(renderField)}</FieldGroup>
+      </details> : null}
+    </FieldGroup></fieldset>
+  </>
+  const actions = <>
+    {!inline ? <Button variant="outline" disabled={pending} onClick={() => onOpenChange(false)}>{t("actions.cancel")}</Button> : null}
+    <Button disabled={pending || missing || submitDisabled} onClick={submit}>{t(mode === "create" ? "actions.create" : "actions.save")}</Button>
+  </>
+  return inline ? <div className="flex flex-col gap-4">{controls}<div className="flex justify-end gap-2">{actions}</div></div>
+    : <><DialogBody className="flex flex-col gap-4">{controls}</DialogBody><DialogFooter>{actions}</DialogFooter></>
+
 }
 
 export function RecordDialog(props: DialogProps) {
@@ -245,4 +241,10 @@ export function RecordDialog(props: DialogProps) {
       </DialogContent>
     </Dialog>
   )
+}
+
+
+/** The same patch semantics inside an existing detail panel, without a dialog. */
+export function RecordEditor(props: Omit<DialogProps, "open" | "onOpenChange" | "title">) {
+  return <RecordForm {...props} inline open title="" onOpenChange={() => {}} />
 }

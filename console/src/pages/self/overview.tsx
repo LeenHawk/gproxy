@@ -47,7 +47,6 @@ export function OverviewPage() {
 
       <PageSection
         title={t("overview.quota")}
-        actions={<Link to="/quota" className="text-sm underline underline-offset-4">{t("actions.details")}</Link>}
       >
         <QueryState isPending={quota.isPending} error={quota.error} rows={2}>
           <QuotaWindows windows={quota.data ?? []} />

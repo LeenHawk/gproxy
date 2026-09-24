@@ -35,7 +35,10 @@
 use gproxy_seaorm::{BatchConnectionTrait, BatchStatement};
 use gproxy_store::{
     Repository,
-    entity::identity::api_key::{self, ApiKeyKind},
+    entity::{
+        identity::api_key::{self, ApiKeyKind},
+        limits::quota,
+    },
 };
 use sea_orm::{ActiveValue, ColumnTrait, EntityTrait, QueryFilter, Select, Set};
 use serde_json::Value;
@@ -47,7 +50,10 @@ use super::{
 use crate::{
     AppError, Result,
     auth::{API_KEY_PREFIX, generate_api_key},
-    dto::{ApiKeyCreated, ApiKeyDto, ApiKeyPatch, ApiKeySecretDto, ApiKeyWrite, ListQuery, Page},
+    dto::{
+        ApiKeyBudgetWrite, ApiKeyCreated, ApiKeyDto, ApiKeyPatch, ApiKeySecretDto, ApiKeyWrite,
+        ListQuery, Page,
+    },
 };
 
 pub struct ApiKeys<'a, C> {
@@ -193,14 +199,23 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ApiKeys<'_, C> {
             expires_at_ms: Set(write.expires_at_ms),
             enabled: Set(write.enabled.unwrap_or(true)),
         };
-        let statement = self.writer.store().api_keys().insert_statement(row)?;
-        crud::commit_one::<C, Self>(
-            self,
-            vec![BatchStatement::Execute(statement)],
-            &id,
-            &[Scope::Keys],
-        )
-        .await
+        let mut statements = vec![BatchStatement::Execute(
+            self.writer.store().api_keys().insert_statement(row)?,
+        )];
+        let has_budget = write.budget.is_some();
+        if let Some(budget) = write.budget {
+            let budget = initial_budget(&id, budget)?;
+            statements.push(BatchStatement::Execute(
+                self.writer.store().quotas().insert_statement(budget)?,
+            ));
+        }
+        let key = crud::commit_one::<C, Self>(self, statements, &id, &[Scope::Keys]).await?;
+        // A newly returned key must not spend before its initial budget is loaded.
+        // Identity publication still belongs to the host, as for other key writes.
+        if has_budget {
+            self.writer.gproxy().reload().await?;
+        }
+        Ok(key)
     }
 
     /// Read back the plaintext of a key that was created with `retainSecret`.
@@ -487,4 +502,36 @@ fn resulting(patched: &ActiveValue<Option<String>>, current: &Option<String>) ->
         ActiveValue::Set(value) => value.clone(),
         _ => current.clone(),
     }
+}
+
+fn initial_budget(key_id: &str, write: ApiKeyBudgetWrite) -> Result<quota::ActiveModel> {
+    let row = quota::Model {
+        id: crud::id_or_new(None)?,
+        owner_kind: "api_key".to_owned(),
+        owner_id: key_id.to_owned(),
+        window_key: crud::optional_text(write.window_key).unwrap_or_else(|| "primary".to_owned()),
+        metric: "cost".to_owned(),
+        unit: "USD".to_owned(),
+        limit_value: crud::decimal(&write.limit_value, "budget.limitValue")?,
+        period: crud::optional_text(write.period).unwrap_or_else(|| "1m".to_owned()),
+        period_seconds: write.period_seconds,
+        anchor_at_ms: write.anchor_at_ms,
+        model_pattern: crud::optional_text(write.model_pattern),
+        enabled: true,
+    };
+    gproxy_core::BudgetData::compile(&row).map_err(AppError::invalid)?;
+    Ok(quota::ActiveModel {
+        id: Set(row.id),
+        owner_kind: Set(row.owner_kind),
+        owner_id: Set(row.owner_id),
+        window_key: Set(row.window_key),
+        metric: Set(row.metric),
+        unit: Set(row.unit),
+        limit_value: Set(row.limit_value),
+        period: Set(row.period),
+        period_seconds: Set(row.period_seconds),
+        anchor_at_ms: Set(row.anchor_at_ms),
+        model_pattern: Set(row.model_pattern),
+        enabled: Set(row.enabled),
+    })
 }

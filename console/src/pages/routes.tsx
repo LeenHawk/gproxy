@@ -21,7 +21,6 @@ import { AccountPage } from "@/pages/self/account"
 import { KeysPage } from "@/pages/self/keys"
 import { ModelsPage } from "@/pages/self/models"
 import { OverviewPage } from "@/pages/self/overview"
-import { QuotaPage } from "@/pages/self/quota"
 import { RequestsPage } from "@/pages/self/requests"
 import { UsagePage } from "@/pages/self/usage"
 import { ProvidersPage } from "@/pages/providers"
@@ -32,27 +31,22 @@ import { UpdatePage } from "@/pages/update"
 import { SettingsPage } from "@/pages/settings"
 import { TokenizerPage } from "@/pages/tokenizer"
 
-import { CredentialsPage } from "@/pages/credentials"
-import { QuotasPage } from "@/pages/quotas"
 import { ModelRoutesPage } from "@/pages/model-routes"
 import { TransferPage } from "@/pages/transfer"
 import { ModelCatalogPage } from "@/pages/model-catalog"
 
 const ROUTES: Record<string, () => React.ReactElement> = {
-  "/credentials": CredentialsPage,
-  "/quotas": QuotasPage,
   "/model-routes": ModelRoutesPage,
   "/transfer": TransferPage,
   "/": OverviewPage,
   "/keys": KeysPage,
   "/models": ModelsPage,
-  "/settings/transfer": SettingsPage,
   "/usage": UsagePage,
-  "/quota": QuotaPage,
   "/requests": RequestsPage,
   "/account": AccountPage,
   "/model-catalog": ModelCatalogPage,
   "/settings": SettingsPage,
+  "/settings/transfer": SettingsPage,
   "/rule-sets": RuleSetsPage,
   "/update": UpdatePage,
   "/clients": ClientsPage,
