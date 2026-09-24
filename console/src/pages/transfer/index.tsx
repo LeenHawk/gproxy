@@ -1,10 +1,11 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
+import { navigate } from "@/lib/router"
 import { parseConfiguration } from "@/api/transfer"
 import { api, json } from "@/api/client"
 import type { ConfigurationExportDto, ImportReportDto } from "@/generated/sdk"
-import { Page, PageHeader, PageSection } from "@/components/page"
+import { PageSection } from "@/components/page"
 import { ConfirmButton } from "@/components/confirm"
 import { ErrorNotice } from "@/components/state"
 import { Button } from "@/components/ui/button"
@@ -14,6 +15,11 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export function TransferPage() {
+  useEffect(() => navigate("/settings/transfer", { replace: true }), [])
+  return <></>
+}
+
+export function TransferPanel() {
   const { t } = useTranslation()
   const client = useQueryClient()
   const [includeSecrets, setIncludeSecrets] = useState(false)
@@ -32,7 +38,7 @@ export function TransferPage() {
     finally { setMasterKey("") }
   }, onSuccess: async () => { setDocument(null); await client.invalidateQueries(); window.dispatchEvent(new Event("gproxy:context-refresh")) } })
   const busy = imported.isPending || exported.isPending
-  return <Page><PageHeader title={t("nav.transfer")} /><p className="text-sm text-muted-foreground">{t("management.transferHelp")}</p>
+  return <div className="flex min-w-0 flex-col gap-6"><p className="text-sm text-muted-foreground">{t("management.transferHelp")}</p>
     <PageSection title={t("management.export")}><Field orientation="horizontal"><FieldLabel htmlFor="transfer-secrets">{t("management.includeSecrets")}</FieldLabel><Switch id="transfer-secrets" checked={includeSecrets} onCheckedChange={setIncludeSecrets} disabled={busy} /></Field><Button disabled={busy} onClick={() => exported.mutate()}>{t("management.export")}</Button></PageSection>
     <PageSection title={t("management.import")}><FieldGroup>
       <Field><FieldLabel htmlFor="transfer-file">{t("management.configurationFile")}</FieldLabel><Input id="transfer-file" type="file" accept=".json,application/json" disabled={busy} onChange={async event => {
@@ -47,5 +53,5 @@ export function TransferPage() {
     </FieldGroup></PageSection>
     {parseError || exported.error || imported.error ? <ErrorNotice error={parseError ?? exported.error ?? imported.error} /> : null}
     {imported.data ? <PageSection title={t("management.importResult")}><p>{t("management.importCounts", imported.data)}</p>{imported.data.warnings.map((warning, index) => <p key={index} className="break-words text-sm">{warning}</p>)}</PageSection> : null}
-  </Page>
+  </div>
 }

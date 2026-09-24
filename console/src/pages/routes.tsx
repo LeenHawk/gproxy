@@ -46,6 +46,7 @@ const ROUTES: Record<string, () => React.ReactElement> = {
   "/": OverviewPage,
   "/keys": KeysPage,
   "/models": ModelsPage,
+  "/settings/transfer": SettingsPage,
   "/usage": UsagePage,
   "/quota": QuotaPage,
   "/requests": RequestsPage,

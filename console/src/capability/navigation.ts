@@ -99,7 +99,6 @@ const MANAGEMENT: NavSection = { id: "management", icon: Settings2, items: [
   { id: "credentials", route: "/credentials", needs: "configuration.credentials", icon: KeyRound },
   { id: "quotas", route: "/quotas", needs: "configuration.quotas", icon: Gauge },
   { id: "routes", route: "/model-routes", needs: "configuration.routes", icon: Waypoints },
-  { id: "transfer", route: "/transfer", needs: "configuration.transfer", icon: Settings2 },
 ] }
 const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, MODEL_CATALOG, RULES, MANAGEMENT, PEOPLE, ACCESS, SYSTEM]
 
@@ -112,6 +111,7 @@ export function sectionsFor(context: ConsoleContext): Array<NavSection> {
 
 /** Whether this caller may enter a route, by the same table the sidebar uses. */
 export function mayEnter(context: ConsoleContext, route: string) {
+  if (route === "/transfer" || route === "/settings/transfer") return context.has(SETTINGS_ACCESS) && context.has("configuration.transfer")
   const target = route.startsWith("/providers/") ? "/providers" : route
   const item = SECTIONS.flatMap((section) => section.items).find((entry) => entry.route === target)
   return item ? context.has(item.needs) : true

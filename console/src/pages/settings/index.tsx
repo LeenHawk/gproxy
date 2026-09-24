@@ -12,7 +12,9 @@ import {
 } from "@/api/settings"
 import { ProxyControl, type ProxySettings } from "@/components/proxy-control"
 import { connectionProfiles } from "@/api/configuration"
-import { SESSION_KEY } from "@/capability/session"
+import { navigate, useRoute } from "@/lib/router"
+import { TransferPanel } from "@/pages/transfer"
+import { SESSION_KEY, useConsoleContext } from "@/capability/session"
 import type { SettingsDto } from "@/generated/sdk"
 import { Page, PageHeader } from "@/components/page"
 import { ErrorNotice, QueryState } from "@/components/state"
@@ -35,7 +37,15 @@ import { groups, settingsPatch, type SettingField } from "@/pages/settings/schem
 
 export function SettingsPage() {
   const { t } = useTranslation()
-  const [tab, setTab] = useState("general")
+  const context = useConsoleContext()
+  const route = useRoute()
+  const [settingsTab, setSettingsTab] = useState("general")
+  const canTransfer = context.has("configuration.transfer")
+  const tab = route === "/settings/transfer" && canTransfer ? "transfer" : settingsTab
+  const setTab = (value: string) => {
+    if (value !== "transfer") setSettingsTab(value)
+    navigate(value === "transfer" ? "/settings/transfer" : "/settings", { replace: true })
+  }
   const data = useQuery({ queryKey: SETTINGS_KEY, queryFn: readSettings })
   const info = useQuery({ queryKey: INFO_KEY, queryFn: instanceInfo })
   return (
@@ -51,14 +61,27 @@ export function SettingsPage() {
           ) : null
         }
       />
-      <QueryState isPending={data.isPending} error={data.error}>
-        {data.data ? <SettingsForm key={data.data.instance.configRevision} original={data.data} tab={tab} onTabChange={setTab} /> : null}
-      </QueryState>
+      <Tabs value={tab} onValueChange={setTab} className="gap-6">
+        <TabsList variant="line" className="max-w-full">
+          {groups.map((group) => (
+            <TabsTrigger key={group.id} value={group.id}>
+              {t(`settingsGroup.${group.id}`)}
+            </TabsTrigger>
+          ))}
+          {canTransfer ? <TabsTrigger value="transfer">{t("nav.transfer")}</TabsTrigger> : null}
+        </TabsList>
+        <div hidden={tab === "transfer"}>
+          <QueryState isPending={data.isPending} error={data.error}>
+            {data.data ? <SettingsForm key={data.data.instance.configRevision} original={data.data} /> : null}
+          </QueryState>
+        </div>
+        {canTransfer ? <TabsContent value="transfer"><TransferPanel /></TabsContent> : null}
+      </Tabs>
     </Page>
   )
 }
 
-function SettingsForm({ original, tab, onTabChange }: { original: SettingsDto; tab: string; onTabChange: (tab: string) => void }) {
+function SettingsForm({ original }: { original: SettingsDto }) {
   const { t } = useTranslation()
   const id = useId()
   const client = useQueryClient()
@@ -180,57 +203,48 @@ function SettingsForm({ original, tab, onTabChange }: { original: SettingsDto; t
   return (
     <form onSubmit={submit} className="flex min-w-0 flex-col gap-6">
       {saved.error ? <ErrorNotice error={saved.error} /> : null}
-      <Tabs value={tab} onValueChange={onTabChange} className="gap-6">
-        <TabsList variant="line" className="max-w-full">
-          {groups.map((group) => (
-            <TabsTrigger key={group.id} value={group.id}>
-              {t(`settingsGroup.${group.id}`)}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-        {groups.map((group) => (
-          <TabsContent key={group.id} value={group.id} forceMount className="data-[state=inactive]:hidden">
-            <FieldGroup key={resetEpoch} className="grid gap-6 sm:grid-cols-2">
-              {group.fields.map((field) => (
-                <Field
-                  key={field.name}
-                  className={["list", "allowlist"].includes(field.kind) ? "sm:col-span-2" : undefined}
-                >
-                  <FieldLabel htmlFor={`${id}-${field.name}`}>{t(`setting.${field.name}`)}</FieldLabel>
-                  {control(field)}
-                </Field>
-              ))}
-              {group.id === "tokenizer" ? (
-                <Field className="sm:col-span-2">
-                  <FieldLabel htmlFor={`${id}-token`}>
-                    {t("setting.tokenizerAuthToken")}
-                    <Badge variant="outline">
-                      {original.instance.hasTokenizerAuthToken && token !== null
-                        ? t("settings.configured")
-                        : t("settings.notConfigured")}
-                    </Badge>
-                  </FieldLabel>
-                  <div className="flex gap-2">
-                    <Input
-                      id={`${id}-token`}
-                      type="password"
-                      autoComplete="new-password"
-                      value={token ?? ""}
-                      onChange={(e) => setToken(e.target.value || undefined)}
-                    />
-                    <Button type="button" variant="outline" onClick={() => setToken(null)}>
-                      {t("settings.clearToken")}
-                    </Button>
-                  </div>
-                </Field>
-              ) : null}
-              {group.id === "maintenance" ? (
-                <p className="sm:col-span-2 text-sm">{t("settings.cleanupScope")}</p>
-              ) : null}
-            </FieldGroup>
-          </TabsContent>
-        ))}
-      </Tabs>
+      {groups.map((group) => (
+        <TabsContent key={group.id} value={group.id} forceMount className="data-[state=inactive]:hidden">
+          <FieldGroup key={resetEpoch} className="grid gap-6 sm:grid-cols-2">
+            {group.fields.map((field) => (
+              <Field
+                key={field.name}
+                className={["list", "allowlist"].includes(field.kind) ? "sm:col-span-2" : undefined}
+              >
+                <FieldLabel htmlFor={`${id}-${field.name}`}>{t(`setting.${field.name}`)}</FieldLabel>
+                {control(field)}
+              </Field>
+            ))}
+            {group.id === "tokenizer" ? (
+              <Field className="sm:col-span-2">
+                <FieldLabel htmlFor={`${id}-token`}>
+                  {t("setting.tokenizerAuthToken")}
+                  <Badge variant="outline">
+                    {original.instance.hasTokenizerAuthToken && token !== null
+                      ? t("settings.configured")
+                      : t("settings.notConfigured")}
+                  </Badge>
+                </FieldLabel>
+                <div className="flex gap-2">
+                  <Input
+                    id={`${id}-token`}
+                    type="password"
+                    autoComplete="new-password"
+                    value={token ?? ""}
+                    onChange={(e) => setToken(e.target.value || undefined)}
+                  />
+                  <Button type="button" variant="outline" onClick={() => setToken(null)}>
+                    {t("settings.clearToken")}
+                  </Button>
+                </div>
+              </Field>
+            ) : null}
+            {group.id === "maintenance" ? (
+              <p className="sm:col-span-2 text-sm">{t("settings.cleanupScope")}</p>
+            ) : null}
+          </FieldGroup>
+        </TabsContent>
+      ))}
       <div className="sticky bottom-0 flex justify-end gap-2 border-t bg-background py-3">
         <Button
           type="button"
