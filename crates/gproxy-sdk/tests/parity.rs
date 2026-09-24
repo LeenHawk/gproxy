@@ -546,6 +546,64 @@ async fn the_catalogues_are_readable_and_the_prices_are_idempotent() {
 }
 
 #[tokio::test]
+async fn default_prices_match_qualified_models_without_renaming_provider_rules() {
+    let gproxy = instance(None, false).await;
+    let provider = provider(&gproxy, "prices").await;
+    let names = [
+        "anthropic/claude-sonnet-4.5-20250929",
+        "OPENAI/GPT-5.6-SOL-PRO:BATCH",
+    ];
+    let catalog = gproxy.manage().catalog();
+    let applied = catalog
+        .apply_default_prices(ApplyDefaultPricesRequest {
+            provider_id: Some(provider.id.clone()),
+            model_ids: names.iter().map(|name| (*name).to_owned()).collect(),
+            overwrite: false,
+        })
+        .await
+        .unwrap();
+    assert_eq!(applied.created, 2);
+    assert_eq!(applied.unmatched, 0);
+    let rules = gproxy
+        .manage()
+        .pricing()
+        .rules()
+        .list(ListQuery {
+            provider_id: Some(provider.id.clone()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(rules.items.len(), 2);
+    for name in names {
+        assert!(rules.items.iter().any(|rule| rule.model_pattern == name));
+    }
+    let again = catalog
+        .apply_default_prices(ApplyDefaultPricesRequest {
+            provider_id: Some(provider.id),
+            model_ids: names.iter().map(|name| (*name).to_owned()).collect(),
+            overwrite: false,
+        })
+        .await
+        .unwrap();
+    assert_eq!(again.created, 0);
+    assert_eq!(again.skipped, 2);
+    let global = catalog
+        .apply_default_prices(ApplyDefaultPricesRequest {
+            provider_id: None,
+            model_ids: vec![
+                "claude-sonnet-4".to_owned(),
+                "anthropic/claude-sonnet-4".to_owned(),
+            ],
+            overwrite: false,
+        })
+        .await
+        .unwrap();
+    assert_eq!(global.created, 1);
+    assert_eq!(global.skipped, 1);
+}
+
+#[tokio::test]
 async fn catalog_audio_tiers_keep_their_units_when_applied() {
     let gproxy = instance(None, false).await;
     gproxy
@@ -621,9 +679,10 @@ async fn a_rule_preset_becomes_rewrite_rules() {
 #[tokio::test]
 async fn a_trace_answers_with_the_egress_address() {
     let gproxy = instance(None, false).await;
-    gproxy.client.script(vec![text_reply(
-        "fl=1f2\nh=www.cloudflare.com\nip=203.0.113.9\nts=1\ncolo=NRT\n",
-    )]);
+    gproxy.client.script(vec![
+        text_reply("fl=1f2\nh=1.1.1.1\nip=203.0.113.9\nts=1\ncolo=NRT\n"),
+        text_reply("fl=1f2\nh=2606:4700:4700::1111\nip=2001:db8::9\nts=1\ncolo=NRT\n"),
+    ]);
     let result = gproxy
         .manage()
         .connectivity()
@@ -636,6 +695,15 @@ async fn a_trace_answers_with_the_egress_address() {
     assert!(result.ok, "{result:?}");
     assert_eq!(result.ip.as_deref(), Some("203.0.113.9"));
     assert_eq!(result.colo.as_deref(), Some("NRT"));
+    assert_eq!(
+        result.ipv4.as_ref().map(|probe| probe.ip.as_str()),
+        Some("203.0.113.9")
+    );
+    assert_eq!(
+        result.ipv6.as_ref().map(|probe| probe.ip.as_str()),
+        Some("2001:db8::9")
+    );
+    assert_eq!(gproxy.client.seen().len(), 2);
     assert!(result.error.is_none());
     assert!(
         gproxy.client.seen()[0].contains("cdn-cgi/trace"),
@@ -647,9 +715,10 @@ async fn a_trace_answers_with_the_egress_address() {
 #[tokio::test]
 async fn an_unreachable_network_is_a_result_not_an_error() {
     let gproxy = instance(None, false).await;
-    gproxy
-        .client
-        .script(vec![Scripted::Fail("connection refused")]);
+    gproxy.client.script(vec![
+        Scripted::Fail("IPv4 connection refused"),
+        Scripted::Fail("IPv6 connection refused"),
+    ]);
     let result = gproxy
         .manage()
         .connectivity()
@@ -664,6 +733,8 @@ async fn an_unreachable_network_is_a_result_not_an_error() {
     assert!(!result.ok);
     assert!(result.ip.is_none());
     assert!(result.error.is_some(), "{result:?}");
+    assert!(result.ipv4_error.is_some());
+    assert!(result.ipv6_error.is_some());
 }
 
 #[tokio::test]

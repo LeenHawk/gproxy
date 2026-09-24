@@ -62,7 +62,9 @@ pub use capture::{
 
 pub mod dto;
 pub mod operations;
-pub use operations::{Issuer, IssuerError, IssuerOrigin, Operations, Portal, Scope, ScopedManage};
+pub use operations::{
+    CredentialLogin, Issuer, IssuerError, IssuerOrigin, Operations, Portal, Scope, ScopedManage,
+};
 
 pub mod publication;
 pub use publication::AppPublicationUrl;

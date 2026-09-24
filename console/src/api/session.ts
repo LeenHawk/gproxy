@@ -12,8 +12,8 @@
 //! other front door, and the console uses the portal's so that an ordinary
 //! account can sign out too.
 
-import type { PortalContextDto } from "@/generated/app"
-import { api, json } from "@/api/client"
+import type { AdminContextDto, PortalContextDto } from "@/generated/app"
+import { api, json, ApiError, getAdminScope, setAdminScope, UNAUTHORIZED_EVENT } from "@/api/client"
 
 /**
  * `GET /admin/api/session`. Not a DTO and so not generated: it is declared
@@ -30,8 +30,11 @@ export function signIn(name: string, password: string) {
   return api<IssuedSession>("/portal/api/login", json("POST", { name, password }))
 }
 
-export function signOut() {
-  return api<{ endedSession: boolean }>("/portal/api/logout", { method: "POST" })
+export async function signOut() {
+  const result = await api<{ endedSession: boolean }>("/portal/api/logout", { method: "POST" })
+  setAdminScope(null)
+  window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+  return result
 }
 
 /**
@@ -39,6 +42,22 @@ export function signOut() {
  * the application learns it has no session; [`api`] turns it into the
  * unauthorized event the shell listens for.
  */
-export function context() {
-  return api<PortalContextDto>("/portal/api/context")
+export type SessionContext = PortalContextDto & { admin: AdminContextDto | null }
+export async function context(): Promise<SessionContext> {
+  const portal = await api<PortalContextDto>("/portal/api/context")
+  const requested = getAdminScope()
+  let admin: AdminContextDto | null = null
+  try {
+    admin = await api<AdminContextDto>("/admin/api/context")
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 403) throw error
+    // A revoked selected scope may coexist with another valid membership.
+    if (requested !== null) {
+      setAdminScope(null)
+      try { admin = await api<AdminContextDto>("/admin/api/context") }
+      catch (retry) { if (!(retry instanceof ApiError) || retry.status !== 403) throw retry }
+    }
+  }
+  setAdminScope(admin?.scope?.selector ?? null, admin?.scopeHeader)
+  return { ...portal, admin }
 }

@@ -35,6 +35,7 @@ mod admin_context;
 mod api_keys;
 mod audit;
 mod common;
+mod credential_management;
 mod members;
 mod oauth;
 mod oauth_clients;
@@ -55,6 +56,7 @@ pub use admin_context::{AdminContextDto, AdminContextUserDto, AdminScopeDto, Adm
 pub use api_keys::{ApiKeyCreated, ApiKeyDto, ApiKeyPatch, ApiKeySecretDto, ApiKeyWrite};
 pub use audit::{AuditEventDto, AuditQuery};
 pub use common::{BatchItem, BatchPatch, ListQuery, Page, double_option};
+pub use credential_management::{CredentialOwnerOptionDto, CredentialProviderDto};
 pub use members::{MemberPatch, MemberWrite, MembershipDto, OrganizationMemberDto, TeamMemberDto};
 pub use oauth::{
     AuthorizationDenied, AuthorizationIssued, AuthorizationServerMetadata, AuthorizeDetails,

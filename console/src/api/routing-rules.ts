@@ -1,4 +1,4 @@
-import { family } from "@/api/admin"
+import { configFamily as family } from "@/api/config-family"
 import { api, json } from "@/api/client"
 import type { RuleSetDto, RuleSetWrite, RuleSetPatch, RewriteRuleDto, RewriteRuleWrite, RewriteRulePatch, ProviderRuleSetDto, ProviderRuleSetWrite, ProviderRuleSetPatch, OperationRuleDto, OperationRuleWrite, OperationRulePatch, OperationEndpointDto, OperationEndpointWrite, OperationEndpointPatch, RulePresetDto } from "@/generated/sdk"
 export const ruleSets = family<RuleSetDto, Partial<RuleSetWrite>, Partial<RuleSetPatch>>("/rule-sets")

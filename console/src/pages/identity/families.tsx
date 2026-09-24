@@ -1,3 +1,4 @@
+import { QuotaButton } from "@/pages/quotas"
 //! The identity families, each one a declaration.
 //!
 //! Twelve pages, twelve declarations, one [`CollectionPage`]. A family that
@@ -109,6 +110,7 @@ export function ApiKeysPage() {
         ]}
         rowActions={(row) => (
           <>
+            <QuotaButton ownerKind="api_key" ownerId={row.id} name={row.name} />
             <ConfirmButton
               title={t("confirm.rotateTitle", { name: row.name })}
               confirmLabel={t("actions.rotate")}
@@ -147,7 +149,7 @@ export function OrganizationsPage() {
           { name: "oauthClientAllowlist", kind: "lines", nullable: true },
         ]}
         rowActions={(row) => (
-          <Button variant="ghost" size="sm" onClick={() => setMembers(row)}>{t("actions.members")}</Button>
+          <><QuotaButton ownerKind="org" ownerId={row.id} name={row.name} /><Button variant="ghost" size="sm" onClick={() => setMembers(row)}>{t("actions.members")}</Button></>
         )}
       />
       <MembersDialog
@@ -188,7 +190,7 @@ export function TeamsPage() {
           { name: "oauthClientAllowlist", kind: "lines", nullable: true },
         ]}
         rowActions={(row) => (
-          <Button variant="ghost" size="sm" onClick={() => setMembers(row)}>{t("actions.members")}</Button>
+          <><QuotaButton ownerKind="team" ownerId={row.id} name={row.name} /><Button variant="ghost" size="sm" onClick={() => setMembers(row)}>{t("actions.members")}</Button></>
         )}
       />
       <MembersDialog

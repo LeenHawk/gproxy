@@ -239,6 +239,8 @@ name that stops working when somebody edits a provider.
 
 The Console's **Models** (`/console/model-catalog`) lists bundled models, context and output limits, modalities, supported parameters, reference rates and pricing tiers. Search the catalog, save local metadata overrides or add your own models. Removing a local entry leaves its bundled model visible.
 
+Bundled model IDs are unqualified names, such as `claude-sonnet-4`, rather than `anthropic/claude-sonnet-4`. Source URLs and raw prices retain their provenance. Qualified upstream names still resolve by basename. Default price matching prefers the longest matching model fragment; provider price imports keep the provider's actual upstream name as the rule pattern. Prices are edited in the existing global-model and provider-model dialogs.
+
 Discovery matches the full model ID first, then a unique basename; ambiguous names receive no defaults. Merge order is bundled defaults → non-null upstream fields → local overrides. Console imports fill only missing fields on existing provider models. Metadata is copied at import time; catalog edits do not automatically change previously imported provider rows.
 
 Default prices are an OpenRouter snapshot, not every provider's contract. Applying default prices creates global pricing rules without replacing an existing rule with the same pattern. The price editor manages rates, context tiers and service tiers. Provider-specific rules take precedence over global rules.

@@ -3,7 +3,7 @@ import type { DefaultModelPricingDto } from "./DefaultModelPricingDto";
 import type { JsonValue } from "./serde_json/JsonValue";
 
 /**
- * One catalog entry. `model_id` is the OpenRouter-style `vendor/name`; the
+ * One catalog entry. `model_id` is the unqualified model name; the
  * unmodelled keys — modalities, supported parameters, reasoning levels — stay
  * in `metadata`, which is exactly the shape the `models.metadata` column
  * holds.

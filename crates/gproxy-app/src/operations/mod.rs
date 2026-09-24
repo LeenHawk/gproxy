@@ -69,6 +69,8 @@
 //! families here so no rule is validated twice. See [`portal`].
 
 mod api_keys;
+mod credential_login;
+pub use credential_login::CredentialLogin;
 mod crud;
 pub mod issuer;
 mod members;

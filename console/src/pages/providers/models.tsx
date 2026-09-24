@@ -1,3 +1,5 @@
+import { useConfigBatch } from "@/components/config-batch"
+import { CredentialPicker } from "@/components/credential-picker"
 import { usePagination } from "@/lib/use-pagination"
 import { useState } from "react"
 import { BadgeDollarSign, Download, Pencil, Play, Plus, Search, Trash2 } from "lucide-react"
@@ -30,6 +32,7 @@ export function ProviderModels({ provider }: { provider: ProviderDto }) {
   const [editing, setEditing] = useState<{ id: string; row?: ProviderModelDto } | null>(null)
   const [pricing, setPricing] = useState<ProviderModelDto | null>(null)
   const [importing, setImporting] = useState<"models" | "prices" | null>(null)
+  const [credentialId, setCredentialId] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const { page, pageSize, setPage, setPageSize } = usePagination()
   const behavior = useQuery({ queryKey: ["model-variant-rules", editing?.id], queryFn: () => variantRules(editing!.id), enabled: !!editing })
@@ -43,12 +46,16 @@ export function ProviderModels({ provider }: { provider: ProviderDto }) {
     await saveVariantRules(provider.id, provider.name, id, body.upstreamName, variants)
   }, onSuccess: async () => { setEditing(null); await refresh(); toast.success(t("toast.saved")) }, onError: () => { void refresh() } })
   const toggle = useMutation({ mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) => providerModels.update(id, { enabled }), onSuccess: refresh })
-  const remove = useMutation({ mutationFn: async (id: string) => { await providerModels.remove(id); try { await ruleSets.remove(variantSetId(id)) } catch(e) { if (!(e instanceof ApiError && e.status === 404)) throw e } }, onSuccess: refresh })
-  const probe = useMutation({ mutationFn: (model: string) => testModel(provider.id, model) })
+  const cleanupVariants = async (ids: string[]) => {
+    for (const id of ids) try { await ruleSets.remove(variantSetId(id)) } catch (error) { if (!(error instanceof ApiError && error.status === 404)) throw error }
+  }
+  const remove = useMutation({ mutationFn: async (id: string) => { await providerModels.remove(id); await cleanupVariants([id]) }, onSuccess: refresh })
+  const probe = useMutation({ mutationFn: (model: string) => testModel(provider.id, model, credentialId) })
   const rows = (list.data ?? []).filter(r => `${r.upstreamName} ${object(r.metadata).display_name ?? ""}`.toLowerCase().includes(search.toLowerCase()))
   const visiblePage = Math.min(page, Math.max(1, Math.ceil(rows.length / pageSize)))
+  const batch = useConfigBatch({ family: providerModels, context: JSON.stringify([provider.id, search, visiblePage, pageSize]), rows: rows.slice((visiblePage - 1) * pageSize, visiblePage * pageSize), onSaved: refresh, afterDelete: cleanupVariants })
   const priced = (row: ProviderModelDto) => prices.data?.some(price => price.modelPattern === row.upstreamName && price.enabled)
-  const enabled = (row: ProviderModelDto) => <Switch aria-label={`${t("fields.enabled")}: ${row.upstreamName}`} checked={row.enabled} disabled={toggle.isPending} onCheckedChange={value => toggle.mutate({ id: row.id, enabled: value })} />
+  const enabled = (row: ProviderModelDto) => <div className="flex items-center gap-2">{batch.checkbox(row.id, row.upstreamName)}<Switch aria-label={`${t("fields.enabled")}: ${row.upstreamName}`} checked={row.enabled} disabled={toggle.isPending} onCheckedChange={value => toggle.mutate({ id: row.id, enabled: value })} /></div>
   const actions = (row: ProviderModelDto) => <>
     <Button size="icon-sm" variant="ghost" aria-label={`${t("providers.models.test")}: ${row.upstreamName}`} title={t("providers.models.test")} disabled={probe.isPending} onClick={() => probe.mutate(row.upstreamName)}><Play /></Button>
     <Button size="icon-sm" variant="ghost" aria-label={`${t("providers.models.pricing")}: ${row.upstreamName}`} title={t("providers.models.pricing")} onClick={() => setPricing(row)}><BadgeDollarSign /></Button>
@@ -56,6 +63,8 @@ export function ProviderModels({ provider }: { provider: ProviderDto }) {
     <ConfirmButton iconOnly title={t("confirm.deleteTitle", { name: row.upstreamName })} disabled={remove.isPending} onConfirm={() => remove.mutate(row.id)}><Trash2 /></ConfirmButton>
   </>
   return <div className="flex flex-col gap-4">
+    {batch.toolbar}
+    <CredentialPicker providerId={provider.id} value={credentialId} onChange={setCredentialId} disabled={probe.isPending} />
     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between"><div className="flex w-full min-w-0 items-center gap-3 sm:w-auto sm:min-w-64 sm:flex-1"><InputGroup className="w-full sm:max-w-xs"><InputGroupAddon><Search /></InputGroupAddon><InputGroupInput aria-label={t("actions.search")} placeholder={t("actions.search")} value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} /></InputGroup><span className="shrink-0 text-sm">{t("catalog.count", { count: rows.length })}</span></div><div className="flex flex-wrap items-center gap-2"><Button variant="outline" size="sm" onClick={() => setImporting("models")}><Download data-icon="inline-start" />{t("providers.models.pull")}</Button><Button variant="outline" size="sm" onClick={() => setImporting("prices")}><BadgeDollarSign data-icon="inline-start" />{t("modelUI.defaultPrices")}</Button><Button size="sm" onClick={() => { save.reset(); setEditing({ id: crypto.randomUUID() }) }}><Plus data-icon="inline-start" />{t("actions.new")}</Button></div></div>
     {toggle.error || remove.error || probe.error ? <ErrorNotice error={toggle.error || remove.error || probe.error} /> : null}
     {probe.data ? <div className="rounded-lg border p-3 text-sm"><p>{probe.data.ok ? t("modelUI.testOk") : probe.data.error} · {probe.data.latencyMs} ms · {probe.data.credentialLabel ?? "—"}</p>{probe.data.reply ? <p className="whitespace-pre-wrap">{probe.data.reply}</p> : null}</div> : null}

@@ -28,7 +28,12 @@
     "operation-endpoints": "端點 URL",
     "update": "系統更新",
     "connection-profiles": "請求客戶端",
-    "model-catalog": "模型"
+    "model-catalog": "模型",
+    "quotas": "配額",
+    "routes": "模型路由",
+    "route-members": "路由成員",
+    "exposed-models": "公開模型名稱",
+    "transfer": "設定匯入匯出"
   },
   "create": {
     "keys": "新建金鑰",
@@ -40,14 +45,18 @@
     "rate-limits": "新建限流",
     "oauth-clients": "註冊用戶端",
     "providers": "新增供應商",
-    "credentials": "新增憑證",
+    "credentials": "新增 憑證",
     "provider-models": "新增模型",
     "rule-sets": "新增規則集",
     "rules": "新增重寫規則",
     "provider-rule-sets": "新增綁定規則集",
     "operation-rules": "新增路由規則",
     "operation-endpoints": "新增端點",
-    "connection-profiles": "新增請求客戶端"
+    "connection-profiles": "新增請求客戶端",
+    "quotas": "新增 配額",
+    "routes": "新增 模型路由",
+    "route-members": "新增 路由成員",
+    "exposed-models": "新增 公開模型名稱"
   },
   "edit": {
     "users": "編輯使用者",
@@ -58,13 +67,17 @@
     "rate-limits": "編輯限流",
     "oauth-clients": "編輯用戶端",
     "providers": "編輯供應商",
-    "credentials": "編輯憑證",
+    "credentials": "編輯 憑證",
     "provider-models": "編輯模型",
     "rule-sets": "編輯規則集",
     "rules": "編輯重寫規則",
     "provider-rule-sets": "編輯綁定規則集",
     "operation-rules": "編輯路由規則",
     "operation-endpoints": "編輯端點",
-    "connection-profiles": "編輯請求客戶端"
+    "connection-profiles": "編輯請求客戶端",
+    "quotas": "編輯 配額",
+    "routes": "編輯 模型路由",
+    "route-members": "編輯 路由成員",
+    "exposed-models": "編輯 公開模型名稱"
   }
 }

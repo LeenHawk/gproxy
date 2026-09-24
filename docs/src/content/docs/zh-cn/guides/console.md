@@ -1,150 +1,92 @@
 ---
-title: 控制台、门户与公开站点
-description: "gproxy 二进制提供的三个 Web 界面、控制台每个板块管理的内容，以及控制台如何构建并嵌入二进制"
+title: 控制台与范围管理
+description: "在 v4 控制台管理凭证、上游登录、路由、配额、价格与配置导入导出。"
 ---
 
-`gproxy` 二进制在三个路径上提供同一个 React 应用。构建产物嵌入在二进制里，无
-需额外部署任何东西。
+v4 控制台位于 `/console`，同一个应用包含个人页面和管理页面。使用部署时配置的账号登录；
+控制台通过 `/portal/api/login` 登录，使用 HttpOnly 会话 Cookie。
 
-| 路径 | 界面 | API | 面向 |
-| --- | --- | --- | --- |
-| `/` | 公开站点 | 无 | 任何能访问该端口的人 |
-| `/admin` 与 `/admin/*` | 操作员控制台 | `/admin/api/**` | 管理员 |
-| `/portal` | 用户门户 | `/portal/api/**` | 设有密码的用户 |
+## 管理范围
 
-端口上的其余流量都是以 API 密钥认证的网关流量（见
-[路由与端点](/zh-cn/reference/routing-table/)）。
+控制台结合 `/portal/api/context` 的个人功能和 `/admin/api/context` 返回的管理能力。
+实例管理员管理网关配置；组织和团队管理员管理当前范围内的凭证及配额。
 
-## 首次启动
+管理多个组织或团队时，在账户菜单中选择范围。管理请求通过 `x-gproxy-admin-scope`
+携带后端返回的范围标识。切换范围会关闭编辑和登录窗口，并更换对应的查询缓存；正在提交的写入
+需要完成后才能切换。个人页面不依赖管理范围。
 
-在管理员存在之前，`GET /admin/api/session` 返回 `setup_required: true`。此时
-控制台显示 **创建管理员**；`POST /admin/api/setup` 接受一个用户名和密码，创建
-第一个管理员，打开会话并记录一条 `auth.setup` 审计事件。该表单按来源地址限流
-为每分钟四次尝试。
+## 配置入口
 
-如需跳过表单，启动二进制时设置 `GPROXY_ADMIN_PASSWORD`（可选
-`GPROXY_ADMIN_USER`，默认 `admin`）。账户在首次运行时创建，管理员 API 密钥自
-动生成或取自 `GPROXY_BOOTSTRAP_ADMIN_API_KEY`，`GPROXY_BOOTSTRAP_CHANNELS`
-可为列出的通道 id 创建空 Provider。引导密钥与通道只在首次运行时生效，但指定
-管理员的密码会在每次启动时重新应用，因此登录后请移除
-`GPROXY_ADMIN_PASSWORD`。见[配置](/zh-cn/reference/configuration/)。
-
-## 登录
-
-控制台通过 `POST /admin/api/login` 登录并持有 `gproxy_admin_session`
-Cookie：HttpOnly、`SameSite=Strict`、限定 `/admin` 路径、有效期 12 小时。使用
-Cookie 发起的写操作必须同源。脚本可用 `Authorization: Bearer <api-key>` 调用
-管理 API，密钥须属于标记为 `is_admin` 的用户；Bearer 调用不做同源检查。登录
-与登出分别审计为 `auth.login` 和 `auth.logout`。
-
-## 控制台板块
-
-侧边栏列出十个板块。路径都是可收藏的真实 URL。
-
-| 板块 | 路径 | 管理内容 |
-| --- | --- | --- |
-| 概览 | `/admin` | 健康凭证比例、需要关注的凭证、24 小时内的请求数与结算成本、7 天的每小时用量趋势、按 Provider 的支出、达到或超过 80% 的配额窗口与上游周期。 |
-| 供应商 | `/admin/providers` | Provider 列表与详情标签页：凭证（凭证池、登录向导、健康、配额周期）、模型（服务的模型、变体、单模型定价）、规则、路由规则、设置（通道字段、端点覆盖、代理、TLS 指纹、转发元数据）。 |
-| 负载均衡 | `/admin/routes` | 路由：名称、最大尝试次数、成员（Provider、固定凭证、上游模型、故障转移层级、权重）、带公开元数据的模型映射、路由别名与模型别名。 |
-| 规则 | `/admin/rules` | 规则集、其变更规则与实际顺序，以及 Provider 附加关系。 |
-| 身份 | `/admin/identity` | 组织、团队、用户与 API 密钥；各作用域上的权限、限流与配额，并显示继承值。 |
-| 统计 | `/admin/usage` | 用量、管理操作（`/admin/audit`）与请求审计（`/admin/logs`）三个标签页。 |
-| 定价 | `/admin/pricing` | 按模型模式的价格规则、维度费率、上下文与服务层级阶梯。 |
-| 分词器词表 | `/admin/tokenizers` | 词表开关、自动获取、默认词表、Hugging Face token、已缓存词表（带进度的获取、删除）。 |
-| 更新 | `/admin/update` | 更新通道与自动检查偏好、签名更新检查、应用、回滚、发布说明。仅原生构建。 |
-| 设置 | `/admin/settings` | 实例设置、全局元数据黑名单、保留与捕获、配置导出与导入、门户设置、登录时启动。 |
-
-打开自动检查且所选通道上存在更新构建时，每个页面上方都会出现更新横幅。原生
-二进制还会显示签名公告源。侧边栏底部打印构建标识：版本、通道、短哈希和安装
-类型。
-
-## 实例设置
-
-`GET` 与 `PATCH /admin/api/instance-settings` 携带以下键；设置、分词器词表和
-更新页面编辑的是同一条记录的不同子集。
-
-| 键 | 含义 |
+| 控制台路径 | 功能 |
 | --- | --- |
-| `instance_name` | 写入每条用量行维度的标签。默认 `default`。 |
-| `proxy` | 默认上游代理 URL，在凭证与 Provider 的覆盖之后使用。 |
-| `inherit_system_proxy` | 没有显式代理时遵循 `HTTP_PROXY` 与 `HTTPS_PROXY`。默认关闭。 |
-| `enable_usage` | 结算后持久化用量行。默认开启；关闭后准入与计费仍然执行。 |
-| `enable_tokenizer_vocabs`、`enable_tokenizer_download`、`default_tokenizer_vocab` | 用真实词表计数 Token、自动获取缺失词表，以及回退词表。 |
-| `file_upload_max_in_flight` | 并发文件上传数；`0` 为不限。`GPROXY_FILE_UPLOAD_MAX_IN_FLIGHT` 优先。 |
-| `retention_days`、`max_database_size_mb` | 可观测性清理边界；至少设置一个才能开启请求体捕获。 |
-| `enable_downstream_log`、`enable_downstream_log_body`、`enable_upstream_log`、`enable_upstream_log_body`、`disable_log_redaction` | 线上捕获与脱敏，见[用量、日志与审计](/zh-cn/guides/observability/)。 |
-| `update_channel`、`enable_auto_update_check` | `releases`、`staging` 或 `dev`；未设置时跟随二进制构建时的通道。 |
-| `traffic_blacklist` | 在任何通道允许列表之前，实例范围内额外剔除的请求头、响应头与查询参数。 |
+| `/console/providers` | 供应商配置、凭证、模型、协议转换、重写规则绑定及端点覆盖 |
+| `/console/credentials` | 按供应商分组的凭证管理，组织/团队管理员也可进入 |
+| `/console/model-routes` | 跨供应商路由、成员、权重、回退层级及公开模型名 |
+| `/console/quotas` | 调用方预算和供应商/凭证限额 |
+| `/console/rule-sets` | 重写规则、排序和整组保存 |
+| `/console/transfer` | 配置导入导出 |
+| `/console/clients` | 可复用连接配置 |
+| `/console/settings` | 实例与日志设置 |
+| `/console/tokenizer` | 词表下载及模型词表绑定 |
+| `/console/update` | 当前宿主支持的更新操作 |
 
-门户唯一的设置——用户能否看到最近结算请求——位于 `GET` 与
-`PATCH /admin/api/portal-settings`。设置页的 **测试连通性** 通过已保存的代理
-链探测出口，并报告上游会看到的地址。
+供应商的“路由规则”标签管理操作与协议转换；“模型路由”负责选择上游供应商，两者分别配置。
 
-## 主题与语言
+配置表格支持选择当前页记录并批量删除；有启用开关的记录还支持批量启停。修改筛选、翻页或切换
+管理范围会清空选择。每次批量写入使用现有配置 API 的事务。
 
-每个界面都提供 English、简体中文和繁體中文。控制台与门户还提供浅色、深色和
-跟随系统三种主题；选择保存在浏览器的 `gproxy-console-theme` 中。公开站点只显
-示语言菜单。
+## 凭证与上游登录
 
-## 深链接
+进入供应商的凭证标签，或在凭证页选择对应供应商分组。新增凭证和登录流程自动绑定该供应商。
+归属只能选择当前管理范围允许的对象。租户目录只展示供应商名称和支持的操作，不开放网关配置。
 
-| URL | 打开 |
-| --- | --- |
-| `/admin/providers/<id>/<tab>` | 某个 Provider 的 `credentials`、`models`、`rules`、`routing` 或 `settings` 标签页；`/credentials/<credentialId>` 打开单个凭证。 |
-| `/admin/routes/<id>/models`、`/admin/routes/<id>/settings`、`/admin/routes/new` | 某个路由的标签页，或创建表单。 |
-| `/admin/identity/<users\|teams\|organizations>/<id>` | 某个身份实体。`/admin/keys/...` 是其别名。 |
-| `/admin/logs/<request_id>` | 一条捕获的请求及其上游尝试。 |
-| `/portal?oauth_return=/<path>` | 门户登录后继续跳转到同源路径；CLI 登录流程会用到。 |
+凭证详情提供已保存的配额观测、本地限额、生命周期状态、密钥查看，以及渠道支持的刷新、查询和
+重置操作。上游配额重置、本地限额重置、健康状态重置是不同操作。模型发现和生成测试可指定具体
+凭证；生成测试会真实请求上游。
 
-## 键盘与小屏幕
+“登录添加凭证”根据渠道支持情况显示：
 
-可打开详情的表格行和卡片可获得焦点，响应 Enter 和空格。侧边栏与工作区的拖动
-手柄接受方向键、Home 和 End，并记住宽度。低于 `lg` 断点时侧边栏变为可横向滚
-动的条；低于 `md` 时列表加详情的工作区一次只显示一栏并提供返回按钮，数据表
-渲染为卡片。
+- 浏览器授权：开始后打开授权链接，再粘贴包含 `code` 和 `state` 的完整回调 URL。
+  注册的本机回调页面可能无法打开，仍可复制地址栏中的回调地址。控制台不会启动本机回调监听服务。
+- 设备码：打开验证链接，输入页面显示的验证码。控制台按后端返回的间隔轮询；成功、拒绝、过期或
+  关闭窗口后停止轮询。
+- Cookie 交换：提交已有的浏览器会话 Cookie，由渠道换取凭证。
 
-## 用户门户
+登录会话绑定发起用户、管理范围和凭证归属。完成后只返回凭证 ID，不返回密钥。关闭未完成流程会
+停止界面操作，后端缓存会话自然过期；刷新页面不会恢复登录向导。
 
-任何设有密码的用户都可以在 `/portal` 登录（`POST /portal/api/login`；Cookie
-`gproxy_portal_session`，12 小时）。管理员在身份板块创建用户并设置初始密码；
-用户在门户中修改密码。
+上游登录接口均为 `/admin/api/credential-login` 下的 POST：`/authcode/start`、
+`/authcode/complete`、`/device/start`、`/device/poll`、`/cookie/exchange`，沿用凭证管理的范围检查。
+按凭证发现和测试模型分别使用 `/admin/api/credentials/{id}/models/discover` 和 `/models/test`。
 
-| 面板 | 作用 |
-| --- | --- |
-| 账户 | 修改密码。创建前缀为 `sk`（API 客户端）或 `at`（Codex access-token 登录）的 API 密钥并可加标签；密钥只显示一次。列出并撤销自己的密钥。 |
-| 连接 | 选择一个获准使用的模型，复制可直接运行的片段：curl、OpenAI Python、Claude Python、Gemini Python、Codex CLI 配置、Claude Code 环境变量。片段仅限该模型能服务的线上格式。 |
-| 获准使用的模型 | 账户可调用的实时路由及其能力。 |
-| 用量与成本 | 1、7 或 30 天内已结算的请求数、输入、输出与缓存 Token 以及成本。 |
-| 配额窗口 | 作用于用户、团队和组织的支出窗口：总量、每日、每周、每月、5 小时与 7 天。 |
-| 最近结算请求 | 最近 20 条请求，含 Provider、操作、上游模型、Token、成本与延迟。仅在管理员启用后显示；永不显示请求体。 |
+## 配额与价格
 
-密钥形如 `<prefix>-gp-<random>`。Codex 与 Claude Code 片段在
-[CLI 客户端](/zh-cn/guides/cli-clients/)中说明。
+调用方预算支持用户、API Key、组织、团队及 pool 归属；供应商和凭证限额还支持请求次数。
+费用按 USD 十进制字符串传输，请求次数使用 `count` 单位。周期、锚点、自定义时长和模型匹配
+沿用后端约定。pool 标识需手工填写，没有独立 pool 目录。
 
-## 公开站点
+用户、API Key、组织、团队、供应商和凭证页面均有配额快捷入口。预算重置调用
+`/quotas/{id}/reset`；供应商/凭证限额重置调用 `/quotas/{id}/limit-reset`，不会重置上游账号配额。
 
-`/` 是一个落地页：一个可在 OpenAI Chat、Claude Messages 与 Gemini 之间切换的
-请求转换示例、执行漏斗、产品要点、带模型占位符的连接示例，以及指向管理控制
-台、门户、源码仓库和许可证的链接。
+价格规则可作用于全部供应商或指定供应商，模型匹配支持 `*` 和 `?`，同一模型可有多条按操作区分的
+规则。全局价格在模型目录中编辑，供应商价格在供应商的模型标签中编辑；模型与价格共用现有入口，费率和阶梯价格也在同一弹窗管理。
 
-## 构建并嵌入控制台
+## 导入导出
 
-控制台位于 `console/`，用 pnpm 管理。
+导入导出文档包含网关配置，不包含身份、用量或请求日志。导出默认不包含凭证密钥，选择包含时使用
+已存储的密封格式。导入接受当前 v4 文档格式。
 
-```bash
-cd console
-pnpm install
-pnpm build      # tsc -b, vite build, then scripts/sync-to-embed.mjs
-```
+文件摘要展示版本和记录数量，不代表后端已经预检。“合并”更新相同 ID 的记录，并保留未提及的记录；
+“替换”还会删除文件中未包含的配置记录，仅限可导出的配置类别。
 
-最后一步把 `console/dist/` 复制到 `crates/gproxy-host-axum/assets/web/`，由
-`rust-embed` 编译进二进制。之后重新构建 `gproxy`。没有该目录也能构建二进制并
-提供 API；访问 `/` 时返回
-`web assets are not embedded; run pnpm build in console/ and rebuild gproxy`。
+从使用不同主密钥的实例导入加密凭证时，填写源主密钥以重新加密；不填写时，加密凭证要求目标使用
+相同密钥。提交结束后界面清除源主密钥。
 
-开发时 `pnpm dev` 启动 Vite，并把管理与门户 API 代理到运行中的后端。控制台
-改动以 `pnpm lint` 和 `pnpm test` 收尾。`console/src/generated/` 下的类型由
-`ts-rs` 在 `cargo test` 期间从 Rust DTO 生成，绝不手工编辑。
+导入使用事务，提交后宿主重载运行态设置。请查看返回的警告和跳过数量：重载失败表示配置已经导入、
+运行态重载出现问题，不表示数据库写入已经回滚。
 
-嵌入的 `index.html` 服务于 `/`、`/admin`、`/admin/*` 和 `/portal`；`/assets/`
-下带哈希的文件缓存一年，HTML 为 `no-cache`，`/build-info.js` 注入构建标识。
+## 构建控制台
+
+运行 `pnpm --dir console lint`、`pnpm --dir console test` 和 `pnpm --dir console build`。
+构建会进行类型检查、Vite 打包，并将资源复制到控制台嵌入目录。随后构建的原生程序可在 `/console`
+提供该资源；Edge 部署把同一份资源作为网关前的静态资源部署。

@@ -19,12 +19,10 @@
 //! authorization decision.
 //!
 //! The backend also exposes `/admin/api/context` for scoped administration.
-//! This console still uses the portal context for its session and exposes
-//! instance-admin management pages through the adapter below.
+//! Portal features describe self-service; management sections and scope
+//! selectors come from the authenticated administrative context.
 
-import type { PortalContextDto } from "@/generated/app"
-import { SETTINGS_ACCESS } from "@/api/settings"
-import { PROVIDERS_READ } from "@/api/configuration"
+import type { AdminContextDto, AdminScopeDto, PortalContextDto } from "@/generated/app"
 
 /**
  * One scope a caller may administer in.
@@ -33,10 +31,7 @@ import { PROVIDERS_READ } from "@/api/configuration"
  * `Organization(id)` or `Team(id)`, one per request. `name` is carried
  * alongside so a scope can be named to a person without a second lookup.
  */
-export type AdminScope =
-  | { kind: "instance" }
-  | { kind: "organization"; id: string; name: string }
-  | { kind: "team"; id: string; name: string }
+export type AdminScope = AdminScopeDto
 
 export function scopeKey(scope: AdminScope) {
   return scope.kind === "instance" ? "instance" : `${scope.kind}:${scope.id}`
@@ -75,6 +70,7 @@ export const SELF_LOGS_READ = "self.logs.read"
 
 /** Everything the application is allowed to branch on. */
 export type ConsoleContext = {
+  switchScope?: (selector: string) => Promise<void>
   userId: string
   userName: string
   hasPassword: boolean
@@ -89,68 +85,22 @@ export type ConsoleContext = {
   has: (capability: Capability) => boolean
 }
 
-/**
- * The adapter, and the only place a role string is read.
- *
- * `PortalContextDto` carries three kinds of fact and this maps each one:
- *
- * - `user.role === "admin"` — an instance operator, who by today's route table
- *   may reach the identity families and provider configuration;
- * - a membership whose per-scope `role` is `admin` becomes an [`AdminScope`].
- *   Scoped management is not exposed by this adapter; only instance operators
- *   receive the management navigation here;
- * - `features.*` — three facts the host already computes about this caller,
- *   two of them about an OAuth-grant caller being refused the writing half of
- *   the account it was lent, and one an instance setting.
- *
- * Replacing this with a parse of `/admin/api/context` is the whole of the
- * migration.
- */
-function fromPortalContext(context: PortalContextDto) {
+/** Combine portal features with the selected scope's server-granted sections. */
+export function consoleContext(context: PortalContextDto & { admin?: AdminContextDto | null }): ConsoleContext {
   const capabilities = new Set<Capability>([SELF_READ])
-  const scopes: Array<AdminScope> = []
-
-  if (context.user.role === "admin") {
-    scopes.push({ kind: "instance" })
-    capabilities.add(PROVIDERS_READ)
-    capabilities.add(SETTINGS_ACCESS)
-    for (const family of IDENTITY_FAMILIES) capabilities.add(`identity.${family}`)
-  }
-  for (const entry of context.organizations) {
-    if (entry.role === "admin") scopes.push({ kind: "organization", id: entry.id, name: entry.name })
-  }
-  for (const entry of context.teams) {
-    if (entry.role === "admin") scopes.push({ kind: "team", id: entry.id, name: entry.name })
-  }
-
   if (context.features.canCreateKeys) capabilities.add(SELF_KEYS_WRITE)
   if (context.features.canChangePassword) capabilities.add(SELF_PASSWORD_CHANGE)
   if (context.features.canSeeLogs) capabilities.add(SELF_LOGS_READ)
-
-  return { capabilities, scopes }
-}
-
-/**
- * The context the shell runs on.
- *
- * The current scope defaults to the first one the caller has, which for an
- * instance operator is `instance`. A scope *switcher* is deliberately not
- * built here: choosing a scope means sending it with each request, and that
- * header is defined by the same change that adds the endpoint above. The shape
- * is ready for one — `scopes` is a list and `scope` is a single value — and
- * nothing else has to move when it arrives.
- */
-export function consoleContext(context: PortalContextDto): ConsoleContext {
-  const { capabilities, scopes } = fromPortalContext(context)
+  for (const section of context.admin?.sections ?? []) {
+    if (!section.capabilities.includes("read")) continue
+    const prefix = (IDENTITY_FAMILIES as readonly string[]).includes(section.id) ? "identity" : "configuration"
+    capabilities.add(`${prefix}.${section.id}`)
+    if (section.capabilities.includes("write")) capabilities.add(`${prefix}.${section.id}.write`)
+  }
   return {
-    userId: context.user.id,
-    userName: context.user.name,
-    hasPassword: context.user.hasPassword,
-    organizations: context.organizations,
-    teams: context.teams,
-    scopes,
-    scope: scopes[0] ?? null,
-    capabilities,
-    has: (capability) => capabilities.has(capability),
+    userId: context.user.id, userName: context.user.name, hasPassword: context.user.hasPassword,
+    organizations: context.organizations, teams: context.teams,
+    scopes: context.admin?.scopes ?? [], scope: context.admin?.scope ?? null,
+    capabilities, has: capability => capabilities.has(capability),
   }
 }

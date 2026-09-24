@@ -1,10 +1,10 @@
+import { QuotaButton } from "@/pages/quotas"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { Boxes, KeyRound, Settings2 } from "lucide-react"
 import { toast } from "sonner"
-import { channels, credentials, providers, providerPath, connectionProfiles } from "@/api/configuration"
+import { channels, providers, providerPath } from "@/api/configuration"
 import type { ChannelDescriptor, ProviderDto } from "@/generated/sdk"
-import { BoolCell, InstantCell } from "@/components/cells"
 import { ConfirmButton } from "@/components/confirm"
 import { Page, PageHeader, PageSection } from "@/components/page"
 import { ProviderForm } from "@/pages/providers/provider-form"
@@ -12,11 +12,9 @@ import { ErrorNotice, QueryState } from "@/components/state"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CollectionPage } from "@/pages/identity/collection"
-import { authKinds, credentialFields } from "@/pages/providers/fields"
+import { ProviderCredentials } from "@/pages/credentials"
 import { ProviderRules, ProviderOperations, ProviderEndpoints } from "@/pages/providers/rules"
 import { ProviderModels } from "@/pages/providers/models"
-import { EgressTest } from "@/components/proxy-control"
 import { useNavigate } from "@/lib/router"
 
 export function ProviderDetailPage({ providerId, tab }: { providerId: string; tab: string }) {
@@ -33,10 +31,10 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
   const { t } = useTranslation()
   const client = useQueryClient()
   const navigate = useNavigate()
-  const profiles = useQuery({ queryKey: ["admin", "/connection-profiles", "directory"], queryFn: connectionProfiles })
   const channel = catalog.find((entry) => entry.id === provider.channel)
   const saved = () => {
     void client.invalidateQueries({ queryKey: ["admin", "/providers"] })
+    void client.invalidateQueries({ queryKey: ["credential-providers"] })
     toast.success(t("toast.saved"))
   }
   const update = useMutation({
@@ -57,6 +55,7 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
       <PageHeader
         title={provider.name}
         actions={<>
+          <QuotaButton ownerKind="provider" ownerId={provider.id} name={provider.name} />
           <Badge variant="outline">{channel?.displayName ?? provider.channel}</Badge>
           <Switch aria-label={t("fields.enabled")} checked={provider.enabled} disabled={update.isPending} onCheckedChange={(enabled) => update.mutate({ enabled })} />
           <ConfirmButton title={t("confirm.deleteTitle", { name: provider.name })} disabled={remove.isPending} onConfirm={() => remove.mutate()}>{t("actions.delete")}</ConfirmButton>
@@ -74,28 +73,7 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
         </TabsList>
         <TabsContent value="rules"><ProviderRules providerId={provider.id} /></TabsContent>
         <TabsContent value="routing"><ProviderOperations providerId={provider.id} /></TabsContent>
-        <TabsContent value="credentials"><QueryState isPending={profiles.isPending} error={profiles.error}>
-          <CollectionPage
-            embedded
-            id="credentials"
-            family={credentials}
-            filter={{ providerId: provider.id }}
-            create={(body) => credentials.create({ ...body, providerId: provider.id })}
-            searchable
-            rowId={(row) => row.id}
-            rowLabel={(row) => row.label ?? row.id}
-            columns={[
-              { key: "label", cell: (row) => row.label ?? row.id },
-              { key: "authKind", cell: (row) => authKinds.find((kind) => kind.value === row.authKind)?.label ?? row.authKind },
-              { key: "connectionProfileId", cell: (row) => profiles.data?.find((profile) => profile.id === row.connectionProfileId)?.name ?? t("form.unset") },
-              { key: "status", cell: (row) => <Badge variant={row.status === "active" ? "success" : "destructive"}>{t(`values.${row.status}`)}</Badge> },
-              { key: "enabled", cell: (row) => <BoolCell value={row.enabled} /> },
-              { key: "expiresAtMs", cell: (row) => <InstantCell value={row.expiresAtMs} /> },
-            ]}
-            rowActions={row => <EgressTest scope={{ scope: "credential", credential_id: row.id }} />}
-            fields={credentialFields.map((field) => field.name === "proxy" ? { ...field, proxyScope: (original?: Record<string, unknown>) => original?.id ? { scope: "credential" as const, credential_id: String(original.id) } : { scope: "provider" as const, provider_id: provider.id, parent: true } } : field.name === "connectionProfileId" ? { ...field, kind: "select" as const, choices: (profiles.data ?? []).map((profile) => ({ value: profile.id, label: profile.name })) } : field)}
-          />
-        </QueryState></TabsContent>
+        <TabsContent value="credentials"><ProviderCredentials providerId={provider.id} /></TabsContent>
         <TabsContent value="models"><ProviderModels provider={provider} /></TabsContent>
         <TabsContent value="settings" className="flex flex-col gap-6">
           <ProviderForm key={`${provider.id}-${JSON.stringify(provider)}`} provider={provider} catalog={catalog} onSubmit={(body) => update.mutate(body)} pending={update.isPending} error={update.error} />

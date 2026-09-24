@@ -1,4 +1,5 @@
-import { family, type ListFilter, type Family } from "@/api/admin"
+import { type ListFilter, type Family } from "@/api/admin"
+import { configFamily as family } from "@/api/config-family"
 import { api, json } from "@/api/client"
 import type { ApplyDefaultPricesReportDto, DefaultModelCatalogDto, DiscoveredModelDto, ModelTestResultDto, PriceRuleDto, PriceRuleWrite, PriceRulePatch, PriceRateDto, PriceRateWrite, PriceRatePatch, PriceTierDto, PriceTierWrite, PriceTierPatch, ModelDto, ModelWrite, ModelPatch } from "@/generated/sdk"
 export async function directory<D, W, P>(resource: Family<D, W, P>, filter: ListFilter = {}) {
@@ -8,8 +9,8 @@ export async function directory<D, W, P>(resource: Family<D, W, P>, filter: List
 export const priceRules = family<PriceRuleDto, Partial<PriceRuleWrite>, Partial<PriceRulePatch>>("/price-rules")
 export const priceRates = family<PriceRateDto, Partial<PriceRateWrite>, Partial<PriceRatePatch>>("/price-rates")
 export const priceTiers = family<PriceTierDto, Partial<PriceTierWrite>, Partial<PriceTierPatch>>("/price-tiers")
-export const discoverModels = (providerId: string) => api<DiscoveredModelDto[]>("/admin/api/models/discover", json("POST", { providerId }))
-export const testModel = (providerId: string, model: string) => api<ModelTestResultDto>("/admin/api/models/test", json("POST", { providerId, model }))
+export const discoverModels = (providerId: string, credentialId: string | null = null) => api<DiscoveredModelDto[]>("/admin/api/models/discover", json("POST", { providerId, credentialId }))
+export const testModel = (providerId: string, model: string, credentialId: string | null = null) => api<ModelTestResultDto>("/admin/api/models/test", json("POST", { providerId, model, credentialId }))
 export const defaultModels = () => api<DefaultModelCatalogDto>("/admin/api/default-model-catalog")
 export const applyDefaultPrices = (providerId: string | null, modelIds: string[]) => api<ApplyDefaultPricesReportDto>("/admin/api/default-model-catalog/apply-prices", json("POST", { providerId, modelIds, overwrite: false }))
 

@@ -93,9 +93,15 @@ const ACCESS: NavSection = {
   ],
 }
 
-const SYSTEM: NavSection = { id: "system", icon: Settings2, items: [{ id: "settings", route: "/settings", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "tokenizer", route: "/tokenizer", needs: SETTINGS_ACCESS, icon: BookOpenText }, { id: "update", route: "/update", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "connection-profiles", route: "/clients", needs: SETTINGS_ACCESS, icon: Settings2 }] }
+const SYSTEM: NavSection = { id: "system", icon: Settings2, items: [{ id: "settings", route: "/settings", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "tokenizer", route: "/tokenizer", needs: SETTINGS_ACCESS, icon: BookOpenText }, { id: "update", route: "/update", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "connection-profiles", route: "/clients", needs: "configuration.connection-profiles", icon: Settings2 }] }
 
-const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, MODEL_CATALOG, RULES, PEOPLE, ACCESS, SYSTEM]
+const MANAGEMENT: NavSection = { id: "management", icon: Settings2, items: [
+  { id: "credentials", route: "/credentials", needs: "configuration.credentials", icon: KeyRound },
+  { id: "quotas", route: "/quotas", needs: "configuration.quotas", icon: Gauge },
+  { id: "routes", route: "/model-routes", needs: "configuration.routes", icon: Waypoints },
+  { id: "transfer", route: "/transfer", needs: "configuration.transfer", icon: Settings2 },
+] }
+const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, MODEL_CATALOG, RULES, MANAGEMENT, PEOPLE, ACCESS, SYSTEM]
 
 /** The sections this caller sees, with the items they may reach. */
 export function sectionsFor(context: ConsoleContext): Array<NavSection> {

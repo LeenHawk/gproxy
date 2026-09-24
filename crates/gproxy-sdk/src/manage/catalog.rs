@@ -63,6 +63,15 @@ fn parse_catalog() -> Result<DefaultModelCatalogDto, String> {
             catalog.source.priced_models
         ));
     }
+    let mut names = BTreeSet::new();
+    for model in &catalog.models {
+        if model.model_id.trim().is_empty()
+            || model.model_id.contains('/')
+            || !names.insert(model.model_id.to_ascii_lowercase())
+        {
+            return Err("catalog model names must be unique, nonblank basenames".to_owned());
+        }
+    }
     Ok(catalog)
 }
 
@@ -274,34 +283,35 @@ fn catalog() -> SdkResult<&'static DefaultModelCatalogDto> {
     })
 }
 
-/// A catalog entry by name: an exact `vendor/model` first, then the bare model
-/// name when exactly one vendor offers it. An ambiguous bare name resolves to
-/// nothing rather than to whichever vendor happens to be first.
-fn model_for<'a>(catalog: &'a DefaultModelCatalogDto, name: &str) -> Option<&'a DefaultModelDto> {
-    let needle = name.trim().to_ascii_lowercase();
-    if needle.is_empty() {
+/// Match exact names first, then a unique basename, ignoring ASCII case.
+/// This also accepts vendor-qualified names from upstreams and legacy rows;
+/// it does not rewrite those names or choose between ambiguous local rows.
+pub(crate) fn matching_model<'a, T>(
+    rows: &'a [T],
+    name: &str,
+    key: impl Fn(&T) -> &str,
+) -> Option<&'a T> {
+    let name = name.trim();
+    if name.is_empty() {
         return None;
     }
-    if let Some(found) = catalog
-        .models
-        .iter()
-        .find(|model| model.model_id.to_ascii_lowercase() == needle)
-    {
+    if let Some(found) = rows.iter().find(|row| key(row).eq_ignore_ascii_case(name)) {
         return Some(found);
     }
-    let basename = |value: &str| {
-        value
-            .rsplit_once('/')
-            .map_or(value, |(_, tail)| tail)
-            .to_ascii_lowercase()
-    };
-    let needle = basename(&needle);
-    let mut matches = catalog
-        .models
+    let bare = model_basename(name);
+    let mut matches = rows
         .iter()
-        .filter(|model| basename(&model.model_id) == needle);
+        .filter(|row| model_basename(key(row)).eq_ignore_ascii_case(bare));
     let found = matches.next()?;
     matches.next().is_none().then_some(found)
+}
+
+fn model_basename(name: &str) -> &str {
+    name.trim().rsplit('/').next().unwrap_or_default()
+}
+
+fn model_for<'a>(catalog: &'a DefaultModelCatalogDto, name: &str) -> Option<&'a DefaultModelDto> {
+    matching_model(&catalog.models, name, |model| &model.model_id)
 }
 
 /// Metadata defaults are copied into imported provider rows, never live-linked.
@@ -329,7 +339,7 @@ fn price_for<'a>(
     catalog: &'a DefaultModelCatalogDto,
     name: &str,
 ) -> Option<&'a DefaultModelPricingDto> {
-    let needle = name.trim().to_ascii_lowercase();
+    let needle = model_basename(name).to_ascii_lowercase();
     catalog
         .models
         .iter()
@@ -337,8 +347,8 @@ fn price_for<'a>(
         .filter_map(|pricing| {
             let fragment = pricing
                 .model_pattern
-                .trim_start_matches('*')
-                .trim_end_matches('*')
+                .strip_prefix('*')?
+                .strip_suffix('*')?
                 .to_ascii_lowercase();
             needle
                 .contains(&fragment)
@@ -837,7 +847,7 @@ mod tests {
         assert_eq!(catalog.models.len(), catalog.source.total_models);
         assert!(catalog.source.priced_models > 400);
         let found = model_for(catalog, "claude-sonnet-4").expect("a bare name resolves");
-        assert_eq!(found.model_id, "anthropic/claude-sonnet-4");
+        assert_eq!(found.model_id, "claude-sonnet-4");
         let pricing = price_for(catalog, "anthropic/claude-sonnet-4").expect("a glob covers it");
         assert!(pricing.model_pattern.contains("claude-sonnet-4"));
         assert!(
@@ -845,6 +855,55 @@ mod tests {
                 .rates
                 .iter()
                 .any(|rate| rate.metric == "input_tokens")
+        );
+    }
+
+    #[test]
+    fn catalog_matching_accepts_qualified_names_and_chooses_specific_prices() {
+        let catalog = catalog().unwrap();
+        assert!(
+            catalog
+                .models
+                .iter()
+                .all(|model| !model.model_id.contains('/'))
+        );
+        for name in [
+            "claude-sonnet-4",
+            "anthropic/claude-sonnet-4",
+            " ANTHROPIC/CLAUDE-SONNET-4 ",
+        ] {
+            assert_eq!(
+                model_for(catalog, name).unwrap().model_id,
+                "claude-sonnet-4"
+            );
+        }
+        assert_eq!(
+            price_for(catalog, "OPENAI/GPT-5.6-SOL-PRO:BATCH")
+                .unwrap()
+                .model_pattern,
+            "*gpt-5.6-sol-pro:batch*"
+        );
+        assert_eq!(
+            price_for(catalog, "claude-sonnet-4.5-20250929")
+                .unwrap()
+                .model_pattern,
+            "*claude-sonnet-4.5*"
+        );
+        assert!(price_for(catalog, "claude-sonnet-4/no-such-model").is_none());
+    }
+
+    #[test]
+    fn local_model_matching_never_guesses_between_equal_basenames() {
+        let names = ["one/shared", "two/shared"];
+        assert_eq!(
+            matching_model(&names, "ONE/SHARED", |name| name),
+            Some(&"one/shared")
+        );
+        assert!(matching_model(&names, "shared", |name| name).is_none());
+        let names = ["shared", "one/shared"];
+        assert_eq!(
+            matching_model(&names, "SHARED", |name| name),
+            Some(&"shared")
         );
     }
 }

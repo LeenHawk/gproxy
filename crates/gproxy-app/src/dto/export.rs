@@ -48,6 +48,8 @@ macro_rules! exported {
 
 exported!(
     // the administrative scope and what it may reach
+    CredentialProviderDto,
+    CredentialOwnerOptionDto,
     AdminContextDto,
     AdminContextUserDto,
     AdminScopeDto,

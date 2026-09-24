@@ -28,7 +28,12 @@
     "operation-endpoints": "Endpoint URLs",
     "update": "Updates",
     "connection-profiles": "Request clients",
-    "model-catalog": "Models"
+    "model-catalog": "Models",
+    "quotas": "Quotas",
+    "routes": "Model routes",
+    "route-members": "Route members",
+    "exposed-models": "Public model names",
+    "transfer": "Configuration transfer"
   },
   "create": {
     "keys": "New key",
@@ -40,14 +45,18 @@
     "rate-limits": "New rate limit",
     "oauth-clients": "Register a client",
     "providers": "New provider",
-    "credentials": "New credential",
+    "credentials": "Create Credentials",
     "provider-models": "New model",
     "rule-sets": "New Rule sets",
     "rules": "New Rewrite rules",
     "provider-rule-sets": "New Attached rule sets",
     "operation-rules": "Add routing rule",
     "operation-endpoints": "Add endpoint",
-    "connection-profiles": "New request client"
+    "connection-profiles": "New request client",
+    "quotas": "Create Quotas",
+    "routes": "Create Model routes",
+    "route-members": "Create Route members",
+    "exposed-models": "Create Public model names"
   },
   "edit": {
     "users": "Edit user",
@@ -58,13 +67,17 @@
     "rate-limits": "Edit rate limit",
     "oauth-clients": "Edit client",
     "providers": "Edit provider",
-    "credentials": "Edit credential",
+    "credentials": "Edit Credentials",
     "provider-models": "Edit model",
     "rule-sets": "Edit Rule sets",
     "rules": "Edit Rewrite rules",
     "provider-rule-sets": "Edit Attached rule sets",
     "operation-rules": "Edit routing rule",
     "operation-endpoints": "Edit endpoint",
-    "connection-profiles": "Edit request client"
+    "connection-profiles": "Edit request client",
+    "quotas": "Edit Quotas",
+    "routes": "Edit Model routes",
+    "route-members": "Edit Route members",
+    "exposed-models": "Edit Public model names"
   }
 }
