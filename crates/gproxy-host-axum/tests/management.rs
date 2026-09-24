@@ -190,7 +190,7 @@ async fn an_admin_crud_round_trip_goes_through_the_router() {
         .await;
     assert_eq!(again.status, StatusCode::NOT_FOUND);
 
-    // Every write left a trail row named after its route; the reads did not.
+    // Every non-channel operation, including reads, leaves an audit row.
     let actions: Vec<String> = audit_rows(&host)
         .await
         .into_iter()
@@ -209,8 +209,8 @@ async fn an_admin_crud_round_trip_goes_through_the_router() {
         "{actions:?}"
     );
     assert!(
-        !actions.iter().any(|action| action.ends_with(".list")),
-        "a read is not an audit event: {actions:?}"
+        actions.iter().any(|action| action.ends_with(".list")),
+        "non-channel reads must be audited: {actions:?}"
     );
 }
 

@@ -285,9 +285,9 @@ type TailFuture = Pin<Box<dyn Future<Output = ()> + 'static>>;
 /// order would be two chances to get it wrong.
 pub(crate) struct Trailer<C> {
     app: Arc<App<C>>,
-    admitted: Admitted,
+    admitted: Option<Admitted>,
     capture: Option<DownstreamCapture>,
-    usage: UsageCompletion,
+    usage: Option<UsageCompletion>,
     /// Armed for as long as this value lives, so dropping it — which is what a
     /// client hanging up does — cancels the upstream call.
     cancel: CancelOnDrop,
@@ -303,9 +303,21 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Trailer<C> {
     ) -> Self {
         Self {
             app,
-            admitted,
+            admitted: Some(admitted),
             capture,
-            usage,
+            usage: Some(usage),
+            cancel,
+        }
+    }
+
+    pub(crate) fn service(app: Arc<App<C>>, capture: Option<DownstreamCapture>) -> Self {
+        let mut cancel = CancelOnDrop::new();
+        cancel.disarm();
+        Self {
+            app,
+            admitted: None,
+            capture,
+            usage: None,
             cancel,
         }
     }
@@ -349,20 +361,23 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Trailer<C> {
         cancel.disarm();
         drop(cancel);
         Box::pin(async move {
-            match capture {
-                Some(capture) => {
-                    // The request has already been answered; a logging failure
-                    // must not become one.
+            match (capture, usage) {
+                (Some(capture), Some(usage)) => {
                     let _ = capture.settle(app.gproxy().store(), outcome, usage).await;
                 }
-                None => {
+                (Some(capture), None) => {
+                    let _ = capture.finish(app.gproxy().store(), outcome).await;
+                }
+                (None, Some(usage)) => {
                     if let Err(error) = usage.await {
                         tracing::warn!(%error, "settlement failed after the response was written");
                     }
                 }
+                (None, None) => {}
             }
-            // Awaited rather than left to the drop path, which has to spawn.
-            admitted.release().await;
+            if let Some(admitted) = admitted.as_mut() {
+                admitted.release().await;
+            }
         })
     }
 

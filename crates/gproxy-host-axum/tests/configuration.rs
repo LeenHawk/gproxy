@@ -381,12 +381,12 @@ async fn a_configuration_write_bumps_the_revision_and_leaves_a_trail_row() {
         "{actions:?}"
     );
     assert!(
-        !actions.iter().any(|action| action.ends_with(".list")),
-        "a read is not an audit event: {actions:?}"
+        actions.iter().any(|action| action.ends_with(".list")),
+        "non-channel reads must be audited: {actions:?}"
     );
     assert!(
-        !actions.iter().any(|action| action.ends_with(".get")),
-        "a read is not an audit event: {actions:?}"
+        actions.iter().any(|action| action.ends_with(".get")),
+        "non-channel reads must be audited: {actions:?}"
     );
 
     // A batch is one transaction however many rows it names, so it is one
@@ -410,7 +410,7 @@ async fn a_configuration_write_bumps_the_revision_and_leaves_a_trail_row() {
 // ------------------------------------------------- the two careful routes --
 
 #[tokio::test]
-async fn revealing_a_secret_is_the_one_read_that_is_audited() {
+async fn revealing_a_secret_is_audited_without_recording_the_secret() {
     let host = instance().await;
     let provider = create(
         &host,

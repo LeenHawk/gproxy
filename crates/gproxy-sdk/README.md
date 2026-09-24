@@ -558,8 +558,9 @@ through `capture_links` rather than through the provenance columns, so a
 retried request shows every attempt and an upstream call shared by two
 downstream ones is not duplicated.
 
-Bodies are capped at `query::MAX_BODY_BYTES` (64 KiB) and events at
-`query::MAX_DETAIL_EVENTS` (2 000); both cuts are reported. Every body travels
+Stored bodies and individual event payloads are returned in full. The event
+list is limited to `query::MAX_DETAIL_EVENTS` (2 000), with `eventsTruncated`
+reporting that separate list limit. Every body travels
 as a `LogBodyDto` carrying the record's own `body_state`, because a body that
 was never captured must not read as a body that was empty — `notCaptured` with
 zero bytes and `complete` with zero bytes are different facts. Text stays text;

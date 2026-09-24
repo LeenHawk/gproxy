@@ -44,8 +44,7 @@
 //! no proxy and no browser keeps a copy of it on disk.
 //!
 //! `POST /credentials/{id}/reveal` is a **read** that is deliberately spelled
-//! as a write, because the audit middleware skips reads and this is the one
-//! disclosure an operator must be able to account for afterwards. See the
+//! as a write, to retain the existing disclosure contract. Both reads and writes are audited. See the
 //! handler.
 
 use axum::{

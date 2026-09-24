@@ -1,12 +1,8 @@
 //! Captured exchanges as a console reads them: the downstream request list,
 //! and one request's whole tree of upstream attempts and stream events.
 //!
-//! Bodies are bounded. A captured exchange can be megabytes of server-sent
-//! events, and a JSON response that inlined all of it would be unusable at
-//! both ends, so every body travels as a [`LogBodyDto`]: a capped slice, the
-//! encoding it is in, the number of bytes actually stored, and whether the cap
-//! cut it. The record's own capture state travels with it, because a body that
-//! was never captured must not read as a body that was empty.
+//! Bodies carry all stored bytes. The capture state distinguishes absent,
+//! interrupted and complete bodies; reading a log does not trim its payload.
 //!
 //! Nothing here redacts. Core's observer applied the logging redaction policy
 //! when it wrote the rows — headers, query parameters and secret fragments in
@@ -29,7 +25,7 @@ use super::UsageRecordDto;
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub enum LogBodyEncoding {
-    /// Valid UTF-8, cut at a character boundary when it was cut at all.
+    /// Valid UTF-8.
     Utf8,
     /// Standard base64 with padding, for bytes that are not text.
     Base64,
@@ -47,7 +43,7 @@ pub struct LogBodyDto {
     /// genuinely empty.
     pub state: String,
     pub encoding: LogBodyEncoding,
-    /// The cap cut `content` short. `bytes` still counts the whole body.
+    /// Compatibility field: false, because reads return the complete stored payload.
     pub truncated: bool,
     /// Bytes stored on the row, not the length of `content`.
     pub bytes: u64,
@@ -67,49 +63,33 @@ impl LogBodyDto {
         }
     }
 
-    /// `bytes`, capped at `limit`. Text stays text — a console shows a JSON
-    /// request as JSON — and anything else becomes base64.
-    pub(crate) fn new(state: String, bytes: &[u8], limit: usize) -> Self {
-        let total = bytes.len();
-        let truncated = total > limit;
-        let slice = &bytes[..total.min(limit)];
-        match std::str::from_utf8(slice) {
-            Ok(text) => Self {
-                state,
-                encoding: LogBodyEncoding::Utf8,
-                truncated,
-                bytes: total as u64,
-                content: text.to_owned(),
-            },
-            // A cut in the middle of a multi-byte character is the common
-            // case; keep the valid prefix rather than falling back to base64
-            // for what is really text.
-            Err(error) if truncated && error.valid_up_to() > 0 => Self {
-                state,
-                encoding: LogBodyEncoding::Utf8,
-                truncated,
-                bytes: total as u64,
-                content: String::from_utf8_lossy(&slice[..error.valid_up_to()]).into_owned(),
-            },
-            Err(_) => Self {
-                state,
-                encoding: LogBodyEncoding::Base64,
-                truncated,
-                bytes: total as u64,
-                content: base64::engine::general_purpose::STANDARD.encode(slice),
-            },
+    /// Return all bytes as UTF-8 when valid, or losslessly encode binary as base64.
+    pub(crate) fn new(state: String, bytes: &[u8]) -> Self {
+        let (encoding, content) = match std::str::from_utf8(bytes) {
+            Ok(text) => (LogBodyEncoding::Utf8, text.to_owned()),
+            Err(_) => (
+                LogBodyEncoding::Base64,
+                base64::engine::general_purpose::STANDARD.encode(bytes),
+            ),
+        };
+        Self {
+            state,
+            encoding,
+            content,
+            bytes: bytes.len() as u64,
+            truncated: false,
         }
     }
 }
 
-/// One downstream request, as a list row.
+/// One downstream request or physical upstream exchange, as a list row.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct LogEntryDto {
-    /// A downstream record's id is the request id: the same string
-    /// `usage_records.request_id` and `query().logs().detail` use.
+    /// Capture ID. For downstream rows this is also the request/usage ID;
+    /// upstream rows have their own physical exchange ID.
     pub request_id: String,
     /// `http`, `ws_connection` or `ws_turn`.
     pub kind: String,
@@ -287,4 +267,15 @@ pub struct LogQuery {
     pub cursor_id: Option<String>,
     /// Clamped to 1..=500; absent means 50.
     pub limit: Option<u64>,
+}
+
+/// One physical capture, readable even when the downstream log is disabled.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct CaptureDetailDto {
+    pub record: CaptureRecordDto,
+    pub events: Vec<CaptureEventDto>,
+    pub events_truncated: bool,
 }

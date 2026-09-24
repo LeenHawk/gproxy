@@ -35,25 +35,12 @@
 //! chain *is* passed, because the `Caller` view renders the caller's own
 //! windows from it — reporting a quota is not spending one.
 //!
-//! # And no capture, on either side
+//! # Observation
 //!
-//! Core says it of its own half — "no attempt record, no usage, no capture" —
-//! so a service call leaves no `side = Upstream` row behind. That decides the
-//! downstream half too, and not only by symmetry:
-//!
-//! - there would be nothing to link to. A downstream record whose
-//!   `capture_links` are empty claims a request reached no upstream, which for
-//!   a service would be a lie the log cannot distinguish from the truth;
-//! - there is no [`Admitted`](crate::Admitted). Every attribution column on a
-//!   `capture_records` row comes from an admission decision, and a service
-//!   takes none — it has a scope, a budget chain and a credential set, decided
-//!   here, but it never goes through [`Admission::admit`](crate::Admission);
-//! - a service answer is a vendor's profile or usage page, not the caller's
-//!   traffic. It is the one thing in this crate a request log is *not* for.
-//!
-//! So [`App::call_service`] and [`App::connect_service`] open no capture and
-//! write no row. A host that wants a trace of them has its own access log,
-//! which is where a request that costs nothing and meters nothing belongs.
+//! Services do not produce model usage or budget charges. Hosts record their
+//! downstream exchange using `DownstreamCapture::open_service`; a locally
+//! synthesized answer legitimately has no upstream link. Core service calls
+//! still run outside the metered physical-attempt funnel.
 
 use std::collections::BTreeSet;
 
@@ -87,8 +74,7 @@ pub enum RequestedView {
 /// `parts` and `body` are forwarded as received — the vendor path is part of
 /// the request and the channel matches its own routes against it.
 pub struct ServiceRequestIn {
-    /// For the operator's log only: a service call is outside the funnel, so
-    /// nothing records it under this id.
+    /// The downstream capture ID. Services do not produce model usage rows.
     pub request_id: String,
     pub parts: http::request::Parts,
     pub body: bytes::Bytes,

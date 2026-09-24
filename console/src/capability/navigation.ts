@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
+import { USAGE_READ, LOGS_READ } from "@/api/observation"
 import { SETTINGS_ACCESS } from "@/api/settings"
 import { PROVIDERS_READ } from "@/api/configuration"
 
@@ -92,12 +93,18 @@ const ACCESS: NavSection = {
   ],
 }
 
+const OBSERVATION: NavSection = { id: "observation", icon: ChartLine, items: [
+  { id: "globalUsage", route: "/observation/usage", needs: USAGE_READ, icon: ChartLine },
+  { id: "downstreamLogs", route: "/observation/downstream", needs: LOGS_READ, icon: ScrollText },
+  { id: "upstreamLogs", route: "/observation/upstream", needs: LOGS_READ, icon: ScrollText },
+] }
+
 const SYSTEM: NavSection = { id: "system", icon: Settings2, items: [{ id: "settings", route: "/settings", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "tokenizer", route: "/tokenizer", needs: SETTINGS_ACCESS, icon: BookOpenText }, { id: "update", route: "/update", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "connection-profiles", route: "/clients", needs: "configuration.connection-profiles", icon: Settings2 }] }
 
 const MANAGEMENT: NavSection = { id: "management", icon: Waypoints, standalone: true, items: [
   { id: "routes", route: "/model-routes", needs: "configuration.routes", icon: Waypoints },
 ] }
-const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, MODEL_CATALOG, RULES, MANAGEMENT, PEOPLE, ACCESS, SYSTEM]
+const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, MODEL_CATALOG, RULES, MANAGEMENT, PEOPLE, ACCESS, OBSERVATION, SYSTEM]
 
 /** Tenant pages reuse existing object routes and their scoped APIs, never identity CRUD. */
 function sectionsForScope(context: ConsoleContext): ReadonlyArray<NavSection> {

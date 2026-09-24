@@ -87,7 +87,8 @@
     "providers": "供应商",
     "system": "系统",
     "rules": "规则集",
-    "management": "配置管理"
+    "management": "配置管理",
+    "observation": "用量与日志"
   },
   "range": {
     "day": "24 小时",

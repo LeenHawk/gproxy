@@ -1,14 +1,13 @@
 //! The caller's own usage.
 //!
-//! One query object answers three questions at once — the totals, an optional
-//! grouped cut and an optional trend — because the server computes all three
-//! from one scan. Asking for the trend separately would scan the same records
-//! twice and could disagree with itself at a bucket boundary.
+//! The API returns summary, grouped totals and a trend over the same requested range.
 
-import { useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useState, type ReactNode } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import * as portal from "@/api/portal"
+import * as observation from "@/api/observation"
+import { HistoryFilters, type HistoryFilter } from "@/pages/observation/filters"
 import { DataTable, IdCell } from "@/components/data-table"
 import { Page, PageHeader, PageSection } from "@/components/page"
 import { EmptyNotice, QueryState } from "@/components/state"
@@ -25,8 +24,10 @@ const GROUPS: ReadonlyArray<UsageGroupBy> = ["model", "operation", "provider", "
 /** Twenty-four buckets over whatever the range is: a readable trend at any width. */
 const BUCKETS = 24
 
-export function UsagePage() {
+export function UsagePage({ global = false, renderRecords }: { global?: boolean; renderRecords?: (filter: HistoryFilter) => ReactNode } = {}) {
   const { t, i18n } = useTranslation()
+  const queryClient = useQueryClient()
+  const [filter, setFilter] = useState<HistoryFilter>({})
   const [range, setRange] = useState<RangeKey>("week")
   const [groupBy, setGroupBy] = useState<UsageGroupBy>("model")
 
@@ -35,14 +36,16 @@ export function UsagePage() {
   // different answers for one state, and it would put a value that changes
   // every millisecond into the query key.
   const usage = useQuery({
-    queryKey: ["portal", "usage", range, groupBy],
+    queryKey: [global ? "admin" : "portal", "usage", range, groupBy, filter],
     queryFn: () => {
-      const now = Date.now()
-      return portal.usage({
-        fromMs: now - RANGES[range],
-        toMs: now,
+      const toMs = filter.toMs ?? Date.now()
+      const fromMs = filter.fromMs ?? toMs - RANGES[range]
+      return (global ? observation.usage : portal.usage)({
+        ...filter,
+        fromMs,
+        toMs,
         groupBy,
-        bucketMs: Math.floor(RANGES[range] / BUCKETS),
+        bucketMs: Math.max(1, Math.ceil((toMs - fromMs) / BUCKETS)),
       })
     },
   })
@@ -51,14 +54,15 @@ export function UsagePage() {
 
   return (
     <Page>
-      <PageHeader title={t("nav.usage")} />
+      <PageHeader title={t(global ? "nav.globalUsage" : "nav.usage")} actions={<Button size="sm" variant="outline" onClick={() => { void usage.refetch(); if (global) void queryClient.invalidateQueries({ queryKey: ["admin", "usage-records"] }) }}>{t("observation.refresh")}</Button>} />
+      {global ? <HistoryFilters summary onApply={setFilter} /> : null}
       <div className="flex flex-wrap gap-2">
         {(Object.keys(RANGES) as Array<RangeKey>).map((key) => (
           <Button
             key={key}
             size="sm"
             variant={range === key ? "secondary" : "ghost"}
-            onClick={() => setRange(key)}
+            onClick={() => { setRange(key); setFilter({ ...filter, fromMs: undefined, toMs: undefined }) }}
           >
             {t(`range.${key}`)}
           </Button>
@@ -86,7 +90,7 @@ export function UsagePage() {
               title={t("usage.groups")}
               actions={
                 <span className="flex flex-wrap gap-1">
-                  {GROUPS.map((group) => (
+                  {(global ? ["user" as const, ...GROUPS] : GROUPS).map((group) => (
                     <Button
                       key={group}
                       size="xs"
@@ -115,6 +119,7 @@ export function UsagePage() {
           </div>
         ) : null}
       </QueryState>
+      {usage.data && renderRecords ? renderRecords({ ...filter, fromMs: usage.data.fromMs ?? undefined, toMs: usage.data.toMs ?? undefined }) : null}
     </Page>
   )
 }

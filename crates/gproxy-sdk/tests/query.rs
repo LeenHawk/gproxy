@@ -1071,3 +1071,32 @@ async fn counted_windows_and_cycles_read_the_meter_and_its_history() {
         "an expired block is not keeping anything out of selection"
     );
 }
+
+#[tokio::test]
+async fn log_details_return_full_large_text_binary_and_event_payloads() {
+    use base64::Engine;
+    let gproxy = support::sdk().await;
+    let text = "界".repeat(40_000);
+    let binary = vec![0xff; 130_001];
+    let mut row = downstream("full-payload", 100);
+    row.request_body = Set(Some(text.as_bytes().to_vec()));
+    row.request_body_state = Set(capture_record::CaptureBodyState::Complete);
+    row.response_body = Set(Some(binary.clone()));
+    row.response_body_state = Set(capture_record::CaptureBodyState::Complete);
+    capture(&gproxy, row).await;
+    event(&gproxy, "full-payload", 0, text.as_bytes()).await;
+    let detail = gproxy.query().logs().detail("full-payload").await.unwrap();
+    assert_eq!(detail.downstream.request_body.content, text);
+    assert_eq!(detail.downstream.request_body.bytes, text.len() as u64);
+    assert!(!detail.downstream.request_body.truncated);
+    assert_eq!(
+        base64::engine::general_purpose::STANDARD
+            .decode(detail.downstream.response_body.content)
+            .unwrap(),
+        binary
+    );
+    assert_eq!(detail.events[0].payload.content, text);
+    let standalone = gproxy.query().logs().capture("full-payload").await.unwrap();
+    assert_eq!(standalone.record.request_body.content, text);
+    assert_eq!(standalone.events[0].payload.content, text);
+}

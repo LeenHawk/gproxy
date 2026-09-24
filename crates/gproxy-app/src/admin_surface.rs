@@ -282,6 +282,18 @@ pub const ADMIN_SECTIONS: &[AdminSection] = &[
         minimum: SectionScope::Instance,
         capabilities: READ,
     },
+    AdminSection {
+        id: "usage",
+        path: "/usage",
+        minimum: SectionScope::Instance,
+        capabilities: READ,
+    },
+    AdminSection {
+        id: "logs",
+        path: "/logs",
+        minimum: SectionScope::Instance,
+        capabilities: READ,
+    },
     // -- the operator's tools ----------------------------------------------
     AdminSection {
         id: "transfer",

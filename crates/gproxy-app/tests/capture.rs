@@ -10,7 +10,7 @@ mod support;
 
 use gproxy_app::{
     App, CallOutcome, Caller, CallerKind, DataPlaneRequest,
-    capture::{CaptureOutcome, DownstreamCapture, MAX_CAPTURED_BODY_BYTES},
+    capture::{CaptureDirection, CaptureOutcome, CapturedFrame, DownstreamCapture},
 };
 use gproxy_channel::channel::NormalizedUsage;
 use gproxy_core::{ExchangeUsage, UsageAttribution, UsageReport, UsageState};
@@ -26,11 +26,11 @@ use support::Reply;
 type TestApp = App<DatabaseConnection>;
 
 /// A body big enough that its presence anywhere in the database is
-/// unmistakable, and long enough to run past [`MAX_CAPTURED_BODY_BYTES`].
+/// unmistakable, and longer than the former 64 KiB cutoff.
 const SENTINEL: &str = "sentinel-payload-";
 
 fn oversized() -> String {
-    SENTINEL.repeat(MAX_CAPTURED_BODY_BYTES / SENTINEL.len() + 64)
+    SENTINEL.repeat(128 * 1024 / SENTINEL.len() + 64)
 }
 
 /// One provider `p1` serving `m1`, one shared credential, `alice` holding a
@@ -122,7 +122,9 @@ async fn settle(app: &TestApp, outcome: CallOutcome, end: CaptureOutcome) -> Vec
     let bytes = support::read_bytes(response.body).await;
     match capture {
         Some(mut capture) => {
-            capture.record_response_chunk(&bytes);
+            for chunk in bytes.chunks(997) {
+                capture.record_response_chunk(chunk);
+            }
             capture
                 .settle(app.gproxy().store(), end, usage)
                 .await
@@ -313,7 +315,7 @@ async fn the_body_switch_on_stores_both_directions() {
 }
 
 #[tokio::test]
-async fn a_body_over_the_cap_is_cut_and_says_so() {
+async fn large_request_and_chunked_response_are_retained_in_full() {
     let (app, client) = one_provider().await;
     logging(&app, true, true, true).await;
     client.script(vec![Reply::Http(
@@ -323,21 +325,27 @@ async fn a_body_over_the_cap_is_cut_and_says_so() {
     let caller = support::caller_for(&app, "k-alice").await;
 
     let body = json!({"model": "test/m1", "input": oversized()});
-    let outcome = app.call(&caller, request("req-1", body)).await.unwrap();
+    let outcome = app
+        .call(&caller, request("req-1", body.clone()))
+        .await
+        .unwrap();
     let answer = settle(&app, outcome, CaptureOutcome::Complete).await;
-    assert!(answer.len() > MAX_CAPTURED_BODY_BYTES, "the answer was big");
+    assert!(answer.len() > 64 * 1024, "the answer was big");
 
     let row = only_downstream(&app).await;
-    assert_eq!(row.request_body.unwrap().len(), MAX_CAPTURED_BODY_BYTES);
-    assert_eq!(row.response_body.unwrap().len(), MAX_CAPTURED_BODY_BYTES);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&row.request_body.unwrap()).unwrap(),
+        body
+    );
+    assert_eq!(row.response_body.unwrap(), answer);
     assert_eq!(
         row.request_body_state,
-        capture_record::CaptureBodyState::Partial,
-        "what is stored is not what passed, and the state says which"
+        capture_record::CaptureBodyState::Complete,
+        "all bytes are retained"
     );
     assert_eq!(
         row.response_body_state,
-        capture_record::CaptureBodyState::Partial
+        capture_record::CaptureBodyState::Complete
     );
 }
 
@@ -727,4 +735,31 @@ async fn a_websocket_handshake_is_captured_as_a_connection() {
         capture_record::CaptureState::Completed,
         "101 is not a failure"
     );
+}
+
+#[tokio::test]
+async fn websocket_frames_after_64_kib_are_retained_in_full() {
+    let (app, _) = one_provider().await;
+    logging(&app, true, true, true).await;
+    let mut capture = handmade(&app, "large-ws");
+    capture.record_response_head(StatusCode::SWITCHING_PROTOCOLS, &http::HeaderMap::new());
+    let first = "文".repeat(32 * 1024);
+    let last = "last frame after the former cutoff";
+    capture.record_frame(CaptureDirection::Response, CapturedFrame::Text(&first));
+    capture.record_frame(CaptureDirection::Request, CapturedFrame::Text(last));
+    capture
+        .finish(app.gproxy().store(), CaptureOutcome::Complete)
+        .await
+        .unwrap();
+    let detail = app
+        .gproxy()
+        .query()
+        .logs()
+        .detail("large-ws")
+        .await
+        .unwrap();
+    assert_eq!(detail.events.len(), 2);
+    assert_eq!(detail.events[0].payload.content, first);
+    assert_eq!(detail.events[1].payload.content, last);
+    assert_eq!(detail.downstream.response_body.state, "complete");
 }

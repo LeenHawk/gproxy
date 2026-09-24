@@ -35,6 +35,9 @@ import { ModelRoutesPage } from "@/pages/model-routes"
 import { TransferPage } from "@/pages/transfer"
 import { ModelCatalogPage } from "@/pages/model-catalog"
 
+import { GlobalUsagePage } from "@/pages/observation/usage"
+import { DownstreamLogsPage, UpstreamLogsPage } from "@/pages/observation/logs"
+
 const ROUTES: Record<string, () => React.ReactElement> = {
   "/model-routes": ModelRoutesPage,
   "/transfer": TransferPage,
@@ -42,6 +45,9 @@ const ROUTES: Record<string, () => React.ReactElement> = {
   "/keys": KeysPage,
   "/models": ModelsPage,
   "/usage": UsagePage,
+  "/observation/usage": GlobalUsagePage,
+  "/observation/downstream": DownstreamLogsPage,
+  "/observation/upstream": UpstreamLogsPage,
   "/requests": RequestsPage,
   "/account": AccountPage,
   "/model-catalog": ModelCatalogPage,

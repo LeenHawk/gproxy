@@ -144,6 +144,12 @@ GET    /admin/api/teams/{id}/members           （同上）
 GET    /admin/api/sessions                     全部会话
 DELETE /admin/api/sessions/{id}
 GET    /admin/api/audit                        审计
+GET    /admin/api/usage                        全局汇总、分组与趋势（仅实例管理员）
+GET    /admin/api/usage/records                用量明细分页
+GET    /admin/api/logs/downstream              下游请求，游标分页
+GET    /admin/api/logs/upstream                上游物理请求，游标分页
+GET    /admin/api/logs/downstream/{id}         下游请求、关联上游与用量详情
+GET    /admin/api/logs/captures/{id}           单次采集与流式事件
 ```
 
 #### 配置
@@ -209,15 +215,14 @@ v3 有同一个操作的地方路径沿用 v3，运维已有的脚本因此不�
 
 中间件顺序：认证 → **解析 scope**（`AdminScope::resolve`，派生 scope 的唯一一处，
 也是读 scope 头的唯一一处）→ 非安全方法且是 cookie 调用者时校验同源 →
-执行操作，按它声明的 section 把关 → 非读方法写一行审计。它是 `route_layer`，所以
+执行操作，按它声明的 section 把关 → 所有非渠道 API 操作（包括 GET 查询）写一行审计。它是 `route_layer`，所以
 未命中的 `/admin/api/*` 是一个连数据库都不碰的 404。
 
 `/admin/api/context` 与 `/admin/api/session` 挂在第二个、更轻的 guard 下：解析完就
 停，不要求已经定下 scope。
 
 审计的 action 由命中的路由推出（`admin.api_keys.rotate`、
-`admin.providers.create`），新路由因此不可能忘记给自己命名。读不审计——上面那两个
-读之所以是 `POST`，就是为了落进审计。拒绝也会审计：组织管理员写操作被拒的 `403`
+`admin.providers.create`），新路由因此不可能忘记给自己命名。查询和写入都审计。渠道模型／服务请求进入下游日志，服务不扣用量。拒绝也会审计：组织管理员操作被拒的 `403`
 会以 `outcome = error` 落在审计里。
 
 ### `/portal/api`
@@ -299,7 +304,7 @@ pump 双向转发 text 与 binary；ping/pong 留在它来的那一侧，因为�
 `101`；再加每条消息一行 `capture_events`——text、binary、ping、pong、close，跨两
 个方向统一排序，各带一个 `direction`。帧和别的体一样受 `enable_downstream_log_body`
 控制、按同一套规则脱敏；关掉它时连接仍然记录，但调用者说过的话一个字都不复制。
-累计 64 KiB 后停止记录，行的 body state 写 `partial`。
+开启正文采集后完整记录收到的帧，不按日志大小截断。
 
 `turn_id` 恒为空，也不写 `ws_turn` 行。schema 把它说成「可识别时的 WS 业务轮次」，
 而「轮次」是某个方言的概念——OpenAI 的 `response.created`/`response.done`、

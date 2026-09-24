@@ -87,7 +87,8 @@
     "providers": "Providers",
     "system": "System",
     "rules": "Rule sets",
-    "management": "Management"
+    "management": "Management",
+    "observation": "Usage and logs"
   },
   "range": {
     "day": "24 hours",

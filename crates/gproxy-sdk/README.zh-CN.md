@@ -459,8 +459,8 @@ settings 行，绑定在一个固定身份上，因此数据库的副本里没�
 `detail(request_id)` 通过 `capture_links` 解析出来——不走来源列，因此重试过的请求能
 看到每一次尝试，被两个下游请求共享的上游调用也不会被复制成两条。
 
-响应体上限 `query::MAX_BODY_BYTES`（64 KiB），事件上限
-`query::MAX_DETAIL_EVENTS`（2 000），两处截断都会如实汇报。每个 body 都以
+正文和单个事件的载荷完整返回。事件列表仍有 `query::MAX_DETAIL_EVENTS`（2 000）条的
+读取上限，通过 `eventsTruncated` 单独报告。每个 body 都以
 `LogBodyDto` 传输并带上该行自己的 `body_state`，因为从未被捕获的 body 不能读起来像
 一个空 body——`notCaptured` 且零字节与 `complete` 且零字节是两件不同的事。文本仍是
 文本，其余一律 base64。

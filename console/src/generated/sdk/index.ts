@@ -7,6 +7,7 @@ export * from "./AuthCodeStarted";
 export * from "./BatchItem";
 export * from "./BatchPatch";
 export * from "./BudgetStatusDto";
+export * from "./CaptureDetailDto";
 export * from "./CaptureEventDto";
 export * from "./CaptureRecordDto";
 export * from "./ChannelCapabilities";

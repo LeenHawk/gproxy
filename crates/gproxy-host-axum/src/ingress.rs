@@ -59,7 +59,7 @@ use crate::{
     error::ErrorResponse,
     mount::MountIndex,
     policy,
-    response::{CancelOnDrop, passthrough_wire, streamed},
+    response::{CancelOnDrop, streamed},
 };
 
 /// The header a client names a vendor service view with. Absent means
@@ -110,8 +110,10 @@ where
         return crate::oauth::handle(state, issuer, &mount, scheme, parts, body).await;
     }
 
-    if let Some(response) =
-        service_call(state, &core, &mount, &index, &remainder, &mut parts, &body).await
+    if let Some(response) = service_call(
+        state, &core, &mount, &index, &remainder, &mut parts, &body, &client_ip,
+    )
+    .await
     {
         return response;
     }
@@ -167,6 +169,7 @@ fn service_route<'a>(
 /// cancellation field, so giving a service call a token means changing two other
 /// crates for a call that is short, buffered and unmetered. It is left out; see
 /// the crate README.
+#[allow(clippy::too_many_arguments)]
 async fn service_call<C>(
     state: &HostState<C>,
     core: &gproxy_core::CoreData,
@@ -175,6 +178,7 @@ async fn service_call<C>(
     remainder: &str,
     parts: &mut http::request::Parts,
     body: &Bytes,
+    client_ip: &str,
 ) -> Option<Response>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
@@ -212,17 +216,21 @@ where
         Ok(view) => view,
         Err(error) => return Some(ErrorResponse(error).into_response()),
     };
-    let mut parts = parts.clone();
-    // The channel matches its own routes against the path, so it is the
-    // mount-relative one that is forwarded, not the one the client typed.
-    parts.uri = rewrite_path(&parts.uri, remainder);
-    let request = ServiceRequestIn {
+    let mut request = ServiceRequestIn {
         request_id: crate::request_id(),
-        parts,
+        parts: parts.clone(),
         body: body.clone(),
         view,
         provider_id,
     };
+    let mut capture = gproxy_app::capture::DownstreamCapture::open_service(
+        &state.app().data().observation,
+        &request,
+        &caller,
+        Some(client_ip.to_owned()),
+    );
+    // Preserve the public URL in the capture; the channel receives its relative path.
+    request.parts.uri = rewrite_path(&request.parts.uri, remainder);
     Some(match upgrade {
         Some(upgrade) => {
             crate::websocket::service(
@@ -231,12 +239,33 @@ where
                 &caller,
                 request,
                 core.limits.max_ws_frame_bytes,
+                capture,
             )
             .await
         }
         None => match state.app().call_service(&caller, request).await {
-            Ok(response) => passthrough_wire(response),
-            Err(error) => ErrorResponse(error).into_response(),
+            Ok(response) => {
+                if let Some(capture) = capture.as_mut() {
+                    capture.record_response_head(response.status, &response.headers);
+                }
+                crate::response::leased(
+                    crate::response::Trailer::service(state.app().clone(), capture),
+                    response,
+                )
+            }
+            Err(error) => {
+                let response = ErrorResponse(error).into_response();
+                if let Some(mut capture) = capture {
+                    capture.record_response_head(response.status(), response.headers());
+                    let _ = capture
+                        .finish(
+                            state.app().gproxy().store(),
+                            gproxy_app::capture::CaptureOutcome::Interrupted,
+                        )
+                        .await;
+                }
+                response
+            }
         },
     })
 }

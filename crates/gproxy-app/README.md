@@ -432,10 +432,11 @@ function a model request uses. Core's view of the caller reads it to find the
 caller's usage; two answers to "who is this" inside one request is exactly the
 bug the single-`Caller` rule exists to prevent.
 
-And no capture on either side. Core writes no upstream record for a service, so
-a downstream one would have nothing to link to and would read as a request that
-reached no upstream; there is also no `Admitted` to attribute it to. A vendor's
-profile page is the one thing a request log is not for.
+Hosts log channel services with `DownstreamCapture::open_service`, attributing
+HTTP exchanges and WebSocket frames to the authenticated caller without a model
+admission lease or usage settlement. Core's service path remains outside the
+metered upstream-attempt funnel: missing upstream links on a service record do
+not prove that no vendor request was made.
 
 ## Downstream capture
 
@@ -452,7 +453,7 @@ exists, and core never fabricates one — and `src/capture.rs` is that half.
 | body gate | `enable_upstream_log_body` | `enable_downstream_log_body` |
 | redaction | `disable_log_redaction` | the same switch, the same field list |
 | id | its own, opaque | **the request id**, which is also the usage row's |
-| body storage | `capture_events`, streamed | the inline column, buffered and capped |
+| body storage | `capture_events`, streamed | the inline column, buffered |
 | websocket frames | `capture_events`, per frame | `capture_events`, per frame, buffered |
 
 All four switches are read off the `settings` row of the revision the request
@@ -495,11 +496,8 @@ identifiable", and a turn is a dialect's notion — OpenAI's
 opaque frames cannot see. Inventing a boundary the wire did not draw would put
 a `WsTurn` record in the log that nothing produced.
 
-Frames are gated on `enable_downstream_log_body` like any other body — a frame
-*is* the body of a socket — and recording stops after
-`MAX_CAPTURED_FRAME_BYTES` of payload, which marks the row `Partial`. A
-realtime session runs for as long as a person keeps talking, and the row it
-produces is built in memory until the socket ends.
+Frames are gated on `enable_downstream_log_body` like any other body. When enabled,
+all received frames are retained and written when the socket ends.
 
 ### Ask before you clone
 
@@ -507,15 +505,15 @@ With `enable_downstream_log` off, `DownstreamCapture::open` answers `None`:
 nothing is allocated, no body is copied, no row is written. With
 `enable_downstream_log_body` off the bodies are not copied either and
 `*_body_state` says `NotCaptured`, which is how a reader tells "there was no
-body" from "we chose not to keep it". What is kept is capped at 64 KiB per
-direction — the same cut the sdk's log detail applies on the way out — and a
-body over it is stored truncated with the state saying `Partial`.
+body" from "we chose not to keep it". Enabled body capture keeps all received
+bytes, and log-detail reads return the stored payload in full. `Partial` denotes
+an interrupted exchange rather than a logging-size cutoff.
 
 Redaction masks the header names, query parameters and JSON fields on core's
 own list (`authorization`, `cookie`, `api_key`, `access_token`, …), so the two
 sides of one request hide the same things; core's helper is private, so this is
 a second implementation of the same list rather than a call. A request body is
-redacted **before** it is cut, so length is never a way past the policy. A body
+redacted before storage without truncating its content. A body
 that is not JSON has no key to match on and is stored as received — one more
 reason the body switch is off by default.
 

@@ -199,13 +199,18 @@ async fn an_ipc_command_returns_real_rows() {
             "manage_catalog_channels",
             serde_json::json!({}),
         ));
+        answers.push(invoke(
+            &window,
+            "admin_audit_query",
+            serde_json::json!({ "query": {} }),
+        ));
         answers
     })
     .await
     .unwrap();
 
-    let [status, users, providers, context, channels] = answers.as_slice() else {
-        panic!("expected five answers");
+    let [status, users, providers, context, channels, audit] = answers.as_slice() else {
+        panic!("expected six answers");
     };
 
     assert_eq!(status["port"], plane.address.port());
@@ -223,6 +228,17 @@ async fn an_ipc_command_returns_real_rows() {
     assert_eq!(providers["total"], 0);
 
     assert_eq!(context["user"]["name"], "desktop");
+    assert_eq!(
+        audit["total"], 5,
+        "generated and manual IPC reads are audited"
+    );
+    assert!(
+        audit["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|row| row["action"] == "manage.catalog.channels")
+    );
 
     // Every channel this build was compiled with.
     assert!(

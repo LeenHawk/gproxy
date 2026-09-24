@@ -71,7 +71,7 @@
 //! 5. **refresh**, for every method that is not a read: an operation commits
 //!    and notifies but does not reload, so the host rebuilds the identity
 //!    snapshot before it answers. See [`settle`];
-//! 6. **audit**, for every method that is not a read. The action name is
+//! 6. **audit**, for every management API operation, including reads. The action name is
 //!    derived from the matched route, so a new route cannot forget to name
 //!    itself.
 //!
@@ -399,6 +399,7 @@ mod config;
 mod context;
 mod credential_login;
 mod identity;
+mod observation;
 
 /// `/admin/api`, to be nested under that prefix.
 ///
@@ -420,6 +421,7 @@ where
 {
     let mut families = identity::routes()
         .merge(config::routes())
+        .merge(observation::routes())
         .merge(credential_login::routes());
     if state.updates().is_some() {
         families = families.merge(crate::update::routes::<C>());
@@ -446,20 +448,37 @@ where
         let method = request.method().clone();
         let headers = request.headers().clone();
         let action = session::audit_action("admin", crate::matched_path(&request), &method);
+        let source_ip = audit_source(&state, &request);
         let (caller, admission) = match admit(&state, &method, &headers).await {
             Ok(admitted) => admitted,
-            Err(error) => return ErrorResponse(error).into_response(),
+            Err(error) => {
+                let response = ErrorResponse(error).into_response();
+                audit(state, None, action, &method, response.status(), source_ip).await;
+                return response;
+            }
         };
         let scope = match admission.require() {
             Ok(scope) => scope.clone(),
-            Err(error) => return ErrorResponse(error).into_response(),
+            Err(error) => {
+                let response = ErrorResponse(error).into_response();
+                audit(
+                    state,
+                    Some(caller),
+                    action,
+                    &method,
+                    response.status(),
+                    source_ip,
+                )
+                .await;
+                return response;
+            }
         };
         request.extensions_mut().insert(caller.clone());
         request.extensions_mut().insert(scope);
         let response = next.run(request).await;
         let status = response.status();
         settle(&state, &method).await;
-        audit(state, caller, action, &method, status).await;
+        audit(state, Some(caller), action, &method, status, source_ip).await;
         response
     })
     .await
@@ -479,16 +498,21 @@ where
         let method = request.method().clone();
         let headers = request.headers().clone();
         let action = session::audit_action("admin", crate::matched_path(&request), &method);
+        let source_ip = audit_source(&state, &request);
         let (caller, admission) = match admit(&state, &method, &headers).await {
             Ok(admitted) => admitted,
-            Err(error) => return ErrorResponse(error).into_response(),
+            Err(error) => {
+                let response = ErrorResponse(error).into_response();
+                audit(state, None, action, &method, response.status(), source_ip).await;
+                return response;
+            }
         };
         request.extensions_mut().insert(caller.clone());
         request.extensions_mut().insert(admission);
         let response = next.run(request).await;
         let status = response.status();
         settle(&state, &method).await;
-        audit(state, caller, action, &method, status).await;
+        audit(state, Some(caller), action, &method, status, source_ip).await;
         response
     })
     .await
@@ -557,10 +581,8 @@ where
 
 /// Append the trail row for a write.
 ///
-/// Reads are not audited: a management list is what a console renders on every
-/// page load, and a trail that is 95% `list` is a trail nobody reads. The one
-/// deliberate exception is `POST /credentials/{id}/reveal`, which is a read
-/// spelled as a write precisely so that it lands here.
+/// Every non-channel API operation is audited, including reads. Channel model
+/// and service requests are observed by the ingress capture path instead.
 ///
 /// The outcome comes from the status because the body has already been
 /// rendered — by design, since an audit write must never be able to change the
@@ -572,20 +594,21 @@ where
 /// non-`Send` and the layer would not compile at all.
 pub(crate) async fn audit<C>(
     state: HostState<C>,
-    caller: Caller,
+    caller: Option<Caller>,
     action: String,
     method: &Method,
     status: StatusCode,
+    source_ip: String,
 ) where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
     crate::send(async move {
-        if matches!(*method, Method::GET | Method::HEAD | Method::OPTIONS) {
-            return;
-        }
         let mut entry = AuditEntry::new(action)
-            .by(&caller)
-            .detail(serde_json::json!({ "status": status.as_u16() }));
+            .source_ip(Some(source_ip))
+            .detail(serde_json::json!({ "status": status.as_u16(), "method": method.as_str() }));
+        if let Some(caller) = caller {
+            entry = entry.by(&caller);
+        }
         if !status.is_success() {
             entry.outcome = audit_event::OUTCOME_ERROR.to_owned();
         }
@@ -596,6 +619,18 @@ pub(crate) async fn audit<C>(
             .await;
     })
     .await
+}
+
+pub(crate) fn audit_source<C: BatchConnectionTrait + Send + Sync + 'static>(
+    state: &HostState<C>,
+    request: &Request,
+) -> String {
+    crate::policy::client_ip(
+        crate::peer_ip(request),
+        request.headers(),
+        &crate::runtime_settings::trusted_proxies(state.app()),
+    )
+    .to_string()
 }
 
 /// One operation's answer as a response.

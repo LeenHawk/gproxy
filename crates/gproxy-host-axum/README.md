@@ -168,6 +168,12 @@ GET    /admin/api/teams/{id}/members           (+ the same)
 GET    /admin/api/sessions                     every session
 DELETE /admin/api/sessions/{id}
 GET    /admin/api/audit                        the trail
+GET    /admin/api/usage                        global summary, groups and trend (instance only)
+GET    /admin/api/usage/records                paged usage records
+GET    /admin/api/logs/downstream              downstream requests, cursor-paged
+GET    /admin/api/logs/upstream                physical upstream exchanges, cursor-paged
+GET    /admin/api/logs/downstream/{id}         downstream, linked upstreams and usage
+GET    /admin/api/logs/captures/{id}           one capture and its stream events
 ```
 
 #### Configuration
@@ -234,17 +240,15 @@ and `DELETE /tokenizer-vocabs/{fileId}` (v3 took the id in a `DELETE` body).
 Middleware, in order: authenticate → **resolve the scope**
 (`AdminScope::resolve`, the one place a scope is derived and the one place the
 scope header is read) → same-origin for an unsafe cookie request → the
-operation, gated on its declared section → an audit row for every method that
-is not a read. It is a `route_layer`, so an unknown `/admin/api/*` path is a
+operation, gated on its declared section → an audit row for every non-channel API operation, including reads. It is a `route_layer`, so an unknown `/admin/api/*` path is a
 404 that never touches the database.
 
 `/admin/api/context` and `/admin/api/session` are mounted under a second,
 lighter guard that stops after resolution without demanding a *current* scope.
 
 The audit action is derived from the matched route (`admin.api_keys.rotate`,
-`admin.providers.create`), so a new route cannot forget to name itself. Reads
-are not audited — which is why the two disclosures above are `POST`s. A
-refusal is audited too: an organization administrator's `403` on a write lands
+`admin.providers.create`), so a new route cannot forget to name itself. Reads and writes are audited. Channel model/service requests go to downstream logs; services do not charge usage. A
+refusal is audited too: an organization administrator's `403` lands
 in the trail with `outcome = error`.
 
 ### `/portal/api`
@@ -344,8 +348,8 @@ socket, with `101` as its status, plus one `capture_events` row per message —
 text, binary, ping, pong and close, ordered across both directions, with a
 `direction` each. Frames are gated on `enable_downstream_log_body` like any
 other body and are redacted by the same rules; with it off the connection is
-still recorded and nothing the caller said is copied. Recording stops after 64
-KiB of payload and the row's body state says `partial`.
+still recorded and nothing the caller said is copied. With body capture enabled,
+all received frames are retained without a logging-size cutoff.
 
 `turn_id` is always unset and no `ws_turn` record is written. The schema calls
 it "the WS business turn, when identifiable", and a turn is a dialect's notion

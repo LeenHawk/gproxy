@@ -398,6 +398,8 @@ ipc_table! {
 
     query logs [.logs()] {
         list(query: sdk::LogQuery);
+        upstream(query: sdk::LogQuery);
+        capture[capture_id];
         detail[request_id];
     }
 
@@ -464,9 +466,14 @@ ipc_table! {
 pub async fn manage_catalog_channels(
     desktop: tauri::State<'_, Desktop>,
 ) -> IpcResult<serde_json::Value> {
-    json(Ok::<_, gproxy_sdk::SdkError>(
-        desktop.app().gproxy().manage().catalog().channels(),
-    ))
+    let answer = async {
+        json(Ok::<_, gproxy_sdk::SdkError>(
+            desktop.app().gproxy().manage().catalog().channels(),
+        ))
+    }
+    .await;
+    super::audit(&desktop, "manage.catalog.channels", &answer).await;
+    answer
 }
 
 /// The bundled default model catalog.
@@ -474,7 +481,9 @@ pub async fn manage_catalog_channels(
 pub async fn manage_catalog_default_models(
     desktop: tauri::State<'_, Desktop>,
 ) -> IpcResult<serde_json::Value> {
-    json(desktop.app().gproxy().manage().catalog().default_models())
+    let answer = async { json(desktop.app().gproxy().manage().catalog().default_models()) }.await;
+    super::audit(&desktop, "manage.catalog.default_models", &answer).await;
+    answer
 }
 
 /// The named TLS/fingerprint presets a connection profile can start from.
@@ -482,9 +491,14 @@ pub async fn manage_catalog_default_models(
 pub async fn manage_catalog_tls_presets(
     desktop: tauri::State<'_, Desktop>,
 ) -> IpcResult<serde_json::Value> {
-    json(Ok::<_, gproxy_sdk::SdkError>(
-        desktop.app().gproxy().manage().catalog().tls_presets(),
-    ))
+    let answer = async {
+        json(Ok::<_, gproxy_sdk::SdkError>(
+            desktop.app().gproxy().manage().catalog().tls_presets(),
+        ))
+    }
+    .await;
+    super::audit(&desktop, "manage.catalog.tls_presets", &answer).await;
+    answer
 }
 
 /// The named rewrite-rule presets.
@@ -492,9 +506,14 @@ pub async fn manage_catalog_tls_presets(
 pub async fn manage_catalog_rule_presets(
     desktop: tauri::State<'_, Desktop>,
 ) -> IpcResult<serde_json::Value> {
-    json(Ok::<_, gproxy_sdk::SdkError>(
-        desktop.app().gproxy().manage().catalog().rule_presets(),
-    ))
+    let answer = async {
+        json(Ok::<_, gproxy_sdk::SdkError>(
+            desktop.app().gproxy().manage().catalog().rule_presets(),
+        ))
+    }
+    .await;
+    super::audit(&desktop, "manage.catalog.rule_presets", &answer).await;
+    answer
 }
 
 /// How far a vocabulary download has got, or `null` when none is running.
@@ -502,9 +521,14 @@ pub async fn manage_catalog_rule_presets(
 pub async fn manage_tokenizer_progress(
     desktop: tauri::State<'_, Desktop>,
 ) -> IpcResult<serde_json::Value> {
-    json(Ok::<_, gproxy_sdk::SdkError>(
-        desktop.app().gproxy().manage().tokenizer().progress(),
-    ))
+    let answer = async {
+        json(Ok::<_, gproxy_sdk::SdkError>(
+            desktop.app().gproxy().manage().tokenizer().progress(),
+        ))
+    }
+    .await;
+    super::audit(&desktop, "manage.tokenizer.progress", &answer).await;
+    answer
 }
 
 /// Refresh a credential. `force` is [`RefreshMode`] as a caller experiences
@@ -515,20 +539,25 @@ pub async fn manage_credentials_refresh(
     id: String,
     force: Option<bool>,
 ) -> IpcResult<serde_json::Value> {
-    let mode = if force.unwrap_or(false) {
-        RefreshMode::Force
-    } else {
-        RefreshMode::IfNeeded
-    };
-    json(
-        desktop
-            .app()
-            .gproxy()
-            .manage()
-            .credentials()
-            .refresh(&id, mode)
-            .await,
-    )
+    let answer = async {
+        let mode = if force.unwrap_or(false) {
+            RefreshMode::Force
+        } else {
+            RefreshMode::IfNeeded
+        };
+        json(
+            desktop
+                .app()
+                .gproxy()
+                .manage()
+                .credentials()
+                .refresh(&id, mode)
+                .await,
+        )
+    }
+    .await;
+    super::audit(&desktop, "manage.credentials.refresh", &answer).await;
+    answer
 }
 
 /// Move a credential's lifecycle status, with the reason that goes in the row.
@@ -539,15 +568,20 @@ pub async fn manage_credentials_set_status(
     status: gproxy_store::entity::upstream::credential::CredentialStatus,
     reason: Option<String>,
 ) -> IpcResult<serde_json::Value> {
-    json(
-        desktop
-            .app()
-            .gproxy()
-            .manage()
-            .credentials()
-            .set_status(&id, status, reason)
-            .await,
-    )
+    let answer = async {
+        json(
+            desktop
+                .app()
+                .gproxy()
+                .manage()
+                .credentials()
+                .set_status(&id, status, reason)
+                .await,
+        )
+    }
+    .await;
+    super::audit(&desktop, "manage.credentials.set_status", &answer).await;
+    answer
 }
 
 /// Where a chain of budget owners stands.
@@ -556,15 +590,20 @@ pub async fn manage_quotas_budget_status(
     desktop: tauri::State<'_, Desktop>,
     owners: Vec<BudgetOwner>,
 ) -> IpcResult<serde_json::Value> {
-    json(
-        desktop
-            .app()
-            .gproxy()
-            .manage()
-            .quotas()
-            .budget_status(&owners)
-            .await,
-    )
+    let answer = async {
+        json(
+            desktop
+                .app()
+                .gproxy()
+                .manage()
+                .quotas()
+                .budget_status(&owners)
+                .await,
+        )
+    }
+    .await;
+    super::audit(&desktop, "manage.quotas.budget_status", &answer).await;
+    answer
 }
 
 /// Ask a provider what models it has, without writing anything.
@@ -574,23 +613,33 @@ pub async fn manage_connectivity_discover_models(
     provider_id: String,
     credential_id: Option<String>,
 ) -> IpcResult<serde_json::Value> {
-    json(
-        desktop
-            .app()
-            .gproxy()
-            .manage()
-            .connectivity()
-            .discover_models(&provider_id, credential_id.as_deref())
-            .await,
-    )
+    let answer = async {
+        json(
+            desktop
+                .app()
+                .gproxy()
+                .manage()
+                .connectivity()
+                .discover_models(&provider_id, credential_id.as_deref())
+                .await,
+        )
+    }
+    .await;
+    super::audit(&desktop, "manage.connectivity.discover_models", &answer).await;
+    answer
 }
 
 /// The models this account may call, as the portal lists them.
 #[tauri::command]
 pub async fn portal_me_models(desktop: tauri::State<'_, Desktop>) -> IpcResult<serde_json::Value> {
-    let data = desktop.app().data();
-    let operations = desktop.operations(&data);
-    json(operations.portal(desktop.caller()).models())
+    let answer = async {
+        let data = desktop.app().data();
+        let operations = desktop.operations(&data);
+        json(operations.portal(desktop.caller()).models())
+    }
+    .await;
+    super::audit(&desktop, "portal.me.models", &answer).await;
+    answer
 }
 
 /// The quota windows a credential is currently counted against.
@@ -599,15 +648,20 @@ pub async fn query_quota_counted_windows(
     desktop: tauri::State<'_, Desktop>,
     credential_id: String,
 ) -> IpcResult<serde_json::Value> {
-    json(
-        desktop
-            .app()
-            .gproxy()
-            .query()
-            .quota()
-            .counted_windows(&credential_id, crate::now_ms())
-            .await,
-    )
+    let answer = async {
+        json(
+            desktop
+                .app()
+                .gproxy()
+                .query()
+                .quota()
+                .counted_windows(&credential_id, crate::now_ms())
+                .await,
+        )
+    }
+    .await;
+    super::audit(&desktop, "query.quota.counted_windows", &answer).await;
+    answer
 }
 
 /// The same budget question as the management family, read rather than acted
@@ -617,15 +671,20 @@ pub async fn query_quota_budget_status(
     desktop: tauri::State<'_, Desktop>,
     owners: Vec<BudgetOwner>,
 ) -> IpcResult<serde_json::Value> {
-    json(
-        desktop
-            .app()
-            .gproxy()
-            .query()
-            .quota()
-            .budget_status(&owners, crate::now_ms())
-            .await,
-    )
+    let answer = async {
+        json(
+            desktop
+                .app()
+                .gproxy()
+                .query()
+                .quota()
+                .budget_status(&owners, crate::now_ms())
+                .await,
+        )
+    }
+    .await;
+    super::audit(&desktop, "query.quota.budget_status", &answer).await;
+    answer
 }
 
 /// Drop every console session whose lifetime has run out.
@@ -633,9 +692,14 @@ pub async fn query_quota_budget_status(
 pub async fn admin_sessions_purge_expired(
     desktop: tauri::State<'_, Desktop>,
 ) -> IpcResult<serde_json::Value> {
-    let data = desktop.app().data();
-    let operations = desktop.operations(&data);
-    json(operations.sessions().purge_expired(crate::now_ms()).await)
+    let answer = async {
+        let data = desktop.app().data();
+        let operations = desktop.operations(&data);
+        json(operations.sessions().purge_expired(crate::now_ms()).await)
+    }
+    .await;
+    super::audit(&desktop, "admin.sessions.purge_expired", &answer).await;
+    answer
 }
 
 // ------------------------------------------------------------- the shell --
@@ -670,20 +734,25 @@ pub struct InstanceStatus {
 pub async fn desktop_instance_status(
     desktop: tauri::State<'_, Desktop>,
 ) -> IpcResult<serde_json::Value> {
-    let plane = desktop.data_plane();
-    json(Ok::<_, gproxy_app::AppError>(InstanceStatus {
-        base_url: plane.base_url.clone(),
-        port: plane.address.port(),
-        revision: desktop.app().snapshot().revision(),
-        secrets_are_sealed: desktop.secrets().secrets_are_sealed(),
-        secrets: desktop.secrets(),
-        data_dir: desktop.data_dir().display().to_string(),
-        config_file: desktop
-            .data_dir()
-            .join(crate::config::CONFIG_FILE)
-            .display()
-            .to_string(),
-    }))
+    let answer = async {
+        let plane = desktop.data_plane();
+        json(Ok::<_, gproxy_app::AppError>(InstanceStatus {
+            base_url: plane.base_url.clone(),
+            port: plane.address.port(),
+            revision: desktop.app().snapshot().revision(),
+            secrets_are_sealed: desktop.secrets().secrets_are_sealed(),
+            secrets: desktop.secrets(),
+            data_dir: desktop.data_dir().display().to_string(),
+            config_file: desktop
+                .data_dir()
+                .join(crate::config::CONFIG_FILE)
+                .display()
+                .to_string(),
+        }))
+    }
+    .await;
+    super::audit(&desktop, "desktop.instance.status", &answer).await;
+    answer
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -699,11 +768,16 @@ pub struct GatewayKey {
 pub async fn desktop_instance_gateway_key(
     desktop: tauri::State<'_, Desktop>,
 ) -> IpcResult<serde_json::Value> {
-    let plane = desktop.data_plane();
-    json(Ok::<_, gproxy_app::AppError>(GatewayKey {
-        base_url: plane.base_url.clone(),
-        token: plane.gateway_key.clone(),
-    }))
+    let answer = async {
+        let plane = desktop.data_plane();
+        json(Ok::<_, gproxy_app::AppError>(GatewayKey {
+            base_url: plane.base_url.clone(),
+            token: plane.gateway_key.clone(),
+        }))
+    }
+    .await;
+    super::audit(&desktop, "desktop.instance.gateway_key", &answer).await;
+    answer
 }
 
 /// Re-read the engine's snapshot and this instance's identity from the
@@ -716,5 +790,7 @@ pub async fn desktop_instance_gateway_key(
 pub async fn desktop_instance_reload(
     desktop: tauri::State<'_, Desktop>,
 ) -> IpcResult<serde_json::Value> {
-    json(desktop.app().reload_all().await)
+    let answer = async { json(desktop.app().reload_all().await) }.await;
+    super::audit(&desktop, "desktop.instance.reload", &answer).await;
+    answer
 }
