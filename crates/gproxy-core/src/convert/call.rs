@@ -73,6 +73,8 @@ pub(crate) struct Call<'a, C> {
     /// The client asked for a stream but the upstream is invoked buffered;
     /// the driver synthesizes the client's native stream lifecycle.
     pub synthesize: bool,
+    /// Collect a native upstream stream into a complete client response.
+    pub collect: bool,
 }
 
 impl<'a, C: BatchConnectionTrait + Send + Sync> Call<'a, C> {

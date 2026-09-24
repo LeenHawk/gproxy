@@ -48,7 +48,7 @@ pub fn can_convert(source: OperationKey, target: OperationKey) -> bool {
     let generation = |d| matches!(d, OpenAi | OpenAiChat | Claude | Gemini);
     match source.operation {
         GenerateContent => {
-            target.operation == GenerateContent
+            matches!(target.operation, GenerateContent | StreamGenerateContent)
                 && (generation(source.dialect) || source.dialect == OpenAiResponsesWebSocket)
                 && generation(target.dialect)
         }
@@ -173,9 +173,11 @@ fn default_with_native(
             supported.contains(&target.dialect)
         })
         .collect();
-    // Preserve streaming when the channel has a streaming implementation.
-    if source.operation == Operation::StreamGenerateContent
-        && targets.iter().any(|t| t.operation == source.operation)
+    // Prefer the same response mode when the channel supports it.
+    if matches!(
+        source.operation,
+        Operation::GenerateContent | Operation::StreamGenerateContent
+    ) && targets.iter().any(|t| t.operation == source.operation)
     {
         targets.retain(|t| t.operation == source.operation);
     }

@@ -236,31 +236,52 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> CallBuilder<'_, C> {
         }
         session::strip_gateway_header(&mut headers);
 
-        let mut walk = Walk::new(prepared);
-        while let Some(step) = walk.next() {
-            let request = WireRequest {
-                method: method.clone(),
-                path: path.clone(),
-                query: query.clone(),
-                headers: headers.clone(),
-                body: payload.take(),
-            };
-            match gproxy.core().send(step.context, request).await {
-                Ok(execution) => {
-                    let status = execution.response().status;
-                    if step.more && failover_status(status) {
-                        // Dropping the execution settles its funnel as failed,
-                        // which is what the next provider's attempt should see.
-                        drop(execution);
-                        walk.remember(upstream_error(&step.provider, status));
-                        continue;
+        // Only plans that may synthesize SSE from a complete result need a
+        // heartbeat before core returns headers. Keep the entire failover walk
+        // inside the pending future so heartbeats do not bypass retries.
+        let keepalive = operation.operation == gproxy_protocol::Operation::StreamGenerateContent
+            && (operation.dialect != gproxy_protocol::Dialect::Gemini
+                || query
+                    .as_deref()
+                    .is_some_and(|q| q.split('&').any(|p| p == "alt=sse")))
+            && prepared.plan.targets.iter().any(|target| {
+                matches!(gproxy_core::convert::route(&target.provider, operation),
+                    Ok(gproxy_core::convert::Route::TransformTo { target })
+                        if target.operation == gproxy_protocol::Operation::GenerateContent)
+            });
+        let gproxy = gproxy.clone();
+        let pending = Box::pin(async move {
+            let mut walk = Walk::new(prepared);
+            while let Some(step) = walk.next() {
+                let request = WireRequest {
+                    method: method.clone(),
+                    path: path.clone(),
+                    query: query.clone(),
+                    headers: headers.clone(),
+                    body: payload.take(),
+                };
+                match gproxy.core().send(step.context, request).await {
+                    Ok(execution) => {
+                        let status = execution.response().status;
+                        if step.more && failover_status(status) {
+                            // Dropping the execution settles its funnel as failed,
+                            // which is what the next provider's attempt should see.
+                            drop(execution);
+                            walk.remember(upstream_error(&step.provider, status));
+                            continue;
+                        }
+                        return Ok(execution);
                     }
-                    return Ok(execution);
+                    Err(error) => walk.failed(error)?,
                 }
-                Err(error) => walk.failed(error)?,
             }
+            Err(walk.exhausted())
+        });
+        if keepalive {
+            HttpExecution::with_sse_keepalive(pending, operation.dialect).await
+        } else {
+            pending.await
         }
-        Err(walk.exhausted())
     }
 }
 

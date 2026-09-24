@@ -430,3 +430,70 @@ async fn a_refused_handshake_hands_over_to_the_next_provider() {
         ]
     );
 }
+
+#[tokio::test]
+async fn buffered_stream_keepalive_preserves_provider_failover_and_settlement() {
+    use gproxy_store::entity::upstream::operation_rule;
+    use sea_orm::Set;
+    let (gproxy, client, _) = pair().await;
+    for provider_id in ["p1", "p2"] {
+        gproxy.store().operation_rules().create_many(vec![operation_rule::ActiveModel {
+            id: Set(format!("buffered-{provider_id}")),
+            provider_id: Set(provider_id.into()),
+            operation: Set("stream_generate_content".into()),
+            action: Set("routing".into()),
+            target: Set(Some(json!({"openai":{"implementation":"transform_to", "target":{"operation":"generate_content", "dialect":"openai"}}}))),
+        }]).await.unwrap();
+    }
+    seed::publish(&gproxy).await;
+    client.script(vec![
+        Reply::DelayedHttp(std::time::Duration::from_secs(20), StatusCode::SERVICE_UNAVAILABLE, json!({"error":{"message":"try next"}})),
+        Reply::Http(StatusCode::OK, json!({
+            "id":"resp_answer", "created_at":1, "model":"m1", "object":"response", "status":"completed",
+            "error":null, "incomplete_details":null, "instructions":null, "metadata":null,
+            "parallel_tool_calls":true, "temperature":null, "top_p":null, "tools":[], "tool_choice":"auto",
+            "output":[{"type":"message","id":"msg_answer","role":"assistant","status":"completed","content":[{"type":"output_text","text":"hello","annotations":[],"logprobs":[]}]}],
+            "usage":{"input_tokens":4,"output_tokens":2,"total_tokens":6,"input_tokens_details":{"cached_tokens":0,"cache_write_tokens":0},"output_tokens_details":{"reasoning_tokens":0}}
+        })),
+    ]);
+    tokio::time::pause();
+    let result = gproxy
+        .call(
+            OperationKey {
+                operation: Operation::StreamGenerateContent,
+                dialect: Dialect::OpenAi,
+            },
+            request(json!({"model":"pair","stream":true,"input":"hi"})),
+        )
+        .scope("tenant")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        result.response().headers["content-type"],
+        "text/event-stream"
+    );
+    let (response, completion) = result.into_parts();
+    let body = support::read(response.body).await;
+    assert!(body.starts_with(": keep-alive\n\n"), "{body}");
+    assert!(
+        body.contains("response.completed") && body.contains("hello"),
+        "{body}"
+    );
+    assert!(
+        !body.contains("event: error"),
+        "the second provider recovers the failure: {body}"
+    );
+    assert_eq!(
+        completion.await.unwrap().state,
+        gproxy_core::UsageState::Completed
+    );
+    assert_eq!(client.urls().len(), 2);
+    assert!(
+        client
+            .seen
+            .lines()
+            .iter()
+            .all(|line| line.contains("\"stream\":false"))
+    );
+}

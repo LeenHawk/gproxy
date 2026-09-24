@@ -109,6 +109,7 @@ impl BaseChannel for AltChannel {
 /// because a rejected HTTP status is still a successful `send`.
 pub enum Reply {
     Http(StatusCode, Value),
+    DelayedHttp(std::time::Duration, StatusCode, Value),
     Transport(&'static str),
 }
 
@@ -164,28 +165,33 @@ impl OutboundClient for SeedClient {
                 "{} {} gateway={gateway} body={body}",
                 parts.method, parts.uri,
             ));
-            match self
+            let reply = self
                 .replies
                 .lock()
                 .unwrap()
                 .pop_front()
-                .expect("scripted reply")
-            {
-                Reply::Http(status, body) => {
-                    let mut headers = HeaderMap::new();
-                    headers.insert("content-type", HeaderValue::from_static("application/json"));
-                    Ok(WireResponse {
-                        status,
-                        headers,
-                        body: HttpBody::Bytes(Bytes::from(serde_json::to_vec(&body).unwrap())),
-                    })
+                .expect("scripted reply");
+            let (status, body) = match reply {
+                Reply::Http(status, body) => (status, body),
+                Reply::DelayedHttp(delay, status, body) => {
+                    tokio::time::sleep(delay).await;
+                    (status, body)
                 }
-                Reply::Transport(reason) => Err(CapabilityError::new(
-                    CapabilityErrorKind::Transport,
-                    CapabilityErrorStage::Start,
-                    reason,
-                )),
-            }
+                Reply::Transport(reason) => {
+                    return Err(CapabilityError::new(
+                        CapabilityErrorKind::Transport,
+                        CapabilityErrorStage::Start,
+                        reason,
+                    ));
+                }
+            };
+            let mut headers = HeaderMap::new();
+            headers.insert("content-type", HeaderValue::from_static("application/json"));
+            Ok(WireResponse {
+                status,
+                headers,
+                body: HttpBody::Bytes(Bytes::from(serde_json::to_vec(&body).unwrap())),
+            })
         })
     }
 

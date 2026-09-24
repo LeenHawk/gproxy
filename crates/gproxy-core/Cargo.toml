@@ -55,9 +55,10 @@ tokio = { version = "1", default-features = false, features = ["sync", "macros"]
 wasm-bindgen-futures = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+gproxy-channel = { workspace = true, features = ["codex", "openai"] }
 gproxy-cache = { workspace = true, features = ["memory"] }
 gproxy-client = { workspace = true, features = ["reqwest"] }
 gproxy-file = { workspace = true, features = ["fs"] }
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
 tempfile = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "io-util"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "io-util", "test-util"] }

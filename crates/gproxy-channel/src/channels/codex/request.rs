@@ -515,14 +515,25 @@ impl BaseChannel for Codex {
         Some(default_connection())
     }
 
-    fn default_conversion_target(&self, _provider: ProviderView<'_>, source: OperationKey) -> Option<OperationKey> {
-        matches!(source.operation, Operation::GenerateContent | Operation::StreamGenerateContent)
-            .then_some(OperationKey { operation: source.operation, dialect: Dialect::OpenAi })
+    fn default_conversion_target(
+        &self,
+        _provider: ProviderView<'_>,
+        source: OperationKey,
+    ) -> Option<OperationKey> {
+        matches!(
+            source.operation,
+            Operation::GenerateContent | Operation::StreamGenerateContent
+        )
+        .then_some(OperationKey {
+            operation: Operation::StreamGenerateContent,
+            dialect: Dialect::OpenAi,
+        })
     }
 
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
-            Operation::GenerateContent | Operation::StreamGenerateContent => {
+            Operation::GenerateContent => vec![Dialect::OpenAiResponsesWebSocket],
+            Operation::StreamGenerateContent => {
                 vec![Dialect::OpenAi, Dialect::OpenAiResponsesWebSocket]
             }
             Operation::ListModels

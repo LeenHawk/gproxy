@@ -320,6 +320,9 @@ async fn invoke_stream<C: BatchConnectionTrait + Send + Sync + 'static>(
     if target == Dialect::OpenAiResponsesWebSocket {
         return super::responses_ws::over_websocket(call, settings).await;
     }
+    if client == target && call.collect {
+        return collect_native(call).await;
+    }
     let state = &call.generation_state()?;
     let key = OperationKey {
         operation: Operation::StreamGenerateContent,
@@ -347,7 +350,7 @@ async fn invoke_stream<C: BatchConnectionTrait + Send + Sync + 'static>(
             ($pair:ty, $input:ty $(, |$index:ident| $ctx:expr)?) => {{
                 let input: $input = decode(body, limits)?;
                 Box::pin(async move {
-                    let fanout = <$pair>::prepare_stream(
+                    let mut fanout = <$pair>::prepare_stream(
                         input,
                         fanout_target,
                         $(|$index: usize| $ctx,)?
@@ -355,6 +358,14 @@ async fn invoke_stream<C: BatchConnectionTrait + Send + Sync + 'static>(
                         state,
                     )
                     .await?;
+                    if call.collect {
+                        let result = fanout.collect(upstream, &key, state).await?;
+                        return Ok(Converted::Success(WireResponse {
+                            status: http::StatusCode::OK,
+                            headers: json_headers(),
+                            body: HttpBody::Bytes(encode_json(&result.value, limits).map_err(codec)?),
+                        }));
+                    }
                     let owned = OwnedState::capture(call, state);
                     let upstream = upstream.clone();
                     let stream: ByteStream = Box::pin(futures_util::stream::unfold(
@@ -436,6 +447,9 @@ async fn invoke_stream<C: BatchConnectionTrait + Send + Sync + 'static>(
             match invocation.start(upstream, &key, state).await? {
                 StreamStart::Rejected(response) => Ok(rejected(response)),
                 StreamStart::Streaming(head) => {
+                    if call.collect {
+                        return finish(invocation.collect(state).await?, limits);
+                    }
                     let owned = OwnedState::capture(call, state);
                     Ok(Converted::Stream(WireResponse {
                         status: head.status,
@@ -668,10 +682,107 @@ fn complete<Cl: SynthesizedClient>(
 }
 
 /// One buffered generation for `client -> target`.
-pub(crate) async fn buffered<C: BatchConnectionTrait + Send + Sync>(
+pub(crate) async fn buffered<C: BatchConnectionTrait + Send + Sync + 'static>(
     call: &Call<'_, C>,
 ) -> Result<Converted, TransformError> {
+    if call.collect {
+        return Box::pin(invoke_stream(call)).await;
+    }
     Box::pin(invoke_complete(call, Completion::Buffered)).await
+}
+
+// Same-dialect collection needs no protocol or identity conversion.
+async fn collect_native<C: BatchConnectionTrait + Send + Sync>(
+    call: &Call<'_, C>,
+) -> Result<Converted, TransformError> {
+    use gproxy_protocol::{
+        adapt::generate::stream::{
+            event::NativeEvent,
+            reader::{NativeFrame, NativeReader},
+        },
+        capability::Upstream,
+        transform::identity::IdentityFlow,
+    };
+    let endpoint = super::generate_endpoint(call.target, call.model()?, true)?;
+    let mut body: serde_json::Value = decode(call.body(), call.limits)?;
+    if call.target != Dialect::Gemini {
+        let object = body
+            .as_object_mut()
+            .ok_or_else(|| TransformError::shape("request", "expected an object"))?;
+        object.insert("stream".into(), serde_json::json!(true));
+        object.insert("model".into(), serde_json::json!(call.model()?));
+    }
+    let mut headers = call.request.headers.clone();
+    headers.insert(
+        http::header::ACCEPT,
+        http::HeaderValue::from_static("text/event-stream"),
+    );
+    let response = call
+        .upstream
+        .send(
+            &OperationKey {
+                operation: Operation::StreamGenerateContent,
+                dialect: call.target,
+            },
+            gproxy_protocol::WireRequest {
+                method: http::Method::POST,
+                path: endpoint.path,
+                query: endpoint.query.clone(),
+                headers,
+                body: HttpBody::Bytes(encode_json(&body, call.limits).map_err(codec)?),
+            },
+        )
+        .await?;
+    if !response.status.is_success() {
+        return Ok(Converted::Rejected(response));
+    }
+    let mut headers = response.headers;
+    headers.remove(http::header::CONTENT_LENGTH);
+    headers.remove(http::header::TRANSFER_ENCODING);
+    headers.insert(
+        http::header::CONTENT_TYPE,
+        http::HeaderValue::from_static("application/json"),
+    );
+    let settings = stream_settings(call.limits, call.target, endpoint.query.as_deref());
+    let mut reader = NativeReader::new(
+        response.body,
+        settings.client_framing,
+        call.limits,
+        MAX_STREAM_EVENTS,
+    );
+    macro_rules! collect {
+        ($event:ty) => {{
+            let mut collector = <$event>::collector(
+                IdentityFlow::new(namespace()),
+                TargetIdPolicy::new(call.target),
+                settings.events,
+            );
+            while let Some(frame) = reader.next::<$event>().await.map_err(codec)? {
+                match frame {
+                    NativeFrame::Event { value, .. } => <$event>::collect(&mut collector, value)?,
+                    NativeFrame::Done => <$event>::collect_done(&mut collector)?,
+                }
+            }
+            encode_json(&<$event>::collected(collector)?.value.value, call.limits).map_err(codec)?
+        }};
+    }
+    let body = match call.target {
+        Dialect::OpenAi => collect!(r::stream::StreamEvent),
+        Dialect::OpenAiChat => collect!(h::stream::ChatCompletionChunk),
+        Dialect::Claude => collect!(gproxy_protocol::wire::claude::stream::StreamEvent),
+        Dialect::Gemini => collect!(g::GenerateContentResponseBody),
+        _ => {
+            return Err(TransformError::unsupported(
+                "route",
+                "no native HTTP stream collector",
+            ));
+        }
+    };
+    Ok(Converted::Success(WireResponse {
+        status: response.status,
+        headers,
+        body: HttpBody::Bytes(body),
+    }))
 }
 
 // Keep native synthesis out of the multi-protocol conversion dispatch frame.
