@@ -5,6 +5,144 @@ use gproxy_channel_api::{Channel, ChannelRegistry, QuotaValue};
 use http::StatusCode;
 use serde_json::json;
 
+const SUMMARY: &[u8] = br#"{"groups":[{"displayName":"Gemini Models","buckets":[{"bucketId":"gemini-5h","remainingFraction":0.5,"resetTime":"2026-09-15T12:00:00Z"}]}]}"#;
+
+fn antigravity_fixture(expiry: i64) -> (MemoryHost, Core<MemoryHost>, crate::ProviderRef) {
+    let host = MemoryHost::new(false);
+    {
+        let mut state = host.state.lock().unwrap();
+        state.credential.channel = "antigravity".into();
+        state.credential.secret = json!({
+            "access_token":"old", "refresh_token":"refresh-fixture", "project_id":"test-project",
+            "expires_at_ms":expiry,
+        });
+    }
+    let core = Core::new(
+        host.clone(),
+        ChannelRegistry::new([Box::new(gproxy_channels::AntigravityChannel) as Box<dyn Channel>])
+            .unwrap(),
+    )
+    .unwrap();
+    let mut provider = target().provider;
+    provider.channel = "antigravity".into();
+    provider.settings = json!({});
+    (host, core, provider)
+}
+
+#[test]
+fn quota_probe_refreshes_expired_oauth_and_returns_the_rotated_version() {
+    let (host, core, provider) = antigravity_fixture(1);
+    host.state.lock().unwrap().scripted.extend([
+        (
+            StatusCode::OK,
+            vec![Bytes::from_static(
+                br#"{"access_token":"fresh","expires_in":3600}"#,
+            )],
+        ),
+        (StatusCode::OK, vec![Bytes::from_static(SUMMARY)]),
+    ]);
+    let result =
+        block_on(core.quota_source(&provider, crate::CredentialId(7), 4, "subscription")).unwrap();
+    assert_eq!(result.credential_version, 5);
+    assert_eq!(result.entries.len(), 1);
+    let state = host.state.lock().unwrap();
+    assert_eq!(state.rotations, [4]);
+    assert_eq!(state.upstream_requests.len(), 2);
+    assert_eq!(
+        state.upstream_requests[0].1,
+        "https://oauth2.googleapis.com/token"
+    );
+    assert_eq!(
+        state.upstream_requests[1].0[http::header::AUTHORIZATION],
+        "Bearer fresh"
+    );
+    assert!(
+        state.upstream_requests[1]
+            .1
+            .ends_with(":retrieveUserQuotaSummary")
+    );
+    assert!(state.settlements.is_empty());
+    assert_eq!(state.admit_calls, 0);
+}
+
+#[test]
+fn quota_probe_retries_401_once_but_not_403_or_429() {
+    for status in [
+        StatusCode::UNAUTHORIZED,
+        StatusCode::FORBIDDEN,
+        StatusCode::TOO_MANY_REQUESTS,
+    ] {
+        let (host, core, provider) = antigravity_fixture(i64::MAX);
+        host.state.lock().unwrap().scripted.extend([
+            (status, vec![Bytes::from_static(b"denied")]),
+            (
+                StatusCode::OK,
+                vec![Bytes::from_static(
+                    br#"{"access_token":"fresh","expires_in":3600}"#,
+                )],
+            ),
+            (
+                StatusCode::UNAUTHORIZED,
+                vec![Bytes::from_static(b"still denied")],
+            ),
+        ]);
+        assert!(
+            block_on(core.quota_probe("antigravity", &provider, crate::CredentialId(7))).is_err()
+        );
+        let state = host.state.lock().unwrap();
+        assert_eq!(
+            state.upstream_requests.len(),
+            if status == StatusCode::UNAUTHORIZED {
+                3
+            } else {
+                1
+            }
+        );
+        assert_eq!(
+            state.rotations.len(),
+            usize::from(status == StatusCode::UNAUTHORIZED)
+        );
+    }
+}
+
+#[test]
+fn quota_probe_legacy_fallback_is_bounded_and_does_not_refresh_a_valid_token() {
+    for status in [StatusCode::NOT_FOUND, StatusCode::OK] {
+        let (host, core, provider) = antigravity_fixture(i64::MAX);
+        host.state.lock().unwrap().scripted.extend([
+            (status, vec![Bytes::from_static(b"{}")]),
+            (
+                StatusCode::OK,
+                vec![Bytes::from_static(
+                    br#"{"models":{"gemini-pro-agent":{"quotaInfo":{"remainingFraction":0.8}}}}"#,
+                )],
+            ),
+        ]);
+        let result =
+            block_on(core.quota_probe("antigravity", &provider, crate::CredentialId(7))).unwrap();
+        assert_eq!(result.credential_version, 4);
+        assert_eq!(result.observations.len(), 1);
+        let state = host.state.lock().unwrap();
+        assert!(state.rotations.is_empty());
+        assert_eq!(state.upstream_requests.len(), 2);
+        assert!(
+            state.upstream_requests[1]
+                .1
+                .ends_with(":fetchAvailableModels")
+        );
+    }
+}
+
+#[test]
+fn quota_probe_rejects_stale_versions_without_egress() {
+    let (host, core, provider) = antigravity_fixture(1);
+    assert!(matches!(
+        block_on(core.quota_source(&provider, crate::CredentialId(7), 3, "subscription")),
+        Err(CoreError::Unsupported)
+    ));
+    assert!(host.state.lock().unwrap().upstream_requests.is_empty());
+}
+
 #[test]
 fn balance_probe_is_read_only_and_rejects_invalid_or_unauthorized_responses() {
     let host = MemoryHost::new(false);

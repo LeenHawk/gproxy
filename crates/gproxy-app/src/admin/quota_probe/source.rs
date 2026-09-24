@@ -63,7 +63,12 @@ pub(super) async fn refresh(
                 .host
                 .services
                 .store
-                .save_credential_quota_source(id, version, &state, Some(&result.entries))
+                .save_credential_quota_source(
+                    id,
+                    result.credential_version,
+                    &state,
+                    Some(&result.entries),
+                )
                 .await?;
             cache
                 .delete(&format!("{key}:failures"))

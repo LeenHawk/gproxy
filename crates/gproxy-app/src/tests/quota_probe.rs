@@ -10,6 +10,86 @@ use std::sync::{
 };
 
 #[tokio::test]
+async fn oauth_quota_refresh_saves_snapshot_after_credential_version_changes() {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let server = std::thread::spawn(move || {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        for (path, body) in [
+            (
+                "/token",
+                r#"{"access_token":"fresh-fixture","expires_in":3600}"#,
+            ),
+            (
+                "/v1internal:retrieveUserQuotaSummary",
+                r#"{"groups":[{"displayName":"Gemini Models","buckets":[{"bucketId":"gemini-5h","remainingFraction":0.75,"resetTime":"2099-09-15T12:00:00Z"},{"bucketId":"gemini-weekly","remainingFraction":0.5,"resetTime":"2099-09-20T12:00:00Z"}]},{"displayName":"Claude and GPT models","buckets":[{"bucketId":"3p-5h","remainingFraction":0},{"bucketId":"3p-weekly","remainingFraction":1}]}]}"#,
+            ),
+        ] {
+            let mut stream = loop {
+                match listener.accept() {
+                    Ok((stream, _)) => break stream,
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            std::time::Instant::now() < deadline,
+                            "quota request timed out"
+                        );
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                    Err(error) => panic!("accept: {error}"),
+                }
+            };
+            stream
+                .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                .unwrap();
+            let mut buffer = [0; 8192];
+            let n = stream.read(&mut buffer).unwrap();
+            let request = std::str::from_utf8(&buffer[..n]).unwrap();
+            assert!(request.starts_with(&format!("POST {path} ")));
+            if path != "/token" {
+                assert!(
+                    request
+                        .to_ascii_lowercase()
+                        .contains("authorization: bearer fresh-fixture")
+                );
+            }
+            write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+        }
+    });
+    let fixture = setup::fixture().await;
+    let app = &fixture.app;
+    let MutationResult::Id(provider) = app.mutate(ControlMutation::Provider(gproxy_store::records::ProviderInput {
+        name: "antigravity-quota-fixture".into(), label: None, channel: "antigravity".into(),
+        settings: json!({"base_url":format!("http://{address}"),"oauth_token_url":format!("http://{address}/token")}),
+        credential_strategy: "round_robin".into(), proxy_url: None, tls_fingerprint: None, enabled: true,
+    })).await.unwrap() else { panic!("provider"); };
+    let MutationResult::Id(id) = app.mutate(ControlMutation::Credential {
+        provider_id: provider, label: None,
+        secret: json!({"access_token":"old-fixture","refresh_token":"fixture-refresh","project_id":"test-project","expires_at_ms":1}),
+        enabled: true,
+    }).await.unwrap() else { panic!("credential"); };
+    let result = app.quota_probe(id, true).await.unwrap();
+    assert!(!result.local_error);
+    assert_eq!(result.snapshot.entries.len(), 4);
+    assert!(
+        result
+            .snapshot
+            .sources
+            .iter()
+            .all(|source| source.error.is_none())
+    );
+    assert_eq!(
+        app.credential_quota_snapshot(id)
+            .await
+            .unwrap()
+            .entries
+            .len(),
+        4
+    );
+    server.join().unwrap();
+}
+
+#[tokio::test]
 async fn quota_snapshot_reads_without_egress_and_refresh_preserves_last_success() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let address = listener.local_addr().unwrap();

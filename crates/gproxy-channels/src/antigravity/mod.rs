@@ -98,6 +98,14 @@ impl Channel for AntigravityChannel {
         quota::parse_probe(status, body)
     }
 
+    fn prepare_quota_probe_fallback(
+        &self,
+        secret: &Value,
+        provider_settings: &Value,
+    ) -> Result<Option<http::Request<bytes::Bytes>>, gproxy_channel_api::ChannelError> {
+        quota::legacy_probe_request(secret, provider_settings)
+    }
+
     fn shape_response(
         &self,
         ctx: ResponseShapeCtx<'_>,

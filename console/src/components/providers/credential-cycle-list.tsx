@@ -12,10 +12,11 @@ import { windowName } from "@/lib/quota-window"
 
 function CycleTile({ cycle, history }: { cycle: QuotaProbeWindowDto; history?: CredentialQuotaCycleDto }) {
   const { t, i18n } = useTranslation()
+  const inactive = cycle.label === "antigravity_disabled"
   const used = cycle.upstream_used
   const nativeLimit = cycle.upstream_limit
   const limit = Number(nativeLimit)
-  const percent = cycle.used_percent != null ? Number(cycle.used_percent)
+  const percent = inactive ? null : cycle.used_percent != null ? Number(cycle.used_percent)
     : used != null && limit > 0 ? Number(used) / limit * 100 : null
   const value = percent != null ? formatPercent(Math.round(percent) / 100, i18n.language)
     : used != null ? `${formatNumber(Number(used), i18n.language)}${nativeLimit != null ? ` / ${formatNumber(limit, i18n.language)}` : ""}` : "—"
@@ -24,7 +25,8 @@ function CycleTile({ cycle, history }: { cycle: QuotaProbeWindowDto; history?: C
     {percent != null ? <Meter percent={percent} /> : null}
     {percent != null && used != null && nativeLimit != null ? <p className="text-xs text-muted-foreground tabular-nums">{formatNumber(Number(used), i18n.language)} / {formatNumber(limit, i18n.language)} {cycle.unit}</p> : null}
     {history?.period_start != null ? <p className="text-xs text-muted-foreground">{t("usage.cycleUsage.starts", { value: formatInstant(history.period_start, i18n.language) })}</p> : null}
-    {cycle.period_end != null ? <p className="text-xs text-muted-foreground">{t("window.resets", { value: formatInstant(cycle.period_end, i18n.language) })}</p> : null}
+    {inactive ? <p className="text-xs text-muted-foreground">{t("usage.cycleUsage.antigravityDisabled")}</p> : null}
+    {!inactive && cycle.period_end != null ? <p className="text-xs text-muted-foreground">{t("window.resets", { value: formatInstant(cycle.period_end, i18n.language) })}</p> : null}
     {history ? <>
       <p className="text-xs text-muted-foreground">{t("usage.cycleUsage.observed", { value: formatInstant(history.last_observed_at, i18n.language) })}</p>
       {history.local_boundary && history.accounting_start_ms != null ? <p className="text-xs text-muted-foreground">{t("usage.cycleUsage.localBoundary", { value: formatInstant(history.accounting_start_ms / 1000, i18n.language) })}</p> : null}

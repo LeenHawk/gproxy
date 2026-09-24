@@ -155,6 +155,7 @@
       }
     },
     "cycleUsage": {
+      "antigravityDisabled": "上游已停用此窗口，请以同组模型的周额度为准。",
       "used": "本周期已用（本机）",
       "estimated": "预估本周期总额度",
       "tokens": "{{value}} 令牌",
@@ -177,6 +178,7 @@
       "empty": "该时段未观测到上游凭证配额窗口。"
     },
     "windowNames": {
+      "inactive": "{{window}}（当前不适用）",
       "five_hour": "5 小时窗口",
       "seven_day": "7 天窗口",
       "primary": "主窗口",
@@ -194,7 +196,11 @@
       "weekly_surface": "{{scope}} 周限额",
       "additional_primary": "{{scope}} 主窗口",
       "additional_secondary": "{{scope}} 次窗口",
-      "product": "{{scope}}"
+      "product": "{{scope}}",
+      "gemini-5h": "Gemini · 5 小时额度",
+      "gemini-weekly": "Gemini · 周额度",
+      "3p-5h": "Claude / GPT · 5 小时额度",
+      "3p-weekly": "Claude / GPT · 周额度"
     },
     "record": {
       "time": "时间",
