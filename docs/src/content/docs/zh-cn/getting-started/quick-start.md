@@ -12,7 +12,7 @@ description: "从一个构建好的二进制到一个被计量的请求：启动
 ## 1. 启动实例
 
 ```sh
-./target/release/gproxy serve --data-dir ./data --port 7070
+./target/release/gproxy serve --data-dir ./data --port 8787
 ```
 
 首次启动把管理员和一把网关 API key 只打印一次到标准输出：
@@ -37,7 +37,7 @@ export GPROXY_KEY='sk-56sjXy3JADsZjYl1g3QnzzTNH-NBmzPNyUKf22qgVzI'
 自己变成压垮它的那份负载：
 
 ```sh
-curl -s http://127.0.0.1:7070/healthz
+curl -s http://127.0.0.1:8787/healthz
 ```
 
 ```json
@@ -49,7 +49,7 @@ curl -s http://127.0.0.1:7070/healthz
 渠道是某一族上游的适配器，只有编译进去的才存在。这份清单来自二进制，不是数据库：
 
 ```sh
-curl -s http://127.0.0.1:7070/admin/api/channels \
+curl -s http://127.0.0.1:8787/admin/api/channels \
   -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
@@ -67,7 +67,7 @@ Provider 是某个渠道上的一条已保存连接。`custom` 是通用的 API-
 OpenAI、Claude 或 Gemini 的端点。
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/providers \
+curl -s -X POST http://127.0.0.1:8787/admin/api/providers \
   -H "Authorization: Bearer $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{
@@ -98,7 +98,7 @@ export PROVIDER=5a45fd807be02516a1626eedd528859d
 ## 4. 添加一把凭证
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/credentials \
+curl -s -X POST http://127.0.0.1:8787/admin/api/credentials \
   -H "Authorization: Bearer $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d "{\"providerId\":\"$PROVIDER\",\"label\":\"main key\",
@@ -124,7 +124,7 @@ curl -s -X POST http://127.0.0.1:7070/admin/api/credentials \
 现在已经可以发请求了。Provider 挂载点不需要路由，也不需要公开名：
 
 ```sh
-curl -s http://127.0.0.1:7070/openai-main/v1/chat/completions \
+curl -s http://127.0.0.1:8787/openai-main/v1/chat/completions \
   -H "Authorization: Bearer $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"Say hello."}]}'
@@ -133,7 +133,7 @@ curl -s http://127.0.0.1:7070/openai-main/v1/chat/completions \
 在聚合挂载点上，`provider/model` 形式做的是同一件事：
 
 ```sh
-curl -s http://127.0.0.1:7070/v1/chat/completions \
+curl -s http://127.0.0.1:8787/v1/chat/completions \
   -H "Authorization: Bearer $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{"model":"openai-main/gpt-4o-mini","messages":[{"role":"user","content":"Say hello."}]}'
@@ -145,7 +145,7 @@ curl -s http://127.0.0.1:7070/v1/chat/completions \
 就是让客户端不再念你的基础设施。
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/routes \
+curl -s -X POST http://127.0.0.1:8787/admin/api/routes \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"name":"main"}'
 ```
@@ -158,12 +158,12 @@ curl -s -X POST http://127.0.0.1:7070/admin/api/routes \
 ```sh
 export ROUTE=33a88261f571347c7f0408c3bd2e2164
 
-curl -s -X POST http://127.0.0.1:7070/admin/api/route-members \
+curl -s -X POST http://127.0.0.1:8787/admin/api/route-members \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d "{\"routeId\":\"$ROUTE\",\"providerId\":\"$PROVIDER\",
        \"upstreamModel\":\"gpt-4o-mini\"}"
 
-curl -s -X POST http://127.0.0.1:7070/admin/api/exposed-models \
+curl -s -X POST http://127.0.0.1:8787/admin/api/exposed-models \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d "{\"routeId\":\"$ROUTE\",\"name\":\"fast\"}"
 ```
@@ -185,7 +185,7 @@ curl -s -X POST http://127.0.0.1:7070/admin/api/exposed-models \
 ## 7. 发送请求
 
 ```sh
-curl -s http://127.0.0.1:7070/v1/chat/completions \
+curl -s http://127.0.0.1:8787/v1/chat/completions \
   -H "Authorization: Bearer $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{"model":"fast","messages":[{"role":"user","content":"Say hello."}]}'
@@ -194,7 +194,7 @@ curl -s http://127.0.0.1:7070/v1/chat/completions \
 ## 8. 看看花了多少
 
 ```sh
-curl -s http://127.0.0.1:7070/portal/api/usage \
+curl -s http://127.0.0.1:8787/portal/api/usage \
   -H "Authorization: Bearer $GPROXY_KEY"
 ```
 

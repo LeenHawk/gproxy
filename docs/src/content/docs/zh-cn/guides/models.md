@@ -42,7 +42,7 @@ v4 **没有别名，也没有变体后缀**。两者在 v3 都存在，都没有
 路由是一个具名池，带自己的均衡策略和尝试预算。
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/routes \
+curl -s -X POST http://127.0.0.1:8787/admin/api/routes \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"name":"main","strategy":"round_robin","maxAttempts":6}'
 ```
@@ -61,7 +61,7 @@ curl -s -X POST http://127.0.0.1:7070/admin/api/routes \
 ## 成员
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/route-members \
+curl -s -X POST http://127.0.0.1:8787/admin/api/route-members \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"routeId":"…","providerId":"…","upstreamModel":"gpt-4o-mini",
        "tier":0,"weight":100}'
@@ -102,7 +102,7 @@ curl -s -X POST http://127.0.0.1:7070/admin/api/route-members \
 公开模型名就是客户端发的那个名字，它让客户端不再念你的基础设施。
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/exposed-models \
+curl -s -X POST http://127.0.0.1:8787/admin/api/exposed-models \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"routeId":"…","name":"fast"}'
 ```
@@ -115,7 +115,7 @@ curl -s -X POST http://127.0.0.1:7070/admin/api/exposed-models \
 而 `/acme/v1/chat/completions` 配 `{"model":"fast"}` 解析的是 `acme/fast`。
 
 ```sh
-curl -s http://127.0.0.1:7070/acme/v1/chat/completions \
+curl -s http://127.0.0.1:8787/acme/v1/chat/completions \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"model":"fast","messages":[{"role":"user","content":"hi"}]}'
 ```
@@ -143,7 +143,7 @@ namespace 是一个**名字索引**，不是被存储的分组，也不是归属
 **`provider_models`** 记录某个 Provider 承接哪些上游名字：
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/provider-models \
+curl -s -X POST http://127.0.0.1:8787/admin/api/provider-models \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…","upstreamName":"gpt-4o-mini"}'
 ```
@@ -163,7 +163,7 @@ token 估算该用的词表。
 ### 从上游填充
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/models/discover \
+curl -s -X POST http://127.0.0.1:8787/admin/api/models/discover \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…"}'
 ```
@@ -180,8 +180,8 @@ Provider 是否已有该行、以及内置目录能不能给它定价。
 实时目录：
 
 ```sh
-curl -s http://127.0.0.1:7070/admin/api/default-model-catalog -H "Authorization: Bearer $GPROXY_KEY"
-curl -s -X POST http://127.0.0.1:7070/admin/api/default-model-catalog/apply-prices \
+curl -s http://127.0.0.1:8787/admin/api/default-model-catalog -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X POST http://127.0.0.1:8787/admin/api/default-model-catalog/apply-prices \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…","modelIds":["gpt-4o-mini"],"overwrite":false}'
 ```
@@ -194,7 +194,7 @@ curl -s -X POST http://127.0.0.1:7070/admin/api/default-model-catalog/apply-pric
 份名字清单在用户面，而且什么都不省略：
 
 ```sh
-curl -s http://127.0.0.1:7070/portal/api/models -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/portal/api/models -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 ```json

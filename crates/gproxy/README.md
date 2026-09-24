@@ -37,7 +37,7 @@ Every configuration flag is global: `gproxy --port 9000 serve` and
 ### `serve`
 
 ```
-gproxy serve --host 0.0.0.0 --port 7070 --data-dir /var/lib/gproxy
+gproxy serve --host 0.0.0.0 --port 8787 --data-dir /var/lib/gproxy
 ```
 
 Binds, serves, and stops on `SIGINT` or `SIGTERM` — draining in-flight requests
@@ -232,7 +232,7 @@ upgrade is not a redeployment.
 |---|---|---|---|
 | `GPROXY_CONFIG` | `--config`, `-c` | — | TOML file holding any `AppConfig` field |
 | `GPROXY_HOST` | `--host` | `127.0.0.1` | listen address (an IP, not a hostname) |
-| `GPROXY_PORT` | `--port`, `-p` | `7070` | listen port |
+| `GPROXY_PORT` | `--port`, `-p` | `8787` | listen port |
 | `GPROXY_DATA_DIR` | `--data-dir` | `data` | root that relative paths resolve against |
 | `GPROXY_PERSISTENCE` | `--persistence` | `sqlite` | `sqlite`, `postgres` or `mysql` (`db` is v2's name for `sqlite`) |
 | `GPROXY_DSN` | `--dsn` | — | connection string; names its own backend when `--persistence` is absent |
@@ -271,7 +271,7 @@ keys are an error rather than a silent no-op, so a typo is reported at startup.
 
 ```toml
 host = "0.0.0.0"
-port = 7070
+port = 8787
 data_dir = "/var/lib/gproxy"
 public_base_url = "https://gproxy.example.com"
 cors_origins = ["https://console.example.com"]

@@ -35,7 +35,7 @@ x-goog-api-key: sk-…
 ## OpenAI Chat Completions
 
 ```sh
-curl -s http://127.0.0.1:7070/v1/chat/completions \
+curl -s http://127.0.0.1:8787/v1/chat/completions \
   -H "Authorization: Bearer $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{"model":"fast","messages":[{"role":"user","content":"Say hello."}]}'
@@ -44,7 +44,7 @@ curl -s http://127.0.0.1:7070/v1/chat/completions \
 ## OpenAI Responses
 
 ```sh
-curl -s http://127.0.0.1:7070/v1/responses \
+curl -s http://127.0.0.1:8787/v1/responses \
   -H "Authorization: Bearer $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{"model":"fast","input":"Say hello."}'
@@ -53,7 +53,7 @@ curl -s http://127.0.0.1:7070/v1/responses \
 ## Claude Messages
 
 ```sh
-curl -s http://127.0.0.1:7070/v1/messages \
+curl -s http://127.0.0.1:8787/v1/messages \
   -H "x-api-key: $GPROXY_KEY" \
   -H 'anthropic-version: 2023-06-01' \
   -H 'content-type: application/json' \
@@ -75,7 +75,7 @@ curl -s http://127.0.0.1:7070/v1/messages \
 Gemini 把模型放在路径里：
 
 ```sh
-curl -s "http://127.0.0.1:7070/v1beta/models/fast:generateContent" \
+curl -s "http://127.0.0.1:8787/v1beta/models/fast:generateContent" \
   -H "x-goog-api-key: $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{"contents":[{"parts":[{"text":"Say hello."}]}]}'
@@ -99,7 +99,7 @@ curl -s "http://127.0.0.1:7070/v1beta/models/fast:generateContent" \
 对三种靠 body 标志的方言，加上 `"stream": true`。响应是该格式自己的事件形状的 SSE：
 
 ```sh
-curl -sN http://127.0.0.1:7070/v1/chat/completions \
+curl -sN http://127.0.0.1:8787/v1/chat/completions \
   -H "Authorization: Bearer $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{"model":"fast","stream":true,
@@ -125,7 +125,7 @@ data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text
 Gemini 则把它写在路径里。不带 query 时流是 Gemini 的增量 JSON 数组；`?alt=sse` 选择 SSE：
 
 ```sh
-curl -sN "http://127.0.0.1:7070/v1beta/models/fast:streamGenerateContent?alt=sse" \
+curl -sN "http://127.0.0.1:8787/v1beta/models/fast:streamGenerateContent?alt=sse" \
   -H "x-goog-api-key: $GPROXY_KEY" \
   -H 'content-type: application/json' \
   -d '{"contents":[{"parts":[{"text":"Count to three."}]}]}'
@@ -136,14 +136,14 @@ curl -sN "http://127.0.0.1:7070/v1beta/models/fast:streamGenerateContent?alt=sse
 ## 列出模型
 
 ```sh
-curl -s http://127.0.0.1:7070/v1/models -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/v1/models -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 v4 的 `GET /v1/models` 是**转发给某个 Provider** 的，回答的是那个上游自己的目录，不是
 由你的配置合成出来的。*你*发布的那份名字清单在用户面，并且会标出这个调用方能不能调：
 
 ```sh
-curl -s http://127.0.0.1:7070/portal/api/models -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/portal/api/models -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 ```json
@@ -158,13 +158,13 @@ curl -s http://127.0.0.1:7070/portal/api/models -H "Authorization: Bearer $GPROX
 
 ```sh
 # 聚合——模型名决定一切
-curl -s http://127.0.0.1:7070/v1/chat/completions … -d '{"model":"fast",…}'
+curl -s http://127.0.0.1:8787/v1/chat/completions … -d '{"model":"fast",…}'
 
 # namespace——公开 `acme/fast` 就产生了 namespace `acme`
-curl -s http://127.0.0.1:7070/acme/v1/chat/completions … -d '{"model":"fast",…}'
+curl -s http://127.0.0.1:8787/acme/v1/chat/completions … -d '{"model":"fast",…}'
 
 # Provider——只有那一个 Provider
-curl -s http://127.0.0.1:7070/openai-main/v1/chat/completions … -d '{"model":"gpt-4o-mini",…}'
+curl -s http://127.0.0.1:8787/openai-main/v1/chat/completions … -d '{"model":"gpt-4o-mini",…}'
 ```
 
 挂载点通过**给模型名加前缀**来收窄：`/acme/v1/messages` 配 `{"model":"fast"}` 解析的是
@@ -208,8 +208,8 @@ v4 **没有 `x-request-id` 响应 header**。请求自己的 id 随用量行和 
 调用方自己能看到的那一份在用户面：
 
 ```sh
-curl -s http://127.0.0.1:7070/portal/api/usage    -H "Authorization: Bearer $GPROXY_KEY"
-curl -s http://127.0.0.1:7070/portal/api/requests -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/portal/api/usage    -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/portal/api/requests -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 记录了什么、脱敏了什么、以及 HTTP 宿主还没暴露什么，见

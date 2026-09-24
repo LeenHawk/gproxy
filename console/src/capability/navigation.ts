@@ -37,6 +37,7 @@ export type NavSection = {
   id: string
   icon: LucideIcon
   items: Array<NavItem>
+  standalone?: boolean
 }
 
 /**
@@ -61,8 +62,10 @@ const SELF: NavSection = {
 const PROVIDERS: NavSection = {
   id: "providers",
   icon: Waypoints,
-  items: [{ id: "providers", route: "/providers", needs: PROVIDERS_READ, icon: Waypoints }, { id: "model-catalog", route: "/model-catalog", needs: PROVIDERS_READ, icon: Boxes }],
+  items: [{ id: "providers", route: "/providers", needs: PROVIDERS_READ, icon: Waypoints }],
 }
+
+const MODEL_CATALOG: NavSection = { id: "model-catalog", icon: Boxes, standalone: true, items: [{ id: "model-catalog", route: "/model-catalog", needs: SETTINGS_ACCESS, icon: Boxes }] }
 
 const RULES: NavSection = { id: "rules", icon: ListChecks, items: [{ id: "rule-sets", route: "/rule-sets", needs: PROVIDERS_READ, icon: ListChecks }] }
 
@@ -91,7 +94,7 @@ const ACCESS: NavSection = {
 
 const SYSTEM: NavSection = { id: "system", icon: Settings2, items: [{ id: "settings", route: "/settings", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "tokenizer", route: "/tokenizer", needs: SETTINGS_ACCESS, icon: BookOpenText }, { id: "update", route: "/update", needs: SETTINGS_ACCESS, icon: Settings2 }, { id: "connection-profiles", route: "/clients", needs: SETTINGS_ACCESS, icon: Settings2 }] }
 
-const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, RULES, PEOPLE, ACCESS, SYSTEM]
+const SECTIONS: ReadonlyArray<NavSection> = [SELF, PROVIDERS, MODEL_CATALOG, RULES, PEOPLE, ACCESS, SYSTEM]
 
 /** The sections this caller sees, with the items they may reach. */
 export function sectionsFor(context: ConsoleContext): Array<NavSection> {

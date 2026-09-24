@@ -35,7 +35,7 @@
 //! moved on every launch would mean editing every client's configuration on
 //! every launch, which is the opposite of what a desktop shell is for.
 //!
-//! It is 7071 rather than the server's 7070 so that a developer can run
+//! It is 7071 rather than the server's 8787 so that a developer can run
 //! `gproxy serve` and the desktop shell side by side without either one
 //! failing to bind. Set `port` in `gproxy.toml` to change it.
 
@@ -150,7 +150,7 @@ fn read_file(data_dir: &Path) -> StartResult<AppConfig> {
         ))
     })?;
     // Whether the file *named* a port, rather than what it parsed to.
-    // `AppConfig`'s serde default is the server's 7070, so a file that says
+    // `AppConfig`'s serde default is the server's 8787, so a file that says
     // nothing would otherwise be indistinguishable from one that asks to
     // collide with a running `gproxy serve`.
     let names_port = table.contains_key("port");

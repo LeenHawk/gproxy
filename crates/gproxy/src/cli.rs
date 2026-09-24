@@ -102,7 +102,7 @@ pub struct Options {
     #[arg(long, global = true, env = HOST, value_name = "ADDRESS")]
     pub host: Option<String>,
 
-    /// Port to listen on. [default: 7070]
+    /// Port to listen on. [default: 8787]
     #[arg(long, short = 'p', global = true, env = PORT, value_name = "PORT")]
     pub port: Option<String>,
 

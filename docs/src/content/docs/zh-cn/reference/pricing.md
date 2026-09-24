@@ -166,9 +166,9 @@ amount × value / unitQuantity
 ## 编辑价格
 
 ```sh
-curl -s http://127.0.0.1:7070/admin/api/price-rules  -H "Authorization: Bearer $GPROXY_KEY"
-curl -s http://127.0.0.1:7070/admin/api/price-rates  -H "Authorization: Bearer $GPROXY_KEY"
-curl -s http://127.0.0.1:7070/admin/api/price-tiers  -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/admin/api/price-rules  -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/admin/api/price-rates  -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/admin/api/price-tiers  -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 每个家族都有通常的五条路由外加一个批量，而一次批量无论点名多少行都是一个 revision 提交。
@@ -176,7 +176,7 @@ curl -s http://127.0.0.1:7070/admin/api/price-tiers  -H "Authorization: Bearer $
 内置目录能把本次发布知道的模型填进去：
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/default-model-catalog/apply-prices \
+curl -s -X POST http://127.0.0.1:8787/admin/api/default-model-catalog/apply-prices \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…","modelIds":["gpt-4o-mini"],"overwrite":false}'
 ```
@@ -205,8 +205,8 @@ curl -s -X POST http://127.0.0.1:7070/admin/api/default-model-catalog/apply-pric
 内置的 DeepSeek。
 
 ```sh
-curl -s http://127.0.0.1:7070/admin/api/tokenizer-vocabs -H "Authorization: Bearer $GPROXY_KEY"
-curl -s -X POST http://127.0.0.1:7070/admin/api/tokenizer-vocabs \
+curl -s http://127.0.0.1:8787/admin/api/tokenizer-vocabs -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X POST http://127.0.0.1:8787/admin/api/tokenizer-vocabs \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"repo":"…","filename":"tokenizer.json","modelId":"…","setAsDefault":true}'
 ```

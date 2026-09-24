@@ -39,7 +39,7 @@ not a redeployment.
 | --- | --- | --- | --- |
 | `GPROXY_CONFIG` | `--config`, `-c` | — | TOML file holding any config field |
 | `GPROXY_HOST` | `--host` | `127.0.0.1` | listen address (an IP, not a hostname) |
-| `GPROXY_PORT` | `--port`, `-p` | `7070` | listen port |
+| `GPROXY_PORT` | `--port`, `-p` | `8787` | listen port |
 | `GPROXY_DATA_DIR` | `--data-dir` | `data` | root that relative paths resolve against |
 | `GPROXY_PERSISTENCE` | `--persistence` | `sqlite` | `sqlite`, `postgres` or `mysql` |
 | `GPROXY_DSN` | `--dsn` | — | connection string; names its own backend when `--persistence` is absent |
@@ -95,7 +95,7 @@ rather than silently ignored.
 
 ```toml
 host = "0.0.0.0"
-port = 7070
+port = 8787
 data_dir = "/var/lib/gproxy"
 public_base_url = "https://gproxy.example.com"
 cors_origins = ["https://console.example.com"]
@@ -288,8 +288,8 @@ instance name, binary version and full Git commit hash.
 Runtime settings live in the database and take effect without a restart.
 
 ```sh
-curl -s http://127.0.0.1:7070/admin/api/settings  -H "Authorization: Bearer $GPROXY_KEY"
-curl -s -X PATCH http://127.0.0.1:7070/admin/api/settings \
+curl -s http://127.0.0.1:8787/admin/api/settings  -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X PATCH http://127.0.0.1:8787/admin/api/settings \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"instance":{"maxAttempts":4}}'
 ```

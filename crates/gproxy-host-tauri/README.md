@@ -53,7 +53,7 @@ administration one.
 
 ### The port
 
-`7071` by default, one above the server's `7070` so the two can run side by
+`7071` by default, distinct from the server's `8787` so the two can run side by
 side. **Fixed rather than random**: a client is configured with a base URL that
 is typed once and kept, and a port that moved on every launch would mean
 editing every client on every launch. Change it with `port` in `gproxy.toml`.

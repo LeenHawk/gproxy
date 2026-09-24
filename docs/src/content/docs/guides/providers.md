@@ -100,7 +100,7 @@ base URL with a default path appended; the channel's path parameters are
 resolved by that method:
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/operation-endpoints \
+curl -s -X POST http://127.0.0.1:8787/admin/api/operation-endpoints \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…","operation":"generate_content","dialect":"openai_chat",
        "url":"https://elsewhere.example/v1/chat/completions"}'
@@ -130,7 +130,7 @@ Secrets are sealed with AES-256-GCM under the master key, and the seal is
 Reading one back is a separate, audited call:
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/credentials/{id}/reveal \
+curl -s -X POST http://127.0.0.1:8787/admin/api/credentials/{id}/reveal \
   -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
@@ -190,7 +190,7 @@ returns a **full replacement** — never a merge. The host persists it with a
 compare-and-swap on `version` and publishes a credential-changed notice.
 
 ```sh
-curl -s -X POST 'http://127.0.0.1:7070/admin/api/credentials/{id}/refresh?force=true' \
+curl -s -X POST 'http://127.0.0.1:8787/admin/api/credentials/{id}/refresh?force=true' \
   -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
@@ -212,15 +212,15 @@ is a last resort, not an outage.
 
 ```sh
 # what the upstream says about this credential's windows
-curl -s http://127.0.0.1:7070/admin/api/credentials/{id}/quota -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/admin/api/credentials/{id}/quota -H "Authorization: Bearer $GPROXY_KEY"
 # ask the upstream now
-curl -s -X POST http://127.0.0.1:7070/admin/api/credentials/{id}/quota-probe -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X POST http://127.0.0.1:8787/admin/api/credentials/{id}/quota-probe -H "Authorization: Bearer $GPROXY_KEY"
 # redeem a reset credit, where the vendor sells them
-curl -s -X POST http://127.0.0.1:7070/admin/api/credentials/{id}/quota-reset -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X POST http://127.0.0.1:8787/admin/api/credentials/{id}/quota-reset -H "Authorization: Bearer $GPROXY_KEY"
 # forget the recorded health
-curl -s -X POST http://127.0.0.1:7070/admin/api/credentials/{id}/health-reset -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X POST http://127.0.0.1:8787/admin/api/credentials/{id}/health-reset -H "Authorization: Bearer $GPROXY_KEY"
 # the operator limits covering it
-curl -s http://127.0.0.1:7070/admin/api/credentials/{id}/limits -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/admin/api/credentials/{id}/limits -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 `POST …/status` sets `active` or `dead` by hand, with a reason.
@@ -234,7 +234,7 @@ provider, then the channel's own default, then the instance default.
 Six identities ship as presets, ready to store as a profile's `emulation`:
 
 ```sh
-curl -s http://127.0.0.1:7070/admin/api/tls-presets -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/admin/api/tls-presets -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 ```text
@@ -254,7 +254,7 @@ These are the only management calls that leave the process.
 like from outside, through the client chain the scope names:
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/connectivity/test \
+curl -s -X POST http://127.0.0.1:8787/admin/api/connectivity/test \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"scope":"global"}'
 ```
@@ -273,11 +273,11 @@ anywhere yet. **A network failure is `ok: false` with a reason, not an error**:
 request would:
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/models/test \
+curl -s -X POST http://127.0.0.1:8787/admin/api/models/test \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…","model":"gpt-4o-mini"}'
 
-curl -s -X POST http://127.0.0.1:7070/admin/api/models/discover \
+curl -s -X POST http://127.0.0.1:8787/admin/api/models/discover \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…"}'
 ```

@@ -62,7 +62,7 @@ SQLite 始终编译在内。本次构建没有的后端会在**启动时**被拒
 ## 运行
 
 ```sh
-./target/release/gproxy serve --data-dir ./data --port 7070
+./target/release/gproxy serve --data-dir ./data --port 8787
 ```
 
 首次启动会建库、建表，创建一个管理员、签发一把网关 API key，并把两者**只打印一次**到
@@ -88,7 +88,7 @@ WARN gproxy::serve: upstream credential secrets are stored UNENCRYPTED: no
 INFO gproxy::serve: no console bundle is compiled into this binary and no
      directory was named, so /console answers 404. …
 INFO gproxy::bootstrap: created the first administrator user="admin"
-INFO gproxy::serve: gproxy is listening address=127.0.0.1:7070 revision=2 console=false
+INFO gproxy::serve: gproxy is listening address=127.0.0.1:8787 revision=2 console=false
 ```
 
 这两行都是真的，也都是有意为之。往下看。
@@ -160,7 +160,7 @@ cargo run -p gproxy-host-tauri --bin gproxy-desktop
   的 Claude Code 与 Codex CLI。它**照常要网关 key**——回环 socket 不是信任边界——并且
   `/admin/api` 与 `/portal/api` 在那里返回 404，这样网关 key 就不会同时是一把管理员钥匙。
 
-7071 比 server 的 7070 大一，两者可以并排运行；它是固定而非随机的，因为客户端的 base URL
+7071 与 server 的 8787 不同，两者可以并排运行；它是固定而非随机的，因为客户端的 base URL
 只敲一次就一直用。
 
 主密钥在首次运行时生成，存进平台钥匙串（Linux 的 Secret Service、macOS 的 Keychain、

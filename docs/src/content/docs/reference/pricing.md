@@ -188,9 +188,9 @@ and is **never multiplied by a service tier**.
 ## Editing Prices
 
 ```sh
-curl -s http://127.0.0.1:7070/admin/api/price-rules  -H "Authorization: Bearer $GPROXY_KEY"
-curl -s http://127.0.0.1:7070/admin/api/price-rates  -H "Authorization: Bearer $GPROXY_KEY"
-curl -s http://127.0.0.1:7070/admin/api/price-tiers  -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/admin/api/price-rules  -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/admin/api/price-rates  -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/admin/api/price-tiers  -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 Each family takes the usual five routes plus a batch, and a batch is one
@@ -199,7 +199,7 @@ revision commit however many rows it names.
 The bundled catalogue fills them in for the models this release knew about:
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/default-model-catalog/apply-prices \
+curl -s -X POST http://127.0.0.1:8787/admin/api/default-model-catalog/apply-prices \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…","modelIds":["gpt-4o-mini"],"overwrite":false}'
 ```
@@ -233,8 +233,8 @@ vocabulary: the tiktoken encodings for GPT-family models, otherwise the
 vocabulary the model's catalogue row names, otherwise the bundled DeepSeek one.
 
 ```sh
-curl -s http://127.0.0.1:7070/admin/api/tokenizer-vocabs -H "Authorization: Bearer $GPROXY_KEY"
-curl -s -X POST http://127.0.0.1:7070/admin/api/tokenizer-vocabs \
+curl -s http://127.0.0.1:8787/admin/api/tokenizer-vocabs -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X POST http://127.0.0.1:8787/admin/api/tokenizer-vocabs \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"repo":"…","filename":"tokenizer.json","modelId":"…","setAsDefault":true}'
 ```

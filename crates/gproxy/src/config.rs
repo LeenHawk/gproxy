@@ -410,7 +410,7 @@ mod tests {
     fn nothing_said_is_the_default_configuration_plus_a_data_directory() {
         let settings = layer(&options(), None).unwrap();
         assert_eq!(settings.config.host, "127.0.0.1");
-        assert_eq!(settings.config.port, 7070);
+        assert_eq!(settings.config.port, 8787);
         assert_eq!(settings.config.data_dir.as_deref(), Some(DEFAULT_DATA_DIR));
         assert_eq!(settings.admin.user, DEFAULT_ADMIN_USER);
         assert_eq!(settings.telemetry.format, LogFormat::Text);

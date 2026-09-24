@@ -34,7 +34,7 @@ cargo run -p gproxy -- serve
 ### `serve`
 
 ```
-gproxy serve --host 0.0.0.0 --port 7070 --data-dir /var/lib/gproxy
+gproxy serve --host 0.0.0.0 --port 8787 --data-dir /var/lib/gproxy
 ```
 
 绑定、服务，收到 `SIGINT` 或 `SIGTERM` 时停止——先把在途请求排空。**没有关闭超时**：
@@ -203,7 +203,7 @@ flag 旁边，这张表不可能和程序本身走偏。v3 里存在过的名字
 |---|---|---|---|
 | `GPROXY_CONFIG` | `--config`、`-c` | — | 可写任意 `AppConfig` 字段的 TOML 文件 |
 | `GPROXY_HOST` | `--host` | `127.0.0.1` | 监听地址（IP，不是主机名） |
-| `GPROXY_PORT` | `--port`、`-p` | `7070` | 监听端口 |
+| `GPROXY_PORT` | `--port`、`-p` | `8787` | 监听端口 |
 | `GPROXY_DATA_DIR` | `--data-dir` | `data` | 相对路径的解析根 |
 | `GPROXY_PERSISTENCE` | `--persistence` | `sqlite` | `sqlite`、`postgres` 或 `mysql`（`db` 是 v2 对 `sqlite` 的叫法） |
 | `GPROXY_DSN` | `--dsn` | — | 连接串；未给 `--persistence` 时由它的 scheme 决定后端 |
@@ -241,7 +241,7 @@ flag 旁边，这张表不可能和程序本身走偏。v3 里存在过的名字
 
 ```toml
 host = "0.0.0.0"
-port = 7070
+port = 8787
 data_dir = "/var/lib/gproxy"
 public_base_url = "https://gproxy.example.com"
 cors_origins = ["https://console.example.com"]

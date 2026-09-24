@@ -90,7 +90,7 @@ description: "25 个渠道、一行 Provider 装什么、凭证池及其生命�
 **不是**一个再拼默认路径的 base URL；渠道自己的路径参数由那个方法解析：
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/operation-endpoints \
+curl -s -X POST http://127.0.0.1:8787/admin/api/operation-endpoints \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…","operation":"generate_content","dialect":"openai_chat",
        "url":"https://elsewhere.example/v1/chat/completions"}'
@@ -117,7 +117,7 @@ curl -s -X POST http://127.0.0.1:7070/admin/api/operation-endpoints \
 另一行上打不开。读回它是一次单独的、被审计的调用：
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/credentials/{id}/reveal \
+curl -s -X POST http://127.0.0.1:8787/admin/api/credentials/{id}/reveal \
   -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
@@ -165,7 +165,7 @@ GPROXY 拥有一切不属于上游的部分。**PKCE verifier** 是本地生成�
 以 `version` 上的 CAS 写回并发出凭证变更通知。
 
 ```sh
-curl -s -X POST 'http://127.0.0.1:7070/admin/api/credentials/{id}/refresh?force=true' \
+curl -s -X POST 'http://127.0.0.1:8787/admin/api/credentials/{id}/refresh?force=true' \
   -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
@@ -183,15 +183,15 @@ Provider 之后。限流是最后手段，不是故障。
 
 ```sh
 # 上游怎么说这把凭证的窗口
-curl -s http://127.0.0.1:7070/admin/api/credentials/{id}/quota -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/admin/api/credentials/{id}/quota -H "Authorization: Bearer $GPROXY_KEY"
 # 现在就问上游
-curl -s -X POST http://127.0.0.1:7070/admin/api/credentials/{id}/quota-probe -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X POST http://127.0.0.1:8787/admin/api/credentials/{id}/quota-probe -H "Authorization: Bearer $GPROXY_KEY"
 # 兑换一次重置额度（厂商卖这个的话）
-curl -s -X POST http://127.0.0.1:7070/admin/api/credentials/{id}/quota-reset -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X POST http://127.0.0.1:8787/admin/api/credentials/{id}/quota-reset -H "Authorization: Bearer $GPROXY_KEY"
 # 忘掉记录的健康状态
-curl -s -X POST http://127.0.0.1:7070/admin/api/credentials/{id}/health-reset -H "Authorization: Bearer $GPROXY_KEY"
+curl -s -X POST http://127.0.0.1:8787/admin/api/credentials/{id}/health-reset -H "Authorization: Bearer $GPROXY_KEY"
 # 覆盖它的运维限额
-curl -s http://127.0.0.1:7070/admin/api/credentials/{id}/limits -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/admin/api/credentials/{id}/limits -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 `POST …/status` 手动设为 `active` 或 `dead`，带一个原因。
@@ -204,7 +204,7 @@ curl -s http://127.0.0.1:7070/admin/api/credentials/{id}/limits -H "Authorizatio
 内置六种身份预设，可直接存成一份连接配置的 `emulation`：
 
 ```sh
-curl -s http://127.0.0.1:7070/admin/api/tls-presets -H "Authorization: Bearer $GPROXY_KEY"
+curl -s http://127.0.0.1:8787/admin/api/tls-presets -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
 ```text
@@ -223,7 +223,7 @@ antigravity            kiro / Kiro CLI         copilot / GitHub Copilot CLI
 什么样：
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/connectivity/test \
+curl -s -X POST http://127.0.0.1:8787/admin/api/connectivity/test \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"scope":"global"}'
 ```
@@ -240,11 +240,11 @@ scope 可以是 `global`、`{"scope":"provider","provider_id":"…"}`、
 **模型测试与发现**像调用方的请求一样走完引擎：
 
 ```sh
-curl -s -X POST http://127.0.0.1:7070/admin/api/models/test \
+curl -s -X POST http://127.0.0.1:8787/admin/api/models/test \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…","model":"gpt-4o-mini"}'
 
-curl -s -X POST http://127.0.0.1:7070/admin/api/models/discover \
+curl -s -X POST http://127.0.0.1:8787/admin/api/models/discover \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
   -d '{"providerId":"…"}'
 ```
