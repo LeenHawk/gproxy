@@ -8,18 +8,19 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 
-export function ConfirmButton({ title, confirmLabel, onConfirm, children, disabled }: {
+export function ConfirmButton({ title, confirmLabel, onConfirm, children, disabled, iconOnly = false }: {
   title: string
   confirmLabel?: string
   onConfirm: () => void
   children: ReactNode
   disabled?: boolean
+  iconOnly?: boolean
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   return (
     <>
-      <Button variant="ghost" size="sm" disabled={disabled} onClick={() => setOpen(true)}>{children}</Button>
+      <Button variant="ghost" size={iconOnly ? "icon-sm" : "sm"} title={iconOnly ? title : undefined} aria-label={iconOnly ? title : undefined} disabled={disabled} onClick={() => setOpen(true)}>{children}</Button>
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent aria-describedby={undefined}>
           <AlertDialogHeader>

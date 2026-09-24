@@ -117,7 +117,7 @@ export function MembersDialog({ scope, scopeId, scopeName, open, onOpenChange }:
             </Button>
           </div>
           <QueryState isPending={list.isPending} error={list.error}>
-            <DataTable
+            <DataTable paginate
               columns={[
                 { key: "userId", cell: (row) => <IdCell value={row.userId} /> },
                 {

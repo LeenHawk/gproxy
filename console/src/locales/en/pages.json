@@ -155,7 +155,8 @@
       "pullNoMatches": "No matching models",
       "pullNoMatchesHint": "Try a different model name or clear the search.",
       "pullGaps": "Fills {{count}}"
-    }
+    },
+    "select": "Select a provider"
   },
   "providerConfig": {
     "account_type": "Account type",
@@ -636,7 +637,6 @@
     }
   },
   "catalog": {
-    "help": "Defaults fill missing upstream metadata; local overrides take precedence. Existing provider settings are preserved on import.",
     "count": "{{count}} models",
     "display_name": "Display name",
     "description": "Description",
@@ -647,14 +647,10 @@
     "supported_parameters": "Supported parameters",
     "capabilities": "Capabilities",
     "referencePrice": "Input / output USD/1M",
-    "source": "Source",
-    "local": "Local override",
-    "bundled": "Bundled",
     "details": "Details",
     "applyPrice": "Apply default price",
     "reset": "Remove local entry",
     "applied": "Created {{created}}, kept {{skipped}}, unmatched {{unmatched}}",
-    "referenceHelp": "Reference prices from OpenRouter, not a provider quote. Missing prices are unknown, not free. Tier prices are USD per million tokens.",
     "tierFields": {
       "inputPrice": "Input",
       "outputPrice": "Output",
@@ -666,6 +662,8 @@
       "audioInputPrice": "Audio input",
       "audioOutputPrice": "Audio output",
       "cachedAudioInputPrice": "Cached audio input"
-    }
+    },
+    "limits": "Token limits",
+    "tierCount": "Tiered · {{count}}"
   }
 }

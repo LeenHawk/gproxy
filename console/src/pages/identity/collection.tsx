@@ -1,3 +1,4 @@
+import { usePagination } from "@/lib/use-pagination"
 //! One page for twelve families.
 //!
 //! `gproxy-host-axum/src/admin/mod.rs` builds most of `/admin/api` from a
@@ -17,6 +18,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { Pencil, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
+import { directory } from "@/api/models"
 import type { Family, ListFilter } from "@/api/admin"
 import { ConfirmButton } from "@/components/confirm"
 import { DataTable, Pagination, type Column } from "@/components/data-table"
@@ -26,13 +28,13 @@ import { EmptyNotice, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
-const PAGE_SIZE = 25
 
 export type CollectionProps<D, W, P> = {
   /** The nav id: `nav.<id>` names it, `description.<id>` explains it. */
   id: string
   renderForm?: (props: { open: boolean; onOpenChange: (open: boolean) => void; original?: D; onSubmit: (body: Record<string, unknown>) => void; pending: boolean; error: unknown }) => ReactNode
   embedded?: boolean
+  paginate?: boolean
   family: Family<D, W, P>
   columns: Array<Column<D>>
   fields: ReadonlyArray<FormField>
@@ -58,18 +60,23 @@ export type CollectionProps<D, W, P> = {
 
 export function CollectionPage<D, W, P>({
   id, family, columns, fields, rowId, rowLabel, searchable, filter, embedded = false,
-  rowActions, onOpen, onEdit, deletable = true, onCreated, create, renderForm, createLabel,
+  rowActions, onOpen, onEdit, deletable = true, onCreated, create, renderForm, createLabel, paginate = true,
 }: CollectionProps<D, W, P>) {
   const { t } = useTranslation()
   const client = useQueryClient()
-  const [page, setPage] = useState(1)
+  const { page, pageSize, setPage, setPageSize } = usePagination()
   const [search, setSearch] = useState("")
   const [editing, setEditing] = useState<D | null>(null)
   const [creating, setCreating] = useState(false)
 
-  const request: ListFilter = { ...filter, page, pageSize: PAGE_SIZE, search: search.trim() || undefined }
-  const key = ["admin", family.path, request] as const
-  const list = useQuery({ queryKey: key, queryFn: () => family.list(request) })
+  const request: ListFilter = { ...filter, page, pageSize, search: search.trim() || undefined }
+  const key = ["admin", family.path, request, paginate] as const
+  const list = useQuery({ queryKey: key, queryFn: async () => {
+    if (paginate) return family.list(request)
+    const items = await directory(family, request)
+    return { items, total: items.length, offset: 0, limit: items.length }
+  } })
+  if (paginate && list.data && page > Math.max(1, Math.ceil(list.data.total / pageSize))) setPage(Math.max(1, Math.ceil(list.data.total / pageSize)))
 
   const invalidate = () => client.invalidateQueries({ queryKey: ["admin", family.path] })
 
@@ -126,7 +133,7 @@ export function CollectionPage<D, W, P>({
       )}
       <QueryState isPending={list.isPending} error={list.error}>
         <div className="space-y-3">
-          <DataTable
+          <DataTable paginate={false}
             columns={columns}
             rows={list.data?.items ?? []}
             rowKey={rowId}
@@ -147,12 +154,12 @@ export function CollectionPage<D, W, P>({
               </>
             )}
           />
-          <Pagination
+          {paginate ? <Pagination
             page={page}
-            pageSize={PAGE_SIZE}
+            pageSize={pageSize}
             total={list.data?.total ?? 0}
-            onPage={setPage}
-          />
+            onPage={setPage} onPageSize={setPageSize}
+          /> : null}
         </div>
       </QueryState>
 

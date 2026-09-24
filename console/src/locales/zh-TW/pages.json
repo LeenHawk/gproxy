@@ -155,7 +155,8 @@
       "pullNoMatches": "沒有相符的模型",
       "pullNoMatchesHint": "換一個模型名稱，或清除搜尋內容。",
       "pullGaps": "可補 {{count}} 項"
-    }
+    },
+    "select": "選擇供應商"
   },
   "providerConfig": {
     "account_type": "帳號類型",
@@ -636,7 +637,6 @@
     }
   },
   "catalog": {
-    "help": "預設中繼資料補全上游缺失欄位，本機覆寫值優先。匯入時保留既有渠道設定。",
     "count": "{{count}} 個模型",
     "display_name": "顯示名稱",
     "description": "描述",
@@ -647,14 +647,10 @@
     "supported_parameters": "支援參數",
     "capabilities": "能力",
     "referencePrice": "輸入 / 輸出 USD/百萬",
-    "source": "來源",
-    "local": "本機覆寫",
-    "bundled": "內建",
     "details": "詳情",
     "applyPrice": "套用預設價格",
     "reset": "移除本機項目",
     "applied": "新增 {{created}}，保留 {{skipped}}，未匹配 {{unmatched}}",
-    "referenceHelp": "OpenRouter 參考價格，並非渠道報價。缺失價格表示未知，不代表免費。分段價格單位為美元 / 百萬 Token。",
     "tierFields": {
       "inputPrice": "輸入",
       "outputPrice": "輸出",
@@ -666,6 +662,8 @@
       "audioInputPrice": "音訊輸入",
       "audioOutputPrice": "音訊輸出",
       "cachedAudioInputPrice": "快取音訊輸入"
-    }
+    },
+    "limits": "Token 上限",
+    "tierCount": "分段價 · {{count}}"
   }
 }

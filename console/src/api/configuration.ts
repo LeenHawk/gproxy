@@ -46,25 +46,11 @@ export const CONFIGURATION_OPERATIONS = {
 export type ConfigurationFamily = keyof typeof CONFIGURATION_FAMILIES
 
 export const PROVIDERS_READ = "configuration.providers"
-export const PROVIDER_NAV_KEY = ["admin", "/providers", "navigation"] as const
 
 export const providers = family<ProviderDto, Partial<ProviderWrite>, Partial<ProviderPatch>>(CONFIGURATION_FAMILIES.providers)
 export const credentials = family<CredentialDto, Partial<CredentialWrite>, Partial<CredentialPatch>>(CONFIGURATION_FAMILIES.credentials)
 export const providerModels = family<ProviderModelDto, Partial<ProviderModelWrite>, Partial<ProviderModelPatch>>(CONFIGURATION_FAMILIES.providerModels)
 export const channels = () => api<Array<ChannelDescriptor>>("/admin/api/channels")
-
-/** The sidebar needs the whole provider directory, not the first API page. */
-export async function providerDirectory() {
-  const rows: Array<ProviderDto> = []
-  let page = 1
-  while (true) {
-    const result = await providers.list({ page, pageSize: 500 })
-    rows.push(...result.items)
-    if (rows.length >= result.total || result.items.length === 0) break
-    page += 1
-  }
-  return rows.sort((a, b) => a.name.localeCompare(b.name))
-}
 
 export const providerPath = (id: string) => `/providers/${encodeURIComponent(id)}`
 
