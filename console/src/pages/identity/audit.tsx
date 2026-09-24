@@ -1,3 +1,4 @@
+import { usePagination } from "@/lib/use-pagination"
 //! The audit trail.
 //!
 //! Reads are not audited — a management list is what a console fetches on
@@ -17,17 +18,16 @@ import { EmptyNotice, QueryState } from "@/components/state"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 
-const PAGE_SIZE = 25
 
 export function AuditPage() {
   const { t } = useTranslation()
-  const [page, setPage] = useState(1)
+  const { page, pageSize, setPage, setPageSize } = usePagination()
   const [action, setAction] = useState("")
   const [actor, setActor] = useState("")
 
   const filter = {
     page,
-    pageSize: PAGE_SIZE,
+    pageSize,
     action: action.trim() || undefined,
     actorUserId: actor.trim() || undefined,
   }
@@ -52,7 +52,7 @@ export function AuditPage() {
       </div>
       <QueryState isPending={list.isPending} error={list.error}>
         <div className="space-y-3">
-          <DataTable
+          <DataTable paginate={false}
             columns={[
               { key: "createdAtMs", cell: (row) => <InstantCell value={row.createdAtMs} /> },
               { key: "action", cell: (row) => <IdCell value={row.action} /> },
@@ -77,7 +77,7 @@ export function AuditPage() {
             rowKey={(row) => row.id}
             empty={<EmptyNotice title={t("state.emptyTitle")} />}
           />
-          <Pagination page={page} pageSize={PAGE_SIZE} total={list.data?.total ?? 0} onPage={setPage} />
+          <Pagination page={page} pageSize={pageSize} total={list.data?.total ?? 0} onPage={setPage} onPageSize={setPageSize} />
         </div>
       </QueryState>
     </Page>

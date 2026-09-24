@@ -43,7 +43,8 @@
   "pagination": {
     "position": "Page {{page}} of {{pages}} · {{total}} rows",
     "previous": "Previous",
-    "next": "Next"
+    "next": "Next",
+    "pageSize": "Per page"
   },
   "confirm": {
     "deleteTitle": "Delete {{name}}?",
@@ -128,7 +129,8 @@
     "http": "HTTP",
     "websocket": "WebSocket",
     "replace": "Replace text",
-    "set": "Set field"
+    "set": "Set field",
+    "disabled": "Disabled"
   },
   "fields": {
     "action": "Action",

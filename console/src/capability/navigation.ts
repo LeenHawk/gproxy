@@ -62,6 +62,7 @@ const SELF: NavSection = {
 const PROVIDERS: NavSection = {
   id: "providers",
   icon: Waypoints,
+  standalone: true,
   items: [{ id: "providers", route: "/providers", needs: PROVIDERS_READ, icon: Waypoints }],
 }
 

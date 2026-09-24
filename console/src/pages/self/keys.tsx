@@ -91,7 +91,7 @@ export function KeysPage() {
         </Alert>
       )}
       <QueryState isPending={list.isPending} error={list.error}>
-        <DataTable
+        <DataTable paginate
           columns={[
             { key: "name", cell: (row) => row.name },
             { key: "prefix", header: t("keys.value"), cell: (row) => <KeySecretCell key={`${row.id}:${row.prefix}`} prefix={row.prefix} revealable={row.hasSecret} reveal={() => portal.keys.reveal(row.id)} /> },

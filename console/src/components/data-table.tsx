@@ -1,6 +1,10 @@
 //! One table, one pager. Every list in the console renders through these.
 
-import type { ReactNode } from "react"
+import { useId, type ReactNode } from "react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
+import { PAGE_SIZES, usePagination, type PageSize } from "@/lib/use-pagination"
+import { Field, FieldLabel } from "@/components/ui/field"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -69,7 +73,7 @@ const CELL_CAP = "max-w-[18rem] truncate"
 const ACTION_ROW =
   "flex w-max max-w-40 flex-wrap items-center justify-end gap-x-1 gap-y-2 sm:max-w-none sm:flex-nowrap"
 
-export function DataTable<T>({ columns, rows, rowKey, empty, actions, onRowClick }: {
+type TableProps<T> = {
   columns: Array<Column<T>>
   rows: Array<T>
   rowKey: (row: T) => string
@@ -77,7 +81,19 @@ export function DataTable<T>({ columns, rows, rowKey, empty, actions, onRowClick
   /** Rendered in a last, right-aligned column when given. */
   actions?: (row: T) => ReactNode
   onRowClick?: (row: T) => void
-}) {
+  renderCard?: (row: T) => ReactNode
+}
+
+// Record lists opt into paging; configuration and reference tables remain whole.
+export function DataTable<T>({ paginate = false, resetPageKey = "", ...props }: TableProps<T> & { paginate?: boolean; resetPageKey?: string }) {
+  const { page, pageSize, setPage, setPageSize } = usePagination(resetPageKey)
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(props.rows.length / pageSize)))
+  if (paginate && page > currentPage) setPage(currentPage)
+  const rows = paginate ? props.rows.slice((currentPage - 1) * pageSize, currentPage * pageSize) : props.rows
+  return <div className="flex flex-col gap-3"><TableContent {...props} rows={rows} />{paginate ? <Pagination page={currentPage} pageSize={pageSize} total={props.rows.length} onPage={setPage} onPageSize={setPageSize} /> : null}</div>
+}
+
+function TableContent<T>({ columns, rows, rowKey, empty, actions, onRowClick, renderCard }: TableProps<T>) {
   const { t } = useTranslation()
   if (rows.length === 0) return <>{empty}</>
   return (
@@ -87,7 +103,9 @@ export function DataTable<T>({ columns, rows, rowKey, empty, actions, onRowClick
     // `overflow-x-auto` here would be a scroll container that never scrolls
     // and would take the sticky actions column out of the scroller it needs
     // to stick against.
-    <div className="overflow-hidden rounded-lg border border-border">
+    <>
+    {renderCard ? <div className="grid gap-3 md:hidden">{rows.map(row => <div key={rowKey(row)}>{renderCard(row)}</div>)}</div> : null}
+    <div className={cn("overflow-hidden rounded-lg border border-border", renderCard && "hidden md:block")}>
       <Table>
         <TableHeader>
           <TableRow>
@@ -118,6 +136,7 @@ export function DataTable<T>({ columns, rows, rowKey, empty, actions, onRowClick
         </TableBody>
       </Table>
     </div>
+    </>
   )
 }
 
@@ -126,27 +145,30 @@ export function DataTable<T>({ columns, rows, rowKey, empty, actions, onRowClick
  * comes back with every page, so "3 of 120" is honest and cheap, while a row
  * of page numbers over a 500-row cap is neither.
  */
-export function Pagination({ page, pageSize, total, onPage }: {
+export function Pagination({ page, pageSize, total, onPage, onPageSize }: {
   page: number
   pageSize: number
   total: number
   onPage: (page: number) => void
+  onPageSize: (pageSize: PageSize) => void
 }) {
   const { t } = useTranslation()
+  const id = useId()
   const pages = Math.max(1, Math.ceil(total / pageSize))
-  if (total <= pageSize) return null
   return (
-    <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
-      <span>{t("pagination.position", { page, pages, total })}</span>
-      <div className="flex gap-2">
-        <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onPage(page - 1)}>
-          {t("pagination.previous")}
-        </Button>
-        <Button variant="outline" size="sm" disabled={page >= pages} onClick={() => onPage(page + 1)}>
-          {t("pagination.next")}
-        </Button>
+    <nav className="flex flex-wrap items-center justify-between gap-3 text-sm" aria-label={t("pagination.position", { page, pages, total })}>
+      <Field orientation="horizontal" className="w-auto gap-2">
+        <FieldLabel htmlFor={id} className="whitespace-nowrap">{t("pagination.pageSize")}</FieldLabel>
+        <Select value={String(pageSize)} onValueChange={value => onPageSize(Number(value) as PageSize)}>
+          <SelectTrigger id={id} size="sm"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectGroup>{PAGE_SIZES.map(size => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectGroup></SelectContent>
+        </Select>
+      </Field>
+      <div className="flex items-center gap-2"><span>{t("pagination.position", { page, pages, total })}</span>
+        <Button variant="outline" size="icon-sm" aria-label={t("pagination.previous")} disabled={page <= 1} onClick={() => onPage(page - 1)}><ChevronLeft /></Button>
+        <Button variant="outline" size="icon-sm" aria-label={t("pagination.next")} disabled={page >= pages} onClick={() => onPage(page + 1)}><ChevronRight /></Button>
       </div>
-    </div>
+    </nav>
   )
 }
 

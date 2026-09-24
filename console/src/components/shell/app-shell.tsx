@@ -8,11 +8,10 @@
 
 import { useEffect, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
-import { ChevronRight, ChevronsUpDown, CircleUserRound, Languages, LogOut, Menu, Moon, Search, Sun, Waypoints } from "lucide-react"
+import { ChevronRight, ChevronsUpDown, CircleUserRound, Languages, LogOut, Menu, Moon, Sun } from "lucide-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { INFO_KEY, instanceInfo } from "@/api/settings"
 import { signOut } from "@/api/session"
-import { PROVIDERS_READ, PROVIDER_NAV_KEY, providerDirectory, providerPath } from "@/api/configuration"
 import { useConsoleContext } from "@/capability/session"
 import { sectionsFor, type NavSection } from "@/capability/navigation"
 import { Button } from "@/components/ui/button"
@@ -20,7 +19,6 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
   DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { SUPPORTED_LANGS, setLanguage, type LangCode } from "@/i18n"
@@ -111,7 +109,6 @@ function Navigation({ sections, route, onNavigate }: {
   onNavigate?: () => void
 }) {
   const { t } = useTranslation()
-  const [providerSearch, setProviderSearch] = useState("")
   return (
     <nav className="flex flex-col gap-3" aria-label={t("shell.navigation")}>
       {sections.map((section) => {
@@ -125,19 +122,11 @@ function Navigation({ sections, route, onNavigate }: {
               current ? "text-sidebar-foreground" : "text-muted-foreground",
             )}>
               <SectionIcon className="size-4.5 shrink-0" strokeWidth={1.75} aria-hidden="true" />
-              {section.id === "providers" ? <Link to="/providers" className="flex-1" onClick={onNavigate}>{t("nav.providers")}</Link> : <span className="flex-1">{t(`section.${section.id}`)}</span>}
+              <span className="flex-1">{t(`section.${section.id}`)}</span>
               <ChevronRight className="size-3.5 shrink-0 transition-transform group-open/section:rotate-90 motion-reduce:transition-none" aria-hidden="true" />
             </summary>
-            {section.id === "providers" ? (
-              <div className="mt-1 mb-2 ml-5 pl-3">
-                <InputGroup>
-                  <InputGroupAddon><Search /></InputGroupAddon>
-                  <InputGroupInput aria-label={t("providers.search")} placeholder={t("providers.search")} value={providerSearch} onChange={(event) => setProviderSearch(event.target.value)} />
-                </InputGroup>
-              </div>
-            ) : null}
             <ul className="mt-1 ml-5 flex flex-col gap-1 border-l border-sidebar-border pb-1 pl-3">
-              {section.items.filter((item) => section.id !== "providers" || (item.id !== "providers" && item.label?.toLowerCase().includes(providerSearch.toLowerCase()))).map((item) => {
+              {section.items.map((item) => {
                 const Icon = item.icon
                 const active = route === item.route
                 return (
@@ -193,17 +182,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { t } = useTranslation()
   const context = useConsoleContext()
   const route = useRoute()
-  const navRoute = /^\/providers\/[^/]+/.exec(route)?.[0] ?? route
-  const directory = useQuery({ queryKey: PROVIDER_NAV_KEY, queryFn: providerDirectory, enabled: context.has(PROVIDERS_READ) })
-  const sections = sectionsFor(context).map((section) => section.id === "providers" ? {
-    ...section,
-    items: [
-      ...section.items.map((item) => ({ ...item, label: item.id === "providers" ? t("nav.providers") : t(`nav.${item.id}`) })),
-      ...(directory.data ?? []).map((provider) => ({
-        id: `provider-${provider.id}`, label: provider.name, route: providerPath(provider.id), needs: PROVIDERS_READ, icon: Waypoints,
-      })),
-    ],
-  } : section)
+  const navRoute = route.startsWith("/providers/") ? "/providers" : route
+  const sections = sectionsFor(context)
   const section = sections.find((group) => group.items.some((item) => item.route === navRoute))
   const item = section?.items.find((item) => item.route === navRoute)
   const ActiveIcon = item?.icon

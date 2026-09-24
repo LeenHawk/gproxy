@@ -43,7 +43,8 @@
   "pagination": {
     "position": "第 {{page}} / {{pages}} 页 · 共 {{total}} 行",
     "previous": "上一页",
-    "next": "下一页"
+    "next": "下一页",
+    "pageSize": "每页条数"
   },
   "confirm": {
     "deleteTitle": "删除 {{name}}？",
@@ -128,7 +129,8 @@
     "http": "HTTP",
     "websocket": "WebSocket",
     "replace": "文本替换",
-    "set": "设置字段"
+    "set": "设置字段",
+    "disabled": "已禁用"
   },
   "fields": {
     "action": "动作",

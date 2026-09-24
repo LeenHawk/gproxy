@@ -1,3 +1,4 @@
+import { usePagination } from "@/lib/use-pagination"
 //! Live console and portal sessions, as the operator sees them.
 //!
 //! There is no token field and no digest field anywhere in this page, because
@@ -16,15 +17,14 @@ import { Page, PageHeader } from "@/components/page"
 import { EmptyNotice, QueryState } from "@/components/state"
 import { Input } from "@/components/ui/input"
 
-const PAGE_SIZE = 25
 
 export function SessionsPage() {
   const { t } = useTranslation()
   const client = useQueryClient()
-  const [page, setPage] = useState(1)
+  const { page, pageSize, setPage, setPageSize } = usePagination()
   const [userId, setUserId] = useState("")
 
-  const filter = { page, pageSize: PAGE_SIZE, userId: userId.trim() || undefined }
+  const filter = { page, pageSize, userId: userId.trim() || undefined }
   const list = useQuery({ queryKey: ["admin", "/sessions", filter], queryFn: () => admin.sessions.list(filter) })
   const revoke = useMutation({
     mutationFn: (id: string) => admin.sessions.revoke(id),
@@ -46,7 +46,7 @@ export function SessionsPage() {
       />
       <QueryState isPending={list.isPending} error={list.error}>
         <div className="space-y-3">
-          <DataTable
+          <DataTable paginate={false}
             columns={[
               { key: "userId", cell: (row) => <IdCell value={row.userId} /> },
               { key: "createdAtMs", cell: (row) => <InstantCell value={row.createdAtMs} /> },
@@ -66,7 +66,7 @@ export function SessionsPage() {
               </ConfirmButton>
             )}
           />
-          <Pagination page={page} pageSize={PAGE_SIZE} total={list.data?.total ?? 0} onPage={setPage} />
+          <Pagination page={page} pageSize={pageSize} total={list.data?.total ?? 0} onPage={setPage} onPageSize={setPageSize} />
         </div>
       </QueryState>
     </Page>

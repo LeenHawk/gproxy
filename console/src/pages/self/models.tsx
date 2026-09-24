@@ -21,7 +21,7 @@ export function ModelsPage() {
     <Page>
       <PageHeader title={t("nav.models")} />
       <QueryState isPending={list.isPending} error={list.error}>
-        <DataTable
+        <DataTable paginate
           columns={[
             { key: "name", cell: (row) => <IdCell value={row.name} className="text-sm text-foreground" /> },
             {
