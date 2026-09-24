@@ -36,6 +36,8 @@
     "notFoundTitle": "No such page"
   },
   "form": {
+    "all": "All",
+    "useCustom": "Use “{{value}}”",
     "choose": "Choose…",
     "invalidJson": "Invalid JSON. Check the value and try again.",
     "unset": "Inherit"
@@ -134,6 +136,7 @@
     "disabled": "Disabled"
   },
   "fields": {
+    "permissionEffect": "Permission effect",
     "action": "Action",
     "actions": "Actions",
     "actorUserId": "Actor",

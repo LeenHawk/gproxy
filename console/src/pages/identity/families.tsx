@@ -1,7 +1,8 @@
 import { KeyCreateDialog } from "@/components/keys/create-dialog"
 import { KeySettingsDialog } from "@/components/keys/settings-dialog"
-import type { FormField } from "@/components/record-form"
-import { directory } from "@/api/models"
+import { RecordDialog, type FormField } from "@/components/record-form"
+import { providers } from "@/api/configuration"
+import { directory, models } from "@/api/models"
 import { useConsoleContext } from "@/capability/session"
 import { ScopedBudgetObjects } from "./scoped-budgets"
 import { QuotaButton } from "@/pages/quotas"
@@ -230,6 +231,20 @@ function InstanceTeamsPage() {
 // ----------------------------------------------------------- permissions --
 
 export function PermissionsPage() {
+  const { t } = useTranslation()
+  const users = useQuery({ queryKey: ["admin", "/users", "directory"], queryFn: () => directory(admin.users) })
+  const keys = useQuery({ queryKey: ["admin", "/api-keys", "directory"], queryFn: () => directory(admin.apiKeys) })
+  const channels = useQuery({ queryKey: ["admin", "/providers", "directory"], queryFn: () => directory(providers) })
+  const modelList = useQuery({ queryKey: ["admin", "/models", "directory"], queryFn: () => directory(models) })
+  const fields: FormField[] = [
+    { name: "action", label: t("fields.permissionEffect"), kind: "select", options: ACTIONS, required: true },
+    { name: "modelPattern", kind: "searchable", allowCustom: true, emptyValue: "*", emptyLabel: t("form.all"), choices: (modelList.data ?? []).map(row => ({ value: row.name, label: row.name })) },
+    { name: "userId", kind: "searchable", nullable: true, emptyLabel: t("form.all"), choices: (users.data ?? []).map(row => ({ value: row.id, label: `${row.name} (${row.id})` })) },
+    { name: "apiKeyId", kind: "searchable", nullable: true, emptyLabel: t("form.all"), choices: (keys.data ?? []).map(row => ({ value: row.id, label: `${row.name} (${row.prefix})` })) },
+    { name: "providerId", kind: "searchable", nullable: true, emptyLabel: t("form.all"), choices: (channels.data ?? []).map(row => ({ value: row.id, label: `${row.name} (${row.id})` })) },
+    { name: "operation", kind: "text", nullable: true },
+    { name: "priority", kind: "number" },
+  ]
   return (
     <CollectionPage
       id="permissions"
@@ -237,7 +252,7 @@ export function PermissionsPage() {
       rowId={(row: PermissionDto) => row.id}
       rowLabel={(row) => row.modelPattern}
       columns={[
-        { key: "action", cell: (row) => <MaybeCell value={row.action} /> },
+        { key: "action", header: t("fields.permissionEffect"), cell: (row) => t(`values.${row.action}`) },
         { key: "modelPattern", cell: (row) => <IdCell value={row.modelPattern} /> },
         { key: "userId", cell: (row) => <MaybeCell value={row.userId} mono /> },
         { key: "apiKeyId", cell: (row) => <MaybeCell value={row.apiKeyId} mono /> },
@@ -245,15 +260,8 @@ export function PermissionsPage() {
         { key: "operation", cell: (row) => <MaybeCell value={row.operation} /> },
         { key: "priority", cell: (row) => row.priority },
       ]}
-      fields={[
-        { name: "action", kind: "select", options: ACTIONS, required: true },
-        { name: "modelPattern", kind: "text" },
-        { name: "userId", kind: "text", nullable: true },
-        { name: "apiKeyId", kind: "text", nullable: true },
-        { name: "providerId", kind: "text", nullable: true },
-        { name: "operation", kind: "text", nullable: true },
-        { name: "priority", kind: "number" },
-      ]}
+      fields={fields}
+      renderForm={props => <RecordDialog {...props} mode={props.original ? "edit" : "create"} title={t(props.original ? "edit.permissions" : "create.permissions")} fields={fields} error={props.error ?? users.error ?? keys.error ?? channels.error ?? modelList.error} /> }
     />
   )
 }

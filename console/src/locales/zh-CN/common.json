@@ -36,6 +36,8 @@
     "notFoundTitle": "没有这个页面"
   },
   "form": {
+    "all": "全部",
+    "useCustom": "使用“{{value}}”",
     "choose": "请选择…",
     "invalidJson": "JSON 格式不正确，请检查后重试。",
     "unset": "继承"
@@ -134,6 +136,7 @@
     "disabled": "已禁用"
   },
   "fields": {
+    "permissionEffect": "权限效果",
     "action": "动作",
     "actions": "操作",
     "actorUserId": "操作者",

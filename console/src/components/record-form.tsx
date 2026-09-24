@@ -15,6 +15,7 @@
 //! operators editing two different columns of one row would overwrite each
 //! other with values neither of them typed.
 
+import { SearchableSelect } from "@/components/searchable-select"
 import { Fragment, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 import { ProxyControl, type ProxySettings, type ProxyScope } from "@/components/proxy-control"
@@ -30,11 +31,14 @@ import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import { fromLocalInput, toLocalInput } from "@/lib/format"
 
-export type FieldKind = "text" | "password" | "number" | "switch" | "select" | "lines" | "datetime" | "json" | "proxy"
+export type FieldKind = "text" | "password" | "number" | "switch" | "select" | "searchable" | "lines" | "datetime" | "json" | "proxy"
 
 export type FormField = {
   /** The DTO field name, and the i18n key under `fields.`. */
   name: string
+  allowCustom?: boolean
+  emptyValue?: string
+  emptyLabel?: string
   proxyScope?: (original?: Record<string, unknown>) => ProxyScope
   label?: string
   kind: FieldKind
@@ -121,6 +125,7 @@ function Control({ field, value, onChange, original }: {
   if (field.kind === "switch") {
     return <Switch id={id} checked={Boolean(value)} onCheckedChange={(next) => onChange(next)} />
   }
+  if (field.kind === "searchable") return <SearchableSelect id={id} label={field.label ?? t(`fields.${field.name}`)} value={String(value)} options={field.choices ?? []} allowCustom={field.allowCustom} emptyLabel={field.emptyLabel} emptyValue={field.emptyValue} onChange={onChange} />
   if (field.kind === "select") {
     const choices = field.choices ?? (field.options ?? []).map((option) => ({ value: option, label: t(`values.${option}`) }))
     return (
