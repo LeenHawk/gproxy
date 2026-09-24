@@ -47,6 +47,7 @@
     "emptyTitle": "还没有成员"
   },
   "providers": {
+    "routePrefix": "路由前缀",
     "search": "搜索供应商",
     "settings": "设置",
     "models": {
