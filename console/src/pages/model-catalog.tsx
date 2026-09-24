@@ -1,4 +1,4 @@
-import { matchingModel } from "@/lib/model-catalog"
+import { matchingModel, providersByModel } from "@/lib/model-catalog"
 import { usePagination } from "@/lib/use-pagination"
 import { useMemo, useState } from "react"
 import { BadgeDollarSign, Info, Pencil, Plus, Search } from "lucide-react"
@@ -6,7 +6,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { applyDefaultPrices, defaultModels, directory, models, priceRules } from "@/api/models"
-import type { DefaultModelDto, ModelDto } from "@/generated/sdk"
+import { providers, providerModels, providerPath } from "@/api/configuration"
+import { Link } from "@/lib/router"
+import type { DefaultModelDto, ModelDto, ProviderDto } from "@/generated/sdk"
 import { object } from "@/components/providers/provider-model-state"
 import { Page, PageHeader } from "@/components/page"
 import { DataTable, Pagination } from "@/components/data-table"
@@ -20,7 +22,7 @@ import { ModelCapabilities, ModelIdentity, ModelLimits, ModelSummaryCard } from 
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ModelPricingDialog } from "@/pages/providers/model-pricing"
 
-type Row = { name: string; metadata: Record<string, unknown>; defaults?: DefaultModelDto; local?: ModelDto }
+type Row = { name: string; metadata: Record<string, unknown>; providers?: ProviderDto[]; defaults?: DefaultModelDto; local?: ModelDto }
 const metadataFields = ["display_name", "description", "context_window", "max_output_tokens", "input_modalities", "output_modalities", "supported_parameters"] as const
 function defaultMetadata(model: DefaultModelDto) {
   const metadata: Record<string, unknown> = { ...model }
@@ -34,10 +36,16 @@ function ReferencePrice({ model }: { model?: DefaultModelDto }) {
   return <div className="flex flex-col gap-1 text-sm"><dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-1">{["input_tokens", "output_tokens"].map((metric, index) => <div key={metric} className="contents"><dt className="text-muted-foreground">{t(index ? "catalog.tierFields.outputPrice" : "catalog.tierFields.inputPrice")}</dt><dd className="text-right font-mono tabular-nums">{model?.pricing?.rates.find(rate => rate.metric === metric)?.price ?? "—"}</dd></div>)}</dl>{model?.pricing?.tiers?.length ? <Badge variant="outline">{t("catalog.tierCount", { count: model.pricing.tiers.length })}</Badge> : null}</div>
 }
 
+function ModelProviders({ providers }: { providers: readonly ProviderDto[] }) {
+  return providers.length ? <div className="flex flex-wrap gap-1">{providers.map(provider => <Badge key={provider.id} variant="outline" asChild><Link to={`${providerPath(provider.id)}/models`} className="max-w-48 truncate">{provider.name}</Link></Badge>)}</div> : <span className="text-sm text-muted-foreground">—</span>
+}
+
 export function ModelCatalogPage() {
   const { t } = useTranslation(), client = useQueryClient()
   const catalog = useQuery({ queryKey: ["default-model-catalog"], queryFn: defaultModels })
   const local = useQuery({ queryKey: ["admin", "/models"], queryFn: () => directory(models) })
+  const instances = useQuery({ queryKey: ["admin", "/providers", "directory"], queryFn: () => directory(providers) })
+  const bindings = useQuery({ queryKey: ["admin", "/provider-models", "directory"], queryFn: () => directory(providerModels) })
   const prices = useQuery({ queryKey: ["admin", "/price-rules", "global"], queryFn: () => directory(priceRules) })
   const [search, setSearch] = useState("")
   const { page, pageSize, setPage, setPageSize } = usePagination()
@@ -50,9 +58,11 @@ export function ModelCatalogPage() {
       return { name: model.modelId, metadata: { ...defaultMetadata(model), ...object(override?.metadata) }, defaults: model, local: override }
     })
     const custom: Row[] = (local.data ?? []).filter(row => !attached.has(row.id)).map(row => ({ name: row.name, metadata: object(row.metadata), local: row }))
-    const needle = search.toLowerCase()
-    return [...defaults, ...custom].filter(row => `${row.name} ${row.metadata.display_name ?? ""} ${strings(row.metadata.input_modalities)} ${strings(row.metadata.output_modalities)} ${strings(row.metadata.supported_parameters)}`.toLowerCase().includes(needle)).sort((a, b) => a.name.localeCompare(b.name))
-  }, [catalog.data, local.data, search])
+    const combined = [...defaults, ...custom]
+    const associations = providersByModel(combined, instances.data ?? [], bindings.data ?? [])
+    const needle = search.trim().toLowerCase()
+    return combined.map(row => ({ ...row, providers: associations.get(row) ?? [] })).filter(row => `${row.name} ${row.providers.map(provider => provider.name).join(" ")} ${row.metadata.display_name ?? ""} ${strings(row.metadata.input_modalities)} ${strings(row.metadata.output_modalities)} ${strings(row.metadata.supported_parameters)}`.toLowerCase().includes(needle)).sort((a, b) => a.name.localeCompare(b.name))
+  }, [catalog.data, local.data, instances.data, bindings.data, search])
   const refresh = () => Promise.all([client.invalidateQueries({ queryKey: ["admin", "/models"] }), client.invalidateQueries({ queryKey: ["discover-models"] })])
   const save = useMutation({ mutationFn: async (body: Record<string, unknown>) => {
     const metadata = { ...object(editing?.local?.metadata) }
@@ -79,23 +89,25 @@ export function ModelCatalogPage() {
     <PageHeader title={t("nav.model-catalog")} actions={<Button onClick={() => { save.reset(); setEditing({ name: "", metadata: {} }) }}><Plus data-icon="inline-start" />{t("actions.new")}</Button>} />
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <InputGroup className="w-full sm:max-w-sm"><InputGroupAddon><Search /></InputGroupAddon><InputGroupInput aria-label={t("actions.search")} placeholder={t("actions.search")} value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} /></InputGroup>
+        <InputGroup className="w-full sm:max-w-sm"><InputGroupAddon><Search /></InputGroupAddon><InputGroupInput aria-label={t("catalog.searchPlaceholder")} placeholder={t("catalog.searchPlaceholder")} value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} /></InputGroup>
         <span className="text-sm">{t("catalog.count", { count: rows.length })}</span>
       </div>
     </div>
     {save.error || remove.error || apply.error ? <ErrorNotice error={save.error || remove.error || apply.error} /> : null}
-    <QueryState isPending={catalog.isPending || local.isPending || prices.isPending} error={catalog.error || local.error || prices.error}>
+    <QueryState isPending={catalog.isPending || local.isPending || prices.isPending || instances.isPending || bindings.isPending} error={catalog.error || local.error || prices.error || instances.error || bindings.error}>
       <DataTable paginate={false} rows={rows.slice((visiblePage - 1) * pageSize, visiblePage * pageSize)} rowKey={r => r.name} empty={<EmptyNotice title={t("state.emptyTitle")} />} columns={[
         { key: "name", cell: r => <ModelIdentity name={r.name} /> },
+        { key: "providers", header: t("catalog.providerInstances"), cell: r => <ModelProviders providers={r.providers ?? []} /> },
         { key: "limits", header: t("catalog.limits"), cell: r => <ModelLimits metadata={r.metadata} /> },
         { key: "capabilities", header: t("catalog.capabilities"), cell: r => <ModelCapabilities metadata={r.metadata} /> },
         { key: "price", header: t("catalog.referencePrice"), cell: r => <ReferencePrice model={r.defaults} /> },
-      ]} actions={actions} renderCard={r => <ModelSummaryCard name={r.name} metadata={r.metadata} actions={actions(r)}><div className="flex items-start justify-between gap-3 border-t pt-3"><span className="text-sm text-muted-foreground">{t("catalog.referencePrice")}</span><ReferencePrice model={r.defaults} /></div></ModelSummaryCard>} />
+      ]} actions={actions} renderCard={r => <ModelSummaryCard name={r.name} metadata={r.metadata} actions={actions(r)}><div className="flex flex-col gap-1"><span className="text-sm text-muted-foreground">{t("catalog.providerInstances")}</span><ModelProviders providers={r.providers ?? []} /></div><div className="flex items-start justify-between gap-3 border-t pt-3"><span className="text-sm text-muted-foreground">{t("catalog.referencePrice")}</span><ReferencePrice model={r.defaults} /></div></ModelSummaryCard>} />
       <Pagination page={visiblePage} pageSize={pageSize} total={rows.length} onPage={setPage} onPageSize={setPageSize} />
     </QueryState>
     {editing ? <RecordDialog open mode={editing.name ? "edit" : "create"} onOpenChange={open => { if (!open && !save.isPending) setEditing(null) }} title={t("actions.edit")} fields={fields} original={{ name: editing.local?.name ?? editing.name, ...editing.metadata }} pending={save.isPending} error={save.error} onSubmit={body => save.mutate(body)} /> : null}
     {pricing ? <ModelPricingDialog providerId={null} model={pricing} onClose={() => setPricing(null)} /> : null}
     {detail ? <Dialog open onOpenChange={open => { if (!open) setDetail(null) }}><DialogContent className="sm:max-w-3xl" aria-describedby={undefined}><DialogHeader><DialogTitle>{detail.name}</DialogTitle></DialogHeader><DialogBody>
+      <div className="mb-3 flex flex-wrap items-center gap-2"><span className="text-sm text-muted-foreground">{t("catalog.providerInstances")}</span><ModelProviders providers={detail.providers ?? []} /></div>
       <div className="mb-3 flex flex-wrap gap-2">{detail.defaults?.pricing ? <Button disabled={apply.isPending} onClick={() => apply.mutate(detail)}>{t("catalog.applyPrice")}</Button> : null}{detail.local ? <ConfirmButton title={t("confirm.deleteTitle", { name: detail.name })} disabled={remove.isPending} onConfirm={() => remove.mutate(detail.local!.id, { onSuccess: () => setDetail(null) })}>{t("catalog.reset")}</ConfirmButton> : null}</div>
       {apply.error || remove.error ? <ErrorNotice error={apply.error || remove.error} /> : null}
       <p className="mb-3 whitespace-pre-wrap text-sm">{String(detail.metadata.description ?? "")}</p>

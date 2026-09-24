@@ -1,4 +1,4 @@
-import type { DefaultModelDto, DefaultModelPricingDto } from "@/generated/sdk"
+import type { DefaultModelDto, DefaultModelPricingDto, ProviderDto, ProviderModelDto } from "@/generated/sdk"
 
 export function modelBasename(name: string) { return name.trim().split("/").at(-1) ?? "" }
 
@@ -25,4 +25,23 @@ export function defaultPriceFor(models: readonly DefaultModelDto[], name: string
     if (fragment.length > length && needle.includes(fragment)) { best = price; length = fragment.length }
   }
   return best
+}
+
+/** Associate catalog rows with saved provider models, preferring explicit IDs. */
+export function providersByModel<T extends { name: string; local?: { id: string } }>(
+  rows: readonly T[], providers: readonly ProviderDto[], bindings: readonly ProviderModelDto[],
+): Map<T, ProviderDto[]> {
+  const providersById = new Map(providers.map(provider => [provider.id, provider]))
+  const localModels = new Map(rows.filter(row => row.local).map(row => [row.local!.id, row]))
+  const result = new Map<T, Map<string, ProviderDto>>()
+  for (const binding of bindings) {
+    const provider = providersById.get(binding.providerId)
+    if (!provider) continue
+    const row = binding.modelId ? localModels.get(binding.modelId) : matchingModel(rows, binding.upstreamName, row => row.name)
+    if (!row) continue
+    const attached = result.get(row) ?? new Map<string, ProviderDto>()
+    attached.set(provider.id, provider)
+    result.set(row, attached)
+  }
+  return new Map([...result].map(([row, providers]) => [row, [...providers.values()].sort((a, b) => a.name.localeCompare(b.name))]))
 }
