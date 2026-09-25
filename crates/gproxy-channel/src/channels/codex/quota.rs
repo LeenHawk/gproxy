@@ -6,8 +6,9 @@ use super::{Codex, CodexConfig};
 use crate::channel::{
     ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
     QuotaBalance, QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaMetric,
-    QuotaModel, QuotaQuery, QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject,
-    QuotaTracking, QuotaValue, QuotaWindow,
+    QuotaModel, QuotaQuery, QuotaReset, QuotaResetBehavior, QuotaResetCredits, QuotaResetOutcome,
+    QuotaResetRequest, QuotaResetResult, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking,
+    QuotaValue, QuotaWindow,
 };
 use http::{HeaderMap, Method};
 use rust_decimal::Decimal;
@@ -286,6 +287,132 @@ impl QuotaQuery for Codex {
                 // The host stamps receipt; the payload carries no observation time.
                 observed_at_ms: 0,
                 entries: usage_entries(&payload),
+            })
+        })
+    }
+}
+
+#[derive(Deserialize)]
+struct ResetCreditsDetails {
+    available_count: u64,
+    #[serde(default)]
+    credits: Vec<ResetCredit>,
+}
+
+#[derive(Deserialize)]
+struct ResetCredit {
+    status: Option<String>,
+    expires_at: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct ResetResponse {
+    code: ResetCode,
+    windows_reset: Option<u64>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum ResetCode {
+    Reset,
+    NothingToReset,
+    NoCredit,
+    AlreadyRedeemed,
+}
+
+impl QuotaReset for Codex {
+    fn credits<'a>(
+        &'a self,
+        context: CredentialContext<'a>,
+    ) -> OperationFuture<'a, QuotaResetCredits> {
+        Box::pin(async move {
+            let config = CodexConfig::from_view(context.provider)?;
+            let account = account(&context.credential)?;
+            let (_, backend) = base_urls(context.provider);
+            let (status, _, bytes) = send_json(
+                context.client,
+                Method::GET,
+                &format!("{backend}/wham/rate-limit-reset-credits"),
+                backend_headers(&config, &account, None)?,
+                None,
+            )
+            .await?;
+            if !status.is_success() {
+                return Err(ChannelError::UpstreamResponse {
+                    status,
+                    body: bytes,
+                });
+            }
+            let details: ResetCreditsDetails =
+                serde_json::from_slice(&bytes).map_err(|e| invalid_response(e.to_string()))?;
+            let expires_at_ms = details
+                .credits
+                .iter()
+                .filter(|credit| credit.status.as_deref() == Some("available"))
+                .filter_map(|credit| credit.expires_at.as_deref())
+                .filter_map(|date| {
+                    time::OffsetDateTime::parse(
+                        date,
+                        &time::format_description::well_known::Rfc3339,
+                    )
+                    .ok()
+                })
+                .map(|date| (date.unix_timestamp_nanos() / 1_000_000) as i64)
+                .min();
+            Ok(QuotaResetCredits {
+                available_count: Some(details.available_count),
+                expires_at_ms,
+                options: Vec::new(),
+            })
+        })
+    }
+
+    fn reset<'a>(
+        &'a self,
+        context: CredentialContext<'a>,
+        request: QuotaResetRequest<'a>,
+    ) -> OperationFuture<'a, QuotaResetResult> {
+        Box::pin(async move {
+            if request.program.is_some() || request.grant_id.is_some() {
+                return Err(ChannelError::InvalidConfig("Codex reset does not accept a program or grant selection".into()));
+            }
+            let config = CodexConfig::from_view(context.provider)?;
+            let account = account(&context.credential)?;
+            let (_, backend) = base_urls(context.provider);
+            let mut headers = backend_headers(&config, &account, None)?;
+            headers.insert(
+                http::header::CONTENT_TYPE,
+                http::HeaderValue::from_static("application/json"),
+            );
+            let body = serde_json::to_vec(
+                &serde_json::json!({"redeem_request_id": request.redeem_request_id}),
+            )
+            .map_err(|e| invalid_response(e.to_string()))?;
+            let (status, _, bytes) = send_json(
+                context.client,
+                Method::POST,
+                &format!("{backend}/wham/rate-limit-reset-credits/consume"),
+                headers,
+                Some(body),
+            )
+            .await?;
+            if !status.is_success() {
+                return Err(ChannelError::UpstreamResponse {
+                    status,
+                    body: bytes,
+                });
+            }
+            let response: ResetResponse =
+                serde_json::from_slice(&bytes).map_err(|e| invalid_response(e.to_string()))?;
+            Ok(QuotaResetResult {
+                reason: None,
+                outcome: match response.code {
+                    ResetCode::Reset => QuotaResetOutcome::Reset,
+                    ResetCode::NothingToReset => QuotaResetOutcome::NothingToReset,
+                    ResetCode::NoCredit => QuotaResetOutcome::NoCredit,
+                    ResetCode::AlreadyRedeemed => QuotaResetOutcome::AlreadyRedeemed,
+                },
+                windows_reset: response.windows_reset,
             })
         })
     }

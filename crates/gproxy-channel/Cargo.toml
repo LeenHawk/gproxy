@@ -48,7 +48,7 @@ azure = []
 custom = []
 # OpenAI Codex (ChatGPT account) upstream: OAuth login/refresh, Responses over
 # HTTP and WebSocket, x-codex rate-limit headers and /wham/usage.
-codex = ["dep:url", "dep:base64", "dep:futures-util", "dep:sha2", "dep:web-time"]
+codex = ["dep:time", "dep:url", "dep:base64", "dep:futures-util", "dep:sha2", "dep:web-time"]
 # Anthropic's first-party API (api.anthropic.com) upstream: x-api-key
 # Messages with the API's request hygiene and server-side fallback, the
 # OpenAI SDK compatibility layer, anthropic-ratelimit-* headers and the
