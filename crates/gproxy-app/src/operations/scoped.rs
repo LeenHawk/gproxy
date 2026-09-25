@@ -303,7 +303,10 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedCredentials<'_, C> {
         Ok(self.manage().quota_probe(id).await?)
     }
 
-    pub async fn quota_reset_credits(&self, id: &str) -> Result<gproxy_sdk::dto::QuotaResetCreditsDto> {
+    pub async fn quota_reset_credits(
+        &self,
+        id: &str,
+    ) -> Result<gproxy_sdk::dto::QuotaResetCreditsDto> {
         self.admit(id).await?;
         Ok(self.manage().quota_reset_credits(id).await?)
     }
@@ -313,7 +316,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedCredentials<'_, C> {
         Ok(self.manage().quota_reset(id).await?)
     }
 
-    pub async fn quota_reset_with(&self, id: &str, request: gproxy_sdk::dto::QuotaResetWrite) -> Result<QuotaResetDto> {
+    pub async fn quota_reset_with(
+        &self,
+        id: &str,
+        request: gproxy_sdk::dto::QuotaResetWrite,
+    ) -> Result<QuotaResetDto> {
         self.admit(id).await?;
         Ok(self.manage().quota_reset_with(id, request).await?)
     }

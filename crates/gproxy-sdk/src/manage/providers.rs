@@ -137,7 +137,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Providers<'_,
     fn select(&self, query: &ListQuery) -> Select<Self::Entity> {
         let mut select = provider::Entity::find();
         if let Some(search) = crud::optional_text(query.search.clone()) {
-            select = select.filter(Condition::any().add(provider::Column::Name.contains(&search)).add(provider::Column::DisplayName.contains(&search)));
+            select = select.filter(
+                Condition::any()
+                    .add(provider::Column::Name.contains(&search))
+                    .add(provider::Column::DisplayName.contains(&search)),
+            );
         }
         if let Some(enabled) = query.enabled {
             select = select.filter(provider::Column::Enabled.eq(enabled));

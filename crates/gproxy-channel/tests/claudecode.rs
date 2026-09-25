@@ -2087,23 +2087,41 @@ async fn reset_does_not_consume_paused_expired_or_not_yet_usable_grants() {
 
 #[tokio::test]
 async fn weekly_breakdown_is_composition_not_an_allowance() {
-    let client = ScriptClient::new(vec![reply(StatusCode::OK, json!({
-        "seven_day": {"utilization": 22, "resets_at": "2026-09-26T11:00:00Z"},
-        "seven_day_breakdown": {"rows": [
-            {"key": "claude_code", "display_name": "Claude Code", "percent": 70},
-            {"key": "chat", "display_name": "Chats", "percent": 20},
-            {"key": "cowork", "display_name": "Cowork", "percent": 10},
-            {"key": "other", "display_name": "Other", "percent": 0}
-        ]},
-        "limits": [{"kind": "weekly_scoped", "percent": 0, "resets_at": "2026-09-26T11:00:00Z", "scope": {"model": {"display_name": "Fable"}}}]
-    }))]);
-    let config = json!({}); let s = secret("at");
-    let result = Claudecode.quota_query().unwrap().query(CredentialContext {
-        provider: provider(&config, None), credential: credential(&s, &Value::Null), client: &client,
-    }).await.unwrap();
-    let QuotaValue::Breakdown(rows) = &result.entries[1].value else { panic!("breakdown must not be a quota window") };
+    let client = ScriptClient::new(vec![reply(
+        StatusCode::OK,
+        json!({
+            "seven_day": {"utilization": 22, "resets_at": "2026-09-26T11:00:00Z"},
+            "seven_day_breakdown": {"rows": [
+                {"key": "claude_code", "display_name": "Claude Code", "percent": 70},
+                {"key": "chat", "display_name": "Chats", "percent": 20},
+                {"key": "cowork", "display_name": "Cowork", "percent": 10},
+                {"key": "other", "display_name": "Other", "percent": 0}
+            ]},
+            "limits": [{"kind": "weekly_scoped", "percent": 0, "resets_at": "2026-09-26T11:00:00Z", "scope": {"model": {"display_name": "Fable"}}}]
+        }),
+    )]);
+    let config = json!({});
+    let s = secret("at");
+    let result = Claudecode
+        .quota_query()
+        .unwrap()
+        .query(CredentialContext {
+            provider: provider(&config, None),
+            credential: credential(&s, &Value::Null),
+            client: &client,
+        })
+        .await
+        .unwrap();
+    let QuotaValue::Breakdown(rows) = &result.entries[1].value else {
+        panic!("breakdown must not be a quota window")
+    };
     assert_eq!(rows.len(), 4);
-    assert_eq!(rows.iter().map(|row| row.percent).sum::<rust_decimal::Decimal>(), 100.into());
+    assert_eq!(
+        rows.iter()
+            .map(|row| row.percent)
+            .sum::<rust_decimal::Decimal>(),
+        100.into()
+    );
     assert_eq!(rows[3].percent, 0.into());
     assert_eq!(result.entries[2].id, "weekly_model:fable");
     assert_eq!(result.entries[2].label.as_deref(), Some("Fable"));

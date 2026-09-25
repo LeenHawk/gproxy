@@ -2820,7 +2820,10 @@ async fn reset_cards_are_queried_separately_and_only_available_expiries_count() 
         .unwrap();
     assert_eq!(credits.available_count, Some(2));
     assert_eq!(credits.expires_at_ms, Some(1_790_812_800_000));
-    assert_eq!(credits.credit_expirations_ms, vec![Some(1_790_812_800_000), Some(1_790_899_200_000)]);
+    assert_eq!(
+        credits.credit_expirations_ms,
+        vec![Some(1_790_812_800_000), Some(1_790_899_200_000)]
+    );
     let sent = client.sent();
     assert_eq!(sent.len(), 1);
     assert_eq!(sent[0].0, Method::GET);
@@ -2888,11 +2891,22 @@ async fn reset_refuses_a_selection_from_another_channel_without_sending() {
     let client = ScriptClient::new(vec![]);
     let config = json!({});
     let s = secret("at");
-    let result = Codex.quota_reset().unwrap().reset(CredentialContext {
-        provider: provider(&config, None), credential: credential(&s, &Value::Null), client: &client,
-    }, gproxy_channel::channel::QuotaResetRequest {
-        redeem_request_id: "request-1", program: Some("cedar_ember"), grant_id: Some("gift-1"),
-    }).await;
+    let result = Codex
+        .quota_reset()
+        .unwrap()
+        .reset(
+            CredentialContext {
+                provider: provider(&config, None),
+                credential: credential(&s, &Value::Null),
+                client: &client,
+            },
+            gproxy_channel::channel::QuotaResetRequest {
+                redeem_request_id: "request-1",
+                program: Some("cedar_ember"),
+                grant_id: Some("gift-1"),
+            },
+        )
+        .await;
     assert!(matches!(result, Err(ChannelError::InvalidConfig(_))));
     assert!(client.sent().is_empty());
 }

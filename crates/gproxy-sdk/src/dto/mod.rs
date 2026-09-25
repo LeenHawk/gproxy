@@ -79,8 +79,9 @@ pub use pricing::{
 pub use profiles::{ConnectionProfileDto, ConnectionProfilePatch, ConnectionProfileWrite};
 pub use quota::{
     BudgetStatusDto, CountedWindowDto, CredentialBlockDto, CredentialCycleDto,
-    CredentialLimitStatusDto, CredentialQuotaDto, QuotaAllowanceDto, QuotaBalanceDto, QuotaDto,
-    QuotaEntryDto, QuotaBreakdownRowDto, QuotaPatch, QuotaResetDto, QuotaResetCreditsDto, QuotaResetOptionDto, QuotaResetWrite, QuotaSettlementDto, QuotaSnapshotDto, QuotaWindowDto,
+    CredentialLimitStatusDto, CredentialQuotaDto, QuotaAllowanceDto, QuotaBalanceDto,
+    QuotaBreakdownRowDto, QuotaDto, QuotaEntryDto, QuotaPatch, QuotaResetCreditsDto, QuotaResetDto,
+    QuotaResetOptionDto, QuotaResetWrite, QuotaSettlementDto, QuotaSnapshotDto, QuotaWindowDto,
     QuotaWindowQuery, QuotaWrite,
 };
 pub use rewrite::{
