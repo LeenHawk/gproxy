@@ -14,13 +14,16 @@ use http::{HeaderMap, Method};
 use rust_decimal::Decimal;
 use serde::Deserialize;
 
-const PRIMARY_WINDOW_SECS: i64 = 5 * 60 * 60;
-const SECONDARY_WINDOW_SECS: i64 = 7 * 24 * 60 * 60;
+const FIVE_HOURS: i64 = 5 * 60 * 60;
+const SEVEN_DAYS: i64 = 7 * 24 * 60 * 60;
+/// The account-wide limit family. Every other `x-<family>-*` header family
+/// and `additional_rate_limits` entry is a metered feature.
+const ACCOUNT_LIMIT: &str = "codex";
 
-fn window_dimension(id: &str, label: &str, seconds: i64) -> QuotaDimension {
+fn window_dimension(id: String, label: String, seconds: i64) -> QuotaDimension {
     QuotaDimension {
-        id: id.to_owned(),
-        label: Some(label.to_owned()),
+        id,
+        label: Some(label),
         scope: QuotaScope::All,
         operations: None,
         metric: QuotaMetric::Unit("percent".into()),
@@ -31,48 +34,71 @@ fn window_dimension(id: &str, label: &str, seconds: i64) -> QuotaDimension {
 }
 
 impl QuotaModel for Codex {
-    /// Every ChatGPT plan has the account's 5-hour and 7-day windows; feature
-    /// limits (`x-<feature>-*`, `additional_rate_limits`) are observed as
-    /// cycles under their own ids without a declared dimension.
+    /// `primary`/`secondary` are slots, not lengths: a Pro account reported
+    /// a single 7-day window in the primary slot (2026-09-26) while other
+    /// plans carry 5h and 7d, so the account windows are declared by length.
+    /// Feature limits are observe-only.
     fn dimensions(
         &self,
         _: ProviderView<'_>,
         credential: CredentialView<'_>,
     ) -> Vec<QuotaDimension> {
         let plan = plan_type(&credential).unwrap_or_else(|| "unknown".into());
-        vec![
-            window_dimension(
-                "codex_primary",
-                &format!("{plan} 5h window"),
-                PRIMARY_WINDOW_SECS,
-            ),
-            window_dimension(
-                "codex_secondary",
-                &format!("{plan} 7d window"),
-                SECONDARY_WINDOW_SECS,
-            ),
-        ]
+        [FIVE_HOURS, SEVEN_DAYS]
+            .into_iter()
+            .map(|seconds| {
+                let length = window_length(seconds);
+                window_dimension(
+                    format!("{ACCOUNT_LIMIT}_{length}"),
+                    format!("{plan} {length} window"),
+                    seconds,
+                )
+            })
+            .collect()
     }
 }
 
-fn percent_entry(
-    id: String,
+/// `5h`, `7d`, otherwise the length in its largest whole unit.
+fn window_length(seconds: i64) -> String {
+    let (unit, suffix) = [(24 * 60 * 60, "d"), (60 * 60, "h"), (60, "m")]
+        .into_iter()
+        .find(|(unit, _)| seconds % unit == 0)
+        .unwrap_or((1, "s"));
+    format!("{}{suffix}", seconds / unit)
+}
+
+/// One slot of a limit family. An empty slot (no window length or reset,
+/// as the headers send an unused secondary) yields nothing. The account's
+/// windows are named by length so both paths agree whichever slot carries
+/// them; a feature's window is observe-only with an unknown model scope.
+fn slot_entry(
+    family: &str,
+    slot: &str,
     label: Option<String>,
     used_percent: Decimal,
     window_seconds: Option<i64>,
     reset_at_secs: Option<i64>,
-) -> QuotaEntry {
-    let period_end_ms = reset_at_secs.and_then(|s| s.checked_mul(1000));
-    let period_start_ms = match (period_end_ms, window_seconds) {
-        (Some(end), Some(seconds)) => seconds.checked_mul(1000).map(|w| end - w),
-        _ => None,
+) -> Option<QuotaEntry> {
+    if window_seconds == Some(0) {
+        return None;
+    }
+    let period_end_ms = reset_at_secs?.checked_mul(1000)?;
+    let period_start_ms =
+        window_seconds.and_then(|seconds| seconds.checked_mul(1000).map(|w| period_end_ms - w));
+    let id = match window_seconds {
+        Some(seconds) => format!("{family}_{}", window_length(seconds)),
+        None => format!("{family}_{slot}"),
     };
-    QuotaEntry {
+    Some(QuotaEntry {
         source_id: id.clone(),
         id,
         label,
         subject: QuotaSubject::Account,
-        model_scope: QuotaScope::All,
+        model_scope: if family == ACCOUNT_LIMIT {
+            QuotaScope::All
+        } else {
+            QuotaScope::Unknown
+        },
         value: QuotaValue::Window(QuotaAllowance {
             used: Some(used_percent),
             limit: Some(Decimal::ONE_HUNDRED),
@@ -81,10 +107,10 @@ fn percent_entry(
             unlimited: None,
             unit: Some("percent".into()),
             period_start_ms,
-            period_end_ms,
+            period_end_ms: Some(period_end_ms),
             reset_behavior: QuotaResetBehavior::Periodic,
         }),
-    }
+    })
 }
 
 fn credits_entry(has_credits: bool, unlimited: bool, balance: Option<&str>) -> QuotaEntry {
@@ -130,7 +156,8 @@ fn header_bool(headers: &HeaderMap, name: &str) -> Option<bool> {
 impl QuotaHeaders for Codex {
     /// `x-<limit>-{primary,secondary}-{used-percent,window-minutes,reset-at}`
     /// for every limit family present (`codex` is the account, other names
-    /// are metered features), plus `x-codex-credits-*`.
+    /// are metered features), plus `x-codex-credits-*`. An unused slot still
+    /// arrives, as `window-minutes: 0` with an empty reset, and is skipped.
     fn observe(&self, context: QuotaHeaderContext<'_>) -> Result<Vec<QuotaEntry>, ChannelError> {
         let headers = context.headers;
         let mut families: Vec<String> = headers
@@ -150,19 +177,20 @@ impl QuotaHeaders for Codex {
             let label = header_str(headers, &format!("x-{family}-limit-name"))
                 .filter(|l| !l.is_empty())
                 .map(str::to_owned);
-            for window in ["primary", "secondary"] {
+            for slot in ["primary", "secondary"] {
                 let Some(used) =
-                    header_decimal(headers, &format!("x-{family}-{window}-used-percent"))
+                    header_decimal(headers, &format!("x-{family}-{slot}-used-percent"))
                 else {
                     continue;
                 };
-                let minutes = header_i64(headers, &format!("x-{family}-{window}-window-minutes"));
-                let reset = header_i64(headers, &format!("x-{family}-{window}-reset-at"));
-                entries.push(percent_entry(
-                    format!("{limit_id}_{window}"),
+                let minutes = header_i64(headers, &format!("x-{family}-{slot}-window-minutes"));
+                let reset = header_i64(headers, &format!("x-{family}-{slot}-reset-at"));
+                entries.extend(slot_entry(
+                    &limit_id,
+                    slot,
                     label.clone(),
                     used,
-                    minutes.map(|m| m * 60),
+                    minutes.and_then(|m| m.checked_mul(60)),
                     reset,
                 ));
             }
@@ -222,14 +250,15 @@ struct CreditDetails {
 
 fn usage_entries(payload: &UsagePayload) -> Vec<QuotaEntry> {
     let mut entries = Vec::new();
-    let mut push = |id: &str, label: Option<&str>, details: &RateLimitDetails| {
-        for (window, snapshot) in [
+    let mut push = |family: &str, label: Option<&str>, details: &RateLimitDetails| {
+        for (slot, snapshot) in [
             ("primary", &details.primary_window),
             ("secondary", &details.secondary_window),
         ] {
             if let Some(snapshot) = snapshot {
-                entries.push(percent_entry(
-                    format!("{id}_{window}"),
+                entries.extend(slot_entry(
+                    family,
+                    slot,
                     label.map(str::to_owned),
                     snapshot.used_percent,
                     snapshot.limit_window_seconds,
@@ -239,7 +268,7 @@ fn usage_entries(payload: &UsagePayload) -> Vec<QuotaEntry> {
         }
     };
     if let Some(details) = &payload.rate_limit {
-        push("codex", None, details);
+        push(ACCOUNT_LIMIT, None, details);
     }
     for extra in payload.additional_rate_limits.iter().flatten() {
         if let Some(details) = &extra.rate_limit {
