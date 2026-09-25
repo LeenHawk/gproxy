@@ -692,6 +692,8 @@
     "cleanupFailed": "Records were deleted, but related rule cleanup failed: {{message}}"
   },
   "limits": {
+    "weeklyBreakdown": "Weekly usage breakdown",
+    "usageSources": {"claude_code": "Claude Code", "chat": "Chats", "cowork": "Cowork", "other": "Other"},
     "resetCount": "Available resets",
     "queryResetEligibility": "Refresh eligibility",
     "resetEligibility": "Reset eligibility",

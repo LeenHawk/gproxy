@@ -465,3 +465,25 @@ async fn positive_probe_clears_only_the_recovered_exhaustion_block() {
         matches!(&blocks.blocks[0].source, BlockSource::QuotaExhausted { dimension, .. } if dimension == "secondary")
     );
 }
+
+#[tokio::test]
+async fn breakdown_is_persisted_without_becoming_a_quota_block() {
+    let h = harness(full(), "sticky").await;
+    h.channel.quota_snapshots.lock().unwrap().push_back(QuotaSnapshot {
+        observed_at_ms: 0,
+        entries: vec![QuotaEntry {
+            id: "seven_day_breakdown".into(), source_id: "seven_day_breakdown".into(), label: None,
+            subject: QuotaSubject::Account, model_scope: QuotaScope::All,
+            value: QuotaValue::Breakdown(vec![gproxy_channel::channel::QuotaBreakdownRow {
+                key: "claude_code".into(), label: Some("Claude Code".into()), percent: 100.into(),
+            }]),
+        }],
+    });
+    h.core.query_credential_quota("p", "a").await.unwrap();
+    let rows = h.core.store().credential_quota_cycles().query(credential_quota_cycle::Entity::find()).await.unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].snapshot["kind"], "breakdown");
+    assert_eq!(rows[0].snapshot["breakdown"][0]["percent"], "100");
+    assert_eq!(rows[0].resets_at_ms, None);
+    assert!(blocks_for(&h, "a").await.is_empty());
+}

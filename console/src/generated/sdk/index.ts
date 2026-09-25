@@ -97,6 +97,7 @@ export * from "./QuotaAllowanceDto";
 export * from "./QuotaBalanceDto";
 export * from "./QuotaDto";
 export * from "./QuotaEntryDto";
+export * from "./QuotaBreakdownRowDto";
 export * from "./QuotaPatch";
 export * from "./QuotaResetCreditsDto";
 export * from "./QuotaResetOptionDto";

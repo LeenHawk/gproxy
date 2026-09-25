@@ -67,7 +67,7 @@ fn dimension_applies(
 fn allowance(value: &QuotaValue) -> Option<&QuotaAllowance> {
     match value {
         QuotaValue::Window(a) | QuotaValue::RateLimit(a) | QuotaValue::Budget(a) => Some(a),
-        QuotaValue::Balance(_) => None,
+        QuotaValue::Balance(_) | QuotaValue::Breakdown(_) => None,
     }
 }
 
@@ -158,6 +158,12 @@ fn snapshot_json(entry: &QuotaEntry) -> serde_json::Value {
         QuotaValue::Window(a) => ("window", Some(a)),
         QuotaValue::RateLimit(a) => ("rate_limit", Some(a)),
         QuotaValue::Budget(a) => ("budget", Some(a)),
+        QuotaValue::Breakdown(rows) => {
+            return serde_json::json!({
+                "id": entry.id, "source_id": entry.source_id, "label": entry.label,
+                "kind": "breakdown", "breakdown": rows,
+            });
+        }
         QuotaValue::Balance(b) => {
             return serde_json::json!({
                 "id": entry.id,

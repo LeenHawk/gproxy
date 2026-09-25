@@ -137,7 +137,7 @@ exported!(
     QuotaAllowanceDto,
     QuotaBalanceDto,
     QuotaDto,
-    QuotaEntryDto,
+    QuotaEntryDto, QuotaBreakdownRowDto,
     QuotaPatch,
     QuotaResetDto, QuotaResetCreditsDto, QuotaResetOptionDto, QuotaResetWrite,
     QuotaSettlementDto,

@@ -58,6 +58,7 @@ impl<C: BatchConnectionTrait> Core<C> {
                     QuotaValue::Budget(a) => ("budget", Some(a)),
                     QuotaValue::RateLimit(a) => ("rate_limit", Some(a)),
                     QuotaValue::Balance(_) => ("balance", None),
+                    QuotaValue::Breakdown(_) => ("breakdown", None),
                 };
                 rows.push(Observation {
                     id: entry.id.clone(),

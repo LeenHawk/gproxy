@@ -76,12 +76,21 @@ pub struct QuotaBalance {
     pub unit: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct QuotaBreakdownRow {
+    pub key: String,
+    pub label: Option<String>,
+    pub percent: Decimal,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum QuotaValue {
     Window(QuotaAllowance),
     RateLimit(QuotaAllowance),
     Budget(QuotaAllowance),
     Balance(QuotaBalance),
+    /// Composition of used quota, not an independently limited window.
+    Breakdown(Vec<QuotaBreakdownRow>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -10,8 +10,8 @@ import type { QuotaSnapshotDto } from "@/generated/sdk"
 vi.mock("@/api/credentials", () => ({ credentialQuota: vi.fn(), probeQuota: vi.fn(), quotaResetCredits: vi.fn(), resetUpstreamQuota: vi.fn() }))
 const provider: CredentialProviderDto = { id: "p", name: "Codex", channel: "codex", enabled: true, loginModes: [], capabilities: { refresh: true, quotaQuery: true, quotaReset: true, services: true, websocket: true } }
 const snapshot: QuotaSnapshotDto = { observedAtMs: 1_790_330_400_000, entries: [
-  { id: "codex_primary", sourceId: "codex_primary", label: null, kind: "window", subject: "account", modelScope: "all", balance: null, allowance: { used: "96", limit: "100", remaining: "4", usedPercent: "96", unlimited: null, unit: "percent", periodStartMs: 1_789_807_204_000, periodEndMs: 1_790_412_004_000, resetBehavior: "periodic" } },
-  { id: "codex_credits", sourceId: "codex_credits", label: "credits", kind: "balance", subject: "account", modelScope: "all", allowance: null, balance: { remaining: "0", unit: "credits" } },
+  { id: "codex_primary", sourceId: "codex_primary", label: null, kind: "window", breakdown: null, subject: "account", modelScope: "all", balance: null, allowance: { used: "96", limit: "100", remaining: "4", usedPercent: "96", unlimited: null, unit: "percent", periodStartMs: 1_789_807_204_000, periodEndMs: 1_790_412_004_000, resetBehavior: "periodic" } },
+  { id: "codex_credits", sourceId: "codex_credits", label: "credits", kind: "balance", breakdown: null, subject: "account", modelScope: "all", allowance: null, balance: { remaining: "0", unit: "credits" } },
 ] }
 function mount(channel = "codex") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
@@ -87,4 +87,30 @@ it("shows Claude eligibility separately and preserves the selected grant and req
   fireEvent.click(within(dialog).getByRole("button", { name: "Reset upstream quota" }))
   await waitFor(() => expect(resetUpstreamQuota).toHaveBeenCalledTimes(2))
   expect(vi.mocked(resetUpstreamQuota).mock.calls[1]).toEqual(first)
+})
+
+it("renders weekly composition separately and labels Fable as a weekly quota", async () => {
+  const rows = [{ key: "claude_code", label: "Claude Code", percent: "70" }, { key: "chat", label: "Chats", percent: "20" }, { key: "cowork", label: "Cowork", percent: "10" }, { key: "other", label: "Other", percent: "0" }]
+  vi.mocked(probeQuota).mockResolvedValue({ ...snapshot, entries: [
+    { ...snapshot.entries[0], id: "seven_day", sourceId: "seven_day" },
+    { ...snapshot.entries[0], id: "seven_day_breakdown", sourceId: "seven_day_breakdown", kind: "breakdown", allowance: null, breakdown: rows },
+    { ...snapshot.entries[0], id: "weekly_model:fable", sourceId: "weekly_model:fable", label: "Fable" },
+  ] })
+  mount("claudecode")
+  const bar = await screen.findByRole("img", { name: /Weekly usage breakdown: Claude Code 70%/ })
+  expect(bar.children).toHaveLength(3)
+  expect(screen.getAllByRole("progressbar")).toHaveLength(2)
+  expect(screen.getByRole("heading", { name: "Fable · 7-day quota" })).toBeInTheDocument()
+  expect(screen.queryByText("breakdown · 7-day quota")).not.toBeInTheDocument()
+})
+
+it("hides the legacy phantom breakdown window when falling back to saved observations", async () => {
+  vi.mocked(probeQuota).mockRejectedValue(new Error("Offline"))
+  vi.mocked(credentialQuota).mockResolvedValue({ blocks: [], cycles: [{
+    id: "old-breakdown", credentialId: "c", scope: "all", snapshot: { id: "seven_day_breakdown", kind: "window", limit: "100", unit: "percent" },
+    observedAtMs: 1_790_330_400_000, startsAtMs: null, resetsAtMs: null,
+  }] })
+  mount("claudecode")
+  await screen.findByText("Offline")
+  expect(screen.queryByText(/breakdown ·|— \/ 100/)).not.toBeInTheDocument()
 })

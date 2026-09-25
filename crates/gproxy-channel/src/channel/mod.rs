@@ -27,7 +27,7 @@ pub use oauth::{
 pub use operations::{OperationContext, OperationFuture};
 pub use quota::{
     QuotaAllowance, QuotaBalance, QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders,
-    QuotaMetric, QuotaModel, QuotaQuery, QuotaReset, QuotaResetBehavior, QuotaResetCredits,
+    QuotaBreakdownRow, QuotaMetric, QuotaModel, QuotaQuery, QuotaReset, QuotaResetBehavior, QuotaResetCredits,
     QuotaResetOption, QuotaResetRequest, QuotaResetOutcome, QuotaResetResult, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking,
     QuotaValue, QuotaWindow,
 };
