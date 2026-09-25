@@ -17,4 +17,4 @@ kind: string, sessionId: string | null, userId: string | null, apiKeyId: string 
  * `in_progress`, `completed`, `failed` or `cancelled`. Capture
  * completeness, not the upstream's verdict.
  */
-state: string, error: string | null, clientIp: string | null, startedAtMs: number, firstResponseAtMs: number | null, endedAtMs: number | null, };
+state: string, error: string | null, reason: string | null, clientIp: string | null, startedAtMs: number, firstResponseAtMs: number | null, endedAtMs: number | null, };

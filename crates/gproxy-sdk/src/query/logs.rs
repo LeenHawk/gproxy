@@ -121,6 +121,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Logs<'_, C> {
         if let Some(operation) = filter(&query.operation) {
             condition = condition.add(C::Operation.eq(operation));
         }
+        if let Some(reason) = filter(&query.reason) {
+            condition = condition.add(C::Reason.eq(reason));
+        }
         if let Some(status) = query.status {
             condition = condition.add(C::ResponseStatus.eq(status));
         }
@@ -305,6 +308,7 @@ fn record(row: capture_record::Model) -> CaptureRecordDto {
         metrics: row.metrics,
         state: row.state.to_value(),
         error: row.error,
+        reason: row.reason,
         started_at_ms: row.started_at_ms,
         first_response_at_ms: row.first_response_at_ms,
         ended_at_ms: row.ended_at_ms,

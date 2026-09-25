@@ -10,6 +10,10 @@ export type LogQuery = { fromMs: number | null, toMs: number | null, userId: str
  */
 status: number | null, 
 /**
+ * Exact normalized upstream reason (for example `refusal`).
+ */
+reason: string | null,
+/**
  * One request by id, which for a downstream record is its own id.
  */
 requestId: string | null, 

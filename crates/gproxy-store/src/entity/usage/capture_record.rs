@@ -78,6 +78,9 @@ pub struct Model {
     pub state: CaptureState,
     #[sea_orm(column_type = "Text")]
     pub error: Option<String>,
+    /// Channel-classified response reason, independent of capture/HTTP success.
+    #[sea_orm(indexed)]
+    pub reason: Option<String>,
     #[sea_orm(indexed)]
     pub started_at_ms: i64,
     pub first_response_at_ms: Option<i64>,

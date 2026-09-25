@@ -791,6 +791,22 @@
     "activeHelp": "Requests covered by this budget stop when it is exhausted."
   },
   "observation": {
+    "reason": "Reason",
+    "allReasons": "All reasons",
+    "reasons": {
+      "refusal": "Model refusal",
+      "content_filter": "Content policy block",
+      "authentication_failed": "Authentication failed",
+      "permission_denied": "Permission denied",
+      "rate_limited": "Rate limited",
+      "quota_exhausted": "Quota exhausted",
+      "invalid_request": "Invalid request",
+      "not_found": "Not found",
+      "upstream_error": "Upstream error",
+      "timeout": "Timeout",
+      "connection_error": "Connection error",
+      "cancelled": "Cancelled"
+    },
     "fromMs": "From",
     "toMs": "Until",
     "userId": "User ID",

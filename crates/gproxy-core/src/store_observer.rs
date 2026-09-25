@@ -295,6 +295,13 @@ impl CaptureSink for StoreCapture {
             ..Default::default()
         })));
     }
+    fn reason(&mut self, reason: gproxy_channel::channel::ResponseReason) {
+        self.send(Write::Head(Box::new(record::ActiveModel {
+            id: Set(self.id.clone()),
+            reason: Set(Some(reason.as_str().to_owned())),
+            ..Default::default()
+        })));
+    }
     fn finish(self: Box<Self>, end: CaptureEnd) -> CapabilityFuture<'static, ()> {
         Box::pin(async move {
             let (tx, rx) = oneshot::channel();

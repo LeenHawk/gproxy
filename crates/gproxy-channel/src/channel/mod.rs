@@ -8,6 +8,7 @@ mod headers;
 mod oauth;
 mod operations;
 mod quota;
+pub(crate) mod reason;
 mod refresh;
 mod registry;
 mod service;
@@ -44,6 +45,8 @@ pub use usage::{
     UsageContext, UsageExtractor, UsageFrame, UsageObserver, UsageStream, UsageStreamContext,
     UsageStreamEnd, UsageTransport,
 };
+
+pub use reason::{ResponseReason, ResponseReasonObserver, standard_reason_observer};
 
 pub use refresh::{CredentialRefresh, CredentialUpdate, RefreshContext};
 
@@ -539,6 +542,26 @@ pub trait BaseChannel: Send + Sync {
 
     fn quota_headers(&self) -> Option<&dyn QuotaHeaders> {
         None
+    }
+
+    /// Classifies raw upstream responses independently of usage extraction.
+    /// Override for private wire formats; standard JSON/SSE protocols share a parser.
+    fn response_reason_observer(
+        &self,
+        _status: http::StatusCode,
+        headers: &http::HeaderMap,
+        max_bytes: u64,
+    ) -> Option<Box<dyn ResponseReasonObserver>> {
+        standard_reason_observer(headers, max_bytes)
+    }
+
+    /// Classify one complete incoming WS message; control frames carry no model verdict.
+    /// The transport has already reassembled WebSocket fragmentation.
+    fn websocket_response_reason(
+        &self,
+        frame: &gproxy_protocol::connection::WsFrame,
+    ) -> Option<ResponseReason> {
+        reason::websocket_reason(frame)
     }
 
     fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {

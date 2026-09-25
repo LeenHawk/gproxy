@@ -327,6 +327,7 @@ pub mod error;
 mod models;
 pub mod proto;
 mod quota;
+mod reason;
 mod request;
 mod stream;
 mod usage;
@@ -353,7 +354,6 @@ use crate::channel::{
     HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, OperationContext, OperationFuture, ProviderView,
     QuotaModel, QuotaQuery, UsageExtractor, UsageStream, forwardable,
 };
-
 
 /// The channel. Stateless: one instance serves every provider that names it.
 #[derive(Debug, Default, Clone, Copy)]
@@ -676,6 +676,15 @@ impl BaseChannel for Devin {
 
     fn quota_model(&self) -> Option<&dyn QuotaModel> {
         Some(self)
+    }
+
+    fn response_reason_observer(
+        &self,
+        status: http::StatusCode,
+        headers: &http::HeaderMap,
+        max_bytes: u64,
+    ) -> Option<Box<dyn crate::channel::ResponseReasonObserver>> {
+        reason::observer(status, headers, max_bytes)
     }
 
     fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {

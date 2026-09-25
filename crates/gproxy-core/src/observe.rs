@@ -25,7 +25,9 @@ pub struct ObservationPolicy {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CapturePolicy {
     Off,
-    /// Heads only: no request/response bytes and no WS payloads are delivered.
+    /// Heads and response reason only: no request/response bytes or WS payloads
+    /// are delivered to the capture sink. Channels may inspect response bytes
+    /// to classify the reason without retaining the body in the log.
     Metadata,
     /// Heads plus every body chunk and WS frame in observed order.
     Full,
@@ -77,6 +79,8 @@ pub trait CaptureSink: Send {
     fn record(&mut self, sequence: u64, event: CaptureEvent<'_>);
     /// Native usage for this physical exchange, independent of body logging.
     fn usage(&mut self, _usage: &gproxy_channel::channel::NormalizedUsage) {}
+    /// Channel classification; independent of whether usage/body capture is enabled.
+    fn reason(&mut self, _reason: gproxy_channel::channel::ResponseReason) {}
     /// Flush and close. Awaited off the response path.
     fn finish(self: Box<Self>, end: CaptureEnd) -> CapabilityFuture<'static, ()>;
 }

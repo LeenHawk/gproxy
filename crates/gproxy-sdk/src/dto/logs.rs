@@ -107,6 +107,7 @@ pub struct LogEntryDto {
     /// completeness, not the upstream's verdict.
     pub state: String,
     pub error: Option<String>,
+    pub reason: Option<String>,
     pub client_ip: Option<String>,
     pub started_at_ms: i64,
     pub first_response_at_ms: Option<i64>,
@@ -130,6 +131,7 @@ impl From<capture_record::Model> for LogEntryDto {
             response_status: row.response_status,
             state: row.state.to_value(),
             error: row.error,
+            reason: row.reason,
             client_ip: row.client_ip,
             started_at_ms: row.started_at_ms,
             first_response_at_ms: row.first_response_at_ms,
@@ -199,6 +201,7 @@ pub struct CaptureRecordDto {
     pub metrics: Option<Value>,
     pub state: String,
     pub error: Option<String>,
+    pub reason: Option<String>,
     pub started_at_ms: i64,
     pub first_response_at_ms: Option<i64>,
     pub ended_at_ms: Option<i64>,
@@ -258,6 +261,8 @@ pub struct LogQuery {
     pub operation: Option<String>,
     /// Exact HTTP response status.
     pub status: Option<i32>,
+    /// Exact normalized upstream reason (for example `refusal`).
+    pub reason: Option<String>,
     /// One request by id, which for a downstream record is its own id.
     pub request_id: Option<String>,
     /// `next_cursor` of the previous page.

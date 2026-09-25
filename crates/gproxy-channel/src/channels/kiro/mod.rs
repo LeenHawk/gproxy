@@ -766,6 +766,15 @@ impl BaseChannel for Kiro {
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }
+    fn response_reason_observer(
+        &self,
+        _status: http::StatusCode,
+        headers: &http::HeaderMap,
+        max_bytes: u64,
+    ) -> Option<Box<dyn crate::channel::ResponseReasonObserver>> {
+        crate::channels::shared::aws_reason::observer(headers, max_bytes, false)
+    }
+
     fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
         Some(self)
     }
