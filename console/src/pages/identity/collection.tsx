@@ -137,9 +137,9 @@ export function CollectionPage<D, W, P>({
   return (
     <Page>
       {embedded ? (
-        <div className="flex items-center justify-between gap-3">{searchInput}<div className="ml-auto">{add}</div></div>
+        <div className="flex flex-wrap items-center justify-between gap-3">{searchInput}<div className="ml-auto flex items-center gap-2">{batch.trigger}{add}</div></div>
       ) : (
-        <><PageHeader title={t(`nav.${id}`)} actions={add} />{searchInput}</>
+        <><PageHeader title={t(`nav.${id}`)} actions={<>{batch.trigger}{add}</>} />{searchInput}</>
       )}
       {batch.toolbar}
       <QueryState isPending={list.isPending} error={list.error}>

@@ -28,36 +28,36 @@ export function useConfigBatch<D, W, P>({ family, context, rows, onSaved, afterD
       await onSaved?.()
     }, onError: (error: Error) => toast.error(error.message) })
   const checkbox = (id: string, name: string) => active ? <Checkbox aria-label={`${t("management.select")}: ${name}`} checked={selected.includes(id)} disabled={action.isPending} onClick={event => event.stopPropagation()} onCheckedChange={checked => select(checked ? [...selected, id] : selected.filter(value => value !== id))} /> : null
-  const toolbar = family.batch ? (
+  const trigger = family.batch ? (
+    <Button
+      variant={active ? "secondary" : "outline"}
+      size="sm"
+      aria-label={t("management.selectPage")}
+      aria-pressed={active}
+      disabled={action.isPending}
+      onClick={() => { setBatchMode(!active); select([]) }}
+    >
+      <ListChecks data-icon="inline-start" />
+      {t("management.selectPage")}
+    </Button>
+  ) : null
+  const toolbar = active ? (
     <div role="group" aria-label={t("management.selectPage")} className="inline-flex w-fit max-w-full items-center gap-1 rounded-xl border bg-muted/30 p-1">
-      <Button
-        variant={active ? "secondary" : "ghost"}
-        size="sm"
+      <Checkbox
         aria-label={t("management.selectPage")}
-        aria-pressed={active}
-        disabled={action.isPending}
-        onClick={() => { setBatchMode(!active); select([]) }}
-      >
-        <ListChecks data-icon="inline-start" />
-        {t("management.selectPage")}
-      </Button>
-      {active ? <>
-        <Checkbox
-          aria-label={t("management.selectPage")}
-          title={t("management.selectPage")}
-          className="mx-1"
-          checked={rows.length > 0 && rows.every(row => selected.includes(row.id)) ? true : selected.length ? "indeterminate" : false}
-          disabled={action.isPending || !rows.length}
-          onCheckedChange={checked => select(checked ? rows.map(row => row.id) : [])}
-        />
-        {enableToggle || deletable ? <Separator orientation="vertical" className="mx-1 self-stretch data-[orientation=vertical]:h-auto" /> : null}
-        {enableToggle ? (["enable", "disable"] as const).map(kind => {
-          const Icon = kind === "enable" ? Power : PowerOff
-          return <Button key={kind} size="icon-sm" variant="ghost" title={t(`management.${kind}`)} aria-label={t(`management.${kind}`)} disabled={!selected.length || action.isPending} onClick={() => action.mutate({ kind, ids: selected })}><Icon /></Button>
-        }) : null}
-        {deletable ? <ConfirmButton iconOnly variant="destructive" disabled={!selected.length || action.isPending} title={t("management.deleteSelected", { count: selected.length })} onConfirm={() => action.mutate({ kind: "delete", ids: selected })}><Trash2 /></ConfirmButton> : null}
-      </> : null}
+        title={t("management.selectPage")}
+        className="mx-1"
+        checked={rows.length > 0 && rows.every(row => selected.includes(row.id)) ? true : selected.length ? "indeterminate" : false}
+        disabled={action.isPending || !rows.length}
+        onCheckedChange={checked => select(checked ? rows.map(row => row.id) : [])}
+      />
+      {enableToggle || deletable ? <Separator orientation="vertical" className="mx-1 self-stretch data-[orientation=vertical]:h-auto" /> : null}
+      {enableToggle ? (["enable", "disable"] as const).map(kind => {
+        const Icon = kind === "enable" ? Power : PowerOff
+        return <Button key={kind} size="icon-sm" variant="ghost" title={t(`management.${kind}`)} aria-label={t(`management.${kind}`)} disabled={!selected.length || action.isPending} onClick={() => action.mutate({ kind, ids: selected })}><Icon /></Button>
+      }) : null}
+      {deletable ? <ConfirmButton iconOnly variant="destructive" disabled={!selected.length || action.isPending} title={t("management.deleteSelected", { count: selected.length })} onConfirm={() => action.mutate({ kind: "delete", ids: selected })}><Trash2 /></ConfirmButton> : null}
     </div>
   ) : null
-  return { toolbar, checkbox, active, pending: action.isPending }
+  return { trigger, toolbar, checkbox, active, pending: action.isPending }
 }

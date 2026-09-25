@@ -14,7 +14,7 @@ describe("configuration batch selection", () => {
     function Harness() {
       const [filter, setFilter] = useState("first")
       const bulk = useConfigBatch({ family, context: filter, rows: [{ id: filter }] })
-      return <><input aria-label="Filter" value={filter} onChange={event => setFilter(event.target.value)} />{bulk.toolbar}{bulk.checkbox(filter, filter)}</>
+      return <><input aria-label="Filter" value={filter} onChange={event => setFilter(event.target.value)} />{bulk.trigger}{bulk.toolbar}{bulk.checkbox(filter, filter)}</>
     }
     const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
     render(<QueryClientProvider client={client}><Harness /></QueryClientProvider>)
