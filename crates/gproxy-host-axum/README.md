@@ -186,7 +186,7 @@ POST   /admin/api/{family}/batch     [{"create": …}, {"update": {"id": …, "p
 ```
 
 `{family}` is `providers`, `credentials`, `models`, `provider-models`,
-`routes`, `route-members`, `exposed-models`, `connection-profiles`,
+`routes`, `route-members`, `connection-profiles`,
 `rule-sets`, `rules`, `provider-rule-sets`, `operation-rules`,
 `operation-endpoints`, `quotas`, `price-rules`, `price-rates`, `price-tiers`.
 Beyond them:
@@ -227,8 +227,7 @@ POST   /admin/api/tokenizer-auth/reveal          the token in the clear — audi
 ```
 
 Where v3 had the same operation the path is v3's, so an operator's scripts
-survive. New in v4: `/exposed-models` (v3 called them aliases),
-`/connection-profiles`, `/operation-rules`, `/operation-endpoints`,
+survive. New in v4: `/connection-profiles`, `/operation-rules`, `/operation-endpoints`,
 `/price-tiers`, `/settings` (v3 split it into `/instance-settings` and
 `/log-settings`), `/{family}/batch` (v3 had `/batch/{entity}`),
 `/credentials/{id}/{status,refresh,limits}`, `/models/discover/apply`,

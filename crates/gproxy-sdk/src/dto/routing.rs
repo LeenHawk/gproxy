@@ -1,8 +1,8 @@
-//! Routes, their members and the public names that select them.
+//! Public model routes and their provider/model members.
 
 use serde::{Deserialize, Serialize};
 
-use gproxy_store::entity::routing::{exposed_model, route, route_member};
+use gproxy_store::entity::routing::{route, route_member};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
@@ -10,6 +10,7 @@ use gproxy_store::entity::routing::{exposed_model, route, route_member};
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct RouteDto {
     pub id: String,
+    /// The exact model name clients send in requests.
     pub name: String,
     /// `round_robin`, `weighted` or `failover`.
     pub strategy: String,
@@ -47,6 +48,7 @@ pub(crate) fn strategy_name(strategy: route::RouteStrategy) -> &'static str {
 pub struct RouteWrite {
     #[serde(default)]
     pub id: Option<String>,
+    /// The exact model name clients send in requests.
     pub name: String,
     #[serde(default)]
     pub strategy: Option<String>,
@@ -139,57 +141,6 @@ pub struct RouteMemberPatch {
     pub tier: Option<u32>,
     #[serde(default)]
     pub weight: Option<u32>,
-    #[serde(default)]
-    pub enabled: Option<bool>,
-}
-
-/// A public model name bound to a route. The name is matched exactly, and its
-/// first path segment may not be a registered channel id or a provider name —
-/// those prefixes already mean `channel/model` and `provider/model` narrowing.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
-pub struct ExposedModelDto {
-    pub id: String,
-    pub name: String,
-    pub route_id: String,
-    pub enabled: bool,
-}
-
-impl From<exposed_model::Model> for ExposedModelDto {
-    fn from(row: exposed_model::Model) -> Self {
-        Self {
-            id: row.id,
-            name: row.name,
-            route_id: row.route_id,
-            enabled: row.enabled,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
-pub struct ExposedModelWrite {
-    #[serde(default)]
-    pub id: Option<String>,
-    pub name: String,
-    pub route_id: String,
-    #[serde(default)]
-    pub enabled: Option<bool>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "camelCase")]
-#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
-pub struct ExposedModelPatch {
-    #[serde(default)]
-    pub name: Option<String>,
-    #[serde(default)]
-    pub route_id: Option<String>,
     #[serde(default)]
     pub enabled: Option<bool>,
 }

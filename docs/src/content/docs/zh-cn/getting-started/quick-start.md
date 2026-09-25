@@ -139,19 +139,19 @@ curl -s http://127.0.0.1:8787/v1/chat/completions \
   -d '{"model":"openai-main/gpt-4o-mini","messages":[{"role":"user","content":"Say hello."}]}'
 ```
 
-## 6. 给它一个公开名
+## 6. 创建模型路由
 
-路由是一组带 tier 与 weight 的成员；公开模型名是指向某条路由的对外名字。两者合起来，
-就是让客户端不再念你的基础设施。
+路由名称就是客户端请求的模型名。成员配置供应商、上游模型、tier 与 weight。
+创建 `fast` 路由并添加成员即可使用，不需要再配置公开名称。
 
 ```sh
 curl -s -X POST http://127.0.0.1:8787/admin/api/routes \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
-  -d '{"name":"main"}'
+  -d '{"name":"fast"}'
 ```
 
 ```json
-{"id":"33a88261f571347c7f0408c3bd2e2164","name":"main","strategy":"round_robin",
+{"id":"33a88261f571347c7f0408c3bd2e2164","name":"fast","strategy":"round_robin",
  "maxAttempts":6,"enabled":true}
 ```
 
@@ -163,17 +163,12 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/route-members \
   -d "{\"routeId\":\"$ROUTE\",\"providerId\":\"$PROVIDER\",
        \"upstreamModel\":\"gpt-4o-mini\"}"
 
-curl -s -X POST http://127.0.0.1:8787/admin/api/exposed-models \
-  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
-  -d "{\"routeId\":\"$ROUTE\",\"name\":\"fast\"}"
 ```
 
 ```json
 {"id":"fe91bb79f182e5becd899a056865c707","routeId":"33a88261f571347c7f0408c3bd2e2164",
  "providerId":"5a45fd807be02516a1626eedd528859d","upstreamModel":"gpt-4o-mini",
  "tier":0,"weight":100,"enabled":true}
-{"id":"c524d5e47279e2eb3fa86b2143e4f755","name":"fast",
- "routeId":"33a88261f571347c7f0408c3bd2e2164","enabled":true}
 ```
 
 在另一个 Provider 上加一个 `tier: 1` 的成员，就是一个故障转移目标。两个 `tier: 0` 的成员

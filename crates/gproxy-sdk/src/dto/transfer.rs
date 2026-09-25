@@ -16,15 +16,14 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    ConnectionProfileDto, CredentialDto, ExposedModelDto, ModelDto, OperationEndpointDto,
-    OperationRuleDto, PriceRateDto, PriceRuleDto, PriceTierDto, ProviderDto, ProviderModelDto,
-    ProviderRuleSetDto, QuotaDto, RewriteRuleDto, RouteDto, RouteMemberDto, RuleSetDto,
-    SettingsDto,
+    ConnectionProfileDto, CredentialDto, ModelDto, OperationEndpointDto, OperationRuleDto,
+    PriceRateDto, PriceRuleDto, PriceTierDto, ProviderDto, ProviderModelDto, ProviderRuleSetDto,
+    QuotaDto, RewriteRuleDto, RouteDto, RouteMemberDto, RuleSetDto, SettingsDto,
 };
 
 /// The only version this build writes, and the only one it accepts. It is not
 /// the schema version: it names the shape of the envelope below.
-pub const EXPORT_FORMAT_VERSION: u32 = 4;
+pub const EXPORT_FORMAT_VERSION: u32 = 5;
 
 /// Codec names as they appear in [`SealedSecretDto::codec`], read from the
 /// envelope byte the sealed blob starts with rather than from configuration:
@@ -85,8 +84,6 @@ pub struct ConfigurationDataDto {
     pub routes: Vec<RouteDto>,
     #[serde(default)]
     pub route_members: Vec<RouteMemberDto>,
-    #[serde(default)]
-    pub exposed_models: Vec<ExposedModelDto>,
     #[serde(default)]
     pub operation_rules: Vec<OperationRuleDto>,
     #[serde(default)]

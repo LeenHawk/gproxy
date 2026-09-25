@@ -162,7 +162,7 @@ POST   /admin/api/{family}/batch     [{"create": …}, {"update": {"id": …, "p
 ```
 
 `{family}` 取 `providers`、`credentials`、`models`、`provider-models`、
-`routes`、`route-members`、`exposed-models`、`connection-profiles`、
+`routes`、`route-members`、`connection-profiles`、
 `rule-sets`、`rules`、`provider-rule-sets`、`operation-rules`、
 `operation-endpoints`、`quotas`、`price-rules`、`price-rates`、`price-tiers`。
 之外：
@@ -203,7 +203,7 @@ POST   /admin/api/tokenizer-auth/reveal          明文 token——会审计
 ```
 
 v3 有同一个操作的地方路径沿用 v3，运维已有的脚本因此不会断。v4 新增的：
-`/exposed-models`（v3 叫 aliases）、`/connection-profiles`、`/operation-rules`、
+`/connection-profiles`、`/operation-rules`、
 `/operation-endpoints`、`/price-tiers`、`/settings`（v3 分成
 `/instance-settings` 与 `/log-settings`）、`/{family}/batch`（v3 是
 `/batch/{entity}`）、`/credentials/{id}/{status,refresh,limits}`、

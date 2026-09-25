@@ -149,7 +149,7 @@ with one entity per file:
 | Directory | Entities |
 |---|---|
 | `upstream` | Provider, Credential, Model, ProviderModel, OperationRule, OperationEndpoint, RewriteRuleSet, RewriteRule, ProviderRewriteRuleSet |
-| `routing` | ExposedModel, Route, RouteMember |
+| `routing` | Route, RouteMember |
 | `identity` | Organization, Team, OrganizationMember, TeamMember, User, ApiKey, UserSession, Permission, AuditEvent |
 | `oauth` | Client, Grant, Code, Token, Device |
 | `limits` | RateLimit, Quota, QuotaWindow, QuotaSettlement, CredentialQuotaCycle, CredentialBlock |
@@ -262,9 +262,8 @@ by this setting. Core/channel execution wiring remains pending.
 
 ## Routing structure
 
-[`ExposedModel`](src/entity/routing/exposed_model.rs) maps a globally unique public
-model name exactly to a [`Route`](src/entity/routing/route.rs). Multiple public names
-can share a route. Routes contain a name, enabled state, a round_robin/weighted/failover
+[`Route`](src/entity/routing/route.rs) uses its globally unique name directly as
+the public request model. Routes contain an enabled state, a round_robin/weighted/failover
 strategy and a positive max_attempts including the first attempt, bounded by the
 global attempt limit during execution.
 

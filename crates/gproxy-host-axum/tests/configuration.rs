@@ -191,12 +191,6 @@ async fn every_configuration_family_round_trips_through_the_router() {
         }),
     )
     .await;
-    let exposed = create(
-        &host,
-        "/admin/api/exposed-models",
-        json!({ "name": "coding/fast", "routeId": route }),
-    )
-    .await;
 
     let profile = create(
         &host,
@@ -317,7 +311,6 @@ async fn every_configuration_family_round_trips_through_the_router() {
         &provider_model,
         &route,
         &member,
-        &exposed,
         &profile,
         &rule_set,
         &rule,
@@ -654,12 +647,6 @@ const TABLE: &[(Method, &str)] = &[
     (Method::GET, "/admin/api/route-members/x"),
     (Method::PATCH, "/admin/api/route-members/x"),
     (Method::DELETE, "/admin/api/route-members/x"),
-    (Method::GET, "/admin/api/exposed-models"),
-    (Method::POST, "/admin/api/exposed-models"),
-    (Method::POST, "/admin/api/exposed-models/batch"),
-    (Method::GET, "/admin/api/exposed-models/x"),
-    (Method::PATCH, "/admin/api/exposed-models/x"),
-    (Method::DELETE, "/admin/api/exposed-models/x"),
     (Method::GET, "/admin/api/connection-profiles"),
     (Method::POST, "/admin/api/connection-profiles"),
     (Method::POST, "/admin/api/connection-profiles/batch"),

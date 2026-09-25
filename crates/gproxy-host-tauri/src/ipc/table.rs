@@ -241,14 +241,6 @@ ipc_table! {
         batch(items: Vec<sdk::BatchItem<sdk::RouteMemberWrite, sdk::RouteMemberPatch>>);
     }
 
-    manage exposed_models [.exposed_models()] {
-        list(query: sdk::ListQuery);
-        get[id];
-        create(write: sdk::ExposedModelWrite);
-        update[id](patch: sdk::ExposedModelPatch);
-        delete[id];
-        batch(items: Vec<sdk::BatchItem<sdk::ExposedModelWrite, sdk::ExposedModelPatch>>);
-    }
 
     manage connection_profiles [.connection_profiles()] {
         list(query: sdk::ListQuery);

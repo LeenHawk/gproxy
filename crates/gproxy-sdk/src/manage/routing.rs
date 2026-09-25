@@ -1,10 +1,9 @@
-//! Routing: named provider pools, their members, and the public names that
-//! select them.
+//! Public model routes and their provider/model members.
 
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::{
     Repository,
-    entity::routing::{exposed_model, route, route_member},
+    entity::routing::{route, route_member},
 };
 use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, Select, Set};
 
@@ -15,8 +14,8 @@ use super::{
 use crate::{
     SdkError, SdkResult,
     dto::{
-        BatchItem, ExposedModelDto, ExposedModelPatch, ExposedModelWrite, ListQuery, Page,
-        RouteDto, RouteMemberDto, RouteMemberPatch, RouteMemberWrite, RoutePatch, RouteWrite,
+        BatchItem, ListQuery, Page, RouteDto, RouteMemberDto, RouteMemberPatch, RouteMemberWrite,
+        RoutePatch, RouteWrite,
     },
 };
 
@@ -57,6 +56,19 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Routes<'_, C> {
 
     async fn name(&self, name: &str, exclude: Option<&str>) -> SdkResult<String> {
         let name = crud::text(name, "name")?;
+        if let Some((prefix, rest)) = name.split_once('/')
+            && !rest.is_empty()
+        {
+            let reserved = crud::reserved_prefixes(self.writer).await?;
+            if reserved.contains(&prefix.to_ascii_lowercase()) {
+                return Err(SdkError::invalid(format!(
+                    "`{prefix}/` is reserved: a first segment naming a channel or a provider \
+                     already means `channel/model` or `provider/model` narrowing; \
+                     choose a distinct model route name"
+                )));
+            }
+        }
+
         crud::unique(
             self.writer.store().routes(),
             Condition::all().add(route::Column::Name.eq(&name)),
@@ -288,146 +300,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for RouteMembers<
         }
         if let Some(value) = patch.weight {
             row.weight = Set(weight(value)?);
-        }
-        if let Some(enabled) = patch.enabled {
-            row.enabled = Set(enabled);
-        }
-        Ok(row)
-    }
-}
-
-pub struct ExposedModels<'a, C> {
-    writer: Writer<'a, C>,
-}
-
-impl<'a, C> ExposedModels<'a, C> {
-    pub(crate) fn new(writer: Writer<'a, C>) -> Self {
-        Self { writer }
-    }
-}
-
-impl<C: BatchConnectionTrait + Send + Sync + 'static> ExposedModels<'_, C> {
-    pub async fn list(&self, query: ListQuery) -> SdkResult<Page<ExposedModelDto>> {
-        crud::list(self, query).await
-    }
-    pub async fn get(&self, id: &str) -> SdkResult<ExposedModelDto> {
-        crud::get(self, id).await
-    }
-    pub async fn create(&self, write: ExposedModelWrite) -> SdkResult<ExposedModelDto> {
-        crud::create(self, write).await
-    }
-    pub async fn update(&self, id: &str, patch: ExposedModelPatch) -> SdkResult<ExposedModelDto> {
-        crud::update(self, id, patch).await
-    }
-    pub async fn delete(&self, id: &str) -> SdkResult<()> {
-        crud::delete(self, id).await
-    }
-    pub async fn batch(
-        &self,
-        items: Vec<BatchItem<ExposedModelWrite, ExposedModelPatch>>,
-    ) -> SdkResult<Vec<Option<ExposedModelDto>>> {
-        crud::batch(self, items).await
-    }
-
-    async fn route(&self, id: &str) -> SdkResult<String> {
-        let id = crud::text(id, "routeId")?;
-        crud::require_rows(
-            self.writer.store().routes(),
-            "route",
-            std::slice::from_ref(&id),
-        )
-        .await?;
-        Ok(id)
-    }
-
-    /// Unique, and not shadowed by a narrowing prefix. `channel/model` and
-    /// `provider/model` are how a caller picks a specific upstream without a
-    /// route; a public name whose first segment is a channel id or a provider
-    /// name would be resolved as one of those and never reach its route.
-    async fn name(&self, name: &str, exclude: Option<&str>) -> SdkResult<String> {
-        let name = crud::text(name, "name")?;
-        if let Some((prefix, rest)) = name.split_once('/')
-            && !rest.is_empty()
-        {
-            let reserved = crud::reserved_prefixes(self.writer).await?;
-            if reserved.contains(&prefix.to_ascii_lowercase()) {
-                return Err(SdkError::invalid(format!(
-                    "`{prefix}/` is reserved: a first segment naming a channel or a provider \
-                     already means `channel/model` or `provider/model` narrowing, so \
-                     `{name}` could never reach its route"
-                )));
-            }
-        }
-        crud::unique(
-            self.writer.store().exposed_models(),
-            Condition::all().add(exposed_model::Column::Name.eq(&name)),
-            exclude,
-            || format!("`{name}` is already exposed"),
-        )
-        .await?;
-        Ok(name)
-    }
-}
-
-impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for ExposedModels<'_, C> {
-    type Entity = exposed_model::Entity;
-    type Dto = ExposedModelDto;
-    type Write = ExposedModelWrite;
-    type Patch = ExposedModelPatch;
-
-    const ENTITY: &'static str = "exposed model";
-
-    fn writer(&self) -> Writer<'_, C> {
-        self.writer
-    }
-    fn repository(&self) -> Repository<'_, C, Self::Entity> {
-        self.writer.store().exposed_models()
-    }
-    fn scopes(&self) -> Vec<Scope> {
-        vec![Scope::Routing]
-    }
-    fn select(&self, query: &ListQuery) -> Select<Self::Entity> {
-        let mut select = exposed_model::Entity::find();
-        if let Some(route_id) = crud::optional_text(query.route_id.clone()) {
-            select = select.filter(exposed_model::Column::RouteId.eq(route_id));
-        }
-        if let Some(search) = crud::optional_text(query.search.clone()) {
-            select = select.filter(exposed_model::Column::Name.contains(&search));
-        }
-        if let Some(enabled) = query.enabled {
-            select = select.filter(exposed_model::Column::Enabled.eq(enabled));
-        }
-        select
-    }
-
-    async fn build(
-        &self,
-        write: ExposedModelWrite,
-    ) -> SdkResult<(exposed_model::ActiveModel, String)> {
-        let id = crud::id_or_new(write.id.as_deref());
-        let row = exposed_model::ActiveModel {
-            id: Set(id.clone()),
-            name: Set(self.name(&write.name, None).await?),
-            route_id: Set(self.route(&write.route_id).await?),
-            enabled: Set(write.enabled.unwrap_or(true)),
-        };
-        Ok((row, id))
-    }
-
-    async fn change(
-        &self,
-        current: &exposed_model::Model,
-        patch: ExposedModelPatch,
-    ) -> SdkResult<exposed_model::ActiveModel> {
-        let mut row = exposed_model::ActiveModel {
-            id: Set(current.id.clone()),
-            ..Default::default()
-        };
-        if let Some(name) = patch.name {
-            row.name = Set(self.name(&name, Some(&current.id)).await?);
-        }
-        if let Some(route_id) = patch.route_id {
-            row.route_id = Set(self.route(&route_id).await?);
         }
         if let Some(enabled) = patch.enabled {
             row.enabled = Set(enabled);

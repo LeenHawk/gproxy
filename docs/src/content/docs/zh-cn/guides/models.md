@@ -1,13 +1,13 @@
 ---
-title: "模型、路由与公开名称"
-description: 客户端的模型名如何解析到一个 Provider 和一把凭证：四种形式、路由与成员、公开名称、namespace 与模型目录。
+title: "模型与路由"
+description: 客户端的模型名如何解析到一个 Provider 和一把凭证：四种形式、路由与成员、namespace 与模型目录。
 ---
 
 客户端的模型名很少就是上游模型 id。v4 在**进引擎之前**解析它，因此引擎只见已选定的目标。
 
 ```text
 请求里的 model
-  → 第一条命中的形式：公开名 · 渠道/模型 · Provider 名/模型
+  → 第一条命中的形式：路由名 · 渠道/模型 · Provider 名/模型
   → 候选按渠道、允许的 Provider、允许的凭证收窄
   → 按 (tier, 健康度, 权重倒序, 稳定 id) 排序
   → 首段按路由策略均衡
@@ -25,13 +25,12 @@ v4 **没有别名，也没有变体后缀**。两者在 v3 都存在，都没有
 | 名字 | 解析为 | 尝试预算 |
 | --- | --- | --- |
 | 没有模型 | 全部启用的 Provider，无上游模型 | `settings.max_attempts` |
-| **公开模型名** | 该路由启用的成员 | 路由自己的 |
+| **模型路由名称** | 该路由启用的成员 | 路由自己的 |
 | `渠道/模型` | 该渠道的 Provider，优先目录里列了该模型的 | `settings.max_attempts` |
 | `Provider 名/模型` | 那一个 Provider | `settings.max_attempts` |
 | 其他 | `404 unknown_model` | — |
 
-公开名**精确匹配且先于**前缀形式，因此运维者可以把字面量 `openai/gpt-5` 当作自己的公开名
-暴露出去。
+路由名**精确匹配且先于**前缀形式。管理接口会拒绝首段与已注册渠道或 Provider 前缀冲突的名称。
 
 前缀形式内部，**渠道 id 胜过同名 Provider**。渠道 id 由构建固定、改不掉；Provider 名随时
 可以改。反过来更糟：把某个 Provider 命名为 `codex`，全部 `codex/*` 流量就再也到不了
@@ -39,7 +38,8 @@ v4 **没有别名，也没有变体后缀**。两者在 v3 都存在，都没有
 
 ## 路由
 
-路由是一个具名池，带自己的均衡策略和尝试预算。
+路由名称就是客户端请求的模型名，下含供应商／上游模型成员、均衡策略和尝试预算。
+创建 `main` 路由后，客户端直接请求 `model: "main"`。
 
 ```sh
 curl -s -X POST http://127.0.0.1:8787/admin/api/routes \
@@ -54,7 +54,8 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/routes \
 
 | 字段 | 含义 |
 | --- | --- |
-| `name` | 唯一。路由名本身不可寻址——只有公开名能到达它。 |
+| `name` | 全局唯一，客户端在 `model` 中直接填写此名称。 |
+| `sessionAffinity` | 会话优先复用成功的供应商／模型目标，默认关闭；内部凭证选择仍由供应商负责。 |
 | `strategy` | `round_robin`、`weighted` 或 `failover`。 |
 | `maxAttempts` | 含首次调用在内的总尝试预算。执行时以 `settings.maxAttempts`（默认 6）为硬上限。 |
 
@@ -97,21 +98,13 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/route-members \
 
 解析成功但无处可发，与"名字不认识"是两回事——那是配置问题，不是未知模型。
 
-## 公开名称
+## 路由名称
 
-公开模型名就是客户端发的那个名字，它让客户端不再念你的基础设施。
-
-```sh
-curl -s -X POST http://127.0.0.1:8787/admin/api/exposed-models \
-  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
-  -d '{"routeId":"…","name":"fast"}'
-```
-
-多个名字可以指向同一条路由。名字全局唯一并精确匹配。
+直接在路由上创建和修改客户端使用的模型名，不需要额外的公开名称映射。
 
 ### namespace
 
-带 `/` 的名字在运行期派生出一个 namespace：公开 `acme/fast` 就让 `acme` 成为一个挂载点，
+带 `/` 的名字在运行期派生出一个 namespace：创建 `acme/fast` 路由 就让 `acme` 成为一个挂载点，
 而 `/acme/v1/chat/completions` 配 `{"model":"fast"}` 解析的是 `acme/fast`。
 
 ```sh
@@ -125,8 +118,7 @@ namespace 是一个**名字索引**，不是被存储的分组，也不是归属
 
 ### 被保留的第一段
 
-第一段是已注册渠道 id 或现有 Provider 名的公开名永远走不到自己的路由——前缀形式会先认领
-它——所以写入时就拒绝，而不是留到运行期静默失效：
+为了避免 namespace 与前缀路由歧义，首段是已注册渠道 id 或现有 Provider 名的路由名会在写入时被拒绝：
 
 ```json
 {"error":{"code":"invalid_request","message":"invalid request: `codex/` is reserved:

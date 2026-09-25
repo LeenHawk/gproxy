@@ -151,20 +151,19 @@ curl -s http://127.0.0.1:8787/v1/chat/completions \
   -d '{"model":"openai-main/gpt-4o-mini","messages":[{"role":"user","content":"Say hello."}]}'
 ```
 
-## 6. Give It a Public Name
+## 6. Create a Model Route
 
-A route is a set of members with tiers and weights; an exposed model is the
-public name that points at one. Together they are how a client stops naming
-your infrastructure.
+A route name is the model name clients request. Its members choose the upstream
+providers and models, with tiers and weights. Create `fast` and add a member:
 
 ```sh
 curl -s -X POST http://127.0.0.1:8787/admin/api/routes \
   -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
-  -d '{"name":"main"}'
+  -d '{"name":"fast"}'
 ```
 
 ```json
-{"id":"33a88261f571347c7f0408c3bd2e2164","name":"main","strategy":"round_robin",
+{"id":"33a88261f571347c7f0408c3bd2e2164","name":"fast","strategy":"round_robin",
  "maxAttempts":6,"enabled":true}
 ```
 
@@ -176,17 +175,12 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/route-members \
   -d "{\"routeId\":\"$ROUTE\",\"providerId\":\"$PROVIDER\",
        \"upstreamModel\":\"gpt-4o-mini\"}"
 
-curl -s -X POST http://127.0.0.1:8787/admin/api/exposed-models \
-  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
-  -d "{\"routeId\":\"$ROUTE\",\"name\":\"fast\"}"
 ```
 
 ```json
 {"id":"fe91bb79f182e5becd899a056865c707","routeId":"33a88261f571347c7f0408c3bd2e2164",
  "providerId":"5a45fd807be02516a1626eedd528859d","upstreamModel":"gpt-4o-mini",
  "tier":0,"weight":100,"enabled":true}
-{"id":"c524d5e47279e2eb3fa86b2143e4f755","name":"fast",
- "routeId":"33a88261f571347c7f0408c3bd2e2164","enabled":true}
 ```
 
 A second member on another provider, at `tier: 1`, is a failover target. Two

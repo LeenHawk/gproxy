@@ -38,8 +38,8 @@ pub struct RouteEntry {
 /// published through `ArcSwap`, so a request pins one coherent table for its
 /// lifetime exactly as it pins one `CoreData`.
 ///
-/// Only enabled rows are kept: a disabled exposed name is not a name at all,
-/// and a disabled route or member is not a candidate. Resolution therefore
+/// Only enabled routes and members are kept. A disabled route name is not
+/// callable, and a disabled member is not a candidate. Resolution therefore
 /// never repeats an `enabled` check.
 #[derive(Debug)]
 pub struct RoutingTable {
@@ -49,8 +49,8 @@ pub struct RoutingTable {
     /// The instance-wide attempt budget from the settings row, used by every
     /// resolution that does not go through a route.
     pub default_max_attempts: u32,
-    /// Enabled exposed model name to route id. Names are matched exactly.
-    pub exposed: HashMap<String, String>,
+    /// Enabled route model name to route id. Names are matched exactly.
+    pub names: HashMap<String, String>,
     /// Enabled routes by id, with their enabled members.
     pub routes: HashMap<String, RouteEntry>,
 }
@@ -62,7 +62,7 @@ impl Default for RoutingTable {
         Self {
             revision: ConfigRevision::default(),
             default_max_attempts: DEFAULT_MAX_ATTEMPTS,
-            exposed: HashMap::new(),
+            names: HashMap::new(),
             routes: HashMap::new(),
         }
     }
@@ -110,23 +110,23 @@ impl RoutingTable {
                 ))
             });
         }
-        let exposed = data
-            .exposed_models
+        let names = data
+            .routes
             .iter()
-            .filter(|exposed| exposed.enabled && routes.contains_key(&exposed.route_id))
-            .map(|exposed| (exposed.name.clone(), exposed.route_id.clone()))
+            .filter(|route| route.enabled)
+            .map(|route| (route.name.clone(), route.id.clone()))
             .collect();
         Self {
             revision,
             default_max_attempts: default_max_attempts.max(1),
-            exposed,
+            names,
             routes,
         }
     }
 
-    /// The route an exposed model name selects, if the name is exposed.
+    /// The enabled route whose name exactly matches the requested model.
     pub fn route_for(&self, model: &str) -> Option<(&str, &RouteEntry)> {
-        let id = self.exposed.get(model)?;
+        let id = self.names.get(model)?;
         Some((id.as_str(), self.routes.get(id)?))
     }
 }

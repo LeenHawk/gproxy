@@ -102,7 +102,7 @@ pub struct MountIndex {
 impl MountIndex {
     pub fn build(routing: &RoutingTable, core: &CoreData) -> Self {
         let namespaces = routing
-            .exposed
+            .names
             .keys()
             .filter_map(|name| name.split_once('/'))
             .map(|(namespace, _)| namespace.to_owned())

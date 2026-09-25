@@ -236,10 +236,10 @@ DTOs themselves, so an export says exactly what a listing would have said, in
 replay order — no row appears before the row it points at:
 
 ```json
-{"formatVersion":4,"exportedAtMs":1789981723118,"secretsOmitted":true,
+{"formatVersion":5,"exportedAtMs":1789981723118,"secretsOmitted":true,
  "secrets":[],"data":{"connectionProfiles":[],"providers":[…],"credentials":[…],
  "models":[],"providerModels":[],"routes":[],"routeMembers":[],
- "exposedModels":[],"operationRules":[],"operationEndpoints":[],
+ "operationRules":[],"operationEndpoints":[],
  "rewriteRuleSets":[],"rewriteRules":[],"providerRewriteRuleSets":[],
  "quotas":[],"priceRules":[],"priceRates":[],"priceTiers":[],"settings":null}}
 ```

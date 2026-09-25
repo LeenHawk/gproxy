@@ -34,13 +34,12 @@ pub struct ControlData {
     pub credential_blocks: Vec<entity::limits::credential_block::Model>,
 }
 
-/// Exposed model names and the provider groups they select. Core does not
+/// Public model routes and their provider/model members. Core does not
 /// route; the layer above resolves a request to providers with these rows.
 #[derive(Clone, Debug, Default)]
 pub struct RoutingData {
     pub routes: Vec<entity::routing::route::Model>,
     pub route_members: Vec<entity::routing::route_member::Model>,
-    pub exposed_models: Vec<entity::routing::exposed_model::Model>,
 }
 
 /// Callers and what they are entitled to. Owned by the application layer,
@@ -143,7 +142,6 @@ fn routing_queries(backend: DbBackend) -> Result<Vec<BatchQuery>> {
     Ok(vec![
         ordered::<entity::routing::route::Entity>().batch_query(backend)?,
         ordered::<entity::routing::route_member::Entity>().batch_query(backend)?,
-        ordered::<entity::routing::exposed_model::Entity>().batch_query(backend)?,
     ])
 }
 
@@ -151,7 +149,6 @@ fn routing_data(sets: &mut Sets) -> Result<RoutingData> {
     Ok(RoutingData {
         routes: take(sets)?,
         route_members: take(sets)?,
-        exposed_models: take(sets)?,
     })
 }
 

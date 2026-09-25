@@ -32,7 +32,7 @@ use gproxy_protocol::{
 use gproxy_sdk::{ClientPool, Gproxy, GproxyBuilder, OutboundClient, SyncMode};
 use gproxy_store::entity::{
     limits::quota,
-    routing::{exposed_model, route, route_member},
+    routing::{route, route_member},
     upstream::{credential, provider, provider_model},
 };
 use http::StatusCode;
@@ -479,7 +479,7 @@ pub async fn route(
         .routes()
         .create_many(vec![route::ActiveModel {
             id: Set(id.into()),
-            name: Set(format!("{id}-route")),
+            name: Set(name.into()),
             strategy: Set(strategy),
             max_attempts: Set(max_attempts),
             ..Default::default()
@@ -505,17 +505,6 @@ pub async fn route(
                 )
                 .collect(),
         )
-        .await
-        .unwrap();
-    gproxy
-        .store()
-        .exposed_models()
-        .create_many(vec![exposed_model::ActiveModel {
-            id: Set(format!("{id}-exposed")),
-            name: Set(name.into()),
-            route_id: Set(id.into()),
-            ..Default::default()
-        }])
         .await
         .unwrap();
 }

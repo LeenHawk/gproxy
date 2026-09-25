@@ -156,9 +156,6 @@ exported!(
     RuleSetPatch,
     RuleSetWrite,
     // routing
-    ExposedModelDto,
-    ExposedModelPatch,
-    ExposedModelWrite,
     RouteDto,
     RouteMemberDto,
     RouteMemberPatch,

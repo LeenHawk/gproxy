@@ -79,8 +79,7 @@ SSE、WebSocket，或 Gemini 的增量 JSON 数组。
 | 渠道（Channel） | 编译进二进制的某一族上游适配器：URL、凭证怎么注入、讲哪些方言、流里怎么报 usage、怎么登录和刷新。共 25 个，从 `openai`、`claudeapi` 到 `codex`、`kiro`、`custom`。 |
 | Provider | 某个渠道上的一条已保存连接：名字、可选 base URL、该渠道自己的 `config` JSON，以及一个凭证池。 |
 | 凭证（Credential） | 池中的一份密钥——API key、OAuth 令牌对、会话 cookie、服务账号材料——静态加密存放，带生命周期状态和归属。 |
-| 路由（Route） | 一组有序成员，每个成员是一个 Provider 加一个上游模型，带 `tier`（故障转移层级）和 `weight`（层内分流）。 |
-| 公开模型名 | 客户端在 `model` 里发的名字，指向一条路由。带 `/` 的名字产生一个 namespace。 |
+| 模型路由（Route） | 名称就是客户端请求的模型名，下含一组有序成员，每个成员是一个 Provider 加一个上游模型，带 `tier`（故障转移层级）和 `weight`（层内分流）。 |
 | 网关 API key | 客户端出示的东西。它属于某个用户，可绑定到组织、团队和订阅；这个绑定决定它能触达哪些凭证、花谁的预算。 |
 | 改写规则 | 对 body 文本、指定 header 值或指定 query 值的一条有序正则替换，可按操作、模型、入站 header 或流事件过滤。 |
 | 操作规则 | 对某个操作上渠道行为的按 Provider 覆盖。渠道默认值留在代码里。 |

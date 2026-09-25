@@ -1,5 +1,4 @@
-//! A named provider/model pool with its own balancing strategy and attempt budget.
-//! Public model names map to this pool through ExposedModel, not a model pattern.
+//! A public model name with its own provider/model members, strategy and attempt budget.
 
 use sea_orm::entity::prelude::*;
 
@@ -24,8 +23,6 @@ pub struct Model {
     pub enabled: bool,
     #[sea_orm(has_many)]
     pub members: HasMany<super::route_member::Entity>,
-    #[sea_orm(has_many)]
-    pub exposed_models: HasMany<super::exposed_model::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

@@ -23,8 +23,7 @@ use gproxy_app::{
     dto::{PortalKeyCreate, PortalPasswordChange, PortalUsageQuery, UserPatch, UserWrite},
 };
 use gproxy_sdk::dto::{
-    ExposedModelWrite, InstanceSettingsPatch, RouteMemberWrite, RouteWrite, SettingsPatch,
-    UsageGroupBy,
+    InstanceSettingsPatch, RouteMemberWrite, RouteWrite, SettingsPatch, UsageGroupBy,
 };
 use gproxy_store::entity::{
     identity::{api_key, membership_role::MembershipRole},
@@ -164,7 +163,7 @@ async fn an_exposed_name_is_listed_with_the_providers_behind_its_route() {
             .routes()
             .create(RouteWrite {
                 id: Some("r1".into()),
-                name: "r1".into(),
+                name: "fast".into(),
                 ..RouteWrite::default()
             })
             .await
@@ -182,16 +181,6 @@ async fn an_exposed_name_is_listed_with_the_providers_behind_its_route() {
                 .await
                 .unwrap();
         }
-        manage
-            .exposed_models()
-            .create(ExposedModelWrite {
-                id: Some("e1".into()),
-                name: "fast".into(),
-                route_id: "r1".into(),
-                ..ExposedModelWrite::default()
-            })
-            .await
-            .unwrap();
     }
     app.reload_all().await.unwrap();
 

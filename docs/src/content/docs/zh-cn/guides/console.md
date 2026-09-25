@@ -23,7 +23,7 @@ API Key、组织或团队上设置，个人概览只读。
 | 控制台路径 | 功能 |
 | --- | --- |
 | `/console/providers` | 供应商配置、凭证、模型、协议转换、重写规则绑定及端点覆盖 |
-| `/console/model-routes` | 跨供应商路由、成员、权重、回退层级及公开模型名 |
+| `/console/model-routes` | 以客户端模型名命名的跨供应商路由、成员、权重及回退层级 |
 | `/console/rule-sets` | 重写规则、排序和整组保存 |
 | `/console/transfer` | 配置导入导出 |
 | `/console/clients` | 可复用连接配置 |

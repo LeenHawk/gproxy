@@ -114,7 +114,7 @@ let (response, usage) = execution.into_parts();
 | `providers()` | `providers` | `reset_routing_defaults` |
 | `credentials()` | `credentials` | `reveal_secret`、`set_status`、`refresh`、`quota_probe`、`quota_read`、`quota_reset`、`health_reset`、`limit_status` |
 | `models()` / `provider_models()` | 目录 | |
-| `routes()` / `route_members()` / `exposed_models()` | 路由 | |
+| `routes()` / `route_members()` | 路由 | |
 | `connection_profiles()` | 出站栈 | |
 | `settings()` | 那一行 settings | 只有 `get` / `update` |
 | `rewrite()` | 规则集、规则、挂载 | `replace_rules` |

@@ -31,7 +31,7 @@ can also invalidate refresh tokens, independently of database migration.
 | Data | Result |
 | --- | --- |
 | Providers and credentials | Known channel names and configurations are translated; secrets are re-sealed using the configured key. |
-| Routes, members and exposed models | IDs become `v3-{table}-{old_id}` and references follow those IDs. |
+| Routes and members | Public model names become route names. Additional names get separate routes with copied members. |
 | Users, passwords, API keys, organizations and teams | Password hashes and API key digests are preserved. |
 | Prices and budgets | Translated to v4's units. Values beyond 9 decimal places use the store's nearest-even rounding and are reported. |
 | Permissions, rate limits and rewrites | Supported forms migrate; changes and unmappable forms are reported. |

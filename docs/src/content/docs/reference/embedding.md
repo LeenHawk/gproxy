@@ -135,7 +135,7 @@ over the same commit primitive.
 | `providers()` | `providers` | `reset_routing_defaults` |
 | `credentials()` | `credentials` | `reveal_secret`, `set_status`, `refresh`, `quota_probe`, `quota_read`, `quota_reset`, `health_reset`, `limit_status` |
 | `models()` / `provider_models()` | the catalogue | |
-| `routes()` / `route_members()` / `exposed_models()` | routing | |
+| `routes()` / `route_members()` | routing | |
 | `connection_profiles()` | outbound stacks | |
 | `settings()` | the one settings row | `get` / `update` only |
 | `rewrite()` | rule sets, rules, attachments | `replace_rules` |

@@ -257,7 +257,7 @@ POST /admin/api/{family}/batch
 ```
 
 `providers`, `credentials`, `models`, `provider-models`, `routes`,
-`route-members`, `exposed-models`, `connection-profiles`, `rule-sets`, `rules`,
+`route-members`, `connection-profiles`, `rule-sets`, `rules`,
 `provider-rule-sets`, `operation-rules`, `operation-endpoints`, `quotas`,
 `price-rules`, `price-rates`, `price-tiers`.
 
@@ -271,8 +271,7 @@ Beyond the five: `settings`, the credential operations (`reveal`, `status`,
 `tokenizer-vocabs`, `tokenizer-auth`, `session`, `sessions` and `audit`.
 
 Where v3 had the same operation the path is v3's, so an operator's scripts
-survive. New in v4: `/exposed-models` (v3 called them aliases),
-`/connection-profiles`, `/operation-rules`, `/operation-endpoints`,
+survive. New in v4: `/connection-profiles`, `/operation-rules`, `/operation-endpoints`,
 `/price-tiers`, a single `/settings` (v3 split it in two), and
 `/{family}/batch` (v3 had `/batch/{entity}`). The middleware runs authenticate
 → **require the instance administrator** → same-origin for an unsafe cookie

@@ -150,12 +150,6 @@ pub const ADMIN_SECTIONS: &[AdminSection] = &[
         capabilities: READ_WRITE,
     },
     AdminSection {
-        id: "exposed-models",
-        path: "/exposed-models",
-        minimum: SectionScope::Instance,
-        capabilities: READ_WRITE,
-    },
-    AdminSection {
         id: "connection-profiles",
         path: "/connection-profiles",
         minimum: SectionScope::Instance,

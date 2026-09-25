@@ -676,7 +676,6 @@
       "providerModels": "Models",
       "routes": "Model routes",
       "routeMembers": "Route members",
-      "exposedModels": "Public model names",
       "operationRules": "Routing rules",
       "operationEndpoints": "Endpoint URLs",
       "rewriteRuleSets": "Rule sets",
@@ -798,5 +797,8 @@
     "requestQuery": "Request query",
     "clientIp": "Client IP",
     "metrics": "Upstream usage data"
+  },
+  "modelRoutes": {
+    "modelName": "Model name"
   }
 }
