@@ -13,6 +13,8 @@ pub struct RouteDto {
     pub name: String,
     /// `round_robin`, `weighted` or `failover`.
     pub strategy: String,
+    #[serde(default)]
+    pub session_affinity: bool,
     pub max_attempts: u32,
     pub enabled: bool,
 }
@@ -23,6 +25,7 @@ impl From<route::Model> for RouteDto {
             id: row.id,
             name: row.name,
             strategy: strategy_name(row.strategy).to_owned(),
+            session_affinity: row.session_affinity,
             max_attempts: row.max_attempts,
             enabled: row.enabled,
         }
@@ -48,6 +51,8 @@ pub struct RouteWrite {
     #[serde(default)]
     pub strategy: Option<String>,
     #[serde(default)]
+    pub session_affinity: Option<bool>,
+    #[serde(default)]
     pub max_attempts: Option<u32>,
     #[serde(default)]
     pub enabled: Option<bool>,
@@ -62,6 +67,8 @@ pub struct RoutePatch {
     pub name: Option<String>,
     #[serde(default)]
     pub strategy: Option<String>,
+    #[serde(default)]
+    pub session_affinity: Option<bool>,
     #[serde(default)]
     pub max_attempts: Option<u32>,
     #[serde(default)]

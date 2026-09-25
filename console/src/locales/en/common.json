@@ -238,6 +238,7 @@
     "observedAtMs": "Observed at",
     "resetsAtMs": "Resets at",
     "ownerId": "Owner ID",
+    "sessionAffinity": "Route session affinity",
     "maxAttempts": "Maximum attempts",
     "currency": "Currency",
     "cacheCreation5mTokens": "Cache writes (5 min)",

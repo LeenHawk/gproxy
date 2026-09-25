@@ -27,6 +27,7 @@ pub struct MemberSeed {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RouteEntry {
     pub strategy: RouteStrategy,
+    pub session_affinity: bool,
     pub max_attempts: u32,
     /// Enabled members only, ordered by `(tier, Reverse(weight), member_id)`
     /// so a plan built from this table does not depend on row order.
@@ -78,6 +79,7 @@ impl RoutingTable {
                     route.id.clone(),
                     RouteEntry {
                         strategy: route.strategy,
+                        session_affinity: route.session_affinity,
                         // `Setting.max_attempts` is the instance-wide ceiling
                         // (see the `routes` entity): a route may ask for fewer
                         // attempts than the instance allows, never for more.

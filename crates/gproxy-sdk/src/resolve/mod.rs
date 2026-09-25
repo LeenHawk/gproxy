@@ -101,6 +101,14 @@ pub struct Plan {
     pub max_attempts: NonZeroU32,
     /// Never empty: an empty result is reported as an error instead.
     pub targets: Vec<Target>,
+    pub(crate) affinity: Option<RouteAffinityPlan>,
+}
+
+/// Affinity only reorders targets in the current preferred tier/health group.
+#[derive(Debug)]
+pub(crate) struct RouteAffinityPlan {
+    pub route_id: String,
+    pub preferred_members: HashSet<String>,
 }
 
 /// One provider, one upstream model and the credentials of that provider this
@@ -156,6 +164,7 @@ struct Matched {
     strategy: RouteStrategy,
     /// The rotation pool these candidates rotate in.
     balance_key: String,
+    session_affinity: bool,
     max_attempts: u32,
     resolved_model: Option<String>,
 }
@@ -226,7 +235,19 @@ impl<C> Gproxy<C> {
         if ranked.is_empty() {
             return Err(SdkError::NoTarget(request.model.unwrap_or("*").to_owned()));
         }
+        let affinity = matched.session_affinity.then(|| {
+            let preferred = ranked.iter().map(|r| (r.target.tier, r.health)).min();
+            RouteAffinityPlan {
+                route_id: matched.balance_key.clone(),
+                preferred_members: ranked
+                    .iter()
+                    .filter(|r| Some((r.target.tier, r.health)) == preferred)
+                    .filter_map(|r| r.target.member_id.clone())
+                    .collect(),
+            }
+        });
         Ok(Plan {
+            affinity,
             resolved_model: matched.resolved_model,
             max_attempts: NonZeroU32::new(matched.max_attempts).unwrap_or(NonZeroU32::MIN),
             targets: balance::order(
@@ -264,6 +285,7 @@ impl<C> Gproxy<C> {
                 candidates,
                 strategy: RouteStrategy::RoundRobin,
                 balance_key: "@all".into(),
+                session_affinity: false,
                 max_attempts: routing.default_max_attempts,
                 resolved_model: None,
             });
@@ -289,6 +311,7 @@ impl<C> Gproxy<C> {
                 candidates,
                 strategy: route.strategy,
                 balance_key: route_id.to_owned(),
+                session_affinity: route.session_affinity,
                 max_attempts: route.max_attempts,
                 resolved_model: Some(model.to_owned()),
             });
@@ -341,6 +364,7 @@ impl<C> Gproxy<C> {
                 candidates,
                 strategy: RouteStrategy::RoundRobin,
                 balance_key: format!("@channel:{head}"),
+                session_affinity: false,
                 max_attempts: routing.default_max_attempts,
                 resolved_model: Some(tail.to_owned()),
             });
@@ -361,6 +385,7 @@ impl<C> Gproxy<C> {
             }],
             strategy: RouteStrategy::Failover,
             balance_key: format!("@provider:{}", provider.entity.id),
+            session_affinity: false,
             max_attempts: routing.default_max_attempts,
             resolved_model: Some(tail.to_owned()),
         })

@@ -20,8 +20,8 @@ export function ModelRoutesPage() {
   const { t } = useTranslation()
   const [selected, setSelected] = useState<RouteDto | null>(null)
   return <><Tabs defaultValue="routes"><TabsList><TabsTrigger value="routes">{t("nav.routes")}</TabsTrigger><TabsTrigger value="exposed">{t("nav.exposed-models")}</TabsTrigger></TabsList><TabsContent value="routes"><CollectionPage id="routes" family={routes} searchable rowId={row => row.id} rowLabel={row => row.name} onOpen={setSelected}
-    columns={[{ key: "name", cell: row => row.name }, { key: "strategy", cell: row => row.strategy }, { key: "maxAttempts", cell: row => row.maxAttempts }, { key: "enabled", cell: row => <BoolCell value={row.enabled} /> }]}
-    fields={[{ name: "name", kind: "text", required: true }, { name: "strategy", kind: "select", choices: ["round_robin", "weighted", "failover"].map(value => ({ value, label: t(`values.${value}`) })) }, { name: "maxAttempts", kind: "number" }, { name: "enabled", kind: "switch" }]}
+    columns={[{ key: "name", cell: row => row.name }, { key: "strategy", cell: row => row.strategy }, { key: "sessionAffinity", cell: row => <BoolCell value={row.sessionAffinity} /> }, { key: "maxAttempts", cell: row => row.maxAttempts }, { key: "enabled", cell: row => <BoolCell value={row.enabled} /> }]}
+    fields={[{ name: "name", kind: "text", required: true }, { name: "strategy", kind: "select", choices: ["round_robin", "weighted", "failover"].map(value => ({ value, label: t(`values.${value}`) })) }, { name: "sessionAffinity", kind: "switch", defaultChecked: false }, { name: "maxAttempts", kind: "number" }, { name: "enabled", kind: "switch" }]}
     rowActions={row => <Button variant="ghost" size="sm" onClick={() => setSelected(row)}>{t("management.manage")}</Button>}
   /></TabsContent><TabsContent value="exposed"><ExposedModels /></TabsContent></Tabs>
     {selected ? <RouteDetails route={selected} onClose={() => setSelected(null)} /> : null}

@@ -238,6 +238,7 @@
     "observedAtMs": "觀測時間",
     "resetsAtMs": "重設時間",
     "ownerId": "歸屬 ID",
+    "sessionAffinity": "路由工作階段親和",
     "maxAttempts": "最大嘗試次數",
     "currency": "幣別",
     "cacheCreation5mTokens": "快取寫入（5 分鐘）",

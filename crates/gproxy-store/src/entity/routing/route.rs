@@ -13,6 +13,9 @@ pub struct Model {
     pub name: String,
     #[sea_orm(default_value = "round_robin")]
     pub strategy: RouteStrategy,
+    /// Reuse a successful provider/model target for a stable caller session.
+    #[sea_orm(default_value = false)]
+    pub session_affinity: bool,
     /// Positive total attempt budget, including the initial call; the global
     /// Setting.max_attempts remains an upper bound during execution.
     #[sea_orm(default_value = 6)]

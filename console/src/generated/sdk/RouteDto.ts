@@ -4,4 +4,4 @@ export type RouteDto = { id: string, name: string,
 /**
  * `round_robin`, `weighted` or `failover`.
  */
-strategy: string, maxAttempts: number, enabled: boolean, };
+strategy: string, sessionAffinity: boolean, maxAttempts: number, enabled: boolean, };

@@ -115,6 +115,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Routes<'_, C>
                 "strategy",
                 &STRATEGIES,
             )?),
+            session_affinity: Set(write.session_affinity.unwrap_or(false)),
             max_attempts: Set(attempts(write.max_attempts.unwrap_or(6))?),
             enabled: Set(write.enabled.unwrap_or(true)),
         };
@@ -135,6 +136,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Routes<'_, C>
         }
         if let Some(strategy) = patch.strategy {
             row.strategy = Set(crud::enumerated(&strategy, "strategy", &STRATEGIES)?);
+        }
+        if let Some(session_affinity) = patch.session_affinity {
+            row.session_affinity = Set(session_affinity);
         }
         if let Some(max_attempts) = patch.max_attempts {
             row.max_attempts = Set(attempts(max_attempts)?);

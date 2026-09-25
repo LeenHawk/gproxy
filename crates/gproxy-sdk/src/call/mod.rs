@@ -23,6 +23,9 @@
 //! what it was granted is subtracted whether or not it used all of it. A plan
 //! therefore cannot cost more upstream calls than its `max_attempts`.
 
+mod affinity;
+use affinity::RouteAffinity;
+
 use std::{collections::BTreeSet, num::NonZeroU32, sync::Arc, time::Duration};
 
 use futures_util::StreamExt;
@@ -260,7 +263,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> CallBuilder<'_, C> {
                     headers: headers.clone(),
                     body: payload.take(),
                 };
-                match gproxy.core().send(step.context, request).await {
+                match gproxy.core().send(step.context.clone(), request).await {
                     Ok(execution) => {
                         let status = execution.response().status;
                         if step.more && failover_status(status) {
@@ -269,6 +272,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> CallBuilder<'_, C> {
                             drop(execution);
                             walk.remember(upstream_error(&step.provider, status));
                             continue;
+                        }
+                        if status.is_success()
+                            && let Some(affinity) = &walk.prepared.route_affinity
+                        {
+                            affinity.commit(&gproxy, &step.context.target).await;
                         }
                         return Ok(execution);
                     }
@@ -318,7 +326,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ConnectBuilder<'_, C> {
                 headers: headers.clone(),
                 body: (),
             };
-            match gproxy.core().connect(step.context, request).await {
+            match gproxy.core().connect(step.context.clone(), request).await {
                 Ok(execution) => {
                     let rejected = match execution.response() {
                         UpstreamConnection::Rejected(response) => Some(response.status),
@@ -331,6 +339,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ConnectBuilder<'_, C> {
                         drop(execution);
                         walk.remember(upstream_error(&step.provider, status));
                         continue;
+                    }
+                    if rejected.is_none()
+                        && let Some(affinity) = &walk.prepared.route_affinity
+                    {
+                        affinity.commit(gproxy, &step.context.target).await;
                     }
                     return Ok(execution);
                 }
@@ -345,6 +358,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ConnectBuilder<'_, C> {
 struct Prepared {
     snapshot: Arc<CoreData>,
     plan: Plan,
+    route_affinity: Option<RouteAffinity>,
     operation: OperationKey,
     request_id: String,
     scope: String,
@@ -388,7 +402,7 @@ impl Options {
         session.agent_session_id = self.agent_session_id.or(session.agent_session_id);
 
         let routing = gproxy.routing();
-        let plan = gproxy
+        let mut plan = gproxy
             .resolve_with(
                 &snapshot,
                 &routing,
@@ -405,6 +419,8 @@ impl Options {
             )
             .await?;
 
+        let route_affinity = RouteAffinity::apply(gproxy, &mut plan, &scope, &session).await;
+
         let mut attribution = self.attribution;
         attribution.model = attribution.model.or(model);
         // A caller ceiling only lowers the plan's budget.
@@ -415,6 +431,7 @@ impl Options {
         Ok(Prepared {
             snapshot,
             plan,
+            route_affinity,
             operation,
             request_id,
             scope,
