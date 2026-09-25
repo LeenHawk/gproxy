@@ -1,6 +1,6 @@
 ---
-title: "Models, Routes & Exposed Names"
-description: "How a client model name resolves to a provider and a credential: the four forms, routes and their members, exposed names, namespaces and the model catalogue."
+title: "Models & Routes"
+description: "How a client model name resolves to a provider and a credential: the four forms, routes and their members, namespaces and the model catalogue."
 ---
 
 A client model name is rarely an upstream model id. v4 resolves it **before**
@@ -8,7 +8,7 @@ the engine runs, so the engine only ever sees an already-chosen target.
 
 ```text
 request model
-  → the first matching form: exposed name · channel/model · provider/model
+  → the first matching form: route name · channel/model · provider/model
   → candidates, narrowed by channel, allowed providers, allowed credentials
   → ordered by (tier, health, descending weight, stable id)
   → the leading run balanced by the route's strategy
@@ -28,13 +28,13 @@ A name matches the first rule that applies.
 | Name | Resolves to | Attempt budget |
 | --- | --- | --- |
 | absent | every enabled provider, no upstream model | `settings.max_attempts` |
-| an **exposed model name** | that route's enabled members | the route's own |
+| a **model route name** | that route's enabled members | the route's own |
 | `channel/model` | the providers of that channel, preferring the ones whose catalogue lists `model` | `settings.max_attempts` |
 | `provider/model` | that one provider | `settings.max_attempts` |
 | anything else | `404 unknown_model` | — |
 
-Exposed names are matched **exactly and first**, so an operator can expose the
-literal name `openai/gpt-5` as a public name of their own.
+Route names are matched **exactly and first**. Management rejects names whose
+first segment conflicts with a registered channel or provider prefix.
 
 Inside the prefix forms, **a channel id beats a provider of the same name**. A
 channel id is fixed by the build and cannot be renamed out of the way; a
@@ -44,7 +44,8 @@ around it.
 
 ## Routes
 
-A route is a named pool with its own balancing strategy and attempt budget.
+A route is a public model name with provider/model members, a balancing strategy
+and an attempt budget. Creating `main` makes `model: "main"` address that route.
 
 ```sh
 curl -s -X POST http://127.0.0.1:8787/admin/api/routes \
@@ -59,7 +60,8 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/routes \
 
 | Field | Meaning |
 | --- | --- |
-| `name` | Unique. A route name is not addressable on its own — only an exposed name reaches it. |
+| `name` | Globally unique. Clients send this exact name as `model`. |
+| `sessionAffinity` | Reuse a successful provider/model target for the session; defaults off. Credential selection remains the provider's responsibility. |
 | `strategy` | `round_robin`, `weighted` or `failover`. |
 | `maxAttempts` | The total attempt budget including the first call. `settings.maxAttempts` (default 6) is a hard ceiling on it at execution time. |
 
@@ -108,22 +110,13 @@ provider. A rate limit is a last resort, not an outage.
 A name that resolved but reaches nothing is a different error from a name that
 was never known — a configuration problem rather than an unknown model.
 
-## Exposed Names
+## Route Names
 
-An exposed model is the public name a client sends. It is what stops clients
-naming your infrastructure.
-
-```sh
-curl -s -X POST http://127.0.0.1:8787/admin/api/exposed-models \
-  -H "Authorization: Bearer $GPROXY_KEY" -H 'content-type: application/json' \
-  -d '{"routeId":"…","name":"fast"}'
-```
-
-Many names may expose one route. A name is globally unique and matched exactly.
+Create and edit names directly on routes; no separate public-name mapping is required.
 
 ### Namespaces
 
-A name with a `/` in it derives a namespace at runtime: exposing `acme/fast`
+A name with a `/` in it derives a namespace at runtime: creating route `acme/fast`
 makes `acme` a mount, and `/acme/v1/chat/completions` with `{"model":"fast"}`
 resolves `acme/fast`.
 
@@ -138,9 +131,8 @@ scope. Nothing is created and nothing is owned by it.
 
 ### Reserved first segments
 
-An exposed name whose first segment is a registered channel id or an existing
-provider name could never be reached — the prefix forms would claim it first —
-so the write is refused rather than left to fail silently at runtime:
+A route name whose first segment is a registered channel id or an existing
+provider name is refused to avoid ambiguous namespace/prefix routing:
 
 ```json
 {"error":{"code":"invalid_request","message":"invalid request: `codex/` is reserved:

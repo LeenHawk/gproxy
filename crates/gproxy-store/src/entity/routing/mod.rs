@@ -1,6 +1,5 @@
-//! Public model names map to named routes, which balance provider/model members.
+//! Named model routes balance provider/model members; each route name is public.
 //! These are global routing definitions, without organization/team/user owners.
 
-pub mod exposed_model;
 pub mod route;
 pub mod route_member;

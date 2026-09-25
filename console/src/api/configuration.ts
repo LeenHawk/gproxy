@@ -16,7 +16,6 @@ export const CONFIGURATION_FAMILIES = {
   providerModels: "/provider-models",
   routes: "/routes",
   routeMembers: "/route-members",
-  exposedModels: "/exposed-models",
   connectionProfiles: "/connection-profiles",
   ruleSets: "/rule-sets",
   rules: "/rules",

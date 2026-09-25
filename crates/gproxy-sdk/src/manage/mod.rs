@@ -43,7 +43,7 @@ pub use profiles::ConnectionProfiles;
 pub use providers::Providers;
 pub use quotas::Quotas;
 pub use rewrite::{ProviderRuleSets, Rewrite, RewriteRules, RuleSets};
-pub use routing::{ExposedModels, RouteMembers, Routes};
+pub use routing::{RouteMembers, Routes};
 pub use settings::SettingsManage;
 pub use tokenizer::{
     Tokenizer, TokenizerAuthDto, TokenizerFetch, TokenizerProgressDto, VocabularyDto,
@@ -134,9 +134,6 @@ impl<'a, C> Manage<'a, C> {
     }
     pub fn route_members(&self) -> RouteMembers<'a, C> {
         RouteMembers::new(self.writer())
-    }
-    pub fn exposed_models(&self) -> ExposedModels<'a, C> {
-        ExposedModels::new(self.writer())
     }
     pub fn connection_profiles(&self) -> ConnectionProfiles<'a, C> {
         ConnectionProfiles::new(self.writer())

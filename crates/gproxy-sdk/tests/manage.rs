@@ -12,11 +12,11 @@ use std::sync::Arc;
 use gproxy_sdk::{
     ClientPool, CredentialStatus, Gproxy, GproxyBuilder, RefreshMode, SdkError, SyncMode,
     dto::{
-        BatchItem, BatchPatch, ConnectionProfileWrite, CredentialPatch, CredentialWrite,
-        ExposedModelWrite, ListQuery, LoggingSettingsPatch, ModelWrite, OperationEndpointWrite,
-        OperationRuleWrite, PriceRateWrite, PriceRuleWrite, PriceTierWrite, ProviderDto,
-        ProviderModelWrite, ProviderPatch, ProviderRuleSetWrite, ProviderWrite, QuotaWrite,
-        RewriteRuleWrite, RouteMemberWrite, RouteWrite, RuleSetWrite, SettingsPatch,
+        BatchItem, BatchPatch, ConnectionProfileWrite, CredentialPatch, CredentialWrite, ListQuery,
+        LoggingSettingsPatch, ModelWrite, OperationEndpointWrite, OperationRuleWrite,
+        PriceRateWrite, PriceRuleWrite, PriceTierWrite, ProviderDto, ProviderModelWrite,
+        ProviderPatch, ProviderRuleSetWrite, ProviderWrite, QuotaWrite, RewriteRuleWrite,
+        RouteMemberWrite, RouteWrite, RuleSetWrite, SettingsPatch,
     },
 };
 use gproxy_store::entity::limits::credential_block;
@@ -168,16 +168,6 @@ async fn every_family_round_trips() {
         .await
         .unwrap();
     assert_eq!(member.weight, 100);
-    let exposed = manage
-        .exposed_models()
-        .create(ExposedModelWrite {
-            name: "coding/fast".to_owned(),
-            route_id: route.id.clone(),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
-    assert_eq!(exposed.name, "coding/fast");
 
     // endpoints
     let rule = manage
@@ -351,7 +341,6 @@ async fn every_family_round_trips() {
         .delete(&rule.id)
         .await
         .unwrap();
-    manage.exposed_models().delete(&exposed.id).await.unwrap();
     manage.route_members().delete(&member.id).await.unwrap();
     manage.routes().delete(&route.id).await.unwrap();
     manage
@@ -469,20 +458,18 @@ async fn a_rejected_write_costs_nothing() {
     assert_eq!(duplicate.status_code(), 409);
 
     let reserved = manage
-        .exposed_models()
-        .create(ExposedModelWrite {
+        .routes()
+        .create(RouteWrite {
             name: "test/foo".to_owned(),
-            route_id: route.id.clone(),
             ..Default::default()
         })
         .await
         .expect_err("`test` is a registered channel id, so `test/…` already means narrowing");
     assert!(matches!(reserved, SdkError::Invalid(_)), "{reserved}");
     let provider_prefixed = manage
-        .exposed_models()
-        .create(ExposedModelWrite {
+        .routes()
+        .create(RouteWrite {
             name: "upstream/foo".to_owned(),
-            route_id: route.id.clone(),
             ..Default::default()
         })
         .await

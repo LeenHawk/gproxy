@@ -15,7 +15,7 @@
 //! | `credentials` | `credentials` | direct; `kind` is v4's `auth_kind`; the secret is opened and re-sealed |
 //! | `credentials.rpm_limit` | `quotas` | an operator limit: `requests` per 60 seconds on that credential |
 //! | `routes`, `route_members` | same | direct |
-//! | `model_aliases` | `exposed_models` | direct; v3 exported the table under the console's name for it |
+//! | `model_aliases` | `routes`, `route_members` | public names become route names; additional aliases copy their members |
 //! | `provider_models` | `provider_models` | direct; v3's `model_id` is v4's `upstream_name` |
 //! | `price_rules` | `price_rules` | direct; v3 priced in USD only, so the currency is `USD` |
 //! | `price_rules.tiers` | `price_tiers` | the JSON array becomes rows, field for field |
@@ -28,10 +28,10 @@
 //!
 //! - **`aliases`.** v3 could say "when a request names `gpt4`, send
 //!   `gpt-4-turbo`", globally or for one provider. v4 has no such table: a
-//!   public name is an `exposed_models` row pointing at a route, and the
+//!   public name is the route name, and the
 //!   upstream name is the route member's. There is no faithful automatic
-//!   rewrite, because one v3 alias is a route plus a member plus an exposed
-//!   name, and which providers should serve it is a decision v3 never recorded.
+//!   rewrite, because a model route needs explicit provider/model members,
+//!   and which providers should serve it is a decision v3 never recorded.
 //! - **`routing_rules`.** They look like v4's `operation_rules` and are not.
 //!   v3 **seeded** them from the channel's own defaults whenever a provider was
 //!   created (`v3:crates/gproxy-admin/src/defaults.rs`), so the table is mostly
@@ -56,9 +56,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use gproxy_sdk::dto::{
     ConfigurationDataDto, ConfigurationExportDto, CredentialDto, EXPORT_FORMAT_VERSION,
-    ExportCredentialDto, ExposedModelDto, ModelDto, PriceRateDto, PriceRuleDto, PriceTierDto,
-    ProviderDto, ProviderModelDto, ProviderRuleSetDto, QuotaDto, RewriteRuleDto, RouteDto,
-    RouteMemberDto, RuleSetDto, SealedSecretDto,
+    ExportCredentialDto, ModelDto, PriceRateDto, PriceRuleDto, PriceTierDto, ProviderDto,
+    ProviderModelDto, ProviderRuleSetDto, QuotaDto, RewriteRuleDto, RouteDto, RouteMemberDto,
+    RuleSetDto, SealedSecretDto,
 };
 use serde_json::Value;
 
@@ -136,7 +136,6 @@ pub fn translate(
     report.count("provider_models", provider_models.len() as u64);
 
     let routes: Vec<RouteDto> = data.routes.iter().map(route).collect();
-    report.count("routes", routes.len() as u64);
     let route_members: Vec<RouteMemberDto> = data
         .route_members
         .iter()
@@ -153,10 +152,9 @@ pub fn translate(
         })
         .map(route_member)
         .collect();
+    let (routes, route_members) = public_routes(routes, route_members, &data.model_aliases)?;
+    report.count("routes", routes.len() as u64);
     report.count("route_members", route_members.len() as u64);
-    let exposed_models: Vec<ExposedModelDto> =
-        data.model_aliases.iter().map(exposed_model).collect();
-    report.count("exposed_models", exposed_models.len() as u64);
 
     // Only the rates of rules that survived: a rate whose rule was left behind
     // would name a price rule the import has never heard of.
@@ -235,7 +233,6 @@ pub fn translate(
                 provider_models,
                 routes,
                 route_members,
-                exposed_models,
                 // See the module note: v3's routing rules are channel defaults.
                 operation_rules: Vec::new(),
                 operation_endpoints: Vec::new(),
@@ -591,13 +588,55 @@ fn route_member(row: &document::RouteMember) -> RouteMemberDto {
     }
 }
 
-fn exposed_model(row: &document::ModelAlias) -> ExposedModelDto {
-    ExposedModelDto {
-        id: ids::id("model_aliases", row.id),
-        name: row.name.clone(),
-        route_id: ids::id("routes", row.route_id),
-        enabled: row.enabled,
+fn public_routes(
+    routes: Vec<RouteDto>,
+    members: Vec<RouteMemberDto>,
+    aliases: &[document::ModelAlias],
+) -> Result<(Vec<RouteDto>, Vec<RouteMemberDto>)> {
+    for alias in aliases {
+        if !routes
+            .iter()
+            .any(|r| r.id == ids::id("routes", alias.route_id))
+        {
+            return Err(Error::other(format!(
+                "public model {} references missing route {}",
+                alias.name, alias.route_id
+            )));
+        }
     }
+    let mut out_routes = Vec::new();
+    let mut out_members = Vec::new();
+    for route in routes {
+        let mut names: Vec<_> = aliases
+            .iter()
+            .filter(|a| ids::id("routes", a.route_id) == route.id)
+            .collect();
+        names.sort_by_key(|a| a.id);
+        let selected: Vec<_> = members.iter().filter(|m| m.route_id == route.id).collect();
+        if names.is_empty() {
+            out_members.extend(selected.into_iter().cloned());
+            out_routes.push(route);
+            continue;
+        }
+        for (index, alias) in names.into_iter().enumerate() {
+            let mut public = route.clone();
+            if index > 0 {
+                public.id = ids::id("model_aliases", alias.id);
+            }
+            public.name = alias.name.clone();
+            public.enabled &= alias.enabled;
+            for member in &selected {
+                let mut member = (*member).clone();
+                member.route_id = public.id.clone();
+                if index > 0 {
+                    member.id = format!("{}-alias-{}", member.id, alias.id);
+                }
+                out_members.push(member);
+            }
+            out_routes.push(public);
+        }
+    }
+    Ok((out_routes, out_members))
 }
 
 fn provider_model(row: &document::ProviderModel) -> ProviderModelDto {
@@ -1042,7 +1081,7 @@ fn refuse_unmappable(data: &document::Data, report: &mut Report) {
         report.drop_row(
             "aliases",
             format!("alias {} ({} -> {})", row.id, row.alias, row.target),
-            "v4 has no alias table: a public name is an exposed model on a route, and which \
+            "v4 has no alias table: a public model name is a route, and which \
              providers should serve it is not recorded in a v3 alias",
         );
     }
@@ -1324,8 +1363,8 @@ mod tests {
         assert_eq!(out.export.data.routes[0].max_attempts, 1);
         assert_eq!(out.export.data.route_members[0].weight, 1);
         assert_eq!(out.export.data.route_members[0].route_id, "v3-routes-1");
-        assert_eq!(out.export.data.exposed_models[0].id, "v3-model_aliases-4");
-        assert_eq!(out.export.data.exposed_models[0].route_id, "v3-routes-1");
+        assert_eq!(out.export.data.routes[0].id, "v3-routes-1");
+        assert_eq!(out.export.data.routes[0].name, "sonnet");
     }
 
     #[test]

@@ -229,7 +229,7 @@ POST /admin/api/{family}/batch
 ```
 
 `providers`、`credentials`、`models`、`provider-models`、`routes`、`route-members`、
-`exposed-models`、`connection-profiles`、`rule-sets`、`rules`、`provider-rule-sets`、
+`connection-profiles`、`rule-sets`、`rules`、`provider-rule-sets`、
 `operation-rules`、`operation-endpoints`、`quotas`、`price-rules`、`price-rates`、
 `price-tiers`。
 
@@ -242,8 +242,7 @@ POST /admin/api/{family}/batch
 `default-model-catalog`、`tokenizer-vocabs`、`tokenizer-auth`、`session`、`sessions`
 和 `audit`。
 
-v3 有同样操作的地方路径沿用 v3 的，所以运维者的脚本还能用。v4 新增的：`/exposed-models`
-（v3 叫别名）、`/connection-profiles`、`/operation-rules`、`/operation-endpoints`、
+v3 有同样操作的地方路径沿用 v3 的，所以运维者的脚本还能用。v4 新增的：`/connection-profiles`、`/operation-rules`、`/operation-endpoints`、
 `/price-tiers`、单一的 `/settings`（v3 拆成两个），以及 `/{family}/batch`（v3 是
 `/batch/{entity}`）。
 

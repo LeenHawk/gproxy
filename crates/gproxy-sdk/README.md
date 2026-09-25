@@ -121,12 +121,12 @@ A model name is resolved by the first rule that matches:
 | Name | Resolves to | Attempt budget |
 |---|---|---|
 | absent | every enabled provider, no upstream model | `settings.max_attempts` |
-| an exposed model name | that route's enabled members | the route's own |
+| a model route name | that route's enabled members | the route's own |
 | `channel/model` | the providers of that channel, preferring the ones whose catalog lists `model` | `settings.max_attempts` |
 | `provider/model` | that one provider | `settings.max_attempts` |
 | anything else | `SdkError::UnknownModel` | — |
 
-Exposed names are matched exactly and before the prefix forms, so an operator
+Route names are matched exactly and before the prefix forms, so an operator
 can expose the literal name `openai/gpt-5`. Within the prefix forms **a channel
 id beats a provider of the same name**: a channel id is fixed by the build and
 cannot be renamed out of the way, while a provider always can.
@@ -267,7 +267,7 @@ of them over the same primitive.
 | `providers()` | `providers` | `reset_routing_defaults(provider_id)` drops the provider's operation rules and URLs in one commit |
 | `credentials()` | `credentials` | `reveal_secret`, `set_status`, `refresh`, `quota_probe`, `quota_read`, `quota_reset`, `health_reset`, `limit_status` |
 | `models()` / `provider_models()` | `models`, `provider_models` | |
-| `routes()` / `route_members()` / `exposed_models()` | `routes`, `route_members`, `exposed_models` | |
+| `routes()` / `route_members()` | `routes`, `route_members` | |
 | `connection_profiles()` | `connection_profiles` | |
 | `settings()` | the single `settings` row | `get` / `update` only; split into an instance group and a logging group |
 | `rewrite()` | `rewrite_rule_sets`, `rewrite_rules`, `provider_rewrite_rule_sets` | `replace_rules(set_id, rules)` replaces a whole set |
@@ -325,9 +325,9 @@ status: everything else about a credential — label, auth kind, metadata,
 connection profile, owner — is frozen into `CredentialData` at assembly and
 needs a full reload. `Credentials::update` picks the right one from the patch.
 
-### Reserved exposed-model prefixes
+### Reserved model-route prefixes
 
-An exposed model name is matched exactly, but a name with a `/` in it is not
+A model route name is matched exactly, but a name with a `/` in it is not
 free: resolution reads the first segment of an unknown name as a narrowing
 prefix. `codex/gpt-5` means "that model on the `codex` channel" and
 `my-openai/gpt-5` means "that model on the `my-openai` provider". An exposed
@@ -350,14 +350,14 @@ what a console would have listed.
 
 ```json
 {
-  "formatVersion": 4,
+  "formatVersion": 5,
   "exportedAtMs": 1758412800000,
   "secretsOmitted": false,
   "secrets": ["aes-gcm"],
   "data": {
     "connectionProfiles": [], "providers": [], "credentials": [],
     "models": [], "providerModels": [],
-    "routes": [], "routeMembers": [], "exposedModels": [],
+    "routes": [], "routeMembers": [],
     "operationRules": [], "operationEndpoints": [],
     "rewriteRuleSets": [], "rewriteRules": [], "providerRewriteRuleSets": [],
     "quotas": [], "priceRules": [], "priceRates": [], "priceTiers": [],

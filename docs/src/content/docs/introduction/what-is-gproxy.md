@@ -95,8 +95,7 @@ meant is a request sent to the wrong upstream.
 | Channel | The compiled-in adapter for one upstream family: its URLs, how a credential is injected, which dialects it speaks, how its stream reports usage, and how to log in and refresh. 25 of them ship, from `openai` and `claudeapi` to `codex`, `kiro` and `custom`. |
 | Provider | One saved connection on a channel: a name, an optional base URL, the channel's own `config` JSON, and a pool of credentials. |
 | Credential | One secret in that pool — an API key, an OAuth token pair, a session cookie, service-account material — sealed at rest, with a lifecycle status and an owner. |
-| Route | An ordered set of members, each a provider plus an upstream model, with a `tier` (the failover level) and a `weight` (the split inside a tier). |
-| Exposed model | The public name a client sends as `model`. It points at a route. A name with a `/` in it creates a namespace. |
+| Model route | Its name is the public request model; an ordered set of members, each a provider plus an upstream model, with a `tier` (the failover level) and a `weight` (the split inside a tier). |
 | Gateway API key | What a client presents. It belongs to a user and may be bound to an organization, a team and a subscription; that binding is what decides which credentials it can reach and whose budget it spends. |
 | Rewrite rule | An ordered regex replacement over body text, a named header value or a named query value, filtered by operation, model, inbound header or stream event. |
 | Operation rule | A per-provider override of what a channel does for one operation. Channel defaults stay in code. |

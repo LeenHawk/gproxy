@@ -873,7 +873,7 @@ pub fn is_no_target(error: &SdkError) -> bool {
 use axum::{Router, body::Body};
 use gproxy_app::Operations;
 use gproxy_host_axum::HostState;
-use gproxy_store::entity::routing::{exposed_model, route, route_member};
+use gproxy_store::entity::routing::{route, route_member};
 use http::Request;
 use tower::ServiceExt as _;
 
@@ -1091,7 +1091,7 @@ pub async fn exposed(handle: &Handle, name: &str, provider_id: &str, upstream_mo
         .routes()
         .create_many(vec![route::ActiveModel {
             id: Set(id.clone()),
-            name: Set(id.clone()),
+            name: Set(name.into()),
             enabled: Set(true),
             max_attempts: Set(1),
             ..Default::default()
@@ -1108,17 +1108,6 @@ pub async fn exposed(handle: &Handle, name: &str, provider_id: &str, upstream_mo
             upstream_model: Set(upstream_model.into()),
             enabled: Set(true),
             ..Default::default()
-        }])
-        .await
-        .unwrap();
-    handle
-        .store()
-        .exposed_models()
-        .create_many(vec![exposed_model::ActiveModel {
-            id: Set(format!("{id}-x")),
-            name: Set(name.into()),
-            route_id: Set(id),
-            enabled: Set(true),
         }])
         .await
         .unwrap();

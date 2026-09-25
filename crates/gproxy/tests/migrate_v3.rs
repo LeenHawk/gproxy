@@ -349,12 +349,11 @@ async fn a_v3_deployment_becomes_a_working_v4_one() {
     assert_eq!(opened, upstream_secret());
 
     // ---- the rest of the deployment --------------------------------------
-    assert_eq!(one(store.routes()).await.name, "claude");
     assert_eq!(
         one(store.route_members()).await.upstream_model,
         "claude-sonnet-4"
     );
-    assert_eq!(one(store.exposed_models()).await.name, "claude-sonnet-4");
+    assert_eq!(one(store.routes()).await.name, "claude-sonnet-4");
     assert_eq!(one(store.organizations()).await.name, "acme");
     assert_eq!(one(store.teams()).await.name, "core");
     assert_eq!(

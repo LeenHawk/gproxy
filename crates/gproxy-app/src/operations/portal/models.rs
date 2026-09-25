@@ -79,7 +79,7 @@ impl<C> Portal<'_, C> {
         // The published names first: a route member of a provider the engine
         // has not loaded contributes nothing, which is the same silence
         // resolution would answer with.
-        for (name, route_id) in &routing.exposed {
+        for (name, route_id) in &routing.names {
             let entry = names.entry(name.clone()).or_default();
             let Some(route) = routing.routes.get(route_id) else {
                 continue;

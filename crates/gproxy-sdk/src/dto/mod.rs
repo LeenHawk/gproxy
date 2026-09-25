@@ -88,8 +88,7 @@ pub use rewrite::{
     RewriteRulePatch, RewriteRuleWrite, RuleSetDto, RuleSetPatch, RuleSetWrite,
 };
 pub use routing::{
-    ExposedModelDto, ExposedModelPatch, ExposedModelWrite, RouteDto, RouteMemberDto,
-    RouteMemberPatch, RouteMemberWrite, RoutePatch, RouteWrite,
+    RouteDto, RouteMemberDto, RouteMemberPatch, RouteMemberWrite, RoutePatch, RouteWrite,
 };
 pub use settings::{
     InstanceSettingsDto, InstanceSettingsPatch, LoggingSettingsDto, LoggingSettingsPatch,

@@ -230,7 +230,7 @@ println!("credential {}", created.credential_id);
 | `providers()` | `providers` | `reset_routing_defaults(provider_id)` 一次提交清掉该 Provider 的操作规则与 URL |
 | `credentials()` | `credentials` | `reveal_secret`、`set_status`、`refresh`、`quota_probe`、`quota_read`、`quota_reset`、`health_reset`、`limit_status` |
 | `models()` / `provider_models()` | `models`、`provider_models` | |
-| `routes()` / `route_members()` / `exposed_models()` | `routes`、`route_members`、`exposed_models` | |
+| `routes()` / `route_members()` | `routes`、`route_members` | |
 | `connection_profiles()` | `connection_profiles` | |
 | `settings()` | 唯一的 `settings` 行 | 只有 `get` / `update`；分实例组与日志组两组 |
 | `rewrite()` | `rewrite_rule_sets`、`rewrite_rules`、`provider_rewrite_rule_sets` | `replace_rules(set_id, rules)` 整体替换一个规则集 |
@@ -297,14 +297,14 @@ publish  Invalidation::ConfigurationChanged { revision, scopes }
 
 ```json
 {
-  "formatVersion": 4,
+  "formatVersion": 5,
   "exportedAtMs": 1758412800000,
   "secretsOmitted": false,
   "secrets": ["aes-gcm"],
   "data": {
     "connectionProfiles": [], "providers": [], "credentials": [],
     "models": [], "providerModels": [],
-    "routes": [], "routeMembers": [], "exposedModels": [],
+    "routes": [], "routeMembers": [],
     "operationRules": [], "operationEndpoints": [],
     "rewriteRuleSets": [], "rewriteRules": [], "providerRewriteRuleSets": [],
     "quotas": [], "priceRules": [], "priceRates": [], "priceTiers": [],

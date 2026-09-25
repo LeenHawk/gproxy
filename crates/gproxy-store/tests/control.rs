@@ -6,7 +6,7 @@ use gproxy_store::{
     entity::{
         config::setting,
         identity::{api_key, user},
-        routing::{exposed_model, route, route_member},
+        routing::{route, route_member},
         upstream::provider,
     },
 };
@@ -46,7 +46,7 @@ async fn seeded() -> Store<DatabaseConnection> {
         .routes()
         .create_many(vec![route::ActiveModel {
             id: Set("r".into()),
-            name: Set("r".into()),
+            name: Set("fast".into()),
             ..Default::default()
         }])
         .await
@@ -58,16 +58,6 @@ async fn seeded() -> Store<DatabaseConnection> {
             route_id: Set("r".into()),
             provider_id: Set("p".into()),
             upstream_model: Set("m1".into()),
-            ..Default::default()
-        }])
-        .await
-        .unwrap();
-    store
-        .exposed_models()
-        .create_many(vec![exposed_model::ActiveModel {
-            id: Set("em".into()),
-            name: Set("fast".into()),
-            route_id: Set("r".into()),
             ..Default::default()
         }])
         .await
@@ -106,7 +96,7 @@ async fn load_all_data_returns_the_three_sets_from_one_read() {
     assert_eq!(all.control.providers.len(), 1);
     assert_eq!(all.routing.routes[0].id, "r");
     assert_eq!(all.routing.route_members[0].upstream_model, "m1");
-    assert_eq!(all.routing.exposed_models[0].name, "fast");
+    assert_eq!(all.routing.routes[0].name, "fast");
     assert_eq!(all.identity.users[0].id, "u");
     assert_eq!(all.identity.api_keys[0].key_hash, "hash");
     assert!(all.identity.organizations.is_empty());
@@ -122,7 +112,6 @@ async fn the_three_loaders_agree_with_load_all_data() {
     assert_eq!(control.providers, all.control.providers);
     assert_eq!(control.settings, all.control.settings);
     assert_eq!(routing.routes, all.routing.routes);
-    assert_eq!(routing.exposed_models, all.routing.exposed_models);
     assert_eq!(identity.users, all.identity.users);
     assert_eq!(identity.api_keys, all.identity.api_keys);
 }

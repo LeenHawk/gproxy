@@ -33,7 +33,7 @@
 //! `/credentials/{id}/quota-probe`, `/rule-sets/{id}/rule-presets/{preset}`,
 //! `/export`, `/tokenizer-vocabs` and the rest. An operator's muscle memory
 //! and whatever scripts a deployment has are worth more than a tidier noun.
-//! The families v4 gained — exposed models, connection profiles, operation
+//! The families v4 gained — connection profiles, operation
 //! rules and endpoints, price tiers — follow the plural-noun convention the
 //! rest of the table already uses.
 //!
@@ -59,13 +59,13 @@ use gproxy_sdk::{
     dto::{
         ApplyDefaultPricesRequest, ApplyRulePreset, BatchItem, ConnectionProfilePatch,
         ConnectionProfileWrite, ConnectivityTest, CredentialPatch, CredentialWrite, ExportRequest,
-        ExposedModelPatch, ExposedModelWrite, ImportRequest, ListQuery, ModelPatch, ModelTest,
-        ModelWrite, OperationEndpointPatch, OperationEndpointWrite, OperationRulePatch,
-        OperationRuleWrite, PriceRatePatch, PriceRateWrite, PriceRulePatch, PriceRuleWrite,
-        PriceTierPatch, PriceTierWrite, ProviderModelPatch, ProviderModelWrite, ProviderPatch,
-        ProviderRuleSetPatch, ProviderRuleSetWrite, ProviderWrite, QuotaPatch, QuotaWrite,
-        RewriteRulePatch, RewriteRuleWrite, RouteMemberPatch, RouteMemberWrite, RoutePatch,
-        RouteWrite, RuleSetPatch, RuleSetWrite, SettingsPatch, TokenizerFetch,
+        ImportRequest, ListQuery, ModelPatch, ModelTest, ModelWrite, OperationEndpointPatch,
+        OperationEndpointWrite, OperationRulePatch, OperationRuleWrite, PriceRatePatch,
+        PriceRateWrite, PriceRulePatch, PriceRuleWrite, PriceTierPatch, PriceTierWrite,
+        ProviderModelPatch, ProviderModelWrite, ProviderPatch, ProviderRuleSetPatch,
+        ProviderRuleSetWrite, ProviderWrite, QuotaPatch, QuotaWrite, RewriteRulePatch,
+        RewriteRuleWrite, RouteMemberPatch, RouteMemberWrite, RoutePatch, RouteWrite, RuleSetPatch,
+        RuleSetWrite, SettingsPatch, TokenizerFetch,
     },
 };
 use gproxy_seaorm::BatchConnectionTrait;
@@ -151,14 +151,6 @@ where
         RouteMemberWrite,
         RouteMemberPatch,
         "route-members"
-    );
-    let router = config_family!(
-        router,
-        "/exposed-models",
-        [exposed_models()],
-        ExposedModelWrite,
-        ExposedModelPatch,
-        "exposed-models"
     );
     let router = config_family!(
         router,

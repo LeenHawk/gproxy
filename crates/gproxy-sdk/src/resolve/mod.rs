@@ -91,7 +91,7 @@ impl<'a> ResolveRequest<'a> {
 /// Where a request may be sent, in the order it should be tried.
 #[derive(Debug)]
 pub struct Plan {
-    /// What the name resolved to: the exposed name for a route, the part
+    /// What the name resolved to: the route name, the part
     /// after the prefix for `channel/model` and `provider/model`, `None` when
     /// no model was named. It is not a per-target upstream model — a route's
     /// members may each name their own.

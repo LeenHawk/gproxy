@@ -110,7 +110,7 @@ agent 切换。并发测试使用单条 SQLite 连接，不代表多服务器压
 | 目录 | 实体 |
 |---|---|
 | `upstream` 上游 | Provider、Credential、Model、ProviderModel、OperationRule、OperationEndpoint、RewriteRuleSet、RewriteRule、ProviderRewriteRuleSet |
-| `routing` 路由 | ExposedModel、Route、RouteMember |
+| `routing` 路由 | Route、RouteMember |
 | `identity` 身份 | Organization、Team、OrganizationMember、TeamMember、User、ApiKey、UserSession、Permission、AuditEvent |
 | `oauth` 下游授权 | Client、Grant、Code、Token、Device |
 | `limits` 额度 | RateLimit、Quota、QuotaWindow、QuotaSettlement、CredentialQuotaCycle、CredentialBlock |
@@ -194,8 +194,7 @@ operation-rule 唯一约束。删除／停用一条地址即可回退默认值�
 
 ## 路由结构
 
-[`ExposedModel`](src/entity/routing/exposed_model.rs) 将全局唯一的对外模型名精确映射到
-[`Route`](src/entity/routing/route.rs)，多个名称可以指向同一条路由。
+[`Route`](src/entity/routing/route.rs) 的全局唯一名称就是客户端请求的模型名。
 Route 保存名称、启用状态、`round_robin`／`weighted`／`failover` 策略和正数
 `max_attempts`（含首次调用，执行时受全局最大尝试次数限制）。
 

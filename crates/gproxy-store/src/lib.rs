@@ -45,7 +45,6 @@ fn register_entities<R: gproxy_seaorm::EntityRegistry>(registry: R) -> R {
         .register(entity::upstream::provider_model::Entity)
         .register(entity::routing::route::Entity)
         .register(entity::routing::route_member::Entity)
-        .register(entity::routing::exposed_model::Entity)
         .register(entity::upstream::operation_rule::Entity)
         .register(entity::upstream::operation_endpoint::Entity)
         .register(entity::upstream::rewrite_rule_set::Entity)

@@ -77,7 +77,6 @@ repositories! {
     file_objects => crate::entity::resource::file_object::Entity,
     protocol_states => crate::entity::resource::protocol_state::Entity,
     resource_bindings => crate::entity::resource::resource_binding::Entity,
-    exposed_models => crate::entity::routing::exposed_model::Entity,
     routes => crate::entity::routing::route::Entity,
     route_members => crate::entity::routing::route_member::Entity,
     credentials => crate::entity::upstream::credential::Entity,

@@ -31,7 +31,6 @@
     "quotas": "配額",
     "routes": "模型路由",
     "route-members": "路由成員",
-    "exposed-models": "公開模型名稱",
     "transfer": "設定匯入匯出",
     "globalUsage": "全域用量",
     "downstreamLogs": "下游日誌",
@@ -57,8 +56,7 @@
     "connection-profiles": "新增 HTTP 用戶端設定",
     "quotas": "新增 配額",
     "routes": "新增 模型路由",
-    "route-members": "新增 路由成員",
-    "exposed-models": "新增 公開模型名稱"
+    "route-members": "新增 路由成員"
   },
   "edit": {
     "users": "編輯使用者",
@@ -79,7 +77,6 @@
     "connection-profiles": "編輯 HTTP 用戶端設定",
     "quotas": "編輯 配額",
     "routes": "編輯 模型路由",
-    "route-members": "編輯 路由成員",
-    "exposed-models": "編輯 公開模型名稱"
+    "route-members": "編輯 路由成員"
   }
 }

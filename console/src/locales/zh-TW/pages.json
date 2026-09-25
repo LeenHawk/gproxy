@@ -676,7 +676,6 @@
       "providerModels": "模型",
       "routes": "模型路由",
       "routeMembers": "路由成員",
-      "exposedModels": "公開模型名稱",
       "operationRules": "路由規則",
       "operationEndpoints": "端點 URL",
       "rewriteRuleSets": "規則集",
@@ -798,5 +797,8 @@
     "requestQuery": "請求查詢參數",
     "clientIp": "用戶端 IP",
     "metrics": "上游用量資料"
+  },
+  "modelRoutes": {
+    "modelName": "模型名稱"
   }
 }

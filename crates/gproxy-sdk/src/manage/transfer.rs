@@ -42,7 +42,7 @@ use gproxy_store::entity::{
     config::{connection_profile as profile, setting},
     limits::quota,
     pricing::{price_rate, price_rule, price_tier},
-    routing::{exposed_model, route, route_member},
+    routing::{route, route_member},
     upstream::{
         credential, model, operation_endpoint, operation_rule, provider, provider_model,
         provider_rewrite_rule_set, rewrite_rule, rewrite_rule_set,
@@ -56,10 +56,10 @@ use crate::{
     dto::{
         CODEC_AES_GCM, CODEC_PLAINTEXT, CODEC_UNKNOWN, ConfigurationDataDto,
         ConfigurationExportDto, ConnectionProfileDto, CredentialDto, EXPORT_FORMAT_VERSION,
-        ExportCredentialDto, ExportRequest, ExposedModelDto, ImportMode, ImportReportDto,
-        ImportRequest, ModelDto, OperationEndpointDto, OperationRuleDto, PriceRateDto,
-        PriceRuleDto, PriceTierDto, ProviderDto, ProviderModelDto, ProviderRuleSetDto, QuotaDto,
-        RewriteRuleDto, RouteDto, RouteMemberDto, RuleSetDto, SealedSecretDto, SettingsDto,
+        ExportCredentialDto, ExportRequest, ImportMode, ImportReportDto, ImportRequest, ModelDto,
+        OperationEndpointDto, OperationRuleDto, PriceRateDto, PriceRuleDto, PriceTierDto,
+        ProviderDto, ProviderModelDto, ProviderRuleSetDto, QuotaDto, RewriteRuleDto, RouteDto,
+        RouteMemberDto, RuleSetDto, SealedSecretDto, SettingsDto,
     },
 };
 
@@ -136,7 +136,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Transfer<'_, C> {
                 provider_models: map(control.provider_models),
                 routes: map(routing.routes),
                 route_members: map(routing.route_members),
-                exposed_models: map(routing.exposed_models),
                 operation_rules: map(control.operation_rules),
                 operation_endpoints: map(control.operation_endpoints),
                 rewrite_rule_sets: map(control.rewrite_rule_sets),
@@ -230,7 +229,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Transfer<'_, C> {
             provider_models: ids(&current.provider_models, |row| &row.id),
             routes: ids(&current_routing.routes, |row| &row.id),
             route_members: ids(&current_routing.route_members, |row| &row.id),
-            exposed_models: ids(&current_routing.exposed_models, |row| &row.id),
             operation_rules: ids(&current.operation_rules, |row| &row.id),
             operation_endpoints: ids(&current.operation_endpoints, |row| &row.id),
             rule_sets: ids(&current.rewrite_rule_sets, |row| &row.id),
@@ -397,20 +395,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Transfer<'_, C> {
                 store.route_members(),
                 rows::route_member(row),
                 present.route_members.contains(&row.id)
-            );
-        }
-        for row in &data.exposed_models {
-            known.require(
-                &known.routes,
-                Some(row.route_id.as_str()),
-                "exposed model",
-                &row.id,
-                "route",
-            )?;
-            write_row!(
-                store.exposed_models(),
-                rows::exposed_model(row),
-                present.exposed_models.contains(&row.id)
             );
         }
         for row in &data.operation_rules {
@@ -706,11 +690,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Transfer<'_, C> {
             id_set(&data.operation_rules, |row| &row.id)
         );
         prune!(
-            store.exposed_models(),
-            &routing.exposed_models,
-            id_set(&data.exposed_models, |row| &row.id)
-        );
-        prune!(
             store.route_members(),
             &routing.route_members,
             id_set(&data.route_members, |row| &row.id)
@@ -876,7 +855,6 @@ struct Present {
     provider_models: HashSet<String>,
     routes: HashSet<String>,
     route_members: HashSet<String>,
-    exposed_models: HashSet<String>,
     operation_rules: HashSet<String>,
     operation_endpoints: HashSet<String>,
     rule_sets: HashSet<String>,
@@ -1069,15 +1047,6 @@ mod rows {
             upstream_model: Set(dto.upstream_model.clone()),
             tier: Set(dto.tier),
             weight: Set(dto.weight.max(1)),
-            enabled: Set(dto.enabled),
-        }
-    }
-
-    pub(super) fn exposed_model(dto: &ExposedModelDto) -> exposed_model::ActiveModel {
-        exposed_model::ActiveModel {
-            id: Set(dto.id.clone()),
-            name: Set(dto.name.clone()),
-            route_id: Set(dto.route_id.clone()),
             enabled: Set(dto.enabled),
         }
     }
