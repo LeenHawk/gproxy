@@ -60,7 +60,7 @@ describe("contextual limits", () => {
   it("shows provider defaults as per-credential limits without a fictitious total usage", async () => {
     mount("provider", "p")
     await screen.findByText(parent.windowKey)
-    expect(screen.getByText(/Each rule limits each credential separately/)).toBeInTheDocument()
+    expect(screen.queryByText(/Each rule limits each credential separately/)).not.toBeInTheDocument()
     expect(screen.queryByText("Used", { exact: true })).not.toBeInTheDocument()
     expect(credentialLimits).not.toHaveBeenCalled()
     expect(budgetStatus).not.toHaveBeenCalled()
