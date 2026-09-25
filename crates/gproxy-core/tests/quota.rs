@@ -288,6 +288,7 @@ async fn quota_query_persists_cycles_and_blocks_only_on_exhausted_known_dimensio
         });
     let snapshot = h.core.query_credential_quota("q", "q1").await.unwrap();
     assert_eq!(snapshot.entries.len(), 3);
+    assert!(snapshot.observed_at_ms > 1_700_000_000_000, "host stamps receipt");
     let all = h
         .core
         .store()
@@ -296,6 +297,7 @@ async fn quota_query_persists_cycles_and_blocks_only_on_exhausted_known_dimensio
         .await
         .unwrap();
     assert_eq!(all.len(), 3, "every entry is recorded");
+    assert!(all.iter().all(|row| row.observed_at_ms == snapshot.observed_at_ms));
     let rows = blocks_for(&h, "q1").await;
     assert_eq!(
         rows.len(),
@@ -309,4 +311,157 @@ async fn quota_query_persists_cycles_and_blocks_only_on_exhausted_known_dimensio
     );
     let error = h.core.query_credential_quota("p", "q1").await.unwrap_err();
     assert!(matches!(error, CoreError::InvalidTarget(_)));
+}
+
+#[tokio::test]
+async fn quota_query_refreshes_expired_material_before_querying() {
+    let h = harness(full(), "sticky").await;
+    h.core
+        .store()
+        .credentials()
+        .refresh_many(vec![
+            gproxy_store::operations::credentials::CredentialRefresh {
+                id: "a".into(),
+                expected_version: 0,
+                secret: gproxy_core::PlaintextCodec
+                    .seal("a", &json!({"api_key": "old"}))
+                    .unwrap(),
+                expires_at_ms: Some(1),
+            },
+        ])
+        .await
+        .unwrap();
+    h.core.reload_credentials(&["a".into()]).await.unwrap();
+    h.channel
+        .refreshes
+        .lock()
+        .unwrap()
+        .push_back(RefreshReply::Rotated {
+            api_key: "fresh",
+            expires_at_ms: Some(9_999_999_999_000),
+        });
+    h.channel
+        .quota_snapshots
+        .lock()
+        .unwrap()
+        .push_back(QuotaSnapshot {
+            observed_at_ms: 1,
+            entries: vec![],
+        });
+    h.core.query_credential_quota("p", "a").await.unwrap();
+    assert_eq!(*h.channel.quota_versions.lock().unwrap(), vec![2]);
+    assert_eq!(h.channel.refresh_calls.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn quota_query_refreshes_unknown_expiry_on_401_and_retries_only_once() {
+    for (status, failures, expected_queries, expected_refreshes) in [
+        (StatusCode::UNAUTHORIZED, 1, 2, 1),
+        (StatusCode::UNAUTHORIZED, 2, 2, 1),
+        (StatusCode::FORBIDDEN, 1, 1, 0),
+    ] {
+        let h = harness(full(), "sticky").await;
+        h.channel
+            .refreshes
+            .lock()
+            .unwrap()
+            .push_back(RefreshReply::Rotated {
+                api_key: "fresh",
+                expires_at_ms: None,
+            });
+        for _ in 0..failures {
+            h.channel.quota_errors.lock().unwrap().push_back(
+                gproxy_channel::ChannelError::UpstreamResponse {
+                    status,
+                    body: Default::default(),
+                },
+            );
+        }
+        h.channel
+            .quota_snapshots
+            .lock()
+            .unwrap()
+            .push_back(QuotaSnapshot {
+                observed_at_ms: 1,
+                entries: vec![],
+            });
+        let result = h.core.query_credential_quota("p", "a").await;
+        assert_eq!(
+            result.is_ok(),
+            status == StatusCode::UNAUTHORIZED && failures == 1
+        );
+        let versions = h.channel.quota_versions.lock().unwrap();
+        assert_eq!(versions.len(), expected_queries);
+        assert_eq!(versions[0], 0);
+        if expected_queries == 2 {
+            assert_eq!(versions[1], 1);
+        }
+        assert_eq!(
+            h.channel.refresh_calls.lock().unwrap().len(),
+            expected_refreshes
+        );
+    }
+}
+
+#[tokio::test]
+async fn positive_probe_clears_only_the_recovered_exhaustion_block() {
+    let h = harness(full(), "sticky").await;
+    seed_quota_provider(&h, json!({"quota": [
+        {"id": "primary", "metric": "requests", "window_seconds": 18000, "tracking": "reported"},
+        {"id": "secondary", "metric": "requests", "window_seconds": 604800, "tracking": "reported"}
+    ]})).await;
+    let entry = |id: &str, remaining: Option<i64>| QuotaEntry {
+        id: id.into(),
+        source_id: id.into(),
+        label: None,
+        subject: QuotaSubject::Account,
+        model_scope: QuotaScope::All,
+        value: QuotaValue::Window(QuotaAllowance {
+            remaining: remaining.map(Into::into),
+            ..Default::default()
+        }),
+    };
+    for entries in [
+        vec![entry("primary", Some(0)), entry("secondary", Some(0))],
+        vec![entry("primary", None)],
+    ] {
+        h.channel
+            .quota_snapshots
+            .lock()
+            .unwrap()
+            .push_back(QuotaSnapshot {
+                observed_at_ms: 0,
+                entries,
+            });
+        h.core.query_credential_quota("q", "q1").await.unwrap();
+        assert_eq!(
+            blocks_for(&h, "q1").await.len(),
+            2,
+            "unknown is not recovery"
+        );
+    }
+    h.channel
+        .quota_snapshots
+        .lock()
+        .unwrap()
+        .push_back(QuotaSnapshot {
+            observed_at_ms: 0,
+            entries: vec![entry("primary", Some(100))],
+        });
+    h.core.query_credential_quota("q", "q1").await.unwrap();
+    let rows = blocks_for(&h, "q1").await;
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].source["dimension"], "secondary");
+    let cached = h
+        .core
+        .cache()
+        .get(&gproxy_core::keys::credential_blocks("q", "q1"))
+        .await
+        .unwrap()
+        .unwrap();
+    let blocks: gproxy_core::CredentialBlocks = serde_json::from_slice(&cached.value).unwrap();
+    assert_eq!(blocks.blocks.len(), 1);
+    assert!(
+        matches!(&blocks.blocks[0].source, BlockSource::QuotaExhausted { dimension, .. } if dimension == "secondary")
+    );
 }
