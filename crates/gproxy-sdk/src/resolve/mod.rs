@@ -36,8 +36,7 @@ use std::{
 };
 
 use gproxy_core::{
-    CoreData, CredentialBlocks, CredentialData, CredentialStatus, CredentialStrategy, ProviderData,
-    keys,
+    CoreData, CredentialBlocks, CredentialData, CredentialStatus, ProviderData, keys,
 };
 use gproxy_protocol::OperationKey;
 use gproxy_store::entity::routing::route::RouteStrategy;
@@ -488,10 +487,7 @@ impl<C> Gproxy<C> {
         credentials: &mut [Arc<CredentialData>],
     ) {
         let Some(key) = affinity_key else { return };
-        if !matches!(
-            candidate.provider.credential_strategy,
-            CredentialStrategy::Sticky | CredentialStrategy::RoundRobinAffinity
-        ) {
+        if !candidate.provider.session_affinity {
             return;
         }
         if credentials.len() < 2 {

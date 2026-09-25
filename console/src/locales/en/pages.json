@@ -139,6 +139,7 @@
     "console_base_url": "Console base url",
     "context_window": "Context window",
     "control_base_url": "Control base url",
+    "session_affinity": "Session affinity",
     "credential_strategy": "Credential strategy",
     "deployment": "Deployment",
     "device_authorization_url": "Device authorization url",
@@ -196,6 +197,7 @@
   },
   "providerOption": {
     "round_robin": "Round robin",
+    "earliest_reset": "Earliest quota reset",
     "sticky": "Sticky",
     "round_robin_affinity": "Round robin affinity",
     "off": "Off",

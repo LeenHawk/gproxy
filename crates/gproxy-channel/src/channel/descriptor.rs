@@ -114,11 +114,16 @@ impl ConfigKey {
 /// Read from the `config` JSON for every channel, by the host rather than by
 /// the channel itself: `credential_strategy` selects among the provider's
 /// credentials, `allowed_headers` narrows what `HeaderAllowlist` forwards.
-pub const HOST_CONFIG_KEYS: [ConfigKey; 2] = [
+pub const HOST_CONFIG_KEYS: [ConfigKey; 3] = [
     ConfigKey::optional(
         "credential_strategy",
         ConfigKeyKind::String,
         "How the host picks among this provider's credentials.",
+    ),
+    ConfigKey::optional(
+        "session_affinity",
+        ConfigKeyKind::Bool,
+        "Reuse a session credential while usable; defaults on for legacy sticky strategies.",
     ),
     ConfigKey::optional(
         "allowed_headers",

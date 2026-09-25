@@ -497,3 +497,121 @@ async fn buffered_stream_keepalive_preserves_provider_failover_and_settlement() 
             .all(|line| line.contains("\"stream\":false"))
     );
 }
+
+#[tokio::test]
+async fn managed_reset_strategy_and_affinity_reach_core_for_http_and_websocket() {
+    use gproxy_sdk::dto::{CredentialPatch, ProviderPatch};
+    use gproxy_store::entity::limits::credential_quota_cycle;
+    use sea_orm::Set;
+    let (gproxy, client, observer) = seed::handle().await;
+    seed::provider(&gproxy, "p", "alt", &["m1"]).await;
+    for id in ["a", "b"] {
+        seed::credential(&gproxy, id, "p").await;
+    }
+    seed::publish(&gproxy).await;
+    let config = json!({"credential_strategy":"earliest_reset", "session_affinity":true});
+    let provider = gproxy
+        .manage()
+        .providers()
+        .update(
+            "p",
+            ProviderPatch {
+                config: Some(config.clone()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(provider.config, config);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
+    for (id, delay) in [("a", 3_600_000), ("b", 600_000)] {
+        gproxy
+            .manage()
+            .credentials()
+            .update(
+                id,
+                CredentialPatch {
+                    metadata: Some(json!({"observed_quota":true})),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        gproxy
+            .store()
+            .credential_quota_cycles()
+            .create_many(vec![credential_quota_cycle::ActiveModel {
+                id: Set(format!("cycle-{id}")),
+                credential_id: Set(id.into()),
+                scope: Set(json!("all")),
+                snapshot: Set(json!({"id":"5h", "source_id":"5h", "kind":"window"})),
+                observed_at_ms: Set(now),
+                resets_at_ms: Set(Some(now + delay)),
+                ..Default::default()
+            }])
+            .await
+            .unwrap();
+    }
+    // Explicitly reload as a host using manual sync would do.
+    seed::publish(&gproxy).await;
+    assert!(gproxy.core().snapshot().providers["p"].session_affinity);
+    client.script(vec![Reply::Http(StatusCode::OK, json!({"ok":true}))]);
+    finish(
+        gproxy
+            .call(
+                generate(),
+                with_headers(
+                    json!({"model":"alt/m1", "input":"hello"}),
+                    &[("x-opencode-session", "s")],
+                ),
+            )
+            .scope("user:u1")
+            .send()
+            .await
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(client.authorizations.lock().unwrap()[0], "Bearer k-b");
+    assert_eq!(observer.seen()[0].1.source, SessionSource::OpenCode);
+
+    client.script_ws(vec![WsReply::Connected]);
+    let execution = gproxy
+        .connect(
+            OperationKey {
+                operation: Operation::StreamGenerateContent,
+                dialect: Dialect::OpenAiResponsesWebSocket,
+            },
+            WireRequest {
+                method: Method::GET,
+                path: "/v1/responses".into(),
+                query: None,
+                headers: HeaderMap::new(),
+                body: (),
+            },
+        )
+        .scope("user:u1")
+        .model("alt/m1")
+        .session(gproxy_core::SessionIdentity {
+            id: "s".into(),
+            source: SessionSource::OpenCode,
+            field: None,
+            agent_session_id: None,
+        })
+        .send()
+        .await
+        .unwrap();
+    assert!(matches!(
+        execution.response(),
+        gproxy_protocol::capability::UpstreamConnection::Connected { .. }
+    ));
+    assert_eq!(client.authorizations.lock().unwrap()[1], "Bearer k-b");
+    assert!(
+        observer
+            .seen()
+            .iter()
+            .all(|(_, s)| s.id == "s" && s.source == SessionSource::OpenCode)
+    );
+}

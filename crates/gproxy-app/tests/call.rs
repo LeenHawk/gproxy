@@ -466,3 +466,129 @@ async fn an_app_starts_blind_and_publishes_what_it_reads() {
     assert!(app.data().users.contains_key("alice"));
     assert_eq!(app.data().keys.len(), 1);
 }
+
+#[tokio::test]
+async fn app_preserves_inferred_affinity_and_managed_reset_selection() {
+    use gproxy_sdk::dto::{CredentialPatch, ProviderPatch};
+    use gproxy_store::entity::limits::credential_quota_cycle;
+    use sea_orm::Set;
+    let (app, client) = one_provider().await;
+    let handle = app.gproxy();
+    support::credential(handle, "c-later", "p1", None, None, None).await;
+    handle
+        .manage()
+        .providers()
+        .update(
+            "p1",
+            ProviderPatch {
+                config: Some(
+                    json!({"credential_strategy":"earliest_reset", "session_affinity":true}),
+                ),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as i64;
+    for (id, delay) in [("c-shared", 600_000), ("c-later", 3_600_000)] {
+        handle
+            .manage()
+            .credentials()
+            .update(
+                id,
+                CredentialPatch {
+                    metadata: Some(json!({"observed_quota":true})),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+        handle
+            .store()
+            .credential_quota_cycles()
+            .create_many(vec![credential_quota_cycle::ActiveModel {
+                id: Set(format!("cycle-{id}")),
+                credential_id: Set(id.into()),
+                scope: Set(json!("all")),
+                snapshot: Set(json!({"id":"5h", "source_id":"5h", "kind":"window"})),
+                observed_at_ms: Set(now),
+                resets_at_ms: Set(Some(now + delay)),
+                ..Default::default()
+            }])
+            .await
+            .unwrap();
+    }
+    support::publish(&app).await;
+    client.script(
+        (0..3)
+            .map(|_| Reply::Http(StatusCode::OK, json!({"ok":true})))
+            .collect(),
+    );
+    let caller = support::caller_for(&app, "k-alice").await;
+    let first = json!({"model":"test/m1", "input":[{"role":"user", "content":"hello"}]});
+    let mut second = first.clone();
+    second["input"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"role":"assistant", "content":"hi"}));
+    second["input"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"role":"user", "content":"next"}));
+    let mut ids = Vec::new();
+    for (index, body) in [
+        first,
+        second,
+        json!({"model":"test/m1", "input":"different question"}),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        // After the first request, c-later becomes the earliest reset candidate.
+        if index == 1 {
+            handle
+                .store()
+                .credential_quota_cycles()
+                .create_many(vec![credential_quota_cycle::ActiveModel {
+                    id: Set("new-later".into()),
+                    credential_id: Set("c-later".into()),
+                    scope: Set(json!("all")),
+                    snapshot: Set(json!({"id":"5h", "source_id":"5h", "kind":"window"})),
+                    observed_at_ms: Set(now + 1),
+                    resets_at_ms: Set(Some(now + 300_000)),
+                    ..Default::default()
+                }])
+                .await
+                .unwrap();
+            handle
+                .cache()
+                .delete(&gproxy_core::keys::credential_reset_observations("c-later"))
+                .await
+                .unwrap();
+        }
+        let (parts, body) = support::parts(body);
+        let outcome = app
+            .call(
+                &caller,
+                DataPlaneRequest::new(format!("r-{index}"), support::generate(), parts, body),
+            )
+            .await
+            .unwrap();
+        let session = outcome.admitted.session.as_ref().unwrap();
+        assert_eq!(
+            session.source,
+            gproxy_core::SessionSource::ConversationFingerprint
+        );
+        ids.push(session.id.clone());
+        finish(outcome).await;
+    }
+    assert_eq!(ids[0], ids[1]);
+    assert_ne!(ids[0], ids[2]);
+    assert_eq!(
+        *client.authorizations.lock().unwrap(),
+        ["Bearer k-c-shared", "Bearer k-c-shared", "Bearer k-c-later"]
+    );
+}

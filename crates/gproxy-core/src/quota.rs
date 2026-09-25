@@ -264,6 +264,8 @@ impl<C: BatchConnectionTrait> Core<C> {
             .credential_quota_cycles()
             .create_many(rows)
             .await?;
+        self.update_reset_observations(&credential.id, entries, now_ms)
+            .await?;
         for block in &blocks {
             self.record_block(
                 &credential.provider_id,

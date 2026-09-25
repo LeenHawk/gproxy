@@ -77,10 +77,14 @@ rate limiting, or consecutive failures. Streaks are per scope and operation, so 
 broken model neither hides behind nor poisons a healthy one. See
 [credential availability](../../design/core-credential-availability.md).
 
-`CredentialStrategy` is `RoundRobin`, `Sticky` or `RoundRobinAffinity`
-(`round_robin_affinity`). Sticky and affinity honour a session pin written after
-a successful attempt; unbound requests advance a shared rotation counter keyed by
-the eligible set. Pins are scoped by caller scope and provider.
+`CredentialStrategy` supports `round_robin` and `earliest_reset`. The latter
+prefers the earliest future reset among applicable observed quota windows;
+ties rotate and missing observations fall back to round-robin. Blocked credentials
+remain excluded. The independent provider config `session_affinity` reuses an
+eligible successful pin before applying the selection strategy. Legacy `sticky`
+and `round_robin_affinity` retain round-robin with affinity by default; an explicit
+`session_affinity` overrides that default. Pins are scoped by caller and provider.
+See [session identity and selection](../../design/session-identity.md).
 
 ## Public API
 

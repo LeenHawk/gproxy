@@ -39,9 +39,8 @@ impl<C> Core<C> {
 impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
     /// Pick one credential from `request.target.credentials` minus `excluded`.
     /// Eligibility: enabled, Active, not retired, not blocked for this
-    /// model/operation now. Strategy then orders the eligible set: Sticky and
-    /// RoundRobinAffinity honour an existing session pin, RoundRobin and an
-    /// unbound session advance a shared rotation counter.
+    /// model/operation now. Affinity honours an existing eligible pin before
+    /// strategy ordering. Unbound selections rotate among the best candidates.
     pub(crate) async fn select_credential(
         &self,
         request: &RequestContext,
@@ -105,22 +104,27 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
                 },
                 provider_id: provider.entity.id.clone(),
             });
-        let pinned = match (&affinity_key, provider.credential_strategy) {
-            (Some(key), CredentialStrategy::Sticky | CredentialStrategy::RoundRobinAffinity) => {
-                self.cache
-                    .get(&keys::credential_affinity(key))
-                    .await?
-                    .and_then(|entry| {
-                        serde_json::from_slice::<CredentialAffinity>(&entry.value).ok()
-                    })
-                    .and_then(|pin| eligible.iter().position(|(c, _)| c.id == pin.credential_id))
-            }
+        let pinned = match (&affinity_key, provider.session_affinity) {
+            (Some(key), true) => self
+                .cache
+                .get(&keys::credential_affinity(key))
+                .await?
+                .and_then(|entry| serde_json::from_slice::<CredentialAffinity>(&entry.value).ok())
+                .and_then(|pin| eligible.iter().position(|(c, _)| c.id == pin.credential_id)),
             _ => None,
         };
         let index = match pinned {
             Some(index) => index,
             None => {
                 let mut ids: Vec<&str> = eligible.iter().map(|(c, _)| c.id.as_str()).collect();
+                if provider.credential_strategy == CredentialStrategy::EarliestReset {
+                    let resets = self
+                        .credential_reset_times(&eligible, model, operation, now_ms)
+                        .await?;
+                    if let Some(earliest) = resets.values().min() {
+                        ids.retain(|id| resets.get(*id) == Some(earliest));
+                    }
+                }
                 ids.sort_unstable();
                 let signature = ids.join(",");
                 let counter = match self
@@ -136,7 +140,7 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
                     gproxy_cache::IncrementOutcome::Applied(counter) => counter.value,
                     gproxy_cache::IncrementOutcome::Limited { current } => current,
                 };
-                let position = usize::try_from((counter - 1) % eligible.len() as u64).unwrap_or(0);
+                let position = usize::try_from((counter - 1) % ids.len() as u64).unwrap_or(0);
                 let chosen = ids[position];
                 eligible
                     .iter()
@@ -169,10 +173,7 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
         let Some(session) = request.session.as_ref().filter(|s| s.is_stable()) else {
             return Ok(());
         };
-        if !matches!(
-            request.target.provider.credential_strategy,
-            CredentialStrategy::Sticky | CredentialStrategy::RoundRobinAffinity
-        ) {
+        if !request.target.provider.session_affinity {
             return Ok(());
         }
         let key = CredentialAffinityKey {

@@ -81,6 +81,7 @@ pub struct Assembly {
 pub(super) struct ProviderConfig {
     #[serde(default)]
     pub(super) credential_strategy: CredentialStrategy,
+    pub(super) session_affinity: Option<bool>,
 }
 
 pub fn provider_view(entity: &provider::Model) -> ProviderView<'_> {

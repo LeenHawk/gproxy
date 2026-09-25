@@ -162,7 +162,9 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
             <ConfigControl
               id={`${id}-${field.name}`}
               field={field}
-              value={config[field.name]}
+              value={field.name === "session_affinity"
+                ? config.session_affinity ?? ["sticky", "round_robin_affinity"].includes(String(config.credential_strategy))
+                : config[field.name]}
               onChange={(value) => change(field.name, value)}
             />
           </Field>
