@@ -6,39 +6,43 @@
 //! session that lost a capability while the tab was open — which the sidebar
 //! alone cannot guard.
 
+import { lazy, Suspense, type ComponentType } from "react"
 import { useTranslation } from "react-i18next"
 import { mayEnter } from "@/capability/navigation"
 import { useConsoleContext } from "@/capability/session"
-import { EmptyNotice } from "@/components/state"
+import { EmptyNotice, LoadingRows } from "@/components/state"
 import { Page, PageHeader } from "@/components/page"
 import { useRoute, useScrollReset } from "@/lib/router"
-import {
-  ApiKeysPage, OAuthClientsPage, OrganizationsPage, PermissionsPage, RateLimitsPage, TeamsPage, UsersPage,
-} from "@/pages/identity/families"
-import { AuditPage } from "@/pages/identity/audit"
-import { SessionsPage } from "@/pages/identity/sessions"
-import { AccountPage } from "@/pages/self/account"
-import { KeysPage } from "@/pages/self/keys"
-import { ModelsPage } from "@/pages/self/models"
-import { OverviewPage } from "@/pages/self/overview"
-import { RequestsPage } from "@/pages/self/requests"
-import { UsagePage } from "@/pages/self/usage"
-import { ProvidersPage } from "@/pages/providers"
 
-import { RuleSetsPage } from "@/pages/rules"
-import { ClientsPage } from "@/pages/clients"
-import { UpdatePage } from "@/pages/update"
-import { SettingsPage } from "@/pages/settings"
-import { TokenizerPage } from "@/pages/tokenizer"
+const ApiKeysPage = lazy(() => import("@/pages/identity/families").then(module => ({ default: module.ApiKeysPage })))
+const OAuthClientsPage = lazy(() => import("@/pages/identity/families").then(module => ({ default: module.OAuthClientsPage })))
+const OrganizationsPage = lazy(() => import("@/pages/identity/families").then(module => ({ default: module.OrganizationsPage })))
+const PermissionsPage = lazy(() => import("@/pages/identity/families").then(module => ({ default: module.PermissionsPage })))
+const RateLimitsPage = lazy(() => import("@/pages/identity/families").then(module => ({ default: module.RateLimitsPage })))
+const TeamsPage = lazy(() => import("@/pages/identity/families").then(module => ({ default: module.TeamsPage })))
+const UsersPage = lazy(() => import("@/pages/identity/families").then(module => ({ default: module.UsersPage })))
+const AuditPage = lazy(() => import("@/pages/identity/audit").then(module => ({ default: module.AuditPage })))
+const SessionsPage = lazy(() => import("@/pages/identity/sessions").then(module => ({ default: module.SessionsPage })))
+const AccountPage = lazy(() => import("@/pages/self/account").then(module => ({ default: module.AccountPage })))
+const KeysPage = lazy(() => import("@/pages/self/keys").then(module => ({ default: module.KeysPage })))
+const ModelsPage = lazy(() => import("@/pages/self/models").then(module => ({ default: module.ModelsPage })))
+const OverviewPage = lazy(() => import("@/pages/self/overview").then(module => ({ default: module.OverviewPage })))
+const RequestsPage = lazy(() => import("@/pages/self/requests").then(module => ({ default: module.RequestsPage })))
+const UsagePage = lazy(() => import("@/pages/self/usage").then(module => ({ default: module.UsagePage })))
+const ProvidersPage = lazy(() => import("@/pages/providers").then(module => ({ default: module.ProvidersPage })))
+const RuleSetsPage = lazy(() => import("@/pages/rules").then(module => ({ default: module.RuleSetsPage })))
+const ClientsPage = lazy(() => import("@/pages/clients").then(module => ({ default: module.ClientsPage })))
+const UpdatePage = lazy(() => import("@/pages/update").then(module => ({ default: module.UpdatePage })))
+const SettingsPage = lazy(() => import("@/pages/settings").then(module => ({ default: module.SettingsPage })))
+const TokenizerPage = lazy(() => import("@/pages/tokenizer").then(module => ({ default: module.TokenizerPage })))
+const ModelRoutesPage = lazy(() => import("@/pages/model-routes").then(module => ({ default: module.ModelRoutesPage })))
+const TransferPage = lazy(() => import("@/pages/transfer").then(module => ({ default: module.TransferPage })))
+const ModelCatalogPage = lazy(() => import("@/pages/model-catalog").then(module => ({ default: module.ModelCatalogPage })))
+const GlobalUsagePage = lazy(() => import("@/pages/observation/usage").then(module => ({ default: module.GlobalUsagePage })))
+const DownstreamLogsPage = lazy(() => import("@/pages/observation/logs").then(module => ({ default: module.DownstreamLogsPage })))
+const UpstreamLogsPage = lazy(() => import("@/pages/observation/logs").then(module => ({ default: module.UpstreamLogsPage })))
 
-import { ModelRoutesPage } from "@/pages/model-routes"
-import { TransferPage } from "@/pages/transfer"
-import { ModelCatalogPage } from "@/pages/model-catalog"
-
-import { GlobalUsagePage } from "@/pages/observation/usage"
-import { DownstreamLogsPage, UpstreamLogsPage } from "@/pages/observation/logs"
-
-const ROUTES: Record<string, () => React.ReactElement> = {
+const ROUTES: Record<string, ComponentType> = {
   "/model-routes": ModelRoutesPage,
   "/transfer": TransferPage,
   "/": OverviewPage,
@@ -98,10 +102,10 @@ export function Routes() {
     if (!mayEnter(context, route)) return <Forbidden />
     const providerId = provider ? decodeURIComponent(provider[1]) : undefined
     const tab = provider?.[2]
-    return <ProvidersPage providerId={providerId} tab={tab === "operations" ? "routing" : tab === "endpoints" ? "settings" : tab ?? "credentials"} />
+    return <Suspense fallback={<LoadingRows />}><ProvidersPage providerId={providerId} tab={tab === "operations" ? "routing" : tab === "endpoints" ? "settings" : tab ?? "credentials"} /></Suspense>
   }
   const Match = ROUTES[route]
   if (!Match) return <NotFound />
   if (!mayEnter(context, route)) return <Forbidden />
-  return <Match />
+  return <Suspense fallback={<LoadingRows />}><Match /></Suspense>
 }
