@@ -87,7 +87,7 @@ impl BaseChannel for OpenCode {
                     "console_base_url",
                     ConfigKeyKind::String,
                     "Where the device login and the refresh talk; defaults to https://console.opencode.ai.",
-                ),
+                ).with_placeholder(config::DEFAULT_CONSOLE_BASE_URL),
                 ConfigKey::optional(
                     "headers",
                     ConfigKeyKind::HeaderList,

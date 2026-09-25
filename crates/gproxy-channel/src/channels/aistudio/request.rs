@@ -163,7 +163,7 @@ impl BaseChannel for Aistudio {
                     "base_url",
                     ConfigKeyKind::String,
                     "Gemini API origin; defaults to https://generativelanguage.googleapis.com. Provider column, not config JSON.",
-                ),
+                ).with_placeholder(super::config::DEFAULT_BASE_URL),
                 ConfigKey::optional(
                     "headers",
                     ConfigKeyKind::HeaderList,

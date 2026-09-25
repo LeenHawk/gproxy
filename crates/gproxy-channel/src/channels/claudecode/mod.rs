@@ -543,22 +543,22 @@ impl BaseChannel for Claudecode {
                     "base_url",
                     ConfigKeyKind::String,
                     "Anthropic API origin; defaults to https://api.anthropic.com. Provider column, not config JSON.",
-                ),
+                ).with_placeholder(DEFAULT_BASE_URL),
                 ConfigKey::optional(
                     "authorize_url",
                     ConfigKeyKind::String,
                     "OAuth authorization endpoint for the browser step.",
-                ),
+                ).with_placeholder(DEFAULT_AUTHORIZE_URL),
                 ConfigKey::optional(
                     "token_url",
                     ConfigKeyKind::String,
                     "OAuth token endpoint used by the code exchange and by refresh.",
-                ),
+                ).with_placeholder(DEFAULT_TOKEN_URL),
                 ConfigKey::optional(
                     "claude_ai_url",
                     ConfigKeyKind::String,
                     "The claude.ai origin the cookie login talks to.",
-                ),
+                ).with_placeholder(DEFAULT_CLAUDE_AI_URL),
                 ConfigKey::optional(
                     "headers",
                     ConfigKeyKind::HeaderList,

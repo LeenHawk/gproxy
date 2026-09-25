@@ -123,7 +123,7 @@ impl BaseChannel for Claudeapi {
                     "base_url",
                     ConfigKeyKind::String,
                     "Anthropic API origin; defaults to https://api.anthropic.com. Provider column, not config JSON.",
-                ),
+                ).with_placeholder(super::config::DEFAULT_BASE_URL),
                 ConfigKey::optional(
                     "headers",
                     ConfigKeyKind::HeaderList,
@@ -148,7 +148,7 @@ impl BaseChannel for Claudeapi {
                     "quota_base_url",
                     ConfigKeyKind::String,
                     "Origin of the organization cost report when it differs from base_url.",
-                ),
+                ).with_placeholder(super::config::QUOTA_DEFAULT_BASE_URL),
             ]
             .into_iter()
             .chain(HOST_CONFIG_KEYS)

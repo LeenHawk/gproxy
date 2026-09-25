@@ -34,7 +34,7 @@ impl BaseChannel for Azure {
                     "base_url",
                     ConfigKeyKind::String,
                     "Complete origin of the Azure endpoint, for a Foundry project, a private endpoint or an API Management front door. Provider column, not config JSON. Replaces `resource`.",
-                ),
+                ).with_placeholder("https://{resource}.openai.azure.com"),
                 ConfigKey::optional(
                     "resource",
                     ConfigKeyKind::String,

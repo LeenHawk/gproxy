@@ -60,7 +60,7 @@ impl BaseChannel for OpenRouter {
                     "base_url",
                     ConfigKeyKind::String,
                     "Upstream origin; defaults to https://openrouter.ai/api. Provider column, not config JSON.",
-                ),
+                ).with_placeholder(config::DEFAULT_BASE_URL),
                 ConfigKey::optional(
                     "referer",
                     ConfigKeyKind::String,

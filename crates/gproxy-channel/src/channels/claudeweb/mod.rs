@@ -212,7 +212,7 @@ impl BaseChannel for ClaudeWeb {
                     "base_url",
                     ConfigKeyKind::String,
                     "claude.ai origin; defaults to https://claude.ai. Provider column, not config JSON.",
-                ),
+                ).with_placeholder(auth::DEFAULT_BASE_URL),
                 ConfigKey::optional(
                     "prompt",
                     ConfigKeyKind::String,

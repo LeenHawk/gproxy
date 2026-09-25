@@ -82,9 +82,16 @@ pub struct ConfigKey {
     /// channel default.
     pub required: bool,
     pub description: &'static str,
+    /// Display-only default or URL template; never written into config by the UI.
+    pub placeholder: Option<&'static str>,
 }
 
 impl ConfigKey {
+    pub const fn with_placeholder(mut self, placeholder: &'static str) -> Self {
+        self.placeholder = Some(placeholder);
+        self
+    }
+
     pub const fn required(
         name: &'static str,
         kind: ConfigKeyKind,
@@ -95,6 +102,7 @@ impl ConfigKey {
             kind,
             required: true,
             description,
+            placeholder: None,
         }
     }
     pub const fn optional(
@@ -107,6 +115,7 @@ impl ConfigKey {
             kind,
             required: false,
             description,
+            placeholder: None,
         }
     }
 }

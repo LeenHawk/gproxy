@@ -322,7 +322,7 @@ impl BaseChannel for WorkBuddy {
                     "base_url",
                     ConfigKeyKind::String,
                     "Upstream origin; defaults to https://copilot.tencent.com. Provider column, not config JSON.",
-                ),
+                ).with_placeholder(config::DEFAULT_BASE_URL),
                 ConfigKey::optional(
                     "ide_version",
                     ConfigKeyKind::String,

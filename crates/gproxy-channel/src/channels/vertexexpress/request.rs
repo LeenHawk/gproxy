@@ -28,7 +28,7 @@ impl BaseChannel for VertexExpress {
                 "base_url",
                 ConfigKeyKind::String,
                 "Complete origin, replacing https://aiplatform.googleapis.com. Provider column, not config JSON. Express mode has no project and no region to configure.",
-            )]
+            ).with_placeholder(endpoint::DEFAULT_ORIGIN)]
             .into_iter()
             .chain(HOST_CONFIG_KEYS)
             .collect(),

@@ -365,10 +365,12 @@ export function ConfigControl({
   field,
   value,
   onChange,
+  placeholder = field.placeholder ?? undefined,
 }: {
   id: string
   field: ConfigKey
   value: unknown
+  placeholder?: string
   onChange: (value: unknown) => void
 }) {
   if (field.name === "prompt")
@@ -412,6 +414,7 @@ export function ConfigControl({
       return (
         <Input
           id={id}
+          placeholder={placeholder}
           type="number"
           min="0"
           step="1"
@@ -424,6 +427,7 @@ export function ConfigControl({
       return (
         <Input
           id={id}
+          placeholder={placeholder}
           type={controlFor(field) === "password" ? "password" : "text"}
           autoComplete="off"
           required={field.required}

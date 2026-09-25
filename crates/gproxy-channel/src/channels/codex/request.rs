@@ -478,17 +478,17 @@ impl BaseChannel for Codex {
                     "base_url",
                     ConfigKeyKind::String,
                     "Codex backend origin and prefix; defaults to https://chatgpt.com/backend-api/codex. Provider column, not config JSON.",
-                ),
+                ).with_placeholder(super::config::DEFAULT_BASE_URL),
                 ConfigKey::optional(
                     "issuer",
                     ConfigKeyKind::String,
                     "OAuth issuer used for login and refresh; defaults to https://auth.openai.com.",
-                ),
+                ).with_placeholder(super::config::DEFAULT_ISSUER),
                 ConfigKey::optional(
                     "originator",
                     ConfigKeyKind::String,
                     "The `originator` the backend sees; defaults to codex_cli_rs.",
-                ),
+                ).with_placeholder(super::config::DEFAULT_ORIGINATOR),
                 ConfigKey::optional(
                     "headers",
                     ConfigKeyKind::HeaderList,

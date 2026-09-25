@@ -196,7 +196,7 @@ impl BaseChannel for OpenAi {
                     "base_url",
                     ConfigKeyKind::String,
                     "OpenAI API origin; defaults to https://api.openai.com. Provider column, not config JSON.",
-                ),
+                ).with_placeholder(super::config::DEFAULT_BASE_URL),
                 ConfigKey::optional(
                     "headers",
                     ConfigKeyKind::HeaderList,
@@ -211,7 +211,7 @@ impl BaseChannel for OpenAi {
                     "quota_base_url",
                     ConfigKeyKind::String,
                     "Origin of the organization cost report when it differs from base_url.",
-                ),
+                ).with_placeholder(super::config::QUOTA_DEFAULT_BASE_URL),
             ]
             .into_iter()
             .chain(HOST_CONFIG_KEYS)
