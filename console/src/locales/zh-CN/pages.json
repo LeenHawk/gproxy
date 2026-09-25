@@ -456,7 +456,7 @@
   },
   "modelUI": {
     "invalidVariants": "变体名称不能重复或为空，也不能包含通配符。",
-    "defaultPrices": "导入默认价格",
+    "defaultMetadata": "导入默认元数据",
     "testOk": "测试成功",
     "refresh": "刷新",
     "selectAll": "全选搜索结果",

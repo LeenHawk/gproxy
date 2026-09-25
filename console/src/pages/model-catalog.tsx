@@ -1,4 +1,4 @@
-import { matchingModel, providersByModel } from "@/lib/model-catalog"
+import { defaultMetadata, matchingModel, providersByModel } from "@/lib/model-catalog"
 import { usePagination } from "@/lib/use-pagination"
 import { useMemo, useState } from "react"
 import { BadgeDollarSign, Info, Pencil, Plus, Search } from "lucide-react"
@@ -24,11 +24,6 @@ import { ModelPricingDialog } from "@/pages/providers/model-pricing"
 
 type Row = { name: string; metadata: Record<string, unknown>; providers?: ProviderDto[]; defaults?: DefaultModelDto; local?: ModelDto }
 const metadataFields = ["display_name", "description", "context_window", "max_output_tokens", "input_modalities", "output_modalities", "supported_parameters"] as const
-function defaultMetadata(model: DefaultModelDto) {
-  const metadata: Record<string, unknown> = { ...model }
-  for (const key of ["modelId", "pricing", "displayName", "contextWindow", "maxOutputTokens"]) delete metadata[key]
-  return { ...metadata, display_name: model.displayName, context_window: model.contextWindow, max_output_tokens: model.maxOutputTokens }
-}
 const strings = (value: unknown) => Array.isArray(value) ? value.join(", ") : "—"
 
 function ReferencePrice({ model }: { model?: DefaultModelDto }) {
