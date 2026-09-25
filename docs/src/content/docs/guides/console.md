@@ -54,9 +54,11 @@ are restricted to the current administrative scope. Tenant directories expose
 provider labels and supported actions, not gateway configuration.
 
 Editing a credential opens one panel with **Basic settings**, **Local limits**
-and **Upstream allowance** tabs. The credential row also opens Local limits
-directly. Secret reveal, refresh, lifecycle status, health reset and model tests
-are in **More actions**. Upstream readings are presented as amounts and reset
+and **Upstream allowance** tabs. The credential row offers Local limits, a
+compact model test dialog, and deletion. Secret
+reveal and refresh sit below the secret field in Basic settings; lifecycle
+status and health reset sit in the status area. The test dialog loads available
+models and shows the result, latency, and reply. Upstream readings are presented as amounts and reset
 times; generation tests make a real upstream request.
 
 **Add by signing in** offers the channel's supported methods:

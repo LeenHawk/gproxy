@@ -771,15 +771,7 @@
     "noObservation": "尚未获取上游额度",
     "unlimited": "不限",
     "blockedUntil": "暂不可用，解除时间：{{at}}",
-    "more": "更多操作",
     "changeStatus": "修改凭证状态",
-    "maintenance": {
-      "secret": "凭证密钥",
-      "status": "凭证状态",
-      "health": "重置健康状态",
-      "delete": "删除凭证",
-      "test": "测试凭证"
-    },
     "resetOutcome": {
       "ineligible": "所选重置已不符合使用条件。",
       "unavailable": "这项重置当前不可用。",
