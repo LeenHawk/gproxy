@@ -240,6 +240,7 @@ impl QuotaReset for Claudecode {
             // Weekly eligibility and account grants are different offers, not
             // one interchangeable balance. Keep their counts on each option.
             Ok(QuotaResetCredits {
+                credit_expirations_ms: Vec::new(),
                 available_count: None,
                 expires_at_ms: None,
                 options,
