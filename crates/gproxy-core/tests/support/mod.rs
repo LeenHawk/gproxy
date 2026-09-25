@@ -157,6 +157,8 @@ pub struct TestChannel {
     pub refreshes: Mutex<VecDeque<RefreshReply>>,
     pub refresh_calls: Mutex<Vec<(String, i64)>>,
     pub quota_snapshots: Mutex<VecDeque<QuotaSnapshot>>,
+    pub quota_errors: Mutex<VecDeque<ChannelError>>,
+    pub quota_versions: Mutex<Vec<i64>>,
     /// When set, the channel exposes `ChannelServices`; off by default so the
     /// "channel without services" path is the one most tests see.
     pub expose_services: AtomicBool,
@@ -503,7 +505,11 @@ impl ChannelServices for TestChannel {
     }
 }
 impl QuotaQuery for TestChannel {
-    fn query<'a>(&'a self, _: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+    fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
+        self.quota_versions.lock().unwrap().push(context.credential.version);
+        if let Some(error) = self.quota_errors.lock().unwrap().pop_front() {
+            return Box::pin(async move { Err(error) });
+        }
         let reply = self
             .quota_snapshots
             .lock()

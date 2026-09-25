@@ -25,11 +25,11 @@ use gproxy_protocol::{Operation, OperationKey, capability::CapabilityFuture};
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::{
     Store,
-    entity::limits::credential_quota_cycle,
+    entity::limits::{credential_quota_cycle, credential_block},
     operations::counted::{CountedCharge, CountedOutcome},
 };
 use rust_decimal::Decimal;
-use sea_orm::Set;
+use sea_orm::{Set, EntityTrait, ColumnTrait, QueryFilter};
 use std::sync::Arc;
 use time::{Duration as TimeDuration, OffsetDateTime};
 
@@ -339,7 +339,123 @@ impl<C: BatchConnectionTrait> Core<C> {
         &self,
         provider_id: &str,
         credential_id: &str,
-    ) -> CoreResult<QuotaSnapshot> {
+    ) -> CoreResult<QuotaSnapshot>
+    where
+        C: Send,
+    {
+        let queried_at_ms = now_ms();
+        let (credential, mut observed) = self
+            .quota_operation(provider_id, credential_id, |provider, context| {
+                Box::pin(async move {
+                    provider
+                        .channel
+                        .quota_query()
+                        .ok_or(ChannelError::UnsupportedService)?
+                        .query(context)
+                        .await
+                })
+            })
+            .await?;
+        observed.observed_at_ms = now_ms();
+        self.observe_quota(&credential, &observed.entries, observed.observed_at_ms)
+            .await?;
+        self.clear_recovered_quota_blocks(&credential, &observed.entries, queried_at_ms)
+            .await?;
+        Ok(observed)
+    }
+
+    /// Only positive upstream readings can remove an older exhaustion block.
+    /// Other dimensions, local limits and blocks observed during the query stay.
+    async fn clear_recovered_quota_blocks(
+        &self,
+        credential: &CredentialData,
+        entries: &[QuotaEntry],
+        queried_at_ms: i64,
+    ) -> CoreResult<()> {
+        let recovered: Vec<_> = entries.iter().filter(|entry| {
+            !exhausted(&entry.value) && match &entry.value {
+                QuotaValue::Balance(balance) => balance.remaining.is_some_and(|r| r > Decimal::ZERO),
+                value => allowance(value).is_some_and(|a| a.unlimited == Some(true)
+                    || a.remaining.is_some_and(|r| r > Decimal::ZERO)
+                    || a.used_percent.is_some_and(|p| p < Decimal::ONE_HUNDRED)
+                    || matches!((a.used, a.limit), (Some(used), Some(limit)) if used < limit)),
+            }
+        }).filter_map(|entry| {
+            let dimension = credential.quota.iter().find(|d| d.id == entry.source_id)?;
+            let scope = match &dimension.scope { QuotaScope::Unknown => &entry.model_scope, scope => scope };
+            Some((entry.source_id.as_str(), scope.clone()))
+        }).collect();
+        if recovered.is_empty() {
+            return Ok(());
+        }
+        let rows = self
+            .store()
+            .credential_blocks()
+            .query(
+                credential_block::Entity::find()
+                    .filter(credential_block::Column::CredentialId.eq(&credential.id))
+                    .filter(credential_block::Column::ObservedAtMs.lte(queried_at_ms)),
+            )
+            .await?;
+        let ids: Vec<_> = rows
+            .into_iter()
+            .filter(|row| {
+                row.source["kind"] == "quota_exhausted"
+                    && recovered.iter().any(|(dimension, scope)| {
+                        row.source["dimension"] == *dimension
+                            && serde_json::from_value::<QuotaScope>(row.scope.clone())
+                                .ok()
+                                .as_ref()
+                                == Some(scope)
+                    })
+            })
+            .map(|row| row.id)
+            .collect();
+        if !ids.is_empty() {
+            self.store().credential_blocks().delete_many(&ids).await?;
+        }
+        let key = crate::keys::credential_blocks(&credential.provider_id, &credential.id);
+        loop {
+            let Some(cached) = self.cache().get(&key).await? else {
+                return Ok(());
+            };
+            let mut blocks: crate::CredentialBlocks = serde_json::from_slice(&cached.value)
+                .map_err(|e| CoreError::Rewrite(e.to_string()))?;
+            let before = blocks.blocks.len();
+            blocks.blocks.retain(|block| !(block.observed_at_ms <= queried_at_ms
+                && matches!(&block.source, BlockSource::QuotaExhausted { dimension, .. }
+                    if recovered.iter().any(|(id, scope)| *id == dimension && *scope == block.scope))));
+            if blocks.blocks.len() == before {
+                return Ok(());
+            }
+            let replacement = gproxy_cache::Replacement {
+                value: serde_json::to_vec(&blocks)
+                    .map_err(|e| CoreError::Rewrite(e.to_string()))?,
+                ttl: EMPTY_BLOCKS_CACHE_TTL,
+            };
+            if self
+                .cache()
+                .compare_exchange(&key, Some(cached.version), Some(replacement))
+                .await?
+                != gproxy_cache::CasOutcome::Conflict
+            {
+                return Ok(());
+            }
+        }
+    }
+
+    async fn quota_operation<T>(
+        &self,
+        provider_id: &str,
+        credential_id: &str,
+        invoke: impl for<'a> Fn(
+            &'a crate::ProviderData,
+            CredentialContext<'a>,
+        ) -> gproxy_channel::channel::OperationFuture<'a, T>,
+    ) -> CoreResult<(Arc<CredentialData>, T)>
+    where
+        C: Send,
+    {
         let snapshot = self.snapshot();
         let credential = snapshot
             .credentials
@@ -358,21 +474,37 @@ impl<C: BatchConnectionTrait> Core<C> {
             .ok_or_else(|| {
                 CoreError::InvalidTarget(format!("provider `{provider_id}` is not loaded"))
             })?;
-        let Some(query) = provider.channel.quota_query() else {
-            return Err(CoreError::Channel(ChannelError::UnsupportedService));
-        };
-        let version = credential.state.load();
-        let observed = query
-            .query(CredentialContext {
-                provider: crate::assemble::provider_view(&provider.entity),
-                credential: crate::execute::prepare::credential_view(&credential, &version),
-                client: credential.client.as_ref(),
-            })
-            .await
-            .map_err(CoreError::Channel)?;
-        self.observe_quota(&credential, &observed.entries, now_ms())
-            .await?;
-        Ok(observed)
+        let can_refresh = provider.channel.credential_refresh().is_some();
+        if can_refresh && crate::refresh::needs_refresh(&credential.state.load(), now_ms()) {
+            self.refresh_credential(provider_id, credential_id, crate::RefreshMode::IfNeeded)
+                .await?;
+        }
+        let mut retried = false;
+        loop {
+            let version = credential.state.load();
+            let result = invoke(
+                &provider,
+                CredentialContext {
+                    provider: crate::assemble::provider_view(&provider.entity),
+                    credential: crate::execute::prepare::credential_view(&credential, &version),
+                    client: credential.client.as_ref(),
+                },
+            )
+            .await;
+            // Imported credentials can have no expiry; allow one auth retry.
+            if can_refresh
+                && !retried
+                && matches!(&result, Err(ChannelError::UpstreamResponse { status, .. }) if *status == http::StatusCode::UNAUTHORIZED)
+            {
+                self.refresh_credential(provider_id, credential_id, crate::RefreshMode::Force)
+                    .await?;
+                retried = true;
+                continue;
+            }
+            return result
+                .map(|value| (credential, value))
+                .map_err(CoreError::Channel);
+        }
     }
 }
 
