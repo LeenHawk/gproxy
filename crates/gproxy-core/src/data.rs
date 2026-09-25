@@ -164,7 +164,7 @@ pub struct RewriteRuleData {
     pub entity: Arc<upstream::rewrite_rule::Model>,
     pub phase: RewritePhase,
     pub pattern: Regex,
-    pub set_value: Option<serde_json::Value>,
+    pub action: crate::rewrite::RuleAction,
     pub target: RewriteTarget,
     pub operation_keys: Option<HashSet<OperationKey>>,
     pub model_matcher: Option<Regex>,

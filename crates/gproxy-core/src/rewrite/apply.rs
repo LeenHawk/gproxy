@@ -1,7 +1,7 @@
 //! Apply selected rules to one head or one payload unit. Nothing here reads
 //! configuration or decodes a transport; callers hand in exactly one value.
 
-use super::{RewriteError, json_path::rewrite_at_paths};
+use super::{RewriteError, RuleAction, json_path::rewrite_at_paths};
 use crate::{RewriteRuleData, RewriteTarget};
 use http::{HeaderMap, HeaderValue};
 use std::{borrow::Cow, sync::Arc};
@@ -17,6 +17,47 @@ pub fn apply_headers(
         let RewriteTarget::Header { name } = &rule.target else {
             continue;
         };
+        match &rule.action {
+            RuleAction::HeaderSet(value) => {
+                changed_any |=
+                    headers.get_all(name).iter().count() != 1 || headers.get(name) != Some(value);
+                headers.insert(name.clone(), value.clone());
+                continue;
+            }
+            RuleAction::HeaderMerge(value) => {
+                let existing = headers
+                    .get_all(name)
+                    .iter()
+                    .map(|value| {
+                        value
+                            .to_str()
+                            .map_err(|_| RewriteError::NonTextHeader(name.to_string()))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let incoming = value
+                    .to_str()
+                    .map_err(|_| RewriteError::NonTextHeader(name.to_string()))?;
+                if !existing
+                    .iter()
+                    .flat_map(|value| value.split(','))
+                    .any(|token| token.trim() == incoming.trim())
+                {
+                    let merged = if existing.is_empty() {
+                        incoming.to_owned()
+                    } else {
+                        format!("{},{incoming}", existing.join(","))
+                    };
+                    headers.insert(
+                        name.clone(),
+                        HeaderValue::from_str(&merged)
+                            .map_err(|_| RewriteError::InvalidHeaderValue(name.to_string()))?,
+                    );
+                    changed_any = true;
+                }
+                continue;
+            }
+            _ => {}
+        }
         let mut values = Vec::new();
         let mut changed = false;
         for value in headers.get_all(name) {
@@ -117,6 +158,10 @@ pub fn apply_unit(
 ) -> Result<Option<String>, RewriteError> {
     let applicable: Vec<Arc<RewriteRuleData>> = rules
         .iter()
+        .filter(|rule| {
+            rule.action.dialect() != Some(gproxy_protocol::Dialect::OpenAiResponsesWebSocket)
+                || event_type == Some("response.create")
+        })
         .filter(|rule| match &rule.event_matcher {
             None => true,
             Some(matcher) => event_type.is_some_and(|event| matcher.is_match(event)),
@@ -140,18 +185,29 @@ fn apply_text(rules: &[Arc<RewriteRuleData>], input: &str) -> Result<Option<Stri
         let RewriteTarget::Body { paths } = &rule.target else {
             continue;
         };
-        let next = if let Some(value) = &rule.set_value {
+        let next = if !matches!(rule.action, RuleAction::Replace) {
             let mut document: serde_json::Value = serde_json::from_str(&current)
                 .map_err(|error| RewriteError::InvalidJson(error.to_string()))?;
             let before = document.clone();
-            for path in paths.as_ref().expect("compiled set paths") {
-                set_json(&mut document, path, value)?;
-            }
-            if document == before {
-                None
-            } else {
-                Some(document.to_string())
-            }
+            let applied = match &rule.action {
+                RuleAction::Set(_) | RuleAction::Delete | RuleAction::Merge(_) => {
+                    for path in paths.as_ref().expect("compiled JSON paths") {
+                        super::json_edit::apply(&mut document, path, &rule.action)?;
+                    }
+                    true
+                }
+                RuleAction::SystemText(config) => super::content::system_text(
+                    &mut document,
+                    rule.action.dialect(),
+                    &config.text,
+                    config.position,
+                ),
+                RuleAction::CacheBreakpoint(config) => {
+                    super::cache::apply(&mut document, rule.action.dialect(), config)
+                }
+                _ => unreachable!("compiled body action"),
+            };
+            (applied && document != before).then(|| document.to_string())
         } else {
             match paths {
                 None => match rule
@@ -176,65 +232,4 @@ fn apply_text(rules: &[Arc<RewriteRuleData>], input: &str) -> Result<Option<Stri
         }
     }
     Ok(changed.then(|| current.into_owned()))
-}
-
-fn set_json(
-    current: &mut serde_json::Value,
-    path: &[crate::PathSegment],
-    value: &serde_json::Value,
-) -> Result<(), RewriteError> {
-    use crate::PathSegment;
-    use serde_json::{Value, json};
-    let Some((segment, rest)) = path.split_first() else {
-        *current = value.clone();
-        return Ok(());
-    };
-    if current.is_null() {
-        *current = match segment {
-            PathSegment::Index(_) => json!([]),
-            _ => json!({}),
-        };
-    }
-    match segment {
-        PathSegment::Key(key) => {
-            let object = current
-                .as_object_mut()
-                .ok_or_else(|| RewriteError::InvalidJson(format!("expected object at {key}")))?;
-            set_json(
-                object.entry(key.clone()).or_insert(Value::Null),
-                rest,
-                value,
-            )
-        }
-        PathSegment::Index(index) => {
-            let array = current
-                .as_array_mut()
-                .ok_or_else(|| RewriteError::InvalidJson("expected array".into()))?;
-            if *index > array.len() {
-                return Err(RewriteError::InvalidJson(
-                    "array index out of bounds".into(),
-                ));
-            }
-            if *index == array.len() {
-                array.push(Value::Null);
-            }
-            set_json(&mut array[*index], rest, value)
-        }
-        PathSegment::Wildcard => {
-            match current {
-                Value::Array(items) => {
-                    for item in items {
-                        set_json(item, rest, value)?;
-                    }
-                }
-                Value::Object(items) => {
-                    for item in items.values_mut() {
-                        set_json(item, rest, value)?;
-                    }
-                }
-                _ => {}
-            }
-            Ok(())
-        }
-    }
 }

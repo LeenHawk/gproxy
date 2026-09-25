@@ -49,6 +49,17 @@ where
     fn select(&self, query: &ListQuery) -> Select<Self::Entity>;
     /// A validated new row with its primary key set, and that key.
     async fn build(&self, write: Self::Write) -> SdkResult<(ActiveOf<Self, C>, String)>;
+    /// Extra owned rows can be created atomically with the parent, including batches.
+    fn create_statements(&self, model: ActiveOf<Self, C>) -> SdkResult<Vec<BatchStatement>> {
+        Ok(vec![BatchStatement::Execute(
+            self.repository().insert_statement(model)?,
+        )])
+    }
+    async fn delete_statements(&self, id: &str) -> SdkResult<Vec<BatchStatement>> {
+        Ok(vec![BatchStatement::Execute(
+            self.repository().delete_statement(id.to_owned()),
+        )])
+    }
     /// A validated patch of `current`, with the primary key set.
     async fn change(
         &self,
@@ -101,15 +112,9 @@ where
     S: Shape<C>,
 {
     let (model, id) = shape.build(write).await?;
-    let statement = shape.repository().insert_statement(model)?;
+    let statements = shape.create_statements(model)?;
     let scopes = shape.scopes();
-    commit_one::<C, S>(
-        shape,
-        vec![BatchStatement::Execute(statement)],
-        &id,
-        &scopes,
-    )
-    .await
+    commit_one::<C, S>(shape, statements, &id, &scopes).await
 }
 
 pub(crate) async fn update<C, S>(shape: &S, id: &str, patch: S::Patch) -> SdkResult<S::Dto>
@@ -138,11 +143,8 @@ where
     S: Shape<C>,
 {
     row::<C, S>(shape, id).await?;
-    let statement = shape.repository().delete_statement(id.to_owned());
-    shape
-        .writer()
-        .commit(vec![BatchStatement::Execute(statement)], &shape.scopes())
-        .await?;
+    let statements = shape.delete_statements(id).await?;
+    shape.writer().commit(statements, &shape.scopes()).await?;
     Ok(())
 }
 
@@ -168,7 +170,7 @@ where
         match item {
             BatchItem::Create(write) => {
                 let (model, id) = shape.build(write).await?;
-                statements.push(BatchStatement::Execute(repository.insert_statement(model)?));
+                statements.extend(shape.create_statements(model)?);
                 reads.push(Some(id));
             }
             BatchItem::Update(step) => {
@@ -183,9 +185,7 @@ where
             }
             BatchItem::Delete(id) => {
                 row::<C, S>(shape, &id).await?;
-                statements.push(BatchStatement::Execute(
-                    repository.delete_statement(id.clone()),
-                ));
+                statements.extend(shape.delete_statements(&id).await?);
                 reads.push(None);
             }
         }

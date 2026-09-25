@@ -32,7 +32,7 @@ const PHASES: [&str; 3] = ["request", "response", "both"];
 const TARGETS: [&str; 3] = ["body", "header", "query"];
 
 pub struct Rewrite<'a, C> {
-    writer: Writer<'a, C>,
+    pub(super) writer: Writer<'a, C>,
 }
 
 impl<'a, C> Rewrite<'a, C> {
@@ -117,6 +117,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Rewrite<'_, C> {
 /// Core's compiler is the authority on what a rule may say: phase and target
 /// combinations, header names, JSON paths, the regexes and every filter.
 fn validate_rule(model: &rewrite_rule::Model) -> SdkResult<()> {
+    if model.action == "replace" {
+        crud::text(&model.pattern, "pattern")?;
+    }
     gproxy_core::rewrite::compile_rule(Arc::new(model.clone()))
         .map(|_| ())
         .map_err(|error| SdkError::invalid(format!("rewrite rule is not usable: {error}")))
@@ -142,15 +145,21 @@ fn rule_model(
             PHASES.join(", ")
         )));
     }
+    let action = write.action.unwrap_or_else(|| "replace".into());
+    let pattern = if action == "replace" {
+        crud::text(&write.pattern, "pattern")?
+    } else {
+        write.pattern
+    };
     Ok(rewrite_rule::Model {
         id: crud::id_or_new(write.id.as_deref()),
         rule_set_id: rule_set_id.to_owned(),
         phase,
-        action: write.action.unwrap_or_else(|| "replace".into()),
+        action,
         target,
         target_name: crud::optional_text(write.target_name),
         paths: write.paths,
-        pattern: crud::text(&write.pattern, "pattern")?,
+        pattern,
         replacement: write.replacement,
         filter_operation_keys: write.filter_operation_keys,
         filter_model_pattern: crud::optional_text(write.filter_model_pattern),
@@ -401,7 +410,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for RewriteRules<
             merged.paths = paths;
         }
         if let Some(pattern) = patch.pattern {
-            merged.pattern = crud::text(&pattern, "pattern")?;
+            merged.pattern = if merged.action == "replace" {
+                crud::text(&pattern, "pattern")?
+            } else {
+                pattern
+            };
         }
         if let Some(replacement) = patch.replacement {
             merged.replacement = replacement;

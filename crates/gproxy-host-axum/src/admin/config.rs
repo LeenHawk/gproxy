@@ -180,6 +180,10 @@ where
         RuleSetPatch,
         "rule-sets"
     )
+    .route(
+        "/providers/{id}/default-rule-set",
+        post(default_rule_set::<C>),
+    )
     .route("/rule-sets/{id}/rules", put(replace_rules::<C>))
     .route(
         "/rule-sets/{id}/rule-presets/{preset}",
@@ -592,6 +596,22 @@ where
 
 /// The whole set at once, which is why it is a `PUT`: an editor saves a list,
 /// and a half-applied reorder is a rule set nobody wrote.
+async fn default_rule_set<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Path(id): Path<String>,
+) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    crate::send(async move {
+        gate!("providers", scope);
+        gate!("provider-rule-sets", scope);
+        manage!(state, scope, "rule-sets", rewrite().ensure_default_set(&id))
+    })
+    .await
+}
+
 async fn replace_rules<C>(
     State(state): State<HostState<C>>,
     Extension(scope): Extension<AdminScope>,

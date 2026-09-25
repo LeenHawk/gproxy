@@ -1,7 +1,9 @@
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
-import { bindings, ruleSetDirectory, endpoints, effectiveRouting, saveRoutingMapping, resetRoutingMapping, applyDefaultRouting } from "@/api/routing-rules"
+import { bindings, providerDefaultSetId, ruleSetDirectory, endpoints, effectiveRouting, saveRoutingMapping, resetRoutingMapping, applyDefaultRouting } from "@/api/routing-rules"
+import { directory } from "@/api/models"
+import { RulesEditor } from "@/pages/rules/editor"
 import { CollectionPage } from "@/pages/identity/collection"
 import { BoolCell } from "@/components/cells"
 import { Switch } from "@/components/ui/switch"
@@ -17,16 +19,26 @@ import { operationChoices } from "@/pages/providers/operation-options"
 import { dialects } from "@/pages/providers/config-schema"
 import { RoutingRuleDialog } from "@/pages/providers/routing-rule-dialog"
 
-export function ProviderRules({ providerId }: { providerId: string }) {
+export function ProviderRules({ providerId, providerName }: { providerId: string; providerName: string }) {
   const { t } = useTranslation()
   const sets = useQuery({ queryKey: ["admin", "/rule-sets", "directory"], queryFn: ruleSetDirectory })
-  return <QueryState isPending={sets.isPending} error={sets.error}>
-    <CollectionPage embedded id="provider-rule-sets" createLabel={t("rules.attach")} family={bindings} filter={{ providerId }} create={(body) => bindings.create({ ...body, providerId })} rowId={(r) => r.id} rowLabel={(r) => sets.data?.find((s) => s.id === r.ruleSetId)?.name ?? r.ruleSetId}
-      columns={[{ key: "ruleSetId", cell: (r) => sets.data?.find((s) => s.id === r.ruleSetId)?.name ?? r.ruleSetId }, { key: "sortOrder", cell: (r) => r.sortOrder }, { key: "enabled", cell: (r) => <BoolCell value={r.enabled} /> }]}
-      fields={[{ name: "ruleSetId", kind: "select", required: true, createOnly: true, choices: sets.data?.map((s) => ({ value: s.id, label: s.name })) ?? [] }, { name: "sortOrder", kind: "number" }, { name: "enabled", kind: "switch" }]}
-    />
+  const attached = useQuery({ queryKey: ["admin", "/provider-rule-sets", "directory"], queryFn: () => directory(bindings) })
+  const rows = (attached.data ?? []).filter(binding => binding.providerId === providerId).sort((a, b) => a.sortOrder - b.sortOrder || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  return <QueryState isPending={sets.isPending || attached.isPending} error={sets.error ?? attached.error}>
+    <div className="flex flex-col gap-6">
+      <RulesEditor key={providerId} sets={rows.flatMap(binding => sets.data?.find(set => set.id === binding.ruleSetId) ?? [])} availableSets={sets.data ?? []} attachments={attached.data ?? []} providerId={providerId} providerName={providerName} defaultSetId={providerDefaultSetId(providerId)} />
+      <details><summary className="cursor-pointer text-sm text-muted-foreground">{t("rules.advancedBindings")}</summary>
+        <div className="mt-4">
+          <CollectionPage embedded id="provider-rule-sets" createLabel={t("rules.attach")} family={bindings} filter={{ providerId }} create={(body) => bindings.create({ ...body, providerId })} rowId={(r) => r.id} rowLabel={(r) => sets.data?.find((s) => s.id === r.ruleSetId)?.name ?? r.ruleSetId}
+            columns={[{ key: "ruleSetId", cell: (r) => sets.data?.find((s) => s.id === r.ruleSetId)?.name ?? r.ruleSetId }, { key: "sortOrder", cell: (r) => r.sortOrder }, { key: "enabled", cell: (r) => <BoolCell value={r.enabled} /> }]}
+            fields={[{ name: "ruleSetId", kind: "select", required: true, createOnly: true, choices: sets.data?.map((s) => ({ value: s.id, label: s.name })) ?? [] }, { name: "sortOrder", kind: "number" }, { name: "enabled", kind: "switch" }]}
+          />
+        </div>
+      </details>
+    </div>
   </QueryState>
 }
+
 export function ProviderOperations({ providerId }: { providerId: string }) {
   const { t } = useTranslation()
   const client = useQueryClient()

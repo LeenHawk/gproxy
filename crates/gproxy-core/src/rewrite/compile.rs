@@ -88,21 +88,13 @@ pub fn compile_rule(
             }
         }
     };
-    let set_value = match entity.action.as_str() {
-        "replace" => None,
-        "set" => {
-            if !matches!(&target, RewriteTarget::Body { paths: Some(_) }) {
-                return Err(RewriteCompileError::InvalidAction(
-                    "set requires body paths".into(),
-                ));
-            }
-            Some(
-                serde_json::from_str(&entity.replacement)
-                    .map_err(|error| RewriteCompileError::InvalidAction(error.to_string()))?,
-            )
-        }
-        action => return Err(RewriteCompileError::InvalidAction(action.into())),
-    };
+    let action = super::action::compile(
+        &entity.action,
+        &entity.replacement,
+        &target,
+        phase,
+        entity.filter_event_pattern.is_some(),
+    )?;
     let pattern = Regex::new(&entity.pattern)
         .map_err(|error| RewriteCompileError::InvalidPattern(error.to_string()))?;
     let operation_keys = entity
@@ -135,7 +127,7 @@ pub fn compile_rule(
         entity,
         phase,
         pattern,
-        set_value,
+        action,
         target,
         operation_keys,
         model_matcher,
