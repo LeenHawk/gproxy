@@ -79,7 +79,7 @@ impl BaseChannel for Kimi {
                     "oauth_host",
                     ConfigKeyKind::String,
                     "Where the device login and refresh talk; defaults to https://auth.kimi.com.",
-                ),
+                ).with_placeholder(config::DEFAULT_OAUTH_HOST),
                 ConfigKey::optional(
                     "cli_version",
                     ConfigKeyKind::String,

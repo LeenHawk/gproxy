@@ -46,3 +46,15 @@ export function setConfigValue(config: ConfigObject, name: string, value: unknow
   else next[name] = value
   return next
 }
+
+/** Resolve only the address placeholders declared by the channel. Values stay unset. */
+export function configPlaceholder(field: ConfigKey | undefined, fields: readonly ConfigKey[], config: ConfigObject, baseUrl: string): string | undefined {
+  if (!field?.placeholder) return undefined
+  let placeholder = field.placeholder
+  if (placeholder === "https://{location}-aiplatform.googleapis.com" && config.location === "global") return "https://aiplatform.googleapis.com"
+  placeholder = placeholder.replace(/\{([a-z_]+)\}/g, (token, name: string) => {
+    const value = name === "base_url" ? baseUrl : config[name]
+    return (typeof value === "string" && value.trim()) || fields.find(candidate => candidate.name === name)?.placeholder || token
+  })
+  return placeholder
+}

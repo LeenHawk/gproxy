@@ -44,12 +44,12 @@ impl BaseChannel for Vertex {
                     "location",
                     ConfigKeyKind::String,
                     "Vertex region, for example us-central1, europe-west4 or global. Decides both the origin host and the method path; defaults to us-central1.",
-                ),
+                ).with_placeholder(super::config::DEFAULT_LOCATION),
                 ConfigKey::optional(
                     "base_url",
                     ConfigKeyKind::String,
                     "Complete origin, replacing the regional https://{location}-aiplatform.googleapis.com. Provider column, not config JSON.",
-                ),
+                ).with_placeholder("https://{location}-aiplatform.googleapis.com"),
             ]
             .into_iter()
             .chain(HOST_CONFIG_KEYS)

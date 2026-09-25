@@ -425,17 +425,17 @@ impl BaseChannel for GeminiCli {
                     "base_url",
                     ConfigKeyKind::String,
                     "Code Assist origin; defaults to https://cloudcode-pa.googleapis.com. Provider column, not config JSON.",
-                ),
+                ).with_placeholder(DEFAULT_BASE_URL),
                 ConfigKey::optional(
                     "authorize_url",
                     ConfigKeyKind::String,
                     "Google OAuth authorization endpoint for the browser step.",
-                ),
+                ).with_placeholder(DEFAULT_AUTHORIZE_URL),
                 ConfigKey::optional(
                     "token_url",
                     ConfigKeyKind::String,
                     "Google OAuth token endpoint used by the code exchange and by refresh.",
-                ),
+                ).with_placeholder(DEFAULT_TOKEN_URL),
                 ConfigKey::optional(
                     "headers",
                     ConfigKeyKind::HeaderList,

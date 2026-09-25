@@ -226,12 +226,12 @@ impl BaseChannel for AwsBedrock {
                     "base_url",
                     ConfigKeyKind::String,
                     "Origin replacing bedrock-runtime.{region}.amazonaws.com, for a VPC endpoint or a gateway. Provider column, not config JSON.",
-                ),
+                ).with_placeholder("https://bedrock-runtime.{region}.amazonaws.com"),
                 ConfigKey::optional(
                     "control_base_url",
                     ConfigKeyKind::String,
                     "Origin replacing bedrock.{region}.amazonaws.com, which serves the foundation-model directory.",
-                ),
+                ).with_placeholder("https://bedrock.{region}.amazonaws.com"),
                 ConfigKey::optional(
                     "anthropic_version",
                     ConfigKeyKind::String,

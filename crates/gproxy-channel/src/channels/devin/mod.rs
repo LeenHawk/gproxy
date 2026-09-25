@@ -534,7 +534,7 @@ impl BaseChannel for Devin {
                     "base_url",
                     ConfigKeyKind::String,
                     "Connect-RPC origin; defaults to https://server.codeium.com. Provider column, not config JSON.",
-                ),
+                ).with_placeholder(connect::DEFAULT_BASE_URL),
                 ConfigKey::optional(
                     "client_name",
                     ConfigKeyKind::String,

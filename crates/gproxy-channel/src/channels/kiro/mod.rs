@@ -590,22 +590,22 @@ impl BaseChannel for Kiro {
                     "base_url",
                     ConfigKeyKind::String,
                     "Runtime origin, replacing https://runtime.{region}.kiro.dev; also serves the management plane unless management_base_url names one. Provider column, not config JSON.",
-                ),
+                ).with_placeholder("https://runtime.{region}.kiro.dev"),
                 ConfigKey::optional(
                     "region",
                     ConfigKeyKind::String,
                     "Region for both Kiro planes and for the AWS OIDC host an Identity Center credential refreshes against; defaults to us-east-1.",
-                ),
+                ).with_placeholder(config::DEFAULT_REGION),
                 ConfigKey::optional(
                     "management_base_url",
                     ConfigKeyKind::String,
                     "Origin replacing https://management.{region}.kiro.dev, which serves the model catalogue and the usage limits.",
-                ),
+                ).with_placeholder("https://management.{region}.kiro.dev"),
                 ConfigKey::optional(
                     "auth_base_url",
                     ConfigKeyKind::String,
                     "The Kiro desktop auth host the device login and its refresh talk to.",
-                ),
+                ).with_placeholder(config::DEFAULT_AUTH_BASE_URL),
                 ConfigKey::optional(
                     "profile_arn",
                     ConfigKeyKind::String,
@@ -620,7 +620,7 @@ impl BaseChannel for Kiro {
                     "sso_start_url",
                     ConfigKeyKind::String,
                     "The Identity Center portal the authorization code is issued by; defaults to the Builder ID portal.",
-                ),
+                ).with_placeholder(config::DEFAULT_START_URL),
                 ConfigKey::optional(
                     "headers",
                     ConfigKeyKind::HeaderList,

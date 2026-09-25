@@ -93,7 +93,7 @@ impl BaseChannel for DashScope {
                     "base_url",
                     ConfigKeyKind::String,
                     "Upstream origin; defaults to https://dashscope.aliyuncs.com. The compatibility prefixes are appended by the channel. Provider column, not config JSON.",
-                ),
+                ).with_placeholder(config::DEFAULT_BASE_URL),
                 ConfigKey::optional(
                     "headers",
                     ConfigKeyKind::HeaderList,

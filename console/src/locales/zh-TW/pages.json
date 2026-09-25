@@ -252,6 +252,7 @@
     "preferred_max_latency": "最高延遲偏好"
   },
   "providerForm": {
+    "dynamicAddress": "依渠道設定或憑證自動選擇",
     "displayName": "顯示名稱",
     "routeName": "路由名稱",
     "default": "使用渠道預設值",

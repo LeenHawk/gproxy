@@ -59,7 +59,7 @@ impl BaseChannel for Xai {
                     "base_url",
                     ConfigKeyKind::String,
                     "Upstream origin; defaults to https://api.x.ai. Provider column, not config JSON.",
-                ),
+                ).with_placeholder(config::DEFAULT_BASE_URL),
                 ConfigKey::optional(
                     "headers",
                     ConfigKeyKind::HeaderList,
@@ -79,7 +79,7 @@ impl BaseChannel for Xai {
                     "quota_base_url",
                     ConfigKeyKind::String,
                     "Management origin; defaults to https://management-api.x.ai.",
-                ),
+                ).with_placeholder(config::DEFAULT_MANAGEMENT_URL),
             ]
             .into_iter()
             .chain(HOST_CONFIG_KEYS)

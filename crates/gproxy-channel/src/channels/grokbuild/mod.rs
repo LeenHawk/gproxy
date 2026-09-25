@@ -238,27 +238,27 @@ impl BaseChannel for GrokBuild {
                     "base_url",
                     ConfigKeyKind::String,
                     "Chat proxy origin; defaults to https://cli-chat-proxy.grok.com/v1. Provider column, not config JSON.",
-                ),
+                ).with_placeholder(config::DEFAULT_BASE_URL),
                 ConfigKey::optional(
                     "media_base_url",
                     ConfigKeyKind::String,
                     "Origin for xAI's own image, speech, transcription and video paths; defaults to https://api.x.ai/v1.",
-                ),
+                ).with_placeholder(config::DEFAULT_MEDIA_BASE_URL),
                 ConfigKey::optional(
                     "usage_base_url",
                     ConfigKeyKind::String,
                     "Origin the billing probe reads; defaults to the chat proxy, which is the only surface that answers it.",
-                ),
+                ).with_placeholder("{base_url}"),
                 ConfigKey::optional(
                     "oauth_device_code_url",
                     ConfigKeyKind::String,
                     "Device authorization endpoint; defaults to https://auth.x.ai/oauth2/device/code.",
-                ),
+                ).with_placeholder(config::DEFAULT_DEVICE_CODE_URL),
                 ConfigKey::optional(
                     "oauth_token_url",
                     ConfigKeyKind::String,
                     "Token endpoint used by the device poll and by refresh; defaults to https://auth.x.ai/oauth2/token.",
-                ),
+                ).with_placeholder(config::DEFAULT_TOKEN_URL),
                 ConfigKey::optional(
                     "headers",
                     ConfigKeyKind::HeaderList,

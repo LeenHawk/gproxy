@@ -20,7 +20,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ConfigControl } from "@/pages/providers/config-controls"
-import { controlFor, setConfigValue, type ConfigObject } from "@/pages/providers/config-schema"
+import { controlFor, setConfigValue, configPlaceholder, type ConfigObject } from "@/pages/providers/config-schema"
 
 export type ProviderFormProps = {
   catalog: Array<ChannelDescriptor>
@@ -107,7 +107,7 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
             type="url"
             required={descriptor?.configKeys.find((field) => field.name === "base_url")?.required}
             value={baseUrl}
-            placeholder={t("providerForm.default")}
+            placeholder={configPlaceholder(descriptor?.configKeys.find(field => field.name === "base_url"), descriptor?.configKeys ?? [], config, baseUrl) ?? (descriptor?.configKeys.find(field => field.name === "base_url")?.required ? undefined : t("providerForm.dynamicAddress"))}
             onChange={(e) => setBaseUrl(e.target.value)}
           />
         </Field>
@@ -168,6 +168,7 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
             <ConfigControl
               id={`${id}-${field.name}`}
               field={field}
+              placeholder={configPlaceholder(field, descriptor?.configKeys ?? [], config, baseUrl)}
               value={field.name === "session_affinity"
                 ? config.session_affinity ?? ["sticky", "round_robin_affinity"].includes(String(config.credential_strategy))
                 : config[field.name]}
