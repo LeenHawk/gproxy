@@ -345,15 +345,8 @@ fn providers(
     let mut strip = BTreeMap::new();
     let mut dropped = BTreeSet::new();
     for row in &data.providers {
-        // v3 had a `name` and a display `label`; v4 has one name, and the
-        // label is the one a person chose.
-        let name = row
-            .label
-            .as_deref()
-            .map(str::trim)
-            .filter(|label| !label.is_empty())
-            .unwrap_or(row.name.as_str())
-            .to_owned();
+        // Preserve the invocation name separately from the display label.
+        let name = row.name.clone();
         // The channel is a rule, not a rename: see [`super::channels`].
         let translated = match channels::provider(
             &row.channel,
@@ -392,6 +385,7 @@ fn providers(
         rows.push(ProviderDto {
             id: ids::id("providers", row.id),
             name,
+            display_name: row.label.clone(),
             channel: translated.channel,
             base_url: translated.base_url,
             connection_profile_id: None,
@@ -1126,7 +1120,8 @@ mod tests {
         }]}));
         let provider = &out.export.data.providers[0];
         assert_eq!(provider.id, "v3-providers-3");
-        assert_eq!(provider.name, "Anthropic (prod)");
+        assert_eq!(provider.name, "anthropic");
+        assert_eq!(provider.display_name.as_deref(), Some("Anthropic (prod)"));
         assert_eq!(provider.channel, "claudeapi");
         assert_eq!(
             provider.base_url.as_deref(),

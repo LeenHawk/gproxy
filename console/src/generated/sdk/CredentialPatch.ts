@@ -4,7 +4,7 @@
  * Lifecycle status is not here: it is versioned against concurrent refreshes
  * and changes through `Credentials::set_status`.
  */
-export type CredentialPatch = { label: string | null | null, authKind: string | null, 
+export type CredentialPatch = { label: string | null | null,
 /**
  * Resealed and version-bumped; peers then reload this credential alone.
  */

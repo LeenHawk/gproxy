@@ -222,6 +222,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedCredentials<'_, C> {
                 rows.push(crate::dto::CredentialProviderDto {
                     id: provider.id,
                     name: provider.name,
+                    display_name: provider.display_name,
                     channel: provider.channel,
                     enabled: provider.enabled,
                     login_modes: descriptor

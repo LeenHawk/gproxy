@@ -8,7 +8,7 @@ import type { CredentialProviderDto } from "@/generated/app"
 import type { QuotaSnapshotDto } from "@/generated/sdk"
 
 vi.mock("@/api/credentials", () => ({ credentialQuota: vi.fn(), probeQuota: vi.fn(), quotaResetCredits: vi.fn(), resetUpstreamQuota: vi.fn() }))
-const provider: CredentialProviderDto = { id: "p", name: "Codex", channel: "codex", enabled: true, loginModes: [], capabilities: { refresh: true, quotaQuery: true, quotaReset: true, services: true, websocket: true } }
+const provider: CredentialProviderDto = { displayName: null, id: "p", name: "Codex", channel: "codex", enabled: true, loginModes: [], capabilities: { refresh: true, quotaQuery: true, quotaReset: true, services: true, websocket: true } }
 const snapshot: QuotaSnapshotDto = { observedAtMs: 1_790_330_400_000, entries: [
   { id: "codex_primary", sourceId: "codex_primary", label: null, kind: "window", breakdown: null, subject: "account", modelScope: "all", balance: null, allowance: { used: "96", limit: "100", remaining: "4", usedPercent: "96", unlimited: null, unit: "percent", periodStartMs: 1_789_807_204_000, periodEndMs: 1_790_412_004_000, resetBehavior: "periodic" } },
   { id: "codex_credits", sourceId: "codex_credits", label: "credits", kind: "balance", breakdown: null, subject: "account", modelScope: "all", allowance: null, balance: { remaining: "0", unit: "credits" } },

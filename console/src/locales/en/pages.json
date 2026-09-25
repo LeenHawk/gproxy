@@ -252,6 +252,8 @@
     "preferred_max_latency": "Preferred maximum latency"
   },
   "providerForm": {
+    "displayName": "Display name",
+    "routeName": "Route name",
     "default": "Channel default",
     "connection": "HTTP client configuration",
     "item": "Item {{index}}",

@@ -937,6 +937,7 @@ mod rows {
         Ok(provider::ActiveModel {
             id: Set(dto.id.clone()),
             name: Set(crud::text(&dto.name, "name")?),
+            display_name: Set(crud::optional_text(dto.display_name.clone())),
             channel: Set(crud::text(&dto.channel, "channel")?),
             base_url: Set(dto.base_url.clone()),
             connection_profile_id: Set(dto.connection_profile_id.clone()),

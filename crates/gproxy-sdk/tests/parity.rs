@@ -213,6 +213,9 @@ async fn credential(
 async fn an_export_moves_a_configuration_between_two_master_keys() {
     let source = instance(Some([1u8; 32]), false).await;
     let provider = provider(&source, "upstream").await;
+    source.manage().providers().update(&provider.id, gproxy_sdk::dto::ProviderPatch {
+        display_name: Some(Some("Friendly provider".into())), ..Default::default()
+    }).await.unwrap();
     let credential_id = credential(&source, &provider.id, "source-key").await;
     source
         .manage()
@@ -266,6 +269,7 @@ async fn an_export_moves_a_configuration_between_two_master_keys() {
         .await
         .unwrap();
     assert_eq!(landed.name, "upstream");
+    assert_eq!(landed.display_name.as_deref(), Some("Friendly provider"));
     assert_eq!(landed.base_url.as_deref(), Some("https://upstream.example"));
     assert_eq!(
         destination

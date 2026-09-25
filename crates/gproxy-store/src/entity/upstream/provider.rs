@@ -10,7 +10,9 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: String,
     #[sea_orm(unique)]
+    /// Stable invocation prefix; independent from the optional UI label.
     pub name: String,
+    pub display_name: Option<String>,
     pub channel: String,
     #[sea_orm(column_type = "Text")]
     pub base_url: Option<String>,

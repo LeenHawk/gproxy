@@ -19,7 +19,7 @@ describe("default model matching", () => {
 })
 
 
-const provider = (id: string, name: string): ProviderDto => ({ id, name, channel: "codex", baseUrl: null, connectionProfileId: null, proxy: null, config: {}, enabled: true, createdAtMs: 0 })
+const provider = (id: string, name: string): ProviderDto => ({ id, name, displayName: null, channel: "codex", baseUrl: null, connectionProfileId: null, proxy: null, config: {}, enabled: true, createdAtMs: 0 })
 const binding = (id: string, providerId: string, upstreamName: string, modelId: string | null = null): ProviderModelDto => ({ id, providerId, upstreamName, modelId, metadata: {}, enabled: true })
 describe("catalog provider instances", () => {
   it("uses explicit model links and qualified names, listing each instance once", () => {

@@ -137,7 +137,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Providers<'_,
     fn select(&self, query: &ListQuery) -> Select<Self::Entity> {
         let mut select = provider::Entity::find();
         if let Some(search) = crud::optional_text(query.search.clone()) {
-            select = select.filter(provider::Column::Name.contains(&search));
+            select = select.filter(Condition::any().add(provider::Column::Name.contains(&search)).add(provider::Column::DisplayName.contains(&search)));
         }
         if let Some(enabled) = query.enabled {
             select = select.filter(provider::Column::Enabled.eq(enabled));
@@ -154,6 +154,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Providers<'_,
         let model = provider::ActiveModel {
             id: Set(id.clone()),
             name: Set(self.name(&write.name, None).await?),
+            display_name: Set(crud::optional_text(write.display_name)),
             channel: Set(self.channel(&write.channel)?),
             base_url: Set(base_url),
             connection_profile_id: Set(self.profile(write.connection_profile_id).await?),
@@ -177,8 +178,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Providers<'_,
         if let Some(name) = patch.name {
             model.name = Set(self.name(&name, Some(&current.id)).await?);
         }
-        if let Some(channel) = patch.channel {
-            model.channel = Set(self.channel(&channel)?);
+        if let Some(display_name) = patch.display_name {
+            model.display_name = Set(crud::optional_text(display_name));
         }
         if let Some(base_url) = patch.base_url {
             model.base_url = Set(match crud::optional_text(base_url) {

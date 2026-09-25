@@ -35,6 +35,7 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
   const { t } = useTranslation()
   const id = useId()
   const [name, setName] = useState(provider?.name ?? "")
+  const [displayName, setDisplayName] = useState(provider?.displayName ?? "")
   const [channel, setChannel] = useState(provider?.channel ?? catalog[0]?.id ?? "")
   const [baseUrl, setBaseUrl] = useState(provider?.baseUrl ?? "")
   const [profile, setProfile] = useState(provider?.connectionProfileId ?? "__default")
@@ -61,7 +62,8 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
     event.preventDefault()
     onSubmit({
       name: name.trim(),
-      channel,
+      displayName: displayName.trim() || null,
+      ...(provider ? {} : { channel }),
       baseUrl: baseUrl.trim() || null,
       connectionProfileId: profile === "__default" ? null : profile,
       proxy,
@@ -74,12 +76,16 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
       {error ? <ErrorNotice error={error} /> : null}
       <FieldGroup className="grid gap-5 sm:grid-cols-2">
         <Field>
-          <FieldLabel htmlFor={`${id}-name`}>{t("fields.name")}</FieldLabel>
+          <FieldLabel htmlFor={`${id}-name`}>{t("providerForm.routeName")}</FieldLabel>
           <Input id={`${id}-name`} required value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
         <Field>
+          <FieldLabel htmlFor={`${id}-display-name`}>{t("providerForm.displayName")}</FieldLabel>
+          <Input id={`${id}-display-name`} value={displayName} placeholder={name} onChange={event => setDisplayName(event.target.value)} />
+        </Field>
+        <Field>
           <FieldLabel htmlFor={`${id}-channel`}>{t("fields.channel")}</FieldLabel>
-          <Select value={channel} onValueChange={setChannel}>
+          <Select value={channel} onValueChange={setChannel} disabled={Boolean(provider)}>
             <SelectTrigger id={`${id}-channel`} className="w-full">
               <SelectValue />
             </SelectTrigger>

@@ -2,4 +2,4 @@
 import type { ChannelCapabilities } from "./ChannelCapabilities";
 import type { LoginMode } from "./LoginMode";
 
-export type CredentialProviderDto = { id: string, name: string, channel: string, enabled: boolean, loginModes: Array<LoginMode>, capabilities: ChannelCapabilities, };
+export type CredentialProviderDto = { id: string, name: string, displayName: string | null, channel: string, enabled: boolean, loginModes: Array<LoginMode>, capabilities: ChannelCapabilities, };

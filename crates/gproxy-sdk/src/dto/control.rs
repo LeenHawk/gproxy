@@ -13,7 +13,10 @@ use gproxy_store::entity::upstream::{credential, model, provider, provider_model
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ProviderDto {
     pub id: String,
+    /// Invocation URL prefix.
     pub name: String,
+    #[serde(default)]
+    pub display_name: Option<String>,
     /// The channel implementation this provider speaks through; must be one
     /// of `Gproxy::channels()`.
     pub channel: String,
@@ -39,6 +42,7 @@ impl From<provider::Model> for ProviderDto {
         Self {
             id: row.id,
             name: row.name,
+            display_name: row.display_name,
             channel: row.channel,
             base_url: row.base_url,
             connection_profile_id: row.connection_profile_id,
@@ -59,6 +63,8 @@ pub struct ProviderWrite {
     #[serde(default)]
     pub id: Option<String>,
     pub name: String,
+    #[serde(default)]
+    pub display_name: Option<String>,
     pub channel: String,
     #[serde(default)]
     pub base_url: Option<String>,
@@ -81,13 +87,13 @@ pub struct ProviderWrite {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct ProviderPatch {
     #[serde(default)]
     pub name: Option<String>,
-    #[serde(default)]
-    pub channel: Option<String>,
+    #[serde(default, deserialize_with = "double_option")]
+    pub display_name: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     pub base_url: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
@@ -217,13 +223,12 @@ pub struct CredentialWrite {
 /// and changes through `Credentials::set_status`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct CredentialPatch {
     #[serde(default, deserialize_with = "double_option")]
     pub label: Option<Option<String>>,
-    #[serde(default)]
-    pub auth_kind: Option<String>,
+
     /// Resealed and version-bumped; peers then reload this credential alone.
     #[serde(default)]
     #[cfg_attr(feature = "ts", ts(type = "unknown | null"))]
@@ -255,12 +260,11 @@ pub struct CredentialPatch {
 
 impl CredentialPatch {
     /// Whether this patch only touches material `CredentialData` re-reads on
-    /// its own. Everything else — label, auth kind, metadata, the connection
+    /// its own. Everything else — label, metadata, the connection
     /// profile, ownership — is frozen into the snapshot at assembly, so
     /// changing it needs a full reload rather than a credential re-read.
     pub(crate) fn state_only(&self) -> bool {
         self.label.is_none()
-            && self.auth_kind.is_none()
             && self.enabled.is_none()
             && self.metadata.is_none()
             && self.connection_profile_id.is_none()

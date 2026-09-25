@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 pub struct CredentialProviderDto {
     pub id: String,
     pub name: String,
+    pub display_name: Option<String>,
     pub channel: String,
     pub enabled: bool,
     pub login_modes: Vec<gproxy_sdk::LoginMode>,

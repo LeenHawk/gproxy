@@ -303,6 +303,7 @@ fn snapshot(rules: Vec<Arc<RewriteRuleData>>) -> (CoreData, ProviderData) {
         entity: Arc::new(provider::Model {
             id: "p".into(),
             name: "p".into(),
+            display_name: None,
             channel: "test".into(),
             base_url: None,
             connection_profile_id: None,
