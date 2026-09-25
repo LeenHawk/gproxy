@@ -33,7 +33,7 @@ pub use quota::{
     QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel, QuotaQuery, QuotaReset,
     QuotaResetBehavior, QuotaResetCredits, QuotaResetOption, QuotaResetOutcome, QuotaResetRequest,
     QuotaResetResult, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
-    QuotaWindow,
+    QuotaWindow, classify_by_id,
 };
 pub use registry::{ChannelRegistry, RegistryError};
 pub use service::{

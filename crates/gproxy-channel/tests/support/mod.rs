@@ -243,3 +243,75 @@ pub async fn quota<C: QuotaQuery>(
     let url = client.call(0).0;
     Ok((url, snapshot))
 }
+
+// ------------------------------------------------------- quota contract
+
+use gproxy_channel::channel::{QuotaDimension, QuotaEntry, QuotaModel, QuotaScope, classify_by_id};
+
+/// Response headers captured as `name: value` lines, as in `fixtures/quota`.
+pub fn header_fixture(text: &str) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    for line in text.lines().filter(|line| !line.trim().is_empty()) {
+        let (name, value) = line.split_once(':').expect("name: value");
+        headers.append(
+            http::header::HeaderName::from_bytes(name.trim().as_bytes()).unwrap(),
+            HeaderValue::from_str(value.trim()).unwrap(),
+        );
+    }
+    headers
+}
+
+/// The channel quota contract over real replies: every entry lands on a
+/// declared dimension under that dimension's id and scope, or is listed as
+/// observe-only (a trailing `*` matches a prefix). A new upstream window
+/// fails here instead of silently accruing no cost.
+pub fn assert_quota_contract(
+    model: Option<&dyn QuotaModel>,
+    declared: &[QuotaDimension],
+    entries: &[QuotaEntry],
+    observe_only: &[&str],
+) {
+    let listed = |id: &str| {
+        observe_only
+            .iter()
+            .any(|pattern| match pattern.strip_suffix('*') {
+                Some(prefix) => id.starts_with(prefix),
+                None => id == *pattern,
+            })
+    };
+    for dimension in declared {
+        assert!(
+            !listed(&dimension.id),
+            "declared `{}` is also listed as observe-only",
+            dimension.id
+        );
+    }
+    for entry in entries {
+        let placed = match model {
+            Some(model) => model.classify(declared, entry),
+            None => classify_by_id(declared, entry),
+        };
+        match placed {
+            Some(dimension) => {
+                assert_eq!(entry.id, dimension.id, "entry id is the dimension id");
+                assert_eq!(
+                    entry.source_id, dimension.id,
+                    "source id is the dimension id"
+                );
+                // An `Unknown` declaration defers to the entry's own scope.
+                if dimension.scope != QuotaScope::Unknown {
+                    assert_eq!(
+                        entry.model_scope, dimension.scope,
+                        "`{}` scope agrees with its declaration",
+                        entry.id
+                    );
+                }
+            }
+            None => assert!(
+                listed(&entry.id),
+                "`{}` is neither declared nor listed as observe-only",
+                entry.id
+            ),
+        }
+    }
+}

@@ -3,6 +3,7 @@
 use gproxy_protocol::{Operation, OperationKey};
 use http::{HeaderMap, StatusCode};
 use rust_decimal::Decimal;
+use std::borrow::Cow;
 
 use super::{ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView};
 
@@ -146,7 +147,7 @@ pub enum QuotaWindow {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuotaTracking {
     /// The upstream reports it through headers, a query endpoint or exhaustion
-    /// replies; observed entries match this dimension by `source_id == id`.
+    /// replies; observed entries match it through `QuotaModel::classify`.
     Reported,
     /// The upstream reports nothing; the host counts consumption itself. A
     /// counted dimension needs a known `limit`.
@@ -155,7 +156,9 @@ pub enum QuotaTracking {
 
 /// One quota dimension a credential has, declared by the channel from the
 /// credential's auth kind and plan fields. This is the shape, not a reading:
-/// values arrive later as `QuotaEntry`s whose `source_id` equals `id`.
+/// values arrive later as `QuotaEntry`s whose `id` and `source_id` equal `id`.
+/// `Unknown` scope declares a window whose models only an observation names;
+/// `QuotaModel::classify` then supplies the scope per entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QuotaDimension {
     /// Stable key, e.g. `primary`, `secondary`, `spark`, `seven_day_sonnet`.
@@ -176,12 +179,43 @@ pub struct QuotaDimension {
 /// written into the credential's metadata by the host, not fetched here.
 /// An empty list means the credential has no modelled quota; the host then
 /// relies on exhaustion replies alone.
+///
+/// The contract every channel keeps: each window that should accrue cost is
+/// a declared dimension; the header and query paths name the same window with
+/// the same entry id; an entry that `classify` does not place is observe-only
+/// (recorded and shown, never charged). Channel tests pin both lists against
+/// captured upstream replies.
 pub trait QuotaModel: Send + Sync {
     fn dimensions(
         &self,
         provider: ProviderView<'_>,
         credential: CredentialView<'_>,
     ) -> Vec<QuotaDimension>;
+
+    /// The dimension an observed entry reports on, as the host should apply
+    /// it; None makes the entry observe-only. `declared` is what `dimensions`
+    /// returned for this credential, plus any host-added dimensions. The
+    /// default matches `source_id` by id; a channel whose windows are only
+    /// known at runtime overrides it to fill in the scope from the entry.
+    fn classify<'d>(
+        &self,
+        declared: &'d [QuotaDimension],
+        entry: &QuotaEntry,
+    ) -> Option<Cow<'d, QuotaDimension>> {
+        classify_by_id(declared, entry)
+    }
+}
+
+/// `QuotaModel::classify`'s default, also what the host applies to a channel
+/// that has no `QuotaModel`.
+pub fn classify_by_id<'d>(
+    declared: &'d [QuotaDimension],
+    entry: &QuotaEntry,
+) -> Option<Cow<'d, QuotaDimension>> {
+    declared
+        .iter()
+        .find(|dimension| dimension.id == entry.source_id)
+        .map(Cow::Borrowed)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

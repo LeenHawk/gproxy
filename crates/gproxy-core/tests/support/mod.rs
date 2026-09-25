@@ -390,6 +390,20 @@ impl QuotaModel for TestChannel {
             })
             .collect()
     }
+
+    /// A channel rule: `<dimension>@<codename>` reports on `<dimension>`,
+    /// the way a header claim codename names a declared window.
+    fn classify<'d>(
+        &self,
+        declared: &'d [QuotaDimension],
+        entry: &QuotaEntry,
+    ) -> Option<std::borrow::Cow<'d, QuotaDimension>> {
+        let id = entry.source_id.split('@').next().unwrap_or_default();
+        declared
+            .iter()
+            .find(|dimension| dimension.id == id)
+            .map(std::borrow::Cow::Borrowed)
+    }
 }
 /// `x-test-quota: <dimension>=<remaining>[;reset=<unix ms>]`, one entry.
 impl QuotaHeaders for TestChannel {
