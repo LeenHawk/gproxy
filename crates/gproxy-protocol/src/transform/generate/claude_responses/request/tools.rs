@@ -53,7 +53,7 @@ pub(crate) fn to_responses(
 }
 
 pub(crate) fn to_claude(input: Vec<r::Tool>) -> Result<Vec<c::ToolUnion>, TransformError> {
-    input
+    let mut tools: Vec<c::ToolUnion> = input
         .into_iter()
         .map(|tool| {
             if matches!(
@@ -89,7 +89,22 @@ pub(crate) fn to_claude(input: Vec<r::Tool>) -> Result<Vec<c::ToolUnion>, Transf
             Ok(c::ToolUnion::Custom(target))
         })
         .filter_map(|value| crate::transform::optional(value).transpose())
-        .collect()
+        .collect::<Result<_, _>>()?;
+    // Responses web search can open and find within pages. Claude exposes
+    // page retrieval separately, so retain that capability alongside search.
+    if tools
+        .iter()
+        .any(|tool| matches!(tool, c::ToolUnion::WebSearch20250305(_)))
+    {
+        tools.push(c::ToolUnion::WebFetch20250910(
+            c::WebFetchTool20250910::builder(
+                c::WebFetchTool20250910Name::Name,
+                c::WebFetchTool20250910Type::Tag,
+            )
+            .build(),
+        ));
+    }
+    Ok(tools)
 }
 
 pub(crate) fn choice_to_responses(choice: cc::ToolChoice) -> (i::ToolChoice, Option<bool>) {

@@ -149,7 +149,7 @@ pub(super) fn to_responses(
                     .map(crate::transform::optional)
                     .transpose()?
                     .flatten();
-                bindings.restore(r::FunctionCall {
+                let restored = crate::transform::optional(bindings.restore(r::FunctionCall {
                     async_: None,
                     type_: r::FunctionCallType::FunctionCall,
                     arguments: serde_json::to_string(&block.input)?,
@@ -164,7 +164,12 @@ pub(super) fn to_responses(
                         r::ItemStatus::Completed
                     }),
                     rest: Default::default(),
-                })?
+                }))?;
+                let Some(item) = restored else {
+                    report.omitted("custom_tool.input", "tool call has no raw string input");
+                    continue;
+                };
+                item
             }
             c::ResponseContentBlock::Thinking(block) => {
                 report.omitted("content.thinking.signature","Claude signature must stay bound to its original model and upstream; it is not Responses encrypted_content");

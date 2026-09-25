@@ -140,8 +140,36 @@ async fn standalone_search_uses_a_search_only_generation_and_preserves_rejection
             .contains("https://docs.python.org")
     );
     assert!(body.get("encrypted_output").is_none());
-    assert_eq!(sent_body(&h, 0)["tools"], json!([{"googleSearch":{}}]));
+    assert_eq!(
+        sent_body(&h, 0)["tools"],
+        json!([{"googleSearch":{}},{"urlContext":{}}])
+    );
     assert_eq!(h.client.seen.lines().len(), 1);
+
+    // An open/find followup need not contain a fresh search query, and a valid
+    // upstream result without text remains an empty successful search result.
+    h.script(vec![json_reply(
+        StatusCode::OK,
+        json!({
+            "responseId":"page-response", "modelVersion":"m",
+            "candidates":[{"content":{"role":"model","parts":[]},"finishReason":"STOP"}],
+            "usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":0,"totalTokenCount":5}
+        }),
+    )]);
+    let (status, body, state) = run(
+        &h, "search", key(Operation::WebSearch, Dialect::OpenAi),
+        wire("/v1/search", json!({
+            "id":"session", "model":"m",
+            "input":"page1 = https://docs.python.org/3/library/pathlib.html",
+            "commands":{"open":[{"ref_id":"page1"}], "find":[{"ref_id":"page1","pattern":"read_text"}]}
+        })),
+    ).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(state, UsageState::Completed);
+    assert_eq!(body["output"], "");
+    let sent = sent_body(&h, 1).to_string();
+    assert!(sent.contains("read_text"));
+    assert!(sent.contains("https://docs.python.org/3/library/pathlib.html"));
 
     h.script(vec![json_reply(
         StatusCode::BAD_REQUEST,

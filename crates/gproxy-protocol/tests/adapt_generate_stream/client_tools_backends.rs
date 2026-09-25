@@ -314,3 +314,115 @@ fn freeform_patch_streams_finish_with_the_original_client_input() {
         assert_eq!(output["output"][0]["input"], patch);
     }
 }
+
+#[test]
+fn malformed_custom_streams_keep_following_text() {
+    for keep_valid in [false, true] {
+        let expected_calls = usize::from(keep_valid);
+        for args in [json!({}), json!({"input":null}), json!({"input":42})] {
+            let input = json!({"model":"client","stream":true,"max_output_tokens":128,"input":"edit",
+        "tools":[{"type":"custom","name":"apply_patch","format":{"type":"text"}}]});
+            for backend in [Dialect::Claude, Dialect::Gemini] {
+                let store = Arc::new(Store::default());
+                let access = all_pairs::access(&store, backend);
+                let output = if backend == Dialect::Claude {
+                    let call = ready(ResponsesViaClaude::prepare_stream(
+                        serde_json::from_value(input.clone()).unwrap(),
+                        all_pairs::target(Dialect::OpenAi, backend),
+                        ResponsesViaClaudeStreamFacts {
+                            request: Default::default(),
+                            response: all_pairs::claude_response_context(),
+                        },
+                        settings(),
+                        &access,
+                    ))
+                    .unwrap();
+                    let request = serde_json::to_value(call.target_request()).unwrap();
+                    let names = vec![request["tools"][0]["name"].as_str().unwrap().to_owned()];
+                    let mut source = fixtures::claude(&names);
+                    source["content"][0]["input"] = args.clone();
+                    if keep_valid {
+                        source["content"].as_array_mut().unwrap().push(json!({
+                        "type":"tool_use", "id":"native.1", "name":names[0], "input":{"input":"valid"}
+                    }));
+                    }
+                    source["content"]
+                        .as_array_mut()
+                        .unwrap()
+                        .push(json!({"type":"text","text":"kept"}));
+                    let events = native::claude::synthesize_claude_stream(
+                        serde_json::from_value(source).unwrap(),
+                        Default::default(),
+                    )
+                    .unwrap()
+                    .value
+                    .into_iter()
+                    .map(|event| serde_json::to_string(&event).unwrap())
+                    .collect();
+                    run(call, events, backend, &store, expected_calls)
+                } else {
+                    let call = ready(ResponsesViaGemini::prepare_stream(
+                        serde_json::from_value(input.clone()).unwrap(),
+                        all_pairs::target(Dialect::OpenAi, backend),
+                        ResponsesViaGeminiStreamFacts {
+                            request: Default::default(),
+                            response: all_pairs::gemini_response_context(),
+                        },
+                        settings(),
+                        &access,
+                    ))
+                    .unwrap();
+                    let request = serde_json::to_value(call.target_request()).unwrap();
+                    let names = vec![
+                        request["tools"][0]["functionDeclarations"][0]["name"]
+                            .as_str()
+                            .unwrap()
+                            .to_owned(),
+                    ];
+                    let mut source = fixtures::gemini(&names, true);
+                    source["candidates"][0]["content"]["parts"][0]["functionCall"]["args"] =
+                        args.clone();
+                    if keep_valid {
+                        source["candidates"][0]["content"]["parts"].as_array_mut().unwrap().push(json!({
+                        "functionCall":{"id":"native.1", "name":names[0], "args":{"input":"valid"}},
+                        "thoughtSignature":"dmFsaWQ="
+                    }));
+                    }
+                    source["candidates"][0]["content"]["parts"]
+                        .as_array_mut()
+                        .unwrap()
+                        .push(json!({"text":"kept"}));
+                    let events = native::gemini::synthesize_gemini_stream(
+                        serde_json::from_value(source).unwrap(),
+                        Default::default(),
+                    )
+                    .unwrap()
+                    .value
+                    .into_iter()
+                    .map(|event| serde_json::to_string(&event).unwrap())
+                    .collect();
+                    run(call, events, backend, &store, expected_calls)
+                };
+                if keep_valid {
+                    let call = &output["output"][0];
+                    assert_eq!(call["input"], "valid");
+                    let record = ready(
+                        access.read(IdentityRole::ToolCall, call["call_id"].as_str().unwrap()),
+                    )
+                    .unwrap()
+                    .unwrap();
+                    assert_eq!(record.original_call_id.as_deref(), Some("native.1"));
+                }
+                assert_eq!(
+                    output["output"].as_array().unwrap().len(),
+                    1 + expected_calls
+                );
+                assert_eq!(output["output"][expected_calls]["type"], "message");
+                assert_eq!(
+                    output["output"][expected_calls]["content"][0]["text"],
+                    "kept"
+                );
+            }
+        }
+    }
+}

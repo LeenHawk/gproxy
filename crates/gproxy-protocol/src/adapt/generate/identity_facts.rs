@@ -23,6 +23,11 @@ pub(super) trait IdentityFacts {
     fn dialect(&self) -> Dialect;
     fn response_id(&self) -> Option<&str>;
     fn tools(&self) -> Vec<ToolIdentity>;
+    /// Native custom-tool wrappers that cannot supply a raw client input.
+    /// Positions refer to the unfiltered native tool list (including signatures).
+    fn omitted_custom_tools(&self) -> Vec<usize> {
+        Vec::new()
+    }
     fn signed_claude(&self, _index: u64) -> Option<crate::wire::claude::content::ThinkingBlock> {
         None
     }
@@ -42,6 +47,24 @@ pub(super) trait IdentityFacts {
 }
 
 impl IdentityFacts for c::GenerateContentResponseBody {
+    fn omitted_custom_tools(&self) -> Vec<usize> {
+        self.content
+            .iter()
+            .filter_map(|block| match block {
+                c::ResponseContentBlock::ToolUse(call) => Some(call),
+                _ => None,
+            })
+            .enumerate()
+            .filter_map(|(index, call)| {
+                (call.name.starts_with("gproxy_custom_")
+                    && !call
+                        .input
+                        .get("input")
+                        .is_some_and(serde_json::Value::is_string))
+                .then_some(index)
+            })
+            .collect()
+    }
     fn native_model(&self) -> Option<&str> {
         Some(&self.model)
     }
@@ -129,6 +152,25 @@ impl IdentityFacts for h::GenerateContentResponseBody {
 }
 
 impl IdentityFacts for g::GenerateContentResponseBody {
+    fn omitted_custom_tools(&self) -> Vec<usize> {
+        self.candidates
+            .iter()
+            .flatten()
+            .filter_map(|candidate| candidate.content.as_ref())
+            .flat_map(|content| content.parts.iter().flatten())
+            .filter_map(|part| part.function_call.as_ref())
+            .enumerate()
+            .filter_map(|(index, call)| {
+                (call.name.starts_with("gproxy_custom_")
+                    && !call
+                        .args
+                        .as_ref()
+                        .and_then(|args| args.get("input"))
+                        .is_some_and(serde_json::Value::is_string))
+                .then_some(index)
+            })
+            .collect()
+    }
     fn native_model(&self) -> Option<&str> {
         self.model_version.as_deref()
     }

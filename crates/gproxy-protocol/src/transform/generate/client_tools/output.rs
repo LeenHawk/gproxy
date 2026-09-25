@@ -45,7 +45,7 @@ impl Bindings {
         let wire = match kind {
             Kind::Custom { name } => {
                 let input = value.get("input").and_then(Value::as_str).ok_or_else(|| {
-                    TransformError::invalid_result(
+                    TransformError::unsupported(
                         "custom_tool.input",
                         "expected the raw tool input string",
                     )

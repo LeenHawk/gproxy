@@ -287,7 +287,12 @@ impl ClaudeToResponsesStream {
             let Some(r::ResponseOutputItem::FunctionCall(call)) = block.item.take() else {
                 return Err(invalid("deferred tool lost its argument state"));
             };
-            let item = self.client_tools.restore(call)?;
+            let Some(item) = crate::transform::optional(self.client_tools.restore(call))? else {
+                block.output_index = None;
+                self.output_items -= 1;
+                self.deferred_block = None;
+                return Ok(());
+            };
             self.events.emit(&mut self.budget, out, |sequence_number| {
                 s::StreamEvent::OutputItemAdded(s::OutputItemEvent {
                     sequence_number,

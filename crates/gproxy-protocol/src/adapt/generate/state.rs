@@ -142,6 +142,17 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         }
         let originals = native.tools();
         let emitted = client.tools();
+        let omitted =
+            if client.dialect() == crate::Dialect::OpenAi && originals.len() != emitted.len() {
+                native.omitted_custom_tools()
+            } else {
+                Vec::new()
+            };
+        let originals: Vec<_> = originals
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| !omitted.contains(index))
+            .collect();
         if originals.len() != emitted.len() {
             return Err(TransformError::invalid_result(
                 "generation.identity",
@@ -150,7 +161,7 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         }
         // Direct pair converters preserve client function/custom-call order. Pair by
         // that concrete wire order, then verify name and the allocator's association.
-        for (position, (original, client)) in originals.iter().zip(emitted).enumerate() {
+        for ((position, original), client) in originals.into_iter().zip(emitted) {
             // Function-only backends execute declared custom tools through a
             // bound alias. Store the native name/kind for exact history replay.
             let custom_binding = original.kind == super::ToolCallKind::Function

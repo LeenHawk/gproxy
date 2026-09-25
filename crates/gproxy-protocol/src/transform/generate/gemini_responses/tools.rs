@@ -96,6 +96,14 @@ pub(crate) fn to_gemini(input: Vec<r::Tool>) -> Result<(Vec<g::Tool>, bool), Tra
                 .build(),
         );
     }
+    if search {
+        // Search grounding alone does not read caller-supplied URLs.
+        tools.push(
+            g::Tool::builder()
+                .url_context(g::UrlContext::builder().build())
+                .build(),
+        );
+    }
     Ok((tools, strict))
 }
 
