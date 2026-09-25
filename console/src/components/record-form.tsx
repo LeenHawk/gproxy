@@ -42,6 +42,8 @@ export type FormField = {
   proxyScope?: (original?: Record<string, unknown>) => ProxyScope
   label?: string
   kind: FieldKind
+  /** Initial value for a switch on a new record; enabled switches default on. */
+  defaultChecked?: boolean
   /** Choices for `select`, labelled from `values.<option>`. */
   options?: ReadonlyArray<string>
   /** Choices whose labels are data rather than translations — a row's name. */
@@ -58,7 +60,7 @@ type FormValues = Record<string, string | boolean>
 
 function readValue(field: FormField, row: Record<string, unknown> | undefined): string | boolean {
   const raw = row?.[field.name]
-  if (field.kind === "switch") return raw === undefined || raw === null ? true : Boolean(raw)
+  if (field.kind === "switch") return raw === undefined || raw === null ? field.defaultChecked ?? true : Boolean(raw)
   if (raw === undefined || raw === null) return ""
   if (field.kind === "json" || field.kind === "proxy") return JSON.stringify(raw, null, 2)
   if (field.kind === "lines") return Array.isArray(raw) ? raw.join("\n") : String(raw)

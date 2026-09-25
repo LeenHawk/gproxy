@@ -573,6 +573,7 @@ fn route(row: &document::Route) -> RouteDto {
             _ => "weighted",
         }
         .to_owned(),
+        session_affinity: false,
         max_attempts: row.max_attempts.max(1),
         enabled: row.enabled,
     }

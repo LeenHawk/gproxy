@@ -1055,6 +1055,7 @@ mod rows {
             id: Set(dto.id.clone()),
             name: Set(dto.name.clone()),
             strategy: Set(crud::enumerated(&dto.strategy, "strategy", &STRATEGIES)?),
+            session_affinity: Set(dto.session_affinity),
             max_attempts: Set(dto.max_attempts.max(1)),
             enabled: Set(dto.enabled),
         })
