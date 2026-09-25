@@ -25,11 +25,11 @@ use gproxy_protocol::{Operation, OperationKey, capability::CapabilityFuture};
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::{
     Store,
-    entity::limits::{credential_quota_cycle, credential_block},
+    entity::limits::{credential_block, credential_quota_cycle},
     operations::counted::{CountedCharge, CountedOutcome},
 };
 use rust_decimal::Decimal;
-use sea_orm::{Set, EntityTrait, ColumnTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
 use time::{Duration as TimeDuration, OffsetDateTime};
 

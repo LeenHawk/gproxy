@@ -30,11 +30,24 @@ fn optional_address_fields_have_channel_owned_placeholders() {
     for channel in compiled_in() {
         let descriptor = channel.descriptor();
         for field in descriptor.config_keys {
-            let address = field.name.ends_with("_url") || field.name.ends_with("_host") || field.name == "issuer";
-            if field.required || !address { continue; }
+            let address = field.name.ends_with("_url")
+                || field.name.ends_with("_host")
+                || field.name == "issuer";
+            if field.required || !address {
+                continue;
+            }
             // These origins depend on the attached credential or account plan.
-            if field.name == "base_url" && matches!(descriptor.id, "kimi" | "copilotcli" | "opencode") { continue; }
-            assert!(field.placeholder.is_some_and(|value| !value.is_empty()), "{}.{} has no default hint", descriptor.id, field.name);
+            if field.name == "base_url"
+                && matches!(descriptor.id, "kimi" | "copilotcli" | "opencode")
+            {
+                continue;
+            }
+            assert!(
+                field.placeholder.is_some_and(|value| !value.is_empty()),
+                "{}.{} has no default hint",
+                descriptor.id,
+                field.name
+            );
         }
     }
 }

@@ -470,7 +470,14 @@ async fn quota_query_reset_and_response_observation_are_independent() {
     assert_eq!(
         base.quota_reset()
             .unwrap()
-            .reset(ctx, gproxy_channel::channel::QuotaResetRequest { redeem_request_id: "redeem-1", program: None, grant_id: None })
+            .reset(
+                ctx,
+                gproxy_channel::channel::QuotaResetRequest {
+                    redeem_request_id: "redeem-1",
+                    program: None,
+                    grant_id: None
+                }
+            )
             .await
             .unwrap()
             .outcome,

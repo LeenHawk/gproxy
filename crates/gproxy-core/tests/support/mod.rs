@@ -506,7 +506,10 @@ impl ChannelServices for TestChannel {
 }
 impl QuotaQuery for TestChannel {
     fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
-        self.quota_versions.lock().unwrap().push(context.credential.version);
+        self.quota_versions
+            .lock()
+            .unwrap()
+            .push(context.credential.version);
         if let Some(error) = self.quota_errors.lock().unwrap().pop_front() {
             return Box::pin(async move { Err(error) });
         }

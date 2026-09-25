@@ -12,8 +12,9 @@ use serde_json::Value;
 
 use super::double_option;
 use gproxy_channel::channel::{
-    QuotaAllowance, QuotaBalance, QuotaBreakdownRow, QuotaEntry, QuotaResetBehavior, QuotaResetOutcome,
-    QuotaResetCredits, QuotaResetOption, QuotaResetResult, QuotaSnapshot, QuotaSubject, QuotaValue,
+    QuotaAllowance, QuotaBalance, QuotaBreakdownRow, QuotaEntry, QuotaResetBehavior,
+    QuotaResetCredits, QuotaResetOption, QuotaResetOutcome, QuotaResetResult, QuotaSnapshot,
+    QuotaSubject, QuotaValue,
 };
 use gproxy_store::entity::limits::{
     counted_window, credential_block, credential_quota_cycle, quota, quota_settlement,
@@ -297,7 +298,12 @@ pub struct QuotaResetCreditsDto {
 
 impl From<QuotaResetCredits> for QuotaResetCreditsDto {
     fn from(credits: QuotaResetCredits) -> Self {
-        Self { credit_expirations_ms: credits.credit_expirations_ms, available_count: credits.available_count, expires_at_ms: credits.expires_at_ms, options: credits.options.into_iter().map(Into::into).collect() }
+        Self {
+            credit_expirations_ms: credits.credit_expirations_ms,
+            available_count: credits.available_count,
+            expires_at_ms: credits.expires_at_ms,
+            options: credits.options.into_iter().map(Into::into).collect(),
+        }
     }
 }
 
@@ -320,10 +326,15 @@ pub struct QuotaResetOptionDto {
 impl From<QuotaResetOption> for QuotaResetOptionDto {
     fn from(option: QuotaResetOption) -> Self {
         Self {
-            program: option.program, grant_id: option.grant_id, label: option.label,
-            available_count: option.available_count, expires_at_ms: option.expires_at_ms,
-            next_available_at_ms: option.next_available_at_ms, usable: option.usable,
-            ineligible_reason: option.ineligible_reason, clears: option.clears,
+            program: option.program,
+            grant_id: option.grant_id,
+            label: option.label,
+            available_count: option.available_count,
+            expires_at_ms: option.expires_at_ms,
+            next_available_at_ms: option.next_available_at_ms,
+            usable: option.usable,
+            ineligible_reason: option.ineligible_reason,
+            clears: option.clears,
         }
     }
 }
@@ -376,7 +387,12 @@ impl From<QuotaEntry> for QuotaEntryDto {
             QuotaValue::Window(allowance) => ("window", Some(allowance.into()), None, None),
             QuotaValue::RateLimit(allowance) => ("rate_limit", Some(allowance.into()), None, None),
             QuotaValue::Budget(allowance) => ("budget", Some(allowance.into()), None, None),
-            QuotaValue::Breakdown(rows) => ("breakdown", None, None, Some(rows.into_iter().map(Into::into).collect())),
+            QuotaValue::Breakdown(rows) => (
+                "breakdown",
+                None,
+                None,
+                Some(rows.into_iter().map(Into::into).collect()),
+            ),
             QuotaValue::Balance(balance) => ("balance", None, Some(balance.into()), None),
         };
         Self {
@@ -406,7 +422,11 @@ pub struct QuotaBreakdownRowDto {
 
 impl From<QuotaBreakdownRow> for QuotaBreakdownRowDto {
     fn from(row: QuotaBreakdownRow) -> Self {
-        Self { key: row.key, label: row.label, percent: row.percent.to_string() }
+        Self {
+            key: row.key,
+            label: row.label,
+            percent: row.percent.to_string(),
+        }
     }
 }
 

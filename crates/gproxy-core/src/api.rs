@@ -3,9 +3,9 @@
 //! and account capabilities still return NotImplemented. No internal selection,
 //! rewrite, attempt preparation or outcome hook is exposed as a public prototype.
 
+mod keepalive;
 pub(crate) mod lifecycle;
 mod operations;
-mod keepalive;
 
 use crate::{ConfigRevision, CredentialStatus, UsageReport};
 use gproxy_channel::ChannelError;

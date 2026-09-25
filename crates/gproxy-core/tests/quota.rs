@@ -288,7 +288,10 @@ async fn quota_query_persists_cycles_and_blocks_only_on_exhausted_known_dimensio
         });
     let snapshot = h.core.query_credential_quota("q", "q1").await.unwrap();
     assert_eq!(snapshot.entries.len(), 3);
-    assert!(snapshot.observed_at_ms > 1_700_000_000_000, "host stamps receipt");
+    assert!(
+        snapshot.observed_at_ms > 1_700_000_000_000,
+        "host stamps receipt"
+    );
     let all = h
         .core
         .store()
@@ -297,7 +300,10 @@ async fn quota_query_persists_cycles_and_blocks_only_on_exhausted_known_dimensio
         .await
         .unwrap();
     assert_eq!(all.len(), 3, "every entry is recorded");
-    assert!(all.iter().all(|row| row.observed_at_ms == snapshot.observed_at_ms));
+    assert!(
+        all.iter()
+            .all(|row| row.observed_at_ms == snapshot.observed_at_ms)
+    );
     let rows = blocks_for(&h, "q1").await;
     assert_eq!(
         rows.len(),
@@ -469,18 +475,33 @@ async fn positive_probe_clears_only_the_recovered_exhaustion_block() {
 #[tokio::test]
 async fn breakdown_is_persisted_without_becoming_a_quota_block() {
     let h = harness(full(), "sticky").await;
-    h.channel.quota_snapshots.lock().unwrap().push_back(QuotaSnapshot {
-        observed_at_ms: 0,
-        entries: vec![QuotaEntry {
-            id: "seven_day_breakdown".into(), source_id: "seven_day_breakdown".into(), label: None,
-            subject: QuotaSubject::Account, model_scope: QuotaScope::All,
-            value: QuotaValue::Breakdown(vec![gproxy_channel::channel::QuotaBreakdownRow {
-                key: "claude_code".into(), label: Some("Claude Code".into()), percent: 100.into(),
-            }]),
-        }],
-    });
+    h.channel
+        .quota_snapshots
+        .lock()
+        .unwrap()
+        .push_back(QuotaSnapshot {
+            observed_at_ms: 0,
+            entries: vec![QuotaEntry {
+                id: "seven_day_breakdown".into(),
+                source_id: "seven_day_breakdown".into(),
+                label: None,
+                subject: QuotaSubject::Account,
+                model_scope: QuotaScope::All,
+                value: QuotaValue::Breakdown(vec![gproxy_channel::channel::QuotaBreakdownRow {
+                    key: "claude_code".into(),
+                    label: Some("Claude Code".into()),
+                    percent: 100.into(),
+                }]),
+            }],
+        });
     h.core.query_credential_quota("p", "a").await.unwrap();
-    let rows = h.core.store().credential_quota_cycles().query(credential_quota_cycle::Entity::find()).await.unwrap();
+    let rows = h
+        .core
+        .store()
+        .credential_quota_cycles()
+        .query(credential_quota_cycle::Entity::find())
+        .await
+        .unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].snapshot["kind"], "breakdown");
     assert_eq!(rows[0].snapshot["breakdown"][0]["percent"], "100");

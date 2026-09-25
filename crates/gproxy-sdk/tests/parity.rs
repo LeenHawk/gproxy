@@ -213,9 +213,18 @@ async fn credential(
 async fn an_export_moves_a_configuration_between_two_master_keys() {
     let source = instance(Some([1u8; 32]), false).await;
     let provider = provider(&source, "upstream").await;
-    source.manage().providers().update(&provider.id, gproxy_sdk::dto::ProviderPatch {
-        display_name: Some(Some("Friendly provider".into())), ..Default::default()
-    }).await.unwrap();
+    source
+        .manage()
+        .providers()
+        .update(
+            &provider.id,
+            gproxy_sdk::dto::ProviderPatch {
+                display_name: Some(Some("Friendly provider".into())),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
     let credential_id = credential(&source, &provider.id, "source-key").await;
     source
         .manage()
