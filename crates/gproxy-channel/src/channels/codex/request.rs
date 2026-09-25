@@ -10,7 +10,7 @@ use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelServices,
     ChannelState, ConfigKey, ConfigKeyKind, CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist,
     LoginMode, OAuthAuthorizationCode, OAuthDeviceCode, OperationContext, OperationFuture,
-    PrepareContext, ProviderView, QuotaHeaders, QuotaModel, QuotaQuery, UsageExtractor,
+    PrepareContext, ProviderView, QuotaReset, QuotaHeaders, QuotaModel, QuotaQuery, UsageExtractor,
     UsageStream,
 };
 use crate::channels::shared::cache;
@@ -469,7 +469,7 @@ impl BaseChannel for Codex {
             capabilities: ChannelCapabilities {
                 refresh: true,
                 quota_query: true,
-                quota_reset: false,
+                quota_reset: true,
                 services: true,
                 websocket: true,
             },
@@ -641,6 +641,9 @@ impl BaseChannel for Codex {
         Some(self)
     }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
+        Some(self)
+    }
+    fn quota_reset(&self) -> Option<&dyn QuotaReset> {
         Some(self)
     }
     fn quota_model(&self) -> Option<&dyn QuotaModel> {

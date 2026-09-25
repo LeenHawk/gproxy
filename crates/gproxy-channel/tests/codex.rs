@@ -2791,3 +2791,107 @@ async fn model_lookup_selects_exact_id_and_preserves_errors_and_client_version()
     assert_eq!(response.status, StatusCode::FORBIDDEN);
     assert_eq!(body_json(response).await, json!({"error":"denied"}));
 }
+
+#[tokio::test]
+async fn reset_cards_are_queried_separately_and_only_available_expiries_count() {
+    assert!(Codex.descriptor().capabilities.quota_reset);
+    let client = ScriptClient::new(vec![reply(
+        StatusCode::OK,
+        json!({
+            "available_count": 2,
+            "credits": [
+                {"status": "consumed", "expires_at": "2026-01-01T00:00:00Z"},
+                {"status": "available", "expires_at": "2026-10-02T00:00:00Z"},
+                {"status": "available", "expires_at": "2026-10-01T00:00:00Z"}
+            ]
+        }),
+    )]);
+    let config = json!({});
+    let s = secret("at");
+    let credits = Codex
+        .quota_reset()
+        .unwrap()
+        .credits(CredentialContext {
+            provider: provider(&config, None),
+            credential: credential(&s, &Value::Null),
+            client: &client,
+        })
+        .await
+        .unwrap();
+    assert_eq!(credits.available_count, Some(2));
+    assert_eq!(credits.expires_at_ms, Some(1_790_812_800_000));
+    let sent = client.sent();
+    assert_eq!(sent.len(), 1);
+    assert_eq!(sent[0].0, Method::GET);
+    assert_eq!(
+        sent[0].1,
+        "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits"
+    );
+    assert_eq!(sent[0].2["authorization"], "Bearer at");
+    assert_eq!(sent[0].2["chatgpt-account-id"], "acct-1");
+}
+
+#[tokio::test]
+async fn reset_card_redemption_sends_idempotency_key_and_parses_every_outcome() {
+    use gproxy_channel::channel::QuotaResetOutcome;
+    for (code, expected) in [
+        ("reset", QuotaResetOutcome::Reset),
+        ("nothing_to_reset", QuotaResetOutcome::NothingToReset),
+        ("no_credit", QuotaResetOutcome::NoCredit),
+        ("already_redeemed", QuotaResetOutcome::AlreadyRedeemed),
+    ] {
+        let client = ScriptClient::new(vec![reply(
+            StatusCode::OK,
+            json!({"code": code, "windows_reset": 2}),
+        )]);
+        let config = json!({});
+        let s = secret("at");
+        let result = Codex
+            .quota_reset()
+            .unwrap()
+            .reset(
+                CredentialContext {
+                    provider: provider(&config, Some("https://upstream.example/backend-api/codex")),
+                    credential: credential(&s, &Value::Null),
+                    client: &client,
+                },
+                gproxy_channel::channel::QuotaResetRequest {
+                    redeem_request_id: "redemption-1",
+                    program: None,
+                    grant_id: None,
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(result.outcome, expected);
+        assert_eq!(result.windows_reset, Some(2));
+        let sent = client.sent();
+        assert_eq!(sent.len(), 1);
+        assert_eq!(sent[0].0, Method::POST);
+        assert_eq!(
+            sent[0].1,
+            "https://upstream.example/backend-api/wham/rate-limit-reset-credits/consume"
+        );
+        assert_eq!(sent[0].2["authorization"], "Bearer at");
+        assert_eq!(sent[0].2["chatgpt-account-id"], "acct-1");
+        assert_eq!(sent[0].2["content-type"], "application/json");
+        assert_eq!(
+            serde_json::from_slice::<Value>(&sent[0].3).unwrap(),
+            json!({"redeem_request_id": "redemption-1"})
+        );
+    }
+}
+
+#[tokio::test]
+async fn reset_refuses_a_selection_from_another_channel_without_sending() {
+    let client = ScriptClient::new(vec![]);
+    let config = json!({});
+    let s = secret("at");
+    let result = Codex.quota_reset().unwrap().reset(CredentialContext {
+        provider: provider(&config, None), credential: credential(&s, &Value::Null), client: &client,
+    }, gproxy_channel::channel::QuotaResetRequest {
+        redeem_request_id: "request-1", program: Some("cedar_ember"), grant_id: Some("gift-1"),
+    }).await;
+    assert!(matches!(result, Err(ChannelError::InvalidConfig(_))));
+    assert!(client.sent().is_empty());
+}
