@@ -2126,3 +2126,114 @@ async fn weekly_breakdown_is_composition_not_an_allowance() {
     assert_eq!(result.entries[2].id, "weekly_model:fable");
     assert_eq!(result.entries[2].label.as_deref(), Some("Fable"));
 }
+
+#[test]
+fn configured_fallbacks_shape_messages_and_preserve_credit_replays() {
+    let descriptor = Claudecode.descriptor();
+    for name in ["fallback_mode", "fallback_models"] {
+        assert!(descriptor.config_keys.iter().any(|key| key.name == name));
+    }
+    let config = json!({
+        "fallback_mode": "models",
+        "fallback_models": [" ", "claude-fable-5", "claude-opus-4-8",
+            "claude-opus-4-8", "claude-sonnet-4-6", "claude-haiku-4-5", "extra"]
+    });
+    for operation in [Operation::GenerateContent, Operation::StreamGenerateContent] {
+        for (settings, extra, expected, beta) in [
+            (
+                config.clone(),
+                json!({}),
+                json!([
+                    {"model":"claude-opus-4-8"},
+                    {"model":"claude-sonnet-4-6"},
+                    {"model":"claude-haiku-4-5"}
+                ]),
+                Some("server-side-fallback-2026-06-01"),
+            ),
+            (
+                json!({"fallback_mode":"default"}),
+                json!({}),
+                json!("default"),
+                Some("server-side-fallback-2026-07-01"),
+            ),
+            (
+                json!({"fallback_mode":"models","fallback_models":[]}),
+                json!({}),
+                json!("default"),
+                Some("server-side-fallback-2026-07-01"),
+            ),
+            (
+                config.clone(),
+                json!({"fallbacks":"default"}),
+                json!("default"),
+                Some("server-side-fallback-2026-07-01"),
+            ),
+            (
+                config.clone(),
+                json!({"fallbacks":[{"model":"client-model"}]}),
+                json!([{"model":"client-model"}]),
+                Some("server-side-fallback-2026-06-01"),
+            ),
+            (
+                config.clone(),
+                json!({"fallbacks":null}),
+                json!([
+                    {"model":"claude-opus-4-8"},
+                    {"model":"claude-sonnet-4-6"},
+                    {"model":"claude-haiku-4-5"}
+                ]),
+                Some("server-side-fallback-2026-06-01"),
+            ),
+            (json!({}), json!({}), Value::Null, None),
+            (
+                config.clone(),
+                json!({"model":"claude-opus-4-8"}),
+                Value::Null,
+                None,
+            ),
+            (
+                config.clone(),
+                json!({"fallback_credit_token":"credit"}),
+                Value::Null,
+                None,
+            ),
+        ] {
+            let mut body = json!({"model":"claude-fable-5","messages":[]});
+            body.as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
+            let original = body.clone();
+            let secret = secret("at-1");
+            let request = Claudecode
+                .prepare(PrepareContext {
+                    provider: provider(&settings, None),
+                    credential: credential(&secret, &json!({})),
+                    operation: key(operation),
+                    request: messages_request(HeaderMap::new(), body),
+                    endpoint_override: None,
+                })
+                .unwrap();
+            let betas = request.headers()["anthropic-beta"].to_str().unwrap();
+            assert!(betas.contains("oauth-2025-04-20"));
+            if let Some(beta) = beta {
+                assert!(betas.contains(beta), "{betas}");
+                let other = if beta.ends_with("06-01") {
+                    "server-side-fallback-2026-07-01"
+                } else {
+                    "server-side-fallback-2026-06-01"
+                };
+                assert!(!betas.contains(other));
+            } else {
+                assert!(!betas.contains("server-side-fallback"));
+            }
+            let HttpBody::Bytes(bytes) = request.into_body() else {
+                panic!("expected bytes")
+            };
+            let shaped: Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(shaped["fallbacks"], expected);
+            if original.get("fallback_credit_token").is_some() {
+                assert_eq!(shaped, original);
+            }
+        }
+    }
+}

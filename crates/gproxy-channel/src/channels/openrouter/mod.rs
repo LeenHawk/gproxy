@@ -108,6 +108,7 @@ impl BaseChannel for OpenRouter {
                 ),
             ]
             .into_iter()
+            .chain(crate::channel::CLAUDE_FALLBACK_KEYS)
             .chain(HOST_CONFIG_KEYS)
             .collect(),
         }
@@ -124,7 +125,7 @@ impl BaseChannel for OpenRouter {
         let uri = request::target(&ctx);
         let headers = request::headers(&ctx, &config)?;
         let dialect = ctx.operation.dialect;
-        let body = request::body(ctx.request.body, &config, dialect)?;
+        let body = request::body(ctx.request.body, &config, dialect, ctx.operation.operation)?;
         let mut builder = http::Request::builder()
             .method(ctx.request.method.clone())
             .uri(uri);

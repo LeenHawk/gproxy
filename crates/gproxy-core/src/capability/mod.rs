@@ -106,7 +106,6 @@ impl Upstream for AttemptUpstream {
         Box::pin(async move {
             let request_context = &self.attempt.request;
             let provider = &request_context.target.provider;
-            let credential = &self.attempt.credential;
             let context = RewriteContext {
                 operation: *target,
                 upstream_model: request_context.target.upstream_model.as_deref(),
@@ -142,29 +141,16 @@ impl Upstream for AttemptUpstream {
             {
                 request.body = HttpBody::Bytes(Bytes::from(rewritten));
             }
-            let exchange = Exchange::new(
-                self.funnel.clone(),
-                self.attempt.clone(),
-                *target,
-                provider.channel.clone(),
-                response_rules.body.clone(),
-                self.limits,
-                now_ms(),
-            );
-            let observed = ObservedClient::new(credential.client.clone(), exchange);
-            let binding = ChannelBinding::new(
-                provider.channel.as_ref(),
-                prepare::provider_view(provider),
-                prepare::credential_view(credential, &self.attempt.credential_version),
-                Arc::new(observed),
-            )
-            .state(self.channel_state.clone())
-            .instance(self.instance_id.clone())
-            .endpoint(provider.operation_url(*target, EndpointTransport::Http));
-            let mut response = binding
-                .send(*target, request)
-                .await
-                .map_err(channel_error)?;
+            let mut response = crate::execute::NativeCall {
+                funnel: self.funnel.clone(),
+                attempt: self.attempt.clone(),
+                operation: *target,
+                response_rules: response_rules.body.clone(),
+                limits: self.limits,
+                state: self.channel_state.clone(),
+                instance_id: self.instance_id.clone(),
+            }
+            .send(request).await.map_err(channel_error)?;
             if !response_rules.headers.is_empty() {
                 apply_headers(&response_rules.headers, &mut response.headers)
                     .map_err(|e| invalid(e.to_string()))?;

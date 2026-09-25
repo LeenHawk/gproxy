@@ -4,6 +4,7 @@
 
 mod binding;
 mod descriptor;
+mod fallback;
 mod headers;
 mod oauth;
 mod operations;
@@ -19,6 +20,7 @@ pub use binding::ChannelBinding;
 pub use descriptor::{
     ChannelCapabilities, ChannelDescriptor, ConfigKey, ConfigKeyKind, HOST_CONFIG_KEYS, LoginMode,
 };
+pub use fallback::{CLAUDE_FALLBACK_KEYS, ClaudeFallback, claude_fallback_model};
 pub use headers::{ChannelHeaders, HeaderAllowlist, forwardable};
 pub use oauth::{
     AcquiredCredential, AuthorizationCode, AuthorizationRequest, AuthorizationStart, CookieLogin,
@@ -226,6 +228,16 @@ pub trait BaseChannel: Send + Sync {
     fn native_dialects(&self, provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         let _ = (provider, operation);
         Vec::new()
+    }
+
+    /// Gateway-executed refusal fallback, only for native Claude generation.
+    /// Upstreams that execute their own model fallback leave this unset.
+    fn claude_fallback(&self) -> Option<ClaudeFallback> {
+        None
+    }
+
+    fn fallback_model(&self, primary: &str, fallback: &str) -> String {
+        claude_fallback_model(primary, fallback)
     }
 
     /// Common HTTP preparation used by the default operation implementations.

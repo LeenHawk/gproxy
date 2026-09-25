@@ -30,6 +30,8 @@ const USAGE: CustomUsage = CustomUsage;
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 pub struct CustomConfig {
+    pub fallback_mode: crate::channels::shared::claude_fallback::FallbackMode,
+    pub fallback_models: Vec<String>,
     /// Dialects the upstream accepts. Empty means the
     /// canonical dialect of every family (`openai`, `claude`, `gemini`) plus
     /// `openai_chat`, i.e. "whatever the client sends, forward it".
@@ -199,6 +201,7 @@ impl BaseChannel for Custom {
                 ),
             ]
             .into_iter()
+            .chain(crate::channel::CLAUDE_FALLBACK_KEYS)
             .chain(HOST_CONFIG_KEYS)
             .collect(),
         }
@@ -229,9 +232,22 @@ impl BaseChannel for Custom {
             config.enable_claude_magic_cache,
             config.enable_openai_magic_cache,
         );
-        let (builder, request) = self.build(ctx)?;
+        let operation = ctx.operation;
+        let (mut builder, request) = self.build(ctx)?;
         let body = match request.body {
-            HttpBody::Bytes(bytes) => HttpBody::Bytes(cache::shape(bytes, rules)),
+            HttpBody::Bytes(bytes) => {
+                let bytes = cache::shape(bytes, rules);
+                if operation.dialect == Dialect::Claude
+                    && matches!(operation.operation, Operation::GenerateContent | Operation::StreamGenerateContent)
+                    && let Ok(mut body) = serde_json::from_slice::<serde_json::Value>(&bytes)
+                {
+                    crate::channels::shared::claude_fallback::fallbacks(
+                        &mut body, builder.headers_mut().expect("valid builder"),
+                        &config.fallback_mode, &config.fallback_models,
+                    );
+                    HttpBody::Bytes(gproxy_protocol::connection::Bytes::from(body.to_string()))
+                } else { HttpBody::Bytes(bytes) }
+            },
             other => other,
         };
         builder

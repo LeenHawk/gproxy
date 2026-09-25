@@ -21,6 +21,13 @@ const VERTEX_ANTHROPIC_VERSION: &str = "vertex-2023-10-16";
 const USAGE: VertexUsage = VertexUsage;
 
 impl BaseChannel for Vertex {
+    fn claude_fallback(&self) -> Option<crate::channel::ClaudeFallback> {
+        Some(crate::channel::ClaudeFallback {
+            credit: true,
+            recommended_model: "claude-opus-4-8",
+        })
+    }
+
     fn id(&self) -> &'static str {
         ID
     }
@@ -52,6 +59,7 @@ impl BaseChannel for Vertex {
                 ).with_placeholder("https://{location}-aiplatform.googleapis.com"),
             ]
             .into_iter()
+            .chain(crate::channel::CLAUDE_FALLBACK_KEYS)
             .chain(HOST_CONFIG_KEYS)
             .collect(),
         }

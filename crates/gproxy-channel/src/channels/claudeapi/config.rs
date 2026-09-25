@@ -10,20 +10,7 @@ pub const DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
 pub const QUOTA_DEFAULT_BASE_URL: &str = "https://api.anthropic.com";
 pub const ANTHROPIC_VERSION: &str = "2023-06-01";
 
-/// What the provider wants Anthropic to do when the requested model is
-/// unavailable and the request itself names no `fallbacks` (v3
-/// `shared/claude/fallback.rs`).
-#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum FallbackMode {
-    /// Never add a `fallbacks` field; the request stands or fails alone.
-    #[default]
-    Off,
-    /// `"fallbacks": "default"` — let Anthropic pick the chain.
-    Default,
-    /// `"fallbacks": [{"model": ...}]` from `fallback_models`.
-    Models,
-}
+pub use crate::channels::shared::claude_fallback::FallbackMode;
 
 /// Provider `config` JSON understood by this channel. Unknown keys are ignored.
 #[derive(Debug, Default, Deserialize)]

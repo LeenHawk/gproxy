@@ -1,0 +1,119 @@
+//! A native call, shared by passthrough and protocol conversion. Refusal
+//! fallback stays inside the selected provider/credential and every send
+//! goes through a fresh observed exchange.
+
+use super::{Exchange, Funnel, ObservedClient, prepare};
+use crate::{AttemptContext, RewriteRuleData, api::lifecycle::now_ms};
+use gproxy_channel::{ChannelBinding, ChannelError, channel::ChannelState};
+use gproxy_protocol::{
+    HttpBody, OperationKey, WireRequest, WireResponse, capability::CapabilityLimits,
+};
+use gproxy_store::entity::upstream::operation_endpoint::EndpointTransport;
+use std::sync::Arc;
+
+#[derive(Clone)]
+pub(crate) struct NativeCall {
+    pub funnel: Arc<Funnel>,
+    pub attempt: Arc<AttemptContext>,
+    pub operation: OperationKey,
+    pub response_rules: Vec<Arc<RewriteRuleData>>,
+    pub limits: CapabilityLimits,
+    pub state: Arc<dyn ChannelState>,
+    pub instance_id: Arc<str>,
+}
+
+struct SendGuard(Option<Arc<Exchange>>);
+impl Drop for SendGuard {
+    fn drop(&mut self) {
+        if let Some(exchange) = self.0.take() {
+            exchange.finish_detached(
+                gproxy_channel::channel::UsageStreamEnd::Interrupted,
+                http::StatusCode::INTERNAL_SERVER_ERROR,
+                http::HeaderMap::new(),
+                None,
+                now_ms(),
+            );
+        }
+    }
+}
+
+impl NativeCall {
+    pub async fn send(
+        self,
+        wire: WireRequest<HttpBody>,
+    ) -> Result<WireResponse<HttpBody>, ChannelError> {
+        super::fallback::run(self, wire).await
+    }
+
+    pub async fn send_once(
+        &self,
+        wire: WireRequest<HttpBody>,
+    ) -> Result<WireResponse<HttpBody>, ChannelError> {
+        let mut attempt = self.attempt.clone();
+        // Channel preparation may move model out of the body into a signed
+        // URL. Pin attribution before that happens, including converted calls.
+        if let HttpBody::Bytes(bytes) = &wire.body
+            && let Ok(body) = serde_json::from_slice::<serde_json::Value>(bytes)
+            && let Some(model) = body.get("model").and_then(serde_json::Value::as_str)
+            && attempt.request.target.upstream_model.as_deref() != Some(model)
+        {
+            let mut request = (*attempt.request).clone();
+            request.target.upstream_model = Some(model.to_owned());
+            attempt = Arc::new(AttemptContext {
+                request: Arc::new(request),
+                attempt_id: attempt.attempt_id.clone(),
+                ordinal: attempt.ordinal,
+                credential: attempt.credential.clone(),
+                credential_version: attempt.credential_version.clone(),
+                agent_assignment: attempt.agent_assignment.clone(),
+            });
+        }
+        let request = &attempt.request;
+        let provider = &request.target.provider;
+        let remaining = request
+            .deadline
+            .map(|at| at.saturating_duration_since(web_time::Instant::now()));
+        let timeout = remaining.map_or(self.limits.operation_total, |left| {
+            left.min(self.limits.operation_total)
+        });
+        let exchange = Exchange::new(
+            self.funnel.clone(),
+            attempt.clone(),
+            self.operation,
+            provider.channel.clone(),
+            self.response_rules.clone(),
+            self.limits,
+            now_ms(),
+        );
+        let mut guard = SendGuard(Some(exchange.clone()));
+        let observed = ObservedClient::new(attempt.credential.client.clone(), exchange.clone());
+        let binding = ChannelBinding::new(
+            provider.channel.as_ref(),
+            prepare::provider_view(provider),
+            prepare::credential_view(&attempt.credential, &attempt.credential_version),
+            Arc::new(observed),
+        )
+        .state(self.state.clone())
+        .instance(self.instance_id.clone())
+        .endpoint(provider.operation_url(self.operation, EndpointTransport::Http));
+        let result = tokio::select! {
+            biased;
+            () = request.cancellation.cancelled() => Err(ChannelError::Host("request cancelled".into())),
+            result = crate::rt::timeout(timeout, binding.send(self.operation, wire)) =>
+                result.unwrap_or_else(|| Err(ChannelError::Host("upstream operation deadline exceeded".into()))),
+        };
+        if result.is_err() {
+            exchange
+                .finish(
+                    gproxy_channel::channel::UsageStreamEnd::Interrupted,
+                    None,
+                    None,
+                    None,
+                    now_ms(),
+                )
+                .await;
+        }
+        guard.0 = None;
+        result
+    }
+}

@@ -393,12 +393,13 @@ impl Exchange {
         if !self.funnel.policy().usage {
             return;
         }
-        let Some(framing) = response_framing(self.context.operation, &response.headers) else {
-            return;
-        };
+        let framing = response_framing(self.context.operation, &response.headers);
         let Some(stream) = self.channel.usage_stream() else {
             return;
         };
+        if framing.is_none() && !stream.accepts_unframed(&response.headers) {
+            return;
+        }
         let request_body = self.request_body.lock().unwrap().clone();
         let observer = stream.start(UsageStreamContext {
             operation: self.context.operation,
@@ -406,7 +407,7 @@ impl Exchange {
             status: response.status,
             headers: &response.headers,
             transport: UsageTransport::Http {
-                framing: Some(framing),
+                framing,
             },
         });
         if let Ok(observer) = observer {

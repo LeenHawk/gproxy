@@ -184,6 +184,11 @@ pub trait UsageObserver: Send {
 }
 
 pub trait UsageStream: Send + Sync {
+    /// Opt in to observing a channel-owned binary framing. Ordinary JSON
+    /// bodies keep using UsageExtractor instead.
+    fn accepts_unframed(&self, _headers: &HeaderMap) -> bool { false }
+
+
     fn start(
         &self,
         context: UsageStreamContext<'_>,

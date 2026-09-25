@@ -14,6 +14,8 @@ pub const DEFAULT_BASE_URL: &str = "https://openrouter.ai/api";
 #[derive(Debug, Deserialize)]
 #[serde(default)]
 pub struct OpenRouterConfig {
+    pub fallback_mode: crate::channels::shared::claude_fallback::FallbackMode,
+    pub fallback_models: Vec<String>,
     /// `HTTP-Referer` sent when the client did not send its own. OpenRouter
     /// uses it, with `title`, to attribute traffic on its app leaderboard.
     pub referer: Option<String>,
@@ -48,6 +50,8 @@ pub struct OpenRouterConfig {
 impl Default for OpenRouterConfig {
     fn default() -> Self {
         Self {
+            fallback_mode: Default::default(),
+            fallback_models: Vec::new(),
             referer: None,
             title: None,
             provider: None,

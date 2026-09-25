@@ -113,3 +113,6 @@ fn host_platform() -> &'static str {
         _ => "linux",
     }
 }
+
+#[cfg(any(feature = "claudeapi", feature = "claudecode", feature = "custom", feature = "openrouter"))]
+pub(crate) mod claude_fallback;
