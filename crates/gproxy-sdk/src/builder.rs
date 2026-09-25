@@ -274,9 +274,8 @@ impl<C> GproxyBuilder<C>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    /// Assemble over a connection that cannot synchronize schema on its own —
-    /// a D1 binding whose DDL is planned by Wrangler, a replica. The schema
-    /// must already match; nothing here checks it.
+    /// Assemble without schema work, for a replica or a host that already
+    /// called Store::sync. The schema must match; nothing here checks it.
     pub async fn build_unsynced(self) -> SdkResult<Gproxy<C>> {
         let Self {
             connection,

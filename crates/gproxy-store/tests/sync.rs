@@ -84,12 +84,9 @@ async fn sync_initializes_the_full_registry_and_is_repeatable() {
     assert_eq!(store.load_identity_data().await.unwrap().users.len(), 1);
 }
 
-/// The behaviour that had to go. A column removed behind the migrator's back is
-/// not quietly put back: the ledger says this database is where this build
-/// expects it to be, so `sync` has nothing to do and says so. Repairing it is a
-/// migration's job, and a migration is a thing somebody writes.
+/// Missing nullable fields are repaired without a versioned migration or data loss.
 #[tokio::test]
-async fn sync_does_not_invent_ddl_for_a_database_that_drifted() {
+async fn sync_repairs_a_missing_column_and_preserves_rows() {
     let store = Store::new(connection().await);
     store.sync().await.unwrap();
     a_user(&store, "existing").await;
@@ -103,21 +100,15 @@ async fn sync_does_not_invent_ddl_for_a_database_that_drifted() {
     assert!(!report.installed);
     assert!(report.applied.is_empty(), "{report:?}");
 
-    let error = store
-        .users()
-        .get_many(&["existing".into()])
-        .await
-        .unwrap_err();
-    assert!(
-        error.to_string().contains("oauth_client_allowlist"),
-        "{error}"
-    );
+    let rows = store.users().get_many(&["existing".into()]).await.unwrap();
+    let row = rows[0].as_ref().unwrap();
+    assert_eq!(row.name, "kept");
+    assert_eq!(row.oauth_client_allowlist, None);
 }
 
-/// Likewise for a table: `sync` does not put back what it did not create, and a
-/// database that lost one is a database somebody has to repair deliberately.
+/// Entity-defined missing tables are created on an already managed database.
 #[tokio::test]
-async fn sync_does_not_recreate_a_dropped_table() {
+async fn sync_recreates_a_missing_table() {
     let store = Store::new(connection().await);
     store.sync().await.unwrap();
     store
@@ -127,7 +118,7 @@ async fn sync_does_not_recreate_a_dropped_table() {
         .unwrap();
     store.sync().await.unwrap();
     assert!(
-        !tables(store.connection())
+        tables(store.connection())
             .await
             .contains(&"audit_events".into())
     );

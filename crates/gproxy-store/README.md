@@ -80,7 +80,7 @@ let cache: Arc<dyn Cache> = Arc::new(StoreCache::new(store.clone()));
 
 ```rust
 let store = Store::new(connection);
-let report = store.migrate().await?;
+let report = store.sync().await?;
 // Log report.summary(), then initialize application data.
 ```
 
@@ -88,8 +88,11 @@ An empty database is created from the entity registry and receives a
 `seaql_migrations` ledger. An existing managed database runs pending entries
 of `gproxy_store::Migrator` through SeaORM. Tables without that ledger, or a
 ledger containing migrations this build does not know, are refused before DDL.
-`Store::sync()` remains a startup-compatible name for this operation; it no
-longer infers `ALTER TABLE` statements from entity differences.
+`Store::sync()` runs this gate and migration step, then synchronizes the entity
+registry against an existing database. Native connections use SeaORM 2
+`SchemaBuilder::sync`; D1 and libSQL use the SQLite discovery/atomic-batch adapter.
+Missing defaulted columns and tables do not need a separate migration. Existing
+column types and data transformations still need explicit migrations.
 
 Run with one schema writer before serving requests. Construction does no I/O,
 and migration does not create settings or administrators. Native connections
@@ -105,7 +108,8 @@ inspection. Never rewrite a released migration; append a correction. The full
 convention is documented in [the migration module](src/migration/mod.rs).
 
 `schema(backend).apply(&db)` is a low-level one-shot table creation API. Use
-`Store::migrate()` for application startup so the ledger is recorded too.
+`Store::sync()` for application startup; `Store::migrate()` only applies the
+versioned migration history.
 
 ## Exact amounts and schema changes
 

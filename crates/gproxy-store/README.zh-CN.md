@@ -54,14 +54,16 @@ SQL 错误回滚事务写入；条件更新零行只返回冲突／行数，不�
 
 ```rust
 let store = Store::new(connection);
-let report = store.migrate().await?;
+let report = store.sync().await?;
 // 记录 report.summary()，再初始化业务数据。
 ```
 
 空库按实体注册表创建，并记录 `seaql_migrations` 账本。已有托管数据库通过 SeaORM
 执行 `gproxy_store::Migrator` 中尚未应用的迁移。有表却没有账本，或账本含有当前
-构建不认识的迁移时，在执行 DDL 前拒绝。`Store::sync()` 保留为兼容现有启动调用的
-入口，行为与 `migrate()` 相同，不再根据实体差异自行推导 `ALTER TABLE`。
+构建不认识的迁移时，在执行 DDL 前拒绝。`Store::sync()` 完成这些检查与迁移后，
+对已有数据库同步当前实体结构：原生使用 SeaORM 2 `SchemaBuilder::sync`，D1／libSQL
+使用 SQLite 结构检查与原子批量 DDL 适配。补充带默认值的新列或缺失表不需要单独迁移；
+已有列类型变更和数据转换仍需显式迁移。
 
 由单写者在接收请求前执行。构造 Store 不做 I/O，迁移也不创建设置行或管理员。
 原生连接与 D1 可以驱动迁移；libSQL 连接支持创建空库、读取已处于当前版本的库，
@@ -73,7 +75,7 @@ let report = store.migrate().await?;
 发布过的迁移不修改，通过追加迁移修正；完整约定见[迁移模块](src/migration/mod.rs)。
 
 `schema(backend).apply(&db)` 是底层一次性建表入口。应用启动使用
-`Store::migrate()`，让 schema 与账本一起建立。
+`Store::sync()`；`Store::migrate()` 只处理版本化迁移历史。
 
 ## 精确金额与 schema 变更
 

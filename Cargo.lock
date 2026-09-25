@@ -2955,6 +2955,7 @@ dependencies = [
  "js-sys",
  "serde",
  "serde_json",
+ "tokio",
  "tower",
  "wasm-bindgen",
  "worker",

@@ -2,11 +2,9 @@
 //! SeaORM generates DDL and dependency order. D1 supplies schema discovery and
 //! executes the resulting statements. There is no version guard or index-ownership registry.
 //!
-//! The planner below still diffs a desired registry against a discovered schema,
-//! because that is how the D1 adapter creates what is missing. What no longer
-//! happens is a *caller* reaching for it to evolve a populated database: an
-//! existing database is moved forward by a versioned migration, and the only
-//! entry point the store uses here is the empty-snapshot plan — a fresh install.
+//! Startup sync compares the entity registry with the discovered schema and
+//! applies missing objects in one atomic batch. Fresh installs use an empty
+//! snapshot; explicit migrations remain available for data/type changes.
 
 use crate::error;
 use sea_orm::sea_query::{

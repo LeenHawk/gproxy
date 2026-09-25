@@ -85,6 +85,8 @@ http = { workspace = true }
 js-sys = { workspace = true }
 # `Service::call` on the router. Nothing else from tower.
 tower = { workspace = true }
+# Coalesce schema initialization within one isolate without a runtime thread.
+tokio = { version = "1", default-features = false, features = ["sync"] }
 wasm-bindgen = { workspace = true }
 # `#[event(fetch)]`, the `Env` bindings and `ctx.wait_until`. The `http`
 # feature is what makes the handler speak `http::Request`/`http::Response`, so
