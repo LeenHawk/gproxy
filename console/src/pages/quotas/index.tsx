@@ -49,7 +49,7 @@ export function QuotasPanel({ ownerKind, ownerId, providerId, runtimeAvailable =
   const error = rules.error ?? defaults.error ?? status.error ?? (runtimeAvailable ? limits.error : null)
   const open = (row?: QuotaDto, override = false) => { save.reset(); setConfirm(null); setEditing({ row, override }) }
   return <div className="flex flex-col gap-4">
-    <p className="text-sm text-muted-foreground">{t(ownerKind === "provider" ? "limits.providerHelp" : credential ? "limits.credentialHelp" : "limits.budgetHelp")}</p>
+    {!limit ? <p className="text-sm text-muted-foreground">{t("limits.budgetHelp")}</p> : null}
     {credential && !runtimeAvailable ? <p className="text-sm text-muted-foreground">{t("limits.notRunning")}</p> : null}
     {!editable ? <p className="text-sm text-muted-foreground">{t("limits.readOnly")}</p> : null}
     <QueryState isPending={pending} error={error}>
