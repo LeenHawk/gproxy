@@ -330,3 +330,72 @@ fn claude_deferred_action_queue_is_bounded_and_cannot_finish_prematurely() {
     }
     assert!(truncated.finish().is_err());
 }
+
+#[test]
+fn malformed_custom_calls_are_omitted_without_losing_text() {
+    for args in [json!({}), json!({"input":null}), json!({"input":42})] {
+        for backend in [Dialect::Claude, Dialect::Gemini] {
+            let original = json!({
+                "model":"client", "input":"edit", "max_output_tokens":128,
+                "tools":[{"type":"custom","name":"apply_patch","description":"Edit files with a patch","format":{"type":"text"}}]
+            });
+            let target = request(backend, original.clone());
+            let aliases = names(backend, &target);
+            assert_eq!(aliases.len(), 1);
+            let context_request = serde_json::from_value(original.clone()).unwrap();
+            let output = if backend == Dialect::Claude {
+                let mut native = fixtures::claude(&aliases);
+                native["content"][0]["input"] = args.clone();
+                native["content"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!({"type":"text","text":"kept"}));
+                c::claude_to_responses_response(
+                    serde_json::from_value(native).unwrap(),
+                    c::ClaudeResponseContext {
+                        request: context_request,
+                        created_at: 7,
+                        effective_parallel_tool_calls: true,
+                        effective_tool_choice: r::ToolChoice::Mode(r::ToolChoiceMode::Auto),
+                        usage: Default::default(),
+                        effective_prompt_cache_options: None,
+                    },
+                    &mut flow(),
+                    &policy(),
+                )
+                .unwrap()
+                .value
+            } else {
+                let mut native = fixtures::gemini(&aliases, false);
+                native["candidates"][0]["content"]["parts"][0]["functionCall"]["args"] =
+                    args.clone();
+                native["candidates"][0]["content"]["parts"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!({"text":"kept"}));
+                g::gemini_to_responses_response(
+                    serde_json::from_value(native).unwrap(),
+                    g::GeminiResponseContext {
+                        request: context_request,
+                        created_at: 7,
+                        effective_parallel_tool_calls: true,
+                        effective_tool_choice: r::ToolChoice::Mode(r::ToolChoiceMode::Auto),
+                        usage: g::GeminiUsageFacts {
+                            cache_write_tokens: Some(0),
+                            ..Default::default()
+                        },
+                        effective_prompt_cache_options: None,
+                    },
+                    &mut flow(),
+                    &policy(),
+                )
+                .unwrap()
+                .value
+            };
+            let wire = serde_json::to_value(output).unwrap();
+            assert_eq!(wire["output"].as_array().unwrap().len(), 1);
+            assert_eq!(wire["output"][0]["type"], "message");
+            assert_eq!(wire["output"][0]["content"][0]["text"], "kept");
+        }
+    }
+}

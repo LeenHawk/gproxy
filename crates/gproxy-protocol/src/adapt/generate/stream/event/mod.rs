@@ -69,6 +69,9 @@ impl<T: IdentityFacts> IdentityFacts for Collected<T> {
         }
         tools
     }
+    fn omitted_custom_tools(&self) -> Vec<usize> {
+        self.value.omitted_custom_tools()
+    }
     fn items(&self) -> Vec<(crate::transform::identity::IdentityRole, String)> {
         self.value.items()
     }

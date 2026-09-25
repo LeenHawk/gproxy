@@ -127,18 +127,22 @@ impl GeminiToResponsesStream {
             )?;
             let arguments = serde_json::to_string(&call.args.unwrap_or_default())?;
             if self.client_tools.kind(&call.name) != OutputItemKind::FunctionCall {
-                let item = self.client_tools.restore(
-                    i::FunctionCall::builder(
-                        i::FunctionCallType::FunctionCall,
-                        arguments,
-                        call_id,
-                        call.name,
-                    )
-                    .id(item_id)
-                    .status(i::ItemStatus::InProgress)
-                    .build(),
+                let item = crate::transform::optional(
+                    self.client_tools.restore(
+                        i::FunctionCall::builder(
+                            i::FunctionCallType::FunctionCall,
+                            arguments,
+                            call_id,
+                            call.name,
+                        )
+                        .id(item_id)
+                        .status(i::ItemStatus::InProgress)
+                        .build(),
+                    ),
                 )?;
-                self.add_output(item, out)?;
+                if let Some(item) = item {
+                    self.add_output(item, out)?;
+                }
                 return Ok(());
             }
             let item = self.client_tools.restore(

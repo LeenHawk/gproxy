@@ -210,7 +210,11 @@ pub fn gemini_to_responses_response(
             } else {
                 i::ItemStatus::Completed
             });
-            output.push(bindings.restore(item)?);
+            if let Some(item) = crate::transform::optional(bindings.restore(item))? {
+                output.push(item);
+            } else {
+                report.omitted("custom_tool.input", "tool call has no raw string input");
+            }
         }
     }
     for (present, field) in [
