@@ -80,7 +80,7 @@ pub use profiles::{ConnectionProfileDto, ConnectionProfilePatch, ConnectionProfi
 pub use quota::{
     BudgetStatusDto, CountedWindowDto, CredentialBlockDto, CredentialCycleDto,
     CredentialLimitStatusDto, CredentialQuotaDto, QuotaAllowanceDto, QuotaBalanceDto, QuotaDto,
-    QuotaEntryDto, QuotaPatch, QuotaResetDto, QuotaResetCreditsDto, QuotaResetOptionDto, QuotaResetWrite, QuotaSettlementDto, QuotaSnapshotDto, QuotaWindowDto,
+    QuotaEntryDto, QuotaBreakdownRowDto, QuotaPatch, QuotaResetDto, QuotaResetCreditsDto, QuotaResetOptionDto, QuotaResetWrite, QuotaSettlementDto, QuotaSnapshotDto, QuotaWindowDto,
     QuotaWindowQuery, QuotaWrite,
 };
 pub use rewrite::{

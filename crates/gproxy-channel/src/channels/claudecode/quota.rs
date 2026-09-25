@@ -8,7 +8,7 @@
 use super::{Claudecode, account, base_url, fact, invalid_response, send};
 use crate::channel::{
     ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
-    QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel,
+    QuotaBreakdownRow, QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel,
     QuotaQuery, QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking,
     QuotaValue, QuotaWindow,
 };
@@ -225,6 +225,22 @@ pub(super) fn usage_entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError
         serde_json::from_slice(body).map_err(|e| invalid_response(e.to_string()))?;
     let mut entries = Vec::new();
     for (key, value) in &usage.windows {
+        if key == "seven_day_breakdown" {
+            let rows = value.get("rows").and_then(Value::as_array).into_iter().flatten()
+                .filter_map(|row| Some(QuotaBreakdownRow {
+                    key: row.get("key")?.as_str()?.to_owned(),
+                    label: row.get("display_name").and_then(Value::as_str).map(str::to_owned),
+                    percent: percent(row.get("percent").and_then(Value::as_f64))?,
+                })).collect::<Vec<_>>();
+            if !rows.is_empty() {
+                entries.push(QuotaEntry {
+                    id: key.clone(), source_id: key.clone(), label: None,
+                    subject: QuotaSubject::Account, model_scope: QuotaScope::All,
+                    value: QuotaValue::Breakdown(rows),
+                });
+            }
+            continue;
+        }
         let duration = match key.as_str() {
             "five_hour" => Some(FIVE_HOURS),
             key if key == "seven_day" || key.starts_with("seven_day_") => Some(SEVEN_DAYS),

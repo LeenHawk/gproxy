@@ -12,7 +12,7 @@ use serde_json::Value;
 
 use super::double_option;
 use gproxy_channel::channel::{
-    QuotaAllowance, QuotaBalance, QuotaEntry, QuotaResetBehavior, QuotaResetOutcome,
+    QuotaAllowance, QuotaBalance, QuotaBreakdownRow, QuotaEntry, QuotaResetBehavior, QuotaResetOutcome,
     QuotaResetCredits, QuotaResetOption, QuotaResetResult, QuotaSnapshot, QuotaSubject, QuotaValue,
 };
 use gproxy_store::entity::limits::{
@@ -360,21 +360,23 @@ pub struct QuotaEntryDto {
     /// The channel's `QuotaScope` JSON: `"all"`, `{"models":[…]}`, … .
     #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub model_scope: Value,
-    /// `window`, `rate_limit`, `budget` or `balance`.
+    /// `window`, `rate_limit`, `budget`, `balance` or `breakdown`.
     pub kind: String,
-    /// Present for every kind but `balance`.
+    /// Present for `window`, `rate_limit` and `budget`.
     pub allowance: Option<QuotaAllowanceDto>,
     /// Present only for `balance`.
     pub balance: Option<QuotaBalanceDto>,
+    pub breakdown: Option<Vec<QuotaBreakdownRowDto>>,
 }
 
 impl From<QuotaEntry> for QuotaEntryDto {
     fn from(entry: QuotaEntry) -> Self {
-        let (kind, allowance, balance) = match entry.value {
-            QuotaValue::Window(allowance) => ("window", Some(allowance.into()), None),
-            QuotaValue::RateLimit(allowance) => ("rate_limit", Some(allowance.into()), None),
-            QuotaValue::Budget(allowance) => ("budget", Some(allowance.into()), None),
-            QuotaValue::Balance(balance) => ("balance", None, Some(balance.into())),
+        let (kind, allowance, balance, breakdown) = match entry.value {
+            QuotaValue::Window(allowance) => ("window", Some(allowance.into()), None, None),
+            QuotaValue::RateLimit(allowance) => ("rate_limit", Some(allowance.into()), None, None),
+            QuotaValue::Budget(allowance) => ("budget", Some(allowance.into()), None, None),
+            QuotaValue::Breakdown(rows) => ("breakdown", None, None, Some(rows.into_iter().map(Into::into).collect())),
+            QuotaValue::Balance(balance) => ("balance", None, Some(balance.into()), None),
         };
         Self {
             id: entry.id,
@@ -386,7 +388,24 @@ impl From<QuotaEntry> for QuotaEntryDto {
             kind: kind.to_owned(),
             allowance,
             balance,
+            breakdown,
         }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct QuotaBreakdownRowDto {
+    pub key: String,
+    pub label: Option<String>,
+    pub percent: String,
+}
+
+impl From<QuotaBreakdownRow> for QuotaBreakdownRowDto {
+    fn from(row: QuotaBreakdownRow) -> Self {
+        Self { key: row.key, label: row.label, percent: row.percent.to_string() }
     }
 }
 
