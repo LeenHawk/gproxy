@@ -204,31 +204,35 @@ fn is_sensitive(name: &str) -> bool {
     REDACTED_FIELDS.contains(&normalized.as_str())
 }
 
-/// Reading and writing the trail. Holds only the store: nothing here consults
+/// Reading and writing the trail. Nothing here consults
 /// the identity snapshot, because a historical row must not change meaning
 /// when the row it names is edited.
 pub struct Audit<'a, C> {
     store: &'a Store<C>,
+    enabled: bool,
 }
 
 impl<'a, C> Audit<'a, C> {
-    pub fn new(store: &'a Store<C>) -> Self {
-        Self { store }
+    pub fn new(store: &'a Store<C>, enabled: bool) -> Self {
+        Self { store, enabled }
     }
 }
 
 impl<C: BatchConnectionTrait> Audit<'_, C> {
-    /// Append one row, and answer its id.
+    /// Append one row, and answer its id, or `None` when auditing is disabled.
     ///
     /// Outside the revision batch, and therefore after the operation it
     /// describes has already committed or already failed.
-    pub async fn record(&self, entry: AuditEntry) -> Result<String> {
+    pub async fn record(&self, entry: AuditEntry) -> Result<Option<String>> {
         self.record_at(entry, crate::now_ms()).await
     }
 
     /// [`Audit::record`] against a stated clock, so a test can page a trail
     /// whose order it chose.
-    pub async fn record_at(&self, entry: AuditEntry, now_ms: i64) -> Result<String> {
+    pub async fn record_at(&self, entry: AuditEntry, now_ms: i64) -> Result<Option<String>> {
+        if !self.enabled {
+            return Ok(None);
+        }
         let id = crate::operations::random_id()?;
         self.store
             .audit_events()
@@ -245,7 +249,7 @@ impl<C: BatchConnectionTrait> Audit<'_, C> {
                 created_at_ms: Set(now_ms),
             }])
             .await?;
-        Ok(id)
+        Ok(Some(id))
     }
 
     /// Append one row, swallowing a failure into a warning.

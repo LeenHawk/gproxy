@@ -1,6 +1,6 @@
 ---
 title: "配置"
-description: 五个配置来源及其顺序、全部 24 个 GPROXY_* 变量、TOML 文件、主密钥轮换、bootstrap，以及运行期 settings 行。
+description: 五个配置来源及其顺序、全部 25 个 GPROXY_* 变量、TOML 文件、主密钥轮换、bootstrap，以及运行期 settings 行。
 ---
 
 GPROXY **只在启动时读一次**进程配置。入口点之下没有任何模块读环境变量。
@@ -45,6 +45,7 @@ GPROXY **只在启动时读一次**进程配置。入口点之下没有任何模
 | `GPROXY_CORS_ORIGINS` | `--cors-origin` | — | 逗号分隔的浏览器 origin；空表示仅同源 |
 | `GPROXY_TRUSTED_PROXIES` | `--trusted-proxy` | — | 逗号分隔、其 `x-forwarded-*` 可被相信的对端；空表示谁都不信 |
 | `GPROXY_FILE_STORAGE_DIR` | `--file-storage-dir` | — | 发布 body 与词表的本地目录 |
+| `GPROXY_AUDIT_ENABLED` | `--audit-enabled` | `true` | 记录管理及 OAuth 审计；设为 `false` 关闭新增记录 |
 | `GPROXY_CONSOLE` | `--console` | `true` | 提供 console |
 | `GPROXY_CONSOLE_PATH` | `--console-path` | — | 从这个目录而不是内嵌 bundle 提供 console |
 | `GPROXY_INSTANCE_ID` | `--instance-id` | 随机 | 本进程的稳定名字 |
@@ -60,8 +61,9 @@ GPROXY **只在启动时读一次**进程配置。入口点之下没有任何模
 自己读到的值。
 
 布尔值接受 `1`、`true`、`yes`、`on`、`0`、`false`、`no`、`off`。**拼错是错误而不是
-`false`**——它管的两件事，"把数据库里每个密钥都轮换一遍"和"提供 console"，都属于那种
-不出事就没人注意到缺席的东西。
+`false`**。
+
+关闭审计：设置 `GPROXY_AUDIT_ENABLED=false`、传入 `--audit-enabled false`，或在 TOML 顶层设置 `audit_enabled = false`，然后重启。历史审计仍可查询；请求日志、用量统计不受影响。防止重复导入的迁移完成标记仍会保存。
 
 ## 命令
 
@@ -87,6 +89,7 @@ GPROXY **只在启动时读一次**进程配置。入口点之下没有任何模
 ```toml
 host = "0.0.0.0"
 port = 8787
+audit_enabled = true
 data_dir = "/var/lib/gproxy"
 public_base_url = "https://gproxy.example.com"
 cors_origins = ["https://console.example.com"]

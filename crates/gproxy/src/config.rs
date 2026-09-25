@@ -161,6 +161,9 @@ pub fn layer(options: &cli::Options, file: Option<AppConfig>) -> Result<Settings
     }
 
     config.console = console(options, &config.console)?;
+    if let Some(value) = options.audit_enabled.as_deref() {
+        config.audit_enabled = boolean(value, cli::AUDIT_ENABLED)?;
+    }
 
     Ok(Settings {
         config,
@@ -404,6 +407,38 @@ mod tests {
 
     fn options() -> cli::Options {
         cli::Options::default()
+    }
+
+    #[test]
+    fn audit_switch_defaults_file_override_and_invalid_value() {
+        assert!(
+            layer(&cli::Options::default(), None)
+                .unwrap()
+                .config
+                .audit_enabled
+        );
+        let file: AppConfig = toml::from_str("audit_enabled = false").unwrap();
+        assert!(
+            !layer(&cli::Options::default(), Some(file.clone()))
+                .unwrap()
+                .config
+                .audit_enabled
+        );
+        let options = cli::Options {
+            audit_enabled: Some("true".into()),
+            ..Default::default()
+        };
+        assert!(layer(&options, Some(file)).unwrap().config.audit_enabled);
+        let options = cli::Options {
+            audit_enabled: Some("false".into()),
+            ..Default::default()
+        };
+        assert!(!layer(&options, None).unwrap().config.audit_enabled);
+        let options = cli::Options {
+            audit_enabled: Some("typo".into()),
+            ..Default::default()
+        };
+        assert!(layer(&options, None).is_err());
     }
 
     #[test]

@@ -236,7 +236,7 @@ impl<'a, C> Operations<'a, C> {
     /// The audit trail. Not configuration either, and written outside the
     /// revision batch of the operation it records.
     pub fn audit(&self) -> Audit<'a, C> {
-        Audit::new(self.gproxy.store())
+        Audit::new(self.gproxy.store(), self.config.audit_enabled)
     }
 }
 

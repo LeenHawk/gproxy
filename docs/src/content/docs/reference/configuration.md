@@ -1,6 +1,6 @@
 ---
 title: "Configuration"
-description: "The five configuration sources and their order, all 24 GPROXY_* variables, the TOML file, master-key rotation, bootstrap, and the runtime settings row."
+description: "The five configuration sources and their order, all 25 GPROXY_* variables, the TOML file, master-key rotation, bootstrap, and the runtime settings row."
 ---
 
 GPROXY reads its process configuration **once, at startup**. No module below
@@ -51,6 +51,7 @@ not a redeployment.
 | `GPROXY_CORS_ORIGINS` | `--cors-origin` | — | comma-separated browser origins; empty means same-origin only |
 | `GPROXY_TRUSTED_PROXIES` | `--trusted-proxy` | — | comma-separated peers whose `x-forwarded-*` is believed; empty trusts nothing |
 | `GPROXY_FILE_STORAGE_DIR` | `--file-storage-dir` | — | local directory for published bodies and vocabularies |
+| `GPROXY_AUDIT_ENABLED` | `--audit-enabled` | `true` | Record management and OAuth audit events; `false` disables new entries |
 | `GPROXY_CONSOLE` | `--console` | `true` | serve the console |
 | `GPROXY_CONSOLE_PATH` | `--console-path` | — | serve it from this directory instead of the embedded bundle |
 | `GPROXY_INSTANCE_ID` | `--instance-id` | random | a stable name for this process |
@@ -66,9 +67,9 @@ not a redeployment.
 very step it feeds, so it could not affect the values the parser itself reads.
 
 Booleans take `1`, `true`, `yes`, `on`, `0`, `false`, `no` or `off`. **A
-misspelling is an error rather than a `false`** — the two values this gates,
-rotating every secret in the database and serving the console, are both things
-whose absence goes unnoticed until it matters.
+misspelling is an error rather than a `false`**.
+
+To disable auditing, set `GPROXY_AUDIT_ENABLED=false`, pass `--audit-enabled false`, or set top-level `audit_enabled = false` in TOML, then restart. Existing audit history remains queryable; request logs and usage accounting are unaffected. Migration completion markers are still saved to prevent duplicate imports.
 
 ## The Commands
 
@@ -96,6 +97,7 @@ rather than silently ignored.
 ```toml
 host = "0.0.0.0"
 port = 8787
+audit_enabled = true
 data_dir = "/var/lib/gproxy"
 public_base_url = "https://gproxy.example.com"
 cors_origins = ["https://console.example.com"]

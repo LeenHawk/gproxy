@@ -46,6 +46,8 @@ pub struct AppConfig {
     /// default: a spoofed client IP is a spoofed rate-limit bucket.
     pub trusted_proxies: Vec<String>,
     pub console: ConsoleConfig,
+    /// Record management and OAuth audit events. Read at startup; existing rows remain queryable.
+    pub audit_enabled: bool,
     pub session_ttl_secs: u64,
     pub oauth: OAuthIssuerConfig,
 }
@@ -64,6 +66,7 @@ impl Default for AppConfig {
             cors_origins: Vec::new(),
             trusted_proxies: Vec::new(),
             console: ConsoleConfig::default(),
+            audit_enabled: true,
             session_ttl_secs: THIRTY_DAYS_SECS,
             oauth: OAuthIssuerConfig::default(),
         }
@@ -288,6 +291,7 @@ mod tests {
         assert_eq!(config, AppConfig::default());
         assert_eq!(config.host, "127.0.0.1");
         assert_eq!(config.port, 8787);
+        assert!(config.audit_enabled);
         assert_eq!(config.session_ttl_secs, 2_592_000);
         assert_eq!(config.oauth.access_ttl_secs, 3600);
         assert_eq!(config.oauth.refresh_ttl_secs, 2_592_000);
@@ -339,6 +343,7 @@ mod tests {
                 enabled: false,
                 path: Some("/srv/console".into()),
             },
+            audit_enabled: false,
             session_ttl_secs: 3600,
             oauth: OAuthIssuerConfig {
                 access_ttl_secs: 60,

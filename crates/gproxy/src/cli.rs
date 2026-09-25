@@ -44,6 +44,7 @@ pub const PUBLIC_BASE_URL: &str = "GPROXY_PUBLIC_BASE_URL";
 pub const CORS_ORIGINS: &str = "GPROXY_CORS_ORIGINS";
 pub const TRUSTED_PROXIES: &str = "GPROXY_TRUSTED_PROXIES";
 pub const FILE_STORAGE_DIR: &str = "GPROXY_FILE_STORAGE_DIR";
+pub const AUDIT_ENABLED: &str = "GPROXY_AUDIT_ENABLED";
 pub const CONSOLE: &str = "GPROXY_CONSOLE";
 pub const CONSOLE_PATH: &str = "GPROXY_CONSOLE_PATH";
 pub const INSTANCE_ID: &str = "GPROXY_INSTANCE_ID";
@@ -163,6 +164,10 @@ pub struct Options {
     /// comma-separated in the environment. Empty trusts nothing.
     #[arg(long = "trusted-proxy", global = true, env = TRUSTED_PROXIES, value_name = "ADDRESS")]
     pub trusted_proxies: Option<String>,
+
+    /// Record management and OAuth audit events. [default: true]
+    #[arg(long, global = true, env = AUDIT_ENABLED, value_name = "BOOL")]
+    pub audit_enabled: Option<String>,
 
     /// Local directory for published bodies and downloaded vocabularies.
     /// Unset leaves both disabled.
