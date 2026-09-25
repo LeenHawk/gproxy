@@ -186,15 +186,14 @@ impl<C> Gproxy<C> {
         let mut ranked = Vec::with_capacity(named);
         for mut candidate in matched.candidates {
             let requested_model = candidate.upstream_model.clone();
-            if let Some(name) = candidate.upstream_model.as_deref() {
-                if let Some(model) = candidate
+            if let Some(name) = candidate.upstream_model.as_deref()
+                && let Some(model) = candidate
                     .provider
                     .models
                     .iter()
                     .find(|m| m.enabled && m.variant_names().contains(&name))
-                {
-                    candidate.upstream_model = Some(model.upstream_name.clone());
-                }
+            {
+                candidate.upstream_model = Some(model.upstream_name.clone());
             }
             if let Some(channel) = request.channel
                 && candidate.provider.entity.channel != channel

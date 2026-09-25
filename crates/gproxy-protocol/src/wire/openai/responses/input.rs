@@ -266,7 +266,7 @@ pub struct InputMessage {
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub enum InputItem {
     ConfigurationUpdate(ConfigurationUpdate),
-    OutputMessage(ResponseOutputMessage),
+    OutputMessage(#[serde(deserialize_with = "output_message_history")] ResponseOutputMessage),
     Message(InputMessage),
     Easy(EasyInputMessage),
     FunctionCall(FunctionCall),
@@ -298,6 +298,37 @@ pub enum InputItem {
     CompactionTrigger(CompactionTrigger),
     Program(Program),
     ProgramOutput(ProgramOutput),
+}
+
+/// Codex replays assistant history without output-only status/annotation
+/// bookkeeping. Accept that compact request form without relaxing live
+/// response parsing or dropping its output_text content.
+fn output_message_history<'de, D>(deserializer: D) -> Result<ResponseOutputMessage, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let mut value = serde_json::Value::deserialize(deserializer)?;
+    if value.get("role").and_then(serde_json::Value::as_str) == Some("assistant")
+        && value.get("type").and_then(serde_json::Value::as_str) == Some("message")
+    {
+        let object = value.as_object_mut().expect("message object");
+        object.entry("status").or_insert_with(|| "completed".into());
+        if let Some(parts) = object
+            .get_mut("content")
+            .and_then(serde_json::Value::as_array_mut)
+        {
+            for part in parts {
+                if part.get("type").and_then(serde_json::Value::as_str) == Some("output_text") {
+                    let part = part.as_object_mut().expect("text object");
+                    part.entry("annotations")
+                        .or_insert_with(|| serde_json::json!([]));
+                    part.entry("logprobs")
+                        .or_insert_with(|| serde_json::json!([]));
+                }
+            }
+        }
+    }
+    serde_json::from_value(value).map_err(serde::de::Error::custom)
 }
 
 #[derive(
@@ -1048,7 +1079,13 @@ pub struct WebSearchCall {
     #[serde(rename = "type")]
     pub type_: WebSearchCallType,
     pub id: String,
-    pub action: WebSearchAction,
+    /// The initial in-progress stream item precedes its search action.
+    #[serde(
+        default,
+        deserialize_with = "present_optional",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub action: Option<WebSearchAction>,
     pub status: WebSearchStatus,
     #[serde(default, flatten, skip_serializing_if = "serde_json::Map::is_empty")]
     pub rest: Rest,

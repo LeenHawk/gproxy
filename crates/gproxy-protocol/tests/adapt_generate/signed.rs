@@ -1,6 +1,80 @@
 use super::*;
 
 #[test]
+fn claude_history_schema_defaults_restore_exact_signed_gemini_arguments() {
+    let mut body = output("g");
+    body["candidates"][0]["content"]["parts"] = json!([{
+        "functionCall":{"id":"native-call","name":"Edit","args":{"x":1}},
+        "thoughtSignature":"native-gemini-signature"
+    }]);
+    let host = Host::new(body);
+    let store = Store::default();
+    let state = state(&store, Dialect::Gemini);
+    let mut prepared = ClaudeViaGemini::prepare(
+        serde_json::from_value(input("c")).unwrap(),
+        "selected",
+        endpoint(),
+        ids(Dialect::Claude, Dialect::Gemini),
+        Default::default(),
+    )
+    .unwrap();
+    let result = ready(prepared.invoke(
+        &host,
+        &(),
+        codec_limits(),
+        &state,
+        &mut GenerationProgress::default(),
+        |_| {
+            Ok(claude_gemini::ClaudeGeminiUsageFacts {
+                cache_creation_input_tokens: Some(0),
+                cache_read_input_tokens: Some(0),
+                thinking_tokens: None,
+            })
+        },
+    ))
+    .unwrap();
+    let GenerationOutcome::Success { response, .. } = result else {
+        panic!("rejected")
+    };
+    let content = serde_json::to_value(response.body).unwrap()["content"].clone();
+    for (args, accepted) in [
+        (json!({"x":1,"replace_all":false}), true),
+        (json!({"x":1,"replace_all":true}), false),
+        (json!({"x":2,"replace_all":false}), false),
+        (json!({"x":1,"unknown":false}), false),
+    ] {
+        let mut next = input("c");
+        next["tools"] = json!([{"name":"Edit","input_schema":{
+            "type":"object","properties":{"x":{"type":"integer"},"replace_all":{"type":"boolean","default":false}},"required":["x"]
+        }}]);
+        next["messages"] = json!([
+            {"role":"assistant","content":content},
+            {"role":"user","content":[{"type":"tool_result","tool_use_id":"native-call","content":"done"}]}
+        ]);
+        next["messages"][0]["content"][0]["input"] = args;
+        let restored = ready(ClaudeViaGemini::prepare_with_state(
+            serde_json::from_value(next).unwrap(),
+            endpoint(),
+            ids(Dialect::Claude, Dialect::Gemini),
+            &state,
+            Default::default(),
+        ));
+        assert_eq!(restored.is_ok(), accepted, "{restored:?}");
+        if let Ok(restored) = restored {
+            let target = serde_json::to_value(restored.target_request()).unwrap();
+            assert_eq!(
+                target["contents"][0]["parts"][0]["functionCall"]["args"],
+                json!({"x":1})
+            );
+            assert_eq!(
+                target["contents"][0]["parts"][0]["thoughtSignature"],
+                "native-gemini-signature"
+            );
+        }
+    }
+}
+
+#[test]
 fn signed_claude_thinking_is_saved_before_response_and_restored_only_to_original() {
     let mut body = output("c");
     body["content"] = json!([{"type":"thinking","thinking":"private reasoning","signature":"native-claude-signature","foreign":"ignore"},{"type":"text","text":"answer"}]);
@@ -139,6 +213,7 @@ fn signed_gemini_function_replays_exact_native_part_and_tool_result_name() {
         .is_err()
     );
 }
+
 #[test]
 fn chat_history_restores_gemini_signed_call_without_inventing_native_id() {
     let mut body = output("g");

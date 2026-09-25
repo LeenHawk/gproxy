@@ -4,6 +4,7 @@ use crate::transform::identity::OutputItemKind;
 impl Bindings {
     pub(crate) fn kind(&self, name: &str) -> OutputItemKind {
         match self.entries.get(name) {
+            Some(Kind::Custom { .. }) => OutputItemKind::CustomToolCall,
             Some(Kind::Shell) => OutputItemKind::ShellCall,
             Some(Kind::Patch) => OutputItemKind::ApplyPatchCall,
             Some(Kind::Search) => OutputItemKind::ToolSearchCall,
@@ -42,6 +43,15 @@ impl Bindings {
             .map_err(|e| TransformError::invalid_result("client_tools.arguments", e.to_string()))?;
         let id = call.id;
         let wire = match kind {
+            Kind::Custom { name } => {
+                let input = value.get("input").and_then(Value::as_str).ok_or_else(|| {
+                    TransformError::invalid_result(
+                        "custom_tool.input",
+                        "expected the raw tool input string",
+                    )
+                })?;
+                json!({"type":"custom_tool_call","id":id,"call_id":call.call_id,"name":name,"input":input})
+            }
             Kind::Shell => {
                 let action: r::ShellAction = serde_json::from_value(value)
                     .map_err(|e| TransformError::invalid_result("shell.action", e.to_string()))?;

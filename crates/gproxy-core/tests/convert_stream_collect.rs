@@ -24,6 +24,66 @@ fn key(operation: Operation, dialect: Dialect) -> OperationKey {
     OperationKey { operation, dialect }
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn claude_receives_gemini_tools_with_omitted_zero_cache_counters() {
+    // Exercise both conversion entry points on a normal Tokio worker stack.
+    tokio::spawn(async {
+        for stream in [false, true] {
+            for cached in [None, Some(2)] {
+                let h = harness(full(), "round_robin").await;
+                h.core.store().providers().update_many(vec![provider::ActiveModel {
+                    id: Set("p".into()),
+                    config: Set(json!({"dialects": ["gemini"]})),
+                    ..Default::default()
+                }]).await.unwrap();
+                h.core.store().settings().update(setting::ActiveModel {
+                    config_revision: Set((h.core.snapshot().revision.0 + 1) as i64),
+                    ..Default::default()
+                }).await.unwrap();
+                h.core.reload_data().await.unwrap();
+                let mut usage = json!({
+                    "promptTokenCount": 10, "candidatesTokenCount": 3,
+                    "thoughtsTokenCount": 2, "totalTokenCount": 15
+                });
+                if let Some(cached) = cached {
+                    usage["cachedContentTokenCount"] = json!(cached);
+                }
+                let native = json!({
+                    "responseId": "gemini-source", "modelVersion": "gemini-model",
+                    "candidates": [{"content": {"role": "model", "parts": [{
+                        "functionCall": {"id": "call-source", "name": "Bash", "args": {"command": "pwd"}}
+                    }]}, "finishReason": "STOP"}],
+                    "usageMetadata": usage
+                });
+                h.script(vec![(StatusCode::OK,
+                    vec![("content-type", if stream {"text/event-stream"} else {"application/json"})],
+                    vec![Bytes::from(if stream {format!("data: {native}\n\n")} else {native.to_string()})],
+                )]);
+                let operation = if stream {Operation::StreamGenerateContent} else {Operation::GenerateContent};
+                let ctx = h.context_for("p", key(operation, Dialect::Claude), "gemini-tools", 1, None);
+                let body = json!({
+                    "model": "alias", "max_tokens": 128, "stream": stream,
+                    "messages": [{"role": "user", "content": "run pwd"}],
+                    "tools": [{"name": "Bash", "input_schema": {"type": "object", "properties": {"command": {"type": "string"}}}}]
+                });
+                let (response, completion) = h.core.send(ctx, request(&body.to_string())).await.unwrap().into_parts();
+                let output = read(response.body).await;
+                assert!(output.contains("Bash"), "{output}");
+                assert!(output.contains("pwd"), "{output}");
+                assert!(output.contains("tool_use"), "{output}");
+                if !stream {
+                    let response: Value = serde_json::from_str(&output).unwrap();
+                    assert_eq!(response["usage"]["input_tokens"], 10 - cached.unwrap_or(0));
+                    assert_eq!(response["usage"]["cache_read_input_tokens"], cached.unwrap_or(0));
+                    assert_eq!(response["usage"]["cache_creation_input_tokens"], 0);
+                    assert_eq!(response["usage"]["output_tokens"], 5);
+                }
+                assert_eq!(completion.await.unwrap().state, gproxy_core::UsageState::Completed);
+            }
+        }
+    }).await.unwrap();
+}
+
 #[test]
 fn codex_defaults_use_streaming_responses_without_changing_openai_defaults() {
     let config = json!({});

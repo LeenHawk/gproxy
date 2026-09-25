@@ -1,6 +1,25 @@
 use gproxy_protocol::openai::responses::input::*;
 
 #[test]
+fn codex_compact_assistant_history_is_not_a_sparse_live_response() {
+    let value = serde_json::json!({
+        "type":"message", "id":"msg_history", "role":"assistant",
+        "content":[{"type":"output_text","text":"Running the shell check."}]
+    });
+    let InputItem::OutputMessage(message) = serde_json::from_value(value.clone()).unwrap() else {
+        panic!("assistant output history");
+    };
+    assert_eq!(message.status, OutputMessageStatus::Completed);
+    let OutputContent::Text(text) = &message.content[0] else {
+        panic!("text")
+    };
+    assert_eq!(text.text, "Running the shell check.");
+    assert!(text.annotations.is_empty());
+    assert!(text.logprobs.is_empty());
+    assert!(serde_json::from_value::<ResponseOutputMessage>(value).is_err());
+}
+
+#[test]
 fn web_search_and_annotations_use_fixed_nested_tags() {
     let action: WebSearchAction = serde_json::from_value(serde_json::json!({
         "type":"search", "sources":[{"type":"url","url":"https://example.com"}]

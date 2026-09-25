@@ -245,9 +245,13 @@ pub fn gemini_to_claude_response(
             );
         }
         if let Some(text) = p.text {
-            content.push(c::ResponseContentBlock::Text(
-                c::ResponseTextBlock::builder(c::ResponseTextBlockType::Tag, text).build(),
-            ));
+            if let Some(c::ResponseContentBlock::Text(previous)) = content.last_mut() {
+                previous.text.push_str(&text);
+            } else {
+                content.push(c::ResponseContentBlock::Text(
+                    c::ResponseTextBlock::builder(c::ResponseTextBlockType::Tag, text).build(),
+                ));
+            }
         }
         if let Some(call) = p.function_call {
             let id = calls.call(

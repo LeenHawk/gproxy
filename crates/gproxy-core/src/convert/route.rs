@@ -59,6 +59,11 @@ pub fn can_convert(source: OperationKey, target: OperationKey) -> bool {
                 && (target.operation != GenerateContent
                     || target.dialect != OpenAiResponsesWebSocket)
         }
+        WebSearch => {
+            source.dialect == OpenAi
+                && target.operation == GenerateContent
+                && matches!(target.dialect, OpenAi | Claude | Gemini)
+        }
         GuardianReview | GuardianClassify | CompactContent | SummarizeMemory => {
             source.dialect == OpenAi
                 && target.operation == GenerateContent

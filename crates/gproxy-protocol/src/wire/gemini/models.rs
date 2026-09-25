@@ -50,6 +50,7 @@ pub struct Model {
     pub name: String,
     #[serde(alias = "base_model_id")]
     pub base_model_id: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(alias = "display_name")]

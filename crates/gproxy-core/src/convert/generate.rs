@@ -43,6 +43,66 @@ use gproxy_seaorm::BatchConnectionTrait;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use std::time::SystemTime;
 
+/// Claude requires an output budget even when the caller's protocol does not.
+/// Use the selected model's advertised limit, with a normal generation budget
+/// for providers whose model directory has not been loaded yet.
+fn generation_body<'a, C>(
+    call: &'a Call<'_, C>,
+) -> Result<std::borrow::Cow<'a, [u8]>, TransformError> {
+    let body = call.request.body;
+    if call.target != Dialect::Claude || call.client.dialect == Dialect::Claude {
+        return Ok(std::borrow::Cow::Borrowed(body));
+    }
+    let max_tokens = call
+        .upstream
+        .attempt()
+        .request
+        .target
+        .provider
+        .models
+        .iter()
+        .find(|model| Some(model.upstream_name.as_str()) == call.model)
+        .and_then(|model| model.metadata.get("max_output_tokens"))
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(8192);
+    let encoded = match call.client.dialect {
+        Dialect::OpenAi => {
+            let mut input: r::GenerateContentRequestBody = decode(body, call.limits)?;
+            if input.max_output_tokens.flatten().is_some() {
+                return Ok(std::borrow::Cow::Borrowed(body));
+            }
+            input.max_output_tokens = Some(Some(max_tokens));
+            encode_json(&input, call.limits)
+        }
+        Dialect::OpenAiChat => {
+            let mut input: h::GenerateContentRequestBody = decode(body, call.limits)?;
+            if input
+                .max_completion_tokens
+                .flatten()
+                .or(input.max_tokens.flatten())
+                .is_some()
+            {
+                return Ok(std::borrow::Cow::Borrowed(body));
+            }
+            input.max_completion_tokens = Some(Some(max_tokens));
+            encode_json(&input, call.limits)
+        }
+        Dialect::Gemini => {
+            let mut input: g::GenerateContentRequestBody = decode(body, call.limits)?;
+            let config = input
+                .generation_config
+                .get_or_insert_with(|| g::GenerationConfig::builder().build());
+            if config.max_output_tokens.is_some() {
+                return Ok(std::borrow::Cow::Borrowed(body));
+            }
+            config.max_output_tokens = Some(max_tokens);
+            encode_json(&input, call.limits)
+        }
+        _ => return Ok(std::borrow::Cow::Borrowed(body)),
+    };
+    Ok(std::borrow::Cow::Owned(encoded.map_err(codec)?.to_vec()))
+}
+
 fn codec(error: gproxy_protocol::codec::CodecError) -> TransformError {
     TransformError::with_source(
         if error.kind() == gproxy_protocol::codec::CodecErrorKind::Limit {
@@ -165,7 +225,7 @@ pub(super) fn responses_over_gemini_facts(
                 request: input.clone(),
                 effective_parallel_tool_calls: parallel_tool_calls,
                 effective_tool_choice: tool_choice,
-                usage: Default::default(),
+                usage: gemini_responses_usage_facts(),
                 created_at: created,
                 effective_prompt_cache_options: None,
             },
@@ -259,6 +319,7 @@ pub(super) fn rejected(response: WireResponse<gproxy_protocol::connection::Bytes
 }
 
 pub(super) fn transport(error: TransformError) -> TransportError {
+    tracing::warn!(%error, "generation stream conversion failed");
     Box::new(std::io::Error::other(error.to_string()))
 }
 
@@ -314,14 +375,15 @@ async fn invoke_stream<C: BatchConnectionTrait + Send + Sync + 'static>(
     let client = call.client.dialect;
     let target = call.target;
     let upstream = call.upstream;
-    let body = call.body();
+    let prepared_body = generation_body(call)?;
+    let body = prepared_body.as_ref();
     let limits = call.limits;
     let settings = stream_settings(limits, client, call.request.query);
     if target == Dialect::OpenAiResponsesWebSocket {
-        return super::responses_ws::over_websocket(call, settings).await;
+        return Box::pin(super::responses_ws::over_websocket(call, settings)).await;
     }
     if client == target && call.collect {
-        return collect_native(call).await;
+        return Box::pin(collect_native(call)).await;
     }
     let state = &call.generation_state()?;
     let key = OperationKey {
@@ -348,15 +410,15 @@ async fn invoke_stream<C: BatchConnectionTrait + Send + Sync + 'static>(
         // went out surfaces as a transport error on the client stream.
         macro_rules! fan {
             ($pair:ty, $input:ty $(, |$index:ident| $ctx:expr)?) => {{
-                let input: $input = decode(body, limits)?;
                 Box::pin(async move {
-                    let mut fanout = <$pair>::prepare_stream(
+                    let input: $input = decode(body, limits)?;
+                    let mut fanout = Box::pin(<$pair>::prepare_stream(
                         input,
                         fanout_target,
                         $(|$index: usize| $ctx,)?
                         settings,
                         state,
-                    )
+                    ))
                     .await?;
                     if call.collect {
                         let result = fanout.collect(upstream, &key, state).await?;
@@ -421,23 +483,26 @@ async fn invoke_stream<C: BatchConnectionTrait + Send + Sync + 'static>(
 
     macro_rules! run {
         ($pair:ty, $input:ty, |$input_name:ident| $ctx:expr) => {{
-            let $input_name: $input = decode(body, limits)?;
-            let context = $ctx;
             // Boxed per pair: twelve inlined stream state machines would
             // otherwise sit side by side in one oversized frame.
             Box::pin(async move {
-                let invocation =
-                    <$pair>::prepare_stream($input_name, stream_target, context, settings, state)
-                        .await?;
+                let $input_name: $input = decode(body, limits)?;
+                let context = $ctx;
+                let invocation = Box::pin(<$pair>::prepare_stream(
+                    $input_name, stream_target, context, settings, state,
+                ))
+                .await?;
                 run!(@start invocation)
             })
             .await
         }};
         ($pair:ty, $input:ty) => {{
-            let input: $input = decode(body, limits)?;
             Box::pin(async move {
-                let invocation =
-                    <$pair>::prepare_stream(input, stream_target, settings, state).await?;
+                let input: $input = decode(body, limits)?;
+                let invocation = Box::pin(<$pair>::prepare_stream(
+                    input, stream_target, settings, state,
+                ))
+                .await?;
                 run!(@start invocation)
             })
             .await
@@ -499,6 +564,7 @@ async fn invoke_stream<C: BatchConnectionTrait + Send + Sync + 'static>(
                     request: Default::default(),
                     response: claude_gemini::stream::GeminiToClaudeContext {
                         model: Some(model.clone()),
+                        facts: gemini_claude_usage_facts(),
                         ..Default::default()
                     },
                 }
@@ -617,6 +683,24 @@ fn json_headers() -> http::HeaderMap {
         http::HeaderValue::from_static("application/json"),
     );
     headers
+}
+
+// Gemini's generation usage has no Claude cache-creation bucket. Its protobuf
+// JSON omits a zero cachedContentTokenCount; a reported nonzero count still
+// takes precedence over this fallback in the protocol converter.
+fn gemini_claude_usage_facts() -> claude_gemini::ClaudeGeminiUsageFacts {
+    claude_gemini::ClaudeGeminiUsageFacts {
+        cache_creation_input_tokens: Some(0),
+        cache_read_input_tokens: Some(0),
+        thinking_tokens: None,
+    }
+}
+
+fn gemini_responses_usage_facts() -> gemini_responses::GeminiUsageFacts {
+    gemini_responses::GeminiUsageFacts {
+        cache_write_tokens: Some(0),
+        cached_tokens: Some(0),
+    }
 }
 
 /// A complete client DTO that can also be replayed as its native stream.
@@ -848,7 +932,7 @@ async fn invoke_native_complete<C: BatchConnectionTrait + Send + Sync>(
             .await
         };
     }
-    return match target {
+    match target {
         Dialect::OpenAi => native!(
             r::GenerateContentRequestBody,
             r::GenerateContentResponseBody
@@ -869,7 +953,7 @@ async fn invoke_native_complete<C: BatchConnectionTrait + Send + Sync>(
             "route",
             "no buffered WebSocket synthesis",
         )),
-    };
+    }
 }
 
 /// One complete generation for `client -> target`: decode the client's
@@ -885,7 +969,8 @@ async fn invoke_complete<C: BatchConnectionTrait + Send + Sync>(
     let client = call.client.dialect;
     let target = call.target;
     let upstream = call.upstream;
-    let body = call.body();
+    let prepared_body = generation_body(call)?;
+    let body = prepared_body.as_ref();
     let limits = call.limits;
     let state = &call.generation_state()?;
     let key = OperationKey {
@@ -1061,14 +1146,7 @@ async fn invoke_complete<C: BatchConnectionTrait + Send + Sync>(
             c::GenerateContentRequestBody,
             [Default::default()],
             [Default::default()],
-            |native: &g::GenerateContentResponseBody| {
-                let usage = native.usage_metadata.as_ref();
-                Ok(claude_gemini::ClaudeGeminiUsageFacts {
-                    cache_creation_input_tokens: None,
-                    cache_read_input_tokens: usage.and_then(|u| u.cached_content_token_count),
-                    thinking_tokens: usage.and_then(|u| u.thoughts_token_count),
-                })
-            }
+            |_: &g::GenerateContentResponseBody| Ok(gemini_claude_usage_facts())
         ),
         (Dialect::Gemini, Dialect::Claude) => run!(
             GeminiViaClaude,
@@ -1129,17 +1207,11 @@ async fn invoke_complete<C: BatchConnectionTrait + Send + Sync>(
                 r::GenerateContentRequestBody,
                 [Default::default()],
                 [Default::default()],
-                move |native: &g::GenerateContentResponseBody| Ok(GeminiReturnFacts {
+                move |_: &g::GenerateContentResponseBody| Ok(GeminiReturnFacts {
                     parallel_tool_calls,
                     tool_choice: tool_choice.clone(),
                     prompt_cache_options: None,
-                    usage: gemini_responses::GeminiUsageFacts {
-                        cache_write_tokens: None,
-                        cached_tokens: native
-                            .usage_metadata
-                            .as_ref()
-                            .and_then(|u| u.cached_content_token_count),
-                    },
+                    usage: gemini_responses_usage_facts(),
                     created_at: created,
                 })
             )

@@ -216,6 +216,51 @@ fn claude_pages_preserve_boundaries_and_clear_nested_extensions() {
         Some("limit=1&after_id=a")
     );
 }
+
+#[test]
+fn catalogues_accept_omitted_fallbacks_and_model_version() {
+    let mut model = cm("claude-sonnet-4-6");
+    model
+        .as_object_mut()
+        .unwrap()
+        .remove("allowed_fallback_models");
+    let host = pages(vec![json!({
+        "data": [model], "first_id": "claude-sonnet-4-6",
+        "last_id": "claude-sonnet-4-6", "has_more": false
+    })]);
+    let result = ready(collect_claude(
+        &host,
+        &(),
+        request(),
+        c::ListModelsQuery::builder().build(),
+        limits(),
+    ))
+    .unwrap();
+    assert!(result.value.data[0].allowed_fallback_models.is_empty());
+
+    let host = pages(vec![json!({"models": [{
+        "name": "models/gemini-3-flash", "baseModelId": "gemini-3-flash",
+        "supportedGenerationMethods": ["generateContent", "streamGenerateContent"]
+    }]})]);
+    let result = ready(collect_gemini(
+        &host,
+        &(),
+        request(),
+        g::ListModelsQuery::builder().build(),
+        limits(),
+    ))
+    .unwrap();
+    let model = &result.value.models.as_ref().unwrap()[0];
+    assert_eq!(model.name, "models/gemini-3-flash");
+    assert!(model.version.is_empty());
+    assert!(
+        serde_json::to_value(model)
+            .unwrap()
+            .get("version")
+            .is_none()
+    );
+}
+
 #[test]
 fn paging_limits_and_cycles_fail_without_partial_success() {
     let host = pages(vec![

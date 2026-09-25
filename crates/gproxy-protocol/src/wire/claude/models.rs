@@ -53,6 +53,7 @@ pub type GetModelResponse = crate::WireResponse<ModelInfo>;
 #[derive(gproxy_protocol_macros::DeclaredFields)]
 pub struct ModelInfo {
     pub id: String,
+    #[serde(default)]
     pub allowed_fallback_models: Vec<String>,
     pub capabilities: ModelCapabilities,
     pub created_at: String,

@@ -105,6 +105,9 @@ surfaces! {
     POST "/v1/moderations" => GuardianClassify / OpenAi;
     POST "/v1/rerank" => Rerank / OpenAi;
     POST "/v1/conversations" => CreateConversation / OpenAi;
+    POST "/v1/search" => WebSearch / OpenAi;
+    POST "/v1/alpha/search" => WebSearch / OpenAi;
+    POST "/alpha/search" => WebSearch / OpenAi;
     POST "/v1/images/generations" => CreateImage / OpenAi;
     POST "/v1/images/edits" => EditImage / OpenAi;
     POST "/v1/audio/speech" => CreateSpeech / OpenAi;
@@ -377,6 +380,20 @@ mod tests {
         assert_eq!(matched.operation.dialect, Dialect::OpenAiChat);
         let matched = match_path(&Method::POST, "/v1/responses", &HeaderMap::new(), None).unwrap();
         assert_eq!(matched.operation.dialect, Dialect::OpenAi);
+    }
+
+    #[test]
+    fn codex_standalone_search_paths_reach_the_data_plane() {
+        for path in ["/v1/search", "/v1/alpha/search", "/alpha/search"] {
+            let matched = match_path(&Method::POST, path, &HeaderMap::new(), None).unwrap();
+            assert_eq!(
+                matched.operation,
+                OperationKey {
+                    operation: Operation::WebSearch,
+                    dialect: Dialect::OpenAi
+                }
+            );
+        }
     }
 
     #[test]
