@@ -456,7 +456,7 @@
   },
   "modelUI": {
     "invalidVariants": "變體名稱不能重複或為空，也不能包含萬用字元。",
-    "defaultPrices": "匯入預設價格",
+    "defaultMetadata": "匯入預設中繼資料",
     "testOk": "測試成功",
     "refresh": "重新整理",
     "selectAll": "全選搜尋結果",

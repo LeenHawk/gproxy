@@ -1,5 +1,11 @@
 import type { DefaultModelDto, DefaultModelPricingDto, ProviderDto, ProviderModelDto } from "@/generated/sdk"
 
+export function defaultMetadata(model: DefaultModelDto) {
+  const metadata: Record<string, unknown> = { ...model }
+  for (const key of ["modelId", "pricing", "displayName", "contextWindow", "maxOutputTokens"]) delete metadata[key]
+  return { ...metadata, display_name: model.displayName, context_window: model.contextWindow, max_output_tokens: model.maxOutputTokens }
+}
+
 export function modelBasename(name: string) { return name.trim().split("/").at(-1) ?? "" }
 
 /** Same lookup as the backend: exact first, otherwise a unique basename. */

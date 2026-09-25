@@ -456,7 +456,7 @@
   },
   "modelUI": {
     "invalidVariants": "Variant names must be unique, nonempty, and contain no wildcards.",
-    "defaultPrices": "Import default prices",
+    "defaultMetadata": "Import default metadata",
     "testOk": "Test succeeded",
     "refresh": "Refresh",
     "selectAll": "Select all results",
