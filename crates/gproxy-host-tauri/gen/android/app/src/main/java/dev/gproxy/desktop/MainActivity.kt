@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
+import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 import androidx.core.content.ContextCompat
 
@@ -39,6 +40,13 @@ import androidx.core.content.ContextCompat
  * bridge, as the desktop window does, through the same 261 commands.
  */
 class MainActivity : TauriActivity() {
+    private val files = GproxyFiles(this)
+
+    /** Before the console loads, so `window.GproxyFiles` exists on its first page. */
+    override fun onWebViewCreate(webView: WebView) {
+        webView.addJavascriptInterface(files, GproxyFiles.JS_NAME)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         GproxyNative.configure(this)
         enableEdgeToEdge()
