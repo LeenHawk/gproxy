@@ -151,9 +151,10 @@ kiro = [
 # Responses and Realtime over a WebSocket, x-ratelimit-* headers and the
 # organization cost report.
 openai = ["dep:futures-util", "dep:web-time"]
-# OpenCode (opencode.ai) Zen and Go: one account reached with a device login
-# or a pasted key, three compatible surfaces on one origin, the tool's
-# `x-opencode-session` affinity header and the Go tier's `/usage` windows.
+# OpenCode (opencode.ai): two channels, `opencodezen` (pay-as-you-go, device
+# login or a pasted key) and `opencodego` (subscription, a pasted key, the
+# `/usage` windows), three compatible surfaces each and the tool's
+# `x-opencode-session` affinity header.
 opencode = [
     "dep:futures-util",
     "dep:getrandom",

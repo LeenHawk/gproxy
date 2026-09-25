@@ -43,7 +43,7 @@ use crate::{Error, Result};
 /// feature set must still translate a full document: a provider whose channel
 /// this binary was not compiled with is a runtime concern the operator can fix
 /// by rebuilding, not a reason to refuse their configuration.
-pub const V4_CHANNELS: [&str; 25] = [
+pub const V4_CHANNELS: [&str; 26] = [
     "aistudio",
     "antigravity",
     "aws_bedrock",
@@ -63,7 +63,8 @@ pub const V4_CHANNELS: [&str; 25] = [
     "kimi",
     "kiro",
     "openai",
-    "opencode",
+    "opencodego",
+    "opencodezen",
     "openrouter",
     "vertex",
     "vertexexpress",
@@ -81,6 +82,9 @@ enum Rule {
     /// v4 has no channel for this vendor and does not want one: the provider
     /// becomes `custom`. See [`Recipe`].
     Custom(Recipe),
+    /// v3 folded OpenCode Zen and Go into one id and told them apart by a
+    /// `tier` setting; v4 has a channel for each. See [`opencode`].
+    OpenCode,
 }
 
 /// A vendor v4 serves through `custom`, and what has to be assembled for it.
@@ -129,7 +133,7 @@ const RULES: [(&str, Rule); 27] = [
         }),
     ),
     ("openai", Rule::Keep),
-    ("opencode", Rule::Keep),
+    ("opencode", Rule::OpenCode),
     ("openrouter", Rule::Keep),
     (
         "vercel",
@@ -220,6 +224,40 @@ pub fn provider(
             note: Some(format!("channel `{id}` is `{v4}` in v4")),
         }),
         Rule::Custom(recipe) => custom(*recipe, id, name, settings, secrets),
+        Rule::OpenCode => Ok(opencode(id, settings)),
+    }
+}
+
+/// v3's one OpenCode id as v4's two channels. The legacy alias the row was
+/// stored under decides first, exactly as v3's own canonicalization forced
+/// the tier from it; then v3's `tier` setting (absent meant Zen); then an
+/// origin pointed at the Go path, which v3's quota code also read as Go.
+fn opencode(id: &str, settings: &Value) -> Provider {
+    let origin = base_url(settings);
+    let go = match id {
+        "opencodego" => true,
+        "opencodezen" => false,
+        _ => {
+            settings.get("tier").and_then(Value::as_str) == Some("go")
+                || origin
+                    .as_deref()
+                    .is_some_and(|url| url.trim_end_matches('/').ends_with("/zen/go/v1"))
+        }
+    };
+    let channel = if go { "opencodego" } else { "opencodezen" };
+    let mut config = object(settings);
+    // The tier is the channel now; left behind it would be a second answer.
+    if let Value::Object(map) = &mut config {
+        map.remove("tier");
+    }
+    Provider {
+        channel: channel.to_owned(),
+        base_url: origin,
+        config,
+        strip_from_secrets: Vec::new(),
+        note: Some(format!(
+            "channel `{id}` is `{channel}` in v4, which has one channel per OpenCode product"
+        )),
     }
 }
 
@@ -403,6 +441,12 @@ mod tests {
                     !V4_CHANNELS.contains(&id),
                     "`{id}` is rebuilt as custom, but v4 registers it under its own name"
                 ),
+                Rule::OpenCode => assert!(
+                    ["opencodezen", "opencodego"]
+                        .iter()
+                        .all(|v4| V4_CHANNELS.contains(v4)),
+                    "OpenCode splits into channels v4 does not register"
+                ),
             }
         }
         // And the table is sorted, so a reader can find an id in it.
@@ -449,9 +493,44 @@ mod tests {
     fn v3s_own_legacy_aliases_still_resolve() {
         for (alias, target) in ALIASES {
             let out = translate(alias, json!({}), &[]);
-            assert_eq!(out.channel, target);
-            assert!(out.note.unwrap().contains("old name"));
+            match target {
+                "opencode" => assert_eq!(out.channel, alias, "the alias names its product"),
+                _ => {
+                    assert_eq!(out.channel, target);
+                    assert!(out.note.unwrap().contains("old name"));
+                }
+            }
         }
+    }
+
+    #[test]
+    fn opencode_splits_into_the_product_v3_served() {
+        let zen = translate("opencode", json!({"future": true}), &[]);
+        assert_eq!(zen.channel, "opencodezen");
+        assert_eq!(zen.config, json!({"future": true}));
+
+        let go = translate("opencode", json!({"tier": "go", "future": true}), &[]);
+        assert_eq!(go.channel, "opencodego");
+        assert_eq!(
+            go.config,
+            json!({"future": true}),
+            "the tier is the channel now"
+        );
+
+        let by_origin = translate(
+            "opencode",
+            json!({"base_url": "https://opencode.ai/zen/go/v1/"}),
+            &[],
+        );
+        assert_eq!(by_origin.channel, "opencodego");
+        assert_eq!(
+            by_origin.base_url.as_deref(),
+            Some("https://opencode.ai/zen/go/v1/")
+        );
+
+        // v3 forced the tier from the alias, whatever the setting said.
+        let aliased = translate("opencodego", json!({"tier": "zen"}), &[]);
+        assert_eq!(aliased.channel, "opencodego");
     }
 
     #[test]

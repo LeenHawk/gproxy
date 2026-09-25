@@ -41,7 +41,8 @@ provider form should render.
 | `kimi` | Moonshot's platform with a key, or the Kimi Code subscription through a device login | `{"api_key"}` or OAuth |
 | `kiro` | AWS CodeWhisperer through the Kiro desktop app | OAuth |
 | `openai` | OpenAI's own platform: the full surface, Responses and Realtime over a socket | `{"api_key", "quota_api_key"}` |
-| `opencode` | OpenCode Zen and Go | `{"api_key"}` or OAuth |
+| `opencodego` | OpenCode Go: the subscription, open models, usage windows | `{"api_key"}` |
+| `opencodezen` | OpenCode Zen: pay-as-you-go from the Console balance | `{"api_key"}` or OAuth |
 | `openrouter` | OpenRouter: routing preferences in the body, the price the reply reports | `{"api_key"}` |
 | `vercel` | Vercel AI Gateway: Chat, Responses, Claude Messages, embeddings and team credit balance | `{"api_key"}` |
 | `vertex` | Google Vertex AI: the Google, Anthropic and OpenAI-compatible publishers | service-account key |

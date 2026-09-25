@@ -53,10 +53,10 @@ curl -s http://127.0.0.1:8787/admin/api/channels \
   -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
-默认构建回答全部 25 个：`aistudio`、`antigravity`、`aws_bedrock`、`azure`、`claudeapi`、
+默认构建回答全部 27 个：`aistudio`、`antigravity`、`aws_bedrock`、`azure`、`claudeapi`、
 `claudecode`、`claudeweb`、`cline`、`codex`、`copilotcli`、`custom`、`dashscope`、
-`deepseek`、`devin`、`geminicli`、`grokbuild`、`kimi`、`kiro`、`openai`、`opencode`、
-`openrouter`、`vertex`、`vertexexpress`、`workbuddy`、`xai`。
+`deepseek`、`devin`、`geminicli`、`grokbuild`、`kimi`、`kiro`、`openai`、`opencodego`、
+`opencodezen`、`openrouter`、`vercel`、`vertex`、`vertexexpress`、`workbuddy`、`xai`。
 
 每一项都带着它的登录方式、能力，以及一个 Provider 表单该渲染哪些 `config` 键——这就是
 一个管理 UI 渲染表单所需的全部。

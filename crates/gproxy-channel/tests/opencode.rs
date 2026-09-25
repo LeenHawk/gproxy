@@ -5,18 +5,68 @@
 
 use gproxy_channel::channel::{
     CredentialContext, CredentialRefresh, DevicePoll, LoginContext, OAuthDeviceCode,
-    PrepareContext, QuotaQuery, QuotaValue, ResponseView, UsageContext, UsageExtractor,
+    PrepareContext, QuotaValue, ResponseView, UsageContext, UsageExtractor,
 };
 use gproxy_channel::channels::opencode::{GO_SOURCE, OpenCode};
-use gproxy_channel::{BaseChannel, ChannelError, LoginMode};
-use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest};
+use gproxy_channel::{BaseChannel, ChannelError, LoginMode, OutboundClient};
+use gproxy_protocol::capability::{CapabilityError, CapabilityFuture};
+use gproxy_protocol::connection::Bytes;
+use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
 use http::{HeaderMap, HeaderValue, StatusCode};
 use serde_json::{Value, json};
+use std::collections::VecDeque;
+use std::sync::Mutex;
 
 mod support;
 use support::{OneShot, credential, provider, request};
 
+/// Replies handed out in order, for a flow that makes several calls.
+struct Script {
+    replies: Mutex<VecDeque<(StatusCode, Value)>>,
+    seen: Mutex<Vec<(String, HeaderMap)>>,
+}
+
+impl Script {
+    fn new(replies: Vec<(StatusCode, Value)>) -> Self {
+        Self {
+            replies: Mutex::new(replies.into()),
+            seen: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn sent(&self) -> Vec<(String, HeaderMap)> {
+        self.seen.lock().unwrap().clone()
+    }
+}
+
+impl OutboundClient for Script {
+    fn send<'a>(
+        &'a self,
+        request: http::Request<HttpBody>,
+    ) -> CapabilityFuture<'a, Result<WireResponse, CapabilityError>> {
+        Box::pin(async move {
+            let (parts, _) = request.into_parts();
+            self.seen
+                .lock()
+                .unwrap()
+                .push((parts.uri.to_string(), parts.headers));
+            let (status, body) = self
+                .replies
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("unexpected upstream call");
+            Ok(WireResponse {
+                status,
+                headers: HeaderMap::new(),
+                body: HttpBody::Bytes(Bytes::from(body.to_string())),
+            })
+        })
+    }
+}
+
 fn prepare(
+    channel: OpenCode,
     config: &Value,
     base_url: Option<&str>,
     secret: &Value,
@@ -24,8 +74,8 @@ fn prepare(
     dialect: Dialect,
     request: WireRequest<HttpBody>,
 ) -> Result<http::Request<HttpBody>, ChannelError> {
-    OpenCode.prepare(PrepareContext {
-        provider: provider("opencode", config, base_url),
+    channel.prepare(PrepareContext {
+        provider: provider(channel.id(), config, base_url),
         credential: credential("oauth", secret, &Value::Null),
         operation: OperationKey { operation, dialect },
         request,
@@ -38,9 +88,10 @@ fn key() -> Value {
 }
 
 #[test]
-fn the_tier_decides_the_origin_and_the_dialect_decides_the_path() {
+fn the_channel_decides_the_origin_and_the_dialect_decides_the_path() {
     let secret = key();
     let zen = prepare(
+        OpenCode::ZEN,
         &json!({}),
         None,
         &secret,
@@ -52,7 +103,8 @@ fn the_tier_decides_the_origin_and_the_dialect_decides_the_path() {
     assert_eq!(zen.uri(), "https://opencode.ai/zen/v1/chat/completions");
 
     let go = prepare(
-        &json!({"tier": "go"}),
+        OpenCode::GO,
+        &json!({}),
         None,
         &secret,
         Operation::StreamGenerateContent,
@@ -63,6 +115,7 @@ fn the_tier_decides_the_origin_and_the_dialect_decides_the_path() {
     assert_eq!(go.uri(), "https://opencode.ai/zen/go/v1/responses");
 
     let models = prepare(
+        OpenCode::ZEN,
         &json!({}),
         None,
         &secret,
@@ -74,7 +127,8 @@ fn the_tier_decides_the_origin_and_the_dialect_decides_the_path() {
     assert_eq!(models.uri(), "https://opencode.ai/zen/v1/models");
 
     let staged = prepare(
-        &json!({"tier": "go"}),
+        OpenCode::GO,
+        &json!({}),
         Some("https://staging.opencode.test/v1/"),
         &secret,
         Operation::GenerateContent,
@@ -89,6 +143,7 @@ fn the_tier_decides_the_origin_and_the_dialect_decides_the_path() {
 fn the_claude_surface_takes_the_same_key_the_way_anthropic_does() {
     let secret = key();
     let claude = prepare(
+        OpenCode::ZEN,
         &json!({}),
         None,
         &secret,
@@ -102,6 +157,7 @@ fn the_claude_surface_takes_the_same_key_the_way_anthropic_does() {
     assert!(claude.headers().get("authorization").is_none());
 
     let chat = prepare(
+        OpenCode::ZEN,
         &json!({}),
         None,
         &secret,
@@ -118,6 +174,7 @@ fn the_claude_surface_takes_the_same_key_the_way_anthropic_does() {
 fn an_account_token_authenticates_the_same_way_a_pasted_key_does() {
     let token = json!({"access_token": "oc-account"});
     let prepared = prepare(
+        OpenCode::ZEN,
         &json!({}),
         None,
         &token,
@@ -129,6 +186,7 @@ fn an_account_token_authenticates_the_same_way_a_pasted_key_does() {
     assert_eq!(prepared.headers()["authorization"], "Bearer oc-account");
     assert!(matches!(
         prepare(
+            OpenCode::ZEN,
             &json!({}),
             None,
             &json!({"refresh_token": "only"}),
@@ -149,6 +207,7 @@ fn a_clients_conversation_survives_an_allow_list_and_one_is_minted_otherwise() {
         HeaderValue::from_static("client-conversation"),
     );
     let prepared = prepare(
+        OpenCode::ZEN,
         &json!({"allowed_headers": []}),
         None,
         &secret,
@@ -164,6 +223,7 @@ fn a_clients_conversation_survives_an_allow_list_and_one_is_minted_otherwise() {
     );
 
     let first = prepare(
+        OpenCode::ZEN,
         &json!({}),
         None,
         &secret,
@@ -175,6 +235,7 @@ fn a_clients_conversation_survives_an_allow_list_and_one_is_minted_otherwise() {
     let minted = first.headers()["x-opencode-session"].to_str().unwrap();
     assert_eq!(minted.len(), 32);
     let second = prepare(
+        OpenCode::ZEN,
         &json!({}),
         None,
         &secret,
@@ -186,6 +247,7 @@ fn a_clients_conversation_survives_an_allow_list_and_one_is_minted_otherwise() {
     assert_ne!(minted, second.headers()["x-opencode-session"]);
 
     let catalogue = prepare(
+        OpenCode::ZEN,
         &json!({}),
         None,
         &secret,
@@ -214,6 +276,7 @@ fn the_magic_cache_string_is_stripped_and_only_marked_when_the_provider_asks() {
             .to_string(),
         ));
         let prepared = prepare(
+            OpenCode::ZEN,
             &config,
             None,
             &secret,
@@ -248,7 +311,7 @@ fn the_magic_cache_string_is_stripped_and_only_marked_when_the_provider_asks() {
 fn usage_is_read_from_whichever_shape_the_surface_answered_in() {
     let headers = HeaderMap::new();
     let read = |dialect, body: String| {
-        OpenCode
+        OpenCode::ZEN
             .extract(UsageContext {
                 operation: OperationKey {
                     operation: Operation::GenerateContent,
@@ -285,21 +348,11 @@ fn usage_is_read_from_whichever_shape_the_surface_answered_in() {
 }
 
 #[tokio::test]
-async fn only_the_go_tier_has_usage_windows_to_report() {
-    let secret = key();
-    let zen = OneShot::new(StatusCode::OK, "{}".into());
-    assert!(matches!(
-        OpenCode
-            .query(CredentialContext {
-                provider: provider("opencode", &json!({}), None),
-                credential: credential("api_key", &secret, &Value::Null),
-                client: &zen,
-            })
-            .await,
-        Err(ChannelError::UnsupportedService)
-    ));
+async fn only_the_go_channel_has_usage_windows_to_report() {
+    assert!(OpenCode::ZEN.quota_query().is_none());
+    assert!(!OpenCode::ZEN.descriptor().capabilities.quota_query);
 
-    let config = json!({"tier": "go"});
+    let secret = key();
     let client = OneShot::new(
         StatusCode::OK,
         json!({"usage": {
@@ -312,9 +365,11 @@ async fn only_the_go_tier_has_usage_windows_to_report() {
         }})
         .to_string(),
     );
-    let snapshot = OpenCode
+    let snapshot = OpenCode::GO
+        .quota_query()
+        .expect("Go reports usage")
         .query(CredentialContext {
-            provider: provider("opencode", &config, None),
+            provider: provider("opencodego", &json!({}), None),
             credential: credential("api_key", &secret, &Value::Null),
             client: &client,
         })
@@ -336,51 +391,40 @@ async fn only_the_go_tier_has_usage_windows_to_report() {
         panic!("a window");
     };
     assert_eq!(rolling.used_percent, Some("12.5".parse().unwrap()));
-
-    // An origin pointed at the Go tier states it as plainly as the key would.
-    let by_origin = OneShot::new(StatusCode::FORBIDDEN, "no".into());
-    assert!(matches!(
-        OpenCode
-            .query(CredentialContext {
-                provider: provider(
-                    "opencode",
-                    &json!({}),
-                    Some("https://opencode.ai/zen/go/v1")
-                ),
-                credential: credential("api_key", &secret, &Value::Null),
-                client: &by_origin,
-            })
-            .await,
-        Err(ChannelError::UpstreamResponse { .. })
-    ));
 }
 
 #[tokio::test]
-async fn the_console_login_records_the_console_it_used() {
+async fn the_console_login_records_the_console_and_the_account_it_used() {
     let config = json!({});
+    // The Console's own reply: both verification URIs are origin-rooted.
     let start_client = OneShot::new(
         StatusCode::OK,
         json!({"device_code": "dc-1", "user_code": "WXYZ",
-               "verification_uri": "/device",
-               "verification_uri_complete": "/device?code=WXYZ",
+               "verification_uri": "/console/device",
+               "verification_uri_complete":
+                   "/console/device?user_code=WXYZ&client_id=opencode-cli",
                "interval": 5, "expires_in": 600})
         .to_string(),
     );
-    let started = OpenCode
+    let started = OpenCode::ZEN
         .start(LoginContext {
-            provider: provider("opencode", &config, None),
+            provider: provider("opencodezen", &config, None),
             client: &start_client,
         })
         .await
         .unwrap();
     let (url, headers, body) = start_client.call(0);
-    assert_eq!(url, "https://console.opencode.ai/auth/device/code");
+    assert_eq!(url, "https://opencode.ai/console/auth/device/code");
     assert_eq!(headers["content-type"], "application/json");
     let sent: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(sent["client_id"], "opencode-cli");
     assert_eq!(
-        started.verification_uri, "https://console.opencode.ai/device",
-        "a relative verification uri hangs off the console"
+        started.verification_uri, "https://opencode.ai/console/device",
+        "a rooted verification uri hangs off the origin, not the console path"
+    );
+    assert_eq!(
+        started.verification_uri_complete.as_deref(),
+        Some("https://opencode.ai/console/device?user_code=WXYZ&client_id=opencode-cli")
     );
 
     let denied = OneShot::new(
@@ -388,10 +432,10 @@ async fn the_console_login_records_the_console_it_used() {
         json!({"error": "access_denied"}).to_string(),
     );
     assert!(matches!(
-        OpenCode
+        OpenCode::ZEN
             .poll(
                 LoginContext {
-                    provider: provider("opencode", &config, None),
+                    provider: provider("opencodezen", &config, None),
                     client: &denied,
                 },
                 &started
@@ -401,14 +445,43 @@ async fn the_console_login_records_the_console_it_used() {
         DevicePoll::Denied
     ));
 
-    let granted = OneShot::new(
-        StatusCode::OK,
-        json!({"access_token": "at", "refresh_token": "rt", "expires_in": 3600}).to_string(),
+    let slow = OneShot::new(
+        StatusCode::BAD_REQUEST,
+        json!({"error": "slow_down"}).to_string(),
     );
-    let DevicePoll::Ready(acquired) = OpenCode
+    assert!(matches!(
+        OpenCode::ZEN
+            .poll(
+                LoginContext {
+                    provider: provider("opencodezen", &config, None),
+                    client: &slow,
+                },
+                &started
+            )
+            .await
+            .unwrap(),
+        DevicePoll::SlowDown { interval_secs: 10 }
+    ));
+
+    let granted = Script::new(vec![
+        (
+            StatusCode::OK,
+            json!({"access_token": "at", "refresh_token": "rt",
+                   "token_type": "Bearer", "expires_in": 3600}),
+        ),
+        (
+            StatusCode::OK,
+            json!({"id": "usr_1", "email": "dev@example.com"}),
+        ),
+        (
+            StatusCode::OK,
+            json!([{"id": "org_b", "name": "Zeta"}, {"id": "org_a", "name": "Acme"}]),
+        ),
+    ]);
+    let DevicePoll::Ready(acquired) = OpenCode::ZEN
         .poll(
             LoginContext {
-                provider: provider("opencode", &config, None),
+                provider: provider("opencodezen", &config, None),
                 client: &granted,
             },
             &started,
@@ -418,16 +491,58 @@ async fn the_console_login_records_the_console_it_used() {
     else {
         panic!("a credential");
     };
+    let sent = granted.sent();
+    assert_eq!(sent[0].0, "https://opencode.ai/console/auth/device/token");
+    let mut lookups = vec![sent[1].0.as_str(), sent[2].0.as_str()];
+    lookups.sort_unstable();
     assert_eq!(
-        granted.call(0).0,
-        "https://console.opencode.ai/auth/device/token"
+        lookups,
+        [
+            "https://opencode.ai/console/api/orgs",
+            "https://opencode.ai/console/api/user"
+        ]
     );
+    assert_eq!(sent[1].1["authorization"], "Bearer at");
     assert_eq!(acquired.access_token, "at");
     assert_eq!(acquired.refresh_token.as_deref(), Some("rt"));
     assert!(acquired.expires_at_ms.unwrap() > 0);
+    let fields = &acquired.provider_fields;
     assert_eq!(
-        acquired.provider_fields["console_base_url"], "https://console.opencode.ai",
+        fields["console_base_url"], "https://opencode.ai/console",
         "the refresh has to return to the console the login used"
+    );
+    assert_eq!(fields["account_id"], "usr_1");
+    assert_eq!(fields["email"], "dev@example.com");
+    assert_eq!(fields["org_id"], "org_a", "the first workspace by name");
+    assert_eq!(fields["org_name"], "Acme");
+
+    // A granted token outlives a failed account lookup: the device code is
+    // already spent.
+    let lookups_fail = Script::new(vec![
+        (
+            StatusCode::OK,
+            json!({"access_token": "at", "refresh_token": "rt", "expires_in": 3600}),
+        ),
+        (StatusCode::INTERNAL_SERVER_ERROR, json!({})),
+        (StatusCode::INTERNAL_SERVER_ERROR, json!({})),
+    ]);
+    let DevicePoll::Ready(bare) = OpenCode::ZEN
+        .poll(
+            LoginContext {
+                provider: provider("opencodezen", &config, None),
+                client: &lookups_fail,
+            },
+            &started,
+        )
+        .await
+        .unwrap()
+    else {
+        panic!("a credential");
+    };
+    assert_eq!(bare.access_token, "at");
+    assert_eq!(
+        bare.provider_fields.keys().collect::<Vec<_>>(),
+        ["console_base_url"]
     );
 }
 
@@ -439,7 +554,7 @@ async fn a_refusal_of_the_refresh_token_is_definitive_and_a_rotation_keeps_the_c
         "console_base_url": "https://console.example",
     });
     let context = |client| CredentialContext {
-        provider: provider("opencode", &config, None),
+        provider: provider("opencodezen", &config, None),
         credential: credential("oauth", &secret, &Value::Null),
         client,
     };
@@ -449,14 +564,14 @@ async fn a_refusal_of_the_refresh_token_is_definitive_and_a_rotation_keeps_the_c
         json!({"error": "invalid_grant"}).to_string(),
     );
     assert!(matches!(
-        CredentialRefresh::refresh(&OpenCode, context(&rejected)).await,
+        CredentialRefresh::refresh(&OpenCode::ZEN, context(&rejected)).await,
         Err(ChannelError::RefreshRejected(_))
     ));
 
     let transient = OneShot::new(StatusCode::BAD_GATEWAY, "upstream down".into());
     assert!(
         matches!(
-            CredentialRefresh::refresh(&OpenCode, context(&transient)).await,
+            CredentialRefresh::refresh(&OpenCode::ZEN, context(&transient)).await,
             Err(ChannelError::UpstreamResponse { .. })
         ),
         "a gateway failure is not a dead credential"
@@ -466,7 +581,7 @@ async fn a_refusal_of_the_refresh_token_is_definitive_and_a_rotation_keeps_the_c
         StatusCode::OK,
         json!({"access_token": "at2", "refresh_token": "rt2", "expires_in": 60}).to_string(),
     );
-    let update = CredentialRefresh::refresh(&OpenCode, context(&rotated))
+    let update = CredentialRefresh::refresh(&OpenCode::ZEN, context(&rotated))
         .await
         .unwrap();
     assert_eq!(update.secret["access_token"], "at2");
@@ -485,7 +600,7 @@ async fn a_refusal_of_the_refresh_token_is_definitive_and_a_rotation_keeps_the_c
 
     // An upstream that states no lifetime leaves no stale expiry behind.
     let silent = OneShot::new(StatusCode::OK, json!({"access_token": "at3"}).to_string());
-    let update = CredentialRefresh::refresh(&OpenCode, context(&silent))
+    let update = CredentialRefresh::refresh(&OpenCode::ZEN, context(&silent))
         .await
         .unwrap();
     assert_eq!(update.expires_at_ms, None);
@@ -493,27 +608,39 @@ async fn a_refusal_of_the_refresh_token_is_definitive_and_a_rotation_keeps_the_c
 }
 
 #[test]
-fn the_descriptor_offers_both_ways_in_and_no_captured_client() {
-    let descriptor = OpenCode.descriptor();
-    assert_eq!(descriptor.id, "opencode");
-    assert_eq!(
-        descriptor.login_modes,
-        [LoginMode::ApiKey, LoginMode::DeviceCode]
-    );
-    assert!(descriptor.capabilities.refresh);
-    assert!(descriptor.capabilities.quota_query);
-    for key in ["tier", "console_base_url", "enable_openai_magic_cache"] {
-        assert!(descriptor.config_key(key).is_some(), "{key}");
+fn only_zen_offers_the_account_login() {
+    let zen = OpenCode::ZEN.descriptor();
+    assert_eq!(zen.id, "opencodezen");
+    assert_eq!(zen.login_modes, [LoginMode::ApiKey, LoginMode::DeviceCode]);
+    assert!(zen.capabilities.refresh);
+    assert!(OpenCode::ZEN.oauth_device_code().is_some());
+    assert!(OpenCode::ZEN.credential_refresh().is_some());
+    for key in ["base_url", "console_base_url", "enable_openai_magic_cache"] {
+        assert!(zen.config_key(key).is_some(), "{key}");
     }
-    assert!(
-        OpenCode.default_connection().is_none(),
-        "v3 captured no client identity for OpenCode"
-    );
-    assert_eq!(
-        OpenCode.native_dialects(
-            provider("opencode", &json!({}), None),
-            Operation::GenerateContent
-        ),
-        [Dialect::OpenAiChat, Dialect::OpenAi, Dialect::Claude]
-    );
+
+    // The v2 client connects Go with a pasted key only.
+    let go = OpenCode::GO.descriptor();
+    assert_eq!(go.id, "opencodego");
+    assert_eq!(go.login_modes, [LoginMode::ApiKey]);
+    assert!(!go.capabilities.refresh);
+    assert!(go.capabilities.quota_query);
+    assert!(OpenCode::GO.oauth_device_code().is_none());
+    assert!(OpenCode::GO.credential_refresh().is_none());
+    assert!(go.config_key("console_base_url").is_none());
+    assert!(go.config_key("tier").is_none() && zen.config_key("tier").is_none());
+
+    for channel in [OpenCode::ZEN, OpenCode::GO] {
+        assert!(
+            channel.default_connection().is_none(),
+            "v3 captured no client identity for OpenCode"
+        );
+        assert_eq!(
+            channel.native_dialects(
+                provider(channel.id(), &json!({}), None),
+                Operation::GenerateContent
+            ),
+            [Dialect::OpenAiChat, Dialect::OpenAi, Dialect::Claude]
+        );
+    }
 }

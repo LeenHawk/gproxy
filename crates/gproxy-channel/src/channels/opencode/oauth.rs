@@ -6,22 +6,31 @@
 //! device-code grant and later refreshes (v3 `opencode/login.rs`,
 //! `opencode/auth.rs`). The console origin travels in `provider_fields` so a
 //! refresh returns to the same one the login used.
+//!
+//! The v2 client (opencode `packages/core/src/plugin/provider/opencode.ts`)
+//! adds two things v3 lacked: the verification URI is origin-rooted
+//! (`/console/device?…`, not console-relative), and a granted token is
+//! followed by `GET /api/user` and `GET /api/orgs` so the credential names
+//! its account and workspace.
 
-use super::config::{DEFAULT_CLIENT_ID, ID, OpenCodeConfig};
+use super::config::{DEFAULT_CLIENT_ID, OpenCodeConfig, ZEN_ID as ID};
 use super::request::fact;
+use crate::OutboundClient;
 use crate::channel::{
     ChannelError, CredentialRefresh, CredentialUpdate, DeviceAuthorization, DevicePoll,
     LoginContext, OAuthCredential, OAuthDeviceCode, OperationFuture, RefreshContext,
 };
-use crate::channels::shared::compatible::ability::send;
+use crate::channels::shared::compatible::ability::{bearer, send};
 use crate::channels::shared::compatible::http::invalid_response;
-use http::{HeaderMap, HeaderValue, Method, StatusCode, header};
+use http::{HeaderMap, HeaderValue, Method, StatusCode, Uri, header};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
 
 /// Where the console origin is recorded on a credential.
 const CONSOLE_FIELD: &str = "console_base_url";
+/// RFC 8628 §3.5: each `slow_down` adds five seconds to the poll interval.
+const SLOW_DOWN_STEP_SECS: u64 = 5;
 
 fn unix_now_ms() -> i64 {
     web_time::SystemTime::now()
@@ -90,14 +99,91 @@ impl TokenReply {
     }
 }
 
-/// A relative `verification_uri` is relative to the console.
+#[derive(Deserialize)]
+struct User {
+    id: String,
+    #[serde(default)]
+    email: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct Org {
+    id: String,
+    #[serde(default)]
+    name: Option<String>,
+}
+
+/// Resolve a verification URI the way the v2 client does, `new URL(path,
+/// base + "/")`: an absolute URI stands, a `/`-rooted one hangs off the
+/// console's origin (the Console answers `/console/device?…`, so appending
+/// it to `https://opencode.ai/console` doubled the prefix), and a bare one
+/// hangs off the console path. With none, the console's own device page.
 fn verification(base: &str, path: Option<String>) -> String {
-    let path = path.unwrap_or_else(|| "/device".into());
-    if path.starts_with("http") {
-        path
-    } else {
-        format!("{base}{path}")
+    let Some(path) = path.filter(|path| !path.trim().is_empty()) else {
+        return format!("{base}/device");
+    };
+    if path.starts_with("https://") || path.starts_with("http://") {
+        return path;
     }
+    if let Some(rooted) = path.strip_prefix('/') {
+        let origin = base
+            .parse::<Uri>()
+            .ok()
+            .and_then(|uri| Some(format!("{}://{}", uri.scheme_str()?, uri.authority()?)));
+        if let Some(origin) = origin {
+            return format!("{origin}/{rooted}");
+        }
+    }
+    format!("{base}/{}", path.trim_start_matches('/'))
+}
+
+/// A bearer GET against the console, decoded.
+async fn console_get<T: serde::de::DeserializeOwned>(
+    client: &dyn OutboundClient,
+    url: &str,
+    token: &str,
+) -> Result<T, ChannelError> {
+    let (status, _, body) = send(client, Method::GET, url, bearer(token)?, None).await?;
+    if !status.is_success() {
+        return Err(ChannelError::UpstreamResponse { status, body });
+    }
+    serde_json::from_slice(&body).map_err(|error| invalid_response(format!("{ID} {url}: {error}")))
+}
+
+/// The account and workspace a fresh token belongs to, as the v2 client
+/// records them. Best effort: the device code is spent once the token is
+/// granted, so a failed lookup must not throw the token away with it.
+async fn account_fields(
+    client: &dyn OutboundClient,
+    base: &str,
+    token: &str,
+) -> BTreeMap<String, Value> {
+    let (user_url, orgs_url) = (format!("{base}/api/user"), format!("{base}/api/orgs"));
+    let (user, orgs) = futures_util::join!(
+        console_get::<User>(client, &user_url, token),
+        console_get::<Vec<Org>>(client, &orgs_url, token),
+    );
+    let mut fields = BTreeMap::new();
+    if let Ok(user) = user {
+        fields.insert("account_id".into(), Value::String(user.id));
+        if let Some(email) = user.email.filter(|email| !email.is_empty()) {
+            fields.insert("email".into(), Value::String(email));
+        }
+    }
+    // The v2 client takes the first workspace by name, then id; v1 took the
+    // first listed. Name order is the stable one.
+    if let Some(org) = orgs.ok().and_then(|orgs| {
+        orgs.into_iter().min_by(|a, b| {
+            (a.name.as_deref().unwrap_or(""), a.id.as_str())
+                .cmp(&(b.name.as_deref().unwrap_or(""), b.id.as_str()))
+        })
+    }) {
+        fields.insert("org_id".into(), Value::String(org.id));
+        if let Some(name) = org.name.filter(|name| !name.is_empty()) {
+            fields.insert("org_name".into(), Value::String(name));
+        }
+    }
+    fields
 }
 
 impl OAuthDeviceCode for super::OpenCode {
@@ -181,13 +267,17 @@ impl OAuthDeviceCode for super::OpenCode {
                 return Ok(match reply.error.as_deref() {
                     Some("authorization_pending") => DevicePoll::Pending,
                     Some("slow_down") => DevicePoll::SlowDown {
-                        interval_secs: authorization.interval_secs.saturating_mul(2).max(5),
+                        interval_secs: authorization
+                            .interval_secs
+                            .saturating_add(SLOW_DOWN_STEP_SECS),
                     },
                     Some("access_denied" | "invalid_grant") => DevicePoll::Denied,
                     Some("expired_token") => DevicePoll::Expired,
                     _ => return Err(ChannelError::UpstreamResponse { status, body }),
                 });
             };
+            let mut provider_fields = account_fields(context.client, &base, access).await;
+            provider_fields.insert(CONSOLE_FIELD.to_owned(), Value::String(base));
             Ok(DevicePoll::Ready(OAuthCredential {
                 access_token: access.to_owned(),
                 refresh_token: reply.refresh().map(str::to_owned),
@@ -196,7 +286,7 @@ impl OAuthDeviceCode for super::OpenCode {
                 scopes: Vec::new(),
                 expires_at_ms: reply.expires_at_ms(),
                 refresh_expires_at_ms: None,
-                provider_fields: BTreeMap::from([(CONSOLE_FIELD.to_owned(), Value::String(base))]),
+                provider_fields,
                 provider_secrets: BTreeMap::new(),
             }))
         })
@@ -292,18 +382,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_relative_verification_uri_hangs_off_the_console() {
+    fn a_verification_uri_resolves_the_way_the_v2_client_resolves_it() {
+        let base = super::super::config::DEFAULT_CONSOLE_BASE_URL;
+        // What the Console actually answers: rooted at the origin.
         assert_eq!(
-            verification("https://console.example", Some("/device".into())),
-            "https://console.example/device"
+            verification(base, Some("/console/device?user_code=AB".into())),
+            "https://opencode.ai/console/device?user_code=AB"
         );
         assert_eq!(
-            verification("https://console.example", Some("https://other/x".into())),
+            verification("https://console.example/console", Some("device".into())),
+            "https://console.example/console/device",
+            "an unrooted path hangs off the console path"
+        );
+        assert_eq!(
+            verification(base, Some("https://other/x".into())),
             "https://other/x"
         );
         assert_eq!(
-            verification(super::super::config::DEFAULT_CONSOLE_BASE_URL, None),
-            "https://console.opencode.ai/device"
+            verification(base, None),
+            "https://opencode.ai/console/device"
         );
     }
 

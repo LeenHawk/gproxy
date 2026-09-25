@@ -3,8 +3,8 @@
 //! `GET {base}/usage` answers `{"usage": {"rolling": …, "weekly": …,
 //! "monthly": …}}`, each window a `{status, percent, resetsAt}` where
 //! `percent` is the share already used and `status` is `ok` or
-//! `rate-limited` (v3 `shared/quota_management/opencode.rs`). Only the Go
-//! tier has it; a Zen provider reports nothing here.
+//! `rate-limited` (v3 `shared/quota_management/opencode.rs`). Only
+//! `opencodego` has it; the Zen channel declares no quota query.
 //!
 //! No `QuotaModel`: how long a "rolling" window rolls for is never stated on
 //! the wire, and a declared dimension has to name a window length. The three
@@ -19,8 +19,8 @@
 //! second credential the channel contract has no place for, and it breaks
 //! whenever the page is rebuilt. It is left out deliberately.
 
-use super::config::{ID, OpenCodeConfig, Tier};
-use super::request::{api_key, tier};
+use super::config::{GO_ID as ID, OpenCodeConfig, Tier};
+use super::request::api_key;
 use crate::channel::{
     ChannelError, CredentialContext, OperationFuture, QuotaAllowance, QuotaEntry,
     QuotaResetBehavior, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaValue,
@@ -103,15 +103,14 @@ fn entries(payload: &Value) -> Result<Vec<QuotaEntry>, ChannelError> {
 impl crate::channel::QuotaQuery for super::OpenCode {
     fn query<'a>(&'a self, context: CredentialContext<'a>) -> OperationFuture<'a, QuotaSnapshot> {
         Box::pin(async move {
-            let config = OpenCodeConfig::from_view(context.provider)?;
-            if tier(&config, context.provider) != Tier::Go {
-                return Err(ChannelError::UnsupportedService);
-            }
             let key = api_key(&context.credential)?;
             let (status, _, body) = send(
                 context.client,
                 Method::GET,
-                &format!("{}/usage", config.base_url(context.provider)),
+                &format!(
+                    "{}/usage",
+                    OpenCodeConfig::base_url(context.provider, Tier::Go)
+                ),
                 bearer(key)?,
                 None,
             )
