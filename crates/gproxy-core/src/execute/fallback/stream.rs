@@ -46,6 +46,7 @@ struct Events {
     offset: u64,
     next_index: u64,
     boundary: Option<Value>,
+    start_usage: serde_json::Map<String, Value>,
 }
 impl Events {
     fn new(limits: CodecLimits) -> Self {
@@ -61,6 +62,7 @@ impl Events {
             offset: 0,
             next_index: 0,
             boundary: None,
+            start_usage: Default::default(),
         }
     }
     fn collector(limits: CodecLimits) -> ClaudeStreamCollector {
@@ -77,6 +79,7 @@ impl Events {
         self.prefix.clear();
         self.prefix_bytes = 0;
         self.terminal.clear();
+        self.start_usage.clear();
         if self.started {
             self.boundary = Some(
                 json!({"type":"fallback","trigger":{"type":"refusal"},"from":{"model":from},"to":{"model":model}}),
@@ -104,6 +107,23 @@ impl Events {
             }
         }
         let kind = value["type"].as_str().unwrap_or_default().to_owned();
+        if kind == "message_start" {
+            self.start_usage = value
+                .pointer("/message/usage")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+        }
+        if kind == "message_delta"
+            && let Some(usage) = value.get_mut("usage").and_then(Value::as_object_mut)
+        {
+            // Later message_start events are hidden during continuation, so
+            // repeat their input/cache counts on the visible final delta.
+            for (key, count) in &self.start_usage {
+                usage.entry(key.clone()).or_insert_with(|| count.clone());
+            }
+            event.data = value.to_string();
+        }
         if (kind == "message_delta" && !value["delta"]["stop_reason"].is_null())
             || kind == "message_stop"
         {

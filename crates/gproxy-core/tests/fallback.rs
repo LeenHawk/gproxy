@@ -81,6 +81,16 @@ fn context(
     dialect: Dialect,
     config: Value,
 ) -> Arc<RequestContext> {
+    context_for_channel(h, client, streaming, dialect, config, Arc::new(ClaudeOnly))
+}
+fn context_for_channel(
+    h: &support::Harness,
+    client: Arc<Client>,
+    streaming: bool,
+    dialect: Dialect,
+    config: Value,
+    channel: Arc<dyn BaseChannel>,
+) -> Arc<RequestContext> {
     let op = OperationKey {
         operation: if streaming {
             Operation::StreamGenerateContent
@@ -95,7 +105,7 @@ fn context(
     entity.config = config;
     ctx.target.provider = Arc::new(ProviderData {
         entity: Arc::new(entity),
-        channel: Arc::new(ClaudeOnly),
+        channel,
         credential_ids: old.credential_ids.clone(),
         models: old.models.clone(),
         operation_rules: vec![],
@@ -316,7 +326,15 @@ async fn partial_refusal_with_credit_continues_one_stream() {
     let client = Arc::new(Client::default());
     client.replies.lock().unwrap().extend([
         sse(events("claude-fable-5", "refusal", "first", true)),
-        sse(events("claude-opus-4-8", "end_turn", "second", false)),
+        sse({
+            let mut chunks = events("claude-opus-4-8", "end_turn", "second", false);
+            chunks[0] = Bytes::from(
+                String::from_utf8(chunks[0].to_vec())
+                    .unwrap()
+                    .replace("\"input_tokens\":20", "\"input_tokens\":30"),
+            );
+            chunks
+        }),
     ]);
     let exec = h
         .core
@@ -335,6 +353,13 @@ async fn partial_refusal_with_credit_continues_one_stream() {
         "{text}"
     );
     assert!(!text.contains("\"stop_reason\":\"refusal\""), "{text}");
+    let final_delta: Value = text
+        .lines()
+        .filter_map(|line| line.strip_prefix("data: "))
+        .filter_map(|data| serde_json::from_str::<Value>(data).ok())
+        .find(|event| event["type"] == "message_delta")
+        .unwrap();
+    assert_eq!(final_delta["usage"]["input_tokens"], 30);
     let sent = client.requests.lock().unwrap();
     assert_eq!(sent.len(), 2);
     assert_eq!(sent[1].1["fallback_credit_token"], "credit");
@@ -392,5 +417,51 @@ async fn disabled_fallback_and_http_errors_are_not_retried() {
         support::read(response.body).await;
         completion.await.unwrap();
         assert_eq!(client.requests.lock().unwrap().len(), 1);
+    }
+}
+
+#[tokio::test]
+async fn vercel_retries_with_namespaced_models_but_does_not_redeem_credits() {
+    for produced in [false, true] {
+        let h = harness(full(), "round_robin").await;
+        let client = Arc::new(Client::default());
+        client.replies.lock().unwrap().extend([
+            sse(events(
+                "anthropic/claude-fable-5",
+                "refusal",
+                if produced { "partial" } else { "" },
+                true,
+            )),
+            sse(events("anthropic/claude-opus-4-8", "end_turn", "ok", false)),
+        ]);
+        let mut ctx = (*context_for_channel(
+            &h,
+            client.clone(),
+            true,
+            Dialect::Claude,
+            config(),
+            Arc::new(gproxy_channel::channels::vercel::Vercel),
+        ))
+        .clone();
+        ctx.target.upstream_model = Some("anthropic/claude-fable-5".into());
+        let exec = h
+            .core
+            .stream_generate_content(Arc::new(ctx), wire(true))
+            .await
+            .unwrap();
+        let (response, completion) = exec.into_parts();
+        let text = support::read(response.body).await;
+        let sent = client.requests.lock().unwrap();
+        assert_eq!(sent.len(), if produced { 1 } else { 2 });
+        if !produced {
+            assert_eq!(sent[1].1["model"], "anthropic/claude-opus-4-8");
+            assert!(sent[1].1.get("fallbacks").is_none());
+            assert!(sent[1].1.get("fallback_credit_token").is_none());
+            assert!(text.contains("ok"));
+        } else {
+            assert!(text.contains("partial") && text.contains("refusal"));
+        }
+        drop(sent);
+        completion.await.unwrap();
     }
 }

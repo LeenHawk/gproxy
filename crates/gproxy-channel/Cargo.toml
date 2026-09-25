@@ -163,6 +163,8 @@ opencode = [
 # OpenRouter: provider routing preferences, app attribution headers,
 # upstream-priced usage and the /v1/auth/key budget probe.
 openrouter = ["dep:futures-util"]
+# Vercel AI Gateway: API key, OpenAI/Claude wires and team credits.
+vercel = ["dep:futures-util", "dep:percent-encoding"]
 # Google Vertex AI: regional project-scoped methods for the Google, Anthropic
 # and OpenAI-compatible surfaces, with a service-account key exchanged for a
 # short-lived access token through CredentialRefresh (RS256, hence `rsa`).
@@ -191,6 +193,7 @@ workbuddy = [
 xai = ["dep:futures-util"]
 
 [dependencies]
+percent-encoding = { workspace = true, optional = true }
 url = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
 crc32fast = { workspace = true, optional = true }

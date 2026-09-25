@@ -60,6 +60,7 @@ channels! {
     "openai" => openai, openai::OpenAi;
     "opencode" => opencode, opencode::OpenCode;
     "openrouter" => openrouter, openrouter::OpenRouter;
+    "vercel" => vercel, vercel::Vercel;
     "vertex" => vertex, vertex::Vertex;
     "vertexexpress" => vertexexpress, vertexexpress::VertexExpress;
     "workbuddy" => workbuddy, workbuddy::WorkBuddy;
@@ -90,6 +91,7 @@ channels! {
     feature = "openai",
     feature = "opencode",
     feature = "openrouter",
+    feature = "vercel",
     feature = "vertex",
     feature = "vertexexpress",
     feature = "workbuddy",

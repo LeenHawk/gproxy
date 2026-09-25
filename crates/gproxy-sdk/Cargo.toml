@@ -34,6 +34,7 @@ kiro = ["gproxy-channel/kiro", "gproxy-client/wreq"]
 openai = ["gproxy-channel/openai"]
 opencode = ["gproxy-channel/opencode"]
 openrouter = ["gproxy-channel/openrouter"]
+vercel = ["gproxy-channel/vercel"]
 vertex = ["gproxy-channel/vertex"]
 vertexexpress = ["gproxy-channel/vertexexpress"]
 workbuddy = ["gproxy-channel/workbuddy"]
@@ -61,6 +62,7 @@ channels = [
     "openai",
     "opencode",
     "openrouter",
+    "vercel",
     "vertex",
     "vertexexpress",
     "workbuddy",

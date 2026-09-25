@@ -2805,6 +2805,7 @@ dependencies = [
  "hmac",
  "http",
  "miniz_oxide 0.9.1",
+ "percent-encoding",
  "rsa",
  "rust_decimal",
  "send_wrapper",
