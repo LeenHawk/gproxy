@@ -54,7 +54,7 @@ export function QuotasPanel({ ownerKind, ownerId, providerId, runtimeAvailable =
     {!editable ? <p className="text-sm text-muted-foreground">{t("limits.readOnly")}</p> : null}
     <QueryState isPending={pending} error={error}>
       {editing ? <QuotaEditor key={editing.row?.id ?? "new"} original={editing.row} limit={limit} override={editing.override} pending={busy} error={save.error} onSave={body => save.mutate(body)} onCancel={() => setEditing(null)} /> : <>
-        {editable ? <Button className="self-start" disabled={busy} onClick={() => open()}>{t(limit ? "limits.add" : "limits.addBudget")}</Button> : null}
+        {editable ? <Button className="self-end" disabled={busy} onClick={() => open()}>{t(limit ? "limits.add" : "limits.addBudget")}</Button> : null}
         {!rows.length ? <EmptyNotice title={t(limit ? "limits.empty" : "limits.emptyBudget")} /> : null}
         {rows.map(row => {
           const fromProvider = credential && row.ownerKind === "provider"
