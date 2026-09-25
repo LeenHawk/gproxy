@@ -118,16 +118,21 @@ test("overlays Codex capabilities and adds Codex-only models", () => {
     display_name: "GPT Test",
     base_instructions: "Use tools carefully.",
     context_window: 2000,
+    max_context_window: 4000,
     supported_reasoning_levels: [{ effort: "high", description: "Deep" }],
     service_tiers: [],
   }, { slug: "codex-only", input_modalities: ["text"] }] }, "abc123")
   const model = catalog.models.find((entry) => entry.model_id === "gpt-test")
-  assert.equal(model.context_window, 2000)
+  assert.equal(model.context_window, 4000)
+  assert.equal(model.max_context_window, 4000)
   assert.equal(model.instructions, "Use tools carefully.")
   assert.equal(model.supported_reasoning_levels[0].effort, "high")
   assert(model.supported_parameters.includes("reasoning_effort"))
   assert(catalog.models.some((entry) => entry.model_id === "codex-only"))
   assert.equal(catalog.source.codex_revision, "abc123")
+  applyCodexCatalog(catalog, { models: [{ slug: "gpt-test", context_window: 272, max_context_window: 272 }] }, "next")
+  assert.equal(model.context_window, 4000)
+  assert.equal(model.max_context_window, 4000)
 })
 
 test("retains source evidence and audio prices above context thresholds", () => {

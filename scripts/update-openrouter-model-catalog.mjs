@@ -218,8 +218,12 @@ export function applyCodexCatalog(catalog, payload, revision = "unknown") {
     assign("display_name", source.display_name)
     assign("description", source.description)
     assign("instructions", source.base_instructions ?? source.model_messages?.instructions_template)
-    assign("context_window", source.context_window)
-    assign("max_context_window", source.max_context_window)
+    // CLI defaults can be smaller than the model's published capacity.
+    const contextWindow = Math.max(target.context_window ?? 0, source.max_context_window ?? source.context_window ?? 0)
+    if (contextWindow > 0) {
+      assign("context_window", contextWindow)
+      assign("max_context_window", contextWindow)
+    }
     assign("input_modalities", source.input_modalities)
     assign("supported_reasoning_levels", source.supported_reasoning_levels)
     assign("default_reasoning_level", source.default_reasoning_level)
