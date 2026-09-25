@@ -64,7 +64,10 @@ aes-gcm = { version = "0.11", default-features = false, features = ["aes", "allo
 argon2 = "0.6"
 arc-swap = "1"
 async-trait = "0.1"
-axum = { version = "0.8", features = ["http1", "http2", "tokio", "ws"] }
+# Every entry below that a wasm32 crate also uses (axum, reqwest, tokio) is
+# declared with the fewest features that crate needs: features requested here
+# cannot be switched off by a member, so each native member lists its own.
+axum = { version = "0.8", default-features = false }
 base64 = "0.23"
 blake3 = "1"
 clap = { version = "4", features = ["derive", "env"] }
@@ -101,6 +104,7 @@ ed25519-dalek = "3"
 futures-core = "0.3"
 futures-sink = "0.3"
 futures-util = "0.3"
+futures-executor = "0.3"
 form_urlencoded = "1"
 http = "1"
 hmac = "0.13"
@@ -118,12 +122,14 @@ libc = "0.2"
 keyring = { version = "4", default-features = false, features = ["v1"] }
 mime_guess = "2"
 miniz_oxide = { version = "0.9", default-features = false, features = ["with-alloc"] }
+multer = { version = "3", default-features = false }
 moka = { version = "0.12", features = ["future"] }
 opendal-core = { version = "0.59", default-features = false }
 opendal-service-fs = { version = "0.59", default-features = false }
 opendal-service-s3 = { version = "0.59", default-features = false }
 opendal-http-transport-reqwest = { version = "0.59", default-features = false }
 mysql_async = { version = "0.37", default-features = false, features = ["default-rustls"] }
+openssl-sys = "0.9"
 percent-encoding = "2"
 paste = "1"
 proc-macro2 = "1"
@@ -131,7 +137,7 @@ quote = "1"
 redis = { version = "1.6", default-features = false, features = ["connection-manager", "tokio-rustls-comp"] }
 rsa = { version = "0.9", features = ["sha2"] }
 regex = "1"
-reqwest = { version = "0.13", default-features = false, features = ["rustls", "http2", "stream", "socks", "system-proxy"] }
+reqwest = { version = "0.13", default-features = false, features = ["native-tls", "http2", "stream", "socks", "cookies"] }
 # reqwest 0.12 over the platform's native TLS (OpenSSL on Linux): what the
 # Codex CLI's HTTP client is built on.
 reqwest_native = { package = "reqwest", version = "0.12", default-features = false, features = ["native-tls", "http2", "stream", "socks", "cookies"] }
@@ -142,6 +148,7 @@ semver = "1"
 self-replace = "1"
 rust-embed = { version = "8", features = ["include-exclude"] }
 sea-query = { version = "1", default-features = false, features = ["backend-mysql", "backend-postgres", "backend-sqlite", "derive"] }
+sea-schema = { version = "0.18", default-features = false }
 sea-orm = { version = "2", default-features = false, features = ["macros", "with-json"] }
 sea-orm-migration = { version = "2", default-features = false, features = ["with-time"] }
 send_wrapper = { version = "0.6", features = ["futures"] }
@@ -158,8 +165,11 @@ tempfile = "3"
 thiserror = "2"
 time = { version = "0.3", features = ["parsing"] }
 tiktoken-rs = "0.12"
-tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1", default-features = false }
 tokio-util = { version = "0.7", default-features = false, features = ["rt"] }
+# Held at the line `reqwest-websocket` 0.6 builds on: gproxy-client hands it a
+# `WebSocketConfig`, which has to be that crate's type.
+tungstenite = { version = "0.28", default-features = false }
 tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
 tokio-postgres = "0.7"
 tower = { version = "0.5", default-features = false }
@@ -176,6 +186,7 @@ wasm-streams = "0.7"
 web-sys = "0.3"
 web-time = "1"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_Packaging_Appx"] }
+worker = { version = "0.8", default-features = false }
 wreq = { version = "0.16", features = ["stream", "ws", "gzip", "brotli", "zstd", "deflate", "socks"] }
 wreq-util = { version = "0.2", features = ["emulation"] }
 zip = { version = "8", default-features = false, features = ["deflate"] }

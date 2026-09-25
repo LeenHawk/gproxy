@@ -46,12 +46,12 @@ default = ["bundled-vocabulary"]
 bundled-vocabulary = ["gproxy-tokenizer/bundled-deepseek"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tokio = { workspace = true, features = ["sync", "time", "macros", "net"] }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 gloo-timers = { workspace = true }
 gproxy-client = { workspace = true, features = ["fetch"] }
-tokio = { version = "1", default-features = false, features = ["sync", "macros"] }
+tokio = { workspace = true, features = ["sync", "macros"] }
 wasm-bindgen-futures = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
@@ -61,4 +61,4 @@ gproxy-client = { workspace = true, features = ["reqwest"] }
 gproxy-file = { workspace = true, features = ["fs"] }
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
 tempfile = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "io-util", "test-util"] }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time", "io-util", "test-util"] }

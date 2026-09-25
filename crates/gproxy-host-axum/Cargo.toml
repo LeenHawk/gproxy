@@ -37,20 +37,20 @@ tracing = { workspace = true }
 web-time = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-axum = { workspace = true }
+axum = { workspace = true, features = ["form", "http1", "http2", "json", "matched-path", "original-uri", "query", "tokio", "tower-log", "tracing", "ws"] }
 mime_guess = { workspace = true }
 # The console bundle, when one was built into the binary. The folder is empty
 # in a source checkout, which is what makes `/console` answer 404 rather than
 # pretend to serve an application that is not there.
 rust-embed = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 
 # The extractors the routers use and nothing else: no `http1`/`http2` (hyper is
 # a server), no `tokio` (which is what `ConnectInfo` and `axum::serve` hang
 # off), no `ws` (a Workers upgrade is a `WebSocketPair`, not a hyper upgrade).
 # `Router` itself is target-independent, which is the whole point.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-axum = { version = "0.8", default-features = false, features = [
+axum = { workspace = true, features = [
     "json",
     "matched-path",
     "query",
@@ -66,7 +66,7 @@ gproxy-cache = { workspace = true, features = ["memory"] }
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 # A websocket round trip needs a real connection: `oneshot` never produces the
 # `OnUpgrade` extension an upgrade is made of, so the socket tests bind a port
 # and speak the protocol for real. `connect` is the client half.

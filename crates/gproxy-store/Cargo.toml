@@ -21,4 +21,4 @@ getrandom = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
