@@ -25,6 +25,7 @@
 mod cookie;
 mod hygiene;
 mod quota;
+mod reset;
 mod services;
 mod usage;
 
@@ -37,7 +38,7 @@ use crate::channel::{
     CookieLogin, CredentialRefresh, CredentialUpdate, CredentialView, HOST_CONFIG_KEYS,
     HeaderAllowlist, LoginContext, LoginMode, OAuthAuthorizationCode, OAuthCredential,
     OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaHeaders, QuotaModel,
-    QuotaQuery, RefreshContext, UsageExtractor, UsageStream, forwardable,
+    QuotaQuery, QuotaReset, RefreshContext, UsageExtractor, UsageStream, forwardable,
 };
 use crate::channels::shared::cache;
 use futures_util::StreamExt;
@@ -533,7 +534,7 @@ impl BaseChannel for Claudecode {
             capabilities: ChannelCapabilities {
                 refresh: true,
                 quota_query: true,
-                quota_reset: false,
+                quota_reset: true,
                 services: true,
                 websocket: false,
             },
@@ -631,6 +632,7 @@ impl BaseChannel for Claudecode {
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }
+    fn quota_reset(&self) -> Option<&dyn QuotaReset> { Some(self) }
     fn quota_model(&self) -> Option<&dyn QuotaModel> {
         Some(self)
     }
