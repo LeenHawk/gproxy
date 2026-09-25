@@ -24,23 +24,17 @@
 //!
 //! # Why the assembly is cached at all
 //!
-//! Because the alternative is a full reload — every provider, credential,
-//! route and price — on every request, and a Worker pays for that in wall
-//! clock on the request that triggers it. The [`OnceLock`] holds it for the
-//! isolate's whole life.
-//!
-//! Two requests arriving before the first assembly finishes will both assemble
-//! (there is no async `OnceLock`, and a Worker has no threads to block). The
-//! loser's instance is dropped, which costs one wasted cold start and nothing
-//! else — no connection is held open, because D1 and libSQL are both
-//! request-scoped HTTP.
+//! Because the alternative is a full reload on every request. The async
+//! `OnceCell` shares one cold-start assembly between requests in an isolate,
+//! including schema sync before configuration or identity is loaded.
 
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
+use tokio::sync::OnceCell;
 
 use axum::Router;
 use gproxy_app::{App, AppConfig, AppPublicationUrl, config::StoreBackendConfig};
 use gproxy_sdk::{Gproxy, GproxyBuilder, SyncMode};
-use gproxy_seaorm::BatchConnectionTrait;
+use gproxy_seaorm::{BatchConnectionTrait, SchemaSyncConnectionTrait};
 use gproxy_store::{Store, StoreCache, entity::config::setting};
 use worker::Env;
 
@@ -125,15 +119,11 @@ impl Assembled {
     }
 }
 
-static INSTANCE: OnceLock<Assembled> = OnceLock::new();
+static INSTANCE: OnceCell<Assembled> = OnceCell::const_new();
 
 /// The isolate's instance, assembling it on the first request that needs one.
 pub async fn instance(env: &Env) -> Result<&'static Assembled, worker::Error> {
-    if let Some(assembled) = INSTANCE.get() {
-        return Ok(assembled);
-    }
-    let assembled = assemble(env).await?;
-    Ok(INSTANCE.get_or_init(|| assembled))
+    INSTANCE.get_or_try_init(|| assemble(env)).await
 }
 
 async fn assemble(env: &Env) -> Result<Assembled, worker::Error> {
@@ -195,19 +185,19 @@ async fn assemble(env: &Env) -> Result<Assembled, worker::Error> {
 
 /// The part of assembly that does not depend on which store it is.
 ///
-/// The order mirrors the native host's `instance::open`, minus the steps that
-/// need a filesystem: there is no directory to create, no schema to
-/// synchronize on the request path (a Worker must not run DDL under traffic —
-/// `wrangler d1 migrations apply` does that before the deployment), and no
-/// key rotation (a one-shot management operation, not something to do on the
-/// first request of every cold start).
+/// Sync the schema before touching settings or loading configuration, as the
+/// native host does. There is no filesystem setup or automatic key rotation.
 async fn build<C>(connection: C, config: AppConfig) -> Result<Instance<C>, worker::Error>
 where
-    C: BatchConnectionTrait + Clone + Send + Sync + 'static,
+    C: BatchConnectionTrait + SchemaSyncConnectionTrait + Clone + Send + Sync + 'static,
 {
     // One `Store` over a clone of the connection, for the cache — which has to
     // exist before the handle does, because the handle takes it.
     let store = Arc::new(Store::new(connection.clone()));
+    store
+        .sync()
+        .await
+        .map_err(|e| error(format!("schema synchronization failed: {e}")))?;
     // The settings row is a precondition for every write, and for `tick`,
     // which reads `config_revision` off it. Creating it is idempotent.
     store
@@ -242,11 +232,7 @@ where
     builder = builder.publication_url(Arc::new(publications));
 
     let gproxy: Gproxy<C> = builder
-        // Not `build`: that synchronizes the schema, and a Worker must not run
-        // DDL under traffic. D1's schema is planned by
-        // `wrangler d1 migrations apply` before the deployment, and libSQL's
-        // by whoever owns the database — which is what `build_unsynced` is
-        // documented for.
+        // The shared Store above already synchronized schema before cache setup.
         .build_unsynced()
         .await
         .map_err(|e| error(format!("the instance could not be assembled: {e}")))?;

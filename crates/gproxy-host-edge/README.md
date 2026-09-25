@@ -171,10 +171,11 @@ stored in plaintext and a warning is logged once per cold start.
   vocabularies, with the crate built `--features s3`;
 - **Workers Assets**, if the console is served from this deployment.
 
-**Migrations are not the Worker's.** It runs under traffic, and DDL under
-traffic is how two isolates deadlock a migration, so the builder is assembled
-with `build_unsynced` and never touches schema. Run
-`wrangler d1 migrations apply` before the deployment.
+**Schema sync runs during cold-start assembly**, before settings, cache or
+configuration are read. Concurrent requests in one isolate share that assembly.
+D1 and libSQL use `Store::sync()` to add missing entity-defined objects; ordinary
+requests only tick configuration revisions. Coordinate schema-changing deployments
+with a single writer; explicit data/type migrations remain deployment work.
 
 ## Building
 

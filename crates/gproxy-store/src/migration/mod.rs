@@ -3,18 +3,11 @@
 //!
 //! # The story
 //!
-//! A schema has exactly two histories. Either the database is empty, in which
-//! case the entity registry describes it completely and one pass creates it; or
-//! it is not, in which case the difference between what it holds and what this
-//! build wants is a sequence of deliberate steps, each of which was written by
-//! somebody who knew what the step before it did. There is no third history in
-//! which a program looks at a populated database, works out the difference by
-//! itself, and emits the `ALTER`s — that is the arrangement this module
-//! replaced, and it ended with `Cannot add a NOT NULL column with default NULL`
-//! after the statements before it had already been committed.
-//!
-//! So: [`Store::install`] for the first history, [`Migrator`] for the second,
-//! and [`SchemaState`] deciding which of the two — or neither — applies.
+//! Fresh databases are created from the entity registry. Managed databases run
+//! explicit migrations for changes that need them; `Store::sync` then uses the
+//! connection's schema sync to add missing tables, defaulted columns and indexes.
+//! Existing column types and data transformations are not inferred from entities.
+//! The schema gate rejects foreign databases and unknown migration versions.
 //!
 //! # Adding a migration
 //!

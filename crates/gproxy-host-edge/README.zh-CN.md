@@ -144,9 +144,9 @@ Worker 哪个都打不开。
 - **S3/R2 及其两个 secret**，用于已发布内容和下载的词表，crate 带 `--features s3` 构建；
 - **Workers Assets**，如果 console 也从这个部署提供。
 
-**迁移不归 Worker 管。** 它在流量下运行，而在流量下做 DDL 正是两个 isolate 把迁移
-卡死的方式，所以 builder 用 `build_unsynced` 装配，完全不碰 schema。部署前跑
-`wrangler d1 migrations apply`。
+**冷启动装配先同步 schema**，再读取 settings、缓存与配置。同一 isolate 的并发请求
+共用一次装配；D1／libSQL 均通过 `Store::sync()` 补齐实体定义的缺失结构。普通请求只
+检查配置 revision。涉及结构变更的部署仍需协调单写者，数据／类型转换仍使用显式迁移。
 
 ## 构建
 

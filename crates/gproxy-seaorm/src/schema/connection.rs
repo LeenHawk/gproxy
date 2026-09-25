@@ -34,17 +34,9 @@ pub fn is_engine_table(name: &str) -> bool {
     name.starts_with("sqlite_") || name.starts_with("_cf_")
 }
 
-/// Entity-first initialization, the table census the schema gate reads, and the
-/// official migration runner. Drivers and schema discovery stay here; the caller
-/// supplies its entity registry and its migrator.
-///
-/// There is deliberately no method that walks the registry against a live schema
-/// emitting `ALTER`s. That existed, it was the only thing standing between this
-/// workspace and a versioned migration, and it died halfway through the first
-/// column it could not add. Creating a schema and changing one are different
-/// operations with different failure modes, and only the second one needs a
-/// ledger: [`apply_schema`](Self::apply_schema) does the first,
-/// [`run_migrations`](Self::run_migrations) does the second.
+/// Entity registration, additive schema sync, discovery and explicit migrations.
+/// Native connections use SeaORM's SchemaBuilder; projected SQLite backends
+/// use the adapter's discovery and atomic DDL planner.
 #[async_trait::async_trait]
 pub trait SchemaSyncConnectionTrait: ConnectionTrait {
     type Registry: EntityRegistry;
@@ -55,6 +47,10 @@ pub trait SchemaSyncConnectionTrait: ConnectionTrait {
     /// database. Errors if any of them already exists — this is the fresh
     /// install, not a repair.
     async fn apply_schema(&self, registry: Self::Registry) -> Result<SyncReport, DbErr>;
+
+    /// Add missing schema objects to an existing database. Existing column
+    /// type changes and data transformations still require explicit migrations.
+    async fn sync_schema(&self, registry: Self::Registry) -> Result<SyncReport, DbErr>;
 
     /// The tables this database already holds, engine-owned ones excluded and
     /// order unspecified. One cheap, portable fact, which is all the question
@@ -166,6 +162,11 @@ where
         Ok(SyncReport::default())
     }
 
+    async fn sync_schema(&self, registry: Self::Registry) -> Result<SyncReport, DbErr> {
+        registry.sync(self).await?;
+        Ok(SyncReport::default())
+    }
+
     async fn table_names(&self) -> Result<Vec<String>, DbErr> {
         // Per-backend because there is no portable catalogue, and aliased to
         // `name` so the one row reader below serves all three.
@@ -237,6 +238,12 @@ impl SchemaSyncConnectionTrait for crate::LibsqlConnection {
         })
     }
 
+    async fn sync_schema(&self, registry: Self::Registry) -> Result<SyncReport, DbErr> {
+        Ok(SyncReport {
+            warnings: registry.sync(self).await?.warnings,
+        })
+    }
+
     async fn table_names(&self) -> Result<Vec<String>, DbErr> {
         super::table_names(self).await
     }
@@ -266,6 +273,12 @@ impl SchemaSyncConnectionTrait for crate::D1Connection {
     async fn apply_schema(&self, registry: Self::Registry) -> Result<SyncReport, DbErr> {
         Ok(SyncReport {
             warnings: super::apply_registry(registry, self).await?,
+        })
+    }
+
+    async fn sync_schema(&self, registry: Self::Registry) -> Result<SyncReport, DbErr> {
+        Ok(SyncReport {
+            warnings: registry.sync(self).await?.warnings,
         })
     }
 
