@@ -170,7 +170,7 @@ impl<'a, C> Issuer<'a, C> {
     }
 
     fn audit(&self) -> Audit<'a, C> {
-        Audit::new(self.gproxy.store())
+        Audit::new(self.gproxy.store(), self.config.audit_enabled)
     }
 
     /// RFC 8414 §2's discovery document for one mount.

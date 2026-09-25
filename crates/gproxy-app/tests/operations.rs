@@ -1607,6 +1607,62 @@ async fn retiring_an_oauth_client_revokes_its_grants_tokens_and_internal_keys() 
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
+async fn disabled_audit_skips_writes_and_preserves_history() {
+    let gproxy = handle().await;
+    let data = snapshot(gproxy.store()).await;
+    let enabled = AppConfig::default();
+    let operations = Operations::new(&gproxy, &data, &enabled);
+    assert!(
+        operations
+            .audit()
+            .record(AuditEntry::new("before"))
+            .await
+            .unwrap()
+            .is_some()
+    );
+
+    let disabled = AppConfig {
+        audit_enabled: false,
+        ..AppConfig::default()
+    };
+    let operations = Operations::new(&gproxy, &data, &disabled);
+    assert!(
+        operations
+            .audit()
+            .record(AuditEntry::new("disabled"))
+            .await
+            .unwrap()
+            .is_none()
+    );
+    operations
+        .audit()
+        .try_record(AuditEntry::new("middleware"))
+        .await;
+    let page = operations
+        .audit()
+        .query(AuditQuery::default())
+        .await
+        .unwrap();
+    assert_eq!(page.total, 1);
+    assert_eq!(page.items[0].action, "before");
+
+    let operations = Operations::new(&gproxy, &data, &enabled);
+    operations
+        .audit()
+        .try_record(AuditEntry::new("after"))
+        .await;
+    assert_eq!(
+        operations
+            .audit()
+            .query(AuditQuery::default())
+            .await
+            .unwrap()
+            .total,
+        2
+    );
+}
+
+#[tokio::test]
 async fn audit_rows_are_written_outside_the_revision_paged_newest_first_and_redacted() {
     let gproxy = handle().await;
     let root = seed_admin(&gproxy).await;

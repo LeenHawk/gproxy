@@ -174,9 +174,12 @@ pub async fn audit(desktop: &Desktop, action: &str, result: &IpcResult<serde_jso
             serde_json::json!({ "transport": "ipc", "status": error.status, "code": error.code })
         }
     };
-    gproxy_app::Audit::new(desktop.app().gproxy().store())
-        .try_record(entry)
-        .await;
+    gproxy_app::Audit::new(
+        desktop.app().gproxy().store(),
+        desktop.app().config().audit_enabled,
+    )
+    .try_record(entry)
+    .await;
 }
 
 /// Rebuild the identity snapshot if the command that just ran moved the

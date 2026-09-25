@@ -241,10 +241,8 @@ async fn mark_imported<C>(app: &Arc<App<C>>, marker: &str) -> Result<()>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    let data = app.data();
-    let operations = Operations::new(app.gproxy(), &data, app.config());
-    operations
-        .audit()
+    // This is an import idempotency marker, required even when audit logging is disabled.
+    gproxy_app::Audit::new(app.gproxy().store(), true)
         .record(gproxy_app::AuditEntry {
             // Nobody signed in: this is the command line acting as the
             // instance itself.
