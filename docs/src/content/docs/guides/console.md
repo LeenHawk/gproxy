@@ -54,7 +54,7 @@ are restricted to the current administrative scope. Tenant directories expose
 provider labels and supported actions, not gateway configuration.
 
 Editing a credential opens one panel with **Basic settings**, **Local limits**
-and **Upstream allowance** tabs. The credential row offers Local limits, a
+and **Upstream allowance** tabs. The credential row offers Upstream allowance, a
 compact model test dialog, and deletion. Secret
 reveal and refresh sit below the secret field in Basic settings; lifecycle
 status and health reset sit in the status area. The test dialog loads available
