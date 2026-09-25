@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next"
 import { navigate } from "@/lib/router"
 import { normalizeSourceMasterKey, parseConfiguration } from "@/api/transfer"
 import { api, json } from "@/api/client"
+import { saveTextFile } from "@/lib/save-file"
 import type { ConfigurationExportDto, ImportReportDto } from "@/generated/sdk"
 import { PageSection } from "@/components/page"
 import { ConfirmButton } from "@/components/confirm"
@@ -29,9 +30,7 @@ export function TransferPanel() {
   const [parseError, setParseError] = useState<unknown>(null)
   const exported = useMutation({ mutationFn: async () => {
     const data = await api<ConfigurationExportDto>("/admin/api/export", json("POST", { includeSecrets }))
-    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }))
-    const link = window.document.createElement("a"); link.href = url; link.download = `gproxy-configuration-${Date.now()}.json`; link.click()
-    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    saveTextFile(`gproxy-configuration-${Date.now()}.json`, "application/json", JSON.stringify(data, null, 2))
   } })
   const imported = useMutation({ mutationFn: async () => {
     let sourceMasterKey: string | null

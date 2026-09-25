@@ -25,4 +25,8 @@
     <string name="gproxy_update_checking">"Checking and downloading the latest update…"</string>
     <string name="gproxy_update_current">"GPROXY is up to date."</string>
     <string name="gproxy_update_failed">"Could not update GPROXY"</string>
+
+    <!-- Saving a file the console produced, such as a configuration export. -->
+    <string name="gproxy_save_done">"Saved"</string>
+    <string name="gproxy_save_failed">"Could not save the file"</string>
 </resources>
