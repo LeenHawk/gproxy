@@ -7,6 +7,50 @@ use gproxy_protocol::{
     wire::{claude::generate_content as c, gemini as g},
 };
 use serde_json::json;
+
+#[test]
+fn claude_web_search_uses_google_grounding_without_empty_function_declarations() {
+    for version in [
+        "web_search_20250305",
+        "web_search_20260209",
+        "web_search_20260318",
+    ] {
+        let request = json!({
+            "model":"claude", "max_tokens":128,
+            "messages":[{"role":"user","content":"Search for Python pathlib documentation"}],
+            "tools":[{"type":version,"name":"web_search"}]
+        });
+        let converted = claude_to_gemini_request(
+            serde_json::from_value(request.clone()).unwrap(),
+            "gemini",
+            Default::default(),
+            &mut flow(),
+            &policy(Dialect::Gemini),
+        )
+        .unwrap();
+        assert_eq!(
+            serde_json::to_value(converted.value).unwrap()["tools"],
+            json!([{"googleSearch":{}}])
+        );
+
+        let mut mixed = request;
+        mixed["tools"].as_array_mut().unwrap().push(json!({
+            "name":"Edit", "input_schema":{"type":"object","properties":{}}
+        }));
+        let converted = claude_to_gemini_request(
+            serde_json::from_value(mixed).unwrap(),
+            "gemini",
+            Default::default(),
+            &mut flow(),
+            &policy(Dialect::Gemini),
+        )
+        .unwrap();
+        let tools = serde_json::to_value(converted.value).unwrap()["tools"].clone();
+        assert_eq!(tools[0]["functionDeclarations"][0]["name"], "Edit");
+        assert_eq!(tools[1], json!({"googleSearch":{}}));
+    }
+}
+
 fn flow() -> IdentityFlow {
     IdentityFlow::new(IdNamespace::with_bytes([42; 16]))
 }

@@ -306,6 +306,7 @@ impl GeminiViaClaude {
         native: c::GenerateContentResponseBody,
         facts: p::ClaudeGeminiUsageFacts,
     ) -> Result<Converted<g::GenerateContentResponseBody>, TransformError> {
+        let facts = self.usage_facts(facts);
         let native = native.into_declared();
         p::claude_to_gemini_response(
             native,
@@ -313,6 +314,23 @@ impl GeminiViaClaude {
             &mut self.identities.response,
             &self.identities.response_policy,
         )
+    }
+    pub(crate) fn usage_facts(
+        &self,
+        mut facts: p::ClaudeGeminiUsageFacts,
+    ) -> p::ClaudeGeminiUsageFacts {
+        // The prepared native request, not Gemini's display preference, tells
+        // us whether Claude thinking was enabled. A disabled request has an
+        // exact zero even when Anthropic omits output_tokens_details.
+        if matches!(
+            self.target_request.thinking,
+            None | Some(crate::wire::claude::count_tokens::ThinkingConfig::Disabled(
+                _
+            ))
+        ) {
+            facts.thinking_tokens.get_or_insert(0);
+        }
+        facts
     }
     /// Performs one POST. The factual supplement is obtained from the actual decoded response.
     /// Conversion errors keep native bytes/results in caller-owned progress.

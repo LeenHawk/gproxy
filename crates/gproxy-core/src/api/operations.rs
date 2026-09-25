@@ -22,10 +22,12 @@ macro_rules! http_operations {
             /// bodies. Targets and permitted credentials are supplied by the
             /// upper layer; no route or policy selection is performed here.
             pub async fn send(&self, context: Arc<RequestContext>, request: WireRequest<HttpBody>) -> CoreResult<HttpExecution> {
-                // Boxed per arm: one frame holding every operation's execution
-                // future overflows small stacks.
+                // Every named HTTP facade reaches the same executor after
+                // checking its operation. Dispatch once here: even boxed
+                // per-operation futures leave construction temporaries for
+                // every arm in this poll's stack frame in debug builds.
                 match context.operation.operation {
-                    $(Operation::$operation => Box::pin(self.$method(context, request)).await,)+
+                    $(Operation::$operation)|+ => self.execute_http(context, request).await,
                     Operation::ConnectRealtime => Err(ChannelError::WrongTransport(context.operation).into()),
                 }
             }

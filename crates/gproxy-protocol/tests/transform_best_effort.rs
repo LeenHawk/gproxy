@@ -146,7 +146,8 @@ fn gemini_parts_and_hosted_tools_preserve_independent_supported_fields() {
         .value,
     );
     has_text(&claude);
-    assert_eq!(claude["tools"][0]["name"], "lookup");
+    assert_eq!(claude["tools"][0]["type"], "web_search_20250305");
+    assert_eq!(claude["tools"][1]["name"], "lookup");
     let responses = wire(
         gemini_responses::gemini_to_responses_request(
             input,
@@ -158,7 +159,8 @@ fn gemini_parts_and_hosted_tools_preserve_independent_supported_fields() {
         .value,
     );
     has_text(&responses);
-    assert_eq!(responses["tools"][0]["name"], "lookup");
+    assert_eq!(responses["tools"][0]["type"], "web_search");
+    assert_eq!(responses["tools"][1]["name"], "lookup");
 }
 
 #[test]

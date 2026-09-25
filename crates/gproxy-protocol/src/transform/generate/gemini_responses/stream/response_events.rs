@@ -265,6 +265,17 @@ impl ResponseEvents {
                     })?;
                 }
             }
+            r::ResponseOutputItem::CustomToolCall(call) => {
+                self.emit(budget, out, |sequence_number| {
+                    s::StreamEvent::CustomToolInputDone(s::CustomToolInputDone {
+                        sequence_number,
+                        output_index: index,
+                        item_id: call.id.clone().expect("allocated custom tool ID"),
+                        input: call.input.clone(),
+                        rest: Default::default(),
+                    })
+                })?;
+            }
             r::ResponseOutputItem::FunctionCall(_)
             | r::ResponseOutputItem::ShellCall(_)
             | r::ResponseOutputItem::ApplyPatchCall(_)

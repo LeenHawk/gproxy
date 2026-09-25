@@ -15,7 +15,17 @@ pub(crate) fn to_gemini(
     let tools = input
         .map(|tools| {
             let mut functions = Vec::new();
+            let mut search = false;
             for tool in tools {
+                if matches!(tool,
+                    ct::ToolUnion::WebSearch20250305(_)
+                    | ct::ToolUnion::WebSearch20260209(_)
+                    | ct::ToolUnion::WebSearch20260318(_)
+                ) {
+                    search = true;
+                    report.changed("tools.web_search", "executed by Gemini Google Search; Claude search controls have no direct equivalent");
+                    continue;
+                }
                 let ct::ToolUnion::Custom(tool) = tool else {
                     continue;
                 };
@@ -48,9 +58,14 @@ pub(crate) fn to_gemini(
                     );
                 }
             }
-            Ok::<_, TransformError>(vec![
-                g::Tool::builder().function_declarations(functions).build(),
-            ])
+            let mut tools = Vec::new();
+            if !functions.is_empty() {
+                tools.push(g::Tool::builder().function_declarations(functions).build());
+            }
+            if search {
+                tools.push(g::Tool::builder().google_search(g::GoogleSearch::builder().build()).build());
+            }
+            Ok::<_, TransformError>(tools)
         })
         .map(crate::transform::optional)
         .transpose()?
@@ -129,9 +144,13 @@ pub(crate) fn to_claude(
         .map(|tools| {
             let mut functions = Vec::new();
             for tool in tools {
-                if tool.google_search_retrieval.is_some()
-                    || tool.code_execution.is_some()
-                    || tool.google_search.is_some()
+                if tool.google_search_retrieval.is_some() || tool.google_search.is_some() {
+                    functions.push(ct::ToolUnion::WebSearch20250305(ct::WebSearchTool20250305::builder(
+                        ct::WebSearchTool20250305Name::Name, ct::WebSearchTool20250305Type::Tag,
+                    ).build()));
+                    report.changed("tools.google_search", "executed by Claude web search; provider-specific search controls are omitted");
+                }
+                if tool.code_execution.is_some()
                     || tool.computer_use.is_some()
                     || tool.url_context.is_some()
                     || tool.file_search.is_some()

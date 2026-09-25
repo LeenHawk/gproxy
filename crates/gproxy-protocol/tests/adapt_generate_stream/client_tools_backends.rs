@@ -15,6 +15,7 @@ fn run<B: StreamBridge<ClientEvent = rs::StreamEvent>>(
     source: Vec<String>,
     backend: Dialect,
     store: &Arc<Store>,
+    expected_calls: usize,
 ) -> Value {
     let access = all_pairs::access(store, backend);
     let feed = Feed::default();
@@ -46,7 +47,7 @@ fn run<B: StreamBridge<ClientEvent = rs::StreamEvent>>(
             }
         }
     }
-    assert_eq!(observed, 8);
+    assert_eq!(observed, expected_calls * 2);
     assert_eq!(host.sent.lock().unwrap().len(), 1);
     serde_json::to_value(call.client_result().unwrap()).unwrap()
 }
@@ -95,7 +96,7 @@ fn claude_client_tools_stream_persist_and_resume_from_previous_response() {
         .into_iter()
         .map(|e| serde_json::to_string(&e).unwrap())
         .collect();
-    let output = run(call, events, Dialect::Claude, &store);
+    let output = run(call, events, Dialect::Claude, &store, 4);
     let mut followup = fixtures::followup(&output);
     followup["stream"] = json!(true);
     followup["previous_response_id"] = output["id"].clone();
@@ -157,7 +158,7 @@ fn gemini_client_tools_preserve_signed_parts_and_resume_discovery_history() {
     .into_iter()
     .map(|e| serde_json::to_string(&e).unwrap())
     .collect();
-    let output = run(call, events, Dialect::Gemini, &store);
+    let output = run(call, events, Dialect::Gemini, &store, 4);
     let followup = fixtures::followup(&output);
     let next = ready(ResponsesViaGemini::prepare_with_state(
         serde_json::from_value(followup.clone()).unwrap(),
@@ -239,4 +240,77 @@ fn gemini_client_tools_preserve_signed_parts_and_resume_discovery_history() {
         5
     );
     assert!(resumed["contents"].to_string().contains("c2lnbmF0dXJl"));
+}
+
+#[test]
+fn freeform_patch_streams_finish_with_the_original_client_input() {
+    let patch = "*** Begin Patch\n*** Add File: probe.txt\n+passed\n*** End Patch";
+    let input = json!({"model":"client","stream":true,"max_output_tokens":128,"input":"edit",
+        "tools":[{"type":"custom","name":"apply_patch","format":{"type":"text"}}]});
+    for backend in [Dialect::Claude, Dialect::Gemini] {
+        let store = Arc::new(Store::default());
+        let access = all_pairs::access(&store, backend);
+        let output = if backend == Dialect::Claude {
+            let call = ready(ResponsesViaClaude::prepare_stream(
+                serde_json::from_value(input.clone()).unwrap(),
+                all_pairs::target(Dialect::OpenAi, backend),
+                ResponsesViaClaudeStreamFacts {
+                    request: Default::default(),
+                    response: all_pairs::claude_response_context(),
+                },
+                settings(),
+                &access,
+            ))
+            .unwrap();
+            let request = serde_json::to_value(call.target_request()).unwrap();
+            let names = vec![request["tools"][0]["name"].as_str().unwrap().to_owned()];
+            let mut source = fixtures::claude(&names);
+            source["content"][0]["input"] = json!({"input":patch});
+            let events = native::claude::synthesize_claude_stream(
+                serde_json::from_value(source).unwrap(),
+                Default::default(),
+            )
+            .unwrap()
+            .value
+            .into_iter()
+            .map(|event| serde_json::to_string(&event).unwrap())
+            .collect();
+            run(call, events, backend, &store, 1)
+        } else {
+            let call = ready(ResponsesViaGemini::prepare_stream(
+                serde_json::from_value(input.clone()).unwrap(),
+                all_pairs::target(Dialect::OpenAi, backend),
+                ResponsesViaGeminiStreamFacts {
+                    request: Default::default(),
+                    response: all_pairs::gemini_response_context(),
+                },
+                settings(),
+                &access,
+            ))
+            .unwrap();
+            let request = serde_json::to_value(call.target_request()).unwrap();
+            let names = vec![
+                request["tools"][0]["functionDeclarations"][0]["name"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned(),
+            ];
+            let mut source = fixtures::gemini(&names, false);
+            source["candidates"][0]["content"]["parts"][0]["functionCall"]["args"] =
+                json!({"input":patch});
+            let events = native::gemini::synthesize_gemini_stream(
+                serde_json::from_value(source).unwrap(),
+                Default::default(),
+            )
+            .unwrap()
+            .value
+            .into_iter()
+            .map(|event| serde_json::to_string(&event).unwrap())
+            .collect();
+            run(call, events, backend, &store, 1)
+        };
+        assert_eq!(output["output"][0]["type"], "custom_tool_call");
+        assert_eq!(output["output"][0]["name"], "apply_patch");
+        assert_eq!(output["output"][0]["input"], patch);
+    }
 }

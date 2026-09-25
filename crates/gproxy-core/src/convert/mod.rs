@@ -19,6 +19,7 @@ mod memory;
 mod models;
 pub(crate) mod responses_ws;
 mod video;
+mod web_search;
 
 pub(crate) use call::{Call, ClientRequest, Converted};
 pub(crate) use dispatch::dispatch;

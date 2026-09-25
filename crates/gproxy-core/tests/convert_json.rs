@@ -102,8 +102,60 @@ async fn send(
         Operation::GuardianClassify => h.core.guardian_classify(ctx, request).await,
         Operation::CompactContent => h.core.compact_content(ctx, request).await,
         Operation::SummarizeMemory => h.core.summarize_memory(ctx, request).await,
+        Operation::WebSearch => h.core.web_search(ctx, request).await,
         other => panic!("no facade wired for {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn standalone_search_uses_a_search_only_generation_and_preserves_rejection() {
+    let h = harness(full(), "round_robin").await;
+    seed_provider(&h, "search", "gemini").await;
+    h.script(vec![json_reply(StatusCode::OK, json!({
+        "responseId":"search-response", "modelVersion":"m",
+        "candidates":[{"content":{"role":"model","parts":[{"text":"Python pathlib: https://docs.python.org/3/library/pathlib.html"}]},"finishReason":"STOP"}],
+        "usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":7,"totalTokenCount":12}
+    }))]);
+    let query = || {
+        wire(
+            "/v1/search",
+            json!({
+                "id":"session", "model":"m", "commands":{"search_query":[{"q":"official Python pathlib docs"}]}
+            }),
+        )
+    };
+    let (status, body, state) = run(
+        &h,
+        "search",
+        key(Operation::WebSearch, Dialect::OpenAi),
+        query(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(state, UsageState::Completed);
+    assert!(
+        body["output"]
+            .as_str()
+            .unwrap()
+            .contains("https://docs.python.org")
+    );
+    assert!(body.get("encrypted_output").is_none());
+    assert_eq!(sent_body(&h, 0)["tools"], json!([{"googleSearch":{}}]));
+    assert_eq!(h.client.seen.lines().len(), 1);
+
+    h.script(vec![json_reply(
+        StatusCode::BAD_REQUEST,
+        json!({"error":{"code":400,"message":"rejected","status":"INVALID_ARGUMENT"}}),
+    )]);
+    let (status, body, _) = run(
+        &h,
+        "search",
+        key(Operation::WebSearch, Dialect::OpenAi),
+        query(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(body.get("output").is_none());
 }
 
 async fn run(

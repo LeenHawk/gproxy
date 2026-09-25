@@ -13,6 +13,7 @@ pub(super) fn request(body: &Bytes) -> Result<(Bytes, tools::Aliases), ChannelEr
     request.top_p = None;
     request.top_logprobs = None;
     request.safety_identifier = None;
+    request.user = None;
     request.truncation = None;
     if let Some(Input::Text(text)) = request
         .input

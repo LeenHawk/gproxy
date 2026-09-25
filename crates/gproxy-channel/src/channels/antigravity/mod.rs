@@ -126,7 +126,13 @@ pub const CLI_HEADERS: ChannelHeaders = ChannelHeaders {
 
 /// Headers the channel owns; a client cannot supply them. Google account
 /// cookies are browser identity and never belong on a bearer-token call.
-const CHANNEL_HEADERS: &[&str] = &["user-agent", "accept", "cookie", "x-goog-user-project"];
+const CHANNEL_HEADERS: &[&str] = &[
+    "user-agent",
+    "accept",
+    "accept-encoding",
+    "cookie",
+    "x-goog-user-project",
+];
 
 /// The editor's outbound stack, the default for a provider that names no
 /// connection profile: a Go client, TLS 1.2 floor, Go's cipher order with the
@@ -135,6 +141,9 @@ const CHANNEL_HEADERS: &[&str] = &["user-agent", "accept", "cookie", "x-goog-use
 pub fn default_connection() -> ConnectionConfig {
     ConnectionConfig {
         backend: Backend::Wreq,
+        // Go's HTTP transport negotiates and decodes gzip. The downstream
+        // client's encoding preferences cannot describe this channel's parser.
+        gzip: true,
         emulation: Some(EmulationConfig::Custom(Fingerprint {
             alpn: Vec::<Alpn>::new(),
             min_tls: Some(TlsVersion::Tls12),
@@ -243,10 +252,7 @@ pub(super) fn apply_headers(
     if json_only {
         headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
     }
-    headers.insert(
-        header::USER_AGENT,
-        HeaderValue::from_static(CLI_USER_AGENT),
-    );
+    headers.insert(header::USER_AGENT, HeaderValue::from_static(CLI_USER_AGENT));
     for (name, value) in &config.headers {
         headers.insert(
             HeaderName::from_bytes(name.as_bytes()).map_err(|_| {

@@ -46,6 +46,7 @@ pub struct GeminiToClaudeStream {
     pending: Vec<s::StreamEvent>,
     pending_bytes: usize,
     next_block: usize,
+    text_block: Option<i64>,
     tools: usize,
     calls: super::super::history::Calls,
 }
@@ -115,6 +116,7 @@ impl GeminiToClaudeStream {
             pending: Vec::new(),
             pending_bytes: 0,
             next_block: 0,
+            text_block: None,
             tools: 0,
             calls: Default::default(),
         })
@@ -260,16 +262,26 @@ impl GeminiToClaudeStream {
     }
     fn part(&mut self, part: g::Part, out: &mut Vec<s::StreamEvent>) -> Result<(), TransformError> {
         if let Some(text) = part.text.filter(|_| part.thought != Some(true)) {
-            let index = self.allocate_block()?;
-            let block = c::ResponseContentBlock::Text(
-                c::ResponseTextBlock::builder(c::ResponseTextBlockType::Tag, String::new()).build(),
-            );
-            self.emit(
-                out,
-                s::StreamEvent::ContentBlockStart(
-                    s::ContentBlockStartEvent::builder(index, block).build(),
-                ),
-            )?;
+            // Gemini chunks extend the current text; they are not separate
+            // Claude messages. In particular, a trailing empty chunk must not
+            // replace the CLI's final assistant result with an empty block.
+            let index = if let Some(index) = self.text_block {
+                index
+            } else {
+                let index = self.allocate_block()?;
+                let block = c::ResponseContentBlock::Text(
+                    c::ResponseTextBlock::builder(c::ResponseTextBlockType::Tag, String::new())
+                        .build(),
+                );
+                self.emit(
+                    out,
+                    s::StreamEvent::ContentBlockStart(
+                        s::ContentBlockStartEvent::builder(index, block).build(),
+                    ),
+                )?;
+                self.text_block = Some(index);
+                index
+            };
             self.emit(
                 out,
                 s::StreamEvent::ContentBlockDelta(
@@ -280,12 +292,9 @@ impl GeminiToClaudeStream {
                     .build(),
                 ),
             )?;
-            self.emit(
-                out,
-                s::StreamEvent::ContentBlockStop(s::ContentBlockStopEvent::builder(index).build()),
-            )?;
         }
         if let Some(call) = part.function_call {
+            self.close_text(out)?;
             if self.tools >= self.limits.max_tools {
                 return Err(limit());
             }
@@ -324,6 +333,15 @@ impl GeminiToClaudeStream {
                     .build(),
                 ),
             )?;
+            self.emit(
+                out,
+                s::StreamEvent::ContentBlockStop(s::ContentBlockStopEvent::builder(index).build()),
+            )?;
+        }
+        Ok(())
+    }
+    fn close_text(&mut self, out: &mut Vec<s::StreamEvent>) -> Result<(), TransformError> {
+        if let Some(index) = self.text_block.take() {
             self.emit(
                 out,
                 s::StreamEvent::ContentBlockStop(s::ContentBlockStopEvent::builder(index).build()),
@@ -414,6 +432,7 @@ impl GeminiToClaudeStream {
             self.model = Some(expected.model.clone());
             self.ensure_start(&mut out)?;
         }
+        self.close_text(&mut out)?;
         let delta = s::MessageDelta::builder()
             .stop_reason(Some(expected.stop_reason))
             .build();

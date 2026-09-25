@@ -817,10 +817,10 @@ fn discovered_metadata(dialect: Dialect, document: &Value, name: &str) -> Value 
                 result.entry(key).or_insert_with(|| value.clone());
             }
         }
-        if item.get("id").is_some() {
-            if let Some(name) = item.get("name").filter(|value| value.is_string()) {
-                result.entry("display_name").or_insert_with(|| name.clone());
-            }
+        if item.get("id").is_some()
+            && let Some(name) = item.get("name").filter(|value| value.is_string())
+        {
+            result.entry("display_name").or_insert_with(|| name.clone());
         }
     }
     Value::Object(result)

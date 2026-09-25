@@ -601,8 +601,8 @@ fn every_output_field_has_its_documented_required_optional_and_null_contract() {
         (
             "web_search_call",
             &["id", "action", "status", "type"],
-            &["id", "action", "status", "type"],
-            &[],
+            &["id", "status", "type"],
+            &["action"],
             &[],
         ),
         (

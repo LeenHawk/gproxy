@@ -79,6 +79,33 @@ impl Bindings {
         for item in std::mem::take(items) {
             let mapped = (|| -> Result<Option<r::InputItem>, TransformError> {
                 Ok(Some(match item {
+                    r::InputItem::CustomToolCall(item)
+                        if self.entries.contains_key(&custom_alias(&item.name)) =>
+                    {
+                        caller(&item.caller)?;
+                        call(
+                            &custom_alias(&item.name),
+                            item.call_id,
+                            item.id,
+                            json!({"input":item.input}),
+                        )?
+                    }
+                    r::InputItem::CustomToolCallOutput(item)
+                        if self
+                            .entries
+                            .values()
+                            .any(|kind| matches!(kind, Kind::Custom { .. })) =>
+                    {
+                        caller(&item.caller)?;
+                        r::InputItem::FunctionCallOutput(
+                            r::FunctionCallOutput::builder(
+                                r::FunctionCallOutputType::FunctionCallOutput,
+                                item.call_id,
+                                serde_json::from_value(serde_json::to_value(item.output)?)?,
+                            )
+                            .build(),
+                        )
+                    }
                     r::InputItem::FunctionCall(mut item) => {
                         if let Some(namespace) = item.namespace.take() {
                             item.name = self.namespace_name(&namespace, &item.name)?;

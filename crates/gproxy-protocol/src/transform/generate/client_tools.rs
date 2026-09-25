@@ -20,6 +20,7 @@ pub(crate) const SEARCH: &str = "gproxy_client_tool_search";
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Kind {
     Namespace { namespace: String, name: String },
+    Custom { name: String },
     Shell,
     Patch,
     Search,
@@ -42,6 +43,10 @@ pub(crate) fn qualified(namespace: &str, name: &str) -> String {
         hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
     }
     format!("gproxy_namespace_{hash:016x}")
+}
+
+pub(crate) fn custom_alias(name: &str) -> String {
+    qualified("custom", name).replacen("gproxy_namespace_", "gproxy_custom_", 1)
 }
 
 fn unsupported(detail: &str) -> TransformError {
@@ -119,6 +124,9 @@ impl Bindings {
                 r::Tool::Function(tool) => {
                     active.insert(tool.name.clone());
                 }
+                r::Tool::Custom(tool) => {
+                    active.insert(custom_alias(&tool.name));
+                }
                 r::Tool::Namespace(ns) => {
                     for tool in &ns.tools {
                         if let r::NamespaceToolDefinition::Function(tool) = tool {
@@ -171,6 +179,42 @@ impl Bindings {
     }
     fn add(&mut self, tool: r::Tool, active: &BTreeSet<String>) -> Result<(), TransformError> {
         match tool {
+            r::Tool::Custom(tool)
+                if matches!(
+                    self.target,
+                    Some(crate::Dialect::Claude | crate::Dialect::Gemini)
+                ) =>
+            {
+                direct(&tool.allowed_callers)?;
+                let alias = custom_alias(&tool.name);
+                self.bind(
+                    alias.clone(),
+                    Kind::Custom {
+                        name: tool.name.clone(),
+                    },
+                )?;
+                if tool.defer_loading == Some(true)
+                    && !self.keep_deferred
+                    && !active.contains(&alias)
+                {
+                    self.hidden.insert(alias);
+                    return Ok(());
+                }
+                let description = format!(
+                    "Execute the client's {} tool. Put its complete raw tool input in the input string.\nTool instructions: {}\nInput format: {}",
+                    tool.name,
+                    tool.description.unwrap_or_default(),
+                    serde_json::to_string(&tool.format)?,
+                );
+                self.tools.push(function(
+                    &alias,
+                    &description,
+                    json!({
+                        "type":"object", "properties":{"input":{"type":"string"}},
+                        "required":["input"], "additionalProperties":false
+                    }),
+                )?);
+            }
             r::Tool::Namespace(ns) => {
                 if ns.name.is_empty() {
                     return Err(unsupported("empty namespace"));
@@ -393,18 +437,23 @@ impl Bindings {
                     }
                 }
                 let alias = match choice {
-                    r::ToolChoice::Shell(_) => Some(SHELL),
-                    r::ToolChoice::ApplyPatch(_) => Some(PATCH),
+                    r::ToolChoice::Shell(_) => Some(SHELL.to_owned()),
+                    r::ToolChoice::ApplyPatch(_) => Some(PATCH.to_owned()),
+                    r::ToolChoice::Custom(tool)
+                        if self.entries.contains_key(&custom_alias(&tool.name)) =>
+                    {
+                        Some(custom_alias(&tool.name))
+                    }
                     _ => None,
                 };
                 if let Some(alias) = alias {
-                    if !self.entries.contains_key(alias) {
+                    if !self.entries.contains_key(&alias) {
                         return Err(unsupported("selected client tool was not declared"));
                     }
                     *choice = r::ToolChoice::Function(
                         r::ToolChoiceFunction::builder(
                             r::ToolChoiceFunctionType::ToolChoiceFunction,
-                            alias.into(),
+                            alias,
                         )
                         .build(),
                     );

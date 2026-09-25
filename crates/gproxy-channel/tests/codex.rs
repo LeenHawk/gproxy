@@ -370,6 +370,10 @@ fn prepares_responses_calls_against_the_codex_backend() {
     ));
     assert_eq!(
         Codex.native_dialects(provider(&config, None), Operation::GenerateContent),
+        vec![Dialect::OpenAiResponsesWebSocket]
+    );
+    assert_eq!(
+        Codex.native_dialects(provider(&config, None), Operation::StreamGenerateContent),
         vec![Dialect::OpenAi, Dialect::OpenAiResponsesWebSocket]
     );
 }
@@ -2000,7 +2004,7 @@ fn shapes_converted_responses_and_avoids_cli_tool_name_collisions() {
     let input = json!({
         "model":"gpt-5.4", "instructions":"first", "stream":false, "store":true,
         "max_output_tokens":100, "metadata":{}, "prompt_cache_options":{"mode":"implicit"},
-        "temperature":1,"top_p":1,"top_logprobs":2,"safety_identifier":"x","truncation":"auto",
+        "temperature":1,"top_p":1,"top_logprobs":2,"safety_identifier":"x","user":"client-user","truncation":"auto",
         "input":[
             {"role":"system","content":"policy"},
             {"type":"reasoning","id":"r1","summary":[],"status":"completed","future_item":1},
@@ -2023,6 +2027,7 @@ fn shapes_converted_responses_and_avoids_cli_tool_name_collisions() {
         "top_p",
         "top_logprobs",
         "safety_identifier",
+        "user",
         "truncation",
     ] {
         assert!(value.get(field).is_none(), "{field}");

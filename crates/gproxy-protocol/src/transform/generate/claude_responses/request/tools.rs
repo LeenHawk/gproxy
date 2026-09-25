@@ -13,6 +13,10 @@ pub(crate) fn to_responses(
     input
         .into_iter()
         .map(|tool| {
+            if matches!(tool, c::ToolUnion::WebSearch20250305(_) | c::ToolUnion::WebSearch20260209(_) | c::ToolUnion::WebSearch20260318(_)) {
+                report.changed("tools.web_search", "executed by Responses web search; provider-specific search controls are omitted");
+                return Ok(r::Tool::WebSearchLegacy(r::WebSearchTool::builder().build()));
+            }
             let c::ToolUnion::Custom(tool) = tool else {
                 return Err(TransformError::unsupported(
                     "tools",
@@ -52,6 +56,21 @@ pub(crate) fn to_claude(input: Vec<r::Tool>) -> Result<Vec<c::ToolUnion>, Transf
     input
         .into_iter()
         .map(|tool| {
+            if matches!(
+                tool,
+                r::Tool::WebSearch(_)
+                    | r::Tool::WebSearchPreview20250311(_)
+                    | r::Tool::WebSearchLegacy(_)
+                    | r::Tool::WebSearch2025(_)
+            ) {
+                return Ok(c::ToolUnion::WebSearch20250305(
+                    c::WebSearchTool20250305::builder(
+                        c::WebSearchTool20250305Name::Name,
+                        c::WebSearchTool20250305Type::Tag,
+                    )
+                    .build(),
+                ));
+            }
             let r::Tool::Function(tool) = tool else {
                 return Err(TransformError::unsupported(
                     "tools",

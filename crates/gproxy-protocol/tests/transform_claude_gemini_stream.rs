@@ -326,7 +326,11 @@ fn repeated_gemini_text_and_thought_marked_functions_are_not_dropped() {
     ];
     let actual = g_to_c(source, gc(), fixed());
     assert_eq!(actual.stop_reason, c::StopReason::ToolUse);
-    assert_eq!(actual.content.len(), 4);
+    assert_eq!(actual.content.len(), 3);
+    assert_eq!(
+        serde_json::to_value(&actual.content[0]).unwrap()["text"],
+        "haha"
+    );
     let raw = serde_json::to_string(&actual).unwrap();
     assert!(!raw.contains("private thought"));
     assert!(!raw.contains("opaque"));
@@ -486,7 +490,7 @@ fn output_aggregate_and_pending_caps_are_checked_before_retaining_unstarted_even
 #[test]
 fn start_and_terminal_events_count_toward_output_limits() {
     let limits = StreamLimits {
-        max_events: 3,
+        max_events: 2,
         ..Default::default()
     };
     let mut converter = GeminiToClaudeStream::new(gc(), flow(), limits).unwrap();
@@ -505,6 +509,25 @@ fn start_and_terminal_events_count_toward_output_limits() {
     converter.push(gparts(json!([{"text":"x"}]))).unwrap();
     converter.push(gend("STOP")).unwrap();
     assert!(converter.finish().is_err());
+}
+
+#[test]
+fn gemini_text_chunks_and_empty_tail_form_one_claude_text_block() {
+    let actual = g_to_c(
+        vec![
+            gparts(json!([{"text":"hello "}])),
+            gparts(json!([{"text":"world"}])),
+            gparts(json!([{"text":""}])),
+            gend("STOP"),
+        ],
+        gc(),
+        fixed(),
+    );
+    assert_eq!(actual.content.len(), 1);
+    assert_eq!(
+        serde_json::to_value(&actual.content[0]).unwrap()["text"],
+        "hello world"
+    );
 }
 #[test]
 fn source_and_initial_fact_rest_are_removed_before_limits_but_tool_json_remains() {

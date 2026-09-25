@@ -178,7 +178,7 @@ fn descriptor_declares_the_login_and_the_keys_it_reads() {
         vec![Dialect::Gemini]
     );
     // The editor's Go client has its own ClientHello, so the channel names one.
-    assert!(Antigravity.default_connection().is_some());
+    assert!(Antigravity.default_connection().unwrap().gzip);
 }
 
 // ----------------------------------------------------------------- prepare
@@ -218,6 +218,10 @@ fn prepare_sends_the_editor_identity_and_a_client_cannot_spoof_it() {
     let mut headers = HeaderMap::new();
     headers.insert("user-agent", HeaderValue::from_static("claude-cli/2.1.258"));
     headers.insert("cookie", HeaderValue::from_static("SID=stolen"));
+    headers.insert(
+        "accept-encoding",
+        HeaderValue::from_static("gzip, deflate, br"),
+    );
     let prepared = prepare(
         &config,
         credential(&secret, &metadata),
@@ -235,6 +239,7 @@ fn prepare_sends_the_editor_identity_and_a_client_cannot_spoof_it() {
     );
     assert_eq!(prepared.headers()["content-type"], "application/json");
     assert!(!prepared.headers().contains_key("cookie"));
+    assert!(!prepared.headers().contains_key("accept-encoding"));
     // Unlike the Gemini CLI, Antigravity sends no Node client banner and no
     // Accept on a generation call.
     assert!(!prepared.headers().contains_key("x-goog-api-client"));

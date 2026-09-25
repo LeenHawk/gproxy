@@ -58,6 +58,79 @@ fn names(backend: Dialect, value: &Value) -> Vec<String> {
 }
 
 #[test]
+fn freeform_client_patch_round_trips_through_both_function_only_backends() {
+    let patch = "*** Begin Patch\n*** Add File: probe.txt\n+passed\n*** End Patch";
+    for backend in [Dialect::Claude, Dialect::Gemini] {
+        let original = json!({
+            "model":"client", "input":"edit", "max_output_tokens":128,
+            "tools":[{"type":"custom","name":"apply_patch","description":"Edit files with a patch","format":{"type":"text"}}]
+        });
+        let target = request(backend, original.clone());
+        let aliases = names(backend, &target);
+        assert_eq!(aliases.len(), 1);
+        let context_request = serde_json::from_value(original.clone()).unwrap();
+        let output = if backend == Dialect::Claude {
+            let mut native = fixtures::claude(&aliases);
+            native["content"][0]["input"] = json!({"input":patch});
+            c::claude_to_responses_response(
+                serde_json::from_value(native).unwrap(),
+                c::ClaudeResponseContext {
+                    request: context_request,
+                    created_at: 7,
+                    effective_parallel_tool_calls: true,
+                    effective_tool_choice: r::ToolChoice::Mode(r::ToolChoiceMode::Auto),
+                    usage: Default::default(),
+                    effective_prompt_cache_options: None,
+                },
+                &mut flow(),
+                &policy(),
+            )
+            .unwrap()
+            .value
+        } else {
+            let mut native = fixtures::gemini(&aliases, false);
+            native["candidates"][0]["content"]["parts"][0]["functionCall"]["args"] =
+                json!({"input":patch});
+            g::gemini_to_responses_response(
+                serde_json::from_value(native).unwrap(),
+                g::GeminiResponseContext {
+                    request: context_request,
+                    created_at: 7,
+                    effective_parallel_tool_calls: true,
+                    effective_tool_choice: r::ToolChoice::Mode(r::ToolChoiceMode::Auto),
+                    usage: g::GeminiUsageFacts {
+                        cache_write_tokens: Some(0),
+                        ..Default::default()
+                    },
+                    effective_prompt_cache_options: None,
+                },
+                &mut flow(),
+                &policy(),
+            )
+            .unwrap()
+            .value
+        };
+        let wire = serde_json::to_value(output).unwrap();
+        assert_eq!(wire["output"][0]["type"], "custom_tool_call");
+        assert_eq!(wire["output"][0]["name"], "apply_patch");
+        assert_eq!(wire["output"][0]["input"], patch);
+        let mut followup = original;
+        followup["input"] = json!([
+            wire["output"][0],
+            {"type":"custom_tool_call_output","call_id":wire["output"][0]["call_id"],"output":"patch applied"}
+        ]);
+        let replay = request(backend, followup);
+        let args = if backend == Dialect::Claude {
+            &replay["messages"][0]["content"][0]["input"]
+        } else {
+            &replay["contents"][0]["parts"][0]["functionCall"]["args"]
+        };
+        assert_eq!(args["input"], patch);
+        assert!(replay.to_string().contains("patch applied"));
+    }
+}
+
+#[test]
 fn both_backends_restore_native_client_tool_calls_and_count_the_same_history() {
     for backend in [Dialect::Claude, Dialect::Gemini] {
         let original = fixtures::request(false);

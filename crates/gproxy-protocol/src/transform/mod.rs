@@ -17,6 +17,7 @@ mod instructions;
 pub mod memory;
 pub mod models;
 pub mod video;
+pub mod web_search;
 
 pub use error::{Diagnostic, DiagnosticKind, Report, TransformError, TransformErrorKind};
 

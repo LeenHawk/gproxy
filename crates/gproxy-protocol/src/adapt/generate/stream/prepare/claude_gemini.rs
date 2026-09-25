@@ -100,7 +100,7 @@ impl GeminiViaClaude {
     pub async fn prepare_stream<S: StateStore>(
         input: g::GenerateContentRequestBody,
         mut target: StreamTarget,
-        context: GeminiViaClaudeStreamFacts,
+        mut context: GeminiViaClaudeStreamFacts,
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<StreamInvocation<p::ClaudeToGeminiStream>, TransformError> {
@@ -114,6 +114,7 @@ impl GeminiViaClaude {
         )
         .await?;
         target.identities = prepared.identities().clone();
+        context.response.usage = prepared.usage_facts(context.response.usage);
         let bridge = p::ClaudeToGeminiStream::new_with_policy(
             context.response,
             target.identities.response.clone(),
@@ -134,7 +135,7 @@ impl GeminiViaClaude {
     pub async fn prepare_stream_with_capabilities<S: StateStore, R: ResourceAccess>(
         input: g::GenerateContentRequestBody,
         mut target: StreamTarget,
-        context: GeminiViaClaudeStreamFacts,
+        mut context: GeminiViaClaudeStreamFacts,
         settings: StreamSettings,
         state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
@@ -150,6 +151,7 @@ impl GeminiViaClaude {
         )
         .await?;
         target.identities = prepared.identities().clone();
+        context.response.usage = prepared.usage_facts(context.response.usage);
         let bridge = p::ClaudeToGeminiStream::new_with_policy(
             context.response,
             target.identities.response.clone(),

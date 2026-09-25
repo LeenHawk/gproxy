@@ -13,9 +13,16 @@ pub(crate) fn to_responses(
 ) -> Result<Vec<r::Tool>, TransformError> {
     let mut out = Vec::new();
     for tool in input {
-        if tool.google_search_retrieval.is_some()
-            || tool.google_search.is_some()
-            || tool.code_execution.is_some()
+        if tool.google_search_retrieval.is_some() || tool.google_search.is_some() {
+            out.push(r::Tool::WebSearchLegacy(
+                r::WebSearchTool::builder().build(),
+            ));
+            report.changed(
+                "tools.google_search",
+                "executed by Responses web search; provider-specific search controls are omitted",
+            );
+        }
+        if tool.code_execution.is_some()
             || tool.computer_use.is_some()
             || tool.url_context.is_some()
             || tool.file_search.is_some()
@@ -52,7 +59,18 @@ pub(crate) fn to_responses(
 pub(crate) fn to_gemini(input: Vec<r::Tool>) -> Result<(Vec<g::Tool>, bool), TransformError> {
     let mut functions = Vec::new();
     let mut strict = false;
+    let mut search = false;
     for tool in input {
+        if matches!(
+            tool,
+            r::Tool::WebSearch(_)
+                | r::Tool::WebSearchPreview20250311(_)
+                | r::Tool::WebSearchLegacy(_)
+                | r::Tool::WebSearch2025(_)
+        ) {
+            search = true;
+            continue;
+        }
         let r::Tool::Function(tool) = tool else {
             continue;
         };
@@ -67,10 +85,18 @@ pub(crate) fn to_gemini(input: Vec<r::Tool>) -> Result<(Vec<g::Tool>, bool), Tra
         out.response_json_schema = tool.output_schema.flatten().map(serde_json::Value::Object);
         functions.push(out);
     }
-    Ok((
-        vec![g::Tool::builder().function_declarations(functions).build()],
-        strict,
-    ))
+    let mut tools = Vec::new();
+    if !functions.is_empty() {
+        tools.push(g::Tool::builder().function_declarations(functions).build());
+    }
+    if search {
+        tools.push(
+            g::Tool::builder()
+                .google_search(g::GoogleSearch::builder().build())
+                .build(),
+        );
+    }
+    Ok((tools, strict))
 }
 
 fn schema(

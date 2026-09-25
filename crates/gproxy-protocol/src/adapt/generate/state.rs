@@ -151,7 +151,13 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         // Direct pair converters preserve client function/custom-call order. Pair by
         // that concrete wire order, then verify name and the allocator's association.
         for (position, (original, client)) in originals.iter().zip(emitted).enumerate() {
-            if original.name != client.name || original.kind != client.kind {
+            // Function-only backends execute declared custom tools through a
+            // bound alias. Store the native name/kind for exact history replay.
+            let custom_binding = original.kind == super::ToolCallKind::Function
+                && client.kind == super::ToolCallKind::Custom
+                && original.name
+                    == crate::transform::generate::client_tools::custom_alias(&client.name);
+            if !custom_binding && (original.name != client.name || original.kind != client.kind) {
                 return Err(TransformError::invalid_result(
                     "generation.identity",
                     "tool name/order changed during conversion",

@@ -613,14 +613,11 @@ impl Sink<WsFrame> for ObservedSink {
                 .target
                 .upstream_model
                 .as_deref(),
-        ) {
-            if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(text) {
-                if value.get("type").and_then(serde_json::Value::as_str) == Some("response.create")
-                {
-                    value["model"] = serde_json::Value::String(model.into());
-                    *text = value.to_string();
-                }
-            }
+        ) && let Ok(mut value) = serde_json::from_str::<serde_json::Value>(text)
+            && value.get("type").and_then(serde_json::Value::as_str) == Some("response.create")
+        {
+            value["model"] = serde_json::Value::String(model.into());
+            *text = value.to_string();
         }
         if frame_len(&frame) as u64 > self.max {
             return Err(transport_error("rewritten frame exceeds the frame limit"));

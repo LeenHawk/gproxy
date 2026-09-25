@@ -330,7 +330,9 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
                     .function_call
                     .as_ref()
                     .expect("validated native call");
-                if call.name != original.name || call.args != original.args {
+                if call.name != original.name
+                    || !same_tool_arguments(call, original, request.tools.as_deref())
+                {
                     return Err(TransformError::shape(
                         "signature.function",
                         "modified function cannot reuse native signature",
@@ -353,4 +355,66 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         }
         Ok(())
     }
+}
+
+// Clients such as Claude Code insert optional schema defaults (for example
+// Edit.replace_all=false) into tool history after execution. Restore the exact
+// signed native part when that is the only difference; never sign or replay the
+// normalized replacement, and never accept changes to original arguments.
+fn same_tool_arguments(
+    call: &g::FunctionCall,
+    original: &g::FunctionCall,
+    tools: Option<&[g::Tool]>,
+) -> bool {
+    if call.args == original.args {
+        return true;
+    }
+    let Some(args) = &call.args else { return false };
+    if original.args.as_ref().is_some_and(|native| {
+        native
+            .iter()
+            .any(|(key, value)| args.get(key) != Some(value))
+    }) {
+        return false;
+    }
+    let declaration = tools
+        .into_iter()
+        .flatten()
+        .flat_map(|tool| tool.function_declarations.iter().flatten())
+        .find(|function| function.name == original.name);
+    let Some(declaration) = declaration else {
+        return false;
+    };
+    args.iter().all(|(key, value)| {
+        if original
+            .args
+            .as_ref()
+            .is_some_and(|native| native.contains_key(key))
+        {
+            return true;
+        }
+        if let Some(schema) = &declaration.parameters_json_schema {
+            return !schema
+                .get("required")
+                .and_then(serde_json::Value::as_array)
+                .is_some_and(|required| required.iter().any(|field| field.as_str() == Some(key)))
+                && schema
+                    .get("properties")
+                    .and_then(|p| p.get(key))
+                    .and_then(|p| p.get("default"))
+                    == Some(value);
+        }
+        declaration.parameters.as_ref().is_some_and(|schema| {
+            !schema
+                .required
+                .as_ref()
+                .is_some_and(|required| required.contains(key))
+                && schema
+                    .properties
+                    .as_ref()
+                    .and_then(|p| p.get(key))
+                    .and_then(|p| p.default.as_ref())
+                    == Some(value)
+        })
+    })
 }
