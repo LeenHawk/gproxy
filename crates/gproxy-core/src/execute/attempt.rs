@@ -2,7 +2,7 @@
 //! or conversion), classify, and either return the answer through the funnel
 //! or move to the next eligible credential inside the permitted set.
 
-use super::{Exchange, Funnel, ObservedClient, prepare};
+use super::{Funnel, prepare};
 use crate::session::{AssignmentHandle, AssignmentOutcome};
 use crate::{
     AttemptContext, AttemptOutcome, AttemptUpstream, BlockSource, Core, CoreError, CoreResult,
@@ -13,14 +13,12 @@ use crate::{
     convert::{self, Route},
     rewrite::{Phase, RewriteContext, apply_body, apply_headers, apply_query, select_rules},
 };
-use gproxy_channel::{ChannelBinding, channel::UsageStreamEnd};
 use gproxy_protocol::{
     HttpBody, WireRequest, WireResponse,
     connection::Bytes,
     transform::{TransformError, TransformErrorKind},
 };
 use gproxy_seaorm::BatchConnectionTrait;
-use gproxy_store::entity::upstream::operation_endpoint::EndpointTransport;
 use http::StatusCode;
 use std::{collections::HashSet, sync::Arc, time::Duration};
 use web_time::Instant;
@@ -182,7 +180,8 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
         && upstream_model
             .as_deref()
             .is_some_and(|model| request.attribution.model.as_deref() != Some(model));
-    let want_replay = converting
+    let want_replay = provider.channel.claude_fallback().is_some()
+        || converting
         || local
         || remap_model
         || request.max_attempts.get() > 1
@@ -354,29 +353,19 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
         let cancellation = request.cancellation.clone();
         let dispatched: Result<Answer, Fault> = match route {
             Route::Passthrough | Route::Local => {
-                let exchange = Exchange::new(
-                    funnel.clone(),
-                    attempt.clone(),
+                let native = super::NativeCall {
+                    funnel: funnel.clone(),
+                    attempt: attempt.clone(),
                     operation,
-                    provider.channel.clone(),
-                    response_rules.body.clone(),
-                    capability,
-                    now,
-                );
-                let observed = ObservedClient::new(credential.client.clone(), exchange.clone());
-                let binding = ChannelBinding::new(
-                    provider.channel.as_ref(),
-                    prepare::provider_view(&provider),
-                    prepare::credential_view(&credential, &version),
-                    Arc::new(observed),
-                )
-                .state(channel_state.clone())
-                .instance(core.instance_id().clone())
-                .endpoint(provider.operation_url(operation, EndpointTransport::Http));
+                    response_rules: response_rules.body.clone(),
+                    limits: capability,
+                    state: channel_state.clone(),
+                    instance_id: core.instance_id().clone(),
+                };
                 let sent = tokio::select! {
                     biased;
                     () = cancellation.cancelled() => Err(Fault::Cancelled),
-                    result = crate::rt::timeout(capability.operation_total, binding.send(operation, this_wire)) => match result {
+                    result = crate::rt::timeout(capability.operation_total, native.send(this_wire)) => match result {
                         Some(Ok(response)) => Ok(response),
                         Some(Err(error)) => Err(Fault::Failed(CoreError::Channel(error))),
                         None => Err(Fault::DeadlineExceeded),
@@ -393,12 +382,7 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                             Ok(Answer(response))
                         }
                     }
-                    Err(fault) => {
-                        exchange
-                            .finish(UsageStreamEnd::Interrupted, None, None, None, now_ms())
-                            .await;
-                        Err(fault)
-                    }
+                    Err(fault) => Err(fault),
                 }
             }
             Route::TransformTo { target } => {

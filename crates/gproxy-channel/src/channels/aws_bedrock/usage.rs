@@ -75,7 +75,10 @@ impl UsageExtractor for AwsBedrock {
         let Ok(body) = serde_json::from_slice::<Value>(context.response.body) else {
             return Ok(None);
         };
-        Ok(body.get("usage").and_then(from_usage))
+        Ok(body.get("usage").and_then(from_usage).map(|mut usage| {
+            attach(&mut usage, body.get("model").and_then(Value::as_str).unwrap_or_default(), body["stop_reason"] == "refusal");
+            usage
+        }))
     }
 }
 
@@ -96,7 +99,20 @@ fn merge(start: Option<&Value>, delta: Option<&Value>) -> Option<NormalizedUsage
     from_usage(&Value::Object(merged))
 }
 
+fn attach(usage: &mut NormalizedUsage, model: &str, refused: bool) {
+    if model.is_empty() { return; }
+    usage.attempts = vec![crate::channel::UsageAttempt {
+        model: model.to_owned(),
+        usage: Box::new(usage.clone()),
+        billable: if refused { usage.tokens.output_tokens.map(|n| n > 0) } else { Some(true) },
+        started_at_ms: None,
+    }];
+}
+
 struct MessagesObserver {
+    aws: Option<super::stream::Translator>,
+    model: String,
+    refused: bool,
     sse: SseDecoder,
     start: Option<Value>,
     delta: Option<Value>,
@@ -110,6 +126,7 @@ impl MessagesObserver {
         match event.get("type").and_then(Value::as_str) {
             Some("message_start") if self.start.is_none() => {
                 self.start = event.pointer("/message/usage").cloned();
+                self.model = event.pointer("/message/model").and_then(Value::as_str).unwrap_or_default().to_owned();
             }
             Some("message_delta")
                 if event
@@ -117,13 +134,17 @@ impl MessagesObserver {
                     .is_some_and(Value::is_u64) =>
             {
                 self.delta = event.get("usage").cloned();
+                self.refused = event.pointer("/delta/stop_reason").and_then(Value::as_str) == Some("refusal");
             }
             _ => {}
         }
     }
 
     fn usage(&self) -> Option<NormalizedUsage> {
-        merge(self.start.as_ref(), self.delta.as_ref())
+        merge(self.start.as_ref(), self.delta.as_ref()).map(|mut usage| {
+            attach(&mut usage, &self.model, self.refused);
+            usage
+        })
     }
 }
 
@@ -132,6 +153,11 @@ impl UsageObserver for MessagesObserver {
         let UsageFrame::HttpChunk(chunk) = frame else {
             return Ok(());
         };
+        let translated;
+        let chunk = if let Some(aws) = self.aws.as_mut() {
+            translated = aws.push(chunk)?;
+            &translated[..]
+        } else { chunk };
         let frames = self
             .sse
             .push(chunk)
@@ -157,21 +183,26 @@ impl UsageObserver for MessagesObserver {
 }
 
 impl UsageStream for AwsBedrock {
+    fn accepts_unframed(&self, headers: &http::HeaderMap) -> bool {
+        headers.get(http::header::CONTENT_TYPE).and_then(|v| v.to_str().ok())
+            .is_some_and(|v| v.starts_with("application/vnd.amazon.eventstream"))
+    }
+
+
     fn start(
         &self,
         context: UsageStreamContext<'_>,
     ) -> Result<Box<dyn UsageObserver>, ChannelError> {
-        match context.transport {
-            UsageTransport::Http {
-                framing: Some(StreamFraming::Sse),
-            } => Ok(Box::new(MessagesObserver {
-                sse: SseDecoder::new(SSE_LIMITS),
-                start: None,
-                delta: None,
-            })),
-            _ => Err(ChannelError::InvalidResponse(
-                "AWS Bedrock delivers generation streams as Messages SSE".into(),
-            )),
+        let aws = context.headers.get(http::header::CONTENT_TYPE).and_then(|v| v.to_str().ok())
+            .is_some_and(|v| v.starts_with("application/vnd.amazon.eventstream"));
+        if aws || matches!(context.transport, UsageTransport::Http { framing: Some(StreamFraming::Sse) }) {
+            Ok(Box::new(MessagesObserver {
+                aws: aws.then(super::stream::Translator::new),
+                model: String::new(), refused: false,
+                sse: SseDecoder::new(SSE_LIMITS), start: None, delta: None,
+            }))
+        } else {
+            Err(ChannelError::InvalidResponse("Bedrock usage requires an event stream".into()))
         }
     }
 }

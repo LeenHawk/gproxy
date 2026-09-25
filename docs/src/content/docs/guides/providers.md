@@ -92,6 +92,33 @@ speaks), static `headers`, `allowed_headers` and the two magic-cache switches.
 Channels that impersonate a vendor CLI declare their own identity headers and
 keep them out of what a client can spoof.
 
+### Claude model fallback
+
+Set `fallback_mode` to `off` (default), `default`, or `models`, with
+`fallback_models` holding an ordered list of upstream model IDs. The Console
+renders these fields from the channel descriptor. Lists skip blanks, duplicates
+and the primary model, and use at most three fallback models.
+
+- **Claude API, Claude Code and Custom Claude endpoints:** send Anthropic's
+  `fallbacks` and matching beta header. Default mode delegates to Anthropic.
+- **OpenRouter:** send `fallbacks` for Claude Messages or `models` for Chat
+  Completions. OpenRouter executes the model fallback. This does not change
+  `provider.allow_fallbacks`, which controls supplier routing for the same model.
+  Existing client `fallbacks` or `models` take precedence. Responses requests
+  are not given an undocumented fallback parameter.
+- **Azure, Vertex and AWS Bedrock:** GProxy retries a Claude `refusal` on the
+  next configured model through the same credential, with fresh channel
+  preparation and signing. Default mode selects `claude-opus-4-8` in the
+  primary model's namespace. For cloud-specific IDs, configure the full IDs
+  accepted by that upstream.
+
+Gateway fallback also applies after protocol conversion to Claude. It does not
+retry arbitrary HTTP errors. Stream content is delivered immediately; after
+output, continuation requires an upstream credit with a prefill claim. A server
+tool is never replayed without a redeemable credit. Every physical attempt is
+observed separately and priced by its model; a refusal reporting zero output
+is unbillable. The final response retains the final attempt's top-level usage.
+
 ### Per-operation URL overrides
 
 `operation_endpoints` replaces the whole method URL for one

@@ -40,7 +40,8 @@ use crate::channel::{
     OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaHeaders, QuotaModel,
     QuotaQuery, QuotaReset, RefreshContext, UsageExtractor, UsageStream, forwardable,
 };
-use crate::channels::shared::cache;
+use crate::channels::shared::{cache, claude_fallback};
+pub use crate::channels::shared::claude_fallback::FallbackMode;
 use futures_util::StreamExt;
 use gproxy_client::{Backend, ConnectionConfig};
 use gproxy_protocol::{
@@ -97,6 +98,10 @@ pub struct ClaudecodeConfig {
     /// Messages and count_tokens bodies (`channels::shared::cache`). Off by
     /// default; the strings are stripped either way.
     pub enable_claude_magic_cache: bool,
+    /// Server-side fallback when a Messages request supplies none.
+    pub fallback_mode: FallbackMode,
+    /// Ordered fallback models; at most three are sent.
+    pub fallback_models: Vec<String>,
 }
 
 impl Default for ClaudecodeConfig {
@@ -107,6 +112,8 @@ impl Default for ClaudecodeConfig {
             claude_ai_url: DEFAULT_CLAUDE_AI_URL.into(),
             headers: BTreeMap::new(),
             enable_claude_magic_cache: false,
+            fallback_mode: FallbackMode::Off,
+            fallback_models: Vec::new(),
         }
     }
 }
@@ -565,6 +572,16 @@ impl BaseChannel for Claudecode {
                     "Static headers added to every backend request.",
                 ),
                 ConfigKey::optional(
+                    "fallback_mode",
+                    ConfigKeyKind::String,
+                    "Server-side fallback for Messages requests that name none: off (default), default, or models.",
+                ),
+                ConfigKey::optional(
+                    "fallback_models",
+                    ConfigKeyKind::Json,
+                    "The ordered chain fallback_mode models installs; at most three are sent.",
+                ),
+                ConfigKey::optional(
                     "enable_claude_magic_cache",
                     ConfigKeyKind::Bool,
                     "Turn a client's magic cache string in a Messages or count_tokens body into cache_control.",
@@ -704,6 +721,12 @@ impl Claudecode {
                             &mut value,
                             &mut headers,
                             config.enable_claude_magic_cache,
+                        );
+                        claude_fallback::fallbacks(
+                            &mut value,
+                            &mut headers,
+                            &config.fallback_mode,
+                            &config.fallback_models,
                         );
                         hygiene::inject_billing(
                             &mut value,

@@ -98,6 +98,7 @@ pub(super) fn body(
     body: HttpBody,
     config: &OpenRouterConfig,
     dialect: Dialect,
+    operation: Operation,
 ) -> Result<HttpBody, ChannelError> {
     let HttpBody::Bytes(bytes) = body else {
         return Ok(body);
@@ -122,6 +123,13 @@ pub(super) fn body(
                 cache::strip_tokens(&mut value);
             }
         }
+    }
+    if matches!(operation, Operation::GenerateContent | Operation::StreamGenerateContent)
+        && matches!(dialect, Dialect::Claude | Dialect::OpenAiChat)
+    {
+        changed |= crate::channels::shared::claude_fallback::reseller(
+            &mut value, &config.fallback_mode, &config.fallback_models, dialect == Dialect::Claude,
+        );
     }
     changed |= routing::apply(&mut value, config)?;
     if !changed {

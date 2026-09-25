@@ -25,6 +25,9 @@ pub const UPSTREAM_PRICED_DIMENSION: &str = "upstream_priced";
 
 /// OpenRouter's own fields, off the usage object and the response root.
 fn enrich(root: &Value, value: &Value, into: &mut NormalizedUsage) {
+    if let Some(model) = root.get("model").or_else(|| root.pointer("/message/model")).or_else(|| root.pointer("/response/model")).and_then(Value::as_str) {
+        into.dimensions.insert("serving_model".into(), model.to_owned());
+    }
     if let Some(cost) = value.get("cost").and_then(decimal) {
         into.metrics.insert(UPSTREAM_COST_METRIC.into(), cost);
         into.dimensions
@@ -61,7 +64,7 @@ impl UsageExtractor for OpenRouter {
             ctx.operation.dialect,
             ctx.response.body,
             enrich,
-        ))
+        ).map(serving_model))
     }
 }
 
@@ -70,10 +73,26 @@ impl UsageStream for OpenRouter {
         &self,
         context: UsageStreamContext<'_>,
     ) -> Result<Box<dyn UsageObserver>, ChannelError> {
-        Ok(usage::observer(
-            context.operation.dialect,
-            context.transport,
-            enrich,
-        ))
+        Ok(Box::new(ServingModel(usage::observer(
+            context.operation.dialect, context.transport, enrich,
+        ))))
+    }
+}
+
+
+fn serving_model(mut usage: NormalizedUsage) -> NormalizedUsage {
+    if let Some(model) = usage.dimensions.get("serving_model").cloned() {
+        usage.attempts = vec![crate::channel::UsageAttempt {
+            model, usage: Box::new(usage.clone()), billable: None, started_at_ms: None,
+        }];
+    }
+    usage
+}
+struct ServingModel(Box<dyn UsageObserver>);
+impl UsageObserver for ServingModel {
+    fn observe(&mut self, frame: crate::channel::UsageFrame<'_>) -> Result<(), ChannelError> { self.0.observe(frame) }
+    fn snapshot(&self) -> Option<NormalizedUsage> { self.0.snapshot().map(serving_model) }
+    fn finish(self: Box<Self>, end: crate::channel::UsageStreamEnd) -> Result<Option<NormalizedUsage>, ChannelError> {
+        self.0.finish(end).map(|usage| usage.map(serving_model))
     }
 }

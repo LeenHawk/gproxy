@@ -19,6 +19,13 @@ const DEFAULT_ANTHROPIC_VERSION: &str = "2023-06-01";
 const USAGE: AzureUsage = AzureUsage;
 
 impl BaseChannel for Azure {
+    fn claude_fallback(&self) -> Option<crate::channel::ClaudeFallback> {
+        Some(crate::channel::ClaudeFallback {
+            credit: true,
+            recommended_model: "claude-opus-4-8",
+        })
+    }
+
     fn id(&self) -> &'static str {
         ID
     }
@@ -52,6 +59,7 @@ impl BaseChannel for Azure {
                 ),
             ]
             .into_iter()
+            .chain(crate::channel::CLAUDE_FALLBACK_KEYS)
             .chain(HOST_CONFIG_KEYS)
             .collect(),
         }

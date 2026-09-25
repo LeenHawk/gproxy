@@ -1138,3 +1138,24 @@ async fn one_foundation_model_becomes_an_openai_model() {
     assert_eq!(body["object"], "model");
     assert_eq!(body["owned_by"], "Anthropic");
 }
+
+#[test]
+fn raw_bedrock_stream_usage_records_refusal_and_actual_model() {
+    let mut headers = HeaderMap::new();
+    headers.insert("content-type", "application/vnd.amazon.eventstream".parse().unwrap());
+    let mut observer = AwsBedrock.usage_stream().unwrap().start(UsageStreamContext {
+        operation: OperationKey { operation:Operation::StreamGenerateContent,dialect:Dialect::Claude },
+        request_body: None, status:StatusCode::OK, headers:&headers,
+        transport: UsageTransport::Http { framing:None },
+    }).unwrap();
+    let frames = [
+        chunk_frame(json!({"type":"message_start","message":{"model":"claude-fable-5","usage":{"input_tokens":20,"output_tokens":0}}})),
+        chunk_frame(json!({"type":"message_delta","delta":{"stop_reason":"refusal"},"usage":{"output_tokens":0}})),
+        chunk_frame(json!({"type":"message_stop"})),
+    ].concat();
+    for bytes in frames.chunks(3) { observer.observe(UsageFrame::HttpChunk(bytes)).unwrap(); }
+    let usage = observer.finish(UsageStreamEnd::Complete).unwrap().unwrap();
+    assert_eq!(usage.tokens.input_tokens,Some(20));
+    assert_eq!(usage.attempts[0].model,"claude-fable-5");
+    assert_eq!(usage.attempts[0].billable,Some(false));
+}
