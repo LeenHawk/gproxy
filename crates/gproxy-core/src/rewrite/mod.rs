@@ -3,7 +3,12 @@
 //! configuration revision; execution never re-validates rule rows. Visible
 //! order is execution order and every rule sees the previous rule's output.
 
+mod action;
 mod apply;
+mod cache;
+mod content;
+mod json_edit;
+pub use action::RuleAction;
 mod compile;
 pub(crate) mod json_path;
 mod select;
@@ -17,7 +22,7 @@ pub use stream::StreamRewriter;
 
 #[derive(Debug, thiserror::Error)]
 pub enum RewriteError {
-    #[error("invalid JSON for set rule: {0}")]
+    #[error("invalid JSON for rule: {0}")]
     InvalidJson(String),
     /// A selected header value is not visible ASCII/UTF-8; it is never decoded lossily.
     #[error("header `{0}` has a value that cannot be processed as text")]

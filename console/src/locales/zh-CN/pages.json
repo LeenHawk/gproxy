@@ -352,6 +352,8 @@
     }
   },
   "rules": {
+    "advancedBindings": "高级：规则集关联",
+    "inactive": "此组规则未启用",
     "manage": "管理规则",
     "title": "规则 · {{name}}",
     "preset": "选择预设",
@@ -379,7 +381,63 @@
       "gemini": "Gemini",
       "openai_responses_websocket": "OpenAI Responses WebSocket"
     },
-    "applyDefaults": "应用默认路由"
+    "applyDefaults": "应用默认路由",
+    "ruleType": "规则类型",
+    "content": "规则内容",
+    "applyPreset": "应用预设",
+    "empty": "暂无规则，可以直接创建规则或应用预设。",
+    "defaultSet": "{{name}}（默认）",
+    "shared": "共享",
+    "sharedWarning": "此规则集被多个供应商使用，修改会影响所有关联的供应商。",
+    "position": "插入位置",
+    "text": "系统文本",
+    "cacheTarget": "断点位置",
+    "cacheIndex": "断点序号",
+    "cacheIndexHelp": "留空选择最后一个；正数从 1 开始，负数从末尾计数。",
+    "ttl": "缓存有效期",
+    "jsonValue": "JSON 值",
+    "filters": "匹配条件（可选）",
+    "invalidOperations": "操作筛选必须是包含 operation 和 dialect 的对象数组。",
+    "mergeObject": "合并值必须是 JSON 对象。",
+    "invalidIndex": "断点序号必须是非零整数。",
+    "pathsRequired": "请填写至少一个 JSON 路径。",
+    "types": {
+      "system_text": "系统文本",
+      "cache_breakpoint": "缓存断点",
+      "rewrite": "重写",
+      "transform": "变换",
+      "header": "请求头"
+    },
+    "templateHelp": {
+      "system_text": "在所选协议的系统提示前置或追加文本。",
+      "cache_breakpoint": "标记 Claude 或 OpenAI Chat/Responses 原生缓存断点，仅作用于所选协议。",
+      "rewrite": "按路径设置、删除或递归合并 JSON 字段。",
+      "transform": "按路径或正则替换请求和响应内容，也可修改请求 Query 或响应头。",
+      "header": "新增、覆盖或合并出站 HTTP 请求头。合并保留已有值并追加不同的新值。"
+    },
+    "options": {
+      "prepend": "前置",
+      "append": "追加",
+      "global": "全局",
+      "system": "系统提示",
+      "message": "消息",
+      "tools": "工具",
+      "default": "协议默认",
+      "5m": "5 分钟",
+      "1h": "1 小时",
+      "30m": "30 分钟",
+      "set": "设置",
+      "delete": "删除",
+      "merge": "递归合并",
+      "header_set": "新增 / 覆盖",
+      "header_merge": "合并",
+      "body": "正文",
+      "header": "HTTP 头",
+      "query": "请求 Query",
+      "request": "请求",
+      "response": "响应",
+      "both": "请求和响应"
+    }
   },
   "update": {
     "current": "当前版本",

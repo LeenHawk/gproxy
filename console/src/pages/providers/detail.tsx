@@ -1,3 +1,4 @@
+import { invalidateConfiguration } from "@/api/invalidation"
 import { QuotasPanel } from "@/pages/quotas"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
@@ -45,7 +46,7 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
     mutationFn: () => providers.remove(provider.id),
     onSuccess: () => {
       client.removeQueries({ queryKey: ["admin", "/providers", "detail", provider.id], exact: true })
-      void client.invalidateQueries({ queryKey: ["admin", "/providers"] })
+      void invalidateConfiguration(client, "/providers")
       toast.success(t("toast.deleted"))
       navigate("/providers")
     },
@@ -71,7 +72,7 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
           <TabsTrigger value="routing">{t("nav.operation-rules")}</TabsTrigger>
           <TabsTrigger value="settings"><Settings2 />{t("providers.settings")}</TabsTrigger>
         </TabsList>
-        <TabsContent value="rules"><ProviderRules providerId={provider.id} /></TabsContent>
+        <TabsContent value="rules"><ProviderRules providerId={provider.id} providerName={provider.name} /></TabsContent>
         <TabsContent value="routing"><ProviderOperations providerId={provider.id} /></TabsContent>
         <TabsContent value="credentials"><ProviderCredentials providerId={provider.id} /></TabsContent>
         <TabsContent value="models"><ProviderModels provider={provider} /></TabsContent>

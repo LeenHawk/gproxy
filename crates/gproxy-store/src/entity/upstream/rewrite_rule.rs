@@ -1,4 +1,4 @@
-//! One ordered rewrite: regex replacement or a typed JSON field assignment.
+//! One ordered rule: text, JSON, native content, or HTTP header operations.
 
 use sea_orm::entity::prelude::*;
 
@@ -13,7 +13,7 @@ pub struct Model {
     /// request, response, or both; relative to the upstream connection.
     #[sea_orm(default_value = "request")]
     pub phase: String,
-    /// replace applies a regex; set assigns a JSON value at body paths.
+    /// replace, set/delete/merge, system_text/cache_breakpoint, or header_set/header_merge.
     #[sea_orm(default_value = "replace")]
     pub action: String,
     /// Body/payload text, named header values, or named request-query values.
@@ -31,7 +31,7 @@ pub struct Model {
     /// Rust regex syntax, including inline flags such as (?i).
     #[sea_orm(column_type = "Text")]
     pub pattern: String,
-    /// Regex replacement syntax for replace; a JSON value for set.
+    /// Replacement text, a typed JSON value, or JSON config for native content actions.
     #[sea_orm(column_type = "Text")]
     pub replacement: String,
     /// Optional JSON array of {"operation": ..., "dialect": ...} pairs.

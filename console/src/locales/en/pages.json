@@ -352,6 +352,8 @@
     }
   },
   "rules": {
+    "advancedBindings": "Advanced: rule set bindings",
+    "inactive": "This group of rules is disabled",
     "manage": "Manage rules",
     "title": "Rules · {{name}}",
     "preset": "Choose a preset",
@@ -379,7 +381,63 @@
       "gemini": "Gemini",
       "openai_responses_websocket": "OpenAI Responses WebSocket"
     },
-    "applyDefaults": "Apply default routes"
+    "applyDefaults": "Apply default routes",
+    "ruleType": "Rule type",
+    "content": "Rule content",
+    "applyPreset": "Apply preset",
+    "empty": "No rules yet. Create a rule or apply a preset.",
+    "defaultSet": "{{name}} (default)",
+    "shared": "Shared",
+    "sharedWarning": "This rule set is shared. Changes affect every attached provider.",
+    "position": "Position",
+    "text": "System text",
+    "cacheTarget": "Breakpoint target",
+    "cacheIndex": "Breakpoint index",
+    "cacheIndexHelp": "Leave blank for the last item. Positive indexes start at 1; negative indexes count from the end.",
+    "ttl": "Cache TTL",
+    "jsonValue": "JSON value",
+    "filters": "Match conditions (optional)",
+    "invalidOperations": "Operation filters must be an array of objects containing operation and dialect.",
+    "mergeObject": "The merge value must be a JSON object.",
+    "invalidIndex": "The breakpoint index must be a nonzero integer.",
+    "pathsRequired": "Enter at least one JSON path.",
+    "types": {
+      "system_text": "System text",
+      "cache_breakpoint": "Cache breakpoint",
+      "rewrite": "Rewrite",
+      "transform": "Transform",
+      "header": "Request header"
+    },
+    "templateHelp": {
+      "system_text": "Prepend or append text to the system prompt in the selected protocol.",
+      "cache_breakpoint": "Mark native Claude or OpenAI Chat/Responses cache breakpoints for the selected protocol.",
+      "rewrite": "Set, delete or recursively merge JSON fields at paths.",
+      "transform": "Replace request and response content using paths or regex, including request query values or response headers.",
+      "header": "Add, override or merge outbound HTTP request headers. Merge preserves existing values and appends a distinct new value."
+    },
+    "options": {
+      "prepend": "Prepend",
+      "append": "Append",
+      "global": "Global",
+      "system": "System prompt",
+      "message": "Message",
+      "tools": "Tools",
+      "default": "Protocol default",
+      "5m": "5 minutes",
+      "1h": "1 hour",
+      "30m": "30 minutes",
+      "set": "Set",
+      "delete": "Delete",
+      "merge": "Recursive merge",
+      "header_set": "Add / override",
+      "header_merge": "Merge",
+      "body": "Body",
+      "header": "HTTP header",
+      "query": "Request query",
+      "request": "Request",
+      "response": "Response",
+      "both": "Request and response"
+    }
   },
   "update": {
     "current": "Running version",

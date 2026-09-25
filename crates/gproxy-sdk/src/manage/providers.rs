@@ -132,7 +132,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Providers<'_,
         self.writer.store().providers()
     }
     fn scopes(&self) -> Vec<Scope> {
-        vec![Scope::Providers]
+        vec![Scope::Providers, Scope::Rewrite]
     }
     fn select(&self, query: &ListQuery) -> Select<Self::Entity> {
         let mut select = provider::Entity::find();
@@ -168,6 +168,51 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Providers<'_,
             created_at_ms: Set(crate::rt::now_ms()),
         };
         Ok((model, id))
+    }
+
+    fn create_statements(&self, model: provider::ActiveModel) -> SdkResult<Vec<BatchStatement>> {
+        let mut statements = super::rewrite_default::default_statements(
+            &model.id.clone().unwrap(),
+            &model.name.clone().unwrap(),
+            self.writer.backend(),
+            false,
+        );
+        statements.insert(
+            0,
+            BatchStatement::Execute(self.repository().insert_statement(model)?),
+        );
+        Ok(statements)
+    }
+
+    async fn delete_statements(&self, id: &str) -> SdkResult<Vec<BatchStatement>> {
+        use gproxy_store::entity::upstream::provider_rewrite_rule_set as binding;
+        let set_id = format!("gproxy:provider-default:{id}");
+        let shared = self
+            .writer
+            .store()
+            .provider_rewrite_rule_sets()
+            .page(
+                binding::Entity::find()
+                    .filter(binding::Column::RuleSetId.eq(&set_id))
+                    .filter(binding::Column::ProviderId.ne(id)),
+                0,
+                1,
+            )
+            .await?
+            .total
+            > 0;
+        let mut statements = vec![BatchStatement::Execute(
+            self.repository().delete_statement(id.to_owned()),
+        )];
+        if !shared {
+            statements.push(BatchStatement::Execute(
+                self.writer
+                    .store()
+                    .rewrite_rule_sets()
+                    .delete_statement(set_id),
+            ));
+        }
+        Ok(statements)
     }
 
     async fn change(

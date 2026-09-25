@@ -1,0 +1,117 @@
+use super::{RewriteError, RuleAction};
+use crate::PathSegment;
+use serde_json::{Value, json};
+
+pub(super) fn apply(
+    current: &mut Value,
+    path: &[PathSegment],
+    action: &RuleAction,
+) -> Result<(), RewriteError> {
+    let Some((segment, rest)) = path.split_first() else {
+        match action {
+            RuleAction::Set(value) => *current = value.clone(),
+            RuleAction::Merge(value) => merge(current, value)?,
+            _ => unreachable!("delete handled by parent"),
+        }
+        return Ok(());
+    };
+    let delete = matches!(action, RuleAction::Delete);
+    if current.is_null() && !delete {
+        *current = match segment {
+            PathSegment::Index(_) => json!([]),
+            _ => json!({}),
+        };
+    }
+    match segment {
+        PathSegment::Key(key) => {
+            if delete {
+                if let Some(object) = current.as_object_mut() {
+                    if rest.is_empty() {
+                        object.remove(key);
+                    } else if let Some(child) = object.get_mut(key) {
+                        apply(child, rest, action)?;
+                    }
+                }
+            } else {
+                let object = current.as_object_mut().ok_or_else(|| {
+                    RewriteError::InvalidJson(format!("expected object at {key}"))
+                })?;
+                apply(
+                    object.entry(key.clone()).or_insert(Value::Null),
+                    rest,
+                    action,
+                )?;
+            }
+        }
+        PathSegment::Index(index) => {
+            if delete {
+                if let Some(array) = current.as_array_mut()
+                    && *index < array.len()
+                {
+                    if rest.is_empty() {
+                        array.remove(*index);
+                    } else {
+                        apply(&mut array[*index], rest, action)?;
+                    }
+                }
+            } else {
+                let array = current
+                    .as_array_mut()
+                    .ok_or_else(|| RewriteError::InvalidJson("expected array".into()))?;
+                if *index > array.len() {
+                    return Err(RewriteError::InvalidJson(
+                        "array index out of bounds".into(),
+                    ));
+                }
+                if *index == array.len() {
+                    array.push(Value::Null);
+                }
+                apply(&mut array[*index], rest, action)?;
+            }
+        }
+        PathSegment::Wildcard => match current {
+            Value::Array(array) => {
+                if delete && rest.is_empty() {
+                    array.clear();
+                } else {
+                    for child in array {
+                        apply(child, rest, action)?;
+                    }
+                }
+            }
+            Value::Object(object) => {
+                if delete && rest.is_empty() {
+                    object.clear();
+                } else {
+                    for child in object.values_mut() {
+                        apply(child, rest, action)?;
+                    }
+                }
+            }
+            _ if delete => {}
+            _ => {
+                return Err(RewriteError::InvalidJson(
+                    "wildcard requires object or array".into(),
+                ));
+            }
+        },
+    }
+    Ok(())
+}
+
+fn merge(current: &mut Value, value: &Value) -> Result<(), RewriteError> {
+    if current.is_null() {
+        *current = json!({});
+    }
+    let object = current
+        .as_object_mut()
+        .ok_or_else(|| RewriteError::InvalidJson("merge target must be an object".into()))?;
+    for (key, value) in value.as_object().expect("compiled merge object") {
+        if value.is_object() && object.get(key).is_some_and(Value::is_object) {
+            merge(object.get_mut(key).expect("existing key"), value)?;
+        } else {
+            object.insert(key.clone(), value.clone());
+        }
+    }
+    Ok(())
+}

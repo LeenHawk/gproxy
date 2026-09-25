@@ -1,3 +1,4 @@
+import { invalidateConfiguration } from "@/api/invalidation"
 import { useConsoleContext } from "@/capability/session"
 import { PROVIDERS_READ } from "@/api/configuration"
 import { ScopedProvidersPage } from "./scoped"
@@ -37,7 +38,7 @@ function InstanceProvidersPage({ providerId, tab }: { providerId?: string; tab: 
     setCreating(false)
     setSearch("")
     setPage(1)
-    await client.invalidateQueries({ queryKey: ["admin", "/providers"] })
+    await invalidateConfiguration(client, "/providers")
     navigate(providerPath(row.id))
     toast.success(t("toast.created"))
   } })

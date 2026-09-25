@@ -28,6 +28,7 @@ mod profiles;
 mod providers;
 mod quotas;
 mod rewrite;
+mod rewrite_default;
 mod routing;
 mod settings;
 mod tokenizer;

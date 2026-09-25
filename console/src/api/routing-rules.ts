@@ -25,3 +25,6 @@ export const saveRoutingMapping = (providerId: string, operation: string, dialec
 export const resetRoutingMapping = (providerId: string, operation: string, dialect: string) => api<import("@/generated/sdk").OperationRoutingDto[]>(mappingPath(providerId, operation, dialect), { method: "DELETE" })
 
 export const applyDefaultRouting = (providerId: string) => api<{ cleared: number }>(`/admin/api/providers/${encodeURIComponent(providerId)}/routing-defaults/reset`, { method: "POST" })
+
+export const providerDefaultSetId = (providerId: string) => `gproxy:provider-default:${providerId}`
+export const ensureProviderDefaultSet = (providerId: string) => api<RuleSetDto>(`/admin/api/providers/${encodeURIComponent(providerId)}/default-rule-set`, { method: "POST" })
