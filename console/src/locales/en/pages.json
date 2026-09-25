@@ -771,15 +771,7 @@
     "noObservation": "No upstream allowance has been observed",
     "unlimited": "Unlimited",
     "blockedUntil": "Unavailable until {{at}}",
-    "more": "More actions",
     "changeStatus": "Change credential status",
-    "maintenance": {
-      "secret": "Credential secret",
-      "status": "Credential status",
-      "health": "Reset health state",
-      "delete": "Delete credential",
-      "test": "Test credential"
-    },
     "resetOutcome": {
       "ineligible": "The selected reset is no longer eligible.",
       "unavailable": "The reset is currently unavailable.",
