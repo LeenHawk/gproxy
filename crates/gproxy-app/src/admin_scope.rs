@@ -38,7 +38,7 @@
 //! | caller | scope |
 //! |---|---|
 //! | `users.role = admin` | [`AdminScope::Instance`]; the header is not read |
-//! | an API key (or an OAuth grant's key) | the key's own `team_id`, else its `organization_id` |
+//! | an API key (or an OAuth grant's key) | the key's own `team_id`, else its `organization_id`, if the key's owner administers it |
 //! | a console session | the `x-gproxy-admin-scope` header, validated against the caller's **admin** memberships |
 //!
 //! The API key case is deliberate and is the same rule the data plane already
@@ -138,6 +138,10 @@ impl<'a> ScopeOwner<'a> {
     /// organization's, and an operator limit is machinery. The split between a
     /// budget and a limit is by `owner_kind`, not by route, so the same
     /// function answers for both.
+    ///
+    /// A `credential` limit reads as `Instance` here only because this
+    /// function cannot see the credential; [`AdminScope::admits_quota_owner`]
+    /// resolves it through the credential's owner.
     pub fn from_pair(owner_kind: &str, owner_id: &'a str) -> Self {
         match owner_kind {
             "org" => Self::Organization(owner_id),
@@ -294,8 +298,9 @@ impl AdminScope {
     /// This is the narrowing that makes a list safe by construction. The rules:
     ///
     /// - the instance scope rewrites nothing;
-    /// - a query that names no owner is given the scope's own — so the default
-    ///   view of an organization administrator is their organization's rows;
+    /// - a query that names no owner is given every owner the scope contains —
+    ///   so the default view of an organization administrator is their
+    ///   organization's rows and its teams';
     /// - a query that names an owner inside the scope keeps it, which is how
     ///   an organization administrator reaches one of their teams' rows;
     /// - a query that names anything else becomes [`ScopedQuery::Nothing`].
@@ -321,11 +326,27 @@ impl AdminScope {
             // Half a pair is not a filter: an `ownerId` with no kind would
             // match a team id against an organization row. Replace both.
             _ => {
-                query.owner_kind = Some(kind.to_owned());
-                query.owner_id = Some(id.to_owned());
+                query.owner_kind = None;
+                query.owner_id = None;
+                query.owner_any = self.own_pairs(kind, id, data);
                 ScopedQuery::Run(Box::new(query))
             }
         }
+    }
+
+    /// Every owner pair this scope contains: itself and, for an organization,
+    /// each of its teams — the same set [`AdminScope::admits`] accepts.
+    fn own_pairs(&self, kind: &str, id: &str, data: &AppData) -> Vec<(String, String)> {
+        let mut pairs = vec![(kind.to_owned(), id.to_owned())];
+        if let Self::Organization(organization) = self {
+            pairs.extend(
+                data.teams
+                    .values()
+                    .filter(|team| team.organization_id == *organization)
+                    .map(|team| ("team".to_owned(), team.id.clone())),
+            );
+        }
+        pairs
     }
 
     /// The owner pair this scope *is*, or None for the instance scope.
@@ -371,7 +392,13 @@ impl AdminScope {
                         .as_deref()
                         .map(|id| Self::Organization(id.to_owned()))
                 });
-            let scope = bound.ok_or_else(|| AppError::forbidden(NO_SCOPE))?;
+            // The binding only picks which scope; the key's owner must still
+            // administer it. Any member may mint a key bound to their
+            // organization, so without this a plain member's key would be an
+            // organization administrator's.
+            let scope = bound
+                .filter(|scope| scope.is_administered_by(&caller.user_id, data))
+                .ok_or_else(|| AppError::forbidden(NO_SCOPE))?;
             return Ok(AdminAdmission {
                 available: vec![scope.clone()],
                 current: Some(scope),
@@ -395,6 +422,27 @@ impl AdminScope {
             None => None,
         };
         Ok(AdminAdmission { available, current })
+    }
+}
+
+impl AdminScope {
+    /// Whether `user_id` holds the admin role this scope needs right now.
+    ///
+    /// A team is administered by its own admins and by its organization's:
+    /// the organization scope contains the team's rows, so a team-bound key
+    /// of an organization administrator reaches nothing they could not already.
+    fn is_administered_by(&self, user_id: &str, data: &AppData) -> bool {
+        match self {
+            Self::Instance => false,
+            Self::Organization(id) => data.memberships.is_admin_of_org(user_id, id),
+            Self::Team(id) => {
+                data.memberships.is_admin_of_team(user_id, id)
+                    || data.teams.get(id).is_some_and(|team| {
+                        data.memberships
+                            .is_admin_of_org(user_id, &team.organization_id)
+                    })
+            }
+        }
     }
 }
 
@@ -483,8 +531,25 @@ impl AdminScope {
     where
         C: BatchConnectionTrait + Send + Sync + 'static,
     {
-        if self.is_instance() {
+        if self.admits_credential(gproxy, data, id).await? {
             return Ok(());
+        }
+        Err(AppError::not_found("credential", id))
+    }
+
+    /// The same as a bool: false for a credential outside the scope and for
+    /// one that does not exist, which from outside are the same thing.
+    pub async fn admits_credential<C>(
+        &self,
+        gproxy: &Gproxy<C>,
+        data: &AppData,
+        id: &str,
+    ) -> Result<bool>
+    where
+        C: BatchConnectionTrait + Send + Sync + 'static,
+    {
+        if self.is_instance() {
+            return Ok(true);
         }
         use crate::snapshot::Owner;
         let owner = match data.credential_ownership.owner(id) {
@@ -493,7 +558,7 @@ impl AdminScope {
             Some(Owner::Team(team)) => ScopeOwner::Team(team),
             Some(Owner::Org(organization)) => ScopeOwner::Organization(organization),
             None => {
-                let row = gproxy
+                let Some(row) = gproxy
                     .store()
                     .credentials()
                     .get_many(&[id.to_owned()])
@@ -501,20 +566,42 @@ impl AdminScope {
                     .into_iter()
                     .next()
                     .flatten()
-                    .ok_or_else(|| AppError::not_found("credential", id))?;
-                return self.admit(
+                else {
+                    return Ok(false);
+                };
+                return Ok(self.admits(
                     ScopeOwner::from_columns(
                         row.user_id.as_deref(),
                         row.team_id.as_deref(),
                         row.organization_id.as_deref(),
                     ),
                     data,
-                    "credential",
-                    id,
-                );
+                ));
             }
         };
-        self.admit(owner, data, "credential", id)
+        Ok(self.admits(owner, data))
+    }
+
+    /// Whether a `quotas` row owned by `(owner_kind, owner_id)` is inside this
+    /// scope.
+    ///
+    /// A `credential` limit belongs to whoever owns the credential: whoever
+    /// may add the credential may also cap it. Every other kind is decided by
+    /// [`ScopeOwner::from_pair`] alone.
+    pub async fn admits_quota_owner<C>(
+        &self,
+        gproxy: &Gproxy<C>,
+        data: &AppData,
+        owner_kind: &str,
+        owner_id: &str,
+    ) -> Result<bool>
+    where
+        C: BatchConnectionTrait + Send + Sync + 'static,
+    {
+        if owner_kind == "credential" {
+            return self.admits_credential(gproxy, data, owner_id).await;
+        }
+        Ok(self.admits(ScopeOwner::from_pair(owner_kind, owner_id), data))
     }
 
     /// The same for a `quotas` row, which is not in any snapshot and is
@@ -540,12 +627,12 @@ impl AdminScope {
             .next()
             .flatten()
             .ok_or_else(|| AppError::not_found("quota", id))?;
-        self.admit(
-            ScopeOwner::from_pair(&row.owner_kind, &row.owner_id),
-            data,
-            "quota",
-            id,
-        )?;
+        if !self
+            .admits_quota_owner(gproxy, data, &row.owner_kind, &row.owner_id)
+            .await?
+        {
+            return Err(AppError::not_found("quota", id));
+        }
         Ok(row)
     }
 }
@@ -718,11 +805,23 @@ mod tests {
             }
         }
 
-        // No owner named: the scope's own is filled in.
+        /// The any-of owner set a narrowing produced.
+        fn any(narrowed: ScopedQuery) -> Vec<(String, String)> {
+            match narrowed {
+                ScopedQuery::Nothing => Vec::new(),
+                ScopedQuery::Run(query) => query.owner_any,
+            }
+        }
+        let owned = |kind: &str, id: &str| (kind.to_owned(), id.to_owned());
+
+        // No owner named: the organization and each of its teams, and nothing
+        // of another organization's.
+        let narrowed = scope.narrow(ManageQuery::default(), &data);
         assert_eq!(
-            pair(scope.narrow(ManageQuery::default(), &data)),
-            Some((Some("org".into()), Some("acme".into())))
+            any(narrowed.clone()),
+            vec![owned("org", "acme"), owned("team", "core")]
         );
+        assert_eq!(pair(narrowed), Some((None, None)));
 
         // A team inside the organization survives untouched.
         let asked = ManageQuery {
@@ -754,16 +853,18 @@ mod tests {
             owner_id: Some("globex".into()),
             ..ManageQuery::default()
         };
+        let narrowed = scope.narrow(half, &data);
+        assert_eq!(pair(narrowed.clone()), Some((None, None)));
         assert_eq!(
-            pair(scope.narrow(half, &data)),
-            Some((Some("org".into()), Some("acme".into())))
+            any(narrowed),
+            vec![owned("org", "acme"), owned("team", "core")]
         );
 
         // A team scope can only ever be itself.
         let team = AdminScope::Team("core".into());
         assert_eq!(
-            pair(team.narrow(ManageQuery::default(), &data)),
-            Some((Some("team".into()), Some("core".into())))
+            any(team.narrow(ManageQuery::default(), &data)),
+            vec![owned("team", "core")]
         );
         let parent = ManageQuery {
             owner_kind: Some("org".into()),
@@ -800,7 +901,7 @@ mod tests {
     #[test]
     fn a_keys_binding_wins_over_any_header_it_sends() {
         let data = app_data();
-        let mut key = caller("member", "user", CallerKind::ApiKey);
+        let mut key = caller("orgadmin", "user", CallerKind::ApiKey);
         key.organization_id = Some("acme".into());
         let admission = AdminScope::resolve(&key, &data, Some("org:globex")).unwrap();
         assert_eq!(
@@ -814,9 +915,54 @@ mod tests {
         assert_eq!(admission.current, Some(AdminScope::Team("core".into())));
 
         // A key bound to nothing administers nothing.
-        let plain = caller("member", "user", CallerKind::ApiKey);
+        let plain = caller("orgadmin", "user", CallerKind::ApiKey);
         assert_eq!(
             AdminScope::resolve(&plain, &data, None)
+                .unwrap_err()
+                .status_code(),
+            403
+        );
+    }
+
+    #[test]
+    fn a_key_binding_needs_its_owner_to_administer_it() {
+        let data = app_data();
+        // Any member may mint a key bound to their organization; that key is
+        // not an administrator's.
+        let mut key = caller("member", "user", CallerKind::ApiKey);
+        key.organization_id = Some("acme".into());
+        assert_eq!(
+            AdminScope::resolve(&key, &data, None)
+                .unwrap_err()
+                .status_code(),
+            403
+        );
+        key.team_id = Some("core".into());
+        assert_eq!(
+            AdminScope::resolve(&key, &data, None)
+                .unwrap_err()
+                .status_code(),
+            403
+        );
+
+        // A team key is administered by the team's admin and by its
+        // organization's.
+        for user in ["lead", "orgadmin"] {
+            let mut key = caller(user, "user", CallerKind::ApiKey);
+            key.organization_id = Some("acme".into());
+            key.team_id = Some("core".into());
+            assert_eq!(
+                AdminScope::resolve(&key, &data, None).unwrap().current,
+                Some(AdminScope::Team("core".into())),
+                "{user}"
+            );
+        }
+        // A team admin's organization-bound key is not an organization
+        // administrator's.
+        let mut key = caller("lead", "user", CallerKind::ApiKey);
+        key.organization_id = Some("acme".into());
+        assert_eq!(
+            AdminScope::resolve(&key, &data, None)
                 .unwrap_err()
                 .status_code(),
             403

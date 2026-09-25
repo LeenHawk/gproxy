@@ -119,11 +119,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedCredentials<'_, C> {
     }
 
     pub async fn create(&self, write: CredentialWrite) -> Result<CredentialDto> {
-        self.admit_owner(
-            write.user_id.as_deref(),
-            write.team_id.as_deref(),
-            write.organization_id.as_deref(),
-        )?;
+        self.admit_create(&write)?;
         Ok(self.manage().create(write).await?)
     }
 
@@ -143,11 +139,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedCredentials<'_, C> {
     ) -> Result<Vec<Option<CredentialDto>>> {
         for item in &items {
             match item {
-                BatchItem::Create(write) => self.admit_owner(
-                    write.user_id.as_deref(),
-                    write.team_id.as_deref(),
-                    write.organization_id.as_deref(),
-                )?,
+                BatchItem::Create(write) => self.admit_create(write)?,
                 BatchItem::Update(step) => self.admit_patch(&step.id, &step.patch).await?,
                 BatchItem::Delete(id) => self.admit(id).await?,
             }
@@ -358,12 +350,36 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedCredentials<'_, C> {
         )
     }
 
+    fn admit_create(&self, write: &CredentialWrite) -> Result<()> {
+        self.admit_transport(write.connection_profile_id.is_some(), write.proxy.is_some())?;
+        self.admit_owner(
+            write.user_id.as_deref(),
+            write.team_id.as_deref(),
+            write.organization_id.as_deref(),
+        )
+    }
+
+    /// How a credential reaches its upstream — the connection profile and the
+    /// outbound proxy — is instance machinery: a proxy is an address the
+    /// server dials, so letting a tenant name one would let them point the
+    /// server at its own network. Refused rather than dropped, so a caller
+    /// that sent one learns it did not land.
+    fn admit_transport(&self, profile: bool, proxy: bool) -> Result<()> {
+        if self.scope.is_instance() || (!profile && !proxy) {
+            return Ok(());
+        }
+        Err(AppError::forbidden(
+            "`connectionProfileId` and `proxy` are set by an instance administrator",
+        ))
+    }
+
     /// The row as it is, then the row as the patch would leave it.
     async fn admit_patch(&self, id: &str, patch: &CredentialPatch) -> Result<()> {
         self.admit(id).await?;
         if self.scope.is_instance() {
             return Ok(());
         }
+        self.admit_transport(patch.connection_profile_id.is_some(), patch.proxy.is_some())?;
         if patch.user_id.is_none() && patch.team_id.is_none() && patch.organization_id.is_none() {
             return Ok(());
         }
@@ -402,6 +418,28 @@ pub struct ScopedQuotas<'a, C> {
 impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedQuotas<'_, C> {
     pub async fn list(&self, query: ListQuery) -> Result<Page<QuotaDto>> {
         let bounds = query.bounds();
+        // A credential's limits are asked for by the credential's id, which
+        // `narrow` cannot place in a scope; admit the credential instead.
+        if !self.scope.is_instance()
+            && query.owner_kind.as_deref().map(str::trim) == Some("credential")
+        {
+            let Some(id) = query
+                .owner_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|id| !id.is_empty())
+            else {
+                return Ok(empty(bounds));
+            };
+            if !self
+                .scope
+                .admits_credential(self.gproxy, self.data, id)
+                .await?
+            {
+                return Ok(empty(bounds));
+            }
+            return Ok(self.manage().list(query).await?);
+        }
         match self.scope.narrow(query, self.data) {
             ScopedQuery::Nothing => Ok(empty(bounds)),
             ScopedQuery::Run(query) => Ok(self.manage().list(*query).await?),
@@ -414,7 +452,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedQuotas<'_, C> {
     }
 
     pub async fn create(&self, write: QuotaWrite) -> Result<QuotaDto> {
-        self.admit_owner(&write.owner_kind, &write.owner_id)?;
+        self.admit_owner(&write.owner_kind, &write.owner_id).await?;
         Ok(self.manage().create(write).await?)
     }
 
@@ -434,7 +472,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedQuotas<'_, C> {
     ) -> Result<Vec<Option<QuotaDto>>> {
         for item in &items {
             match item {
-                BatchItem::Create(write) => self.admit_owner(&write.owner_kind, &write.owner_id)?,
+                BatchItem::Create(write) => {
+                    self.admit_owner(&write.owner_kind, &write.owner_id).await?
+                }
                 BatchItem::Update(step) => self.admit_patch(&step.id, &step.patch).await?,
                 BatchItem::Delete(id) => self.admit(id).await?,
             }
@@ -451,7 +491,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedQuotas<'_, C> {
     /// make this an owner-existence oracle.
     pub async fn budget_status(&self, owners: &[BudgetOwner]) -> Result<Vec<BudgetStatusDto>> {
         for owner in owners {
-            self.admit_owner(&owner.kind, &owner.id)?;
+            self.admit_owner(&owner.kind, &owner.id).await?;
         }
         Ok(self.manage().budget_status(owners).await?)
     }
@@ -462,8 +502,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedQuotas<'_, C> {
     }
 
     /// The other half of the same table. An operator limit is owned by a
-    /// `credential` or a `provider`, which no organization scope admits, so
-    /// outside the instance scope this is always `NotFound`.
+    /// `credential` or a `provider`; outside the instance scope only the
+    /// former is ever reachable, and only when the credential is.
     pub async fn reset_limit(&self, id: &str) -> Result<Vec<String>> {
         self.admit(id).await?;
         Ok(self.manage().reset_limit(id).await?)
@@ -478,7 +518,16 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedQuotas<'_, C> {
         Ok(())
     }
 
-    fn admit_owner(&self, owner_kind: &str, owner_id: &str) -> Result<()> {
+    /// A credential limit names a credential the caller may not be able to
+    /// see, so it answers `NotFound` like every other read of one; the other
+    /// kinds name an owner the caller typed and answer `Forbidden`.
+    async fn admit_owner(&self, owner_kind: &str, owner_id: &str) -> Result<()> {
+        if owner_kind == "credential" {
+            return self
+                .scope
+                .admit_credential(self.gproxy, self.data, owner_id)
+                .await;
+        }
         self.scope
             .admit_write(ScopeOwner::from_pair(owner_kind, owner_id), self.data)
     }
@@ -495,5 +544,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedQuotas<'_, C> {
             patch.owner_kind.as_deref().unwrap_or(&row.owner_kind),
             patch.owner_id.as_deref().unwrap_or(&row.owner_id),
         )
+        .await
     }
 }

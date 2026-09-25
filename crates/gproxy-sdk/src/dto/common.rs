@@ -29,6 +29,12 @@ pub struct ListQuery {
     pub owner_kind: Option<String>,
     pub owner_id: Option<String>,
     pub enabled: Option<bool>,
+    /// Any of these `(ownerKind, ownerId)` pairs, for a host whose tenant
+    /// spans several owners. Set by the host, never read off the wire; when
+    /// non-empty it replaces `ownerKind`/`ownerId`.
+    #[serde(skip)]
+    #[cfg_attr(feature = "ts", ts(skip))]
+    pub owner_any: Vec<(String, String)>,
 }
 
 impl ListQuery {

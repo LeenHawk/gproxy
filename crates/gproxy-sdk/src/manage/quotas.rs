@@ -144,11 +144,25 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Quotas<'_, C>
     }
     fn select(&self, query: &ListQuery) -> Select<Self::Entity> {
         let mut select = quota::Entity::find();
-        if let Some(kind) = crud::optional_text(query.owner_kind.clone()) {
-            select = select.filter(quota::Column::OwnerKind.eq(kind));
-        }
-        if let Some(owner) = crud::optional_text(query.owner_id.clone()) {
-            select = select.filter(quota::Column::OwnerId.eq(owner));
+        if !query.owner_any.is_empty() {
+            let any = query
+                .owner_any
+                .iter()
+                .fold(sea_orm::Condition::any(), |any, (kind, id)| {
+                    any.add(
+                        sea_orm::Condition::all()
+                            .add(quota::Column::OwnerKind.eq(kind.as_str()))
+                            .add(quota::Column::OwnerId.eq(id.as_str())),
+                    )
+                });
+            select = select.filter(any);
+        } else {
+            if let Some(kind) = crud::optional_text(query.owner_kind.clone()) {
+                select = select.filter(quota::Column::OwnerKind.eq(kind));
+            }
+            if let Some(owner) = crud::optional_text(query.owner_id.clone()) {
+                select = select.filter(quota::Column::OwnerId.eq(owner));
+            }
         }
         if let Some(search) = crud::optional_text(query.search.clone()) {
             select = select.filter(quota::Column::WindowKey.contains(&search));
