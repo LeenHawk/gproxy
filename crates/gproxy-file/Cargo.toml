@@ -27,7 +27,7 @@ opendal-http-transport-reqwest = { workspace = true, optional = true, features =
 wasm-bindgen-futures = { workspace = true, optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tempfile = { workspace = true }
 http = { workspace = true }
 futures-util = { workspace = true }

@@ -42,7 +42,7 @@ bundled-vocabulary = ["gproxy/bundled-vocabulary"]
 
 [dependencies]
 # The reduction layer in front of the host's router, and nothing else.
-axum = { workspace = true }
+axum = { workspace = true, features = ["form", "http1", "http2", "json", "matched-path", "original-uri", "query", "tokio", "tower-log", "tracing", "ws"] }
 gproxy = { workspace = true }
 gproxy-app = { workspace = true }
 gproxy-core = { workspace = true }
@@ -66,7 +66,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tauri = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 # The one configuration file a desktop instance reads, in the schema the server
 # already has. Nothing here defines a second one.
 toml = { workspace = true }
@@ -103,4 +103,4 @@ tracing-subscriber = { workspace = true }
 # through a client crate. Two requests to loopback are four lines of bytes, and
 # a real client would bring a proxy resolver that reads `HTTP_PROXY` out of the
 # developer's shell and route the test somewhere else.
-tokio = { workspace = true, features = ["io-util", "macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time", "io-util"] }

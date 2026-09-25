@@ -52,11 +52,11 @@ thiserror = { workspace = true }
 url = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tungstenite = { version = "0.28", default-features = false, optional = true }
+tungstenite = { workspace = true, optional = true }
 futures-util = { workspace = true, features = ["sink"] }
 moka = { workspace = true }
-tokio = { workspace = true, features = ["rt"] }
-reqwest = { workspace = true, optional = true, features = ["gzip", "brotli", "deflate", "zstd", "multipart"] }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time", "rt"] }
+reqwest = { workspace = true, optional = true, features = ["rustls", "http2", "socks", "system-proxy", "gzip", "brotli", "deflate", "zstd", "multipart"] }
 reqwest-websocket = { workspace = true, optional = true }
 wreq = { workspace = true, optional = true, features = ["system-proxy", "multipart", "ws"] }
 wreq-util = { workspace = true, optional = true, features = ["emulation-serde"] }
@@ -66,13 +66,13 @@ reqwest_native = { workspace = true, optional = true }
 # source on musl; here it is always built from source on Linux so it can share
 # a binary with wreq's BoringSSL (see the `reqwest-native` feature).
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
-openssl-sys = { version = "0.9", optional = true, features = ["vendored"] }
+openssl-sys = { workspace = true, optional = true, features = ["vendored"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 futures-util = { workspace = true, features = ["sink"] }
 js-sys = { workspace = true, optional = true }
-reqwest = { version = "0.13", default-features = false, features = ["stream"], optional = true }
-tokio = { version = "1", default-features = false, features = ["sync"] }
+reqwest = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["sync"] }
 wasm-bindgen = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }
 wasm-streams = { workspace = true, optional = true }
@@ -91,6 +91,6 @@ web-sys = { workspace = true, optional = true, features = [
 ] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-tokio = { workspace = true, features = ["io-util"] }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time", "io-util"] }
 tokio-tungstenite = { workspace = true }
 futures-util = { workspace = true, features = ["sink"] }

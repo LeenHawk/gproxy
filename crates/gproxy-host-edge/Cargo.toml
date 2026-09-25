@@ -74,7 +74,7 @@ serde_json = { workspace = true }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # `Body` in the response type the fetch handler returns. The router itself
 # comes from `gproxy-host-axum`, which enables the features it needs.
-axum = { version = "0.8", default-features = false }
+axum = { workspace = true }
 gproxy-cache = { workspace = true }
 gproxy-client = { workspace = true, default-features = false, features = ["fetch", "workers"] }
 gproxy-file = { workspace = true }
@@ -87,12 +87,12 @@ js-sys = { workspace = true }
 # `Service::call` on the router. Nothing else from tower.
 tower = { workspace = true }
 # Coalesce schema initialization within one isolate without a runtime thread.
-tokio = { version = "1", default-features = false, features = ["sync"] }
+tokio = { workspace = true, features = ["sync"] }
 wasm-bindgen = { workspace = true }
 # `#[event(fetch)]`, the `Env` bindings and `ctx.wait_until`. The `http`
 # feature is what makes the handler speak `http::Request`/`http::Response`, so
 # the axum router is called with no adapter in between.
-worker = { version = "0.8.6", default-features = false, features = ["d1", "http"] }
+worker = { workspace = true, features = ["d1", "http"] }
 
 [dev-dependencies]
 serde_json = { workspace = true }

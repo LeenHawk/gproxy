@@ -77,7 +77,7 @@ bundled-vocabulary = ["gproxy-sdk/bundled-vocabulary"]
 # authenticated-data domain and no row id bound in. `import --from-v3` has to
 # open those blobs by v3's rules before the sdk can re-seal them by v4's.
 aes-gcm = { workspace = true }
-axum = { workspace = true }
+axum = { workspace = true, features = ["form", "http1", "http2", "json", "matched-path", "original-uri", "query", "tokio", "tower-log", "tracing", "ws"] }
 # Standard base64 is what the sdk's import reads a source master key in, so a
 # key given here in hex is re-encoded rather than handed over as typed.
 base64 = { workspace = true }
@@ -104,7 +104,7 @@ rust_decimal = { workspace = true }
 # The two update downloads: a signed manifest and one release archive. It
 # follows redirects, which a GitHub release asset URL is; that is safe here
 # because the signature and the sha256 are checked after the bytes arrive.
-reqwest = { workspace = true }
+reqwest = { workspace = true, features = ["rustls", "http2", "socks", "system-proxy"] }
 sea-orm = { workspace = true, features = ["sqlx-sqlite", "runtime-tokio"] }
 # Ordering a release against the running build, on every channel but `staging`.
 semver = { workspace = true }
@@ -116,7 +116,7 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 toml = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -144,8 +144,8 @@ http = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 tempfile = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 # The end-to-end update test serves a manifest and a fake artifact over
 # loopback, because the only honest way to prove the download path is to make
 # it download something.
-axum = { workspace = true }
+axum = { workspace = true, features = ["form", "http1", "http2", "json", "matched-path", "original-uri", "query", "tokio", "tower-log", "tracing", "ws"] }
