@@ -37,7 +37,7 @@ use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey,
     ConfigKeyKind, CredentialRefresh, CredentialView, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode,
     OAuthAuthorizationCode, OperationContext, OperationFuture, PrepareContext, ProviderView,
-    QuotaQuery, UsageExtractor, UsageStream, forwardable,
+    QuotaModel, QuotaQuery, UsageExtractor, UsageStream, forwardable,
 };
 use crate::channels::shared::code_assist;
 use gproxy_client::{Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, TlsVersion};
@@ -530,6 +530,9 @@ impl BaseChannel for Antigravity {
         Some(self)
     }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
+        Some(self)
+    }
+    fn quota_model(&self) -> Option<&dyn QuotaModel> {
         Some(self)
     }
     fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {

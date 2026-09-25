@@ -1,11 +1,13 @@
 #![cfg(feature = "antigravity")]
 //! Antigravity against a scripted client: no real upstream is called.
 
+mod support;
+
 use gproxy_channel::channel::{
     AuthorizationCode, AuthorizationRequest, BaseChannel, ChannelError, CredentialContext,
     CredentialRefresh, CredentialView, LoginContext, NoState, OperationContext, PrepareContext,
-    ProviderView, QuotaScope, QuotaValue, ResponseView, UsageContext, UsageFrame,
-    UsageStreamContext, UsageStreamEnd, UsageTransport,
+    ProviderView, QuotaEntry, QuotaScope, QuotaValue, QuotaWindow, ResponseView, UsageContext,
+    UsageFrame, UsageStreamContext, UsageStreamEnd, UsageTransport,
 };
 use gproxy_channel::channels::antigravity::{
     Antigravity, CLI_USER_AGENT, DEFAULT_CLIENT_ID, DEFAULT_REDIRECT_URI,
@@ -559,13 +561,12 @@ async fn the_model_directory_harvests_every_role_field() {
 
 // ------------------------------------------------------------------ quota
 
-#[tokio::test]
-async fn quota_info_becomes_a_periodic_window_per_model() {
-    let client = ScriptClient::new(vec![reply(StatusCode::OK, catalogue())]);
+async fn quota_snapshot(catalogue: Value) -> Vec<QuotaEntry> {
+    let client = ScriptClient::new(vec![reply(StatusCode::OK, catalogue)]);
     let config = json!({});
     let secret = secret();
     let metadata = Value::Null;
-    let snapshot = Antigravity
+    Antigravity
         .quota_query()
         .expect("quota query")
         .query(CredentialContext {
@@ -574,10 +575,19 @@ async fn quota_info_becomes_a_periodic_window_per_model() {
             client: &client,
         })
         .await
-        .expect("snapshot");
-    assert_eq!(snapshot.entries.len(), 1);
-    let entry = &snapshot.entries[0];
-    assert_eq!(entry.id, "gemini-3-pro");
+        .expect("snapshot")
+        .entries
+}
+
+#[tokio::test]
+async fn quota_info_becomes_a_periodic_window_per_pool() {
+    let entries = quota_snapshot(catalogue()).await;
+    assert_eq!(entries.len(), 1);
+    let entry = &entries[0];
+    assert_eq!(
+        entry.id, "pool_google",
+        "a provider-less Gemini model is Google's"
+    );
     assert_eq!(
         entry.model_scope,
         QuotaScope::Models(vec!["gemini-3-pro".into()])
@@ -589,8 +599,95 @@ async fn quota_info_becomes_a_periodic_window_per_model() {
     assert_eq!(allowance.period_end_ms, Some(1_785_585_600_000));
     assert_eq!(allowance.period_start_ms, None);
 
-    assert!(Antigravity.quota_model().is_none());
     assert!(Antigravity.quota_headers().is_none());
+}
+
+// Live captures (2026-09-26), trimmed to the fields quota reads: idle, then
+// after one gemini-3-flash request, then after one claude-sonnet-4-6 request.
+const IDLE: &str = include_str!("fixtures/quota/antigravity_models_idle.json");
+const AFTER_GEMINI: &str = include_str!("fixtures/quota/antigravity_models_after_gemini.json");
+const AFTER_CLAUDE: &str = include_str!("fixtures/quota/antigravity_models_after_claude.json");
+
+fn pool_reading(entries: &[QuotaEntry], id: &str) -> (Option<rust_decimal::Decimal>, Option<i64>) {
+    let entry = entries.iter().find(|e| e.id == id).expect(id);
+    let QuotaValue::Window(window) = &entry.value else {
+        panic!("window");
+    };
+    (window.used_percent, window.period_end_ms)
+}
+
+#[tokio::test]
+async fn captured_catalogues_report_two_shared_pools() {
+    let model = Antigravity.quota_model().unwrap();
+    let config = json!({});
+    let s = secret();
+    let declared = model.dimensions(provider(&config, None), credential(&s, &Value::Null));
+    assert_eq!(
+        declared.iter().map(|d| d.id.as_str()).collect::<Vec<_>>(),
+        ["pool_google", "pool_third_party"]
+    );
+    assert!(declared.iter().all(|d| d.window
+        == QuotaWindow::Rolling {
+            seconds: 5 * 60 * 60
+        }));
+
+    let idle = quota_snapshot(serde_json::from_str(IDLE).unwrap()).await;
+    let after_gemini = quota_snapshot(serde_json::from_str(AFTER_GEMINI).unwrap()).await;
+    let after_claude = quota_snapshot(serde_json::from_str(AFTER_CLAUDE).unwrap()).await;
+    for entries in [&idle, &after_gemini, &after_claude] {
+        support::assert_quota_contract(Some(model), &declared, entries, &[]);
+        assert_eq!(
+            entries.iter().map(|e| e.id.as_str()).collect::<Vec<_>>(),
+            ["pool_google", "pool_third_party"]
+        );
+    }
+    let QuotaScope::Models(google) = &idle[0].model_scope else {
+        panic!("models");
+    };
+    assert_eq!(google.len(), 20);
+    assert!(
+        google.iter().all(|id| id.starts_with("gemini")),
+        "{google:?}"
+    );
+    assert_eq!(
+        idle[1].model_scope,
+        QuotaScope::Models(vec![
+            "claude-opus-4-6-thinking".into(),
+            "claude-sonnet-4-6".into(),
+            "gpt-oss-120b-medium".into(),
+        ])
+    );
+    // The pool's declared scope comes from the reading.
+    let placed = model.classify(&declared, &idle[1]).unwrap();
+    assert!(placed.scope.matches("gpt-oss-120b-medium"));
+    assert!(!placed.scope.matches("gemini-3-flash"));
+    assert!(
+        !placed.scope.matches("chat_20706"),
+        "internal models are in no pool"
+    );
+
+    // A Gemini request moves only the Google pool; a Claude request only the other.
+    // `remainingFraction` 0.9999976 and 0.9999712, as percent used to 4 places.
+    let used = |percent: &str| Some(percent.parse().unwrap());
+    assert_eq!(pool_reading(&idle, "pool_google").0, Some(0.into()));
+    assert_eq!(pool_reading(&after_gemini, "pool_google").0, used("0.0002"));
+    assert_eq!(
+        pool_reading(&after_gemini, "pool_third_party").0,
+        Some(0.into())
+    );
+    assert_eq!(
+        pool_reading(&after_claude, "pool_google"),
+        pool_reading(&after_gemini, "pool_google")
+    );
+    assert_eq!(
+        pool_reading(&after_claude, "pool_third_party").0,
+        used("0.0029")
+    );
+    // 2026-09-25T21:21:14Z: first Claude use + 5h.
+    assert_eq!(
+        pool_reading(&after_claude, "pool_third_party").1,
+        Some(1_790_371_274_000)
+    );
 }
 
 // ------------------------------------------------------------------ usage
