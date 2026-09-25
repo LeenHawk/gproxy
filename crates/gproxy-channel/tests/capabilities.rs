@@ -403,7 +403,8 @@ impl QuotaReset for Demo {
         Box::pin(async move {
             account_call(ctx, "/credits", json!({})).await?;
             Ok(QuotaResetCredits {
-                available_count: 2,
+                available_count: Some(2),
+                options: Vec::new(),
                 expires_at_ms: Some(8000),
             })
         })
@@ -411,16 +412,17 @@ impl QuotaReset for Demo {
     fn reset<'a>(
         &'a self,
         ctx: CredentialContext<'a>,
-        redeem_request_id: &'a str,
+        request: gproxy_channel::channel::QuotaResetRequest<'a>,
     ) -> OperationFuture<'a, QuotaResetResult> {
         Box::pin(async move {
             account_call(
                 ctx,
                 "/reset",
-                json!({"redeem_request_id":redeem_request_id}),
+                json!({"redeem_request_id":request.redeem_request_id}),
             )
             .await?;
             Ok(QuotaResetResult {
+                reason: None,
                 outcome: QuotaResetOutcome::Reset,
                 windows_reset: Some(1),
             })
@@ -462,12 +464,12 @@ async fn quota_query_reset_and_response_observation_are_independent() {
             .await
             .unwrap()
             .available_count,
-        2
+        Some(2)
     );
     assert_eq!(
         base.quota_reset()
             .unwrap()
-            .reset(ctx, "redeem-1")
+            .reset(ctx, gproxy_channel::channel::QuotaResetRequest { redeem_request_id: "redeem-1", program: None, grant_id: None })
             .await
             .unwrap()
             .outcome,

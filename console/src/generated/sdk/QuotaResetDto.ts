@@ -3,8 +3,9 @@
 /**
  * The outcome of redeeming an upstream reset credit.
  */
-export type QuotaResetDto = { 
+export type QuotaResetDto = { reason: string | null,
 /**
- * `reset`, `nothing_to_reset`, `no_credit` or `already_redeemed`.
+ * `reset`, `nothing_to_reset`, `no_credit`, `already_redeemed`,
+ * `ineligible`, `unavailable` or `cooldown`.
  */
 outcome: string, windowsReset: number | null, };

@@ -8,17 +8,13 @@
 //! assembly, which is why only a write limited to the secret, its expiry and
 //! the lifecycle status can take the cheap [`Scope::CredentialState`] path.
 
-use gproxy_channel::channel::{CredentialContext, CredentialView, ProviderView};
 use gproxy_core::{RefreshMode, keys};
 use gproxy_seaorm::{BatchConnectionTrait, BatchStatement};
 use gproxy_store::{
     Repository,
     entity::{
         limits::{credential_block, credential_quota_cycle},
-        upstream::{
-            credential::{self, CredentialStatus},
-            provider,
-        },
+        upstream::credential::{self, CredentialStatus},
     },
     operations::credentials::CredentialStatusUpdate,
 };
@@ -34,7 +30,7 @@ use crate::{
     dto::{
         BatchItem, CredentialBlockDto, CredentialCycleDto, CredentialDto, CredentialLimitStatusDto,
         CredentialPatch, CredentialQuotaDto, CredentialSummaryDto, CredentialWrite, ListQuery,
-        Page, QuotaResetDto, QuotaSnapshotDto,
+        Page, QuotaResetCreditsDto, QuotaResetDto, QuotaResetWrite, QuotaSnapshotDto,
     },
 };
 
@@ -180,63 +176,58 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
         })
     }
 
+    /// Query reset-card availability independently from account usage.
+    pub async fn quota_reset_credits(&self, id: &str) -> SdkResult<QuotaResetCreditsDto> {
+        let row = crud::row::<C, Self>(self, id).await?;
+        Ok(self
+            .writer
+            .core()
+            .query_credential_reset_credits(&row.provider_id, &row.id)
+            .await?
+            .into())
+    }
+
     /// Redeem an upstream reset credit, where the channel offers one. Most do
     /// not: reporting a window is not the same as being able to reopen it.
     pub async fn quota_reset(&self, id: &str) -> SdkResult<QuotaResetDto> {
+        self.quota_reset_with(id, QuotaResetWrite::default()).await
+    }
+
+    pub async fn quota_reset_with(
+        &self,
+        id: &str,
+        request: QuotaResetWrite,
+    ) -> SdkResult<QuotaResetDto> {
         let row = crud::row::<C, Self>(self, id).await?;
-        let provider = self
-            .writer
-            .store()
-            .providers()
-            .get_many(std::slice::from_ref(&row.provider_id))
-            .await?
-            .into_iter()
-            .next()
-            .flatten()
-            .ok_or_else(|| SdkError::not_found("provider", row.provider_id.clone()))?;
-        let channel = self
-            .writer
-            .core()
-            .channels()
-            .get(&provider.channel)
-            .cloned()
-            .ok_or_else(|| {
-                SdkError::invalid(format!(
-                    "channel `{}` is not registered in this build",
-                    provider.channel
-                ))
-            })?;
-        let Some(reset) = channel.quota_reset() else {
-            return Err(SdkError::Unsupported(
-                "this channel cannot reopen a spent quota window",
-            ));
-        };
-        let secret = self
+        let redeem_request_id = request.request_id.unwrap_or_else(crate::ids::random_id);
+        if redeem_request_id.is_empty()
+            || redeem_request_id.len() > 64
+            || !redeem_request_id
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+        {
+            return Err(SdkError::invalid("invalid reset request id"));
+        }
+        Ok(self
             .writer
             .core()
-            .secret_codec()
-            .open(&row.id, &row.secret)?;
-        let client = self.writer.core().provider_client(&provider.id).await?;
-        let redeem_request_id = crate::ids::random_id();
-        let result = reset
-            .reset(
-                CredentialContext {
-                    provider: view(&provider),
-                    credential: CredentialView {
-                        id: &row.id,
-                        provider_id: &row.provider_id,
-                        auth_kind: &row.auth_kind,
-                        secret: &secret,
-                        metadata: &row.metadata,
-                        version: row.version,
-                        expires_at_ms: row.expires_at_ms,
-                    },
-                    client: client.as_ref(),
+            .reset_credential_quota(
+                &row.provider_id,
+                &row.id,
+                gproxy_channel::channel::QuotaResetRequest {
+                    redeem_request_id: &redeem_request_id,
+                    program: request.program.as_deref(),
+                    grant_id: request.grant_id.as_deref(),
                 },
-                &redeem_request_id,
             )
-            .await?;
-        Ok(result.into())
+            .await
+            .map_err(|error| match error {
+                gproxy_core::CoreError::Channel(
+                    gproxy_channel::ChannelError::UnsupportedService,
+                ) => SdkError::Unsupported("this channel cannot reopen a spent quota window"),
+                error => error.into(),
+            })?
+            .into())
     }
 
     /// Clear everything keeping a credential out of selection: its persisted
@@ -342,15 +333,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
             return Err(SdkError::invalid("secret must not be null"));
         }
         Ok(self.writer.core().secret_codec().seal(id, secret)?)
-    }
-}
-
-fn view(provider: &provider::Model) -> ProviderView<'_> {
-    ProviderView {
-        id: &provider.id,
-        channel: &provider.channel,
-        base_url: provider.base_url.as_deref(),
-        config: &provider.config,
     }
 }
 

@@ -13,7 +13,7 @@ use serde_json::Value;
 use super::double_option;
 use gproxy_channel::channel::{
     QuotaAllowance, QuotaBalance, QuotaEntry, QuotaResetBehavior, QuotaResetOutcome,
-    QuotaResetResult, QuotaSnapshot, QuotaSubject, QuotaValue,
+    QuotaResetCredits, QuotaResetOption, QuotaResetResult, QuotaSnapshot, QuotaSubject, QuotaValue,
 };
 use gproxy_store::entity::limits::{
     counted_window, credential_block, credential_quota_cycle, quota, quota_settlement,
@@ -284,6 +284,60 @@ pub struct QuotaSnapshotDto {
     pub entries: Vec<QuotaEntryDto>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct QuotaResetCreditsDto {
+    pub options: Vec<QuotaResetOptionDto>,
+    pub available_count: Option<u64>,
+    pub expires_at_ms: Option<i64>,
+}
+
+impl From<QuotaResetCredits> for QuotaResetCreditsDto {
+    fn from(credits: QuotaResetCredits) -> Self {
+        Self { available_count: credits.available_count, expires_at_ms: credits.expires_at_ms, options: credits.options.into_iter().map(Into::into).collect() }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct QuotaResetOptionDto {
+    pub program: String,
+    pub grant_id: Option<String>,
+    pub label: Option<String>,
+    pub available_count: Option<u64>,
+    pub expires_at_ms: Option<i64>,
+    pub next_available_at_ms: Option<i64>,
+    pub usable: bool,
+    pub ineligible_reason: Option<String>,
+    pub clears: Vec<String>,
+}
+
+impl From<QuotaResetOption> for QuotaResetOptionDto {
+    fn from(option: QuotaResetOption) -> Self {
+        Self {
+            program: option.program, grant_id: option.grant_id, label: option.label,
+            available_count: option.available_count, expires_at_ms: option.expires_at_ms,
+            next_available_at_ms: option.next_available_at_ms, usable: option.usable,
+            ineligible_reason: option.ineligible_reason, clears: option.clears,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct QuotaResetWrite {
+    pub program: Option<String>,
+    pub grant_id: Option<String>,
+    /// Reuse after an uncertain reply to avoid consuming another grant.
+    pub request_id: Option<String>,
+}
+
 impl From<QuotaSnapshot> for QuotaSnapshotDto {
     fn from(snapshot: QuotaSnapshot) -> Self {
         Self {
@@ -417,7 +471,9 @@ impl From<QuotaBalance> for QuotaBalanceDto {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct QuotaResetDto {
-    /// `reset`, `nothing_to_reset`, `no_credit` or `already_redeemed`.
+    pub reason: Option<String>,
+    /// `reset`, `nothing_to_reset`, `no_credit`, `already_redeemed`,
+    /// `ineligible`, `unavailable` or `cooldown`.
     pub outcome: String,
     pub windows_reset: Option<u64>,
 }
@@ -425,11 +481,15 @@ pub struct QuotaResetDto {
 impl From<QuotaResetResult> for QuotaResetDto {
     fn from(result: QuotaResetResult) -> Self {
         Self {
+            reason: result.reason,
             outcome: match result.outcome {
                 QuotaResetOutcome::Reset => "reset",
                 QuotaResetOutcome::NothingToReset => "nothing_to_reset",
                 QuotaResetOutcome::NoCredit => "no_credit",
                 QuotaResetOutcome::AlreadyRedeemed => "already_redeemed",
+                QuotaResetOutcome::Ineligible => "ineligible",
+                QuotaResetOutcome::Unavailable => "unavailable",
+                QuotaResetOutcome::Cooldown => "cooldown",
             }
             .to_owned(),
             windows_reset: result.windows_reset,

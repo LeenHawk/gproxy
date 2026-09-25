@@ -444,6 +444,66 @@ impl<C: BatchConnectionTrait> Core<C> {
         }
     }
 
+    /// Read reset cards separately from usage. Never consumes a card.
+    pub async fn query_credential_reset_credits(
+        &self,
+        provider_id: &str,
+        credential_id: &str,
+    ) -> CoreResult<gproxy_channel::channel::QuotaResetCredits>
+    where
+        C: Send,
+    {
+        let (_, credits) = self
+            .quota_operation(provider_id, credential_id, |provider, context| {
+                Box::pin(async move {
+                    provider
+                        .channel
+                        .quota_reset()
+                        .ok_or(ChannelError::UnsupportedService)?
+                        .credits(context)
+                        .await
+                })
+            })
+            .await?;
+        Ok(credits)
+    }
+
+    /// Explicitly redeem a reset card. An authentication retry uses the same
+    /// redemption id and the credential's assigned client, just like querying.
+    pub async fn reset_credential_quota(
+        &self,
+        provider_id: &str,
+        credential_id: &str,
+        request: gproxy_channel::channel::QuotaResetRequest<'_>,
+    ) -> CoreResult<gproxy_channel::channel::QuotaResetResult>
+    where
+        C: Send,
+    {
+        let (_, result) = self
+            .quota_operation(provider_id, credential_id, |provider, context| {
+                let redeem_request_id = request.redeem_request_id.to_owned();
+                let program = request.program.map(str::to_owned);
+                let grant_id = request.grant_id.map(str::to_owned);
+                Box::pin(async move {
+                    provider
+                        .channel
+                        .quota_reset()
+                        .ok_or(ChannelError::UnsupportedService)?
+                        .reset(
+                            context,
+                            gproxy_channel::channel::QuotaResetRequest {
+                                redeem_request_id: &redeem_request_id,
+                                program: program.as_deref(),
+                                grant_id: grant_id.as_deref(),
+                            },
+                        )
+                        .await
+                })
+            })
+            .await?;
+        Ok(result)
+    }
+
     async fn quota_operation<T>(
         &self,
         provider_id: &str,

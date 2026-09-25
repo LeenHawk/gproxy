@@ -228,7 +228,7 @@ println!("credential {}", created.credential_id);
 | 家族 | 表 | CRUD 之外 |
 |---|---|---|
 | `providers()` | `providers` | `reset_routing_defaults(provider_id)` 一次提交清掉该 Provider 的操作规则与 URL |
-| `credentials()` | `credentials` | `reveal_secret`、`set_status`、`refresh`、`quota_probe`、`quota_read`、`quota_reset`、`health_reset`、`limit_status` |
+| `credentials()` | `credentials` | `reveal_secret`、`set_status`、`refresh`、`quota_probe`、`quota_read`、`quota_reset_credits`、`quota_reset`、`quota_reset_with`、`health_reset`、`limit_status` |
 | `models()` / `provider_models()` | `models`、`provider_models` | |
 | `routes()` / `route_members()` | `routes`、`route_members` | |
 | `connection_profiles()` | `connection_profiles` | |
