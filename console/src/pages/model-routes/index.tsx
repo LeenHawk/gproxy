@@ -29,7 +29,7 @@ function RouteDetails({ route, onClose }: { route: RouteDto; onClose: () => void
   return <ManagementDialog title={route.name} onClose={onClose}><QueryState isPending={providers.isPending} error={providers.error}>
     <CollectionPage renderForm={props => props.open ? <MemberForm original={props.original} providers={providers.data ?? []} onSubmit={props.onSubmit} onClose={() => props.onOpenChange(false)} pending={props.pending} error={props.error} /> : null} embedded id="route-members" family={members} filter={{ routeId: route.id }} create={body => members.create({ ...body, routeId: route.id })} rowId={row => row.id} rowLabel={row => row.upstreamModel}
       columns={[{ key: "providerId", cell: row => providers.data?.find(provider => provider.id === row.providerId)?.name ?? row.providerId }, { key: "upstreamModel", cell: row => row.upstreamModel }, { key: "tier", cell: row => row.tier }, { key: "weight", cell: row => row.weight }, { key: "enabled", cell: row => <BoolCell value={row.enabled} /> }]}
-      fields={[{ name: "providerId", kind: "select", required: true, choices: (providers.data ?? []).map(row => ({ value: row.id, label: row.name })) }, { name: "upstreamModel", kind: "text", required: true }, { name: "tier", kind: "number" }, { name: "weight", kind: "number" }, { name: "enabled", kind: "switch" }]}
+      fields={[{ name: "providerId", kind: "select", required: true, choices: (providers.data ?? []).map(row => ({ value: row.id, label: row.displayName ?? row.name })) }, { name: "upstreamModel", kind: "text", required: true }, { name: "tier", kind: "number" }, { name: "weight", kind: "number" }, { name: "enabled", kind: "switch" }]}
     />
   </QueryState></ManagementDialog>
 }

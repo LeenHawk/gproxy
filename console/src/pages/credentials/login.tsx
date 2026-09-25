@@ -61,7 +61,7 @@ export function CredentialLoginDialog({ provider, onClose }: { provider: Credent
   }, [device, polling, client])
   const busy = start.isPending || complete.isPending || poll.isPending
   const started = !!auth || !!device
-  return <ManagementDialog title={`${provider.name} · ${t("management.loginAdd")}`} onClose={onClose} busy={busy}>
+  return <ManagementDialog title={`${provider.displayName ?? provider.name} · ${t("management.loginAdd")}`} onClose={onClose} busy={busy}>
     <FieldGroup>
       {!started ? <>
         <Field><FieldLabel htmlFor="login-mode">{t("management.loginMode")}</FieldLabel><Select value={mode} onValueChange={value => setMode(value as typeof mode)} disabled={busy}><SelectTrigger id="login-mode"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{modes.map(value => <SelectItem key={value} value={value}>{t(`management.${value}`)}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>

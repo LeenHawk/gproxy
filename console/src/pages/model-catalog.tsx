@@ -37,7 +37,7 @@ function ReferencePrice({ model }: { model?: DefaultModelDto }) {
 }
 
 function ModelProviders({ providers }: { providers: readonly ProviderDto[] }) {
-  return providers.length ? <div className="flex flex-wrap gap-1">{providers.map(provider => <Badge key={provider.id} variant="outline" asChild><Link to={`${providerPath(provider.id)}/models`} className="max-w-48 truncate">{provider.name}</Link></Badge>)}</div> : <span className="text-sm text-muted-foreground">—</span>
+  return providers.length ? <div className="flex flex-wrap gap-1">{providers.map(provider => <Badge key={provider.id} variant="outline" asChild><Link to={`${providerPath(provider.id)}/models`} className="max-w-48 truncate">{provider.displayName ?? provider.name}</Link></Badge>)}</div> : <span className="text-sm text-muted-foreground">—</span>
 }
 
 export function ModelCatalogPage() {
@@ -61,7 +61,7 @@ export function ModelCatalogPage() {
     const combined = [...defaults, ...custom]
     const associations = providersByModel(combined, instances.data ?? [], bindings.data ?? [])
     const needle = search.trim().toLowerCase()
-    return combined.map(row => ({ ...row, providers: associations.get(row) ?? [] })).filter(row => `${row.name} ${row.providers.map(provider => provider.name).join(" ")} ${row.metadata.display_name ?? ""} ${strings(row.metadata.input_modalities)} ${strings(row.metadata.output_modalities)} ${strings(row.metadata.supported_parameters)}`.toLowerCase().includes(needle)).sort((a, b) => a.name.localeCompare(b.name))
+    return combined.map(row => ({ ...row, providers: associations.get(row) ?? [] })).filter(row => `${row.name} ${row.providers.map(provider => `${provider.name} ${provider.displayName ?? ""}`).join(" ")} ${row.metadata.display_name ?? ""} ${strings(row.metadata.input_modalities)} ${strings(row.metadata.output_modalities)} ${strings(row.metadata.supported_parameters)}`.toLowerCase().includes(needle)).sort((a, b) => a.name.localeCompare(b.name))
   }, [catalog.data, local.data, instances.data, bindings.data, search])
   const refresh = () => Promise.all([client.invalidateQueries({ queryKey: ["admin", "/models"] }), client.invalidateQueries({ queryKey: ["discover-models"] })])
   const save = useMutation({ mutationFn: async (body: Record<string, unknown>) => {

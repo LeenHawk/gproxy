@@ -457,9 +457,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'
         if let Some(label) = patch.label {
             row.label = Set(crud::optional_text(label));
         }
-        if let Some(auth_kind) = patch.auth_kind {
-            row.auth_kind = Set(crud::text(&auth_kind, "authKind")?);
-        }
+
         if let Some(secret) = patch.secret {
             // New material is a new version, exactly as a refresh would write
             // it: that is what makes peers re-read the row.

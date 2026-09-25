@@ -8,7 +8,7 @@ export const authKinds = [
 
 export const credentialFields: Array<FormField> = [
   { name: "label", kind: "text", nullable: true },
-  { name: "authKind", kind: "select", required: true, choices: authKinds },
+  { name: "authKind", kind: "select", required: true, createOnly: true, choices: authKinds },
   { name: "secret", kind: "json", required: true },
   { name: "proxy", kind: "proxy", nullable: true },
   { name: "connectionProfileId", kind: "text", nullable: true },

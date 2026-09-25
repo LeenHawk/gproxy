@@ -53,11 +53,11 @@ function ProviderDetail({ provider, catalog, tab }: { provider: ProviderDto; cat
   return (
     <Page>
       <PageHeader
-        title={provider.name}
+        title={provider.displayName ?? provider.name}
         actions={<>
           <Badge variant="outline">{channel?.displayName ?? provider.channel}</Badge>
           <Switch aria-label={t("fields.enabled")} checked={provider.enabled} disabled={update.isPending} onCheckedChange={(enabled) => update.mutate({ enabled })} />
-          <ConfirmButton title={t("confirm.deleteTitle", { name: provider.name })} disabled={remove.isPending} onConfirm={() => remove.mutate()}>{t("actions.delete")}</ConfirmButton>
+          <ConfirmButton title={t("confirm.deleteTitle", { name: provider.displayName ?? provider.name })} disabled={remove.isPending} onConfirm={() => remove.mutate()}>{t("actions.delete")}</ConfirmButton>
         </>}
       />
       <p className="break-all text-sm text-muted-foreground">{t("providers.routePrefix")}: <code>/{provider.name}</code></p>

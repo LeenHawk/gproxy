@@ -1196,3 +1196,41 @@ async fn a_credential_list_narrows_by_owner() {
             .is_empty()
     );
 }
+
+#[tokio::test]
+async fn provider_display_name_is_independent_from_its_invocation_name() {
+    let (gproxy, _, _) = support::sdk_parts().await;
+    let original = gproxy.manage().providers().create(ProviderWrite {
+        name: "route-name".into(), display_name: Some("显示名称".into()), channel: "test".into(), ..Default::default()
+    }).await.unwrap();
+    let changed = gproxy.manage().providers().update(&original.id, ProviderPatch {
+        display_name: Some(Some("新显示名称".into())), ..Default::default()
+    }).await.unwrap();
+    assert_eq!(changed.name, "route-name");
+    assert_eq!(changed.display_name.as_deref(), Some("新显示名称"));
+    let by_label = gproxy.manage().providers().list(ListQuery { search: Some("新显示".into()), ..Default::default() }).await.unwrap();
+    assert_eq!(by_label.items[0].id, original.id);
+    let changed = gproxy.manage().providers().update(&original.id, ProviderPatch {
+        name: Some("new-route".into()), ..Default::default()
+    }).await.unwrap();
+    assert_eq!(changed.display_name.as_deref(), Some("新显示名称"));
+    let cleared = gproxy.manage().providers().update(&original.id, ProviderPatch {
+        display_name: Some(None), ..Default::default()
+    }).await.unwrap();
+    assert_eq!(cleared.name, "new-route");
+    assert_eq!(cleared.display_name, None);
+}
+
+#[test]
+fn update_payloads_do_not_accept_creation_only_types() {
+    for value in [json!({"channel": "test"}), json!({"channel": null})] {
+        assert!(serde_json::from_value::<ProviderPatch>(value.clone()).is_err());
+        assert!(serde_json::from_value::<BatchItem<ProviderWrite, ProviderPatch>>(json!({"update": {"id": "p", "patch": value}})).is_err());
+    }
+    for value in [json!({"authKind": "oauth"}), json!({"authKind": null})] {
+        assert!(serde_json::from_value::<CredentialPatch>(value.clone()).is_err());
+        assert!(serde_json::from_value::<BatchItem<CredentialWrite, CredentialPatch>>(json!({"update": {"id": "c", "patch": value}})).is_err());
+    }
+    assert!(serde_json::from_value::<ProviderPatch>(json!({"displayName": "Friendly name", "name": "route"})).is_ok());
+    assert!(serde_json::from_value::<CredentialPatch>(json!({"label": "Friendly credential"})).is_ok());
+}

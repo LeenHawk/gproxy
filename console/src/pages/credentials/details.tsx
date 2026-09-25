@@ -60,7 +60,7 @@ export function CredentialDetails({ credential, provider, initialTab = "basic", 
     try { setSecret(JSON.stringify(await actions.revealCredential(id), null, 2)) } catch (error) { setRevealError(error) } finally { setRevealing(false) }
   }
   const current = row.data ?? credential
-  return <ManagementDialog className="sm:max-w-3xl" title={`${current.label ?? id} · ${provider.name}`} titleAside={<Badge variant="outline">{t(`values.${current.status}`)}</Badge>} onClose={onClose} busy={busy}>
+  return <ManagementDialog className="sm:max-w-3xl" title={`${current.label ?? id} · ${provider.displayName ?? provider.name}`} titleAside={<Badge variant="outline">{t(`values.${current.status}`)}</Badge>} onClose={onClose} busy={busy}>
     <div className="flex flex-wrap items-center justify-end gap-2"><DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="sm" disabled={busy}>{t("limits.more")}</Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuGroup>
       <DropdownMenuItem disabled={!current.hasSecret} onSelect={() => void reveal()}>{t("management.reveal")}</DropdownMenuItem>
       {provider.capabilities.refresh ? <>{(["refresh", "forceRefresh"] as const).map(kind => <DropdownMenuItem key={kind} disabled={!provider.enabled} onSelect={() => action.mutate(kind)}>{t(`management.${kind}`)}</DropdownMenuItem>)}</> : null}

@@ -252,6 +252,8 @@
     "preferred_max_latency": "最高延遲偏好"
   },
   "providerForm": {
+    "displayName": "顯示名稱",
+    "routeName": "路由名稱",
     "default": "使用渠道預設值",
     "connection": "HTTP 用戶端設定",
     "item": "第 {{index}} 項",
