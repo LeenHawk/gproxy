@@ -34,9 +34,14 @@ export type ProviderFormProps = {
 export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCancel }: ProviderFormProps) {
   const { t } = useTranslation()
   const id = useId()
-  const [name, setName] = useState(provider?.name ?? "")
-  const [displayName, setDisplayName] = useState(provider?.displayName ?? "")
   const [channel, setChannel] = useState(provider?.channel ?? catalog[0]?.id ?? "")
+  const [name, setName] = useState(provider?.name ?? channel.toLowerCase().replaceAll("_", ""))
+  const [displayName, setDisplayName] = useState(provider?.displayName ?? (provider ? "" : catalog[0]?.displayName ?? ""))
+  const changeChannel = (next: string) => {
+    setName(current => !current || current === channel.toLowerCase().replaceAll("_", "") ? next.toLowerCase().replaceAll("_", "") : current)
+    setDisplayName(current => !current || current === catalog.find(item => item.id === channel)?.displayName ? catalog.find(item => item.id === next)?.displayName ?? "" : current)
+    setChannel(next)
+  }
   const [baseUrl, setBaseUrl] = useState(provider?.baseUrl ?? "")
   const [profile, setProfile] = useState(provider?.connectionProfileId ?? "__default")
   const [proxy, setProxy] = useState<ProxySettings>(provider?.proxy ?? null)
@@ -85,7 +90,7 @@ export function ProviderForm({ catalog, provider, onSubmit, pending, error, onCa
         </Field>
         <Field>
           <FieldLabel htmlFor={`${id}-channel`}>{t("fields.channel")}</FieldLabel>
-          <Select value={channel} onValueChange={setChannel} disabled={Boolean(provider)}>
+          <Select value={channel} onValueChange={changeChannel} disabled={Boolean(provider)}>
             <SelectTrigger id={`${id}-channel`} className="w-full">
               <SelectValue />
             </SelectTrigger>
