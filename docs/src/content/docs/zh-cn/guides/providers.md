@@ -36,7 +36,8 @@ description: "25 个渠道、一行 Provider 装什么、凭证池及其生命�
 | `kimi` | Moonshot 平台（API key），或 Kimi Code 订阅（设备登录） | `{"api_key"}` 或 OAuth |
 | `kiro` | 经 Kiro 桌面应用使用 AWS CodeWhisperer | OAuth |
 | `openai` | OpenAI 官方平台：完整 surface、套接字上的 Responses 与 Realtime | `{"api_key", "quota_api_key"}` |
-| `opencode` | OpenCode Zen 与 Go | `{"api_key"}` 或 OAuth |
+| `opencodego` | OpenCode Go：订阅制、开源模型、用量窗口 | `{"api_key"}` |
+| `opencodezen` | OpenCode Zen：从 Console 余额按量付费 | `{"api_key"}` 或 OAuth |
 | `openrouter` | OpenRouter：body 里的路由偏好、应答里报出的价格 | `{"api_key"}` |
 | `vertex` | Google Vertex AI：Google、Anthropic 与 OpenAI 兼容发布者 | 服务账号密钥 |
 | `vertexexpress` | Vertex AI Express：单一全球源上的 Gemini surface | `{"api_key"}` |

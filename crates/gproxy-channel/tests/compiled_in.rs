@@ -37,9 +37,7 @@ fn optional_address_fields_have_channel_owned_placeholders() {
                 continue;
             }
             // These origins depend on the attached credential or account plan.
-            if field.name == "base_url"
-                && matches!(descriptor.id, "kimi" | "copilotcli" | "opencode")
-            {
+            if field.name == "base_url" && matches!(descriptor.id, "kimi" | "copilotcli") {
                 continue;
             }
             assert!(

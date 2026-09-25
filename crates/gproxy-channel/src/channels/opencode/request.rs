@@ -111,12 +111,19 @@ fn apply_session(headers: &mut HeaderMap) -> Result<(), ChannelError> {
     Ok(())
 }
 
-pub(super) fn build(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
+pub(super) fn build(
+    ctx: PrepareContext<'_>,
+    tier: Tier,
+) -> Result<http::Request<HttpBody>, ChannelError> {
     let config = OpenCodeConfig::from_view(ctx.provider)?;
     let key = api_key(&ctx.credential)?;
     let url = match ctx.endpoint_override {
         Some(url) => url.to_owned(),
-        None => format!("{}{}", config.base_url(ctx.provider), path(ctx.operation)?),
+        None => format!(
+            "{}{}",
+            OpenCodeConfig::base_url(ctx.provider, tier),
+            path(ctx.operation)?
+        ),
     };
     let uri = match ctx
         .request
@@ -193,20 +200,6 @@ fn shape(bytes: Bytes, config: &OpenCodeConfig, dialect: Dialect) -> Bytes {
             config.enable_openai_magic_cache,
         ),
     )
-}
-
-/// The tier a provider row fronts, for the quota surface that only one of
-/// them has.
-pub(super) fn tier(config: &OpenCodeConfig, provider: crate::channel::ProviderView<'_>) -> Tier {
-    if config.tier == Tier::Go {
-        return Tier::Go;
-    }
-    // An operator who pointed `base_url` at the Go origin stated the tier
-    // just as plainly as the key would have (v3 `opencode::is_go`).
-    match provider.base_url.map(str::trim) {
-        Some(base) if base.trim_end_matches('/').ends_with("/zen/go/v1") => Tier::Go,
-        _ => Tier::Zen,
-    }
 }
 
 #[cfg(test)]

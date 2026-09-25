@@ -58,11 +58,11 @@ curl -s http://127.0.0.1:8787/admin/api/channels \
   -H "Authorization: Bearer $GPROXY_KEY"
 ```
 
-A default build answers with all 25: `aistudio`, `antigravity`, `aws_bedrock`,
+A default build answers with all 27: `aistudio`, `antigravity`, `aws_bedrock`,
 `azure`, `claudeapi`, `claudecode`, `claudeweb`, `cline`, `codex`,
 `copilotcli`, `custom`, `dashscope`, `deepseek`, `devin`, `geminicli`,
-`grokbuild`, `kimi`, `kiro`, `openai`, `opencode`, `openrouter`, `vertex`,
-`vertexexpress`, `workbuddy`, `xai`.
+`grokbuild`, `kimi`, `kiro`, `openai`, `opencodego`, `opencodezen`,
+`openrouter`, `vercel`, `vertex`, `vertexexpress`, `workbuddy`, `xai`.
 
 Each entry carries its login modes, its capabilities and the `config` keys a
 provider form should offer — which is all a management UI needs to render one.

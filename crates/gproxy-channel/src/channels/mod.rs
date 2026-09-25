@@ -12,12 +12,13 @@ use std::sync::Arc;
 
 use crate::BaseChannel;
 
-/// `feature => module, the value to register`.
+/// `feature => module, the values to register`.
 ///
-/// The value is an expression so a channel that needs constructing says so;
-/// most are unit structs and name themselves.
+/// A value is an expression so a channel that needs constructing says so;
+/// most are unit structs and name themselves. A module may register more
+/// than one channel when the products share a wire (`opencode`).
 macro_rules! channels {
-    ($($feature:literal => $module:ident, $instance:expr);+ $(;)?) => {
+    ($($feature:literal => $module:ident, $($instance:expr),+);+ $(;)?) => {
         $(
             #[cfg(feature = $feature)]
             pub mod $module;
@@ -29,10 +30,10 @@ macro_rules! channels {
         /// legitimate: a host may register only channels of its own.
         pub fn compiled_in() -> Vec<Arc<dyn BaseChannel>> {
             vec![
-                $(
+                $($(
                     #[cfg(feature = $feature)]
                     (Arc::new($instance) as Arc<dyn BaseChannel>),
-                )+
+                )+)+
             ]
         }
     };
@@ -58,7 +59,7 @@ channels! {
     "kimi" => kimi, kimi::Kimi;
     "kiro" => kiro, kiro::Kiro;
     "openai" => openai, openai::OpenAi;
-    "opencode" => opencode, opencode::OpenCode;
+    "opencode" => opencode, opencode::OpenCode::ZEN, opencode::OpenCode::GO;
     "openrouter" => openrouter, openrouter::OpenRouter;
     "vercel" => vercel, vercel::Vercel;
     "vertex" => vertex, vertex::Vertex;

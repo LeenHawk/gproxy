@@ -8,15 +8,19 @@
 //! bearer everywhere except the Claude surface, which wants `x-api-key` and
 //! Anthropic's version header (`request.rs`).
 //!
-//! The tier is the provider's, not the credential's: `zen`
-//! (`opencode.ai/zen/v1`) and `go` (`opencode.ai/zen/go/v1`) are separate
-//! origins with separate quota, and only `go` reports usage windows
-//! (`quota.rs`). v3 carried two channel ids, `opencodezen` and `opencodego`,
-//! canonicalized into one; v4 has one channel and a `tier` key.
+//! Two channels, one per product: `opencodezen` (`opencode.ai/zen/v1`,
+//! pay-as-you-go from the Console wallet, full model list) and `opencodego`
+//! (`opencode.ai/zen/go/v1`, the subscription, open models only, the only one
+//! that reports usage windows — `quota.rs`). They were two channels in v3 as
+//! well; v4 merged them behind a `tier` key for a while, which let a Go row
+//! offer the Console account login that only Zen has in the v2 client
+//! (opencode `packages/core/src/plugin/provider/opencode.ts` registers the
+//! device method on `opencode`; `opencode-go` is a pasted key only). The wire
+//! is otherwise the same, so both are one type carrying its [`Tier`].
 //!
-//! A credential is either a pasted `api_key` or the account token the
+//! A Zen credential is either a pasted `api_key` or the account token the
 //! Console device login produced (`oauth.rs`); both are the same bearer to
-//! the upstream, so `prepare` accepts either name.
+//! the upstream, so `prepare` accepts either name. A Go credential is a key.
 //!
 //! **v3 infrastructure that has no v4 counterpart.** v3's `routes.rs`
 //! (`SurfaceTable` written with the `route!` macro) is replaced by
@@ -39,8 +43,8 @@ mod request;
 mod usage;
 
 pub use config::{
-    DEFAULT_CLIENT_ID, DEFAULT_CONSOLE_BASE_URL, GO_BASE_URL, ID, OpenCodeConfig, Tier,
-    ZEN_BASE_URL,
+    DEFAULT_CLIENT_ID, DEFAULT_CONSOLE_BASE_URL, GO_BASE_URL, GO_ID, OpenCodeConfig, Tier,
+    ZEN_BASE_URL, ZEN_ID,
 };
 pub use quota::GO_SOURCE;
 pub use request::SESSION_HEADERS;
@@ -52,42 +56,66 @@ use crate::channel::{
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation};
 
-#[derive(Debug, Default, Clone, Copy)]
-pub struct OpenCode;
+/// One OpenCode product; register [`OpenCode::ZEN`] and [`OpenCode::GO`].
+#[derive(Debug, Clone, Copy)]
+pub struct OpenCode {
+    tier: Tier,
+}
+
+impl OpenCode {
+    pub const ZEN: Self = Self { tier: Tier::Zen };
+    pub const GO: Self = Self { tier: Tier::Go };
+
+    pub const fn tier(&self) -> Tier {
+        self.tier
+    }
+
+    const fn is_zen(&self) -> bool {
+        matches!(self.tier, Tier::Zen)
+    }
+}
 
 impl BaseChannel for OpenCode {
     fn id(&self) -> &'static str {
-        ID
+        self.tier.id()
     }
 
     fn descriptor(&self) -> ChannelDescriptor {
+        let zen = self.is_zen();
+        let base_url = ConfigKey::optional(
+            "base_url",
+            ConfigKeyKind::String,
+            "Upstream origin, `/v1` included. Provider column, not config JSON.",
+        )
+        .with_placeholder(self.tier.default_base_url());
+        // Only Zen has an account login, so only Zen has a console to reach.
+        let console = zen.then(|| {
+            ConfigKey::optional(
+                "console_base_url",
+                ConfigKeyKind::String,
+                "Where the device login and the refresh talk.",
+            )
+            .with_placeholder(config::DEFAULT_CONSOLE_BASE_URL)
+        });
         ChannelDescriptor {
-            id: ID,
-            display_name: "OpenCode (Zen and Go)",
-            login_modes: vec![LoginMode::ApiKey, LoginMode::DeviceCode],
+            id: self.tier.id(),
+            display_name: if zen { "OpenCode Zen" } else { "OpenCode Go" },
+            login_modes: if zen {
+                vec![LoginMode::ApiKey, LoginMode::DeviceCode]
+            } else {
+                vec![LoginMode::ApiKey]
+            },
             capabilities: ChannelCapabilities {
-                refresh: true,
-                quota_query: true,
+                refresh: zen,
+                quota_query: !zen,
                 quota_reset: false,
                 services: false,
                 websocket: false,
             },
-            config_keys: [
-                ConfigKey::optional(
-                    "base_url",
-                    ConfigKeyKind::String,
-                    "Upstream origin, `/v1` included; defaults to the tier's own. Provider column, not config JSON.",
-                ),
-                ConfigKey::optional(
-                    "tier",
-                    ConfigKeyKind::String,
-                    "`zen` or `go`. Decides the default origin and whether the account reports usage windows.",
-                ),
-                ConfigKey::optional(
-                    "console_base_url",
-                    ConfigKeyKind::String,
-                    "Where the device login and the refresh talk; defaults to https://console.opencode.ai.",
-                ).with_placeholder(config::DEFAULT_CONSOLE_BASE_URL),
+            config_keys: [Some(base_url), console]
+                .into_iter()
+                .flatten()
+                .chain([
                 ConfigKey::optional(
                     "headers",
                     ConfigKeyKind::HeaderList,
@@ -103,8 +131,7 @@ impl BaseChannel for OpenCode {
                     ConfigKeyKind::Bool,
                     "Turn a client's magic cache string in an OpenAI Chat or Responses body into prompt_cache_breakpoint.",
                 ),
-            ]
-            .into_iter()
+            ])
             .chain(HOST_CONFIG_KEYS)
             .collect(),
         }
@@ -122,19 +149,19 @@ impl BaseChannel for OpenCode {
     }
 
     fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
-        request::build(ctx)
+        request::build(ctx, self.tier)
     }
 
     fn oauth_device_code(&self) -> Option<&dyn OAuthDeviceCode> {
-        Some(self)
+        self.is_zen().then_some(self as &dyn OAuthDeviceCode)
     }
 
     fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
-        Some(self)
+        self.is_zen().then_some(self as &dyn CredentialRefresh)
     }
 
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
-        Some(self)
+        (!self.is_zen()).then_some(self as &dyn QuotaQuery)
     }
 
     fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
