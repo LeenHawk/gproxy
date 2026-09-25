@@ -1905,3 +1905,182 @@ fn magic_cache_strings_place_cache_control_only_when_enabled() {
         "no token, no rewrite, even with magic cache enabled"
     );
 }
+
+fn reset_eligibility() -> Vec<WireResponse> {
+    vec![
+        reply(
+            StatusCode::OK,
+            json!({"juniper_tide": {"eligible": true, "arm": "reset", "available": true}}),
+        ),
+        reply(
+            StatusCode::OK,
+            json!({"cedar_ember": {
+                "eligible": true, "at_limit": false, "next_grant_id": "gift-1",
+                "grants": [{"id": "gift-1", "label": "Gift reset", "resets_left": 2,
+                    "usable_now": true, "use_requires_limit": false, "clears": ["five_hour", "seven_day"], "ends_at": "2099-01-01T00:00:00Z"}]
+            }}),
+        ),
+    ]
+}
+
+#[tokio::test]
+async fn reset_eligibility_is_separate_and_ineligible_counts_stay_unknown() {
+    assert!(Claudecode.descriptor().capabilities.quota_reset);
+    let client = ScriptClient::new(vec![
+        reply(
+            StatusCode::OK,
+            json!({"juniper_tide": {"eligible": false, "ineligible_reason": "other_experiment"}}),
+        ),
+        reply(
+            StatusCode::OK,
+            json!({"cedar_ember": {"eligible": false, "ineligible_reason": "cli_version", "grants": []}}),
+        ),
+    ]);
+    let config = json!({});
+    let s = secret("at");
+    let credits = Claudecode
+        .quota_reset()
+        .unwrap()
+        .credits(CredentialContext {
+            provider: provider(&config, None),
+            credential: credential(&s, &Value::Null),
+            client: &client,
+        })
+        .await
+        .unwrap();
+    assert_eq!(credits.available_count, None);
+    assert_eq!(credits.options.len(), 2);
+    assert!(
+        credits
+            .options
+            .iter()
+            .all(|option| !option.usable && option.available_count.is_none())
+    );
+    assert_eq!(
+        credits.options[1].ineligible_reason.as_deref(),
+        Some("cli_version")
+    );
+    let sent = client.sent();
+    assert_eq!(sent.len(), 2);
+    assert_eq!(sent[0].0, Method::GET);
+    assert!(
+        sent[0]
+            .1
+            .ends_with("/api/oauth/usage?at_wall=1&skip_spend=1")
+    );
+    assert!(
+        sent[1]
+            .1
+            .ends_with("/api/oauth/usage?cedar_ember=1&skip_spend=1")
+    );
+    assert_eq!(sent[0].2["authorization"], "Bearer at");
+    assert_eq!(sent[0].2["user-agent"], CLI_USER_AGENT);
+}
+
+#[tokio::test]
+async fn reset_revalidates_the_selected_program_and_never_switches_grants() {
+    use gproxy_channel::channel::{QuotaResetOutcome, QuotaResetRequest};
+    for (program, grant_id) in [
+        ("juniper_tide", None),
+        ("cedar_ember", Some("gift-1")),
+        ("cedar_ember", Some("different-grant")),
+    ] {
+        let mut replies = reset_eligibility();
+        let allowed = grant_id != Some("different-grant");
+        if allowed {
+            replies.push(reply(
+                StatusCode::OK,
+                json!({"organization": {"uuid": "org-123"}}),
+            ));
+            replies.push(reply(
+                StatusCode::OK,
+                json!({"result": "reset", "cleared": ["five_hour"]}),
+            ));
+        }
+        let client = ScriptClient::new(replies);
+        let config = json!({});
+        let s = secret("at");
+        let result = Claudecode
+            .quota_reset()
+            .unwrap()
+            .reset(
+                CredentialContext {
+                    provider: provider(&config, Some("https://claude.example")),
+                    credential: credential(&s, &Value::Null),
+                    client: &client,
+                },
+                QuotaResetRequest {
+                    redeem_request_id: "same-request-123",
+                    program: Some(program),
+                    grant_id,
+                },
+            )
+            .await
+            .unwrap();
+        let sent = client.sent();
+        if !allowed {
+            assert_eq!(result.outcome, QuotaResetOutcome::Ineligible);
+            assert!(sent.iter().all(|request| request.0 == Method::GET));
+        } else {
+            assert_eq!(result.outcome, QuotaResetOutcome::Reset);
+            assert_eq!(result.windows_reset, Some(1));
+            assert_eq!(sent[3].0, Method::POST);
+            assert_eq!(
+                sent[3].1,
+                "https://claude.example/api/organizations/org-123/reset_rate_limits"
+            );
+            let body: Value = serde_json::from_slice(&sent[3].3).unwrap();
+            let expected = if program == "cedar_ember" {
+                json!({"program": program, "grant_id": "gift-1", "request_id": "same-request-123"})
+            } else {
+                json!({"program": program})
+            };
+            assert_eq!(body, expected);
+        }
+    }
+}
+
+#[tokio::test]
+async fn reset_does_not_consume_paused_expired_or_not_yet_usable_grants() {
+    use gproxy_channel::channel::{QuotaResetOutcome, QuotaResetRequest};
+    for patch in [
+        json!({"paused": true}),
+        json!({"ends_at": "2000-01-01T00:00:00Z"}),
+        json!({"use_requires_limit": true}),
+        json!({"blocking": ["seven_day_opus"]}),
+    ] {
+        let mut grant = json!({"id": "gift-1", "resets_left": 2, "usable_now": true, "use_requires_limit": false, "clears": ["five_hour"]});
+        for (key, value) in patch.as_object().unwrap() {
+            grant[key] = value.clone();
+        }
+        let client = ScriptClient::new(vec![
+            reply(StatusCode::OK, json!({})),
+            reply(
+                StatusCode::OK,
+                json!({"cedar_ember": {"eligible": true, "next_grant_id": "gift-1", "at_limit": false, "grants": [grant]}}),
+            ),
+        ]);
+        let config = json!({});
+        let s = secret("at");
+        let result = Claudecode
+            .quota_reset()
+            .unwrap()
+            .reset(
+                CredentialContext {
+                    provider: provider(&config, None),
+                    credential: credential(&s, &Value::Null),
+                    client: &client,
+                },
+                QuotaResetRequest {
+                    redeem_request_id: "test-request",
+                    program: Some("cedar_ember"),
+                    grant_id: Some("gift-1"),
+                },
+            )
+            .await
+            .unwrap();
+        assert_eq!(result.outcome, QuotaResetOutcome::Ineligible);
+        assert_eq!(client.sent().len(), 2);
+        assert!(client.sent().iter().all(|request| request.0 == Method::GET));
+    }
+}
