@@ -1,9 +1,10 @@
-//! Account quota: the rolling 5-hour and 7-day windows of a Claude.ai plan,
-//! read from `GET {base}/api/oauth/usage` (v3 `claudecode/quota.rs`) and
-//! from the `anthropic-ratelimit-unified-*` response headers the CLI
-//! displays (`samples/claude-code-2.1.252`). Weekly windows scoped to a
-//! model family (`seven_day_opus`, `limits[].kind == weekly_scoped`) match
-//! by `claude-<family>` prefix.
+//! Account quota: the rolling 5-hour and 7-day windows of a Claude.ai plan
+//! plus a 7-day window per scoped model family, read from
+//! `GET {base}/api/oauth/usage` (v3 `claudecode/quota.rs`) and from the
+//! `anthropic-ratelimit-unified-*` response headers the CLI displays
+//! (`samples/claude-code-2.1.252`). Both paths name one window by one id:
+//! the headers use claim codenames (`CLAIMS`), the usage body uses keys
+//! (`five_hour`) and `limits[]` kinds (`weekly_scoped` + model family).
 
 use super::{Claudecode, account, base_url, fact, invalid_response, send};
 use crate::channel::{
@@ -19,9 +20,48 @@ use serde_json::Value;
 
 const FIVE_HOURS: i64 = 5 * 60 * 60;
 const SEVEN_DAYS: i64 = 7 * 24 * 60 * 60;
-/// Model families the usage endpoint reports weekly windows for
-/// (`seven_day_opus`, `seven_day_sonnet` in the 2.1.252 route inventory).
-const SCOPED_FAMILIES: &[&str] = &["opus", "sonnet"];
+/// Model families with their own weekly window. Live `/api/oauth/usage`
+/// (2026-09-26) reports only Fable, and only in `limits[]`;
+/// `seven_day_opus`/`seven_day_sonnet` are null and left undeclared.
+const SCOPED_FAMILIES: &[&str] = &["fable"];
+
+/// One `anthropic-ratelimit-unified-{claim}-*` header family and the window
+/// id the usage body gives the same window. Claim codenames are the
+/// upstream's and churn: `7d_oi` arrives only on Fable requests and resets
+/// with the Fable `weekly_scoped` limit, although CLI 2.1.252 still calls it
+/// `seven_day_overage_included`.
+struct Claim {
+    codename: &'static str,
+    id: &'static str,
+    seconds: i64,
+    family: Option<&'static str>,
+}
+
+const CLAIMS: &[Claim] = &[
+    Claim {
+        codename: "5h",
+        id: "five_hour",
+        seconds: FIVE_HOURS,
+        family: None,
+    },
+    Claim {
+        codename: "7d",
+        id: "seven_day",
+        seconds: SEVEN_DAYS,
+        family: None,
+    },
+    Claim {
+        codename: "7d_oi",
+        id: "seven_day_fable",
+        seconds: SEVEN_DAYS,
+        family: Some("fable"),
+    },
+];
+
+/// The window id of a family's weekly limit, the same on both paths.
+fn family_window_id(family: &str) -> String {
+    format!("seven_day_{family}")
+}
 
 fn plan(credential: &CredentialView<'_>) -> String {
     fact(credential, "rate_limit_tier")
@@ -46,7 +86,8 @@ fn dimension(id: &str, label: String, scope: QuotaScope, seconds: i64) -> QuotaD
 impl QuotaModel for Claudecode {
     /// Every plan has the account's `five_hour` and `seven_day` windows plus
     /// per-family weekly windows; other keys the endpoint may report
-    /// (`seven_day_oauth_apps`, surfaces) are observed without a dimension.
+    /// (`seven_day_oauth_apps`, codenamed keys, surfaces, the weekly
+    /// breakdown) are observe-only.
     fn dimensions(
         &self,
         _: ProviderView<'_>,
@@ -69,7 +110,7 @@ impl QuotaModel for Claudecode {
         ];
         for family in SCOPED_FAMILIES {
             dimensions.push(dimension(
-                &format!("seven_day_{family}"),
+                &family_window_id(family),
                 format!("{plan} 7d {family} window"),
                 QuotaScope::ModelPrefixes(vec![format!("claude-{family}")]),
                 SEVEN_DAYS,
@@ -196,9 +237,19 @@ struct ScopeModel {
 }
 
 impl UsageLimit {
+    /// A model family's limit takes the family's window id so it meets the
+    /// header claim for the same window; a concrete model or a surface keeps
+    /// a key of its own.
     fn scope_key(&self) -> Option<String> {
         let scope = self.scope.as_ref()?;
         if let Some(model) = &scope.model {
+            if let QuotaScope::ModelPrefixes(prefixes) =
+                model_scope(model.id.as_deref(), model.display_name.as_deref())
+                && let [prefix] = prefixes.as_slice()
+                && let Some(family) = prefix.strip_prefix("claude-")
+            {
+                return Some(family_window_id(family));
+            }
             let selector = [model.id.as_deref(), model.display_name.as_deref()]
                 .into_iter()
                 .flatten()
@@ -347,20 +398,18 @@ fn header_str<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
 }
 
 impl QuotaHeaders for Claudecode {
-    /// `anthropic-ratelimit-unified-{5h,7d}-utilization` is a 0..1 fraction
+    /// `anthropic-ratelimit-unified-{claim}-utilization` is a 0..1 fraction
     /// the CLI clamps and shows as a percentage; `-reset` is Unix seconds
     /// (`samples/claude-code-2.1.252`, 2.1.225+ usage UI). Absent headers
-    /// mean nothing was reported.
+    /// mean nothing was reported; unknown claims are not read.
     fn observe(&self, context: QuotaHeaderContext<'_>) -> Result<Vec<QuotaEntry>, ChannelError> {
         let headers = context.headers;
         let mut entries = Vec::new();
-        for (suffix, id, seconds) in [
-            ("5h", "five_hour", FIVE_HOURS),
-            ("7d", "seven_day", SEVEN_DAYS),
-        ] {
+        for claim in CLAIMS {
+            let codename = claim.codename;
             let Some(utilization) = header_str(
                 headers,
-                &format!("anthropic-ratelimit-unified-{suffix}-utilization"),
+                &format!("anthropic-ratelimit-unified-{codename}-utilization"),
             )
             .and_then(|value| value.parse::<f64>().ok())
             .filter(|value| value.is_finite()) else {
@@ -369,19 +418,45 @@ impl QuotaHeaders for Claudecode {
             let used = percent(Some(utilization.clamp(0.0, 1.0) * 100.0));
             let reset = header_str(
                 headers,
-                &format!("anthropic-ratelimit-unified-{suffix}-reset"),
+                &format!("anthropic-ratelimit-unified-{codename}-reset"),
             )
             .and_then(|value| value.parse::<f64>().ok())
             .map(|secs| (secs.round() as i64).saturating_mul(1000));
             entries.push(window_entry(
-                id.to_owned(),
+                claim.id.to_owned(),
                 None,
-                QuotaScope::All,
+                claim.family.map_or(QuotaScope::All, family_scope),
                 used,
-                Some(seconds),
+                Some(claim.seconds),
                 reset,
             ));
         }
         Ok(entries)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Codenames churn upstream; each claim must land on a declared window
+    /// with the scope the usage body gives the same window.
+    #[test]
+    fn header_claims_name_declared_windows() {
+        let families: Vec<String> = SCOPED_FAMILIES
+            .iter()
+            .map(|family| family_window_id(family))
+            .collect();
+        for claim in CLAIMS {
+            assert_eq!(window_scope(claim.id), claim.family.map_or(QuotaScope::All, family_scope));
+            match claim.family {
+                Some(family) => assert!(families.contains(&family_window_id(family))),
+                None => assert!(matches!(claim.id, "five_hour" | "seven_day")),
+            }
+        }
+        assert_eq!(
+            CLAIMS.iter().find(|claim| claim.codename == "7d_oi").map(|claim| claim.id),
+            Some("seven_day_fable")
+        );
     }
 }
