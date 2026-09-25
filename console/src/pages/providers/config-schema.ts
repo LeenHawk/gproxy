@@ -14,7 +14,7 @@ export type ControlKind =
   | "model-routing"
 
 export const choices: Record<string, Array<string>> = {
-  credential_strategy: ["round_robin", "sticky", "round_robin_affinity"],
+  credential_strategy: ["round_robin", "earliest_reset", "sticky", "round_robin_affinity"],
   fallback_mode: ["off", "default", "models"],
   account_type: ["individual", "business", "enterprise"],
   product: ["platform", "code"],

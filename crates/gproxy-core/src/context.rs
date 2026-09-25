@@ -22,6 +22,9 @@ pub enum SessionSource {
     GrokBuild,
     ConversationFingerprint,
     RequestFallback,
+    OpenCode,
+    /// Compatibility headers not tied to a particular client.
+    Generic,
 }
 #[derive(Clone, Debug)]
 pub struct SessionIdentity {

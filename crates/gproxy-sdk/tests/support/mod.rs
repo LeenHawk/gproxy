@@ -76,6 +76,10 @@ pub struct TestChannel {
 }
 
 impl BaseChannel for TestChannel {
+    fn quota_model(&self) -> Option<&dyn gproxy_channel::channel::QuotaModel> {
+        Some(self)
+    }
+
     fn id(&self) -> &'static str {
         "test"
     }
@@ -494,5 +498,30 @@ pub async fn read(body: HttpBody) -> String {
             }
             String::from_utf8_lossy(&out).into_owned()
         }
+    }
+}
+
+impl gproxy_channel::channel::QuotaModel for TestChannel {
+    fn dimensions(
+        &self,
+        _: ProviderView<'_>,
+        credential: gproxy_channel::channel::CredentialView<'_>,
+    ) -> Vec<gproxy_channel::channel::QuotaDimension> {
+        use gproxy_channel::channel::{
+            QuotaDimension, QuotaMetric, QuotaScope, QuotaTracking, QuotaWindow,
+        };
+        if credential.metadata.get("observed_quota") != Some(&json!(true)) {
+            return Vec::new();
+        }
+        vec![QuotaDimension {
+            id: "5h".into(),
+            label: None,
+            scope: QuotaScope::All,
+            operations: None,
+            metric: QuotaMetric::Requests,
+            window: QuotaWindow::Rolling { seconds: 18000 },
+            limit: None,
+            tracking: QuotaTracking::Reported,
+        }]
     }
 }

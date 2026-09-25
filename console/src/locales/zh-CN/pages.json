@@ -139,6 +139,7 @@
     "console_base_url": "控制台地址",
     "context_window": "上下文长度",
     "control_base_url": "管理服务地址",
+    "session_affinity": "会话亲和",
     "credential_strategy": "凭证选择策略",
     "deployment": "部署名称",
     "device_authorization_url": "设备授权地址",
@@ -196,6 +197,7 @@
   },
   "providerOption": {
     "round_robin": "轮询",
+    "earliest_reset": "最早额度重置优先",
     "sticky": "固定凭证",
     "round_robin_affinity": "会话亲和轮询",
     "off": "关闭",

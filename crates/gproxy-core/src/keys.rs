@@ -53,3 +53,9 @@ pub fn realtime_response(
         call.len()
     )
 }
+
+/// Short-lived projection of the latest persisted quota observations.
+/// Observations update a warm projection; a cold cache is rebuilt from Store.
+pub fn credential_reset_observations(credential_id: &str) -> String {
+    format!("{PREFIX}:reset-observations:{credential_id}")
+}

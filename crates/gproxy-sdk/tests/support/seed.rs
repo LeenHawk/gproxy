@@ -50,6 +50,9 @@ pub type Handle = Gproxy<DatabaseConnection>;
 pub struct AltChannel;
 
 impl BaseChannel for AltChannel {
+    fn quota_model(&self) -> Option<&dyn gproxy_channel::channel::QuotaModel> {
+        Some(self)
+    }
     fn id(&self) -> &'static str {
         "alt"
     }
@@ -100,6 +103,13 @@ impl BaseChannel for AltChannel {
         http::Request::builder()
             .method(ctx.request.method)
             .uri(format!("{base}{}", ctx.request.path))
+            .header(
+                "authorization",
+                format!(
+                    "Bearer {}",
+                    ctx.credential.secret["api_key"].as_str().unwrap()
+                ),
+            )
             .body(())
             .map_err(|_| ChannelError::InvalidCredential)
     }
@@ -126,6 +136,7 @@ pub enum WsReply {
 /// forwarded to it.
 #[derive(Default)]
 pub struct SeedClient {
+    pub authorizations: Mutex<Vec<String>>,
     pub replies: Mutex<VecDeque<Reply>>,
     pub ws_replies: Mutex<VecDeque<WsReply>>,
     pub seen: Arc<Log>,
@@ -154,6 +165,15 @@ impl OutboundClient for SeedClient {
         request: http::Request<HttpBody>,
     ) -> CapabilityFuture<'a, Result<WireResponse<HttpBody>, CapabilityError>> {
         Box::pin(async move {
+            self.authorizations.lock().unwrap().push(
+                request
+                    .headers()
+                    .get("authorization")
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_owned(),
+            );
             let (parts, body) = request.into_parts();
             let body = super::read(body).await;
             let gateway = parts
@@ -200,6 +220,15 @@ impl OutboundClient for SeedClient {
         request: http::Request<()>,
     ) -> CapabilityFuture<'a, Result<UpstreamConnection, CapabilityError>> {
         Box::pin(async move {
+            self.authorizations.lock().unwrap().push(
+                request
+                    .headers()
+                    .get("authorization")
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_owned(),
+            );
             self.seen
                 .push(format!("WS {} gateway=- body=", request.uri()));
             Ok(
@@ -539,4 +568,18 @@ pub async fn block(gproxy: &Handle, provider_id: &str, credential_id: &str) {
         )
         .await
         .unwrap();
+}
+
+impl gproxy_channel::channel::QuotaModel for AltChannel {
+    fn dimensions(
+        &self,
+        provider: ProviderView<'_>,
+        credential: gproxy_channel::channel::CredentialView<'_>,
+    ) -> Vec<gproxy_channel::channel::QuotaDimension> {
+        gproxy_channel::channel::QuotaModel::dimensions(
+            &TestChannel::default(),
+            provider,
+            credential,
+        )
+    }
 }

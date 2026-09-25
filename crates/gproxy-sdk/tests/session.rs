@@ -171,7 +171,6 @@ async fn request_and_turn_identifiers_are_never_sessions() {
         ("x-request-id", "r-2"),
         ("x-conversation-request-id", "r-3"),
         ("x-conversation-message-id", "r-4"),
-        ("x-session-id", "not-the-one-clients-send"),
     ]);
     assert!(session::from_headers(&excluded).is_none());
 
@@ -209,7 +208,8 @@ async fn the_fingerprint_survives_another_turn_but_not_another_prompt() {
     assert_eq!(a.source, SessionSource::ConversationFingerprint);
     assert_eq!(a.id.len(), 32);
 
-    let other = json!({"instructions": "You are a terse assistant.", "input": []});
+    let other =
+        json!({"instructions": "You are a careful assistant.", "input": "different question"});
     assert_ne!(
         a.id,
         session::fingerprint(Dialect::OpenAi, &other).unwrap().id
@@ -249,11 +249,11 @@ async fn a_body_without_a_stable_prefix_has_no_fingerprint() {
     for (dialect, body) in [
         (
             Dialect::OpenAi,
-            json!({"input": [{"role": "user", "content": "hi"}]}),
+            json!({"instructions": "shared system", "input": []}),
         ),
         (
             Dialect::Claude,
-            json!({"messages": [{"role": "user", "content": "hi"}]}),
+            json!({"system": "shared system", "messages": []}),
         ),
         (Dialect::OpenAiChat, json!({"messages": []})),
         (Dialect::Gemini, json!({"contents": []})),
@@ -284,7 +284,7 @@ async fn a_native_header_beats_the_body_and_the_body_beats_the_fingerprint() {
         ("t-body", SessionSource::CodexThread)
     );
 
-    let bare = json!({"instructions": "Be brief."});
+    let bare = json!({"instructions": "Be brief.", "input": "hi"});
     let (_, source, _) = extract(&[], Some(&bare), Dialect::OpenAi).unwrap();
     assert_eq!(source, SessionSource::ConversationFingerprint);
 }
@@ -303,4 +303,65 @@ async fn the_gateway_header_is_stripped_and_nothing_else_is() {
         "native fields are the channel's business"
     );
     assert!(map.get("authorization").is_some());
+}
+
+#[test]
+fn legacy_headers_and_opencode_remain_supported() {
+    for (header, source) in [
+        ("x-opencode-session", SessionSource::OpenCode),
+        ("x-session-id", SessionSource::Generic),
+        ("x-session-affinity", SessionSource::Generic),
+        ("session_id", SessionSource::ClaudeCode),
+    ] {
+        let (id, actual, _) = extract(&[(header, "session")], None, Dialect::OpenAi).unwrap();
+        assert_eq!(id, "session");
+        assert_eq!(actual, source);
+    }
+    assert_eq!(
+        extract(
+            &[
+                ("x-opencode-session", "opencode"),
+                ("session-id", "generic")
+            ],
+            None,
+            Dialect::OpenAi
+        )
+        .unwrap()
+        .0,
+        "opencode"
+    );
+}
+
+#[test]
+fn fingerprint_includes_first_user_and_preceding_tool_items_without_instructions() {
+    let first = json!({"input": [
+        {"type":"function_call_output", "call_id":"c", "output":"context"},
+        {"role":"user", "content":[{"type":"input_text", "text":"question"}]}
+    ]});
+    let mut next = first.clone();
+    next["input"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"role":"assistant", "content":"answer"}));
+    let id = session::fingerprint(Dialect::OpenAi, &first).unwrap().id;
+    assert_eq!(
+        id,
+        session::fingerprint(Dialect::OpenAiResponsesWebSocket, &next)
+            .unwrap()
+            .id
+    );
+    next["input"][0]["output"] = json!("other context");
+    assert_ne!(id, session::fingerprint(Dialect::OpenAi, &next).unwrap().id);
+    next = first.clone();
+    next["input"][1]["content"][0]["text"] = json!("other question");
+    assert_ne!(id, session::fingerprint(Dialect::OpenAi, &next).unwrap().id);
+    assert!(session::fingerprint(Dialect::OpenAi, &json!({"input":"hello"})).is_some());
+}
+
+#[test]
+fn large_shared_system_prompts_do_not_hide_different_first_users() {
+    let mut body = json!({"instructions":"x".repeat(40_000), "input":"question a"});
+    let a = session::fingerprint(Dialect::OpenAi, &body).unwrap().id;
+    body["input"] = json!("question b");
+    assert_ne!(a, session::fingerprint(Dialect::OpenAi, &body).unwrap().id);
 }

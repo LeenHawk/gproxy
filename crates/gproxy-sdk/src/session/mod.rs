@@ -10,8 +10,8 @@
 //!
 //! 1. the gateway header `x-gproxy-session-id`, or a value the SDK caller set
 //!    explicitly — [`SessionSource::Gateway`];
-//! 2. a native client header: `thread-id`, `session-id`,
-//!    `x-claude-code-session-id`, `x-conversation-id`, `x-grok-session-id`;
+//! 2. a native client header (including `x-opencode-session`) or a v3
+//!    compatibility session header;
 //! 3. the native body field of the inbound shape, and only of that shape;
 //! 4. a fingerprint of the stable conversation prefix;
 //! 5. nothing — the caller supplies a request-level id with
@@ -43,12 +43,16 @@ pub const GATEWAY_SESSION_HEADER: &str = "x-gproxy-session-id";
 /// Codex's thread comes before its session because affinity is per
 /// conversation: two threads of one session are two conversations and should
 /// not be forced onto one credential.
-const NATIVE_HEADERS: [(&str, SessionSource); 5] = [
+const NATIVE_HEADERS: [(&str, SessionSource); 9] = [
+    ("x-opencode-session", SessionSource::OpenCode),
     ("thread-id", SessionSource::CodexThread),
     ("session-id", SessionSource::CodexSession),
     ("x-claude-code-session-id", SessionSource::ClaudeCode),
     ("x-conversation-id", SessionSource::WorkBuddy),
     ("x-grok-session-id", SessionSource::GrokBuild),
+    ("x-session-id", SessionSource::Generic),
+    ("x-session-affinity", SessionSource::Generic),
+    ("session_id", SessionSource::ClaudeCode),
 ];
 
 /// The whole ladder over one request. `body` is the already-decoded JSON body,

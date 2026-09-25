@@ -56,6 +56,10 @@ pub type Handle = Gproxy<DatabaseConnection>;
 pub struct TestChannel;
 
 impl BaseChannel for TestChannel {
+    fn quota_model(&self) -> Option<&dyn gproxy_channel::channel::QuotaModel> {
+        Some(self)
+    }
+
     fn id(&self) -> &'static str {
         "test"
     }
@@ -149,6 +153,7 @@ pub enum Reply {
 /// untouched, that nothing was sent at all.
 #[derive(Default)]
 pub struct ScriptClient {
+    pub authorizations: Mutex<Vec<String>>,
     replies: Mutex<VecDeque<Reply>>,
     seen: Mutex<Vec<String>>,
 }
@@ -170,6 +175,15 @@ impl OutboundClient for ScriptClient {
         request: http::Request<HttpBody>,
     ) -> CapabilityFuture<'a, Result<WireResponse<HttpBody>, CapabilityError>> {
         Box::pin(async move {
+            self.authorizations.lock().unwrap().push(
+                request
+                    .headers()
+                    .get("authorization")
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_owned(),
+            );
             self.seen.lock().unwrap().push(request.uri().to_string());
             let Reply::Http(status, body) = self
                 .replies
@@ -545,4 +559,29 @@ pub async fn app() -> (App<DatabaseConnection>, Arc<ScriptClient>) {
 /// So a test can name the sdk failure it expects without importing the crate.
 pub fn is_no_target(error: &SdkError) -> bool {
     matches!(error, SdkError::NoTarget(_))
+}
+
+impl gproxy_channel::channel::QuotaModel for TestChannel {
+    fn dimensions(
+        &self,
+        _: ProviderView<'_>,
+        credential: gproxy_channel::channel::CredentialView<'_>,
+    ) -> Vec<gproxy_channel::channel::QuotaDimension> {
+        use gproxy_channel::channel::{
+            QuotaDimension, QuotaMetric, QuotaScope, QuotaTracking, QuotaWindow,
+        };
+        if credential.metadata.get("observed_quota") != Some(&json!(true)) {
+            return Vec::new();
+        }
+        vec![QuotaDimension {
+            id: "5h".into(),
+            label: None,
+            scope: QuotaScope::All,
+            operations: None,
+            metric: QuotaMetric::Requests,
+            window: QuotaWindow::Rolling { seconds: 18000 },
+            limit: None,
+            tracking: QuotaTracking::Reported,
+        }]
+    }
 }

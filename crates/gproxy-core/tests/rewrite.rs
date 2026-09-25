@@ -326,6 +326,7 @@ fn snapshot(rules: Vec<Arc<RewriteRuleData>>) -> (CoreData, ProviderData) {
             updated_at_ms: 0,
         })],
         credential_strategy: CredentialStrategy::RoundRobin,
+        session_affinity: false,
     };
     (data, provider)
 }

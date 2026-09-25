@@ -129,6 +129,11 @@ pub async fn assemble(
                 operation_urls,
                 rewrite_rule_sets,
                 credential_strategy: config.credential_strategy,
+                session_affinity: config.session_affinity.unwrap_or(matches!(
+                    config.credential_strategy,
+                    crate::CredentialStrategy::Sticky
+                        | crate::CredentialStrategy::RoundRobinAffinity
+                )),
             },
         );
     }
