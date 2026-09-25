@@ -7,7 +7,9 @@ use std::{
     time::Duration,
 };
 
-use gproxy_channel::channel::{QuotaEntry, QuotaScope, QuotaValue, QuotaWindow};
+use gproxy_channel::channel::{
+    QuotaAllowance, QuotaEntry, QuotaScope, QuotaSubject, QuotaValue, QuotaWindow,
+};
 use gproxy_protocol::Operation;
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::entity::limits::credential_quota_cycle;
@@ -25,6 +27,30 @@ struct Observation {
     resets_at_ms: Option<i64>,
     kind: String,
     unlimited: bool,
+}
+
+impl Observation {
+    /// The persisted fields of the observation, in the shape the channel's
+    /// classification rule reads.
+    fn entry(&self) -> QuotaEntry {
+        let allowance = QuotaAllowance {
+            period_end_ms: self.resets_at_ms,
+            unlimited: self.unlimited.then_some(true),
+            ..QuotaAllowance::default()
+        };
+        QuotaEntry {
+            id: self.id.clone(),
+            source_id: self.source_id.clone(),
+            label: None,
+            subject: QuotaSubject::Unknown,
+            model_scope: self.scope.clone(),
+            value: match self.kind.as_str() {
+                "budget" => QuotaValue::Budget(allowance),
+                "rate_limit" => QuotaValue::RateLimit(allowance),
+                _ => QuotaValue::Window(allowance),
+            },
+        }
+    }
 }
 
 impl<C: BatchConnectionTrait> Core<C> {
@@ -176,8 +202,10 @@ impl<C: BatchConnectionTrait> Core<C> {
                     .await?;
             }
         }
+        let data = self.snapshot();
         let mut resets = HashMap::new();
         for (credential, _) in eligible {
+            let quota_model = crate::quota::quota_model(&data, credential);
             for row in &observations[&credential.id] {
                 if row.unlimited || !matches!(row.kind.as_str(), "window" | "budget") {
                     continue;
@@ -185,7 +213,7 @@ impl<C: BatchConnectionTrait> Core<C> {
                 let Some(reset) = row.resets_at_ms.filter(|r| *r > now_ms) else {
                     continue;
                 };
-                let Some(dimension) = credential.quota.iter().find(|d| d.id == row.source_id)
+                let Some(dimension) = crate::quota::classify(quota_model, credential, &row.entry())
                 else {
                     continue;
                 };

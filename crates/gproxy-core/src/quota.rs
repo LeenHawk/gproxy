@@ -18,7 +18,8 @@ use gproxy_channel::{
     ChannelError,
     channel::{
         CredentialContext, QuotaAllowance, QuotaDimension, QuotaEntry, QuotaHeaderContext,
-        QuotaMetric, QuotaScope, QuotaSnapshot, QuotaTracking, QuotaValue, QuotaWindow,
+        QuotaMetric, QuotaModel, QuotaScope, QuotaSnapshot, QuotaTracking, QuotaValue, QuotaWindow,
+        classify_by_id,
     },
 };
 use gproxy_protocol::{Operation, OperationKey, capability::CapabilityFuture};
@@ -30,7 +31,7 @@ use gproxy_store::{
 };
 use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 use time::{Duration as TimeDuration, OffsetDateTime};
 
 mod dedupe;
@@ -64,6 +65,29 @@ fn dimension_applies(
         .find(|l| l.dimension_id == dimension.id)
         .is_none_or(|l| l.applies_to(model));
     operation_ok && scope_ok && limit_ok
+}
+
+/// The channel's quota model for this credential's provider, if it has one.
+pub(crate) fn quota_model<'a>(
+    data: &'a crate::CoreData,
+    credential: &CredentialData,
+) -> Option<&'a dyn QuotaModel> {
+    data.providers
+        .get(&credential.provider_id)
+        .and_then(|provider| provider.channel.quota_model())
+}
+
+/// The credential's dimension an observed entry reports on, placed by the
+/// channel's own rule; without a quota model entries match by id.
+pub(crate) fn classify<'d>(
+    model: Option<&dyn QuotaModel>,
+    credential: &'d CredentialData,
+    entry: &QuotaEntry,
+) -> Option<Cow<'d, QuotaDimension>> {
+    match model {
+        Some(model) => model.classify(&credential.quota, entry),
+        None => classify_by_id(&credential.quota, entry),
+    }
 }
 
 fn allowance(value: &QuotaValue) -> Option<&QuotaAllowance> {
@@ -245,6 +269,8 @@ impl<C: BatchConnectionTrait> Core<C> {
             return Ok(Vec::new());
         }
         let latest = self.persisted_quota_observations(&credential.id).await?;
+        let data = self.snapshot();
+        let model = quota_model(&data, credential);
         let mut rows = Vec::with_capacity(entries.len());
         let mut written = Vec::with_capacity(entries.len());
         let mut blocks = Vec::new();
@@ -273,14 +299,12 @@ impl<C: BatchConnectionTrait> Core<C> {
                 resets_at_ms: Set(period.and_then(|a| a.period_end_ms)),
             });
             written.push(reading);
-            let dimension = credential
-                .quota
-                .iter()
-                .find(|d| d.tracking == QuotaTracking::Reported && d.id == entry.source_id);
+            let dimension = classify(model, credential, entry)
+                .filter(|d| d.tracking == QuotaTracking::Reported);
             if let Some(dimension) = dimension
                 && exhausted
             {
-                blocks.extend(exhaustion_blocks(dimension, entry, &cycle_id, now_ms));
+                blocks.extend(exhaustion_blocks(&dimension, entry, &cycle_id, now_ms));
             }
         }
         if !rows.is_empty() {
@@ -401,6 +425,8 @@ impl<C: BatchConnectionTrait> Core<C> {
         entries: &[QuotaEntry],
         queried_at_ms: i64,
     ) -> CoreResult<()> {
+        let data = self.snapshot();
+        let model = quota_model(&data, credential);
         let recovered: Vec<_> = entries.iter().filter(|entry| {
             !exhausted(&entry.value) && match &entry.value {
                 QuotaValue::Balance(balance) => balance.remaining.is_some_and(|r| r > Decimal::ZERO),
@@ -410,9 +436,9 @@ impl<C: BatchConnectionTrait> Core<C> {
                     || matches!((a.used, a.limit), (Some(used), Some(limit)) if used < limit)),
             }
         }).filter_map(|entry| {
-            let dimension = credential.quota.iter().find(|d| d.id == entry.source_id)?;
+            let dimension = classify(model, credential, entry)?;
             let scope = match &dimension.scope { QuotaScope::Unknown => &entry.model_scope, scope => scope };
-            Some((entry.source_id.as_str(), scope.clone()))
+            Some((dimension.id.clone(), scope.clone()))
         }).collect();
         if recovered.is_empty() {
             return Ok(());
@@ -453,7 +479,7 @@ impl<C: BatchConnectionTrait> Core<C> {
             let before = blocks.blocks.len();
             blocks.blocks.retain(|block| !(block.observed_at_ms <= queried_at_ms
                 && matches!(&block.source, BlockSource::QuotaExhausted { dimension, .. }
-                    if recovered.iter().any(|(id, scope)| *id == dimension && *scope == block.scope))));
+                    if recovered.iter().any(|(id, scope)| id == dimension && *scope == block.scope))));
             if blocks.blocks.len() == before {
                 return Ok(());
             }

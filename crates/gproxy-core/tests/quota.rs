@@ -255,6 +255,38 @@ async fn exhaustion_reported_in_headers_blocks_the_dimension_until_its_reset() {
 }
 
 #[tokio::test]
+async fn the_channel_rule_places_an_observation_on_its_dimension() {
+    let h = harness(full(), "sticky").await;
+    seed_quota_provider(
+        &h,
+        json!({"quota": [{"id": "primary", "metric": "requests", "window_seconds": 18000, "limit": null, "tracking": "reported"}]}),
+    )
+    .await;
+    h.script(vec![
+        (
+            StatusCode::TOO_MANY_REQUESTS,
+            vec![("x-test-quota", "primary@7d_oi=0;reset=9999999999000")],
+            vec![],
+        ),
+        json_reply(StatusCode::OK, json!({"ok": 1})),
+    ]);
+    let execution = h
+        .core
+        .stream_generate_content(h.context_for("q", KEY, "r1", 2, None), request("{}"))
+        .await
+        .unwrap();
+    let (response, _) = execution.into_parts();
+    assert_eq!(response.status, StatusCode::OK);
+    let rows = blocks_for(&h, "q1").await;
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(rows[0].source["kind"], "quota_exhausted");
+    assert_eq!(
+        rows[0].source["dimension"], "primary",
+        "not the raw source id"
+    );
+}
+
+#[tokio::test]
 async fn quota_query_persists_cycles_and_blocks_only_on_exhausted_known_dimensions() {
     let h = harness(full(), "sticky").await;
     seed_quota_provider(
