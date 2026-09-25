@@ -345,21 +345,28 @@ impl QuotaReset for Codex {
             }
             let details: ResetCreditsDetails =
                 serde_json::from_slice(&bytes).map_err(|e| invalid_response(e.to_string()))?;
-            let expires_at_ms = details
+            let mut credit_expirations_ms: Vec<_> = details
                 .credits
                 .iter()
                 .filter(|credit| credit.status.as_deref() == Some("available"))
-                .filter_map(|credit| credit.expires_at.as_deref())
-                .filter_map(|date| {
-                    time::OffsetDateTime::parse(
-                        date,
-                        &time::format_description::well_known::Rfc3339,
-                    )
-                    .ok()
+                .map(|credit| {
+                    credit
+                        .expires_at
+                        .as_deref()
+                        .and_then(|date| {
+                            time::OffsetDateTime::parse(
+                                date,
+                                &time::format_description::well_known::Rfc3339,
+                            )
+                            .ok()
+                        })
+                        .map(|date| (date.unix_timestamp_nanos() / 1_000_000) as i64)
                 })
-                .map(|date| (date.unix_timestamp_nanos() / 1_000_000) as i64)
-                .min();
+                .collect();
+            credit_expirations_ms.sort_by_key(|expiry| expiry.unwrap_or(i64::MAX));
+            let expires_at_ms = credit_expirations_ms.iter().flatten().next().copied();
             Ok(QuotaResetCredits {
+                credit_expirations_ms,
                 available_count: Some(details.available_count),
                 expires_at_ms,
                 options: Vec::new(),
@@ -374,7 +381,9 @@ impl QuotaReset for Codex {
     ) -> OperationFuture<'a, QuotaResetResult> {
         Box::pin(async move {
             if request.program.is_some() || request.grant_id.is_some() {
-                return Err(ChannelError::InvalidConfig("Codex reset does not accept a program or grant selection".into()));
+                return Err(ChannelError::InvalidConfig(
+                    "Codex reset does not accept a program or grant selection".into(),
+                ));
             }
             let config = CodexConfig::from_view(context.provider)?;
             let account = account(&context.credential)?;

@@ -186,6 +186,8 @@ pub trait QuotaModel: Send + Sync {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QuotaResetCredits {
+    /// One expiry per available card, earliest first; None means unreported.
+    pub credit_expirations_ms: Vec<Option<i64>>,
     pub options: Vec<QuotaResetOption>,
     /// None means the server did not disclose a count (for example CLI ineligibility).
     pub available_count: Option<u64>,

@@ -692,6 +692,7 @@
     "cleanupFailed": "記錄已刪除，但關聯規則清理失敗：{{message}}"
   },
   "limits": {
+    "resetCardNumber": "第 {{number}} 張",
     "weeklyBreakdown": "週用量分布",
     "usageSources": {"claude_code": "Claude Code", "chat": "聊天", "cowork": "Cowork", "other": "其他"},
     "resetCount": "可用次數",

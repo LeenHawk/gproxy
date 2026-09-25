@@ -289,6 +289,7 @@ pub struct QuotaSnapshotDto {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct QuotaResetCreditsDto {
+    pub credit_expirations_ms: Vec<Option<i64>>,
     pub options: Vec<QuotaResetOptionDto>,
     pub available_count: Option<u64>,
     pub expires_at_ms: Option<i64>,
@@ -296,7 +297,7 @@ pub struct QuotaResetCreditsDto {
 
 impl From<QuotaResetCredits> for QuotaResetCreditsDto {
     fn from(credits: QuotaResetCredits) -> Self {
-        Self { available_count: credits.available_count, expires_at_ms: credits.expires_at_ms, options: credits.options.into_iter().map(Into::into).collect() }
+        Self { credit_expirations_ms: credits.credit_expirations_ms, available_count: credits.available_count, expires_at_ms: credits.expires_at_ms, options: credits.options.into_iter().map(Into::into).collect() }
     }
 }
 

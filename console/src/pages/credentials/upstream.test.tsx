@@ -21,7 +21,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(credentialQuota).mockResolvedValue({ cycles: [], blocks: [] })
   vi.mocked(probeQuota).mockResolvedValue(snapshot)
-  vi.mocked(quotaResetCredits).mockResolvedValue({ options: [], availableCount: 2, expiresAtMs: 1_800_000_000_000 })
+  vi.mocked(quotaResetCredits).mockResolvedValue({ creditExpirationsMs: [], options: [], availableCount: 2, expiresAtMs: 1_800_000_000_000 })
   vi.mocked(resetUpstreamQuota).mockResolvedValue({ outcome: "reset", windowsReset: 1, reason: null })
 })
 it("renders the reported period and percent without exposing internal keys or epoch dates", async () => {
@@ -55,7 +55,7 @@ it("requires confirmation and refreshes usage and cards after a mocked reset", a
   fireEvent.click(button)
   const dialog = screen.getByRole("alertdialog")
   expect(resetUpstreamQuota).not.toHaveBeenCalled()
-  vi.mocked(quotaResetCredits).mockResolvedValue({ options: [], availableCount: 0, expiresAtMs: null })
+  vi.mocked(quotaResetCredits).mockResolvedValue({ creditExpirationsMs: [], options: [], availableCount: 0, expiresAtMs: null })
   fireEvent.click(within(dialog).getByRole("button", { name: "Reset upstream quota" }))
   await waitFor(() => expect(resetUpstreamQuota).toHaveBeenCalledOnce())
   await waitFor(() => expect(quotaResetCredits).toHaveBeenCalledTimes(2))
@@ -65,7 +65,7 @@ it("requires confirmation and refreshes usage and cards after a mocked reset", a
 })
 
 it("shows Claude eligibility separately and preserves the selected grant and request id on retry", async () => {
-  vi.mocked(quotaResetCredits).mockResolvedValue({ availableCount: null, expiresAtMs: null, options: [
+  vi.mocked(quotaResetCredits).mockResolvedValue({ creditExpirationsMs: [], availableCount: null, expiresAtMs: null, options: [
     { program: "juniper_tide", grantId: null, label: null, availableCount: null, expiresAtMs: null, nextAvailableAtMs: null, usable: false, ineligibleReason: "cli_version", clears: ["five_hour"] },
     { program: "cedar_ember", grantId: "gift-1", label: "Gift reset", availableCount: 2, expiresAtMs: 2_000_000_000_000, nextAvailableAtMs: null, usable: true, ineligibleReason: null, clears: ["five_hour", "seven_day"] },
   ] })
@@ -113,4 +113,16 @@ it("hides the legacy phantom breakdown window when falling back to saved observa
   mount("claudecode")
   await screen.findByText("Offline")
   expect(screen.queryByText(/breakdown ·|— \/ 100/)).not.toBeInTheDocument()
+})
+
+it("shows a separate expiry for each available reset card", async () => {
+  const expirations = [Date.parse("2026-10-04T02:24:54Z"), Date.parse("2026-10-05T04:19:45Z"), Date.parse("2026-10-22T20:44:53Z")]
+  vi.mocked(quotaResetCredits).mockResolvedValue({ options: [], availableCount: 3, expiresAtMs: expirations[0], creditExpirationsMs: expirations })
+  mount()
+  await screen.findByText("Card 3")
+  for (const [index, expiry] of expirations.entries()) {
+    const card = screen.getByText(`Card ${index + 1}`).parentElement!
+    expect(card.querySelector("time")).toHaveAttribute("datetime", new Date(expiry).toISOString())
+  }
+  expect(resetUpstreamQuota).not.toHaveBeenCalled()
 })

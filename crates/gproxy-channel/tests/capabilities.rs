@@ -403,6 +403,7 @@ impl QuotaReset for Demo {
         Box::pin(async move {
             account_call(ctx, "/credits", json!({})).await?;
             Ok(QuotaResetCredits {
+                credit_expirations_ms: Vec::new(),
                 available_count: Some(2),
                 options: Vec::new(),
                 expires_at_ms: Some(8000),

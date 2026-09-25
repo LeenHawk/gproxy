@@ -31,7 +31,15 @@ export function UpstreamReset({ id, enabled, busy, onReset }: { id: string; enab
       <span>{options.length ? t("limits.resetEligibility") : t("limits.resetCredits")}{!options.length ? <> <span className="tabular-nums">{cards.data?.availableCount == null ? "—" : formatNumber(cards.data.availableCount, i18n.language)}</span></> : null}</span>
       <Button variant="ghost" size="sm" disabled={pending} onClick={() => void cards.refetch()}>{t(options.length ? "limits.queryResetEligibility" : "limits.queryResetCredits")}</Button>
     </CardTitle></CardHeader><CardContent className="flex flex-col gap-3 px-4">
-      {cards.data?.expiresAtMs != null ? <p className="text-xs text-muted-foreground">{t("limits.resetCreditsExpire", { at: formatInstant(cards.data.expiresAtMs, i18n.language) })}</p> : null}
+      {cards.data?.creditExpirationsMs?.length ? <dl className="grid grid-cols-3 gap-2">
+        {cards.data.creditExpirationsMs.map((expiry, index) => <div key={index} className="min-w-0 rounded-lg border p-2">
+          <dt className="text-xs text-muted-foreground">{t("limits.resetCardNumber", { number: index + 1 })}</dt>
+          <dd className="mt-1 text-xs tabular-nums">{expiry == null ? "—" : <time dateTime={new Date(expiry).toISOString()} title={t("limits.resetCreditsExpire", { at: formatInstant(expiry, i18n.language) })}>
+            <span className="block">{new Intl.DateTimeFormat(i18n.language, { year: "numeric", month: "2-digit", day: "2-digit" }).format(expiry)}</span>
+            <span className="block">{new Intl.DateTimeFormat(i18n.language, { hour: "2-digit", minute: "2-digit", hour12: false }).format(expiry)}</span>
+          </time>}</dd>
+        </div>)}
+      </dl> : cards.data?.expiresAtMs != null ? <p className="text-xs text-muted-foreground">{t("limits.resetCreditsExpire", { at: formatInstant(cards.data.expiresAtMs, i18n.language) })}</p> : null}
       {options.map(option => <section key={`${option.program}:${option.grantId ?? ""}`} className="flex flex-col gap-2 border-t pt-3" aria-label={label(option)}>
         <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-medium">{label(option)}</p><Button variant="outline" size="sm" disabled={pending || !option.usable} onClick={() => choose(option)}>{t("management.upstreamReset")}</Button></div>
         <p className="text-sm">{t("limits.resetCount")} {option.availableCount == null ? "—" : formatNumber(option.availableCount, i18n.language)}</p>

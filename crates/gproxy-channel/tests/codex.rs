@@ -2820,6 +2820,7 @@ async fn reset_cards_are_queried_separately_and_only_available_expiries_count() 
         .unwrap();
     assert_eq!(credits.available_count, Some(2));
     assert_eq!(credits.expires_at_ms, Some(1_790_812_800_000));
+    assert_eq!(credits.credit_expirations_ms, vec![Some(1_790_812_800_000), Some(1_790_899_200_000)]);
     let sent = client.sent();
     assert_eq!(sent.len(), 1);
     assert_eq!(sent[0].0, Method::GET);
