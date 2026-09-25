@@ -1011,15 +1011,7 @@ fn quota_model_declares_account_and_family_windows() {
         ),
     );
     let ids: Vec<&str> = dims.iter().map(|d| d.id.as_str()).collect();
-    assert_eq!(
-        ids,
-        vec![
-            "five_hour",
-            "seven_day",
-            "seven_day_opus",
-            "seven_day_sonnet"
-        ]
-    );
+    assert_eq!(ids, vec!["five_hour", "seven_day", "seven_day_fable"]);
     assert_eq!(
         dims[0].label.as_deref(),
         Some("default_claude_max_20x 5h window")
@@ -1039,14 +1031,11 @@ fn quota_model_declares_account_and_family_windows() {
     );
     assert_eq!(
         dims[2].scope,
-        QuotaScope::ModelPrefixes(vec!["claude-opus".into()])
+        QuotaScope::ModelPrefixes(vec!["claude-fable".into()])
     );
-    assert!(dims[2].scope.matches("claude-opus-4-8"));
-    assert!(!dims[2].scope.matches("claude-sonnet-4-6"));
-    assert_eq!(
-        dims[3].scope,
-        QuotaScope::ModelPrefixes(vec!["claude-sonnet".into()])
-    );
+    assert!(dims[2].scope.matches("claude-fable-5-1"));
+    assert!(!dims[2].scope.matches("claude-opus-4-8"));
+    assert_eq!(dims[2].window, dims[1].window);
     let dims = Claudecode.quota_model().unwrap().dimensions(
         provider(&json!({}), None),
         credential(&secret("a"), &Value::Null),
@@ -1105,9 +1094,10 @@ async fn oauth_usage_is_queried_with_the_cli_identity_and_parsed() {
             "seven_day_oauth_apps",
             "seven_day_opus",
             "weekly_model:claude_opus_5",
-            "weekly_model:claude_sonnet",
+            "seven_day_sonnet",
         ],
-        "explicit nulls are not windows; weekly_all duplicates seven_day"
+        "explicit nulls are not windows; weekly_all duplicates seven_day; \
+         a family limit takes the family window id"
     );
     let QuotaValue::Window(five) = &snapshot.entries[0].value else {
         panic!("window");
@@ -1193,6 +1183,110 @@ fn unified_rate_limit_headers_become_window_entries() {
         })
         .unwrap();
     assert!(empty.is_empty());
+}
+
+// Live captures from a claude_max 5x account (2026-09-26), sanitized.
+const USAGE_FIXTURE: &str = include_str!("fixtures/quota/claudecode_usage.json");
+const FABLE_HEADERS: &str = include_str!("fixtures/quota/claudecode_messages_fable.headers");
+const HAIKU_HEADERS: &str = include_str!("fixtures/quota/claudecode_messages_haiku.headers");
+/// Observed without a declared dimension: no cost accrues to them.
+const OBSERVE_ONLY: &[&str] = &["seven_day_breakdown"];
+
+async fn captured_usage() -> Vec<gproxy_channel::channel::QuotaEntry> {
+    let client = ScriptClient::new(vec![reply(
+        StatusCode::OK,
+        serde_json::from_str(USAGE_FIXTURE).unwrap(),
+    )]);
+    let config = json!({});
+    let s = secret("at");
+    Claudecode
+        .quota_query()
+        .unwrap()
+        .query(CredentialContext {
+            provider: provider(&config, None),
+            credential: credential(&s, &Value::Null),
+            client: &client,
+        })
+        .await
+        .unwrap()
+        .entries
+}
+
+fn captured_headers(text: &str, model: &str) -> Vec<gproxy_channel::channel::QuotaEntry> {
+    Claudecode
+        .quota_headers()
+        .unwrap()
+        .observe(QuotaHeaderContext {
+            operation: key(Operation::GenerateContent),
+            upstream_model: model,
+            status: StatusCode::OK,
+            headers: &support::header_fixture(text),
+        })
+        .unwrap()
+}
+
+#[tokio::test]
+async fn captured_quota_replies_keep_the_channel_contract() {
+    let model = Claudecode.quota_model().unwrap();
+    let declared = model.dimensions(
+        provider(&json!({}), None),
+        credential(
+            &secret("a"),
+            &json!({"rate_limit_tier": "default_claude_max_5x"}),
+        ),
+    );
+    let usage = captured_usage().await;
+    let fable = captured_headers(FABLE_HEADERS, "claude-fable-5-1");
+    let haiku = captured_headers(HAIKU_HEADERS, "claude-haiku-4-5-20251001");
+    for entries in [&usage, &fable, &haiku] {
+        support::assert_quota_contract(Some(model), &declared, entries, OBSERVE_ONLY);
+    }
+    let ids = |entries: &[gproxy_channel::channel::QuotaEntry]| {
+        entries.iter().map(|e| e.id.clone()).collect::<Vec<_>>()
+    };
+    // Null codenamed keys and `nimbus_quill` without a reset are no windows;
+    // Fable appears only under `limits[]`.
+    assert_eq!(
+        ids(&usage),
+        [
+            "five_hour",
+            "seven_day",
+            "seven_day_breakdown",
+            "seven_day_fable"
+        ]
+    );
+    // The `7d_oi` claim only rides Fable requests.
+    assert_eq!(ids(&fable), ["five_hour", "seven_day", "seven_day_fable"]);
+    assert_eq!(ids(&haiku), ["five_hour", "seven_day"]);
+}
+
+#[tokio::test]
+async fn the_fable_window_is_one_window_on_both_paths() {
+    let usage = captured_usage().await;
+    let headers = captured_headers(FABLE_HEADERS, "claude-fable-5-1");
+    let find = |entries: &[gproxy_channel::channel::QuotaEntry]| {
+        let entry = entries
+            .iter()
+            .find(|e| e.id == "seven_day_fable")
+            .cloned()
+            .unwrap();
+        let QuotaValue::Window(window) = entry.value else {
+            panic!("window");
+        };
+        (entry.model_scope, window.used_percent, window.period_end_ms)
+    };
+    let (query_scope, query_used, query_end) = find(&usage);
+    let (header_scope, header_used, header_end) = find(&headers);
+    assert_eq!(
+        query_scope,
+        QuotaScope::ModelPrefixes(vec!["claude-fable".into()])
+    );
+    assert_eq!(header_scope, query_scope);
+    assert_eq!(query_used, Some(0.into()));
+    assert_eq!(header_used, query_used);
+    // 2026-09-26T11:00:00Z on both paths.
+    assert_eq!(query_end, Some(1_790_420_400_000));
+    assert_eq!(header_end, query_end);
 }
 
 #[test]
@@ -2123,7 +2217,7 @@ async fn weekly_breakdown_is_composition_not_an_allowance() {
         100.into()
     );
     assert_eq!(rows[3].percent, 0.into());
-    assert_eq!(result.entries[2].id, "weekly_model:fable");
+    assert_eq!(result.entries[2].id, "seven_day_fable");
     assert_eq!(result.entries[2].label.as_deref(), Some("Fable"));
 }
 

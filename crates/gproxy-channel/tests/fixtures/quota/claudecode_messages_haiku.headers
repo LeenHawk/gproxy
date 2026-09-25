@@ -1,0 +1,12 @@
+anthropic-ratelimit-unified-5h-status: allowed
+anthropic-ratelimit-unified-representative-claim: five_hour
+anthropic-ratelimit-unified-overage-status: rejected
+anthropic-ratelimit-unified-reset: 1790370600
+anthropic-ratelimit-unified-5h-utilization: 0.02
+anthropic-ratelimit-unified-7d-reset: 1790420400
+anthropic-ratelimit-unified-5h-reset: 1790370600
+anthropic-ratelimit-unified-7d-status: allowed
+anthropic-ratelimit-unified-fallback-percentage: 0.5
+anthropic-ratelimit-unified-overage-disabled-reason: org_level_disabled
+anthropic-ratelimit-unified-7d-utilization: 0.23
+anthropic-ratelimit-unified-status: allowed
