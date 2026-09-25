@@ -48,6 +48,7 @@ pub(crate) async fn send(
     feature = "kimi",
     feature = "opencode",
     feature = "openrouter",
+    feature = "vercel",
     feature = "xai"
 ))]
 pub(crate) fn bearer(token: &str) -> Result<HeaderMap, ChannelError> {

@@ -11,7 +11,7 @@ use crate::channels::shared::{cache, claude_fallback::fallbacks};
 use http::{HeaderMap, HeaderValue};
 use serde_json::Value;
 
-use super::FallbackMode;
+use super::claude_fallback::FallbackMode;
 
 const FAST_MODE_BETA: &str = "fast-mode-2026-02-01";
 /// The 1M-token context beta is a header the first-party API does not take;
@@ -44,7 +44,7 @@ const PREFILL_TOLERANT: &[&str] = &[
     "claude-haiku-4-5",
 ];
 
-pub(super) fn json_object(body: &[u8]) -> Option<Value> {
+pub(crate) fn json_object(body: &[u8]) -> Option<Value> {
     serde_json::from_slice::<Value>(body)
         .ok()
         .filter(Value::is_object)
@@ -59,7 +59,7 @@ fn has_fallback_credit(body: &Value) -> bool {
 
 /// Shape a Messages body. `magic_cache` places `cache_control` at the magic
 /// cache strings; without it the strings are only stripped.
-pub(super) fn messages(
+pub(crate) fn messages(
     body: &mut Value,
     headers: &mut HeaderMap,
     magic_cache: bool,
@@ -85,13 +85,13 @@ pub(super) fn messages(
 
 /// A count_tokens body is only read: the two body-triggered betas still have
 /// to be declared, because the count depends on them.
-pub(super) fn count_tokens(body: &Value, headers: &mut HeaderMap) {
+pub(crate) fn count_tokens(body: &Value, headers: &mut HeaderMap) {
     betas(body, headers);
 }
 
 /// The OpenAI compatibility layer inherits Anthropic's prefill rule but none
 /// of the Messages betas, which it does not read.
-pub(super) fn chat(body: &mut Value) {
+pub(crate) fn chat(body: &mut Value) {
     coerce_prefill(body);
 }
 

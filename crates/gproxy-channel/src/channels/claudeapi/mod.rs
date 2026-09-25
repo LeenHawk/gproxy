@@ -31,7 +31,7 @@
 //! `default_connection` stays `None` and the host's own profile decides.
 
 mod config;
-mod hygiene;
+use crate::channels::shared::claude_hygiene as hygiene;
 mod quota;
 mod request;
 mod usage;

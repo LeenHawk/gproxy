@@ -43,6 +43,7 @@ provider form should render.
 | `openai` | OpenAI's own platform: the full surface, Responses and Realtime over a socket | `{"api_key", "quota_api_key"}` |
 | `opencode` | OpenCode Zen and Go | `{"api_key"}` or OAuth |
 | `openrouter` | OpenRouter: routing preferences in the body, the price the reply reports | `{"api_key"}` |
+| `vercel` | Vercel AI Gateway: Chat, Responses, Claude Messages, embeddings and team credit balance | `{"api_key"}` |
 | `vertex` | Google Vertex AI: the Google, Anthropic and OpenAI-compatible publishers | service-account key |
 | `vertexexpress` | Vertex AI Express: the Gemini surface on one global origin | `{"api_key"}` |
 | `workbuddy` | Tencent Copilot through its editor plugin | OAuth |
@@ -106,7 +107,7 @@ and the primary model, and use at most three fallback models.
   `provider.allow_fallbacks`, which controls supplier routing for the same model.
   Existing client `fallbacks` or `models` take precedence. Responses requests
   are not given an undocumented fallback parameter.
-- **Azure, Vertex and AWS Bedrock:** GProxy retries a Claude `refusal` on the
+- **Vercel, Azure, Vertex and AWS Bedrock:** GProxy retries a Claude `refusal` on the
   next configured model through the same credential, with fresh channel
   preparation and signing. Default mode selects `claude-opus-4-8` in the
   primary model's namespace. For cloud-specific IDs, configure the full IDs

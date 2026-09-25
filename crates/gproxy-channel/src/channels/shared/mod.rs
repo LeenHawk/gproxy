@@ -27,7 +27,8 @@ pub(crate) mod aws_reason;
     feature = "codex",
     feature = "custom",
     feature = "opencode",
-    feature = "openrouter"
+    feature = "openrouter",
+    feature = "vercel"
 ))]
 pub(crate) mod cache;
 /// The Code Assist envelope and Google login the Gemini CLI channels share.
@@ -46,6 +47,7 @@ pub(crate) mod code_assist;
     feature = "kimi",
     feature = "opencode",
     feature = "openrouter",
+    feature = "vercel",
     feature = "xai"
 ))]
 pub(crate) mod compatible;
@@ -79,6 +81,7 @@ pub(crate) mod services_common;
 #[cfg(any(
     feature = "azure",
     feature = "custom",
+    feature = "vercel",
     feature = "vertex",
     feature = "vertexexpress"
 ))]
@@ -114,5 +117,8 @@ fn host_platform() -> &'static str {
     }
 }
 
-#[cfg(any(feature = "claudeapi", feature = "claudecode", feature = "custom", feature = "openrouter"))]
+#[cfg(any(feature = "claudeapi", feature = "claudecode", feature = "custom", feature = "openrouter", feature = "vercel"))]
 pub(crate) mod claude_fallback;
+
+#[cfg(any(feature = "claudeapi", feature = "vercel"))]
+pub(crate) mod claude_hygiene;

@@ -17,6 +17,7 @@
     feature = "kimi",
     feature = "opencode",
     feature = "openrouter",
+    feature = "vercel",
     feature = "xai"
 ))]
 pub(crate) mod ability;
