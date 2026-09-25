@@ -8,8 +8,8 @@ use gproxy_channel::{
     channel::{
         AuthorizationRequest, CallerUsage, CallerUsageWindow, ChannelState, CredentialContext,
         CredentialView, DevicePoll, LoginContext, OperationContext, PrepareContext, ProviderView,
-        QuotaHeaderContext, QuotaValue, ResponseView, ServiceContext, ServiceView, UsageContext,
-        UsageFrame, UsageStreamContext, UsageStreamEnd, UsageTransport,
+        QuotaHeaderContext, QuotaScope, QuotaValue, ResponseView, ServiceContext, ServiceView,
+        UsageContext, UsageFrame, UsageStreamContext, UsageStreamEnd, UsageTransport,
     },
     channels::codex::{CLI_VERSION, Codex, DEFAULT_CLIENT_ID, KIND_FILE, KIND_PLUGIN, KIND_TASK},
 };
@@ -548,6 +548,8 @@ fn rate_limit_headers_become_quota_entries_per_family() {
         ("x-codex-secondary-window-minutes", "10080"),
         ("x-codex-secondary-reset-at", "1700400000"),
         ("x-codex-bengalfox-primary-used-percent", "3"),
+        ("x-codex-bengalfox-primary-window-minutes", "300"),
+        ("x-codex-bengalfox-primary-reset-at", "1700000000"),
         ("x-codex-bengalfox-limit-name", "GPT-5.3-Codex-Spark"),
         ("x-codex-credits-has-credits", "true"),
         ("x-codex-credits-unlimited", "false"),
@@ -572,9 +574,9 @@ fn rate_limit_headers_become_quota_entries_per_family() {
     assert_eq!(
         ids,
         vec![
-            "codex_primary",
-            "codex_secondary",
-            "codex_bengalfox_primary",
+            "codex_5h",
+            "codex_7d",
+            "codex_bengalfox_5h",
             "codex_credits"
         ]
     );
@@ -592,6 +594,12 @@ fn rate_limit_headers_become_quota_entries_per_family() {
     };
     assert_eq!(secondary.remaining, Some(0.into()), "exhausted");
     assert_eq!(entries[2].label.as_deref(), Some("GPT-5.3-Codex-Spark"));
+    assert_eq!(entries[0].model_scope, QuotaScope::All);
+    assert_eq!(
+        entries[2].model_scope,
+        QuotaScope::Unknown,
+        "a feature limit does not cover every model"
+    );
     let QuotaValue::Balance(credits) = &entries[3].value else {
         panic!("balance");
     };
@@ -601,9 +609,10 @@ fn rate_limit_headers_become_quota_entries_per_family() {
         credential(&secret("a"), &json!({"plan_type": "pro"})),
     );
     assert_eq!(dims.len(), 2);
-    assert_eq!(dims[0].id, "codex_primary");
+    assert_eq!(dims[0].id, "codex_5h");
     assert_eq!(dims[0].label.as_deref(), Some("pro 5h window"));
-    assert_eq!(dims[1].id, "codex_secondary");
+    assert_eq!(dims[1].id, "codex_7d");
+    assert_eq!(dims[1].label.as_deref(), Some("pro 7d window"));
 }
 
 #[tokio::test]
@@ -647,11 +656,8 @@ async fn wham_usage_is_queried_on_the_backend_and_parsed() {
         .collect();
     assert_eq!(
         ids,
-        vec![
-            "codex_secondary",
-            "codex_bengalfox_primary",
-            "codex_credits"
-        ]
+        vec!["codex_7d", "codex_bengalfox_5h", "codex_credits"],
+        "the account window is named by its length, not its slot"
     );
     assert_eq!(
         snapshot.entries[1].label.as_deref(),
@@ -666,6 +672,70 @@ async fn wham_usage_is_queried_on_the_backend_and_parsed() {
         panic!("balance");
     };
     assert_eq!(credits.remaining, Some(0.into()));
+}
+
+// Live captures from a Pro account (2026-09-26), sanitized: one 7-day
+// window in the primary slot and an empty secondary slot.
+const USAGE_FIXTURE: &str = include_str!("fixtures/quota/codex_usage.json");
+const RESPONSE_HEADERS: &str = include_str!("fixtures/quota/codex_responses.headers");
+/// Observed without a declared dimension: no cost accrues to them.
+const OBSERVE_ONLY: &[&str] = &["codex_credits"];
+
+#[tokio::test]
+async fn captured_quota_replies_keep_the_channel_contract() {
+    let client = ScriptClient::new(vec![reply(
+        StatusCode::OK,
+        serde_json::from_str(USAGE_FIXTURE).unwrap(),
+    )]);
+    let config = json!({});
+    let s = secret("at");
+    let usage = Codex
+        .quota_query()
+        .unwrap()
+        .query(CredentialContext {
+            provider: provider(&config, Some("https://chatgpt.com/backend-api/codex")),
+            credential: credential(&s, &Value::Null),
+            client: &client,
+        })
+        .await
+        .unwrap()
+        .entries;
+    let headers = Codex
+        .quota_headers()
+        .unwrap()
+        .observe(QuotaHeaderContext {
+            operation: OperationKey {
+                operation: Operation::StreamGenerateContent,
+                dialect: Dialect::OpenAi,
+            },
+            upstream_model: "gpt-6-astra",
+            status: StatusCode::OK,
+            headers: &support::header_fixture(RESPONSE_HEADERS),
+        })
+        .unwrap();
+    let model = Codex.quota_model().unwrap();
+    let declared = model.dimensions(
+        provider(&json!({}), None),
+        credential(&secret("a"), &json!({"plan_type": "pro"})),
+    );
+    for entries in [&usage, &headers] {
+        support::assert_quota_contract(Some(model), &declared, entries, OBSERVE_ONLY);
+        let ids: Vec<&str> = entries.iter().map(|e| e.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            ["codex_7d", "codex_credits"],
+            "the empty secondary slot is no window"
+        );
+        let QuotaValue::Window(week) = &entries[0].value else {
+            panic!("window");
+        };
+        assert_eq!(week.used_percent, Some(90.into()));
+        assert_eq!(week.period_end_ms, Some(1_790_695_613_000));
+        assert_eq!(
+            week.period_start_ms,
+            Some(1_790_695_613_000 - 7 * 24 * 60 * 60 * 1000)
+        );
+    }
 }
 
 #[test]

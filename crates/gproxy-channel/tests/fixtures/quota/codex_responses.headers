@@ -1,0 +1,14 @@
+x-codex-active-limit: premium
+x-codex-plan-type: pro
+x-codex-primary-used-percent: 90
+x-codex-secondary-used-percent: 0
+x-codex-primary-window-minutes: 10080
+x-codex-primary-over-secondary-limit-percent: 0
+x-codex-secondary-window-minutes: 0
+x-codex-primary-reset-after-seconds: 342419
+x-codex-secondary-reset-after-seconds: 0
+x-codex-primary-reset-at: 1790695613
+x-codex-secondary-reset-at: 
+x-codex-credits-has-credits: False
+x-codex-credits-balance: 0
+x-codex-credits-unlimited: False
