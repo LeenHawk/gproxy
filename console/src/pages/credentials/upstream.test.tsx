@@ -27,10 +27,12 @@ beforeEach(() => {
 it("renders the reported period and percent without exposing internal keys or epoch dates", async () => {
   mount()
   expect(await screen.findByRole("progressbar", { name: "7 days quota" })).toHaveAttribute("aria-valuenow", "96")
-  expect(screen.getByText("4%")).toBeInTheDocument()
+  expect(screen.getByText("96%")).toBeInTheDocument()
+  expect(screen.queryByText("4%")).not.toBeInTheDocument()
+  expect(screen.queryByText(/Remaining|Last observed/)).not.toBeInTheDocument()
   expect(screen.getByText("Extra credits")).toBeInTheDocument()
   expect(screen.queryByText(/codex_primary|percent|1970/)).not.toBeInTheDocument()
-  expect(screen.getAllByText("Next reset")).toHaveLength(1)
+  expect(screen.getByTitle(/^Next reset:/)).toHaveAttribute("datetime", new Date(snapshot.entries[0].allowance!.periodEndMs!).toISOString())
   expect(resetUpstreamQuota).not.toHaveBeenCalled()
 })
 it("keeps reset-card queries independent from usage and does not hide usage on card failure", async () => {
