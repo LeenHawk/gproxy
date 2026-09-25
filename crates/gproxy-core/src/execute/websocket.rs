@@ -642,6 +642,11 @@ impl Sink<WsFrame> for ObservedSink {
 
 impl Exchange {
     pub(crate) fn observe_ws_frame(&self, frame: &WsFrame) {
+        if self.funnel.policy().capture != crate::CapturePolicy::Off
+            && let Some(reason) = self.channel.websocket_response_reason(frame)
+        {
+            self.set_reason(reason);
+        }
         if let Some(observer) = self.usage_observer.lock().unwrap().as_mut() {
             let _ = observer.observe(UsageFrame::WebSocket(frame));
         }

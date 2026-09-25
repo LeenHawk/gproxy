@@ -10,8 +10,8 @@ use crate::{
 use gproxy_channel::{
     BaseChannel, OutboundClient,
     channel::{
-        NormalizedUsage, ResponseView, UsageContext, UsageObserver, UsageStreamContext,
-        UsageStreamEnd, UsageTransport,
+        NormalizedUsage, ResponseReason, ResponseReasonObserver, ResponseView, UsageContext,
+        UsageObserver, UsageStreamContext, UsageStreamEnd, UsageTransport,
     },
 };
 use gproxy_protocol::{
@@ -32,6 +32,8 @@ pub(crate) struct Exchange {
     /// Body response rules already selected for this request.
     pub response_rules: Vec<Arc<RewriteRuleData>>,
     capture: Mutex<Option<Box<dyn CaptureSink>>>,
+    reason_observer: Mutex<Option<Box<dyn ResponseReasonObserver>>>,
+    reason: Mutex<Option<ResponseReason>>,
     sequence: AtomicU64,
     request_body: Mutex<Option<Bytes>>,
     pub(super) usage_observer: Mutex<Option<Box<dyn UsageObserver>>>,
@@ -70,6 +72,8 @@ impl Exchange {
             limits,
             response_rules,
             capture: Mutex::new(None),
+            reason_observer: Mutex::new(None),
+            reason: Mutex::new(None),
             sequence: AtomicU64::new(0),
             request_body: Mutex::new(None),
             usage_observer: Mutex::new(None),
@@ -120,8 +124,13 @@ impl Exchange {
             self.funnel
                 .trace(TraceEvent::ExchangeStarted(&self.context));
         }
-        if let CaptureEvent::ResponseHead { status, .. } = &event {
+        if let CaptureEvent::ResponseHead { status, headers } = &event {
             self.status.store(status.as_u16(), Ordering::Relaxed);
+            if self.funnel.policy().capture != CapturePolicy::Off {
+                *self.reason_observer.lock().unwrap() =
+                    self.channel
+                        .response_reason_observer(*status, headers, self.limits.read_bytes);
+            }
         }
         if let Some(sink) = self.capture.lock().unwrap().as_mut() {
             let sequence = self.sequence.fetch_add(1, Ordering::SeqCst);
@@ -129,7 +138,23 @@ impl Exchange {
         }
     }
 
+    pub fn set_reason(&self, reason: ResponseReason) {
+        let mut current = self.reason.lock().unwrap();
+        if *current == Some(reason) {
+            return;
+        }
+        *current = Some(reason);
+        drop(current);
+        // Long-lived sockets must expose a discovered reason before they close.
+        if let Some(sink) = self.capture.lock().unwrap().as_mut() {
+            sink.reason(reason);
+        }
+    }
+
     pub fn observe_chunk(&self, chunk: &[u8]) {
+        if let Some(observer) = self.reason_observer.lock().unwrap().as_mut() {
+            observer.observe(chunk);
+        }
         self.response_bytes
             .fetch_add(chunk.len() as u64, Ordering::Relaxed);
         if let Some(observer) = self.usage_observer.lock().unwrap().as_mut() {
@@ -175,6 +200,29 @@ impl Exchange {
     ) -> Option<Option<Box<dyn CaptureSink>>> {
         if self.finished.swap(true, Ordering::SeqCst) {
             return None;
+        }
+        let reason = self
+            .reason_observer
+            .lock()
+            .unwrap()
+            .take()
+            .and_then(|o| o.finish())
+            .or(*self.reason.lock().unwrap())
+            .or_else(|| match self.status.load(Ordering::Relaxed) {
+                400 | 422 => Some(ResponseReason::InvalidRequest),
+                401 => Some(ResponseReason::AuthenticationFailed),
+                402 => Some(ResponseReason::QuotaExhausted),
+                403 => Some(ResponseReason::PermissionDenied),
+                404 => Some(ResponseReason::NotFound),
+                408 | 504 => Some(ResponseReason::Timeout),
+                429 => Some(ResponseReason::RateLimited),
+                500..=599 => Some(ResponseReason::UpstreamError),
+                _ => None,
+            });
+        if let Some(reason) = reason
+            && let Some(sink) = self.capture.lock().unwrap().as_mut()
+        {
+            sink.reason(reason);
         }
         let observer = self.usage_observer.lock().unwrap().take();
         let mut usage = match observer {
@@ -421,6 +469,7 @@ impl OutboundClient for ObservedClient {
             let response = match self.inner.send(request).await {
                 Ok(response) => response,
                 Err(error) => {
+                    exchange.set_reason(ResponseReason::ConnectionError);
                     exchange
                         .finish(
                             UsageStreamEnd::Interrupted,
@@ -465,6 +514,7 @@ impl OutboundClient for ObservedClient {
             let connection = match self.inner.connect(request).await {
                 Ok(connection) => connection,
                 Err(error) => {
+                    self.exchange.set_reason(ResponseReason::ConnectionError);
                     self.exchange
                         .finish(
                             UsageStreamEnd::Interrupted,

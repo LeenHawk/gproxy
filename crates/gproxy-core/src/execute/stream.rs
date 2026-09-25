@@ -10,7 +10,7 @@ use crate::{
     rewrite::{StreamRewriter, apply_body},
 };
 use futures_util::StreamExt;
-use gproxy_channel::channel::UsageStreamEnd;
+use gproxy_channel::channel::{ResponseReason, UsageStreamEnd};
 use gproxy_protocol::{
     HttpBody,
     connection::{ByteStream, Bytes, StreamFraming, TransportError},
@@ -119,15 +119,16 @@ async fn step(mut state: State) -> Option<(Result<Bytes, TransportError>, State)
         let cancellation = exchange.context.attempt.request.cancellation.clone();
         let next = tokio::select! {
             biased;
-            () = cancellation.cancelled() => Err(transport_error("request cancelled")),
+            () = cancellation.cancelled() => { exchange.set_reason(ResponseReason::Cancelled); Err(transport_error("request cancelled")) },
             next = crate::rt::timeout(exchange.limits.stream_idle, inner.next()) => match next {
                 Some(item) => Ok(item),
-                None => Err(transport_error("upstream stream idle timeout")),
+                None => { exchange.set_reason(ResponseReason::Timeout); Err(transport_error("upstream stream idle timeout")) },
             },
         };
         match next {
             Err(error) => return Some((Err(error), end(state, UsageStreamEnd::Interrupted).await)),
             Ok(Some(Err(error))) => {
+                exchange.set_reason(ResponseReason::ConnectionError);
                 return Some((Err(error), end(state, UsageStreamEnd::Interrupted).await));
             }
             Ok(None) => {

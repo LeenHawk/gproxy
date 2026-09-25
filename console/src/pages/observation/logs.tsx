@@ -21,7 +21,7 @@ function Exchange({ record, events }: { record: CaptureRecordDto; events: Captur
   const { t } = useTranslation()
   return <section className="flex min-w-0 flex-col gap-4 rounded-lg border p-4">
     <h3 className="break-all font-medium">{record.side} · {record.id}</h3>
-    <dl className="grid grid-cols-2 gap-2 text-sm">{["initiatorRequestId", "attemptId", "attemptOrdinal", "userId", "apiKeyId", "providerId", "credentialId", "model", "operation", "state", "responseStatus", "requestMethod", "requestUrl", "requestQuery", "clientIp", "error"].map(key => <div key={key} className="min-w-0"><dt className="text-muted-foreground">{t(`observation.${key}`)}</dt><dd className="break-all">{String(record[key as keyof CaptureRecordDto] ?? "—")}</dd></div>)}</dl>
+    <dl className="grid grid-cols-2 gap-2 text-sm">{["initiatorRequestId", "attemptId", "attemptOrdinal", "userId", "apiKeyId", "providerId", "credentialId", "model", "operation", "state", "responseStatus", "requestMethod", "requestUrl", "requestQuery", "clientIp", "error", "reason"].map(key => <div key={key} className="min-w-0"><dt className="text-muted-foreground">{t(`observation.${key}`)}</dt><dd className="break-all">{key === "reason" && record.reason ? t(`observation.reasons.${record.reason}`, { defaultValue: record.reason }) : String(record[key as keyof CaptureRecordDto] ?? "—")}</dd></div>)}</dl>
     <PageSection title={t("observation.requestHeaders")}><pre className="overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify(record.requestHeaders, null, 2)}</pre></PageSection>
     <PageSection title={t("observation.requestBody")}><Body body={record.requestBody} /></PageSection>
     <PageSection title={t("observation.responseHeaders")}><pre className="overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify(record.responseHeaders, null, 2)}</pre></PageSection>
@@ -50,11 +50,13 @@ function LogsPage({ side }: { side: history.LogSide }) {
   const [selected, setSelected] = useState<string | null>(null)
   const list = useQuery({ queryKey: ["admin", "logs", side, filter, cursors.at(-1)], queryFn: () => history.logs(side, { ...filter, ...cursors.at(-1), limit: 50 }) })
   return <Page><PageHeader title={t(side === "downstream" ? "nav.downstreamLogs" : "nav.upstreamLogs")} actions={<Button variant="outline" size="sm" onClick={() => void list.refetch()}>{t("observation.refresh")}</Button>} />
-    <HistoryFilters logs onApply={value => { setFilter(value); setCursors([{}]) }} />
+    <HistoryFilters logs reasons={side === "upstream"} onApply={value => { setFilter(value); setCursors([{}]) }} />
     <QueryState isPending={list.isPending} error={list.error}><DataTable rows={list.data?.items ?? []} rowKey={row => row.requestId} empty={<EmptyNotice title={t("requests.emptyTitle")} />} columns={[
       { key: "startedAtMs", cell: row => <InstantCell value={row.startedAtMs} /> },
       { key: "requestId", cell: row => <IdCell value={row.requestId} /> },
-      ...(["userId", "model", "operation", "providerId", "credentialId", "state", "responseStatus", "requestUrl"] as const).map(key => ({ key, header: t(`observation.${key}`), cell: (row: NonNullable<typeof list.data>["items"][number]) => <MaybeCell value={row[key]?.toString() ?? null} /> })),
+      ...(["userId", "model", "operation", "providerId", "credentialId", "state", "responseStatus"] as const).map(key => ({ key, header: t(`observation.${key}`), cell: (row: NonNullable<typeof list.data>["items"][number]) => <MaybeCell value={row[key]?.toString() ?? null} /> })),
+      ...(side === "upstream" ? [{ key: "reason", header: t("observation.reason"), className: "min-w-28", cell: (row: NonNullable<typeof list.data>["items"][number]) => row.reason ? <Badge variant="outline">{t(`observation.reasons.${row.reason}`, { defaultValue: row.reason })}</Badge> : <MaybeCell value={null} /> }] : []),
+      { key: "requestUrl", header: t("observation.requestUrl"), cell: row => <MaybeCell value={row.requestUrl} /> },
     ]} actions={row => <Button size="sm" variant="ghost" onClick={() => setSelected(row.requestId)}>{t("observation.detail")}</Button>} />
       <div className="mt-3 flex gap-2"><Button variant="outline" size="sm" disabled={cursors.length === 1 || list.isFetching} onClick={() => setCursors(cursors.slice(0, -1))}>{t("observation.previous")}</Button><Button variant="outline" size="sm" disabled={list.data?.nextCursor == null || list.isFetching} onClick={() => { if (list.data?.nextCursor != null && list.data.nextCursorId) setCursors([...cursors, { cursor: list.data.nextCursor, cursorId: list.data.nextCursorId }]) }}>{t("observation.next")}</Button></div>
     </QueryState>

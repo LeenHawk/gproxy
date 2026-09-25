@@ -94,7 +94,6 @@ use endpoint::Plane;
 
 pub const ID: &str = "aws_bedrock";
 
-
 const STREAMED_BODY: &str =
     "AWS SigV4 signs the payload hash, so a streamed request body cannot be sent to Bedrock";
 
@@ -325,6 +324,15 @@ impl BaseChannel for AwsBedrock {
                 body: HttpBody::Stream(translate(response.body)),
             })
         })
+    }
+
+    fn response_reason_observer(
+        &self,
+        _status: http::StatusCode,
+        headers: &http::HeaderMap,
+        max_bytes: u64,
+    ) -> Option<Box<dyn crate::channel::ResponseReasonObserver>> {
+        crate::channels::shared::aws_reason::observer(headers, max_bytes, true)
     }
 
     fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {

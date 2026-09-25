@@ -26,4 +26,4 @@ requestFraming: string, responseStatus: number | null, responseHeaders: [string,
  * Upstream-native usage for this one exchange, when the channel reported
  * any. Billed usage is on the usage record, not here.
  */
-metrics: unknown | null, state: string, error: string | null, startedAtMs: number, firstResponseAtMs: number | null, endedAtMs: number | null, };
+metrics: unknown | null, state: string, error: string | null, reason: string | null, startedAtMs: number, firstResponseAtMs: number | null, endedAtMs: number | null, };

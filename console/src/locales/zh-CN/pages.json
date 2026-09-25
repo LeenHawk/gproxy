@@ -791,6 +791,22 @@
     "activeHelp": "达到预算后，停止此密钥在适用范围内的请求。"
   },
   "observation": {
+    "reason": "原因",
+    "allReasons": "全部原因",
+    "reasons": {
+      "refusal": "模型拒答",
+      "content_filter": "内容策略拦截",
+      "authentication_failed": "认证失败",
+      "permission_denied": "权限不足",
+      "rate_limited": "请求限流",
+      "quota_exhausted": "配额耗尽",
+      "invalid_request": "请求无效",
+      "not_found": "资源不存在",
+      "upstream_error": "上游错误",
+      "timeout": "超时",
+      "connection_error": "连接失败",
+      "cancelled": "已取消"
+    },
     "fromMs": "开始时间",
     "toMs": "结束时间",
     "userId": "用户 ID",

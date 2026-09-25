@@ -17,6 +17,8 @@
 /// business.
 #[cfg(any(feature = "aws_bedrock", feature = "kiro"))]
 pub(crate) mod aws_eventstream;
+#[cfg(any(feature = "aws_bedrock", feature = "kiro"))]
+pub(crate) mod aws_reason;
 /// The magic cache strings, for the dialects that have cache breakpoints.
 #[cfg(any(
     feature = "claudeapi",

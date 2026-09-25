@@ -791,6 +791,22 @@
     "activeHelp": "達到預算後，停止此密鑰在適用範圍內的請求。"
   },
   "observation": {
+    "reason": "原因",
+    "allReasons": "全部原因",
+    "reasons": {
+      "refusal": "模型拒答",
+      "content_filter": "內容政策攔截",
+      "authentication_failed": "驗證失敗",
+      "permission_denied": "權限不足",
+      "rate_limited": "請求限流",
+      "quota_exhausted": "配額耗盡",
+      "invalid_request": "請求無效",
+      "not_found": "資源不存在",
+      "upstream_error": "上游錯誤",
+      "timeout": "逾時",
+      "connection_error": "連線失敗",
+      "cancelled": "已取消"
+    },
     "fromMs": "開始時間",
     "toMs": "結束時間",
     "userId": "使用者 ID",
