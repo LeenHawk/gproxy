@@ -177,8 +177,31 @@ pub trait QuotaModel: Send + Sync {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QuotaResetCredits {
-    pub available_count: u64,
+    pub options: Vec<QuotaResetOption>,
+    /// None means the server did not disclose a count (for example CLI ineligibility).
+    pub available_count: Option<u64>,
     pub expires_at_ms: Option<i64>,
+}
+
+/// A specific server-authorized reset choice; never chosen implicitly by the host.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QuotaResetOption {
+    pub program: String,
+    pub grant_id: Option<String>,
+    pub label: Option<String>,
+    pub available_count: Option<u64>,
+    pub expires_at_ms: Option<i64>,
+    pub next_available_at_ms: Option<i64>,
+    pub usable: bool,
+    pub ineligible_reason: Option<String>,
+    pub clears: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct QuotaResetRequest<'a> {
+    pub redeem_request_id: &'a str,
+    pub program: Option<&'a str>,
+    pub grant_id: Option<&'a str>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -187,10 +210,14 @@ pub enum QuotaResetOutcome {
     NothingToReset,
     NoCredit,
     AlreadyRedeemed,
+    Ineligible,
+    Unavailable,
+    Cooldown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QuotaResetResult {
+    pub reason: Option<String>,
     pub outcome: QuotaResetOutcome,
     pub windows_reset: Option<u64>,
 }
@@ -206,7 +233,7 @@ pub trait QuotaReset: Send + Sync {
     fn reset<'a>(
         &'a self,
         context: CredentialContext<'a>,
-        redeem_request_id: &'a str,
+        request: QuotaResetRequest<'a>,
     ) -> OperationFuture<'a, QuotaResetResult>;
 }
 

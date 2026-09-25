@@ -106,6 +106,7 @@ where
     .route("/credentials/{id}/refresh", post(refresh::<C>))
     .route("/credentials/{id}/quota", get(quota_read::<C>))
     .route("/credentials/{id}/quota-probe", post(quota_probe::<C>))
+    .route("/credentials/{id}/quota-reset-credits", get(quota_reset_credits::<C>))
     .route("/credentials/{id}/quota-reset", post(quota_reset::<C>))
     .route("/credentials/{id}/health-reset", post(health_reset::<C>))
     // `Quotas::limit_status` is the same call on the same argument; a
@@ -417,15 +418,26 @@ where
         .await
 }
 
-async fn quota_reset<C>(
+async fn quota_reset_credits<C>(
     State(state): State<HostState<C>>,
     Extension(scope): Extension<AdminScope>,
     Path(id): Path<String>,
 ) -> Response
+where C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    crate::send(async move { scoped!(state, scope, "credentials", credentials.quota_reset_credits(&id)) }).await
+}
+
+async fn quota_reset<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Path(id): Path<String>,
+    body: Option<Json<gproxy_sdk::dto::QuotaResetWrite>>,
+) -> Response
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    crate::send(async move { scoped!(state, scope, "credentials", credentials.quota_reset(&id)) })
+    crate::send(async move { scoped!(state, scope, "credentials", credentials.quota_reset_with(&id, body.map(|Json(body)| body).unwrap_or_default())) })
         .await
 }
 

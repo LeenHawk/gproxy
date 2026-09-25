@@ -28,7 +28,7 @@ pub use operations::{OperationContext, OperationFuture};
 pub use quota::{
     QuotaAllowance, QuotaBalance, QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders,
     QuotaMetric, QuotaModel, QuotaQuery, QuotaReset, QuotaResetBehavior, QuotaResetCredits,
-    QuotaResetOutcome, QuotaResetResult, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking,
+    QuotaResetOption, QuotaResetRequest, QuotaResetOutcome, QuotaResetResult, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking,
     QuotaValue, QuotaWindow,
 };
 pub use registry::{ChannelRegistry, RegistryError};

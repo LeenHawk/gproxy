@@ -139,7 +139,7 @@ exported!(
     QuotaDto,
     QuotaEntryDto,
     QuotaPatch,
-    QuotaResetDto,
+    QuotaResetDto, QuotaResetCreditsDto, QuotaResetOptionDto, QuotaResetWrite,
     QuotaSettlementDto,
     QuotaSnapshotDto,
     QuotaWindowDto,
