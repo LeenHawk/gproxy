@@ -351,32 +351,46 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
 /// the ones only an operator manages.
 fn owner_filter(query: &ListQuery) -> Option<sea_orm::Condition> {
     use sea_orm::Condition;
+    if !query.owner_any.is_empty() {
+        return Some(
+            query
+                .owner_any
+                .iter()
+                .fold(Condition::any(), |any, (kind, id)| {
+                    any.add(owner_condition(kind, Some(id.clone())))
+                }),
+        );
+    }
     let kind = crud::optional_text(query.owner_kind.clone())?;
     // A kind on its own is still a filter — "every team-owned credential" is a
     // question worth asking — but an id on its own is not: the same string
     // could name a user, a team or an organization.
     let owner = crud::optional_text(query.owner_id.clone());
-    let column = match kind.as_str() {
+    Some(owner_condition(&kind, owner))
+}
+
+/// One `(kind, id)` pair; see [`owner_filter`].
+fn owner_condition(kind: &str, owner: Option<String>) -> sea_orm::Condition {
+    use sea_orm::Condition;
+    let column = match kind {
         "user" => credential::Column::UserId,
         "team" => credential::Column::TeamId,
         "org" => credential::Column::OrganizationId,
         "instance" => {
-            return Some(
-                Condition::all()
-                    .add(credential::Column::UserId.is_null())
-                    .add(credential::Column::TeamId.is_null())
-                    .add(credential::Column::OrganizationId.is_null()),
-            );
+            return Condition::all()
+                .add(credential::Column::UserId.is_null())
+                .add(credential::Column::TeamId.is_null())
+                .add(credential::Column::OrganizationId.is_null());
         }
         // An owner kind this table cannot hold — `api_key`, `provider`, a
         // typo — matches nothing rather than everything. The primary key is
         // `NOT NULL`, so this is the portable spelling of "no rows".
-        _ => return Some(Condition::all().add(credential::Column::Id.is_null())),
+        _ => return Condition::all().add(credential::Column::Id.is_null()),
     };
-    Some(match owner {
+    match owner {
         Some(owner) => Condition::all().add(column.eq(owner)),
         None => Condition::all().add(column.is_not_null()),
-    })
+    }
 }
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for Credentials<'_, C> {

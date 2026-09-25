@@ -37,7 +37,10 @@ const SCOPE: &str = "x-gproxy-admin-scope";
 /// * `plain` — `member` of `acme`, signs in with a password;
 /// * `lead` — `admin` of team `core` only;
 /// * `both` — `admin` of `acme` **and** `globex`, so it has to name a scope;
-/// * `k-acme` — an API key bound to `acme`, and `k-core` bound to team `core`.
+/// * `k-acme` — an API key of `plain`'s bound to `acme`, and `k-core` bound to
+///   team `core`: a member's keys, which administer nothing;
+/// * `k-acme-admin` — `orgadmin`'s key bound to `acme`, and `k-core-lead`
+///   `lead`'s bound to `core`.
 ///
 /// Credentials and budgets exist for every owner shape: unowned, `acme`'s,
 /// `core`'s (a team inside acme), `globex`'s, and `plain`'s own.
@@ -69,6 +72,8 @@ async fn instance() -> Host {
     support::api_key(&handle, "k-acme", "plain", Some("acme"), None).await;
     support::api_key(&handle, "k-core", "plain", None, Some("core")).await;
     support::api_key(&handle, "k-loose", "plain", None, None).await;
+    support::api_key(&handle, "k-acme-admin", "orgadmin", Some("acme"), None).await;
+    support::api_key(&handle, "k-core-lead", "lead", None, Some("core")).await;
 
     support::provider(&handle, "p1", &["m1"]).await;
     support::credential(&handle, "c-shared", "p1", None, None, None).await;
@@ -192,12 +197,12 @@ async fn an_organization_scope_sees_two_families_and_only_its_own_rows() {
         assert_eq!(answer.json()["error"]["code"], "forbidden", "{closed}");
     }
 
-    // Credentials: the organization's own by default, and the team's when the
-    // team is named. Never the shared one, never another organization's, and
-    // never a member's personal credential.
+    // Credentials: the organization's own and its teams' by default, and one
+    // owner's when it is named. Never the shared one, never another
+    // organization's, and never a member's personal credential.
     let credentials = as_session(&host, &session, None, "/admin/api/credentials").await;
     assert_eq!(credentials.status, StatusCode::OK, "{}", credentials.text());
-    assert_eq!(ids(&credentials), ["c-acme"]);
+    assert_eq!(ids(&credentials), ["c-acme", "c-core"]);
 
     let team = as_session(
         &host,
@@ -221,10 +226,10 @@ async fn an_organization_scope_sees_two_families_and_only_its_own_rows() {
     assert!(ids(&foreign).is_empty());
     assert_eq!(foreign.json()["total"], 0);
 
-    // Quotas: the same narrowing, and the operator limits in the same table
-    // are never inside an organization.
+    // Quotas: the same narrowing, and a limit on a credential outside the
+    // organization is not inside it either.
     let quotas = as_session(&host, &session, None, "/admin/api/quotas").await;
-    assert_eq!(ids(&quotas), ["q-acme"]);
+    assert_eq!(ids(&quotas), ["q-acme", "q-core"]);
     let team = as_session(
         &host,
         &session,
@@ -390,20 +395,23 @@ async fn a_write_naming_an_owner_outside_the_scope_is_refused() {
     assert_eq!(team.status, StatusCode::OK, "{}", team.text());
 
     // Another organization, another organization's team, a member's own
-    // budget, and an operator limit: all refused, and refused as `Forbidden`
+    // budget, and a provider limit: all refused, and refused as `Forbidden`
     // rather than `NotFound` — the caller typed the id, so there is nothing to
     // leak about whether it exists.
     for (kind, id) in [
         ("org", "globex"),
         ("team", "ops"),
         ("user", "plain"),
-        ("credential", "c-shared"),
         ("provider", "p1"),
     ] {
         let answer = host.send(create(budget(kind, id))).await;
         assert_eq!(answer.status, StatusCode::FORBIDDEN, "{kind}:{id}");
         assert_eq!(answer.json()["error"]["code"], "forbidden", "{kind}:{id}");
     }
+    // A limit on a credential outside the scope names a credential the caller
+    // cannot see, so it answers like every other read of one.
+    let answer = host.send(create(budget("credential", "c-shared"))).await;
+    assert_eq!(answer.status, StatusCode::NOT_FOUND, "{}", answer.text());
 
     // A patch that would move a row out of the scope is the same refusal, and
     // the row is unchanged.
@@ -459,7 +467,7 @@ async fn a_scope_header_naming_something_the_caller_does_not_administer_is_refus
     for asked in ["organization:acme", "org:acme"] {
         let answer = as_session(&host, &session, Some(asked), "/admin/api/credentials").await;
         assert_eq!(answer.status, StatusCode::OK, "{asked}");
-        assert_eq!(ids(&answer), ["c-acme"]);
+        assert_eq!(ids(&answer), ["c-acme", "c-core"]);
     }
     // A malformed header is a 400 rather than a silent fallback.
     let answer = as_session(&host, &session, Some("acme"), "/admin/api/credentials").await;
@@ -519,24 +527,37 @@ async fn an_api_keys_binding_wins_over_any_header_it_sends() {
     for asked in ["instance", "organization:globex", "team:core"] {
         let answer = host
             .send(with(
-                keyed(get("/admin/api/credentials"), "k-acme"),
+                keyed(get("/admin/api/credentials"), "k-acme-admin"),
                 SCOPE,
                 asked,
             ))
             .await;
         assert_eq!(answer.status, StatusCode::OK, "{asked}");
-        assert_eq!(ids(&answer), ["c-acme"], "{asked}");
+        assert_eq!(ids(&answer), ["c-acme", "c-core"], "{asked}");
     }
 
     // A team-bound key is the team, whatever it claims.
     let answer = host
         .send(with(
-            keyed(get("/admin/api/credentials"), "k-core"),
+            keyed(get("/admin/api/credentials"), "k-core-lead"),
             SCOPE,
             "organization:acme",
         ))
         .await;
     assert_eq!(ids(&answer), ["c-core"]);
+
+    // A binding picks the scope but does not grant it: any member may mint a
+    // key bound to their organization, and that key administers nothing.
+    for key in ["k-acme", "k-core"] {
+        for uri in [
+            "/admin/api/credentials",
+            "/admin/api/quotas",
+            "/admin/api/context",
+        ] {
+            let answer = host.send(keyed(get(uri), key)).await;
+            assert_eq!(answer.status, StatusCode::FORBIDDEN, "{key} {uri}");
+        }
+    }
 
     // And the instance administrator's key ignores a header that would narrow
     // it, because the instance role is not a membership to be selected from.
@@ -548,6 +569,145 @@ async fn an_api_keys_binding_wins_over_any_header_it_sends() {
         ))
         .await;
     assert_eq!(answer.status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn a_credentials_limits_belong_to_whoever_owns_the_credential() {
+    let host = instance().await;
+    let session = cookie(&host, "orgadmin").await;
+    let console = |request| {
+        with(
+            with(request, "cookie", &session),
+            "origin",
+            "https://console.example.com",
+        )
+    };
+    let limit = |credential: &str| {
+        json!({
+            "ownerKind": "credential",
+            "ownerId": credential,
+            "metric": "requests",
+            "unit": "count",
+            "limitValue": "100",
+            "period": "total",
+        })
+    };
+
+    // A team credential inside the organization: create, list, read, delete.
+    let created = host
+        .send(console(post("/admin/api/quotas", limit("c-core"))))
+        .await;
+    assert_eq!(created.status, StatusCode::OK, "{}", created.text());
+    let id = created.json()["id"].as_str().unwrap().to_owned();
+    let listed = as_session(
+        &host,
+        &session,
+        None,
+        "/admin/api/quotas?ownerKind=credential&ownerId=c-core",
+    )
+    .await;
+    assert_eq!(ids(&listed), [id.as_str()]);
+    let read = as_session(&host, &session, None, &format!("/admin/api/quotas/{id}")).await;
+    assert_eq!(read.status, StatusCode::OK, "{}", read.text());
+
+    // Moving it onto a credential outside the scope is refused.
+    let mut moved = post(
+        &format!("/admin/api/quotas/{id}"),
+        json!({ "ownerId": "c-globex" }),
+    );
+    *moved.method_mut() = Method::PATCH;
+    assert_eq!(
+        host.send(console(moved)).await.status,
+        StatusCode::NOT_FOUND
+    );
+
+    // The default list is budgets, not every limit of every credential.
+    let quotas = as_session(&host, &session, None, "/admin/api/quotas").await;
+    assert_eq!(ids(&quotas), ["q-acme", "q-core"]);
+
+    // Another organization's credential, a member's personal one and the
+    // shared one are not the organization's to cap.
+    for foreign in ["c-globex", "c-plain", "c-shared"] {
+        let answer = host
+            .send(console(post("/admin/api/quotas", limit(foreign))))
+            .await;
+        assert_eq!(answer.status, StatusCode::NOT_FOUND, "{foreign}");
+    }
+
+    let mut delete = get(&format!("/admin/api/quotas/{id}"));
+    *delete.method_mut() = Method::DELETE;
+    let deleted = host.send(console(delete)).await;
+    assert!(deleted.status.is_success(), "{}", deleted.text());
+
+    // A team administrator does not reach its parent organization's
+    // credential.
+    let lead = cookie(&host, "lead").await;
+    let answer = host
+        .send(with(
+            with(post("/admin/api/quotas", limit("c-acme")), "cookie", &lead),
+            "origin",
+            "https://console.example.com",
+        ))
+        .await;
+    assert_eq!(answer.status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn how_a_credential_reaches_its_upstream_is_the_operators() {
+    let host = instance().await;
+    let session = cookie(&host, "orgadmin").await;
+    let console = |request| {
+        with(
+            with(request, "cookie", &session),
+            "origin",
+            "https://console.example.com",
+        )
+    };
+    let credential = |extra: Value| {
+        let mut body = json!({
+            "providerId": "p1",
+            "authKind": "api_key",
+            "secret": { "api_key": "x" },
+            "organizationId": "acme",
+        });
+        body.as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        body
+    };
+    let patch = |body: Value| {
+        let mut request = post("/admin/api/credentials/c-acme", body);
+        *request.method_mut() = Method::PATCH;
+        request
+    };
+
+    for extra in [
+        json!({ "proxy": { "mode": "explicit", "url": "http://169.254.169.254" } }),
+        json!({ "connectionProfileId": "anything" }),
+    ] {
+        let created = host
+            .send(console(post(
+                "/admin/api/credentials",
+                credential(extra.clone()),
+            )))
+            .await;
+        assert_eq!(created.status, StatusCode::FORBIDDEN, "{extra}");
+        let patched = host.send(console(patch(extra.clone()))).await;
+        assert_eq!(patched.status, StatusCode::FORBIDDEN, "{extra}");
+    }
+
+    // Without them the same writes land.
+    let created = host
+        .send(console(post(
+            "/admin/api/credentials",
+            credential(json!({})),
+        )))
+        .await;
+    assert_eq!(created.status, StatusCode::OK, "{}", created.text());
+    let patched = host
+        .send(console(patch(json!({ "label": "renamed" }))))
+        .await;
+    assert_eq!(patched.status, StatusCode::OK, "{}", patched.text());
 }
 
 // ---------------------------------------------------------------- context --

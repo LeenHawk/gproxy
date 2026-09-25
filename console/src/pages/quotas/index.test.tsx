@@ -65,14 +65,25 @@ describe("contextual limits", () => {
     expect(credentialLimits).not.toHaveBeenCalled()
     expect(budgetStatus).not.toHaveBeenCalled()
   })
-  it("lets tenant administrators read effective credential limits without requesting operator configuration", async () => {
+  it("lets tenant administrators manage their credential's limits without requesting operator configuration", async () => {
     scope.kind = "team"
     mount()
     await screen.findByText("Inherited from provider")
+    expect(screen.queryByText(/instance administrator can change/)).not.toBeInTheDocument()
+    expect(quotas.list).not.toHaveBeenCalledWith(expect.objectContaining({ ownerKind: "provider" }))
+    expect(screen.getByRole("button", { name: "Add limit" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Set for this credential" }))
+    fireEvent.change(screen.getByLabelText("Cost limit (USD)"), { target: { value: "12" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+    await screen.findByText("Credential override")
+    expect(quotas.create).toHaveBeenCalledWith(expect.objectContaining({ ownerKind: "credential", ownerId: "c", limitValue: "12" }))
+  })
+  it("keeps provider limits read-only outside the instance scope", async () => {
+    scope.kind = "organization"
+    mount("provider", "p")
+    await screen.findByText(parent.windowKey)
     expect(screen.getByText(/instance administrator can change/)).toBeInTheDocument()
-    expect(quotas.list).not.toHaveBeenCalled()
     expect(screen.queryByRole("button", { name: "Add limit" })).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Set for this credential" })).not.toBeInTheDocument()
   })
   it("retains inline edits when a budget write fails", async () => {
     vi.mocked(quotas.create).mockRejectedValue(new Error("Budget refused"))

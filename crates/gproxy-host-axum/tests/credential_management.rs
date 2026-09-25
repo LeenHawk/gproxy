@@ -12,6 +12,7 @@ use gproxy_channel::{
 };
 use gproxy_host_axum::HostState;
 use gproxy_sdk::{ClientPool, GproxyBuilder, SyncMode};
+use gproxy_store::entity::identity::membership_role::MembershipRole;
 use http::StatusCode;
 use serde_json::{Value, json};
 use std::{
@@ -148,6 +149,8 @@ async fn instance() -> (Host, Arc<LoginChannel>) {
     support::person(&handle, "tenant", "user").await;
     for org in ["a", "b"] {
         support::organization(&handle, org).await;
+        // A bound key administers its scope only while its owner does.
+        support::org_member(&handle, org, "tenant", MembershipRole::Admin).await;
         support::api_key(&handle, &format!("k-{org}"), "tenant", Some(org), None).await;
     }
     support::team(&handle, "child", "a").await;
