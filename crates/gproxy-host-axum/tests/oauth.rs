@@ -27,6 +27,11 @@ const PASSWORD: &str = "correct horse battery";
 
 /// One person with a password, and one registered public client.
 async fn instance() -> Host {
+    instance_as(None).await
+}
+
+/// [`instance`], with `alice` holding `role`.
+async fn instance_as(role: Option<&str>) -> Host {
     let host = Host::new().await;
     let data = host.data();
     let operations = host.operations(&data);
@@ -35,6 +40,7 @@ async fn instance() -> Host {
         .create(UserWrite {
             name: "alice".into(),
             password: Some(PASSWORD.into()),
+            role: role.map(str::to_owned),
             ..UserWrite::default()
         })
         .await
@@ -77,6 +83,59 @@ async fn sign_in(host: &Host) -> String {
         .await;
     assert_eq!(login.status, StatusCode::OK, "{}", login.text());
     format!("gproxy_session={}", login.json()["token"].as_str().unwrap())
+}
+
+/// Approve [`authorize_query`] with `cookie` and redeem the code: the access
+/// token a client ends up holding.
+async fn access_token(host: &Host, cookie: &str) -> String {
+    let approved = host
+        .send(with(
+            with(
+                post(
+                    &format!("/v1/oauth/authorize?{}", authorize_query()),
+                    json!({ "decision": ConsentDecision::Approve }),
+                ),
+                "cookie",
+                cookie,
+            ),
+            "origin",
+            "http://gproxy.local",
+        ))
+        .await;
+    assert_eq!(approved.status, StatusCode::OK, "{}", approved.text());
+    let outcome: AuthorizeOutcome =
+        serde_json::from_value(approved.json()["outcome"].clone()).unwrap();
+    let code = outcome.issued().expect("approved").code.clone();
+    let token = host
+        .send(form(
+            "/v1/oauth/token",
+            &[
+                ("grant_type", "authorization_code"),
+                ("client_id", "cli-app"),
+                ("code", &code),
+                ("redirect_uri", REDIRECT),
+                ("code_verifier", VERIFIER),
+            ],
+        ))
+        .await;
+    assert_eq!(token.status, StatusCode::OK, "{}", token.text());
+    token.json()["access_token"].as_str().unwrap().to_owned()
+}
+
+#[tokio::test]
+async fn an_administrators_token_is_not_an_administrative_credential() {
+    let host = instance_as(Some("admin")).await;
+    let cookie = sign_in(&host).await;
+    let access = access_token(&host, &cookie).await;
+
+    let users = host
+        .send(support::keyed(get("/admin/api/users"), &access))
+        .await;
+    assert_eq!(users.status, StatusCode::FORBIDDEN, "{}", users.text());
+    let export = host
+        .send(support::keyed(get("/admin/api/export"), &access))
+        .await;
+    assert_eq!(export.status, StatusCode::FORBIDDEN, "{}", export.text());
 }
 
 #[tokio::test]
