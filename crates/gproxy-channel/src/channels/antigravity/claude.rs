@@ -1,0 +1,268 @@
+//! Claude models behind Antigravity.
+//!
+//! The Code Assist host serves `claude-*` models by translating the Gemini
+//! envelope into an Anthropic Messages call on Vertex, so a request has to
+//! satisfy both the Gemini proto the host parses and the Anthropic
+//! validation behind it; an Anthropic refusal comes back inside a Gemini
+//! `INVALID_ARGUMENT`. Every rule here was probed live against
+//! `daily-cloudcode-pa` (2026-09-26) rather than taken from a reference
+//! client, and each one names the refusal it avoids.
+//!
+//! Tools: a declaration carrying `parametersJsonSchema` never reaches the
+//! Anthropic side (`tools.0.custom.input_schema: Field required`); only the
+//! proto `parameters` does. That proto `Schema` rejects the JSON Schema
+//! keywords it does not declare (`$schema`, `$defs`, `$ref`, `const`,
+//! `deprecated`, `examples`, a `type` array) with `Unknown name`, and an
+//! `anyOf` it accepts is then refused by Anthropic as an invalid schema, so
+//! the schema is rewritten into the subset both sides take. Neither side
+//! needs a `required` entry or the `VALIDATED` calling mode.
+
+use serde_json::{Map, Value};
+
+/// The routed model is served by Anthropic rather than Gemini.
+pub(super) fn is_claude(model: &str) -> bool {
+    crate::channels::shared::code_assist::model_id(model).starts_with("claude-")
+}
+
+/// Keywords the proto `Schema` declares and Anthropic accepts, kept as they
+/// are once their nested schemas are rewritten.
+const KEPT: &[&str] = &[
+    "type",
+    "format",
+    "title",
+    "description",
+    "nullable",
+    "enum",
+    "default",
+    "minimum",
+    "maximum",
+    "minLength",
+    "maxLength",
+    "pattern",
+    "minItems",
+    "maxItems",
+    "minProperties",
+    "maxProperties",
+];
+
+/// How deep `$ref` inlining and nesting may go before a node is cut short;
+/// a recursive definition would otherwise never end.
+const MAX_DEPTH: usize = 24;
+
+/// Rewrite every function declaration of a Claude-bound request to the proto
+/// `parameters` field with a schema both sides accept. A response schema has
+/// no Anthropic counterpart and is dropped.
+pub(super) fn declare_tools(request: &mut Value) {
+    let Some(tools) = request.get_mut("tools").and_then(Value::as_array_mut) else {
+        return;
+    };
+    for declaration in tools
+        .iter_mut()
+        .filter_map(|tool| tool.get_mut("functionDeclarations"))
+        .filter_map(Value::as_array_mut)
+        .flatten()
+        .filter_map(Value::as_object_mut)
+    {
+        let schema = declaration
+            .remove("parametersJsonSchema")
+            .or_else(|| declaration.remove("parameters"));
+        declaration.remove("response");
+        declaration.remove("responseJsonSchema");
+        if let Some(schema) = schema {
+            let definitions = definitions(&schema);
+            declaration.insert("parameters".into(), clean(&schema, &definitions, MAX_DEPTH));
+        }
+    }
+}
+
+/// `$defs` and the older `definitions`, for resolving local `$ref`s.
+fn definitions(schema: &Value) -> Map<String, Value> {
+    let mut found = Map::new();
+    for key in ["definitions", "$defs"] {
+        if let Some(defs) = schema.get(key).and_then(Value::as_object) {
+            found.extend(defs.clone());
+        }
+    }
+    found
+}
+
+fn resolve<'a>(reference: &str, definitions: &'a Map<String, Value>) -> Option<&'a Value> {
+    let name = reference
+        .strip_prefix("#/$defs/")
+        .or_else(|| reference.strip_prefix("#/definitions/"))?;
+    definitions.get(name)
+}
+
+/// The non-null variants of a union, and whether `null` was one of them.
+fn variants(schema: &Map<String, Value>) -> Option<(Vec<&Value>, bool)> {
+    let union = schema
+        .get("anyOf")
+        .or_else(|| schema.get("oneOf"))
+        .and_then(Value::as_array)?;
+    let null = union
+        .iter()
+        .any(|variant| variant.get("type").and_then(Value::as_str) == Some("null"));
+    let rest = union
+        .iter()
+        .filter(|variant| variant.get("type").and_then(Value::as_str) != Some("null"))
+        .collect();
+    Some((rest, null))
+}
+
+fn clean(schema: &Value, definitions: &Map<String, Value>, depth: usize) -> Value {
+    let Some(object) = schema.as_object() else {
+        // `true` (anything) and other non-object schemas carry no shape.
+        return Value::Object(Map::new());
+    };
+    if depth == 0 {
+        return Value::Object(Map::new());
+    }
+    if let Some(target) = object
+        .get("$ref")
+        .and_then(Value::as_str)
+        .and_then(|reference| resolve(reference, definitions))
+    {
+        // Sibling keywords of a `$ref` (a description, usually) override the
+        // definition's own.
+        let mut merged = target.as_object().cloned().unwrap_or_default();
+        for (key, value) in object {
+            if key != "$ref" {
+                merged.insert(key.clone(), value.clone());
+            }
+        }
+        return clean(&Value::Object(merged), definitions, depth - 1);
+    }
+
+    let mut out = Map::new();
+    let mut nullable = false;
+    // A union collapses to its first non-null variant; `null` survives as
+    // `nullable`.
+    let mut source = object.clone();
+    if let Some((rest, null)) = variants(object) {
+        nullable |= null;
+        if let Some(first) = rest.first().and_then(|variant| variant.as_object()) {
+            for (key, value) in first {
+                source.entry(key.clone()).or_insert_with(|| value.clone());
+            }
+        }
+    }
+    // `allOf` members are merged into one object shape.
+    if let Some(members) = object.get("allOf").and_then(Value::as_array) {
+        for member in members.iter().filter_map(Value::as_object) {
+            for (key, value) in member {
+                match (key.as_str(), source.get_mut(key)) {
+                    ("properties", Some(Value::Object(existing))) => {
+                        if let Some(extra) = value.as_object() {
+                            for (name, property) in extra {
+                                existing
+                                    .entry(name.clone())
+                                    .or_insert_with(|| property.clone());
+                            }
+                        }
+                    }
+                    ("required", Some(Value::Array(existing))) => {
+                        if let Some(extra) = value.as_array() {
+                            existing.extend(extra.iter().cloned());
+                        }
+                    }
+                    (_, Some(_)) => {}
+                    (_, None) => {
+                        source.insert(key.clone(), value.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    // A `type` array keeps its first non-null type.
+    match source.get("type") {
+        Some(Value::Array(types)) => {
+            nullable |= types.iter().any(|kind| kind.as_str() == Some("null"));
+            if let Some(kind) = types.iter().find(|kind| kind.as_str() != Some("null")) {
+                out.insert("type".into(), kind.clone());
+            }
+        }
+        Some(kind @ Value::String(_)) => {
+            out.insert("type".into(), kind.clone());
+        }
+        _ => {}
+    }
+    for key in KEPT.iter().filter(|key| **key != "type") {
+        if let Some(value) = source.get(*key) {
+            out.insert((*key).into(), value.clone());
+        }
+    }
+    // `const` is a one-value enum.
+    if let Some(value) = source.get("const") {
+        out.insert("enum".into(), Value::Array(vec![value.clone()]));
+    }
+    // The proto enum is a list of strings.
+    if let Some(Value::Array(values)) = out.get_mut("enum") {
+        let mut stringified = false;
+        for value in values.iter_mut() {
+            if !value.is_string() {
+                let text = match &*value {
+                    Value::Null => "null".to_owned(),
+                    other => other.to_string(),
+                };
+                *value = Value::String(text);
+                stringified = true;
+            }
+        }
+        if stringified {
+            out.insert("type".into(), Value::String("string".into()));
+        }
+    }
+    if nullable {
+        out.insert("nullable".into(), Value::Bool(true));
+    }
+
+    if let Some(properties) = source.get("properties").and_then(Value::as_object) {
+        let cleaned: Map<String, Value> = properties
+            .iter()
+            .map(|(name, property)| (name.clone(), clean(property, definitions, depth - 1)))
+            .collect();
+        if let Some(required) = source.get("required").and_then(Value::as_array) {
+            let mut kept: Vec<Value> = Vec::new();
+            for name in required {
+                if name.as_str().is_some_and(|name| cleaned.contains_key(name))
+                    && !kept.contains(name)
+                {
+                    kept.push(name.clone());
+                }
+            }
+            if !kept.is_empty() {
+                out.insert("required".into(), Value::Array(kept));
+            }
+        }
+        out.insert("properties".into(), Value::Object(cleaned));
+    }
+    match source.get("items") {
+        Some(Value::Array(tuple)) => {
+            if let Some(first) = tuple.first() {
+                out.insert("items".into(), clean(first, definitions, depth - 1));
+            }
+        }
+        Some(items) => {
+            out.insert("items".into(), clean(items, definitions, depth - 1));
+        }
+        None => {}
+    }
+    match source.get("additionalProperties") {
+        Some(Value::Bool(allowed)) => {
+            out.insert("additionalProperties".into(), Value::Bool(*allowed));
+        }
+        Some(schema @ Value::Object(_)) => {
+            out.insert(
+                "additionalProperties".into(),
+                clean(schema, definitions, depth - 1),
+            );
+        }
+        _ => {}
+    }
+    // An untyped node with properties is an object.
+    if !out.contains_key("type") && out.contains_key("properties") {
+        out.insert("type".into(), Value::String("object".into()));
+    }
+    Value::Object(out)
+}

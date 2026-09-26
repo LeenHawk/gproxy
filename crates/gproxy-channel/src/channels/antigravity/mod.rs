@@ -28,6 +28,7 @@
 //! at `request.sessionId`, and a client that already sent a whole envelope
 //! keeps its own. The field is never renamed, moved or dropped.
 
+mod claude;
 mod models;
 mod oauth;
 mod quota;
@@ -348,6 +349,11 @@ impl Antigravity {
                 let mut envelope: Value = serde_json::from_slice(&bytes)
                     .map_err(|error| ChannelError::InvalidConfig(error.to_string()))?;
                 apply_model_defaults(&mut envelope, &model);
+                if claude::is_claude(&model)
+                    && let Some(request) = envelope.get_mut("request")
+                {
+                    claude::declare_tools(request);
+                }
                 (
                     code_assist::encode(&envelope, ChannelError::InvalidConfig)?,
                     operation == Operation::StreamGenerateContent,
