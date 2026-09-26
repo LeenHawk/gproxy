@@ -204,6 +204,11 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                 &provider.entity.id,
                 &credential.id,
             ));
+        let endpoint = provider.operation_url_for(
+            operation,
+            EndpointTransport::WebSocket,
+            upstream_model.as_deref(),
+        );
         let binding = ChannelBinding::new(
             provider.channel.as_ref(),
             prepare::provider_view(&provider),
@@ -212,7 +217,7 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
         )
         .state(channel_state)
         .instance(core.instance_id().clone())
-        .endpoint(provider.operation_url(operation, EndpointTransport::WebSocket));
+        .endpoint(endpoint.as_deref());
         let handshake = WireRequest {
             method: wire.method.clone(),
             path: wire.path.clone(),

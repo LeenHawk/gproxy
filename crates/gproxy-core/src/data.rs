@@ -86,7 +86,41 @@ impl ProviderData {
             })
             .map(String::as_str)
     }
+
+    /// The configured URL with `{model}` filled in with the upstream model,
+    /// percent-encoded as one path segment. A template needs the model in the
+    /// path for surfaces that put it there (Gemini's `models/{model}:…`, a
+    /// relay keyed by model); without a model the URL is used as written.
+    pub fn operation_url_for(
+        &self,
+        operation: OperationKey,
+        transport: EndpointTransport,
+        model: Option<&str>,
+    ) -> Option<std::borrow::Cow<'_, str>> {
+        Some(fill_model(self.operation_url(operation, transport)?, model))
+    }
 }
+
+fn fill_model<'a>(url: &'a str, model: Option<&str>) -> std::borrow::Cow<'a, str> {
+    match model.filter(|_| url.contains(MODEL_PLACEHOLDER)) {
+        Some(model) => std::borrow::Cow::Owned(url.replace(
+            MODEL_PLACEHOLDER,
+            &percent_encoding::utf8_percent_encode(model, MODEL_SEGMENT).to_string(),
+        )),
+        None => std::borrow::Cow::Borrowed(url),
+    }
+}
+
+/// The placeholder an operation URL may carry for the upstream model.
+pub const MODEL_PLACEHOLDER: &str = "{model}";
+
+/// Everything but RFC 3986 unreserved characters, so a model name stays one
+/// path segment.
+const MODEL_SEGMENT: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'_')
+    .remove(b'.')
+    .remove(b'~');
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -170,4 +204,32 @@ pub struct RewriteRuleData {
     pub model_matcher: Option<Regex>,
     pub header_matcher: Option<Regex>,
     pub event_matcher: Option<Regex>,
+}
+
+#[cfg(test)]
+mod model_placeholder_tests {
+    use super::fill_model;
+
+    #[test]
+    fn the_model_fills_the_placeholder_as_one_path_segment() {
+        assert_eq!(
+            fill_model(
+                "https://r.example/v1beta/models/{model}:generateContent",
+                Some("gemini-3.1-pro")
+            ),
+            "https://r.example/v1beta/models/gemini-3.1-pro:generateContent"
+        );
+        assert_eq!(
+            fill_model("https://r.example/{model}/chat", Some("org/model a")),
+            "https://r.example/org%2Fmodel%20a/chat"
+        );
+        assert_eq!(
+            fill_model("https://r.example/{model}", None),
+            "https://r.example/{model}"
+        );
+        assert_eq!(
+            fill_model("https://r.example/chat", Some("m")),
+            "https://r.example/chat"
+        );
+    }
 }

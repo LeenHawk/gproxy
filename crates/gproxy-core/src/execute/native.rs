@@ -84,6 +84,11 @@ impl NativeCall {
         );
         let mut guard = SendGuard(Some(exchange.clone()));
         let observed = ObservedClient::new(attempt.credential.client.clone(), exchange.clone());
+        let endpoint = provider.operation_url_for(
+            self.operation,
+            EndpointTransport::Http,
+            request.target.upstream_model.as_deref(),
+        );
         let binding = ChannelBinding::new(
             provider.channel.as_ref(),
             prepare::provider_view(provider),
@@ -92,7 +97,7 @@ impl NativeCall {
         )
         .state(self.state.clone())
         .instance(self.instance_id.clone())
-        .endpoint(provider.operation_url(self.operation, EndpointTransport::Http));
+        .endpoint(endpoint.as_deref());
         let result = tokio::select! {
             biased;
             () = request.cancellation.cancelled() => Err(ChannelError::Host("request cancelled".into())),

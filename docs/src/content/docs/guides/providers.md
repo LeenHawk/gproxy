@@ -127,6 +127,10 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/operation-endpoints \
        "url":"https://elsewhere.example/v1/chat/completions"}'
 ```
 
+`{model}` in the URL is replaced with the upstream model, percent-encoded as
+one path segment, for surfaces that put the model in the path:
+`https://relay.example/v1beta/models/{model}:generateContent`.
+
 `operation_rules` is the other half: a per-provider override of what the
 channel does for an operation. Channel defaults stay in code and are not
 copied into every new provider.
