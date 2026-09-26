@@ -661,6 +661,73 @@ async fn a_buffered_reply_is_unwrapped_into_the_gemini_shape() {
 }
 
 #[tokio::test]
+async fn a_buffered_claude_call_is_streamed_and_folded_back() {
+    // The frames a live `claude-opus-4-6-thinking` tool call streamed.
+    let frames = [
+        json!({"candidates": [{"content": {"role": "model", "parts": [{"text": ""}]}}]}),
+        json!({"candidates": [{"content": {"role": "model", "parts": [{"thought": true, "text": "The user wants "}]}}]}),
+        json!({"candidates": [{"content": {"role": "model", "parts": [{"thought": true, "text": "Paris."}]}}]}),
+        json!({"candidates": [{"content": {"role": "model", "parts": [{"thought": true, "text": "", "thoughtSignature": "RXFJ"}]}}]}),
+        json!({"candidates": [{"content": {"role": "model", "parts": [{"functionCall": {"name": "get_weather", "args": {"city": "Paris"}, "id": "toolu_1"}}]}}]}),
+        json!({"candidates": [{"content": {"role": "model", "parts": [{"text": ""}]}, "finishReason": "STOP"}],
+               "usageMetadata": {"promptTokenCount": 594, "candidatesTokenCount": 71},
+               "modelVersion": "claude-opus-4-6-thinking", "responseId": "msg_1"}),
+    ];
+    let sse: String = frames
+        .iter()
+        .map(|frame| {
+            format!(
+                "data: {}\r\n\r\n",
+                json!({"response": frame, "traceId": "t"})
+            )
+        })
+        .collect();
+    let client = Arc::new(ScriptClient::new(vec![raw_reply(StatusCode::OK, sse)]));
+    let config = json!({});
+    let secret = secret();
+    let metadata = Value::Null;
+    let response = Antigravity
+        .generate_content(OperationContext {
+            provider: provider(&config, None),
+            credential: credential(&secret, &metadata),
+            dialect: Dialect::Gemini,
+            request: request(
+                HeaderMap::new(),
+                "/v1beta/models/claude-opus-4-6-thinking:generateContent",
+                json!({"contents": [{"role": "user", "parts": [{"text": "weather?"}]}]}),
+            ),
+            client: client.clone(),
+            state: Arc::new(NoState::default()),
+            instance_id: Arc::from("i"),
+            endpoint_override: None,
+        })
+        .await
+        .expect("response");
+    assert!(
+        client.sent()[0]
+            .1
+            .ends_with(":streamGenerateContent?alt=sse")
+    );
+    let body: Value = serde_json::from_slice(&collect(response.body).await).unwrap();
+    assert_eq!(
+        body,
+        json!({
+            "candidates": [{
+                "content": {"role": "model", "parts": [
+                    {"thought": true, "text": "The user wants Paris.", "thoughtSignature": "RXFJ"},
+                    {"functionCall": {"name": "get_weather", "args": {"city": "Paris"}, "id": "toolu_1"}},
+                ]},
+                "finishReason": "STOP",
+                "index": 0,
+            }],
+            "usageMetadata": {"promptTokenCount": 594, "candidatesTokenCount": 71},
+            "modelVersion": "claude-opus-4-6-thinking",
+            "responseId": "msg_1",
+        })
+    );
+}
+
+#[tokio::test]
 async fn a_streamed_reply_is_unwrapped_frame_by_frame() {
     let sse =
         "data: {\"response\":{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"a\"}]}}]}}\n\n";

@@ -15,7 +15,7 @@ use futures_util::{StreamExt, stream};
 use gproxy_protocol::HttpBody;
 use gproxy_protocol::codec::{SseDecoder, SseEncoder, SseEvent, SseFrame};
 use gproxy_protocol::connection::{ByteStream, Bytes, TransportError};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::collections::VecDeque;
 
 struct Codec {
@@ -116,4 +116,111 @@ pub(crate) fn unwrap_sse(body: HttpBody) -> HttpBody {
             }
         },
     )))
+}
+
+/// Fold a collected `alt=sse` reply into the one buffered Gemini response
+/// `:generateContent` would have returned, for a model whose buffered call
+/// loses what the stream carries. Parts are appended in order with runs of
+/// plain text (or plain thought) joined, a thought signature the stream sent
+/// on its own empty part joins the thought run before it, and the last
+/// finish reason, usage and response metadata win.
+pub(crate) fn aggregate(body: &[u8]) -> Result<Value, ChannelError> {
+    let mut decoder = SseDecoder::new(SSE_LIMITS);
+    let mut frames = decoder
+        .push(body)
+        .map_err(|error| invalid_response(error.to_string()))?;
+    frames.extend(
+        decoder
+            .finish()
+            .map_err(|error| invalid_response(error.to_string()))?,
+    );
+    let mut parts: Vec<Value> = Vec::new();
+    let mut candidate = Map::new();
+    let mut response = Map::new();
+    for frame in frames {
+        let SseFrame::Event(event) = frame else {
+            continue;
+        };
+        let value: Value = serde_json::from_str(&event.data)
+            .map_err(|error| invalid_response(format!("Code Assist SSE payload JSON: {error}")))?;
+        let Value::Object(chunk) = unwrap_value(&value).clone() else {
+            continue;
+        };
+        for (key, value) in chunk {
+            if key != "candidates" {
+                response.insert(key, value);
+                continue;
+            }
+            let Some(first) = value.as_array().and_then(|list| list.first()) else {
+                continue;
+            };
+            for (key, value) in first.as_object().into_iter().flatten() {
+                if key == "content" {
+                    for part in value
+                        .get("parts")
+                        .and_then(Value::as_array)
+                        .into_iter()
+                        .flatten()
+                    {
+                        append(&mut parts, part.clone());
+                    }
+                } else {
+                    candidate.insert(key.clone(), value.clone());
+                }
+            }
+        }
+    }
+    parts.retain(|part| !(plain(part) && part.get("text").and_then(Value::as_str) == Some("")));
+    candidate.insert(
+        "content".into(),
+        serde_json::json!({ "role": "model", "parts": parts }),
+    );
+    candidate.entry("index").or_insert(Value::from(0));
+    response.insert(
+        "candidates".into(),
+        Value::Array(vec![Value::Object(candidate)]),
+    );
+    let mut response = Value::Object(response);
+    normalize_content(&mut response);
+    Ok(response)
+}
+
+fn thought(part: &Value) -> bool {
+    part.get("thought").and_then(Value::as_bool) == Some(true)
+}
+
+/// Text (thought or not) with nothing else beside it.
+fn plain(part: &Value) -> bool {
+    part.as_object().is_some_and(|object| {
+        object.get("text").is_some_and(Value::is_string)
+            && object
+                .keys()
+                .all(|key| matches!(key.as_str(), "text" | "thought"))
+    })
+}
+
+fn append(parts: &mut Vec<Value>, part: Value) {
+    let Some(last) = parts.last_mut() else {
+        parts.push(part);
+        return;
+    };
+    let signature_only = thought(&part)
+        && part
+            .get("text")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .is_empty()
+        && part.get("thoughtSignature").is_some();
+    if thought(last) && plain(last) && signature_only {
+        last["thoughtSignature"] = part["thoughtSignature"].clone();
+        return;
+    }
+    if plain(last) && plain(&part) && thought(last) == thought(&part) {
+        let text = part["text"].as_str().unwrap_or_default().to_owned();
+        if let Some(Value::String(existing)) = last.get_mut("text") {
+            existing.push_str(&text);
+        }
+        return;
+    }
+    parts.push(part);
 }
