@@ -37,8 +37,8 @@ where
         state: &GenerationStateAccess<'_, S>,
         driver: &mut D,
     ) -> Result<Option<StreamChunk<B::ClientEvent>>, TransformError> {
-        // Every child was prepared against one state; the group record below
-        // must not land anywhere else before a child gets to refuse it.
+        // Every child was prepared against one state; a step against any
+        // other is refused before a child reads or writes anything.
         for child in &self.children {
             child.binding.check(state)?;
         }
@@ -49,14 +49,6 @@ where
         }
         if self.finished {
             return Ok(None);
-        }
-        if !self.group_saved {
-            let mut record = IdentityStateRecord::new(IdentityRole::Response, state.target.clone());
-            record.client_item_id = Some(self.id.clone());
-            state
-                .save_records(vec![(record, None)], vec![], &mut self.group)
-                .await?;
-            self.group_saved = true;
         }
         let result = self.next_inner(upstream, target, state, driver).await;
         // StateStore/transport interruption may have an uncertain receipt and is

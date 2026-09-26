@@ -182,12 +182,13 @@ fn state_failure_blocks_exposure_then_recovers_without_post() {
         gemini_facts,
     ))
     .unwrap_err();
-    assert_eq!(error.kind(), TransformErrorKind::Conflict);
+    assert_eq!(error.kind(), TransformErrorKind::Host);
     assert_eq!(store.entries.lock().unwrap().len(), 1);
     let result = ready(p.recover(codec_limits(), &state, &mut progress, gemini_facts)).unwrap();
     assert!(matches!(result, GenerationOutcome::Success { .. }));
     assert_eq!(host.sent.lock().unwrap().len(), 1);
-    assert_eq!(store.entries.lock().unwrap().len(), 3);
+    // Both ID-less calls are recorded; the response itself is not.
+    assert_eq!(store.entries.lock().unwrap().len(), 2);
 }
 
 #[test]
@@ -293,7 +294,7 @@ fn truncated_chat_tool_result_uses_saved_name_in_actual_next_request() {
 }
 
 #[test]
-fn claude_chat_policy_rewrites_collision_prone_ids_and_saves_exact_originals() {
+fn claude_chat_policy_rewrites_collision_prone_ids_and_saves_only_the_rewritten_original() {
     let mut body = output("c");
     body["stop_reason"] = json!("tool_use");
     body["content"] = json!([{"type":"tool_use","id":"a.b","name":"same","input":{}},{"type":"tool_use","id":"a_b","name":"same","input":{}}]);
@@ -332,10 +333,18 @@ fn claude_chat_policy_rewrites_collision_prone_ids_and_saves_exact_originals() {
     let second = calls[1]["id"].as_str().unwrap();
     assert_ne!(first, second);
     assert_eq!(second, "a_b");
-    let replay =
-        ready(state.recover_tools(&[first.into(), second.into()], &Default::default())).unwrap();
+    // Only the rewritten ID is recorded; `a_b` reached the client as Claude
+    // sent it and goes back the same way.
+    let names = [
+        (first.to_owned(), "same".to_owned()),
+        (second.to_owned(), "same".to_owned()),
+    ]
+    .into_iter()
+    .collect();
+    let replay = ready(state.recover_tools(&[first.into(), second.into()], &names)).unwrap();
     assert_eq!(replay.original_call_ids[first], "a.b");
-    assert_eq!(replay.original_call_ids[second], "a_b");
+    assert!(!replay.original_call_ids.contains_key(second));
+    assert_eq!(store.entries.lock().unwrap().len(), 1);
 }
 
 #[test]
@@ -364,27 +373,39 @@ fn state_expiry_and_record_budget_are_enforced_before_exposure() {
     assert_eq!(error.kind(), TransformErrorKind::InvalidInput);
 }
 
+/// The non-stream path hit the same collision: a repeated upstream response
+/// ID made the second response's identity CAS fail after its POST.
 #[test]
-fn previously_applied_identity_disappearing_blocks_recovery() {
-    let host = gemini_tools_host();
-    let store = Store {
-        fail_at: Some(2),
-        ..Default::default()
-    };
-    let state = state(&store, Dialect::Gemini);
-    let mut p = chat_gemini();
-    let mut progress = GenerationProgress::default();
-    ready(p.invoke(
-        &host,
-        &(),
-        codec_limits(),
-        &state,
-        &mut progress,
-        gemini_facts,
-    ))
-    .unwrap_err();
-    store.entries.lock().unwrap().clear();
-    let error = ready(p.recover(codec_limits(), &state, &mut progress, gemini_facts)).unwrap_err();
-    assert_eq!(error.kind(), TransformErrorKind::MissingState);
-    assert_eq!(host.sent.lock().unwrap().len(), 1);
+fn repeated_upstream_ids_across_responses_in_one_conversation_both_succeed() {
+    let store = Store::default();
+    let state = state(&store, Dialect::Claude);
+    for _ in 0..2 {
+        let mut body = output("c");
+        body["content"] = json!([{"type":"tool_use","id":"toolu_mock","name":"same","input":{}}]);
+        body["stop_reason"] = json!("tool_use");
+        let host = Host::new(body);
+        let mut p = chat_via_claude();
+        let GenerationOutcome::Success { response, .. } = ready(p.invoke(
+            &host,
+            &(),
+            codec_limits(),
+            &state,
+            &mut GenerationProgress::default(),
+            |_| {
+                Ok(claude_chat::ResponseSupplement {
+                    created_unix_seconds: Some(123),
+                })
+            },
+        ))
+        .unwrap() else {
+            panic!("rejected")
+        };
+        let value = serde_json::to_value(response.body).unwrap();
+        assert_eq!(value["id"], "msg-native");
+        assert_eq!(
+            value["choices"][0]["message"]["tool_calls"][0]["id"],
+            "toolu_mock"
+        );
+        assert!(store.entries.lock().unwrap().is_empty());
+    }
 }

@@ -121,12 +121,11 @@ where
             .as_str()
             .unwrap();
         assert_eq!(response_id, call.response_id());
-        let record = ready(state.read(IdentityRole::Response, response_id))
-            .unwrap()
-            .unwrap();
+        // The aggregate ID is the gateway's own and nothing reads it back.
         assert!(
-            record.response_id.is_none(),
-            "aggregate must not impersonate one native response"
+            ready(state.read(IdentityRole::Response, response_id))
+                .unwrap()
+                .is_none()
         );
         assert!(value.get("usage").is_none_or(Value::is_null));
         assert!(value.get("usageMetadata").is_none());
@@ -169,11 +168,16 @@ where
                 .as_str()
                 .unwrap()
         };
-        let saved = ready(state.read(IdentityRole::ToolCall, id))
-            .unwrap()
-            .unwrap();
-        assert_eq!(saved.original_call_id.as_deref(), Some("tool:source"));
-        assert_eq!(saved.tool_name.as_deref(), Some("f"));
+        // The first child forwards the upstream ID and records nothing; the
+        // second child's alias is the only one to map back.
+        let saved = ready(state.read(IdentityRole::ToolCall, id)).unwrap();
+        if index == 0 {
+            assert!(saved.is_none());
+        } else {
+            let saved = saved.unwrap();
+            assert_eq!(saved.original_call_id.as_deref(), Some("tool:source"));
+            assert_eq!(saved.tool_name.as_deref(), Some("f"));
+        }
         ids.push(id);
     }
     assert_eq!(ids[0], "tool:source");

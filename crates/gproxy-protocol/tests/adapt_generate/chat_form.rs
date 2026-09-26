@@ -406,7 +406,7 @@ fn actual_chat_stream_preserves_modern_missing_id_vs_legacy_and_blocks_unknown_p
 }
 
 #[test]
-fn truncated_modern_gemini_result_uses_actual_saved_id_and_unbound_results_fail() {
+fn forwarded_modern_gemini_call_is_replayed_from_history_not_state() {
     let store = Store::default();
     let access = state(&store, Dialect::OpenAiChat);
     let mut body = output("h");
@@ -429,8 +429,13 @@ fn truncated_modern_gemini_result_uses_actual_saved_id_and_unbound_results_fail(
         |_| Ok(()),
     ))
     .unwrap();
+    // The client saw Chat's own ID, so there is nothing to remember.
+    assert!(store.entries.lock().unwrap().is_empty());
     let mut next = input("g");
-    next["contents"] = json!([{"role":"user","parts":[{"functionResponse":{"id":"actual-modern","name":"lookup","response":{"actual":"result"}}}]}]);
+    next["contents"] = json!([
+        {"role":"model","parts":[{"functionCall":{"id":"actual-modern","name":"lookup","args":{}}}]},
+        {"role":"user","parts":[{"functionResponse":{"id":"actual-modern","name":"lookup","response":{"actual":"result"}}}]}
+    ]);
     let mut p = ready(GeminiViaChat::prepare_with_state(
         serde_json::from_value(next).unwrap(),
         endpoint(),
@@ -439,9 +444,12 @@ fn truncated_modern_gemini_result_uses_actual_saved_id_and_unbound_results_fail(
     ))
     .unwrap();
     let target = serde_json::to_value(p.target_request()).unwrap();
-    assert_eq!(target["messages"].as_array().unwrap().len(), 1);
-    assert_eq!(target["messages"][0]["role"], "tool");
-    assert_eq!(target["messages"][0]["tool_call_id"], "actual-modern");
+    assert_eq!(
+        target["messages"][0]["tool_calls"][0]["id"],
+        "actual-modern"
+    );
+    assert_eq!(target["messages"][1]["role"], "tool");
+    assert_eq!(target["messages"][1]["tool_call_id"], "actual-modern");
     let host = Host::new(next_body());
     ready(p.invoke(
         &host,
@@ -453,18 +461,20 @@ fn truncated_modern_gemini_result_uses_actual_saved_id_and_unbound_results_fail(
     ))
     .unwrap();
     assert_eq!(host.sent.lock().unwrap().len(), 1);
-    let mut unknown = input("r");
-    unknown["input"] = json!([{"type":"function_call_output","call_id":"unbound-client-id","name":"lookup","output":"result"}]);
+    // Without its call, a result has no binding: Chat needs the declaring
+    // assistant message, and nothing was stored to stand in for it.
+    let mut truncated = input("g");
+    truncated["contents"] = json!([{"role":"user","parts":[{"functionResponse":{"id":"actual-modern","name":"lookup","response":{"actual":"result"}}}]}]);
     assert_eq!(
-        ready(ResponsesViaChat::prepare_with_state(
-            serde_json::from_value(unknown).unwrap(),
+        ready(GeminiViaChat::prepare_with_state(
+            serde_json::from_value(truncated).unwrap(),
             endpoint(),
-            ids(Dialect::OpenAi, Dialect::OpenAiChat),
-            &access
+            ids(Dialect::Gemini, Dialect::OpenAiChat),
+            &access,
         ))
         .unwrap_err()
         .kind(),
-        TransformErrorKind::MissingState
+        TransformErrorKind::MissingMetadata
     );
 }
 #[test]

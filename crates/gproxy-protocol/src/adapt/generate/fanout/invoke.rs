@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     capability::{StateStore, Upstream},
-    transform::{Converted, Report, identity::IdentityStateRecord},
+    transform::{Converted, Report},
 };
 use std::collections::BTreeSet;
 
@@ -122,13 +122,6 @@ impl<A: Edge> Fanout<A> {
                     .await?;
             }
         }
-        let mut record = IdentityStateRecord::new(IdentityRole::Response, state.target.clone());
-        record.client_item_id = Some(self.group_id.clone());
-        // No single native response owns an aggregate ID, so its record links
-        // none; the child records above carry each native response.
-        state
-            .save_records(vec![(record, None)], vec![], &mut progress.group)
-            .await?;
         Ok(Converted { value, report })
     }
 }

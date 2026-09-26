@@ -15,13 +15,13 @@ use super::{
 use super::{codec_error, conflict, invalid, limit};
 use crate::{
     adapt::generate::{
-        GenerationProgress, GenerationStateAccess,
+        GenerationStateAccess,
         fanout::{FanoutOptions, group_id},
     },
     capability::StateStore,
     transform::{
         Report, TransformError,
-        identity::{IdentityFlow, IdentityRole, IdentityStateRecord},
+        identity::{IdentityFlow, IdentityRole},
     },
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -38,8 +38,6 @@ where
     children: Vec<StreamInvocation<B>>,
     id: String,
     settings: StreamSettings,
-    group: GenerationProgress<()>,
-    group_saved: bool,
     index: usize,
     seeded: bool,
     fixed: BTreeSet<String>,
@@ -113,8 +111,6 @@ where
             children,
             id,
             settings,
-            group: Default::default(),
-            group_saved: false,
             index: 0,
             seeded: false,
             fixed,

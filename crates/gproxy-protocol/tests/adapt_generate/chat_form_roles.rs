@@ -3,45 +3,44 @@ use gproxy_protocol::{
     transform::identity::{IdentityRole, OutputItemKind},
     wire::openai::responses as r,
 };
+/// Every ID here reaches the client as the upstream sent it, or names an
+/// unsigned output item nothing reads back, so the response writes no
+/// identity state at all: no Response, Message, output item or call record.
 fn check_roles(
     access: &GenerationStateAccess<'_, Store>,
     result: GenerationOutcome<r::GenerateContentResponseBody>,
-    native_response: &str,
 ) {
     let GenerationOutcome::Success { response, .. } = result else {
         panic!("rejected")
     };
     let mut saw_call = false;
     for item in response.body.output {
-        let (role, id, is_call) = match item {
-            r::ResponseOutputItem::FunctionCall(v) => (
-                IdentityRole::OutputItem(OutputItemKind::FunctionCall),
-                v.id.unwrap(),
-                true,
-            ),
-            r::ResponseOutputItem::Message(v) => (
-                IdentityRole::OutputItem(OutputItemKind::Message),
-                v.id,
-                false,
-            ),
+        let (role, id) = match item {
+            r::ResponseOutputItem::FunctionCall(v) => {
+                assert_eq!(v.call_id, "actual-call");
+                saw_call = true;
+                (
+                    IdentityRole::OutputItem(OutputItemKind::FunctionCall),
+                    v.id.unwrap(),
+                )
+            }
+            r::ResponseOutputItem::Message(v) => {
+                (IdentityRole::OutputItem(OutputItemKind::Message), v.id)
+            }
             _ => continue,
         };
-        let saved = ready(access.read(role, &id)).unwrap().unwrap();
-        assert!(
-            saved.original_item_id.is_none(),
-            "source call/response IDs are not original item IDs"
-        );
-        assert_eq!(
-            saved.original_call_id.as_deref(),
-            is_call.then_some("actual-call")
-        );
-        assert_eq!(saved.response_id.as_deref(), Some(native_response));
-        saw_call |= is_call;
+        assert!(ready(access.read(role, &id)).unwrap().is_none());
     }
     assert!(saw_call);
+    assert!(
+        ready(access.read(IdentityRole::ToolCall, "actual-call"))
+            .unwrap()
+            .is_none()
+    );
+    assert!(access.store.entries.lock().unwrap().is_empty());
 }
 #[test]
-fn native_chat_tool_and_message_keep_their_source_identity_roles_in_responses_state() {
+fn native_chat_tool_and_message_ids_leave_no_identity_state() {
     let store = Store::default();
     let access = state(&store, Dialect::OpenAiChat);
     let mut body = output("h");
@@ -72,10 +71,10 @@ fn native_chat_tool_and_message_keep_their_source_identity_roles_in_responses_st
         },
     ))
     .unwrap();
-    check_roles(&access, result, "chat-native");
+    check_roles(&access, result);
 }
 #[test]
-fn native_claude_tool_keeps_call_role_in_responses_item_state() {
+fn native_claude_tool_and_message_ids_leave_no_identity_state() {
     let store = Store::default();
     let access = state(&store, Dialect::Claude);
     let mut body = output("c");
@@ -110,10 +109,10 @@ fn native_claude_tool_keeps_call_role_in_responses_item_state() {
         },
     ))
     .unwrap();
-    check_roles(&access, result, "msg-native");
+    check_roles(&access, result);
 }
 #[test]
-fn native_gemini_tool_keeps_call_role_in_responses_item_state() {
+fn native_gemini_tool_and_message_ids_leave_no_identity_state() {
     let store = Store::default();
     let access = state(&store, Dialect::Gemini);
     let mut body = output("g");
@@ -150,5 +149,5 @@ fn native_gemini_tool_keeps_call_role_in_responses_item_state() {
         },
     ))
     .unwrap();
-    check_roles(&access, result, "g-native");
+    check_roles(&access, result);
 }

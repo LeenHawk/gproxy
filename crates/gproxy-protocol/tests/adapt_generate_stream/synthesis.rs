@@ -130,10 +130,11 @@ fn buffered_post_synthesis(include_usage: bool) {
     while let Some(frame) = ready(reader.next::<h::stream::ChatCompletionChunk>()).unwrap() {
         if let NativeFrame::Event { value, .. } = frame {
             saw_usage |= value.usage.flatten().is_some();
+            // The response ID is never recorded; only the aliased call is.
             assert!(
                 ready(access.read(IdentityRole::Response, &value.id))
                     .unwrap()
-                    .is_some()
+                    .is_none()
             );
             for choice in value.choices {
                 for tool in choice.delta.tool_calls.flatten().into_iter().flatten() {

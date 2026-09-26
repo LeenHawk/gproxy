@@ -126,7 +126,7 @@ fn prepared(
     .unwrap()
 }
 #[test]
-fn actual_post_streams_before_eof_and_alias_is_durable_before_every_yield() {
+fn actual_post_streams_before_eof_without_any_state_io() {
     let store = Arc::new(Store::default());
     let feed = Feed::default();
     prefix(&feed);
@@ -147,11 +147,10 @@ fn actual_post_streams_before_eof_and_alias_is_durable_before_every_yield() {
         let chunk = ready(call.next(&access)).unwrap().unwrap();
         if let Some(event) = &chunk.event {
             assert_ne!(event.id, "message:original");
-            let saved = ready(access.read(IdentityRole::Response, &event.id))
-                .unwrap()
-                .unwrap();
-            assert_eq!(saved.response_id.as_deref(), Some("message:original"));
         }
+        // No alias is persisted before it is yielded.
+        assert_eq!(store.gets.load(Ordering::SeqCst), 0);
+        assert_eq!(store.serial.load(Ordering::SeqCst), 0);
         bytes.extend_from_slice(&chunk.bytes);
         if String::from_utf8_lossy(&bytes).contains("hello") {
             saw_text = true;
@@ -165,6 +164,9 @@ fn actual_post_streams_before_eof_and_alias_is_durable_before_every_yield() {
         bytes.extend_from_slice(&chunk.bytes);
     }
     assert!(bytes.ends_with(b"data: [DONE]\n\n"));
+    // A plain text turn leaves nothing a later turn would need.
+    assert_eq!(store.gets.load(Ordering::SeqCst), 0);
+    assert!(store.entries.lock().unwrap().is_empty());
     assert_eq!(
         call.client_result()
             .unwrap()
@@ -181,41 +183,58 @@ fn actual_post_streams_before_eof_and_alias_is_durable_before_every_yield() {
         TransformErrorKind::Conflict
     );
 }
+/// An upstream that repeats its IDs (a mock, or an OpenAI-compatible server
+/// answering `chatcmpl-mock` every time) used to fail every later stream in
+/// the conversation: the second stream's response record already existed.
 #[test]
-fn applied_alias_cas_cancellation_retains_exact_event_and_does_not_read_or_post_again() {
+fn repeated_upstream_ids_across_streams_in_one_conversation_both_succeed() {
     let store = Arc::new(Store::default());
-    let feed = Feed::default();
-    prefix(&feed);
-    let host = Host::stream(store.clone(), feed.clone());
     let access = state(&store);
-    let mut call = prepared(&store, true);
-    ready(call.start(&host, &(), &access)).unwrap();
-    store.hang_applied.store(true, Ordering::SeqCst);
-    {
-        let mut next = Box::pin(call.next(&access));
-        for _ in 0..10000 {
-            assert!(
-                next.as_mut()
-                    .poll(&mut Context::from_waker(Waker::noop()))
-                    .is_pending()
+    for turn in 0..2 {
+        let feed = Feed::default();
+        event(
+            &feed,
+            json!({"type":"message_start","message":{"type":"message","id":"msg_mock","model":"selected","role":"assistant","content":[],"usage":{"input_tokens":3,"output_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens_details":{"thinking_tokens":0}}}}),
+        );
+        // One ID the Chat client can carry as-is, and one it cannot.
+        for (index, id) in ["toolu_mock", "toolu.mock"].into_iter().enumerate() {
+            event(
+                &feed,
+                json!({"type":"content_block_start","index":index,"content_block":{"type":"tool_use","id":id,"name":"f","input":{}}}),
             );
-            if store.hung.load(Ordering::SeqCst) {
-                break;
-            }
+            event(&feed, json!({"type":"content_block_stop","index":index}));
         }
-        assert!(store.hung.load(Ordering::SeqCst));
-    }
-    let reads = feed.polls();
-    let writes = store.serial.load(Ordering::SeqCst);
-    let event = ready(call.next(&access)).unwrap().unwrap().event.unwrap();
-    assert_eq!(feed.polls(), reads);
-    assert_eq!(store.serial.load(Ordering::SeqCst), writes);
-    assert!(
-        ready(access.read(IdentityRole::Response, &event.id))
+        event(
+            &feed,
+            json!({"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":2,"output_tokens_details":{"thinking_tokens":0}}}),
+        );
+        event(&feed, json!({"type":"message_stop"}));
+        feed.close();
+        let host = Host::stream(store.clone(), feed);
+        let mut call = prepared(&store, true);
+        ready(call.start(&host, &(), &access)).unwrap();
+        let GenerationOutcome::Success { response, .. } = ready(call.collect(&access)).unwrap()
+        else {
+            panic!("turn {turn} rejected")
+        };
+        let calls = response.body.choices[0]
+            .message
+            .tool_calls
+            .clone()
             .unwrap()
-            .is_some()
-    );
-    assert_eq!(host.sent.lock().unwrap().len(), 1);
+            .into_iter()
+            .map(|call| serde_json::to_value(call).unwrap()["id"].clone())
+            .collect::<Vec<_>>();
+        assert_eq!(response.body.id, "msg_mock");
+        assert_eq!(calls[0], "toolu_mock");
+        assert_ne!(calls[1], "toolu.mock");
+        // The forwarded IDs are never looked up or stored; the stream's one
+        // write is the alias, and the repeat finds it identical.
+        let entries = store.entries.lock().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(entries.keys().all(|key| key.starts_with("generate:")));
+        assert_eq!(store.gets.load(Ordering::SeqCst), turn);
+    }
 }
 #[test]
 fn client_usage_flag_is_honored_and_incomplete_source_never_emits_terminal_success() {

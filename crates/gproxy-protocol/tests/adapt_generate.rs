@@ -196,7 +196,11 @@ impl gproxy_protocol::capability::StateStore for Store {
             let mut n = self.attempts.lock().unwrap();
             *n += 1;
             if self.fail_at == Some(*n) {
-                return Ok(CasResult::Conflict);
+                return Err(CapabilityError::new(
+                    gproxy_protocol::capability::CapabilityErrorKind::Storage,
+                    gproxy_protocol::capability::CapabilityErrorStage::Start,
+                    "injected state write failure",
+                ));
             }
             let mut entries = self.entries.lock().unwrap();
             if entries.get(key).map(|e| e.version.clone()) != expected {

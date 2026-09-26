@@ -25,7 +25,7 @@ fn run<B: StreamBridge<ClientEvent = rs::StreamEvent>>(
     feed.close();
     let host = Host::stream(store.clone(), feed);
     ready(call.start(&host, &(), &access)).unwrap();
-    let mut observed = 0;
+    let mut observed = Vec::new();
     while let Some(chunk) = ready(call.next(&access)).unwrap() {
         for line in std::str::from_utf8(&chunk.bytes).unwrap().lines() {
             let Some(data) = line.strip_prefix("data: ") else {
@@ -33,21 +33,33 @@ fn run<B: StreamBridge<ClientEvent = rs::StreamEvent>>(
             };
             let event: Value = serde_json::from_str(data).unwrap();
             if let Some(id) = event["item"]["call_id"].as_str() {
-                let record = ready(access.read(IdentityRole::ToolCall, id))
-                    .unwrap()
-                    .expect("tool alias must be durable before its event is yielded");
-                assert!(
-                    record
-                        .original_call_id
-                        .as_deref()
-                        .unwrap()
-                        .starts_with("native.")
-                );
-                observed += 1;
+                observed.push(id.to_owned());
             }
         }
     }
-    assert_eq!(observed, expected_calls * 2);
+    assert_eq!(observed.len(), expected_calls * 2);
+    // The dotted native IDs were rewritten, so each alias is recorded once the
+    // stream ends; nothing is persisted before an alias is yielded.
+    assert!(
+        !store
+            .entries
+            .lock()
+            .unwrap()
+            .keys()
+            .any(|key| key.starts_with("stream:"))
+    );
+    for id in &observed {
+        let record = ready(access.read(IdentityRole::ToolCall, id))
+            .unwrap()
+            .expect("an emitted alias is recorded at the end of the stream");
+        assert!(
+            record
+                .original_call_id
+                .as_deref()
+                .unwrap()
+                .starts_with("native.")
+        );
+    }
     assert_eq!(host.sent.lock().unwrap().len(), 1);
     serde_json::to_value(call.client_result().unwrap()).unwrap()
 }

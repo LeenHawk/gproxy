@@ -358,7 +358,8 @@ fn review_restored_signed_gemini_id_or_absence_is_immutable_and_associated() {
             let replay = ready(state.recover_tools(&[id.into()], &Default::default())).unwrap();
             assert_eq!(replay.original_call_ids[id], "a.b");
         } else {
-            assert_eq!(store.entries.lock().unwrap().len(), 1);
+            // An ID-less client call has no key, and the response writes none.
+            assert!(store.entries.lock().unwrap().is_empty());
         }
     }
 }

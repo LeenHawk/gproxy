@@ -72,15 +72,30 @@ fn executes_shared_historical_fixtures_with_actual_capability_host() {
             let access = Resources::png();
             let scope = "source-client".into();
             let resources = resources(&access, &scope);
-            let mut p = ready(ChatViaGemini::prepare_with_capabilities(
+            let prepared = ready(ChatViaGemini::prepare_with_capabilities(
                 serde_json::from_value(case["input"].clone()).unwrap(),
                 endpoint(),
                 ids(Dialect::OpenAiChat, Dialect::Gemini),
                 &state,
                 &resources,
                 &Default::default(),
-            ))
-            .unwrap();
+            ));
+            if case["name"] == "truncated_tool_result" {
+                // The primed call kept Gemini's own ID, so nothing recorded its
+                // name, and a Chat tool result without its call cannot supply
+                // one. v3 rejected this orphan too.
+                let Err(error) = prepared else {
+                    panic!("orphan Gemini result without a name")
+                };
+                assert_eq!(error.kind(), TransformErrorKind::MissingState);
+                assert!(store.entries.lock().unwrap().is_empty());
+                println!(
+                    "GENERATION_PARITY {}",
+                    json!({"name":case["name"],"accepted":false,"error":error.to_string()})
+                );
+                continue;
+            }
+            let mut p = prepared.unwrap();
             let mut native = super::output("g");
             native["responseId"] = json!("actual-next-response");
             let host = Host::new(native);
@@ -101,18 +116,11 @@ fn executes_shared_historical_fixtures_with_actual_capability_host() {
                 panic!("not bytes")
             };
             let value: Value = serde_json::from_slice(bytes).unwrap();
-            if case["name"] == "truncated_tool_result" {
-                assert_eq!(
-                    value["contents"][0]["parts"][0]["functionResponse"]["name"],
-                    "actual_lookup"
-                );
-            } else {
-                assert_eq!(reads, 1);
-                assert_eq!(
-                    value["contents"][0]["parts"][0]["inlineData"]["mimeType"],
-                    "image/png"
-                );
-            }
+            assert_eq!(reads, 1);
+            assert_eq!(
+                value["contents"][0]["parts"][0]["inlineData"]["mimeType"],
+                "image/png"
+            );
             value
         };
         println!(
