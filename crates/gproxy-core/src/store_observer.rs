@@ -143,7 +143,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Observer for StoreObserver
                 started_at_ms: Set(request.started_at_ms),
                 ended_at_ms: Set(Some(now_ms())),
             };
-            if let Err(error) = self.store.usage_records().create_many(vec![row]).await {
+            if let Err(error) = self.store.usage_records().insert_many(vec![row]).await {
                 tracing::error!(request_id = %report.request_id, %error, "usage persistence failed");
             }
         })
@@ -311,53 +311,71 @@ impl CaptureSink for StoreCapture {
         })
     }
 }
+/// Captured events written per statement batch while an exchange is running.
+const EVENT_BATCH: usize = 64;
+
+/// The capture's writer. Everything but the body is kept here in memory and
+/// written once, when the exchange ends: a row inserted and then patched four
+/// times was five transactions, each read back, for one record. Body events,
+/// when the body is captured, are written in batches as they come, and the row
+/// is inserted with the first of them, which it has to exist before.
 async fn write_capture<C: BatchConnectionTrait + Send + Sync + 'static>(
     store: Arc<Store<C>>,
-    row: record::ActiveModel,
+    mut row: record::ActiveModel,
     mut rx: mpsc::UnboundedReceiver<Write>,
     lost: Arc<AtomicBool>,
     full: bool,
     cancellation: tokio_util::sync::CancellationToken,
 ) {
     let id = row.id.clone().unwrap();
-    if let Err(error) = store.capture_records().create_many(vec![row]).await {
-        tracing::error!(capture_id = %id, %error, "capture creation failed");
-        return;
-    }
+    let mut inserted = false;
+    let mut events: Vec<event::ActiveModel> = Vec::new();
     let mut ack = None;
     let mut end = CaptureEnd::Interrupted;
     let mut status = None;
     while let Some(write) = rx.recv().await {
-        let result = match write {
+        match write {
             Write::Head(patch) => {
-                if let sea_orm::ActiveValue::Set(s) = patch.response_status {
-                    status = s;
+                if let sea_orm::ActiveValue::Set(s) = &patch.response_status {
+                    status = *s;
                 }
-                store
-                    .capture_records()
-                    .update_many(vec![*patch])
-                    .await
-                    .map(|_| ())
+                merge(&mut row, *patch);
             }
             Write::Event(event) => {
-                let statement =
-                    event::Entity::insert(event).build(store.connection().get_database_backend());
-                store
-                    .connection()
-                    .atomic_batch(&[statement])
-                    .await
-                    .map(|_| ())
-                    .map_err(Into::into)
+                events.push(event);
+                if events.len() >= EVENT_BATCH {
+                    let mut statements = Vec::with_capacity(events.len() + 1);
+                    if !inserted {
+                        match store.capture_records().insert_statement(row.clone()) {
+                            Ok(statement) => statements.push(statement),
+                            Err(error) => {
+                                lost.store(true, Ordering::Relaxed);
+                                tracing::error!(capture_id = %id, %error, "capture write failed");
+                                events.clear();
+                                continue;
+                            }
+                        }
+                    }
+                    let backend = store.connection().get_database_backend();
+                    statements.extend(
+                        events
+                            .drain(..)
+                            .map(|event| event::Entity::insert(event).build(backend)),
+                    );
+                    match store.connection().atomic_batch(&statements).await {
+                        Ok(_) => inserted = true,
+                        Err(error) => {
+                            lost.store(true, Ordering::Relaxed);
+                            tracing::error!(capture_id = %id, %error, "capture write failed");
+                        }
+                    }
+                }
             }
             Write::Finish(value, sender) => {
                 end = value;
                 ack = Some(sender);
                 break;
             }
-        };
-        if let Err(error) = result {
-            lost.store(true, Ordering::Relaxed);
-            tracing::error!(capture_id = %id, %error, "capture write failed");
         }
     }
     let incomplete = lost.load(Ordering::Relaxed);
@@ -377,34 +395,62 @@ async fn write_capture<C: BatchConnectionTrait + Send + Sync + 'static>(
     } else {
         record::CaptureBodyState::Complete
     };
-    let patch = record::ActiveModel {
-        id: Set(id.clone()),
-        state: Set(state),
-        ended_at_ms: Set(Some(now_ms())),
-        request_body_state: Set(
-            if full && status.is_some() && status != Some(101) && !incomplete {
-                record::CaptureBodyState::Complete
-            } else {
-                body_state
-            },
-        ),
-        response_body_state: Set(body_state),
-        error: Set(if incomplete {
-            Some("capture writer unavailable or database write failure".into())
+    row.state = Set(state);
+    row.ended_at_ms = Set(Some(now_ms()));
+    row.request_body_state = Set(
+        if full && status.is_some() && status != Some(101) && !incomplete {
+            record::CaptureBodyState::Complete
         } else {
-            match end {
-                CaptureEnd::Complete => None,
-                CaptureEnd::Interrupted => Some("upstream exchange interrupted".into()),
-                CaptureEnd::Cancelled => Some("request cancelled or response dropped".into()),
-            }
-        }),
-        ..Default::default()
+            body_state
+        },
+    );
+    row.response_body_state = Set(body_state);
+    row.error = Set(if incomplete {
+        Some("capture writer unavailable or database write failure".into())
+    } else {
+        match end {
+            CaptureEnd::Complete => None,
+            CaptureEnd::Interrupted => Some("upstream exchange interrupted".into()),
+            CaptureEnd::Cancelled => Some("request cancelled or response dropped".into()),
+        }
+    });
+    let backend = store.connection().get_database_backend();
+    let head = if inserted {
+        store
+            .capture_records()
+            .update_statement(row)
+            .map(|statement| statement.into_iter().collect())
+    } else {
+        store
+            .capture_records()
+            .insert_statement(row)
+            .map(|statement| vec![statement])
     };
-    if let Err(error) = store.capture_records().update_many(vec![patch]).await {
-        tracing::error!(capture_id = %id, %error, "capture finalization failed");
+    match head {
+        Ok(mut statements) => {
+            statements.extend(
+                events
+                    .into_iter()
+                    .map(|event| event::Entity::insert(event).build(backend)),
+            );
+            if let Err(error) = store.connection().atomic_batch(&statements).await {
+                tracing::error!(capture_id = %id, %error, "capture finalization failed");
+            }
+        }
+        Err(error) => tracing::error!(capture_id = %id, %error, "capture finalization failed"),
     }
     if let Some(ack) = ack {
         let _ = ack.send(());
+    }
+}
+
+/// Copy every column `patch` sets onto `row`.
+fn merge(row: &mut record::ActiveModel, patch: record::ActiveModel) {
+    use sea_orm::{ActiveModelTrait, Iterable};
+    for column in record::Column::iter() {
+        if let sea_orm::ActiveValue::Set(value) = patch.get(column) {
+            row.set(column, value);
+        }
     }
 }
 fn sensitive(name: &str) -> bool {

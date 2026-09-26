@@ -365,7 +365,7 @@ impl<C: BatchConnectionTrait> Core<C> {
         if !rows.is_empty() {
             self.store()
                 .credential_quota_cycles()
-                .create_many(rows)
+                .insert_many(rows)
                 .await?;
             self.record_quota_observations(&credential.id, written, now_ms)
                 .await?;

@@ -187,6 +187,21 @@ where
         query.build(self.db.get_database_backend())
     }
 
+    /// Insert `items` in one transaction without reading them back, for a
+    /// caller that only needs them written. Half the statements of
+    /// [`Self::create_many`].
+    pub async fn insert_many(&self, items: Vec<E::ActiveModel>) -> Result<()> {
+        let statements = items
+            .into_iter()
+            .map(|item| self.insert_statement(item))
+            .collect::<Result<Vec<_>>>()?;
+        if statements.is_empty() {
+            return Ok(());
+        }
+        self.db.atomic_batch(&statements).await?;
+        Ok(())
+    }
+
     /// Caller-assigned keys; database defaults are read back in the same transaction.
     pub async fn create_many(&self, items: Vec<E::ActiveModel>) -> Result<Vec<E::Model>> {
         let keys = items
