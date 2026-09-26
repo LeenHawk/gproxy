@@ -452,6 +452,9 @@ where
             expires_at_ms: row.config.expires_at,
             enabled: Some(row.config.enabled),
             retain_secret: None,
+            // A carried key calls models; management access is granted in the
+            // console, where the operator can see which key it goes to.
+            management: None,
             budget: None,
         };
         let app_data = app.data();

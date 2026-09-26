@@ -65,6 +65,7 @@ impl<C: BatchConnectionTrait> Authenticator<'_, C> {
                 access_digest,
             }),
             kind: CallerKind::OAuthGrant,
+            management: false,
         }))
     }
 

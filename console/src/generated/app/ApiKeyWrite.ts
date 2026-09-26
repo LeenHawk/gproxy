@@ -15,6 +15,11 @@ organizationId: string | null, teamId: string | null, expiresAtMs: number | null
  */
 retainSecret: boolean | null,
 /**
+ * Let the key manage: `/admin/api`, and the portal's key and password
+ * operations. Off by default.
+ */
+management: boolean | null,
+/**
  * Optional initial cost budget, committed atomically with the key.
  */
 budget: ApiKeyBudgetWrite | null, };

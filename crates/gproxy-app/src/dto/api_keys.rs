@@ -24,6 +24,8 @@ pub struct ApiKeyDto {
     pub team_id: Option<String>,
     pub expires_at_ms: Option<i64>,
     pub enabled: bool,
+    /// Whether the key may manage; see `api_keys.management`.
+    pub management: bool,
     /// Whether the instance retained a sealed copy of the key text, i.e.
     /// whether `reveal` can answer. The bytes themselves have no field.
     pub has_secret: bool,
@@ -41,6 +43,7 @@ impl From<api_key::Model> for ApiKeyDto {
             team_id: row.team_id,
             expires_at_ms: row.expires_at_ms,
             enabled: row.enabled,
+            management: row.management,
             has_secret: row.secret.is_some(),
         }
     }
@@ -78,6 +81,10 @@ pub struct ApiKeyWrite {
     /// leak does not hand over.
     #[serde(default)]
     pub retain_secret: Option<bool>,
+    /// Let the key manage: `/admin/api`, and the portal's key and password
+    /// operations. Off by default.
+    #[serde(default)]
+    pub management: Option<bool>,
     /// Optional initial cost budget, committed atomically with the key.
     #[serde(default)]
     pub budget: Option<ApiKeyBudgetWrite>,
@@ -117,6 +124,8 @@ pub struct ApiKeyPatch {
     pub expires_at_ms: Option<Option<i64>>,
     #[serde(default)]
     pub enabled: Option<bool>,
+    #[serde(default)]
+    pub management: Option<bool>,
 }
 
 /// A minted or rotated key. `token` is the only time the plaintext exists in

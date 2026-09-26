@@ -40,6 +40,8 @@ pub struct ApiKeyIdentity {
     /// `OAuth` keys carry a grant's identity and are not bearer API keys. The
     /// authentication layer refuses to accept one presented as a bearer key.
     pub kind: ApiKeyKind,
+    /// The key's management flag; see `api_keys.management`.
+    pub management: bool,
     /// Always true for an indexed key: disabled rows are not indexed. Kept so
     /// a caller that holds only the identity can still report the state it was
     /// admitted under.
@@ -62,6 +64,7 @@ impl ApiKeyIdentity {
             organization_id: key.organization_id.clone(),
             team_id: key.team_id.clone(),
             kind: key.kind,
+            management: key.management,
             enabled: key.enabled,
             expires_at_ms: key.expires_at_ms,
         }
@@ -212,6 +215,7 @@ mod tests {
             secret: None,
             expires_at_ms: None,
             enabled: true,
+            management: false,
         }
     }
 

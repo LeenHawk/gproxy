@@ -88,6 +88,10 @@ const NO_SCOPE: &str = "this caller administers nothing on this instance";
 const OAUTH_REFUSED: &str =
     "an OAuth access token may not administer; sign in to the console instead";
 
+/// The refusal for an API key whose management flag is off.
+const KEY_REFUSED: &str =
+    "this API key has no management access; turn it on for the key, or sign in to the console";
+
 /// What one request may act as. Exactly one per request.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AdminScope {
@@ -383,6 +387,11 @@ impl AdminScope {
         // rule `check_oauth_operation` holds on the data plane.
         if caller.kind == CallerKind::OAuthGrant {
             return Err(AppError::forbidden(OAUTH_REFUSED));
+        }
+        // A key is a management credential only when it says so. An admin's
+        // ordinary key, the kind handed to a coding tool, calls models.
+        if !caller.may_manage() {
+            return Err(AppError::forbidden(KEY_REFUSED));
         }
         if caller.is_instance_admin() {
             return Ok(AdminAdmission {
@@ -737,6 +746,9 @@ mod tests {
             team_id: None,
             grant: None,
             kind,
+            // These tests are about scope, so their keys may manage; the flag
+            // itself has its own test.
+            management: true,
         }
     }
 

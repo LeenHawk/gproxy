@@ -609,6 +609,7 @@ fn handmade(app: &TestApp, id: &str) -> DownstreamCapture {
         team_id: None,
         grant: None,
         kind: CallerKind::ApiKey,
+        management: false,
     };
     let admitted = gproxy_app::Admitted {
         scope: "user:alice".into(),

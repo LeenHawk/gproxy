@@ -601,6 +601,9 @@ pub async fn api_key(
             prefix: Set("sk-".into()),
             organization_id: Set(organization_id.map(Into::into)),
             team_id: Set(team_id.map(Into::into)),
+            // Test keys may manage: the suites that use them exercise scope and
+            // administration, which predate the flag. The flag has its own test.
+            management: Set(true),
             ..Default::default()
         }])
         .await

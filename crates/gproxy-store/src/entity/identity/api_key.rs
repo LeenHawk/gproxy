@@ -37,6 +37,12 @@ pub struct Model {
     pub expires_at_ms: Option<i64>,
     #[sea_orm(default_value = true)]
     pub enabled: bool,
+    /// Whether the key may manage: reach `/admin/api` with its owner's
+    /// administrative scope, and mint, rotate, reveal or delete keys through
+    /// the portal. Off by default, so a key handed to a coding tool can call
+    /// models and nothing else.
+    #[sea_orm(default_value = false)]
+    pub management: bool,
     #[sea_orm(belongs_to, from = "user_id", to = "id", on_delete = "Cascade")]
     pub user: BelongsTo<super::user::Entity>,
     /// Deleting the organization deletes its bound keys: a key whose owner chain

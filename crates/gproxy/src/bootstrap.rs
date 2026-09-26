@@ -173,6 +173,8 @@ where
         // The operator is told the key once here, so there is no reason for the
         // database to keep a copy it could leak.
         retain_secret: Some(false),
+        // The operator's own key for the administrative surface.
+        management: Some(true),
         budget: None,
     };
     let generated_key = match options.api_key.as_deref() {

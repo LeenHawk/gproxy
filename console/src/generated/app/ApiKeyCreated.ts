@@ -18,6 +18,10 @@ prefix: string,
  */
 kind: string, organizationId: string | null, teamId: string | null, expiresAtMs: number | null, enabled: boolean,
 /**
+ * Whether the key may manage; see `api_keys.management`.
+ */
+management: boolean,
+/**
  * Whether the instance retained a sealed copy of the key text, i.e.
  * whether `reveal` can answer. The bytes themselves have no field.
  */
