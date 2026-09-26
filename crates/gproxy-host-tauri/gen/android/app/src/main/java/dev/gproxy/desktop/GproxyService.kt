@@ -253,9 +253,26 @@ class GproxyService : Service() {
             }
         }
 
-        fun autoStarts(context: Context): Boolean =
-            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        private fun setupChoices(context: Context): org.json.JSONObject? {
+            val file = java.io.File(GproxyNative.dataDir(context), "desktop-setup.json")
+            if (!file.isFile) return null
+            return try { org.json.JSONObject(file.readText()) }
+            catch (error: Exception) {
+                Log.e(TAG, "could not read first-run settings", error)
+                org.json.JSONObject().put("completed", false)
+            }
+        }
+
+        fun setupComplete(context: Context): Boolean =
+            setupChoices(context)?.optBoolean("completed", false)
+                ?: java.io.File(GproxyNative.dataDir(context), "gproxy.db").isFile
+
+        fun autoStarts(context: Context): Boolean {
+            val choices = setupChoices(context)
+            if (choices != null) return choices.optBoolean("completed", false) && choices.optBoolean("autoStart", false)
+            return setupComplete(context) && context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .getBoolean(PREF_AUTO_START, true)
+        }
 
         /**
          * `specialUse` where the platform demands a type, `dataSync` where it

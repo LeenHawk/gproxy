@@ -15,17 +15,12 @@
 //! point. Every field the server understands is settable here, spelled the way
 //! the server spells it, and there is no second document to keep in step.
 //!
-//! # The three fields the shell decides for you
+//! # Host-owned settings
 //!
-//! `data_dir`, the store and the console are not read from the file, because a
-//! desktop instance is not free to disagree about them:
-//!
-//! - **`data_dir`** is the platform's application-data directory, handed in by
-//!   Tauri. A file inside it cannot choose where it is.
-//! - **the store** is a SQLite file in that directory. A desktop app pointed at
-//!   somebody's production Postgres is not a thing this shell offers.
-//! - **the console** is the window. The embedded HTTP host serves no console
-//!   bundle, so the switch is off and stays off.
+//! First-run choices select the data directory; `gproxy.toml` configures its
+//! listener and SQLite/PostgreSQL/MySQL backend. Management stays in the
+//! application window, so the HTTP console remains disabled. The system
+//! keychain supplies the instance master key.
 //!
 //! # The port
 //!
@@ -35,9 +30,8 @@
 //! moved on every launch would mean editing every client's configuration on
 //! every launch, which is the opposite of what a desktop shell is for.
 //!
-//! It is 7071 rather than the server's 8787 so that a developer can run
-//! `gproxy serve` and the desktop shell side by side without either one
-//! failing to bind. Set `port` in `gproxy.toml` to change it.
+//! The default is 8787, shared with the server. Set `port` in `gproxy.toml`
+//! when running more than one instance on the same machine.
 
 use std::path::{Path, PathBuf};
 
@@ -50,11 +44,9 @@ use gproxy_app::{
 use crate::{StartError, StartResult, secrets::MasterKeyOutcome};
 
 /// The loopback port the embedded data plane binds by default.
-pub const DEFAULT_PORT: u16 = 7071;
+pub const DEFAULT_PORT: u16 = 8787;
 
-/// The only address a desktop data plane binds. Not configurable: an instance
-/// whose keys live in this user's keychain has no business listening on a
-/// network interface, and an operator who wants that wants `gproxy serve`.
+/// Default listening address; the first-run wizard can select another IP.
 pub const LOOPBACK: &str = "127.0.0.1";
 
 /// The SQLite file inside the data directory.
@@ -82,10 +74,6 @@ pub fn settings(data_dir: &Path, master_key: MasterKeyOutcome) -> StartResult<Se
     let mut config = read_file(data_dir)?;
 
     config.data_dir = Some(data_dir.to_string_lossy().into_owned());
-    config.store = StoreBackendConfig::Sqlite {
-        path: DATABASE_FILE.to_owned(),
-    };
-    config.host = LOOPBACK.to_owned();
     config.console = ConsoleConfig {
         enabled: false,
         path: None,
@@ -132,7 +120,7 @@ pub fn settings(data_dir: &Path, master_key: MasterKeyOutcome) -> StartResult<Se
 /// A file that is present and malformed is a refusal, not a fallback: the
 /// alternative is an application that silently ignores the port somebody just
 /// set and binds somewhere else.
-fn read_file(data_dir: &Path) -> StartResult<AppConfig> {
+pub(crate) fn read_file(data_dir: &Path) -> StartResult<AppConfig> {
     let path = data_dir.join(CONFIG_FILE);
     let text = match std::fs::read_to_string(&path) {
         Ok(text) => text,
@@ -143,27 +131,12 @@ fn read_file(data_dir: &Path) -> StartResult<AppConfig> {
             return Err(StartError::io(format!("reading {}", path.display()), error));
         }
     };
-    let table: toml::Table = toml::from_str(&text).map_err(|error| {
+    toml::from_str(&text).map_err(|error| {
         StartError::Cli(gproxy::Error::config(
             path.display().to_string(),
             error.to_string(),
         ))
-    })?;
-    // Whether the file *named* a port, rather than what it parsed to.
-    // `AppConfig`'s serde default is the server's 8787, so a file that says
-    // nothing would otherwise be indistinguishable from one that asks to
-    // collide with a running `gproxy serve`.
-    let names_port = table.contains_key("port");
-    let mut config: AppConfig = table.try_into().map_err(|error: toml::de::Error| {
-        StartError::Cli(gproxy::Error::config(
-            path.display().to_string(),
-            error.to_string(),
-        ))
-    })?;
-    if !names_port {
-        config.port = DEFAULT_PORT;
-    }
-    Ok(config)
+    })
 }
 
 fn defaults() -> AppConfig {
@@ -193,7 +166,7 @@ mod tests {
         let data = tempfile::tempdir().unwrap();
         let settings = settings(data.path(), key(data.path())).unwrap();
         assert_eq!(settings.config.host, LOOPBACK);
-        assert_eq!(settings.config.port, DEFAULT_PORT);
+        assert_eq!(settings.config.port, 8787);
         assert_eq!(
             settings.config.data_dir.as_deref(),
             Some(data.path().to_string_lossy().as_ref())
@@ -220,16 +193,16 @@ mod tests {
     }
 
     #[test]
-    fn a_file_that_says_nothing_about_the_port_does_not_collide_with_the_server() {
+    fn a_file_without_a_port_uses_the_shared_default() {
         let data = tempfile::tempdir().unwrap();
         std::fs::write(data.path().join(CONFIG_FILE), "session_ttl_secs = 60\n").unwrap();
         let settings = settings(data.path(), key(data.path())).unwrap();
-        assert_eq!(settings.config.port, DEFAULT_PORT);
+        assert_eq!(settings.config.port, 8787);
         assert_eq!(settings.config.session_ttl_secs, 60);
     }
 
     #[test]
-    fn the_file_cannot_move_the_database_out_of_the_data_directory() {
+    fn the_file_can_select_an_external_database() {
         let data = tempfile::tempdir().unwrap();
         std::fs::write(
             data.path().join(CONFIG_FILE),
@@ -239,18 +212,18 @@ mod tests {
         let settings = settings(data.path(), key(data.path())).unwrap();
         assert_eq!(
             settings.config.store,
-            StoreBackendConfig::Sqlite {
-                path: DATABASE_FILE.into()
+            StoreBackendConfig::Url {
+                dsn: "postgres://elsewhere/gproxy".into()
             }
         );
     }
 
     #[test]
-    fn the_file_cannot_move_the_listener_off_loopback() {
+    fn the_file_can_select_a_network_listener() {
         let data = tempfile::tempdir().unwrap();
         std::fs::write(data.path().join(CONFIG_FILE), "host = \"0.0.0.0\"\n").unwrap();
         let settings = settings(data.path(), key(data.path())).unwrap();
-        assert_eq!(settings.config.host, LOOPBACK);
+        assert_eq!(settings.config.host, "0.0.0.0");
     }
 
     #[test]
@@ -259,5 +232,13 @@ mod tests {
         std::fs::write(data.path().join(CONFIG_FILE), "port = \"seventy\"\n").unwrap();
         let error = settings(data.path(), key(data.path())).unwrap_err();
         assert!(error.to_string().contains(CONFIG_FILE), "{error}");
+    }
+}
+
+/// SQLite paths may be relative to the instance directory or absolute.
+pub fn database_file(data_dir: &Path, store: &StoreBackendConfig) -> Option<PathBuf> {
+    match store {
+        StoreBackendConfig::Sqlite { path } => Some(data_dir.join(path)),
+        _ => None,
     }
 }

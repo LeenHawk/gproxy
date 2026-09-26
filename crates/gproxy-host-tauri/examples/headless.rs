@@ -34,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let data = tempfile::tempdir()?;
-    // Port 0: an example must not fight whatever is already on 7071.
+    // Port 0: an example must not fight whatever is already on 8787.
     std::fs::write(data.path().join("gproxy.toml"), "port = 0\n")?;
 
     let desktop = Desktop::start(data.path().to_path_buf(), &MemoryStore::default()).await?;

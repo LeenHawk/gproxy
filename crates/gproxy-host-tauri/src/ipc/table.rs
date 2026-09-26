@@ -446,6 +446,9 @@ ipc_table! {
         // is the only thing here that is not an operation on the instance:
         // where the socket is listening and which store the secrets went to
         // are facts about this process.
+        desktop setup status => desktop_setup_status;
+        desktop setup complete => desktop_setup_complete;
+        desktop setup pick_directory => desktop_setup_pick_directory;
         desktop instance status => desktop_instance_status;
         desktop instance gateway_key => desktop_instance_gateway_key;
         desktop instance reload => desktop_instance_reload;
@@ -803,4 +806,53 @@ pub async fn desktop_console_request(
     request: crate::console::ConsoleRequest,
 ) -> IpcResult<crate::console::ConsoleResponse> {
     crate::console::request(&desktop, request).await
+}
+
+/// Available before the instance exists; does not open or mutate the database.
+#[tauri::command]
+pub fn desktop_setup_status(
+    setup: tauri::State<'_, crate::setup::Setup>,
+) -> IpcResult<serde_json::Value> {
+    json(
+        setup
+            .status()
+            .map_err(|error| gproxy_app::AppError::invalid(error.to_string())),
+    )
+}
+
+/// Secrets in this request are transient and must not be written to the audit log.
+#[tauri::command]
+pub async fn desktop_setup_complete<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    setup: tauri::State<'_, crate::setup::Setup>,
+    request: crate::setup::SetupRequest,
+) -> IpcResult<serde_json::Value> {
+    json(setup.complete(&app, request).await)
+}
+
+#[tauri::command]
+pub async fn desktop_setup_pick_directory<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+) -> IpcResult<Option<String>> {
+    #[cfg(desktop)]
+    {
+        use tauri_plugin_dialog::DialogExt;
+        let selected = tauri::async_runtime::spawn_blocking(move || {
+            app.dialog().file().blocking_pick_folder()
+        })
+        .await
+        .map_err(crate::IpcError::internal)?;
+        selected
+            .map(|path| {
+                path.into_path()
+                    .map(|path| path.to_string_lossy().into_owned())
+                    .map_err(crate::IpcError::internal)
+            })
+            .transpose()
+    }
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+        Ok(None)
+    }
 }

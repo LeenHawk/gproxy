@@ -53,8 +53,7 @@ administration one.
 
 ### The port
 
-`7071` by default, distinct from the server's `8787` so the two can run side by
-side. **Fixed rather than random**: a client is configured with a base URL that
+`8787` by default, the same as the server. **Fixed rather than random**: a client is configured with a base URL that
 is typed once and kept, and a port that moved on every launch would mean
 editing every client on every launch. Change it with `port` in `gproxy.toml`.
 
@@ -67,11 +66,21 @@ environment worth reading and no `.env`.
    reads, so there is no second document to keep in step;
 2. the desktop's defaults.
 
-Three fields are the shell's and are not read from the file, because a desktop
-instance is not free to disagree about them: `data_dir` is the platform's
-application-data directory (Tauri hands it over), the store is a SQLite file
-inside it, and the console is the window rather than a bundle the HTTP host
-serves.
+The first-run wizard chooses the listening IP and port (default
+`127.0.0.1:8787`), data directory, SQLite file or PostgreSQL/MySQL URL,
+administrator credentials, initial API key, launch-at-login and tray behavior.
+It can import a format-5 configuration export, including a source master key
+when needed. The local application window remains signed in.
+
+Non-secret setup choices live in `desktop-setup.json` under the platform's
+application-data directory. Instance settings live in the selected directory's
+`gproxy.toml`; on Unix this file is owner-readable/writable only, because a
+connection URL can contain database credentials. Passwords and import keys are
+not written to the setup marker. Existing instances bypass the wizard and keep
+their accounts. A failed import leaves setup pending so it can be retried.
+
+The console is always the application window. Even when the listener accepts
+network clients, HTTP management endpoints stay disabled.
 
 | Path | What it is |
 |---|---|
@@ -167,13 +176,9 @@ application authenticating itself to itself. `Desktop::caller` is the local
 administrator, and the `portal_*` commands are scoped to them by construction
 exactly as they are for a signed-in browser.
 
-The desktop administrator has a password **nobody knows** — bootstrap
-generates one and this shell never prints it, because `Report::announce` is the
-command line's presentation and `Desktop::start` does not call it. Nobody signs
-in here, the browser door on the loopback socket is shut anyway, and an
-unguessable secret behind a shut door is a better resting state than no secret
-at all. Call `admin_users_set_password` if you decide you want that door
-opened.
+The first-run wizard sets the administrator password through the existing
+bootstrap and password-hashing operations. It does not add a lock screen to the
+local window. Existing accounts are preserved when opening an existing database.
 
 ### How the console reaches the instance
 
@@ -195,19 +200,15 @@ dropped.
 The operation table in `src/ipc/table.rs` stays for callers that want an
 operation by name instead of a path.
 
-## What this crate deliberately does not do
+## Desktop integration
 
-A tray icon, launch-at-login, and desktop auto-update. Every one of those is a
-decision about how software is *distributed* rather than about what it does,
-and they are v3 packaging concerns. They can be added when somebody is actually
-running the desktop shell and wants them; adding them first would mean
-maintaining an update channel for an application with no users.
+Launch-at-login uses a per-user desktop entry on Linux, a LaunchAgent on macOS,
+and a Windows Run entry or MSIX StartupTask. With the tray enabled, closing the
+window keeps the gateway running; the tray can reopen the window or quit the app.
+Launching the application again brings the existing window forward.
 
-Android is the exception and not an inconsistency. "Start at boot" and "install
-the next APK" are not conveniences on a phone — they are the only way one runs
-a gateway at all — and v3 had already answered both in hand-written Java. See
-[ANDROID.md](ANDROID.md), which is also where the list of what has **not** been
-verified lives, because nothing on Android has been observed running.
+Desktop automatic updates are not implemented. Android uses its foreground
+service, boot receiver and APK updater; see [ANDROID.md](ANDROID.md).
 
 It also does not build the console, and it does not bind the OAuth issuer:
 `/v1/oauth/*` is the authorization server this instance runs for *downstream*

@@ -60,14 +60,12 @@ pub async fn serve(
     config: &AppConfig,
     stop: Arc<tokio::sync::Notify>,
 ) -> StartResult<SocketAddr> {
-    let address: SocketAddr = format!("{}:{}", config.host, config.port)
-        .parse()
-        .map_err(|_| {
-            StartError::App(gproxy_app::AppError::internal(format!(
-                "`{}:{}` is not an address to listen on",
-                config.host, config.port
-            )))
-        })?;
+    let ip = config.host.parse::<std::net::IpAddr>().map_err(|_| {
+        StartError::App(gproxy_app::AppError::invalid(
+            "the listening host must be an IP address",
+        ))
+    })?;
+    let address = SocketAddr::new(ip, config.port);
     let listener = TcpListener::bind(address)
         .await
         .map_err(|error| StartError::io(format!("binding {address}"), error))?;

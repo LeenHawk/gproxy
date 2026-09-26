@@ -129,7 +129,7 @@ cargo run -p gproxy-host-tauri --bin gproxy-desktop
 ```
 
 一个进程、一个实例、两扇前门：承载管理面与用户面的 Tauri IPC 窗口，以及一个跑在
-`127.0.0.1:7071` 上、**只提供数据面**的真正 axum 宿主，给那些会说 HTTP、不会说 IPC 的 CLI。
+`127.0.0.1:8787` 上、**只提供数据面**的真正 axum 宿主，给那些会说 HTTP、不会说 IPC 的 CLI。
 
 测试套件能在一台**没有显示服务器**的机器上驱动整套安排，因为几乎所有东西都在库里，而
 二进制只负责开一个窗口。
@@ -140,8 +140,7 @@ cargo clippy -p gproxy-host-tauri --all-targets --all-features -- -D warnings
 cargo test   -p gproxy-host-tauri
 ```
 
-这个 crate 不带自动更新、不带开机自启、也不带托盘图标。这些每一个都是关于软件如何被*分发*
-而不是它做什么的决定，先把它们加上意味着要为一个没有用户的应用维护一条更新通道。
+首次启动向导已支持开机自启和系统托盘；桌面端自动更新尚未实现。
 
 ## Worker
 

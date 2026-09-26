@@ -147,7 +147,7 @@ cargo run -p gproxy-host-tauri --bin gproxy-desktop
 ```
 
 One process, one instance, two front doors: the window over Tauri IPC for the
-management and user surfaces, and a real axum host on `127.0.0.1:7071` serving
+management and user surfaces, and a real axum host on `127.0.0.1:8787` serving
 the **data plane only**, for the CLIs that speak HTTP and cannot speak IPC.
 
 The test suite drives the whole arrangement on a machine with **no display
@@ -160,10 +160,7 @@ cargo clippy -p gproxy-host-tauri --all-targets --all-features -- -D warnings
 cargo test   -p gproxy-host-tauri
 ```
 
-This crate carries no auto-update, no launch-at-login and no tray icon. Every
-one of those is a decision about how software is *distributed* rather than
-about what it does, and adding them first would mean maintaining an update
-channel for an application with no users.
+The first-run wizard supports launch-at-login and a system tray. Desktop auto-update is not implemented.
 
 ## The Worker
 

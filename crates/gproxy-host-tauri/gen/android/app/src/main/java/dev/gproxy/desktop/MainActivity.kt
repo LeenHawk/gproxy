@@ -55,8 +55,16 @@ class MainActivity : TauriActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         keepClearOfSystemBars()
-        askToPostNotifications()
-        askToIgnoreBatteryOptimisation()
+        startConfiguredService()
+    }
+
+    /** The first-run page calls this only after Rust has saved a completed setup. */
+    fun startConfiguredService(askPermissions: Boolean = true) {
+        if (!GproxyService.setupComplete(this)) return
+        if (askPermissions && !java.io.File(GproxyNative.dataDir(this), "desktop-setup.json").isFile) {
+            askToPostNotifications()
+            askToIgnoreBatteryOptimisation()
+        }
         GproxyService.start(this)
     }
 
@@ -85,15 +93,18 @@ class MainActivity : TauriActivity() {
      * happening. Asked once; a refusal is the user's to make and is not
      * asked again.
      */
-    private fun askToPostNotifications() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            return
-        }
-        val granted =
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
-                PackageManager.PERMISSION_GRANTED
-        if (!granted) {
+    fun askToPostNotifications(manual: Boolean = false) {
+        val preferences = getSharedPreferences(GproxyService.PREFS, MODE_PRIVATE)
+        val asked = preferences.getBoolean(PREF_ASKED_NOTIFY, false)
+        if (!manual && asked) return
+        if (androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled()) return
+        preferences.edit().putBoolean(PREF_ASKED_NOTIFY, true).apply()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            (!asked || shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS))) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFY)
+        } else {
+            startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
         }
     }
 
@@ -107,9 +118,9 @@ class MainActivity : TauriActivity() {
      * kind of thing a person uninstalls an app over, and the answer does not
      * change by being asked again.
      */
-    private fun askToIgnoreBatteryOptimisation() {
+    fun askToIgnoreBatteryOptimisation(manual: Boolean = false) {
         val preferences = getSharedPreferences(GproxyService.PREFS, MODE_PRIVATE)
-        if (preferences.getBoolean(PREF_ASKED_BATTERY, false)) {
+        if (!manual && preferences.getBoolean(PREF_ASKED_BATTERY, false)) {
             return
         }
         preferences.edit().putBoolean(PREF_ASKED_BATTERY, true).apply()
@@ -132,6 +143,7 @@ class MainActivity : TauriActivity() {
     private companion object {
         const val TAG = "gproxy"
         const val REQUEST_NOTIFY = 10
+        const val PREF_ASKED_NOTIFY = "asked_notification_permission"
         const val PREF_ASKED_BATTERY = "asked_battery_exemption"
     }
 }

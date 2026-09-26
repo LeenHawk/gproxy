@@ -6,6 +6,8 @@
 //! That also means a session ending mid-visit does not lose the reader's
 //! place.
 
+import { lazy, Suspense } from "react"
+import { inShell } from "@/lib/transport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { ApiError } from "@/api/client"
@@ -17,6 +19,8 @@ import { AuthorizePage, DevicePage } from "@/pages/oauth-consent"
 import { Routes } from "@/pages/routes"
 import { SignInPage } from "@/pages/sign-in"
 import { useRoute } from "@/lib/router"
+
+const SetupGate = lazy(() => import("@/pages/setup"))
 
 const client = new QueryClient({
   defaultOptions: {
@@ -68,7 +72,7 @@ function Gate() {
 export function App() {
   return (
     <QueryClientProvider client={client}>
-      <Gate />
+      {inShell ? <Suspense fallback={<LoadingRows />}><SetupGate><Gate /></SetupGate></Suspense> : <Gate />}
       <Toaster />
     </QueryClientProvider>
   )

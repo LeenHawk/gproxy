@@ -67,6 +67,29 @@ class GproxyFiles(private val activity: ComponentActivity) {
         }
     }
 
+    @JavascriptInterface
+    fun setupFinished() {
+        activity.runOnUiThread { (activity as? MainActivity)?.startConfiguredService(askPermissions = false) }
+    }
+
+    @JavascriptInterface
+    fun permissionStatus(): String {
+        val notifications = androidx.core.app.NotificationManagerCompat.from(activity).areNotificationsEnabled()
+        val power = activity.getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
+        return org.json.JSONObject().put("notifications", notifications)
+            .put("background", power?.isIgnoringBatteryOptimizations(activity.packageName) == true).toString()
+    }
+
+    @JavascriptInterface
+    fun requestNotifications() {
+        activity.runOnUiThread { (activity as? MainActivity)?.askToPostNotifications(manual = true) }
+    }
+
+    @JavascriptInterface
+    fun requestBackground() {
+        activity.runOnUiThread { (activity as? MainActivity)?.askToIgnoreBatteryOptimisation(manual = true) }
+    }
+
     /** Off the main thread: an export can be megabytes and the target a cloud provider. */
     private fun write(uri: Uri, text: String) {
         Thread {

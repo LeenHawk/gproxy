@@ -29,16 +29,15 @@ name = "gproxy-desktop"
 path = "src/main.rs"
 
 [features]
-# A desktop instance is one SQLite file with every channel compiled in. There
-# is no operator here to pick a backend, so the feature set is the product's
-# rather than a deployment's: the cache is this process's memory because there
-# is no second instance to share one with, and file storage is local because
-# there is a filesystem and no bucket.
-default = ["channels", "memory", "fs", "bundled-vocabulary"]
+# Installer builds include all channels, local storage, and the SQL backends
+# offered by first-run setup. SQLite remains the default.
+default = ["channels", "memory", "fs", "bundled-vocabulary", "postgres", "mysql"]
 channels = ["gproxy/channels"]
 memory = ["gproxy/memory"]
 fs = ["gproxy/fs"]
 bundled-vocabulary = ["gproxy/bundled-vocabulary"]
+postgres = ["gproxy/postgres"]
+mysql = ["gproxy/mysql"]
 
 [dependencies]
 # The reduction layer in front of the host's router, and nothing else.
@@ -91,6 +90,14 @@ tauri-build = { workspace = true }
 [target.'cfg(target_os = "android")'.dependencies]
 jni = { workspace = true }
 libc = { workspace = true }
+
+[target.'cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))'.dependencies]
+tauri = { workspace = true, features = ["tray-icon"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = "2"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.61.3", features = ["ApplicationModel", "Win32_Storage_Packaging_Appx", "Win32_System_WinRT"] }
 
 [dev-dependencies]
 # `test` gives Tauri's `MockRuntime`, which is what lets `tests/assembly.rs`
