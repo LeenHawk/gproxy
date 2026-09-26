@@ -241,8 +241,13 @@ impl BaseChannel for Custom {
                     && matches!(operation.operation, Operation::GenerateContent | Operation::StreamGenerateContent)
                     && let Ok(mut body) = serde_json::from_slice::<serde_json::Value>(&bytes)
                 {
+                    // `None` when the builder already holds an error, such as a
+                    // base URL that is not a URI; that is configuration, not a panic.
+                    let headers = builder.headers_mut().ok_or_else(|| {
+                        ChannelError::InvalidConfig("custom request could not be built".into())
+                    })?;
                     crate::channels::shared::claude_fallback::fallbacks(
-                        &mut body, builder.headers_mut().expect("valid builder"),
+                        &mut body, headers,
                         &config.fallback_mode, &config.fallback_models,
                     );
                     HttpBody::Bytes(gproxy_protocol::connection::Bytes::from(body.to_string()))
