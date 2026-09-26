@@ -85,6 +85,8 @@ pub struct Model {
     pub started_at_ms: i64,
     pub first_response_at_ms: Option<i64>,
     /// Exchange/turn termination, or socket closure for WsConnection.
+    /// Indexed for retention, which deletes the oldest-ended rows first.
+    #[sea_orm(indexed)]
     pub ended_at_ms: Option<i64>,
 
     #[sea_orm(

@@ -64,13 +64,18 @@ pub async fn clean(
             tokio::task::yield_now().await;
         }
     }
-    if removed > 0 || reclaim {
-        if db.get_database_backend() == DbBackend::Sqlite {
-            // Reclaim freed pages so the on-disk size reflects the cleanup.
-            db.execute_unprepared("VACUUM").await?;
-            db.execute_unprepared("PRAGMA wal_checkpoint(TRUNCATE)")
-                .await?;
-        }
+    // Rows pruned by age leave free pages SQLite reuses for the next rows, so
+    // the file needs no rewrite for them. VACUUM rewrites the whole file on
+    // the one connection every request needs, so it runs only to bring a file
+    // over its size budget back under it, and only once a tenth of it is free:
+    // right after a VACUUM nothing is, so it cannot run again every minute.
+    if reclaim && db.get_database_backend() == DbBackend::Sqlite && free_fraction(db).await? >= 0.1
+    {
+        db.execute_unprepared("VACUUM").await?;
+        db.execute_unprepared("PRAGMA wal_checkpoint(TRUNCATE)")
+            .await?;
+    }
+    if removed > 0 {
         tracing::info!(removed, "request history cleanup completed");
     }
     Ok(removed)
@@ -87,7 +92,23 @@ async fn physical_bytes(db: &DatabaseConnection) -> Result<i64> {
     Ok(row.try_get("", "bytes")?)
 }
 
+/// The share of the file's pages that are free.
+async fn free_fraction(db: &DatabaseConnection) -> Result<f64> {
+    let (pages, free, _) = page_counts(db).await?;
+    Ok(if pages == 0 {
+        0.0
+    } else {
+        free as f64 / pages as f64
+    })
+}
+
 async fn occupied_bytes(db: &DatabaseConnection) -> Result<i64> {
+    let (pages, free, size) = page_counts(db).await?;
+    Ok((pages - free) * size)
+}
+
+/// `page_count`, `freelist_count` and `page_size`.
+async fn page_counts(db: &DatabaseConnection) -> Result<(i64, i64, i64)> {
     let mut values = Vec::new();
     for sql in [
         "PRAGMA page_count",
@@ -100,7 +121,7 @@ async fn occupied_bytes(db: &DatabaseConnection) -> Result<i64> {
             .unwrap();
         values.push(row.try_get_by_index::<i64>(0)?);
     }
-    Ok((values[0] - values[1]) * values[2])
+    Ok((values[0], values[1], values[2]))
 }
 
 async fn prune(db: &DatabaseConnection, cutoff: i64) -> Result<u64> {
