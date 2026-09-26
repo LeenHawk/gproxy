@@ -55,10 +55,10 @@
 //! also hold the method that runs before there is one. [`Portal::logout`] *is*
 //! here, because by then there is.
 //!
-//! Rate limiting of sign-in attempts is the **host's**. This crate has no
-//! client address — it never parses a forwarding header — and a limit keyed on
-//! anything else would either lock one username out globally or not limit
-//! anything at all.
+//! Throttling sign-in needs the client's address, which this crate never
+//! derives — it parses no forwarding header. The host resolves it and calls
+//! [`Operations::portal_login_from`]; a limit keyed on the name alone would
+//! lock one username out globally.
 
 mod keys;
 mod models;
@@ -288,6 +288,40 @@ impl<'a, C> Operations<'a, C> {
     }
 }
 
+/// Failed sign-ins one client may make in a [`LOGIN_WINDOW`].
+pub const LOGIN_FAILURES_PER_CLIENT: u64 = 30;
+/// Failed sign-ins for one name from one client in a [`LOGIN_WINDOW`].
+pub const LOGIN_FAILURES_PER_ACCOUNT: u64 = 5;
+/// How long failed sign-ins are remembered, from the first one.
+pub const LOGIN_WINDOW: std::time::Duration = std::time::Duration::from_secs(15 * 60);
+
+/// The throttle key for `parts`, digested: a name is whatever was typed and
+/// could be longer than a cache key may be.
+fn login_key(parts: &[&[u8]]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut digest = Sha256::new();
+    for part in parts {
+        digest.update((part.len() as u64).to_be_bytes());
+        digest.update(part);
+    }
+    let hex: String = digest
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    format!("gproxy-app:login-failures:v1:{}:{hex}", parts.len())
+}
+
+/// A hash of nothing in particular, for [`Operations::portal_login_at`] to
+/// verify against when the name has no password of its own. Made once, with
+/// the same parameters as a real one so it costs the same.
+fn dummy_hash() -> Option<&'static str> {
+    static DUMMY: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    DUMMY
+        .get_or_init(|| password_policy::hash("gproxy sign-in timing equaliser").ok())
+        .as_deref()
+}
+
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Operations<'_, C> {
     /// Open a portal session from a name and a password.
     ///
@@ -296,10 +330,60 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Operations<'_, C> {
     /// password are one indistinguishable `Unauthorized`: telling them apart
     /// turns the sign-in form into an account-enumeration oracle.
     ///
-    /// Every attempt costs one argon2 verification, which is why **the host
-    /// rate-limits this**; this crate has no client address to key a limit on.
+    /// Every attempt costs one argon2 verification. A host that knows the
+    /// client's address signs in through [`Operations::portal_login_from`],
+    /// which throttles failures; this entry point does not.
     pub async fn portal_login(&self, name: &str, password: &str) -> Result<IssuedSession> {
         self.portal_login_at(name, password, crate::now_ms()).await
+    }
+
+    /// [`Operations::portal_login`] for a request from `client`, with failed
+    /// attempts throttled: at most [`LOGIN_FAILURES_PER_CLIENT`] per client
+    /// and [`LOGIN_FAILURES_PER_ACCOUNT`] per name from one client in a
+    /// [`LOGIN_WINDOW`], then `429` until the window closes.
+    ///
+    /// The per-name count is keyed with the client too. Keyed by the name
+    /// alone, anyone could lock an administrator out by failing their name
+    /// from somewhere else.
+    ///
+    /// A cache that cannot answer does not refuse sign-in; it is logged and
+    /// the attempt goes through unthrottled, as a key's rate limit does not.
+    /// Locking every person out of the console because the cache is down is
+    /// the worse failure for the one surface that fixes it.
+    pub async fn portal_login_from(
+        &self,
+        name: &str,
+        password: &str,
+        client: &str,
+    ) -> Result<IssuedSession> {
+        let cache = self.gproxy.cache();
+        let keys = [
+            (login_key(&[client.as_bytes()]), LOGIN_FAILURES_PER_CLIENT),
+            (
+                login_key(&[client.as_bytes(), name.trim().as_bytes()]),
+                LOGIN_FAILURES_PER_ACCOUNT,
+            ),
+        ];
+        for (key, limit) in &keys {
+            match cache.counter(key).await {
+                Ok(Some(counter)) if counter.value >= *limit => {
+                    return Err(AppError::RateLimited {
+                        retry_after_ms: None,
+                    });
+                }
+                Ok(_) => {}
+                Err(error) => tracing::warn!(%error, "sign-in throttle unavailable"),
+            }
+        }
+        let result = self.portal_login(name, password).await;
+        if matches!(result, Err(AppError::Unauthorized(_))) {
+            for (key, _) in &keys {
+                if let Err(error) = cache.increment(key, 1, i64::MAX as u64, LOGIN_WINDOW).await {
+                    tracing::warn!(%error, "sign-in failure not counted");
+                }
+            }
+        }
+        result
     }
 
     /// [`Operations::portal_login`] against a stated clock, so a test can sit
@@ -328,10 +412,20 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Operations<'_, C> {
             .await?
             .into_iter()
             .next()
-            .filter(|row| row.enabled)
-            .ok_or_else(refused)?;
-        let stored = row.password_hash.as_deref().ok_or_else(refused)?;
-        if !password_policy::verify(password, stored) {
+            .filter(|row| row.enabled);
+        // A name with nothing to verify against still costs a verification:
+        // answering it without one would be faster, and the time would tell
+        // a stranger which names exist.
+        let Some((row, stored)) = row.and_then(|row| {
+            let stored = row.password_hash.clone()?;
+            Some((row, stored))
+        }) else {
+            if let Some(dummy) = dummy_hash() {
+                password_policy::verify(password, dummy);
+            }
+            return Err(refused());
+        };
+        if !password_policy::verify(password, &stored) {
             return Err(refused());
         }
         self.authenticator().create_session(&row.id, now_ms).await

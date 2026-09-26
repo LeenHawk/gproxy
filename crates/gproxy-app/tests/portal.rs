@@ -822,6 +822,37 @@ async fn every_way_a_sign_in_can_fail_answers_the_same_unauthorized() {
     );
 }
 
+#[tokio::test]
+async fn failed_sign_ins_are_throttled_per_client_not_per_name() {
+    use gproxy_app::operations::portal::LOGIN_FAILURES_PER_ACCOUNT;
+
+    let app = fixture().await;
+    let data = app.data();
+    let ops = Operations::new(app.gproxy(), &data, app.config());
+    ops.users()
+        .set_password("alice", "correct horse battery")
+        .await
+        .unwrap();
+
+    for _ in 0..LOGIN_FAILURES_PER_ACCOUNT {
+        let refused = ops
+            .portal_login_from("alice", "wrong", "198.51.100.7")
+            .await;
+        assert_eq!(status(refused), 401);
+    }
+    // That client has spent its guesses at this name, the right one included.
+    let throttled = ops
+        .portal_login_from("alice", "correct horse battery", "198.51.100.7")
+        .await;
+    assert_eq!(status(throttled), 429);
+    // Somebody else failing her name does not lock her out.
+    assert!(
+        ops.portal_login_from("alice", "correct horse battery", "203.0.113.9")
+            .await
+            .is_ok()
+    );
+}
+
 // ------------------------------------------------------------- seeding ----
 
 /// A registered client, a grant, and the grant's internal `oauth` key.

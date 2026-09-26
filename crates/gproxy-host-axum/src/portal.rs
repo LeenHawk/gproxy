@@ -20,9 +20,9 @@
 //! its cookie cleared, and refusing that with a 401 leaves a browser holding a
 //! cookie it can never get rid of.
 //!
-//! **Sign-in is not rate limited.** `gproxy-app` explains why it cannot do it
-//! (it has no client address); this host does not yet do it either. It is the
-//! one open item in the crate README.
+//! Sign-in is throttled by client address: this host resolves the address
+//! (trusting forwarding headers only from a trusted proxy) and hands it to
+//! [`Operations::portal_login_from`], which counts the failures.
 
 use axum::{
     Extension, Json, Router,
@@ -204,13 +204,22 @@ where
 {
     crate::send(async move {
         let secure = secure_cookie(&state, &request);
+        let client = crate::policy::client_ip(
+            crate::peer_ip(&request),
+            request.headers(),
+            &crate::runtime_settings::trusted_proxies(state.app()),
+        )
+        .to_string();
         let body: LoginBody = match crate::json_body(request).await {
             Ok(body) => body,
             Err(response) => return *response,
         };
         let data = state.app().data();
         let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
-        let issued = match operations.portal_login(&body.name, &body.password).await {
+        let issued = match operations
+            .portal_login_from(&body.name, &body.password, &client)
+            .await
+        {
             Ok(issued) => issued,
             Err(error) => return ErrorResponse(error).into_response(),
         };
