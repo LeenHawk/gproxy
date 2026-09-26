@@ -19,7 +19,7 @@ use serde_json::{Value, json};
 use super::Report;
 
 /// v3 settings v4 has no place for, with what they controlled.
-const UNMAPPED: [(&str, &str); 4] = [
+const UNMAPPED: [(&str, &str); 3] = [
     ("inherit_system_proxy", "v4 uses only an explicit proxy"),
     (
         "file_upload_max_in_flight",
@@ -28,10 +28,6 @@ const UNMAPPED: [(&str, &str); 4] = [
     (
         "max_in_flight",
         "v4 has no gateway-wide request concurrency limit",
-    ),
-    (
-        "default_tokenizer_vocab",
-        "v4 names a vocabulary by uploaded file",
     ),
 ];
 

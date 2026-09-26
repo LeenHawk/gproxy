@@ -109,11 +109,25 @@ pub struct Data {
     /// The OAuth clients v3's issuer registered. Database route only.
     #[serde(default)]
     pub oauth_clients: Vec<OAuthClient>,
+    /// Stored tokenizer vocabularies, by name. Database route only.
+    #[serde(default)]
+    pub tokenizer_vocabs: Vec<TokenizerVocab>,
+    /// The sealed Hugging Face token vocabularies were downloaded with.
+    /// Database route only.
+    #[serde(default)]
+    pub tokenizer_auth: Option<Envelope>,
 
     /// v3's key/value `settings` table. The admin API's export carries none of
     /// it, so this is empty on that route and filled on the file one.
     #[serde(default)]
     pub settings: std::collections::BTreeMap<String, Value>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct TokenizerVocab {
+    pub name: String,
+    #[serde(default)]
+    pub bytes: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
