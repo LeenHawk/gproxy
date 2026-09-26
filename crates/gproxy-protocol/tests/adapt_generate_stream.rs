@@ -218,43 +218,6 @@ fn applied_alias_cas_cancellation_retains_exact_event_and_does_not_read_or_post_
     assert_eq!(host.sent.lock().unwrap().len(), 1);
 }
 #[test]
-fn cancelled_reservation_resumes_unsent_call_but_fresh_duplicate_namespace_cannot_post() {
-    let store = Arc::new(Store::default());
-    let feed = Feed::default();
-    let host = Host::stream(store.clone(), feed);
-    let access = state(&store);
-    let mut call = prepared(&store, true);
-    store.hang_applied.store(true, Ordering::SeqCst);
-    {
-        let mut start = Box::pin(call.start(&host, &(), &access));
-        assert!(
-            start
-                .as_mut()
-                .poll(&mut Context::from_waker(Waker::noop()))
-                .is_pending()
-        );
-    }
-    assert!(!call.send_started());
-    assert!(host.sent.lock().unwrap().is_empty());
-    ready(call.start(&host, &(), &access)).unwrap();
-    assert_eq!(host.sent.lock().unwrap().len(), 1);
-    let duplicate = ready(ChatViaClaude::prepare_stream(
-        request(true),
-        selected(),
-        ClaudeToChatContext { created: 7 },
-        settings(),
-        &access,
-    ));
-    assert_eq!(
-        duplicate
-            .err()
-            .expect("duplicate namespace preparation must fail")
-            .kind(),
-        TransformErrorKind::Conflict
-    );
-    assert_eq!(host.sent.lock().unwrap().len(), 1);
-}
-#[test]
 fn client_usage_flag_is_honored_and_incomplete_source_never_emits_terminal_success() {
     for complete in [true, false] {
         let store = Arc::new(Store::default());

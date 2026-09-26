@@ -20,7 +20,8 @@ use crate::{
 
 pub struct GenerationWsSession {
     native: ws::ResponsesWsSession,
-    preparation: super::reservation::Reservation,
+    /// The state the connection was opened under; each turn must use it.
+    binding: super::binding::StateBinding,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -43,18 +44,16 @@ pub async fn connect<U: Upstream, S: StateStore>(
     target: &U::Target,
     request: WireRequest<()>,
     limits: ws::ResponsesWsLimits,
-    connection_namespace: crate::transform::identity::IdNamespace,
     state: &GenerationStateAccess<'_, S>,
 ) -> Result<GenerationWsConnect, ws::ResponsesWsConnectError> {
-    let preparation =
-        super::reservation::Reservation::connection(connection_namespace, &request, state).await?;
+    let binding = super::binding::StateBinding::new(state);
     match ws::connect(upstream, target, request, limits).await? {
         ws::ResponsesWsConnect::Connected { handshake, session } => {
             Ok(GenerationWsConnect::Connected {
                 handshake,
                 session: GenerationWsSession {
                     native: session,
-                    preparation,
+                    binding,
                 },
             })
         }
@@ -119,8 +118,8 @@ impl<B: StreamBridge<NativeEvent = StreamEvent>> GenerationWsTurn<'_, B> {
 impl<B: StreamBridge<NativeEvent = StreamEvent, NativeRequest = r::GenerateContentRequestBody>>
     StreamInvocation<B>
 {
-    /// Reserves this invocation durably before permitting response.create to send.
-    /// The explicit connection is bound to the same upstream, model and conversation.
+    /// Sends response.create at most once. The invocation and the connection
+    /// must both have been prepared against this state.
     pub async fn start_websocket<'a, S: StateStore>(
         &'a mut self,
         session: &'a mut GenerationWsSession,
@@ -134,18 +133,23 @@ impl<B: StreamBridge<NativeEvent = StreamEvent, NativeRequest = r::GenerateConte
         lane: Option<String>,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<GenerationWsTurn<'a, B>, TransformError> {
-        self.preparation.verify(state).await?;
-
-        session.preparation.verify(state).await?;
+        self.binding.check(state)?;
+        session.binding.check(state)?;
         if self.sent || self.failed {
             return Err(super::conflict("invocation already sent or failed"));
+        }
+        if self
+            .websocket_lane
+            .as_ref()
+            .is_some_and(|known| known != &lane)
+        {
+            return Err(super::conflict("WebSocket turn lane changed"));
         }
         let mut request = self.target.clone().into_declared();
         // WS is intrinsically streaming; this is the transport control added by
         // prepare_stream, not a user-requested change of generation semantics.
         request.stream = None;
-        self.reservation.websocket(lane.as_deref(), state)?;
-        self.reservation.reserve(state).await?;
+        self.websocket_lane = Some(lane.clone());
         let turn = session.native.turn_message(RequestMessage {
             stream_id: lane,
             generate: None,

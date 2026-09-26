@@ -82,8 +82,7 @@ fn buffered_post_state_is_complete_before_synthesis_exposes_any_bytes() {
 fn buffered_post_synthesis(include_usage: bool) {
     let store = Arc::new(Store::default());
     let access = state(&store);
-    let mut host = Host::stream(store.clone(), Feed::default());
-    host.require_reservation = false;
+    let host = Host::stream(store.clone(), Feed::default());
     *host.response.lock().unwrap() = Some(WireResponse {
         status: http::StatusCode::OK,
         headers: http::HeaderMap::new(),

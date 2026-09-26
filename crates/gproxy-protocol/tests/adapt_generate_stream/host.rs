@@ -141,7 +141,6 @@ impl futures_core::Stream for Feed {
 }
 pub struct Host {
     pub store: Arc<Store>,
-    pub require_reservation: bool,
     pub response: Mutex<Option<WireResponse<HttpBody>>>,
     pub sent: Mutex<Vec<WireRequest<Bytes>>>,
 }
@@ -149,7 +148,6 @@ impl Host {
     pub fn stream(store: Arc<Store>, feed: Feed) -> Self {
         Self {
             store,
-            require_reservation: true,
             response: Mutex::new(Some(WireResponse {
                 status: http::StatusCode::OK,
                 headers: http::HeaderMap::from_iter([(
@@ -162,6 +160,12 @@ impl Host {
         }
     }
 }
+/// Keys of the per-invocation reservations the stream no longer persists.
+pub fn is_reservation(key: &str) -> bool {
+    ["stream-invoke:", "stream-prepare:", "ws-connect:"]
+        .iter()
+        .any(|prefix| key.starts_with(prefix))
+}
 impl Upstream for Host {
     type Target = ();
     fn send<'a>(
@@ -170,17 +174,16 @@ impl Upstream for Host {
         request: WireRequest<HttpBody>,
     ) -> CapabilityFuture<'a, Result<WireResponse<HttpBody>, CapabilityError>> {
         Box::pin(async move {
-            if self.require_reservation {
-                assert!(
-                    self.store
-                        .entries
-                        .lock()
-                        .unwrap()
-                        .keys()
-                        .any(|k| k.starts_with("stream-invoke:")),
-                    "POST preceded durable reservation"
-                );
-            }
+            assert!(
+                !self
+                    .store
+                    .entries
+                    .lock()
+                    .unwrap()
+                    .keys()
+                    .any(|k| is_reservation(k)),
+                "a stream reservation reached the state store"
+            );
             let HttpBody::Bytes(body) = request.body else {
                 panic!("generation request must be JSON bytes")
             };

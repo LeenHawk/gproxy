@@ -152,7 +152,7 @@ impl ResponsesViaChat {
             state,
         )
         .await?;
-        history.bind(&invocation.preparation, state).await?;
+        history.bind(&invocation.binding, state)?;
         invocation.history = Some(history);
         Ok(invocation)
     }
@@ -237,7 +237,7 @@ impl ResponsesViaChat {
             state,
         )
         .await?;
-        history.bind(&invocation.preparation, state).await?;
+        history.bind(&invocation.binding, state)?;
         invocation.history = Some(history);
         Ok(invocation)
     }

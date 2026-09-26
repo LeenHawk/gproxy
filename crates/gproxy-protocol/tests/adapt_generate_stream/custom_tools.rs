@@ -2,7 +2,7 @@ use super::*;
 use gproxy_protocol::adapt::generate::chat_responses::{ChatViaResponses, ResponsesViaChat};
 
 #[test]
-fn custom_stream_rejection_precedes_reservation_and_buffered_synthesis_stays_available() {
+fn custom_stream_preparation_writes_no_state_and_buffered_synthesis_stays_available() {
     let store = Store::default();
     let mut access = state(&store);
     let mut target = selected();
@@ -28,7 +28,7 @@ fn custom_stream_rejection_precedes_reservation_and_buffered_synthesis_stays_ava
         &access,
     ));
     assert!(result.is_ok());
-    assert!(!store.entries.lock().unwrap().is_empty());
+    assert!(store.entries.lock().unwrap().is_empty());
     assert!(
         ready(ChatViaResponses::prepare_for_stream_synthesis(
             serde_json::from_value(source).unwrap(),
@@ -62,7 +62,7 @@ fn custom_stream_rejection_precedes_reservation_and_buffered_synthesis_stays_ava
         &access,
     ));
     assert!(result.is_ok());
-    assert!(!store.entries.lock().unwrap().is_empty());
+    assert!(store.entries.lock().unwrap().is_empty());
     // A buffered Chat custom result can still be synthesized as native Responses events.
     let prepared = ready(ResponsesViaChat::prepare_for_stream_synthesis(
         serde_json::from_value(source).unwrap(),

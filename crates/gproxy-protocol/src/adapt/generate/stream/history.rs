@@ -32,7 +32,7 @@ pub(super) struct History {
 pub struct ResponsesHistoryCache(std::sync::Arc<std::sync::Mutex<Cache>>);
 
 struct Cache {
-    preparation: Option<(super::reservation::Reservation, std::time::SystemTime)>,
+    binding: Option<super::binding::StateBinding>,
     max_entries: usize,
     max_bytes: usize,
     bytes: usize,
@@ -42,69 +42,53 @@ struct Cache {
 impl ResponsesHistoryCache {
     pub fn new(max_entries: usize, max_bytes: usize) -> Self {
         Self(std::sync::Arc::new(std::sync::Mutex::new(Cache {
-            preparation: None,
+            binding: None,
             max_entries,
             max_bytes,
             bytes: 0,
             entries: Default::default(),
         })))
     }
-    async fn verify_binding<S: StateStore>(
-        binding: &(super::reservation::Reservation, std::time::SystemTime),
-        state: &GenerationStateAccess<'_, S>,
-    ) -> Result<(), TransformError> {
-        let access = GenerationStateAccess {
-            store: state.store,
-            scope: state.scope,
-            target: state.target.clone(),
-            conversation_key: state.conversation_key.clone(),
-            expires_at: binding.1,
-            now: state.now,
-            max_records: state.max_records,
-        };
-        binding.0.verify(&access).await
-    }
-    async fn bind<S: StateStore>(
+    /// The first invocation to use this cache binds it to its conversation.
+    /// A cache offered under another conversation, or after that binding
+    /// expired, is refused rather than served.
+    fn bind<S: StateStore>(
         &self,
-        marker: &super::reservation::Reservation,
+        binding: &super::binding::StateBinding,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<(), TransformError> {
-        let binding = {
-            let mut cache = self
-                .0
-                .lock()
-                .map_err(|_| super::invalid("Responses history cache lock poisoned"))?;
-
-            cache
-                .preparation
-                .get_or_insert_with(|| (marker.clone(), state.expires_at))
-                .clone()
-        };
-        Self::verify_binding(&binding, state).await
+        let mut cache = self
+            .0
+            .lock()
+            .map_err(|_| super::invalid("Responses history cache lock poisoned"))?;
+        Self::check(cache.binding.get_or_insert_with(|| binding.clone()), state)
     }
-    async fn get<S: StateStore>(
+    fn check<S: StateStore>(
+        binding: &super::binding::StateBinding,
+        state: &GenerationStateAccess<'_, S>,
+    ) -> Result<(), TransformError> {
+        if binding.serves(state) {
+            Ok(())
+        } else {
+            Err(super::missing(
+                "Responses history cache is bound to another conversation or expired",
+            ))
+        }
+    }
+    fn get<S: StateStore>(
         &self,
         id: &str,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<Option<Snapshot>, TransformError> {
-        let binding = {
-            let cache = self
-                .0
-                .lock()
-                .map_err(|_| super::invalid("Responses history cache lock poisoned"))?;
-
-            cache.preparation.clone()
-        };
-        // A never-bound empty cache has no content. Do not re-read it after
-        // another connection could win first binding while this task awaits.
-        let Some(binding) = binding else {
-            return Ok(None);
-        };
-        Self::verify_binding(&binding, state).await?;
         let cache = self
             .0
             .lock()
             .map_err(|_| super::invalid("Responses history cache lock poisoned"))?;
+        // A never-bound empty cache has no content.
+        let Some(binding) = &cache.binding else {
+            return Ok(None);
+        };
+        Self::check(binding, state)?;
         Ok(cache
             .entries
             .iter()
@@ -122,9 +106,9 @@ impl ResponsesHistoryCache {
             .lock()
             .map_err(|_| super::invalid("Responses history cache lock poisoned"))?;
 
-        if cache.preparation.is_none() {
+        if cache.binding.is_none() {
             return Err(super::missing(
-                "Responses cache has no acknowledged scope binding",
+                "Responses cache has no conversation binding",
             ));
         }
         if size > cache.max_bytes {
@@ -212,13 +196,13 @@ fn output_item(
 }
 
 impl History {
-    pub async fn bind<S: StateStore>(
+    pub fn bind<S: StateStore>(
         &self,
-        marker: &super::reservation::Reservation,
+        binding: &super::binding::StateBinding,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<(), TransformError> {
         if let Some(cache) = &self.cache {
-            cache.bind(marker, state).await?;
+            cache.bind(binding, state)?;
         }
         Ok(())
     }
@@ -229,7 +213,7 @@ impl History {
         cache: Option<&ResponsesHistoryCache>,
     ) -> Result<(Self, r::GenerateContentRequestBody), TransformError> {
         if let Some(cache) = cache {
-            cache.get("", state).await?;
+            cache.get("", state)?;
         }
         let mut expanded = request.clone().into_declared();
         let mut input = vec![];
@@ -253,7 +237,7 @@ impl History {
                 ));
             }
             let cached = if let Some(cache) = cache {
-                cache.get(id, state).await?
+                cache.get(id, state)?
             } else {
                 None
             };

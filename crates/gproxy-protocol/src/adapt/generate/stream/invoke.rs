@@ -1,11 +1,11 @@
 use super::super::{Endpoint, GenerationIdentity, GenerationProgress, GenerationStateAccess};
 use super::{
+    binding::StateBinding,
     bridge::StreamBridge,
     event::{Collected, EventLimits, NativeEvent},
     ledger::StreamLedger,
     output,
     reader::{NativeReader, SourceFraming},
-    reservation::Reservation,
 };
 use crate::{
     HttpBody, WireRequest, WireResponse,
@@ -72,8 +72,11 @@ pub struct StreamInvocation<B: StreamBridge> {
     pub(super) target: B::NativeRequest,
     pub(super) selected: StreamTarget,
     pub(super) settings: StreamSettings,
-    pub(super) reservation: Reservation,
-    pub(super) preparation: Reservation,
+    /// The state this invocation was prepared against; every step must use it.
+    pub(super) binding: StateBinding,
+    /// The output lane a WebSocket start chose, so an HTTP start is refused
+    /// afterwards and a retried WebSocket start cannot switch lanes.
+    pub(super) websocket_lane: Option<Option<String>>,
     pub(super) bridge: Option<B>,
     pub(super) flow: IdentityFlow,
     pub(super) source: Option<<B::NativeEvent as NativeEvent>::Collector>,
@@ -115,14 +118,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
     ) -> Result<Self, TransformError> {
         let original = original.into_declared();
         let target = target.into_declared();
-        let reservation = Reservation::new(
-            &original,
-            &target,
-            &selected.endpoint,
-            &selected.identities,
-            state,
-            settings.codec,
-        )?;
         let flow = bridge.identities().clone();
         if flow.namespace() != selected.identities.response.namespace() {
             return Err(super::invalid("bridge response namespace mismatch"));
@@ -137,7 +132,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
             selected.identities.response_policy.clone(),
             settings.events,
         );
-        let preparation = reservation.preparation(state).await?;
         Ok(Self {
             history: None,
             pending_native: None,
@@ -149,8 +143,8 @@ impl<B: StreamBridge> StreamInvocation<B> {
             target,
             selected,
             settings,
-            reservation,
-            preparation,
+            binding: StateBinding::new(state),
+            websocket_lane: None,
             bridge: Some(bridge),
             flow,
             source: Some(source),
@@ -217,8 +211,8 @@ impl<B: StreamBridge> StreamInvocation<B> {
         target: &U::Target,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<StreamStart, TransformError> {
-        self.preparation.verify(state).await?;
-        if self.sent || self.failed || self.reservation.is_websocket() {
+        self.binding.check(state)?;
+        if self.sent || self.failed || self.websocket_lane.is_some() {
             return Err(super::conflict(
                 "stream send already started or failed; cannot replay POST",
             ));
@@ -228,7 +222,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
             .max_body_bytes
             .min(upstream.limits().write_bytes);
         let body = codec::encode_json(&self.target, request_limits).map_err(super::codec_error)?;
-        self.reservation.reserve(state).await?;
         let mut headers = self.selected.endpoint.headers.clone();
         for name in [
             http::header::CONTENT_LENGTH,

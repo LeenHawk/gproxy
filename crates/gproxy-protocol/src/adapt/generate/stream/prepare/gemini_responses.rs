@@ -182,7 +182,7 @@ impl ResponsesViaGemini {
             state,
         )
         .await?;
-        history.bind(&invocation.preparation, state).await?;
+        history.bind(&invocation.binding, state)?;
         invocation.history = Some(history);
         Ok(invocation)
     }
@@ -270,7 +270,7 @@ impl ResponsesViaGemini {
             state,
         )
         .await?;
-        history.bind(&invocation.preparation, state).await?;
+        history.bind(&invocation.binding, state)?;
         invocation.history = Some(history);
         Ok(invocation)
     }
