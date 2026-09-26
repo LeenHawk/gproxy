@@ -493,6 +493,44 @@ fn gemini_models_still_lose_the_output_limit() {
 }
 
 #[test]
+fn claude_history_is_reshaped_into_what_anthropic_accepts() {
+    let call = json!({"functionCall": {"name": "f", "args": {}, "id": "toolu_1"}});
+    let request = claude_request(json!({"contents": [
+        {"role": "user", "parts": [{"text": ""}, {"text": "go"}]},
+        // Streamed pieces: thought text, then the signature on an empty part.
+        {"role": "model", "parts": [
+            {"thought": true, "text": "plan "},
+            {"thought": true, "text": "it"},
+            {"thought": true, "text": "", "thoughtSignature": "SIG1"},
+            call,
+        ]},
+        {"role": "user", "parts": [{"functionResponse": {"name": "f", "id": "toolu_1", "response": {}}}]},
+        // Unsigned thinking (from another upstream) cannot be replayed.
+        {"role": "model", "parts": [{"thought": true, "text": "unsigned"}, {"text": "done"}]},
+        {"role": "user", "parts": [{"text": "again"}]},
+        // Only empty text: the turn disappears.
+        {"role": "model", "parts": [{"text": ""}]},
+        {"role": "user", "parts": [{"text": "more"}]},
+        // A prefill is refused, so the trailing model turn is cut.
+        {"role": "model", "parts": [{"text": "Sure "}]},
+    ]}));
+    assert_eq!(
+        request["contents"],
+        json!([
+            {"role": "user", "parts": [{"text": "go"}]},
+            {"role": "model", "parts": [
+                {"thought": true, "text": "plan it", "thoughtSignature": "SIG1"},
+                call,
+            ]},
+            {"role": "user", "parts": [{"functionResponse": {"name": "f", "id": "toolu_1", "response": {}}}]},
+            {"role": "model", "parts": [{"text": "done"}]},
+            {"role": "user", "parts": [{"text": "again"}]},
+            {"role": "user", "parts": [{"text": "more"}]},
+        ])
+    );
+}
+
+#[test]
 fn gemini_tools_keep_their_json_schema() {
     let config = json!({});
     let secret = secret();

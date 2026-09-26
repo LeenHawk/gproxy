@@ -26,6 +26,15 @@
 //! refused); a `thinkingLevel` or the dynamic `-1` budget is silently
 //! ignored, so both become an explicit budget. `includeThoughts` changes
 //! nothing: a thinking reply always carries its thoughts.
+//!
+//! History: Anthropic refuses an empty text block (`text.text: Field
+//! required`), a conversation that ends on the model's turn ("does not
+//! support assistant message prefill"), and a thinking block without its
+//! signature (`thinking.signature: Field required`). The signature only
+//! counts when it rides the thought part that carries the thinking text:
+//! the host streams it as a trailing thought part with empty text, and that
+//! part replayed on its own is refused (`thinking.thinking: Field
+//! required`), so split pieces are joined back into one part first.
 
 use serde_json::{Map, Value};
 
@@ -123,6 +132,101 @@ pub(super) fn apply_limits(request: &mut Value, requested: Option<u64>) {
     }
     if config.is_empty() {
         request.remove("generationConfig");
+    }
+}
+
+fn is_thought(part: &Value) -> bool {
+    part.get("thought").and_then(Value::as_bool) == Some(true)
+}
+
+fn signature(part: &Value) -> Option<&str> {
+    part.get("thoughtSignature")
+        .and_then(Value::as_str)
+        .filter(|signature| !signature.is_empty())
+}
+
+fn text(part: &Value) -> Option<&str> {
+    part.get("text").and_then(Value::as_str)
+}
+
+/// A part that is nothing but (possibly empty) text.
+fn bare_text(part: &Value) -> bool {
+    part.as_object().is_some_and(|object| {
+        object.contains_key("text")
+            && object
+                .keys()
+                .all(|key| matches!(key.as_str(), "text" | "thought" | "thoughtSignature"))
+    })
+}
+
+/// One model turn's parts with each run of thought text joined into the
+/// part that carries its signature; thought left unsigned is dropped.
+fn join_thoughts(parts: Vec<Value>) -> Vec<Value> {
+    let mut out: Vec<Value> = Vec::with_capacity(parts.len());
+    let mut run: Option<(String, Option<String>)> = None;
+    let flush = |run: &mut Option<(String, Option<String>)>, out: &mut Vec<Value>| {
+        if let Some((text, Some(signature))) = run.take()
+            && !text.is_empty()
+        {
+            out.push(serde_json::json!({
+                "thought": true,
+                "text": text,
+                "thoughtSignature": signature,
+            }));
+        }
+    };
+    for part in parts {
+        if is_thought(&part) && bare_text(&part) {
+            // A signature closes its run: the next thought starts a new block.
+            if run.as_ref().is_some_and(|(_, signed)| signed.is_some()) {
+                flush(&mut run, &mut out);
+            }
+            let (text_so_far, signed) = run.get_or_insert_with(|| (String::new(), None));
+            text_so_far.push_str(text(&part).unwrap_or_default());
+            if let Some(found) = signature(&part) {
+                *signed = Some(found.to_owned());
+            }
+            continue;
+        }
+        flush(&mut run, &mut out);
+        out.push(part);
+    }
+    flush(&mut run, &mut out);
+    out
+}
+
+/// Rewrite the history into the shape Anthropic accepts: signed thinking
+/// joined into one part, unsigned thinking and empty text dropped, emptied
+/// turns removed, and a trailing model turn (a prefill) cut off.
+pub(super) fn tidy_history(request: &mut Value) {
+    let Some(contents) = request.get_mut("contents").and_then(Value::as_array_mut) else {
+        return;
+    };
+    for content in contents.iter_mut() {
+        let model = content.get("role").and_then(Value::as_str) == Some("model");
+        let Some(parts) = content.get_mut("parts").and_then(Value::as_array_mut) else {
+            continue;
+        };
+        let mut kept = std::mem::take(parts);
+        if model {
+            kept = join_thoughts(kept);
+        } else {
+            kept.retain(|part| !is_thought(part));
+        }
+        kept.retain(|part| !(bare_text(part) && !is_thought(part) && text(part) == Some("")));
+        *parts = kept;
+    }
+    contents.retain(|content| {
+        content
+            .get("parts")
+            .and_then(Value::as_array)
+            .is_some_and(|parts| !parts.is_empty())
+    });
+    while contents
+        .last()
+        .is_some_and(|content| content.get("role").and_then(Value::as_str) == Some("model"))
+    {
+        contents.pop();
     }
 }
 
