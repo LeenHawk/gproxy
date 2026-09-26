@@ -81,6 +81,10 @@ jobs:
     name: Native ${{ matrix.target }}
     needs: [prepare, console]
     runs-on: ${{ matrix.runner }}
+    # The signing and publishing secrets live in the `release` environment,
+    # which only dev, main and v* tags may deploy to: a workflow pushed to any
+    # other branch cannot read them.
+    environment: release
     permissions:
       contents: read
       actions: read
@@ -338,6 +342,7 @@ jobs:
     name: Signed update manifest
     needs: [prepare, native]
     runs-on: ubuntu-latest
+    environment: release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -371,6 +376,7 @@ jobs:
     name: Publish crates.io libraries
     needs: [prepare, native]
     runs-on: ubuntu-latest
+    environment: release
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
