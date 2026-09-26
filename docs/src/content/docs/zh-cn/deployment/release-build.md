@@ -110,7 +110,7 @@ cargo test   -p gproxy-host-tauri
 
 ```sh
 cargo install worker-build
-worker-build --release -- --no-default-features --features d1,custom,codex,claudecode
+CARGO_PROFILE_RELEASE_STRIP=none worker-build --release -- --no-default-features --features d1,custom,codex,claudecode
 ```
 
 binding、配置文档，以及那个让"逐个点名渠道"变得值得做的体积约束，见

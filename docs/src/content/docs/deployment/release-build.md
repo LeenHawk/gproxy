@@ -128,7 +128,7 @@ channel for an application with no users.
 
 ```sh
 cargo install worker-build
-worker-build --release -- --no-default-features --features d1,custom,codex,claudecode
+CARGO_PROFILE_RELEASE_STRIP=none worker-build --release -- --no-default-features --features d1,custom,codex,claudecode
 ```
 
 See [Edge (Cloudflare Workers)](/deployment/edge/) for the bindings, the

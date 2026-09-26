@@ -13,11 +13,14 @@ compatibility_date = "2026-09-01"
 # `worker-build` compiles the crate to wasm, runs `wasm-bindgen`, optimizes
 # with `wasm-opt -Oz` and writes the shim `main` points at. It is not optional:
 # an unoptimized build is several times over Cloudflare's size limit.
+# `CARGO_PROFILE_RELEASE_STRIP=none`: the workspace profile strips symbols,
+# which also drops the section that tells wasm-bindgen reference types are on,
+# and the build then fails with "externref table required for catch wrappers".
 #
 # Name the channels the deployment actually forwards to. `--features channels`
 # compiles all twenty-five and costs binary size on a platform that limits it.
 [build]
-command = "cargo install -q worker-build && worker-build --release -- --no-default-features --features d1,custom,codex,claudecode"
+command = "cargo install -q worker-build && CARGO_PROFILE_RELEASE_STRIP=none worker-build --release -- --no-default-features --features d1,custom,codex,claudecode"
 
 # ---------------------------------------------------------------- the store --
 #
@@ -41,13 +44,17 @@ database_id = "00000000-0000-0000-0000-000000000000"
 #
 # The console is a static bundle and belongs in front of the Worker, not inside
 # it: Workers Assets serves it without waking an isolate, and the wasm binary
-# stays under the size limit. `run_worker_first` keeps the API routes on the
-# Worker and lets everything else fall through to the files.
+# stays under the size limit. Everything except the console runs the Worker
+# first: an allowlist of API paths would miss the provider mounts, whose
+# prefixes the configuration chooses. `deploy/cloudflare` builds `public/` —
+# the bundle under `console/`, its document again as `index.html` for the
+# single-page fallback, and `_headers` with the console's security headers.
 #
 # [assets]
-# directory = "console/dist"
+# directory = "./public"
 # binding = "ASSETS"
-# run_worker_first = ["/v1/*", "/admin/api/*", "/portal/api/*", "/healthz", "/publications/*"]
+# not_found_handling = "single-page-application"
+# run_worker_first = ["/*", "!/", "!/console", "!/console/*"]
 
 # ------------------------------------------------------------- the settings --
 #

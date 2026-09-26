@@ -1,11 +1,41 @@
+# GPROXY v4 on Cloudflare Workers.
+#
+# `main` is the shim `worker-build` writes; `pnpm run build` produces it and
+# the console assets. The release's `gproxy-edge-cloudflare.zip` ships both
+# already built, so from the unpacked archive `wrangler deploy` is enough.
+# `crates/gproxy-host-edge/wrangler.toml.example` explains every section.
+
 name = "gproxy"
-main = "src/index.ts"
-compatibility_date = "2026-08-26"
+main = "build/worker/shim.mjs"
+compatibility_date = "2026-09-01"
 
-[build]
-command = "pnpm run build"
+# Create it, then paste the id:
+#     wrangler d1 create gproxy
+#     wrangler d1 migrations apply gproxy --remote
+[[d1_databases]]
+binding = "DB"
+database_name = "gproxy"
+database_id = "00000000-0000-0000-0000-000000000000"
 
+# The console is a static bundle served by Workers Assets, never by the Worker:
+# `public/console/` holds it, `public/index.html` is its document again so the
+# single-page fallback lands on it, and `public/_headers` gives it the same
+# security headers the native host sends. Everything except the console goes
+# to the Worker first — an allowlist of API paths would miss the provider
+# mounts, which are prefixes the configuration chooses.
 [assets]
 directory = "./public"
 binding = "ASSETS"
-run_worker_first = true
+not_found_handling = "single-page-application"
+run_worker_first = ["/*", "!/", "!/console", "!/console/*"]
+
+[vars]
+GPROXY_CONFIG = """
+{
+  "store": { "kind": "d1", "binding": "DB" },
+  "cache": { "kind": "store" }
+}
+"""
+
+# Secrets, never here:
+#     wrangler secret put GPROXY_MASTER_KEY

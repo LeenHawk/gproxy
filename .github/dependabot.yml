@@ -18,7 +18,6 @@ updates:
       - "/console"
       - "/docs"
       - "/deploy/cloudflare"
-      - "/deploy/netlify"
     schedule:
       interval: weekly
     ignore:
