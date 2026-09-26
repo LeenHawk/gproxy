@@ -21,6 +21,8 @@ probe-out/
 /dev-docs
 /crates/gproxy-host-axum/assets/web/*
 !/crates/gproxy-host-axum/assets/web/.gitkeep
+/crates/gproxy-host-tauri/ui/*
+!/crates/gproxy-host-tauri/ui/.gitkeep
 /deploy/cloudflare/pkg/
 /deploy/cloudflare/public/
 /deploy/deno/pkg/

@@ -68,6 +68,9 @@ pub struct Desktop {
     app: Arc<App<Connection>>,
     caller: Caller,
     data_plane: DataPlane,
+    /// The server's router over this instance, which the console in the
+    /// window is answered by. Never bound to a socket; see [`crate::console`].
+    management: axum::Router,
     data_dir: PathBuf,
     secrets: SecretPlacement,
     /// Stops the embedded HTTP server. Cloned into [`Desktop::shutdown`].
@@ -162,6 +165,9 @@ impl Desktop {
         );
 
         Ok(Self {
+            management: gproxy_host_axum::router(gproxy_host_axum::HostState::new(
+                instance.app.clone(),
+            )),
             app: instance.app,
             caller,
             data_plane: DataPlane {
@@ -194,6 +200,10 @@ impl Desktop {
 
     pub fn data_plane(&self) -> &DataPlane {
         &self.data_plane
+    }
+
+    pub fn management(&self) -> &axum::Router {
+        &self.management
     }
 
     pub fn secrets(&self) -> SecretPlacement {

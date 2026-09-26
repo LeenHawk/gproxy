@@ -37,23 +37,12 @@
 //!
 //! The socket is a different matter. See [`crate::dataplane`].
 //!
-//! # The transport seam the console will branch on
+//! # The console does not call this table
 //!
-//! P13 and P14 build one console for both hosts. Its generated types come from
-//! ts-rs over the same DTOs either way; what differs is how a call is made,
-//! and that difference is meant to live in a single `transport.ts`:
-//!
-//! ```ts
-//! // console/src/lib/transport.ts
-//! export const transport = "__TAURI_INTERNALS__" in window
-//!   ? { call: (op: string, args?: object) => invoke(op, args) }
-//!   : { call: (op: string, args?: object) => fetchJson(routeOf(op), args) };
-//! ```
-//!
-//! The operation name is the stable thing on both sides: over IPC it is the
-//! command name in [`table::OPERATIONS`], over HTTP it is the path the server
-//! mounts for the same family and method. Nothing else in the console should
-//! know which host it is running against.
+//! The console in the window sends its HTTP requests through one command,
+//! `desktop_console_request`, which runs them through the server's router in
+//! process; see [`crate::console`]. This table is for callers that want an
+//! operation by name instead of a path.
 
 pub mod table;
 

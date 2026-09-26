@@ -156,21 +156,20 @@ cargo test -p gproxy-host-tauri --test table -- --ignored --nocapture
 放一个猜不到的秘密，比根本不放要好。真想把这道门打开，就调
 `admin_users_set_password` 自己定一个。
 
-### `transport.ts` 这道缝
+### 控制台怎么连到实例
 
-P13/P14 给两个宿主建同一份控制台。类型两边都由 ts-rs 从同一批 DTO 生成；不同的
-只是怎么发起调用，而这个不同应该只住在一个文件里：
+窗口里跑的就是服务器提供的那份控制台。在 `console/` 下执行 `pnpm build`，产物写到
+`ui/console/`，它的页面同时写到 `ui/index.html`（窗口打开 `/`，Tauri 对找不到的路径
+一律返回这个页面）。`ui/` 是构建产物，不提交到仓库；CI 会把控制台构建下载进去。
 
-```ts
-// console/src/lib/transport.ts
-export const transport = "__TAURI_INTERNALS__" in window
-  ? { call: (op: string, args?: object) => invoke(op, args) }
-  : { call: (op: string, args?: object) => fetchJson(routeOf(op), args) };
-```
+控制台所有调用都经由同一个 `fetch`，路径都在 `/admin/api` 或 `/portal/api` 下。在
+窗口里，`console/src/lib/transport.ts` 把这个请求作为 `desktop_console_request` 发
+出，`src/console.rs` 在进程内交给 `gproxy_host_axum::router` 处理：路由、管理范围、
+分区门禁、审计、写后刷新都和服务器一致，响应再经 IPC 返回。不会新监听任何 socket，
+内嵌的数据面照样拒绝这两个前缀。请求用网关 key 认证，这个 key 属于本机管理员；页面
+带来的 cookie 和 `Authorization` 头会被丢弃。
 
-两边稳定的东西是操作名：IPC 上它是命令名，HTTP 上它是服务器为同一个家族同一个
-方法挂的路径。控制台里除此之外的任何地方都不该知道自己跑在哪个宿主上。控制台
-的构建产物放 `ui/`；在那之前那里只有一个占位页面。
+`src/ipc/table.rs` 里的操作表保留，给按操作名而不是路径调用的场景用。
 
 ## 本 crate 明确不做的事
 

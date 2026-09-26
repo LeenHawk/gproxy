@@ -12,6 +12,8 @@ import android.util.Log
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 
 /**
  * The window.
@@ -37,7 +39,8 @@ import androidx.core.content.ContextCompat
  *    declarations.
  *
  * Nothing here talks to the engine. The window reaches it over Tauri's IPC
- * bridge, as the desktop window does, through the same 261 commands.
+ * bridge, as the desktop window does: the console's requests go through
+ * `desktop_console_request` (see `src/console.rs`).
  */
 class MainActivity : TauriActivity() {
     private val files = GproxyFiles(this)
@@ -51,9 +54,29 @@ class MainActivity : TauriActivity() {
         GproxyNative.configure(this)
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        keepClearOfSystemBars()
         askToPostNotifications()
         askToIgnoreBatteryOptimisation()
         GproxyService.start(this)
+    }
+
+    /**
+     * Edge-to-edge is on (and enforced from Android 15), so the WebView would
+     * otherwise draw the console's header under the status bar and its last
+     * row under the navigation bar or the keyboard. The page cannot fix this
+     * itself: an Android WebView is not handed the insets as
+     * `env(safe-area-inset-*)`. So the content view is padded by them.
+     */
+    private fun keepClearOfSystemBars() {
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content)) { view, insets ->
+            val bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or
+                    WindowInsetsCompat.Type.displayCutout() or
+                    WindowInsetsCompat.Type.ime()
+            )
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            WindowInsetsCompat.CONSUMED
+        }
     }
 
     /**
