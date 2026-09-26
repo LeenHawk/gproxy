@@ -12,8 +12,9 @@
 //! `ideType: ANTIGRAVITY`. Requests go to `daily-cloudcode-pa.googleapis.com`
 //! as `POST /v1internal:generateContent`,
 //! `:streamGenerateContent?alt=sse` and `:countTokens` carrying the Code
-//! Assist envelope; the catalogue and the per-model quota both come from
-//! `POST /v1internal:fetchAvailableModels` with an empty JSON body.
+//! Assist envelope; the catalogue comes from
+//! `POST /v1internal:fetchAvailableModels` with an empty JSON body, and the
+//! quota windows from `:retrieveUserQuotaSummary` (see `quota`).
 //!
 //! The credential secret is an `OAuthCredential`. The project and the tier
 //! are facts a login discovers: they travel in `provider_fields`, the host
@@ -587,7 +588,7 @@ impl BaseChannel for Antigravity {
 
     /// A Google account through the Antigravity editor: a PKCE login that
     /// also discovers the Cloud project, a refreshable token, and the
-    /// per-model quota the catalogue call reports.
+    /// 5-hour and weekly quota windows each model family shares.
     fn descriptor(&self) -> ChannelDescriptor {
         ChannelDescriptor {
             id: ID,

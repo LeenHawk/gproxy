@@ -902,12 +902,18 @@ async fn the_model_directory_harvests_every_role_field() {
 
 // ------------------------------------------------------------------ quota
 
-async fn quota_snapshot(catalogue: Value) -> Vec<QuotaEntry> {
-    let client = ScriptClient::new(vec![reply(StatusCode::OK, catalogue)]);
+/// The catalogue call, then the summary call (a 404 when `summary` is
+/// `None`: the deployment does not serve it).
+async fn quota_run(catalogue: Value, summary: Option<Value>) -> (Vec<QuotaEntry>, Vec<Sent>) {
+    let summary = match summary {
+        Some(summary) => reply(StatusCode::OK, summary),
+        None => raw_reply(StatusCode::NOT_FOUND, "{}"),
+    };
+    let client = ScriptClient::new(vec![reply(StatusCode::OK, catalogue), summary]);
     let config = json!({});
     let secret = secret();
     let metadata = Value::Null;
-    Antigravity
+    let entries = Antigravity
         .quota_query()
         .expect("quota query")
         .query(CredentialContext {
@@ -917,16 +923,22 @@ async fn quota_snapshot(catalogue: Value) -> Vec<QuotaEntry> {
         })
         .await
         .expect("snapshot")
-        .entries
+        .entries;
+    (entries, client.sent())
+}
+
+async fn quota_snapshot(catalogue: Value) -> Vec<QuotaEntry> {
+    quota_run(catalogue, None).await.0
 }
 
 #[tokio::test]
-async fn quota_info_becomes_a_periodic_window_per_pool() {
+async fn without_a_summary_quota_info_becomes_a_window_per_family() {
     let entries = quota_snapshot(catalogue()).await;
     assert_eq!(entries.len(), 1);
     let entry = &entries[0];
+    // A reset already past (or within 5h) reads as the 5-hour window.
     assert_eq!(
-        entry.id, "pool_google",
+        entry.id, "gemini-5h",
         "a provider-less Gemini model is Google's"
     );
     assert_eq!(
@@ -940,6 +952,11 @@ async fn quota_info_becomes_a_periodic_window_per_pool() {
     assert_eq!(allowance.period_end_ms, Some(1_785_585_600_000));
     assert_eq!(allowance.period_start_ms, None);
 
+    // A reset days away is the weekly window.
+    let mut weekly = catalogue();
+    weekly["models"]["gemini-3-pro"]["quotaInfo"]["resetTime"] = json!("2999-01-01T00:00:00Z");
+    assert_eq!(quota_snapshot(weekly).await[0].id, "gemini-weekly");
+
     assert!(Antigravity.quota_headers().is_none());
 }
 
@@ -948,8 +965,11 @@ async fn quota_info_becomes_a_periodic_window_per_pool() {
 const IDLE: &str = include_str!("fixtures/quota/antigravity_models_idle.json");
 const AFTER_GEMINI: &str = include_str!("fixtures/quota/antigravity_models_after_gemini.json");
 const AFTER_CLAUDE: &str = include_str!("fixtures/quota/antigravity_models_after_claude.json");
+// Live `retrieveUserQuotaSummary` of a free account (2026-09-26): weekly
+// buckets only.
+const SUMMARY_FREE: &str = include_str!("fixtures/quota/antigravity_summary_free.json");
 
-fn pool_reading(entries: &[QuotaEntry], id: &str) -> (Option<rust_decimal::Decimal>, Option<i64>) {
+fn reading(entries: &[QuotaEntry], id: &str) -> (Option<rust_decimal::Decimal>, Option<i64>) {
     let entry = entries.iter().find(|e| e.id == id).expect(id);
     let QuotaValue::Window(window) = &entry.value else {
         panic!("window");
@@ -958,20 +978,99 @@ fn pool_reading(entries: &[QuotaEntry], id: &str) -> (Option<rust_decimal::Decim
 }
 
 #[tokio::test]
-async fn captured_catalogues_report_two_shared_pools() {
+async fn the_summary_reports_each_familys_windows() {
     let model = Antigravity.quota_model().unwrap();
     let config = json!({});
     let s = secret();
     let declared = model.dimensions(provider(&config, None), credential(&s, &Value::Null));
     assert_eq!(
-        declared.iter().map(|d| d.id.as_str()).collect::<Vec<_>>(),
-        ["pool_google", "pool_third_party"]
+        declared
+            .iter()
+            .map(|d| (d.id.as_str(), d.window.clone()))
+            .collect::<Vec<_>>(),
+        [
+            (
+                "gemini-5h",
+                QuotaWindow::Rolling {
+                    seconds: 5 * 60 * 60
+                }
+            ),
+            (
+                "gemini-weekly",
+                QuotaWindow::Rolling {
+                    seconds: 7 * 24 * 60 * 60
+                }
+            ),
+            (
+                "3p-5h",
+                QuotaWindow::Rolling {
+                    seconds: 5 * 60 * 60
+                }
+            ),
+            (
+                "3p-weekly",
+                QuotaWindow::Rolling {
+                    seconds: 7 * 24 * 60 * 60
+                }
+            ),
+        ]
     );
-    assert!(declared.iter().all(|d| d.window
-        == QuotaWindow::Rolling {
-            seconds: 5 * 60 * 60
-        }));
 
+    let (entries, sent) = quota_run(
+        serde_json::from_str(IDLE).unwrap(),
+        Some(serde_json::from_str(SUMMARY_FREE).unwrap()),
+    )
+    .await;
+    assert!(sent[1].1.ends_with("/v1internal:retrieveUserQuotaSummary"));
+    let body: Value = serde_json::from_slice(&sent[1].3).unwrap();
+    assert_eq!(body, json!({"project": "proj-secret"}));
+    support::assert_quota_contract(Some(model), &declared, &entries, &[]);
+    assert_eq!(
+        entries.iter().map(|e| e.id.as_str()).collect::<Vec<_>>(),
+        ["gemini-weekly", "3p-weekly"]
+    );
+    assert_eq!(
+        reading(&entries, "3p-weekly"),
+        (Some("3.8387".parse().unwrap()), Some(1_791_025_444_000))
+    );
+    // Family membership comes from the catalogue.
+    assert_eq!(
+        entries[1].model_scope,
+        QuotaScope::Models(vec![
+            "claude-opus-4-6-thinking".into(),
+            "claude-sonnet-4-6".into(),
+            "gpt-oss-120b-medium".into(),
+        ])
+    );
+    let placed = model.classify(&declared, &entries[1]).unwrap();
+    assert!(placed.scope.matches("claude-sonnet-4-6"));
+    assert!(!placed.scope.matches("gemini-3-flash"));
+
+    // A paid account has both spans; a disabled 5-hour bucket (the weekly
+    // one spent) is no allowance and yields no reading.
+    let summary = json!({"groups": [{"buckets": [
+        {"bucketId": "3p-weekly", "window": "weekly", "remainingFraction": 0,
+         "resetTime": "2026-10-03T11:04:04Z"},
+        {"bucketId": "3p-5h", "window": "5h", "remainingFraction": 1, "disabled": true,
+         "resetTime": "2026-09-26T16:00:00Z"},
+        {"bucketId": "gemini-5h", "window": "5h", "remainingFraction": 0.5,
+         "resetTime": "2026-09-26T16:00:00Z"},
+        {"bucketId": "mystery", "remainingFraction": 0.5},
+    ]}]});
+    let (entries, _) = quota_run(serde_json::from_str(IDLE).unwrap(), Some(summary)).await;
+    assert_eq!(
+        entries.iter().map(|e| e.id.as_str()).collect::<Vec<_>>(),
+        ["3p-weekly", "gemini-5h"]
+    );
+    assert_eq!(reading(&entries, "3p-weekly").0, Some(100.into()));
+}
+
+#[tokio::test]
+async fn captured_catalogues_stand_in_for_a_missing_summary() {
+    let model = Antigravity.quota_model().unwrap();
+    let config = json!({});
+    let s = secret();
+    let declared = model.dimensions(provider(&config, None), credential(&s, &Value::Null));
     let idle = quota_snapshot(serde_json::from_str(IDLE).unwrap()).await;
     let after_gemini = quota_snapshot(serde_json::from_str(AFTER_GEMINI).unwrap()).await;
     let after_claude = quota_snapshot(serde_json::from_str(AFTER_CLAUDE).unwrap()).await;
@@ -979,7 +1078,7 @@ async fn captured_catalogues_report_two_shared_pools() {
         support::assert_quota_contract(Some(model), &declared, entries, &[]);
         assert_eq!(
             entries.iter().map(|e| e.id.as_str()).collect::<Vec<_>>(),
-            ["pool_google", "pool_third_party"]
+            ["gemini-5h", "3p-5h"]
         );
     }
     let QuotaScope::Models(google) = &idle[0].model_scope else {
@@ -990,45 +1089,27 @@ async fn captured_catalogues_report_two_shared_pools() {
         google.iter().all(|id| id.starts_with("gemini")),
         "{google:?}"
     );
-    assert_eq!(
-        idle[1].model_scope,
-        QuotaScope::Models(vec![
-            "claude-opus-4-6-thinking".into(),
-            "claude-sonnet-4-6".into(),
-            "gpt-oss-120b-medium".into(),
-        ])
-    );
-    // The pool's declared scope comes from the reading.
     let placed = model.classify(&declared, &idle[1]).unwrap();
     assert!(placed.scope.matches("gpt-oss-120b-medium"));
-    assert!(!placed.scope.matches("gemini-3-flash"));
     assert!(
         !placed.scope.matches("chat_20706"),
-        "internal models are in no pool"
+        "internal models are in no family"
     );
 
-    // A Gemini request moves only the Google pool; a Claude request only the other.
-    // `remainingFraction` 0.9999976 and 0.9999712, as percent used to 4 places.
+    // A Gemini request moves only the Google family; a Claude request only
+    // the other. `remainingFraction` 0.9999976 and 0.9999712, as percent
+    // used to 4 places.
     let used = |percent: &str| Some(percent.parse().unwrap());
-    assert_eq!(pool_reading(&idle, "pool_google").0, Some(0.into()));
-    assert_eq!(pool_reading(&after_gemini, "pool_google").0, used("0.0002"));
+    assert_eq!(reading(&idle, "gemini-5h").0, Some(0.into()));
+    assert_eq!(reading(&after_gemini, "gemini-5h").0, used("0.0002"));
+    assert_eq!(reading(&after_gemini, "3p-5h").0, Some(0.into()));
     assert_eq!(
-        pool_reading(&after_gemini, "pool_third_party").0,
-        Some(0.into())
+        reading(&after_claude, "gemini-5h"),
+        reading(&after_gemini, "gemini-5h")
     );
-    assert_eq!(
-        pool_reading(&after_claude, "pool_google"),
-        pool_reading(&after_gemini, "pool_google")
-    );
-    assert_eq!(
-        pool_reading(&after_claude, "pool_third_party").0,
-        used("0.0029")
-    );
+    assert_eq!(reading(&after_claude, "3p-5h").0, used("0.0029"));
     // 2026-09-25T21:21:14Z: first Claude use + 5h.
-    assert_eq!(
-        pool_reading(&after_claude, "pool_third_party").1,
-        Some(1_790_371_274_000)
-    );
+    assert_eq!(reading(&after_claude, "3p-5h").1, Some(1_790_371_274_000));
 }
 
 // ------------------------------------------------------------------ usage
