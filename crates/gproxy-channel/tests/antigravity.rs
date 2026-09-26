@@ -556,6 +556,64 @@ fn gemini_tools_keep_their_json_schema() {
 }
 
 #[test]
+fn the_envelope_carries_the_agent_fields_the_editor_sends() {
+    let config = json!({});
+    let secret = secret();
+    let metadata = Value::Null;
+    let envelope = |model: &str, body: Value| {
+        let prepared = prepare(
+            &config,
+            credential(&secret, &metadata),
+            Operation::GenerateContent,
+            request(
+                HeaderMap::new(),
+                &format!("/v1beta/models/{model}:generateContent"),
+                body,
+            ),
+        )
+        .expect("prepared");
+        body_json(&prepared)
+    };
+    let body = json!({
+        "contents": [{"role": "user", "parts": [{"text": "hello"}]}],
+        "safetySettings": [{"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "OFF"}],
+    });
+    let first = envelope("gemini-3-flash", body.clone());
+    assert!(first.get("user_prompt_id").is_none());
+    assert_eq!(first["userAgent"], "antigravity");
+    assert_eq!(first["requestType"], "agent");
+    let id = first["requestId"].as_str().unwrap();
+    assert!(id.starts_with("agent-") && id.len() == 42, "{id}");
+    assert!(first["request"].get("safetySettings").is_none());
+    // The session follows the first user text, so every turn shares it.
+    let session = first["request"]["sessionId"].as_str().unwrap().to_owned();
+    assert!(session.starts_with('-') && session[1..].parse::<i64>().is_ok());
+    let second = envelope("gemini-3-flash", body);
+    assert_eq!(second["request"]["sessionId"], session.as_str());
+    assert_ne!(second["requestId"], first["requestId"]);
+
+    let image = envelope("gemini-3.1-flash-image", json!({"contents": []}));
+    assert_eq!(image["requestType"], "image_gen");
+    assert!(
+        image["requestId"]
+            .as_str()
+            .unwrap()
+            .starts_with("image_gen/")
+    );
+
+    // A root toolConfig moves into the request.
+    let moved = envelope(
+        "gemini-3-flash",
+        json!({"request": {"contents": []}, "toolConfig": {"functionCallingConfig": {"mode": "ANY"}}}),
+    );
+    assert!(moved.get("toolConfig").is_none());
+    assert_eq!(
+        moved["request"]["toolConfig"]["functionCallingConfig"]["mode"],
+        "ANY"
+    );
+}
+
+#[test]
 fn the_camel_case_session_id_antigravity_sends_survives_unrenamed() {
     let config = json!({});
     let secret = secret();

@@ -26,7 +26,17 @@
 //! exactly that path). The envelope this channel builds nests the client's
 //! body under `request` unchanged, so a `sessionId` the client sent arrives
 //! at `request.sessionId`, and a client that already sent a whole envelope
-//! keeps its own. The field is never renamed, moved or dropped.
+//! keeps its own. The field is never renamed, moved or dropped; a request
+//! without one gets the id the editor would derive (below).
+//!
+//! Envelope fields: the editor's agent does not send the Gemini CLI's
+//! `user_prompt_id`. It names itself (`userAgent: "antigravity"`), the kind
+//! of call (`requestType: "agent"`, `"image_gen"` for an image model), a
+//! fresh `requestId` (`agent-<uuid>`, `image_gen/<ms>/<uuid>/12`) and a
+//! `request.sessionId` that stays put across a conversation: `-` and the
+//! first 63 bits of the SHA-256 of the first user text. It sends no
+//! `safetySettings` and keeps `toolConfig` inside `request`
+//! (`antigravity_executor_request.go::geminiToAntigravity`).
 
 mod claude;
 mod models;
@@ -286,6 +296,101 @@ fn operation_path(operation: Operation) -> Result<&'static str, ChannelError> {
     })
 }
 
+fn uuid() -> Result<String, ChannelError> {
+    let mut bytes = [0_u8; 16];
+    getrandom::fill(&mut bytes)
+        .map_err(|_| ChannelError::InvalidConfig("request id randomness failed".into()))?;
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    let hex: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+    Ok(format!(
+        "{}-{}-{}-{}-{}",
+        &hex[..8],
+        &hex[8..12],
+        &hex[12..16],
+        &hex[16..20],
+        &hex[20..]
+    ))
+}
+
+/// `-<n>`, `n` the first 63 bits of the SHA-256 of the first user text, so
+/// every turn of a conversation lands on the same session; random when the
+/// conversation opens without text.
+fn session_id(request: &Value) -> Result<String, ChannelError> {
+    use sha2::Digest as _;
+    let first = request
+        .get("contents")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .find(|content| content.get("role").and_then(Value::as_str) == Some("user"))
+        .and_then(|content| content.pointer("/parts/0/text"))
+        .and_then(Value::as_str)
+        .filter(|text| !text.is_empty());
+    let prefix: [u8; 8] = match first {
+        Some(text) => sha2::Sha256::digest(text.as_bytes())[..8]
+            .try_into()
+            .expect("eight bytes"),
+        None => {
+            let mut bytes = [0_u8; 8];
+            getrandom::fill(&mut bytes)
+                .map_err(|_| ChannelError::InvalidConfig("session id randomness failed".into()))?;
+            bytes
+        }
+    };
+    Ok(format!("-{}", u64::from_be_bytes(prefix) & (u64::MAX >> 1)))
+}
+
+/// The envelope fields the editor's agent sends in place of the Gemini
+/// CLI's; a value the client already put in the envelope is kept.
+fn agent_envelope(envelope: &mut Value, model: &str) -> Result<(), ChannelError> {
+    let Some(object) = envelope.as_object_mut() else {
+        return Ok(());
+    };
+    object.remove("user_prompt_id");
+    let image = code_assist::model_id(model).contains("image");
+    object.insert("userAgent".into(), Value::from("antigravity"));
+    let kind = object
+        .get("requestType")
+        .and_then(Value::as_str)
+        .filter(|kind| !kind.trim().is_empty())
+        .map(str::to_owned)
+        .unwrap_or_else(|| if image { "image_gen" } else { "agent" }.to_owned());
+    let request_id = if kind == "image_gen" {
+        format!(
+            "image_gen/{}/{}/12",
+            code_assist::unix_now_ms(),
+            uuid()?
+        )
+    } else {
+        format!("agent-{}", uuid()?)
+    };
+    object.insert("requestType".into(), Value::from(kind));
+    object
+        .entry("requestId")
+        .or_insert_with(|| Value::from(request_id));
+    if let Some(tool_config) = object.remove("toolConfig")
+        && let Some(request) = object.get_mut("request").and_then(Value::as_object_mut)
+    {
+        request.entry("toolConfig").or_insert(tool_config);
+    }
+    let Some(request) = object.get_mut("request") else {
+        return Ok(());
+    };
+    let session = session_id(request)?;
+    if let Some(request) = request.as_object_mut() {
+        request.remove("safetySettings");
+        let named = request
+            .get("sessionId")
+            .and_then(Value::as_str)
+            .is_some_and(|id| !id.trim().is_empty());
+        if !named {
+            request.insert("sessionId".into(), Value::from(session));
+        }
+    }
+    Ok(())
+}
+
 /// Antigravity exposes its high reasoning tier as a distinct model whose
 /// catalogue entry carries a default thinking budget; an explicit budget
 /// from the caller is left alone (v3 `apply_model_defaults`).
@@ -365,6 +470,7 @@ impl Antigravity {
                     claude::tidy_history(request);
                     claude::apply_limits(request, parsed.as_ref().and_then(claude::output_limit));
                 }
+                agent_envelope(&mut envelope, &model)?;
                 (
                     code_assist::encode(&envelope, ChannelError::InvalidConfig)?,
                     operation == Operation::StreamGenerateContent,

@@ -25,6 +25,7 @@ aistudio = []
 antigravity = [
     "dep:futures-util",
     "dep:getrandom",
+    "dep:sha2",
     "dep:time",
     "dep:web-time",
 ]
