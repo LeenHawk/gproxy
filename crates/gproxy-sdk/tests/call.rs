@@ -501,7 +501,7 @@ async fn buffered_stream_keepalive_preserves_provider_failover_and_settlement() 
 #[tokio::test]
 async fn managed_reset_strategy_and_affinity_reach_core_for_http_and_websocket() {
     use gproxy_sdk::dto::{CredentialPatch, ProviderPatch};
-    use gproxy_store::entity::limits::credential_quota_cycle;
+    use gproxy_store::entity::limits::credential_cycle::{self, CycleBoundary, CycleOpening};
     use sea_orm::Set;
     let (gproxy, client, observer) = seed::handle().await;
     seed::provider(&gproxy, "p", "alt", &["m1"]).await;
@@ -542,14 +542,20 @@ async fn managed_reset_strategy_and_affinity_reach_core_for_http_and_websocket()
             .unwrap();
         gproxy
             .store()
-            .credential_quota_cycles()
-            .create_many(vec![credential_quota_cycle::ActiveModel {
+            .credential_cycles()
+            .create_many(vec![credential_cycle::ActiveModel {
                 id: Set(format!("cycle-{id}")),
                 credential_id: Set(id.into()),
+                open_key: Set(Some(credential_cycle::open_key(id, "5h"))),
+                window_id: Set("5h".into()),
+                dimension_id: Set(Some("5h".into())),
                 scope: Set(json!("all")),
-                snapshot: Set(json!({"id":"5h", "source_id":"5h", "kind":"window"})),
-                observed_at_ms: Set(now),
-                resets_at_ms: Set(Some(now + delay)),
+                starts_at_ms: Set(now),
+                ends_at_ms: Set(Some(now + delay)),
+                boundary: Set(CycleBoundary::Observed),
+                opened_by: Set(CycleOpening::FirstUse),
+                cost_usd: Set(gproxy_store::FixedDecimal::ZERO),
+                sample_at_ms: Set(Some(now)),
                 ..Default::default()
             }])
             .await

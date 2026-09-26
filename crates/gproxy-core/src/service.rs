@@ -39,9 +39,7 @@ use gproxy_channel::{
 };
 use gproxy_protocol::{HttpBody, WireRequest, WireResponse, capability::UpstreamConnection};
 use gproxy_seaorm::BatchConnectionTrait;
-use gproxy_store::entity::{
-    limits::credential_quota_cycle, resource::resource_binding, usage::usage_record,
-};
+use gproxy_store::entity::{resource::resource_binding, usage::usage_record};
 use rust_decimal::{Decimal, prelude::ToPrimitive};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::Value;
@@ -254,48 +252,35 @@ impl<C: BatchConnectionTrait + Send + Sync> TargetCaller<'_, C> {
         Ok(usage)
     }
 
-    /// The pool merged: for each reported dimension the latest cycle of every
-    /// credential in the target, averaged into one window with the earliest
-    /// reset. Usage rows carry no credential, so token totals stay zero.
+    /// The pool merged: for each window, the open cycle of every credential
+    /// in the target that carries an upstream reading, averaged into one
+    /// window with the earliest start and reset. Usage rows carry no
+    /// credential, so token totals stay zero.
     async fn pool_usage(&self) -> Result<CallerUsage, ChannelError> {
+        let now = now_ms();
         let rows = self
             .core
             .store()
-            .credential_quota_cycles()
-            .query(credential_quota_cycle::Entity::find().filter(
-                credential_quota_cycle::Column::CredentialId.is_in(self.credential_ids.clone()),
-            ))
+            .credential_cycles()
+            .open_of(&self.credential_ids)
             .await
             .map_err(host_error)?;
-        // (dimension, credential) -> latest row
-        let mut latest: BTreeMap<(String, String), credential_quota_cycle::Model> = BTreeMap::new();
-        for row in rows {
-            let Some(id) = row.snapshot.get("id").and_then(Value::as_str) else {
-                continue;
-            };
-            let key = (id.to_owned(), row.credential_id.clone());
-            match latest.get(&key) {
-                Some(seen) if seen.observed_at_ms >= row.observed_at_ms => {}
-                _ => {
-                    latest.insert(key, row);
-                }
-            }
-        }
         let mut merged: BTreeMap<String, WindowAccumulator> = BTreeMap::new();
-        for ((dimension, _), row) in latest {
-            let entry = merged.entry(dimension).or_default();
-            if let Some(percent) = row
-                .snapshot
-                .get("used_percent")
-                .and_then(|v| v.as_f64().or_else(|| v.as_str()?.parse().ok()))
-            {
+        // A cycle without a sample is a local guess nobody reported on, and
+        // an ended one is history the next reading will close.
+        for row in rows
+            .into_iter()
+            .filter(|row| row.sample_at_ms.is_some() && row.ends_at_ms.is_none_or(|end| end > now))
+        {
+            let entry = merged.entry(row.window_id).or_default();
+            if let Some(percent) = row.sample_used_percent.and_then(|p| p.decimal().to_f64()) {
                 entry.0.push(percent);
             }
-            entry.1 = match (entry.1, row.starts_at_ms) {
+            entry.1 = match (entry.1, Some(row.starts_at_ms)) {
                 (Some(a), Some(b)) => Some(a.min(b)),
                 (a, b) => a.or(b),
             };
-            entry.2 = match (entry.2, row.resets_at_ms) {
+            entry.2 = match (entry.2, row.ends_at_ms) {
                 (Some(a), Some(b)) => Some(a.min(b)),
                 (a, b) => a.or(b),
             };

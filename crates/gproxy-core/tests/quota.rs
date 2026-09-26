@@ -789,3 +789,92 @@ async fn readings_move_declared_cycles_and_undeclared_ones_never_open_one() {
         }
     }
 }
+
+/// The pool view averages the open cycles' readings per window, with the
+/// earliest reset, straight from the cycle table.
+#[tokio::test]
+async fn pool_usage_merges_the_open_cycles_of_the_target() {
+    use gproxy_channel::channel::{CallerRole, ServiceView};
+    use gproxy_core::ServiceRequest;
+    use gproxy_protocol::connection::Bytes;
+    let h = harness(full(), "sticky").await;
+    h.channel
+        .expose_services
+        .store(true, std::sync::atomic::Ordering::Relaxed);
+    let quota = json!({"quota": [{"id": "primary", "metric": "requests", "window_seconds": 18000, "tracking": "reported"}]});
+    seed_quota_provider(&h, quota.clone()).await;
+    h.core
+        .store()
+        .credentials()
+        .update_many(vec![credential::ActiveModel {
+            id: Set("q2".into()),
+            metadata: Set(quota),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    let revision = h.core.snapshot().revision.0 + 1;
+    h.core
+        .store()
+        .settings()
+        .update(setting::ActiveModel {
+            config_revision: Set(i64::try_from(revision).unwrap()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    h.core.reload_data().await.unwrap();
+    let hour = 60 * 60 * 1000;
+    let base = now();
+    for (credential, percent, reset) in [("q1", 20, base + 2 * hour), ("q2", 60, base + hour)] {
+        h.channel
+            .quota_snapshots
+            .lock()
+            .unwrap()
+            .push_back(QuotaSnapshot {
+                observed_at_ms: 0,
+                entries: vec![QuotaEntry {
+                    id: "primary".into(),
+                    source_id: "primary".into(),
+                    label: None,
+                    subject: QuotaSubject::Account,
+                    model_scope: QuotaScope::All,
+                    value: QuotaValue::Window(QuotaAllowance {
+                        used_percent: Some(percent.into()),
+                        period_end_ms: Some(reset),
+                        ..Default::default()
+                    }),
+                }],
+            });
+        h.core
+            .query_credential_quota("q", credential)
+            .await
+            .unwrap();
+    }
+    let response = h
+        .core
+        .call_service(ServiceRequest {
+            scope: "tenant".into(),
+            user_id: None,
+            caller: CallerRole::Admin,
+            view: ServiceView::Pool,
+            target: h.target("q"),
+            budgets: Vec::new(),
+            request: gproxy_protocol::WireRequest {
+                method: http::Method::GET,
+                path: "/usage".into(),
+                query: None,
+                headers: http::HeaderMap::new(),
+                body: gproxy_protocol::HttpBody::Bytes(Bytes::new()),
+            },
+        })
+        .await
+        .unwrap();
+    let body: serde_json::Value = serde_json::from_str(&read(response.body).await).unwrap();
+    let windows = body["windows"].as_array().unwrap();
+    assert_eq!(windows.len(), 1, "{body}");
+    assert_eq!(windows[0]["key"], "primary");
+    assert_eq!(windows[0]["used_percent"], 40.0);
+    assert_eq!(windows[0]["reset_at_ms"], base + hour);
+    assert_eq!(windows[0]["period_start_ms"], base + hour - 18_000_000);
+}

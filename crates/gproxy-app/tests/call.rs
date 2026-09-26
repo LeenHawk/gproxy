@@ -470,7 +470,7 @@ async fn an_app_starts_blind_and_publishes_what_it_reads() {
 #[tokio::test]
 async fn app_preserves_inferred_affinity_and_managed_reset_selection() {
     use gproxy_sdk::dto::{CredentialPatch, ProviderPatch};
-    use gproxy_store::entity::limits::credential_quota_cycle;
+    use gproxy_store::entity::limits::credential_cycle::{self, CycleBoundary, CycleOpening};
     use sea_orm::Set;
     let (app, client) = one_provider().await;
     let handle = app.gproxy();
@@ -508,14 +508,20 @@ async fn app_preserves_inferred_affinity_and_managed_reset_selection() {
             .unwrap();
         handle
             .store()
-            .credential_quota_cycles()
-            .create_many(vec![credential_quota_cycle::ActiveModel {
+            .credential_cycles()
+            .create_many(vec![credential_cycle::ActiveModel {
                 id: Set(format!("cycle-{id}")),
                 credential_id: Set(id.into()),
+                open_key: Set(Some(credential_cycle::open_key(id, "5h"))),
+                window_id: Set("5h".into()),
+                dimension_id: Set(Some("5h".into())),
                 scope: Set(json!("all")),
-                snapshot: Set(json!({"id":"5h", "source_id":"5h", "kind":"window"})),
-                observed_at_ms: Set(now),
-                resets_at_ms: Set(Some(now + delay)),
+                starts_at_ms: Set(now),
+                ends_at_ms: Set(Some(now + delay)),
+                boundary: Set(CycleBoundary::Observed),
+                opened_by: Set(CycleOpening::FirstUse),
+                cost_usd: Set(gproxy_store::FixedDecimal::ZERO),
+                sample_at_ms: Set(Some(now)),
                 ..Default::default()
             }])
             .await
@@ -551,14 +557,11 @@ async fn app_preserves_inferred_affinity_and_managed_reset_selection() {
         if index == 1 {
             handle
                 .store()
-                .credential_quota_cycles()
-                .create_many(vec![credential_quota_cycle::ActiveModel {
-                    id: Set("new-later".into()),
-                    credential_id: Set("c-later".into()),
-                    scope: Set(json!("all")),
-                    snapshot: Set(json!({"id":"5h", "source_id":"5h", "kind":"window"})),
-                    observed_at_ms: Set(now + 1),
-                    resets_at_ms: Set(Some(now + 300_000)),
+                .credential_cycles()
+                .update_many(vec![credential_cycle::ActiveModel {
+                    id: Set("cycle-c-later".into()),
+                    ends_at_ms: Set(Some(now + 300_000)),
+                    sample_at_ms: Set(Some(now + 1)),
                     ..Default::default()
                 }])
                 .await
