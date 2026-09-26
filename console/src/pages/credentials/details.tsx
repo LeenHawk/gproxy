@@ -12,7 +12,6 @@ import { ErrorNotice, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -29,11 +28,11 @@ export function CredentialDetails({ credential, provider, initialTab = "basic", 
   const [editingStatus, setEditingStatus] = useState(false)
   const [reason, setReason] = useState("")
   const [status, setStatus] = useState(credential.status)
-  const [secret, setSecret] = useState<string | null>(null)
+  const [secret, setSecret] = useState<unknown>(null)
   const [revealing, setRevealing] = useState(false)
   const [revealError, setRevealError] = useState<unknown>(null)
   const refresh = () => client.invalidateQueries({ queryKey: ["admin", "/credentials"] })
-  const save = useMutation({ mutationFn: (body: Record<string, unknown>) => credentials.update(id, body), onSuccess: async () => { await refresh(); toast.success(t("toast.saved")) } })
+  const save = useMutation({ mutationFn: (body: Record<string, unknown>) => credentials.update(id, body), onSuccess: async () => { setSecret(null); await refresh(); toast.success(t("toast.saved")) } })
   const action = useMutation({ mutationFn: async (kind: "refresh" | "forceRefresh" | "health" | "status") => {
     if (kind === "refresh" || kind === "forceRefresh") await actions.refreshCredential(id, kind === "forceRefresh")
     if (kind === "health") await actions.resetHealth(id)
@@ -48,20 +47,22 @@ export function CredentialDetails({ credential, provider, initialTab = "basic", 
   const busy = mutations > 0 || revealing
   async function reveal() {
     setSecret(null); setRevealError(null); setRevealing(true)
-    try { setSecret(JSON.stringify(await actions.revealCredential(id), null, 2)) } catch (error) { setRevealError(error) } finally { setRevealing(false) }
+    try { setSecret(await actions.revealCredential(id)) } catch (error) { setRevealError(error) } finally { setRevealing(false) }
   }
   const current = row.data ?? credential
+  // The revealed secret seeds the form's own secret field rather than a
+  // second box: seeded as the original, it only lands in the patch if edited.
+  const original = secret === null ? current : { ...current, secret }
   return <ManagementDialog className="sm:max-w-3xl" title={`${current.label ?? id} · ${provider.displayName ?? provider.name}`} titleAside={<Badge variant="outline">{t(`values.${current.status}`)}</Badge>} onClose={onClose} busy={busy}>
     {action.error ? <ErrorNotice error={action.error} /> : null}
     <QueryState isPending={row.isPending} error={row.error}>
       <Tabs value={tab} onValueChange={value => setTab(value as typeof tab)}><TabsList variant="line" className="max-w-full"><TabsTrigger value="basic" disabled={busy}>{t("limits.basic")}</TabsTrigger><TabsTrigger value="limits" disabled={busy}>{t("limits.local")}</TabsTrigger><TabsTrigger value="upstream" disabled={busy}>{t("limits.upstream")}</TabsTrigger></TabsList>
         <TabsContent value="basic" forceMount hidden={tab !== "basic"}><CredentialForm secretActions={<div className="flex flex-col gap-3">
-          <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={busy || !current.hasSecret} onClick={() => void reveal()}>{t("management.reveal")}</Button>
+          <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={busy || !current.hasSecret} onClick={() => secret === null ? void reveal() : setSecret(null)}>{t(secret === null ? "management.reveal" : "keys.hide")}</Button>
             {provider.capabilities.refresh ? (["refresh", "forceRefresh"] as const).map(kind => <Button key={kind} variant="outline" size="sm" disabled={busy || !provider.enabled} onClick={() => { setSecret(null); action.mutate(kind) }}>{t(`management.${kind}`)}</Button>) : null}
           </div>
           {revealError ? <ErrorNotice error={revealError} /> : null}
-          {secret !== null ? <><Textarea aria-label={t("management.reveal")} readOnly value={secret} rows={6} className="font-mono" /><Button className="self-start" size="sm" variant="ghost" disabled={busy} onClick={() => setSecret(null)}>{t("actions.close")}</Button></> : null}
-        </div>} key={JSON.stringify(current)} inline open original={current} providerId={provider.id} onOpenChange={() => {}} onSubmit={body => save.mutate(body)} pending={busy} error={save.error} />
+        </div>} key={JSON.stringify(original)} inline open original={original} providerId={provider.id} onOpenChange={() => {}} onSubmit={body => save.mutate(body)} pending={busy} error={save.error} />
           <section className="mt-4 flex flex-col gap-3 border-t pt-4" aria-label={t("fields.status")}>
             <div className="flex flex-wrap items-center gap-2"><span>{t("fields.status")}</span><Badge variant="outline">{t(`values.${current.status}`)}</Badge>
               <Button variant="outline" size="sm" disabled={busy} onClick={() => { setStatus(current.status); setReason(""); setEditingStatus(true); action.reset() }}>{t("limits.changeStatus")}</Button>
