@@ -555,8 +555,6 @@ header. The code is; the text goes to the operator's log.
   bounded by cancellation and the frame cap, not by the HTTP idle/total
   timeouts: a realtime session legitimately waits on a user". And there is no
   per-turn capture: see above for why.
-- **Sign-in is not rate limited.** `gproxy-app` explains why it cannot do it
-  (it has no client address); this host has one and does not yet use it.
 - **The identity families are not scope-aware yet.** An organization
   administrator reaches `credentials` and `quotas`; users, keys, teams,
   members, permissions, rate limits, subscriptions, pools, plans, OAuth

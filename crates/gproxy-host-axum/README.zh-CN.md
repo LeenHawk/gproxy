@@ -476,8 +476,6 @@ OAuth 端点回答 RFC 6749 §5.2 的
   socket 在这里没有空闲超时，因为 core 自己就写了：realtime 会话「由取消和帧上限
   约束，而不是由 HTTP 的空闲/总超时约束：一个 realtime 会话理应在等人说话」。
   也没有按轮次的 capture，理由见上。
-- **登录没有限流。** `gproxy-app` 说明了它为什么做不了（它没有客户端地址）；本宿主
-  有，但还没用上。
 - **身份家族还没有 scope 化。** 组织管理员能到 `credentials` 与 `quotas`；用户、
   key、团队、成员、权限、限流、订阅、池、套餐、OAuth 客户端、会话和审计仍然是
   `Instance`-only。机制已经就位——改 `ADMIN_SECTIONS` 里的一行、再给那个家族一个
