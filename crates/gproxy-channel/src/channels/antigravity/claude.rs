@@ -16,12 +16,114 @@
 //! `anyOf` it accepts is then refused by Anthropic as an invalid schema, so
 //! the schema is rewritten into the subset both sides take. Neither side
 //! needs a `required` entry or the `VALIDATED` calling mode.
+//!
+//! Output and thinking: without `maxOutputTokens` the host caps a Claude
+//! reply at 8192 tokens (a budget of 8191 passes, 8192 is refused with
+//! "`max_tokens` must be greater than `thinking.budget_tokens`"), so the
+//! caller's limit is kept rather than stripped as it is for Gemini models,
+//! and filled in at the model maximum when thinking is on. Thinking only
+//! happens for a positive `thinkingBudget` of at least 1024 (below that is
+//! refused); a `thinkingLevel` or the dynamic `-1` budget is silently
+//! ignored, so both become an explicit budget. `includeThoughts` changes
+//! nothing: a thinking reply always carries its thoughts.
 
 use serde_json::{Map, Value};
 
 /// The routed model is served by Anthropic rather than Gemini.
 pub(super) fn is_claude(model: &str) -> bool {
     crate::channels::shared::code_assist::model_id(model).starts_with("claude-")
+}
+
+/// The output ceiling the catalogue reports for every Claude model it
+/// lists; Anthropic's own ceiling is higher for some, but the catalogue is
+/// what the account is entitled to.
+const MAX_OUTPUT_TOKENS: u64 = 64_000;
+/// Anthropic's smallest thinking budget.
+const MIN_THINKING_BUDGET: u64 = 1024;
+/// The budget a dynamic (`-1`) or unleveled request gets.
+const DEFAULT_THINKING_BUDGET: u64 = 16_384;
+
+/// The output limit a Gemini body (or a whole envelope) asks for, read
+/// before the shared sanitizer strips it.
+pub(super) fn output_limit(body: &Value) -> Option<u64> {
+    let config = body
+        .get("generationConfig")
+        .or_else(|| body.pointer("/request/generationConfig"))?;
+    ["maxOutputTokens", "max_output_tokens"]
+        .iter()
+        .find_map(|name| config.get(*name))
+        .and_then(Value::as_u64)
+}
+
+/// The budget a thinking configuration asks for, if it asks for thinking.
+fn thinking_budget(thinking: &Map<String, Value>) -> Option<u64> {
+    let budget = thinking
+        .get("thinkingBudget")
+        .or_else(|| thinking.get("thinking_budget"))
+        .and_then(Value::as_i64);
+    match budget {
+        Some(0) => return None,
+        Some(budget) if budget > 0 => return Some(budget.unsigned_abs()),
+        Some(_) => return Some(DEFAULT_THINKING_BUDGET),
+        None => {}
+    }
+    let level = thinking
+        .get("thinkingLevel")
+        .or_else(|| thinking.get("thinking_level"))
+        .and_then(Value::as_str)?;
+    Some(match level.to_ascii_uppercase().as_str() {
+        "MINIMAL" => MIN_THINKING_BUDGET,
+        "LOW" => 4096,
+        "MEDIUM" => DEFAULT_THINKING_BUDGET,
+        "HIGH" => 32_768,
+        _ => DEFAULT_THINKING_BUDGET,
+    })
+}
+
+/// Restore the caller's output limit and turn the thinking request into the
+/// one budget Anthropic takes, keeping `maxOutputTokens > thinkingBudget`.
+pub(super) fn apply_limits(request: &mut Value, requested: Option<u64>) {
+    let Some(request) = request.as_object_mut() else {
+        return;
+    };
+    let config = request
+        .entry("generationConfig")
+        .or_insert_with(|| Value::Object(Map::new()));
+    let Some(config) = config.as_object_mut() else {
+        return;
+    };
+    let budget = config
+        .get("thinkingConfig")
+        .and_then(Value::as_object)
+        .and_then(thinking_budget);
+    let limit = requested.map(|limit| limit.clamp(1, MAX_OUTPUT_TOKENS));
+    let budget = budget.and_then(|budget| {
+        let ceiling = limit.unwrap_or(MAX_OUTPUT_TOKENS) - 1;
+        let budget = budget.clamp(MIN_THINKING_BUDGET, ceiling.max(MIN_THINKING_BUDGET));
+        // A limit too small for the smallest budget leaves no room to think.
+        (budget <= ceiling).then_some(budget)
+    });
+    match budget {
+        Some(budget) => {
+            config.insert(
+                "thinkingConfig".into(),
+                serde_json::json!({ "thinkingBudget": budget, "includeThoughts": true }),
+            );
+            config.insert(
+                "maxOutputTokens".into(),
+                Value::from(limit.unwrap_or(MAX_OUTPUT_TOKENS)),
+            );
+        }
+        None => {
+            config.remove("thinkingConfig");
+            if let Some(limit) = limit {
+                config.insert("maxOutputTokens".into(), Value::from(limit));
+            }
+        }
+    }
+    if config.is_empty() {
+        request.remove("generationConfig");
+    }
 }
 
 /// Keywords the proto `Schema` declares and Anthropic accepts, kept as they

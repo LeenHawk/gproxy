@@ -406,6 +406,92 @@ fn claude_tools_use_the_proto_parameters_both_sides_accept() {
     );
 }
 
+fn claude_config(generation: Value) -> Value {
+    claude_request(json!({
+        "contents": [{"role": "user", "parts": [{"text": "hi"}]}],
+        "generationConfig": generation,
+    }))
+    .get("generationConfig")
+    .cloned()
+    .unwrap_or(Value::Null)
+}
+
+#[test]
+fn claude_keeps_its_output_limit_and_takes_one_thinking_budget() {
+    // Stripped, the host caps Claude at 8192 output tokens.
+    assert_eq!(
+        claude_config(json!({"maxOutputTokens": 32_000, "temperature": 0.2})),
+        json!({"maxOutputTokens": 32_000, "temperature": 0.2})
+    );
+    // The snake spelling, clamped to the catalogue's ceiling.
+    assert_eq!(
+        claude_config(json!({"max_output_tokens": 200_000})),
+        json!({"maxOutputTokens": 64_000})
+    );
+    // No limit and no thinking: the body stays as the caller left it.
+    assert_eq!(claude_config(json!({})), Value::Null);
+    // Thinking without a limit gets the model maximum, so the budget fits.
+    assert_eq!(
+        claude_config(json!({"thinkingConfig": {"thinkingBudget": 20_000}})),
+        json!({"maxOutputTokens": 64_000,
+               "thinkingConfig": {"thinkingBudget": 20_000, "includeThoughts": true}})
+    );
+    // A budget under 1024 is refused upstream; one at or past the limit too.
+    assert_eq!(
+        claude_config(json!({"thinkingConfig": {"thinkingBudget": 500}}))["thinkingConfig"]["thinkingBudget"],
+        1024
+    );
+    assert_eq!(
+        claude_config(json!({"maxOutputTokens": 4096,
+                             "thinkingConfig": {"thinkingBudget": 8192}})),
+        json!({"maxOutputTokens": 4096,
+               "thinkingConfig": {"thinkingBudget": 4095, "includeThoughts": true}})
+    );
+    // A limit with no room for the smallest budget turns thinking off.
+    assert_eq!(
+        claude_config(json!({"maxOutputTokens": 1000,
+                             "thinkingConfig": {"thinkingBudget": 2048}})),
+        json!({"maxOutputTokens": 1000})
+    );
+    // Levels and the dynamic budget are ignored upstream, so they become
+    // budgets; a zero budget is thinking off.
+    assert_eq!(
+        claude_config(json!({"thinkingConfig": {"thinkingLevel": "high"}}))["thinkingConfig"]["thinkingBudget"],
+        32_768
+    );
+    assert_eq!(
+        claude_config(json!({"thinkingConfig": {"thinkingBudget": -1}}))["thinkingConfig"]["thinkingBudget"],
+        16_384
+    );
+    assert_eq!(
+        claude_config(json!({"thinkingConfig": {"thinkingBudget": 0}})),
+        Value::Null
+    );
+}
+
+#[test]
+fn gemini_models_still_lose_the_output_limit() {
+    let config = json!({});
+    let secret = secret();
+    let metadata = Value::Null;
+    let prepared = prepare(
+        &config,
+        credential(&secret, &metadata),
+        Operation::GenerateContent,
+        request(
+            HeaderMap::new(),
+            "/v1beta/models/gemini-3-flash:generateContent",
+            json!({"contents": [], "generationConfig": {"maxOutputTokens": 100}}),
+        ),
+    )
+    .expect("prepared");
+    assert!(
+        body_json(&prepared)["request"]["generationConfig"]
+            .get("maxOutputTokens")
+            .is_none()
+    );
+}
+
 #[test]
 fn gemini_tools_keep_their_json_schema() {
     let config = json!({});
