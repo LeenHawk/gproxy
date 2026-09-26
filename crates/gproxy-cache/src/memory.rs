@@ -8,7 +8,8 @@ use web_time::Instant;
 
 #[derive(Clone, Debug)]
 pub struct MemoryOptions {
-    /// Live keys across KV, counter and permit domains. No live entry eviction.
+    /// Live keys across KV, counter and permit domains. A full cache sheds
+    /// live values, then counters, soonest to expire first; never a permit.
     pub max_keys: usize,
     pub max_topics: usize,
     pub limits: Limits,
@@ -16,7 +17,7 @@ pub struct MemoryOptions {
 impl Default for MemoryOptions {
     fn default() -> Self {
         Self {
-            max_keys: 10_000,
+            max_keys: 100_000,
             max_topics: 256,
             limits: Limits::default(),
         }
@@ -48,9 +49,29 @@ impl State {
         self.topics.retain(|_, sender| sender.receiver_count() > 0);
         before - self.keys()
     }
+    /// Make room for one more key.
+    ///
+    /// Expired keys go first. A cache still full after that sheds live soft
+    /// state rather than refusing the write: values, then counters, soonest to
+    /// expire first. Refusing would fail every request that writes a new key —
+    /// an affinity pin after a paid upstream answer, a fresh rate-limit
+    /// window — once enough distinct sessions have passed through. Permits are
+    /// never shed: a lease is a promise of exclusion, and dropping one would
+    /// let a second holder in.
+    ///
+    /// Eviction takes an eighth of the capacity at once, so a cache that stays
+    /// full scans its keys once per `max / 8` inserts rather than on each.
     fn room(&mut self, max: usize, now: Instant) -> Result<()> {
+        if self.keys() < max {
+            return Ok(());
+        }
+        self.purge(now);
+        let batch = (max / 8).max(1);
         if self.keys() >= max {
-            self.purge(now);
+            evict_soonest(&mut self.values, batch);
+        }
+        if self.keys() >= max {
+            evict_soonest(&mut self.counters, batch);
         }
         if self.keys() >= max {
             return Err(CacheError::Capacity);
@@ -71,6 +92,17 @@ impl State {
             }
         }
     }
+}
+/// Drop the `count` entries of `map` that expire soonest, or all of them.
+fn evict_soonest<T>(map: &mut HashMap<String, Timed<T>>, count: usize) {
+    if map.len() <= count {
+        map.clear();
+        return;
+    }
+    let mut expiries: Vec<Instant> = map.values().map(|v| v.expires).collect();
+    let (_, cutoff, _) = expiries.select_nth_unstable(count - 1);
+    let cutoff = *cutoff;
+    map.retain(|_, v| v.expires > cutoff);
 }
 struct Inner {
     options: MemoryOptions,

@@ -82,12 +82,13 @@ publish 仍成功。提交后、发布前进程可能退出，所以消费者仍
 
 ## 容量与运行边界
 
-Memory 默认 10,000 个有效 key、256 个活跃 topic。共享 Limits 默认 key 上限 1,024 bytes、
+Memory 默认 100,000 个有效 key、256 个活跃 topic。共享 Limits 默认 key 上限 1,024 bytes、
 单 value/message 1 MiB、每个资源 10,000 个许可、投递队列 256 条消息。这是数量／单项
 限制，不是分配器级总内存预算，须按工作负载配置。Redis 同样检查单次操作限制，服务端
 容量由 Redis 管理；同一 namespace 的客户端须保持限制配置一致。
 
-Memory 不淘汰有效值、计数器或租约；满时先回收过期项，仍满则返回 `Capacity`。
+Memory 满时先回收过期项，再按到期先后淘汰有效值、然后是计数器，每次腾出八分之一容量；
+从不淘汰许可，只有被有效许可占满时才返回 `Capacity`。
 读取时始终检查到期；可显式调用 `purge_expired()` 回收冷的过期数据。没有后台清理线程，
 Memory 操作不要求 Tokio runtime，只有通知等待复用 Tokio sync，由宿主驱动 future。
 
