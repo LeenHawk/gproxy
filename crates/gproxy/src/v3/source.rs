@@ -360,9 +360,8 @@ fn provider(row: &QueryResult) -> Result<document::Provider> {
         label: optional_text(row, "label"),
         proxy_url: optional_text(row, "proxy_url"),
         credential_strategy: optional_text(row, "credential_strategy"),
-        // v3's TLS fingerprint and traffic policy have no v4 form; they are
-        // not read rather than read and dropped.
-        tls_fingerprint: None,
+        tls_fingerprint: Some(json(row, "tls_fingerprint")).filter(|value| !value.is_null()),
+        // Lives inside `settings_json`, where `provider_config` reads it.
         traffic_policy: None,
     })
 }
@@ -380,6 +379,7 @@ fn credential(row: &QueryResult) -> Result<document::Credential> {
             rpm_limit: optional_integer(row, "rpm_limit").and_then(|v| u32::try_from(v).ok()),
             tpm_limit: optional_integer(row, "tpm_limit").and_then(|v| u64::try_from(v).ok()),
             proxy_url: optional_text(row, "proxy_url"),
+            tls_fingerprint: Some(json(row, "tls_fingerprint")).filter(|value| !value.is_null()),
             // v3's column default, for a file predating the column.
             kind: optional_text(row, "kind").unwrap_or_else(|| "api_key".to_owned()),
         },

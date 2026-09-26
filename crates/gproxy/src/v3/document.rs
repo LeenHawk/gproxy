@@ -198,6 +198,9 @@ pub struct CredentialConfig {
     pub tpm_limit: Option<u64>,
     #[serde(default)]
     pub proxy_url: Option<String>,
+    /// A TLS / HTTP/2 / header fingerprint, the same object a provider carries.
+    #[serde(default)]
+    pub tls_fingerprint: Option<Value>,
 }
 
 fn api_key_kind() -> String {

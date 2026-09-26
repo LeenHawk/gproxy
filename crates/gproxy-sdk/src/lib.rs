@@ -71,7 +71,7 @@ pub use gproxy_channel::{
     channel::{ChannelCapabilities, ConfigKey, ConfigKeyKind, LoginMode},
     channels,
 };
-pub use gproxy_client::{ClientPool, OutboundClient};
+pub use gproxy_client::{ClientPool, EmulationConfig, OutboundClient};
 pub use gproxy_core::{
     AesGcmCodec, BudgetOwner, ConfigRevision, Core, CoreData, CoreError, CoreResult,
     CredentialStatus, CredentialSummary, FetchPolicy, Invalidation, Observer, PlaintextCodec,

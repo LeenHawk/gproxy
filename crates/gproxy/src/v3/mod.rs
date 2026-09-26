@@ -63,6 +63,7 @@ pub mod config;
 pub mod detect;
 pub mod document;
 pub mod endpoints;
+pub mod fingerprint;
 pub mod provider_config;
 pub mod rules;
 pub mod identity;
