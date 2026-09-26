@@ -240,6 +240,18 @@ pub(crate) fn to_responses(
                         call.status = Some(r::McpCallStatus::Completed);
                     }
                 }
+                // A gproxy handle only restores for the Gemini upstream that
+                // issued it; it must not reach another provider.
+                c::ContentBlock::Thinking(thinking)
+                    if crate::transform::generate::claude_gemini::is_thinking_handle(
+                        &thinking.signature,
+                    ) =>
+                {
+                    report.omitted(
+                        "thinking",
+                        "gproxy thinking handle restores only for the Gemini upstream that issued it",
+                    );
+                }
                 c::ContentBlock::Thinking(thinking) => {
                     let id = flow
                         .resolve_as(

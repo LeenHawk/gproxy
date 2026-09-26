@@ -326,14 +326,18 @@ fn repeated_gemini_text_and_thought_marked_functions_are_not_dropped() {
     ];
     let actual = g_to_c(source, gc(), fixed());
     assert_eq!(actual.stop_reason, c::StopReason::ToolUse);
-    assert_eq!(actual.content.len(), 3);
+    assert_eq!(actual.content.len(), 4);
     assert_eq!(
         serde_json::to_value(&actual.content[0]).unwrap()["text"],
         "haha"
     );
-    let raw = serde_json::to_string(&actual).unwrap();
-    assert!(!raw.contains("private thought"));
-    assert!(!raw.contains("opaque"));
+    // The thought is shown; its native signature never is, only a handle.
+    let thinking = serde_json::to_value(&actual.content[1]).unwrap();
+    assert_eq!(thinking["thinking"], "private thought");
+    assert!(pair::is_thinking_handle(
+        thinking["signature"].as_str().unwrap()
+    ));
+    assert!(!serde_json::to_string(&actual).unwrap().contains("opaque"));
 }
 #[test]
 fn missing_response_and_tool_ids_emit_stable_aliases_before_late_native_id() {
@@ -969,4 +973,26 @@ fn native_failures_and_each_bound_remain_terminal_without_tool_limits_blocking_t
     converter.push(gparts(json!([{"text":"x"}]))).unwrap();
     converter.push(gend("STOP")).unwrap();
     converter.finish().unwrap();
+}
+#[test]
+fn split_signed_and_unsigned_thought_runs_become_handle_signed_thinking_blocks() {
+    let source = vec![
+        gparts(json!([{"text":""},{"thought":true,"text":"plan "}])),
+        gparts(json!([{"thought":true,"text":"it"},{"thought":true,"thoughtSignature":"opaque"}])),
+        gparts(json!([{"thought":true,"text":"summary"},{"text":"done"}])),
+        gend("STOP"),
+    ];
+    let actual = serde_json::to_value(g_to_c(source, gc(), fixed())).unwrap();
+    let content = actual["content"].as_array().unwrap();
+    assert_eq!(content.len(), 3, "{actual}");
+    assert_eq!(content[0]["thinking"], "plan it");
+    let signed = content[0]["signature"].as_str().unwrap();
+    assert!(pair::thinking_handle_id(signed).is_some());
+    // A run with no signature is shown, but its handle names no state.
+    assert_eq!(content[1]["thinking"], "summary");
+    let unsigned = content[1]["signature"].as_str().unwrap();
+    assert!(pair::is_thinking_handle(unsigned));
+    assert!(pair::thinking_handle_id(unsigned).is_none());
+    assert_eq!(content[2]["text"], "done");
+    assert!(!actual.to_string().contains("opaque"));
 }

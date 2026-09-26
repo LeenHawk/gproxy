@@ -63,6 +63,8 @@ pub fn claude_to_gemini(
             &mut calls,
             &mut ids,
             policy,
+            // Counting has no host state; handle blocks are dropped.
+            false,
             &mut report,
         )?;
         match message.role {

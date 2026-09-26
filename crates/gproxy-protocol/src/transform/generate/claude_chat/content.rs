@@ -233,6 +233,18 @@ pub(crate) fn claude_message_to_openai(
                             rest: Rest::new(),
                         }))
                     }
+                    // A gproxy handle only restores for the Gemini upstream
+                    // that issued it; it must not reach another provider.
+                    c::ContentBlock::Thinking(block)
+                        if crate::transform::generate::claude_gemini::is_thinking_handle(
+                            &block.signature,
+                        ) =>
+                    {
+                        report.omitted(
+                            "messages.assistant.thinking",
+                            "gproxy thinking handle restores only for the Gemini upstream that issued it",
+                        );
+                    }
                     c::ContentBlock::Thinking(block) => {
                         reasoning.push(block.thinking.clone());
                         details.push(rd::from_thinking(block, index as i64));

@@ -40,6 +40,11 @@ pub(super) trait IdentityFacts {
     fn signed_gemini_tool(&self, _index: usize) -> Option<g::Part> {
         None
     }
+    /// The whole signed thought run closing at `index`, merged into the one
+    /// part a Claude client's thinking block replays as.
+    fn signed_gemini_thinking(&self, _index: u64) -> Option<g::Part> {
+        None
+    }
     fn native_model(&self) -> Option<&str>;
     fn items(&self) -> Vec<(IdentityRole, String)> {
         Vec::new()
@@ -78,6 +83,24 @@ impl IdentityFacts for c::GenerateContentResponseBody {
     }
     fn dialect(&self) -> Dialect {
         Dialect::Claude
+    }
+    /// Thinking blocks signed with a gproxy handle name a saved Gemini part.
+    fn items(&self) -> Vec<(IdentityRole, String)> {
+        self.content
+            .iter()
+            .filter_map(|block| match block {
+                c::ResponseContentBlock::Thinking(block) => {
+                    crate::transform::generate::claude_gemini::thinking_handle_id(&block.signature)
+                }
+                _ => None,
+            })
+            .map(|id| {
+                (
+                    IdentityRole::OutputItem(OutputItemKind::Reasoning),
+                    id.to_owned(),
+                )
+            })
+            .collect()
     }
     fn response_id(&self) -> Option<&str> {
         Some(&self.id)
@@ -198,6 +221,20 @@ impl IdentityFacts for g::GenerateContentResponseBody {
                     && part.thought_signature.is_some()
             })
             .cloned()
+    }
+    fn signed_gemini_thinking(&self, index: u64) -> Option<g::Part> {
+        let parts = self
+            .candidates
+            .as_ref()?
+            .first()?
+            .content
+            .as_ref()?
+            .parts
+            .as_ref()?;
+        crate::transform::generate::claude_gemini::thinking::signed_run(
+            parts,
+            usize::try_from(index).ok()?,
+        )
     }
     fn signed_gemini_tool(&self, index: usize) -> Option<g::Part> {
         self.candidates
