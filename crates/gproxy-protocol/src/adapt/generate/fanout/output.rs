@@ -81,7 +81,7 @@ impl Client for g::GenerateContentResponseBody {
 }
 
 /// Each child's tools keep their actual native association. The aggregate has
-/// its own response identity and journal linking all actual native responses.
+/// its own response identity, which links no single native response.
 pub(super) struct ToolsOnly<'a, C>(pub &'a C);
 
 impl<C: IdentityFacts> IdentityFacts for ToolsOnly<'_, C> {

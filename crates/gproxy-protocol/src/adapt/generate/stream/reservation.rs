@@ -66,23 +66,6 @@ impl Reservation {
             ws_lane: None,
         })
     }
-    pub(super) fn record<S: StateStore>(
-        key: String,
-        payload: Vec<u8>,
-        state: &GenerationStateAccess<'_, S>,
-    ) -> Result<Self, TransformError> {
-        if payload.len() as u64 > state.store.limits().write_bytes {
-            return Err(super::limit("journal record exceeds state budget"));
-        }
-        Ok(Self {
-            key,
-            payload,
-            in_flight: false,
-            version: None,
-            failed: false,
-            ws_lane: None,
-        })
-    }
     pub async fn connection<S: StateStore>(
         namespace: crate::transform::identity::IdNamespace,
         request: &crate::WireRequest<()>,

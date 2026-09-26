@@ -2,7 +2,6 @@ use super::super::{GenerationStateAccess, transport};
 use super::*;
 use super::{
     edges::Edge,
-    journal::{Binding, ChildBinding, Journal, SavedChild},
     output::{Client, ToolsOnly},
 };
 use crate::{
@@ -12,48 +11,6 @@ use crate::{
 use std::collections::BTreeSet;
 
 impl<A: Edge> Fanout<A> {
-    fn journal<S: StateStore>(
-        &self,
-        state: &GenerationStateAccess<'_, S>,
-        limits: CodecLimits,
-    ) -> Result<Journal, TransformError> {
-        if self.children.len() > self.options.max_children || self.children.len() < 2 {
-            return Err(limit());
-        }
-        let mut children = Vec::new();
-        for child in &self.children {
-            let ids = child.identities();
-
-            children.push(ChildBinding {
-                request: encode(child.request(), limits)?,
-                namespaces: (ids.request.namespace(), ids.response.namespace()),
-                policies: (ids.request_policy.clone(), ids.response_policy.clone()),
-            });
-        }
-        Ok(Journal {
-            schema: 1,
-            binding: Binding {
-                id: self.group_id.clone(),
-                original: self.original.clone(),
-                target: state.target.clone(),
-                conversation: state.conversation_key.clone(),
-                expires_at: state.expires_at,
-                endpoint: (
-                    self.endpoint.path.clone(),
-                    self.endpoint.query.clone(),
-                    self.endpoint
-                        .headers
-                        .iter()
-                        .map(|(k, v)| (k.as_str().into(), v.as_bytes().to_vec()))
-                        .collect(),
-                ),
-                children,
-            },
-            children: vec![SavedChild::default(); self.children.len()],
-            group_identities: Default::default(),
-            exposed: None,
-        })
-    }
     pub(super) async fn run<U: Upstream, S: StateStore>(
         &mut self,
         upstream: (&U, &U::Target),
@@ -61,55 +18,31 @@ impl<A: Edge> Fanout<A> {
         state: &GenerationStateAccess<'_, S>,
         progress: &mut FanoutProgress<A::Native>,
         mut facts: impl FnMut(usize, &A::Native) -> Result<A::Facts, TransformError>,
-        resume: bool,
     ) -> Result<Converted<A::Client>, TransformError> {
         let (upstream, target) = upstream;
-        let expected = self.journal(state, limits)?;
-        if expected
-            .binding
-            .children
-            .iter()
-            .any(|child| child.request.len() as u64 > upstream.limits().write_bytes)
-        {
+        if self.children.len() > self.options.max_children || self.children.len() < 2 {
             return Err(limit());
         }
-        if resume {
-            journal::load(expected, state, limits, progress).await?;
-        } else {
-            if progress.journal.is_some()
-                || !progress.children.is_empty()
-                || progress.version.is_some()
-            {
-                return Err(conflict(
-                    "invoke requires fresh progress; resume the existing journal",
-                ));
-            }
-            progress.children = (0..self.children.len())
-                .map(|_| GenerationProgress::default())
-                .collect();
-            progress.journal = Some(expected);
-            journal::save(state, limits, progress).await?;
-        }
-        // Persist any retained native result before considering another child.
-        for index in 0..self.children.len() {
-            if let Some(raw) = &progress.children[index].raw_response {
-                progress.journal.as_mut().expect("initialized").children[index].raw =
-                    Some(journal::Raw::from_wire(raw));
+        // Every child must fit the upstream before the first one is sent, so an
+        // oversized candidate cannot leave the group half-posted.
+        for child in &self.children {
+            if encode(child.request(), limits)?.len() as u64 > upstream.limits().write_bytes {
+                return Err(limit());
             }
         }
-        journal::save(state, limits, progress).await?;
+        // A group runs once. Retained progress may hold a started child whose
+        // result never came back, and nothing can tell whether its POST landed,
+        // so neither a second run nor reused progress may send again.
+        if self.started || !progress.children.is_empty() {
+            return Err(conflict(
+                "fanout already started; a started POST is never repeated",
+            ));
+        }
+        self.started = true;
+        progress.children = (0..self.children.len())
+            .map(|_| GenerationProgress::default())
+            .collect();
         for index in 0..self.children.len() {
-            if progress.children[index].raw_response.is_some() {
-                transport::recover_native(&mut progress.children[index], limits)?;
-                continue;
-            }
-            if progress.children[index].send_started {
-                return Err(conflict(format!(
-                    "child {index} was started without a retained successful result; never repeat its POST"
-                )));
-            }
-            progress.journal.as_mut().expect("initialized").children[index].started = true;
-            journal::save(state, limits, progress).await?;
             let sent = transport::send(
                 upstream,
                 target,
@@ -118,13 +51,8 @@ impl<A: Edge> Fanout<A> {
                 limits,
                 &mut progress.children[index],
             )
-            .await;
-            if let Some(raw) = &progress.children[index].raw_response {
-                progress.journal.as_mut().expect("initialized").children[index].raw =
-                    Some(journal::Raw::from_wire(raw));
-                journal::save(state, limits, progress).await?;
-            }
-            if !sent? {
+            .await?;
+            if !sent {
                 return Err(TransformError::invalid_result(
                     "fanout.child",
                     format!(
@@ -170,20 +98,10 @@ impl<A: Edge> Fanout<A> {
         }
         // Aggregate validation and body limits run before client identity writes.
         let value = A::Client::aggregate(mapped.clone(), self.group_id.clone(), &mut report)?;
-        let encoded = encode(&value, limits)?;
-        if progress
-            .journal
-            .as_ref()
-            .expect("initialized")
-            .exposed
-            .as_ref()
-            .is_some_and(|v| v != &encoded)
-        {
-            return Err(conflict("aggregate changed after first client exposure"));
-        }
+        encode(&value, limits)?;
         for (index, ((native, client), flow)) in natives.iter().zip(&mapped).zip(&flows).enumerate()
         {
-            let result = if let Some(bindings) = self.children[index].signed_bindings() {
+            if let Some(bindings) = self.children[index].signed_bindings() {
                 state
                     .save_pair_with_bound_ids(
                         native,
@@ -192,7 +110,7 @@ impl<A: Edge> Fanout<A> {
                         bindings,
                         &mut progress.children[index],
                     )
-                    .await
+                    .await?;
             } else {
                 state
                     .save_pair(
@@ -201,29 +119,16 @@ impl<A: Edge> Fanout<A> {
                         flow,
                         &mut progress.children[index],
                     )
-                    .await
-            };
-            progress.journal.as_mut().expect("initialized").children[index].identities =
-                journal::pack(&progress.children[index].saved_identities);
-            journal::save(state, limits, progress).await?;
-            result?;
+                    .await?;
+            }
         }
         let mut record = IdentityStateRecord::new(IdentityRole::Response, state.target.clone());
         record.client_item_id = Some(self.group_id.clone());
-        // No single native response owns an aggregate ID. Its durable journal
-        // contains every original response and ordered request association.
-        let result = state
+        // No single native response owns an aggregate ID, so its record links
+        // none; the child records above carry each native response.
+        state
             .save_records(vec![(record, None)], vec![], &mut progress.group)
-            .await;
-        progress
-            .journal
-            .as_mut()
-            .expect("initialized")
-            .group_identities = journal::pack(&progress.group.saved_identities);
-        journal::save(state, limits, progress).await?;
-        result?;
-        progress.journal.as_mut().expect("initialized").exposed = Some(encoded);
-        journal::save(state, limits, progress).await?;
+            .await?;
         Ok(Converted { value, report })
     }
 }

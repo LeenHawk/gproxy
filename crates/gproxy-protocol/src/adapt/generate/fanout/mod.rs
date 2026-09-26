@@ -1,22 +1,19 @@
-//! Bounded, journaled multi-candidate generation over concrete single-result edges.
-//! Every child POST is reserved durably. A started child without an actual result
-//! requires reconciliation and is never automatically replayed.
+//! Bounded multi-candidate generation over concrete single-result edges.
+//! Progress lives only in memory: a started child without an actual result is
+//! never replayed, because nothing reloads a group once its invocation ends.
 
 mod edges;
 mod invoke;
-mod journal;
 pub(super) mod output;
 mod prepare;
 use super::{Endpoint, GenerationIdentity, GenerationProgress};
 use crate::{
-    capability::Version,
     codec::CodecLimits,
     transform::{
         TransformError, TransformErrorKind,
         identity::{IdNamespace, IdentityFlow, IdentityRole, SourceIdentity, TargetIdPolicy},
     },
 };
-use journal::Journal;
 pub use prepare::{
     ChatViaClaudeFanout, ChatViaResponsesFanout, FanoutTarget, GeminiViaClaudeFanout,
     GeminiViaResponsesFanout,
@@ -30,12 +27,12 @@ pub struct FanoutOptions {
     pub response_policy: TargetIdPolicy,
 }
 
-/// Caller-owned evidence survives cancellation and failed post-send state writes.
-/// `resume` additionally reads the durable journal; no started POST is replayed.
+/// Caller-owned evidence survives cancellation and failed post-send state writes,
+/// so a caller can inspect which children were sent and what they returned. It
+/// is never persisted and cannot restart a group: a prepared fanout sends at
+/// most once, so a started POST is never sent twice.
 #[derive(Debug)]
 pub struct FanoutProgress<N> {
-    journal: Option<Journal>,
-    version: Option<Version>,
     children: Vec<GenerationProgress<N>>,
     group: GenerationProgress<()>,
 }
@@ -43,8 +40,6 @@ pub struct FanoutProgress<N> {
 impl<N> Default for FanoutProgress<N> {
     fn default() -> Self {
         Self {
-            journal: None,
-            version: None,
             children: vec![],
             group: Default::default(),
         }
@@ -55,9 +50,6 @@ impl<N> FanoutProgress<N> {
     pub fn children(&self) -> &[GenerationProgress<N>] {
         &self.children
     }
-    pub fn response_id(&self) -> Option<&str> {
-        self.journal.as_ref().map(|j| j.binding.id.as_str())
-    }
 }
 
 #[derive(Debug)]
@@ -65,8 +57,10 @@ struct Fanout<A> {
     children: Vec<A>,
     endpoint: Endpoint,
     group_id: String,
-    original: Vec<u8>,
     options: FanoutOptions,
+    /// Set once the first child may have been sent. Nothing persists a group,
+    /// so this flag is what keeps a second `invoke` from repeating its POSTs.
+    started: bool,
 }
 
 fn conflict(message: impl Into<String>) -> TransformError {

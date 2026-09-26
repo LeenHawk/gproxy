@@ -9,13 +9,7 @@ fn aggregate_response_id_obeys_the_explicit_client_generation_policy() {
         .options
         .response_policy
         .with_generated_prefix(IdentityRole::Response, KnownIdPrefix::Message);
-    let mut prepared = ready(ChatViaClaudeFanout::prepare(
-        chat_input(),
-        target,
-        &state,
-        codec_limits(),
-    ))
-    .unwrap();
+    let mut prepared = ready(ChatViaClaudeFanout::prepare(chat_input(), target, &state)).unwrap();
     assert!(
         prepared.response_id().starts_with("msg_"),
         "aggregate ignored selected generated prefix: {}",
@@ -36,13 +30,7 @@ fn aggregate_policy_rejects_impossible_length_and_inconsistent_client_policies()
     let mut target = setup(Dialect::OpenAiChat, Dialect::Claude);
     target.options.response_policy = target.options.response_policy.with_max_len(8);
     assert!(
-        ready(ChatViaClaudeFanout::prepare(
-            chat_input(),
-            target,
-            &state,
-            codec_limits()
-        ))
-        .is_err(),
+        ready(ChatViaClaudeFanout::prepare(chat_input(), target, &state,)).is_err(),
         "impossible aggregate ID policy accepted"
     );
     assert!(store.entries.lock().unwrap().is_empty());

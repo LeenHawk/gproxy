@@ -653,7 +653,8 @@ fn chat_includes_usage(body: &[u8]) -> bool {
         == Some(true)
 }
 
-/// Candidate fanout keeps every child journaled; this bounds the journal.
+/// Candidate fanout sends one upstream call per candidate and holds every
+/// child's result in memory until the aggregate is built; this bounds both.
 const MAX_CANDIDATES: usize = 8;
 
 fn fanout_options(client: Dialect) -> FanoutOptions {
@@ -961,7 +962,7 @@ async fn invoke_native_complete<C: BatchConnectionTrait + Send + Sync>(
 /// through the attempt-bound upstream, and hand the client DTO back either
 /// encoded once or replayed as its native stream. Chat `n` / Gemini
 /// `candidateCount` of two or more against a single-result upstream fan out
-/// into journaled child calls.
+/// into one child call per candidate.
 async fn invoke_complete<C: BatchConnectionTrait + Send + Sync>(
     call: &Call<'_, C>,
     completion: Completion,
@@ -1002,7 +1003,7 @@ async fn invoke_complete<C: BatchConnectionTrait + Send + Sync>(
                 let fanout_target = fanout_target();
                 return Box::pin(async move {
                     let mut prepared =
-                        <$pair>::prepare(input, fanout_target, state, limits $(, $extra)*)
+                        <$pair>::prepare(input, fanout_target, state $(, $extra)*)
                             .await?;
                     let mut progress = FanoutProgress::default();
                     let converted = prepared
