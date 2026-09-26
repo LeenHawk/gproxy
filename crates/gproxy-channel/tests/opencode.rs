@@ -390,7 +390,14 @@ async fn only_the_go_channel_has_usage_windows_to_report() {
     let QuotaValue::Window(rolling) = &snapshot.entries[0].value else {
         panic!("a window");
     };
-    assert_eq!(rolling.used_percent, Some("12.5".parse().unwrap()));
+    assert_eq!(rolling.used_percent, Some("12.5".parse().unwrap())); // No `QuotaModel`: the Go windows share `GO_SOURCE` and are observed,
+    // never charged.
+    support::assert_quota_contract(
+        None,
+        &[],
+        &snapshot.entries,
+        &["rolling", "weekly", "monthly"],
+    );
 }
 
 #[tokio::test]

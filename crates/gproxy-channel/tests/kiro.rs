@@ -1,6 +1,8 @@
 #![cfg(feature = "kiro")]
 //! Kiro against a scripted client: no real upstream is called.
 
+mod support;
+
 use futures_util::StreamExt as _;
 use gproxy_channel::channel::{
     AcquiredCredential, AuthorizationCode, AuthorizationRequest, BaseChannel, ChannelError,
@@ -1105,6 +1107,8 @@ async fn the_usage_limits_call_reports_a_window_per_resource_type() {
     };
     assert_eq!(window.limit, Some("1000".parse().unwrap()));
     assert_eq!(window.period_end_ms, Some(1_735_689_600_000));
+    // No `QuotaModel`: every resource type's window is observed, never charged.
+    support::assert_quota_contract(None, &[], &snapshot.entries, &[AGENTIC_REQUEST_DIMENSION]);
 }
 
 #[tokio::test]

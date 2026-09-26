@@ -1,5 +1,7 @@
 #![cfg(feature = "claudeapi")]
 
+mod support;
+
 use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
     channel::{
@@ -624,6 +626,10 @@ fn reads_usage_from_a_buffered_reply_and_from_a_messages_stream() {
 
 // -------------------------------------------------------------------- quota
 
+/// No `QuotaModel`: per-model rate limits and the organization cost report
+/// are observed, never charged.
+const OBSERVE_ONLY: &[&str] = &["rate:*", "usage:*"];
+
 #[test]
 fn observes_the_rate_limit_headers_of_a_reply() {
     let quota = Claudeapi.quota_headers().expect("declared");
@@ -664,6 +670,7 @@ fn observes_the_rate_limit_headers_of_a_reply() {
             "rate:input-tokens:claude-fable-5"
         ]
     );
+    support::assert_quota_contract(None, &[], &entries, OBSERVE_ONLY);
     let QuotaValue::RateLimit(requests) = &entries[0].value else {
         panic!("a rate limit");
     };
@@ -734,6 +741,7 @@ async fn reads_the_organization_cost_report_with_the_admin_key() {
     assert_eq!(headers["anthropic-version"], "2023-06-01");
 
     assert_eq!(snapshot.entries.len(), 1);
+    support::assert_quota_contract(None, &[], &snapshot.entries, OBSERVE_ONLY);
     let entry = &snapshot.entries[0];
     assert_eq!(entry.id, "usage:1789344000");
     assert_eq!(entry.source_id, "organization_usage");

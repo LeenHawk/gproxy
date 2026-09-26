@@ -286,6 +286,20 @@ async fn the_key_probe_reports_a_budget_and_the_rate_limit_beside_it() {
     };
     assert_eq!(rate.limit, Some(200.into()));
     assert_eq!(entries[1].label.as_deref(), Some("requests per 10s"));
+    use gproxy_channel::channel::QuotaModel;
+    let config = json!({});
+    let secret = json!({"api_key": "sk-or"});
+    let declared = OpenRouter.dimensions(
+        provider("openrouter", &config, None),
+        credential("api_key", &secret, &Value::Null),
+    );
+    // The request rate limit is observed beside the budget, never charged.
+    support::assert_quota_contract(
+        Some(&OpenRouter),
+        &declared,
+        &entries,
+        &["openrouter_key_rate_limit"],
+    );
 
     let unlimited = quota(
         &OpenRouter,

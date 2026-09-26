@@ -277,6 +277,13 @@ async fn the_quota_surface_follows_the_credential() {
         panic!("a window");
     };
     assert_eq!(weekly.remaining, Some(960.into()));
+    // Named `limits[]` windows beyond the weekly one are observe-only; they
+    // are marked `All` though the reply never says which models they cover.
+    let declared = Kimi.dimensions(
+        provider("kimi", &config, None),
+        credential("oauth", &secret, &Value::Null),
+    );
+    support::assert_quota_contract(Some(&Kimi), &declared, &snapshot.entries, &["five_hour"]);
 
     let key = json!({"api_key": "sk-moonshot"});
     let balance_client = OneShot::new(
@@ -296,6 +303,11 @@ async fn the_quota_surface_follows_the_credential() {
         "https://api.moonshot.cn/v1/users/me/balance"
     );
     assert_eq!(snapshot.entries[0].id, BALANCE_DIMENSION);
+    let declared = Kimi.dimensions(
+        provider("kimi", &config, None),
+        credential("api_key", &key, &Value::Null),
+    );
+    support::assert_quota_contract(Some(&Kimi), &declared, &snapshot.entries, &[]);
 }
 
 #[test]

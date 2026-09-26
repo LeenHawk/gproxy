@@ -382,7 +382,17 @@ async fn the_plan_windows_and_the_credit_balance_are_one_snapshot() {
     };
     assert_eq!(balance.remaining, Some("12.5".parse().unwrap()));
     assert_eq!(balance.unit.as_deref(), Some("credits"));
+    let declared = Cline.dimensions(
+        provider("cline", &config, None),
+        credential("oauth", &secret, &metadata),
+    );
+    support::assert_quota_contract(Some(&Cline), &declared, &snapshot.entries, OBSERVE_ONLY);
 }
+
+/// Plan windows are observed under the type the reply names (every one
+/// shares `PLAN_SOURCE`); the plan is not readable off the credential, so
+/// none is declared.
+const OBSERVE_ONLY: &[&str] = &["five_hour", "weekly"];
 
 #[tokio::test]
 async fn a_probe_that_reads_nothing_at_all_reports_the_refusal() {
@@ -579,6 +589,7 @@ async fn assert_plan_authorization(secret: &Value, expected: &str) {
     );
     assert_eq!(headers["authorization"], expected);
     assert_eq!(snapshot.entries.len(), 2);
+    support::assert_quota_contract(Some(&Cline), &[], &snapshot.entries, OBSERVE_ONLY);
 }
 
 #[tokio::test]

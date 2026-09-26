@@ -312,6 +312,14 @@ async fn the_seat_probe_presents_the_github_token_and_skips_unmetered_features()
     assert_eq!(window.limit, Some(300.into()));
     assert_eq!(window.used_percent, Some(10.into()));
     assert_eq!(window.period_end_ms, Some(1_782_864_000_000));
+    // No `QuotaModel`: every metered feature is observed under its own name
+    // and a shared source, never charged.
+    support::assert_quota_contract(
+        None,
+        &[],
+        &snapshot.entries,
+        &["premium_interactions", "chat", "completions"],
+    );
 }
 
 #[tokio::test]
