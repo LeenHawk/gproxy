@@ -1,15 +1,17 @@
 version: 2
 
+# Minor and patch updates only. `update-types` is honoured under `ignore`
+# (and `groups`), not under `allow`, so majors are ignored rather than
+# minors and patches allowed.
 updates:
   - package-ecosystem: cargo
     directory: "/"
     schedule:
       interval: weekly
-    allow:
+    ignore:
       - dependency-name: "*"
         update-types:
-          - version-update:semver-minor
-          - version-update:semver-patch
+          - version-update:semver-major
 
   - package-ecosystem: npm
     directories:
@@ -19,8 +21,15 @@ updates:
       - "/deploy/netlify"
     schedule:
       interval: weekly
-    allow:
+    ignore:
       - dependency-name: "*"
         update-types:
-          - version-update:semver-minor
-          - version-update:semver-patch
+          - version-update:semver-major
+
+  # Keeps the commit-pinned actions current.
+  - package-ecosystem: github-actions
+    directories:
+      - "/"
+      - "/.github/actions/*"
+    schedule:
+      interval: weekly
