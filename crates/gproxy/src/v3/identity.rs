@@ -40,7 +40,9 @@
 //!   is reported.
 //! - **`operation_group`.** v3 grouped operations behind a name; v4's
 //!   permission names one `gproxy_protocol::Operation` or every one of them.
-//!   A grouped rule becomes an every-operation rule and says so.
+//!   A grouped rule becomes one rule per operation of its group (see
+//!   [`group_operations`]); widening it to every operation would turn a
+//!   narrow deny into a blanket one.
 //! - **Passwords.** SQLite imports preserve v3's Argon2 PHC hashes. JSON exports
 //!   without hashes can use [`super::admin_password`] to set one.
 
@@ -543,60 +545,114 @@ where
             );
             continue;
         };
-        if row.operation_group.is_some() {
-            report.warn(format!(
-                "permission {} was scoped to operation group `{}`: v4 names one operation or \
-                 all of them, so it now covers every operation",
-                row.id,
-                row.operation_group.as_deref().unwrap_or_default()
-            ));
-        }
-        let id = ids::id("permissions", row.id);
-        let write = PermissionWrite {
-            id: Some(id.clone()),
-            user_id: subject.user_id.clone(),
-            api_key_id: subject.api_key_id.clone(),
-            provider_id: row.provider_id.map(|id| ids::id("providers", id)),
-            // v3's null meant "every model"; v4 spells that `*`.
-            model_pattern: Some(
-                row.model_pattern
-                    .as_deref()
-                    .map(str::trim)
-                    .filter(|pattern| !pattern.is_empty())
-                    .unwrap_or("*")
-                    .to_owned(),
-            ),
-            // v3 had no per-operation permission, only the group above.
-            operation: None,
-            action: if row.allowed { "allow" } else { "deny" }.to_owned(),
-            priority: None,
+        // v3's group, as the v4 operations it covered; no group is every one.
+        let operations: Vec<Option<&str>> = match row.operation_group.as_deref().map(str::trim) {
+            None | Some("") => vec![None],
+            Some(group) => match group_operations(group) {
+                Some(operations) => operations.iter().copied().map(Some).collect(),
+                None => {
+                    report.drop_row(
+                        "permissions",
+                        named_row,
+                        format!("its operation group `{group}` is not one v3 defined"),
+                    );
+                    continue;
+                }
+            },
         };
+        // v3's null meant "every model"; v4 spells that `*`.
+        let model_pattern = row
+            .model_pattern
+            .as_deref()
+            .map(str::trim)
+            .filter(|pattern| !pattern.is_empty())
+            .unwrap_or("*")
+            .to_owned();
+        let action = if row.allowed { "allow" } else { "deny" }.to_owned();
         let app_data = app.data();
-        let operations = Operations::new(app.gproxy(), &app_data, app.config());
-        if present.contains(&id) {
-            operations
-                .permissions()
-                .update(
-                    &id,
-                    gproxy_app::dto::PermissionPatch {
-                        action: Some(write.action.clone()),
-                        model_pattern: write.model_pattern.clone(),
-                        ..Default::default()
-                    },
-                )
-                .await
-                .map_err(|error| named("permission", row.id, error))?;
-        } else {
-            operations
-                .permissions()
-                .create(write)
-                .await
-                .map_err(|error| named("permission", row.id, error))?;
+        let ops = Operations::new(app.gproxy(), &app_data, app.config());
+        for operation in operations {
+            let id = match operation {
+                None => ids::id("permissions", row.id),
+                Some(operation) => ids::part("permissions", row.id, operation),
+            };
+            if present.contains(&id) {
+                ops.permissions()
+                    .update(
+                        &id,
+                        gproxy_app::dto::PermissionPatch {
+                            action: Some(action.clone()),
+                            model_pattern: Some(model_pattern.clone()),
+                            ..Default::default()
+                        },
+                    )
+                    .await
+                    .map_err(|error| named("permission", row.id, error))?;
+            } else {
+                ops.permissions()
+                    .create(PermissionWrite {
+                        id: Some(id),
+                        user_id: subject.user_id.clone(),
+                        api_key_id: subject.api_key_id.clone(),
+                        provider_id: row.provider_id.map(|id| ids::id("providers", id)),
+                        model_pattern: Some(model_pattern.clone()),
+                        operation: operation.map(str::to_owned),
+                        action: action.clone(),
+                        priority: None,
+                    })
+                    .await
+                    .map_err(|error| named("permission", row.id, error))?;
+            }
+            written += 1;
         }
-        written += 1;
     }
     report.count("permissions", written);
     Ok(())
+}
+
+/// The v4 operations a v3 operation group covered
+/// (`v3:crates/gproxy-protocol/src/operation.rs`, `Operation::group`). Sora's
+/// remix, edit, extend and character operations were in `video`; v4 has none
+/// of them.
+fn group_operations(group: &str) -> Option<&'static [&'static str]> {
+    Some(match group {
+        "models" => &["list_models", "get_model"],
+        "count_tokens" => &["count_tokens"],
+        "memories" => &["summarize_memory"],
+        "generate_content" => &[
+            "generate_content",
+            "stream_generate_content",
+            "guardian_review",
+            "guardian_classify",
+        ],
+        "compact" => &["compact_content"],
+        "conversation" => &["create_conversation"],
+        "embeddings" => &["create_embedding", "batch_create_embedding"],
+        "rerank" => &["rerank"],
+        "search" => &["web_search"],
+        "images" => &["create_image", "edit_image"],
+        "audio" => &[
+            "create_speech",
+            "create_transcription",
+            "create_translation",
+        ],
+        "files" => &[
+            "create_file",
+            "list_files",
+            "retrieve_file",
+            "retrieve_file_content",
+            "delete_file",
+        ],
+        "video" => &[
+            "create_video",
+            "retrieve_video",
+            "list_videos",
+            "delete_video",
+            "download_video_content",
+        ],
+        "realtime" => &["create_realtime_call", "connect_realtime"],
+        _ => return None,
+    })
 }
 
 async fn rate_limits<C>(
@@ -760,6 +816,34 @@ fn named(entity: &'static str, id: i64, error: AppError) -> Error {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn every_grouped_operation_is_a_v4_operation() {
+        for group in [
+            "models",
+            "count_tokens",
+            "memories",
+            "generate_content",
+            "compact",
+            "conversation",
+            "embeddings",
+            "rerank",
+            "search",
+            "images",
+            "audio",
+            "files",
+            "video",
+            "realtime",
+        ] {
+            for operation in group_operations(group).expect(group) {
+                assert!(
+                    gproxy_sdk::Operation::from_id(operation).is_some(),
+                    "{group}: {operation}"
+                );
+            }
+        }
+        assert!(group_operations("sora").is_none());
+    }
     use super::*;
 
     #[test]
