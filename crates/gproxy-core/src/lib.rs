@@ -40,6 +40,7 @@ mod select;
 mod select_reset;
 mod service;
 mod session;
+pub mod usage_scan;
 
 pub use api::*;
 pub use assemble::AssemblyError;

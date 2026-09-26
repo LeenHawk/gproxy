@@ -242,13 +242,63 @@ pub struct UsageRecordQuery {
     pub model: Option<String>,
     pub operation: Option<String>,
     pub request_id: Option<String>,
+    /// Records any of whose attempts reached this provider. Not a column, so
+    /// the list is then a bounded scan — see [`UsageRecordPage::truncated`].
+    pub provider_id: Option<String>,
+    /// Records any of whose attempts were served by this credential. Same
+    /// scan as `provider_id`; the records come back whole, every attempt
+    /// included, because a list shows what happened rather than a share of it.
+    pub credential_id: Option<String>,
     /// 1-based. Zero and absent both mean the first page.
     pub page: Option<u64>,
     /// Clamped to 1..=500; absent means 50.
     pub page_size: Option<u64>,
 }
 
+/// One page of records.
+///
+/// The fields of [`Page`](crate::dto::Page), plus what an attempt filter
+/// costs: with `providerId` or `credentialId` set the page is cut from a scan
+/// of at most `query::MAX_SCAN_ROWS` records, newest first, and `total` counts
+/// the matches among those. `truncated` says the scan stopped with older
+/// records unread, so `total` is a lower bound and a page past it is empty
+/// rather than proof that nothing older matches; narrow the time range to
+/// reach them. Without an attempt filter the page is a plain database page and
+/// `truncated` is always false.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct UsageRecordPage {
+    pub items: Vec<UsageRecordDto>,
+    pub total: u64,
+    pub offset: u64,
+    pub limit: u64,
+    pub truncated: bool,
+}
+
 /// What an aggregate filters on, and how far it is allowed to read.
+///
+/// `provider_id` and `credential_id` are not columns: they name upstream
+/// attempts inside a record's `exchanges[]`, and a record can hold several —
+/// a request that failed over from one credential to another. With either set
+/// the aggregate cuts at the attempt, the same way the per-provider grouping
+/// always has:
+///
+/// - a record matches when at least one of its attempts matches every
+///   attempt filter given, and it then counts as one request;
+/// - its tokens and cost are the sum over the matching attempts only, each
+///   priced on its own, never the record's settled total — so a failed-over
+///   request contributes to each credential exactly what that credential
+///   spent, and the two cuts add back up to the whole;
+/// - the summary, every trend bucket and every column group apply that same
+///   rule, so they stay consistent with one another; a group by provider or
+///   credential additionally keys each matching attempt by its own id.
+///
+/// Without either filter nothing changes: a record contributes its settled
+/// cost column and its top-level token totals. `scanned` and the row cap count
+/// every record the column filters let through, matching or not, because the
+/// attempt filters are applied after the rows are read.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
@@ -260,6 +310,10 @@ pub struct UsageQuery {
     pub api_key_id: Option<String>,
     pub model: Option<String>,
     pub operation: Option<String>,
+    /// Only what this provider's attempts account for. See the type note.
+    pub provider_id: Option<String>,
+    /// Only what this credential's attempts account for. See the type note.
+    pub credential_id: Option<String>,
     /// How many matching records the aggregation may read before it stops and
     /// says so. Absent means `query::MAX_SCAN_ROWS`; the value is clamped to
     /// it, so a caller cannot ask the process to read a year of traffic into
@@ -282,6 +336,9 @@ pub enum UsageGroupBy {
     /// column: a request that failed over is counted under every provider it
     /// actually reached, with that provider's own tokens and cost.
     Provider,
+    /// The same per-attempt cut as `Provider`, keyed by the credential that
+    /// served each attempt: what each upstream account actually spent.
+    Credential,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

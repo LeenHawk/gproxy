@@ -36,6 +36,8 @@ async fn usage<C: BatchConnectionTrait + Send + Sync + 'static>(
             api_key_id: query.api_key_id,
             model: query.model,
             operation: query.operation,
+            provider_id: query.provider_id,
+            credential_id: query.credential_id,
             max_scan_rows: None,
         };
         let handle = state.app().gproxy().query();

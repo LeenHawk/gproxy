@@ -103,7 +103,8 @@ pub use transfer::{
 pub(crate) use usage::money;
 pub use usage::{
     UsageExchangeDto, UsageGroupBy, UsageGroupDto, UsageGroupQuery, UsageQuery, UsageRecordDto,
-    UsageRecordQuery, UsageSummaryDto, UsageTokensDto, UsageTrendPointDto, UsageTrendQuery,
+    UsageRecordPage, UsageRecordQuery, UsageSummaryDto, UsageTokensDto, UsageTrendPointDto,
+    UsageTrendQuery,
 };
 
 // The tokenizer family's shapes are declared next to the operations that

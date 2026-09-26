@@ -185,6 +185,7 @@ exported!(
     UsageGroupQuery,
     UsageQuery,
     UsageRecordDto,
+    UsageRecordPage,
     UsageRecordQuery,
     UsageSummaryDto,
     UsageTokensDto,
