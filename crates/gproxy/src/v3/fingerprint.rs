@@ -8,23 +8,18 @@
 //! `gproxy_client::EmulationConfig` itself, because import does not look inside
 //! the object and a malformed one would only fail when the client is built.
 //!
-//! Not carried, and reported: `tls.extension_permutation`, which v4's
-//! fingerprint has no field for.
+//! Every layer carries, `tls.extension_permutation` included.
 
 use gproxy_sdk::dto::ConnectionProfileDto;
 use serde_json::{Map, Value, json};
-
-use super::Report;
 
 /// The v4 profile a v3 fingerprint becomes, or why it cannot.
 pub fn profile(
     id: String,
     name: String,
     fingerprint: &Value,
-    owner: &str,
-    report: &mut Report,
 ) -> Result<ConnectionProfileDto, String> {
-    let emulation = emulation(fingerprint, owner, report)?;
+    let emulation = emulation(fingerprint)?;
     serde_json::from_value::<gproxy_sdk::EmulationConfig>(emulation.clone())
         .map_err(|error| format!("it does not describe a usable client: {error}"))?;
     Ok(ConnectionProfileDto {
@@ -46,7 +41,7 @@ pub fn profile(
     })
 }
 
-fn emulation(fingerprint: &Value, owner: &str, report: &mut Report) -> Result<Value, String> {
+fn emulation(fingerprint: &Value) -> Result<Value, String> {
     let root = fingerprint
         .as_object()
         .ok_or("the fingerprint is not a JSON object")?;
@@ -94,15 +89,20 @@ fn emulation(fingerprint: &Value, owner: &str, report: &mut Report) -> Result<Va
                 out.insert(v4.into(), value.clone());
             }
         }
-        if tls
-            .get("extension_permutation")
-            .and_then(Value::as_array)
-            .is_some_and(|ids| !ids.is_empty())
-        {
-            report.warn(format!(
-                "{owner}: its TLS fingerprint's extension_permutation has no v4 field and was \
-                 not carried"
-            ));
+        if let Some(ids) = tls.get("extension_permutation") {
+            let ids = ids
+                .as_array()
+                .ok_or("tls.extension_permutation is not an array")?
+                .iter()
+                .map(|id| {
+                    id.as_u64()
+                        .and_then(|id| u16::try_from(id).ok())
+                        .ok_or_else(|| format!("tls.extension_permutation has `{id}`"))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            if !ids.is_empty() {
+                out.insert("extension_permutation".into(), json!(ids));
+            }
         }
     }
     if let Some(http2) = root.get("http2").filter(|http2| !http2.is_null()) {
@@ -183,7 +183,6 @@ mod tests {
 
     #[test]
     fn a_v3_fingerprint_becomes_a_custom_wreq_profile() {
-        let mut report = Report::default();
         let out = profile(
             "p".into(),
             "n".into(),
@@ -196,8 +195,6 @@ mod tests {
                           "settings_order": [1, 2, 4, 6]},
                 "headers": {"user-agent": "x/1"}
             }),
-            "provider 1",
-            &mut report,
         )
         .unwrap();
         assert_eq!(out.backend, "wreq");
@@ -210,21 +207,17 @@ mod tests {
             "initial_window_size"
         );
         assert_eq!(emulation["headers"], json!([["user-agent", "x/1"]]));
-        assert_eq!(report.warnings.len(), 1, "extension_permutation");
+        assert_eq!(emulation["extension_permutation"], json!([0, 10]));
     }
 
     #[test]
     fn an_unusable_fingerprint_is_refused() {
-        let mut report = Report::default();
         for bad in [
             json!({}),
             json!({"headers": false}),
             json!({"tls": {"min_tls_version": "ssl3"}}),
         ] {
-            assert!(
-                profile("p".into(), "n".into(), &bad, "o", &mut report).is_err(),
-                "{bad}"
-            );
+            assert!(profile("p".into(), "n".into(), &bad).is_err(), "{bad}");
         }
     }
 }

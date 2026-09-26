@@ -185,6 +185,7 @@ pub fn default_connection() -> ConnectionConfig {
             ),
             preserve_tls13_cipher_list: Some(false),
             grease: Some(false),
+            extension_permutation: None,
             ocsp_stapling: None,
             signed_cert_timestamps: None,
             http2: None,
