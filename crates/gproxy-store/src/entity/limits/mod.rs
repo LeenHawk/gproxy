@@ -3,6 +3,7 @@
 
 pub mod counted_window;
 pub mod credential_block;
+pub mod credential_cycle;
 pub mod credential_quota_cycle;
 pub mod quota;
 pub mod quota_settlement;

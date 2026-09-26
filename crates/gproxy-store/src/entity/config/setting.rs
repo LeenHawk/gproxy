@@ -90,6 +90,12 @@ pub struct Model {
     // Files and maintenance
     /// Completed request history retention; None disables age-based cleanup.
     pub retention_days: Option<u32>,
+    /// Upstream quota observation log (`credential_quota_cycles`) retention;
+    /// None keeps every observation. Separate from `retention_days` because
+    /// the log feeds per-cycle cost analysis long after request bodies are
+    /// gone. The cycles themselves (`credential_cycles`) are never pruned.
+    #[sea_orm(default_value = 90)]
+    pub quota_observation_retention_days: Option<u32>,
     /// SQLite history budget in MiB; None or zero disables size-based cleanup.
     pub max_database_size_mb: Option<i64>,
     /// None follows the application's build channel.

@@ -451,6 +451,8 @@ impl QuotaReset for Codex {
                     ResetCode::AlreadyRedeemed => QuotaResetOutcome::AlreadyRedeemed,
                 },
                 windows_reset: response.windows_reset,
+                // A Codex credit reopens every window the account has.
+                clears: Vec::new(),
             })
         })
     }

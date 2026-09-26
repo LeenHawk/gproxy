@@ -13,7 +13,7 @@
 use super::{allowance, snapshot_json};
 use crate::{Core, CoreError, CoreResult, keys};
 use gproxy_cache::{CasOutcome, Replacement};
-use gproxy_channel::channel::{QuotaDimension, QuotaEntry, QuotaWindow};
+use gproxy_channel::channel::{QuotaAllowance, QuotaDimension, QuotaEntry, QuotaWindow};
 use gproxy_seaorm::BatchConnectionTrait;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -23,7 +23,7 @@ use std::time::Duration;
 pub(super) const HEARTBEAT_MS: i64 = 15 * 60 * 1000;
 /// Boundary drift below this is the same period: upstreams round reset
 /// times and derive them from their own clock.
-const PERIOD_TOLERANCE_MS: i64 = 5 * 60 * 1000;
+pub(super) const PERIOD_TOLERANCE_MS: i64 = 5 * 60 * 1000;
 
 /// The latest persisted reading of one entry.
 #[derive(Clone, Serialize, Deserialize)]
@@ -96,22 +96,28 @@ fn not_started(dimensions: &[QuotaDimension], entry: &QuotaEntry, now_ms: i64) -
     let Some(a) = allowance(&entry.value) else {
         return false;
     };
-    let idle = match a.used_percent {
-        Some(percent) => percent.is_zero(),
-        None => a.used.is_some_and(|used| used.is_zero()),
-    };
-    let Some(end) = a.period_end_ms.filter(|_| idle) else {
-        return false;
-    };
-    let window_ms = match a.period_start_ms {
-        Some(start) => Some(end.saturating_sub(start)),
-        None => dimensions
+    let window_ms = match (a.period_start_ms, a.period_end_ms) {
+        (Some(start), Some(end)) => Some(end.saturating_sub(start)),
+        _ => dimensions
             .iter()
             .find(|d| d.id == entry.source_id)
             .and_then(|d| match d.window {
                 QuotaWindow::Rolling { seconds } => Some(seconds.saturating_mul(1000)),
                 _ => None,
             }),
+    };
+    idle_window(a, window_ms, now_ms)
+}
+
+/// Whether `a` reads as an unused window of `window_ms`: nothing used, and a
+/// reset one window after `now_ms` within the tolerance.
+pub(super) fn idle_window(a: &QuotaAllowance, window_ms: Option<i64>, now_ms: i64) -> bool {
+    let idle = match a.used_percent {
+        Some(percent) => percent.is_zero(),
+        None => a.used.is_some_and(|used| used.is_zero()),
+    };
+    let Some(end) = a.period_end_ms.filter(|_| idle) else {
+        return false;
     };
     window_ms.is_some_and(|window| {
         window > 0 && end.abs_diff(now_ms.saturating_add(window)) <= PERIOD_TOLERANCE_MS as u64

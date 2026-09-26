@@ -69,6 +69,7 @@ fn register_entities<R: gproxy_seaorm::EntityRegistry>(registry: R) -> R {
         .register(entity::limits::quota_window::Entity)
         .register(entity::limits::quota_settlement::Entity)
         .register(entity::limits::credential_quota_cycle::Entity)
+        .register(entity::limits::credential_cycle::Entity)
         .register(entity::limits::credential_block::Entity)
         .register(entity::pricing::price_rule::Entity)
         .register(entity::pricing::price_rate::Entity)

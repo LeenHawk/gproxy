@@ -1,8 +1,9 @@
 //! Account quota observation and self-counted consumption.
 //!
 //! Reported dimensions get their values from `QuotaHeaders` after every
-//! upstream answer and from `QuotaQuery` on demand; each entry that changed
-//! (see `dedupe`) is persisted as a `credential_quota_cycles` row and an
+//! upstream answer and from `QuotaQuery` on demand; every reading moves the
+//! credential's cycles (see `cycles`), each entry that changed (see `dedupe`)
+//! is persisted as a `credential_quota_cycles` observation row and an
 //! exhausted entry becomes a `QuotaExhausted` block until the upstream's
 //! period end (or one window derived from the dimension). Counted dimensions are metered in Store's
 //! `counted_windows` rows: requests before the exchange, tokens and priced
@@ -34,6 +35,7 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::{borrow::Cow, sync::Arc};
 use time::{Duration as TimeDuration, OffsetDateTime};
 
+pub(crate) mod cycles;
 mod dedupe;
 
 /// `Total` windows never reset; the counter still needs a cache TTL.
@@ -256,9 +258,10 @@ fn exhaustion_blocks(
 }
 
 impl<C: BatchConnectionTrait> Core<C> {
-    /// Persist the entries that changed as quota cycles and block on the
-    /// exhausted ones that match a Reported dimension. Returns the blocks
-    /// written.
+    /// Persist the entries that changed as observation rows, move the
+    /// credential's cycles by every reading (persisted or not), and block on
+    /// the exhausted ones that match a Reported dimension. Returns the
+    /// blocks written.
     pub(crate) async fn observe_quota(
         &self,
         credential: &CredentialData,
@@ -271,23 +274,74 @@ impl<C: BatchConnectionTrait> Core<C> {
         let latest = self.persisted_quota_observations(&credential.id).await?;
         let data = self.snapshot();
         let model = quota_model(&data, credential);
-        let mut rows = Vec::with_capacity(entries.len());
-        let mut written = Vec::with_capacity(entries.len());
-        let mut blocks = Vec::new();
+        let subject = cycles::CycleSubject::of(credential);
+        let mut readings = Vec::with_capacity(entries.len());
+        let mut facts = Vec::new();
         for entry in entries {
             let reading = dedupe::Persisted::new(&credential.quota, entry, now_ms);
             // An exhausted entry always gets its row: its blocks name it.
             let exhausted = exhausted(&entry.value);
-            if !exhausted
-                && latest
+            let write = exhausted
+                || !latest
                     .iter()
                     .find(|p| p.id() == entry.id)
-                    .is_some_and(|p| !p.needs_write(&reading))
-            {
+                    .is_some_and(|p| !p.needs_write(&reading));
+            let dimension = classify(model, credential, entry);
+            // Only declared billing windows keep cycles; rate limits and
+            // breakdowns are not periods anything is spent in.
+            let fact = dimension
+                .as_deref()
+                .filter(|d| subject.dimensions.iter().any(|s| s.id == d.id))
+                .filter(|_| {
+                    !matches!(
+                        entry.value,
+                        QuotaValue::RateLimit(_) | QuotaValue::Breakdown(_)
+                    )
+                })
+                .map(|d| {
+                    let scope = match &d.scope {
+                        QuotaScope::Unknown => entry.model_scope.clone(),
+                        scope => scope.clone(),
+                    };
+                    facts.push(cycles::Facts::new(
+                        &entry.id,
+                        d,
+                        scope,
+                        allowance(&entry.value),
+                        write,
+                        now_ms,
+                    ));
+                    facts.len() - 1
+                });
+            readings.push((entry, reading, exhausted, write, dimension, fact));
+        }
+        // Cycle bookkeeping never stands in the way of the observation log or
+        // of a block: a failure here costs the link, not the reading.
+        let links = match (cycles::Cycles {
+            store: self.store(),
+            cache: self.cache(),
+        })
+        .observe(&credential.id, &facts, now_ms)
+        .await
+        {
+            Ok(links) => links,
+            Err(error) => {
+                tracing::warn!(credential_id = %credential.id, %error, "quota cycles were not updated");
+                Vec::new()
+            }
+        };
+        let mut rows = Vec::with_capacity(entries.len());
+        let mut written = Vec::with_capacity(entries.len());
+        let mut blocks = Vec::new();
+        for (entry, reading, exhausted, write, dimension, fact) in readings {
+            if !write {
                 continue;
             }
             let cycle_id = ids::random_id();
             let period = allowance(&entry.value);
+            let link = fact
+                .and_then(|index| links.get(index))
+                .and_then(Option::as_ref);
             rows.push(credential_quota_cycle::ActiveModel {
                 id: Set(cycle_id.clone()),
                 credential_id: Set(credential.id.clone()),
@@ -297,11 +351,11 @@ impl<C: BatchConnectionTrait> Core<C> {
                 observed_at_ms: Set(now_ms),
                 starts_at_ms: Set(period.and_then(|a| a.period_start_ms)),
                 resets_at_ms: Set(period.and_then(|a| a.period_end_ms)),
+                credential_cycle_id: Set(link.map(|l| l.cycle_id.clone())),
+                cycle_cost_usd: Set(link.map(|l| l.cost_usd)),
             });
             written.push(reading);
-            let dimension = classify(model, credential, entry)
-                .filter(|d| d.tracking == QuotaTracking::Reported);
-            if let Some(dimension) = dimension
+            if let Some(dimension) = dimension.filter(|d| d.tracking == QuotaTracking::Reported)
                 && exhausted
             {
                 blocks.extend(exhaustion_blocks(&dimension, entry, &cycle_id, now_ms));
@@ -534,7 +588,7 @@ impl<C: BatchConnectionTrait> Core<C> {
     where
         C: Send,
     {
-        let (_, result) = self
+        let (credential, result) = self
             .quota_operation(provider_id, credential_id, |provider, context| {
                 let redeem_request_id = request.redeem_request_id.to_owned();
                 let program = request.program.map(str::to_owned);
@@ -556,6 +610,31 @@ impl<C: BatchConnectionTrait> Core<C> {
                 })
             })
             .await?;
+        if result.outcome == gproxy_channel::channel::QuotaResetOutcome::Reset {
+            // The upstream reopened the windows: cut their cycles here, at
+            // the moment it said so, then ask for the new boundaries. Neither
+            // step can undo a redemption that already happened, so neither
+            // fails it.
+            let cut = cycles::Cycles {
+                store: self.store(),
+                cache: self.cache(),
+            }
+            .manual_reset(
+                &cycles::CycleSubject::of(&credential),
+                &result.clears,
+                now_ms(),
+            )
+            .await;
+            if let Err(error) = cut {
+                tracing::warn!(credential_id, %error, "quota cycles were not cut after a reset");
+            }
+            if let Err(error) = self
+                .query_credential_quota(provider_id, credential_id)
+                .await
+            {
+                tracing::debug!(credential_id, %error, "no quota reading after a reset");
+            }
+        }
         Ok(result)
     }
 
@@ -701,6 +780,34 @@ impl<C: BatchConnectionTrait + Send + Sync> UsageMeter for CountedMeter<C> {
                         now,
                     )
                     .await;
+                }
+                // Cycles accrue USD only; another currency is not converted.
+                let usd = match &exchange.cost {
+                    Some(cost) if cost.currency.eq_ignore_ascii_case("USD") => Some(cost.amount),
+                    Some(cost) => {
+                        tracing::debug!(
+                            credential_id = %credential.id,
+                            currency = %cost.currency,
+                            "a cost in another currency does not accrue to quota cycles"
+                        );
+                        None
+                    }
+                    None => None,
+                };
+                if let Err(error) = (cycles::Cycles {
+                    store: &self.store,
+                    cache: &self.cache,
+                })
+                .accrue(
+                    &cycles::CycleSubject::of(credential),
+                    request.operation.operation,
+                    exchange.upstream_model.as_deref(),
+                    usd,
+                    now,
+                )
+                .await
+                {
+                    tracing::warn!(credential_id = %credential.id, %error, "quota cycles missed a charge");
                 }
                 // Cost dimensions count USD; an unpriced exchange (or one
                 // priced in another currency) charges nothing.

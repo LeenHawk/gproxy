@@ -65,3 +65,9 @@ pub fn credential_reset_observations(credential_id: &str) -> String {
 pub fn credential_quota_observations(credential_id: &str) -> String {
     format!("{PREFIX}:quota-observations:{credential_id}")
 }
+
+/// The open `credential_cycles` of one credential, as the settlement path
+/// reads them. Store arbitrates; this is a short-lived hint.
+pub fn credential_cycles(credential_id: &str) -> String {
+    format!("{PREFIX}:cycles:{credential_id}")
+}

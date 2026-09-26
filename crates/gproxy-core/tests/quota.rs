@@ -729,3 +729,63 @@ async fn exhausted_observations_always_persist_and_block() {
         "the block names a persisted row"
     );
 }
+
+#[tokio::test]
+async fn readings_move_declared_cycles_and_undeclared_ones_never_open_one() {
+    let h = harness(full(), "sticky").await;
+    seed_quota_provider(
+        &h,
+        json!({"quota": [{"id": "primary", "metric": "requests", "window_seconds": 18000, "tracking": "reported"}]}),
+    )
+    .await;
+    let reading = |id: &str, percent: i64, reset: i64| QuotaEntry {
+        id: id.into(),
+        source_id: id.into(),
+        label: None,
+        subject: QuotaSubject::Account,
+        model_scope: QuotaScope::All,
+        value: QuotaValue::Window(QuotaAllowance {
+            used_percent: Some(percent.into()),
+            period_end_ms: Some(reset),
+            ..Default::default()
+        }),
+    };
+    let reset = now() + 2 * 60 * 60 * 1000;
+    h.channel
+        .quota_snapshots
+        .lock()
+        .unwrap()
+        .push_back(QuotaSnapshot {
+            observed_at_ms: 0,
+            entries: vec![reading("primary", 10, reset), reading("extra", 50, reset)],
+        });
+    h.core.query_credential_quota("q", "q1").await.unwrap();
+    let cycles = h
+        .core
+        .store()
+        .credential_cycles()
+        .recent("q1", 10)
+        .await
+        .unwrap();
+    assert_eq!(cycles.len(), 1, "{cycles:?}");
+    assert_eq!(cycles[0].window_id, "primary");
+    assert_eq!(cycles[0].ends_at_ms, Some(reset));
+    assert_eq!(
+        cycles[0].boundary,
+        gproxy_store::entity::limits::credential_cycle::CycleBoundary::Observed
+    );
+    let rows = cycle_rows(&h, "q1").await;
+    assert_eq!(rows.len(), 2);
+    for row in rows {
+        if row.snapshot["id"] == "primary" {
+            assert_eq!(
+                row.credential_cycle_id.as_deref(),
+                Some(cycles[0].id.as_str())
+            );
+            assert_eq!(row.cycle_cost_usd, Some(gproxy_store::FixedDecimal::ZERO));
+        } else {
+            assert_eq!(row.credential_cycle_id, None);
+            assert_eq!(row.cycle_cost_usd, None);
+        }
+    }
+}

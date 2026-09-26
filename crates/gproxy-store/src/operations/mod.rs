@@ -3,6 +3,7 @@
 pub mod agents;
 pub mod counted;
 pub mod credentials;
+pub mod cycles;
 pub mod oauth;
 mod oauth_policy;
 pub mod quota;

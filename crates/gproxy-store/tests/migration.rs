@@ -144,7 +144,13 @@ async fn running_the_migrator_twice_is_a_no_op() {
 
     let first = store.migrate().await.unwrap();
     assert!(first.installed);
-    assert_eq!(first.ledger, ["m20260921_000001_baseline"]);
+    assert_eq!(
+        first.ledger,
+        [
+            "m20260921_000001_baseline",
+            "m20260926_000001_credential_cycles"
+        ]
+    );
     let after_first = schema(store.connection()).await;
 
     let second = store.migrate().await.unwrap();
@@ -306,7 +312,52 @@ async fn a_guarded_migration_is_a_no_op_where_the_baseline_already_did_it() {
                 .into_iter()
                 .filter(|(_, status)| *status == MigrationStatus::Applied)
                 .count(),
-            2
+            3
         );
     }
+}
+
+/// A database from before credential cycles: no cycle table, no link columns
+/// or time index on the observation log, no retention setting. The migration
+/// carries it to exactly what a fresh install has.
+#[tokio::test]
+async fn the_cycle_migration_brings_an_older_database_to_the_fresh_schema() {
+    let fresh = connection().await;
+    Store::new(fresh.clone()).install().await.unwrap();
+
+    let older = connection().await;
+    Store::new(older.clone()).install().await.unwrap();
+    for sql in [
+        "DROP TABLE credential_cycles",
+        "DROP INDEX \"idx-credential_quota_cycles-by_credential\"",
+        "DROP INDEX \"idx-credential_quota_cycles-observed_at_ms\"",
+        "ALTER TABLE credential_quota_cycles DROP COLUMN credential_cycle_id",
+        "ALTER TABLE credential_quota_cycles DROP COLUMN cycle_cost_usd",
+        "ALTER TABLE settings DROP COLUMN quota_observation_retention_days",
+        "DELETE FROM seaql_migrations WHERE version = 'm20260926_000001_credential_cycles'",
+    ] {
+        older.execute_unprepared(sql).await.unwrap();
+    }
+    let report = Store::new(older.clone()).migrate().await.unwrap();
+    assert_eq!(report.applied, ["m20260926_000001_credential_cycles"]);
+    for table in ["credential_cycles", "credential_quota_cycles", "settings"] {
+        assert_eq!(
+            columns(&older, table).await,
+            columns(&fresh, table).await,
+            "{table}"
+        );
+    }
+    let indexes = |db| async move {
+        schema(db)
+            .await
+            .into_iter()
+            .filter(|(kind, name, _)| {
+                kind == "index"
+                    && (name.contains("credential_cycles")
+                        || name.contains("credential_quota_cycles"))
+            })
+            .map(|(_, name, _)| name)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(indexes(&older).await, indexes(&fresh).await);
 }
