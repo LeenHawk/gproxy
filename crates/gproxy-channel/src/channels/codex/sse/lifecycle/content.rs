@@ -76,6 +76,10 @@ pub(super) fn apply(state: &mut ItemState, event: &Event) -> Result<(), ChannelE
         });
     }
     if let Some(part) = event.rest.get("part") {
+        // Deltas are later written into this part by key.
+        if !part.is_object() {
+            return Err(invalid("content part must be an object"));
+        }
         parts[index] = part.clone();
         return Ok(());
     }
@@ -117,4 +121,30 @@ pub(super) fn started(mut item: Value) -> Value {
         _ => {}
     }
     item
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn event(value: Value) -> Event {
+        serde_json::from_value(value).unwrap()
+    }
+
+    #[test]
+    fn a_part_that_is_not_an_object_is_refused_before_a_delta_lands_in_it() {
+        let mut state = ItemState::default();
+        let added = event(json!({
+            "type": "response.content_part.added",
+            "item_id": "m", "content_index": 0, "part": 1
+        }));
+        assert!(apply(&mut state, &added).is_err());
+        // What does land keeps every part an object, so the delta is a write
+        // into an object and not a panic.
+        let delta = event(json!({
+            "type": "response.output_text.delta",
+            "item_id": "m", "content_index": 0, "delta": "hi"
+        }));
+        apply(&mut state, &delta).unwrap();
+    }
 }

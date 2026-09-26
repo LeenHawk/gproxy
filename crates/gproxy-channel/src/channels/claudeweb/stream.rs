@@ -346,10 +346,17 @@ pub(super) struct Collector {
 impl Collector {
     pub(super) fn push(&mut self, event: &Value) -> Result<(), ChannelError> {
         match event.get("type").and_then(Value::as_str) {
+            // Everything collected here is later written into by key, and
+            // serde_json panics on a key write into anything but an object
+            // or null: the upstream's shapes are checked as they arrive.
             Some("message_start") => {
                 let mut message = event.get("message").cloned().unwrap_or_else(|| json!({}));
-                if let Some(object) = message.as_object_mut() {
-                    object.remove("content");
+                let object = message
+                    .as_object_mut()
+                    .ok_or_else(|| not_an_object("message_start.message"))?;
+                object.remove("content");
+                if object.get("usage").is_some_and(|usage| !usage.is_object()) {
+                    return Err(not_an_object("message_start.message.usage"));
                 }
                 self.message = Some(message);
             }
@@ -358,6 +365,9 @@ impl Collector {
                     .get("content_block")
                     .cloned()
                     .unwrap_or_else(|| json!({"type": "text", "text": ""}));
+                if !block.is_object() {
+                    return Err(not_an_object("content_block_start.content_block"));
+                }
                 if block.get("type").and_then(Value::as_str) == Some("tool_use")
                     && block.get("input").is_none()
                 {
@@ -401,6 +411,9 @@ impl Collector {
             Some("message_delta") => {
                 let message = self.message.get_or_insert_with(|| json!({}));
                 if let Some(delta) = event.get("delta").and_then(Value::as_object) {
+                    if delta.get("usage").is_some_and(|usage| !usage.is_object()) {
+                        return Err(not_an_object("message_delta.delta.usage"));
+                    }
                     for (key, value) in delta {
                         message[key] = value.clone();
                     }
@@ -436,9 +449,44 @@ impl Collector {
     }
 }
 
+fn not_an_object(field: &str) -> ChannelError {
+    ChannelError::InvalidResponse(format!("{field} must be an object"))
+}
+
 fn append(block: &mut Value, field: &str, delta: Option<&Value>) {
     if let Some(text) = delta.and_then(Value::as_str) {
         let current = block.get(field).and_then(Value::as_str).unwrap_or_default();
         block[field] = Value::String(format!("{current}{text}"));
+    }
+}
+
+#[cfg(test)]
+mod collector_tests {
+    use super::*;
+
+    #[test]
+    fn upstream_shapes_that_are_not_objects_are_refused_not_written_into() {
+        for event in [
+            json!({"type": "message_start", "message": 1}),
+            json!({"type": "message_start", "message": {"usage": 1}}),
+            json!({"type": "content_block_start", "index": 0, "content_block": "x"}),
+            json!({"type": "message_delta", "delta": {"usage": 1}, "usage": {"output_tokens": 2}}),
+        ] {
+            let mut collector = Collector::default();
+            assert!(collector.push(&event).is_err(), "{event}");
+        }
+
+        let mut collector = Collector::default();
+        for event in [
+            json!({"type": "message_start", "message": {"id": "m"}}),
+            json!({"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}}),
+            json!({"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "hi"}}),
+            json!({"type": "message_delta", "delta": {"stop_reason": "end_turn"}, "usage": {"output_tokens": 2}}),
+        ] {
+            collector.push(&event).unwrap();
+        }
+        let message = collector.finish();
+        assert_eq!(message["content"][0]["text"], "hi");
+        assert_eq!(message["usage"]["output_tokens"], 2);
     }
 }
