@@ -25,6 +25,7 @@
 //! | `price_rates` | `price_rates` | direct; `unit_size` is `unit_quantity`, and the unit is read off the metric name |
 //! | `quotas` | `quotas` | one v3 row is up to six v4 rows, one per period column |
 //! | `aliases` | `provider_models` variants, `routes` | provider aliases are variants, global ones routes |
+//! | `routing_rules` (operator-made) | `operation_rules` | one `routing` rule per provider and operation |
 //! | `rule_sets`, `provider_rule_sets` | `rewrite_rule_sets`, `provider_rewrite_rule_sets` | direct |
 //! | `rules` | `rewrite_rules` | every kind; content rules once per dialect; see [`super::rules`] |
 //!
@@ -33,13 +34,8 @@
 //! - **A global alias to a bare model name.** It names no route and no
 //!   provider, and v4 needs one; the rest of `aliases` travels as variants
 //!   and routes, see [`super::aliases`].
-//! - **`routing_rules`.** They look like v4's `operation_rules` and are not.
-//!   v3 **seeded** them from the channel's own defaults whenever a provider was
-//!   created (`v3:crates/gproxy-admin/src/defaults.rs`), so the table is mostly
-//!   a frozen copy of v3's channel declarations. v4 asks the channel at
-//!   assembly instead and only stores a row to *override* it. Importing them
-//!   would pin every provider to what v3's channels supported on the day the
-//!   provider was made, which is the opposite of an upgrade.
+//! - **`routing_rules` seeded from channel defaults**, and exported rows
+//!   whose origin v3's export did not keep; see [`super::routing`].
 //! - **A `transform` rule with a `limit`**, and rule settings v4's compiler
 //!   refuses; see [`super::rules`].
 //! - **`credentials.weight` and `credentials.tpm_limit`.** v4 balances by route
@@ -63,7 +59,7 @@ use serde_json::Value;
 use super::{
     Report, aliases, channels,
     document::{self, Document},
-    endpoints, fingerprint, ids, provider_config, rules,
+    endpoints, fingerprint, ids, provider_config, routing, rules,
     secret::{Bridge, Domain},
 };
 use crate::{Error, Result};
@@ -221,7 +217,8 @@ pub fn translate(
     }
     report.count("quotas", quotas.len() as u64);
 
-    refuse_unmappable(data, &mut report);
+    let operation_rules = routing::translate(data, &|id| providers.kept(id), &mut report);
+    report.count("operation_rules", operation_rules.len() as u64);
 
     Ok(Configuration {
         export: ConfigurationExportDto {
@@ -241,7 +238,7 @@ pub fn translate(
                 routes,
                 route_members,
                 // See the module note: v3's routing rules are channel defaults.
-                operation_rules: Vec::new(),
+                operation_rules,
                 operation_endpoints: providers.endpoints,
                 rewrite_rule_sets: rule_sets,
                 rewrite_rules,
@@ -1035,24 +1032,6 @@ fn provider_rule_set(row: &document::ProviderRuleSet, timestamp: i64) -> Provide
     }
 }
 
-// ------------------------------------------------------------ the rest --
-
-/// The v3 tables with no v4 form at all, named row by row. See the module note
-/// for why each one is here rather than translated.
-fn refuse_unmappable(data: &document::Data, report: &mut Report) {
-    // Reported once rather than once per row: a provider has one of these per
-    // operation and dialect, and a hundred identical lines would bury the rest.
-    if !data.routing_rules.is_empty() {
-        report.drop_row(
-            "routing_rules",
-            format!("{} rows", data.routing_rules.len()),
-            "v3 seeded these from its channels' own declarations; v4 asks the channel at \
-             assembly and only stores a row to override it, so importing them would pin every \
-             provider to what v3 supported",
-        );
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1282,7 +1261,7 @@ mod tests {
     }
 
     #[test]
-    fn aliases_and_routing_rules_are_reported_as_work_to_redo() {
+    fn a_bare_global_alias_and_exported_routing_rules_are_reported() {
         let out = translated(json!({
             "aliases": [{"id": 1, "alias": "gpt4", "target": "gpt-4-turbo", "enabled": true}],
             "routing_rules": [
