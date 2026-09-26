@@ -132,9 +132,10 @@ pub fn v3_export() -> Value {
             ],
             "providers": [{
                 "id": 1, "name": "upstream", "label": "Upstream (prod)",
-                "channel": "custom", "credential_strategy": "round_robin",
+                "channel": "custom", "credential_strategy": "sticky",
                 "proxy_url": null, "tls_fingerprint": null, "enabled": true,
-                "settings": {"base_url": "http://127.0.0.1:1/v1"}
+                "settings": {"base_url": "http://127.0.0.1:1/v1",
+                             "endpoints": {"claude_messages": "http://127.0.0.1:1/relay/messages"}}
             }],
             "credentials": [{
                 "config": {"id": 1, "provider_id": 1, "label": "prod token",
@@ -165,7 +166,9 @@ pub fn v3_export() -> Value {
                                  "display_name": "Claude Sonnet 4",
                                  "context_window": 200000,
                                  "max_output_tokens": 64000,
-                                 "metadata": {}, "enabled": true}]
+                                 "metadata": {},
+                                 "variants": ["claude-sonnet-4-thinking"],
+                                 "enabled": true}]
         }
     })
 }
@@ -368,6 +371,18 @@ async fn a_v3_deployment_becomes_a_working_v4_one() {
         one(store.provider_models()).await.upstream_name,
         "claude-sonnet-4"
     );
+    assert_eq!(
+        one(store.provider_models()).await.metadata["variants"],
+        serde_json::json!(["claude-sonnet-4-thinking"])
+    );
+    // v3's provider column and its `endpoints` setting both land where v4
+    // reads them.
+    assert_eq!(provider.config["credential_strategy"], "sticky");
+    assert!(provider.config.get("endpoints").is_none());
+    let endpoints = all(store.operation_endpoints()).await;
+    assert_eq!(endpoints.len(), 2, "the call and its streaming form");
+    assert!(endpoints.iter().all(|endpoint| endpoint.dialect == "claude"
+        && endpoint.url == "http://127.0.0.1:1/relay/messages"));
     // v3's memberships: alice is in the organization and in the team, the
     // administrator only in the organization.
     assert_eq!(all(store.organization_members()).await.len(), 2);

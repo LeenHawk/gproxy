@@ -526,6 +526,10 @@ pub struct ProviderModel {
     pub max_output_tokens: Option<i64>,
     #[serde(default)]
     pub metadata: Value,
+    /// Variant names served off this model: a bare array, or
+    /// `{variants, expose_base}` (v3 `records/model.rs::parse_model_variants`).
+    #[serde(default)]
+    pub variants: Value,
     #[serde(default)]
     pub enabled: bool,
 }

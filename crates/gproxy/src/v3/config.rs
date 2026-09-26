@@ -12,11 +12,13 @@
 //! |---|---|---|
 //! | `providers` | `providers` | direct; `settings` becomes `config`, and a `base_url` inside it is lifted into v4's column |
 //! | `providers.proxy_url`, `credentials.proxy_url` | scoped `proxy` | independent proxy overrides |
+//! | `providers.credential_strategy` and renamed `settings` keys | `providers.config` | see [`super::provider_config`] |
+//! | `providers.settings.endpoints` | `operation_endpoints` | one row per operation and dialect the v3 name meant; see [`super::endpoints`] |
 //! | `credentials` | `credentials` | direct; `kind` is v4's `auth_kind`; the secret is opened and re-sealed |
 //! | `credentials.rpm_limit` | `quotas` | an operator limit: `requests` per 60 seconds on that credential |
 //! | `routes`, `route_members` | same | direct |
 //! | `model_aliases` | `routes`, `route_members` | public names become route names; additional aliases copy their members |
-//! | `provider_models` | `provider_models` | direct; v3's `model_id` is v4's `upstream_name` |
+//! | `provider_models` | `provider_models` | direct; v3's `model_id` is v4's `upstream_name`, and `variants` move into `metadata` |
 //! | `price_rules` | `price_rules` | direct; v3 priced in USD only, so the currency is `USD` |
 //! | `price_rules.tiers` | `price_tiers` | the JSON array becomes rows, field for field |
 //! | `price_rates` | `price_rates` | direct; `unit_size` is `unit_quantity`, and the unit is read off the metric name |
@@ -56,16 +58,16 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use gproxy_sdk::dto::{
     ConfigurationDataDto, ConfigurationExportDto, CredentialDto, EXPORT_FORMAT_VERSION,
-    ExportCredentialDto, ModelDto, PriceRateDto, PriceRuleDto, PriceTierDto, ProviderDto,
-    ProviderModelDto, ProviderRuleSetDto, QuotaDto, RewriteRuleDto, RouteDto, RouteMemberDto,
-    RuleSetDto, SealedSecretDto,
+    ExportCredentialDto, ModelDto, OperationEndpointDto, PriceRateDto, PriceRuleDto, PriceTierDto,
+    ProviderDto, ProviderModelDto, ProviderRuleSetDto, QuotaDto, RewriteRuleDto, RouteDto,
+    RouteMemberDto, RuleSetDto, SealedSecretDto,
 };
 use serde_json::Value;
 
 use super::{
     Report, channels,
     document::{self, Action, Document, Locate, RuleConfig},
-    ids,
+    endpoints, ids, provider_config,
     secret::{Bridge, Domain},
 };
 use crate::{Error, Result};
@@ -109,6 +111,7 @@ pub fn translate(
     report.count("connection_profiles", 0);
     report.count("credentials", credentials.len() as u64);
     report.count("providers", providers.rows.len() as u64);
+    report.count("operation_endpoints", providers.endpoints.len() as u64);
     report.count("price_rules", price_rules.len() as u64);
     report.count("price_tiers", price_tiers.len() as u64);
     report.count("rewrite_rules", rewrite_rules.len() as u64);
@@ -232,7 +235,7 @@ pub fn translate(
                 route_members,
                 // See the module note: v3's routing rules are channel defaults.
                 operation_rules: Vec::new(),
-                operation_endpoints: Vec::new(),
+                operation_endpoints: providers.endpoints,
                 rewrite_rule_sets: rule_sets,
                 rewrite_rules,
                 provider_rewrite_rule_sets,
@@ -292,6 +295,8 @@ fn open_secrets(data: &document::Data, bridge: &Bridge) -> Result<Opened> {
 /// The translated providers.
 struct Providers {
     rows: Vec<ProviderDto>,
+    /// v3's per-provider `endpoints` overrides, as v4 rows.
+    endpoints: Vec<OperationEndpointDto>,
     /// v3 provider ids left behind under `--skip-unmappable-providers`.
     /// Everything that points at one has to be left behind with it, or the
     /// import would refuse on a dangling reference.
@@ -323,6 +328,7 @@ fn providers(
     report: &mut Report,
 ) -> Result<Providers> {
     let mut rows = Vec::with_capacity(data.providers.len());
+    let mut operation_endpoints = Vec::new();
     let mut dropped = BTreeSet::new();
     for row in &data.providers {
         // Preserve the invocation name separately from the display label.
@@ -354,6 +360,40 @@ fn providers(
         if let Some(note) = translated.note {
             report.warn(format!("provider {} ({name}): {note}", row.id));
         }
+        let mut config = translated.config;
+        let credentials = data
+            .credentials
+            .iter()
+            .filter(|credential| credential.config.provider_id == row.id)
+            .fold(
+                provider_config::Credentials::default(),
+                |mut seen, credential| {
+                    match credential.config.kind.trim() {
+                        "oauth" | "oauth_tokens" => seen.oauth = true,
+                        _ => seen.api_key = true,
+                    }
+                    seen
+                },
+            );
+        provider_config::translate(
+            &provider_config::Provider {
+                id: row.id,
+                name: &name,
+                channel: &translated.channel,
+                base_url: translated.base_url.as_deref(),
+                credential_strategy: row.credential_strategy.as_deref(),
+                credentials,
+            },
+            &mut config,
+            report,
+        );
+        operation_endpoints.extend(endpoints::translate(
+            row.id,
+            &name,
+            &translated.channel,
+            &mut config,
+            report,
+        ));
         rows.push(ProviderDto {
             id: ids::id("providers", row.id),
             name,
@@ -362,12 +402,16 @@ fn providers(
             base_url: translated.base_url,
             connection_profile_id: None,
             proxy: proxy(row.proxy_url.as_ref()),
-            config: translated.config,
+            config,
             enabled: row.enabled,
             created_at_ms: timestamp,
         });
     }
-    Ok(Providers { rows, dropped })
+    Ok(Providers {
+        rows,
+        endpoints: operation_endpoints,
+        dropped,
+    })
 }
 
 /// v4 requires `config` to be an object; v3 stored whatever the channel put
@@ -605,6 +649,22 @@ fn provider_model(row: &document::ProviderModel) -> ProviderModelDto {
         if let Some(name) = row.display_name.as_deref().filter(|name| !name.is_empty()) {
             map.entry("display_name")
                 .or_insert_with(|| Value::from(name));
+        }
+        // v4 keeps variants in the same two keys v3's object form used; the
+        // bare-array form meant the base stayed exposed.
+        let (names, expose_base) = match &row.variants {
+            Value::Array(names) => (Some(names.clone()), None),
+            Value::Object(object) => (
+                object.get("variants").and_then(Value::as_array).cloned(),
+                object.get("expose_base").and_then(Value::as_bool),
+            ),
+            _ => (None, None),
+        };
+        if let Some(names) = names.filter(|names| !names.is_empty()) {
+            map.entry("variants").or_insert(Value::Array(names));
+            if let Some(expose_base) = expose_base {
+                map.entry("expose_base").or_insert(Value::Bool(expose_base));
+            }
         }
     }
     ProviderModelDto {

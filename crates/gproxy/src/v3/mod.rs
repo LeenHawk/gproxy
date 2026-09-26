@@ -62,6 +62,8 @@ pub mod channels;
 pub mod config;
 pub mod detect;
 pub mod document;
+pub mod endpoints;
+pub mod provider_config;
 pub mod identity;
 pub mod ids;
 pub mod report;

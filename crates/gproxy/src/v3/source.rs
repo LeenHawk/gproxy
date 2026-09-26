@@ -643,6 +643,7 @@ fn provider_model(row: &QueryResult) -> Result<document::ProviderModel> {
             .or_else(|| optional_integer(row, "max_context_window")),
         max_output_tokens: optional_integer(row, "max_output_tokens"),
         metadata: Value::Null,
+        variants: json(row, "variants_json"),
         enabled: flag(row, "enabled", true),
     })
 }
