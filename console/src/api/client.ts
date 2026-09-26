@@ -15,6 +15,8 @@
 //! `message` is already safe to show, because the host replaces the text of
 //! any 5xx with a generic line before it leaves the process.
 
+import { send } from "@/lib/transport"
+
 /** The product error envelope. Not generated: the host owns this shape. */
 export type ErrorEnvelope = { error: { code: string; message: string } }
 
@@ -60,7 +62,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const managed = path.startsWith("/admin/api/")
   if (managed && adminScope && !headers.has(scopeHeader)) headers.set(scopeHeader, adminScope)
   const signal = managed ? (init?.signal ? AbortSignal.any([init.signal, scopeAbort.signal]) : scopeAbort.signal) : init?.signal
-  const response = await fetch(path, { ...init, signal, credentials: "same-origin", headers })
+  const response = await send(path, { ...init, signal, credentials: "same-origin", headers })
   if (!response.ok) {
     const body: unknown = await response.json().catch(() => null)
     const envelope = isEnvelope(body) ? body.error : null

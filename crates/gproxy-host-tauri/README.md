@@ -175,24 +175,25 @@ unguessable secret behind a shut door is a better resting state than no secret
 at all. Call `admin_users_set_password` if you decide you want that door
 opened.
 
-### The `transport.ts` seam
+### How the console reaches the instance
 
-P13 and P14 build one console for both hosts. Its types come from ts-rs over
-the same DTOs either way; what differs is how a call is made, and that
-difference belongs in one file:
+The window runs the same console the server serves. `pnpm build` in `console/`
+writes it to `ui/console/` and its page to `ui/index.html` (the window opens `/`,
+and Tauri answers unknown paths with that page). `ui/` is a build artefact and
+is not committed; CI downloads the console build into it.
 
-```ts
-// console/src/lib/transport.ts
-export const transport = "__TAURI_INTERNALS__" in window
-  ? { call: (op: string, args?: object) => invoke(op, args) }
-  : { call: (op: string, args?: object) => fetchJson(routeOf(op), args) };
-```
+The console makes every call through one `fetch` of an `/admin/api` or
+`/portal/api` path. In the window, `console/src/lib/transport.ts` sends that
+request as `desktop_console_request`, and `src/console.rs` passes it, in
+process, to `gproxy_host_axum::router`: the same routes, admin scopes, section
+gates, audit and refresh the server has. The response comes back over IPC.
+Nothing new listens on a socket: the embedded data plane still refuses both
+surfaces. The request is authenticated with the gateway key, which belongs to
+the local administrator. Cookies and `Authorization` headers from the page are
+dropped.
 
-The operation name is the stable thing on both sides: over IPC it is the
-command name, over HTTP it is the path the server mounts for the same family
-and method. Nothing else in the console should know which host it is running
-against. The console's build output goes in `ui/`; until then that directory
-holds a placeholder page.
+The operation table in `src/ipc/table.rs` stays for callers that want an
+operation by name instead of a path.
 
 ## What this crate deliberately does not do
 

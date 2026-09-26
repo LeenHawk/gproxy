@@ -67,6 +67,8 @@ serde_json = { workspace = true }
 tauri = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+# `oneshot`, which is how the console's request is handed to the router.
+tower = { workspace = true, features = ["util"] }
 # The one configuration file a desktop instance reads, in the schema the server
 # already has. Nothing here defines a second one.
 toml = { workspace = true }

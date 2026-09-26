@@ -447,6 +447,9 @@ ipc_table! {
         desktop instance status => desktop_instance_status;
         desktop instance gateway_key => desktop_instance_gateway_key;
         desktop instance reload => desktop_instance_reload;
+        // The console in the window: one request through the server's own
+        // router, so its paths, scopes and envelopes are the server's.
+        desktop console request => desktop_console_request;
     }
 }
 
@@ -785,4 +788,17 @@ pub async fn desktop_instance_reload(
     let answer = async { json(desktop.app().reload_all().await) }.await;
     super::audit(&desktop, "desktop.instance.reload", &answer).await;
     answer
+}
+
+/// One console request, answered by the same router a server mounts.
+///
+/// Not audited here: the router's own middleware records every management
+/// operation, under the action its matched route names, and a second row for
+/// the same call would be noise.
+#[tauri::command]
+pub async fn desktop_console_request(
+    desktop: tauri::State<'_, Desktop>,
+    request: crate::console::ConsoleRequest,
+) -> IpcResult<crate::console::ConsoleResponse> {
+    crate::console::request(&desktop, request).await
 }

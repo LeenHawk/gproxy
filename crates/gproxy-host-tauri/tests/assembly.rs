@@ -288,3 +288,71 @@ async fn a_failing_ipc_command_answers_the_product_error_envelope() {
         "{error}"
     );
 }
+
+/// The console in the window: its `fetch`, through the server's own router,
+/// authenticated as the local administrator without the page naming anyone.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_console_request_is_answered_by_the_server_router() {
+    let data = data_dir();
+    let desktop = Desktop::start(data.path().to_path_buf(), &MemoryStore::default())
+        .await
+        .unwrap();
+
+    let answers = tokio::task::spawn_blocking(move || {
+        let app = app(desktop);
+        let window = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let console = |method: &str, path: &str, body: Option<&str>| {
+            invoke(
+                &window,
+                "desktop_console_request",
+                serde_json::json!({ "request": {
+                    "method": method,
+                    "path": path,
+                    // A cookie the page tried to send is dropped, not believed.
+                    "headers": [["content-type", "application/json"], ["cookie", "gproxy_session=forged"]],
+                    "body": body,
+                } }),
+            )
+        };
+        let answers = vec![
+            console("GET", "/portal/api/context", None),
+            console("GET", "/admin/api/context", None),
+            console("POST", "/admin/api/export", Some(r#"{"includeSecrets":false}"#)),
+            console("GET", "/admin/api/nothing-here", None),
+        ];
+        let refused = tauri::test::get_ipc_response(
+            &window,
+            InvokeRequest {
+                cmd: "desktop_console_request".into(),
+                callback: tauri::ipc::CallbackFn(0),
+                error: tauri::ipc::CallbackFn(1),
+                url: LOCAL_ORIGIN.parse().unwrap(),
+                body: serde_json::json!({ "request": { "method": "POST", "path": "/v1/messages" } })
+                    .into(),
+                headers: Default::default(),
+                invoke_key: INVOKE_KEY.to_string(),
+            },
+        )
+        .expect_err("the data plane is not a console surface");
+        (answers, refused)
+    })
+    .await
+    .unwrap();
+    let (answers, refused) = answers;
+    let [portal, admin, export, missing] = answers.as_slice() else {
+        panic!("expected four answers");
+    };
+
+    let body = |answer: &serde_json::Value| -> serde_json::Value {
+        serde_json::from_str(answer["body"].as_str().unwrap()).unwrap()
+    };
+    assert_eq!(portal["status"], 200, "{portal}");
+    assert_eq!(body(portal)["user"]["name"], "desktop", "{portal}");
+    assert_eq!(admin["status"], 200, "{admin}");
+    assert_eq!(export["status"], 200, "{export}");
+    assert!(body(export)["formatVersion"].is_number(), "{export}");
+    assert_eq!(missing["status"], 404, "{missing}");
+    assert_eq!(refused["code"], "invalid_request", "{refused}");
+}

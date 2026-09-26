@@ -85,6 +85,13 @@ jobs:
         with:
           name: console-dist
           path: crates/gproxy-host-axum/assets/web
+      # The window's copy, laid out as `console/scripts/sync-to-embed.mjs`
+      # lays it out: the bundle under `ui/console/`, its page at `ui/`.
+      - uses: actions/download-artifact@v8
+        with:
+          name: console-dist
+          path: crates/gproxy-host-tauri/ui/console
+      - run: cp crates/gproxy-host-tauri/ui/console/index.html crates/gproxy-host-tauri/ui/index.html
       - name: Install desktop toolkit headers
         run: |
           sudo apt-get update

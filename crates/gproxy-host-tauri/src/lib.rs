@@ -56,8 +56,9 @@
 //! conveniences there but the only way a phone runs a gateway at all, and
 //! v3 had already answered both — see [`android`].
 //!
-//! It also does not build the console. P13 and P14 do, into `ui/`, from the
-//! same source the server serves — see [`ipc`] for the one seam that differs.
+//! It also does not build the console. `pnpm build` in `console/` does, into
+//! `ui/`, from the same source the server serves — see [`console`] for how its
+//! requests are answered.
 //!
 //! # Reused rather than reimplemented
 //!
@@ -90,6 +91,7 @@
 #[cfg(target_os = "android")]
 pub mod android;
 pub mod config;
+pub mod console;
 pub mod dataplane;
 pub mod desktop;
 pub mod engine;

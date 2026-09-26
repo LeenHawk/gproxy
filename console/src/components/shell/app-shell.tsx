@@ -13,6 +13,7 @@ import { ChevronRight, ChevronsUpDown, CircleUserRound, Languages, LogOut, Menu,
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { INFO_KEY, instanceInfo } from "@/api/settings"
 import { signOut } from "@/api/session"
+import { inShell } from "@/lib/transport"
 import { useConsoleContext } from "@/capability/session"
 import { sectionsFor, type NavSection } from "@/capability/navigation"
 import { Button } from "@/components/ui/button"
@@ -83,15 +84,16 @@ function AccountMenu() {
           <span className="block truncate text-sm">{context.userName}</span>
           <span className="block text-xs text-muted-foreground">{t(`scope.${context.scope?.kind ?? "none"}`)}</span>
         </DropdownMenuLabel>
-        <DropdownMenuSeparator />
+        {inShell && context.scopes.length <= 1 ? null : <DropdownMenuSeparator />}
         {context.scopes.length > 1 ? <DropdownMenuRadioGroup value={context.scope?.selector ?? ""} onValueChange={value => { void context.switchScope?.(value).catch(error => { toast.error(String(error)) }) }}>
           {context.scopes.map(scope => <DropdownMenuRadioItem key={scope.selector} value={scope.selector} disabled={busy}>{scope.name ?? t(`scope.${scope.kind}`)}</DropdownMenuRadioItem>)}
         </DropdownMenuRadioGroup> : null}
-        <DropdownMenuGroup>
+        {/* The window is the local administrator; there is no session to end. */}
+        {inShell ? null : <DropdownMenuGroup>
           <DropdownMenuItem disabled={end.isPending} onSelect={() => end.mutate()}>
             <LogOut /> {t("actions.signOut")}
           </DropdownMenuItem>
-        </DropdownMenuGroup>
+        </DropdownMenuGroup>}
       </DropdownMenuContent>
     </DropdownMenu>
   )
