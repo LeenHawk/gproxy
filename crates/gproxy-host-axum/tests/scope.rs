@@ -684,6 +684,9 @@ async fn how_a_credential_reaches_its_upstream_is_the_operators() {
     for extra in [
         json!({ "proxy": { "mode": "explicit", "url": "http://169.254.169.254" } }),
         json!({ "connectionProfileId": "anything" }),
+        // An address a channel reads out of the credential itself.
+        json!({ "secret": { "api_key": "x", "base_url": "http://169.254.169.254/" } }),
+        json!({ "metadata": { "oauth": { "token_endpoint": "http://127.0.0.1:1/token" } } }),
     ] {
         let created = host
             .send(console(post(

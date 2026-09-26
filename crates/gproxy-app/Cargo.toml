@@ -52,6 +52,7 @@ thiserror = { workspace = true }
 # and the sdk's builder takes exactly this type.
 tokio-util = { workspace = true }
 tracing = { workspace = true }
+url = { workspace = true }
 ts-rs = { workspace = true, optional = true }
 web-time = { workspace = true }
 
