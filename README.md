@@ -267,5 +267,6 @@ for signing scope, team roles, privacy information, and verification instruction
 ## License
 
 The gateway application is **AGPL-3.0-or-later**; see [LICENSE](LICENSE).
-Some reusable protocol/transform crates use **MIT** as specified in their
-individual `Cargo.toml` files. The separate Pi extension is MIT-licensed.
+The reusable library crates — `gproxy-protocol`, `gproxy-protocol-macros`, `gproxy-client`, `gproxy-cache`,
+`gproxy-file`, `gproxy-seaorm` and `gproxy-tokenizer` — are **MIT**, each with its own
+`LICENSE`. The separate Pi extension is MIT-licensed.

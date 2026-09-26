@@ -4,7 +4,7 @@ description = "SeaORM 2 batch operations and Cloudflare D1 adapter with schema s
 readme = "README.md"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license = "MIT"
 repository.workspace = true
 
 [features]

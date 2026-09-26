@@ -3,7 +3,7 @@ name = "gproxy-protocol-macros"
 description = "Builder derive for gproxy protocol wire types"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license = "MIT"
 repository.workspace = true
 
 [lib]

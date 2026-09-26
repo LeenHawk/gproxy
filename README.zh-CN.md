@@ -200,5 +200,6 @@ pnpm --dir console build
 ## 许可证
 
 网关应用采用 **AGPL-3.0-or-later**，见 [LICENSE](LICENSE)。
-部分可复用协议／转换 crate 采用 **MIT**，以各自的 `Cargo.toml` 为准；
-独立 Pi 扩展同样采用 MIT。
+可复用的库 crate——`gproxy-protocol`、`gproxy-protocol-macros`、`gproxy-client`、
+`gproxy-cache`、`gproxy-file`、`gproxy-seaorm`、`gproxy-tokenizer`——采用 **MIT**，
+各自附带 `LICENSE`；独立 Pi 扩展同样采用 MIT。

@@ -4,7 +4,7 @@ description = "Optional local filesystem and S3/R2 storage for GPROXY, powered b
 readme = "README.md"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license = "MIT"
 repository.workspace = true
 rust-version = "1.91"
 
