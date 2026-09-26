@@ -83,15 +83,13 @@ pub enum Client {
 }
 
 /// wasm32 transports. `Backend` in the profile is a native choice; here every
-/// profile resolves to the JS host's fetch (`Fetch` when the feature is on,
-/// else the reqwest fallback) unless the host injected its own transport.
+/// profile resolves to the JS host's fetch unless the host injected its own
+/// transport.
 #[cfg(target_arch = "wasm32")]
 #[derive(Clone)]
 pub enum Client {
     #[cfg(feature = "fetch")]
     Fetch(crate::FetchClient),
-    #[cfg(feature = "reqwest")]
-    Reqwest(reqwest::Client),
     Host(std::sync::Arc<dyn crate::OutboundClient>),
 }
 
@@ -108,11 +106,7 @@ impl Client {
         let _ = http1_only;
         crate::FetchClient::with_config(config).map(Self::Fetch)
     }
-    #[cfg(all(feature = "reqwest", not(feature = "fetch")))]
-    pub(crate) fn build(config: &ConnectionConfig, http1_only: bool) -> Result<Self, Error> {
-        build_reqwest(config, http1_only).map(Self::Reqwest)
-    }
-    #[cfg(not(any(feature = "fetch", feature = "reqwest")))]
+    #[cfg(not(feature = "fetch"))]
     pub(crate) fn build(config: &ConnectionConfig, http1_only: bool) -> Result<Self, Error> {
         let _ = http1_only;
         Err(Error::BackendUnavailable(config.backend))
@@ -164,16 +158,6 @@ impl Client {
             }
         }
     }
-}
-
-/// Fetch decides transport details on WASM: only the client handle is built.
-#[cfg(all(feature = "reqwest", not(feature = "fetch"), target_arch = "wasm32"))]
-fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest::Client, Error> {
-    let _ = http1_only;
-    reqwest::Client::builder()
-        .default_headers(config.default_headers()?)
-        .build()
-        .map_err(Error::Reqwest)
 }
 
 #[cfg(all(feature = "reqwest", not(target_arch = "wasm32")))]

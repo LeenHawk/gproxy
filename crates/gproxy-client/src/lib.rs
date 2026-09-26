@@ -39,8 +39,6 @@ pub use fetch::FetchClient;
 pub use pool::ClientFactory;
 pub use pool::ClientPool;
 
-#[cfg(all(feature = "reqwest", target_arch = "wasm32"))]
-pub use reqwest;
 #[cfg(all(feature = "reqwest-native", not(target_arch = "wasm32")))]
 pub use reqwest_native;
 #[cfg(all(feature = "reqwest", not(target_arch = "wasm32")))]
