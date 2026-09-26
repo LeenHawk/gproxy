@@ -5,7 +5,10 @@
 use crate::{CredentialData, CredentialVersion, ProviderData};
 use futures_util::StreamExt;
 use gproxy_channel::channel::{CredentialView, ProviderView};
-use gproxy_protocol::{HttpBody, WireRequest, connection::Bytes};
+use gproxy_protocol::{
+    Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes,
+    transform::generate::claude_gemini::without_thinking_handles,
+};
 
 /// A streaming body is buffered up to `max_bytes` so it can be replayed. Past
 /// the cap the consumed prefix is chained back in front of the rest and the
@@ -95,6 +98,28 @@ pub(crate) fn clone_request(request: &WireRequest<HttpBody>) -> Option<WireReque
             body: HttpBody::Bytes(bytes.clone()),
         }),
         HttpBody::Stream(_) => None,
+    }
+}
+
+/// A Claude request sent to its upstream as it is must not carry the
+/// thinking blocks gproxy signed with its own handle (a Gemini upstream's
+/// thinking shown to this client earlier): Anthropic cannot verify them, so
+/// they are dropped. A converted request is handled by the conversion.
+pub(crate) fn drop_thinking_handles(operation: OperationKey, request: &mut WireRequest<HttpBody>) {
+    if operation.dialect != Dialect::Claude
+        || !matches!(
+            operation.operation,
+            Operation::GenerateContent | Operation::StreamGenerateContent | Operation::CountTokens
+        )
+    {
+        return;
+    }
+    let HttpBody::Bytes(bytes) = &request.body else {
+        return;
+    };
+    if let Some(body) = without_thinking_handles(bytes) {
+        request.headers.remove(http::header::CONTENT_LENGTH);
+        request.body = HttpBody::Bytes(Bytes::from(body));
     }
 }
 

@@ -358,6 +358,8 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
         let cancellation = request.cancellation.clone();
         let dispatched: Result<Answer, Fault> = match route {
             Route::Passthrough | Route::Local => {
+                let mut this_wire = this_wire;
+                prepare::drop_thinking_handles(operation, &mut this_wire);
                 let native = super::NativeCall {
                     funnel: funnel.clone(),
                     attempt: attempt.clone(),

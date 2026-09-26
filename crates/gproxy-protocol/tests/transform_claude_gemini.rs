@@ -482,3 +482,40 @@ fn thought_flag_on_a_function_preserves_the_payload_without_a_foreign_signature(
             .contains("opaque")
     );
 }
+
+#[test]
+fn a_passthrough_claude_body_loses_only_handle_signed_thinking() {
+    let body = json!({
+        "model": "claude-opus-4-6", "max_tokens": 64,
+        "messages": [
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": [
+                {"type": "thinking", "thinking": "gemini", "signature": "gproxy.thinking.v1.abc"},
+                {"type": "thinking", "thinking": "claude", "signature": "EqQBCkYI"},
+                {"type": "text", "text": "hello"},
+            ]},
+            {"role": "assistant", "content": [
+                {"type": "thinking", "thinking": "x", "signature": "gproxy.thinking.v1.unsigned"},
+            ]},
+            {"role": "user", "content": "more"},
+        ],
+    });
+    let stripped: serde_json::Value = serde_json::from_slice(
+        &without_thinking_handles(&serde_json::to_vec(&body).unwrap()).expect("changed"),
+    )
+    .unwrap();
+    assert_eq!(
+        stripped["messages"],
+        json!([
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": [
+                {"type": "thinking", "thinking": "claude", "signature": "EqQBCkYI"},
+                {"type": "text", "text": "hello"},
+            ]},
+            {"role": "user", "content": "more"},
+        ])
+    );
+    // Nothing to strip: the body is left alone.
+    let plain = json!({"messages": [{"role": "user", "content": "hi"}]});
+    assert!(without_thinking_handles(&serde_json::to_vec(&plain).unwrap()).is_none());
+}
