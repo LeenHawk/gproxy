@@ -416,6 +416,25 @@ pub(crate) fn peer_ip(request: &Request) -> std::net::IpAddr {
 pub(crate) async fn json_body<T: serde::de::DeserializeOwned>(
     request: Request,
 ) -> Result<T, Box<Response>> {
+    // A JSON media type, not merely a JSON-shaped body: a cross-site HTML form
+    // can post `text/plain` whose body parses as JSON, and nothing else about
+    // a sign-in would tell that apart from the console's own `fetch`.
+    let is_json = request
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .map(|mime| mime.trim().to_ascii_lowercase())
+        .is_some_and(|mime| mime == "application/json" || mime.ends_with("+json"));
+    if !is_json {
+        return Err(Box::new(
+            (
+                StatusCode::UNSUPPORTED_MEDIA_TYPE,
+                "expected an application/json body",
+            )
+                .into_response(),
+        ));
+    }
     let body = axum::body::to_bytes(request.into_body(), MAX_BODY_BYTES)
         .await
         .map_err(|_| {

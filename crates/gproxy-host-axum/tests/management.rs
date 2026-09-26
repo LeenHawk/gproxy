@@ -283,6 +283,18 @@ async fn a_cookie_write_is_same_origin_checked_and_a_key_write_is_not() {
 async fn a_portal_login_lists_keys_and_logs_out() {
     let host = instance().await;
 
+    // A cross-site form can post `text/plain` whose body is valid JSON; that
+    // is a sign-in the person never made, so only a JSON media type counts.
+    let mut forged = post(
+        "/portal/api/login",
+        json!({ "name": "alice", "password": "correct horse battery" }),
+    );
+    forged
+        .headers_mut()
+        .insert("content-type", "text/plain".parse().unwrap());
+    let forged = host.send(forged).await;
+    assert_eq!(forged.status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
+
     let login = host
         .send(post(
             "/portal/api/login",
