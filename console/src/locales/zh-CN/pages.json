@@ -753,6 +753,14 @@
     "cleanupFailed": "记录已删除，但关联规则清理失败：{{message}}"
   },
   "limits": {
+    "cycleCost": "花费",
+    "cycleSpent": "本周期花费",
+    "estimatedAllowance": "估算额度",
+    "estimateHint": "花费和估算只统计经过 gproxy 的请求；同一账号在别处的用量（例如官方客户端）会让估算偏低。各窗口相互重叠，金额不能相加。",
+    "recentCycles": "最近周期（{{count}}）",
+    "cyclePeriod": "周期",
+    "cycleFinalPercent": "结束时",
+    "monthCycle": "自然月",
     "resetCardNumber": "第 {{number}} 张",
     "weeklyBreakdown": "周用量分布",
     "usageSources": {"claude_code": "Claude Code", "chat": "聊天", "cowork": "Cowork", "other": "其他"},

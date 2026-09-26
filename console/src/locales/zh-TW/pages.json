@@ -753,6 +753,14 @@
     "cleanupFailed": "記錄已刪除，但關聯規則清理失敗：{{message}}"
   },
   "limits": {
+    "cycleCost": "花費",
+    "cycleSpent": "本週期花費",
+    "estimatedAllowance": "估算額度",
+    "estimateHint": "花費與估算只統計經過 gproxy 的請求；同一帳號在其他地方的用量（例如官方用戶端）會讓估算偏低。各視窗互相重疊，金額不能相加。",
+    "recentCycles": "最近週期（{{count}}）",
+    "cyclePeriod": "週期",
+    "cycleFinalPercent": "結束時",
+    "monthCycle": "自然月",
     "resetCardNumber": "第 {{number}} 張",
     "weeklyBreakdown": "週用量分布",
     "usageSources": {"claude_code": "Claude Code", "chat": "聊天", "cowork": "Cowork", "other": "其他"},

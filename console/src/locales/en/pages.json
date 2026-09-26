@@ -753,6 +753,14 @@
     "cleanupFailed": "Records were deleted, but related rule cleanup failed: {{message}}"
   },
   "limits": {
+    "cycleCost": "Spent",
+    "cycleSpent": "Spent this cycle",
+    "estimatedAllowance": "Estimated allowance",
+    "estimateHint": "Spending and estimates count only traffic through gproxy; use elsewhere on the same account (such as the official client) makes the estimate read low. Windows overlap, so their amounts do not add up.",
+    "recentCycles": "Recent cycles ({{count}})",
+    "cyclePeriod": "Period",
+    "cycleFinalPercent": "Final",
+    "monthCycle": "Calendar month",
     "resetCardNumber": "Card {{number}}",
     "weeklyBreakdown": "Weekly usage breakdown",
     "usageSources": {"claude_code": "Claude Code", "chat": "Chats", "cowork": "Cowork", "other": "Other"},
