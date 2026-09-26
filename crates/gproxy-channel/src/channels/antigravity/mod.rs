@@ -315,6 +315,15 @@ fn apply_model_defaults(envelope: &mut Value, model: &str) {
         .or_insert_with(|| Value::from(HIGH_REASONING_BUDGET));
 }
 
+/// The model a generation request names, read the way `build` reads it.
+fn routed_model(request: &WireRequest<HttpBody>) -> String {
+    let parsed = match &request.body {
+        HttpBody::Bytes(bytes) => serde_json::from_slice::<Value>(bytes).ok(),
+        HttpBody::Stream(_) => None,
+    };
+    code_assist::request_model(&request.path, parsed.as_ref()).unwrap_or_default()
+}
+
 impl Antigravity {
     fn build(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
         let config = AntigravityConfig::from_view(ctx.provider)?;
@@ -413,15 +422,43 @@ impl Antigravity {
             endpoint_override,
             ..
         } = ctx;
+        // A buffered Claude call comes back without its thinking or the
+        // signature that makes it replayable, and ends a tool call on
+        // `OTHER` rather than `STOP`; the stream carries all three, so the
+        // buffered call is made as a stream and folded back into one reply.
+        let aggregate = operation == Operation::GenerateContent
+            && claude::is_claude(&routed_model(&request));
+        let upstream = if aggregate {
+            Operation::StreamGenerateContent
+        } else {
+            operation
+        };
         let prepared = self.build(PrepareContext {
             provider,
             credential,
-            operation: OperationKey { operation, dialect },
+            operation: OperationKey {
+                operation: upstream,
+                dialect,
+            },
             request,
             endpoint_override,
         })?;
         let mut response = client.send(prepared).await?;
         if !response.status.is_success() {
+            return Ok(response);
+        }
+        if aggregate {
+            let bytes = code_assist::read_body(response.body).await?;
+            let folded = code_assist::stream::aggregate(&bytes)?;
+            response.headers.remove(header::CONTENT_LENGTH);
+            response.headers.insert(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("application/json"),
+            );
+            response.body = HttpBody::Bytes(code_assist::encode(
+                &folded,
+                code_assist::invalid_response,
+            )?);
             return Ok(response);
         }
         if operation == Operation::StreamGenerateContent {
