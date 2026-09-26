@@ -34,6 +34,7 @@ export const groups = [
       instance("connectionProfileId", "profile", { nullable: true }),
       instance("corsOrigins", "list"),
       instance("trustedProxies", "list"),
+      instance("alwaysSecureCookie", "switch"),
     ],
   },
   {

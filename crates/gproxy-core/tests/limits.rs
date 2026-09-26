@@ -12,6 +12,7 @@ fn settings() -> setting::Model {
         proxy: None,
         cors_origins: serde_json::json!([]),
         trusted_proxies: serde_json::json!([]),
+        always_secure_cookie: false,
         max_attempts: 6,
         enable_settlement: true,
         enable_usage: true,

@@ -39,6 +39,7 @@ impl From<setting::Model> for SettingsDto {
                 proxy: row.proxy,
                 cors_origins: row.cors_origins,
                 trusted_proxies: row.trusted_proxies,
+                always_secure_cookie: row.always_secure_cookie,
                 max_attempts: row.max_attempts,
                 enable_settlement: row.enable_settlement,
                 enable_usage: row.enable_usage,
@@ -91,6 +92,9 @@ pub struct InstanceSettingsDto {
     pub cors_origins: Value,
     #[cfg_attr(feature = "ts", ts(type = "string[]"))]
     pub trusted_proxies: Value,
+    /// Absent in an export from a build without it, which reads as off.
+    #[serde(default)]
+    pub always_secure_cookie: bool,
     pub max_attempts: u32,
     pub enable_settlement: bool,
     pub enable_usage: bool,
@@ -191,6 +195,8 @@ pub struct InstanceSettingsPatch {
     #[serde(default)]
     #[cfg_attr(feature = "ts", ts(type = "string[] | null"))]
     pub trusted_proxies: Option<Value>,
+    #[serde(default)]
+    pub always_secure_cookie: Option<bool>,
     #[serde(default)]
     pub max_attempts: Option<u32>,
     #[serde(default)]

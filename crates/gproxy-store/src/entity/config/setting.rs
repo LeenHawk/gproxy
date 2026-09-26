@@ -33,6 +33,11 @@ pub struct Model {
     /// JSON array of trusted proxy addresses.
     #[sea_orm(default_value = "[]")]
     pub trusted_proxies: Json,
+    /// Mark the session cookie `Secure` whatever the request looked like. Off,
+    /// it is `Secure` only when the request is known to be HTTPS, which behind
+    /// a TLS-terminating proxy needs that proxy in `trusted_proxies`.
+    #[sea_orm(default_value = false)]
+    pub always_secure_cookie: bool,
 
     // Execution
     #[sea_orm(default_value = 6)]

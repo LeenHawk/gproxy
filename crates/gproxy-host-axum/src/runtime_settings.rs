@@ -17,6 +17,13 @@ pub fn trusted_proxies<C>(app: &App<C>) -> Vec<String> {
         .map(|s| strings(&s.trusted_proxies))
         .unwrap_or_else(|| app.config().trusted_proxies.clone())
 }
+/// The settings row's always-`Secure` switch; off when there is no row yet.
+pub fn always_secure_cookie<C>(app: &App<C>) -> bool {
+    app.data()
+        .settings
+        .as_ref()
+        .is_some_and(|s| s.always_secure_cookie)
+}
 fn strings(value: &serde_json::Value) -> Vec<String> {
     value
         .as_array()
