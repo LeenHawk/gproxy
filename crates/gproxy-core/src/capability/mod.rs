@@ -150,7 +150,9 @@ impl Upstream for AttemptUpstream {
                 state: self.channel_state.clone(),
                 instance_id: self.instance_id.clone(),
             }
-            .send(request).await.map_err(channel_error)?;
+            .send(request)
+            .await
+            .map_err(channel_error)?;
             if !response_rules.headers.is_empty() {
                 apply_headers(&response_rules.headers, &mut response.headers)
                     .map_err(|e| invalid(e.to_string()))?;
@@ -206,6 +208,11 @@ impl Upstream for AttemptUpstream {
                 now_ms(),
             );
             let observed = ObservedClient::new(credential.websocket_client.clone(), exchange);
+            let endpoint = provider.operation_url_for(
+                *target,
+                EndpointTransport::WebSocket,
+                request_context.target.upstream_model.as_deref(),
+            );
             let binding = ChannelBinding::new(
                 provider.channel.as_ref(),
                 prepare::provider_view(provider),
@@ -214,7 +221,7 @@ impl Upstream for AttemptUpstream {
             )
             .state(self.channel_state.clone())
             .instance(self.instance_id.clone())
-            .endpoint(provider.operation_url(*target, EndpointTransport::WebSocket));
+            .endpoint(endpoint.as_deref());
             binding
                 .connect(*target, request)
                 .await

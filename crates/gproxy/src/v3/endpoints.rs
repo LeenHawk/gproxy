@@ -10,9 +10,10 @@
 //! `claudeweb` is the exception that still reads `config.endpoints` in v4,
 //! for its own `claudeweb_*` names; those stay where they are.
 //!
-//! Three things do not carry, and each is reported rather than guessed:
-//! - a URL with v3's `{model}` placeholder, because v4 fills in no
-//!   placeholders and the literal text would reach the upstream;
+//! A `{model}` placeholder carries as written: v4 fills it in with the
+//! upstream model, as v3 did.
+//!
+//! Two things do not carry, and each is reported rather than guessed:
 //! - a name for an operation v4 does not have (Sora's remix, edit, extend
 //!   and characters) or one this table does not know;
 //! - a value that is not an absolute http(s) or ws(s) URL, which v4's
@@ -130,17 +131,6 @@ pub fn translate(
         let Some(raw) = value.as_str().map(str::trim).filter(|url| !url.is_empty()) else {
             continue;
         };
-        if raw.contains("{model}") {
-            report.drop_row(
-                "endpoints",
-                row,
-                format!(
-                    "`{raw}` uses v3's `{{model}}` placeholder, which v4 does not fill in; \
-                     set a fixed URL per model on the provider instead"
-                ),
-            );
-            continue;
-        }
         let Some(url) = url_for(raw, transport) else {
             report.drop_row(
                 "endpoints",
@@ -266,6 +256,12 @@ mod tests {
                 ),
                 (
                     "generate_content",
+                    "gemini",
+                    "http",
+                    "https://a.example/models/{model}:generateContent"
+                ),
+                (
+                    "generate_content",
                     "openai_chat",
                     "http",
                     "https://a.example/chat"
@@ -279,7 +275,7 @@ mod tests {
             ]
         );
         assert!(rows.iter().all(|r| r.provider_id == "v3-providers-7"));
-        assert_eq!(report.dropped.len(), 2, "{:?}", report.dropped);
+        assert_eq!(report.dropped.len(), 1, "only the remix, which v4 dropped");
 
         // claudeweb still reads its own names from config.
         let mut config = json!({"endpoints": {

@@ -89,6 +89,9 @@ curl -s -X POST http://127.0.0.1:8787/admin/api/operation-endpoints \
        "url":"https://elsewhere.example/v1/chat/completions"}'
 ```
 
+URL 里的 `{model}` 会被替换成 upstream 模型名（按一个路径段做百分号编码），用于把模型写在路径里的接口：
+`https://relay.example/v1beta/models/{model}:generateContent`。
+
 `operation_rules` 是另一半：对某个操作上渠道行为的按 Provider 覆盖。渠道默认值留在代码里，
 不会被拷进每个新建的 Provider。
 `POST /admin/api/providers/{id}/routing-defaults/reset` 在一次提交里把两者都清掉。
