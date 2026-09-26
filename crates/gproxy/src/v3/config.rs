@@ -515,6 +515,30 @@ fn object(value: &Value) -> Value {
 /// Production's twelve credentials use three kinds: `api_key` (7), `oauth` (4)
 /// and **`oauth_tokens`** (1). The last is v3's longer name for a credential
 /// holding an OAuth token pair, and `oauth` is what v4 calls that.
+/// What a v3 provider setting said about each of its credentials, which v4
+/// reads off the credential. Codex's advertised plan was one provider-wide
+/// `codex_pat_plan_type` in v3 and is `metadata.plan_type` per credential in
+/// v4 (`codex/headers.rs::plan_type`).
+fn credential_metadata(data: &document::Data, provider_id: i64) -> Value {
+    let mut metadata = serde_json::Map::new();
+    if let Some(provider) = data.providers.iter().find(|row| row.id == provider_id)
+        && provider.channel.trim() == "codex"
+        && let Some(plan) = provider
+            .settings
+            .get("codex_pat_plan_type")
+            .and_then(Value::as_str)
+            .filter(|plan| {
+                matches!(
+                    *plan,
+                    "free" | "go" | "plus" | "pro" | "team" | "business" | "enterprise" | "edu"
+                )
+            })
+    {
+        metadata.insert("plan_type".into(), Value::from(plan));
+    }
+    Value::Object(metadata)
+}
+
 fn auth_kind(v3: &str, credential: i64, report: &mut Report) -> String {
     match v3.trim() {
         "oauth_tokens" => {
@@ -611,7 +635,7 @@ fn credentials(
                 version: i64::try_from(row.config.version).unwrap_or(1).max(1),
                 connection_profile_id: None,
                 proxy: proxy(row.config.proxy_url.as_ref()),
-                metadata: Value::Object(serde_json::Map::new()),
+                metadata: credential_metadata(data, row.config.provider_id),
                 // v3's credentials had no expiry column; an OAuth credential's
                 // expiry lived inside the secret and v4's refresh re-reads it.
                 expires_at_ms: None,
@@ -1222,6 +1246,17 @@ mod tests {
         assert_eq!(tiers[0].multiplier.as_deref(), Some("0.5"));
         assert_eq!(tiers[1].min_prompt_tokens, 200000);
         assert_eq!(tiers[1].input_per_million.as_deref(), Some("6"));
+    }
+
+    #[test]
+    fn codexs_provider_plan_setting_lands_on_each_credential() {
+        let data: document::Data = serde_json::from_value(json!({"providers": [
+            {"id": 1, "name": "cx", "channel": "codex", "settings": {"codex_pat_plan_type": "team"}},
+            {"id": 2, "name": "oa", "channel": "openai", "settings": {"codex_pat_plan_type": "team"}}
+        ]}))
+        .unwrap();
+        assert_eq!(credential_metadata(&data, 1), json!({"plan_type": "team"}));
+        assert_eq!(credential_metadata(&data, 2), json!({}));
     }
 
     #[test]

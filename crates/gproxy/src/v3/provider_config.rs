@@ -19,6 +19,21 @@
 //!   Kimi Code, a key the Moonshot platform. v4 chooses per provider, from
 //!   `product` or the origin, and defaults to the platform, so a login-only
 //!   provider with no origin would be sent to the wrong upstream.
+//! - The Google login channels (`antigravity`, `geminicli`) read the token
+//!   endpoint from `token_url` where v3 read `oauth_token_url`. v3's
+//!   `oauth_client_id` / `oauth_client_secret` have no v4 form — v4 presents
+//!   the tool's own client — and are reported, since a refresh token minted
+//!   for another client will not refresh under this one.
+//! - One v3 `base_url` served two hosts where v4 has two keys: Bedrock's
+//!   runtime and control plane (`control_base_url`), Grok Build's CLI and
+//!   media hosts (`media_base_url`). The second key gets the same origin.
+//! - Settings for features the v4 channel does not have are reported:
+//!   OpenCode's Console balance source, Grok Build's own OAuth client,
+//!   Bedrock's video output bucket, and the magic-cache switches on Azure and
+//!   Bedrock. Azure's `api_version` is warned about when no deployment is
+//!   set: v3 sent it only with image calls, v4 with every call.
+//! - Codex's `codex_pat_plan_type` moves onto each credential
+//!   (`config::credential_metadata`) and leaves the provider.
 //! - `traffic_policy.request_headers` is v4's `allowed_headers` when it lists
 //!   plain names. v3's patterns (`*`, `x-foo-*`), `response_headers` and
 //!   `request_query` have no v4 form.
@@ -98,6 +113,63 @@ pub fn translate(provider: &Provider<'_>, config: &mut Value, report: &mut Repor
             }
             map.insert("product".into(), json!("code"));
         }
+    }
+
+    if matches!(channel, "antigravity" | "geminicli") {
+        if let Some(url) = map.remove("oauth_token_url") {
+            map.entry("token_url").or_insert(url);
+        }
+        for key in ["oauth_client_id", "oauth_client_secret"] {
+            if map.remove(key).is_some() {
+                warn(format!(
+                    "{key} has no v4 setting: v4 refreshes with the tool's own client, so a \
+                     credential logged in under another client has to log in again"
+                ));
+            }
+        }
+    }
+    if channel == "codex" {
+        map.remove("codex_pat_plan_type");
+    }
+    let second_host = match channel {
+        "aws_bedrock" => Some("control_base_url"),
+        "grokbuild" => Some("media_base_url"),
+        _ => None,
+    };
+    if let (Some(key), Some(origin)) = (second_host, base_url.filter(|url| !url.trim().is_empty()))
+    {
+        map.entry(key).or_insert_with(|| json!(origin));
+    }
+    let unsupported: &[&str] = match channel {
+        "opencodezen" | "opencodego" => &["quota_workspace_id", "quota_base_url", "quota_cookie"],
+        "grokbuild" => &["oauth_client_id"],
+        "aws_bedrock" => &[
+            "video_output_s3_uri",
+            "enable_claude_magic_cache",
+            "enable_openai_magic_cache",
+        ],
+        "azure" => &["enable_claude_magic_cache", "enable_openai_magic_cache"],
+        _ => &[],
+    };
+    for key in unsupported {
+        if map
+            .remove(*key)
+            .is_some_and(|value| !value.is_null() && value != Value::Bool(false))
+        {
+            warn(format!(
+                "{key} is a v3 feature the v4 {channel} channel does not have"
+            ));
+        }
+    }
+    if channel == "azure"
+        && map.get("api_version").is_some_and(|v| !v.is_null())
+        && map.get("deployment").is_none_or(Value::is_null)
+    {
+        warn(
+            "api_version was sent only with image calls in v3; v4 sends it with every call, \
+             so check that the chat and responses surfaces accept it"
+                .to_owned(),
+        );
     }
 
     traffic_policy(map, &mut warn);
@@ -230,6 +302,36 @@ mod tests {
             config,
             json!({"console_base_url": "https://console.example"})
         );
+    }
+
+    #[test]
+    fn a_shared_origin_and_renamed_client_keys_follow_v4s_layout() {
+        let (config, _) = run(
+            "aws_bedrock",
+            Some("https://proxy.example"),
+            None,
+            Credentials::default(),
+            json!({}),
+        );
+        assert_eq!(config, json!({"control_base_url": "https://proxy.example"}));
+        let (config, report) = run(
+            "geminicli",
+            None,
+            None,
+            Credentials::default(),
+            json!({"oauth_token_url": "https://t.example", "oauth_client_id": "x"}),
+        );
+        assert_eq!(config, json!({"token_url": "https://t.example"}));
+        assert_eq!(report.warnings.len(), 1);
+        let (config, report) = run(
+            "azure",
+            None,
+            None,
+            Credentials::default(),
+            json!({"api_version": "preview", "enable_openai_magic_cache": true}),
+        );
+        assert_eq!(config, json!({"api_version": "preview"}));
+        assert_eq!(report.warnings.len(), 2);
     }
 
     #[test]
