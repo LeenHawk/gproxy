@@ -69,6 +69,7 @@ pub mod identity;
 pub mod ids;
 pub mod provider_config;
 pub mod report;
+pub mod routing;
 pub mod rules;
 pub mod secret;
 pub mod settings;
