@@ -97,3 +97,45 @@ pub(crate) fn signed_run(parts: &[g::Part], index: usize) -> Option<g::Part> {
             .build(),
     )
 }
+
+/// A Claude Messages (or count tokens) body with every handle-signed
+/// `thinking` block removed, and any message the removal empties; `None`
+/// when the body holds no handle. This is for a request that reaches an
+/// Anthropic upstream as it is, without conversion: the handle means nothing
+/// there and Anthropic refuses it as an invalid signature.
+pub fn without_thinking_handles(body: &[u8]) -> Option<Vec<u8>> {
+    let needle = THINKING_HANDLE_PREFIX.as_bytes();
+    if !body.windows(needle.len()).any(|window| window == needle) {
+        return None;
+    }
+    let mut value: serde_json::Value = serde_json::from_slice(body).ok()?;
+    let messages = value.get_mut("messages")?.as_array_mut()?;
+    let mut changed = false;
+    for message in messages.iter_mut() {
+        let Some(content) = message
+            .get_mut("content")
+            .and_then(serde_json::Value::as_array_mut)
+        else {
+            continue;
+        };
+        let before = content.len();
+        content.retain(|block| {
+            block.get("type").and_then(serde_json::Value::as_str) != Some("thinking")
+                || !block
+                    .get("signature")
+                    .and_then(serde_json::Value::as_str)
+                    .is_some_and(is_thinking_handle)
+        });
+        changed |= content.len() != before;
+    }
+    if !changed {
+        return None;
+    }
+    messages.retain(|message| {
+        message
+            .get("content")
+            .and_then(serde_json::Value::as_array)
+            .is_none_or(|content| !content.is_empty())
+    });
+    serde_json::to_vec(&value).ok()
+}
