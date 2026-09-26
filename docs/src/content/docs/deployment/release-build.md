@@ -3,16 +3,57 @@ title: "Building from Source"
 description: "Build every GPROXY v4 target from source — the server, the desktop shell, the Worker and the console — and run the quality gates CI runs."
 ---
 
-Building from source is the only way to get v4. There is **no release
-pipeline**: no installers, no portable archives, no published container image,
-no signed update manifest and no code-signing.
+The Release workflow builds nightly on pushes to `dev`, and versioned releases on
+`v*` tags matching the workspace version. The instructions below cover source
+builds; `.github/workflows/release.yml` drives automated packaging.
 
-That is a statement about v4's current state, not a policy. v3 had all of it,
-and none of it was ported; the pages that described it were removed rather than
-rewritten around machinery that does not exist. The `deploy/` and `scripts/`
-directories in the repository still hold v3's pipeline and **do not build v4**
-— the container Dockerfile, for instance, asks for a binary target that moved
-crates.
+## Application installers
+
+Tauri application installers are published alongside the server portable ZIPs.
+Each app includes the built Console:
+
+| Platform | Architectures | GitHub Release file |
+| --- | --- | --- |
+| Linux | x86_64, aarch64 | `gproxy-tauri-linux-<arch>.deb` |
+| macOS | x86_64, aarch64 | `gproxy-tauri-macos-<arch>.dmg` |
+| Windows | x86_64, aarch64 | `gproxy-tauri-windows-<arch>.msix` |
+| Android | x86_64, aarch64 | `gproxy-tauri-android-<arch>.apk` |
+
+Nightly filenames also carry a commit SHA prefix. Linux x86_64 builds on Ubuntu
+22.04 and ARM64 on Ubuntu 24.04; installation requires the distribution's
+WebKitGTK 4.1 packages. macOS uses ad-hoc signing; Developer ID signing and
+notarization are not configured.
+
+Windows uses the Microsoft Store package identity. Configure four variables in
+the `release` environment: `MS_STORE_IDENTITY_NAME`, `MS_STORE_DISPLAY_NAME`,
+`MS_STORE_IDENTITY_PUBLISHER`, and `MS_STORE_PUBLISHER_DISPLAY_NAME`. Stable
+releases retain both architecture packages for Store submission. With
+`MS_STORE_PUBLISH_ENABLED` enabled, successful GitHub publication triggers the
+Store submission workflow. The MSIX files on GitHub are unsigned, just like the
+Store submission packages; the Store signs them for distribution. They are not
+trusted packages that can be installed by double-clicking. The app requires the
+system WebView2 Runtime.
+
+Android APKs are signed and verified using the existing `ANDROID_SIGNING_*`
+secrets. Each app's `<target-triple>-tauri-apk` entry joins the Ed25519-signed
+update manifest, separately from the legacy server-wrapper APK identity and
+update entry. Missing required keys or Store identity variables fail packaging.
+
+For a local build, prepare the Console and invoke the packaging script:
+
+```sh
+pnpm --dir console build
+node console/scripts/sync-to-embed.mjs
+pnpm --dir crates/gproxy-host-tauri install --frozen-lockfile
+TARGET_OS=linux TARGET_TRIPLE=x86_64-unknown-linux-gnu \
+  ARTIFACT_NAME=gproxy-tauri-linux-x86_64 \
+  GPROXY_BUILD_VERSION=$(scripts/release-metadata.sh version) \
+  scripts/package-tauri-release.sh
+```
+
+Outputs go to `dist/release/`. The workflow also publishes native server ZIPs,
+legacy Android packages, Edge bundles, and GNU/musl container images. Application
+packages receive build provenance attestations hosted on GitHub.
 
 ## Prerequisites
 
@@ -189,8 +230,8 @@ notification feed the site also hosts.
 English and Chinese parity, frontmatter, forbidden references and oversized
 pages.
 
-## What Is Not Here
+## Library releases
 
-No `cargo publish`. Nothing in the workspace goes to a registry, so embedding
-means a git or path dependency — see
-[Embedding the Core](/reference/embedding/). The public surface is not stable.
+Version tags also invoke `scripts/publish-crates.sh` for the selected MIT library
+crates. Other workspace crates are consumed through git or path dependencies;
+see [Embedding the Core](/reference/embedding/). The public surface is not stable.

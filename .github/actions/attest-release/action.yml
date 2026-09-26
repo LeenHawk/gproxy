@@ -14,6 +14,9 @@ runs:
           dist/release/${{ inputs.artifact }}*.zip
           dist/release/${{ inputs.artifact }}*.apk
           dist/release/${{ inputs.artifact }}*.wasm
+          dist/release/${{ inputs.artifact }}*.deb
+          dist/release/${{ inputs.artifact }}*.dmg
+          dist/release/${{ inputs.artifact }}*.msix
     - name: Attest resolved build environment
       uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
       with:
@@ -21,5 +24,8 @@ runs:
           dist/release/${{ inputs.artifact }}*.zip
           dist/release/${{ inputs.artifact }}*.apk
           dist/release/${{ inputs.artifact }}*.wasm
+          dist/release/${{ inputs.artifact }}*.deb
+          dist/release/${{ inputs.artifact }}*.dmg
+          dist/release/${{ inputs.artifact }}*.msix
         predicate-type: https://gproxy.leenhawk.com/attestations/build-environment/v1
         predicate-path: dist/release/${{ inputs.artifact }}.provenance.json

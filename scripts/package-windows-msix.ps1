@@ -1,0 +1,62 @@
+param(
+    [Parameter(Mandatory)][string]$Target,
+    [Parameter(Mandatory)][string]$Artifact,
+    [Parameter(Mandatory)][string]$Version,
+    [string]$OutputDir = 'dist/store',
+    [string]$IdentityName = $env:MS_STORE_IDENTITY_NAME,
+    [string]$DisplayName = $env:MS_STORE_DISPLAY_NAME,
+    [string]$Publisher = $env:MS_STORE_IDENTITY_PUBLISHER,
+    [string]$PublisherDisplayName = $env:MS_STORE_PUBLISHER_DISPLAY_NAME
+)
+$ErrorActionPreference = 'Stop'
+foreach ($value in @($IdentityName, $DisplayName, $Publisher, $PublisherDisplayName)) {
+    if ([string]::IsNullOrWhiteSpace($value)) { throw 'All four MS_STORE identity variables are required for application MSIX packaging' }
+}
+if ($Version -notmatch '^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?$') { throw "Invalid version: $Version" }
+$packageVersion = (@(1, 2, 3) | ForEach-Object { [uint16]$Matches[$_] }) -join '.'
+$packageVersion += '.0'
+$arch = switch ($Target) {
+    'x86_64-pc-windows-msvc' { 'x64' }
+    'aarch64-pc-windows-msvc' { 'arm64' }
+    default { throw "Unsupported MSIX target: $Target" }
+}
+$sdkBin = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/bin'
+$makeappx = Get-ChildItem "$sdkBin/*/x64/makeappx.exe" |
+    Sort-Object { [version]$_.Directory.Parent.Name } -Descending | Select-Object -First 1
+if (-not $makeappx) { throw 'Windows SDK makeappx.exe was not found' }
+$binary = "target/$Target/release/gproxy-desktop.exe"
+if (-not (Test-Path $binary)) { throw "Missing Tauri executable: $binary" }
+$work = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid())
+try {
+    New-Item -ItemType Directory -Force -Path "$work/Assets", $OutputDir | Out-Null
+    Copy-Item $binary "$work/gproxy-desktop.exe"
+    # Tauri can resolve WebView2 beside its executable; include it if emitted.
+    $loader = "target/$Target/release/WebView2Loader.dll"
+    if (Test-Path $loader) { Copy-Item $loader $work }
+    foreach ($logo in @('StoreLogo.png', 'Square44x44Logo.png', 'Square150x150Logo.png')) {
+        Copy-Item "crates/gproxy-host-tauri/icons/$logo" "$work/Assets/$logo"
+    }
+    $identityXml = [System.Security.SecurityElement]::Escape($IdentityName)
+    $displayXml = [System.Security.SecurityElement]::Escape($DisplayName)
+    $publisherXml = [System.Security.SecurityElement]::Escape($Publisher)
+    $publisherDisplayXml = [System.Security.SecurityElement]::Escape($PublisherDisplayName)
+    @"
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+ xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+ xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+ IgnorableNamespaces="uap rescap">
+ <Identity Name="$identityXml" Publisher="$publisherXml" Version="$packageVersion" ProcessorArchitecture="$arch" />
+ <Properties><DisplayName>$displayXml</DisplayName><PublisherDisplayName>$publisherDisplayXml</PublisherDisplayName><Logo>Assets\StoreLogo.png</Logo></Properties>
+ <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" /></Dependencies>
+ <Resources><Resource Language="en-us" /></Resources>
+ <Applications><Application Id="GPROXY" Executable="gproxy-desktop.exe" EntryPoint="Windows.FullTrustApplication">
+  <uap:VisualElements DisplayName="$displayXml" Description="$displayXml" BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
+ </Application></Applications>
+ <Capabilities><rescap:Capability Name="runFullTrust" /></Capabilities>
+</Package>
+"@ | Set-Content -Encoding utf8 "$work/AppxManifest.xml"
+    $package = Join-Path $OutputDir "$Artifact.msix"
+    & $makeappx.FullName pack /d $work /p $package /o
+    if ($LASTEXITCODE -ne 0) { throw "MSIX packaging failed: $LASTEXITCODE" }
+} finally { Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue }

@@ -22,7 +22,7 @@
   },
   "bundle": {
     "active": false,
-    "icon": ["icons/icon.png"],
+    "icon": ["icons/icon.png", "icons/icon.ico", "icons/icon.icns"],
     "targets": "all"
   }
 }

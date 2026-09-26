@@ -115,9 +115,9 @@ The manifest entry is `<target-triple>-tauri-apk`, separate from the legacy
 `.sha256` beside the native artifacts to include it in
 `scripts/build-update-manifest.sh`. Build with `GPROXY_UPDATE_PUBKEY` and, for
 rolling builds, `GPROXY_BUILD_CHANNEL=dev` and `GPROXY_BUILD_HASH`. The APK must
-be signed with the same Android signing key as the installed app. This change
-does not add an Android application CI job; a manifest without the app artifact
-reports it unavailable instead of offering the old wrapper APK.
+be signed with the same Android signing key as the installed app. The Release workflow builds both app architectures and supplies their signed
+APKs to the manifest job. A manifest without the app artifact reports it
+unavailable instead of offering the old wrapper APK.
 
 ## Why the process, and not the window, is the gateway
 
@@ -313,10 +313,11 @@ of a built APK.
   verification are covered by a local signed-manifest test. The package installer,
   unknown-source permission screen and replacing an installed APK still need a
   device and matching signed releases.
-- **The release APK is unsigned.** `app-universal-release-unsigned.apk` is what
+- **The locally inspected release APK was unsigned.** `app-universal-release-unsigned.apk` is what
   Gradle produces without a signing config, and it cannot be installed as-is.
-  The debug APK is signed with the local debug key.
-- **Only `arm64-v8a` has been built.** The other three ABIs are configured and
+  The debug APK is signed with the local debug key. Release CI signs the APK
+  after Gradle builds it.
+- **The recorded local build covered only `arm64-v8a`.** The other three ABIs are configured and
   their Rust targets are installed, but no `armeabi-v7a`, `x86` or `x86_64`
   library has been compiled.
 - **`catch_unwind` in the JNI functions catches nothing in a release build.**
@@ -326,9 +327,11 @@ of a built APK.
 - **The battery-optimisation exemption dialog** is requested once and its
   effect is entirely vendor-dependent.
 
-## What a CI job would need
+## Release CI
 
-There is no CI job for this, deliberately. One would need:
+The `application` matrix in `.github/workflows/release.yml` builds ARM64 and
+x86_64 APKs. `scripts/package-tauri-release.sh` aligns, signs and verifies each
+APK with `zipalign` and `apksigner` after Gradle builds it. The job installs:
 
 - the **Android SDK** with platform `android-36` and build-tools 36.1.0, and
   the licences accepted;
@@ -339,10 +342,10 @@ There is no CI job for this, deliberately. One would need:
   first build downloads Gradle itself, the Android Gradle Plugin and the
   AndroidX dependencies;
 - **`pnpm install`** in `crates/gproxy-host-tauri` for the pinned CLI;
-- the four **Rust Android targets**;
-- **signing secrets** — a keystore, its password, a key alias and its password
-  — as a Gradle signing config. Without them the release output is the unsigned
-  APK above.
+- the selected **Rust Android target**, one ABI per job;
+- **signing secrets** — `ANDROID_SIGNING_KEYSTORE_B64`,
+  `ANDROID_SIGNING_KEYSTORE_PASSWORD`, `ANDROID_SIGNING_KEY_ALIAS`, and optional
+  `ANDROID_SIGNING_KEY_PASSWORD`. Missing required secrets fail the release job.
 
 Disk is the surprise: a debug `.so` for this engine is about a gigabyte, and
 four ABIs of it will fill a small runner.
