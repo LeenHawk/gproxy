@@ -20,8 +20,8 @@ ts = ["dep:ts-rs"]
 aistudio = []
 # Antigravity (Google account through the Antigravity editor's Code Assist
 # host): PKCE login that discovers the Cloud project and tier, refresh, the
-# Code Assist request envelope, the fetchAvailableModels catalogue and its
-# per-model quota.
+# Code Assist request envelope, the fetchAvailableModels catalogue and the
+# per-family quota windows of retrieveUserQuotaSummary.
 antigravity = [
     "dep:futures-util",
     "dep:getrandom",
