@@ -161,11 +161,14 @@ impl QuotaModel for Antigravity {
     }
 }
 
+/// A `quotaInfo` reading: percent used, and the reset in milliseconds.
+type Reading = (Option<Decimal>, i64);
+
 /// Each family's catalogue members, and its most used `quotaInfo` reading.
 /// Members move together, so any one reads for the family; the most used
 /// is taken in case a reading lands between two members' updates.
 struct Catalogue {
-    members: [(Family, Vec<String>, Option<(Option<Decimal>, i64)>); 2],
+    members: [(Family, Vec<String>, Option<Reading>); 2],
 }
 
 impl Catalogue {
@@ -190,7 +193,7 @@ impl Catalogue {
                 .find(|(candidate, ..)| *candidate == family)
                 .expect("every family is listed");
             ids.push(id);
-            if reading.is_none_or(|(most, _): (Option<Decimal>, i64)| used > most) {
+            if reading.is_none_or(|(most, _): Reading| used > most) {
                 *reading = Some((used, reset));
             }
         }
