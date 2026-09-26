@@ -245,5 +245,21 @@
     "cacheCreation30mTokens": "缓存写入（30 分钟）",
     "cacheCreation1hTokens": "缓存写入（1 小时）",
     "cacheHitRate": "缓存命中率"
+  },
+  "oauthConsent": {
+    "authorizeTitle": "授权访问",
+    "authorizeDescription": "{{client}} 想以 {{user}} 的身份使用 GPROXY。",
+    "invalidRequest": "这个授权请求无法批准。",
+    "scopes": "申请的权限范围",
+    "redirectsTo": "完成后会返回 {{destination}}。",
+    "approve": "批准",
+    "deny": "拒绝",
+    "deviceTitle": "连接设备",
+    "deviceDescription": "输入设备上显示的代码。",
+    "userCode": "设备代码",
+    "lookUp": "继续",
+    "deviceApproved": "已批准设备",
+    "deviceDenied": "已拒绝设备",
+    "returnToDevice": "现在可以回到设备上继续了。"
   }
 }

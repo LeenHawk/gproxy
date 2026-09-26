@@ -92,9 +92,9 @@ impl<C: BatchConnectionTrait> Issuer<'_, C> {
     /// [`Issuer::device_code`] against a stated clock.
     ///
     /// The verification URI hangs off the instance **origin**, not off the
-    /// issuer mount: the portal is one application however many mounts the
+    /// issuer mount: the console is one application however many mounts the
     /// data plane answers at, and sending a person to
-    /// `https://host/openai/v1/portal/device` would be sending them nowhere.
+    /// `https://host/openai/v1/console/device` would be sending them nowhere.
     pub async fn device_code_at(
         &self,
         request: &DeviceCodeRequest,

@@ -32,8 +32,8 @@ use axum::{
     routing::{get, post},
 };
 use gproxy_app::{
-    Caller, Operations,
-    dto::{PortalKeyCreate, PortalPasswordChange, PortalUsageQuery},
+    AppError, Caller, CallerKind, Operations,
+    dto::{ConsentDecision, PortalKeyCreate, PortalPasswordChange, PortalUsageQuery},
 };
 use gproxy_seaorm::BatchConnectionTrait;
 use serde::Deserialize;
@@ -90,6 +90,10 @@ where
             axum::routing::delete(revoke_grant::<C>),
         )
         .route("/password", post(change_password::<C>))
+        .route(
+            "/oauth/device",
+            get(device_details::<C>).post(device_decide::<C>),
+        )
         .route_layer(axum::middleware::from_fn_with_state(
             state.clone(),
             guard::<C>,
@@ -103,6 +107,79 @@ where
             session_audit::<C>,
         ))
         .merge(guarded)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DeviceQuery {
+    user_code: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DeviceDecisionBody {
+    user_code: String,
+    decision: ConsentDecision,
+}
+
+/// Device consent is a signed-in person's, as the authorization endpoint's is:
+/// a bearer token here would let a token, or a leaked key, approve a device
+/// for itself.
+fn require_session(caller: &Caller) -> Result<(), AppError> {
+    if caller.kind == CallerKind::Session {
+        return Ok(());
+    }
+    Err(AppError::forbidden(
+        "approving a device takes a console session, not a token",
+    ))
+}
+
+/// `GET /portal/api/oauth/device?userCode=`: what the device page shows for
+/// the code a person typed, or `NotFound` once it is unknown, decided or
+/// expired.
+async fn device_details<C>(
+    State(state): State<HostState<C>>,
+    Extension(caller): Extension<Caller>,
+    Query(query): Query<DeviceQuery>,
+) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    crate::send(async move {
+        if let Err(error) = require_session(&caller) {
+            return ErrorResponse(error).into_response();
+        }
+        let data = state.app().data();
+        let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
+        reply(operations.issuer().device_details(&query.user_code).await)
+    })
+    .await
+}
+
+/// `POST /portal/api/oauth/device`: the person's decision on that code. The
+/// device, still polling the token endpoint, learns it on its next poll.
+async fn device_decide<C>(
+    State(state): State<HostState<C>>,
+    Extension(caller): Extension<Caller>,
+    Json(body): Json<DeviceDecisionBody>,
+) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    crate::send(async move {
+        if let Err(error) = require_session(&caller) {
+            return ErrorResponse(error).into_response();
+        }
+        let data = state.app().data();
+        let operations = Operations::new(state.app().gproxy(), &data, state.app().config());
+        reply(
+            operations
+                .issuer()
+                .device_decision(&caller, &body.user_code, body.decision)
+                .await,
+        )
+    })
+    .await
 }
 
 /// Login and logout are management operations too, including rejected attempts.

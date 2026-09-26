@@ -562,12 +562,12 @@ async fn device_start(
         .unwrap();
     assert_eq!(
         started.verification_uri,
-        "https://gproxy.example.com/portal/device"
+        "https://gproxy.example.com/console/device"
     );
     assert_eq!(
         started.verification_uri_complete,
         format!(
-            "https://gproxy.example.com/portal/device?user_code={}",
+            "https://gproxy.example.com/console/device?user_code={}",
             started.user_code
         )
     );
