@@ -32,7 +32,6 @@ fn ws_open(
         &"selected-origin".to_string(),
         handshake(),
         ResponsesWsLimits::default(),
-        IdNamespace::with_bytes([101; 16]),
         state,
     ))
     .unwrap()
@@ -50,12 +49,12 @@ where
     let mut session = ws_open(&host, &state);
     let mut turn = http_host::ready(call.start_websocket(&mut session, &state)).unwrap();
     assert!(
-        store
+        !store
             .entries
             .lock()
             .unwrap()
             .keys()
-            .any(|key| key.starts_with("stream-invoke:"))
+            .any(|key| http_host::is_reservation(key))
     );
     assert_eq!(text_sends(&host.shared), 0);
     let first = http_host::ready(turn.next(&state)).unwrap().unwrap();
@@ -435,7 +434,8 @@ fn ws_store_false_uses_connection_cache_and_reconnect_requires_full_history() {
             .contains("answer")
     );
     let other_store = http_host::Store::default();
-    let other_scope = access(&other_store, Dialect::OpenAiChat);
+    let mut other_scope = access(&other_store, Dialect::OpenAiChat);
+    other_scope.conversation_key = "elsewhere".into();
     assert!(
         http_host::ready(
             generation::chat_responses::ResponsesViaChat::prepare_stream_with_history_cache(
@@ -486,17 +486,13 @@ fn ws_history_expiry_scope_and_missing_context_fail_before_send() {
     )
     .unwrap();
     let request = continuation(run_client(call, store.clone(), Dialect::OpenAiChat));
-    for mode in ["conversation", "origin", "expiry", "absent"] {
+    // Another origin is another host scope (core keys it by provider), which
+    // this single-scope test store cannot express.
+    for mode in ["conversation", "expiry", "absent"] {
         let mut changed = access(&store, Dialect::OpenAiChat);
         let mut req = request.clone();
         match mode {
             "conversation" => changed.conversation_key = "different".into(),
-            "origin" => {
-                changed.target = IdentityTarget::new("selected", Dialect::OpenAiChat)
-                    .unwrap()
-                    .with_origin("different")
-                    .unwrap()
-            }
             "expiry" => {
                 changed.now = changed.expires_at;
                 changed.expires_at += Duration::from_secs(100);
@@ -514,7 +510,8 @@ fn ws_history_expiry_scope_and_missing_context_fail_before_send() {
                     &changed
                 )
             )
-            .is_err()
+            .is_err(),
+            "{mode}"
         );
     }
 }
@@ -620,7 +617,8 @@ fn ws_connection_rejects_invocation_from_another_state_scope() {
     let connection_store = http_host::Store::default();
     let connection_state = access(&connection_store, Dialect::OpenAi);
     let other_store = http_host::Store::default();
-    let other_state = access(&other_store, Dialect::OpenAi);
+    let mut other_state = access(&other_store, Dialect::OpenAi);
+    other_state.conversation_key = "elsewhere".into();
     let host = Host::new(vec![frames_for(ws_body())]);
     let mut session = ws_open(&host, &connection_state);
     let mut call = http_host::ready(

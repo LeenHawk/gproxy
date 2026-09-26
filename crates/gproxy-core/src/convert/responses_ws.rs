@@ -111,7 +111,6 @@ pub(crate) async fn over_websocket<C: BatchConnectionTrait + Send + Sync + 'stat
                     &WS_KEY,
                     handshake_request(),
                     ResponsesWsLimits::default(),
-                    namespace(),
                     state,
                 )
                 .await
@@ -343,7 +342,7 @@ pub(crate) async fn serve<C: BatchConnectionTrait + Send + Sync + 'static>(
         target: identity_target,
         conversation_key,
         // Millisecond precision: the state store persists expiry as ms and the
-        // preparation binding is compared against the read-back value.
+        // identity records written under it are compared against the read-back value.
         expires_at: SystemTime::UNIX_EPOCH
             + std::time::Duration::from_millis(now.max(0) as u64)
             + super::call::STATE_TTL,

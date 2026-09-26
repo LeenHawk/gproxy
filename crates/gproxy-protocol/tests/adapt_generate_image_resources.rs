@@ -118,8 +118,7 @@ fn facts() -> GeminiReturnFacts {
     }
 }
 fn host<N: serde::Serialize>(store: Arc<Store>, native: &N) -> Host {
-    let mut host = Host::stream(store, Feed::default());
-    host.require_reservation = false;
+    let host = Host::stream(store, Feed::default());
     *host.response.lock().unwrap() = Some(WireResponse {
         status: http::StatusCode::OK,
         headers: http::HeaderMap::new(),

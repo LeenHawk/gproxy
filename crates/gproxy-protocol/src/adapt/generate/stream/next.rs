@@ -16,7 +16,7 @@ impl<B: StreamBridge> StreamInvocation<B> {
         &mut self,
         state: &GenerationStateAccess<'_, S>,
     ) -> Result<super::super::GenerationOutcome<super::invoke::ClientFull<B>>, TransformError> {
-        self.preparation.verify(state).await?;
+        self.binding.check(state)?;
         if let Some(raw) = &self.rejected {
             return Ok(super::super::GenerationOutcome::Rejected(
                 crate::WireResponse {
@@ -87,7 +87,7 @@ impl<B: StreamBridge> StreamInvocation<B> {
             ));
         }
 
-        self.preparation.verify(state).await?;
+        self.binding.check(state)?;
         if mapping
             .as_ref()
             .is_some_and(|mapper| mapper.revision() != self.resource_revision)

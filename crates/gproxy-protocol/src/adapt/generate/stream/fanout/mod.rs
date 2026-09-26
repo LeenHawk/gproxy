@@ -84,22 +84,8 @@ where
             return Err(limit("fanout count exceeds event/state budget"));
         }
         let mut fixed = BTreeSet::new();
-        // Every child's binding is verified first, rather than one child at a
-        // time while the fixed IDs are collected. A `&StreamInvocation` is not
-        // `Send` — the child owns a `NativeReader`, whose `ByteStream` is
-        // `Send` but not `Sync` — so holding one across the await below would
-        // strip the `Send` bound from this future and from every engine future
-        // that drives it. The reservations alone are `Sync` and cross safely,
-        // and `verify` only reads state, so hoisting it changes nothing but
-        // which error a caller sees when several children are bad at once.
-        let preparations = children
-            .iter()
-            .map(|child| &child.preparation)
-            .collect::<Vec<_>>();
-        for preparation in preparations {
-            preparation.verify(state).await?;
-        }
         for child in &children {
+            child.binding.check(state)?;
             fixed.extend(
                 child
                     .bridge

@@ -1,5 +1,6 @@
 //! Incremental generation invocation over explicitly injected capabilities.
 
+mod binding;
 pub mod bridge;
 pub mod event;
 pub mod fanout;
@@ -10,7 +11,6 @@ mod next;
 mod output;
 mod prepare;
 pub mod reader;
-mod reservation;
 mod resource_map;
 pub mod synthesize;
 pub mod websocket;

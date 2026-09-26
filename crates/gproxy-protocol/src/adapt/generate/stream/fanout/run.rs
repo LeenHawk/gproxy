@@ -37,6 +37,11 @@ where
         state: &GenerationStateAccess<'_, S>,
         driver: &mut D,
     ) -> Result<Option<StreamChunk<B::ClientEvent>>, TransformError> {
+        // Every child was prepared against one state; the group record below
+        // must not land anywhere else before a child gets to refuse it.
+        for child in &self.children {
+            child.binding.check(state)?;
+        }
         if self.failed {
             return Err(invalid(
                 "fanout stream failed; retained children require reconciliation",

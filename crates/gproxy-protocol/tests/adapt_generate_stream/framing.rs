@@ -296,9 +296,16 @@ fn rejected_native_lifecycle_releases_live_body_before_invocation_is_dropped() {
 fn stream_preparation_cannot_move_to_another_state_authority_before_start() {
     let original = Arc::new(Store::default());
     let replacement = Arc::new(Store::default());
+    // The invocation tells state apart by what it was prepared with: the
+    // target, conversation and expiry its records are keyed and aged by.
+    let moved = |store| {
+        let mut access = state(store);
+        access.conversation_key = "elsewhere".into();
+        access
+    };
     let mut call = prepared(&original, true);
     let host = Host::stream(replacement.clone(), Feed::default());
-    let result = ready(call.start(&host, &(), &state(&replacement)));
+    let result = ready(call.start(&host, &(), &moved(&replacement)));
     assert!(
         result.is_err(),
         "prepared invocation silently changed its state authority"
@@ -308,16 +315,13 @@ fn stream_preparation_cannot_move_to_another_state_authority_before_start() {
     prefix(&feed);
     let original_host = Host::stream(original.clone(), feed.clone());
     ready(call.start(&original_host, &(), &state(&original))).unwrap();
-    assert!(ready(call.next(&state(&replacement))).is_err());
+    assert!(ready(call.next(&moved(&replacement))).is_err());
     assert_eq!(feed.polls(), 0);
     assert!(replacement.entries.lock().unwrap().is_empty());
     assert!(ready(call.next(&state(&original))).unwrap().is_some());
-    original
-        .entries
-        .lock()
-        .unwrap()
-        .retain(|key, _| !key.starts_with("stream-prepare:"));
+    // Mid-stream, another authority is still refused before anything is read.
     let reads = feed.polls();
-    assert!(ready(call.next(&state(&original))).is_err());
+    assert!(ready(call.next(&moved(&replacement))).is_err());
     assert_eq!(feed.polls(), reads);
+    assert!(replacement.entries.lock().unwrap().is_empty());
 }

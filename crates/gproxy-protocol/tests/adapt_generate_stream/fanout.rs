@@ -285,8 +285,11 @@ fn fanout_scope_change_precedes_post() {
     ))
     .unwrap();
     let other = Store::default();
+    let mut moved = access(&other, Dialect::OpenAi);
+    moved.conversation_key = "elsewhere".into();
     let host = MultiHost::new(store, vec![]);
-    assert!(ready(call.next(&host, &(), &access(&other, Dialect::OpenAi))).is_err());
+    assert!(ready(call.next(&host, &(), &moved)).is_err());
+    assert!(other.entries.lock().unwrap().is_empty());
     assert!(host.host.sent.lock().unwrap().is_empty());
 }
 #[test]
