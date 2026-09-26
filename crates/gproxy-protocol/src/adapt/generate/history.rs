@@ -36,6 +36,9 @@ pub(super) fn merge_names(
     Ok(())
 }
 
+/// Swap a client alias for the upstream ID it stands for. An ID with no saved
+/// record is forwarded unchanged: it is the upstream's own ID, since only
+/// aliases and calls the upstream sent without one are recorded.
 fn restore(id: &mut String, replay: &GenerationToolReplay) {
     // Keep client identities until Chat legacy/modern form selection. An
     // actual native modern ID may collide with another client's legacy alias.
@@ -74,26 +77,6 @@ async fn facts<S: StateStore>(
     Ok(replay)
 }
 
-fn require_result_bindings<S: StateStore>(
-    state: &GenerationStateAccess<'_, S>,
-    results: &BTreeSet<String>,
-    declared: &BTreeSet<String>,
-    replay: &GenerationToolReplay,
-) -> Result<(), TransformError> {
-    if state.target.dialect != Dialect::Gemini
-        && results
-            .iter()
-            .any(|id| !declared.contains(id) && !replay.kinds.contains_key(id))
-    {
-        return Err(TransformError::new(
-            crate::transform::TransformErrorKind::MissingState,
-            "history.tool_result",
-            "orphan result requires a scoped native call record or actual declared call history",
-        ));
-    }
-    Ok(())
-}
-
 fn kind(
     replay: &GenerationToolReplay,
     id: &str,
@@ -115,8 +98,6 @@ pub(super) async fn chat<S: StateStore>(
     let mut input = input.into_declared();
     let mut names = BTreeMap::new();
     let mut ids = BTreeSet::new();
-    let mut declared = BTreeSet::new();
-    let mut results = BTreeSet::new();
     for message in &input.messages {
         match message {
             h::ChatMessage::Assistant(message) => {
@@ -125,25 +106,21 @@ pub(super) async fn chat<S: StateStore>(
                         h::MessageToolCall::Function(call) => {
                             name(&mut names, &call.id, &call.function.name)?;
                             ids.insert(call.id.clone());
-                            declared.insert(call.id.clone());
                         }
                         h::MessageToolCall::Custom(call) => {
                             name(&mut names, &call.id, &call.custom.name)?;
                             ids.insert(call.id.clone());
-                            declared.insert(call.id.clone());
                         }
                     }
                 }
             }
             h::ChatMessage::Tool(message) => {
                 ids.insert(message.tool_call_id.clone());
-                results.insert(message.tool_call_id.clone());
             }
             _ => {}
         }
     }
     let mut replay = facts(state, ids, names).await?;
-    require_result_bindings(state, &results, &declared, &replay)?;
     for message in &input.messages {
         if let h::ChatMessage::Assistant(message) = message {
             for call in message.tool_calls.iter().flatten() {
@@ -190,8 +167,6 @@ pub(super) async fn claude<S: StateStore>(
     let mut input = input.into_declared();
     let mut names = BTreeMap::new();
     let mut ids = BTreeSet::new();
-    let mut declared = BTreeSet::new();
-    let mut results = BTreeSet::new();
     for message in &input.messages {
         if let cc::MessageContent::Blocks(blocks) = &message.content {
             for b in blocks {
@@ -199,11 +174,9 @@ pub(super) async fn claude<S: StateStore>(
                     cc::ContentBlock::ToolUse(b) => {
                         name(&mut names, &b.id, &b.name)?;
                         ids.insert(b.id.clone());
-                        declared.insert(b.id.clone());
                     }
                     cc::ContentBlock::ToolResult(b) => {
                         ids.insert(b.tool_use_id.clone());
-                        results.insert(b.tool_use_id.clone());
                     }
                     _ => {}
                 }
@@ -211,7 +184,6 @@ pub(super) async fn claude<S: StateStore>(
         }
     }
     let replay = facts(state, ids, names).await?;
-    require_result_bindings(state, &results, &declared, &replay)?;
     for message in &mut input.messages {
         if let cc::MessageContent::Blocks(blocks) = &mut message.content {
             for b in blocks {
@@ -239,26 +211,21 @@ pub(super) async fn gemini<S: StateStore>(
     let mut input = input.into_declared();
     let mut names = BTreeMap::new();
     let mut ids = BTreeSet::new();
-    let mut declared = BTreeSet::new();
-    let mut results = BTreeSet::new();
     for p in input.contents.iter().flat_map(|c| c.parts.iter().flatten()) {
         if let Some(call) = &p.function_call
             && let Some(id) = &call.id
         {
             name(&mut names, id, &call.name)?;
             ids.insert(id.clone());
-            declared.insert(id.clone());
         }
         if let Some(result) = &p.function_response
             && let Some(id) = &result.id
         {
             name(&mut names, id, &result.name)?;
             ids.insert(id.clone());
-            results.insert(id.clone());
         }
     }
     let replay = facts(state, ids, names).await?;
-    require_result_bindings(state, &results, &declared, &replay)?;
     for p in input
         .contents
         .iter_mut()
@@ -287,38 +254,31 @@ pub(super) async fn responses<S: StateStore>(
     let mut input = input.into_declared();
     let mut names = BTreeMap::new();
     let mut ids = BTreeSet::new();
-    let mut declared = BTreeSet::new();
-    let mut results = BTreeSet::new();
     if let Some(r::Input::Items(items)) = &input.input {
         for item in items {
             match item {
                 r::InputItem::FunctionCall(b) => {
                     name(&mut names, &b.call_id, &b.name)?;
                     ids.insert(b.call_id.clone());
-                    declared.insert(b.call_id.clone());
                 }
                 r::InputItem::CustomToolCall(b) => {
                     name(&mut names, &b.call_id, &b.name)?;
                     ids.insert(b.call_id.clone());
-                    declared.insert(b.call_id.clone());
                 }
                 r::InputItem::FunctionCallOutput(b) => {
                     if let Some(Some(value)) = &b.name {
                         name(&mut names, &b.call_id, value)?;
                     }
                     ids.insert(b.call_id.clone());
-                    results.insert(b.call_id.clone());
                 }
                 r::InputItem::CustomToolCallOutput(b) => {
                     ids.insert(b.call_id.clone());
-                    results.insert(b.call_id.clone());
                 }
                 _ => {}
             }
         }
     }
     let replay = facts(state, ids, names).await?;
-    require_result_bindings(state, &results, &declared, &replay)?;
     if let Some(r::Input::Items(items)) = &mut input.input {
         for item in items {
             match item {

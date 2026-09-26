@@ -373,14 +373,19 @@ fn duplicate_native_call_ids_across_independent_children_get_exact_saved_aliases
     assert_eq!(first, "same-call");
     assert_ne!(first, second);
     assert!(second.starts_with("call_"));
-    for (i, id) in [first, second].into_iter().enumerate() {
-        let saved = ready(state.read(IdentityRole::ToolCall, id))
+    // The first child forwarded Claude's ID and records nothing; only the
+    // second child's alias has to be mapped back.
+    assert!(
+        ready(state.read(IdentityRole::ToolCall, first))
             .unwrap()
-            .unwrap();
-        assert_eq!(saved.original_call_id.as_deref(), Some("same-call"));
-        assert_eq!(saved.tool_name.as_deref(), Some("lookup"));
-        assert_eq!(saved.response_id, Some(format!("native-{i}")));
-    }
+            .is_none()
+    );
+    let saved = ready(state.read(IdentityRole::ToolCall, second))
+        .unwrap()
+        .unwrap();
+    assert_eq!(saved.original_call_id.as_deref(), Some("same-call"));
+    assert_eq!(saved.tool_name.as_deref(), Some("lookup"));
+    assert_eq!(saved.response_id.as_deref(), Some("native-1"));
 }
 #[test]
 fn cancellation_and_known_rejection_never_repeat_started_calls_or_complete_partial_group() {

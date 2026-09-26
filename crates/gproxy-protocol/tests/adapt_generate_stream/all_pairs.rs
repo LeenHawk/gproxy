@@ -209,24 +209,29 @@ fn run<B: StreamBridge>(mut call: StreamInvocation<B>, store: Arc<Store>) {
             .unwrap()["id"]
             .as_str()
             .unwrap();
-        let record = ready(state.read(
-            IdentityRole::OutputItem(
-                gproxy_protocol::transform::identity::OutputItemKind::FunctionCall,
-            ),
-            item_id,
-        ))
-        .unwrap()
-        .unwrap();
-        assert_eq!(
-            record.original_call_id.as_deref(),
-            Some("tool:source"),
-            "source call identity was misclassified as item identity"
-        );
+        // An unsigned output item is never read back, so it has no record.
         assert!(
-            record.original_item_id.is_none(),
-            "non-Responses source has no native item ID"
+            ready(state.read(
+                IdentityRole::OutputItem(
+                    gproxy_protocol::transform::identity::OutputItemKind::FunctionCall,
+                ),
+                item_id,
+            ))
+            .unwrap()
+            .is_none()
         );
     }
+    // Only the rewritten call is recorded: no Response, Message or stream
+    // alias record.
+    let entries = store.entries.lock().unwrap();
+    assert!(!entries.keys().any(|key| key.starts_with("stream:")));
+    assert_eq!(
+        entries
+            .keys()
+            .filter(|key| key.starts_with("generate:"))
+            .count(),
+        1
+    );
     assert_eq!(host.sent.lock().unwrap().len(), 1);
 }
 fn auto() -> r::ToolChoice {

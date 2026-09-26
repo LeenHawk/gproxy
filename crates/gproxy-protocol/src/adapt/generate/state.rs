@@ -1,10 +1,12 @@
-//! Durable identity association before client exposure. Host scopes must bind
-//! principal and upstream; the explicit prefix additionally binds conversation.
+//! Identity facts a later turn cannot recover from what the client sends back:
+//! an emitted alias, a call the upstream sent without an ID, or a signed piece.
+//! An ID forwarded unchanged is never recorded. Host scopes must bind principal
+//! and upstream; the explicit prefix additionally binds conversation.
 
 use super::{GenerationProgress, identity_facts::IdentityFacts};
 use crate::{
     Dialect,
-    capability::{CasResult, StateStore, StateWrite, Version},
+    capability::{CasResult, StateStore, StateWrite},
     transform::{
         TransformError, TransformErrorKind,
         identity::{IdentityFlow, IdentityRole, IdentityStateRecord, IdentityTarget},
@@ -60,12 +62,8 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         client_id: &str,
     ) -> Result<Option<StoredIdentity>, TransformError> {
         let key = self.key(role, client_id)?;
-        let entry = match self.store.get(self.scope, &key).await? {
-            Some(entry) => entry,
-            None => match self.store.get(self.scope, &format!("stream:{key}")).await? {
-                Some(entry) => entry,
-                None => return Ok(None),
-            },
+        let Some(entry) = self.store.get(self.scope, &key).await? else {
+            return Ok(None);
         };
         if entry.payload.len() as u64 > self.store.limits().read_bytes {
             return Err(limit());
@@ -96,8 +94,9 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         }
         Ok(Some(stored))
     }
-    /// Save all required records before yielding the response. A partial CAS failure
-    /// retains applied versions in caller progress; recovery continues without POST.
+    /// Save the records a later turn needs before yielding the response. A
+    /// failed write keeps the ones already applied in caller progress, and a
+    /// retry writes the rest without another POST.
     pub(super) async fn save_pair<N: IdentityFacts, C: IdentityFacts>(
         &self,
         native: &N,
@@ -133,13 +132,9 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         let mut records = Vec::new();
         let mut native_payloads = Vec::new();
         let mut chat_forms = BTreeMap::new();
-        if let Some(client_id) = client.response_id() {
-            let role = IdentityRole::Response;
-            let mut record = IdentityStateRecord::new(role, self.target.clone());
-            record.client_item_id = Some(client_id.into());
-            record.response_id = native.response_id().map(str::to_owned);
-            records.push((record, None));
-        }
+        // No Response or Message record is written: nothing reads one back,
+        // and a record keyed by an upstream response ID only made an upstream
+        // that repeats its IDs fail every later request in the conversation.
         let originals = native.tools();
         let emitted = client.tools();
         let omitted =
@@ -212,9 +207,20 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
                     &mut native_payloads,
                 )?;
             }
+            // A call forwarded under the upstream's own ID has nothing to
+            // remember: the client sends that ID back and it goes upstream
+            // unchanged. Only an alias, a call the upstream sent without an
+            // ID, or a signed call still needs its native facts next turn.
+            if record.original_call_id == record.client_call_id && record.opaque_signature.is_none()
+            {
+                continue;
+            }
             records.push((record, Some(original.kind)));
         }
         for (role, id) in client.items() {
+            if matches!(role, IdentityRole::Response | IdentityRole::Message) {
+                continue;
+            }
             let mut record = IdentityStateRecord::new(role, self.target.clone());
             record.client_item_id = Some(id.clone());
             record.response_id = native.response_id().map(str::to_owned);
@@ -307,6 +313,11 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
                     )?;
                 }
             }
+            // An output item is only ever read back for its signed native
+            // piece; an unsigned one is replayed from what the client sends.
+            if record.opaque_signature.is_none() {
+                continue;
+            }
             records.push((record, None));
         }
         self.save_records_with_chat_forms(records, native_payloads, &chat_forms, progress)
@@ -322,7 +333,8 @@ fn limit() -> TransformError {
     )
 }
 
-pub(super) type SavedIdentities = BTreeMap<String, (Version, Vec<u8>)>;
+/// Records one invocation already wrote, so a resumed save skips them.
+pub(super) type SavedIdentities = BTreeMap<String, Vec<u8>>;
 
 /// Explicit identity/name facts recovered for tool results. No content or opaque
 /// payload is hidden in this record. Keys remain the exact client IDs.
@@ -338,8 +350,11 @@ pub struct GenerationToolReplay {
 }
 
 impl<S: StateStore> GenerationStateAccess<'_, S> {
-    /// Declared full history supplies names first. State supplies names for
-    /// truncated histories and exact original IDs when an alias was emitted.
+    /// Declared full history supplies names first. State supplies the native
+    /// facts of an emitted alias or of a call the upstream sent without an ID.
+    /// A client ID with no record is left out of the replay, so it is
+    /// forwarded unchanged: an upstream ID the client saw as-is is never
+    /// recorded, and nothing needs translating back.
     pub async fn recover_tools(
         &self,
         client_ids: &[String],

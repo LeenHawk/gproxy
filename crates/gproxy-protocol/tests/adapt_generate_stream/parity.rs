@@ -192,15 +192,24 @@ fn identical_historical_fixtures_run_through_streaming_post_state_and_resource_c
                 now: UNIX_EPOCH,
             };
             let access = access(&store, Dialect::Gemini);
-            let mut call = ready(ChatViaGemini::prepare_stream_with_capabilities(
+            let prepared = ready(ChatViaGemini::prepare_stream_with_capabilities(
                 serde_json::from_value(case["input"].clone()).unwrap(),
                 target(Dialect::Gemini, case.get("prime").is_some()),
                 facts(),
                 settings(),
                 &access,
                 &resource_context,
-            ))
-            .unwrap();
+            ));
+            if case["name"] == "truncated_tool_result" {
+                // Same as the buffered path: no record names a call that kept
+                // Gemini's own ID, so the orphan Chat result is refused.
+                let Err(error) = prepared else {
+                    panic!("orphan Gemini result without a name")
+                };
+                assert_eq!(error.kind(), TransformErrorKind::MissingState);
+                continue;
+            }
+            let mut call = prepared.unwrap();
             let feed = Feed::default();
             feed_g(
                 &feed,

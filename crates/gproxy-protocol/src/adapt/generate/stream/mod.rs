@@ -6,7 +6,6 @@ pub mod event;
 pub mod fanout;
 mod history;
 mod invoke;
-pub(crate) mod ledger;
 mod next;
 mod output;
 mod prepare;

@@ -69,7 +69,6 @@ pub struct GenerationProgress<N> {
     pub send_started: bool,
     pub(super) exposed_response: Option<bytes::Bytes>,
     pub(super) binding: Option<InvocationBinding>,
-    pub(super) pending_identity_write: Option<(String, Vec<u8>)>,
     pub(super) saved_identities: super::state::SavedIdentities,
     pub raw_response: Option<WireResponse<bytes::Bytes>>,
     pub native_response: Option<N>,
@@ -80,7 +79,6 @@ impl<N> Default for GenerationProgress<N> {
         Self {
             exposed_response: None,
             binding: None,
-            pending_identity_write: None,
             saved_identities: Default::default(),
             send_started: false,
             raw_response: None,

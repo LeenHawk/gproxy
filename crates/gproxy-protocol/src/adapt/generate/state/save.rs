@@ -71,106 +71,50 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
             }
             prepared.push((key, bytes));
         }
-        if let Some((key, bytes)) = &progress.pending_identity_write
-            && !prepared.iter().any(|(k, v)| k == key && v == bytes)
-        {
-            return Err(TransformError::new(
-                TransformErrorKind::Conflict,
-                "generation.state",
-                "unacknowledged identity write differs from recovery facts",
-            ));
-        }
         for (key, bytes) in prepared {
-            if let Some((version, existing)) = progress.saved_identities.get(&key) {
-                if existing != &bytes {
-                    return Err(TransformError::new(
-                        TransformErrorKind::Conflict,
-                        "generation.state",
-                        "identity changed during response recovery",
-                    ));
-                }
-                let current = self.store.get(self.scope, &key).await?.ok_or_else(|| {
-                    TransformError::new(
-                        TransformErrorKind::MissingState,
-                        "generation.state",
-                        "previously applied record expired or disappeared",
-                    )
-                })?;
-                if current.payload.len() as u64 > self.store.limits().read_bytes {
-                    return Err(limit());
-                }
-                if &current.version != version
-                    || current.payload.as_ref() != existing.as_slice()
-                    || current.expires_at != Some(self.expires_at)
-                {
-                    return Err(TransformError::new(
-                        TransformErrorKind::Conflict,
-                        "generation.state",
-                        "previously applied record changed",
-                    ));
-                }
+            if progress.saved_identities.get(&key) == Some(&bytes) {
                 continue;
             }
-            if let Some((pending_key, pending_bytes)) = &progress.pending_identity_write {
-                if pending_key != &key || pending_bytes != &bytes {
-                    return Err(TransformError::new(
-                        TransformErrorKind::Conflict,
-                        "generation.state",
-                        "pending identity order changed",
-                    ));
-                }
-                let current = self.store.get(self.scope, &key).await?.ok_or_else(|| {
-                    TransformError::new(
-                        TransformErrorKind::MissingState,
-                        "generation.state",
-                        "unacknowledged identity CAS has no durable result; cannot retry",
-                    )
-                })?;
-                if current.payload.len() as u64 > self.store.limits().read_bytes {
-                    return Err(limit());
-                }
-                if current.payload.as_ref() != bytes.as_slice()
-                    || current.expires_at != Some(self.expires_at)
-                {
-                    return Err(TransformError::new(
-                        TransformErrorKind::Conflict,
-                        "generation.state",
-                        "unacknowledged identity CAS differs from durable state",
-                    ));
-                }
-                progress
-                    .saved_identities
-                    .insert(key, (current.version, bytes));
-                progress.pending_identity_write = None;
-                continue;
-            }
-            progress.pending_identity_write = Some((key.clone(), bytes.clone()));
-            let result = self
-                .store
-                .compare_exchange(
-                    self.scope,
-                    &key,
-                    None,
-                    Some(StateWrite {
-                        payload: bytes.clone().into(),
-                        expires_at: Some(self.expires_at),
-                    }),
-                )
-                .await?;
-            progress.pending_identity_write = None;
-            match result {
-                CasResult::Applied(Some(version)) => {
-                    progress.saved_identities.insert(key, (version, bytes));
-                }
-                _ => {
-                    return Err(TransformError::new(
-                        TransformErrorKind::Conflict,
-                        "generation.state",
-                        "client identity already exists or CAS was not applied",
-                    ));
-                }
-            }
+            self.put(&key, &bytes).await?;
+            progress.saved_identities.insert(key, bytes);
         }
+        Ok(())
+    }
+}
+
+impl<S: StateStore> GenerationStateAccess<'_, S> {
+    /// Writes one record whatever was there before. A key is the client ID,
+    /// and an upstream may repeat its IDs across responses, so an existing
+    /// record is the same call seen again or a stale one: never a reason to
+    /// fail the response. An identical payload is left alone, and a writer
+    /// that lands in between wins, which is as good as this write.
+    async fn put(&self, key: &str, bytes: &[u8]) -> Result<(), TransformError> {
+        let write = || {
+            Some(StateWrite {
+                payload: bytes.to_vec().into(),
+                expires_at: Some(self.expires_at),
+            })
+        };
+        if let CasResult::Applied(_) = self
+            .store
+            .compare_exchange(self.scope, key, None, write())
+            .await?
+        {
+            return Ok(());
+        }
+        let Some(current) = self.store.get(self.scope, key).await? else {
+            // Expired or removed in between; the absent CAS can apply now.
+            self.store
+                .compare_exchange(self.scope, key, None, write())
+                .await?;
+            return Ok(());
+        };
+        if current.payload.as_ref() == bytes && current.expires_at >= Some(self.expires_at) {
+            return Ok(());
+        }
+        self.store
+            .compare_exchange(self.scope, key, Some(current.version), write())
+            .await?;
         Ok(())
     }
 }

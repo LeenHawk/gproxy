@@ -338,7 +338,7 @@
         }
       },
       "resource_reads": 0,
-      "saved_records": 3
+      "saved_records": 2
     },
     {
       "accepted": true,
@@ -392,32 +392,12 @@
         }
       },
       "resource_reads": 0,
-      "saved_records": 3
+      "saved_records": 0
     },
     {
-      "accepted": true,
-      "name": "truncated_tool_result",
-      "output": {
-        "contents": [
-          {
-            "parts": [
-              {
-                "functionResponse": {
-                  "id": "known-client-call",
-                  "name": "actual_lookup",
-                  "response": {
-                    "output": "actual result"
-                  }
-                }
-              }
-            ],
-            "role": "user"
-          }
-        ],
-        "generationConfig": {}
-      },
-      "resource_reads": 0,
-      "saved_records": 3
+      "accepted": false,
+      "error": "history.tool_name: tool result has neither declared history nor a scoped saved name",
+      "name": "truncated_tool_result"
     },
     {
       "accepted": true,
@@ -439,7 +419,7 @@
         "generationConfig": {}
       },
       "resource_reads": 1,
-      "saved_records": 1
+      "saved_records": 0
     }
   ],
   "validation": {

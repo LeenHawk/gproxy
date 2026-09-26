@@ -3,7 +3,6 @@ use super::{
     binding::StateBinding,
     bridge::StreamBridge,
     event::{Collected, EventLimits, NativeEvent},
-    ledger::StreamLedger,
     output,
     reader::{NativeReader, SourceFraming},
 };
@@ -88,7 +87,6 @@ pub struct StreamInvocation<B: StreamBridge> {
     pub(super) holding: bool,
     pub(super) queued_bytes: u64,
     pub(super) ready: Option<ReadyChunk<B::ClientEvent>>,
-    pub(super) ledger: StreamLedger,
     pub(super) last_native_event: Option<B::NativeEvent>,
     pub(super) native_final: Option<Collected<NativeFull<B>>>,
     pub(super) client_final: Option<ClientFull<B>>,
@@ -156,7 +154,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
             holding: false,
             queued_bytes: 0,
             ready: None,
-            ledger: StreamLedger::default(),
             last_native_event: None,
             native_final: None,
             client_final: None,

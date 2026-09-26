@@ -34,15 +34,11 @@ pub struct FanoutOptions {
 #[derive(Debug)]
 pub struct FanoutProgress<N> {
     children: Vec<GenerationProgress<N>>,
-    group: GenerationProgress<()>,
 }
 
 impl<N> Default for FanoutProgress<N> {
     fn default() -> Self {
-        Self {
-            children: vec![],
-            group: Default::default(),
-        }
+        Self { children: vec![] }
     }
 }
 

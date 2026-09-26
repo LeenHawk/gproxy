@@ -37,6 +37,7 @@ pub fn limits() -> CapabilityLimits {
 #[derive(Default)]
 pub struct Store {
     pub entries: Mutex<BTreeMap<String, StateEntry>>,
+    pub gets: AtomicUsize,
     pub serial: AtomicUsize,
     pub hang_applied: AtomicBool,
     pub hung: AtomicBool,
@@ -49,7 +50,10 @@ impl StateStore for Store {
         _: &'a (),
         key: &'a str,
     ) -> CapabilityFuture<'a, Result<Option<StateEntry>, CapabilityError>> {
-        Box::pin(async move { Ok(self.entries.lock().unwrap().get(key).cloned()) })
+        Box::pin(async move {
+            self.gets.fetch_add(1, Ordering::SeqCst);
+            Ok(self.entries.lock().unwrap().get(key).cloned())
+        })
     }
     fn compare_exchange<'a>(
         &'a self,

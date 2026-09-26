@@ -138,25 +138,40 @@ fn final_cas_cancellation_keeps_client_result_hidden_until_durable_acknowledgmen
             break;
         }
     }
-    terminal(&feed);
+    // Chat cannot carry this ID, so the call is aliased and its record is the
+    // one final write the stream has to make.
+    event(
+        &feed,
+        json!({"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"tool:source","name":"f","input":{}}}),
+    );
+    event(&feed, json!({"type":"content_block_stop","index":1}));
+    event(
+        &feed,
+        json!({"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":2,"output_tokens_details":{"thinking_tokens":0}}}),
+    );
+    event(&feed, json!({"type":"message_stop"}));
+    feed.close();
     store.hang_applied.store(true, Ordering::SeqCst);
-    {
+    // The tool call itself streams out with nothing persisted; only the end
+    // of the stream writes, and that write hangs after it applied.
+    'stream: loop {
         let mut next = Box::pin(call.next(&access));
         for _ in 0..10000 {
-            assert!(
-                next.as_mut()
-                    .poll(&mut Context::from_waker(Waker::noop()))
-                    .is_pending()
-            );
-            if store.hung.load(Ordering::SeqCst) {
-                break;
+            match next.as_mut().poll(&mut Context::from_waker(Waker::noop())) {
+                std::task::Poll::Ready(chunk) => {
+                    chunk.unwrap().unwrap();
+                    continue 'stream;
+                }
+                std::task::Poll::Pending if store.hung.load(Ordering::SeqCst) => break 'stream,
+                std::task::Poll::Pending => {}
             }
         }
-        assert!(store.hung.load(Ordering::SeqCst));
+        panic!("final write never started");
     }
     assert!(call.native_result().is_some());
     assert!(call.client_result().is_none());
-    let writes = store.serial.load(Ordering::SeqCst);
+    let saved = store.entries.lock().unwrap().clone();
+    assert_eq!(saved.len(), 1);
     let reads = feed.polls();
     assert!(
         ready(call.next(&access))
@@ -168,7 +183,8 @@ fn final_cas_cancellation_keeps_client_result_hidden_until_durable_acknowledgmen
             .finish_reason
             .is_some()
     );
-    assert_eq!(store.serial.load(Ordering::SeqCst), writes);
+    // Resuming finds the applied record identical and leaves it alone.
+    assert_eq!(*store.entries.lock().unwrap(), saved);
     assert_eq!(feed.polls(), reads);
     assert!(call.client_result().is_some());
 }

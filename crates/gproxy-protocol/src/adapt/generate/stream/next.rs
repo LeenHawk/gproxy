@@ -1,7 +1,7 @@
 use super::super::GenerationStateAccess;
 use super::{
     StreamChunk, StreamInvocation, bridge::StreamBridge, event::NativeEvent, invoke::ReadyChunk,
-    ledger::ToolDeclaration, reader::NativeFrame,
+    reader::NativeFrame,
 };
 use crate::{
     capability::StateStore,
@@ -49,8 +49,10 @@ impl<B: StreamBridge> StreamInvocation<B> {
         })
     }
 
-    /// Returns the next encoded client event only after required identity CAS
-    /// writes have durable acknowledgments. Cancellation retains that event.
+    /// Returns the next encoded client event. No alias is persisted before it
+    /// is yielded: an emitted ID is either the upstream's own or a
+    /// per-request alias, and the only state writes happen once, at the end of
+    /// the stream. Cancellation retains a prepared event.
     pub async fn next<S: StateStore>(
         &mut self,
         state: &GenerationStateAccess<'_, S>,
@@ -169,13 +171,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
                 self.finishing_source = false;
             }
             if self.eof && !self.final_saved {
-                self.ledger
-                    .save(
-                        &self.flow,
-                        state,
-                        (B::NativeEvent::DIALECT == crate::Dialect::OpenAi).then_some(&self.signed),
-                    )
-                    .await?;
                 B::save_final(
                     state,
                     self.native_final
@@ -213,13 +208,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
                 self.final_saved = true;
             }
             if self.ready.is_some() {
-                self.ledger
-                    .save(
-                        &self.flow,
-                        state,
-                        (B::NativeEvent::DIALECT == crate::Dialect::OpenAi).then_some(&self.signed),
-                    )
-                    .await?;
                 let ready = self.ready.take().expect("pending encoded event retained");
                 self.finished = ready.chunk.finished;
                 return Ok(Some(ready.chunk));
@@ -256,15 +244,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
                 });
                 continue;
             }
-            // Persist late native ID associations even when this source event
-            // emitted no new client content, before awaiting another read.
-            self.ledger
-                .save(
-                    &self.flow,
-                    state,
-                    (B::NativeEvent::DIALECT == crate::Dialect::OpenAi).then_some(&self.signed),
-                )
-                .await?;
             let next = if let Some(source) = external.as_mut() {
                 source
                     .next()
@@ -374,17 +353,7 @@ impl<B: StreamBridge> StreamInvocation<B> {
         }
         Ok(())
     }
-    fn observe(&mut self, event: &B::ClientEvent) -> Result<(), TransformError> {
-        self.ledger.observe_tools(
-            event
-                .tool_declarations(B::NativeEvent::DIALECT != crate::Dialect::OpenAiChat)
-                .into_iter()
-                .map(|(id, kind, name)| ToolDeclaration { id, kind, name })
-                .collect(),
-        )
-    }
     fn prepare_event(&mut self, event: B::ClientEvent) -> Result<(), TransformError> {
-        self.observe(&event)?;
         if !self.eof {
             B::ClientEvent::collect(
                 self.client
@@ -427,7 +396,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
     fn finish_client(&mut self) -> Result<(), TransformError> {
         let events: Vec<_> = self.queued.iter().map(|(e, _)| e.clone()).collect();
         for event in events {
-            self.observe(&event)?;
             B::ClientEvent::collect(
                 self.client
                     .as_mut()
