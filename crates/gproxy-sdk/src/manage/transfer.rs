@@ -1290,6 +1290,7 @@ mod rows {
             enable_tokenizer_download: Set(instance.enable_tokenizer_download),
             default_vocabulary_file_id: Set(vocabulary),
             retention_days: Set(instance.retention_days),
+            quota_observation_retention_days: Set(instance.quota_observation_retention_days),
             max_database_size_mb: Set(instance.max_database_size_mb),
             update_channel: Set(instance.update_channel.clone()),
             enable_auto_update_check: Set(instance.enable_auto_update_check),

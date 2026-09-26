@@ -154,6 +154,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> SettingsManage<'_, C> {
             if let Some(value) = instance.retention_days {
                 row.retention_days = Set(value);
             }
+            if let Some(value) = instance.quota_observation_retention_days {
+                row.quota_observation_retention_days = Set(value);
+            }
             if let Some(value) = instance.max_database_size_mb {
                 if value.is_some_and(|size| size > 0)
                     && self.writer.store().connection().get_database_backend()

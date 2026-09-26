@@ -50,6 +50,7 @@ impl From<setting::Model> for SettingsDto {
                     .tokenizer_auth_token
                     .is_some_and(|token| !token.is_empty()),
                 retention_days: row.retention_days,
+                quota_observation_retention_days: row.quota_observation_retention_days,
                 max_database_size_mb: row.max_database_size_mb,
                 update_channel: row.update_channel,
                 enable_auto_update_check: row.enable_auto_update_check,
@@ -93,6 +94,11 @@ pub struct InstanceSettingsDto {
     /// its presence is reported.
     pub has_tokenizer_auth_token: bool,
     pub retention_days: Option<u32>,
+    /// Days of upstream quota observations to keep; None keeps them all.
+    /// Cycles are never pruned. Absent in an older export, which reads as
+    /// the 90-day default.
+    #[serde(default = "default_observation_retention")]
+    pub quota_observation_retention_days: Option<u32>,
     pub max_database_size_mb: Option<i64>,
     pub update_channel: Option<String>,
     pub enable_auto_update_check: bool,
@@ -177,6 +183,9 @@ pub struct InstanceSettingsPatch {
     pub tokenizer_auth_token: Option<Option<String>>,
     #[serde(default, deserialize_with = "double_option")]
     pub retention_days: Option<Option<u32>>,
+    /// `null` keeps every observation.
+    #[serde(default, deserialize_with = "double_option")]
+    pub quota_observation_retention_days: Option<Option<u32>>,
     #[serde(default, deserialize_with = "double_option")]
     pub max_database_size_mb: Option<Option<i64>>,
     #[serde(default, deserialize_with = "double_option")]
@@ -217,4 +226,8 @@ pub struct LoggingSettingsPatch {
     #[serde(default)]
     #[cfg_attr(feature = "ts", ts(type = "string[] | null"))]
     pub query_parameter_blacklist: Option<Value>,
+}
+
+fn default_observation_retention() -> Option<u32> {
+    Some(90)
 }

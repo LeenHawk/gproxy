@@ -1,8 +1,12 @@
-//! Retain configuration and settled balances; prune completed request history.
+//! Retain configuration and settled balances; prune completed request history
+//! and, on its own clock, the upstream quota observation log.
 use crate::Result;
 use gproxy_store::{
     Store,
-    entity::usage::{capture_record, usage_record},
+    entity::{
+        limits::credential_quota_cycle,
+        usage::{capture_record, usage_record},
+    },
 };
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QueryFilter,
@@ -14,11 +18,23 @@ const BATCH: u64 = 256;
 pub async fn clean(
     db: &DatabaseConnection,
     days: Option<u32>,
+    observation_days: Option<u32>,
     max_mb: Option<i64>,
     now: i64,
 ) -> Result<u64> {
     let mut removed = 0;
     let mut reclaim = false;
+    if let Some(days) = observation_days {
+        let cutoff = now.saturating_sub(i64::from(days) * 86_400_000);
+        loop {
+            let count = prune_observations(db, cutoff).await?;
+            removed += count;
+            if count == 0 {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    }
     if let Some(days) = days {
         let cutoff = now.saturating_sub(i64::from(days) * 86_400_000);
         loop {
@@ -115,6 +131,26 @@ async fn prune(db: &DatabaseConnection, cutoff: i64) -> Result<u64> {
     Ok((captures.len() + usage.len()) as u64)
 }
 
+/// Quota observations older than `cutoff`, oldest first. Only the raw log:
+/// the cycles they were folded into (`credential_cycles`) are kept, and so
+/// are observations a live block still names, which cannot be this old.
+async fn prune_observations(db: &DatabaseConnection, cutoff: i64) -> Result<u64> {
+    let ids: Vec<String> = credential_quota_cycle::Entity::find()
+        .select_only()
+        .column(credential_quota_cycle::Column::Id)
+        .filter(credential_quota_cycle::Column::ObservedAtMs.lt(cutoff))
+        .order_by_asc(credential_quota_cycle::Column::ObservedAtMs)
+        .limit(BATCH)
+        .into_tuple()
+        .all(db)
+        .await?;
+    Store::new(db.clone())
+        .credential_quota_cycles()
+        .delete_many(&ids)
+        .await?;
+    Ok(ids.len() as u64)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,7 +191,10 @@ mod tests {
     #[tokio::test]
     async fn retention_keeps_active_work_and_configuration() {
         let db = fixture().await;
-        assert_eq!(clean(&db, Some(1), None, 200_000_000).await.unwrap(), 1);
+        assert_eq!(
+            clean(&db, Some(1), None, None, 200_000_000).await.unwrap(),
+            1
+        );
         assert!(
             capture_record::Entity::find_by_id("active")
                 .one(&db)
@@ -176,7 +215,7 @@ mod tests {
     async fn sqlite_budget_reclaims_completed_history() {
         let db = fixture().await;
         assert!(occupied_bytes(&db).await.unwrap() > 1024 * 1024);
-        assert!(clean(&db, None, Some(1), 300_000_000).await.unwrap() > 0);
+        assert!(clean(&db, None, None, Some(1), 300_000_000).await.unwrap() > 0);
         assert!(occupied_bytes(&db).await.unwrap() <= 1024 * 1024);
         assert!(
             capture_record::Entity::find_by_id("active")
@@ -185,5 +224,67 @@ mod tests {
                 .unwrap()
                 .is_some()
         );
+    }
+
+    #[tokio::test]
+    async fn observation_retention_prunes_the_log_and_keeps_the_cycles() {
+        use gproxy_store::entity::limits::credential_cycle::{self, CycleBoundary, CycleOpening};
+        let db = fixture().await;
+        let store = Store::new(db.clone());
+        let day = 86_400_000;
+        let now = 100 * day;
+        store
+            .credential_quota_cycles()
+            .create_many(
+                [("old", now - 91 * day), ("recent", now - 89 * day)]
+                    .into_iter()
+                    .map(|(id, at)| credential_quota_cycle::ActiveModel {
+                        id: Set(id.into()),
+                        credential_id: Set("c".into()),
+                        scope: Set(serde_json::json!("all")),
+                        snapshot: Set(serde_json::json!({})),
+                        observed_at_ms: Set(at),
+                        credential_cycle_id: Set(Some("cycle".into())),
+                        ..Default::default()
+                    })
+                    .collect(),
+            )
+            .await
+            .unwrap();
+        store
+            .credential_cycles()
+            .create_many(vec![credential_cycle::ActiveModel {
+                id: Set("cycle".into()),
+                credential_id: Set("c".into()),
+                closed_at_ms: Set(Some(now - 91 * day)),
+                window_id: Set("five_hour".into()),
+                scope: Set(serde_json::json!("all")),
+                starts_at_ms: Set(now - 92 * day),
+                boundary: Set(CycleBoundary::Observed),
+                opened_by: Set(CycleOpening::FirstUse),
+                cost_usd: Set(gproxy_store::FixedDecimal::ZERO),
+                ..Default::default()
+            }])
+            .await
+            .unwrap();
+        // Request history is off; the observation clock runs on its own.
+        assert_eq!(clean(&db, None, Some(90), None, now).await.unwrap(), 1);
+        let left: Vec<String> = credential_quota_cycle::Entity::find()
+            .all(&db)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.id)
+            .collect();
+        assert_eq!(left, ["recent"]);
+        assert!(
+            credential_cycle::Entity::find_by_id("cycle".to_owned())
+                .one(&db)
+                .await
+                .unwrap()
+                .is_some()
+        );
+        // None keeps every observation.
+        assert_eq!(clean(&db, None, None, None, now * 2).await.unwrap(), 0);
     }
 }
