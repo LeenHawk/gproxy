@@ -827,6 +827,9 @@ fn catalogue() -> Value {
         "defaultAgentModelId": "gemini-3-pro",
         "commandModelIds": ["gemini-3-flash"],
         "tieredModelIds": [{"modelId": "models/gemini-3.1-pro-high"}],
+        // Live shape: a labelled group; the label is not a model.
+        "agentModelSorts": [{"displayName": "Recommended",
+                             "groups": [{"modelIds": ["claude-sonnet-4-6"]}]}],
     })
 }
 
@@ -870,6 +873,7 @@ async fn the_model_directory_harvests_every_role_field() {
     assert_eq!(
         names,
         [
+            "models/claude-sonnet-4-6",
             "models/gemini-3-flash",
             "models/gemini-3-pro",
             "models/gemini-3.1-pro-high"
