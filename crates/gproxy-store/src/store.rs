@@ -52,6 +52,7 @@ repositories! {
     user_sessions => crate::entity::identity::user_session::Entity,
     credential_blocks => crate::entity::limits::credential_block::Entity,
     credential_quota_cycles => crate::entity::limits::credential_quota_cycle::Entity,
+    credential_cycles => crate::entity::limits::credential_cycle::Entity,
     counted_windows => crate::entity::limits::counted_window::Entity,
     cache_entries => crate::entity::cache::cache_entry::Entity,
     cache_counters => crate::entity::cache::cache_counter::Entity,

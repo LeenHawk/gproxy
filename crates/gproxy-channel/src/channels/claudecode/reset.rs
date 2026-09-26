@@ -269,6 +269,7 @@ impl QuotaReset for Claudecode {
                 return Ok(QuotaResetResult {
                     outcome: QuotaResetOutcome::Ineligible,
                     windows_reset: None,
+                    clears: Vec::new(),
                     reason: Some(
                         choice
                             .and_then(|option| option.ineligible_reason.clone())
@@ -315,6 +316,7 @@ impl QuotaReset for Claudecode {
                     .get("cleared")
                     .and_then(Value::as_array)
                     .map(|cleared| cleared.len() as u64),
+                clears: choice.clears.clone(),
                 reason: result
                     .get("reason")
                     .and_then(Value::as_str)

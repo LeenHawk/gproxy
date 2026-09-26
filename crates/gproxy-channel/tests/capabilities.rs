@@ -426,6 +426,7 @@ impl QuotaReset for Demo {
                 reason: None,
                 outcome: QuotaResetOutcome::Reset,
                 windows_reset: Some(1),
+                clears: Vec::new(),
             })
         })
     }

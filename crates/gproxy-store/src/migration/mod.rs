@@ -63,6 +63,7 @@ use gproxy_seaorm::{
 use crate::{Result, Store, StoreError};
 
 mod m20260921_000001_baseline;
+mod m20260926_000001_credential_cycles;
 
 /// Every migration this build carries, oldest first.
 ///
@@ -72,7 +73,10 @@ pub struct Migrator;
 
 impl MigratorTrait for Migrator {
     fn migrations() -> Vec<Box<dyn MigrationTrait>> {
-        vec![Box::new(m20260921_000001_baseline::Migration)]
+        vec![
+            Box::new(m20260921_000001_baseline::Migration),
+            Box::new(m20260926_000001_credential_cycles::Migration),
+        ]
     }
 }
 

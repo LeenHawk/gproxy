@@ -265,6 +265,10 @@ pub struct QuotaResetResult {
     pub reason: Option<String>,
     pub outcome: QuotaResetOutcome,
     pub windows_reset: Option<u64>,
+    /// Dimension ids the redeemed option reopens, as its `QuotaResetOption`
+    /// listed them; empty when the channel does not say, which the host
+    /// reads as every window.
+    pub clears: Vec<String>,
 }
 
 /// Independent from quota querying: ClaudeCode need not implement resets just
