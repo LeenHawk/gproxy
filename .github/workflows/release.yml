@@ -210,17 +210,6 @@ jobs:
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
-      - name: Prepare Microsoft Store submission
-        if: ${{ matrix.os == 'windows' && needs.prepare.outputs.channel == 'release' }}
-        uses: ./.github/actions/windows-store
-        with:
-          target: ${{ matrix.target }}
-          artifact: ${{ matrix.artifact }}
-          version: ${{ needs.prepare.outputs.version }}
-          identity-name: ${{ vars.MS_STORE_IDENTITY_NAME }}
-          display-name: ${{ vars.MS_STORE_DISPLAY_NAME }}
-          publisher: ${{ vars.MS_STORE_IDENTITY_PUBLISHER }}
-          publisher-display-name: ${{ vars.MS_STORE_PUBLISHER_DISPLAY_NAME }}
       - name: Record build provenance
         env:
           ARTIFACT_NAME: ${{ matrix.artifact }}
@@ -242,6 +231,124 @@ jobs:
             dist/release/${{ matrix.artifact }}.zip.sha256
             dist/release/${{ matrix.artifact }}.apk
             dist/release/${{ matrix.artifact }}.apk.sha256
+          retention-days: 1
+
+  application:
+    name: Application ${{ matrix.target }}
+    needs: [prepare, console]
+    runs-on: ${{ matrix.runner }}
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: linux, target: x86_64-unknown-linux-gnu, runner: ubuntu-22.04, artifact: gproxy-tauri-linux-x86_64 }
+          - { os: linux, target: aarch64-unknown-linux-gnu, runner: ubuntu-24.04-arm, artifact: gproxy-tauri-linux-aarch64 }
+          - { os: macos, target: x86_64-apple-darwin, runner: macos-latest, artifact: gproxy-tauri-macos-x86_64 }
+          - { os: macos, target: aarch64-apple-darwin, runner: macos-latest, artifact: gproxy-tauri-macos-aarch64 }
+          - { os: windows, target: x86_64-pc-windows-msvc, runner: windows-latest, artifact: gproxy-tauri-windows-x86_64 }
+          - { os: windows, target: aarch64-pc-windows-msvc, runner: windows-latest, artifact: gproxy-tauri-windows-aarch64 }
+          - { os: android, target: aarch64-linux-android, runner: ubuntu-latest, artifact: gproxy-tauri-android-aarch64 }
+          - { os: android, target: x86_64-linux-android, runner: ubuntu-latest, artifact: gproxy-tauri-android-x86_64 }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: console-dist
+          path: console/dist
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          package_json_file: console/package.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 'lts/*'
+          cache: pnpm
+          cache-dependency-path: crates/gproxy-host-tauri/pnpm-lock.yaml
+      - name: Prepare application assets and CLI
+        run: |
+          node console/scripts/sync-to-embed.mjs
+          pnpm --dir crates/gproxy-host-tauri install --frozen-lockfile
+      - name: Install Linux desktop dependencies
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libdbus-1-dev librsvg2-dev patchelf
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          key: application-${{ matrix.target }}
+      - name: Set up Java
+        if: matrix.os == 'android'
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            crates/gproxy-host-tauri/gen/android/**/*.gradle*
+            crates/gproxy-host-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties
+      - if: matrix.os == 'android'
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+      - name: Install Android toolchain
+        if: matrix.os == 'android'
+        run: |
+          sdkmanager 'platforms;android-36' 'build-tools;36.1.0' 'ndk;30.0.15729638'
+          echo "NDK_HOME=$ANDROID_HOME/ndk/30.0.15729638" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/30.0.15729638" >> "$GITHUB_ENV"
+      - name: Build application installer
+        env:
+          TARGET_TRIPLE: ${{ matrix.target }}
+          TARGET_OS: ${{ matrix.os }}
+          ARTIFACT_NAME: ${{ matrix.artifact }}
+          GPROXY_BUILD_VERSION: ${{ needs.prepare.outputs.version }}
+          GPROXY_BUILD_CHANNEL: ${{ needs.prepare.outputs.channel }}
+          GPROXY_BUILD_HASH: ${{ github.sha }}
+          GPROXY_UPDATE_PUBKEY: ${{ secrets.UPDATE_SIGNING_PUBLIC_KEY_B64 }}
+          GPROXY_INSTALLATION_KIND: ${{ matrix.os == 'android' && 'android-apk' || 'standalone' }}
+          RUSTFLAGS: ${{ matrix.os == 'windows' && '-C target-feature=+crt-static' || '' }}
+          ANDROID_SIGNING_KEYSTORE_B64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_B64 }}
+          ANDROID_SIGNING_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+          MS_STORE_IDENTITY_NAME: ${{ vars.MS_STORE_IDENTITY_NAME }}
+          MS_STORE_DISPLAY_NAME: ${{ vars.MS_STORE_DISPLAY_NAME }}
+          MS_STORE_IDENTITY_PUBLISHER: ${{ vars.MS_STORE_IDENTITY_PUBLISHER }}
+          MS_STORE_PUBLISHER_DISPLAY_NAME: ${{ vars.MS_STORE_PUBLISHER_DISPLAY_NAME }}
+          APPLE_SIGNING_IDENTITY: '-'
+        run: scripts/package-tauri-release.sh
+      - name: Preserve Store submission
+        if: matrix.os == 'windows' && needs.prepare.outputs.channel == 'release'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: microsoft-store-unsigned-${{ matrix.artifact }}
+          path: dist/release/${{ matrix.artifact }}.msix
+          if-no-files-found: error
+          retention-days: 30
+      - name: Record build provenance
+        env:
+          ARTIFACT_NAME: ${{ matrix.artifact }}
+          GPROXY_VERSION: ${{ needs.prepare.outputs.version }}
+          TARGET_TRIPLE: ${{ matrix.target }}
+          BUILDER: tauri
+        run: scripts/build-provenance.sh
+      - uses: ./.github/actions/attest-release
+        with:
+          artifact: ${{ matrix.artifact }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: application-${{ matrix.target }}
+          path: dist/release/${{ matrix.artifact }}.*
+          if-no-files-found: error
           retention-days: 1
 
   container:
@@ -342,7 +449,7 @@ jobs:
 
   manifest:
     name: Signed update manifest
-    needs: [prepare, native]
+    needs: [prepare, native, application]
     runs-on: ubuntu-latest
     environment: release
     steps:
@@ -350,6 +457,11 @@ jobs:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           pattern: native-*
+          path: dist/native
+          merge-multiple: true
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: application-*
           path: dist/native
           merge-multiple: true
       - name: Build and sign manifest
@@ -496,6 +608,11 @@ jobs:
         with:
           name: edge-bundles
           path: dist/publish
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: application-*
+          path: dist/publish
+          merge-multiple: true
       - name: Publish GitHub Release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

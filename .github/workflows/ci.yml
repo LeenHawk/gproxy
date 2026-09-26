@@ -162,6 +162,23 @@ jobs:
         with:
           name: console-dist
           path: crates/gproxy-host-axum/assets/web
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: console-dist
+          path: console/dist
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          package_json_file: console/package.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 'lts/*'
+          cache: pnpm
+          cache-dependency-path: crates/gproxy-host-tauri/pnpm-lock.yaml
+      - name: Prepare application assets and CLI
+        shell: bash
+        run: |
+          node console/scripts/sync-to-embed.mjs
+          pnpm --dir crates/gproxy-host-tauri install --frozen-lockfile
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           toolchain: stable
@@ -214,12 +231,23 @@ jobs:
           TARGET_TRIPLE: ${{ matrix.target }}
           ARTIFACT_NAME: ${{ matrix.artifact }}
         run: scripts/package-native-release.ps1
-      - name: Validate Store submission packaging
+      - name: Build Windows application
+        shell: bash
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+          GPROXY_BUILD_VERSION: ${{ steps.version.outputs.version }}
+          GPROXY_BUILD_CHANNEL: dev
+          GPROXY_BUILD_HASH: ${{ github.sha }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          config="$(jq -cn --arg version "$GPROXY_BUILD_VERSION" '{version:$version}')"
+          pnpm --dir crates/gproxy-host-tauri exec tauri build --ci --target "$TARGET" --no-bundle --config "$config" -- --locked
+      - name: Validate application Store packaging
         if: ${{ !contains(steps.version.outputs.version, '-') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         uses: ./.github/actions/windows-store
         with:
           target: ${{ matrix.target }}
-          artifact: ${{ matrix.artifact }}
+          artifact: gproxy-tauri-windows-${{ matrix.target == 'x86_64-pc-windows-msvc' && 'x86_64' || 'aarch64' }}
           version: ${{ steps.version.outputs.version }}
           identity-name: ${{ vars.MS_STORE_IDENTITY_NAME }}
           display-name: ${{ vars.MS_STORE_DISPLAY_NAME }}

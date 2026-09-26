@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Build the application host, keeping its identity separate from server archives.
+set -euo pipefail
+root="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$root"
+: "${TARGET_TRIPLE:?}"
+: "${TARGET_OS:?}"
+: "${ARTIFACT_NAME:?}"
+: "${GPROXY_BUILD_VERSION:?}"
+output="$root/dist/release"
+mkdir -p "$output"
+config="$(jq -cn --arg version "$GPROXY_BUILD_VERSION" '{version:$version,bundle:{active:true}}')"
+cd crates/gproxy-host-tauri
+case "$TARGET_OS" in
+  linux | macos)
+    bundle=deb
+    [ "$TARGET_OS" != macos ] || bundle=dmg
+    pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --bundles "$bundle" --config "$config" -- --locked
+    files=("$root/target/$TARGET_TRIPLE/release/bundle/$bundle/"*."$bundle")
+    test "${#files[@]}" -eq 1 && test -f "${files[0]}"
+    cp "${files[0]}" "$output/$ARTIFACT_NAME.$bundle"
+    ;;
+  windows)
+    pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --no-bundle --config "$config" -- --locked
+    cd "$root"
+    pwsh -NoProfile -File scripts/package-windows-msix.ps1 \
+      -Target "$TARGET_TRIPLE" -Artifact "$ARTIFACT_NAME" -Version "$GPROXY_BUILD_VERSION" \
+      -OutputDir dist/release
+    ;;
+  android)
+    arch="${TARGET_TRIPLE%%-*}"
+    bindgen="BINDGEN_EXTRA_CLANG_ARGS_${TARGET_TRIPLE//-/_}"
+    export "$bindgen=--target=${TARGET_TRIPLE}28"
+    pnpm exec tauri android build --ci --apk --target "$arch" --config "$config" -- --locked
+    cd "$root"
+    source scripts/android/sdk.sh
+    sdk="$(android_sdk_root)"
+    apk_dir=crates/gproxy-host-tauri/gen/android/app/build/outputs/apk
+    mapfile -t files < <(find "$apk_dir" -name '*-release-unsigned.apk')
+    test "${#files[@]}" -eq 1
+    : "${ANDROID_SIGNING_KEYSTORE_B64:?}"
+    : "${ANDROID_SIGNING_KEYSTORE_PASSWORD:?}"
+    : "${ANDROID_SIGNING_KEY_ALIAS:?}"
+    work="$(mktemp -d)"
+    trap 'rm -rf "$work"' EXIT
+    printf '%s' "$ANDROID_SIGNING_KEYSTORE_B64" | base64 -d > "$work/key.jks"
+    chmod 600 "$work/key.jks"
+    "$(android_build_tool "$sdk" zipalign)" -f -p 4 "${files[0]}" "$work/aligned.apk"
+    signer_args=(--ks "$work/key.jks" --ks-pass env:ANDROID_SIGNING_KEYSTORE_PASSWORD --ks-key-alias "$ANDROID_SIGNING_KEY_ALIAS" --v4-signing-enabled false)
+    if [ -n "${ANDROID_SIGNING_KEY_PASSWORD:-}" ]; then signer_args+=(--key-pass env:ANDROID_SIGNING_KEY_PASSWORD); fi
+    signer="$(android_build_tool "$sdk" apksigner)"
+    "$signer" sign "${signer_args[@]}" --out "$output/$ARTIFACT_NAME.apk" "$work/aligned.apk"
+    "$signer" verify --verbose "$output/$ARTIFACT_NAME.apk"
+    ;;
+  *) echo "unsupported application OS: $TARGET_OS" >&2; exit 1 ;;
+esac
+cd "$output"
+for file in "$ARTIFACT_NAME".*; do
+  [ "${file##*.}" != sha256 ] || continue
+  if command -v sha256sum >/dev/null; then sha256sum "$file"; else shasum -a 256 "$file"; fi > "$file.sha256"
+done

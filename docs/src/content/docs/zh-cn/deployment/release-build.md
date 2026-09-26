@@ -3,12 +3,49 @@ title: "从源码构建"
 description: 从源码构建 GPROXY v4 的每个目标——server、桌面宿主、Worker 与 console——并运行 CI 跑的那几道质量闸门。
 ---
 
-从源码构建是拿到 v4 的唯一方式。**没有发布流水线**：没有安装包、没有便携包、没有发布的
-容器镜像、没有签名的更新清单，也没有代码签名。
+Release 工作流在推送 `dev` 时构建 nightly，在推送与 workspace 版本一致的 `v*`
+tag 时发布版本。下面介绍源码构建；自动打包由 `.github/workflows/release.yml` 驱动。
 
-这是关于 v4 当前状态的陈述，不是一条方针。v3 这些全都有，而一样都没有被移植；描述它们的
-那些页面被删除，而不是围绕不存在的机制改写。仓库里的 `deploy/` 与 `scripts/` 目录仍然装着
-v3 的流水线，而且**构建不了 v4**——比如那份容器 Dockerfile 要的二进制目标已经换了 crate。
+## 应用安装包
+
+Tauri 应用安装包与服务器便携 ZIP 分开发布，均包含构建好的 Console：
+
+| 平台 | 架构 | GitHub Release 文件 |
+| --- | --- | --- |
+| Linux | x86_64、aarch64 | `gproxy-tauri-linux-<架构>.deb` |
+| macOS | x86_64、aarch64 | `gproxy-tauri-macos-<架构>.dmg` |
+| Windows | x86_64、aarch64 | `gproxy-tauri-windows-<架构>.msix` |
+| Android | x86_64、aarch64 | `gproxy-tauri-android-<架构>.apk` |
+
+nightly 的文件名额外带提交 SHA 前缀。Linux x86_64 在 Ubuntu 22.04 构建，
+ARM64 在 Ubuntu 24.04 构建，安装时需要发行版提供 WebKitGTK 4.1。
+macOS 使用 ad-hoc 签名，尚未接入 Developer ID 签名和公证。
+
+Windows 使用 Microsoft Store 的包身份。`release` 环境需配置四个变量：
+`MS_STORE_IDENTITY_NAME`、`MS_STORE_DISPLAY_NAME`、`MS_STORE_IDENTITY_PUBLISHER`、
+`MS_STORE_PUBLISHER_DISPLAY_NAME`。正式版保留两架构的 Store 提交包；启用
+`MS_STORE_PUBLISH_ENABLED` 后，GitHub Release 发布成功会触发 Store 提交流程。
+GitHub 附带的 MSIX 与提交包一样未签名，由 Store 签发后分发；它不是可直接双击安装的
+可信签名包。应用依赖系统的 WebView2 Runtime。
+
+Android 使用已有 `ANDROID_SIGNING_*` secrets 签名并验证 APK。应用的
+`<target-triple>-tauri-apk` 条目进入 Ed25519 签名更新清单，与旧服务包装 APK 的
+应用身份和更新条目分开。缺少必需的密钥或 Store 身份会使打包失败。
+
+本地先构建 Console 并同步资源，然后调用发布脚本：
+
+```sh
+pnpm --dir console build
+node console/scripts/sync-to-embed.mjs
+pnpm --dir crates/gproxy-host-tauri install --frozen-lockfile
+TARGET_OS=linux TARGET_TRIPLE=x86_64-unknown-linux-gnu \
+  ARTIFACT_NAME=gproxy-tauri-linux-x86_64 \
+  GPROXY_BUILD_VERSION=$(scripts/release-metadata.sh version) \
+  scripts/package-tauri-release.sh
+```
+
+产物写入 `dist/release/`。工作流还发布原生服务器 ZIP、旧 Android 包、Edge 包和
+GNU/musl 容器镜像；每个应用包都生成构建证明，GitHub 上可查询 attestations。
 
 ## 前置条件
 
@@ -164,7 +201,7 @@ Astro Starlight，由 CI 部署到 Cloudflare Pages。`pnpm check` 校验本站�
 `scripts/check-docs.sh` 是结构性检查：侧边栏 slug 对页面、中英文对等、frontmatter、
 被禁止的引用，以及过长的页面。
 
-## 这里没有什么
+## 库发布
 
-没有 `cargo publish`。workspace 里没有任何东西发布到 registry，因此嵌入意味着一个 git 或
-路径依赖——见[嵌入核心库](/zh-cn/reference/embedding/)。公开接口尚不稳定。
+版本 tag 还会调用 `scripts/publish-crates.sh` 发布选定的 MIT 库。其余 workspace crate
+通过 git 或路径依赖使用，见[嵌入核心库](/zh-cn/reference/embedding/)。公开接口尚不稳定。

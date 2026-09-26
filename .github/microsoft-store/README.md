@@ -1,8 +1,8 @@
 # Microsoft Store onboarding
 
 MSIX replaces the Windows MSI. Store signing and distribution are pending;
-GitHub Releases continue to offer the portable ZIP. SignPath still applies
-only to that portable EXE.
+GitHub Releases offer the portable ZIP and unsigned Tauri MSIX packages.
+SignPath still applies only to the portable EXE.
 
 ## Account and product
 
@@ -27,25 +27,24 @@ only to that portable EXE.
 
 ## Build and inspect
 
-Stable-tag Windows jobs build x64 and ARM64 packages after portable signing.
-CI also builds both architectures and validates MSIX packaging for same-repository
-branches using a stable workspace version; these are development validation builds.
-No configured identity means Store packaging is visibly skipped; partially
-configured identities fail. MSI is no longer built. Prerelease and staging
-builds only publish the portable Windows ZIP.
+The Release application's Windows jobs build x64 and ARM64 Tauri MSIX packages
+for nightly, prerelease and stable releases. All four Store identity variables
+are required. CI also builds the application on both architectures and validates
+Store packaging for same-repository builds using a stable workspace version;
+this CI-only validation skips an entirely unconfigured identity.
 
-The unsigned MSIX files appear in Actions artifacts named
-`microsoft-store-unsigned-gproxy-windows-*`, retained for 30 days. Standard
-GitHub build attestations cover these submission files. They are not uploaded
-as public Release assets: Microsoft must certify and sign them first.
+Stable releases retain unsigned MSIX files in Actions artifacts named
+`microsoft-store-unsigned-gproxy-tauri-windows-*` for 30 days. The same unsigned
+MSIX files are also published on GitHub, with build attestations. They require
+signing before normal installation; Microsoft signs the Store-distributed copies
+after certification. No separate GitHub MSIX signing service is configured.
 
-To reproduce on a Windows build machine with the release ZIP, Rust target and
-Windows SDK installed, run `scripts/package-windows-msix.ps1` with `-Target`,
-`-Artifact`, `-Version`, `-IdentityName`, `-DisplayName`, `-Publisher` and
-`-PublisherDisplayName`. Use the four real Partner Center values. The script
-validates a stable version, appends the Store-reserved fourth component `0`,
-builds the launcher, creates icons from the existing project icon, and invokes
-MakeAppx with manifest validation enabled. Output is `dist/store/*.msix`.
+To reproduce on Windows, build the `gproxy-desktop.exe` Tauri target first, then
+run `scripts/package-windows-msix.ps1` with `-Target`, `-Artifact`, `-Version`,
+`-IdentityName`, `-DisplayName`, `-Publisher` and `-PublisherDisplayName`. Use the
+four real Partner Center values. The script maps the version to `major.minor.patch.0`,
+packages the Tauri executable and project icons, and invokes Windows SDK MakeAppx
+with manifest validation enabled. Default output is `dist/store/*.msix`.
 
 Before submission, run the Windows App Certification Kit and install a locally
 signed test copy on Windows 10 version 2004 or later and Windows 11. Test both

@@ -100,8 +100,8 @@ state 交给了 261 条命令；不存在一种诚实的「停止」能让这些
 及其 `.sha256` 放在原生产物旁，`scripts/build-update-manifest.sh` 会将它纳入签名
 清单。构建时提供 `GPROXY_UPDATE_PUBKEY`；滚动构建还需
 `GPROXY_BUILD_CHANNEL=dev` 和 `GPROXY_BUILD_HASH`。APK 必须使用与已安装应用
-相同的 Android 签名密钥。本次不新增应用 CI 任务；清单缺少该产物时明确报不可用，
-不会退回旧版壳 APK。
+相同的 Android 签名密钥。Release 工作流构建两种应用架构，并将签名后的 APK 交给清单任务；
+清单缺少该产物时明确报不可用，不会退回旧版壳 APK。
 
 ## 为什么网关是进程，而不是窗口
 
@@ -283,19 +283,21 @@ dev.gproxy.desktop.GproxyNative -> dev.gproxy.desktop.GproxyNative:
 - **开机接收器从未被触发过。**
 - **应用内更新尚未在设备上验证。** 下载和校验由本地签名清单测试覆盖；系统安装器、
   未知来源授权界面和替换已安装 APK，仍需要设备及使用相同密钥签名的版本验证。
-- **release APK 未签名。** 没有 signing config 时 Gradle 产出的就是
+- **此前本地检查的 release APK 未签名。** 没有 signing config 时 Gradle 产出的就是
   `app-universal-release-unsigned.apk`，它不能直接安装。debug APK 用本机
   debug key 签过。
-- **只构建了 `arm64-v8a`。** 另外三个 ABI 已配置、Rust target 也已安装，但没有
+- **此前记录的本地构建只覆盖 `arm64-v8a`。** 另外三个 ABI 已配置、Rust target 也已安装，但没有
   编译出任何 `armeabi-v7a`、`x86` 或 `x86_64` 的库。
 - **JNI 函数里的 `catch_unwind` 在 release 构建中什么也抓不到。** 工作区的
   release profile 是 `panic = "abort"`。这个保护在 debug 构建里是真的——而 debug
   正是有人想弄明白「它为什么 panic 了」时会跑的那一个。
 - **电池优化豁免对话框**只申请一次，效果完全取决于厂商。
 
-## CI 需要什么
+## Release CI
 
-这里刻意没有加 CI job。真要加，它需要：
+`.github/workflows/release.yml` 的 `application` 矩阵构建 ARM64 与 x86_64 APK。
+`scripts/package-tauri-release.sh` 在 Gradle 构建后使用 `zipalign` 与 `apksigner` 对齐、签名并
+验证 APK。任务安装以下工具：
 
 - 带 platform `android-36` 与 build-tools 36.1.0 的 **Android SDK**，并已接受
   许可；
@@ -305,9 +307,10 @@ dev.gproxy.desktop.GproxyNative -> dev.gproxy.desktop.GproxyNative:
 - 通过仓库内 wrapper 的 **Gradle**，并缓存 `~/.gradle`——没有缓存的首次构建会下
   载 Gradle 本身、Android Gradle Plugin 和一堆 AndroidX 依赖；
 - 在 `crates/gproxy-host-tauri` 里跑 **`pnpm install`** 装那个钉死的 CLI；
-- 四个 **Rust Android target**；
-- **签名密钥**——keystore、它的口令、key alias 及其口令——配成 Gradle 的 signing
-  config。没有它们，release 产物就是上面那个未签名 APK。
+- 当前任务选中的 **Rust Android target**，每个任务构建一个 ABI；
+- **签名密钥**：`ANDROID_SIGNING_KEYSTORE_B64`、
+  `ANDROID_SIGNING_KEYSTORE_PASSWORD`、`ANDROID_SIGNING_KEY_ALIAS`，以及可选的
+  `ANDROID_SIGNING_KEY_PASSWORD`。缺少必需的密钥会让发布任务失败。
 
 意外的瓶颈是磁盘：这个引擎的 debug `.so` 约一个 GB，四个 ABI 足以撑爆一台小
 runner。

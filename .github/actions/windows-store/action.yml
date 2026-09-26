@@ -5,7 +5,7 @@ inputs:
     description: Rust target triple
     required: true
   artifact:
-    description: Portable release artifact basename
+    description: Tauri application artifact basename
     required: true
   version:
     description: Stable release version
