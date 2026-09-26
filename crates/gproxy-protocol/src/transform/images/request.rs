@@ -270,6 +270,9 @@ pub fn preflight(
         refs.push(mask);
     }
     let n = usize::try_from(v.n).unwrap_or(1);
+    if n == 0 {
+        return Err(TransformError::shape("n", "at least one image required"));
+    }
     if n > 1 {
         report.changed("n", "one native image generation call per requested image");
     }
