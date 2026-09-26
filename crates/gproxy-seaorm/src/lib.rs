@@ -23,6 +23,8 @@ mod json;
 pub use json::json_array_contains_text;
 mod batch;
 pub use batch::{BatchConnectionTrait, BatchQuery, BatchResult, BatchStatement};
+#[cfg(all(feature = "group-commit", not(target_arch = "wasm32")))]
+pub mod group;
 /// D1's bound-parameter limit per SQL statement. A logical batch may contain
 /// several statements; they are still submitted as one atomic database batch.
 pub const D1_MAX_BIND_PARAMETERS: usize = 100;

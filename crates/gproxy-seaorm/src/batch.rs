@@ -129,6 +129,17 @@ impl BatchConnectionTrait for DatabaseConnection {
         for step in statements {
             step.validate(self.get_database_backend())?;
         }
+        // A batch that writes goes to the store's group-committing writer when
+        // it has one; a read-only batch has nothing to commit and does not
+        // queue behind the writes.
+        #[cfg(all(feature = "group-commit", not(target_arch = "wasm32")))]
+        if statements
+            .iter()
+            .any(|step| matches!(step, BatchStatement::Execute(_)))
+            && let Some(queue) = crate::group::queue(self)
+        {
+            return crate::group::submit(self, queue, statements).await;
+        }
         let transaction = self
             .begin_with_config(Some(IsolationLevel::RepeatableRead), None)
             .await?;
@@ -150,7 +161,7 @@ impl BatchConnectionTrait for DatabaseConnection {
     }
 }
 
-async fn run_native<C: ConnectionTrait>(
+pub(crate) async fn run_native<C: ConnectionTrait>(
     connection: &C,
     statements: &[BatchStatement],
 ) -> Result<Vec<BatchResult>, DbErr> {

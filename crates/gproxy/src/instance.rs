@@ -284,7 +284,11 @@ pub(crate) async fn open_connection(config: &AppConfig) -> Result<Connection> {
                 .max_connections(1)
                 .sqlx_logging(false)
                 .map_sqlx_sqlite_opts(tuned);
-            Ok(Database::connect(options).await?)
+            let connection = Database::connect(options).await?;
+            // Every request settles through this one connection; see
+            // `gproxy_seaorm::group` for why its writes are committed together.
+            gproxy_seaorm::group::install(&connection);
+            Ok(connection)
         }
         StoreBackendConfig::Url { dsn } => {
             let mut options = ConnectOptions::new(dsn.clone());
