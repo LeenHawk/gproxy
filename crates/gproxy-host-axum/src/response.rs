@@ -217,6 +217,11 @@ fn build(status: StatusCode, headers: HeaderMap, body: Body) -> Response {
 /// `sec-websocket-accept` and `sec-websocket-key` go with them: they are the
 /// proof of *one* handshake, computed from the key that side sent, and the
 /// gateway's 101 to the client carries its own.
+///
+/// `set-cookie` too, though it is end-to-end: the upstream's cookies belong to
+/// the gateway's session with it — for a channel signed in to a shared
+/// account, that session *is* the account — and a client of the gateway is
+/// not a party to it.
 pub(crate) fn sanitize(mut headers: HeaderMap) -> HeaderMap {
     let nominated: Vec<HeaderName> = headers
         .get_all(http::header::CONNECTION)
@@ -233,6 +238,7 @@ pub(crate) fn sanitize(mut headers: HeaderMap) -> HeaderMap {
         "proxy-connection",
         "sec-websocket-accept",
         "sec-websocket-key",
+        "set-cookie",
         "te",
         "trailer",
         "transfer-encoding",
@@ -471,8 +477,13 @@ mod tests {
         headers.insert("transfer-encoding", HeaderValue::from_static("chunked"));
         headers.insert("x-upstream-token", HeaderValue::from_static("secret"));
         headers.insert("content-type", HeaderValue::from_static("application/json"));
+        headers.insert("set-cookie", HeaderValue::from_static("__session=upstream"));
 
         let headers = sanitize(headers);
+        assert!(
+            !headers.contains_key(http::header::SET_COOKIE),
+            "the upstream's session is the gateway's, not the client's"
+        );
         assert!(!headers.contains_key(http::header::CONNECTION));
         assert!(!headers.contains_key("transfer-encoding"));
         assert!(
