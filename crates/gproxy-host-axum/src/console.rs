@@ -142,6 +142,20 @@ fn is_document(asset: &str) -> bool {
         .is_some_and(|last| last.contains('.'))
 }
 
+/// The policy every console response carries.
+///
+/// The bundle is same-origin through and through — no inline script, no
+/// third-party origin — so the policy can say exactly that. `style-src` keeps
+/// `'unsafe-inline'` for the `style` attributes React renders. `data:` and
+/// `blob:` images are generated previews. `frame-ancestors 'none'` (and
+/// `X-Frame-Options` for older browsers) keeps the console out of anybody's
+/// frame, which matters because a same-site frame would carry the session
+/// cookie.
+pub const CONTENT_SECURITY_POLICY: &str = "default-src 'self'; script-src 'self'; \
+style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; \
+connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; \
+frame-ancestors 'none'";
+
 fn asset_response(asset: &str, bytes: Vec<u8>, head: bool) -> Response {
     let body = if head { Vec::new() } else { bytes };
     let mut response = axum::body::Body::from(body).into_response();
@@ -163,6 +177,20 @@ fn asset_response(asset: &str, bytes: Vec<u8>, head: bool) -> Response {
         } else {
             HeaderValue::from_static("public, max-age=31536000, immutable")
         },
+    );
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static(CONTENT_SECURITY_POLICY),
+    );
+    headers.insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
+    headers.insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer"),
     );
     response
 }
@@ -247,6 +275,19 @@ mod tests {
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
         // And a non-console path is still nobody's.
         assert!(empty.serve(&Method::GET, "/v1/messages").await.is_none());
+    }
+
+    #[test]
+    fn every_console_response_refuses_framing_and_sniffing() {
+        for asset in ["index.html", "assets/app.js"] {
+            let response = asset_response(asset, b"x".to_vec(), false);
+            let headers = response.headers();
+            let policy = headers[header::CONTENT_SECURITY_POLICY].to_str().unwrap();
+            assert!(policy.contains("frame-ancestors 'none'"), "{policy}");
+            assert!(policy.contains("script-src 'self';"), "{policy}");
+            assert_eq!(headers[header::X_CONTENT_TYPE_OPTIONS], "nosniff");
+            assert_eq!(headers[header::X_FRAME_OPTIONS], "DENY");
+        }
     }
 
     #[tokio::test]
