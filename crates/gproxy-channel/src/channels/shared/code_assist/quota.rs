@@ -80,7 +80,7 @@ pub(crate) fn window(
         None => (
             used_percent,
             Some(Decimal::ONE_HUNDRED),
-            used_percent.map(|used| (Decimal::ONE_HUNDRED - used).max(Decimal::ZERO)),
+            used_percent.map(|used| Decimal::ONE_HUNDRED.saturating_sub(used).max(Decimal::ZERO)),
             Some("percent".to_owned()),
         ),
     };

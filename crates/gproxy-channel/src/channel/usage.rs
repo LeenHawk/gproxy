@@ -96,7 +96,10 @@ impl NormalizedUsage {
                 value.tokens.cache_creation_1h_tokens,
             );
             for (key, count) in &value.metrics {
-                *total.metrics.entry(key.clone()).or_default() += count;
+                // Saturating: upstream-reported amounts, and a Decimal
+                // overflow panics.
+                let sum = total.metrics.entry(key.clone()).or_default();
+                *sum = sum.saturating_add(*count);
             }
             if first {
                 total.dimensions = value.dimensions.clone();

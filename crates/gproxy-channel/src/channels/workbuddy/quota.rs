@@ -59,7 +59,9 @@ fn iso_to_ms(value: &str) -> Option<i64> {
 }
 
 fn used_percent(used: Decimal, limit: Decimal) -> Option<Decimal> {
-    (!limit.is_zero()).then(|| used / limit * Decimal::from(100))
+    used
+            .checked_div(limit)
+            .and_then(|ratio| ratio.checked_mul(Decimal::ONE_HUNDRED))
 }
 
 /// `YYYY-MM-DD HH:MM:SS`, the format the billing endpoint expects.
@@ -127,7 +129,7 @@ fn window(
         value: QuotaValue::Window(QuotaAllowance {
             used: Some(used),
             limit: Some(limit),
-            remaining: Some((limit - used).max(Decimal::ZERO)),
+            remaining: Some(limit.saturating_sub(used).max(Decimal::ZERO)),
             used_percent: used_percent(used, limit),
             unlimited: None,
             unit: None,

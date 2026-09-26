@@ -284,9 +284,9 @@ impl Facts {
             _ => window_ms(&dimension.window),
         };
         let used_percent = a.used_percent.or_else(|| match (a.used, a.limit) {
-            (Some(used), Some(limit)) if limit > Decimal::ZERO => {
-                Some(used / limit * Decimal::ONE_HUNDRED)
-            }
+            (Some(used), Some(limit)) if limit > Decimal::ZERO => used
+                .checked_div(limit)
+                .and_then(|ratio| ratio.checked_mul(Decimal::ONE_HUNDRED)),
             _ => None,
         });
         Self {
