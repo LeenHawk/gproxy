@@ -171,6 +171,7 @@ impl CredentialLimit {
             window: self.window(),
             limit: Some(self.limit),
             tracking: QuotaTracking::Counted,
+            blocking: true,
         }
     }
 

@@ -77,6 +77,30 @@ NVIDIA NIM、Vercel AI Gateway 和 Cloudflare AI Gateway 曾经这样接入；�
 `custom` 的 `config` 带 `dialects`（端点讲哪些线格式）、静态 `headers`、`allowed_headers`
 和两个 magic cache 开关。模拟厂商 CLI 的渠道声明自己的身份 header，并且不让客户端伪造它们。
 
+### Claude 模型 fallback
+
+`fallback_mode` 取 `off`（缺省）、`default` 或 `models`，`fallback_models` 是按顺序排列的 upstream
+模型 ID 列表。控制台按渠道描述渲染这些字段。列表会跳过空值、重复项和主模型，最多使用三个 fallback 模型。
+
+- **Claude API、Claude Code 与自定义 Claude 端点：** 发送 Anthropic 的 `fallbacks` 和对应的 beta 头。
+  `default` 模式交给 Anthropic 决定。
+- **OpenRouter：** Claude Messages 发送 `fallbacks`，Chat Completions 发送 `models`，由 OpenRouter
+  执行模型 fallback。这不改变 `provider.allow_fallbacks`，后者控制的是同一模型的供应商路由。客户端
+  已带的 `fallbacks` 或 `models` 优先。Responses 请求不会被加上未公开的 fallback 参数。
+- **Vercel、Azure、Vertex 与 AWS Bedrock：** GProxy 在同一凭证上用下一个配置的模型重试 Claude
+  `refusal`，渠道准备与签名都重新做。`default` 模式选主模型命名空间下的 `claude-opus-4-8`。云厂商
+  专用的 ID 请配置该上游接受的完整 ID。
+
+网关 fallback 在协议转换到 Claude 之后同样生效，但不会重试任意 HTTP 错误。流式内容即时下发；已有输出后，
+续接需要带 prefill 声明的上游 credit。没有可兑现的 credit 时绝不重放服务端工具。每次物理尝试单独观测、
+按其模型计价；报告零输出的 refusal 不计费。最终响应保留最后一次尝试的顶层 usage。
+
+### Claude Code 低优先级模式
+
+`claudecode` 设置 `low_priority: true` 后，每个 Messages 请求都按 CLI 接受低优先级提议后的方式发送
+（`anthropic-usage-limit: slow`），5h 窗口用满也不再把凭证移出轮换；周窗口照常封。是否以低优先级
+服务由 Anthropic 按账号决定；槽位繁忙时返回 429，GProxy 换下一个凭证。
+
 ### 按操作覆盖 URL
 
 `operation_endpoints` 对某个 Provider 的某个 `(操作, 方言, 传输)` 整体替换方法 URL。它

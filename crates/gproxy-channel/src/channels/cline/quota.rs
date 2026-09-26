@@ -53,6 +53,7 @@ impl QuotaModel for super::Cline {
             window: QuotaWindow::Total,
             limit: None,
             tracking: QuotaTracking::Reported,
+            blocking: true,
         }]
     }
 }

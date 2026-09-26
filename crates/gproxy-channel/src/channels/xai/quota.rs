@@ -47,6 +47,7 @@ impl QuotaModel for Xai {
                 window: QuotaWindow::Total,
                 limit: None,
                 tracking: QuotaTracking::Reported,
+                blocking: true,
             },
             QuotaDimension {
                 id: POSTPAID_DIMENSION.into(),
@@ -57,6 +58,7 @@ impl QuotaModel for Xai {
                 window: QuotaWindow::CalendarMonth,
                 limit: None,
                 tracking: QuotaTracking::Reported,
+                blocking: true,
             },
         ]
     }

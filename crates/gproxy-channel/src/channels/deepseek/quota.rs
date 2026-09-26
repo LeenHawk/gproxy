@@ -31,6 +31,7 @@ impl QuotaModel for DeepSeek {
             window: QuotaWindow::Total,
             limit: None,
             tracking: QuotaTracking::Reported,
+            blocking: true,
         }]
     }
 }

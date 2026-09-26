@@ -1167,6 +1167,7 @@ mod tests {
             },
             limit: None,
             tracking: QuotaTracking::Reported,
+            blocking: true,
         }
     }
 

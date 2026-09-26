@@ -387,6 +387,7 @@ impl QuotaModel for TestChannel {
                     Some("reported") => QuotaTracking::Reported,
                     _ => QuotaTracking::Counted,
                 },
+                blocking: d["blocking"].as_bool().unwrap_or(true),
             })
             .collect()
     }

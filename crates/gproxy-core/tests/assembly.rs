@@ -72,6 +72,7 @@ impl QuotaModel for TestChannel {
             window: QuotaWindow::CalendarDay,
             limit: Some(50.into()),
             tracking: QuotaTracking::Counted,
+            blocking: true,
         }]
     }
 }

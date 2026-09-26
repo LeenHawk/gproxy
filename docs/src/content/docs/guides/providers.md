@@ -113,6 +113,15 @@ tool is never replayed without a redeemable credit. Every physical attempt is
 observed separately and priced by its model; a refusal reporting zero output
 is unbillable. The final response retains the final attempt's top-level usage.
 
+### Claude Code low-priority mode
+
+`claudecode` with `low_priority: true` sends every Messages call the way the
+CLI does after a user accepts its low-priority offer
+(`anthropic-usage-limit: slow`), and a full five-hour window no longer takes
+the credential out of rotation; the weekly windows still do. Anthropic decides
+per account whether to serve the request at lower priority; a busy slot comes
+back as a 429 and GProxy moves to the next credential.
+
 ### Per-operation URL overrides
 
 `operation_endpoints` replaces the whole method URL for one

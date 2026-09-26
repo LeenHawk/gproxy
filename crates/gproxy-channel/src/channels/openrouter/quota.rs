@@ -35,6 +35,7 @@ impl QuotaModel for OpenRouter {
             // The endpoint reports the ceiling; a key may have none at all.
             limit: None,
             tracking: QuotaTracking::Reported,
+            blocking: true,
         }]
     }
 }

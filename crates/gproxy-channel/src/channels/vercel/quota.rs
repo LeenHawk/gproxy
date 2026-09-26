@@ -22,6 +22,7 @@ impl QuotaModel for Vercel {
             window: QuotaWindow::Total,
             limit: None,
             tracking: QuotaTracking::Reported,
+            blocking: true,
         }]
     }
 }
