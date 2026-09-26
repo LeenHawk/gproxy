@@ -25,6 +25,7 @@ description: "25 个渠道、一行 Provider 装什么、凭证池及其生命�
 | `claudecode` | 经 Claude Code CLI 的请求使用 Claude.ai 订阅 | OAuth |
 | `claudeweb` | claude.ai 浏览器会话，渲染成 Claude Messages SSE | 会话 cookie + 组织 |
 | `cline` | Cline 自家账号，`api.cline.bot` | `{"api_key"}` 或 OAuth |
+| `cloudflare_ai_gateway` | 经 REST API 使用 Cloudflare AI Gateway；account 与 gateway 按凭据存放，额度余额 | `{"api_key", "account_id", "gateway_id"?}` |
 | `codex` | 经 Codex 后端使用 ChatGPT 账号：HTTP SSE 与 WebSocket 上的 Responses、`/wham/usage` | OAuth |
 | `copilotcli` | 经 `copilot` CLI 使用 GitHub Copilot | GitHub OAuth 令牌 |
 | `custom` | 任何原生讲 OpenAI、Claude 或 Gemini 的 API-key 端点 | `{"api_key"}` |
@@ -35,6 +36,7 @@ description: "25 个渠道、一行 Provider 装什么、凭证池及其生命�
 | `grokbuild` | 经 Grok Build CLI 使用 xAI 账号 | OAuth |
 | `kimi` | Moonshot 平台（API key），或 Kimi Code 订阅（设备登录） | `{"api_key"}` 或 OAuth |
 | `kiro` | 经 Kiro 桌面应用使用 AWS CodeWhisperer | OAuth |
+| `nvidia` | NVIDIA NIM：Chat Completions、模型列表与 embeddings | `{"api_key"}` |
 | `openai` | OpenAI 官方平台：完整 surface、套接字上的 Responses 与 Realtime | `{"api_key", "quota_api_key"}` |
 | `opencodego` | OpenCode Go：订阅制、开源模型、用量窗口 | `{"api_key"}` |
 | `opencodezen` | OpenCode Zen：从 Console 余额按量付费 | `{"api_key"}` 或 OAuth |
@@ -53,23 +55,13 @@ description: "25 个渠道、一行 Provider 装什么、凭证池及其生命�
 值得一个渠道。全部差别只是一个源和一个 header 的厂商，就是一个 `custom` Provider：
 
 ```json
-{ "name": "nvidia-nim", "channel": "custom",
-  "baseUrl": "https://integrate.api.nvidia.com",
+{ "name": "example-vendor", "channel": "custom",
+  "baseUrl": "https://api.example-vendor.com",
   "config": { "dialects": ["openai_chat"] } }
 ```
 
-```json
-{ "name": "vercel-gateway", "channel": "custom",
-  "baseUrl": "https://ai-gateway.vercel.sh/v1",
-  "config": { "dialects": ["openai_chat", "openai", "claude"] } }
-```
-
-```json
-{ "name": "cf-gateway", "channel": "custom",
-  "baseUrl": "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai",
-  "config": { "dialects": ["openai_chat", "openai", "claude"],
-              "headers": { "cf-aig-gateway-id": "default" } } }
-```
+NVIDIA NIM、Vercel AI Gateway 和 Cloudflare AI Gateway 曾经这样接入；现在各自有了渠道，
+因为一行 Provider 说不清它们需要的全部东西。
 
 ## 一行 Provider
 

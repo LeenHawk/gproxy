@@ -23,6 +23,7 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `claudecode` | `claudecode` | Claude.ai subscription through the Claude Code CLI's Messages requests: PKCE and cookie login, refresh, unified rate-limit headers, `/api/oauth/usage`, CLI services | `OAuthCredential` |
 | `claudeweb` | `claudeweb` | claude.ai browser session: cookie login against `/api/bootstrap`, multi-call conversation turns rendered as Claude Messages SSE, organization usage windows | session cookie + organization |
 | `cline` | `cline` | Cline's own account at `api.cline.bot`: a WorkOS device login registered with Cline, a `workos:`-prefixed bearer, the SDK's attribution headers, the `{success, data}` envelope its replies arrive in, its recommended-model groups, plan windows and credit balance | `{"api_key"}` or `OAuthCredential` |
+| `cloudflare_ai_gateway` | `cloudflare_ai_gateway` | Cloudflare AI Gateway through the Cloudflare REST API: `/client/v4/accounts/{account}/ai` with the account and `cf-aig-gateway-id` taken from the credential, one bearer on Chat, Responses and Claude Messages, the account's credit balance | `{"api_key", "account_id", "gateway_id"?}` |
 | `codex` | `codex` | ChatGPT account through the Codex backend: OAuth (PKCE and device code), Responses over HTTP SSE and WebSocket, `x-codex-*` limit headers, `/wham/usage`, CLI backend services | `OAuthCredential` |
 | `copilotcli` | `copilotcli` | GitHub Copilot through the `copilot` CLI: a GitHub device login whose long-lived token is exchanged by `CredentialRefresh` for the short-lived Copilot token, the CLI's editor identity, the seat's origin, `copilot_internal/user` quota snapshots | GitHub OAuth token (+ minted Copilot token) |
 | `custom` | `custom` | Any API-key endpoint speaking OpenAI, Claude or Gemini natively | `{"api_key"}` |
@@ -33,9 +34,12 @@ No concrete channel is compiled by default; each is a Cargo feature:
 | `grokbuild` | `grokbuild` | An xAI account through the Grok Build CLI: device login at `auth.x.ai`, refresh, a narrowed Responses body on `cli-chat-proxy.grok.com`, xAI's own media paths on `api.x.ai`, `/billing?format=credits` | `OAuthCredential` |
 | `kimi` | `kimi` | Moonshot: the platform at `api.moonshot.cn` with an API key, or the Kimi Code subscription at `api.kimi.com` through a device login, refresh and the CLI's `x-msh-*` identity; `/usages` windows or a cash balance | `{"api_key"}` or `OAuthCredential` |
 | `kiro` | `kiro` | AWS CodeWhisperer through the Kiro desktop app: device or IAM Identity Center login, refresh, a Responses request turned into the CodeWhisperer conversation envelope, an AWS event-stream reply translated back into Responses SSE, `GetUsageLimits` credit windows | `OAuthCredential` |
+| `nvidia` | `nvidia` | NVIDIA NIM: Chat Completions with the streamed-usage opt-in, the model list and embeddings | `{"api_key"}` |
 | `openai` | `openai` | OpenAI's own platform: the full OpenAI surface, Responses and Realtime over a WebSocket, `x-ratelimit-*` headers, `/v1/organization/costs` | `{"api_key", "quota_api_key"}` |
-| `opencode` | `opencode` | OpenCode Zen and Go: Chat Completions, Responses and Claude Messages on one origin per tier, the CLI's `x-opencode-session` affinity header, a Console device login and the Go tier's `/usage` windows | `{"api_key"}` or `OAuthCredential` |
+| `opencode` | `opencodezen` | OpenCode Zen, pay-as-you-go from the Console balance: Chat Completions, Responses and Claude Messages, the CLI's `x-opencode-session` affinity header, a Console device login and refresh | `{"api_key"}` or `OAuthCredential` |
+| `opencode` | `opencodego` | OpenCode Go, the subscription: the same three surfaces on its own origin, the affinity header and the `/usage` windows | `{"api_key"}` |
 | `openrouter` | `openrouter` | OpenRouter: provider routing preferences filled into the body, `HTTP-Referer`/`X-Title` attribution, the price the reply says it charged, `/v1/auth/key` | `{"api_key"}` |
+| `vercel` | `vercel` | Vercel AI Gateway: Chat, Responses, Claude Messages and embeddings, dual key headers, the team's `/v1/credits` balance | `{"api_key"}` |
 | `vertex` | `vertex` | Google Vertex AI: regional project-scoped methods for the Google, Anthropic and OpenAI-compatible publishers; a service-account key exchanged for an access token through `CredentialRefresh` | Google service-account key |
 | `vertexexpress` | `vertexexpress` | Vertex AI Express mode: the Gemini surface on one global origin, key in the query, no project and no region | `{"api_key"}` |
 | `workbuddy` | `workbuddy` | Tencent Copilot through its editor plugin: device login, refresh, OpenAI Chat under `/v2` with the plugin's identity and account headers, the `/v3/config` catalogue, the enterprise and personal billing meters | `OAuthCredential` |
@@ -131,45 +135,18 @@ A channel is code to maintain against someone else's wire. A vendor earns one
 only when a provider row cannot state what it needs: a path that moves with
 the operation, a body that must be rewritten, an account surface to read, a
 client identity to present. A vendor whose whole difference is an origin and
-a header is a `custom` provider, and these three are. The recipes below are
-the complete provider rows; `base_url` is the provider column, everything
-else is its `config` JSON.
-
-**NVIDIA NIM** — an OpenAI-compatible endpoint and nothing else.
+a header is a `custom` provider; `base_url` is the provider column and
+everything else its `config` JSON:
 
 ```json
-{ "base_url": "https://integrate.api.nvidia.com", "config": { "dialects": ["openai_chat"] } }
+{ "base_url": "https://api.example-vendor.com", "config": { "dialects": ["openai_chat"] } }
 ```
 
-**Vercel AI Gateway** — one origin in front of many vendors, like OpenRouter,
-but with no routing object in the body and no price in the reply: there is
-nothing for a channel to fill in or to read back. `custom` authenticates each
-family the way that family expects, which is what the gateway accepts.
-
-```json
-{
-  "base_url": "https://ai-gateway.vercel.sh/v1",
-  "config": { "dialects": ["openai_chat", "openai", "claude"] }
-}
-```
-
-**Cloudflare AI Gateway** — the account id and the `/ai` prefix are fixed for
-a given gateway, so they belong in `base_url`; the gateway id is a static
-header.
-
-```json
-{
-  "base_url": "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai",
-  "config": {
-    "dialects": ["openai_chat", "openai", "claude"],
-    "headers": { "cf-aig-gateway-id": "default" }
-  }
-}
-```
-
-Each of these keeps `custom`'s magic-cache switches and `allowed_headers`, and
-reports usage from whichever compatible shape the upstream answered in.
-
+NVIDIA NIM, Vercel AI Gateway and Cloudflare AI Gateway were served this way
+for a while and each turned out to need a channel after all: NVIDIA's streamed
+usage has to be requested in the body, Vercel and Cloudflare report a balance,
+and Cloudflare keeps its account and gateway per credential and wants its
+bearer on the Claude surface too.
 
 ## Contract
 

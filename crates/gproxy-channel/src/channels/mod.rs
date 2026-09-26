@@ -48,6 +48,7 @@ channels! {
     "claudecode" => claudecode, claudecode::Claudecode;
     "claudeweb" => claudeweb, claudeweb::ClaudeWeb::new();
     "cline" => cline, cline::Cline;
+    "cloudflare_ai_gateway" => cloudflare_ai_gateway, cloudflare_ai_gateway::CloudflareAiGateway;
     "codex" => codex, codex::Codex;
     "copilotcli" => copilotcli, copilotcli::CopilotCli;
     "custom" => custom, custom::Custom;
@@ -58,6 +59,7 @@ channels! {
     "grokbuild" => grokbuild, grokbuild::GrokBuild;
     "kimi" => kimi, kimi::Kimi;
     "kiro" => kiro, kiro::Kiro;
+    "nvidia" => nvidia, nvidia::Nvidia;
     "openai" => openai, openai::OpenAi;
     "opencode" => opencode, opencode::OpenCode::ZEN, opencode::OpenCode::GO;
     "openrouter" => openrouter, openrouter::OpenRouter;
@@ -81,6 +83,7 @@ channels! {
     feature = "claudecode",
     feature = "claudeweb",
     feature = "cline",
+    feature = "cloudflare_ai_gateway",
     feature = "copilotcli",
     feature = "custom",
     feature = "geminicli",
@@ -89,6 +92,7 @@ channels! {
     feature = "deepseek",
     feature = "kimi",
     feature = "kiro",
+    feature = "nvidia",
     feature = "openai",
     feature = "opencode",
     feature = "openrouter",

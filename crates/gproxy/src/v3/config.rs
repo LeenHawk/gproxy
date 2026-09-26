@@ -98,13 +98,10 @@ pub fn translate(
     let mut report = Report::default();
     let data = &document.data;
 
-    // The order matters and is not the document's. Two of v4's channel recipes
-    // need a credential's *opened* secret to build the provider row — v3 kept
-    // Cloudflare's account id in the credential and v4 needs it in the origin —
-    // so every secret is opened first, the providers are translated from them,
-    // and only then is each secret re-sealed, minus whatever moved out of it.
+    // Every secret is opened before anything is written, so a credential
+    // without one stops the import before any row is translated.
     let opened = open_secrets(data, bridge)?;
-    let providers = providers(data, &opened, timestamp, skip_unmappable, &mut report)?;
+    let providers = providers(data, timestamp, skip_unmappable, &mut report)?;
     let credentials = credentials(data, &opened, &providers, bridge, &mut report)?;
     let (price_rules, price_tiers) = price_rules(data, &providers, &mut report);
     let (rewrite_rules, rule_sets) = rewrite_rules(data, &mut report);
@@ -261,21 +258,9 @@ fn proxy(url: Option<&String>) -> Option<Value> {
         .map(|url| serde_json::json!({"mode":"explicit", "url":url}))
 }
 
-/// Every v3 credential's secret, opened once. Keyed by the v3 credential id,
-/// because two things need them and one of them is the provider row.
+/// Every v3 credential's secret, opened once, keyed by the v3 credential id.
 struct Opened {
     by_credential: BTreeMap<i64, Value>,
-}
-
-impl Opened {
-    /// The opened secrets of one v3 provider's credentials, in row order.
-    fn of_provider(&self, data: &document::Data, provider_id: i64) -> Vec<Value> {
-        data.credentials
-            .iter()
-            .filter(|row| row.config.provider_id == provider_id)
-            .filter_map(|row| self.by_credential.get(&row.config.id).cloned())
-            .collect()
-    }
 }
 
 /// Open every credential secret with v3's envelope cipher, before anything is
@@ -304,12 +289,9 @@ fn open_secrets(data: &document::Data, bridge: &Bridge) -> Result<Opened> {
     Ok(Opened { by_credential })
 }
 
-/// The translated providers, and what each one's credentials must forget.
+/// The translated providers.
 struct Providers {
     rows: Vec<ProviderDto>,
-    /// v3 provider id → keys its credentials no longer carry, because the
-    /// channel recipe lifted them into the provider row.
-    strip: BTreeMap<i64, Vec<&'static str>>,
     /// v3 provider ids left behind under `--skip-unmappable-providers`.
     /// Everything that points at one has to be left behind with it, or the
     /// import would refuse on a dangling reference.
@@ -336,24 +318,17 @@ impl Providers {
 
 fn providers(
     data: &document::Data,
-    opened: &Opened,
     timestamp: i64,
     skip_unmappable: bool,
     report: &mut Report,
 ) -> Result<Providers> {
     let mut rows = Vec::with_capacity(data.providers.len());
-    let mut strip = BTreeMap::new();
     let mut dropped = BTreeSet::new();
     for row in &data.providers {
         // Preserve the invocation name separately from the display label.
         let name = row.name.clone();
         // The channel is a rule, not a rename: see [`super::channels`].
-        let translated = match channels::provider(
-            &row.channel,
-            &name,
-            &row.settings,
-            &opened.of_provider(data, row.id),
-        ) {
+        let translated = match channels::provider(&row.channel, &name, &row.settings) {
             Ok(translated) => translated,
             // Loud by default: a provider whose channel has no v4 form is a
             // provider that cannot serve a request, and importing it would be
@@ -379,9 +354,6 @@ fn providers(
         if let Some(note) = translated.note {
             report.warn(format!("provider {} ({name}): {note}", row.id));
         }
-        if !translated.strip_from_secrets.is_empty() {
-            strip.insert(row.id, translated.strip_from_secrets);
-        }
         rows.push(ProviderDto {
             id: ids::id("providers", row.id),
             name,
@@ -395,11 +367,7 @@ fn providers(
             created_at_ms: timestamp,
         });
     }
-    Ok(Providers {
-        rows,
-        strip,
-        dropped,
-    })
+    Ok(Providers { rows, dropped })
 }
 
 /// v4 requires `config` to be an object; v3 stored whatever the channel put
@@ -481,23 +449,11 @@ fn credentials(
             continue;
         }
         let id = ids::id("credentials", row.config.id);
-        // Opened in one pass before the providers were translated, because two
-        // of v4's channel recipes are built out of these.
-        let mut secret = opened
+        let secret = opened
             .by_credential
             .get(&row.config.id)
             .cloned()
             .ok_or_else(|| Error::other(format!("credential {} was not opened", row.config.id)))?;
-        // Whatever the channel recipe lifted into the provider row comes out
-        // of the credential: two disagreeing copies of an origin is worse than
-        // one.
-        if let Some(keys) = providers.strip.get(&row.config.provider_id)
-            && let Value::Object(fields) = &mut secret
-        {
-            for key in keys {
-                fields.remove(*key);
-            }
-        }
         let sealed = bridge.seal_for_sdk(&id, &secret)?;
 
         if row.config.weight != 0 && row.config.weight != 100 {

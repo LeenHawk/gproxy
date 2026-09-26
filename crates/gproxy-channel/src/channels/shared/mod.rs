@@ -39,6 +39,8 @@ pub(crate) mod code_assist;
 /// `Enrich` hook it passes in. Shared by `cline`, `copilotcli`, `dashscope`,
 /// `deepseek`, `grokbuild`, `kimi`, `opencode`, `openrouter` and `xai`.
 #[cfg(any(
+    feature = "cloudflare_ai_gateway",
+    feature = "nvidia",
     feature = "cline",
     feature = "copilotcli",
     feature = "dashscope",
@@ -79,6 +81,8 @@ pub(crate) mod services_common;
 /// whichever one an operator configured, which is why it needs the reader that
 /// covers all four and answers `None` for anything else.
 #[cfg(any(
+    feature = "cloudflare_ai_gateway",
+    feature = "nvidia",
     feature = "azure",
     feature = "custom",
     feature = "vercel",

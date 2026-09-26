@@ -2,20 +2,17 @@
 //!
 //! # Why this is not a rename table
 //!
-//! v3 had 27 channels and v4 has 25, and the overlap is not the whole of
-//! either. Reading production's twelve providers turned up three distinct
-//! problems in ten channel ids:
+//! v3 had 27 channels and v4 has 29, and the overlap is not the whole of
+//! either. Reading production's twelve providers turned up two distinct
+//! problems:
 //!
-//! 1. **`aws-bedrock` is `aws_bedrock`** — a hyphen where v4 writes an
-//!    underscore. Copying the column verbatim produces a provider naming a
-//!    channel that is not registered, which v4 treats as a configuration error
-//!    rather than falling back to anything.
-//! 2. **`cloudflare-ai-gateway` has no v4 channel at all.** v4's decision was
-//!    that a vendor whose whole difference is an origin and a header is a
-//!    `custom` provider, not a channel — `crates/gproxy-channel/README.md`,
-//!    "Vendors That Need No Channel". So the row has to be *rebuilt*: an origin
-//!    assembled from a field that lived in the **credential secret**, a static
-//!    header, and a dialect list. The same goes for `nvidia` and `vercel`.
+//! 1. **An id v4 spells differently** — `aws-bedrock` is `aws_bedrock` and
+//!    `cloudflare-ai-gateway` is `cloudflare_ai_gateway`, a hyphen where v4
+//!    writes an underscore. Copying the column verbatim produces a provider
+//!    naming a channel that is not registered, which v4 treats as a
+//!    configuration error rather than falling back to anything.
+//! 2. **`opencode` is two channels in v4**, one per product, where v3 told Zen
+//!    from Go by a `tier` setting (see [`opencode`]).
 //! 3. Everything else keeps its id, and is checked against the registry rather
 //!    than assumed.
 //!
@@ -23,18 +20,14 @@
 //! provider. The alternative is a row that imports and then cannot serve a
 //! request, which is the failure mode this whole migration exists to avoid.
 //!
-//! # The three `custom` recipes
-//!
-//! Each is v4's README recipe, filled in from what v3 actually stored. The
-//! interesting one is Cloudflare, because v3 kept `account_id` and `gateway_id`
-//! in the *credential*, and v4 needs the account in the provider's `base_url`
-//! (`v3:crates/gproxy-channels/src/cloudflare_ai_gateway/prepare.rs`). A
-//! provider is therefore only translatable when its credentials agree on one
-//! account — which is the normal case, and a loud failure when it is not.
+//! v4 once served `cloudflare-ai-gateway`, `nvidia` and `vercel` as `custom`
+//! providers, rebuilding each row into an origin and a header. That lost what
+//! v3 kept per credential (Cloudflare's account and gateway) and what a row
+//! cannot say (Cloudflare's bearer on the Claude surface, NVIDIA's streamed
+//! usage opt-in, both balances), so all three are channels again and carry
+//! straight across.
 
-use std::collections::BTreeMap;
-
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::{Error, Result};
 
@@ -43,7 +36,7 @@ use crate::{Error, Result};
 /// feature set must still translate a full document: a provider whose channel
 /// this binary was not compiled with is a runtime concern the operator can fix
 /// by rebuilding, not a reason to refuse their configuration.
-pub const V4_CHANNELS: [&str; 26] = [
+pub const V4_CHANNELS: [&str; 29] = [
     "aistudio",
     "antigravity",
     "aws_bedrock",
@@ -52,6 +45,7 @@ pub const V4_CHANNELS: [&str; 26] = [
     "claudecode",
     "claudeweb",
     "cline",
+    "cloudflare_ai_gateway",
     "codex",
     "copilotcli",
     "custom",
@@ -62,10 +56,12 @@ pub const V4_CHANNELS: [&str; 26] = [
     "grokbuild",
     "kimi",
     "kiro",
+    "nvidia",
     "openai",
     "opencodego",
     "opencodezen",
     "openrouter",
+    "vercel",
     "vertex",
     "vertexexpress",
     "workbuddy",
@@ -79,25 +75,9 @@ enum Rule {
     Keep,
     /// v4 spells it differently and nothing else changes.
     Rename(&'static str),
-    /// v4 has no channel for this vendor and does not want one: the provider
-    /// becomes `custom`. See [`Recipe`].
-    Custom(Recipe),
     /// v3 folded OpenCode Zen and Go into one id and told them apart by a
     /// `tier` setting; v4 has a channel for each. See [`opencode`].
     OpenCode,
-}
-
-/// A vendor v4 serves through `custom`, and what has to be assembled for it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Recipe {
-    /// `base_url` is the origin v3 used, and the dialect list is all it needs.
-    Origin {
-        default_base_url: &'static str,
-        dialects: &'static [&'static str],
-    },
-    /// Cloudflare: the account id moves out of the credential and into the
-    /// path, and the gateway id becomes a static header.
-    CloudflareGateway,
 }
 
 /// v3's channel ids, every one of them, checked against v3's own descriptors
@@ -114,7 +94,7 @@ const RULES: [(&str, Rule); 27] = [
     ("cline", Rule::Keep),
     (
         "cloudflare-ai-gateway",
-        Rule::Custom(Recipe::CloudflareGateway),
+        Rule::Rename("cloudflare_ai_gateway"),
     ),
     ("codex", Rule::Keep),
     ("copilotcli", Rule::Keep),
@@ -125,23 +105,11 @@ const RULES: [(&str, Rule); 27] = [
     ("grokbuild", Rule::Keep),
     ("kimi", Rule::Keep),
     ("kiro", Rule::Keep),
-    (
-        "nvidia",
-        Rule::Custom(Recipe::Origin {
-            default_base_url: "https://integrate.api.nvidia.com",
-            dialects: &["openai_chat"],
-        }),
-    ),
+    ("nvidia", Rule::Keep),
     ("openai", Rule::Keep),
     ("opencode", Rule::OpenCode),
     ("openrouter", Rule::Keep),
-    (
-        "vercel",
-        Rule::Custom(Recipe::Origin {
-            default_base_url: "https://ai-gateway.vercel.sh",
-            dialects: &["openai_chat", "openai", "claude"],
-        }),
-    ),
+    ("vercel", Rule::Keep),
     ("vertex", Rule::Keep),
     ("vertexexpress", Rule::Keep),
     ("workbuddy", Rule::Keep),
@@ -157,38 +125,22 @@ const ALIASES: [(&str, &str); 4] = [
     ("opencodego", "opencode"),
 ];
 
-/// v3's default origin for a vendor that stored none.
-const CLOUDFLARE_DEFAULT_BASE_URL: &str = "https://api.cloudflare.com";
-/// v3's default when a credential named no gateway.
-const CLOUDFLARE_DEFAULT_GATEWAY: &str = "default";
-
-/// One v3 provider as a v4 one: the channel it speaks, the origin, the config,
-/// and what to drop from its credentials because it moved into the row.
+/// One v3 provider as a v4 one: the channel it speaks, the origin and the
+/// config.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Provider {
     pub channel: String,
     pub base_url: Option<String>,
     pub config: Value,
-    /// Keys to remove from each of this provider's credential secrets. Nonempty
-    /// only for a recipe that lifted something out of them, and the reason it
-    /// matters is that leaving a stale `account_id` in a `custom` credential
-    /// would be a second, disagreeing copy of the origin.
-    pub strip_from_secrets: Vec<&'static str>,
     /// What changed, for the report. None when the id carried straight across.
     pub note: Option<String>,
 }
 
-/// Translate one provider. `secrets` are its credentials' opened secrets,
-/// which two of the recipes need and the rest ignore.
+/// Translate one provider.
 ///
 /// `name` is only for the error: an operator with twelve providers needs to be
 /// told which one stopped the migration.
-pub fn provider(
-    v3_channel: &str,
-    name: &str,
-    settings: &Value,
-    secrets: &[Value],
-) -> Result<Provider> {
+pub fn provider(v3_channel: &str, name: &str, settings: &Value) -> Result<Provider> {
     let id = v3_channel.trim();
     let canonical = ALIASES
         .iter()
@@ -211,7 +163,6 @@ pub fn provider(
                 channel: canonical.to_owned(),
                 base_url: base_url(settings),
                 config: object(settings),
-                strip_from_secrets: Vec::new(),
                 note: (canonical != id)
                     .then(|| format!("channel `{id}` is v3's old name for `{canonical}`")),
             })
@@ -220,10 +171,8 @@ pub fn provider(
             channel: (*v4).to_owned(),
             base_url: base_url(settings),
             config: object(settings),
-            strip_from_secrets: Vec::new(),
             note: Some(format!("channel `{id}` is `{v4}` in v4")),
         }),
-        Rule::Custom(recipe) => custom(*recipe, id, name, settings, secrets),
         Rule::OpenCode => Ok(opencode(id, settings)),
     }
 }
@@ -254,112 +203,10 @@ fn opencode(id: &str, settings: &Value) -> Provider {
         channel: channel.to_owned(),
         base_url: origin,
         config,
-        strip_from_secrets: Vec::new(),
         note: Some(format!(
             "channel `{id}` is `{channel}` in v4, which has one channel per OpenCode product"
         )),
     }
-}
-
-/// A vendor v4 serves through `custom`.
-fn custom(
-    recipe: Recipe,
-    id: &str,
-    name: &str,
-    settings: &Value,
-    secrets: &[Value],
-) -> Result<Provider> {
-    match recipe {
-        Recipe::Origin {
-            default_base_url,
-            dialects,
-        } => Ok(Provider {
-            channel: "custom".to_owned(),
-            base_url: Some(base_url(settings).unwrap_or_else(|| default_base_url.to_owned())),
-            config: merged(settings, json!({"dialects": dialects})),
-            strip_from_secrets: Vec::new(),
-            note: Some(format!(
-                "channel `{id}` has no v4 channel: v4 serves this vendor as a `custom` \
-                 provider, and the row was rebuilt as one"
-            )),
-        }),
-        Recipe::CloudflareGateway => {
-            // v3 kept the account in the *credential*; v4 needs it in the
-            // provider's origin, so every credential of this provider has to
-            // agree on one.
-            let accounts: Vec<&str> = distinct(secrets, "account_id");
-            let account = match accounts.as_slice() {
-                [account] => *account,
-                [] => {
-                    return Err(Error::other(format!(
-                        "provider `{name}` uses v3's `cloudflare-ai-gateway`, which v4 serves as \
-                         a `custom` provider whose `base_url` contains the Cloudflare account \
-                         id. None of its credentials carries an `account_id`, so the origin \
-                         cannot be assembled. Create the provider by hand in v4 with \
-                         base_url = https://api.cloudflare.com/client/v4/accounts/<account>/ai \
-                         and remove it from the export."
-                    )));
-                }
-                many => {
-                    return Err(Error::other(format!(
-                        "provider `{name}` uses v3's `cloudflare-ai-gateway` and its credentials \
-                         name {} different Cloudflare accounts ({}). v4's `base_url` is one \
-                         origin per provider, so this is one v4 provider per account: split it \
-                         by hand before exporting.",
-                        many.len(),
-                        many.join(", ")
-                    )));
-                }
-            };
-            let origin = base_url(settings)
-                .unwrap_or_else(|| CLOUDFLARE_DEFAULT_BASE_URL.to_owned())
-                .trim_end_matches('/')
-                .to_owned();
-            let gateway = distinct(secrets, "gateway_id")
-                .first()
-                .copied()
-                .unwrap_or(CLOUDFLARE_DEFAULT_GATEWAY);
-            Ok(Provider {
-                channel: "custom".to_owned(),
-                base_url: Some(format!("{origin}/client/v4/accounts/{account}/ai")),
-                config: merged(
-                    settings,
-                    json!({
-                        "dialects": ["openai_chat", "openai", "claude"],
-                        "headers": {"cf-aig-gateway-id": gateway},
-                    }),
-                ),
-                // Both moved into the provider row; a copy left behind in the
-                // credential would be a second, disagreeing source of truth.
-                strip_from_secrets: vec!["account_id", "gateway_id"],
-                note: Some(format!(
-                    "channel `{id}` has no v4 channel: the row was rebuilt as a `custom` \
-                     provider with the Cloudflare account `{account}` in its base URL and \
-                     gateway `{gateway}` as a static header"
-                )),
-            })
-        }
-    }
-}
-
-/// The distinct non-blank string values of `field` across some secrets, in
-/// first-seen order.
-fn distinct<'a>(secrets: &'a [Value], field: &str) -> Vec<&'a str> {
-    let mut out: Vec<&str> = Vec::new();
-    for secret in secrets {
-        let Some(value) = secret
-            .get(field)
-            .and_then(Value::as_str)
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-        else {
-            continue;
-        };
-        if !out.contains(&value) {
-            out.push(value);
-        }
-    }
-    out
 }
 
 /// v3 kept the upstream origin inside `settings_json`; v4 has a column.
@@ -379,20 +226,6 @@ fn object(settings: &Value) -> Value {
         Value::Object(_) => settings.clone(),
         _ => Value::Object(serde_json::Map::new()),
     }
-}
-
-/// v3's settings with a recipe's keys written over them. The recipe wins: it is
-/// what makes the provider work at all, and a v3 `dialects` key meant something
-/// to a channel that no longer exists.
-fn merged(settings: &Value, recipe: Value) -> Value {
-    let mut map: BTreeMap<String, Value> = match object(settings) {
-        Value::Object(existing) => existing.into_iter().collect(),
-        _ => BTreeMap::new(),
-    };
-    if let Value::Object(fields) = recipe {
-        map.extend(fields);
-    }
-    Value::Object(map.into_iter().collect())
 }
 
 fn unknown_channel(id: &str, name: &str) -> Error {
@@ -416,9 +249,10 @@ fn retired_channel(id: &str, name: &str) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
-    fn translate(channel: &str, settings: Value, secrets: &[Value]) -> Provider {
-        provider(channel, "p", &settings, secrets).expect("translates")
+    fn translate(channel: &str, settings: Value) -> Provider {
+        provider(channel, "p", &settings).expect("translates")
     }
 
     /// Every v3 channel id is either kept, renamed or rebuilt — none is
@@ -436,10 +270,6 @@ mod tests {
                 Rule::Rename(v4) => assert!(
                     V4_CHANNELS.contains(&v4),
                     "`{id}` renames to `{v4}`, which v4 does not register"
-                ),
-                Rule::Custom(_) => assert!(
-                    !V4_CHANNELS.contains(&id),
-                    "`{id}` is rebuilt as custom, but v4 registers it under its own name"
                 ),
                 Rule::OpenCode => assert!(
                     ["opencodezen", "opencodego"]
@@ -473,26 +303,30 @@ mod tests {
 
     #[test]
     fn a_channel_v4_spells_the_same_way_carries_straight_across() {
-        let out = translate("claudecode", json!({"beta": true}), &[]);
+        let out = translate("claudecode", json!({"beta": true}));
         assert_eq!(out.channel, "claudecode");
         assert_eq!(out.config, json!({"beta": true}));
         assert!(out.note.is_none());
-        assert!(out.strip_from_secrets.is_empty());
     }
 
     /// The one production tripped over.
     #[test]
-    fn aws_bedrock_loses_its_hyphen() {
-        let out = translate("aws-bedrock", json!({"region": "us-east-1"}), &[]);
+    fn a_hyphenated_id_takes_v4s_underscore() {
+        let out = translate("aws-bedrock", json!({"region": "us-east-1"}));
         assert_eq!(out.channel, "aws_bedrock");
         assert_eq!(out.config, json!({"region": "us-east-1"}));
         assert!(out.note.unwrap().contains("`aws_bedrock` in v4"));
+
+        // The account and gateway stay in the credential, as v3 kept them.
+        let out = translate("cloudflare-ai-gateway", json!({}));
+        assert_eq!(out.channel, "cloudflare_ai_gateway");
+        assert_eq!(out.config, json!({}));
     }
 
     #[test]
     fn v3s_own_legacy_aliases_still_resolve() {
         for (alias, target) in ALIASES {
-            let out = translate(alias, json!({}), &[]);
+            let out = translate(alias, json!({}));
             match target {
                 "opencode" => assert_eq!(out.channel, alias, "the alias names its product"),
                 _ => {
@@ -505,11 +339,11 @@ mod tests {
 
     #[test]
     fn opencode_splits_into_the_product_v3_served() {
-        let zen = translate("opencode", json!({"future": true}), &[]);
+        let zen = translate("opencode", json!({"future": true}));
         assert_eq!(zen.channel, "opencodezen");
         assert_eq!(zen.config, json!({"future": true}));
 
-        let go = translate("opencode", json!({"tier": "go", "future": true}), &[]);
+        let go = translate("opencode", json!({"tier": "go", "future": true}));
         assert_eq!(go.channel, "opencodego");
         assert_eq!(
             go.config,
@@ -520,7 +354,6 @@ mod tests {
         let by_origin = translate(
             "opencode",
             json!({"base_url": "https://opencode.ai/zen/go/v1/"}),
-            &[],
         );
         assert_eq!(by_origin.channel, "opencodego");
         assert_eq!(
@@ -529,13 +362,13 @@ mod tests {
         );
 
         // v3 forced the tier from the alias, whatever the setting said.
-        let aliased = translate("opencodego", json!({"tier": "zen"}), &[]);
+        let aliased = translate("opencodego", json!({"tier": "zen"}));
         assert_eq!(aliased.channel, "opencodego");
     }
 
     #[test]
     fn a_base_url_inside_v3s_settings_becomes_v4s_column() {
-        let out = translate("custom", json!({"base_url": " https://x.invalid "}), &[]);
+        let out = translate("custom", json!({"base_url": " https://x.invalid "}));
         assert_eq!(out.base_url.as_deref(), Some("https://x.invalid"));
         // And it stays in `config` too, because a channel may still read it.
         assert_eq!(out.config["base_url"], json!(" https://x.invalid "));
@@ -543,108 +376,12 @@ mod tests {
 
     #[test]
     fn a_null_settings_column_becomes_the_object_v4_requires() {
-        assert_eq!(translate("openai", Value::Null, &[]).config, json!({}));
-    }
-
-    #[test]
-    fn nvidia_and_vercel_become_custom_with_v4s_own_recipe() {
-        let nvidia = translate("nvidia", json!({}), &[]);
-        assert_eq!(nvidia.channel, "custom");
-        assert_eq!(
-            nvidia.base_url.as_deref(),
-            Some("https://integrate.api.nvidia.com")
-        );
-        assert_eq!(nvidia.config["dialects"], json!(["openai_chat"]));
-
-        // A v3 row that overrode the origin keeps its own.
-        let vercel = translate("vercel", json!({"base_url": "https://gw.invalid"}), &[]);
-        assert_eq!(vercel.channel, "custom");
-        assert_eq!(vercel.base_url.as_deref(), Some("https://gw.invalid"));
-        assert_eq!(
-            vercel.config["dialects"],
-            json!(["openai_chat", "openai", "claude"])
-        );
-        assert!(vercel.note.unwrap().contains("no v4 channel"));
-    }
-
-    /// The interesting one: v3 kept the account in the credential and v4 needs
-    /// it in the origin.
-    #[test]
-    fn cloudflare_moves_the_account_out_of_the_credential_and_into_the_origin() {
-        let out = translate(
-            "cloudflare-ai-gateway",
-            json!({}),
-            &[json!({"api_key": "k", "account_id": "acct1", "gateway_id": "prod"})],
-        );
-        assert_eq!(out.channel, "custom");
-        assert_eq!(
-            out.base_url.as_deref(),
-            Some("https://api.cloudflare.com/client/v4/accounts/acct1/ai")
-        );
-        assert_eq!(out.config["headers"]["cf-aig-gateway-id"], json!("prod"));
-        assert_eq!(
-            out.config["dialects"],
-            json!(["openai_chat", "openai", "claude"])
-        );
-        // And the two fields that moved are taken out of the credential.
-        assert_eq!(out.strip_from_secrets, ["account_id", "gateway_id"]);
-        assert!(out.note.unwrap().contains("acct1"));
-    }
-
-    #[test]
-    fn cloudflare_defaults_the_gateway_v3_defaulted() {
-        let out = translate(
-            "cloudflare-ai-gateway",
-            json!({"base_url": "https://api.cloudflare.com/"}),
-            &[json!({"api_key": "k", "account_id": "acct1"})],
-        );
-        assert_eq!(
-            out.config["headers"]["cf-aig-gateway-id"],
-            json!(CLOUDFLARE_DEFAULT_GATEWAY)
-        );
-        // The trailing slash does not become a double one.
-        assert_eq!(
-            out.base_url.as_deref(),
-            Some("https://api.cloudflare.com/client/v4/accounts/acct1/ai")
-        );
-    }
-
-    #[test]
-    fn a_cloudflare_provider_without_an_account_stops_the_migration() {
-        let error = provider(
-            "cloudflare-ai-gateway",
-            "cf",
-            &json!({}),
-            &[json!({"api_key": "k"})],
-        )
-        .unwrap_err()
-        .to_string();
-        assert!(error.contains("provider `cf`"), "{error}");
-        assert!(error.contains("account_id"), "{error}");
-    }
-
-    /// One v4 provider has one origin, so two accounts is two providers and
-    /// this migration will not guess which.
-    #[test]
-    fn a_cloudflare_provider_spanning_two_accounts_stops_the_migration() {
-        let error = provider(
-            "cloudflare-ai-gateway",
-            "cf",
-            &json!({}),
-            &[
-                json!({"api_key": "a", "account_id": "one"}),
-                json!({"api_key": "b", "account_id": "two"}),
-            ],
-        )
-        .unwrap_err()
-        .to_string();
-        assert!(error.contains("2 different Cloudflare accounts"), "{error}");
-        assert!(error.contains("one, two"), "{error}");
+        assert_eq!(translate("openai", Value::Null).config, json!({}));
     }
 
     #[test]
     fn an_unknown_channel_fails_loudly_and_names_the_provider() {
-        let error = provider("some-fork", "mine", &json!({}), &[])
+        let error = provider("some-fork", "mine", &json!({}))
             .unwrap_err()
             .to_string();
         assert!(error.contains("provider `mine`"), "{error}");

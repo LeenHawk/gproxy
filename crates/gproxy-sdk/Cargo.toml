@@ -21,6 +21,7 @@ claudeapi = ["gproxy-channel/claudeapi"]
 claudecode = ["gproxy-channel/claudecode", "gproxy-client/wreq"]
 claudeweb = ["gproxy-channel/claudeweb", "gproxy-client/wreq"]
 cline = ["gproxy-channel/cline"]
+cloudflare_ai_gateway = ["gproxy-channel/cloudflare_ai_gateway"]
 codex = ["gproxy-channel/codex", "gproxy-client/reqwest-native"]
 copilotcli = ["gproxy-channel/copilotcli", "gproxy-client/wreq"]
 custom = ["gproxy-channel/custom"]
@@ -31,6 +32,7 @@ geminicli = ["gproxy-channel/geminicli", "gproxy-client/wreq"]
 grokbuild = ["gproxy-channel/grokbuild"]
 kimi = ["gproxy-channel/kimi"]
 kiro = ["gproxy-channel/kiro", "gproxy-client/wreq"]
+nvidia = ["gproxy-channel/nvidia"]
 openai = ["gproxy-channel/openai"]
 opencode = ["gproxy-channel/opencode"]
 openrouter = ["gproxy-channel/openrouter"]
@@ -49,6 +51,7 @@ channels = [
     "claudecode",
     "claudeweb",
     "cline",
+    "cloudflare_ai_gateway",
     "codex",
     "copilotcli",
     "custom",
@@ -59,6 +62,7 @@ channels = [
     "grokbuild",
     "kimi",
     "kiro",
+    "nvidia",
     "openai",
     "opencode",
     "openrouter",

@@ -46,6 +46,9 @@ aws_bedrock = [
 azure = []
 # API-key upstreams speaking one or more native dialects verbatim.
 custom = []
+# Cloudflare AI Gateway over the Cloudflare REST API: a per-credential account
+# and gateway, one bearer on every wire, and the account's credit balance.
+cloudflare_ai_gateway = ["dep:futures-util"]
 # OpenAI Codex (ChatGPT account) upstream: OAuth login/refresh, Responses over
 # HTTP and WebSocket, x-codex rate-limit headers and /wham/usage.
 codex = ["dep:time", "dep:url", "dep:base64", "dep:futures-util", "dep:sha2", "dep:web-time"]
@@ -147,6 +150,9 @@ kiro = [
     "dep:sha2",
     "dep:web-time",
 ]
+# NVIDIA NIM (integrate.api.nvidia.com): API key, Chat Completions with the
+# streamed usage opt-in, models and embeddings.
+nvidia = ["dep:futures-util"]
 # OpenAI's own platform (api.openai.com) upstream: the full OpenAI surface,
 # Responses and Realtime over a WebSocket, x-ratelimit-* headers and the
 # organization cost report.
