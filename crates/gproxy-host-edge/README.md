@@ -181,7 +181,7 @@ with a single writer; explicit data/type migrations remain deployment work.
 
 ```sh
 cargo install worker-build
-worker-build --release -- --no-default-features --features d1,custom,codex,claudecode
+CARGO_PROFILE_RELEASE_STRIP=none worker-build --release -- --no-default-features --features d1,custom,codex,claudecode
 ```
 
 `worker-build` compiles to wasm, runs `wasm-bindgen`, optimizes with

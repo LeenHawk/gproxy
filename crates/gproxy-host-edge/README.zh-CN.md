@@ -152,7 +152,7 @@ Worker 哪个都打不开。
 
 ```sh
 cargo install worker-build
-worker-build --release -- --no-default-features --features d1,custom,codex,claudecode
+CARGO_PROFILE_RELEASE_STRIP=none worker-build --release -- --no-default-features --features d1,custom,codex,claudecode
 ```
 
 `worker-build` 会编到 wasm、跑 `wasm-bindgen`、用 `wasm-opt -Oz` 优化，并写出

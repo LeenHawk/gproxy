@@ -72,7 +72,7 @@ tokenizer.
 
 ```sh
 cargo install worker-build
-worker-build --release -- --no-default-features --features d1,custom,codex,claudecode
+CARGO_PROFILE_RELEASE_STRIP=none worker-build --release -- --no-default-features --features d1,custom,codex,claudecode
 ```
 
 `worker-build` compiles to wasm, runs `wasm-bindgen`, optimizes with
@@ -168,15 +168,21 @@ binding = "DB"
 database_name = "gproxy"
 database_id = "00000000-0000-0000-0000-000000000000"
 
-# [assets]
-# directory = "console/dist"
-# binding = "ASSETS"
-# run_worker_first = ["/v1/*", "/admin/api/*", "/portal/api/*", "/healthz", "/publications/*"]
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/*", "!/", "!/console", "!/console/*"]
 ```
 
-`run_worker_first` keeps the API routes on the Worker and lets everything else
-fall through to the files, so the console never wakes an isolate and the wasm
-binary stays under the size limit.
+`deploy/cloudflare` is this layout, and a release's
+`gproxy-edge-cloudflare.zip` is it already built. The console's bundle sits in
+`public/console/`, its document is copied to `public/index.html` for the
+single-page fallback, and `public/_headers` gives it the security headers the
+native host sends. Everything except the console reaches the Worker first; an
+allowlist of API paths would miss the provider mounts, whose prefixes the
+configuration chooses. The console never wakes an isolate, and the wasm binary
+stays under the size limit.
 
 **Migrations are not the Worker's.** It runs under traffic, and DDL under
 traffic is how two isolates deadlock a migration, so the builder never touches

@@ -420,18 +420,15 @@ jobs:
           node-version: 'lts/*'
           cache: pnpm
           cache-dependency-path: console/pnpm-lock.yaml
-      - name: Install matching wasm-bindgen CLI
-        run: |
-          version="$(awk '/^name = "wasm-bindgen"$/{getline; gsub(/"/, "", $3); print $3; exit}' Cargo.lock)"
-          test -n "$version"
-          cargo install wasm-bindgen-cli --version "$version" --locked
+      - name: Install worker-build
+        run: cargo install worker-build --locked
       - run: scripts/package-edge-release.sh
       - name: Record build provenance
         env:
           ARTIFACT_NAME: gproxy-edge
           GPROXY_VERSION: ${{ needs.prepare.outputs.version }}
           TARGET_TRIPLE: wasm32-unknown-unknown
-          BUILDER: wasm-bindgen
+          BUILDER: worker-build
         run: scripts/build-provenance.sh
       - name: Attest release packages
         uses: ./.github/actions/attest-release
@@ -446,50 +443,36 @@ jobs:
             dist/release/gproxy-edge.wasm.sha256
             dist/release/gproxy-edge-cloudflare.zip
             dist/release/gproxy-edge-cloudflare.zip.sha256
-            dist/release/gproxy-edge-deno.zip
-            dist/release/gproxy-edge-deno.zip.sha256
-            dist/release/gproxy-edge-netlify.zip
-            dist/release/gproxy-edge-netlify.zip.sha256
           retention-days: 1
 
   edge-check:
-    name: Edge platform entries
+    name: Edge bundle check
     needs: edge
     runs-on: ubuntu-latest
-    # Type-checking the entries installs the deploy manifests' npm tooling,
-    # which has no lockfile. It runs here rather than in `edge`, apart from the
-    # attestation token and from the files being attested, so nothing that
-    # install pulls in can alter a bundle or sign for one. It checks the
-    # bundles exactly as they were packaged.
+    # `wrangler deploy --dry-run` validates the packaged Worker and its
+    # configuration without an account. It installs wrangler from npm with no
+    # lockfile, so it runs here, apart from the attestation token and from the
+    # files being attested, and checks the bundle exactly as it was packaged.
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: edge-bundles
           path: dist/release
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
-          package_json_file: console/package.json
+          version: 9
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: 'lts/*'
-      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2
-        with:
-          deno-version: v2.x
-      - name: Check platform entries
+      - name: Dry-run the Cloudflare deployment
         run: |
           work="$RUNNER_TEMP/edge"
           mkdir -p "$work"
-          for platform in cloudflare deno netlify; do
-            unzip -q "dist/release/gproxy-edge-$platform.zip" -d "$work"
-          done
+          unzip -q dist/release/gproxy-edge-cloudflare.zip -d "$work"
           pnpm --dir "$work/cloudflare" install --no-frozen-lockfile --ignore-scripts
           pnpm --dir "$work/cloudflare" check
-          pnpm --dir "$work/netlify" install --no-frozen-lockfile --ignore-scripts
-          pnpm --dir "$work/netlify" check
-          deno check "$work/deno/main.ts"
 
   publish:
     if: ${{ always() && !failure() && !cancelled() }}

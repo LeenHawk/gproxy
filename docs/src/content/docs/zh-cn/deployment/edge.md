@@ -63,7 +63,7 @@ Cloudflare 的限制是对**压缩后**的包：免费计划 3 MB，付费 10 MB
 
 ```sh
 cargo install worker-build
-worker-build --release -- --no-default-features --features d1,custom,codex,claudecode
+CARGO_PROFILE_RELEASE_STRIP=none worker-build --release -- --no-default-features --features d1,custom,codex,claudecode
 ```
 
 `worker-build` 编译到 wasm、运行 `wasm-bindgen`、用 `wasm-opt -Oz` 优化，并写出
@@ -150,14 +150,18 @@ binding = "DB"
 database_name = "gproxy"
 database_id = "00000000-0000-0000-0000-000000000000"
 
-# [assets]
-# directory = "console/dist"
-# binding = "ASSETS"
-# run_worker_first = ["/v1/*", "/admin/api/*", "/portal/api/*", "/healthz", "/publications/*"]
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/*", "!/", "!/console", "!/console/*"]
 ```
 
-`run_worker_first` 把 API 路由留在 Worker 上，让其余的落到静态文件，这样 console 永远不会
-唤醒一个 isolate，wasm 二进制也留在体积限制之内。
+`deploy/cloudflare` 就是这个布局，发布里的 `gproxy-edge-cloudflare.zip` 是它构建好的版本。
+console 的文件在 `public/console/` 下，它的首页再复制一份到 `public/index.html` 供单页回退使用，
+`public/_headers` 给它加上和原生宿主一样的安全响应头。除了 console，所有请求都先交给
+Worker：只列 API 路径的白名单会漏掉服务商挂载点，因为那些前缀由配置决定。这样 console 永远
+不会唤醒一个 isolate，wasm 二进制也留在体积限制之内。
 
 **迁移不是 Worker 的事。** 它跑在流量之下，而流量之下做 DDL 正是两个 isolate 把一次迁移
 互相锁死的方式，所以 builder 从不碰表结构。部署之前跑

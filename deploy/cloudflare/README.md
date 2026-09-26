@@ -1,24 +1,28 @@
-# Cloudflare Workers bundle
+# Cloudflare Workers deployment
 
-Requirements: Rust wasm target, `wasm-pack`, Node.js, and pnpm.
+The v4 edge host is `crates/gproxy-host-edge`: a Workers `fetch` handler over
+the same axum router the native binary serves. See
+[Edge deployment](https://gproxy.leenhawk.com/deployment/edge/) for the
+configuration document, the secrets and what the Worker refuses.
+
+From a release's `gproxy-edge-cloudflare.zip`, everything is built:
+
+```sh
+wrangler d1 create gproxy               # paste the id into wrangler.toml
+wrangler d1 migrations apply gproxy --remote
+wrangler secret put GPROXY_MASTER_KEY
+wrangler deploy
+```
+
+From a checkout, build first. It needs the `wasm32-unknown-unknown` target,
+`worker-build` (`cargo install worker-build`), Node.js and pnpm:
 
 ```sh
 pnpm install
-pnpm run build
-pnpm run check
-pnpm exec wrangler secret put GPROXY_LIBSQL_URL
-pnpm exec wrangler secret put GPROXY_LIBSQL_AUTH_TOKEN
-pnpm run dev
+pnpm run build      # the Worker into build/, the console into public/
+pnpm run deploy
 ```
 
-The Worker constructs the typed edge config from those bindings. Optional
-secret-at-rest bindings are `GPROXY_MASTER_KEY`, `GPROXY_MASTER_KEY_NEXT`, and
-`GPROXY_MASTER_KEY_ROTATE`. `UPSTASH_URL` and `UPSTASH_TOKEN` optionally select
-the shared Upstash cache; set both or neither. Store key and token values only
-as Workers secrets. The build creates ignored `pkg/` and `public/` directories;
-no generated wasm or frontend assets are committed.
-
-The Worker sends only `/`, the exact admin and portal roots, `/assets/**`, and
-`/favicon.svg` to the `ASSETS` binding. Admin APIs, portal APIs, provider
-surfaces, and inference paths go through Rust. WebSocket continuations are
-registered with `ExecutionContext.waitUntil` before the response is returned.
+The console is served by Workers Assets from `public/console/` and never wakes
+the Worker; every other path, provider mounts included, goes to the Worker
+first. `_headers` gives the console the security headers the native host sends.
