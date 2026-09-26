@@ -33,8 +33,8 @@ export function CredentialDetails({ credential, provider, initialTab = "basic", 
   const [revealError, setRevealError] = useState<unknown>(null)
   const refresh = () => client.invalidateQueries({ queryKey: ["admin", "/credentials"] })
   const save = useMutation({ mutationFn: (body: Record<string, unknown>) => credentials.update(id, body), onSuccess: async () => { setSecret(null); await refresh(); toast.success(t("toast.saved")) } })
-  const action = useMutation({ mutationFn: async (kind: "refresh" | "forceRefresh" | "health" | "status") => {
-    if (kind === "refresh" || kind === "forceRefresh") await actions.refreshCredential(id, kind === "forceRefresh")
+  const action = useMutation({ mutationFn: async (kind: "refresh" | "health" | "status") => {
+    if (kind === "refresh") await actions.refreshCredential(id, true)
     if (kind === "health") await actions.resetHealth(id)
     if (kind === "status") await actions.credentialStatus(id, status, reason.trim() || null)
   }, onSuccess: async () => {
@@ -59,7 +59,7 @@ export function CredentialDetails({ credential, provider, initialTab = "basic", 
       <Tabs value={tab} onValueChange={value => setTab(value as typeof tab)}><TabsList variant="line" className="max-w-full"><TabsTrigger value="basic" disabled={busy}>{t("limits.basic")}</TabsTrigger><TabsTrigger value="limits" disabled={busy}>{t("limits.local")}</TabsTrigger><TabsTrigger value="upstream" disabled={busy}>{t("limits.upstream")}</TabsTrigger></TabsList>
         <TabsContent value="basic" forceMount hidden={tab !== "basic"}><CredentialForm secretActions={<div className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" disabled={busy || !current.hasSecret} onClick={() => secret === null ? void reveal() : setSecret(null)}>{t(secret === null ? "management.reveal" : "keys.hide")}</Button>
-            {provider.capabilities.refresh ? (["refresh", "forceRefresh"] as const).map(kind => <Button key={kind} variant="outline" size="sm" disabled={busy || !provider.enabled} onClick={() => { setSecret(null); action.mutate(kind) }}>{t(`management.${kind}`)}</Button>) : null}
+            {provider.capabilities.refresh ? <Button variant="outline" size="sm" disabled={busy || !provider.enabled} onClick={() => { setSecret(null); action.mutate("refresh") }}>{t("management.refresh")}</Button> : null}
           </div>
           {revealError ? <ErrorNotice error={revealError} /> : null}
         </div>} key={JSON.stringify(original)} inline open original={original} providerId={provider.id} onOpenChange={() => {}} onSubmit={body => save.mutate(body)} pending={busy} error={save.error} />
