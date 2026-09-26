@@ -461,3 +461,49 @@ fn the_descriptor_names_the_keys_the_channel_reads() {
     // Azure fingerprints nothing, so the operator's profile is the only input.
     assert!(Azure.default_connection().is_none());
 }
+
+#[test]
+fn a_magic_cache_string_is_stripped_and_marked_only_when_asked() {
+    const TOKEN: &str = "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_\
+                         49VA1S5V19GR4G89W2V695G9W9GV52W95V198WV5W2FC9DF";
+    let secret = key();
+    let body = |config: Value, dialect, path| {
+        let mut caller = request(path, None);
+        caller.body = HttpBody::Bytes(Bytes::from(
+            json!({"model": "m", "messages": [
+                {"role": "user", "content": [{"type": "text", "text": format!("ctx {TOKEN}")}]}
+            ]})
+            .to_string(),
+        ));
+        let prepared = prepare(
+            &config,
+            None,
+            &secret,
+            Operation::GenerateContent,
+            dialect,
+            caller,
+            None,
+        )
+        .unwrap();
+        let HttpBody::Bytes(bytes) = prepared.into_body() else {
+            panic!("buffered")
+        };
+        serde_json::from_slice::<Value>(&bytes).unwrap()
+    };
+    let off = body(json!({"resource": "r"}), Dialect::Claude, "/v1/messages");
+    let block = &off["messages"][0]["content"][0];
+    assert!(
+        !block["text"].as_str().unwrap().contains("GPROXY_MAGIC"),
+        "stripped either way"
+    );
+    assert!(block["cache_control"].is_null());
+    let on = body(
+        json!({"resource": "r", "enable_claude_magic_cache": true}),
+        Dialect::Claude,
+        "/v1/messages",
+    );
+    assert_eq!(
+        on["messages"][0]["content"][0]["cache_control"]["type"],
+        "ephemeral"
+    );
+}

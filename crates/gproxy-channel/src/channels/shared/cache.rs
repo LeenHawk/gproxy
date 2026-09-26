@@ -21,6 +21,8 @@ use serde_json::Value;
 /// Common prefix of the three tokens; a body without it needs no parsing.
 #[cfg(any(
     feature = "vercel",
+    feature = "azure",
+    feature = "aws_bedrock",
     feature = "claudeapi",
     feature = "claudecode",
     feature = "codex",
@@ -47,6 +49,8 @@ const MAGIC: &[(&str, Option<&str>)] = &[
 /// Whether a raw body can contain a token at all.
 #[cfg(any(
     feature = "vercel",
+    feature = "azure",
+    feature = "aws_bedrock",
     feature = "claudeapi",
     feature = "claudecode",
     feature = "codex",
@@ -99,6 +103,8 @@ fn strip(text: &mut String) -> (bool, Option<&'static str>) {
 
 #[cfg(any(
     feature = "vercel",
+    feature = "azure",
+    feature = "aws_bedrock",
     feature = "claudeapi",
     feature = "claudecode",
     feature = "codex",
@@ -111,6 +117,8 @@ pub(crate) use rules::*;
 
 #[cfg(any(
     feature = "vercel",
+    feature = "azure",
+    feature = "aws_bedrock",
     feature = "claudeapi",
     feature = "claudecode",
     feature = "codex",
@@ -124,6 +132,8 @@ mod rules {
     use gproxy_protocol::Dialect;
     #[cfg(any(
         feature = "vercel",
+        feature = "azure",
+        feature = "aws_bedrock",
         feature = "claudeapi",
         feature = "claudecode",
         feature = "codex",
@@ -167,6 +177,8 @@ mod rules {
     /// the body for other reasons parse once themselves and call `apply`.
     #[cfg(any(
         feature = "vercel",
+        feature = "azure",
+        feature = "aws_bedrock",
         feature = "claudeapi",
         feature = "claudecode",
         feature = "codex",
@@ -666,6 +678,8 @@ mod tests {
 
     #[cfg(any(
         feature = "vercel",
+        feature = "azure",
+        feature = "aws_bedrock",
         feature = "claudeapi",
         feature = "claudecode",
         feature = "codex",
@@ -712,6 +726,8 @@ mod tests {
 
     #[cfg(any(
         feature = "vercel",
+        feature = "azure",
+        feature = "aws_bedrock",
         feature = "claudeapi",
         feature = "claudecode",
         feature = "codex",
@@ -744,6 +760,8 @@ mod tests {
 
     #[cfg(any(
         feature = "vercel",
+        feature = "azure",
+        feature = "aws_bedrock",
         feature = "claudeapi",
         feature = "claudecode",
         feature = "codex",
@@ -796,6 +814,8 @@ mod tests {
 
     #[cfg(any(
         feature = "vercel",
+        feature = "azure",
+        feature = "aws_bedrock",
         feature = "claudeapi",
         feature = "claudecode",
         feature = "codex",
@@ -861,6 +881,8 @@ mod tests {
 
     #[cfg(any(
         feature = "vercel",
+        feature = "azure",
+        feature = "aws_bedrock",
         feature = "claudeapi",
         feature = "claudecode",
         feature = "codex",

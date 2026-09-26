@@ -29,8 +29,9 @@
 //!   media hosts (`media_base_url`). The second key gets the same origin.
 //! - Settings for features the v4 channel does not have are reported:
 //!   OpenCode's Console balance source, Grok Build's own OAuth client,
-//!   Bedrock's video output bucket, and the magic-cache switches on Azure and
-//!   Bedrock. Azure's `api_version` is warned about when no deployment is
+//!   Bedrock's video output bucket, and Bedrock's OpenAI magic-cache switch
+//!   (Bedrock only ever sends Claude bodies; its Claude switch covers OpenAI
+//!   clients after conversion). Azure's `api_version` is warned about when no deployment is
 //!   set: v3 sent it only with image calls, v4 with every call.
 //! - Codex's `codex_pat_plan_type` moves onto each credential
 //!   (`config::credential_metadata`) and leaves the provider.
@@ -143,12 +144,7 @@ pub fn translate(provider: &Provider<'_>, config: &mut Value, report: &mut Repor
     let unsupported: &[&str] = match channel {
         "opencodezen" | "opencodego" => &["quota_workspace_id", "quota_base_url", "quota_cookie"],
         "grokbuild" => &["oauth_client_id"],
-        "aws_bedrock" => &[
-            "video_output_s3_uri",
-            "enable_claude_magic_cache",
-            "enable_openai_magic_cache",
-        ],
-        "azure" => &["enable_claude_magic_cache", "enable_openai_magic_cache"],
+        "aws_bedrock" => &["video_output_s3_uri", "enable_openai_magic_cache"],
         _ => &[],
     };
     for key in unsupported {
@@ -330,8 +326,12 @@ mod tests {
             Credentials::default(),
             json!({"api_version": "preview", "enable_openai_magic_cache": true}),
         );
-        assert_eq!(config, json!({"api_version": "preview"}));
-        assert_eq!(report.warnings.len(), 2);
+        assert_eq!(
+            config,
+            json!({"api_version": "preview", "enable_openai_magic_cache": true}),
+            "Azure places both kinds now"
+        );
+        assert_eq!(report.warnings.len(), 1, "the api_version scope");
     }
 
     #[test]

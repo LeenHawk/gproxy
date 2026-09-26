@@ -23,6 +23,9 @@ pub struct BedrockConfig {
     pub control_base_url: Option<String>,
     /// The Bedrock envelope version written into every Anthropic request body.
     pub anthropic_version: String,
+    /// Place `cache_control` where a client embeds a magic cache string in
+    /// the Claude body. The strings are stripped either way.
+    pub enable_claude_magic_cache: bool,
 }
 
 impl Default for BedrockConfig {
@@ -31,6 +34,7 @@ impl Default for BedrockConfig {
             region: DEFAULT_REGION.into(),
             control_base_url: None,
             anthropic_version: DEFAULT_ANTHROPIC_VERSION.into(),
+            enable_claude_magic_cache: false,
         }
     }
 }

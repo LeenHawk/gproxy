@@ -21,6 +21,8 @@ pub(crate) mod aws_eventstream;
 pub(crate) mod aws_reason;
 /// The magic cache strings, for the dialects that have cache breakpoints.
 #[cfg(any(
+    feature = "azure",
+    feature = "aws_bedrock",
     feature = "claudeapi",
     feature = "claudecode",
     feature = "claudeweb",

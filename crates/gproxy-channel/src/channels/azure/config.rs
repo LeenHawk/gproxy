@@ -16,6 +16,12 @@ pub struct AzureConfig {
     /// Deployment name. Setting it selects the deployment-scoped layout
     /// `/openai/deployments/{deployment}/…` instead of the v1 surface.
     pub deployment: Option<String>,
+    /// Place `cache_control` where a client embeds a magic cache string in a
+    /// Claude-dialect body. The strings are stripped either way.
+    pub enable_claude_magic_cache: bool,
+    /// Place `prompt_cache_breakpoint` where a client embeds a magic cache
+    /// string in an OpenAI Chat or Responses body.
+    pub enable_openai_magic_cache: bool,
 }
 
 impl AzureConfig {

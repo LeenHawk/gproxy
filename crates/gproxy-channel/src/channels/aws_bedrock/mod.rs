@@ -243,6 +243,11 @@ impl BaseChannel for AwsBedrock {
                     ConfigKeyKind::String,
                     "The anthropic_version written into every Anthropic request body; defaults to bedrock-2023-05-31.",
                 ),
+                ConfigKey::optional(
+                    "enable_claude_magic_cache",
+                    ConfigKeyKind::Bool,
+                    "Turn a client's magic cache string in the Claude body into cache_control. The strings are stripped either way.",
+                ),
             ]
             .into_iter()
             .chain(crate::channel::CLAUDE_FALLBACK_KEYS)
@@ -272,6 +277,15 @@ impl BaseChannel for AwsBedrock {
         let HttpBody::Bytes(body) = ctx.request.body else {
             return Err(ChannelError::InvalidConfig(STREAMED_BODY.into()));
         };
+        // Before signing: the signature covers the body as sent.
+        let body = crate::channels::shared::cache::shape(
+            body,
+            crate::channels::shared::cache::rules_for(
+                ctx.operation.dialect,
+                BedrockConfig::from_view(ctx.provider)?.enable_claude_magic_cache,
+                false,
+            ),
+        );
         self.signed(
             Inputs {
                 provider: ctx.provider,
