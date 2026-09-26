@@ -68,6 +68,7 @@ impl ClaudeViaGemini {
         let (restored, names) = super::history::claude(original.clone(), state).await?;
         let mut context = context;
         super::history::merge_names(&mut context.tool_names, names.names)?;
+        context.thinking_handles = true;
         let mut prepared = Self::prepare(restored, selected_model, endpoint, identities, context)?;
         state
             .restore_gemini_tool_parts(
@@ -75,6 +76,9 @@ impl ClaudeViaGemini {
                 &prepared.identities.request,
                 &prepared.identities.request_policy,
             )
+            .await?;
+        state
+            .restore_gemini_thinking(&mut prepared.target_request)
             .await?;
         prepared.original_request = original;
         Ok(prepared)

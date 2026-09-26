@@ -295,6 +295,9 @@ fn client_usage_flag_is_honored_and_incomplete_source_never_emits_terminal_succe
 #[path = "adapt_generate_stream/all_pairs.rs"]
 mod all_pairs;
 
+#[path = "adapt_generate_stream/gemini_thinking.rs"]
+mod gemini_thinking;
+
 #[path = "adapt_generate_stream/framing.rs"]
 mod framing;
 

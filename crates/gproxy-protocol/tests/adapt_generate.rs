@@ -361,6 +361,9 @@ mod state;
 #[path = "adapt_generate/signed.rs"]
 mod signed;
 
+#[path = "adapt_generate/gemini_thinking.rs"]
+mod gemini_thinking;
+
 #[path = "adapt_generate/orphan.rs"]
 mod orphan;
 #[path = "adapt_generate/parity.rs"]

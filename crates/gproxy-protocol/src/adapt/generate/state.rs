@@ -271,6 +271,19 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
                     == IdentityRole::OutputItem(
                         crate::transform::identity::OutputItemKind::Reasoning,
                     )
+                    && client.dialect() == Dialect::Claude
+                    && let Some(part) = native.signed_gemini_thinking(handle.source.logical_index)
+                {
+                    self.attach_gemini(
+                        &mut record,
+                        part,
+                        native.native_model(),
+                        &mut native_payloads,
+                    )?;
+                } else if role
+                    == IdentityRole::OutputItem(
+                        crate::transform::identity::OutputItemKind::Reasoning,
+                    )
                     && let Some(part) = native.signed_gemini_reasoning(handle.source.logical_index)
                 {
                     self.attach_gemini(

@@ -1,5 +1,6 @@
 //! Native signed pieces are stored as their original declared DTOs, separately
-//! from the small identity record. They are never translated into foreign opaque fields.
+//! from the small identity record. They are never translated into foreign opaque fields;
+//! a foreign client sees at most a gproxy handle naming the saved piece.
 
 use super::GenerationStateAccess;
 use crate::{
@@ -8,6 +9,7 @@ use crate::{
     transform::{
         TransformError, TransformErrorKind,
         generate::{
+            claude_gemini::{is_thinking_handle, thinking_handle_id},
             claude_responses::{ClaudeRequestContext, RestoredClaudeThinking},
             gemini_responses::{GeminiReplayContext, RestoredGeminiPart},
         },
@@ -354,6 +356,95 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
             }
         }
         Ok(())
+    }
+}
+
+impl<S: StateStore> GenerationStateAccess<'_, S> {
+    /// Swap each gproxy thinking marker for the native thought part saved
+    /// under its handle. A marker whose state is missing or expired, bound to
+    /// another origin or model, or whose text the client changed is dropped:
+    /// the upstream accepts a turn without thinking, never a forged signature.
+    pub(super) async fn restore_gemini_thinking(
+        &self,
+        request: &mut g::GenerateContentRequestBody,
+    ) -> Result<(), TransformError> {
+        let mut seen = 0;
+        for content in &mut request.contents {
+            let Some(parts) = content.parts.as_mut() else {
+                continue;
+            };
+            let mut restored = Vec::with_capacity(parts.len());
+            for part in std::mem::take(parts) {
+                match part.thought_signature.as_deref() {
+                    Some(handle) if is_thinking_handle(handle) => {
+                        if let Some(native) = self
+                            .saved_thinking(handle, part.text.as_deref(), &mut seen)
+                            .await?
+                        {
+                            restored.push(native);
+                        }
+                    }
+                    _ => restored.push(part),
+                }
+            }
+            *parts = restored;
+        }
+        request.contents.retain(|content| {
+            content
+                .parts
+                .as_ref()
+                .is_some_and(|parts| !parts.is_empty())
+        });
+        Ok(())
+    }
+    async fn saved_thinking(
+        &self,
+        handle: &str,
+        text: Option<&str>,
+        seen: &mut usize,
+    ) -> Result<Option<g::Part>, TransformError> {
+        let Some(id) = thinking_handle_id(handle) else {
+            return Ok(None);
+        };
+        if self.target.dialect != Dialect::Gemini {
+            return Ok(None);
+        }
+        *seen += 1;
+        if *seen > self.max_records {
+            return Err(TransformError::new(
+                TransformErrorKind::Limit,
+                "signature.history",
+                "too many thinking handles",
+            ));
+        }
+        let role = IdentityRole::OutputItem(OutputItemKind::Reasoning);
+        let record = match self.read(role, id).await {
+            Ok(Some(record)) => record,
+            Ok(None) => return Ok(None),
+            Err(error) if error.kind() == TransformErrorKind::MissingState => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        let Some(saved) = record.opaque_signature else {
+            return Ok(None);
+        };
+        if saved.field != OpaqueField::GeminiPartThoughtSignature
+            || self.target.origin.as_deref() != Some(saved.origin.as_str())
+            || saved.model != self.target.model
+        {
+            return Ok(None);
+        }
+        let native: g::Part = match self.native_piece(role, id, "gemini-part").await {
+            Ok(native) => native,
+            Err(error) if error.kind() == TransformErrorKind::MissingState => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        if native.thought_signature.as_deref() != Some(saved.value.as_str()) {
+            return Err(TransformError::invalid_result(
+                "signature.native",
+                "native Gemini signature differs from saved identity",
+            ));
+        }
+        Ok((native.text.as_deref() == text).then_some(native))
     }
 }
 

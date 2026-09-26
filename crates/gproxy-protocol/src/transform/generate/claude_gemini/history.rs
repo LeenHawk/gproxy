@@ -113,6 +113,7 @@ pub(crate) fn to_gemini(
     calls: &mut Calls,
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
+    thinking_handles: bool,
     report: &mut Report,
 ) -> Result<Vec<g::Part>, TransformError> {
     let mut out = Vec::new();
@@ -184,6 +185,24 @@ pub(crate) fn to_gemini(
                         .function_response(super::results::to_gemini(v, id, name, media, report)?)
                         .build(),
                 );
+            }
+            // A gproxy handle stays a marker part for the host to swap for the
+            // saved native part (or drop); without host state it is dropped.
+            c::ContentBlock::Thinking(v) if super::thinking::is_thinking_handle(&v.signature) => {
+                if thinking_handles {
+                    out.push(
+                        g::Part::builder()
+                            .thought(true)
+                            .text(v.thinking)
+                            .thought_signature(v.signature)
+                            .build(),
+                    );
+                } else {
+                    report.omitted(
+                        "thinking",
+                        "gproxy thinking handle requires host state to restore the native Gemini part",
+                    );
+                }
             }
             c::ContentBlock::Thinking(v) => {
                 report.omitted("thinking.signature","native Claude signature retained by host; Gemini receives only declared thinking text");

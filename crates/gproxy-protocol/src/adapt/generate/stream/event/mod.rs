@@ -87,6 +87,9 @@ impl<T: IdentityFacts> IdentityFacts for Collected<T> {
     fn signed_gemini_tool(&self, index: usize) -> Option<crate::wire::gemini::Part> {
         self.value.signed_gemini_tool(index)
     }
+    fn signed_gemini_thinking(&self, index: u64) -> Option<crate::wire::gemini::Part> {
+        self.value.signed_gemini_thinking(index)
+    }
 }
 
 pub(crate) mod sealed {
