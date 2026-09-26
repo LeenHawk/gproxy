@@ -117,7 +117,10 @@ pub fn gemini_to_claude(
     let mut system = Vec::new();
     if let Some(content) = input.system_instruction {
         for part in content.parts.unwrap_or_default() {
-            system.push(cc::TextBlock::builder(cc::TextBlockType::Tag, part.text.unwrap()).build());
+            let text = part
+                .text
+                .ok_or_else(|| TransformError::shape("system_instruction", "text required"))?;
+            system.push(cc::TextBlock::builder(cc::TextBlockType::Tag, text).build());
         }
     }
     let mut position = crate::transform::instructions::Position::default();

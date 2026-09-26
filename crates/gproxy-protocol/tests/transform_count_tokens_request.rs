@@ -158,6 +158,24 @@ fn embedded_gemini_tools_system_schema_and_missing_call_ids_convert() {
     assert!(output.output_format.is_some());
 }
 #[test]
+fn a_gemini_system_part_without_text_is_refused_for_claude() {
+    for part in [
+        json!({}),
+        json!({"inlineData":{"mimeType":"image/png","data":"AQI="}}),
+    ] {
+        let input: g::CountTokensRequestBody = serde_json::from_value(json!({
+            "generateContentRequest": {
+                "model": "models/a",
+                "systemInstruction": {"parts": [part]},
+                "contents": [{"role": "user", "parts": [{"text": "hi"}]}]
+            }
+        }))
+        .unwrap();
+        assert!(gemini_to_claude(input, "c", &mut flow(), &policy(Dialect::Claude)).is_err());
+    }
+}
+
+#[test]
 fn count_conflicts_context_requirements_and_late_failures_are_explicit() {
     let input: g::CountTokensRequestBody = serde_json::from_value(
         json!({"contents":[],"generateContentRequest":{"model":"models/a","contents":[]}}),
