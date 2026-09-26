@@ -13,12 +13,12 @@ use gproxy_seaorm::{BatchConnectionTrait, BatchStatement};
 use gproxy_store::{
     Repository,
     entity::{
-        limits::{credential_block, credential_quota_cycle},
+        limits::credential_block,
         upstream::credential::{self, CredentialStatus},
     },
     operations::credentials::CredentialStatusUpdate,
 };
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Select, Set, sea_query::Expr};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Select, Set, sea_query::Expr};
 use serde_json::Value;
 
 use super::{
@@ -28,9 +28,10 @@ use super::{
 use crate::{
     SdkError, SdkResult,
     dto::{
-        BatchItem, CredentialBlockDto, CredentialCycleDto, CredentialDto, CredentialLimitStatusDto,
-        CredentialPatch, CredentialQuotaDto, CredentialSummaryDto, CredentialWrite, ListQuery,
-        Page, QuotaResetCreditsDto, QuotaResetDto, QuotaResetWrite, QuotaSnapshotDto,
+        BatchItem, CredentialDto, CredentialLimitStatusDto, CredentialPatch, CredentialQuotaDto,
+        CredentialSummaryDto, CredentialWrite, ListQuery, Page, QuotaObservationDto,
+        QuotaObservationQuery, QuotaResetCreditsDto, QuotaResetDto, QuotaResetWrite,
+        QuotaSnapshotDto,
     },
 };
 
@@ -145,35 +146,22 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Credentials<'_, C> {
     }
 
     /// What this deployment already knows, without asking the upstream: the
-    /// observed cycles, newest first, and the blocks still in force.
+    /// credential's open cycles, each window's most recent closed ones, and
+    /// the blocks still in force.
     pub async fn quota_read(&self, id: &str) -> SdkResult<CredentialQuotaDto> {
         let row = crud::row::<C, Self>(self, id).await?;
-        let cycles = self
-            .writer
-            .store()
-            .credential_quota_cycles()
-            .query(
-                credential_quota_cycle::Entity::find()
-                    .filter(credential_quota_cycle::Column::CredentialId.eq(&row.id))
-                    .order_by_desc(credential_quota_cycle::Column::ObservedAtMs),
-            )
-            .await?;
-        let now = crate::rt::now_ms();
-        let blocks = self
-            .writer
-            .store()
-            .credential_blocks()
-            .query(
-                credential_block::Entity::find()
-                    .filter(credential_block::Column::CredentialId.eq(&row.id))
-                    .filter(credential_block::Column::UntilMs.gt(now))
-                    .order_by_asc(credential_block::Column::UntilMs),
-            )
-            .await?;
-        Ok(CredentialQuotaDto {
-            cycles: cycles.into_iter().map(CredentialCycleDto::from).collect(),
-            blocks: blocks.into_iter().map(CredentialBlockDto::from).collect(),
-        })
+        crate::query::quota::credential_quota(self.writer.store(), &row.id).await
+    }
+
+    /// One page of the raw upstream readings behind the cycles, newest first.
+    /// See [`QuotaObservationQuery`] for the default range.
+    pub async fn quota_observations(
+        &self,
+        id: &str,
+        query: QuotaObservationQuery,
+    ) -> SdkResult<Page<QuotaObservationDto>> {
+        let row = crud::row::<C, Self>(self, id).await?;
+        crate::query::quota::quota_observations(self.writer.store(), &row.id, query).await
     }
 
     /// Query reset-card availability independently from account usage.

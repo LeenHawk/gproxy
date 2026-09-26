@@ -16,9 +16,13 @@ use gproxy_channel::channel::{
     QuotaResetCredits, QuotaResetOption, QuotaResetOutcome, QuotaResetResult, QuotaSnapshot,
     QuotaSubject, QuotaValue,
 };
+use gproxy_seaorm::FixedDecimal;
 use gproxy_store::entity::limits::{
-    counted_window, credential_block, credential_quota_cycle, quota, quota_settlement,
+    counted_window, credential_block,
+    credential_cycle::{self, CycleBoundary, CycleOpening},
+    credential_quota_cycle, quota, quota_settlement,
 };
+use rust_decimal::Decimal;
 
 /// One configured budget or operator limit. `owner_kind` is a free string:
 /// `user`, `api_key`, `team`, `org` and `pool` are caller budgets the host
@@ -202,18 +206,27 @@ impl From<gproxy_core::CredentialLimitStatus> for CredentialLimitStatusDto {
     }
 }
 
-/// What this instance knows about one credential's upstream quota: the cycles
-/// observed so far and the blocks currently keeping it out of selection.
+/// What this instance knows about one credential's upstream quota: its
+/// cycles — every open one and each window's most recent closed ones — and
+/// the blocks currently keeping it out of selection.
+///
+/// Windows overlap (a 5-hour and a weekly window both count the same
+/// request), so the cycles' costs are never meant to be summed across
+/// windows. The raw readings behind the cycles are a separate, paged read.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct CredentialQuotaDto {
+    /// Open cycles first, by window; then closed ones by window, newest
+    /// first.
     pub cycles: Vec<CredentialCycleDto>,
     /// Only blocks that have not expired yet.
     pub blocks: Vec<CredentialBlockDto>,
 }
 
+/// One period of one upstream window on a credential, with the USD this
+/// deployment settled against it.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
@@ -221,16 +234,120 @@ pub struct CredentialQuotaDto {
 pub struct CredentialCycleDto {
     pub id: String,
     pub credential_id: String,
+    /// The observed `QuotaEntry.id`, the declared dimension id before any
+    /// observation, or `month` for a credential that declares no window.
+    pub window_id: String,
+    pub dimension_id: Option<String>,
     #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub scope: Value,
+    pub starts_at_ms: i64,
+    /// None for a window that never ends.
+    pub ends_at_ms: Option<i64>,
+    /// `local` (derived here, a guess) or `observed` (reported upstream).
+    pub boundary: String,
+    /// `first_use`, `rollover`, `server_reset` or `manual_reset`.
+    pub opened_by: String,
+    /// None while the cycle is open.
+    pub closed_at_ms: Option<i64>,
+    /// USD settled against the cycle through this deployment. Final once
+    /// closed.
+    pub cost_usd: String,
+    /// The latest upstream reading on the cycle; for a closed cycle, the
+    /// last one before it closed.
+    pub sample: Option<CycleSampleDto>,
+    /// `sample.costUsd / sample.usedPercent * 100`: the USD the whole window
+    /// would hold at the rate this cycle has been spending, when the sample
+    /// reports a positive percent. It only sees traffic through this
+    /// deployment, so use elsewhere on the same account reads it low.
+    pub estimated_allowance_usd: Option<String>,
+}
+
+/// One upstream reading, kept on a cycle as a set taken at `atMs`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct CycleSampleDto {
+    /// On the 0..100 scale.
+    pub used_percent: Option<String>,
+    pub used: Option<String>,
+    pub limit: Option<String>,
+    /// The cycle's `costUsd` when the reading was taken.
+    pub cost_usd: Option<String>,
+    pub at_ms: i64,
+}
+
+impl From<credential_cycle::Model> for CredentialCycleDto {
+    fn from(row: credential_cycle::Model) -> Self {
+        let decimal = |value: FixedDecimal| value.decimal().normalize().to_string();
+        let estimated_allowance_usd = match (row.sample_cost_usd, row.sample_used_percent) {
+            (Some(cost), Some(percent)) if percent.atoms() > 0 => cost
+                .decimal()
+                .checked_mul(Decimal::ONE_HUNDRED)
+                .and_then(|scaled| scaled.checked_div(percent.decimal()))
+                .map(|value| value.round_dp(FixedDecimal::SCALE).normalize().to_string()),
+            _ => None,
+        };
+        let sample = row.sample_at_ms.map(|at_ms| CycleSampleDto {
+            used_percent: row.sample_used_percent.map(decimal),
+            used: row.sample_used.map(decimal),
+            limit: row.sample_limit.map(decimal),
+            cost_usd: row.sample_cost_usd.map(decimal),
+            at_ms,
+        });
+        Self {
+            id: row.id,
+            credential_id: row.credential_id,
+            window_id: row.window_id,
+            dimension_id: row.dimension_id,
+            scope: row.scope,
+            starts_at_ms: row.starts_at_ms,
+            ends_at_ms: row.ends_at_ms,
+            boundary: match row.boundary {
+                CycleBoundary::Local => "local",
+                CycleBoundary::Observed => "observed",
+            }
+            .to_owned(),
+            opened_by: match row.opened_by {
+                CycleOpening::FirstUse => "first_use",
+                CycleOpening::Rollover => "rollover",
+                CycleOpening::ServerReset => "server_reset",
+                CycleOpening::ManualReset => "manual_reset",
+            }
+            .to_owned(),
+            closed_at_ms: row.closed_at_ms,
+            cost_usd: decimal(row.cost_usd),
+            sample,
+            estimated_allowance_usd,
+        }
+    }
+}
+
+/// One persisted upstream reading of one window: a row of the observation
+/// log the cycles are built from.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct QuotaObservationDto {
+    pub id: String,
+    pub credential_id: String,
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
+    pub scope: Value,
+    /// The observed `QuotaEntry`, as the channel reported it.
     #[cfg_attr(feature = "ts", ts(type = "unknown"))]
     pub snapshot: Value,
     pub observed_at_ms: i64,
     pub starts_at_ms: Option<i64>,
     pub resets_at_ms: Option<i64>,
+    /// The cycle the reading fell in, if any.
+    pub cycle_id: Option<String>,
+    /// That cycle's `costUsd` when the reading was taken; the difference
+    /// between two readings of one cycle is the USD spent between them.
+    pub cycle_cost_usd: Option<String>,
 }
 
-impl From<credential_quota_cycle::Model> for CredentialCycleDto {
+impl From<credential_quota_cycle::Model> for QuotaObservationDto {
     fn from(row: credential_quota_cycle::Model) -> Self {
         Self {
             id: row.id,
@@ -240,8 +357,30 @@ impl From<credential_quota_cycle::Model> for CredentialCycleDto {
             observed_at_ms: row.observed_at_ms,
             starts_at_ms: row.starts_at_ms,
             resets_at_ms: row.resets_at_ms,
+            cycle_id: row.credential_cycle_id,
+            cycle_cost_usd: row
+                .cycle_cost_usd
+                .map(|value| value.decimal().normalize().to_string()),
         }
     }
+}
+
+/// What an observation listing reads: one credential's readings in
+/// `[sinceMs, untilMs)`, newest first.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
+pub struct QuotaObservationQuery {
+    /// Inclusive. Absent means the start of the earliest open cycle of the
+    /// credential, or 24 hours before now when none is open.
+    pub since_ms: Option<i64>,
+    /// Exclusive. Absent means no upper bound.
+    pub until_ms: Option<i64>,
+    /// 1-based. Zero and absent both mean the first page.
+    pub page: Option<u64>,
+    /// Clamped to 1..=500; absent means 50.
+    pub page_size: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -200,6 +200,7 @@ ipc_table! {
         reveal_secret[id];
         quota_probe[id];
         quota_read[id];
+        quota_observations[id](query: sdk::QuotaObservationQuery);
         quota_reset[id];
         health_reset[id];
         limit_status[id];
@@ -386,6 +387,7 @@ ipc_table! {
         windows(query: sdk::QuotaWindowQuery);
         settlements[window_id](query: sdk::ListQuery);
         credential_cycles[credential_id];
+        credential_observations[credential_id](query: sdk::QuotaObservationQuery);
     }
 
     query logs [.logs()] {

@@ -133,7 +133,7 @@ over the same commit primitive.
 | Family | Rows | Beyond CRUD |
 | --- | --- | --- |
 | `providers()` | `providers` | `reset_routing_defaults` |
-| `credentials()` | `credentials` | `reveal_secret`, `set_status`, `refresh`, `quota_probe`, `quota_read`, `quota_reset`, `health_reset`, `limit_status` |
+| `credentials()` | `credentials` | `reveal_secret`, `set_status`, `refresh`, `quota_probe`, `quota_read`, `quota_observations`, `quota_reset`, `health_reset`, `limit_status` |
 | `models()` / `provider_models()` | the catalogue | |
 | `routes()` / `route_members()` | routing | |
 | `connection_profiles()` | outbound stacks | |
@@ -165,7 +165,7 @@ the revision.
 | Family | Answers |
 | --- | --- |
 | `usage()` | `records`, `summary`, `group`, `trend` |
-| `quota()` | `windows`, `settlements`, `credential_cycles`, `counted_windows`, `budget_status` |
+| `quota()` | `windows`, `settlements`, `credential_cycles`, `credential_observations`, `counted_windows`, `budget_status` |
 | `logs()` | `list`, `detail(request_id)` |
 
 **Aggregation happens in Rust, over a scan cap.** The usage metrics column is

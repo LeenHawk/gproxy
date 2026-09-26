@@ -174,7 +174,8 @@ POST   /admin/api/providers/{id}/routing-defaults/reset
 POST   /admin/api/credentials/{id}/reveal        明文密钥——会审计
 POST   /admin/api/credentials/{id}/status        {"status": "active"|"dead", "reason": …}
 POST   /admin/api/credentials/{id}/refresh       ?force=true 连没过期的也换
-GET    /admin/api/credentials/{id}/quota         已观测到的周期与封禁
+GET    /admin/api/credentials/{id}/quota         周期（进行中 + 最近关闭的）与封禁
+GET    /admin/api/credentials/{id}/quota-observations  原始观测，分页，?sinceMs&untilMs
 POST   /admin/api/credentials/{id}/quota-probe   去问上游
 POST   /admin/api/credentials/{id}/quota-reset   兑换一次重置额度
 POST   /admin/api/credentials/{id}/health-reset

@@ -112,7 +112,7 @@ let (response, usage) = execution.into_parts();
 | 家族 | 表 | CRUD 之外 |
 | --- | --- | --- |
 | `providers()` | `providers` | `reset_routing_defaults` |
-| `credentials()` | `credentials` | `reveal_secret`、`set_status`、`refresh`、`quota_probe`、`quota_read`、`quota_reset`、`health_reset`、`limit_status` |
+| `credentials()` | `credentials` | `reveal_secret`、`set_status`、`refresh`、`quota_probe`、`quota_read`、`quota_observations`、`quota_reset`、`health_reset`、`limit_status` |
 | `models()` / `provider_models()` | 目录 | |
 | `routes()` / `route_members()` | 路由 | |
 | `connection_profiles()` | 出站栈 | |
@@ -140,7 +140,7 @@ let (response, usage) = execution.into_parts();
 | 家族 | 回答什么 |
 | --- | --- |
 | `usage()` | `records`、`summary`、`group`、`trend` |
-| `quota()` | `windows`、`settlements`、`credential_cycles`、`counted_windows`、`budget_status` |
+| `quota()` | `windows`、`settlements`、`credential_cycles`、`credential_observations`、`counted_windows`、`budget_status` |
 | `logs()` | `list`、`detail(request_id)` |
 
 **聚合在 Rust 侧完成，并带扫描上限。** 用量的 metrics 列是每请求一份 JSON 文档，本产品

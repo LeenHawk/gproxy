@@ -11,6 +11,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use gproxy_core::BudgetOwner;
 use gproxy_seaorm::BatchConnectionTrait;
+use gproxy_store::Store;
 use gproxy_store::entity::limits::{
     counted_window, credential_block, credential_quota_cycle, quota, quota_settlement, quota_window,
 };
@@ -21,7 +22,8 @@ use crate::{
     SdkResult,
     dto::{
         BudgetStatusDto, CountedWindowDto, CredentialBlockDto, CredentialCycleDto,
-        CredentialQuotaDto, ListQuery, Page, QuotaSettlementDto, QuotaWindowDto, QuotaWindowQuery,
+        CredentialQuotaDto, ListQuery, Page, QuotaObservationDto, QuotaObservationQuery,
+        QuotaSettlementDto, QuotaWindowDto, QuotaWindowQuery,
     },
     handle::Inner,
 };
@@ -160,40 +162,26 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> QuotaQueries<'_, C> {
         Ok(Page::convert(page, QuotaSettlementDto::from))
     }
 
-    /// What this deployment observed about one credential's upstream quota:
-    /// every cycle it ever reported, newest first, and the blocks still
-    /// keeping it out of selection.
+    /// What this deployment knows about one credential's upstream quota: its
+    /// open cycles, each window's [`CLOSED_CYCLES_PER_WINDOW`] most recent
+    /// closed ones, and the blocks still keeping it out of selection.
     ///
     /// Unlike `manage().credentials().quota_read`, the credential row need not
     /// still exist: a cycle is a historical reference, and the point of
     /// reading it here is to look at what a deleted credential did.
     pub async fn credential_cycles(&self, credential_id: &str) -> SdkResult<CredentialQuotaDto> {
-        let cycles = self
-            .inner
-            .store
-            .credential_quota_cycles()
-            .query(
-                credential_quota_cycle::Entity::find()
-                    .filter(credential_quota_cycle::Column::CredentialId.eq(credential_id))
-                    .order_by_desc(credential_quota_cycle::Column::ObservedAtMs),
-            )
-            .await?;
-        let now_ms = crate::rt::now_ms();
-        let blocks = self
-            .inner
-            .store
-            .credential_blocks()
-            .query(
-                credential_block::Entity::find()
-                    .filter(credential_block::Column::CredentialId.eq(credential_id))
-                    .filter(credential_block::Column::UntilMs.gt(now_ms))
-                    .order_by_asc(credential_block::Column::UntilMs),
-            )
-            .await?;
-        Ok(CredentialQuotaDto {
-            cycles: cycles.into_iter().map(CredentialCycleDto::from).collect(),
-            blocks: blocks.into_iter().map(CredentialBlockDto::from).collect(),
-        })
+        credential_quota(&self.inner.store, credential_id).await
+    }
+
+    /// One page of a credential's raw quota readings, newest first. See
+    /// [`QuotaObservationQuery`] for the default range. Like
+    /// [`Self::credential_cycles`], the credential row need not still exist.
+    pub async fn credential_observations(
+        &self,
+        credential_id: &str,
+        query: QuotaObservationQuery,
+    ) -> SdkResult<Page<QuotaObservationDto>> {
+        quota_observations(&self.inner.store, credential_id, query).await
     }
 
     /// The counted windows covering `now_ms` on one credential, in the meter's
@@ -251,4 +239,75 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> QuotaQueries<'_, C> {
             .map(BudgetStatusDto::from)
             .collect())
     }
+}
+
+/// Closed cycles `CredentialQuotaDto` carries per window. Enough to see a
+/// trend in a weekly window; a 5-hour window's older history is the
+/// observation log's to answer.
+pub const CLOSED_CYCLES_PER_WINDOW: u64 = 10;
+
+/// How far back an observation listing reaches by default when the
+/// credential has no open cycle to start from.
+const DEFAULT_OBSERVATION_SPAN_MS: i64 = 24 * 60 * 60 * 1000;
+
+/// The cycles and live blocks of one credential, whether or not its row
+/// still exists. Shared by `query().quota()` and `manage().credentials()`.
+pub(crate) async fn credential_quota<C: BatchConnectionTrait>(
+    store: &Store<C>,
+    credential_id: &str,
+) -> SdkResult<CredentialQuotaDto> {
+    let cycles = store
+        .credential_cycles()
+        .history(credential_id, CLOSED_CYCLES_PER_WINDOW)
+        .await?;
+    let now_ms = crate::rt::now_ms();
+    let blocks = store
+        .credential_blocks()
+        .query(
+            credential_block::Entity::find()
+                .filter(credential_block::Column::CredentialId.eq(credential_id))
+                .filter(credential_block::Column::UntilMs.gt(now_ms))
+                .order_by_asc(credential_block::Column::UntilMs),
+        )
+        .await?;
+    Ok(CredentialQuotaDto {
+        cycles: cycles.into_iter().map(CredentialCycleDto::from).collect(),
+        blocks: blocks.into_iter().map(CredentialBlockDto::from).collect(),
+    })
+}
+
+/// One page of one credential's observations in the query's range, newest
+/// first, read through the `(credential_id, observed_at_ms)` index.
+pub(crate) async fn quota_observations<C: BatchConnectionTrait>(
+    store: &Store<C>,
+    credential_id: &str,
+    query: QuotaObservationQuery,
+) -> SdkResult<Page<QuotaObservationDto>> {
+    let since_ms = match query.since_ms {
+        Some(since_ms) => since_ms,
+        None => store
+            .credential_cycles()
+            .open_of(&[credential_id.to_owned()])
+            .await?
+            .iter()
+            .map(|cycle| cycle.starts_at_ms)
+            .min()
+            .unwrap_or_else(|| crate::rt::now_ms().saturating_sub(DEFAULT_OBSERVATION_SPAN_MS)),
+    };
+    let mut select = credential_quota_cycle::Entity::find()
+        .filter(credential_quota_cycle::Column::CredentialId.eq(credential_id))
+        .filter(credential_quota_cycle::Column::ObservedAtMs.gte(since_ms));
+    if let Some(until_ms) = query.until_ms {
+        select = select.filter(credential_quota_cycle::Column::ObservedAtMs.lt(until_ms));
+    }
+    let (offset, limit) = bounds(query.page, query.page_size);
+    let page = store
+        .credential_quota_cycles()
+        .page(
+            select.order_by_desc(credential_quota_cycle::Column::ObservedAtMs),
+            offset,
+            limit,
+        )
+        .await?;
+    Ok(Page::convert(page, QuotaObservationDto::from))
 }

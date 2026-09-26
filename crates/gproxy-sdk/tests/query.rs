@@ -1268,7 +1268,12 @@ async fn windows_carry_their_quota_and_their_settlements() {
 
 #[tokio::test]
 async fn counted_windows_and_cycles_read_the_meter_and_its_history() {
-    use gproxy_store::entity::limits::{counted_window, credential_block, credential_quota_cycle};
+    use gproxy_sdk::dto::QuotaObservationQuery;
+    use gproxy_store::entity::limits::{
+        counted_window, credential_block,
+        credential_cycle::{self, CycleBoundary, CycleOpening},
+        credential_quota_cycle,
+    };
 
     let gproxy = support::sdk().await;
     let now = 1_700_000_000_000_i64;
@@ -1299,17 +1304,81 @@ async fn counted_windows_and_cycles_read_the_meter_and_its_history() {
         ])
         .await
         .unwrap();
+    // One open 5h cycle with a reading, twelve closed 5h cycles, and one
+    // closed weekly cycle that a total cap would have crowded out.
+    let fixed = |text: &str| text.parse::<gproxy_store::FixedDecimal>().unwrap();
+    let cycle = |id: String, window: &str, starts: i64, closed: Option<i64>| {
+        credential_cycle::ActiveModel {
+            id: Set(id),
+            credential_id: Set("c-1".into()),
+            closed_at_ms: Set(closed),
+            open_key: Set(closed
+                .is_none()
+                .then(|| credential_cycle::open_key("c-1", window))),
+            window_id: Set(window.into()),
+            dimension_id: Set(Some(window.into())),
+            scope: Set(json!("all")),
+            starts_at_ms: Set(starts),
+            ends_at_ms: Set(Some(starts + 18_000_000)),
+            boundary: Set(CycleBoundary::Observed),
+            opened_by: Set(CycleOpening::Rollover),
+            cost_usd: Set(fixed("1")),
+            ..Default::default()
+        }
+    };
+    let mut cycles = vec![credential_cycle::ActiveModel {
+        cost_usd: Set(fixed("2.5")),
+        sample_used_percent: Set(Some(fixed("40"))),
+        sample_used: Set(None),
+        sample_limit: Set(None),
+        sample_cost_usd: Set(Some(fixed("2"))),
+        sample_at_ms: Set(Some(now - 50)),
+        ..cycle("open-5h".into(), "5h", now - 1_000, None)
+    }];
+    for index in 0..12_i64 {
+        let starts = now - 1_000 - (index + 1) * 18_000_000;
+        cycles.push(cycle(
+            format!("closed-5h-{index:02}"),
+            "5h",
+            starts,
+            Some(starts + 18_000_000),
+        ));
+    }
+    cycles.push(credential_cycle::ActiveModel {
+        sample_used_percent: Set(Some(fixed("0"))),
+        sample_cost_usd: Set(Some(fixed("1"))),
+        sample_at_ms: Set(Some(now - 900_000_000)),
+        ..cycle(
+            "closed-7d".into(),
+            "7d",
+            now - 1_000_000_000,
+            Some(now - 800_000_000),
+        )
+    });
+    gproxy
+        .store()
+        .credential_cycles()
+        .create_many(cycles)
+        .await
+        .unwrap();
+    let observation = |id: &str, at: i64| credential_quota_cycle::ActiveModel {
+        id: Set(id.into()),
+        credential_id: Set("c-1".into()),
+        scope: Set(json!("all")),
+        snapshot: Set(json!({"entries": []})),
+        observed_at_ms: Set(at),
+        credential_cycle_id: Set(Some("open-5h".into())),
+        cycle_cost_usd: Set(Some(fixed("0.75"))),
+        ..Default::default()
+    };
     gproxy
         .store()
         .credential_quota_cycles()
-        .create_many(vec![credential_quota_cycle::ActiveModel {
-            id: Set("cy-1".into()),
-            credential_id: Set("c-1".into()),
-            scope: Set(json!("all")),
-            snapshot: Set(json!({"entries": []})),
-            observed_at_ms: Set(now - 100),
-            ..Default::default()
-        }])
+        .create_many(vec![
+            observation("ob-old", now - 5_000),
+            observation("ob-1", now - 100),
+            observation("ob-2", now - 50),
+        ])
         .await
         .unwrap();
     gproxy
@@ -1347,8 +1416,81 @@ async fn counted_windows_and_cycles_read_the_meter_and_its_history() {
     assert_eq!(windows[0].limit, 100);
 
     let cycles = quota.credential_cycles("c-1").await.unwrap();
-    assert_eq!(cycles.cycles.len(), 1);
-    assert_eq!(cycles.cycles[0].id, "cy-1");
+    let ids = cycles
+        .cycles
+        .iter()
+        .map(|cycle| cycle.id.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        ids.len(),
+        1 + 10 + 1,
+        "open, ten closed 5h, the one closed 7d"
+    );
+    assert_eq!(ids[0], "open-5h");
+    assert_eq!(ids[1], "closed-5h-00", "closed newest first");
+    assert_eq!(ids[10], "closed-5h-09");
+    assert_eq!(
+        ids[11], "closed-7d",
+        "a busy window does not crowd out another"
+    );
+    let open = &cycles.cycles[0];
+    assert_eq!(open.closed_at_ms, None);
+    assert_eq!(open.cost_usd, "2.5");
+    assert_eq!(open.opened_by, "rollover");
+    assert_eq!(open.boundary, "observed");
+    let sample = open.sample.as_ref().unwrap();
+    assert_eq!(sample.used_percent.as_deref(), Some("40"));
+    assert_eq!(sample.cost_usd.as_deref(), Some("2"));
+    assert_eq!(sample.at_ms, now - 50);
+    assert_eq!(
+        open.estimated_allowance_usd.as_deref(),
+        Some("5"),
+        "the sample's own cost over its own percent, not the live cost"
+    );
+    assert!(cycles.cycles[1].sample.is_none());
+    assert_eq!(cycles.cycles[1].estimated_allowance_usd, None);
+    assert_eq!(
+        cycles.cycles[11].estimated_allowance_usd, None,
+        "a zero percent estimates nothing"
+    );
+
+    // By default the listing starts at the open cycle's start.
+    let observations = quota
+        .credential_observations(
+            "c-1",
+            QuotaObservationQuery {
+                page_size: Some(1),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(observations.total, 2);
+    assert_eq!(observations.items[0].id, "ob-2", "newest first");
+    assert_eq!(observations.items[0].cycle_id.as_deref(), Some("open-5h"));
+    assert_eq!(
+        observations.items[0].cycle_cost_usd.as_deref(),
+        Some("0.75")
+    );
+    let ranged = quota
+        .credential_observations(
+            "c-1",
+            QuotaObservationQuery {
+                since_ms: Some(now - 10_000),
+                until_ms: Some(now - 50),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        ranged
+            .items
+            .iter()
+            .map(|item| item.id.as_str())
+            .collect::<Vec<_>>(),
+        ["ob-1", "ob-old"]
+    );
     assert_eq!(
         cycles
             .blocks

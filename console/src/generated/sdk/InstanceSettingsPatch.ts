@@ -5,4 +5,8 @@ export type InstanceSettingsPatch = { instanceName: string | null, oauthClientAl
  * Plaintext on the way in, sealed before it reaches the row. `null`
  * removes it and downloads anonymously again.
  */
-tokenizerAuthToken: string | null | null, retentionDays: number | null | null, maxDatabaseSizeMb: number | null | null, updateChannel: string | null | null, enableAutoUpdateCheck: boolean | null, portalRecentRequestsEnabled: boolean | null, };
+tokenizerAuthToken: string | null | null, retentionDays: number | null | null,
+/**
+ * `null` keeps every observation.
+ */
+quotaObservationRetentionDays: number | null | null, maxDatabaseSizeMb: number | null | null, updateChannel: string | null | null, enableAutoUpdateCheck: boolean | null, portalRecentRequestsEnabled: boolean | null, };

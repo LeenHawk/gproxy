@@ -14,7 +14,7 @@
 //! [`Page`]: crate::Page
 
 mod logs;
-mod quota;
+pub(crate) mod quota;
 mod usage;
 
 pub use logs::Logs;
