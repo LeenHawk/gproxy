@@ -3,6 +3,8 @@
 //! frames are built with this channel's own encoder and read back through its
 //! own parser, which is the strongest check available without a live account.
 
+mod support;
+
 use futures_util::StreamExt;
 use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
@@ -1564,6 +1566,19 @@ async fn the_billing_ledger_beside_the_windows_is_reported_too() {
         })
         .await
         .unwrap();
+    let model = Devin.quota_model().unwrap();
+    let declared = model.dimensions(provider(&config), credential(&secret, &metadata));
+    // The billing ledger is observed beside the declared windows, not charged.
+    support::assert_quota_contract(
+        Some(model),
+        &declared,
+        &snapshot.entries,
+        &[
+            devin::OVERAGE_ID,
+            devin::PROMPT_CREDITS_ID,
+            devin::FLEX_CREDITS_ID,
+        ],
+    );
     let entry = |id: &str| {
         snapshot
             .entries

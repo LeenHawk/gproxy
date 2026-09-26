@@ -1,5 +1,7 @@
 #![cfg(feature = "openai")]
 
+mod support;
+
 use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
     channel::{
@@ -549,6 +551,10 @@ fn watches_a_chat_and_a_responses_stream_across_chunk_boundaries() {
 
 // -------------------------------------------------------------------- quota
 
+/// No `QuotaModel`: per-model rate limits and the organization cost report
+/// are observed, never charged.
+const OBSERVE_ONLY: &[&str] = &["rate:*", "usage:*"];
+
 #[test]
 fn observes_the_rate_limit_headers_of_a_reply() {
     let quota = OpenAi.quota_headers().expect("declared");
@@ -572,6 +578,7 @@ fn observes_the_rate_limit_headers_of_a_reply() {
         entries.iter().map(|e| e.id.as_str()).collect::<Vec<_>>(),
         ["rate:requests:gpt-5", "rate:tokens:gpt-5"]
     );
+    support::assert_quota_contract(None, &[], &entries, OBSERVE_ONLY);
     let QuotaValue::RateLimit(requests) = &entries[0].value else {
         panic!("a rate limit");
     };
@@ -650,6 +657,7 @@ async fn reads_the_organization_cost_report_across_its_pages() {
         .map(|entry| entry.id.as_str())
         .collect::<Vec<_>>();
     assert_eq!(ids, ["usage:1789344000:EUR", "usage:1789344000:USD"]);
+    support::assert_quota_contract(None, &[], &snapshot.entries, OBSERVE_ONLY);
     let QuotaValue::Budget(usd) = &snapshot.entries[1].value else {
         panic!("a budget");
     };

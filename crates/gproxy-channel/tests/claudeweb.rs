@@ -1,5 +1,7 @@
 #![cfg(feature = "claudeweb")]
 
+mod support;
+
 use futures_util::StreamExt;
 use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
@@ -891,6 +893,10 @@ async fn refresh_revalidates_and_rejects_dead_sessions() {
     );
 }
 
+/// Family, surface and per-model weekly limits and the weekly breakdown are
+/// observed without a declared dimension.
+const OBSERVE_ONLY: &[&str] = &["claudeweb_seven_day_*", "claudeweb_weekly_*"];
+
 #[tokio::test]
 async fn usage_windows_and_scoped_limits_become_quota_entries() {
     let config = json!({});
@@ -989,6 +995,25 @@ async fn usage_windows_and_scoped_limits_become_quota_entries() {
         Some("default_claude_pro 5h window")
     );
     assert_eq!(dims[1].id, "claudeweb_seven_day");
+    let model = channel.quota_model();
+    support::assert_quota_contract(model, &dims, &snapshot.entries, OBSERVE_ONLY);
+    // The Claude Code usage capture has the same shape; its Fable window
+    // stays observe-only here (claudeweb declares no family windows).
+    let client = ScriptClient::new(vec![reply(
+        StatusCode::OK,
+        serde_json::from_str(include_str!("fixtures/quota/claudecode_usage.json")).unwrap(),
+    )]);
+    let captured = channel
+        .quota_query()
+        .unwrap()
+        .query(CredentialContext {
+            provider: provider(&config, None),
+            credential: credential(&secret, &Value::Null),
+            client: &*client,
+        })
+        .await
+        .unwrap();
+    support::assert_quota_contract(model, &dims, &captured.entries, OBSERVE_ONLY);
 
     let client = ScriptClient::new(vec![reply(
         StatusCode::OK,

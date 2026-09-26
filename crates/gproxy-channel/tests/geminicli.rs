@@ -1,6 +1,8 @@
 #![cfg(feature = "geminicli")]
 //! Gemini CLI against a scripted client: no real upstream is called.
 
+mod support;
+
 use gproxy_channel::channel::{
     AuthorizationCode, AuthorizationRequest, BaseChannel, ChannelError, CredentialContext,
     CredentialRefresh, CredentialView, LoginContext, NoState, OperationContext, PrepareContext,
@@ -626,6 +628,9 @@ async fn quota_buckets_become_periodic_windows() {
     // known once the upstream reports them.
     assert!(GeminiCli.quota_model().is_none());
     assert!(GeminiCli.quota_headers().is_none());
+    // Every `<model>:<token type>` bucket is observe-only until live probing
+    // settles whether buckets share pools and how long their windows are.
+    support::assert_quota_contract(None, &[], &snapshot.entries, &["gemini-*"]);
 }
 
 // ------------------------------------------------------------------ usage

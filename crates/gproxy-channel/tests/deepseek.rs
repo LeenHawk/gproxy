@@ -170,6 +170,21 @@ async fn the_balance_probe_reports_every_currency_the_account_holds() {
     };
     assert_eq!(balance.remaining, Some("110.00".parse().unwrap()));
     assert_eq!(balance.unit.as_deref(), Some("CNY"));
+    use gproxy_channel::channel::QuotaModel;
+    let config = json!({});
+    let secret = json!({"api_key": "sk-deepseek"});
+    let declared = DeepSeek.dimensions(
+        provider("deepseek", &config, None),
+        credential("api_key", &secret, &Value::Null),
+    );
+    // Only the first balance is the declared one; further currencies are
+    // observe-only.
+    support::assert_quota_contract(
+        Some(&DeepSeek),
+        &declared,
+        &snapshot.entries,
+        &["deepseek_balance_*"],
+    );
 }
 
 #[test]

@@ -246,6 +246,14 @@ async fn team_balance_uses_free_credits_endpoint() {
     };
     assert_eq!(balance.remaining.unwrap().to_string(), "12.34");
     assert_eq!(balance.unit.as_deref(), Some("USD"));
+    let config = json!({});
+    let secret = json!({"api_key":"key"});
+    let model = Vercel.quota_model().unwrap();
+    let declared = model.dimensions(
+        provider("vercel", &config, None),
+        credential("api_key", &secret, &Value::Null),
+    );
+    support::assert_quota_contract(Some(model), &declared, &snapshot.entries, &[]);
 }
 
 #[test]

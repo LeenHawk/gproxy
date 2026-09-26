@@ -1,6 +1,8 @@
 #![cfg(feature = "workbuddy")]
 //! WorkBuddy against a scripted client: no real upstream is called.
 
+mod support;
+
 use futures_util::StreamExt as _;
 use gproxy_channel::channel::{
     BaseChannel, ChannelError, CredentialContext, CredentialRefresh, CredentialView, DevicePoll,
@@ -872,6 +874,10 @@ async fn the_refresh_rotates_through_a_header_and_a_refusal_is_definitive() {
 
 // -------------------------------------------------------------------- quota
 
+/// No `QuotaModel`: the enterprise meter and each personal package are
+/// observed, never charged.
+const OBSERVE_ONLY: &[&str] = &[ENTERPRISE_DIMENSION, "pkg_*"];
+
 #[tokio::test]
 async fn the_meter_a_credential_reads_follows_its_seat() {
     let config = json!({});
@@ -907,6 +913,7 @@ async fn the_meter_a_credential_reads_follows_its_seat() {
     };
     assert_eq!(window.used_percent, Some(24.into()));
     assert_eq!(window.period_end_ms, Some(1_788_220_800_000));
+    support::assert_quota_contract(None, &[], &snapshot.entries, OBSERVE_ONLY);
 
     let personal_meta = personal();
     let client = ScriptClient::new(vec![reply(
@@ -933,6 +940,7 @@ async fn the_meter_a_credential_reads_follows_its_seat() {
     assert_eq!(body["ProductCode"], "p_tcaca");
     assert_eq!(body["Status"], json!([0, 3]));
     assert_eq!(snapshot.entries[0].id, "pkg_basic");
+    support::assert_quota_contract(None, &[], &snapshot.entries, OBSERVE_ONLY);
 }
 
 #[tokio::test]

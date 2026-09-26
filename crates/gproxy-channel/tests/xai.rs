@@ -237,6 +237,11 @@ async fn billing_is_a_second_host_behind_a_second_key() {
         panic!("a budget");
     };
     assert_eq!(postpaid.limit, Some("500".parse().unwrap()));
+    let declared = Xai.dimensions(
+        provider("xai", &config, None),
+        credential("api_key", &secret, &Value::Null),
+    );
+    support::assert_quota_contract(Some(&Xai), &declared, &snapshot.entries, &[]);
 }
 
 #[test]

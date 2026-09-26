@@ -1,6 +1,8 @@
 #![cfg(feature = "grokbuild")]
 //! Grok Build against a scripted client: no real upstream is called.
 
+mod support;
+
 use gproxy_channel::channel::{
     BaseChannel, ChannelError, CredentialContext, CredentialRefresh, CredentialView, DevicePoll,
     LoginContext, OAuthDeviceCode, PrepareContext, ProviderView, QuotaQuery, QuotaValue,
@@ -710,6 +712,10 @@ async fn the_refresh_rotates_and_a_refusal_of_the_token_is_definitive() {
 
 // -------------------------------------------------------------------- quota
 
+/// No `QuotaModel`: the credit window and per-product readings are observed,
+/// never charged.
+const OBSERVE_ONLY: &[&str] = &["usage", "weekly_limit", "product:*"];
+
 #[tokio::test]
 async fn the_billing_probe_reads_the_chat_proxys_credit_window() {
     let client = ScriptClient::new(vec![reply(
@@ -758,6 +764,7 @@ async fn the_billing_probe_reads_the_chat_proxys_credit_window() {
     };
     assert_eq!(window.used_percent, Some(2.into()));
     assert_eq!(window.period_start_ms, Some(1_783_535_433_000));
+    support::assert_quota_contract(None, &[], &snapshot.entries, OBSERVE_ONLY);
 }
 
 #[tokio::test]
@@ -820,6 +827,7 @@ async fn a_bare_billing_payload_is_read_the_same_way() {
         panic!("a window");
     };
     assert_eq!(window.used_percent, Some(25.into()));
+    support::assert_quota_contract(None, &[], &snapshot.entries, OBSERVE_ONLY);
 }
 
 // --------------------------------------------------------------- descriptor
