@@ -64,12 +64,13 @@ pub mod detect;
 pub mod document;
 pub mod endpoints;
 pub mod fingerprint;
-pub mod provider_config;
-pub mod rules;
 pub mod identity;
 pub mod ids;
+pub mod provider_config;
 pub mod report;
+pub mod rules;
 pub mod secret;
+pub mod settings;
 pub mod source;
 pub(crate) mod upgrade;
 
@@ -175,6 +176,10 @@ where
              and the destination now holds a partial configuration",
             sdk.credentials_skipped
         )));
+    }
+    // v3's instance settings, as a patch over the destination's own.
+    if let Some(patch) = settings::patch(&document.data.settings, &mut report) {
+        app.gproxy().manage().settings().update(patch).await?;
     }
     app.reload_all().await?;
 
