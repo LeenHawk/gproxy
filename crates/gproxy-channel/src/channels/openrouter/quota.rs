@@ -48,7 +48,7 @@ fn entries(payload: &Value) -> Vec<QuotaEntry> {
         .get("limit_remaining")
         .and_then(decimal)
         .or_else(|| match (limit, used) {
-            (Some(limit), Some(used)) => Some(limit - used),
+            (Some(limit), Some(used)) => Some(limit.saturating_sub(used)),
             _ => None,
         });
     if limit.is_some() || used.is_some() || remaining.is_some() {

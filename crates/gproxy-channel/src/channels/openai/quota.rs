@@ -65,7 +65,9 @@ fn duration_seconds(raw: &str) -> Option<i64> {
             .zip([1, 1_000, 60_000, 3_600_000, 86_400_000])
             .find(|(unit, _)| rest.starts_with(unit))?;
         rest = &rest[unit.len()..];
-        total += amount * Decimal::from(scale) / Decimal::from(1000);
+        // Checked: the amount is whatever the header says, and a Decimal
+        // overflow panics.
+        total = total.checked_add(amount.checked_mul(Decimal::from(scale))? / Decimal::from(1000))?;
     }
     total.ceil().try_into().ok()
 }
@@ -306,5 +308,16 @@ impl QuotaQuery for OpenAi {
             }
             Err(invalid_response("cost report did not end within its pages"))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::duration_seconds;
+
+    #[test]
+    fn a_reset_too_large_for_a_decimal_is_unknown_not_a_panic() {
+        assert_eq!(duration_seconds("1m30s"), Some(90));
+        assert_eq!(duration_seconds("79228162514264337593543950335d"), None);
     }
 }

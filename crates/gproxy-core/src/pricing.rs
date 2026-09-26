@@ -349,7 +349,9 @@ impl PriceBook {
                 .or_else(|| self.find(provider_id, model?, operation))?;
             let amount = rule.cost(&attempt.usage);
             match &mut total {
-                Some(cost) if cost.currency == rule.currency => cost.amount += amount,
+                Some(cost) if cost.currency == rule.currency => {
+                    cost.amount = cost.amount.saturating_add(amount)
+                }
                 Some(_) => {}
                 None => {
                     total = Some(Cost {
@@ -494,7 +496,7 @@ impl PriceRule {
                 price(kind)
             };
             if let Some(per_million) = per_million {
-                total += amount * per_million / MILLION;
+                total = total.saturating_add(amount.saturating_mul(per_million) / MILLION);
             }
         }
         let mut requests_seen = false;
@@ -506,11 +508,11 @@ impl PriceRule {
                 requests_seen = true;
             }
             if let Some(per_unit) = self.rate(name, usage) {
-                total += *amount * per_unit;
+                total = total.saturating_add(amount.saturating_mul(per_unit));
             }
         }
         if !requests_seen && let Some(per_request) = self.rate(metric::REQUESTS, usage) {
-            total += per_request;
+            total = total.saturating_add(per_request);
         }
         total
     }
@@ -534,7 +536,9 @@ pub(crate) fn price_report(
         ) {
             Some(cost) => {
                 match &mut total {
-                    Some(sum) if sum.currency == cost.currency => sum.amount += cost.amount,
+                    Some(sum) if sum.currency == cost.currency => {
+                        sum.amount = sum.amount.saturating_add(cost.amount)
+                    }
                     Some(_) => {}
                     None => total = Some(cost.clone()),
                 }

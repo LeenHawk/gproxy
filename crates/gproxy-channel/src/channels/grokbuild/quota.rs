@@ -125,7 +125,9 @@ fn used_percent(config: &BillingConfig) -> Option<Decimal> {
     }
     let limit = config.monthly_limit.as_ref().and_then(Money::number)?;
     let used = config.used.as_ref().and_then(Money::number)?;
-    (!limit.is_zero()).then(|| used / limit * Decimal::from(100))
+    used
+            .checked_div(limit)
+            .and_then(|ratio| ratio.checked_mul(Decimal::ONE_HUNDRED))
 }
 
 fn window(id: String, label: Option<String>, allowance: QuotaAllowance) -> QuotaEntry {
@@ -184,7 +186,7 @@ pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
             QuotaAllowance {
                 used,
                 limit,
-                remaining: limit.zip(used).map(|(limit, used)| limit - used),
+                remaining: limit.zip(used).map(|(limit, used)| limit.saturating_sub(used)),
                 used_percent: used_percent(&config),
                 unlimited: None,
                 unit: None,

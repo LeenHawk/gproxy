@@ -141,7 +141,7 @@ fn window_entry(
         value: QuotaValue::Window(QuotaAllowance {
             used: used_percent,
             limit: Some(Decimal::ONE_HUNDRED),
-            remaining: used_percent.map(|used| (Decimal::ONE_HUNDRED - used).max(Decimal::ZERO)),
+            remaining: used_percent.map(|used| Decimal::ONE_HUNDRED.saturating_sub(used).max(Decimal::ZERO)),
             used_percent,
             unlimited: None,
             unit: Some("percent".into()),

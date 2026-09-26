@@ -121,9 +121,11 @@ pub(super) fn entries(body: &[u8]) -> Result<Vec<QuotaEntry>, ChannelError> {
                 value: QuotaValue::Window(QuotaAllowance {
                     used,
                     limit,
-                    remaining: limit.zip(used).map(|(limit, used)| limit - used),
+                    remaining: limit.zip(used).map(|(limit, used)| limit.saturating_sub(used)),
                     used_percent: used.zip(limit).and_then(|(used, limit)| {
-                        (!limit.is_zero()).then(|| used / limit * Decimal::from(100))
+                        used
+            .checked_div(limit)
+            .and_then(|ratio| ratio.checked_mul(Decimal::ONE_HUNDRED))
                     }),
                     unlimited: None,
                     unit: None,
