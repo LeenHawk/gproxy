@@ -362,6 +362,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedCredentials<'_, C> {
 
     fn admit_create(&self, write: &CredentialWrite) -> Result<()> {
         self.admit_transport(write.connection_profile_id.is_some(), write.proxy.is_some())?;
+        self.admit_addresses([Some(&write.secret), write.metadata.as_ref()])?;
         self.admit_owner(
             write.user_id.as_deref(),
             write.team_id.as_deref(),
@@ -383,6 +384,29 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedCredentials<'_, C> {
         ))
     }
 
+    /// The same rule for the addresses a channel reads out of the credential
+    /// itself: several take a base URL or a token endpoint from the secret or
+    /// the metadata (`base_url`, `token_endpoint`, `console_base_url`, …), and
+    /// a model test or a refresh then dials it. Rather than keep a list of
+    /// field names in step with every channel, a scoped write carries no URL
+    /// anywhere in either document. A login run through the gateway still
+    /// records the ones it learned; it does not write through here.
+    fn admit_addresses(&self, documents: [Option<&serde_json::Value>; 2]) -> Result<()> {
+        if self.scope.is_instance() {
+            return Ok(());
+        }
+        match documents
+            .into_iter()
+            .flatten()
+            .find_map(|document| first_url(document, String::new()))
+        {
+            Some(pointer) => Err(AppError::forbidden(format!(
+                "`{pointer}` is a URL; the addresses a credential dials are set by an instance administrator"
+            ))),
+            None => Ok(()),
+        }
+    }
+
     /// The row as it is, then the row as the patch would leave it.
     async fn admit_patch(&self, id: &str, patch: &CredentialPatch) -> Result<()> {
         self.admit(id).await?;
@@ -390,6 +414,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedCredentials<'_, C> {
             return Ok(());
         }
         self.admit_transport(patch.connection_profile_id.is_some(), patch.proxy.is_some())?;
+        self.admit_addresses([patch.secret.as_ref(), patch.metadata.as_ref()])?;
         if patch.user_id.is_none() && patch.team_id.is_none() && patch.organization_id.is_none() {
             return Ok(());
         }
@@ -414,6 +439,27 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ScopedCredentials<'_, C> {
             merged(&patch.team_id, &row.team_id).as_deref(),
             merged(&patch.organization_id, &row.organization_id).as_deref(),
         )
+    }
+}
+
+/// The JSON pointer of the first string in `value` that is an absolute URL a
+/// client could dial, or `None`.
+fn first_url(value: &serde_json::Value, at: String) -> Option<String> {
+    use serde_json::Value;
+    match value {
+        Value::String(text) => url::Url::parse(text.trim())
+            .ok()
+            .filter(|url| matches!(url.scheme(), "http" | "https" | "ws" | "wss"))
+            .map(|_| if at.is_empty() { "/".to_owned() } else { at }),
+        Value::Array(items) => items
+            .iter()
+            .enumerate()
+            .find_map(|(index, item)| first_url(item, format!("{at}/{index}"))),
+        Value::Object(fields) => fields.iter().find_map(|(key, item)| {
+            let key = key.replace('~', "~0").replace('/', "~1");
+            first_url(item, format!("{at}/{key}"))
+        }),
+        _ => None,
     }
 }
 
