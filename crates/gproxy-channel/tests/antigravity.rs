@@ -339,6 +339,98 @@ fn the_gemini_body_is_wrapped_and_the_high_tier_gets_its_thinking_budget() {
     );
 }
 
+fn claude_request(body: Value) -> Value {
+    let config = json!({});
+    let secret = secret();
+    let metadata = Value::Null;
+    let prepared = prepare(
+        &config,
+        credential(&secret, &metadata),
+        Operation::StreamGenerateContent,
+        request(
+            HeaderMap::new(),
+            "/v1beta/models/claude-opus-4-6-thinking:streamGenerateContent",
+            body,
+        ),
+    )
+    .expect("prepared");
+    body_json(&prepared)["request"].clone()
+}
+
+#[test]
+fn claude_tools_use_the_proto_parameters_both_sides_accept() {
+    // Live refusals: `parametersJsonSchema` never reaches Anthropic, and the
+    // proto rejects `$schema`, `$defs`/`$ref`, `const`, `deprecated`,
+    // `examples` and a `type` array; `anyOf` passes the proto but Anthropic
+    // refuses the schema.
+    let request = claude_request(json!({
+        "contents": [{"role": "user", "parts": [{"text": "hi"}]}],
+        "tools": [{"functionDeclarations": [{
+            "name": "edit",
+            "parametersJsonSchema": {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "$defs": {"Mode": {"type": "string", "enum": ["a", "b"], "deprecated": true}},
+                "additionalProperties": false,
+                "properties": {
+                    "path": {"type": "string", "minLength": 1, "examples": ["x"]},
+                    "mode": {"$ref": "#/$defs/Mode", "description": "how"},
+                    "kind": {"const": "file"},
+                    "count": {"type": ["integer", "null"]},
+                    "target": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+                    "level": {"enum": [1, 2]},
+                    "tags": {"type": "array", "items": {"type": "string", "format": "uri"}}
+                },
+                "required": ["path", "missing"]
+            }
+        }]}]
+    }));
+    let declaration = &request["tools"][0]["functionDeclarations"][0];
+    assert!(declaration.get("parametersJsonSchema").is_none());
+    assert_eq!(
+        declaration["parameters"],
+        json!({
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path"],
+            "properties": {
+                "path": {"type": "string", "minLength": 1},
+                "mode": {"type": "string", "enum": ["a", "b"], "description": "how"},
+                "kind": {"enum": ["file"]},
+                "count": {"type": "integer", "nullable": true},
+                "target": {"type": "string", "nullable": true},
+                "level": {"type": "string", "enum": ["1", "2"]},
+                "tags": {"type": "array", "items": {"type": "string", "format": "uri"}}
+            }
+        })
+    );
+}
+
+#[test]
+fn gemini_tools_keep_their_json_schema() {
+    let config = json!({});
+    let secret = secret();
+    let metadata = Value::Null;
+    let schema = json!({"$schema": "x", "type": "object", "properties": {}});
+    let prepared = prepare(
+        &config,
+        credential(&secret, &metadata),
+        Operation::GenerateContent,
+        request(
+            HeaderMap::new(),
+            "/v1beta/models/gemini-3-flash:generateContent",
+            json!({"contents": [], "tools": [{"functionDeclarations": [
+                {"name": "f", "parametersJsonSchema": schema}
+            ]}]}),
+        ),
+    )
+    .expect("prepared");
+    assert_eq!(
+        body_json(&prepared)["request"]["tools"][0]["functionDeclarations"][0]["parametersJsonSchema"],
+        schema
+    );
+}
+
 #[test]
 fn the_camel_case_session_id_antigravity_sends_survives_unrenamed() {
     let config = json!({});
