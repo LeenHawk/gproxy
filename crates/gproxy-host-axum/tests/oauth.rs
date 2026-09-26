@@ -404,7 +404,7 @@ async fn a_browser_navigating_to_authorize_is_sent_to_the_consent_page() {
         .await;
     assert_eq!(answer.status, StatusCode::FOUND);
     let location = answer.header("location").unwrap();
-    assert!(location.starts_with("/portal/authorize?"), "{location}");
+    assert!(location.starts_with("/console/authorize?"), "{location}");
     assert!(location.contains("client_id=cli-app"), "{location}");
 }
 
@@ -422,4 +422,77 @@ async fn an_unauthenticated_consent_fetch_is_refused_in_the_oauth_vocabulary() {
     assert_eq!(answer.status, StatusCode::UNAUTHORIZED);
     assert_eq!(answer.json()["error"], "invalid_request");
     assert_eq!(answer.json()["error_description"], "unauthorized");
+}
+
+#[tokio::test]
+async fn a_signed_in_person_approves_a_device_from_the_console() {
+    let host = instance().await;
+    let cookie = sign_in(&host).await;
+    let started = host
+        .send(form(
+            "/v1/oauth/device/code",
+            &[("client_id", "cli-app"), ("scope", "openid")],
+        ))
+        .await;
+    assert_eq!(started.status, StatusCode::OK, "{}", started.text());
+    let started = started.json();
+    let user_code = started["user_code"].as_str().unwrap().to_owned();
+    let device_code = started["device_code"].as_str().unwrap().to_owned();
+    // The page a person is sent to is the console's.
+    assert!(
+        started["verification_uri"]
+            .as_str()
+            .unwrap()
+            .ends_with("/console/device"),
+        "{started}"
+    );
+    let poll = || {
+        form(
+            "/v1/oauth/token",
+            &[
+                ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
+                ("client_id", "cli-app"),
+                ("device_code", &device_code),
+            ],
+        )
+    };
+    assert_eq!(
+        host.send(poll()).await.json()["error"],
+        "authorization_pending"
+    );
+
+    let details = host
+        .send(with(
+            get(&format!("/portal/api/oauth/device?userCode={user_code}")),
+            "cookie",
+            &cookie,
+        ))
+        .await;
+    assert_eq!(details.status, StatusCode::OK, "{}", details.text());
+    assert_eq!(details.json()["client_id"], "cli-app");
+
+    let decide = || {
+        post(
+            "/portal/api/oauth/device",
+            json!({ "userCode": user_code, "decision": ConsentDecision::Approve }),
+        )
+    };
+    // A token cannot approve a device, even one belonging to that person.
+    let access = access_token(&host, &cookie).await;
+    let refused = host.send(support::keyed(decide(), &access)).await;
+    assert_eq!(refused.status, StatusCode::FORBIDDEN, "{}", refused.text());
+
+    let decided = host
+        .send(with(
+            with(decide(), "cookie", &cookie),
+            "origin",
+            "http://gproxy.local",
+        ))
+        .await;
+    assert_eq!(decided.status, StatusCode::OK, "{}", decided.text());
+    assert_eq!(decided.json()["approved"], true);
+
+    let token = host.send(poll()).await;
+    assert_eq!(token.status, StatusCode::OK, "{}", token.text());
+    assert!(token.json()["access_token"].is_string());
 }

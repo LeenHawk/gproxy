@@ -245,5 +245,21 @@
     "cacheCreation30mTokens": "Cache writes (30 min)",
     "cacheCreation1hTokens": "Cache writes (1 hour)",
     "cacheHitRate": "Cache hit rate"
+  },
+  "oauthConsent": {
+    "authorizeTitle": "Authorize access",
+    "authorizeDescription": "{{client}} wants to use GPROXY as {{user}}.",
+    "invalidRequest": "This authorization request cannot be approved.",
+    "scopes": "Requested scopes",
+    "redirectsTo": "You will be sent back to {{destination}}.",
+    "approve": "Approve",
+    "deny": "Deny",
+    "deviceTitle": "Connect a device",
+    "deviceDescription": "Enter the code your device is showing.",
+    "userCode": "Device code",
+    "lookUp": "Continue",
+    "deviceApproved": "Device approved",
+    "deviceDenied": "Device denied",
+    "returnToDevice": "You can return to your device now."
   }
 }

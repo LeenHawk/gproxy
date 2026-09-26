@@ -31,12 +31,12 @@
 //!
 //! # What is not here
 //!
-//! The *consent* operations that need a signed-in person — rendering a pending
-//! device authorization, approving one — are on the portal API. They are not
-//! protocol endpoints: no OAuth client ever calls them, they require a portal
-//! session, and the RFC's own verification URI
+//! The *device* consent operations — rendering a pending device authorization,
+//! approving one — are on the portal API, `/portal/api/oauth/device`. They are
+//! not protocol endpoints: no OAuth client ever calls them, they require a
+//! console session, and the RFC's own verification URI
 //! ([`DEVICE_VERIFICATION_PATH`](gproxy_app::operations::issuer)) points at
-//! the portal for exactly that reason.
+//! the console's device page for exactly that reason.
 
 use axum::response::{IntoResponse, Response};
 use gproxy_app::{
@@ -55,10 +55,10 @@ use crate::{HostState, Mount, error::OAuthEnvelope, session};
 const ISSUER_MOUNT: &str = "/v1";
 const OAUTH_PREFIX: &str = "/v1/oauth/";
 const WELL_KNOWN: &str = "/.well-known/oauth-authorization-server";
-/// Where a browser is sent to approve an authorization. Relative to the
-/// instance root, like the device page, because the portal is one application
-/// however many mounts the data plane answers at.
-const CONSENT_PATH: &str = "/portal/authorize";
+/// Where a browser is sent to approve an authorization: the console's consent
+/// page. Relative to the instance root, like the device page, because the
+/// console is one application however many mounts the data plane answers at.
+const CONSENT_PATH: &str = "/console/authorize";
 
 /// One issuer endpoint.
 #[derive(Clone, Debug, PartialEq, Eq)]

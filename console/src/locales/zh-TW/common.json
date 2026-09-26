@@ -245,5 +245,21 @@
     "cacheCreation30mTokens": "快取寫入（30 分鐘）",
     "cacheCreation1hTokens": "快取寫入（1 小時）",
     "cacheHitRate": "快取命中率"
+  },
+  "oauthConsent": {
+    "authorizeTitle": "授權存取",
+    "authorizeDescription": "{{client}} 想以 {{user}} 的身分使用 GPROXY。",
+    "invalidRequest": "這個授權請求無法核准。",
+    "scopes": "申請的權限範圍",
+    "redirectsTo": "完成後會返回 {{destination}}。",
+    "approve": "核准",
+    "deny": "拒絕",
+    "deviceTitle": "連接裝置",
+    "deviceDescription": "輸入裝置上顯示的代碼。",
+    "userCode": "裝置代碼",
+    "lookUp": "繼續",
+    "deviceApproved": "已核准裝置",
+    "deviceDenied": "已拒絕裝置",
+    "returnToDevice": "現在可以回到裝置上繼續了。"
   }
 }

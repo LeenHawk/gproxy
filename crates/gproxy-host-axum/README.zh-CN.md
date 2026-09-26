@@ -241,6 +241,8 @@ GET    /portal/api/keys              （及 POST）
 DELETE /portal/api/keys/{id}         （及 POST …/rotate、GET …/secret）
 GET    /portal/api/oauth-sessions    （及 DELETE …/{id}）
 POST   /portal/api/password          修改密码，需证明当前密码
+GET    /portal/api/oauth/device      查询待批准的设备码（?userCode=）
+POST   /portal/api/oauth/device      批准或拒绝；只认登录 cookie
 ```
 
 这里的守卫只要求"已认证"，**再无其他**。不做角色判断是因为没有可判断的东西：
@@ -322,7 +324,7 @@ Gemini Live 自己的一套——本宿主则是把 realtime 帧当不透明字�
 相对于挂载前缀（`""`、`/acme`、`/openai-prod`）：
 
 ```
-GET  {prefix}/v1/oauth/authorize    同意页交接（浏览器会被 302 到门户）
+GET  {prefix}/v1/oauth/authorize    同意页交接（浏览器会被 302 到 `/console/authorize`）
 POST {prefix}/v1/oauth/authorize    本人的决定
 POST {prefix}/v1/oauth/token        code / refresh / device 三种 grant
 POST {prefix}/v1/oauth/device/code

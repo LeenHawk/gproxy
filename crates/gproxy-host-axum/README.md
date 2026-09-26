@@ -266,6 +266,8 @@ GET    /portal/api/keys              (+ POST)
 DELETE /portal/api/keys/{id}         (+ POST …/rotate, GET …/secret)
 GET    /portal/api/oauth-sessions    (+ DELETE …/{id})
 POST   /portal/api/password          change, proving the current one
+GET    /portal/api/oauth/device      a pending device code (?userCode=)
+POST   /portal/api/oauth/device      approve or deny it; session cookie only
 ```
 
 The guard here requires an authenticated caller and **nothing more**. There is
@@ -370,7 +372,7 @@ through.
 Relative to a mount prefix (`""`, `/acme`, `/openai-prod`):
 
 ```
-GET  {prefix}/v1/oauth/authorize    consent handoff (302 to the portal for a browser)
+GET  {prefix}/v1/oauth/authorize    consent handoff (302 to `/console/authorize` for a browser)
 POST {prefix}/v1/oauth/authorize    the person's decision
 POST {prefix}/v1/oauth/token        code, refresh and device grants
 POST {prefix}/v1/oauth/device/code

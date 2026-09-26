@@ -210,7 +210,7 @@ the request shape does not have yet.
 Relative to a mount prefix (`""`, `/acme`, `/openai-prod`):
 
 ```text
-GET  {prefix}/v1/oauth/authorize    consent handoff (302 to the portal for a browser)
+GET  {prefix}/v1/oauth/authorize    consent handoff (302 to `/console/authorize` for a browser)
 POST {prefix}/v1/oauth/authorize    the person's decision
 POST {prefix}/v1/oauth/token        code, refresh and device grants
 POST {prefix}/v1/oauth/device/code
@@ -295,6 +295,8 @@ GET    /portal/api/sessions
 GET    /portal/api/keys              (+ POST, DELETE …/{id}, POST …/{id}/rotate, GET …/{id}/secret)
 GET    /portal/api/oauth-sessions    (+ DELETE …/{id})
 POST   /portal/api/password
+GET    /portal/api/oauth/device      a pending device code (?userCode=), for `/console/device`
+POST   /portal/api/oauth/device      approve or deny it; session cookie only
 ```
 
 The guard requires an authenticated caller and **nothing more**. There is no

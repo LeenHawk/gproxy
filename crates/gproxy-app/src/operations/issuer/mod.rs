@@ -112,9 +112,10 @@ use crate::{
 };
 
 /// The page a person opens to approve a device authorization, relative to the
-/// **instance root** rather than to the issuer mount: the portal is one
-/// application however many mounts the data plane answers at.
-const DEVICE_VERIFICATION_PATH: &str = "/portal/device";
+/// **instance root** rather than to the issuer mount: the console is one
+/// application however many mounts the data plane answers at, and it is served
+/// under `/console`.
+const DEVICE_VERIFICATION_PATH: &str = "/console/device";
 
 /// RFC 8628 §3.2's `interval`. Five seconds is the RFC's own default and what
 /// every client assumes when the field is absent.

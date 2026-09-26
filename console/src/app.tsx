@@ -13,8 +13,10 @@ import { ConsoleContextProvider, useSessionContext, useUnauthorizedReset } from 
 import { AppShell } from "@/components/shell/app-shell"
 import { ErrorNotice, LoadingRows } from "@/components/state"
 import { Toaster } from "@/components/ui/sonner"
+import { AuthorizePage, DevicePage } from "@/pages/oauth-consent"
 import { Routes } from "@/pages/routes"
 import { SignInPage } from "@/pages/sign-in"
+import { useRoute } from "@/lib/router"
 
 const client = new QueryClient({
   defaultOptions: {
@@ -30,9 +32,13 @@ const client = new QueryClient({
   },
 })
 
+/** The OAuth consent pages, which answer one question and so skip the shell. */
+const CONSENT = { "/authorize": AuthorizePage, "/device": DevicePage } as const
+
 function Gate() {
   const { t } = useTranslation()
   const session = useSessionContext()
+  const route = useRoute()
   useUnauthorizedReset()
 
   if (session.isPending) {
@@ -50,6 +56,8 @@ function Gate() {
     }
     return <SignInPage />
   }
+  const Consent = CONSENT[route as keyof typeof CONSENT]
+  if (Consent) return <Consent userName={session.data.user.name} />
   return (
     <ConsoleContextProvider key={`${session.data.user.id}:${session.data.admin?.scope?.selector ?? "none"}`} context={session.data}>
       <AppShell><Routes /></AppShell>

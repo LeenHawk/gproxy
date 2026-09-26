@@ -187,7 +187,7 @@ Provider。`GET /p1/v1/models` 会列出 `p1` 所在渠道上、调用方能触�
 相对某个挂载点前缀（`""`、`/acme`、`/openai-prod`）：
 
 ```text
-GET  {prefix}/v1/oauth/authorize    同意页交接（浏览器则 302 到用户面）
+GET  {prefix}/v1/oauth/authorize    同意页交接（浏览器则 302 到 `/console/authorize`）
 POST {prefix}/v1/oauth/authorize    用户的决定
 POST {prefix}/v1/oauth/token        code、refresh 与设备授权
 POST {prefix}/v1/oauth/device/code
@@ -265,6 +265,8 @@ GET    /portal/api/sessions
 GET    /portal/api/keys              （+ POST、DELETE …/{id}、POST …/{id}/rotate、GET …/{id}/secret）
 GET    /portal/api/oauth-sessions    （+ DELETE …/{id}）
 POST   /portal/api/password
+GET    /portal/api/oauth/device      查询待批准的设备码（?userCode=），供 `/console/device` 使用
+POST   /portal/api/oauth/device      批准或拒绝；只认登录 cookie
 ```
 
 这里的守卫要求一个已认证的调用方，**仅此而已**。没有角色检查，因为没有东西可检查：用户面
