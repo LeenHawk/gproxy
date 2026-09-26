@@ -60,12 +60,12 @@ runs:
           -IdentityName $env:STORE_NAME -DisplayName $env:STORE_DISPLAY -Publisher $env:STORE_PUBLISHER -PublisherDisplayName $env:STORE_DISPLAY_NAME
     - name: Attest Store submission
       if: ${{ steps.identity.outputs.ready == 'true' }}
-      uses: actions/attest@v4
+      uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
       with:
         subject-path: dist/store/${{ inputs.artifact }}.msix
     - name: Save unsigned Store submission
       if: ${{ steps.identity.outputs.ready == 'true' }}
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
       with:
         name: microsoft-store-unsigned-${{ inputs.artifact }}
         path: dist/store/${{ inputs.artifact }}.msix
