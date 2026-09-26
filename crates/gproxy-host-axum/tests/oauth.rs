@@ -139,6 +139,34 @@ async fn an_administrators_token_is_not_an_administrative_credential() {
 }
 
 #[tokio::test]
+async fn only_a_signed_in_person_can_approve_a_grant() {
+    let host = instance().await;
+    let cookie = sign_in(&host).await;
+    let access = access_token(&host, &cookie).await;
+    let decide = || {
+        post(
+            &format!("/v1/oauth/authorize?{}", authorize_query()),
+            json!({ "decision": ConsentDecision::Approve }),
+        )
+    };
+
+    // A token cannot approve a fresh grant for itself.
+    let answer = host.send(support::keyed(decide(), &access)).await;
+    assert_eq!(answer.status, StatusCode::UNAUTHORIZED, "{}", answer.text());
+    // Nor can a cookie a foreign page made the browser attach.
+    let answer = host.send(with(decide(), "cookie", &cookie)).await;
+    assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text());
+    let answer = host
+        .send(with(
+            with(decide(), "cookie", &cookie),
+            "origin",
+            "https://evil.example",
+        ))
+        .await;
+    assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text());
+}
+
+#[tokio::test]
 async fn the_full_code_flow_runs_over_http() {
     let host = instance().await;
     let cookie = sign_in(&host).await;

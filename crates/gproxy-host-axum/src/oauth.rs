@@ -41,6 +41,7 @@
 use axum::response::{IntoResponse, Response};
 use gproxy_app::{
     AppError, Caller, Operations,
+    auth::verify_same_origin,
     dto::{AuthorizeQuery, ConsentDecision, DeviceCodeRequest, RevokeRequest, TokenRequest},
     operations::IssuerOrigin,
 };
@@ -256,22 +257,32 @@ where
     }
 }
 
-/// The consent endpoints authenticate as the portal does: a session cookie,
-/// then a bearer token.
+/// The consent endpoints authenticate a signed-in person: the session cookie
+/// and nothing else.
+///
+/// Not the portal's cookie-then-bearer ladder. Consent is what mints a grant,
+/// so a bearer credential here would let a token approve a fresh grant for
+/// itself — one without the baseline it was issued under and outliving its
+/// revocation — and a leaked API key could do the same. The approval is a
+/// cookie write, so it is same-origin checked like every other one.
 async fn caller<C>(state: &HostState<C>, parts: &Parts) -> Result<Caller, AppError>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
+    let token = session::cookie(&parts.headers, session::COOKIE_NAME)
+        .ok_or(AppError::Unauthorized("consent needs a signed-in session"))?;
     let data = state.app().data();
-    let authenticator = state.app().authenticator(&data);
-    match session::cookie(&parts.headers, session::COOKIE_NAME) {
-        Some(token) => {
-            authenticator
-                .authenticate_session(token, crate::now_ms())
-                .await
-        }
-        None => authenticator.authenticate_request(&parts.headers).await,
-    }
+    let caller = state
+        .app()
+        .authenticator(&data)
+        .authenticate_session(token, crate::now_ms())
+        .await?;
+    verify_same_origin(
+        &parts.method,
+        &parts.headers,
+        &crate::runtime_settings::cors_origins(state.app()),
+    )?;
+    Ok(caller)
 }
 
 /// Where this issuer answers, as this request saw it.
