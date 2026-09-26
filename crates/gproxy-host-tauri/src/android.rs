@@ -290,10 +290,17 @@ impl Status {
 /// waits on the gate and gets the instance the first one built.
 pub fn start() -> Status {
     let outcome = data_dir().and_then(|data_dir| {
-        engine::runtime()?.block_on(engine::ensure_started(&data_dir, crate::store()))
+        let choices = crate::setup::read_choices(&data_dir)?;
+        if !choices.completed {
+            return Ok(None);
+        }
+        engine::runtime()?
+            .block_on(engine::ensure_started(&choices.data_dir, crate::store()))
+            .map(Some)
     });
     match outcome {
-        Ok(desktop) => {
+        Ok(None) => Status::idle(),
+        Ok(Some(desktop)) => {
             let status = Status::of(&desktop);
             tracing::info!(base_url = ?status.base_url, "the Android instance is serving");
             status

@@ -23,7 +23,7 @@
 //! implement a data plane, it hosts the one that exists.
 //!
 //! The same sentence is why the phone is useful at all: an app on the device
-//! points at `http://127.0.0.1:7071` and is talking to this process. It still
+//! points at `http://127.0.0.1:8787` and is talking to this process. It still
 //! needs a key, for exactly the reason the desktop's socket does — every
 //! process on the device can reach loopback.
 //!
@@ -47,14 +47,14 @@
 //! Everything above those three — the command table, the configuration, the
 //! secrets, the reduction in front of the router — is one implementation.
 //!
-//! # What this crate deliberately does not do
+//! # First launch and desktop integration
 //!
-//! A tray icon, launch-at-login, and desktop auto-update. Those are decisions
-//! about how software is *distributed* rather than about what it does, and the
-//! desktop shell has no users yet to want them. Android is the exception and
-//! not an inconsistency: "start at boot" and "install the next APK" are not
-//! conveniences there but the only way a phone runs a gateway at all, and
-//! v3 had already answered both — see [`android`].
+//! New instances show a setup wizard before opening the database. Existing
+//! instances start directly. The wizard configures the listener, database,
+//! administrator, gateway key, startup behavior and optional import.
+//! Desktop builds support a system tray and launch at login; Android uses a
+//! foreground service, boot receiver and permission prompts. Desktop automatic
+//! updates remain outside this host.
 //!
 //! It also does not build the console. `pnpm build` in `console/` does, into
 //! `ui/`, from the same source the server serves — see [`console`] for how its
@@ -98,6 +98,10 @@ pub mod engine;
 pub mod error;
 pub mod ipc;
 pub mod secrets;
+pub mod setup;
+mod startup;
+#[cfg(desktop)]
+mod tray;
 
 pub use desktop::{DataPlane, Desktop, SecretPlacement};
 pub use error::{IpcError, IpcResult, StartError, StartResult};
@@ -118,13 +122,9 @@ fn store() -> &'static dyn secrets::SecretStore {
 
 /// Open the window and run until it closes.
 ///
-/// The order matters and is the opposite of what it looks like: the instance
-/// is assembled in Tauri's `setup` hook, *before* the window is shown, so a
-/// failure to open the database or a master key that has gone missing is a
-/// startup error with a message rather than an empty window that does not
-/// work. `setup` runs on the main thread, so the assembly is driven on the
-/// process's runtime rather than on a runtime of the window's own — which is
-/// what lets the instance outlive the window on Android.
+/// Existing instances are assembled in Tauri's setup hook. New instances only
+/// register the first-run state there; the wizard starts the engine after the
+/// user chooses its configuration. A failed setup stays pending for retry.
 ///
 /// The assembly goes through [`engine::ensure_started`], so on Android a
 /// window opened after the foreground service has already started the instance
@@ -136,10 +136,27 @@ pub fn run() -> StartResult<()> {
         .invoke_handler(ipc::invoke_handler::<tauri::Wry>())
         .setup(move |app| {
             let data_dir = engine::data_dir(app.handle())?;
-            let desktop = handle.block_on(engine::ensure_started(&data_dir, store()))?;
-            app.manage(desktop);
+            let setup = setup::Setup::new(data_dir);
+            let choices = setup.choices()?;
+            if choices.completed {
+                let desktop =
+                    handle.block_on(engine::ensure_started(&choices.data_dir, store()))?;
+                app.manage(desktop);
+                #[cfg(desktop)]
+                if choices.tray {
+                    tray::install(app.handle())?;
+                }
+            }
+            app.manage(setup);
             Ok(())
         });
+
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            tray::show_window(app)
+        }))
+        .plugin(tauri_plugin_dialog::init());
 
     // Desktop only, and the asymmetry is the point. On the desktop a destroyed
     // window means the process is ending, and an instance that exits without
@@ -151,6 +168,16 @@ pub fn run() -> StartResult<()> {
     // prevent.
     #[cfg(desktop)]
     let builder = builder.on_window_event(|window, event| {
+        if let tauri::WindowEvent::CloseRequested { api, .. } = event
+            && let Some(setup) = window.try_state::<setup::Setup>()
+            && setup
+                .choices()
+                .is_ok_and(|choices| choices.completed && choices.tray)
+        {
+            api.prevent_close();
+            let _ = window.hide();
+            return;
+        }
         if let tauri::WindowEvent::Destroyed = event
             && let Some(desktop) = window.try_state::<Desktop>()
         {

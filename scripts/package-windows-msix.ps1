@@ -44,14 +44,16 @@ try {
 <?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+ xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
- IgnorableNamespaces="uap rescap">
+ IgnorableNamespaces="uap desktop rescap">
  <Identity Name="$identityXml" Publisher="$publisherXml" Version="$packageVersion" ProcessorArchitecture="$arch" />
  <Properties><DisplayName>$displayXml</DisplayName><PublisherDisplayName>$publisherDisplayXml</PublisherDisplayName><Logo>Assets\StoreLogo.png</Logo></Properties>
  <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" /></Dependencies>
  <Resources><Resource Language="en-us" /></Resources>
  <Applications><Application Id="GPROXY" Executable="gproxy-desktop.exe" EntryPoint="Windows.FullTrustApplication">
   <uap:VisualElements DisplayName="$displayXml" Description="$displayXml" BackgroundColor="transparent" Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
+  <Extensions><desktop:Extension Category="windows.startupTask" Executable="gproxy-desktop.exe" EntryPoint="Windows.FullTrustApplication"><desktop:StartupTask TaskId="GproxyStartup" Enabled="false" DisplayName="$displayXml" /></desktop:Extension></Extensions>
  </Application></Applications>
  <Capabilities><rescap:Capability Name="runFullTrust" /></Capabilities>
 </Package>

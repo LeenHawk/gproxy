@@ -170,14 +170,14 @@ Two front doors, one instance:
 - **the window**, over Tauri IPC, which carries the management and user
   surfaces. There is no authentication on it, deliberately: a message arrives
   only because this process's own webview sent it, so the channel is the proof.
-- **`127.0.0.1:7071`**, a real axum host serving the **data plane only**, for
+- **`127.0.0.1:8787`**, a real axum host serving the **data plane only**, for
   Claude Code and the Codex CLI, which speak HTTP and cannot speak IPC. It
   **still demands a gateway key** — a loopback socket is not a trust boundary —
   and `/admin/api` and `/portal/api` answer 404 there, so the gateway key never
   doubles as an administrative one.
 
-Port 7071 is distinct from the server's 8787 so the two can run side by side, and
-it is fixed rather than random: a client's base URL is typed once and kept.
+The default port is 8787, shared with the server. Change `port` in `gproxy.toml`
+when running both on the same machine.
 
 The master key is minted on first run and kept in the platform keychain
 (Secret Service, the macOS Keychain, the Windows Credential Manager). It does

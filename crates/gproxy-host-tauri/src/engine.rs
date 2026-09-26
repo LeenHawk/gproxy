@@ -91,6 +91,14 @@ pub fn runtime() -> StartResult<&'static Runtime> {
 /// the right answer rather than a compromise — there is one database per
 /// process and the first caller is the one that named it.
 pub async fn ensure_started(data_dir: &Path, store: &dyn SecretStore) -> StartResult<Desktop> {
+    ensure_started_with_admin(data_dir, store, None).await
+}
+
+pub(crate) async fn ensure_started_with_admin(
+    data_dir: &Path,
+    store: &dyn SecretStore,
+    admin: Option<gproxy::config::AdminOptions>,
+) -> StartResult<Desktop> {
     if let Some(desktop) = ENGINE.get() {
         return Ok(desktop.clone());
     }
@@ -100,7 +108,7 @@ pub async fn ensure_started(data_dir: &Path, store: &dyn SecretStore) -> StartRe
     if let Some(desktop) = ENGINE.get() {
         return Ok(desktop.clone());
     }
-    let desktop = Desktop::start(data_dir.to_path_buf(), store).await?;
+    let desktop = Desktop::start_with_admin(data_dir.to_path_buf(), store, admin).await?;
     Ok(ENGINE.get_or_init(|| desktop).clone())
 }
 

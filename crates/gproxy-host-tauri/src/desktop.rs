@@ -52,8 +52,7 @@ use crate::{
 
 /// The connection a desktop instance always has. Fixed rather than generic
 /// because `#[tauri::command]` functions cannot be generic — a command table
-/// is a list of concrete function items — and because a desktop instance is a
-/// SQLite file by construction.
+/// is a list of concrete function items — and because the desktop uses the same native connection as the CLI.
 pub type Connection = instance::Connection;
 
 /// The name of the key the shell keeps in the keychain for the data plane.
@@ -73,6 +72,7 @@ pub struct Desktop {
     management: axum::Router,
     data_dir: PathBuf,
     secrets: SecretPlacement,
+    admin_created: bool,
     /// Stops the embedded HTTP server. Cloned into [`Desktop::shutdown`].
     stop: Arc<tokio::sync::Notify>,
 }
@@ -114,15 +114,30 @@ impl Desktop {
     /// drive the whole assembly without a keyring daemon, a D-Bus session or a
     /// logged-in desktop. Production passes [`secrets::Keychain`].
     pub async fn start(data_dir: PathBuf, store: &dyn SecretStore) -> StartResult<Self> {
+        Self::start_with_admin(data_dir, store, None).await
+    }
+
+    pub(crate) async fn start_with_admin(
+        data_dir: PathBuf,
+        store: &dyn SecretStore,
+        admin: Option<gproxy::config::AdminOptions>,
+    ) -> StartResult<Self> {
         std::fs::create_dir_all(&data_dir)
             .map_err(|error| StartError::io(format!("creating {}", data_dir.display()), error))?;
 
         // Asked before anything is opened: `instance::open` creates the file,
         // and after that the question cannot be answered any more.
-        let fresh = !config::database_path(&data_dir).is_file();
+        let configured = config::read_file(&data_dir)?;
+        let fresh = config::database_file(&data_dir, &configured.store).map_or_else(
+            || !data_dir.join("secrets.json").is_file(),
+            |path| !path.is_file(),
+        );
         let master_key = secrets::master_key(store, &data_dir, fresh)?;
         let master_key_placement = master_key.placement;
-        let settings = config::settings(&data_dir, master_key)?;
+        let mut settings = config::settings(&data_dir, master_key)?;
+        if let Some(admin) = admin {
+            settings.admin = admin;
+        }
 
         let instance = instance::open(&settings, instance::OpenOptions::serving()).await?;
         if !master_key_placement.is_keychain() {
@@ -144,12 +159,19 @@ impl Desktop {
         // who typed a command and the wrong thing for a window. Neither secret
         // is generated here anyway — the password is refused in
         // `config::settings`, and the key goes to the keychain below.
-        if report.created() {
-            tracing::info!(user = config::DESKTOP_ADMIN_USER, "created this instance");
+        let admin_created = report.created();
+        if admin_created {
+            tracing::info!(user = settings.admin.user, "created this instance");
         }
 
-        let (gateway_key, gateway_placement) =
-            resolve_gateway_key(&instance.app, store, &data_dir, report).await?;
+        let (gateway_key, gateway_placement) = if report.created()
+            && let Some(token) = settings.admin.api_key.as_ref()
+        {
+            let placement = secrets::store_gateway_key(store, &data_dir, token)?;
+            (token.clone(), placement)
+        } else {
+            resolve_gateway_key(&instance.app, store, &data_dir, report).await?
+        };
 
         let stop = Arc::new(tokio::sync::Notify::new());
         let address =
@@ -169,10 +191,11 @@ impl Desktop {
                 instance.app.clone(),
             )),
             app: instance.app,
+            admin_created,
             caller,
             data_plane: DataPlane {
                 address,
-                base_url: format!("http://{address}"),
+                base_url: local_base_url(address),
                 gateway_key,
             },
             data_dir,
@@ -182,6 +205,10 @@ impl Desktop {
             },
             stop,
         })
+    }
+
+    pub(crate) fn admin_created(&self) -> bool {
+        self.admin_created
     }
 
     pub fn app(&self) -> &Arc<App<Connection>> {
@@ -354,4 +381,16 @@ async fn administrator_id(app: &Arc<App<Connection>>) -> StartResult<String> {
                 "this instance has no administrator account",
             ))
         })
+}
+
+/// Unspecified listeners are reachable through loopback on this device.
+fn local_base_url(mut address: std::net::SocketAddr) -> String {
+    if address.ip().is_unspecified() {
+        address.set_ip(if address.is_ipv4() {
+            std::net::Ipv4Addr::LOCALHOST.into()
+        } else {
+            std::net::Ipv6Addr::LOCALHOST.into()
+        });
+    }
+    format!("http://{address}")
 }

@@ -9,7 +9,7 @@ process up, because that is the only way Android lets a gateway keep running.
 ```
         the window                    an app on this device
             │                                   │
-       Tauri IPC                        HTTP, 127.0.0.1:7071
+       Tauri IPC                        HTTP, 127.0.0.1:8787
             │                                   │
     ipc::table (261 commands)     gproxy-host-axum, data plane only
             └──────────────┬────────────────────┘
@@ -22,7 +22,7 @@ process up, because that is the only way Android lets a gateway keep running.
 
 ## The loopback data plane is the point
 
-An app on the device points at `http://127.0.0.1:7071` and is talking to this
+An app on the device points at `http://127.0.0.1:8787` and is talking to this
 process. That is what makes a phone useful as a gateway at all.
 
 **It still requires a key**, exactly as on the desktop and for exactly the same

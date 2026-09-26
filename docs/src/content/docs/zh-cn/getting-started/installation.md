@@ -156,12 +156,11 @@ cargo run -p gproxy-host-tauri --bin gproxy-desktop
 
 - **窗口**，经 Tauri IPC，承载管理面与用户面。这里刻意没有认证：消息之所以到达，只因为
   本进程自己的 webview 发出了它，通道本身就是证明。
-- **`127.0.0.1:7071`**，一个真正的 axum 宿主，**只提供数据面**，给只会说 HTTP、不会说 IPC
+- **`127.0.0.1:8787`**，一个真正的 axum 宿主，**只提供数据面**，给只会说 HTTP、不会说 IPC
   的 Claude Code 与 Codex CLI。它**照常要网关 key**——回环 socket 不是信任边界——并且
   `/admin/api` 与 `/portal/api` 在那里返回 404，这样网关 key 就不会同时是一把管理员钥匙。
 
-7071 与 server 的 8787 不同，两者可以并排运行；它是固定而非随机的，因为客户端的 base URL
-只敲一次就一直用。
+默认端口为 8787，与 server 一致。同机同时运行多个实例时，可在 `gproxy.toml` 中修改 `port`。
 
 主密钥在首次运行时生成，存进平台钥匙串（Linux 的 Secret Service、macOS 的 Keychain、
 Windows 的凭据管理器）。它**不会**退化成文件——一把躺在它所保护的数据库旁边的钥匙，
