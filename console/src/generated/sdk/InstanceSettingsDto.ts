@@ -9,4 +9,10 @@ export type InstanceSettingsDto = { instanceName: string, oauthClientAllowlist: 
  * The vocabulary source token is sealed like a credential secret; only
  * its presence is reported.
  */
-hasTokenizerAuthToken: boolean, retentionDays: number | null, maxDatabaseSizeMb: number | null, updateChannel: string | null, enableAutoUpdateCheck: boolean, portalRecentRequestsEnabled: boolean, };
+hasTokenizerAuthToken: boolean, retentionDays: number | null,
+/**
+ * Days of upstream quota observations to keep; None keeps them all.
+ * Cycles are never pruned. Absent in an older export, which reads as
+ * the 90-day default.
+ */
+quotaObservationRetentionDays: number | null, maxDatabaseSizeMb: number | null, updateChannel: string | null, enableAutoUpdateCheck: boolean, portalRecentRequestsEnabled: boolean, };

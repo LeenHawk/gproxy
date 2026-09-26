@@ -3,10 +3,20 @@ import type { CredentialBlockDto } from "./CredentialBlockDto";
 import type { CredentialCycleDto } from "./CredentialCycleDto";
 
 /**
- * What this instance knows about one credential's upstream quota: the cycles
- * observed so far and the blocks currently keeping it out of selection.
+ * What this instance knows about one credential's upstream quota: its
+ * cycles — every open one and each window's most recent closed ones — and
+ * the blocks currently keeping it out of selection.
+ *
+ * Windows overlap (a 5-hour and a weekly window both count the same
+ * request), so the cycles' costs are never meant to be summed across
+ * windows. The raw readings behind the cycles are a separate, paged read.
  */
-export type CredentialQuotaDto = { cycles: Array<CredentialCycleDto>, 
+export type CredentialQuotaDto = {
+/**
+ * Open cycles first, by window; then closed ones by window, newest
+ * first.
+ */
+cycles: Array<CredentialCycleDto>,
 /**
  * Only blocks that have not expired yet.
  */

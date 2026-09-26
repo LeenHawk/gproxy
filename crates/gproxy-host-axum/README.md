@@ -198,7 +198,8 @@ POST   /admin/api/providers/{id}/routing-defaults/reset
 POST   /admin/api/credentials/{id}/reveal        the plaintext secret — audited
 POST   /admin/api/credentials/{id}/status        {"status": "active"|"dead", "reason": …}
 POST   /admin/api/credentials/{id}/refresh       ?force=true renews an unexpired one
-GET    /admin/api/credentials/{id}/quota         observed cycles and blocks
+GET    /admin/api/credentials/{id}/quota         cycles (open + recent closed) and blocks
+GET    /admin/api/credentials/{id}/quota-observations  raw readings, paged, ?sinceMs&untilMs
 POST   /admin/api/credentials/{id}/quota-probe   asks the upstream
 POST   /admin/api/credentials/{id}/quota-reset   redeems a reset credit
 POST   /admin/api/credentials/{id}/health-reset

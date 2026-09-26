@@ -106,6 +106,60 @@ impl<C: BatchConnectionTrait> Repository<'_, C, credential_cycle::Entity> {
         Ok(rows)
     }
 
+    /// Every open cycle of one credential and, for every window it ever had,
+    /// at most `closed_per_window` of that window's most recently closed
+    /// cycles: open first by window, then closed by window, newest first.
+    ///
+    /// Bounded per window rather than overall, because windows close at very
+    /// different rates: a total cap would fill with 5-hour cycles and leave
+    /// the weekly window no history at all. Two round trips — the window ids
+    /// first, then one bounded read per window in a single batch.
+    pub async fn history(
+        &self,
+        credential_id: &str,
+        closed_per_window: u64,
+    ) -> Result<Vec<credential_cycle::Model>> {
+        let backend = self.db.get_database_backend();
+        let windows = credential_cycle::Entity::find()
+            .select_only()
+            .column(credential_cycle::Column::WindowId)
+            .distinct()
+            .filter(credential_cycle::Column::CredentialId.eq(credential_id))
+            .filter(credential_cycle::Column::ClosedAtMs.is_not_null())
+            .order_by_asc(credential_cycle::Column::WindowId)
+            .batch_query(backend)?;
+        let mut sets = self.db.query_batch(&[windows]).await?.into_iter();
+        let window_ids = sets
+            .next()
+            .ok_or(StoreError::UnexpectedResult)?
+            .iter()
+            .map(|row| row.try_get::<String>("", "window_id").map_err(Into::into))
+            .collect::<Result<Vec<_>>>()?;
+        let mut queries = vec![
+            credential_cycle::Entity::find()
+                .filter(credential_cycle::Column::CredentialId.eq(credential_id))
+                .filter(credential_cycle::Column::ClosedAtMs.is_null())
+                .order_by_asc(credential_cycle::Column::WindowId),
+        ];
+        if closed_per_window > 0 {
+            queries.extend(window_ids.into_iter().map(|window_id| {
+                credential_cycle::Entity::find()
+                    .filter(credential_cycle::Column::CredentialId.eq(credential_id))
+                    .filter(credential_cycle::Column::WindowId.eq(window_id))
+                    .filter(credential_cycle::Column::ClosedAtMs.is_not_null())
+                    .order_by_desc(credential_cycle::Column::ClosedAtMs)
+                    .order_by_desc(credential_cycle::Column::Id)
+                    .limit(closed_per_window)
+            }));
+        }
+        Ok(self
+            .query_many(queries)
+            .await?
+            .into_iter()
+            .flatten()
+            .collect())
+    }
+
     /// Add `amount` to each of `ids` that is still open, atomically per row.
     /// `false` marks a cycle that closed under the caller, whose share the
     /// caller must place again.

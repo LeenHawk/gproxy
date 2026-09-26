@@ -616,6 +616,7 @@ const TABLE: &[(Method, &str)] = &[
     (Method::POST, "/admin/api/credentials/x/status"),
     (Method::POST, "/admin/api/credentials/x/refresh"),
     (Method::GET, "/admin/api/credentials/x/quota"),
+    (Method::GET, "/admin/api/credentials/x/quota-observations"),
     (Method::POST, "/admin/api/credentials/x/quota-probe"),
     (Method::POST, "/admin/api/credentials/x/quota-reset"),
     (Method::POST, "/admin/api/credentials/x/health-reset"),

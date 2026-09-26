@@ -63,9 +63,9 @@ use gproxy_sdk::{
         OperationEndpointWrite, OperationRulePatch, OperationRuleWrite, PriceRatePatch,
         PriceRateWrite, PriceRulePatch, PriceRuleWrite, PriceTierPatch, PriceTierWrite,
         ProviderModelPatch, ProviderModelWrite, ProviderPatch, ProviderRuleSetPatch,
-        ProviderRuleSetWrite, ProviderWrite, QuotaPatch, QuotaWrite, RewriteRulePatch,
-        RewriteRuleWrite, RouteMemberPatch, RouteMemberWrite, RoutePatch, RouteWrite, RuleSetPatch,
-        RuleSetWrite, SettingsPatch, TokenizerFetch,
+        ProviderRuleSetWrite, ProviderWrite, QuotaObservationQuery, QuotaPatch, QuotaWrite,
+        RewriteRulePatch, RewriteRuleWrite, RouteMemberPatch, RouteMemberWrite, RoutePatch,
+        RouteWrite, RuleSetPatch, RuleSetWrite, SettingsPatch, TokenizerFetch,
     },
 };
 use gproxy_seaorm::BatchConnectionTrait;
@@ -105,6 +105,10 @@ where
     .route("/credentials/{id}/status", post(set_status::<C>))
     .route("/credentials/{id}/refresh", post(refresh::<C>))
     .route("/credentials/{id}/quota", get(quota_read::<C>))
+    .route(
+        "/credentials/{id}/quota-observations",
+        get(quota_observations::<C>),
+    )
     .route("/credentials/{id}/quota-probe", post(quota_probe::<C>))
     .route(
         "/credentials/{id}/quota-reset-credits",
@@ -411,6 +415,26 @@ where
 {
     crate::send(async move { scoped!(state, scope, "credentials", credentials.quota_read(&id)) })
         .await
+}
+
+async fn quota_observations<C>(
+    State(state): State<HostState<C>>,
+    Extension(scope): Extension<AdminScope>,
+    Path(id): Path<String>,
+    Query(query): Query<QuotaObservationQuery>,
+) -> Response
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    crate::send(async move {
+        scoped!(
+            state,
+            scope,
+            "credentials",
+            credentials.quota_observations(&id, query)
+        )
+    })
+    .await
 }
 
 async fn quota_probe<C>(
