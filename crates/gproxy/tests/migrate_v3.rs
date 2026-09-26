@@ -928,3 +928,107 @@ async fn a_failed_automatic_import_leaves_v3_in_place_for_the_next_start() {
     );
     instance.app.gproxy().shutdown();
 }
+
+/// What only v3's database carries, and what this migration used to leave
+/// behind: instance settings, the issuer's clients, the tokenizer's token and
+/// vocabularies, a grouped permission, an operator's routing rule and a
+/// provider alias.
+#[tokio::test]
+async fn a_v3_database_brings_its_settings_clients_tokenizer_and_routing() {
+    use gproxy_store::entity::{identity::permission, oauth::client, upstream::operation_rule};
+    use sea_orm::{ConnectionTrait, Database, DbBackend, Statement};
+    let directory = tempfile::tempdir().unwrap();
+    v3_database(directory.path()).await;
+    let db = Database::connect(format!(
+        "sqlite://{}?mode=rwc",
+        directory.path().join("gproxy.db").display()
+    ))
+    .await
+    .unwrap();
+    for sql in [
+        r#"INSERT INTO settings VALUES ('instance_name', '"prod"'), ('update_channel', '"staging"'), ('default_tokenizer_vocab', '"o200k"')"#,
+        "CREATE TABLE oauth_clients (client_id text, name text, redirect_uris text, enabled integer, deleted_at integer)",
+        r#"INSERT INTO oauth_clients VALUES ('my-cli', 'My CLI', '["http://localhost:1455/cb"]', 1, NULL), ('old-cli', 'Old', '[]', 1, 5)"#,
+        "CREATE TABLE tokenizer_vocabs (name text, repository text, bytes blob, updated_at integer)",
+        "INSERT INTO tokenizer_vocabs VALUES ('o200k', NULL, x'7b7d', 0)",
+        "CREATE TABLE permissions (id integer, subject_kind text, subject_id integer, provider_id integer, operation_group text, model_pattern text, allowed integer)",
+        "INSERT INTO permissions VALUES (1, 'user', 1, 1, 'models', NULL, 0)",
+        "CREATE TABLE routing_rules (id integer, provider_id integer, operation text, kind text, implementation text, dest_operation text, dest_kind text, sort_order integer, enabled integer, origin text)",
+        "INSERT INTO routing_rules VALUES (1, 1, 'generate_content', 'claude_messages', 'transform_to', 'generate_content', 'openai_chat', 0, 1, 'operator'), (2, 1, 'list_models', 'openai', 'passthrough', NULL, NULL, 0, 1, 'channel_default')",
+        "CREATE TABLE aliases (id integer, alias text, target text, provider_id integer, priority integer, enabled integer)",
+        "INSERT INTO aliases VALUES (1, 'fast', 'gpt-x', 1, 0, 1)",
+        "CREATE TABLE tokenizer_auth (kind text, ciphertext blob, wrapped_key blob, payload_nonce blob, key_nonce blob, updated_at integer)",
+    ] {
+        db.execute_unprepared(sql)
+            .await
+            .unwrap_or_else(|error| panic!("{sql}: {error}"));
+    }
+    let sealed = sealed_credential(&json!("hf_secret"));
+    let blobs: Vec<sea_orm::Value> = ["ciphertext", "wrapped_key", "payload_nonce", "key_nonce"]
+        .iter()
+        .map(|field| {
+            serde_json::from_value::<Vec<u8>>(sealed[field].clone())
+                .unwrap()
+                .into()
+        })
+        .collect();
+    db.execute_raw(Statement::from_sql_and_values(
+        DbBackend::Sqlite,
+        "INSERT INTO tokenizer_auth VALUES ('hugging_face', ?, ?, ?, ?, 0)",
+        blobs,
+    ))
+    .await
+    .unwrap();
+    db.close().await.unwrap();
+
+    let mut settings = settings(directory.path(), AdminOptions::default());
+    settings.config.master_key.key = gproxy_app::config::MasterKey::Hex(source_key());
+    // Vocabularies are stored files; without storage they are reported instead.
+    settings.config.file_storage = Some(gproxy_app::config::FileStorageConfig::Fs {
+        root: "files".into(),
+    });
+    let instance = open(&settings).await;
+    let gproxy = instance.app.gproxy();
+    let store = gproxy.store();
+
+    let setting = store.settings().get().await.unwrap().unwrap();
+    assert_eq!(setting.instance_name, "prod");
+    assert_eq!(setting.update_channel.as_deref(), Some("beta"));
+
+    let clients = all(store.oauth_clients()).await;
+    assert_eq!(
+        clients
+            .iter()
+            .map(|c: &client::Model| c.id.as_str())
+            .collect::<Vec<_>>(),
+        ["my-cli"],
+        "the retired client stays retired"
+    );
+
+    let tokenizer = gproxy.manage().tokenizer();
+    assert_eq!(tokenizer.reveal_auth().await.unwrap(), "hf_secret");
+    let vocabularies = tokenizer.vocabularies().await.unwrap();
+    assert_eq!(vocabularies.len(), 1);
+    assert!(vocabularies[0].is_default);
+
+    let mut operations: Vec<Option<String>> = all(store.permissions())
+        .await
+        .into_iter()
+        .map(|row: permission::Model| row.operation)
+        .collect();
+    operations.sort();
+    assert_eq!(
+        operations,
+        [Some("get_model".to_owned()), Some("list_models".to_owned())],
+        "a deny on the models group stays on the models group"
+    );
+
+    let rules: Vec<operation_rule::Model> = all(store.operation_rules()).await;
+    assert_eq!(rules.len(), 1, "only the operator's rule");
+    assert_eq!(rules[0].action, "routing");
+
+    let model = one(store.provider_models()).await;
+    assert_eq!(model.upstream_name, "gpt-x");
+    assert_eq!(model.metadata["variants"], json!(["fast"]));
+    gproxy.shutdown();
+}

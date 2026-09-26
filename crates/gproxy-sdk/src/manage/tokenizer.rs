@@ -212,7 +212,45 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Tokenizer<'_, C> {
 
         let limit = self.writer.core().snapshot().limits.max_response_body_bytes;
         let bytes = self.download(&repo, &filename, limit).await?;
+        self.store(
+            storage,
+            filename,
+            bytes,
+            request.model_id,
+            request.set_as_default,
+        )
+        .await
+    }
 
+    /// Store a vocabulary the caller already has, as `fetch` stores a
+    /// downloaded one: an operator's own file, or one carried over from an
+    /// earlier installation. Needs file storage, as `fetch` does.
+    pub async fn import(
+        &self,
+        filename: String,
+        bytes: Bytes,
+        set_as_default: bool,
+    ) -> SdkResult<VocabularyDto> {
+        let storage = self
+            .writer
+            .core()
+            .file_storage()
+            .ok_or(SdkError::Unsupported(
+                "this instance has no file storage configured, so a vocabulary has nowhere to go",
+            ))?
+            .clone();
+        self.store(storage, filename, bytes, None, set_as_default)
+            .await
+    }
+
+    async fn store(
+        &self,
+        storage: gproxy_file::Operator,
+        filename: String,
+        bytes: Bytes,
+        model_id: Option<String>,
+        set_as_default: bool,
+    ) -> SdkResult<VocabularyDto> {
         let id = crate::ids::random_id();
         let object_key = format!("vocabularies/{id}");
         // The bytes land first. A row pointing at an object that was never
@@ -236,7 +274,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Tokenizer<'_, C> {
         let mut statements = vec![BatchStatement::Execute(
             self.writer.store().file_objects().insert_statement(file)?,
         )];
-        if let Some(model_id) = &request.model_id
+        if let Some(model_id) = &model_id
             && let Some(statement) =
                 self.writer
                     .store()
@@ -249,7 +287,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Tokenizer<'_, C> {
         {
             statements.push(BatchStatement::Execute(statement));
         }
-        if request.set_as_default {
+        if set_as_default {
             statements.push(BatchStatement::Execute(
                 self.writer
                     .store()
@@ -272,8 +310,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Tokenizer<'_, C> {
             filename: Some(filename),
             size_bytes: i64::try_from(bytes.len()).unwrap_or(i64::MAX),
             created_at_ms: now,
-            models: request.model_id.into_iter().collect(),
-            is_default: request.set_as_default,
+            models: model_id.into_iter().collect(),
+            is_default: set_as_default,
         })
     }
 

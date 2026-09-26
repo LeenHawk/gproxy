@@ -172,8 +172,46 @@ async fn data(connection: &DatabaseConnection) -> Result<document::Data> {
             models
         },
         oauth_clients: rows(connection, &tables, "oauth_clients", oauth_client).await?,
+        tokenizer_vocabs: rows(connection, &tables, "tokenizer_vocabs", tokenizer_vocab).await?,
+        tokenizer_auth: tokenizer_auth(connection, &tables).await?,
         settings: settings(connection).await?,
     })
+}
+
+fn tokenizer_vocab(row: &QueryResult) -> Result<document::TokenizerVocab> {
+    Ok(document::TokenizerVocab {
+        name: text(row, "name")?,
+        bytes: blob(row, "bytes")?,
+    })
+}
+
+/// v3 kept one row per token kind; the Hugging Face one is the only kind it
+/// ever wrote (`v3:crates/gproxy-app/src/host/tokenizers.rs`).
+async fn tokenizer_auth(
+    connection: &DatabaseConnection,
+    tables: &[String],
+) -> Result<Option<document::Envelope>> {
+    if !tables.iter().any(|name| name == "tokenizer_auth") {
+        return Ok(None);
+    }
+    let statement = Statement::from_string(
+        connection.get_database_backend(),
+        "SELECT * FROM tokenizer_auth WHERE kind = 'hugging_face'".to_owned(),
+    );
+    let Some(row) = connection
+        .query_all_raw(statement)
+        .await?
+        .into_iter()
+        .next()
+    else {
+        return Ok(None);
+    };
+    Ok(Some(document::Envelope {
+        ciphertext: blob(&row, "ciphertext")?,
+        wrapped_key: blob(&row, "wrapped_key")?,
+        payload_nonce: blob(&row, "payload_nonce")?,
+        key_nonce: blob(&row, "key_nonce")?,
+    }))
 }
 
 fn oauth_client(row: &QueryResult) -> Result<document::OAuthClient> {
@@ -203,7 +241,7 @@ fn oauth_client(row: &QueryResult) -> Result<document::OAuthClient> {
 /// So a column that is not there reads as absent and the row takes v3's own
 /// default for it, and only a column that has existed since version 1 is
 /// required.
-const TABLES: [(&str, &str); 21] = [
+const TABLES: [(&str, &str); 22] = [
     ("organizations", "SELECT * FROM organizations ORDER BY id"),
     ("teams", "SELECT * FROM teams ORDER BY id"),
     ("users", "SELECT * FROM users ORDER BY id"),
@@ -233,6 +271,10 @@ const TABLES: [(&str, &str); 21] = [
     (
         "oauth_clients",
         "SELECT * FROM oauth_clients ORDER BY client_id",
+    ),
+    (
+        "tokenizer_vocabs",
+        "SELECT * FROM tokenizer_vocabs ORDER BY name",
     ),
 ];
 

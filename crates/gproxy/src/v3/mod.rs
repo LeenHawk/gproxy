@@ -74,6 +74,7 @@ pub mod rules;
 pub mod secret;
 pub mod settings;
 pub mod source;
+pub mod tokenizer;
 pub(crate) mod upgrade;
 
 pub use report::Report;
@@ -183,6 +184,7 @@ where
     if let Some(patch) = settings::patch(&document.data.settings, &mut report) {
         app.gproxy().manage().settings().update(patch).await?;
     }
+    tokenizer::write(app, &document, &bridge, &mut report).await?;
     app.reload_all().await?;
 
     // The identity half: `gproxy-app`'s own families, one row at a time.
