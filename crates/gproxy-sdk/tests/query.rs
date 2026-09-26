@@ -91,10 +91,7 @@ fn money(amount: Option<&str>) -> Value {
 }
 
 async fn usage(gproxy: &Handle, seed: Seed<'_>) {
-    let mut metrics = usage_json(seed.tokens);
-    metrics["state"] = json!("settled");
-    metrics["cost"] = money(seed.cost);
-    metrics["exchanges"] = json!(
+    let exchanges = json!(
         seed.exchanges
             .iter()
             .enumerate()
@@ -110,6 +107,30 @@ async fn usage(gproxy: &Handle, seed: Seed<'_>) {
             }))
             .collect::<Vec<_>>()
     );
+    insert(gproxy, seed, exchanges).await;
+}
+
+/// One upstream attempt spelled out in full, for the tests that need a
+/// credential, an upstream model or a currency the provider-keyed [`Exchange`]
+/// tuple cannot say.
+fn attempt(credential: &str, model: &str, cost: Option<(&str, &str)>) -> Value {
+    json!({
+        "provider_id": "p-1",
+        "credential_id": credential,
+        "model": model,
+        "usage": usage_json((1, 1, 0, 0)),
+        "cost": cost.map_or(Value::Null, |(amount, currency)| {
+            json!({"amount": amount, "currency": currency})
+        }),
+    })
+}
+
+/// A record with the given `exchanges[]` document, verbatim.
+async fn insert(gproxy: &Handle, seed: Seed<'_>, exchanges: Value) {
+    let mut metrics = usage_json(seed.tokens);
+    metrics["state"] = json!("settled");
+    metrics["cost"] = money(seed.cost);
+    metrics["exchanges"] = exchanges;
     gproxy
         .store()
         .usage_records()
@@ -250,6 +271,273 @@ async fn event(gproxy: &Handle, capture_id: &str, sequence: i64, payload: &[u8])
 // ---------------------------------------------------------------------------
 // Usage records
 // ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn a_credential_cut_counts_only_that_credentials_attempts() {
+    let gproxy = support::sdk().await;
+    three_records(&gproxy).await;
+    let query = gproxy.query();
+    let usage = query.usage();
+    let for_credential = |credential: &str| UsageQuery {
+        credential_id: Some(credential.into()),
+        ..Default::default()
+    };
+
+    // r-2 failed over from c-p-1 to c-p-2. Each credential is charged its own
+    // attempt, never the request's 1.25 settled total.
+    let first = usage.summary(for_credential("c-p-1")).await.unwrap();
+    assert_eq!(first.requests, 2, "r-1 and the first attempt of r-2");
+    assert_eq!(first.input_tokens, 10 + 40);
+    assert_eq!(first.output_tokens, 20 + 80);
+    assert_eq!(first.cost, "0.75");
+    assert_eq!(first.currency.as_deref(), Some("USD"));
+    assert_eq!(first.scanned, 3, "every row in range is read to find them");
+    let second = usage.summary(for_credential("c-p-2")).await.unwrap();
+    assert_eq!(second.requests, 1);
+    assert_eq!(second.input_tokens, 60);
+    assert_eq!(second.cost, "1");
+    let nobody = usage.summary(for_credential("c-none")).await.unwrap();
+    assert_eq!(nobody.requests, 0);
+    assert_eq!(nobody.cost, "0");
+
+    // The provider filter is the same cut keyed differently.
+    let provider = usage
+        .summary(UsageQuery {
+            provider_id: Some("p-2".into()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!((provider.requests, provider.cost.as_str()), (1, "1"));
+
+    // Grouped by credential, the groups add back up to the whole summary.
+    let whole = usage.summary(UsageQuery::default()).await.unwrap();
+    let by_credential = usage
+        .group(UsageGroupQuery {
+            filter: UsageQuery::default(),
+            group_by: UsageGroupBy::Credential,
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        by_credential
+            .iter()
+            .map(|group| (group.key.as_deref(), group.summary.cost.as_str()))
+            .collect::<Vec<_>>(),
+        [(Some("c-p-2"), "1"), (Some("c-p-1"), "0.75"), (None, "0")]
+    );
+    let sum = |field: fn(&gproxy_sdk::dto::UsageSummaryDto) -> u64| {
+        by_credential
+            .iter()
+            .map(|group| field(&group.summary))
+            .sum::<u64>()
+    };
+    assert_eq!(sum(|s| s.input_tokens), whole.input_tokens);
+    assert_eq!(sum(|s| s.output_tokens), whole.output_tokens);
+    let cost: rust_decimal::Decimal = by_credential
+        .iter()
+        .map(|group| group.summary.cost.parse::<rust_decimal::Decimal>().unwrap())
+        .sum();
+    assert_eq!(cost.to_string(), whole.cost);
+
+    // Under a credential filter every other cut applies the same rule: a
+    // column group sees only the attempt's share, and a per-credential group
+    // sees only the filtered credential.
+    let by_user = usage
+        .group(UsageGroupQuery {
+            filter: for_credential("c-p-2"),
+            group_by: UsageGroupBy::User,
+        })
+        .await
+        .unwrap();
+    assert_eq!(by_user.len(), 1);
+    assert_eq!(by_user[0].key.as_deref(), Some("u-1"));
+    assert_eq!(by_user[0].summary.cost, "1");
+    assert_eq!(by_user[0].summary.input_tokens, 60);
+    let filtered_by_credential = usage
+        .group(UsageGroupQuery {
+            filter: for_credential("c-p-1"),
+            group_by: UsageGroupBy::Credential,
+        })
+        .await
+        .unwrap();
+    assert_eq!(filtered_by_credential.len(), 1, "no None group of r-3");
+    assert_eq!(filtered_by_credential[0].summary.cost, "0.75");
+
+    let trend = usage
+        .trend(UsageTrendQuery {
+            filter: UsageQuery {
+                from_ms: Some(0),
+                to_ms: Some(4_000),
+                ..for_credential("c-p-1")
+            },
+            bucket_ms: 1_000,
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        trend
+            .iter()
+            .map(|point| point.summary.cost.as_str())
+            .collect::<Vec<_>>(),
+        ["0", "0.5", "0.25", "0"]
+    );
+
+    // The record list keeps its order and paging under the scan, and returns
+    // matching records whole.
+    let records = usage
+        .records(UsageRecordQuery {
+            credential_id: Some("c-p-1".into()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        records
+            .items
+            .iter()
+            .map(|item| item.request_id.as_str())
+            .collect::<Vec<_>>(),
+        ["r-2", "r-1"]
+    );
+    assert_eq!(records.total, 2);
+    assert!(!records.truncated);
+    assert_eq!(
+        records.items[0].exchanges.len(),
+        2,
+        "the record, not a share"
+    );
+    let second_page = usage
+        .records(UsageRecordQuery {
+            credential_id: Some("c-p-1".into()),
+            page: Some(2),
+            page_size: Some(1),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(second_page.total, 2);
+    assert_eq!(second_page.offset, 1);
+    assert_eq!(second_page.items.len(), 1);
+    assert_eq!(second_page.items[0].request_id, "r-1");
+    let only_second = usage
+        .records(UsageRecordQuery {
+            credential_id: Some("c-p-2".into()),
+            user_id: Some("u-1".into()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(only_second.total, 1);
+    assert_eq!(only_second.items[0].request_id, "r-2");
+}
+
+#[tokio::test]
+async fn a_credentials_usd_spend_is_summed_over_its_own_attempts_in_range() {
+    use gproxy_channel::channel::QuotaScope;
+    use gproxy_core::usage_scan::credential_usd_cost;
+    use rust_decimal::Decimal;
+
+    let gproxy = support::sdk().await;
+    let rows: [(&str, i64, Value); 4] = [
+        // Before the range: not counted however large.
+        (
+            "early",
+            999,
+            json!([attempt("c-x", "claude-sonnet-4", Some(("100", "USD")))]),
+        ),
+        // Another credential's attempt in the same request is not ours.
+        (
+            "a",
+            1_000,
+            json!([
+                attempt("c-y", "claude-sonnet-4", Some(("2", "USD"))),
+                attempt("c-x", "claude-sonnet-4", Some(("1.5", "USD"))),
+            ]),
+        ),
+        // A euro price is skipped, not converted; an unpriced attempt adds
+        // nothing.
+        (
+            "b",
+            2_000,
+            json!([
+                attempt("c-x", "gpt-5", Some(("0.25", "USD"))),
+                attempt("c-x", "claude-opus-4", Some(("9", "EUR"))),
+                attempt("c-x", "claude-sonnet-4", None),
+            ]),
+        ),
+        // `to_ms` is exclusive.
+        (
+            "late",
+            3_000,
+            json!([attempt("c-x", "claude-sonnet-4", Some(("4", "USD")))]),
+        ),
+    ];
+    for (request_id, started_at_ms, exchanges) in rows {
+        insert(
+            &gproxy,
+            Seed {
+                request_id,
+                started_at_ms,
+                ..Default::default()
+            },
+            exchanges,
+        )
+        .await;
+    }
+    let store = gproxy.store();
+    let dec = |text: &str| text.parse::<Decimal>().unwrap();
+
+    let all = credential_usd_cost(store, "c-x", 1_000, 3_000, |_| true, u64::MAX)
+        .await
+        .unwrap();
+    assert_eq!(all, (dec("1.75"), false));
+
+    let sonnet = QuotaScope::ModelPrefixes(vec!["claude-sonnet".into()]);
+    let scoped = credential_usd_cost(
+        store,
+        "c-x",
+        1_000,
+        3_000,
+        |model| model.is_some_and(|model| sonnet.matches(model)),
+        u64::MAX,
+    )
+    .await
+    .unwrap();
+    assert_eq!(scoped, (dec("1.5"), false));
+
+    // The cap is on rows read, oldest first, and reaching it is said.
+    let capped = credential_usd_cost(store, "c-x", 1_000, 3_000, |_| true, 1)
+        .await
+        .unwrap();
+    assert_eq!(capped, (dec("1.5"), true));
+    let exact = credential_usd_cost(store, "c-x", 1_000, 3_000, |_| true, 2)
+        .await
+        .unwrap();
+    assert_eq!(
+        exact,
+        (dec("1.75"), false),
+        "a cap at the row count is not a cut"
+    );
+
+    // The SDK's credential cut agrees with core's sum on the same range.
+    let summary = gproxy
+        .query()
+        .usage()
+        .summary(UsageQuery {
+            from_ms: Some(1_000),
+            to_ms: Some(3_000),
+            credential_id: Some("c-x".into()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(summary.requests, 2);
+    assert_eq!(
+        summary.currency, None,
+        "USD and EUR attempts do not make one total"
+    );
+}
 
 #[tokio::test]
 async fn records_page_newest_first_and_honour_every_filter() {

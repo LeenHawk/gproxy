@@ -6,6 +6,17 @@
  */
 export type UsageRecordQuery = { fromMs: number | null, toMs: number | null, userId: string | null, apiKeyId: string | null, model: string | null, operation: string | null, requestId: string | null,
 /**
+ * Records any of whose attempts reached this provider. Not a column, so
+ * the list is then a bounded scan — see [`UsageRecordPage::truncated`].
+ */
+providerId: string | null,
+/**
+ * Records any of whose attempts were served by this credential. Same
+ * scan as `provider_id`; the records come back whole, every attempt
+ * included, because a list shows what happened rather than a share of it.
+ */
+credentialId: string | null,
+/**
  * 1-based. Zero and absent both mean the first page.
  */
 page: number | null,

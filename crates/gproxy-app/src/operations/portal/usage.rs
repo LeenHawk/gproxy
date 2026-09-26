@@ -9,7 +9,9 @@
 
 use std::collections::BTreeMap;
 
-use gproxy_sdk::dto::{LogQuery, UsageGroupQuery, UsageQuery, UsageSummaryDto, UsageTrendQuery};
+use gproxy_sdk::dto::{
+    LogQuery, UsageGroupBy, UsageGroupQuery, UsageQuery, UsageSummaryDto, UsageTrendQuery,
+};
 use gproxy_seaorm::BatchConnectionTrait;
 
 use super::Portal;
@@ -31,6 +33,16 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Portal<'_, C> {
     /// The summary is always computed; `groupBy` and `bucketMs` each add one
     /// more scan when they are given and cost nothing when they are not.
     pub async fn usage(&self, query: PortalUsageQuery) -> Result<PortalUsageDto> {
+        // Refused rather than ignored: unlike `userId`, dropping these would
+        // silently widen the answer to everything the caller spent.
+        if query.provider_id.is_some()
+            || query.credential_id.is_some()
+            || query.group_by == Some(UsageGroupBy::Credential)
+        {
+            return Err(AppError::invalid(
+                "providerId, credentialId and groupBy credential are operator views",
+            ));
+        }
         let filter = UsageQuery {
             from_ms: query.from_ms,
             to_ms: query.to_ms,
@@ -40,6 +52,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Portal<'_, C> {
             api_key_id: query.api_key_id,
             model: query.model,
             operation: query.operation,
+            provider_id: None,
+            credential_id: None,
             max_scan_rows: None,
         };
         let usage = self.writer().gproxy().query().usage();

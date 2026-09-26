@@ -2,8 +2,37 @@
 
 /**
  * What an aggregate filters on, and how far it is allowed to read.
+ *
+ * `provider_id` and `credential_id` are not columns: they name upstream
+ * attempts inside a record's `exchanges[]`, and a record can hold several —
+ * a request that failed over from one credential to another. With either set
+ * the aggregate cuts at the attempt, the same way the per-provider grouping
+ * always has:
+ *
+ * - a record matches when at least one of its attempts matches every
+ *   attempt filter given, and it then counts as one request;
+ * - its tokens and cost are the sum over the matching attempts only, each
+ *   priced on its own, never the record's settled total — so a failed-over
+ *   request contributes to each credential exactly what that credential
+ *   spent, and the two cuts add back up to the whole;
+ * - the summary, every trend bucket and every column group apply that same
+ *   rule, so they stay consistent with one another; a group by provider or
+ *   credential additionally keys each matching attempt by its own id.
+ *
+ * Without either filter nothing changes: a record contributes its settled
+ * cost column and its top-level token totals. `scanned` and the row cap count
+ * every record the column filters let through, matching or not, because the
+ * attempt filters are applied after the rows are read.
  */
 export type UsageQuery = { fromMs: number | null, toMs: number | null, userId: string | null, apiKeyId: string | null, model: string | null, operation: string | null,
+/**
+ * Only what this provider's attempts account for. See the type note.
+ */
+providerId: string | null,
+/**
+ * Only what this credential's attempts account for. See the type note.
+ */
+credentialId: string | null,
 /**
  * How many matching records the aggregation may read before it stops and
  * says so. Absent means `query::MAX_SCAN_ROWS`; the value is clamped to

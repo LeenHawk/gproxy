@@ -9,28 +9,39 @@ import type { UsageGroupBy } from "./UsageGroupBy";
  * into sending the same request without it. It is overwritten with the
  * caller's own id before the query reaches the engine.
  */
-export type PortalUsageQuery = { 
+export type PortalUsageQuery = {
 /**
  * Inclusive lower bound on `startedAtMs`.
  */
-fromMs: number | null, 
+fromMs: number | null,
 /**
  * Exclusive upper bound.
  */
-toMs: number | null, 
+toMs: number | null,
 /**
  * Ignored. See the type note.
  */
-userId: string | null, 
+userId: string | null,
 /**
  * One of the caller's own keys. A key that is not theirs matches nothing,
  * because the user filter is applied as well.
  */
-apiKeyId: string | null, model: string | null, operation: string | null, 
+apiKeyId: string | null, model: string | null, operation: string | null,
+/**
+ * Admin surface only: the share of one upstream provider's attempts.
+ * A portal refuses it, because it never shows a caller provider ids.
+ */
+providerId: string | null,
+/**
+ * Admin surface only: the share of one credential's attempts. A portal
+ * refuses it for the same reason it refuses `groupBy: credential` —
+ * credential ids are the operator's, not the caller's.
+ */
+credentialId: string | null,
 /**
  * Absent means no grouped cut is computed.
  */
-groupBy: UsageGroupBy | null, 
+groupBy: UsageGroupBy | null,
 /**
  * Bucket width for the trend. Absent means no trend is computed; present
  * requires both `fromMs` and `toMs`.

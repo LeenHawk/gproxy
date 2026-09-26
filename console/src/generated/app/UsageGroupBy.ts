@@ -3,4 +3,4 @@
 /**
  * Which column the aggregate is cut by.
  */
-export type UsageGroupBy = "user" | "apiKey" | "model" | "operation" | "provider";
+export type UsageGroupBy = "user" | "apiKey" | "model" | "operation" | "provider" | "credential";

@@ -425,6 +425,25 @@ async fn a_trend_needs_a_range_and_a_grouped_cut_is_optional() {
         .await
         .unwrap();
     assert_eq!(trend.trend.len(), 4);
+
+    // Credential ids are the operator's: a portal refuses the cut outright
+    // rather than silently answering with the unfiltered total.
+    for query in [
+        PortalUsageQuery {
+            credential_id: Some("c-1".into()),
+            ..PortalUsageQuery::default()
+        },
+        PortalUsageQuery {
+            provider_id: Some("p-1".into()),
+            ..PortalUsageQuery::default()
+        },
+        PortalUsageQuery {
+            group_by: Some(UsageGroupBy::Credential),
+            ..PortalUsageQuery::default()
+        },
+    ] {
+        assert_eq!(status(portal.usage(query).await), 400);
+    }
 }
 
 // --------------------------------------------------------------- quota ----

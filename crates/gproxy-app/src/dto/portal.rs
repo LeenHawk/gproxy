@@ -258,6 +258,15 @@ pub struct PortalUsageQuery {
     pub model: Option<String>,
     #[serde(default)]
     pub operation: Option<String>,
+    /// Admin surface only: the share of one upstream provider's attempts.
+    /// A portal refuses it, because it never shows a caller provider ids.
+    #[serde(default)]
+    pub provider_id: Option<String>,
+    /// Admin surface only: the share of one credential's attempts. A portal
+    /// refuses it for the same reason it refuses `groupBy: credential` —
+    /// credential ids are the operator's, not the caller's.
+    #[serde(default)]
+    pub credential_id: Option<String>,
     /// Absent means no grouped cut is computed.
     #[serde(default)]
     pub group_by: Option<UsageGroupBy>,
