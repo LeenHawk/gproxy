@@ -145,6 +145,7 @@ kimi = ["dep:futures-util", "dep:getrandom", "dep:time", "dep:web-time"]
 # reply is translated back into Responses SSE, and GetUsageLimits reports the
 # subscription's credit windows.
 kiro = [
+    "dep:base64",
     "dep:crc32fast",
     "dep:futures-util",
     "dep:sha2",

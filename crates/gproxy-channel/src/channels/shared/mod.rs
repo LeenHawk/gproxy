@@ -28,6 +28,7 @@ pub(crate) mod aws_reason;
     feature = "claudeweb",
     feature = "codex",
     feature = "custom",
+    feature = "openai",
     feature = "opencode",
     feature = "openrouter",
     feature = "vercel"
