@@ -127,6 +127,9 @@ fn identity_transaction_rolls_back_and_multicandidate_never_merges() {
     )
     .unwrap();
     assert!(gemini_to_responses_response(input, context(), &mut ids, &policy()).is_err());
+    let input: g::GenerateContentResponseBody =
+        serde_json::from_value(json!({"candidates":[]})).unwrap();
+    assert!(gemini_to_responses_response(input, context(), &mut ids, &policy()).is_err());
 }
 #[test]
 fn malformed_arguments_are_rejected_but_scoped_replay_never_accepts_foreign_ciphertext() {

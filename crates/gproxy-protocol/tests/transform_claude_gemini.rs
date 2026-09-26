@@ -281,6 +281,12 @@ fn missing_facts_invalid_counts_and_multi_candidates_reject() {
         .is_err()
     );
     let mut input = g_response();
+    input.candidates = Some(Vec::new());
+    assert!(
+        gemini_to_claude_response(input, None, facts(), &mut flow(), &policy(Dialect::Claude))
+            .is_err()
+    );
+    let mut input = g_response();
     let candidate = input.candidates.as_ref().unwrap()[0].clone();
     input.candidates.as_mut().unwrap().push(candidate);
     assert!(
