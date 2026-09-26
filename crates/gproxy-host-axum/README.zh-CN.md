@@ -242,7 +242,7 @@ DELETE /portal/api/keys/{id}         （及 POST …/rotate、GET …/secret）
 GET    /portal/api/oauth-sessions    （及 DELETE …/{id}）
 POST   /portal/api/password          修改密码，需证明当前密码
 GET    /portal/api/oauth/device      查询待批准的设备码（?userCode=）
-POST   /portal/api/oauth/device      批准或拒绝；只认登录 cookie
+POST   /portal/api/oauth/device      批准或拒绝；需要登录会话或带管理权限的 key
 ```
 
 这里的守卫只要求"已认证"，**再无其他**。不做角色判断是因为没有可判断的东西：

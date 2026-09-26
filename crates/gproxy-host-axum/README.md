@@ -267,7 +267,7 @@ DELETE /portal/api/keys/{id}         (+ POST …/rotate, GET …/secret)
 GET    /portal/api/oauth-sessions    (+ DELETE …/{id})
 POST   /portal/api/password          change, proving the current one
 GET    /portal/api/oauth/device      a pending device code (?userCode=)
-POST   /portal/api/oauth/device      approve or deny it; session cookie only
+POST   /portal/api/oauth/device      approve or deny it; a session or a management key
 ```
 
 The guard here requires an authenticated caller and **nothing more**. There is
