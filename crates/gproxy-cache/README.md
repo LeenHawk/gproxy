@@ -113,15 +113,16 @@ Do not publish decrypted credentials or bearer tokens.
 
 ## Memory capacity and limits
 
-`MemoryOptions` defaults to 10,000 live keys and 256 active topics. `Limits`
+`MemoryOptions` defaults to 100,000 live keys and 256 active topics. `Limits`
 defaults to 1,024 key bytes, 1 MiB per value/message, 10,000 permits per key, and
 256 messages in each subscription delivery queue. These are count/per-item bounds,
 not an allocator-level total RAM budget; configure them for the workload. Redis
 also validates per-operation limits, while server-side memory capacity is managed
 by Redis. Limit configuration must agree across clients sharing a namespace.
 
-Memory never evicts a live value, counter or permit to make room: it reclaims
-expired keys, then returns `Capacity` if still full. Expiry is enforced on access;
+When full, Memory reclaims expired keys, then sheds live values and then live
+counters, soonest to expire first, an eighth of the capacity at a time. It never
+evicts a permit: only a cache full of live permits returns `Capacity`. Expiry is enforced on access;
 `purge_expired()` optionally reclaims cold expired entries. There is no janitor
 thread or Tokio runtime requirement for Memory operations. Tokio sync is used
 only for async notifications; the application drives polling.

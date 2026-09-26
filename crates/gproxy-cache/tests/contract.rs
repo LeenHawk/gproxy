@@ -340,6 +340,31 @@ async fn memory_capacity_never_evicts_a_live_lease_and_drop_closes_subscription(
 
 #[cfg(feature = "memory")]
 #[tokio::test]
+async fn a_full_memory_cache_sheds_the_soonest_expiring_values_first() {
+    let cache = MemoryCache::new(MemoryOptions {
+        max_keys: 8,
+        ..Default::default()
+    })
+    .unwrap();
+    cache.put("short", vec![], TTL).await.unwrap();
+    cache.increment("counter", 1, 10, TTL).await.unwrap();
+    for i in 0..6 {
+        cache
+            .put(&format!("long{i}"), vec![], TTL * 10)
+            .await
+            .unwrap();
+    }
+    // Full. The next key is taken, not refused, and it costs the value that
+    // expires soonest — not a longer-lived one, and not the counter.
+    cache.put("new", vec![], TTL * 10).await.unwrap();
+    assert!(cache.get("short").await.unwrap().is_none());
+    assert!(cache.get("long0").await.unwrap().is_some());
+    assert!(cache.get("new").await.unwrap().is_some());
+    assert_eq!(cache.counter("counter").await.unwrap().unwrap().value, 1);
+}
+
+#[cfg(feature = "memory")]
+#[tokio::test]
 async fn independent_memory_instances_are_isolated_and_limits_preflight_writes() {
     let one = MemoryCache::default();
     let two = MemoryCache::default();

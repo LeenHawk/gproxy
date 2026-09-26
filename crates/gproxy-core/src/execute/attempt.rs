@@ -600,8 +600,15 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                         finished_at,
                     )
                     .await?;
-                    core.pin_affinity(&request, &credential.id, finished_at)
-                        .await?;
+                    // Best effort: the upstream has answered and been paid for, so a
+                    // cache that cannot take the pin costs the next request its
+                    // affinity, not this one its answer.
+                    if let Err(error) = core
+                        .pin_affinity(&request, &credential.id, finished_at)
+                        .await
+                    {
+                        tracing::warn!(%error, credential = %credential.id, "session affinity not pinned");
+                    }
                 }
                 // The upstream answered on this credential: the target stands,
                 // whatever it said about the request itself.
