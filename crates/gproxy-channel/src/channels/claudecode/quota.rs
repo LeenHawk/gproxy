@@ -27,9 +27,9 @@ const SCOPED_FAMILIES: &[&str] = &["fable"];
 
 /// One `anthropic-ratelimit-unified-{claim}-*` header family and the window
 /// id the usage body gives the same window. Claim codenames are the
-/// upstream's and churn: `7d_oi` arrives only on Fable requests and resets
-/// with the Fable `weekly_scoped` limit, although CLI 2.1.252 still calls it
-/// `seven_day_overage_included`.
+/// upstream's and churn: `7d_oi` is `seven_day_overage_included`, which CLI
+/// 2.1.252 labels "Fable 5 limit"; it arrives only on Fable requests and
+/// moves with the Fable `weekly_scoped` limit.
 struct Claim {
     codename: &'static str,
     id: &'static str,
