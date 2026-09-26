@@ -24,7 +24,7 @@
 //! | `price_rates` | `price_rates` | direct; `unit_size` is `unit_quantity`, and the unit is read off the metric name |
 //! | `quotas` | `quotas` | one v3 row is up to six v4 rows, one per period column |
 //! | `rule_sets`, `provider_rule_sets` | `rewrite_rule_sets`, `provider_rewrite_rule_sets` | direct |
-//! | `rules` (`transform` only) | `rewrite_rules` | one v4 rule per v3 action; see below |
+//! | `rules` | `rewrite_rules` | every kind; content rules once per dialect; see [`super::rules`] |
 //!
 //! # What does not map, and why
 //!
@@ -41,11 +41,8 @@
 //!   assembly instead and only stores a row to *override* it. Importing them
 //!   would pin every provider to what v3's channels supported on the day the
 //!   provider was made, which is the opposite of an upgrade.
-//! - **`rules` other than `transform`.** v4's rewrite rules are regex
-//!   replacements over a body path, a header value or a query parameter. v3's
-//!   `system_text`, `cache_breakpoint`, `rewrite` (JSON set/delete/merge) and
-//!   `header` (set/merge a header) are *constructions*, not replacements, and
-//!   nothing in v4 performs them.
+//! - **A `transform` rule with a `limit`**, and rule settings v4's compiler
+//!   refuses; see [`super::rules`].
 //! - **`credentials.weight` and `credentials.tpm_limit`.** v4 balances by route
 //!   member weight, and its credential limits meter requests and cost, not
 //!   tokens (`gproxy_core::credential_limit`).
@@ -59,15 +56,15 @@ use std::collections::{BTreeMap, BTreeSet};
 use gproxy_sdk::dto::{
     ConfigurationDataDto, ConfigurationExportDto, CredentialDto, EXPORT_FORMAT_VERSION,
     ExportCredentialDto, ModelDto, OperationEndpointDto, PriceRateDto, PriceRuleDto, PriceTierDto,
-    ProviderDto, ProviderModelDto, ProviderRuleSetDto, QuotaDto, RewriteRuleDto, RouteDto,
-    RouteMemberDto, RuleSetDto, SealedSecretDto,
+    ProviderDto, ProviderModelDto, ProviderRuleSetDto, QuotaDto, RouteDto, RouteMemberDto,
+    SealedSecretDto,
 };
 use serde_json::Value;
 
 use super::{
     Report, channels,
-    document::{self, Action, Document, Locate, RuleConfig},
-    endpoints, ids, provider_config,
+    document::{self, Document},
+    endpoints, ids, provider_config, rules,
     secret::{Bridge, Domain},
 };
 use crate::{Error, Result};
@@ -106,7 +103,7 @@ pub fn translate(
     let providers = providers(data, timestamp, skip_unmappable, &mut report)?;
     let credentials = credentials(data, &opened, &providers, bridge, &mut report)?;
     let (price_rules, price_tiers) = price_rules(data, &providers, &mut report);
-    let (rewrite_rules, rule_sets) = rewrite_rules(data, &mut report);
+    let (rewrite_rules, rule_sets) = rules::translate(data, &mut report);
 
     report.count("connection_profiles", 0);
     report.count("credentials", credentials.len() as u64);
@@ -942,134 +939,6 @@ pub fn owner(subject_kind: &str, subject_id: i64) -> Option<(&'static str, Strin
 
 // --------------------------------------------------------------- rewrite --
 
-fn rewrite_rules(
-    data: &document::Data,
-    report: &mut Report,
-) -> (Vec<RewriteRuleDto>, Vec<RuleSetDto>) {
-    let sets: Vec<RuleSetDto> = data
-        .rule_sets
-        .iter()
-        .map(|row| RuleSetDto {
-            id: ids::id("rule_sets", row.id),
-            name: row.name.clone(),
-            description: row.description.clone(),
-            enabled: row.enabled,
-            created_at_ms: 0,
-            updated_at_ms: 0,
-        })
-        .collect();
-
-    let mut rules = Vec::new();
-    for row in &data.rules {
-        let named = format!("rule {} ({})", row.id, row.config.kind());
-        let RuleConfig::Transform {
-            phase,
-            locate,
-            actions,
-            ..
-        } = &row.config
-        else {
-            report.drop_row("rules", named, unmappable_rule(&row.config));
-            continue;
-        };
-        let paths = match locate {
-            Locate::Path(path) => vec![path.clone()],
-            Locate::Paths(paths) => paths.clone(),
-            Locate::Match(_) => {
-                report.drop_row(
-                    "rules",
-                    named,
-                    "it located its text by a whole-body match; v4 addresses the body by path",
-                );
-                continue;
-            }
-        };
-        // v4 filters by `(operation, dialect)` pairs and has no wildcard for
-        // the dialect half. Widening the rule to every dialect would change
-        // what it does, so the rule is refused rather than broadened.
-        if let Some(operations) = row.filter_operations.as_ref().filter(|ops| !ops.is_empty()) {
-            report.drop_row(
-                "rules",
-                named,
-                format!(
-                    "it was filtered to operations {}; v4 filters on operation *and* dialect \
-                     pairs, and guessing the dialect would change what the rule matches",
-                    operations.join(", ")
-                ),
-            );
-            continue;
-        }
-        for (index, action) in actions.iter().enumerate() {
-            let (pattern, replacement) = match action {
-                Action::ReplaceRegex { pattern, with } => (pattern.clone(), with.clone()),
-                Action::ReplaceText {
-                    from: Some(from),
-                    with,
-                } => (regex::escape(from), with.clone()),
-                Action::ReplaceText { from: None, .. } => {
-                    report.drop_row(
-                        "rules",
-                        format!("{} action {index}", named),
-                        "it replaced the whole located value, which v4's pattern-and-replacement \
-                         rewrite has no form for",
-                    );
-                    continue;
-                }
-            };
-            rules.push(RewriteRuleDto {
-                action: "replace".into(),
-                id: ids::part("rules", row.id, &index.to_string()),
-                rule_set_id: ids::id("rule_sets", row.rule_set_id),
-                phase: match phase.as_str() {
-                    "response" => "response",
-                    "both" => "both",
-                    _ => "request",
-                }
-                .to_owned(),
-                target: "body".into(),
-                target_name: None,
-                paths: Some(Value::Array(
-                    paths
-                        .iter()
-                        .map(|path| Value::from(path.as_str()))
-                        .collect(),
-                )),
-                pattern,
-                replacement,
-                filter_operation_keys: None,
-                filter_model_pattern: row.filter_model_pattern.clone(),
-                filter_header_pattern: row.filter_header_pattern.clone(),
-                filter_event_pattern: None,
-                sort_order: row.sort_order,
-                enabled: row.enabled,
-                created_at_ms: 0,
-                updated_at_ms: 0,
-            });
-        }
-    }
-    (rules, sets)
-}
-
-fn unmappable_rule(config: &RuleConfig) -> &'static str {
-    match config {
-        RuleConfig::SystemText { .. } => {
-            "it prepended or appended system text; v4's rewrite rules replace what is there and \
-             cannot add a turn"
-        }
-        RuleConfig::CacheBreakpoint { .. } => {
-            "it inserted a cache breakpoint; v4 has no rule that constructs one"
-        }
-        RuleConfig::Rewrite { .. } => {
-            "it set, deleted or merged a JSON value; v4's rewrite rules are text replacements \
-             over a path, not structural edits"
-        }
-        RuleConfig::Header { .. } => {
-            "it set a header; v4's header rules replace inside a header that is already there"
-        }
-        RuleConfig::Transform { .. } => unreachable!("transform rules are translated"),
-    }
-}
-
 fn provider_rule_set(row: &document::ProviderRuleSet, timestamp: i64) -> ProviderRuleSetDto {
     ProviderRuleSetDto {
         id: ids::id("provider_rule_sets", row.id),
@@ -1310,35 +1179,6 @@ mod tests {
         // Literal text becomes a pattern that matches exactly that text.
         assert_eq!(rules[1].pattern, regex::escape("a.b("));
         assert_eq!(rules[1].replacement, "z");
-    }
-
-    #[test]
-    fn the_four_rule_kinds_v4_cannot_perform_are_named_one_by_one() {
-        let out = translated(json!({"rules": [
-            {"id": 1, "rule_set_id": 1, "config": {"kind": "system_text", "text": "hi",
-                                                   "position": "append"}},
-            {"id": 2, "rule_set_id": 1, "config": {"kind": "cache_breakpoint",
-                                                   "target": "system"}},
-            {"id": 3, "rule_set_id": 1, "config": {"kind": "rewrite", "path": "a",
-                                                   "action": "set", "value": 1}},
-            {"id": 4, "rule_set_id": 1, "config": {"kind": "header", "name": "x",
-                                                   "value": "y", "mode": "override"}}
-        ]}));
-        assert!(out.export.data.rewrite_rules.is_empty());
-        assert_eq!(out.report.dropped.len(), 4);
-        assert!(out.report.dropped.iter().all(|d| d.table == "rules"));
-        assert!(out.report.dropped[0].reason.contains("cannot add a turn"));
-    }
-
-    #[test]
-    fn a_transform_filtered_to_operations_is_refused_rather_than_widened() {
-        let out = translated(json!({"rules": [{
-            "id": 7, "rule_set_id": 1, "filter_operations": ["generate_content"],
-            "config": {"kind": "transform", "phase": "request",
-                       "locate": {"type": "path", "value": "a"},
-                       "actions": [{"op": "replace_regex", "pattern": "x", "with": "y"}]}}]}));
-        assert!(out.export.data.rewrite_rules.is_empty());
-        assert!(out.report.dropped[0].reason.contains("dialect"));
     }
 
     #[test]
