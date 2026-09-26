@@ -9,8 +9,9 @@ repository.workspace = true
 
 [features]
 default = ["reqwest"]
-# Native reqwest backend; on wasm32 the reqwest Fetch fallback (HTTP only,
-# buffered request bodies).
+# Native reqwest backend. Native only: on wasm32 the transport is `fetch`, and
+# reqwest's own wasm build would bring a second wasm-streams whose JS exports
+# collide with the first when wasm-bindgen links them.
 reqwest = ["dep:reqwest", "dep:reqwest-websocket"]
 wreq = ["dep:wreq", "dep:wreq-util"]
 # Native only: reqwest 0.12 over the platform's native TLS (OpenSSL on Linux,
@@ -71,7 +72,6 @@ openssl-sys = { workspace = true, optional = true, features = ["vendored"] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 futures-util = { workspace = true, features = ["sink"] }
 js-sys = { workspace = true, optional = true }
-reqwest = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["sync"] }
 wasm-bindgen = { workspace = true, optional = true }
 wasm-bindgen-futures = { workspace = true, optional = true }

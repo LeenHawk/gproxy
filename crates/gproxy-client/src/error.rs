@@ -8,7 +8,7 @@ pub enum Error {
     InvalidProxy(#[source] url::ParseError),
     #[error("backend {0:?} is not available in this build")]
     BackendUnavailable(Backend),
-    #[cfg(feature = "reqwest")]
+    #[cfg(all(feature = "reqwest", not(target_arch = "wasm32")))]
     #[error("reqwest client construction failed")]
     Reqwest(#[source] reqwest::Error),
     #[cfg(all(feature = "wreq", not(target_arch = "wasm32")))]
