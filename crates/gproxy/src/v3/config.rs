@@ -716,9 +716,23 @@ fn provider_model(row: &document::ProviderModel) -> ProviderModelDto {
     // v3 kept these beside the metadata blob rather than inside it; v4 has one
     // metadata object, so they move in rather than being lost.
     if let Value::Object(map) = &mut metadata {
+        // `context_window` is the key every dialect's model list reads;
+        // v3's separate `max_context_window` travels inside the metadata.
         if let Some(window) = row.context_window {
-            map.entry("max_context_window")
+            map.entry("context_window")
                 .or_insert_with(|| Value::from(window));
+        }
+        for (key, value) in [
+            ("thinking_supported", row.thinking_supported),
+            (
+                "thinking_adaptive_supported",
+                row.thinking_adaptive_supported,
+            ),
+            ("thinking_enabled_supported", row.thinking_enabled_supported),
+        ] {
+            if let Some(value) = value {
+                map.entry(key).or_insert(Value::Bool(value));
+            }
         }
         if let Some(tokens) = row.max_output_tokens {
             map.entry("max_output_tokens")
