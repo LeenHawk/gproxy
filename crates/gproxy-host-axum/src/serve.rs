@@ -68,5 +68,7 @@ pub async fn serve(
     }
     drop(listener);
     graceful.shutdown().await;
+    // The last responses have been written; their settlements may not have.
+    crate::response::settled().await;
     Ok(())
 }
