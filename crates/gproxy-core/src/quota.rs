@@ -1,10 +1,10 @@
 //! Account quota observation and self-counted consumption.
 //!
 //! Reported dimensions get their values from `QuotaHeaders` after every
-//! upstream answer and from `QuotaQuery` on demand; each entry is persisted
-//! as a `credential_quota_cycles` row and an exhausted entry becomes a
-//! `QuotaExhausted` block until the upstream's period end (or one window
-//! derived from the dimension). Counted dimensions are metered in Store's
+//! upstream answer and from `QuotaQuery` on demand; each entry that changed
+//! (see `dedupe`) is persisted as a `credential_quota_cycles` row and an
+//! exhausted entry becomes a `QuotaExhausted` block until the upstream's
+//! period end (or one window derived from the dimension). Counted dimensions are metered in Store's
 //! `counted_windows` rows: requests before the exchange, tokens and priced
 //! USD cost after usage settles. Operator limits (`credential_limit`) are
 //! Counted dimensions too, with a model filter of their own.
@@ -32,6 +32,8 @@ use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 use std::sync::Arc;
 use time::{Duration as TimeDuration, OffsetDateTime};
+
+mod dedupe;
 
 /// `Total` windows never reset; the counter still needs a cache TTL.
 const TOTAL_WINDOW_TTL_MS: i64 = 30 * 24 * 60 * 60 * 1000;
@@ -230,8 +232,9 @@ fn exhaustion_blocks(
 }
 
 impl<C: BatchConnectionTrait> Core<C> {
-    /// Persist every entry as a quota cycle and block on the exhausted ones
-    /// that match a Reported dimension. Returns the blocks written.
+    /// Persist the entries that changed as quota cycles and block on the
+    /// exhausted ones that match a Reported dimension. Returns the blocks
+    /// written.
     pub(crate) async fn observe_quota(
         &self,
         credential: &CredentialData,
@@ -241,9 +244,22 @@ impl<C: BatchConnectionTrait> Core<C> {
         if entries.is_empty() {
             return Ok(Vec::new());
         }
+        let latest = self.persisted_quota_observations(&credential.id).await?;
         let mut rows = Vec::with_capacity(entries.len());
+        let mut written = Vec::with_capacity(entries.len());
         let mut blocks = Vec::new();
         for entry in entries {
+            let reading = dedupe::Persisted::new(&credential.quota, entry, now_ms);
+            // An exhausted entry always gets its row: its blocks name it.
+            let exhausted = exhausted(&entry.value);
+            if !exhausted
+                && latest
+                    .iter()
+                    .find(|p| p.id() == entry.id)
+                    .is_some_and(|p| !p.needs_write(&reading))
+            {
+                continue;
+            }
             let cycle_id = ids::random_id();
             let period = allowance(&entry.value);
             rows.push(credential_quota_cycle::ActiveModel {
@@ -256,20 +272,27 @@ impl<C: BatchConnectionTrait> Core<C> {
                 starts_at_ms: Set(period.and_then(|a| a.period_start_ms)),
                 resets_at_ms: Set(period.and_then(|a| a.period_end_ms)),
             });
+            written.push(reading);
             let dimension = credential
                 .quota
                 .iter()
                 .find(|d| d.tracking == QuotaTracking::Reported && d.id == entry.source_id);
             if let Some(dimension) = dimension
-                && exhausted(&entry.value)
+                && exhausted
             {
                 blocks.extend(exhaustion_blocks(dimension, entry, &cycle_id, now_ms));
             }
         }
-        self.store()
-            .credential_quota_cycles()
-            .create_many(rows)
-            .await?;
+        if !rows.is_empty() {
+            self.store()
+                .credential_quota_cycles()
+                .create_many(rows)
+                .await?;
+            self.record_quota_observations(&credential.id, written, now_ms)
+                .await?;
+        }
+        // Skipped readings still refresh the reset projection: it tracks the
+        // latest reading, not the latest row.
         self.update_reset_observations(&credential.id, entries, now_ms)
             .await?;
         for block in &blocks {

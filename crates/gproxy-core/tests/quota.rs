@@ -508,3 +508,192 @@ async fn breakdown_is_persisted_without_becoming_a_quota_block() {
     assert_eq!(rows[0].resets_at_ms, None);
     assert!(blocks_for(&h, "a").await.is_empty());
 }
+
+async fn cycle_rows(h: &Harness, credential_id: &str) -> Vec<credential_quota_cycle::Model> {
+    let mut rows: Vec<_> = h
+        .core
+        .store()
+        .credential_quota_cycles()
+        .query(credential_quota_cycle::Entity::find())
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|row| row.credential_id == credential_id)
+        .collect();
+    rows.sort_by_key(|row| row.observed_at_ms);
+    rows
+}
+
+/// One answer from `q1` carrying `x-test-quota: <quota>`.
+async fn answer_with_quota(h: &Harness, request_id: &str, quota: &'static str) {
+    h.script(vec![(
+        StatusCode::OK,
+        vec![
+            ("content-type", "application/json"),
+            ("x-test-quota", quota),
+        ],
+        vec![gproxy_protocol::connection::Bytes::from_static(b"{}")],
+    )]);
+    let execution = h
+        .core
+        .stream_generate_content(only(h, "q1", request_id, 1), request("{}"))
+        .await
+        .unwrap();
+    read(execution.into_parts().0.body).await;
+}
+
+/// Pretend the persisted readings of `credential_id` are one heartbeat old.
+async fn age_quota_observations(h: &Harness, credential_id: &str) {
+    let key = gproxy_core::keys::credential_quota_observations(credential_id);
+    let cached = h.core.cache().get(&key).await.unwrap().unwrap();
+    let mut rows: Vec<serde_json::Value> = serde_json::from_slice(&cached.value).unwrap();
+    for row in &mut rows {
+        let at = row["observed_at_ms"].as_i64().unwrap();
+        row["observed_at_ms"] = json!(at - 15 * 60 * 1000);
+    }
+    h.core
+        .cache()
+        .put(
+            &key,
+            serde_json::to_vec(&rows).unwrap(),
+            std::time::Duration::from_secs(60),
+        )
+        .await
+        .unwrap();
+}
+
+fn now() -> i64 {
+    i64::try_from(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis(),
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+async fn unchanged_header_observations_persist_once_until_they_change_or_the_heartbeat() {
+    let h = harness(full(), "sticky").await;
+    seed_quota_provider(
+        &h,
+        json!({"quota": [{"id": "primary", "metric": "requests", "window_seconds": 18000, "tracking": "reported"}]}),
+    )
+    .await;
+    for id in ["r1", "r2", "r3"] {
+        answer_with_quota(&h, id, "primary=5;reset=9999999999000").await;
+    }
+    assert_eq!(cycle_rows(&h, "q1").await.len(), 1, "identical readings");
+
+    answer_with_quota(&h, "r4", "primary=4;reset=9999999999000").await;
+    assert_eq!(cycle_rows(&h, "q1").await.len(), 2, "remaining changed");
+
+    // Drift inside five minutes is the same period; past it, a new one.
+    answer_with_quota(&h, "r5", "primary=4;reset=9999999999060").await;
+    assert_eq!(cycle_rows(&h, "q1").await.len(), 2, "reset drift");
+    answer_with_quota(&h, "r6", "primary=4;reset=10000000600000").await;
+    let rows = cycle_rows(&h, "q1").await;
+    assert_eq!(rows.len(), 3, "reset moved");
+    assert_eq!(rows[2].resets_at_ms, Some(10_000_000_600_000));
+
+    age_quota_observations(&h, "q1").await;
+    answer_with_quota(&h, "r7", "primary=4;reset=10000000600000").await;
+    assert_eq!(cycle_rows(&h, "q1").await.len(), 4, "heartbeat");
+
+    // A cold projection writes rather than guessing.
+    h.core
+        .cache()
+        .delete(&gproxy_core::keys::credential_quota_observations("q1"))
+        .await
+        .unwrap();
+    answer_with_quota(&h, "r8", "primary=4;reset=10000000600000").await;
+    assert_eq!(cycle_rows(&h, "q1").await.len(), 5, "cache miss");
+    assert!(blocks_for(&h, "q1").await.is_empty());
+}
+
+#[tokio::test]
+async fn an_unused_window_with_a_floating_reset_persists_once() {
+    let h = harness(full(), "sticky").await;
+    seed_quota_provider(
+        &h,
+        json!({"quota": [{"id": "five_hour", "metric": "requests", "window_seconds": 18000, "tracking": "reported"}]}),
+    )
+    .await;
+    let unused = |reset: i64| QuotaSnapshot {
+        observed_at_ms: 0,
+        entries: vec![QuotaEntry {
+            id: "five_hour".into(),
+            source_id: "five_hour".into(),
+            label: None,
+            subject: QuotaSubject::Account,
+            model_scope: QuotaScope::All,
+            value: QuotaValue::Window(QuotaAllowance {
+                used_percent: Some(0.into()),
+                period_end_ms: Some(reset),
+                ..Default::default()
+            }),
+        }],
+    };
+    let window = 18_000_000;
+    let minutes = 60_000;
+    // Eight minutes apart, but each is "now plus the window" within tolerance.
+    for drift in [-4 * minutes, 4 * minutes] {
+        h.channel
+            .quota_snapshots
+            .lock()
+            .unwrap()
+            .push_back(unused(now() + window + drift));
+        h.core.query_credential_quota("q", "q1").await.unwrap();
+    }
+    assert_eq!(cycle_rows(&h, "q1").await.len(), 1);
+}
+
+#[tokio::test]
+async fn exhausted_observations_always_persist_and_block() {
+    let h = harness(full(), "sticky").await;
+    seed_quota_provider(
+        &h,
+        json!({"quota": [{"id": "primary", "metric": "requests", "window_seconds": 18000, "tracking": "reported"}]}),
+    )
+    .await;
+    for id in ["r1", "r2"] {
+        h.script(vec![(
+            StatusCode::TOO_MANY_REQUESTS,
+            vec![("x-test-quota", "primary=0;reset=9999999999000")],
+            vec![],
+        )]);
+        let _ = h
+            .core
+            .stream_generate_content(only(&h, "q1", id, 1), request("{}"))
+            .await;
+        // The block from the first answer keeps the credential out of the
+        // second request; clear it so the same reading is observed again.
+        if id == "r1" {
+            let rows = cycle_rows(&h, "q1").await;
+            let blocks = blocks_for(&h, "q1").await;
+            assert_eq!(blocks.len(), 1);
+            assert_eq!(blocks[0].source["cycle_id"], rows[0].id.as_str());
+            h.core
+                .store()
+                .credential_blocks()
+                .delete_many(&[blocks[0].id.clone()])
+                .await
+                .unwrap();
+            h.core
+                .cache()
+                .delete(&gproxy_core::keys::credential_blocks("q", "q1"))
+                .await
+                .unwrap();
+        }
+    }
+    let rows = cycle_rows(&h, "q1").await;
+    assert_eq!(rows.len(), 2, "exhaustion is always written");
+    let blocks = blocks_for(&h, "q1").await;
+    assert_eq!(blocks.len(), 1);
+    assert_eq!(blocks[0].source["kind"], "quota_exhausted");
+    assert!(
+        rows.iter()
+            .any(|row| blocks[0].source["cycle_id"] == row.id.as_str()),
+        "the block names a persisted row"
+    );
+}
