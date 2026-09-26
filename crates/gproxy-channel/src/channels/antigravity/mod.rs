@@ -353,6 +353,7 @@ impl Antigravity {
                     && let Some(request) = envelope.get_mut("request")
                 {
                     claude::declare_tools(request);
+                    claude::apply_limits(request, parsed.as_ref().and_then(claude::output_limit));
                 }
                 (
                     code_assist::encode(&envelope, ChannelError::InvalidConfig)?,
