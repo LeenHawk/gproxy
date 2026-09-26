@@ -29,6 +29,9 @@ use gproxy_protocol::{HttpBody, WireResponse};
 use http::{HeaderMap, Method, StatusCode};
 use serde_json::{Map, Value, json};
 
+/// Bodies these channels read themselves (login, refresh, quota, catalogs).
+const MAX_SERVICE_BODY: usize = 8 * 1024 * 1024;
+
 pub(crate) fn invalid_request(message: impl Into<String>) -> ChannelError {
     ChannelError::InvalidConfig(message.into())
 }
@@ -274,6 +277,9 @@ pub(crate) async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
             while let Some(chunk) = stream.next().await {
                 let chunk = chunk.map_err(|error| invalid_response(error.to_string()))?;
                 out.extend_from_slice(&chunk);
+                if out.len() > MAX_SERVICE_BODY {
+                    return Err(invalid_response("response exceeds the read limit"));
+                }
             }
             Ok(Bytes::from(out))
         }

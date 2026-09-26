@@ -15,6 +15,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use url::Url;
 
+const MAX_CATALOG_BYTES: usize = 16 * 1024 * 1024;
 
 pub(super) fn prepare(ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
     let config = CodexConfig::from_view(ctx.provider)?;
@@ -196,10 +197,16 @@ async fn read(body: HttpBody) -> Result<Bytes, ChannelError> {
                         ),
                     )
                 })?;
+                if data.len().saturating_add(chunk.len()) > MAX_CATALOG_BYTES {
+                    return Err(invalid_response("model catalog exceeds read limit"));
+                }
                 data.extend_from_slice(&chunk);
             }
             Bytes::from(data)
         }
     };
+    if bytes.len() > MAX_CATALOG_BYTES {
+        return Err(invalid_response("model catalog exceeds read limit"));
+    }
     Ok(bytes)
 }

@@ -10,7 +10,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::collections::HashSet;
 
-use super::{ClaudeWeb, ClaudeWebConfig, auth, prepare, read_body};
+use super::{ClaudeWeb, ClaudeWebConfig, MAX_SERVICE_BODY, auth, prepare, read_body};
 use crate::channel::{
     ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
     QuotaDimension, QuotaEntry, QuotaMetric, QuotaModel, QuotaQuery, QuotaResetBehavior,
@@ -83,7 +83,7 @@ impl QuotaQuery for ClaudeWeb {
             let request =
                 prepare::session_get(&url, &auth.cookie, auth.device_id.as_deref(), &base)?;
             let response = context.client.send(request).await?;
-            let body = read_body(response.body).await?;
+            let body = read_body(response.body, MAX_SERVICE_BODY).await?;
             if !response.status.is_success() {
                 return Err(ChannelError::UpstreamResponse {
                     status: response.status,

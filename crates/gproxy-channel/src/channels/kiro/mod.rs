@@ -80,6 +80,8 @@ const UA_RUNTIME: &str = "aws-sdk-rust/1.3.15 ua/2.1 api/codewhispererstreaming/
 const UA_MANAGEMENT: &str = "aws-sdk-rust/1.3.15 ua/2.1 api/codewhispererruntime/0.1.16551 os/linux lang/rust/1.92.0 md/appVersion-2.6.1 app/AmazonQ-For-CLI";
 const TARGET_GENERATE: &str = "AmazonCodeWhispererStreamingService.GenerateAssistantResponse";
 const TARGET_LIST_MODELS: &str = "AmazonCodeWhispererService.ListAvailableModels";
+/// Login, refresh, quota and the catalogue all answer small documents.
+const MAX_ABILITY_BODY: usize = 1024 * 1024;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Kiro;
@@ -285,6 +287,11 @@ pub(super) async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
                 let chunk =
                     chunk.map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
                 out.extend_from_slice(&chunk);
+                if out.len() > MAX_ABILITY_BODY {
+                    return Err(ChannelError::InvalidResponse(
+                        "the reply exceeds the read limit".into(),
+                    ));
+                }
             }
             Ok(Bytes::from(out))
         }

@@ -52,8 +52,8 @@ async fn parse_multipart(body: Bytes, boundary: String) -> Result<EditImageJsonB
         HttpBody::Bytes(body),
         boundary,
         CodecLimits {
-            max_buffer_bytes: u64::MAX,
-            max_line_bytes: u64::MAX,
+            max_buffer_bytes: 64 * 1024,
+            max_line_bytes: 64 * 1024,
             max_body_bytes: size,
             max_part_bytes: size,
             max_parts: usize::MAX,

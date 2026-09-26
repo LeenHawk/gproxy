@@ -30,10 +30,10 @@ use crate::channels::shared::compatible::usage as compatible;
 /// Bounds for watching the translated stream; the host enforces the real
 /// transfer limits, these only keep the observer's buffers finite.
 const SSE_LIMITS: CodecLimits = CodecLimits {
-    max_buffer_bytes: u64::MAX,
-    max_value_bytes: u64::MAX,
+    max_buffer_bytes: 4 * 1024 * 1024,
+    max_value_bytes: 4 * 1024 * 1024,
     max_body_bytes: u64::MAX,
-    max_line_bytes: u64::MAX,
+    max_line_bytes: 4 * 1024 * 1024,
     max_part_bytes: 0,
     max_parts: 0,
 };
