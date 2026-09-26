@@ -24,17 +24,15 @@
 //! | `price_rules.tiers` | `price_tiers` | the JSON array becomes rows, field for field |
 //! | `price_rates` | `price_rates` | direct; `unit_size` is `unit_quantity`, and the unit is read off the metric name |
 //! | `quotas` | `quotas` | one v3 row is up to six v4 rows, one per period column |
+//! | `aliases` | `provider_models` variants, `routes` | provider aliases are variants, global ones routes |
 //! | `rule_sets`, `provider_rule_sets` | `rewrite_rule_sets`, `provider_rewrite_rule_sets` | direct |
 //! | `rules` | `rewrite_rules` | every kind; content rules once per dialect; see [`super::rules`] |
 //!
 //! # What does not map, and why
 //!
-//! - **`aliases`.** v3 could say "when a request names `gpt4`, send
-//!   `gpt-4-turbo`", globally or for one provider. v4 has no such table: a
-//!   public name is the route name, and the
-//!   upstream name is the route member's. There is no faithful automatic
-//!   rewrite, because a model route needs explicit provider/model members,
-//!   and which providers should serve it is a decision v3 never recorded.
+//! - **A global alias to a bare model name.** It names no route and no
+//!   provider, and v4 needs one; the rest of `aliases` travels as variants
+//!   and routes, see [`super::aliases`].
 //! - **`routing_rules`.** They look like v4's `operation_rules` and are not.
 //!   v3 **seeded** them from the channel's own defaults whenever a provider was
 //!   created (`v3:crates/gproxy-admin/src/defaults.rs`), so the table is mostly
@@ -63,7 +61,7 @@ use gproxy_sdk::dto::{
 use serde_json::Value;
 
 use super::{
-    Report, channels,
+    Report, aliases, channels,
     document::{self, Document},
     endpoints, fingerprint, ids, provider_config, rules,
     secret::{Bridge, Domain},
@@ -117,7 +115,7 @@ pub fn translate(
     report.count("rewrite_rules", rewrite_rules.len() as u64);
     report.count("rewrite_rule_sets", rule_sets.len() as u64);
 
-    let provider_models: Vec<ProviderModelDto> = data
+    let mut provider_models: Vec<ProviderModelDto> = data
         .provider_models
         .iter()
         .filter(|row| {
@@ -133,7 +131,6 @@ pub fn translate(
         })
         .map(provider_model)
         .collect();
-    report.count("provider_models", provider_models.len() as u64);
 
     let routes: Vec<RouteDto> = data.routes.iter().map(route).collect();
     let route_members: Vec<RouteMemberDto> = data
@@ -152,7 +149,17 @@ pub fn translate(
         })
         .map(route_member)
         .collect();
-    let (routes, route_members) = public_routes(routes, route_members, &data.model_aliases)?;
+    let (mut routes, mut route_members) =
+        public_routes(routes, route_members, &data.model_aliases)?;
+    aliases::translate(
+        data,
+        &|id| providers.kept(id),
+        &mut provider_models,
+        &mut routes,
+        &mut route_members,
+        &mut report,
+    );
+    report.count("provider_models", provider_models.len() as u64);
     report.count("routes", routes.len() as u64);
     report.count("route_members", route_members.len() as u64);
 
@@ -1033,14 +1040,6 @@ fn provider_rule_set(row: &document::ProviderRuleSet, timestamp: i64) -> Provide
 /// The v3 tables with no v4 form at all, named row by row. See the module note
 /// for why each one is here rather than translated.
 fn refuse_unmappable(data: &document::Data, report: &mut Report) {
-    for row in &data.aliases {
-        report.drop_row(
-            "aliases",
-            format!("alias {} ({} -> {})", row.id, row.alias, row.target),
-            "v4 has no alias table: a public model name is a route, and which \
-             providers should serve it is not recorded in a v3 alias",
-        );
-    }
     // Reported once rather than once per row: a provider has one of these per
     // operation and dialect, and a hundred identical lines would bury the rest.
     if !data.routing_rules.is_empty() {
@@ -1248,7 +1247,12 @@ mod tests {
             Some(data.connection_profiles[0].id.as_str())
         );
         assert_eq!(data.providers[1].connection_profile_id, None);
-        assert!(out.report.dropped.iter().any(|d| d.table == "tls_fingerprints"));
+        assert!(
+            out.report
+                .dropped
+                .iter()
+                .any(|d| d.table == "tls_fingerprints")
+        );
     }
 
     #[test]
