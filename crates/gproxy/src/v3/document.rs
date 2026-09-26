@@ -527,6 +527,13 @@ pub struct ProviderModel {
     pub context_window: Option<i64>,
     #[serde(default)]
     pub max_output_tokens: Option<i64>,
+    /// Beside `metadata` in v3's export, not inside it.
+    #[serde(default)]
+    pub thinking_supported: Option<bool>,
+    #[serde(default)]
+    pub thinking_adaptive_supported: Option<bool>,
+    #[serde(default)]
+    pub thinking_enabled_supported: Option<bool>,
     #[serde(default)]
     pub metadata: Value,
     /// Variant names served off this model: a bare array, or

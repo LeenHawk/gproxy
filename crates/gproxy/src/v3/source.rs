@@ -166,7 +166,11 @@ async fn data(connection: &DatabaseConnection) -> Result<document::Data> {
         // so the direct route has them without any splicing.
         permissions: rows(connection, &tables, "permissions", permission).await?,
         rate_limits: rows(connection, &tables, "rate_limits", rate_limit).await?,
-        provider_models: rows(connection, &tables, "provider_models", provider_model).await?,
+        provider_models: {
+            let mut models = rows(connection, &tables, "provider_models", provider_model).await?;
+            capabilities(connection, &tables, &mut models).await?;
+            models
+        },
         settings: settings(connection).await?,
     })
 }
@@ -636,16 +640,188 @@ fn provider_model(row: &QueryResult) -> Result<document::ProviderModel> {
         provider_id: integer(row, "provider_id")?,
         model_id: text(row, "model_id")?,
         display_name: optional_text(row, "display_name"),
-        // v3 spread a model's capabilities over forty columns and five side
-        // tables. Only the two v4's metadata has a home for are read; the rest
-        // is reported as not migrated.
-        context_window: optional_integer(row, "context_window")
-            .or_else(|| optional_integer(row, "max_context_window")),
+        context_window: optional_integer(row, "context_window"),
         max_output_tokens: optional_integer(row, "max_output_tokens"),
-        metadata: Value::Null,
+        thinking_supported: optional_flag(row, "thinking_supported"),
+        thinking_adaptive_supported: optional_flag(row, "thinking_adaptive_supported"),
+        thinking_enabled_supported: optional_flag(row, "thinking_enabled_supported"),
+        metadata: model_metadata(row),
         variants: json(row, "variants_json"),
         enabled: flag(row, "enabled", true),
     })
+}
+
+/// A nullable boolean column: v3 left a capability NULL when it was unknown.
+fn optional_flag(row: &QueryResult, column: &str) -> Option<bool> {
+    optional_integer(row, column).map(|value| value != 0)
+}
+
+/// v3 spread a model's capabilities over forty columns; its export folded
+/// them into one `metadata` object, and this builds the same object from the
+/// columns, under the export's names, so both routes produce one shape.
+fn model_metadata(row: &QueryResult) -> Value {
+    let mut out = serde_json::Map::new();
+    for key in [
+        "description",
+        "instructions",
+        "default_reasoning_level",
+        "default_service_tier",
+        "shell_type",
+        "default_verbosity",
+        "default_reasoning_summary",
+        "apply_patch_tool_type",
+        "web_search_tool_type",
+        "truncation_mode",
+    ] {
+        if let Some(value) = optional_text(row, key).filter(|value| !value.is_empty()) {
+            out.insert(key.into(), Value::from(value));
+        }
+    }
+    for key in [
+        "max_context_window",
+        "truncation_limit",
+        "auto_compact_token_limit",
+        "effective_context_window_percent",
+    ] {
+        if let Some(value) = optional_integer(row, key) {
+            out.insert(key.into(), Value::from(value));
+        }
+    }
+    for (column, key) in [
+        ("support_verbosity", "support_verbosity"),
+        (
+            "reasoning_summary_supported",
+            "supports_reasoning_summary_parameter",
+        ),
+        ("batch_supported", "batch_supported"),
+        ("citations_supported", "citations_supported"),
+        ("code_execution_supported", "code_execution_supported"),
+        (
+            "context_management_supported",
+            "context_management_supported",
+        ),
+        (
+            "structured_outputs_supported",
+            "structured_outputs_supported",
+        ),
+        ("pdf_input_supported", "pdf_input_supported"),
+        (
+            "image_detail_original_supported",
+            "supports_image_detail_original",
+        ),
+        ("search_supported", "supports_search_tool"),
+    ] {
+        if let Some(value) = optional_flag(row, column) {
+            out.insert(key.into(), Value::Bool(value));
+        }
+    }
+    // Which side-table lists v3 knew, so an empty one reads as "none" rather
+    // than "unknown"; `capabilities` fills them in.
+    for (column, key) in [
+        ("input_modalities_known", "input_modalities"),
+        ("output_modalities_known", "output_modalities"),
+        ("parameters_known", "supported_parameters"),
+        ("reasoning_levels_known", "reasoning_levels"),
+        ("service_tiers_known", "service_tiers"),
+        ("generation_methods_known", "generation_methods"),
+        ("supported_actions_known", "supported_actions"),
+    ] {
+        if optional_flag(row, column) == Some(true) {
+            out.insert(key.into(), Value::Array(Vec::new()));
+        }
+    }
+    Value::Object(out)
+}
+
+/// v3's five per-model side tables, keyed by `(provider_id, model_id)`, as
+/// the lists the export put in `metadata`.
+async fn capabilities(
+    connection: &DatabaseConnection,
+    tables: &[String],
+    models: &mut [document::ProviderModel],
+) -> Result<()> {
+    type Entry = (
+        &'static str,
+        fn(&QueryResult) -> Option<(&'static str, Value)>,
+    );
+    const SIDES: [Entry; 5] = [
+        ("provider_model_modalities", |row| {
+            let key = match optional_text(row, "direction")?.as_str() {
+                "input" => "input_modalities",
+                "output" => "output_modalities",
+                _ => return None,
+            };
+            Some((key, Value::from(optional_text(row, "modality")?)))
+        }),
+        ("provider_model_parameters", |row| {
+            Some((
+                "supported_parameters",
+                Value::from(optional_text(row, "parameter")?),
+            ))
+        }),
+        ("provider_model_reasoning_levels", |row| {
+            Some((
+                "reasoning_levels",
+                serde_json::json!({
+                    "effort": optional_text(row, "effort")?,
+                    "description": optional_text(row, "description").unwrap_or_default(),
+                }),
+            ))
+        }),
+        ("provider_model_service_tiers", |row| {
+            Some((
+                "service_tiers",
+                serde_json::json!({
+                    "id": optional_text(row, "tier_id")?,
+                    "name": optional_text(row, "name").unwrap_or_default(),
+                    "description": optional_text(row, "description").unwrap_or_default(),
+                }),
+            ))
+        }),
+        ("provider_model_methods", |row| {
+            let key = match optional_text(row, "kind")?.as_str() {
+                "generation" => "generation_methods",
+                "action" => "supported_actions",
+                _ => return None,
+            };
+            Some((key, Value::from(optional_text(row, "method")?)))
+        }),
+    ];
+    for (table, convert) in SIDES {
+        if !tables.iter().any(|name| name == table) {
+            continue;
+        }
+        let statement = Statement::from_string(
+            connection.get_database_backend(),
+            format!("SELECT * FROM {table} ORDER BY provider_id, model_id, sort_order"),
+        );
+        for row in connection.query_all_raw(statement).await? {
+            let (Some(provider_id), Some(model_id)) = (
+                optional_integer(&row, "provider_id"),
+                optional_text(&row, "model_id"),
+            ) else {
+                continue;
+            };
+            let Some((key, value)) = convert(&row) else {
+                continue;
+            };
+            let Some(model) = models
+                .iter_mut()
+                .find(|model| model.provider_id == provider_id && model.model_id == model_id)
+            else {
+                continue;
+            };
+            if let Some(list) = model
+                .metadata
+                .as_object_mut()
+                .map(|map| map.entry(key).or_insert_with(|| Value::Array(Vec::new())))
+                .and_then(Value::as_array_mut)
+            {
+                list.push(value);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// v3's key/value settings table. The export omits it entirely, so this is the
@@ -765,6 +941,51 @@ mod tests {
         assert_eq!(marker, source_marker(file.path()).unwrap());
         let other = tempfile::NamedTempFile::new().unwrap();
         assert_ne!(marker, source_marker(other.path()).unwrap());
+    }
+
+    /// The capability columns and side tables become the metadata object v3's
+    /// export would have carried.
+    #[tokio::test]
+    async fn a_models_capability_columns_and_side_tables_become_its_metadata() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let url = format!("sqlite://{}?mode=rwc", file.path().to_string_lossy());
+        let connection = Database::connect(&url).await.unwrap();
+        for sql in [
+            "CREATE TABLE settings (key TEXT, value_json TEXT)",
+            "CREATE TABLE provider_models (id INTEGER, provider_id INTEGER, model_id TEXT, \
+             context_window INTEGER, max_context_window INTEGER, thinking_supported INTEGER, \
+             batch_supported INTEGER, description TEXT, search_supported INTEGER, \
+             input_modalities_known INTEGER, parameters_known INTEGER, enabled INTEGER)",
+            "INSERT INTO provider_models VALUES (1, 7, 'm', 200000, 1000000, 1, 0, 'desc', NULL, 1, 1, 1)",
+            "CREATE TABLE provider_model_modalities (provider_id INTEGER, model_id TEXT, \
+             direction TEXT, modality TEXT, sort_order INTEGER)",
+            "INSERT INTO provider_model_modalities VALUES (7, 'm', 'input', 'image', 1), \
+             (7, 'm', 'input', 'text', 0), (7, 'other', 'input', 'audio', 0)",
+            "CREATE TABLE provider_model_reasoning_levels (provider_id INTEGER, model_id TEXT, \
+             effort TEXT, description TEXT, sort_order INTEGER)",
+            "INSERT INTO provider_model_reasoning_levels VALUES (7, 'm', 'high', 'deep', 0)",
+        ] {
+            connection
+                .execute_unprepared(sql)
+                .await
+                .unwrap_or_else(|error| panic!("{sql}: {error}"));
+        }
+        let models = data(&connection).await.unwrap().provider_models;
+        let model = &models[0];
+        assert_eq!(model.context_window, Some(200000));
+        assert_eq!(model.thinking_supported, Some(true));
+        assert_eq!(
+            model.metadata,
+            serde_json::json!({
+                "description": "desc",
+                "max_context_window": 1000000,
+                "batch_supported": false,
+                "input_modalities": ["text", "image"],
+                // Known and empty: "none", not "unknown".
+                "supported_parameters": [],
+                "reasoning_levels": [{"effort": "high", "description": "deep"}],
+            })
+        );
     }
 
     #[tokio::test]
