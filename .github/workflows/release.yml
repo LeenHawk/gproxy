@@ -412,9 +412,6 @@ jobs:
           node-version: 'lts/*'
           cache: pnpm
           cache-dependency-path: console/pnpm-lock.yaml
-      - uses: denoland/setup-deno@v2
-        with:
-          deno-version: v2.x
       - name: Install matching wasm-bindgen CLI
         run: |
           version="$(awk '/^name = "wasm-bindgen"$/{getline; gsub(/"/, "", $3); print $3; exit}' Cargo.lock)"
@@ -428,13 +425,6 @@ jobs:
           TARGET_TRIPLE: wasm32-unknown-unknown
           BUILDER: wasm-bindgen
         run: scripts/build-provenance.sh
-      - name: Check platform entries
-        run: |
-          pnpm --dir deploy/cloudflare install --no-frozen-lockfile
-          pnpm --dir deploy/cloudflare check
-          pnpm --dir deploy/netlify install --no-frozen-lockfile
-          pnpm --dir deploy/netlify check
-          deno check deploy/deno/main.ts
       - name: Attest release packages
         uses: ./.github/actions/attest-release
         with:
@@ -454,10 +444,49 @@ jobs:
             dist/release/gproxy-edge-netlify.zip.sha256
           retention-days: 1
 
+  edge-check:
+    name: Edge platform entries
+    needs: edge
+    runs-on: ubuntu-latest
+    # Type-checking the entries installs the deploy manifests' npm tooling,
+    # which has no lockfile. It runs here rather than in `edge`, apart from the
+    # attestation token and from the files being attested, so nothing that
+    # install pulls in can alter a bundle or sign for one. It checks the
+    # bundles exactly as they were packaged.
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: edge-bundles
+          path: dist/release
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: console/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 'lts/*'
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Check platform entries
+        run: |
+          work="$RUNNER_TEMP/edge"
+          mkdir -p "$work"
+          for platform in cloudflare deno netlify; do
+            unzip -q "dist/release/gproxy-edge-$platform.zip" -d "$work"
+          done
+          pnpm --dir "$work/cloudflare" install --no-frozen-lockfile --ignore-scripts
+          pnpm --dir "$work/cloudflare" check
+          pnpm --dir "$work/netlify" install --no-frozen-lockfile --ignore-scripts
+          pnpm --dir "$work/netlify" check
+          deno check "$work/deno/main.ts"
+
   publish:
     if: ${{ always() && !failure() && !cancelled() }}
     name: Publish release
-    needs: [prepare, manifest, edge, container-manifest, publish-crates]
+    needs: [prepare, manifest, edge, edge-check, container-manifest, publish-crates]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
