@@ -385,10 +385,16 @@ fn codex_describes_both_oauth_flows_and_its_websocket() {
         ChannelCapabilities {
             refresh: true,
             quota_query: true,
-            quota_reset: false,
+            // Reset credits are queried and redeemed (`codex/quota.rs`).
+            quota_reset: true,
             services: true,
             websocket: true,
         }
+    );
+    assert!(
+        gproxy_channel::channels::codex::Codex
+            .quota_reset()
+            .is_some()
     );
     assert!(!descriptor.config_key("base_url").unwrap().required);
     assert_eq!(

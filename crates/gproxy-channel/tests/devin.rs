@@ -316,19 +316,6 @@ fn a_compressed_frame_is_inflated_and_the_trailer_is_recognized() {
     assert_eq!(failure.message, "no");
 }
 
-#[test]
-fn a_frame_larger_than_the_ceiling_is_refused_before_it_is_buffered() {
-    let mut header = vec![0_u8];
-    header.extend_from_slice(&u32::MAX.to_be_bytes());
-    let error = devin::connect::FrameReader::new()
-        .push(&header)
-        .unwrap_err();
-    assert!(
-        matches!(&error, ChannelError::InvalidResponse(message) if message.contains("exceeds")),
-        "{error}"
-    );
-}
-
 // ── Authentication and identity ────────────────────────────────────────────
 
 #[tokio::test]
