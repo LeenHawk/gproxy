@@ -293,6 +293,17 @@ where
         {
             headers.insert(header::CONTENT_DISPOSITION, value);
         }
+        // The type came from an upstream and the body is served inline on the
+        // console's origin. Taken at its word — no sniffing — and sandboxed,
+        // so an HTML or SVG "image" runs no script with the console's origin.
+        headers.insert(
+            header::X_CONTENT_TYPE_OPTIONS,
+            HeaderValue::from_static("nosniff"),
+        );
+        headers.insert(
+            header::CONTENT_SECURITY_POLICY,
+            HeaderValue::from_static("sandbox; default-src 'none'; style-src 'unsafe-inline'"),
+        );
         response::passthrough(StatusCode::OK, headers, publication.body)
     })
     .await
