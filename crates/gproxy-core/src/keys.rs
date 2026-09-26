@@ -59,3 +59,9 @@ pub fn realtime_response(
 pub fn credential_reset_observations(credential_id: &str) -> String {
     format!("{PREFIX}:reset-observations:{credential_id}")
 }
+
+/// Latest persisted quota observation per entry id, compared against new
+/// observations so unchanged readings skip the observation log.
+pub fn credential_quota_observations(credential_id: &str) -> String {
+    format!("{PREFIX}:quota-observations:{credential_id}")
+}
