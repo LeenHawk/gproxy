@@ -248,7 +248,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> CallBuilder<'_, C> {
                     .as_deref()
                     .is_some_and(|q| q.split('&').any(|p| p == "alt=sse")))
             && prepared.plan.targets.iter().any(|target| {
-                matches!(gproxy_core::convert::route(&target.provider, operation),
+                matches!(gproxy_core::convert::route_for_model(&target.provider, operation, target.upstream_model.as_deref()),
                     Ok(gproxy_core::convert::Route::TransformTo { target })
                         if target.operation == gproxy_protocol::Operation::GenerateContent)
             });

@@ -72,7 +72,7 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
     let operation = request.operation;
     let upstream_model = request.target.upstream_model.clone();
 
-    match convert::route(&provider, operation) {
+    match convert::route_for_model(&provider, operation, upstream_model.as_deref()) {
         Ok(Route::Passthrough) => {}
         Ok(Route::Local | Route::Unsupported) => {
             return Err(CoreError::Transform(TransformError::unsupported(

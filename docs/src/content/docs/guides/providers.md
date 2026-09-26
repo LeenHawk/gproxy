@@ -24,7 +24,7 @@ provider form should render.
 | --- | --- | --- |
 | `aistudio` | Google AI Studio: the native Gemini methods and the `/v1beta/openai` compatibility layer off one origin | `{"api_key"}` |
 | `antigravity` | A Google account through the Code Assist host the Antigravity editor talks to | OAuth |
-| `aws_bedrock` | AWS Bedrock: SigV4-signed `InvokeModel` for the Anthropic families, event-stream replies translated to Claude SSE | AWS key pair, or a Bedrock API key |
+| `aws_bedrock` | AWS Bedrock: the wire follows the model — `InvokeModel` for Anthropic models (event-stream translated to Claude SSE), the OpenAI-compatible Chat Completions for GPT, Grok, Qwen, DeepSeek and the rest | AWS key pair, or a Bedrock API key |
 | `azure` | Azure OpenAI, and the Anthropic models Azure AI Foundry hosts | `{"api_key"}` |
 | `claudeapi` | Anthropic's own API, plus its OpenAI compatibility layer and the cost report | `{"api_key", "quota_api_key"}` |
 | `claudecode` | A Claude.ai subscription through the Claude Code CLI's requests | OAuth |

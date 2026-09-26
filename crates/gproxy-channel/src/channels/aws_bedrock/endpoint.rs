@@ -142,6 +142,26 @@ pub(super) fn model_from_body(body: &[u8]) -> Result<String, ChannelError> {
         })
 }
 
+/// The path of Bedrock's OpenAI-compatible Chat Completions on the runtime
+/// plane. The model stays in the body, as OpenAI's wire has it.
+pub(super) const CHAT_COMPLETIONS_PATH: &str = "/openai/v1/chat/completions";
+
+/// Whether `model` is served on InvokeModel with Anthropic's Messages body
+/// rather than on the OpenAI-compatible Chat Completions.
+///
+/// Anthropic models do not take Chat Completions on Bedrock, and GPT-5.x or
+/// Grok take nothing else, so the wire follows the model. Anthropic ids
+/// (`anthropic.…`), their cross-region profiles (`us.anthropic.…`) and ARNs
+/// ending in either are Messages. An application inference profile's ARN
+/// names no family; it stays on Messages, the only wire this channel had
+/// before it could tell.
+pub(super) fn serves_messages(model: &str) -> bool {
+    let model = model.trim();
+    let tail = model.rsplit('/').next().unwrap_or(model);
+    tail.contains("anthropic.")
+        || (model.starts_with("arn:") && model.contains(":application-inference-profile/"))
+}
+
 /// The model id from a `/v1/models/{id}` style path.
 pub(super) fn model_from_path(path: &str) -> Result<String, ChannelError> {
     let segment = path.trim_end_matches('/').rsplit('/').next().unwrap_or("");

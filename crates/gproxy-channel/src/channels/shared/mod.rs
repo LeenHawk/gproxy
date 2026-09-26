@@ -41,6 +41,7 @@ pub(crate) mod code_assist;
 /// `Enrich` hook it passes in. Shared by `cline`, `copilotcli`, `dashscope`,
 /// `deepseek`, `grokbuild`, `kimi`, `opencode`, `openrouter` and `xai`.
 #[cfg(any(
+    feature = "aws_bedrock",
     feature = "cloudflare_ai_gateway",
     feature = "nvidia",
     feature = "cline",

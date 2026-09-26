@@ -42,6 +42,10 @@ pub(super) struct Target<'a> {
     pub url: String,
     pub client_headers: &'a HeaderMap,
     pub body: Bytes,
+    /// What the reply is asked to be: JSON, or SSE for a streamed Chat
+    /// Completions call. InvokeModel's event-stream framing is chosen by the
+    /// path, not by this.
+    pub accept: &'static str,
 }
 
 /// The Bedrock credential: either an access key pair (optionally temporary)
@@ -99,7 +103,7 @@ pub(super) fn build(
         header::CONTENT_TYPE,
         HeaderValue::from_static("application/json"),
     );
-    headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
+    headers.insert(header::ACCEPT, HeaderValue::from_static(target.accept));
     let method = endpoint::method_for(target.plane);
     match Auth::from_credential(credential)? {
         Auth::Bearer(key) => {
@@ -145,6 +149,26 @@ impl Signed {
 }
 
 /// The Claude Messages body rewritten into Bedrock's InvokeModel envelope.
+/// A Chat Completions body as Bedrock's OpenAI-compatible surface takes it:
+/// the client's own, with the streamed usage chunk requested, since without
+/// `stream_options.include_usage` a streamed reply carries no usage.
+pub(super) fn chat_body(body: Bytes, streaming: bool) -> Bytes {
+    if !streaming {
+        return body;
+    }
+    let Ok(Value::Object(mut object)) = serde_json::from_slice::<Value>(&body) else {
+        return body;
+    };
+    let options = object
+        .entry("stream_options")
+        .or_insert_with(|| Value::Object(Default::default()));
+    let Some(options) = options.as_object_mut() else {
+        return body;
+    };
+    options.insert("include_usage".into(), Value::Bool(true));
+    Bytes::from(Value::Object(object).to_string())
+}
+
 pub(super) fn invoke_body(
     body: &[u8],
     config: &BedrockConfig,

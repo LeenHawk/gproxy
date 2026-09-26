@@ -18,25 +18,27 @@
 //!
 //! # Dialects per model family
 //!
-//! Bedrock has no single request shape. `InvokeModel` passes the body through
-//! to the model family verbatim, so what the upstream accepts depends on the
-//! model:
+//! Bedrock has no single request shape; the wire follows the model
+//! (`native_dialects_for_model`, `endpoint::serves_messages`):
 //!
-//! - **Anthropic models** (`anthropic.*`, and the `us.`/`eu.`/`apac.`
-//!   inference profiles over them) take Claude Messages inside a Bedrock
-//!   envelope: `model` and `stream` move out of the body into the URL and
-//!   `anthropic_version` names Bedrock's own version, `bedrock-2023-05-31`.
-//!   That is the only generation shape this channel declares native, so
-//!   `native_dialects` answers `[Dialect::Claude]` for the two generation
-//!   operations and the host converts anything else into Messages first.
-//! - **Every other family** (Amazon Nova, Meta Llama, Mistral, Cohere, AI21)
-//!   has its own InvokeModel body, and the uniform way to reach them is the
-//!   `Converse` API, whose shape is neither Messages nor OpenAI. v3 carried a
-//!   Claude Messages to Converse translation; v4's `Dialect` has no Converse
-//!   variant and `gproxy-protocol` has no Converse wire types, so that
-//!   translation is deliberately not ported here — it is protocol work, not
-//!   channel work. Until it lands, a Bedrock provider serves Anthropic
-//!   models.
+//! - **Anthropic models** (`anthropic.*`, the `us.`/`eu.`/`apac.`/`global.`
+//!   inference profiles over them, and ARNs naming either) take Claude
+//!   Messages on `InvokeModel` inside a Bedrock envelope: `model` and
+//!   `stream` move out of the body into the URL and `anthropic_version`
+//!   names Bedrock's own version, `bedrock-2023-05-31`. They do not take
+//!   Chat Completions on Bedrock, so an OpenAI client's request to one is
+//!   converted to Messages first.
+//! - **Everything else** is sent to Bedrock's OpenAI-compatible Chat
+//!   Completions on the runtime plane (`/openai/v1/chat/completions`), with
+//!   the model in the body and SSE for a streamed reply. That is the only
+//!   wire GPT-5.x and Grok 4.3 have on Bedrock, and the one Qwen, DeepSeek,
+//!   GLM, Kimi, MiniMax and recent Mistral models share.
+//! - An application inference profile's ARN names no family and stays on
+//!   Messages, the wire this channel served before it could tell.
+//! - Families with neither Messages nor Chat Completions (Llama, Nova,
+//!   Jamba, Command, older Mistral) need the `Converse` API, whose shape is
+//!   neither; v4's `Dialect` has no Converse variant, so those models are not
+//!   served yet.
 //!
 //! Model discovery is the control plane's `/foundation-models`, rewritten
 //! into an OpenAI list (`models`), so `native_dialects` answers
@@ -90,6 +92,7 @@ use crate::channel::{
     CredentialView, HOST_CONFIG_KEYS, LoginMode, OperationContext, OperationFuture, PrepareContext,
     ProviderView, UsageExtractor, UsageStream,
 };
+use crate::channels::shared::cache;
 use endpoint::Plane;
 
 pub const ID: &str = "aws_bedrock";
@@ -118,6 +121,15 @@ impl AwsBedrock {
     /// clock is read once, by the caller, and signing stays replayable.
     fn signed(&self, inputs: Inputs<'_>, now_secs: u64) -> Result<request::Signed, ChannelError> {
         let config = BedrockConfig::from_view(inputs.provider)?;
+        let accept = if inputs.operation
+            == (OperationKey {
+                operation: Operation::StreamGenerateContent,
+                dialect: Dialect::OpenAiChat,
+            }) {
+            "text/event-stream"
+        } else {
+            "application/json"
+        };
         let (plane, url, body) = match (inputs.operation.operation, inputs.operation.dialect) {
             (Operation::GenerateContent | Operation::StreamGenerateContent, Dialect::Claude) => {
                 let model = endpoint::model_from_body(&inputs.body)?;
@@ -131,8 +143,33 @@ impl AwsBedrock {
                     Some(&model),
                     inputs.endpoint_override,
                 )?;
-                let body = request::invoke_body(&inputs.body, &config, inputs.headers)?;
+                let body = cache::shape(
+                    inputs.body,
+                    cache::rules_for(Dialect::Claude, config.enable_claude_magic_cache, false),
+                );
+                let body = request::invoke_body(&body, &config, inputs.headers)?;
                 (Plane::Runtime, url, body)
+            }
+            (
+                Operation::GenerateContent | Operation::StreamGenerateContent,
+                Dialect::OpenAiChat,
+            ) => {
+                let model = endpoint::model_from_body(&inputs.body)?;
+                let url = endpoint::url(
+                    inputs.provider,
+                    &config,
+                    Plane::Runtime,
+                    endpoint::CHAT_COMPLETIONS_PATH,
+                    None,
+                    Some(&model),
+                    inputs.endpoint_override,
+                )?;
+                let body = cache::shape(
+                    inputs.body,
+                    cache::rules_for(Dialect::OpenAiChat, false, config.enable_openai_magic_cache),
+                );
+                let streaming = inputs.operation.operation == Operation::StreamGenerateContent;
+                (Plane::Runtime, url, request::chat_body(body, streaming))
             }
             (Operation::ListModels, Dialect::OpenAi) => {
                 let url = endpoint::url(
@@ -170,6 +207,7 @@ impl AwsBedrock {
                 url,
                 client_headers: inputs.headers,
                 body,
+                accept,
             },
             now_secs,
         )
@@ -246,7 +284,12 @@ impl BaseChannel for AwsBedrock {
                 ConfigKey::optional(
                     "enable_claude_magic_cache",
                     ConfigKeyKind::Bool,
-                    "Turn a client's magic cache string in the Claude body into cache_control. The strings are stripped either way.",
+                    "Turn a client's magic cache string in an Anthropic model's body into cache_control. The strings are stripped either way.",
+                ),
+                ConfigKey::optional(
+                    "enable_openai_magic_cache",
+                    ConfigKeyKind::Bool,
+                    "Turn a client's magic cache string in a Chat Completions body (non-Anthropic models) into prompt_cache_breakpoint.",
                 ),
             ]
             .into_iter()
@@ -271,21 +314,30 @@ impl BaseChannel for AwsBedrock {
         }
     }
 
+    /// Generation takes the wire its model is served on: Messages for
+    /// Anthropic models, Chat Completions for the rest (`serves_messages`).
+    fn native_dialects_for_model(
+        &self,
+        provider: ProviderView<'_>,
+        operation: Operation,
+        model: Option<&str>,
+    ) -> Vec<Dialect> {
+        match (operation, model) {
+            (Operation::GenerateContent | Operation::StreamGenerateContent, Some(model))
+                if !endpoint::serves_messages(model) =>
+            {
+                vec![Dialect::OpenAiChat]
+            }
+            _ => self.native_dialects(provider, operation),
+        }
+    }
+
     fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
         // SigV4 hashes the payload, so the body has to be complete. The host
         // buffers generation bodies; a streamed one cannot be signed.
         let HttpBody::Bytes(body) = ctx.request.body else {
             return Err(ChannelError::InvalidConfig(STREAMED_BODY.into()));
         };
-        // Before signing: the signature covers the body as sent.
-        let body = crate::channels::shared::cache::shape(
-            body,
-            crate::channels::shared::cache::rules_for(
-                ctx.operation.dialect,
-                BedrockConfig::from_view(ctx.provider)?.enable_claude_magic_cache,
-                false,
-            ),
-        );
         self.signed(
             Inputs {
                 provider: ctx.provider,
@@ -317,8 +369,9 @@ impl BaseChannel for AwsBedrock {
         Box::pin(directory(self, Operation::GetModel, context))
     }
 
-    /// The reply is AWS event-stream framing; the client asked for Messages
-    /// SSE, so the body is translated frame by frame as it arrives.
+    /// An InvokeModel reply is AWS event-stream framing; the client asked for
+    /// Messages SSE, so the body is translated frame by frame as it arrives.
+    /// Chat Completions already answers in SSE and passes through.
     fn stream_generate_content<'a>(
         &'a self,
         context: OperationContext<'a>,
@@ -330,7 +383,7 @@ impl BaseChannel for AwsBedrock {
             };
             let request = self.build(operation, &context)?;
             let response = context.client.send(request).await?;
-            if !response.status.is_success() {
+            if !response.status.is_success() || context.dialect == Dialect::OpenAiChat {
                 return Ok(response);
             }
             let mut headers = response.headers;

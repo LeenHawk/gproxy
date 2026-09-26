@@ -17,7 +17,7 @@ No concrete channel is compiled by default; each is a Cargo feature:
 |---|---|---|---|
 | `aistudio` | `aistudio` | Google AI Studio: the native Gemini methods and the `/v1beta/openai` compatibility layer off one origin, SSE and JSON-array streams, `usageMetadata` metering | `{"api_key"}` |
 | `antigravity` | `antigravity` | A Google account through the Code Assist host the Antigravity editor talks to: PKCE login that discovers the Cloud project and tier, refresh, the Code Assist request envelope, `fetchAvailableModels` catalogue and per-model quota | `OAuthCredential` |
-| `aws_bedrock` | `aws_bedrock` | AWS Bedrock: SigV4-signed `InvokeModel` for Anthropic models on `bedrock-runtime`, AWS event-stream replies translated into Claude Messages SSE, the control plane's foundation-model directory | AWS access key pair (optionally temporary) or a Bedrock API key |
+| `aws_bedrock` | `aws_bedrock` | AWS Bedrock: SigV4-signed (or API-key) calls on `bedrock-runtime` with the wire chosen per model — `InvokeModel` for Anthropic models, event-stream replies translated into Claude Messages SSE, and the OpenAI-compatible Chat Completions for the rest — plus the control plane's foundation-model directory | AWS access key pair (optionally temporary) or a Bedrock API key |
 | `azure` | `azure` | Azure OpenAI and the Anthropic models Azure AI Foundry hosts: the v1 or the deployment-scoped surface under a resource, `api-key` and `x-api-key` | `{"api_key"}` |
 | `claudeapi` | `claudeapi` | Anthropic's own API: `x-api-key` Messages with the API's request hygiene and server-side fallback, the OpenAI SDK compatibility layer, `anthropic-ratelimit-*` headers, `/v1/organizations/cost_report` | `{"api_key", "quota_api_key"}` |
 | `claudecode` | `claudecode` | Claude.ai subscription through the Claude Code CLI's Messages requests: PKCE and cookie login, refresh, unified rate-limit headers, `/api/oauth/usage`, CLI services | `OAuthCredential` |
@@ -82,12 +82,14 @@ token before the first request goes out; `prepare` never mints one.
 
 `aws_bedrock` is the one channel that signs rather than presents a token:
 every request carries an AWS SigV4 `Authorization`, computed in `prepare`
-because signing is pure arithmetic over the request and the credential. Its
-streaming reply is not SSE but AWS event-stream framing, so
-`stream_generate_content` is overridden to translate the frames into the
-Claude Messages SSE the client asked for. It serves the Anthropic model
-families; reaching the others needs Bedrock's `Converse` shape, which
-`gproxy-protocol` cannot express yet.
+because signing is pure arithmetic over the request and the credential. Bedrock
+takes a different wire per model, so the channel overrides
+`native_dialects_for_model`: Anthropic models go to `InvokeModel`, whose
+streaming reply is AWS event-stream framing that `stream_generate_content`
+translates into Claude Messages SSE; every other model goes to the
+OpenAI-compatible Chat Completions, SSE as it is. Families with neither
+(Llama, Nova, …) need Bedrock's `Converse` shape, which `gproxy-protocol`
+cannot express yet.
 
 `geminicli` and `antigravity` are the Gemini family's CLI impersonation
 channels: a Google account's OAuth credential used against the Code Assist

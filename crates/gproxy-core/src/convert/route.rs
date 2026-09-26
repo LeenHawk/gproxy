@@ -134,11 +134,23 @@ pub fn default_route(
     provider: ProviderView<'_>,
     source: OperationKey,
 ) -> Route {
+    default_route_for_model(channel, provider, source, None)
+}
+
+/// `default_route` for a request naming `model`, for channels whose upstream
+/// picks its wire by model (`BaseChannel::native_dialects_for_model`).
+pub fn default_route_for_model(
+    channel: &dyn BaseChannel,
+    provider: ProviderView<'_>,
+    source: OperationKey,
+    model: Option<&str>,
+) -> Route {
     default_with_native(
         channel,
         provider,
         source,
-        &channel.native_dialects(provider, source.operation),
+        &channel.native_dialects_for_model(provider, source.operation, model),
+        model,
     )
 }
 
@@ -147,6 +159,7 @@ fn default_with_native(
     provider: ProviderView<'_>,
     source: OperationKey,
     native: &[Dialect],
+    model: Option<&str>,
 ) -> Route {
     if native.contains(&source.dialect) {
         return if channel.local_operations().contains(&source.operation) {
@@ -155,13 +168,13 @@ fn default_with_native(
             Route::Passthrough
         };
     }
-    if let Some(target) = channel.default_conversion_target(provider, source)
+    if let Some(target) = channel.default_conversion_target_for_model(provider, source, model)
         && can_convert(source, target)
         && (if target.operation == source.operation {
             native.contains(&target.dialect)
         } else {
             channel
-                .native_dialects(provider, target.operation)
+                .native_dialects_for_model(provider, target.operation, model)
                 .contains(&target.dialect)
         })
     {
@@ -173,7 +186,7 @@ fn default_with_native(
             let supported = if target.operation == source.operation {
                 native.to_vec()
             } else {
-                channel.native_dialects(provider, target.operation)
+                channel.native_dialects_for_model(provider, target.operation, model)
             };
             supported.contains(&target.dialect)
         })
@@ -216,8 +229,19 @@ pub fn resolve_route(
     rule: Option<&operation_rule::Model>,
     source: OperationKey,
 ) -> Result<Route, RouteError> {
+    resolve_route_for_model(channel, provider, rule, source, None)
+}
+
+/// `resolve_route` for a request naming `model`; an explicit rule still wins.
+pub fn resolve_route_for_model(
+    channel: &dyn BaseChannel,
+    provider: ProviderView<'_>,
+    rule: Option<&operation_rule::Model>,
+    source: OperationKey,
+    model: Option<&str>,
+) -> Result<Route, RouteError> {
     let Some(rule) = rule else {
-        return Ok(default_route(channel, provider, source));
+        return Ok(default_route_for_model(channel, provider, source, model));
     };
     let invalid = |reason: String| RouteError::InvalidRule {
         id: rule.id.clone(),
@@ -234,7 +258,7 @@ pub fn resolve_route(
                     validate_mapping(source, mapping).map_err(invalid)?;
                     Ok(mapping)
                 }
-                None => Ok(default_route(channel, provider, source)),
+                None => Ok(default_route_for_model(channel, provider, source, model)),
             }
         }
         // Read old data as a support set, never as a preference order.
@@ -243,9 +267,11 @@ pub fn resolve_route(
                 serde_json::from_value(rule.target.clone().unwrap_or(serde_json::json!([])))
                     .map_err(|e| invalid(e.to_string()))?;
             if native.is_empty() {
-                Ok(default_route(channel, provider, source))
+                Ok(default_route_for_model(channel, provider, source, model))
             } else {
-                Ok(default_with_native(channel, provider, source, &native))
+                Ok(default_with_native(
+                    channel, provider, source, &native, model,
+                ))
             }
         }
         other => Err(invalid(format!("unknown routing action `{other}`"))),
@@ -253,14 +279,86 @@ pub fn resolve_route(
 }
 
 pub fn route(provider: &ProviderData, key: OperationKey) -> Result<Route, RouteError> {
+    route_for_model(provider, key, None)
+}
+
+/// `route` for a request naming `model`, the upstream model a target serves.
+pub fn route_for_model(
+    provider: &ProviderData,
+    key: OperationKey,
+    model: Option<&str>,
+) -> Result<Route, RouteError> {
     let rule = provider
         .operation_rules
         .iter()
         .find(|r| r.operation == key.operation.id());
-    resolve_route(
+    resolve_route_for_model(
         provider.channel.as_ref(),
         provider_view(&provider.entity),
         rule.map(|r| r.as_ref()),
         key,
+        model,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An upstream that, like Bedrock, serves Claude models on Messages and
+    /// every other model on Chat Completions.
+    struct ByModel;
+
+    impl BaseChannel for ByModel {
+        fn id(&self) -> &'static str {
+            "by_model"
+        }
+        fn native_dialects(&self, _: ProviderView<'_>, _: Operation) -> Vec<Dialect> {
+            vec![Dialect::Claude]
+        }
+        fn native_dialects_for_model(
+            &self,
+            provider: ProviderView<'_>,
+            operation: Operation,
+            model: Option<&str>,
+        ) -> Vec<Dialect> {
+            match model {
+                Some(model) if !model.starts_with("claude") => vec![Dialect::OpenAiChat],
+                _ => self.native_dialects(provider, operation),
+            }
+        }
+    }
+
+    #[test]
+    fn the_same_request_takes_the_wire_its_model_is_served_on() {
+        let config = serde_json::json!({});
+        let view = ProviderView {
+            id: "p",
+            channel: "by_model",
+            base_url: None,
+            config: &config,
+        };
+        let chat = OperationKey {
+            operation: Operation::GenerateContent,
+            dialect: Dialect::OpenAiChat,
+        };
+        assert_eq!(
+            default_route_for_model(&ByModel, view, chat, Some("gpt-5.5")),
+            Route::Passthrough
+        );
+        assert_eq!(
+            default_route_for_model(&ByModel, view, chat, Some("claude-sonnet-5")),
+            Route::TransformTo {
+                target: OperationKey {
+                    operation: Operation::GenerateContent,
+                    dialect: Dialect::Claude,
+                }
+            }
+        );
+        // Without a model, the provider-wide answer: what `native_dialects` says.
+        assert_eq!(
+            default_route(&ByModel, view, chat),
+            default_route_for_model(&ByModel, view, chat, Some("claude-sonnet-5"))
+        );
+    }
 }

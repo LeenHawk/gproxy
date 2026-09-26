@@ -409,7 +409,11 @@ impl<C> Gproxy<C> {
         now_ms: i64,
     ) -> Option<(Vec<Arc<CredentialData>>, u8)> {
         if matches!(
-            gproxy_core::convert::route(&candidate.provider, request.operation),
+            gproxy_core::convert::route_for_model(
+                &candidate.provider,
+                request.operation,
+                candidate.upstream_model.as_deref(),
+            ),
             Ok(gproxy_core::convert::Route::Local)
         ) && !(candidate
             .provider
@@ -419,7 +423,7 @@ impl<C> Gproxy<C> {
             && candidate
                 .provider
                 .channel
-                .native_dialects(
+                .native_dialects_for_model(
                     gproxy_channel::channel::ProviderView {
                         id: &candidate.provider.entity.id,
                         channel: &candidate.provider.entity.channel,
@@ -427,6 +431,7 @@ impl<C> Gproxy<C> {
                         config: &candidate.provider.entity.config,
                     },
                     request.operation.operation,
+                    candidate.upstream_model.as_deref(),
                 )
                 .contains(&request.operation.dialect))
         {

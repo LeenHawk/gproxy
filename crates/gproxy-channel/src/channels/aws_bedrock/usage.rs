@@ -6,6 +6,9 @@
 //! `usage` object. Claude's `input_tokens` already excludes cache reads and
 //! cache writes, so it maps straight onto the normalized input.
 //!
+//! A non-Anthropic model answers on Chat Completions instead, buffered JSON
+//! or SSE, and is read by the shared compatible-wire reader.
+//!
 //! This repeats the small Messages mapping that `claudecode` also has rather
 //! than sharing it: the two channels are independently feature-gated and a
 //! shared module would have to be gated on both. If a third Messages channel
@@ -22,6 +25,7 @@ use crate::channel::{
     ChannelError, NormalizedUsage, UsageCompleteness, UsageContext, UsageExtractor, UsageFrame,
     UsageObserver, UsageStream, UsageStreamContext, UsageStreamEnd, UsageTransport,
 };
+use crate::channels::shared::compatible::usage as compatible;
 
 /// Bounds for watching the translated stream; the host enforces the real
 /// transfer limits, these only keep the observer's buffers finite.
@@ -67,16 +71,32 @@ pub(super) fn from_usage(usage: &Value) -> Option<NormalizedUsage> {
     Some(normalized)
 }
 
+/// Chat Completions carries no Bedrock-only usage fields.
+fn no_extras(_root: &Value, _usage: &Value, _into: &mut NormalizedUsage) {}
+
 impl UsageExtractor for AwsBedrock {
     fn extract(&self, context: UsageContext<'_>) -> Result<Option<NormalizedUsage>, ChannelError> {
         if !context.response.status.is_success() {
             return Ok(None);
         }
+        if context.operation.dialect == gproxy_protocol::Dialect::OpenAiChat {
+            return Ok(compatible::from_body(
+                context.operation.dialect,
+                context.response.body,
+                no_extras,
+            ));
+        }
         let Ok(body) = serde_json::from_slice::<Value>(context.response.body) else {
             return Ok(None);
         };
         Ok(body.get("usage").and_then(from_usage).map(|mut usage| {
-            attach(&mut usage, body.get("model").and_then(Value::as_str).unwrap_or_default(), body["stop_reason"] == "refusal");
+            attach(
+                &mut usage,
+                body.get("model")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                body["stop_reason"] == "refusal",
+            );
             usage
         }))
     }
@@ -100,11 +120,17 @@ fn merge(start: Option<&Value>, delta: Option<&Value>) -> Option<NormalizedUsage
 }
 
 fn attach(usage: &mut NormalizedUsage, model: &str, refused: bool) {
-    if model.is_empty() { return; }
+    if model.is_empty() {
+        return;
+    }
     usage.attempts = vec![crate::channel::UsageAttempt {
         model: model.to_owned(),
         usage: Box::new(usage.clone()),
-        billable: if refused { usage.tokens.output_tokens.map(|n| n > 0) } else { Some(true) },
+        billable: if refused {
+            usage.tokens.output_tokens.map(|n| n > 0)
+        } else {
+            Some(true)
+        },
         started_at_ms: None,
     }];
 }
@@ -126,7 +152,11 @@ impl MessagesObserver {
         match event.get("type").and_then(Value::as_str) {
             Some("message_start") if self.start.is_none() => {
                 self.start = event.pointer("/message/usage").cloned();
-                self.model = event.pointer("/message/model").and_then(Value::as_str).unwrap_or_default().to_owned();
+                self.model = event
+                    .pointer("/message/model")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned();
             }
             Some("message_delta")
                 if event
@@ -134,7 +164,8 @@ impl MessagesObserver {
                     .is_some_and(Value::is_u64) =>
             {
                 self.delta = event.get("usage").cloned();
-                self.refused = event.pointer("/delta/stop_reason").and_then(Value::as_str) == Some("refusal");
+                self.refused =
+                    event.pointer("/delta/stop_reason").and_then(Value::as_str) == Some("refusal");
             }
             _ => {}
         }
@@ -157,7 +188,9 @@ impl UsageObserver for MessagesObserver {
         let chunk = if let Some(aws) = self.aws.as_mut() {
             translated = aws.push(chunk)?;
             &translated[..]
-        } else { chunk };
+        } else {
+            chunk
+        };
         let frames = self
             .sse
             .push(chunk)
@@ -184,25 +217,48 @@ impl UsageObserver for MessagesObserver {
 
 impl UsageStream for AwsBedrock {
     fn accepts_unframed(&self, headers: &http::HeaderMap) -> bool {
-        headers.get(http::header::CONTENT_TYPE).and_then(|v| v.to_str().ok())
+        headers
+            .get(http::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
             .is_some_and(|v| v.starts_with("application/vnd.amazon.eventstream"))
     }
-
 
     fn start(
         &self,
         context: UsageStreamContext<'_>,
     ) -> Result<Box<dyn UsageObserver>, ChannelError> {
-        let aws = context.headers.get(http::header::CONTENT_TYPE).and_then(|v| v.to_str().ok())
+        if context.operation.dialect == gproxy_protocol::Dialect::OpenAiChat {
+            return Ok(compatible::observer(
+                context.operation.dialect,
+                context.transport,
+                no_extras,
+            ));
+        }
+        let aws = context
+            .headers
+            .get(http::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
             .is_some_and(|v| v.starts_with("application/vnd.amazon.eventstream"));
-        if aws || matches!(context.transport, UsageTransport::Http { framing: Some(StreamFraming::Sse) }) {
+        if aws
+            || matches!(
+                context.transport,
+                UsageTransport::Http {
+                    framing: Some(StreamFraming::Sse)
+                }
+            )
+        {
             Ok(Box::new(MessagesObserver {
                 aws: aws.then(super::stream::Translator::new),
-                model: String::new(), refused: false,
-                sse: SseDecoder::new(SSE_LIMITS), start: None, delta: None,
+                model: String::new(),
+                refused: false,
+                sse: SseDecoder::new(SSE_LIMITS),
+                start: None,
+                delta: None,
             }))
         } else {
-            Err(ChannelError::InvalidResponse("Bedrock usage requires an event stream".into()))
+            Err(ChannelError::InvalidResponse(
+                "Bedrock usage requires an event stream".into(),
+            ))
         }
     }
 }
