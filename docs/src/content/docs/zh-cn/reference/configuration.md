@@ -288,6 +288,14 @@ curl -s -X PATCH http://127.0.0.1:8787/admin/api/settings \
 | --- | --- | --- |
 | `instanceName` | `default` | 控制台名称 |
 | `maxAttempts` | `6` | 一个计划上游尝试次数的硬上限；路由自己的预算被它钳住 |
+| `requestTimeoutMs` | `1200000` | 等上游开始应答（拿到响应头，或读完一个转换过的非流式应答）；持续有输出的流不受它限制 |
+| `streamIdleTimeoutMs` | `300000` | 流单元之间的间隔 |
+| `maxRequestBodyBytes` | `52428800` | 除文件上传外的所有请求体，在鉴权之前检查；压缩请求体解压后也不能超过它 |
+| `maxUploadBodyBytes` | `536870912` | 文件上传的请求体 |
+| `maxResponseBodyBytes` | `268435456` | 缓冲响应上限 |
+| `maxStreamEventBytes` | `33554432` | 一个 SSE 事件或数组元素 |
+| `maxWsFrameBytes` | `33554432` | 更大的帧以 `1009` 关闭双方 |
+| `maxMultipartParts` | `64` | |
 | `enableSettlement`、`enableUsage` | `true` | 定价与用量行 |
 | `enableTokenizerVocabs` | `true` | 用真实词表计数 |
 | `enableTokenizerDownload` | `false` | 抓取未缓存的词表 |

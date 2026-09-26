@@ -79,6 +79,8 @@ pub enum CoreError {
     #[error(transparent)]
     Secret(#[from] crate::SecretError),
     #[error(transparent)]
+    Limits(#[from] crate::LimitsError),
+    #[error(transparent)]
     Assembly(#[from] crate::AssemblyError),
     #[error(transparent)]
     Channel(#[from] ChannelError),

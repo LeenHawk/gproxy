@@ -72,15 +72,12 @@ pub async fn run(settings: Settings, updates: update::UpdateOptions) -> Result<(
         "gproxy is listening"
     );
 
-    let service = router(state)
-        // `ConnectInfo` is how the client address reaches admission. Without it
-        // the host treats every peer as unknown — and unknown is deliberately
-        // not trusted, so `x-forwarded-for` would be ignored and every request
-        // would share one rate-limit bucket.
-        .into_make_service_with_connect_info::<SocketAddr>();
-    let result = axum::serve(listener, service)
-        .with_graceful_shutdown(signal())
-        .await;
+    // `serve` hands each request its `ConnectInfo`, which is how the client
+    // address reaches admission. Without it the host treats every peer as
+    // unknown — and unknown is deliberately not trusted, so `x-forwarded-for`
+    // would be ignored and every request would share one rate-limit bucket.
+    let service = router(state);
+    let result = gproxy_host_axum::serve::serve(listener, service, signal()).await;
 
     tracing::info!("draining finished; shutting down");
     // After the requests, not before: both synchronization loops keep the

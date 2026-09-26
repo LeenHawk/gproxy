@@ -43,8 +43,9 @@ pub mod surface;
 
 use std::sync::Arc;
 
+#[cfg(target_arch = "wasm32")]
+use axum::body::to_bytes;
 use axum::{
-    body::to_bytes,
     extract::{Request, State},
     response::{IntoResponse, Response},
 };
@@ -84,17 +85,18 @@ where
     let client_ip = policy::client_ip(peer, request.headers(), &trusted).to_string();
     let scheme = policy::client_scheme(peer, request.headers(), &trusted);
 
-    let (mut parts, body) = request.into_parts();
-    let body = match to_bytes(body, crate::MAX_BODY_BYTES).await {
-        Ok(body) => body,
-        Err(_) => {
-            return (StatusCode::PAYLOAD_TOO_LARGE, "request body too large").into_response();
-        }
-    };
-
     // One load of each snapshot for the whole request, as everywhere else.
     let routing = state.app().gproxy().routing();
     let core = state.app().gproxy().core().snapshot();
+
+    // Buffered before authentication, so the cap is what keeps an anonymous
+    // body from exhausting memory.
+    let cap = body_cap(&core.limits, request.method(), request.uri().path());
+    let (mut parts, body) = request.into_parts();
+    let body = match read_body(body, cap).await {
+        Ok(body) => body,
+        Err(response) => return *response,
+    };
     let index = MountIndex::build(&routing, &core);
     let path = parts.uri.path().to_owned();
     let (mount, remainder) = Mount::parse(&path, &index, |remainder| {
@@ -135,6 +137,69 @@ where
     }
 
     ErrorResponse(AppError::not_found("route", path)).into_response()
+}
+
+/// How long a client may leave a request body without sending more of it.
+/// Not a limit on the whole body: a large upload on a slow link is slow, not
+/// stalled.
+#[cfg(not(target_arch = "wasm32"))]
+const BODY_IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// A request body, whole, or the response that refuses it: `413` past `cap`,
+/// `408` once the client stops sending for [`BODY_IDLE_TIMEOUT`].
+#[cfg(not(target_arch = "wasm32"))]
+async fn read_body(body: axum::body::Body, cap: usize) -> Result<Bytes, Box<Response>> {
+    use futures_util::StreamExt;
+
+    let mut stream = body.into_data_stream();
+    let mut out = Vec::new();
+    loop {
+        match tokio::time::timeout(BODY_IDLE_TIMEOUT, stream.next()).await {
+            Err(_) => {
+                return Err(Box::new(
+                    (StatusCode::REQUEST_TIMEOUT, "request body stalled").into_response(),
+                ));
+            }
+            Ok(None) => return Ok(Bytes::from(out)),
+            Ok(Some(Err(_))) => {
+                return Err(Box::new(
+                    (StatusCode::BAD_REQUEST, "request body could not be read").into_response(),
+                ));
+            }
+            Ok(Some(Ok(chunk))) => {
+                if out.len().saturating_add(chunk.len()) > cap {
+                    return Err(Box::new(
+                        (StatusCode::PAYLOAD_TOO_LARGE, "request body too large").into_response(),
+                    ));
+                }
+                out.extend_from_slice(&chunk);
+            }
+        }
+    }
+}
+
+/// A Worker's platform delivers the body; there is no socket to stall.
+#[cfg(target_arch = "wasm32")]
+async fn read_body(body: axum::body::Body, cap: usize) -> Result<Bytes, Box<Response>> {
+    to_bytes(body, cap).await.map_err(|_| {
+        Box::new((StatusCode::PAYLOAD_TOO_LARGE, "request body too large").into_response())
+    })
+}
+
+/// How much of this request's body is read, decided before any of it is.
+///
+/// A file upload is the one request allowed `max_upload_body_bytes`, and which
+/// operation a request is can only be told once its body has been looked at.
+/// So a request that could be one — every upload route is a `POST` to a path
+/// ending in `/files` — is read up to the upload cap, and [`data_plane`] holds
+/// it to the ordinary cap once it turns out to be something else.
+fn body_cap(limits: &gproxy_core::ExecutionLimits, method: &http::Method, path: &str) -> usize {
+    let cap = if method == http::Method::POST && path.ends_with("/files") {
+        limits.max_upload_body_bytes
+    } else {
+        limits.max_request_body_bytes
+    };
+    usize::try_from(cap).unwrap_or(usize::MAX)
 }
 
 /// The service route of one provider's channel that matches this request.
@@ -288,7 +353,9 @@ async fn data_plane<C>(
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    let body = match decode_body(&mut parts.headers, body, crate::MAX_BODY_BYTES) {
+    // A compressed body inflates to at most what an uncompressed one may be.
+    let cap = body_cap(&core.limits, &parts.method, parts.uri.path());
+    let body = match decode_body(&mut parts.headers, body, cap) {
         Ok(body) => body,
         Err(error) => return Some((error.status, error.message).into_response()),
     };
@@ -296,6 +363,14 @@ where
         .then(|| serde_json::from_slice(&body).ok())
         .flatten();
     let matched = surface::match_path(&parts.method, remainder, &parts.headers, json.as_ref())?;
+    // Read up to the upload cap on the chance it was an upload; it is not.
+    let allowed = core
+        .limits
+        .for_operation(matched.operation.operation)
+        .max_request_body_bytes;
+    if body.len() as u64 > allowed {
+        return Some((StatusCode::PAYLOAD_TOO_LARGE, "request body too large").into_response());
+    }
 
     let caller = match authenticate(state.app(), parts).await {
         Ok(caller) => caller,

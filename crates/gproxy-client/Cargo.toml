@@ -11,7 +11,7 @@ repository.workspace = true
 default = ["reqwest"]
 # Native reqwest backend; on wasm32 the reqwest Fetch fallback (HTTP only,
 # buffered request bodies).
-reqwest = ["dep:reqwest", "dep:reqwest-websocket", "dep:tungstenite"]
+reqwest = ["dep:reqwest", "dep:reqwest-websocket"]
 wreq = ["dep:wreq", "dep:wreq-util"]
 # Native only: reqwest 0.12 over the platform's native TLS (OpenSSL on Linux,
 # Secure Transport on macOS, SChannel on Windows), the Codex CLI's HTTP stack.

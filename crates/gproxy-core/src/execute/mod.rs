@@ -4,8 +4,8 @@
 
 mod attempt;
 mod exchange;
-mod funnel;
 mod fallback;
+mod funnel;
 mod native;
 pub(crate) mod prepare;
 mod stream;

@@ -23,7 +23,7 @@ pub async fn assemble(
     let (revision, limits) = match &control.settings {
         Some(settings) => (
             ConfigRevision(u64::try_from(settings.config_revision).unwrap_or(0)),
-            ExecutionLimits::default(),
+            ExecutionLimits::from_settings(settings)?,
         ),
         None => (ConfigRevision(0), ExecutionLimits::default()),
     };
@@ -379,6 +379,7 @@ pub fn connection_config(
             RetryPolicy::Never => client::RetryPolicy::Never,
             RetryPolicy::Default => client::RetryPolicy::Default,
         },
+        connect_timeout_ms: profile.connect_timeout_ms,
         pool_idle_timeout_ms: profile.pool_idle_timeout_ms,
         pool_max_idle_per_host: profile.pool_max_idle_per_host,
     })

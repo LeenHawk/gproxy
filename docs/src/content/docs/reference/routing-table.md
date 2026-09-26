@@ -55,7 +55,9 @@ Anything that reaches the end is a 404.
 
 ## The Data Plane
 
-Gproxy adds no request-body size cap.
+A request body is held to `settings.maxRequestBodyBytes` (50 MiB by default;
+`maxUploadBodyBytes`, 512 MiB, for a file upload) before anything else happens,
+authentication included.
 
 ### Content generation
 
@@ -321,5 +323,6 @@ and the ordering. The budget:
 - with no target left, **the last answer is returned as it stands**. A 429 from
   the final provider is the caller's 429, not a synthesized error.
 
-The request body is buffered once so it can be replayed. Its size does not change
-the routing plan.
+The request body is buffered once so it can be replayed. A streaming body over
+`maxRequestBodyBytes` stays a stream and the plan is cut to a single target:
+a large upload is not worth reading into memory for the sake of failover.

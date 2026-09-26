@@ -111,9 +111,13 @@ fn core_status(error: &gproxy_core::CoreError) -> u16 {
         E::DeadlineExceeded => 504,
         E::Transform(error) => transform_status(error),
         E::Channel(error) => channel_status(error),
-        E::Rewrite(_) | E::File(_) | E::Secret(_) | E::Assembly(_) | E::Cache(_) | E::Store(_) => {
-            500
-        }
+        E::Rewrite(_)
+        | E::File(_)
+        | E::Secret(_)
+        | E::Limits(_)
+        | E::Assembly(_)
+        | E::Cache(_)
+        | E::Store(_) => 500,
     }
 }
 

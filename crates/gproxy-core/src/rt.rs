@@ -7,17 +7,11 @@ use std::{future::Future, time::Duration};
 /// Resolves to None when `duration` elapses first.
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) async fn timeout<F: Future>(duration: Duration, future: F) -> Option<F::Output> {
-    if duration == Duration::MAX {
-        return Some(future.await);
-    }
     tokio::time::timeout(duration, future).await.ok()
 }
 
 #[cfg(target_arch = "wasm32")]
 pub(crate) async fn timeout<F: Future>(duration: Duration, future: F) -> Option<F::Output> {
-    if duration == Duration::MAX {
-        return Some(future.await);
-    }
     use futures_util::future::{Either, select};
     let future = std::pin::pin!(future);
     let timer = std::pin::pin!(sleep(duration));

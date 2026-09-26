@@ -406,9 +406,7 @@ impl Exchange {
             request_body: request_body.as_deref(),
             status: response.status,
             headers: &response.headers,
-            transport: UsageTransport::Http {
-                framing,
-            },
+            transport: UsageTransport::Http { framing },
         });
         if let Ok(observer) = observer {
             *self.usage_observer.lock().unwrap() = Some(observer);

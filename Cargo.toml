@@ -173,6 +173,7 @@ tungstenite = { version = "0.28", default-features = false }
 tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
 tokio-postgres = "0.7"
 tower = { version = "0.5", default-features = false }
+hyper-util = { version = "0.1", default-features = false }
 tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
 tokio-rusqlite = { version = "0.7", features = ["bundled"] }
 toml = "1"

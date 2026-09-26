@@ -276,6 +276,9 @@ async fn collect(body: HttpBody) -> (Bytes, bool) {
             while let Some(chunk) = stream.next().await {
                 match chunk {
                     Ok(chunk) => {
+                        if out.len().saturating_add(chunk.len()) > crate::MAX_BODY_BYTES {
+                            return (Bytes::from(out), false);
+                        }
                         out.extend_from_slice(&chunk);
                     }
                     Err(error) => {

@@ -48,6 +48,36 @@ pub struct Model {
     #[sea_orm(default_value = 0)]
     pub config_revision: i64,
 
+    // Execution limits. Core derives its capability and codec limits from
+    // these; there is no unlimited mode. Connect timeout lives on the profile.
+    /// How long an upstream may take to start answering: its response head,
+    /// or a converted non-streaming answer in full. Generous, because a
+    /// high-effort reasoning request can be silent for many minutes; once a
+    /// stream has started, `stream_idle_timeout_ms` bounds it instead.
+    #[sea_orm(default_value = 1200000)]
+    pub request_timeout_ms: u32,
+    /// Maximum silence between stream progress events.
+    #[sea_orm(default_value = 300000)]
+    pub stream_idle_timeout_ms: u32,
+    /// Every data-plane request body except a file upload, and the size a
+    /// compressed request body may inflate to.
+    #[sea_orm(default_value = 52428800)]
+    pub max_request_body_bytes: i64,
+    /// A file upload's body. Provider file APIs take hundreds of megabytes.
+    #[sea_orm(default_value = 536870912)]
+    pub max_upload_body_bytes: i64,
+    /// Room for base64 images and video in a buffered answer.
+    #[sea_orm(default_value = 268435456)]
+    pub max_response_body_bytes: i64,
+    /// One decoded SSE event, JSON array element, NDJSON record or JSON value.
+    /// Large enough for a partial image sent as one base64 event.
+    #[sea_orm(default_value = 33554432)]
+    pub max_stream_event_bytes: i64,
+    #[sea_orm(default_value = 33554432)]
+    pub max_ws_frame_bytes: i64,
+    #[sea_orm(default_value = 64)]
+    pub max_multipart_parts: u32,
+
     // Token counting
     #[sea_orm(default_value = true)]
     pub enable_tokenizer_vocabs: bool,

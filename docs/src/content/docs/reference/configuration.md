@@ -302,6 +302,14 @@ One row, two groups. The instance group:
 | --- | --- | --- |
 | `instanceName` | `default` | console identity |
 | `maxAttempts` | `6` | hard ceiling on a plan's upstream attempts; a route's own budget is capped by it |
+| `requestTimeoutMs` | `1200000` | until the upstream starts answering (its response head, or a converted non-streaming answer in full); nothing bounds a stream that keeps producing |
+| `streamIdleTimeoutMs` | `300000` | gap between stream units |
+| `maxRequestBodyBytes` | `52428800` | every request body except a file upload, checked before authentication; also the most a compressed body may inflate to |
+| `maxUploadBodyBytes` | `536870912` | a file upload's body |
+| `maxResponseBodyBytes` | `268435456` | buffered response cap |
+| `maxStreamEventBytes` | `33554432` | one SSE event or array element |
+| `maxWsFrameBytes` | `33554432` | a larger frame closes both sides with `1009` |
+| `maxMultipartParts` | `64` | |
 | `enableSettlement`, `enableUsage` | `true` | pricing and the usage row |
 | `enableTokenizerVocabs` | `true` | count with a real vocabulary |
 | `enableTokenizerDownload` | `false` | fetch an uncached vocabulary |

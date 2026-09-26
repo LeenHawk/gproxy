@@ -43,6 +43,14 @@ impl From<setting::Model> for SettingsDto {
                 enable_settlement: row.enable_settlement,
                 enable_usage: row.enable_usage,
                 config_revision: row.config_revision,
+                request_timeout_ms: row.request_timeout_ms,
+                stream_idle_timeout_ms: row.stream_idle_timeout_ms,
+                max_request_body_bytes: row.max_request_body_bytes,
+                max_upload_body_bytes: row.max_upload_body_bytes,
+                max_response_body_bytes: row.max_response_body_bytes,
+                max_stream_event_bytes: row.max_stream_event_bytes,
+                max_ws_frame_bytes: row.max_ws_frame_bytes,
+                max_multipart_parts: row.max_multipart_parts,
                 enable_tokenizer_vocabs: row.enable_tokenizer_vocabs,
                 enable_tokenizer_download: row.enable_tokenizer_download,
                 default_vocabulary_file_id: row.default_vocabulary_file_id,
@@ -60,7 +68,7 @@ impl From<setting::Model> for SettingsDto {
     }
 }
 
-/// Identity, network, execution policy and maintenance. `config_revision` is
+/// Identity, network, execution limits and maintenance. `config_revision` is
 /// read-only: it is the write path's own counter.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
@@ -87,6 +95,24 @@ pub struct InstanceSettingsDto {
     pub enable_settlement: bool,
     pub enable_usage: bool,
     pub config_revision: i64,
+    // Execution limits. Absent in an export from a build that had none, which
+    // reads as the defaults.
+    #[serde(default = "limit_defaults::request_timeout_ms")]
+    pub request_timeout_ms: u32,
+    #[serde(default = "limit_defaults::stream_idle_timeout_ms")]
+    pub stream_idle_timeout_ms: u32,
+    #[serde(default = "limit_defaults::max_request_body_bytes")]
+    pub max_request_body_bytes: i64,
+    #[serde(default = "limit_defaults::max_upload_body_bytes")]
+    pub max_upload_body_bytes: i64,
+    #[serde(default = "limit_defaults::max_response_body_bytes")]
+    pub max_response_body_bytes: i64,
+    #[serde(default = "limit_defaults::max_stream_event_bytes")]
+    pub max_stream_event_bytes: i64,
+    #[serde(default = "limit_defaults::max_ws_frame_bytes")]
+    pub max_ws_frame_bytes: i64,
+    #[serde(default = "limit_defaults::max_multipart_parts")]
+    pub max_multipart_parts: u32,
     pub enable_tokenizer_vocabs: bool,
     pub enable_tokenizer_download: bool,
     pub default_vocabulary_file_id: Option<String>,
@@ -172,6 +198,22 @@ pub struct InstanceSettingsPatch {
     #[serde(default)]
     pub enable_usage: Option<bool>,
     #[serde(default)]
+    pub request_timeout_ms: Option<u32>,
+    #[serde(default)]
+    pub stream_idle_timeout_ms: Option<u32>,
+    #[serde(default)]
+    pub max_request_body_bytes: Option<i64>,
+    #[serde(default)]
+    pub max_upload_body_bytes: Option<i64>,
+    #[serde(default)]
+    pub max_response_body_bytes: Option<i64>,
+    #[serde(default)]
+    pub max_stream_event_bytes: Option<i64>,
+    #[serde(default)]
+    pub max_ws_frame_bytes: Option<i64>,
+    #[serde(default)]
+    pub max_multipart_parts: Option<u32>,
+    #[serde(default)]
     pub enable_tokenizer_vocabs: Option<bool>,
     #[serde(default)]
     pub enable_tokenizer_download: Option<bool>,
@@ -226,6 +268,46 @@ pub struct LoggingSettingsPatch {
     #[serde(default)]
     #[cfg_attr(feature = "ts", ts(type = "string[] | null"))]
     pub query_parameter_blacklist: Option<Value>,
+}
+
+/// Serde defaults for the execution limits, taken from core's own so the two
+/// cannot disagree.
+mod limit_defaults {
+    use gproxy_core::ExecutionLimits;
+
+    fn limits() -> ExecutionLimits {
+        ExecutionLimits::default()
+    }
+    fn millis(duration: std::time::Duration) -> u32 {
+        u32::try_from(duration.as_millis()).unwrap_or(u32::MAX)
+    }
+    fn bytes(value: u64) -> i64 {
+        i64::try_from(value).unwrap_or(i64::MAX)
+    }
+    pub(super) fn request_timeout_ms() -> u32 {
+        millis(limits().request_timeout)
+    }
+    pub(super) fn stream_idle_timeout_ms() -> u32 {
+        millis(limits().stream_idle_timeout)
+    }
+    pub(super) fn max_request_body_bytes() -> i64 {
+        bytes(limits().max_request_body_bytes)
+    }
+    pub(super) fn max_upload_body_bytes() -> i64 {
+        bytes(limits().max_upload_body_bytes)
+    }
+    pub(super) fn max_response_body_bytes() -> i64 {
+        bytes(limits().max_response_body_bytes)
+    }
+    pub(super) fn max_stream_event_bytes() -> i64 {
+        bytes(limits().max_stream_event_bytes)
+    }
+    pub(super) fn max_ws_frame_bytes() -> i64 {
+        bytes(limits().max_ws_frame_bytes)
+    }
+    pub(super) fn max_multipart_parts() -> u32 {
+        u32::try_from(limits().max_multipart_parts).unwrap_or(u32::MAX)
+    }
 }
 
 fn default_observation_retention() -> Option<u32> {

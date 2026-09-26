@@ -35,6 +35,7 @@ pub fn profile(
         zstd: true,
         redirect_max_hops: 0,
         retry: "never".into(),
+        connect_timeout_ms: 30_000,
         pool_idle_timeout_ms: 90_000,
         pool_max_idle_per_host: 32,
         created_at_ms: 0,

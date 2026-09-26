@@ -151,7 +151,9 @@ nothing buffers a live stream to completion.
 
 Frames pass through byte for byte unless a rule changed their payload. For SSE
 only the `data:` lines are replaced, so comments, `event:`, `id:` and `retry:`
-lines and the `[DONE]` sentinel stay intact. Gproxy adds no event-size cap.
+lines and the `[DONE]` sentinel stay intact. A unit over
+`settings.maxStreamEventBytes` (32 MiB by default) is an error rather than an
+unbounded buffer.
 
 ## Presets
 

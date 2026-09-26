@@ -13,7 +13,7 @@
 | `builder` | `Core::builder(store)`：cache、secret codec 必填；默认使用 Store 落库 observer，可显式替换；渠道注册进 `ChannelRegistry`；可选 client 池与文件存储 |
 | `data` / `runtime` / `context` | 执行快照、原子凭证材料、block 与窗口 key、已解析目标与请求／attempt／exchange 上下文、用量报告 |
 | `secret` | `SecretCodec`：默认 `AesGcmCodec`（AES-256-GCM 信封，每凭证数据密钥，凭证 ID 进 AAD），`PlaintextCodec` 需显式选择 |
-| `limits` | 供库调用者显式指定的限额；网关默认不添加大小、数量或时间预算 |
+| `limits` | 由 Setting 行得出的 `ExecutionLimits`，所有 `CapabilityLimits` 与 `CodecLimits` 都从它派生；没有无上限模式 |
 | `assemble` | ControlData 行装配成 `CoreData`：profile 到池化 client、渠道查找、开秘、endpoint 校验、规则编译、`QuotaModel` 维度、自定义词表、存活 block |
 | `rewrite` | 规则编译、按阶段／操作／模型／头选择、Body/Header/Query 应用、保留原字节的逐单元流改写（SSE、JSON 数组、NDJSON） |
 | `select` / `availability` | 允许集合内按策略、亲和与 block 选凭证；失败 streak 与冷却 |
