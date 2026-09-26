@@ -51,8 +51,10 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
         let model = request.target.upstream_model.as_deref();
         let operation: Operation = request.operation.operation;
         let mut eligible: Vec<(Arc<CredentialData>, CredentialBlocks)> = Vec::new();
-        let mut any_dead = false;
-        let mut any_candidate = false;
+        // The first dead candidate, as it was when seen: the credential state
+        // is shared and can revive while this loop awaits, so looking it up
+        // again afterwards could find none.
+        let mut dead = None;
         for credential in &request.target.credentials {
             if excluded.contains(&credential.id)
                 || credential.provider_id != provider.entity.id
@@ -61,10 +63,12 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
             {
                 continue;
             }
-            any_candidate = true;
             let version = credential.state.load();
             if version.status == CredentialStatus::Dead {
-                any_dead = true;
+                dead.get_or_insert_with(|| CoreError::CredentialDead {
+                    credential_id: credential.id.clone(),
+                    reason: version.status_reason.clone(),
+                });
                 continue;
             }
             let blocks = self
@@ -76,20 +80,7 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
             eligible.push((credential.clone(), blocks));
         }
         if eligible.is_empty() {
-            if any_dead && any_candidate {
-                let dead = request
-                    .target
-                    .credentials
-                    .iter()
-                    .find(|c| c.state.load().status == CredentialStatus::Dead)
-                    .expect("a dead candidate was seen");
-                let version = dead.state.load();
-                return Err(CoreError::CredentialDead {
-                    credential_id: dead.id.clone(),
-                    reason: version.status_reason.clone(),
-                });
-            }
-            return Err(CoreError::NoUsableCredential);
+            return Err(dead.unwrap_or(CoreError::NoUsableCredential));
         }
 
         let affinity_key = request
