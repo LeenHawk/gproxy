@@ -1054,7 +1054,10 @@ fn low_priority_marks_messages_and_frees_only_the_five_hour_window() {
                 operation: key(operation),
                 request: WireRequest {
                     path: path.into(),
-                    ..messages_request(HeaderMap::new(), json!({"model": "claude-fable-5-1", "messages": []}))
+                    ..messages_request(
+                        HeaderMap::new(),
+                        json!({"model": "claude-fable-5-1", "messages": []}),
+                    )
                 },
                 endpoint_override: None,
             })
@@ -1066,7 +1069,10 @@ fn low_priority_marks_messages_and_frees_only_the_five_hour_window() {
     let on = json!({"low_priority": true});
     let off = json!({});
     for operation in [Operation::GenerateContent, Operation::StreamGenerateContent] {
-        assert_eq!(marked(&on, operation, "/v1/messages").as_deref(), Some("slow"));
+        assert_eq!(
+            marked(&on, operation, "/v1/messages").as_deref(),
+            Some("slow")
+        );
         assert_eq!(marked(&off, operation, "/v1/messages"), None);
     }
     assert_eq!(

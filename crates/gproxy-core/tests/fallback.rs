@@ -224,11 +224,12 @@ async fn buffered_refusal_retries_and_accounts_each_actual_model() {
     let (response, completion) = exec.into_parts();
     let response: Value = serde_json::from_str(&support::read(response.body).await).unwrap();
     assert_eq!(response["model"], "claude-opus-4-8");
-    let sent = client.requests.lock().unwrap();
-    assert_eq!(sent.len(), 2);
-    assert_eq!(sent[1].1["model"], "claude-opus-4-8");
-    assert!(sent.iter().all(|(_, body)| body.get("fallbacks").is_none()));
-    drop(sent);
+    {
+        let sent = client.requests.lock().unwrap();
+        assert_eq!(sent.len(), 2);
+        assert_eq!(sent[1].1["model"], "claude-opus-4-8");
+        assert!(sent.iter().all(|(_, body)| body.get("fallbacks").is_none()));
+    }
     let report = completion.await.unwrap();
     assert_eq!(report.exchanges.len(), 2);
     assert_eq!(
@@ -360,11 +361,12 @@ async fn partial_refusal_with_credit_continues_one_stream() {
         .find(|event| event["type"] == "message_delta")
         .unwrap();
     assert_eq!(final_delta["usage"]["input_tokens"], 30);
-    let sent = client.requests.lock().unwrap();
-    assert_eq!(sent.len(), 2);
-    assert_eq!(sent[1].1["fallback_credit_token"], "credit");
-    assert_eq!(sent[1].1["messages"][1]["role"], "assistant");
-    drop(sent);
+    {
+        let sent = client.requests.lock().unwrap();
+        assert_eq!(sent.len(), 2);
+        assert_eq!(sent[1].1["fallback_credit_token"], "credit");
+        assert_eq!(sent[1].1["messages"][1]["role"], "assistant");
+    }
     assert_eq!(completion.await.unwrap().exchanges.len(), 2);
 }
 
@@ -451,17 +453,18 @@ async fn vercel_retries_with_namespaced_models_but_does_not_redeem_credits() {
             .unwrap();
         let (response, completion) = exec.into_parts();
         let text = support::read(response.body).await;
-        let sent = client.requests.lock().unwrap();
-        assert_eq!(sent.len(), if produced { 1 } else { 2 });
-        if !produced {
-            assert_eq!(sent[1].1["model"], "anthropic/claude-opus-4-8");
-            assert!(sent[1].1.get("fallbacks").is_none());
-            assert!(sent[1].1.get("fallback_credit_token").is_none());
-            assert!(text.contains("ok"));
-        } else {
-            assert!(text.contains("partial") && text.contains("refusal"));
+        {
+            let sent = client.requests.lock().unwrap();
+            assert_eq!(sent.len(), if produced { 1 } else { 2 });
+            if !produced {
+                assert_eq!(sent[1].1["model"], "anthropic/claude-opus-4-8");
+                assert!(sent[1].1.get("fallbacks").is_none());
+                assert!(sent[1].1.get("fallback_credit_token").is_none());
+                assert!(text.contains("ok"));
+            } else {
+                assert!(text.contains("partial") && text.contains("refusal"));
+            }
         }
-        drop(sent);
         completion.await.unwrap();
     }
 }

@@ -296,7 +296,7 @@ mod tests {
             }
             assert_eq!(sse.snapshot().unwrap().tokens, buffered.tokens);
             let mut ws = observer(Operation::ConnectRealtime);
-            let frame = WsFrame::Text(event.into());
+            let frame = WsFrame::Text(event);
             ws.observe(UsageFrame::WebSocket(&frame)).unwrap();
             ws.observe(UsageFrame::WebSocket(&frame)).unwrap();
             assert_eq!(ws.snapshot().unwrap().tokens, buffered.tokens, "repeated terminal events are not double counted");
