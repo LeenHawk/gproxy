@@ -28,6 +28,8 @@ pub struct Model {
     pub cost: Option<FixedDecimal>,
     #[sea_orm(indexed)]
     pub started_at_ms: i64,
+    /// Indexed for retention, which deletes the oldest-ended rows first.
+    #[sea_orm(indexed)]
     pub ended_at_ms: Option<i64>,
 }
 
