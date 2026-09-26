@@ -51,13 +51,14 @@ use std::{collections::HashSet, sync::Arc};
 use gproxy_app::{
     App, AppError, Operations,
     dto::{
-        ApiKeyWrite, MemberWrite, OrganizationWrite, PermissionWrite, RateLimitWrite, TeamWrite,
-        UserWrite,
+        ApiKeyWrite, MemberWrite, OAuthClientWrite, OrganizationWrite, PermissionWrite,
+        RateLimitWrite, TeamWrite, UserWrite,
     },
 };
 use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::entity::identity::{api_key, organization, permission, team, user};
 use gproxy_store::entity::limits::rate_limit;
+use gproxy_store::entity::oauth::client as oauth_client;
 use sea_orm::EntityTrait;
 
 use super::{
@@ -109,6 +110,7 @@ where
 
     permissions(app, data, &users, &keys, dropped_providers, &mut report).await?;
     rate_limits(app, data, &users, &keys, &mut report).await?;
+    oauth_clients(app, data, &mut report).await?;
     app.reload_all().await?;
 
     Ok(report)
@@ -610,6 +612,50 @@ where
     Ok(())
 }
 
+/// The OAuth clients v3's issuer registered, under the same client ids so a
+/// client configured against v3 keeps working. A retired client stays
+/// retired by not being written; one the destination already has keeps the
+/// destination's registration.
+async fn oauth_clients<C>(
+    app: &Arc<App<C>>,
+    data: &document::Data,
+    report: &mut Report,
+) -> Result<()>
+where
+    C: BatchConnectionTrait + Send + Sync + 'static,
+{
+    let present = existing(app.gproxy().store().oauth_clients()).await?;
+    let mut written = 0;
+    for row in &data.oauth_clients {
+        let named_row = format!("oauth client {} ({})", row.client_id, row.name);
+        if row.retired {
+            report.drop_row("oauth_clients", named_row, "it was retired in v3");
+            continue;
+        }
+        if present.contains(&row.client_id) {
+            report.warn(format!(
+                "{named_row}: this instance already registers the client id, so its own \
+                 registration was kept"
+            ));
+            continue;
+        }
+        let app_data = app.data();
+        Operations::new(app.gproxy(), &app_data, app.config())
+            .oauth_clients()
+            .create(OAuthClientWrite {
+                id: row.client_id.clone(),
+                name: row.name.clone(),
+                redirect_uris: row.redirect_uris.clone(),
+                enabled: Some(row.enabled),
+            })
+            .await
+            .map_err(|error| Error::other(format!("{named_row}: {error}")))?;
+        written += 1;
+    }
+    report.count("oauth_clients", written);
+    Ok(())
+}
+
 /// The v4 operations a v3 operation group covered
 /// (`v3:crates/gproxy-protocol/src/operation.rs`, `Operation::group`). Sora's
 /// remix, edit, extend and character operations were in `video`; v4 has none
@@ -805,6 +851,7 @@ id_column!(
     api_key::Model,
     permission::Model,
     rate_limit::Model,
+    oauth_client::Model,
 );
 
 /// An operation failure with the v3 row that caused it in front of it. Without

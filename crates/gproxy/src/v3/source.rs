@@ -171,7 +171,21 @@ async fn data(connection: &DatabaseConnection) -> Result<document::Data> {
             capabilities(connection, &tables, &mut models).await?;
             models
         },
+        oauth_clients: rows(connection, &tables, "oauth_clients", oauth_client).await?,
         settings: settings(connection).await?,
+    })
+}
+
+fn oauth_client(row: &QueryResult) -> Result<document::OAuthClient> {
+    Ok(document::OAuthClient {
+        client_id: text(row, "client_id")?,
+        name: text(row, "name")?,
+        redirect_uris: optional_text(row, "redirect_uris")
+            .and_then(|text| serde_json::from_str(&text).ok())
+            .unwrap_or_default(),
+        enabled: flag(row, "enabled", true),
+        retired: optional_text(row, "deleted_at").is_some()
+            || optional_integer(row, "deleted_at").is_some(),
     })
 }
 
@@ -189,7 +203,7 @@ async fn data(connection: &DatabaseConnection) -> Result<document::Data> {
 /// So a column that is not there reads as absent and the row takes v3's own
 /// default for it, and only a column that has existed since version 1 is
 /// required.
-const TABLES: [(&str, &str); 20] = [
+const TABLES: [(&str, &str); 21] = [
     ("organizations", "SELECT * FROM organizations ORDER BY id"),
     ("teams", "SELECT * FROM teams ORDER BY id"),
     ("users", "SELECT * FROM users ORDER BY id"),
@@ -215,6 +229,10 @@ const TABLES: [(&str, &str); 20] = [
     (
         "provider_models",
         "SELECT * FROM provider_models ORDER BY id",
+    ),
+    (
+        "oauth_clients",
+        "SELECT * FROM oauth_clients ORDER BY client_id",
     ),
 ];
 

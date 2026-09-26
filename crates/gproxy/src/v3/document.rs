@@ -106,11 +106,27 @@ pub struct Data {
     pub rate_limits: Vec<RateLimit>,
     #[serde(default)]
     pub provider_models: Vec<ProviderModel>,
+    /// The OAuth clients v3's issuer registered. Database route only.
+    #[serde(default)]
+    pub oauth_clients: Vec<OAuthClient>,
 
     /// v3's key/value `settings` table. The admin API's export carries none of
     /// it, so this is empty on that route and filled on the file one.
     #[serde(default)]
     pub settings: std::collections::BTreeMap<String, Value>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct OAuthClient {
+    pub client_id: String,
+    pub name: String,
+    /// A JSON array v3 stored as text.
+    #[serde(default)]
+    pub redirect_uris: Vec<String>,
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub retired: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
