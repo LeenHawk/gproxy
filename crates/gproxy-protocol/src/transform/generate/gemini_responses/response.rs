@@ -28,11 +28,11 @@ pub fn gemini_to_responses_response(
         return Err(TransformError::shape("created_at", "negative timestamp"));
     }
     let input = input.into_declared();
-    let candidates = input
+    // `Some([])` is as empty as `None`: an upstream may send either.
+    let candidate = input
         .candidates
+        .and_then(|candidates| candidates.into_iter().next())
         .ok_or_else(|| TransformError::invalid_result("candidates", "no candidates"))?;
-
-    let candidate = candidates.into_iter().next().unwrap();
     if candidate.index.is_some_and(|n| n != 0) {
         return Err(TransformError::invalid_result(
             "candidate.index",
