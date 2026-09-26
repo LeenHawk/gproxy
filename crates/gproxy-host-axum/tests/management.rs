@@ -346,7 +346,31 @@ async fn a_portal_login_lists_keys_and_logs_out() {
     assert_eq!(out.json()["endedSession"], true);
     assert!(out.header("set-cookie").unwrap().contains("Max-Age=0"));
 
-    // The cookie no longer authenticates anything.
+    // An operator who knows every visitor arrives over HTTPS can say so, and
+    // the cookie is `Secure` even on a request that looked like plain HTTP.
+    host.handle()
+        .manage()
+        .settings()
+        .update(gproxy_sdk::dto::SettingsPatch {
+            instance: Some(gproxy_sdk::dto::InstanceSettingsPatch {
+                always_secure_cookie: Some(true),
+                ..Default::default()
+            }),
+            logging: None,
+        })
+        .await
+        .unwrap();
+    host.publish().await;
+    let again = host
+        .send(post(
+            "/portal/api/login",
+            json!({ "name": "alice", "password": "correct horse battery" }),
+        ))
+        .await;
+    assert_eq!(again.status, StatusCode::OK, "{}", again.text());
+    assert!(again.header("set-cookie").unwrap().contains("Secure"));
+
+    // The first cookie no longer authenticates anything.
     let keys = host
         .send(with(get("/portal/api/keys"), "cookie", &cookie))
         .await;

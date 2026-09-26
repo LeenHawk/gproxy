@@ -268,6 +268,7 @@
     "connectionProfileId": "預設 HTTP 用戶端設定",
     "corsOrigins": "允許的跨域来源",
     "trustedProxies": "受信任代理 IP",
+    "alwaysSecureCookie": "工作階段 cookie 一律帶 Secure",
     "maxAttempts": "最多嘗試次數",
     "requestTimeoutMs": "請求超時（毫秒）",
     "streamIdleTimeoutMs": "流空闲超時（毫秒）",

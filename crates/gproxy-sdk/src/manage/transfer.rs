@@ -1282,6 +1282,7 @@ mod rows {
             proxy: Set(crud::proxy(instance.proxy.clone())?),
             cors_origins: Set(instance.cors_origins.clone()),
             trusted_proxies: Set(instance.trusted_proxies.clone()),
+            always_secure_cookie: Set(instance.always_secure_cookie),
             max_attempts: Set(instance.max_attempts.max(1)),
             enable_settlement: Set(instance.enable_settlement),
             enable_usage: Set(instance.enable_usage),

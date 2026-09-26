@@ -107,6 +107,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> SettingsManage<'_, C> {
                     .collect::<SdkResult<Vec<_>>>()?;
                 row.trusted_proxies = Set(serde_json::json!(proxies));
             }
+            if let Some(value) = instance.always_secure_cookie {
+                row.always_secure_cookie = Set(value);
+            }
             if let Some(value) = instance.max_attempts {
                 if value == 0 {
                     return Err(SdkError::invalid("maxAttempts must be positive"));

@@ -246,11 +246,15 @@ where
 
 /// Whether a cookie set for this request should carry `Secure`.
 ///
-/// Taken from the request's own scheme and — behind a trusted proxy — from
-/// `x-forwarded-proto`. Derived rather than configured because getting it
-/// wrong in the safe direction (marking it `Secure` on a plain-HTTP
-/// development instance) makes sign-in silently fail.
+/// Always, when the settings say so. Otherwise taken from the request's own
+/// scheme and — behind a trusted proxy — from `x-forwarded-proto`: derived by
+/// default because getting it wrong in the safe direction (marking it `Secure`
+/// on a plain-HTTP development instance) makes sign-in silently fail, and
+/// switched on by an operator who knows every visitor arrives over HTTPS.
 fn secure_cookie<C>(state: &HostState<C>, request: &Request) -> bool {
+    if crate::runtime_settings::always_secure_cookie(state.app()) {
+        return true;
+    }
     let peer = crate::peer_ip(request);
     crate::policy::client_scheme(
         peer,
