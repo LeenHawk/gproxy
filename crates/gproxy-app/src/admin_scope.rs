@@ -38,7 +38,8 @@
 //! | caller | scope |
 //! |---|---|
 //! | `users.role = admin` | [`AdminScope::Instance`]; the header is not read |
-//! | an API key (or an OAuth grant's key) | the key's own `team_id`, else its `organization_id`, if the key's owner administers it |
+//! | an OAuth access token | none: refused, even when an administrator authorized it |
+//! | an API key | the key's own `team_id`, else its `organization_id`, if the key's owner administers it |
 //! | a console session | the `x-gproxy-admin-scope` header, validated against the caller's **admin** memberships |
 //!
 //! The API key case is deliberate and is the same rule the data plane already
@@ -81,6 +82,11 @@ pub const SCOPE_HEADER: &str = "x-gproxy-admin-scope";
 /// "that organization does not exist" have to be the same answer, or the
 /// header becomes an organization enumerator.
 const NO_SCOPE: &str = "this caller administers nothing on this instance";
+
+/// The refusal for an OAuth access token. It names the reason, unlike
+/// [`NO_SCOPE`]: whether a token may administer is not a secret about any row.
+const OAUTH_REFUSED: &str =
+    "an OAuth access token may not administer; sign in to the console instead";
 
 /// What one request may act as. Exactly one per request.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -372,6 +378,12 @@ impl AdminScope {
         data: &AppData,
         requested: Option<&str>,
     ) -> Result<AdminAdmission> {
+        // Before the role check: a token issued to a third-party program is
+        // not an administrative credential, whoever authorized it. The same
+        // rule `check_oauth_operation` holds on the data plane.
+        if caller.kind == CallerKind::OAuthGrant {
+            return Err(AppError::forbidden(OAUTH_REFUSED));
+        }
         if caller.is_instance_admin() {
             return Ok(AdminAdmission {
                 available: vec![Self::Instance],
@@ -381,7 +393,7 @@ impl AdminScope {
         // A key decides its own scope. Team first: it is the narrower of the
         // two bindings, and a key bound to both is a team key whose parent
         // organization is reachable through the team.
-        if matches!(caller.kind, CallerKind::ApiKey | CallerKind::OAuthGrant) {
+        if caller.kind == CallerKind::ApiKey {
             let bound = caller
                 .team_id
                 .as_deref()
@@ -1037,6 +1049,19 @@ mod tests {
             None,
         )
         .unwrap_err();
+        assert_eq!(error.status_code(), 403);
+    }
+
+    #[test]
+    fn an_oauth_token_administers_nothing_whoever_authorized_it() {
+        let data = app_data();
+        let admin = caller("root", "admin", CallerKind::OAuthGrant);
+        let error = AdminScope::resolve(&admin, &data, None).unwrap_err();
+        assert_eq!(error.status_code(), 403);
+
+        let mut org_admin = caller("orgadmin", "user", CallerKind::OAuthGrant);
+        org_admin.organization_id = Some("acme".into());
+        let error = AdminScope::resolve(&org_admin, &data, None).unwrap_err();
         assert_eq!(error.status_code(), 403);
     }
 
