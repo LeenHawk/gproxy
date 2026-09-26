@@ -30,9 +30,6 @@ impl ChatViaClaudeFanout {
     ) -> Result<FanoutStream<ch::ClaudeToChatStream>, TransformError> {
         let input = input.into_declared();
 
-        let original = crate::codec::encode_json(&input, settings.codec)
-            .map_err(codec_error)?
-            .to_vec();
         let mut children = Vec::new();
         for index in 0..input.n.flatten().unwrap_or(1) {
             let identities = target.options.child_identity(index, crate::Dialect::Claude);
@@ -53,7 +50,7 @@ impl ChatViaClaudeFanout {
                 .await?,
             );
         }
-        FanoutStream::new(children, target.options, original, state).await
+        FanoutStream::new(children, target.options, state).await
     }
     pub async fn prepare_stream_with_capabilities<S: StateStore, R: ResourceAccess>(
         input: h::GenerateContentRequestBody,
@@ -65,9 +62,6 @@ impl ChatViaClaudeFanout {
     ) -> Result<FanoutStream<ch::ClaudeToChatStream>, TransformError> {
         let input = input.into_declared();
 
-        let original = crate::codec::encode_json(&input, settings.codec)
-            .map_err(codec_error)?
-            .to_vec();
         let mut children = Vec::new();
         for index in 0..input.n.flatten().unwrap_or(1) {
             let identities = target.options.child_identity(index, crate::Dialect::Claude);
@@ -89,7 +83,7 @@ impl ChatViaClaudeFanout {
                 .await?,
             );
         }
-        FanoutStream::new(children, target.options, original, state).await
+        FanoutStream::new(children, target.options, state).await
     }
 }
 
@@ -102,9 +96,6 @@ impl ChatViaResponsesFanout {
     ) -> Result<FanoutStream<hr::ResponsesToChatStream>, TransformError> {
         let input = input.into_declared();
 
-        let original = crate::codec::encode_json(&input, settings.codec)
-            .map_err(codec_error)?
-            .to_vec();
         let mut children = Vec::new();
         for index in 0..input.n.flatten().unwrap_or(1) {
             let identities = target.options.child_identity(index, crate::Dialect::OpenAi);
@@ -123,7 +114,7 @@ impl ChatViaResponsesFanout {
                 .await?,
             );
         }
-        FanoutStream::new(children, target.options, original, state).await
+        FanoutStream::new(children, target.options, state).await
     }
     pub async fn prepare_stream_with_capabilities<S: StateStore, R: ResourceAccess>(
         input: h::GenerateContentRequestBody,
@@ -134,9 +125,6 @@ impl ChatViaResponsesFanout {
     ) -> Result<FanoutStream<hr::ResponsesToChatStream>, TransformError> {
         let input = input.into_declared();
 
-        let original = crate::codec::encode_json(&input, settings.codec)
-            .map_err(codec_error)?
-            .to_vec();
         let mut children = Vec::new();
         for index in 0..input.n.flatten().unwrap_or(1) {
             let identities = target.options.child_identity(index, crate::Dialect::OpenAi);
@@ -156,7 +144,7 @@ impl ChatViaResponsesFanout {
                 .await?,
             );
         }
-        FanoutStream::new(children, target.options, original, state).await
+        FanoutStream::new(children, target.options, state).await
     }
 }
 
@@ -170,9 +158,6 @@ impl GeminiViaClaudeFanout {
     ) -> Result<FanoutStream<cg::ClaudeToGeminiStream>, TransformError> {
         let input = input.into_declared();
 
-        let original = crate::codec::encode_json(&input, settings.codec)
-            .map_err(codec_error)?
-            .to_vec();
         let mut children = Vec::new();
         for index in 0..input
             .generation_config
@@ -201,7 +186,7 @@ impl GeminiViaClaudeFanout {
                 .await?,
             );
         }
-        FanoutStream::new(children, target.options, original, state).await
+        FanoutStream::new(children, target.options, state).await
     }
     pub async fn prepare_stream_with_capabilities<S: StateStore, R: ResourceAccess>(
         input: g::GenerateContentRequestBody,
@@ -213,9 +198,6 @@ impl GeminiViaClaudeFanout {
     ) -> Result<FanoutStream<cg::ClaudeToGeminiStream>, TransformError> {
         let input = input.into_declared();
 
-        let original = crate::codec::encode_json(&input, settings.codec)
-            .map_err(codec_error)?
-            .to_vec();
         let mut children = Vec::new();
         for index in 0..input
             .generation_config
@@ -245,7 +227,7 @@ impl GeminiViaClaudeFanout {
                 .await?,
             );
         }
-        FanoutStream::new(children, target.options, original, state).await
+        FanoutStream::new(children, target.options, state).await
     }
 }
 
@@ -259,9 +241,6 @@ impl GeminiViaResponsesFanout {
     ) -> Result<FanoutStream<gr::ResponsesToGeminiStream>, TransformError> {
         let input = input.into_declared();
 
-        let original = crate::codec::encode_json(&input, settings.codec)
-            .map_err(codec_error)?
-            .to_vec();
         let mut children = Vec::new();
         for index in 0..input
             .generation_config
@@ -290,7 +269,7 @@ impl GeminiViaResponsesFanout {
                 .await?,
             );
         }
-        FanoutStream::new(children, target.options, original, state).await
+        FanoutStream::new(children, target.options, state).await
     }
     pub async fn prepare_stream_with_capabilities<S: StateStore, R: ResourceAccess>(
         input: g::GenerateContentRequestBody,
@@ -302,9 +281,6 @@ impl GeminiViaResponsesFanout {
     ) -> Result<FanoutStream<gr::ResponsesToGeminiStream>, TransformError> {
         let input = input.into_declared();
 
-        let original = crate::codec::encode_json(&input, settings.codec)
-            .map_err(codec_error)?
-            .to_vec();
         let mut children = Vec::new();
         for index in 0..input
             .generation_config
@@ -334,6 +310,6 @@ impl GeminiViaResponsesFanout {
                 .await?,
             );
         }
-        FanoutStream::new(children, target.options, original, state).await
+        FanoutStream::new(children, target.options, state).await
     }
 }

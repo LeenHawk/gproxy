@@ -99,7 +99,7 @@ fn gemini_context() -> GeminiViaClaudeStreamFacts {
         },
     }
 }
-fn check<B: FanoutBridge>(mut call: FanoutStream<B>, store: Arc<Store>, cancel: bool)
+fn check<B: FanoutBridge>(mut call: FanoutStream<B>, store: Arc<Store>)
 where
     B::ClientEvent: FanoutEvent,
 {
@@ -142,23 +142,6 @@ where
     assert_eq!(host.host.sent.lock().unwrap().len(), 1);
     assert!(call.client_result().is_none());
     first.close();
-    if cancel {
-        *store.hang_key_prefix.lock().unwrap() = Some("fanout-stream-completed:".into());
-        loop {
-            let mut next = Box::pin(call.next(&host, &(), &state));
-            match next.as_mut().poll(&mut Context::from_waker(Waker::noop())) {
-                std::task::Poll::Ready(Ok(Some(chunk))) => {
-                    if let Some(e) = chunk.event {
-                        chunks.push(serde_json::to_value(e).unwrap());
-                    }
-                }
-                std::task::Poll::Pending => break,
-                _ => panic!("expected pending completion CAS"),
-            }
-        }
-        assert!(store.hung.load(Ordering::SeqCst));
-        assert!(call.client_result().is_none());
-    }
     while let Some(chunk) = ready(call.next(&host, &(), &state)).unwrap() {
         if let Some(e) = chunk.event {
             chunks.push(serde_json::to_value(e).unwrap());
@@ -209,12 +192,13 @@ where
         assert_eq!(v["stream"], json!(true));
     }
     assert!(
-        store
+        !store
             .entries
             .lock()
             .unwrap()
             .keys()
-            .any(|k| k.starts_with("fanout-stream-completed:"))
+            .any(|k| k.starts_with("fanout-stream")),
+        "fanout bookkeeping must stay in memory"
     );
 }
 #[test]
@@ -236,10 +220,10 @@ fn chat_claude_live_unique_ids_and_aggregate_usage() {
         &state,
     ))
     .unwrap();
-    check(call, store, false);
+    check(call, store);
 }
 #[test]
-fn chat_responses_live_and_cancelled_final_cas_recovers_without_post() {
+fn chat_responses_live_unique_ids_and_aggregate_usage() {
     let store = Arc::new(Store::default());
     let state = access(&store, Dialect::OpenAi);
     let call = ready(ChatViaResponsesFanout::prepare_stream(
@@ -249,7 +233,7 @@ fn chat_responses_live_and_cancelled_final_cas_recovers_without_post() {
         &state,
     ))
     .unwrap();
-    check(call, store, true);
+    check(call, store);
 }
 #[test]
 fn gemini_claude_live_unique_ids_and_aggregate_usage() {
@@ -266,7 +250,7 @@ fn gemini_claude_live_unique_ids_and_aggregate_usage() {
         &state,
     ))
     .unwrap();
-    check(call, store, false);
+    check(call, store);
 }
 #[test]
 fn gemini_responses_live_unique_ids_and_aggregate_usage() {
@@ -287,7 +271,7 @@ fn gemini_responses_live_unique_ids_and_aggregate_usage() {
         &state,
     ))
     .unwrap();
-    check(call, store, false);
+    check(call, store);
 }
 #[test]
 fn fanout_scope_change_precedes_post() {
@@ -335,14 +319,6 @@ fn later_child_failure_keeps_first_receipt_without_false_success() {
     assert!(call.children()[0].native_result().is_some());
     assert!(call.client_result().is_none());
     assert_eq!(host.host.sent.lock().unwrap().len(), 2);
-    assert!(
-        !store
-            .entries
-            .lock()
-            .unwrap()
-            .keys()
-            .any(|k| k.starts_with("fanout-stream-completed:"))
-    );
     assert!(ready(call.next(&host, &(), &state)).is_err());
     assert_eq!(host.host.sent.lock().unwrap().len(), 2);
 }

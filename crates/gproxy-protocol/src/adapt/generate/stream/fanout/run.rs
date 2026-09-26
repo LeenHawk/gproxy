@@ -6,8 +6,8 @@ where
     B::ClientEvent: FanoutEvent,
 {
     /// Starts each unstarted child once and returns incremental client bytes.
-    /// Errors retain native receipts. Retry after a state write interruption uses
-    /// readback; cancellation during a POST never triggers a second POST.
+    /// Errors retain native receipts in memory; cancellation during a POST
+    /// never triggers a second POST.
     pub async fn next<U: Upstream, S: StateStore>(
         &mut self,
         upstream: &U,
@@ -37,7 +37,6 @@ where
         state: &GenerationStateAccess<'_, S>,
         driver: &mut D,
     ) -> Result<Option<StreamChunk<B::ClientEvent>>, TransformError> {
-        self.manifest.verify(state).await?;
         if self.failed {
             return Err(invalid(
                 "fanout stream failed; retained children require reconciliation",
@@ -111,31 +110,25 @@ where
                 )));
             }
             if self.children[self.index].finished {
-                if self.child_record.is_none() {
-                    let child = &self.children[self.index];
-                    let native = child
-                        .native_result()
-                        .ok_or_else(|| invalid("finished child lacks native receipt"))?;
-                    let client = child
-                        .client_result()
-                        .ok_or_else(|| invalid("finished child lacks acknowledged result"))?;
-                    let retained =
-                        crate::codec::encode_json(&(native, client), self.settings.codec)
-                            .map_err(codec_error)?
-                            .len();
-                    self.retained_bytes = self
-                        .retained_bytes
-                        .checked_add(retained)
-                        .ok_or_else(|| limit("fanout retained byte overflow"))?;
-                    if self.retained_bytes > self.settings.events.max_bytes
-                        || self.retained_bytes as u64 > self.settings.codec.max_body_bytes
-                    {
-                        return Err(limit("fanout retained results exceed aggregate budget"));
-                    }
-                    self.child_record=Some(self.receipt(&format!("child-{}",self.index),&serde_json::json!({"native":native,"client":client,"request_namespace":child.selected.identities.request.namespace(),"response_namespace":child.selected.identities.response.namespace()}),state)?);
-                }
-                self.child_record.as_mut().unwrap().reserve(state).await?;
                 let child = &self.children[self.index];
+                let native = child
+                    .native_result()
+                    .ok_or_else(|| invalid("finished child lacks native receipt"))?;
+                let client = child
+                    .client_result()
+                    .ok_or_else(|| invalid("finished child lacks acknowledged result"))?;
+                let retained = crate::codec::encode_json(&(native, client), self.settings.codec)
+                    .map_err(codec_error)?
+                    .len();
+                self.retained_bytes = self
+                    .retained_bytes
+                    .checked_add(retained)
+                    .ok_or_else(|| limit("fanout retained byte overflow"))?;
+                if self.retained_bytes > self.settings.events.max_bytes
+                    || self.retained_bytes as u64 > self.settings.codec.max_body_bytes
+                {
+                    return Err(limit("fanout retained results exceed aggregate budget"));
+                }
                 for diagnostic in &child.report.diagnostics {
                     if !self.report.diagnostics.contains(diagnostic) {
                         self.report.diagnostics.push(diagnostic.clone());
@@ -151,8 +144,7 @@ where
                         .filter(|handle| handle.role == IdentityRole::Response)
                         .map(|handle| handle.emitted_id),
                 );
-                self.completed.push(child.client_result().unwrap().clone());
-                self.child_record = None;
+                self.completed.push(client.clone());
                 self.index += 1;
                 self.seeded = false;
                 continue;
@@ -237,15 +229,8 @@ where
                 ));
             }
             self.tail = B::ClientEvent::tail(&aggregate, self.emit_usage)?;
-            self.terminal_record = Some(self.receipt("completed", &aggregate, state)?);
             self.aggregate = Some(aggregate);
         }
-        self.terminal_record
-            .as_mut()
-            .unwrap()
-            .reserve(state)
-            .await?;
-        self.aggregate_saved = true;
         if !self.tail_emitted {
             self.tail_emitted = true;
             if let Some(tail) = self.tail.take() {

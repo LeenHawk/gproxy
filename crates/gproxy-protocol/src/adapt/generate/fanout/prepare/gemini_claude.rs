@@ -8,7 +8,6 @@ impl GeminiViaClaudeFanout {
         input: g::GenerateContentRequestBody,
         target: FanoutTarget,
         state: &GenerationStateAccess<'_, S>,
-        limits: CodecLimits,
         max_tokens: Option<i64>,
     ) -> Result<Self, TransformError> {
         let mut input = input.into_declared();
@@ -18,7 +17,6 @@ impl GeminiViaClaudeFanout {
             .as_ref()
             .and_then(|v| v.candidate_count)
             .unwrap_or(1);
-        let original = encode(&input, limits)?;
         input
             .generation_config
             .as_mut()
@@ -42,8 +40,8 @@ impl GeminiViaClaudeFanout {
             children,
             endpoint: target.endpoint,
             group_id: id,
-            original,
             options: target.options,
+            started: false,
         }))
     }
     /// Resources are read once before cloning the single-candidate request.
@@ -52,21 +50,10 @@ impl GeminiViaClaudeFanout {
         target: FanoutTarget,
         state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
-        limits: CodecLimits,
         max_tokens: Option<i64>,
     ) -> Result<Self, TransformError> {
         let input = input.into_declared();
-        let original = encode(&input, limits)?;
-        let mut prepared = Self::prepare(
-            resources.gemini(input).await?,
-            target,
-            state,
-            limits,
-            max_tokens,
-        )
-        .await?;
-        prepared.0.original = original;
-        Ok(prepared)
+        Self::prepare(resources.gemini(input).await?, target, state, max_tokens).await
     }
     pub fn response_id(&self) -> &str {
         &self.0.group_id
@@ -74,7 +61,7 @@ impl GeminiViaClaudeFanout {
     pub fn children(&self) -> &[GeminiViaClaude] {
         &self.0.children
     }
-    /// Start a fresh journal and send each child at most once.
+    /// Sends each child at most once and aggregates their results in order.
     pub async fn invoke<U: Upstream, S: StateStore>(
         &mut self,
         upstream: &U,
@@ -91,27 +78,7 @@ impl GeminiViaClaudeFanout {
         >,
     ) -> Result<Converted<g::GenerateContentResponseBody>, TransformError> {
         self.0
-            .run((upstream, target), limits, state, progress, facts, false)
-            .await
-    }
-    /// Reload the exact reserved journal; only never-started children may send.
-    pub async fn resume<U: Upstream, S: StateStore>(
-        &mut self,
-        upstream: &U,
-        target: &U::Target,
-        limits: CodecLimits,
-        state: &GenerationStateAccess<'_, S>,
-        progress: &mut FanoutProgress<c::GenerateContentResponseBody>,
-        facts: impl FnMut(
-            usize,
-            &c::GenerateContentResponseBody,
-        ) -> Result<
-            crate::transform::generate::claude_gemini::ClaudeGeminiUsageFacts,
-            TransformError,
-        >,
-    ) -> Result<Converted<g::GenerateContentResponseBody>, TransformError> {
-        self.0
-            .run((upstream, target), limits, state, progress, facts, true)
+            .run((upstream, target), limits, state, progress, facts)
             .await
     }
 }

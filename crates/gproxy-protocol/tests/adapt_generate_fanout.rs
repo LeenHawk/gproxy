@@ -65,7 +65,6 @@ fn codec_limits() -> CodecLimits {
 struct Store {
     entries: Mutex<std::collections::BTreeMap<String, gproxy_protocol::capability::StateEntry>>,
     attempts: Mutex<usize>,
-    fail_at: Option<usize>,
 }
 impl gproxy_protocol::capability::StateStore for Store {
     type Scope = ();
@@ -90,9 +89,6 @@ impl gproxy_protocol::capability::StateStore for Store {
         Box::pin(async move {
             let mut n = self.attempts.lock().unwrap();
             *n += 1;
-            if self.fail_at == Some(*n) {
-                return Ok(CasResult::Conflict);
-            }
             let mut entries = self.entries.lock().unwrap();
             if entries.get(key).map(|e| e.version.clone()) != expected {
                 return Ok(CasResult::Conflict);
@@ -247,7 +243,6 @@ fn four_typed_fanouts_execute_real_posts_order_candidates_and_sum_actual_charges
         chat_input(),
         setup(Dialect::OpenAiChat, Dialect::Claude),
         &state,
-        codec_limits(),
     ))
     .unwrap();
     let mut progress = FanoutProgress::default();
@@ -268,7 +263,6 @@ fn four_typed_fanouts_execute_real_posts_order_candidates_and_sum_actual_charges
         chat_input(),
         setup(Dialect::OpenAiChat, Dialect::OpenAi),
         &state,
-        codec_limits(),
     ))
     .unwrap();
     let out = ready(p.invoke(
@@ -292,7 +286,6 @@ fn four_typed_fanouts_execute_real_posts_order_candidates_and_sum_actual_charges
         gemini_input(),
         setup(Dialect::Gemini, Dialect::Claude),
         &state,
-        codec_limits(),
         None,
     ))
     .unwrap();
@@ -317,7 +310,6 @@ fn four_typed_fanouts_execute_real_posts_order_candidates_and_sum_actual_charges
         gemini_input(),
         setup(Dialect::Gemini, Dialect::OpenAi),
         &state,
-        codec_limits(),
     ))
     .unwrap();
     let out = ready(p.invoke(
@@ -357,7 +349,6 @@ fn duplicate_native_call_ids_across_independent_children_get_exact_saved_aliases
         chat_input(),
         setup(Dialect::OpenAiChat, Dialect::Claude),
         &state,
-        codec_limits(),
     ))
     .unwrap();
     let out = serde_json::to_value(
@@ -392,81 +383,6 @@ fn duplicate_native_call_ids_across_independent_children_get_exact_saved_aliases
     }
 }
 #[test]
-fn retained_raw_after_cas_failure_resumes_only_unsent_child() {
-    let store = Store {
-        fail_at: Some(4),
-        ..Default::default()
-    };
-    let state = state(&store, Dialect::Claude);
-    let host = Host::many(two("c"));
-    let mut p = ready(ChatViaClaudeFanout::prepare(
-        chat_input(),
-        setup(Dialect::OpenAiChat, Dialect::Claude),
-        &state,
-        codec_limits(),
-    ))
-    .unwrap();
-    let mut progress = FanoutProgress::default();
-    assert_eq!(
-        ready(p.invoke(&host, &(), codec_limits(), &state, &mut progress, clock))
-            .unwrap_err()
-            .kind(),
-        TransformErrorKind::Conflict
-    );
-    assert_eq!(host.sent.lock().unwrap().len(), 1);
-    assert!(progress.children()[0].raw_response.is_some());
-    let out = ready(p.resume(&host, &(), codec_limits(), &state, &mut progress, clock)).unwrap();
-    assert_eq!(out.value.choices.len(), 2);
-    assert_eq!(host.sent.lock().unwrap().len(), 2);
-}
-#[test]
-fn durable_raw_recovery_rebuilds_without_any_post_and_freezes_exposed_facts() {
-    let store = Store::default();
-    let state = state(&store, Dialect::Claude);
-    let host = Host::many(two("c"));
-    let mut p = ready(ChatViaClaudeFanout::prepare(
-        chat_input(),
-        setup(Dialect::OpenAiChat, Dialect::Claude),
-        &state,
-        codec_limits(),
-    ))
-    .unwrap();
-    assert_eq!(
-        ready(p.invoke(
-            &host,
-            &(),
-            codec_limits(),
-            &state,
-            &mut FanoutProgress::default(),
-            |_, _| Err(TransformError::missing_metadata("clock"))
-        ))
-        .unwrap_err()
-        .kind(),
-        TransformErrorKind::MissingMetadata
-    );
-    let mut p = ready(ChatViaClaudeFanout::prepare(
-        chat_input(),
-        setup(Dialect::OpenAiChat, Dialect::Claude),
-        &state,
-        codec_limits(),
-    ))
-    .unwrap();
-    let mut progress = FanoutProgress::default();
-    let out = ready(p.resume(&host, &(), codec_limits(), &state, &mut progress, clock)).unwrap();
-    assert_eq!(out.value.choices.len(), 2);
-    assert_eq!(host.sent.lock().unwrap().len(), 2);
-    let error = ready(
-        p.resume(&host, &(), codec_limits(), &state, &mut progress, |_, _| {
-            Ok(claude_chat::ResponseSupplement {
-                created_unix_seconds: Some(124),
-            })
-        }),
-    )
-    .unwrap_err();
-    assert_eq!(error.kind(), TransformErrorKind::Conflict);
-    assert_eq!(host.sent.lock().unwrap().len(), 2);
-}
-#[test]
 fn cancellation_and_known_rejection_never_repeat_started_calls_or_complete_partial_group() {
     let store = Store::default();
     let state = state(&store, Dialect::Claude);
@@ -475,7 +391,6 @@ fn cancellation_and_known_rejection_never_repeat_started_calls_or_complete_parti
         chat_input(),
         setup(Dialect::OpenAiChat, Dialect::Claude),
         &state,
-        codec_limits(),
     ))
     .unwrap();
     let mut progress = FanoutProgress::default();
@@ -488,7 +403,7 @@ fn cancellation_and_known_rejection_never_repeat_started_calls_or_complete_parti
     assert!(progress.children()[1].send_started);
     let mut fresh = FanoutProgress::default();
     assert_eq!(
-        ready(p.resume(&host, &(), codec_limits(), &state, &mut fresh, clock))
+        ready(p.invoke(&host, &(), codec_limits(), &state, &mut fresh, clock))
             .unwrap_err()
             .kind(),
         TransformErrorKind::Conflict
@@ -503,7 +418,6 @@ fn cancellation_and_known_rejection_never_repeat_started_calls_or_complete_parti
         chat_input(),
         setup(Dialect::OpenAiChat, Dialect::Claude),
         &state,
-        codec_limits(),
     ))
     .unwrap();
     let mut progress = FanoutProgress::default();
@@ -512,7 +426,7 @@ fn cancellation_and_known_rejection_never_repeat_started_calls_or_complete_parti
         progress.children()[1].raw_response.as_ref().unwrap().status,
         429
     );
-    assert!(ready(p.resume(&host, &(), codec_limits(), &state, &mut progress, clock)).is_err());
+    assert!(ready(p.invoke(&host, &(), codec_limits(), &state, &mut progress, clock)).is_err());
     assert_eq!(host.sent.lock().unwrap().len(), 2);
 }
 
@@ -625,7 +539,6 @@ fn materializes_foreign_image_once_before_all_child_posts() {
         setup(Dialect::OpenAiChat, Dialect::Claude),
         &state,
         &resources,
-        codec_limits(),
     ))
     .unwrap();
     assert_eq!(access.reads.lock().unwrap().len(), 1);
@@ -651,7 +564,7 @@ fn materializes_foreign_image_once_before_all_child_posts() {
     }
 }
 #[test]
-fn reservation_limits_expiry_and_rebinding_fail_before_any_new_post() {
+fn child_limits_fail_before_any_post_and_a_completed_group_never_sends_again() {
     let store = Store::default();
     let state = state(&store, Dialect::Claude);
     let host = Host::many(two("c"));
@@ -659,7 +572,6 @@ fn reservation_limits_expiry_and_rebinding_fail_before_any_new_post() {
         chat_input(),
         setup(Dialect::OpenAiChat, Dialect::Claude),
         &state,
-        codec_limits(),
     ))
     .unwrap();
     let mut progress = FanoutProgress::default();
@@ -670,20 +582,8 @@ fn reservation_limits_expiry_and_rebinding_fail_before_any_new_post() {
     assert!(ready(p.invoke(&host, &(), tiny, &state, &mut progress, clock)).is_err());
     assert!(host.sent.lock().unwrap().is_empty());
     ready(p.invoke(&host, &(), codec_limits(), &state, &mut progress, clock)).unwrap();
-    let mut wrong = state_fn(&store, Dialect::Claude);
-    wrong.now = wrong.expires_at;
-    assert!(ready(p.resume(&host, &(), codec_limits(), &wrong, &mut progress, clock)).is_err());
-    let mut changed = chat_input();
-    changed.temperature = Some(Some(0.25));
-    let mut different = ready(ChatViaClaudeFanout::prepare(
-        changed,
-        setup(Dialect::OpenAiChat, Dialect::Claude),
-        &state,
-        codec_limits(),
-    ))
-    .unwrap();
     assert_eq!(
-        ready(different.resume(
+        ready(p.invoke(
             &host,
             &(),
             codec_limits(),
@@ -696,33 +596,6 @@ fn reservation_limits_expiry_and_rebinding_fail_before_any_new_post() {
         TransformErrorKind::Conflict
     );
     assert_eq!(host.sent.lock().unwrap().len(), 2);
-}
-
-#[test]
-fn reservation_failure_can_resume_proven_unsent_child_in_retained_progress() {
-    let store = Store {
-        fail_at: Some(3),
-        ..Default::default()
-    };
-    let state = state(&store, Dialect::Claude);
-    let host = Host::many(two("c"));
-    let mut p = ready(ChatViaClaudeFanout::prepare(
-        chat_input(),
-        setup(Dialect::OpenAiChat, Dialect::Claude),
-        &state,
-        codec_limits(),
-    ))
-    .unwrap();
-    let mut progress = FanoutProgress::default();
-    assert_eq!(
-        ready(p.invoke(&host, &(), codec_limits(), &state, &mut progress, clock))
-            .unwrap_err()
-            .kind(),
-        TransformErrorKind::Conflict
-    );
-    assert!(host.sent.lock().unwrap().is_empty());
-    ready(p.resume(&host, &(), codec_limits(), &state, &mut progress, clock)).unwrap();
-    assert_sends(&host);
 }
 
 #[test]
@@ -745,7 +618,7 @@ fn executes_identical_four_historical_fixtures_through_actual_v4_fanout() {
         let state = state(&store, upstream);
         let host = Host::many(two(if is_claude { "c" } else { "r" }));
         macro_rules! execute{($adapter:ident,$facts:expr $(,$extra:expr)?)=>{{
-            let mut prepared=ready($adapter::prepare(serde_json::from_value(case["input"].clone()).unwrap(),setup(client,upstream),&state,codec_limits() $(,$extra)?)).unwrap();
+            let mut prepared=ready($adapter::prepare(serde_json::from_value(case["input"].clone()).unwrap(),setup(client,upstream),&state $(,$extra)?)).unwrap();
             serde_json::to_value(ready(prepared.invoke(&host,&(),codec_limits(),&state,&mut FanoutProgress::default(),$facts)).unwrap().value).unwrap()
         }}}
         let output = match (client, is_claude) {
@@ -852,7 +725,6 @@ fn signed_child_call_ids_and_absence_survive_actual_aggregation_and_state() {
             gemini_input(),
             setup(Dialect::Gemini, Dialect::OpenAi),
             &state,
-            codec_limits(),
         ))
         .unwrap();
         let out = ready(p.invoke(
@@ -900,7 +772,6 @@ fn unsigned_earlier_child_yields_to_later_immutable_signed_id_and_duplicate_sign
         gemini_input(),
         setup(Dialect::Gemini, Dialect::OpenAi),
         &state,
-        codec_limits(),
     ))
     .unwrap();
     let out = ready(p.invoke(
@@ -935,7 +806,6 @@ fn unsigned_earlier_child_yields_to_later_immutable_signed_id_and_duplicate_sign
         gemini_input(),
         setup(Dialect::Gemini, Dialect::OpenAi),
         &state,
-        codec_limits(),
     ))
     .unwrap();
     let mut progress = FanoutProgress::default();
