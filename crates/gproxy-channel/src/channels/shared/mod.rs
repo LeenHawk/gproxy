@@ -124,7 +124,13 @@ fn host_platform() -> &'static str {
     }
 }
 
-#[cfg(any(feature = "claudeapi", feature = "claudecode", feature = "custom", feature = "openrouter", feature = "vercel"))]
+#[cfg(any(
+    feature = "claudeapi",
+    feature = "claudecode",
+    feature = "custom",
+    feature = "openrouter",
+    feature = "vercel"
+))]
 pub(crate) mod claude_fallback;
 
 #[cfg(any(feature = "claudeapi", feature = "vercel"))]

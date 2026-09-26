@@ -484,22 +484,32 @@ impl<C: BatchConnectionTrait> Core<C> {
         let model = quota_model(&data, credential);
         let positive = |entry: &QuotaEntry| {
             !exhausted(&entry.value) && match &entry.value {
-                QuotaValue::Balance(balance) => balance.remaining.is_some_and(|r| r > Decimal::ZERO),
-                value => allowance(value).is_some_and(|a| a.unlimited == Some(true)
-                    || a.remaining.is_some_and(|r| r > Decimal::ZERO)
-                    || a.used_percent.is_some_and(|p| p < Decimal::ONE_HUNDRED)
-                    || matches!((a.used, a.limit), (Some(used), Some(limit)) if used < limit)),
+                QuotaValue::Balance(balance) => {
+                    balance.remaining.is_some_and(|r| r > Decimal::ZERO)
+                }
+                value => allowance(value).is_some_and(|a| {
+                    a.unlimited == Some(true)
+                        || a.remaining.is_some_and(|r| r > Decimal::ZERO)
+                        || a.used_percent.is_some_and(|p| p < Decimal::ONE_HUNDRED)
+                        || matches!((a.used, a.limit), (Some(used), Some(limit)) if used < limit)
+                }),
             }
         };
         // A dimension that no longer blocks releases its older block too.
-        let recovered: Vec<_> = entries.iter().filter_map(|entry| {
-            let dimension = classify(model, credential, entry)?;
-            if dimension.blocking && !positive(entry) {
-                return None;
-            }
-            let scope = match &dimension.scope { QuotaScope::Unknown => &entry.model_scope, scope => scope };
-            Some((dimension.id.clone(), scope.clone()))
-        }).collect();
+        let recovered: Vec<_> = entries
+            .iter()
+            .filter_map(|entry| {
+                let dimension = classify(model, credential, entry)?;
+                if dimension.blocking && !positive(entry) {
+                    return None;
+                }
+                let scope = match &dimension.scope {
+                    QuotaScope::Unknown => &entry.model_scope,
+                    scope => scope,
+                };
+                Some((dimension.id.clone(), scope.clone()))
+            })
+            .collect();
         if recovered.is_empty() {
             return Ok(());
         }

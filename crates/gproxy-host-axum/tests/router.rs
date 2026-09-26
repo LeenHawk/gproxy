@@ -503,12 +503,18 @@ async fn a_body_is_held_to_its_cap_and_only_an_upload_gets_the_larger_one() {
     host.client
         .script(vec![Reply::Http(StatusCode::OK, json!({ "id": "file-1" }))]);
     let upload = keyed(post("/v1/files", json!({ "file": padding })), "k-alice");
-    assert_ne!(host.send(upload).await.status, StatusCode::PAYLOAD_TOO_LARGE);
+    assert_ne!(
+        host.send(upload).await.status,
+        StatusCode::PAYLOAD_TOO_LARGE
+    );
     let upload = keyed(
         post("/v1/files", json!({ "file": "x".repeat(8192) })),
         "k-alice",
     );
-    assert_eq!(host.send(upload).await.status, StatusCode::PAYLOAD_TOO_LARGE);
+    assert_eq!(
+        host.send(upload).await.status,
+        StatusCode::PAYLOAD_TOO_LARGE
+    );
 
     // Sign-in is read before there is anyone to answer for it.
     let login = post(

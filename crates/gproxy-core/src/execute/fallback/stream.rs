@@ -98,13 +98,12 @@ impl Events {
             serde_json::from_str(&event.data).map_err(|e| error(e.to_string()))?;
         // A response we cannot faithfully collect is still forwarded, but
         // cannot authorize a replay.
-        if let Some(collector) = self.collector.as_mut() {
-            if serde_json::from_value(value.clone())
+        if let Some(collector) = self.collector.as_mut()
+            && serde_json::from_value(value.clone())
                 .ok()
                 .is_none_or(|typed| collector.push(typed).is_err())
-            {
-                self.collector = None;
-            }
+        {
+            self.collector = None;
         }
         let kind = value["type"].as_str().unwrap_or_default().to_owned();
         if kind == "message_start" {

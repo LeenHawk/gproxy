@@ -426,29 +426,67 @@ fn model_fallbacks_use_the_native_dialect_and_keep_client_routing() {
         "claude-opus-4-8", "claude-opus-4-8", "anthropic/claude-fable-5",
         "google/gemini-3-pro", "openai/gpt-5", "extra"
     ]});
-    for (dialect,path) in [(Dialect::Claude,"/v1/messages"),(Dialect::OpenAiChat,"/v1/chat/completions")] {
-        let mut wire = request(path,None);
-        wire.body = HttpBody::Bytes(Bytes::from(json!({"model":"anthropic/claude-fable-5","messages":[]}).to_string()));
-        let prepared = prepare(&config,None,Operation::StreamGenerateContent,dialect,wire).unwrap();
-        assert!(!prepared.headers().get("anthropic-beta").is_some_and(|v| v.to_str().unwrap().contains("server-side-fallback")));
+    for (dialect, path) in [
+        (Dialect::Claude, "/v1/messages"),
+        (Dialect::OpenAiChat, "/v1/chat/completions"),
+    ] {
+        let mut wire = request(path, None);
+        wire.body = HttpBody::Bytes(Bytes::from(
+            json!({"model":"anthropic/claude-fable-5","messages":[]}).to_string(),
+        ));
+        let prepared = prepare(
+            &config,
+            None,
+            Operation::StreamGenerateContent,
+            dialect,
+            wire,
+        )
+        .unwrap();
+        assert!(
+            !prepared
+                .headers()
+                .get("anthropic-beta")
+                .is_some_and(|v| v.to_str().unwrap().contains("server-side-fallback"))
+        );
         let body = body_of(prepared);
         if dialect == Dialect::Claude {
-            assert_eq!(body["fallbacks"], json!([
-                {"model":"anthropic/claude-opus-4-8"},{"model":"google/gemini-3-pro"},{"model":"openai/gpt-5"}
-            ]));
+            assert_eq!(
+                body["fallbacks"],
+                json!([
+                    {"model":"anthropic/claude-opus-4-8"},{"model":"google/gemini-3-pro"},{"model":"openai/gpt-5"}
+                ])
+            );
             assert!(body.get("models").is_none());
         } else {
-            assert_eq!(body["models"],json!(["anthropic/claude-opus-4-8","google/gemini-3-pro","openai/gpt-5"]));
+            assert_eq!(
+                body["models"],
+                json!([
+                    "anthropic/claude-opus-4-8",
+                    "google/gemini-3-pro",
+                    "openai/gpt-5"
+                ])
+            );
             assert!(body.get("fallbacks").is_none());
         }
-        assert!(body.get("provider").is_none(), "model fallback must not configure supplier routing");
-        for existing in [json!({"models":["client-model"]}),json!({"fallbacks":[{"model":"client-model"}]})] {
+        assert!(
+            body.get("provider").is_none(),
+            "model fallback must not configure supplier routing"
+        );
+        for existing in [
+            json!({"models":["client-model"]}),
+            json!({"fallbacks":[{"model":"client-model"}]}),
+        ] {
             let mut body = json!({"model":"anthropic/claude-fable-5","messages":[]});
-            body.as_object_mut().unwrap().extend(existing.as_object().unwrap().clone());
-            let mut wire = request(path,None);
+            body.as_object_mut()
+                .unwrap()
+                .extend(existing.as_object().unwrap().clone());
+            let mut wire = request(path, None);
             wire.body = HttpBody::Bytes(Bytes::from(body.to_string()));
-            let shaped = body_of(prepare(&config,None,Operation::GenerateContent,dialect,wire).unwrap());
-            for name in ["models","fallbacks"] { assert_eq!(shaped.get(name),body.get(name)); }
+            let shaped =
+                body_of(prepare(&config, None, Operation::GenerateContent, dialect, wire).unwrap());
+            for name in ["models", "fallbacks"] {
+                assert_eq!(shaped.get(name), body.get(name));
+            }
         }
     }
 }
@@ -456,11 +494,23 @@ fn model_fallbacks_use_the_native_dialect_and_keep_client_routing() {
 #[test]
 fn fallback_usage_is_attributed_to_the_serving_model() {
     let body = json!({"model":"anthropic/claude-opus-4-8","usage":{"prompt_tokens":10,"completion_tokens":4}});
-    let usage = OpenRouter.usage_extractor().unwrap().extract(UsageContext {
-        operation: OperationKey { operation:Operation::GenerateContent,dialect:Dialect::OpenAiChat },
-        request_body: None,
-        response: ResponseView { status:StatusCode::OK,headers:&HeaderMap::new(),body:body.to_string().as_bytes() },
-    }).unwrap().unwrap();
-    assert_eq!(usage.attempts[0].model,"anthropic/claude-opus-4-8");
-    assert_eq!(usage.attempts[0].usage.tokens.output_tokens,Some(4));
+    let usage = OpenRouter
+        .usage_extractor()
+        .unwrap()
+        .extract(UsageContext {
+            operation: OperationKey {
+                operation: Operation::GenerateContent,
+                dialect: Dialect::OpenAiChat,
+            },
+            request_body: None,
+            response: ResponseView {
+                status: StatusCode::OK,
+                headers: &HeaderMap::new(),
+                body: body.to_string().as_bytes(),
+            },
+        })
+        .unwrap()
+        .unwrap();
+    assert_eq!(usage.attempts[0].model, "anthropic/claude-opus-4-8");
+    assert_eq!(usage.attempts[0].usage.tokens.output_tokens, Some(4));
 }

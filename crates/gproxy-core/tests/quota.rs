@@ -265,7 +265,9 @@ async fn an_exhausted_non_blocking_dimension_keeps_the_credential_routable() {
     h.script(vec![(
         StatusCode::OK,
         vec![("x-test-quota", "primary=0;reset=9999999999000")],
-        vec![gproxy_protocol::connection::Bytes::from_static(br#"{"ok":1}"#)],
+        vec![gproxy_protocol::connection::Bytes::from_static(
+            br#"{"ok":1}"#,
+        )],
     )]);
     let execution = h
         .core

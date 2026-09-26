@@ -41,9 +41,17 @@ pub(crate) fn from_body(
 ) -> Result<Option<NormalizedUsage>, ChannelError> {
     if let Ok(value) = serde_json::from_slice::<Value>(body) {
         let mut usage = from_value(dialect, &value);
-        if dialect == Dialect::Claude && let Some(usage) = usage.as_mut() {
-            attach_model(usage, value.get("model").and_then(Value::as_str).unwrap_or_default(),
-                value["stop_reason"] == "refusal");
+        if dialect == Dialect::Claude
+            && let Some(usage) = usage.as_mut()
+        {
+            attach_model(
+                usage,
+                value
+                    .get("model")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+                value["stop_reason"] == "refusal",
+            );
         }
         return Ok(usage);
     }
@@ -70,8 +78,12 @@ fn from_event_stream(dialect: Dialect, body: &[u8]) -> Option<NormalizedUsage> {
         let Ok(value) = serde_json::from_str::<Value>(payload) else {
             continue;
         };
-        if let Some(name) = value.pointer("/message/model").and_then(Value::as_str) { model = name.to_owned(); }
-        if let Some(reason) = value.pointer("/delta/stop_reason").and_then(Value::as_str) { refused = reason == "refusal"; }
+        if let Some(name) = value.pointer("/message/model").and_then(Value::as_str) {
+            model = name.to_owned();
+        }
+        if let Some(reason) = value.pointer("/delta/stop_reason").and_then(Value::as_str) {
+            refused = reason == "refusal";
+        }
         if let Some(usage) = from_value(dialect, &value) {
             merged = Some(match merged {
                 Some(previous) => {
@@ -87,17 +99,28 @@ fn from_event_stream(dialect: Dialect, body: &[u8]) -> Option<NormalizedUsage> {
             });
         }
     }
-    if dialect == Dialect::Claude && let Some(usage) = merged.as_mut() {
+    if dialect == Dialect::Claude
+        && let Some(usage) = merged.as_mut()
+    {
         attach_model(usage, &model, refused);
     }
     merged
 }
 
 fn attach_model(usage: &mut NormalizedUsage, model: &str, refused: bool) {
-    if model.is_empty() { return; }
-    let billable = if refused { usage.tokens.output_tokens.map(|n| n > 0) } else { Some(true) };
+    if model.is_empty() {
+        return;
+    }
+    let billable = if refused {
+        usage.tokens.output_tokens.map(|n| n > 0)
+    } else {
+        Some(true)
+    };
     usage.attempts = vec![crate::channel::UsageAttempt {
-        model: model.to_owned(), usage: Box::new(usage.clone()), billable, started_at_ms: None,
+        model: model.to_owned(),
+        usage: Box::new(usage.clone()),
+        billable,
+        started_at_ms: None,
     }];
 }
 
