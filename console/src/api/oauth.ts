@@ -3,8 +3,9 @@
 //! Two flows end on a page of this console. A client that sends a browser to
 //! `{issuer}/oauth/authorize` has the host redirect it to `/console/authorize`
 //! with the request's query intact; a device that started the device flow
-//! shows its user a code and `/console/device`. Both need a signed-in person
-//! and nothing else, and the host accepts only the session cookie for them.
+//! shows its user a code and `/console/device`. The page answers with the
+//! session cookie; the host also takes a management API key there, and never
+//! an OAuth token or an ordinary key.
 //!
 //! The authorization endpoint answers in RFC 6749's error shape rather than
 //! the product envelope — `error` is a string code there — so it has its own

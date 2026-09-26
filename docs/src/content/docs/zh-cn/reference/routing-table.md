@@ -266,7 +266,7 @@ GET    /portal/api/keys              （+ POST、DELETE …/{id}、POST …/{id}
 GET    /portal/api/oauth-sessions    （+ DELETE …/{id}）
 POST   /portal/api/password
 GET    /portal/api/oauth/device      查询待批准的设备码（?userCode=），供 `/console/device` 使用
-POST   /portal/api/oauth/device      批准或拒绝；只认登录 cookie
+POST   /portal/api/oauth/device      批准或拒绝；需要登录会话或带管理权限的 key
 ```
 
 这里的守卫要求一个已认证的调用方，**仅此而已**。没有角色检查，因为没有东西可检查：用户面

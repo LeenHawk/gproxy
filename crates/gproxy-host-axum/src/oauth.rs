@@ -41,7 +41,6 @@
 use axum::response::{IntoResponse, Response};
 use gproxy_app::{
     AppError, Caller, Operations,
-    auth::verify_same_origin,
     dto::{AuthorizeQuery, ConsentDecision, DeviceCodeRequest, RevokeRequest, TokenRequest},
     operations::IssuerOrigin,
 };
@@ -257,32 +256,33 @@ where
     }
 }
 
-/// The consent endpoints authenticate a signed-in person: the session cookie
-/// and nothing else.
+/// Who may answer a consent: a signed-in person, or an API key with its
+/// management flag on — the credentials that may manage anything
+/// ([`Caller::may_manage`]).
 ///
-/// Not the portal's cookie-then-bearer ladder. Consent is what mints a grant,
-/// so a bearer credential here would let a token approve a fresh grant for
-/// itself — one without the baseline it was issued under and outliving its
-/// revocation — and a leaked API key could do the same. The approval is a
-/// cookie write, so it is same-origin checked like every other one.
+/// Consent is what mints a grant, so an OAuth token is refused: it would
+/// approve a fresh grant for itself, one without the baseline it was issued
+/// under and outliving its revocation. An ordinary key is refused for the same
+/// reason; a management key is already an administrative credential and may.
+/// A cookie approval is a cookie write, so it is same-origin checked like every
+/// other one.
 async fn caller<C>(state: &HostState<C>, parts: &Parts) -> Result<Caller, AppError>
 where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
-    let token = session::cookie(&parts.headers, session::COOKIE_NAME)
-        .ok_or(AppError::Unauthorized("consent needs a signed-in session"))?;
-    let data = state.app().data();
-    let caller = state
-        .app()
-        .authenticator(&data)
-        .authenticate_session(token, crate::now_ms())
-        .await?;
-    verify_same_origin(
-        &parts.method,
-        &parts.headers,
-        &crate::runtime_settings::cors_origins(state.app()),
-    )?;
+    let caller = session::authenticate(state.app(), &parts.method, &parts.headers).await?;
+    require_manager(&caller)?;
     Ok(caller)
+}
+
+/// The consent rule, shared with the portal's device approval.
+pub(crate) fn require_manager(caller: &Caller) -> Result<(), AppError> {
+    if caller.may_manage() {
+        return Ok(());
+    }
+    Err(AppError::forbidden(
+        "consent takes a signed-in session or a management API key",
+    ))
 }
 
 /// Where this issuer answers, as this request saw it.

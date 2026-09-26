@@ -32,7 +32,7 @@ use axum::{
     routing::{get, post},
 };
 use gproxy_app::{
-    AppError, Caller, CallerKind, Operations,
+    Caller, Operations,
     dto::{ConsentDecision, PortalKeyCreate, PortalPasswordChange, PortalUsageQuery},
 };
 use gproxy_seaorm::BatchConnectionTrait;
@@ -122,18 +122,6 @@ struct DeviceDecisionBody {
     decision: ConsentDecision,
 }
 
-/// Device consent is a signed-in person's, as the authorization endpoint's is:
-/// a bearer token here would let a token, or a leaked key, approve a device
-/// for itself.
-fn require_session(caller: &Caller) -> Result<(), AppError> {
-    if caller.kind == CallerKind::Session {
-        return Ok(());
-    }
-    Err(AppError::forbidden(
-        "approving a device takes a console session, not a token",
-    ))
-}
-
 /// `GET /portal/api/oauth/device?userCode=`: what the device page shows for
 /// the code a person typed, or `NotFound` once it is unknown, decided or
 /// expired.
@@ -146,7 +134,7 @@ where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
     crate::send(async move {
-        if let Err(error) = require_session(&caller) {
+        if let Err(error) = crate::oauth::require_manager(&caller) {
             return ErrorResponse(error).into_response();
         }
         let data = state.app().data();
@@ -167,7 +155,7 @@ where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
     crate::send(async move {
-        if let Err(error) = require_session(&caller) {
+        if let Err(error) = crate::oauth::require_manager(&caller) {
             return ErrorResponse(error).into_response();
         }
         let data = state.app().data();

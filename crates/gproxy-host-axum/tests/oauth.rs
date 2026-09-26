@@ -12,7 +12,7 @@ mod support;
 
 use gproxy_app::{
     AppConfig,
-    dto::{AuthorizeOutcome, ConsentDecision, OAuthClientWrite, UserWrite},
+    dto::{ApiKeyWrite, AuthorizeOutcome, ConsentDecision, OAuthClientWrite, UserWrite},
 };
 use http::StatusCode;
 use serde_json::json;
@@ -85,6 +85,34 @@ async fn sign_in(host: &Host) -> String {
     format!("gproxy_session={}", login.json()["token"].as_str().unwrap())
 }
 
+/// A new API key of alice's, with or without the management flag: its token.
+async fn alices_key(host: &Host, management: bool) -> String {
+    let data = host.data();
+    let alice = data
+        .users
+        .values()
+        .find(|user| user.name == "alice")
+        .unwrap()
+        .id
+        .clone();
+    let token = host
+        .operations(&data)
+        .api_keys()
+        .create(ApiKeyWrite {
+            user_id: alice,
+            name: format!("management={management}"),
+            management: Some(management),
+            ..ApiKeyWrite::default()
+        })
+        .await
+        .unwrap()
+        .token;
+    drop(data);
+    // Authentication reads the published snapshot.
+    host.publish().await;
+    token
+}
+
 /// Approve [`authorize_query`] with `cookie` and redeem the code: the access
 /// token a client ends up holding.
 async fn access_token(host: &Host, cookie: &str) -> String {
@@ -139,7 +167,7 @@ async fn an_administrators_token_is_not_an_administrative_credential() {
 }
 
 #[tokio::test]
-async fn only_a_signed_in_person_can_approve_a_grant() {
+async fn a_grant_is_approved_by_a_person_or_a_management_key_only() {
     let host = instance().await;
     let cookie = sign_in(&host).await;
     let access = access_token(&host, &cookie).await;
@@ -152,7 +180,21 @@ async fn only_a_signed_in_person_can_approve_a_grant() {
 
     // A token cannot approve a fresh grant for itself.
     let answer = host.send(support::keyed(decide(), &access)).await;
-    assert_eq!(answer.status, StatusCode::UNAUTHORIZED, "{}", answer.text());
+    assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text());
+    // Nor can an ordinary key, the kind handed to a coding tool.
+    let ordinary = alices_key(&host, false).await;
+    let answer = host.send(support::keyed(decide(), &ordinary)).await;
+    assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text());
+    // A management key is already an administrative credential, and may.
+    let manager = alices_key(&host, true).await;
+    let answer = host.send(support::keyed(decide(), &manager)).await;
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text());
+    assert!(
+        answer.json()["location"]
+            .as_str()
+            .unwrap()
+            .starts_with(REDIRECT)
+    );
     // Nor can a cookie a foreign page made the browser attach.
     let answer = host.send(with(decide(), "cookie", &cookie)).await;
     assert_eq!(answer.status, StatusCode::FORBIDDEN, "{}", answer.text());
@@ -477,9 +519,13 @@ async fn a_signed_in_person_approves_a_device_from_the_console() {
             json!({ "userCode": user_code, "decision": ConsentDecision::Approve }),
         )
     };
-    // A token cannot approve a device, even one belonging to that person.
+    // A token cannot approve a device, even one belonging to that person, and
+    // neither can an ordinary key.
     let access = access_token(&host, &cookie).await;
     let refused = host.send(support::keyed(decide(), &access)).await;
+    assert_eq!(refused.status, StatusCode::FORBIDDEN, "{}", refused.text());
+    let ordinary = alices_key(&host, false).await;
+    let refused = host.send(support::keyed(decide(), &ordinary)).await;
     assert_eq!(refused.status, StatusCode::FORBIDDEN, "{}", refused.text());
 
     let decided = host
@@ -495,4 +541,29 @@ async fn a_signed_in_person_approves_a_device_from_the_console() {
     let token = host.send(poll()).await;
     assert_eq!(token.status, StatusCode::OK, "{}", token.text());
     assert!(token.json()["access_token"].is_string());
+}
+
+#[tokio::test]
+async fn a_management_key_approves_a_device() {
+    let host = instance().await;
+    let started = host
+        .send(form(
+            "/v1/oauth/device/code",
+            &[("client_id", "cli-app"), ("scope", "openid")],
+        ))
+        .await
+        .json();
+    let user_code = started["user_code"].as_str().unwrap().to_owned();
+    let manager = alices_key(&host, true).await;
+    let decided = host
+        .send(support::keyed(
+            post(
+                "/portal/api/oauth/device",
+                json!({ "userCode": user_code, "decision": ConsentDecision::Approve }),
+            ),
+            &manager,
+        ))
+        .await;
+    assert_eq!(decided.status, StatusCode::OK, "{}", decided.text());
+    assert_eq!(decided.json()["approved"], true);
 }

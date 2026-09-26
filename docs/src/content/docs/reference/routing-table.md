@@ -296,7 +296,7 @@ GET    /portal/api/keys              (+ POST, DELETE …/{id}, POST …/{id}/rot
 GET    /portal/api/oauth-sessions    (+ DELETE …/{id})
 POST   /portal/api/password
 GET    /portal/api/oauth/device      a pending device code (?userCode=), for `/console/device`
-POST   /portal/api/oauth/device      approve or deny it; session cookie only
+POST   /portal/api/oauth/device      approve or deny it; a session or a management key
 ```
 
 The guard requires an authenticated caller and **nothing more**. There is no
