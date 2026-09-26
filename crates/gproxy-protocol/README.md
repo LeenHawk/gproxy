@@ -216,7 +216,7 @@ may require updates to your matches when upgrading.
 
 ## License
 
-[AGPL-3.0-or-later](https://www.gnu.org/licenses/agpl-3.0.html).
+[MIT](LICENSE).
 
 ## Compatible-provider model metadata
 

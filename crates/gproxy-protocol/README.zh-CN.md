@@ -197,7 +197,7 @@ assert!("unknown".parse::<Dialect>().is_err());
 
 ## 许可证
 
-[AGPL-3.0-or-later](https://www.gnu.org/licenses/agpl-3.0.html)。
+[MIT](LICENSE)。
 
 ## 兼容服务的模型元数据
 

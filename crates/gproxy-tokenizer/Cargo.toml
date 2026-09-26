@@ -3,7 +3,7 @@ name = "gproxy-tokenizer"
 description = "Runtime-independent local token counting for GPROXY"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license = "MIT"
 repository.workspace = true
 
 [features]
