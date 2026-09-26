@@ -255,6 +255,32 @@ async fn exhaustion_reported_in_headers_blocks_the_dimension_until_its_reset() {
 }
 
 #[tokio::test]
+async fn an_exhausted_non_blocking_dimension_keeps_the_credential_routable() {
+    let h = harness(full(), "sticky").await;
+    seed_quota_provider(
+        &h,
+        json!({"quota": [{"id": "primary", "metric": "requests", "window_seconds": 18000, "limit": null, "tracking": "reported", "blocking": false}]}),
+    )
+    .await;
+    h.script(vec![(
+        StatusCode::OK,
+        vec![("x-test-quota", "primary=0;reset=9999999999000")],
+        vec![gproxy_protocol::connection::Bytes::from_static(br#"{"ok":1}"#)],
+    )]);
+    let execution = h
+        .core
+        .stream_generate_content(h.context_for("q", KEY, "r1", 1, None), request("{}"))
+        .await
+        .unwrap();
+    assert_eq!(execution.into_parts().0.status, StatusCode::OK);
+    assert!(h.client.seen.lines()[0].contains("auth=Bearer k-q1"));
+    assert!(
+        blocks_for(&h, "q1").await.is_empty(),
+        "the reading is recorded, the credential is not blocked"
+    );
+}
+
+#[tokio::test]
 async fn the_channel_rule_places_an_observation_on_its_dimension() {
     let h = harness(full(), "sticky").await;
     seed_quota_provider(

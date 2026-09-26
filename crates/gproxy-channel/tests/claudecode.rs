@@ -1043,6 +1043,59 @@ fn quota_model_declares_account_and_family_windows() {
     assert_eq!(dims[1].label.as_deref(), Some("unknown 7d window"));
 }
 
+#[test]
+fn low_priority_marks_messages_and_frees_only_the_five_hour_window() {
+    let secret = secret("at-1");
+    let marked = |config: &Value, operation: Operation, path: &str| {
+        Claudecode
+            .prepare(PrepareContext {
+                provider: provider(config, None),
+                credential: credential(&secret, &Value::Null),
+                operation: key(operation),
+                request: WireRequest {
+                    path: path.into(),
+                    ..messages_request(HeaderMap::new(), json!({"model": "claude-fable-5-1", "messages": []}))
+                },
+                endpoint_override: None,
+            })
+            .unwrap()
+            .headers()
+            .get("anthropic-usage-limit")
+            .map(|value| value.to_str().unwrap().to_owned())
+    };
+    let on = json!({"low_priority": true});
+    let off = json!({});
+    for operation in [Operation::GenerateContent, Operation::StreamGenerateContent] {
+        assert_eq!(marked(&on, operation, "/v1/messages").as_deref(), Some("slow"));
+        assert_eq!(marked(&off, operation, "/v1/messages"), None);
+    }
+    assert_eq!(
+        marked(&on, Operation::CountTokens, "/v1/messages/count_tokens"),
+        None,
+        "the CLI marks only Messages calls"
+    );
+
+    let blocking = |config: &Value| -> Vec<(String, bool)> {
+        Claudecode
+            .quota_model()
+            .unwrap()
+            .dimensions(provider(config, None), credential(&secret, &Value::Null))
+            .into_iter()
+            .map(|d| (d.id, d.blocking))
+            .collect()
+    };
+    assert!(blocking(&off).iter().all(|(_, blocks)| *blocks));
+    assert_eq!(
+        blocking(&on),
+        vec![
+            ("five_hour".into(), false),
+            ("seven_day".into(), true),
+            ("seven_day_fable".into(), true),
+        ],
+        "the server refuses low priority past the weekly limit"
+    );
+}
+
 #[tokio::test]
 async fn oauth_usage_is_queried_with_the_cli_identity_and_parsed() {
     let config = json!({});

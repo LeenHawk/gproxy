@@ -90,6 +90,7 @@ impl QuotaModel for Devin {
             window: QuotaWindow::Rolling { seconds },
             limit: Some(Decimal::ONE_HUNDRED),
             tracking: QuotaTracking::Reported,
+            blocking: true,
         };
         vec![
             window(DAILY_ID, format!("{plan} daily window"), DAY_SECONDS),

@@ -30,6 +30,7 @@ fn window_dimension(id: String, label: String, seconds: i64) -> QuotaDimension {
         window: QuotaWindow::Rolling { seconds },
         limit: Some(Decimal::ONE_HUNDRED),
         tracking: QuotaTracking::Reported,
+        blocking: true,
     }
 }
 

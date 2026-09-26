@@ -172,6 +172,11 @@ pub struct QuotaDimension {
     /// Known statically from the plan; None means the upstream reports it.
     pub limit: Option<Decimal>,
     pub tracking: QuotaTracking,
+    /// Whether an exhausted reading blocks the credential until the window
+    /// resets. False keeps the credential routable and leaves the verdict to
+    /// the upstream's replies, e.g. Claude Code's low-priority mode, which
+    /// the server serves past a full five-hour window.
+    pub blocking: bool,
 }
 
 /// Which quota dimensions this channel's credentials have. Synchronous and

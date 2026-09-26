@@ -6,7 +6,7 @@
 //! the headers use claim codenames (`CLAIMS`), the usage body uses keys
 //! (`five_hour`) and `limits[]` kinds (`weekly_scoped` + model family).
 
-use super::{Claudecode, account, base_url, fact, invalid_response, send};
+use super::{Claudecode, ClaudecodeConfig, account, base_url, fact, invalid_response, send};
 use crate::channel::{
     ChannelError, CredentialContext, CredentialView, OperationFuture, ProviderView, QuotaAllowance,
     QuotaBreakdownRow, QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel,
@@ -70,7 +70,13 @@ fn plan(credential: &CredentialView<'_>) -> String {
         .to_owned()
 }
 
-fn dimension(id: &str, label: String, scope: QuotaScope, seconds: i64) -> QuotaDimension {
+fn dimension(
+    id: &str,
+    label: String,
+    scope: QuotaScope,
+    seconds: i64,
+    blocking: bool,
+) -> QuotaDimension {
     QuotaDimension {
         id: id.to_owned(),
         label: Some(label),
@@ -80,6 +86,7 @@ fn dimension(id: &str, label: String, scope: QuotaScope, seconds: i64) -> QuotaD
         window: QuotaWindow::Rolling { seconds },
         limit: Some(Decimal::ONE_HUNDRED),
         tracking: QuotaTracking::Reported,
+        blocking,
     }
 }
 
@@ -87,25 +94,31 @@ impl QuotaModel for Claudecode {
     /// Every plan has the account's `five_hour` and `seven_day` windows plus
     /// per-family weekly windows; other keys the endpoint may report
     /// (`seven_day_oauth_apps`, codenamed keys, surfaces, the weekly
-    /// breakdown) are observe-only.
+    /// breakdown) are observe-only. With `low_priority` the server keeps
+    /// serving past a full five-hour window, so only that window stops
+    /// blocking.
     fn dimensions(
         &self,
-        _: ProviderView<'_>,
+        provider: ProviderView<'_>,
         credential: CredentialView<'_>,
     ) -> Vec<QuotaDimension> {
         let plan = plan(&credential);
+        let low_priority = ClaudecodeConfig::from_view(provider)
+            .is_ok_and(|config| config.low_priority);
         let mut dimensions = vec![
             dimension(
                 "five_hour",
                 format!("{plan} 5h window"),
                 QuotaScope::All,
                 FIVE_HOURS,
+                !low_priority,
             ),
             dimension(
                 "seven_day",
                 format!("{plan} 7d window"),
                 QuotaScope::All,
                 SEVEN_DAYS,
+                true,
             ),
         ];
         for family in SCOPED_FAMILIES {
@@ -114,6 +127,7 @@ impl QuotaModel for Claudecode {
                 format!("{plan} 7d {family} window"),
                 QuotaScope::ModelPrefixes(vec![format!("claude-{family}")]),
                 SEVEN_DAYS,
+                true,
             ));
         }
         dimensions

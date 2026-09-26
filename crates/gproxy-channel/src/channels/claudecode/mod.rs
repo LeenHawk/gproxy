@@ -78,6 +78,10 @@ pub const OAUTH_BETA: &str = "oauth-2025-04-20";
 pub const CLI_VERSION: &str = "2.1.280";
 pub const CLI_USER_AGENT: &str = "claude-cli/2.1.280 (external, cli)";
 pub const ANTHROPIC_VERSION: &str = "2023-06-01";
+/// The CLI marks a request it sends in low-priority mode with this header
+/// (CLI 2.1.283).
+const USAGE_LIMIT_HEADER: &str = "anthropic-usage-limit";
+const LOW_PRIORITY: &str = "slow";
 /// Optional scopes a refresh preserves when the credential already has them.
 const PRESERVED_SCOPES: &[&str] = &["user:projects:read", "user:projects:write"];
 const DEFAULT_EXPIRES_IN_SECS: i64 = 3600;
@@ -102,6 +106,12 @@ pub struct ClaudecodeConfig {
     pub fallback_mode: FallbackMode,
     /// Ordered fallback models; at most three are sent.
     pub fallback_models: Vec<String>,
+    /// Ask for the CLI's low-priority mode on every Messages call
+    /// (`anthropic-usage-limit: slow`) and keep a full five-hour window from
+    /// blocking the credential. The server decides per account whether to
+    /// serve it (`anthropic-ratelimit-unified-slow-status`); the weekly
+    /// windows still block.
+    pub low_priority: bool,
 }
 
 impl Default for ClaudecodeConfig {
@@ -114,6 +124,7 @@ impl Default for ClaudecodeConfig {
             enable_claude_magic_cache: false,
             fallback_mode: FallbackMode::Off,
             fallback_models: Vec::new(),
+            low_priority: false,
         }
     }
 }
@@ -586,6 +597,11 @@ impl BaseChannel for Claudecode {
                     ConfigKeyKind::Bool,
                     "Turn a client's magic cache string in a Messages or count_tokens body into cache_control.",
                 ),
+                ConfigKey::optional(
+                    "low_priority",
+                    ConfigKeyKind::Bool,
+                    "Send Messages calls in low-priority mode and keep routing to an account whose 5h window is full; the server decides whether the account is served.",
+                ),
             ]
             .into_iter()
             .chain(HOST_CONFIG_KEYS)
@@ -762,6 +778,12 @@ impl Claudecode {
             &session,
             client_user_agent,
         )?;
+        if config.low_priority && is_messages(operation) {
+            headers.insert(
+                HeaderName::from_static(USAGE_LIMIT_HEADER),
+                HeaderValue::from_static(LOW_PRIORITY),
+            );
+        }
         let mut builder = http::Request::builder().method(method).uri(uri);
         if let Some(map) = builder.headers_mut() {
             *map = headers;

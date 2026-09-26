@@ -582,6 +582,7 @@ impl gproxy_channel::channel::QuotaModel for TestChannel {
             window: QuotaWindow::Rolling { seconds: 18000 },
             limit: None,
             tracking: QuotaTracking::Reported,
+            blocking: true,
         }]
     }
 }

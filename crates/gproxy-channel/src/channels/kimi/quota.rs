@@ -50,6 +50,7 @@ impl QuotaModel for super::Kimi {
                 },
                 limit: None,
                 tracking: QuotaTracking::Reported,
+                blocking: true,
             }],
             Mode::ApiKey => vec![QuotaDimension {
                 id: BALANCE_DIMENSION.into(),
@@ -60,6 +61,7 @@ impl QuotaModel for super::Kimi {
                 window: QuotaWindow::Total,
                 limit: None,
                 tracking: QuotaTracking::Reported,
+                blocking: true,
             }],
         }
     }

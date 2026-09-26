@@ -81,6 +81,7 @@ impl QuotaModel for Antigravity {
                 },
                 limit: Some(Decimal::ONE_HUNDRED),
                 tracking: QuotaTracking::Reported,
+                blocking: true,
             })
             .collect()
     }

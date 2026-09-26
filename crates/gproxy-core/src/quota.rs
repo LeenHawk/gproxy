@@ -355,7 +355,8 @@ impl<C: BatchConnectionTrait> Core<C> {
                 cycle_cost_usd: Set(link.map(|l| l.cost_usd)),
             });
             written.push(reading);
-            if let Some(dimension) = dimension.filter(|d| d.tracking == QuotaTracking::Reported)
+            if let Some(dimension) =
+                dimension.filter(|d| d.tracking == QuotaTracking::Reported && d.blocking)
                 && exhausted
             {
                 blocks.extend(exhaustion_blocks(&dimension, entry, &cycle_id, now_ms));
@@ -481,7 +482,7 @@ impl<C: BatchConnectionTrait> Core<C> {
     ) -> CoreResult<()> {
         let data = self.snapshot();
         let model = quota_model(&data, credential);
-        let recovered: Vec<_> = entries.iter().filter(|entry| {
+        let positive = |entry: &QuotaEntry| {
             !exhausted(&entry.value) && match &entry.value {
                 QuotaValue::Balance(balance) => balance.remaining.is_some_and(|r| r > Decimal::ZERO),
                 value => allowance(value).is_some_and(|a| a.unlimited == Some(true)
@@ -489,8 +490,13 @@ impl<C: BatchConnectionTrait> Core<C> {
                     || a.used_percent.is_some_and(|p| p < Decimal::ONE_HUNDRED)
                     || matches!((a.used, a.limit), (Some(used), Some(limit)) if used < limit)),
             }
-        }).filter_map(|entry| {
+        };
+        // A dimension that no longer blocks releases its older block too.
+        let recovered: Vec<_> = entries.iter().filter_map(|entry| {
             let dimension = classify(model, credential, entry)?;
+            if dimension.blocking && !positive(entry) {
+                return None;
+            }
             let scope = match &dimension.scope { QuotaScope::Unknown => &entry.model_scope, scope => scope };
             Some((dimension.id.clone(), scope.clone()))
         }).collect();

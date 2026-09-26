@@ -57,6 +57,7 @@ impl QuotaModel for ClaudeWeb {
             window: QuotaWindow::Rolling { seconds },
             limit: Some(Decimal::ONE_HUNDRED),
             tracking: QuotaTracking::Reported,
+            blocking: true,
         };
         vec![
             window(FIVE_HOUR_ID, format!("{tier} 5h window"), FIVE_HOURS),

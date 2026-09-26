@@ -34,6 +34,7 @@ impl QuotaModel for CloudflareAiGateway {
             window: QuotaWindow::Total,
             limit: None,
             tracking: QuotaTracking::Reported,
+            blocking: true,
         }]
     }
 }
