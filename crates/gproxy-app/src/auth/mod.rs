@@ -71,6 +71,9 @@ pub struct Caller {
     /// policy is evaluated against.
     pub grant: Option<GrantContext>,
     pub kind: CallerKind,
+    /// The key's management flag. Meaningful only for [`CallerKind::ApiKey`];
+    /// see [`Caller::may_manage`].
+    pub management: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -101,6 +104,19 @@ impl Caller {
         self.user_role == "admin"
     }
 
+    /// Whether this credential may manage anything: the administrative
+    /// surface, and the portal's key and password operations. A signed-in
+    /// person may; a key only when its management flag is on; an OAuth token
+    /// never, whoever authorized it. What it may manage is still decided by
+    /// the user's role and memberships.
+    pub fn may_manage(&self) -> bool {
+        match self.kind {
+            CallerKind::Session => true,
+            CallerKind::ApiKey => self.management,
+            CallerKind::OAuthGrant => false,
+        }
+    }
+
     /// The subject [`PermissionSet::decide`](crate::snapshot::PermissionSet::decide)
     /// evaluates. A key is its own subject *and* its user's; a session caller
     /// has no key, so key-scoped rules never apply to it.
@@ -120,6 +136,7 @@ impl Caller {
             team_id: identity.team_id.clone(),
             grant: None,
             kind: CallerKind::ApiKey,
+            management: identity.management,
         }
     }
 }
@@ -316,6 +333,7 @@ mod tests {
             team_id: None,
             grant: None,
             kind: CallerKind::ApiKey,
+            management: false,
         };
         assert!(!caller.is_instance_admin());
         assert_eq!(caller.subject().user_id, "u1");

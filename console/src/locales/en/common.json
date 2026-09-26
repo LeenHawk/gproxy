@@ -191,6 +191,7 @@
     "requests": "Requests",
     "responseStatus": "Status",
     "retainSecret": "Retain the secret",
+    "management": "Management access",
     "role": "Role",
     "scopes": "Scopes",
     "sourceIp": "Source IP",

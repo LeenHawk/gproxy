@@ -802,3 +802,50 @@ async fn signing_out_does_not_need_a_settled_scope() {
     assert_eq!(out.status, StatusCode::OK, "{}", out.text());
     assert!(out.header("set-cookie").unwrap().contains("Max-Age=0"));
 }
+
+// ------------------------------------------------------------- management --
+
+#[tokio::test]
+async fn only_a_key_with_management_access_can_manage() {
+    let host = instance().await;
+    // An administrator's ordinary key: the kind handed to a coding tool.
+    host.handle()
+        .store()
+        .api_keys()
+        .update_many(vec![gproxy_store::entity::identity::api_key::ActiveModel {
+            id: sea_orm::Set("k-root".into()),
+            management: sea_orm::Set(false),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    host.publish().await;
+
+    let refused = host.send(keyed(get("/admin/api/users"), "k-root")).await;
+    assert_eq!(refused.status, StatusCode::FORBIDDEN, "{}", refused.text());
+    let refused = host
+        .send(keyed(
+            post("/portal/api/keys", json!({ "name": "more" })),
+            "k-root",
+        ))
+        .await;
+    assert_eq!(refused.status, StatusCode::FORBIDDEN, "{}", refused.text());
+    // It still reads its own account.
+    let context = host.send(keyed(get("/portal/api/context"), "k-root")).await;
+    assert_eq!(context.status, StatusCode::OK, "{}", context.text());
+
+    // Turned back on, the same key administers again.
+    host.handle()
+        .store()
+        .api_keys()
+        .update_many(vec![gproxy_store::entity::identity::api_key::ActiveModel {
+            id: sea_orm::Set("k-root".into()),
+            management: sea_orm::Set(true),
+            ..Default::default()
+        }])
+        .await
+        .unwrap();
+    host.publish().await;
+    let users = host.send(keyed(get("/admin/api/users"), "k-root")).await;
+    assert_eq!(users.status, StatusCode::OK, "{}", users.text());
+}

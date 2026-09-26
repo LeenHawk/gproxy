@@ -285,6 +285,9 @@ async fn resolve_gateway_key(
             // The keychain is the copy that matters; the database keeping a
             // second one would be a second place to lose it from.
             retain_secret: Some(false),
+            // For local tools calling models. The desktop's own management
+            // runs in process as the person at the window, not through a key.
+            management: None,
             budget: None,
         })
         .await?;
@@ -309,6 +312,7 @@ async fn local_administrator(app: &Arc<App<Connection>>) -> StartResult<Caller> 
         team_id: None,
         grant: None,
         kind: CallerKind::Session,
+        management: false,
     })
 }
 

@@ -225,6 +225,7 @@ impl<C: BatchConnectionTrait> Issuer<'_, C> {
                 secret: Set(None),
                 expires_at_ms: Set(None),
                 enabled: Set(true),
+                management: Set(false),
             },
             grant: grant::ActiveModel {
                 id: Set(grant_id.clone()),

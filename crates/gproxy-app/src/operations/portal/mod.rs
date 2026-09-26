@@ -145,8 +145,9 @@ impl<'a, C> Portal<'a, C> {
         PortalPassword::new(self.writer, self.config, self.caller.clone())
     }
 
-    /// Refuse an operation that an OAuth-grant caller must not perform on the
-    /// account that authorized it.
+    /// Refuse an operation that only a person, or a key with management
+    /// access, may perform on the account: never an OAuth-grant caller, and
+    /// never an ordinary key.
     ///
     /// `Forbidden` and not `NotFound` on purpose: this names no row. It is a
     /// policy about the *kind* of credential in hand, and the caller can act
@@ -155,6 +156,13 @@ impl<'a, C> Portal<'a, C> {
         if self.caller.kind == CallerKind::OAuthGrant {
             return Err(AppError::forbidden(format!(
                 "an OAuth client may not {what}; sign in to the portal instead"
+            )));
+        }
+        // A key manages only when its management flag says so; see
+        // `Caller::may_manage`.
+        if !self.caller.may_manage() {
+            return Err(AppError::forbidden(format!(
+                "an API key without management access may not {what}; sign in to the portal instead"
             )));
         }
         Ok(())

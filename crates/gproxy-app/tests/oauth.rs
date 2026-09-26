@@ -118,6 +118,7 @@ fn person(user_id: &str) -> Caller {
         team_id: None,
         grant: None,
         kind: CallerKind::Session,
+        management: false,
     }
 }
 

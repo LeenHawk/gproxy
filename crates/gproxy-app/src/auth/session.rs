@@ -102,6 +102,7 @@ impl<C: BatchConnectionTrait> Authenticator<'_, C> {
             team_id: None,
             grant: None,
             kind: CallerKind::Session,
+            management: false,
         })
     }
 

@@ -191,6 +191,7 @@
     "requests": "請求數",
     "responseStatus": "狀態碼",
     "retainSecret": "保留金鑰原文",
+    "management": "管理權限",
     "role": "角色",
     "scopes": "授權範圍",
     "sourceIp": "來源 IP",

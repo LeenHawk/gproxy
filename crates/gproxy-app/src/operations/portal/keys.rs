@@ -85,6 +85,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> PortalKeys<'_, C> {
                 expires_at_ms: write.expires_at_ms,
                 enabled: None,
                 retain_secret: write.retain_secret,
+                // A key minted for oneself calls models. Management access is
+                // granted from the administrative surface.
+                management: None,
                 budget: None,
             })
             .await?;

@@ -191,6 +191,7 @@
     "requests": "请求数",
     "responseStatus": "状态码",
     "retainSecret": "留存密钥原文",
+    "management": "管理权限",
     "role": "角色",
     "scopes": "授权范围",
     "sourceIp": "来源 IP",

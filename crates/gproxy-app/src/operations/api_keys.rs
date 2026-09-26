@@ -198,6 +198,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> ApiKeys<'_, C> {
             secret: Set(secret),
             expires_at_ms: Set(write.expires_at_ms),
             enabled: Set(write.enabled.unwrap_or(true)),
+            management: Set(write.management.unwrap_or(false)),
         };
         let mut statements = vec![BatchStatement::Execute(
             self.writer.store().api_keys().insert_statement(row)?,
@@ -480,6 +481,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for ApiKeys<'_, C
         }
         if let Some(enabled) = patch.enabled {
             row.enabled = Set(enabled);
+        }
+        if let Some(management) = patch.management {
+            row.management = Set(management);
         }
         // Re-validate against the binding the row will actually have, not
         // against the half the patch happened to mention.

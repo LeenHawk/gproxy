@@ -89,6 +89,7 @@ export function ApiKeysPage() {
     { name: "teamId", kind: "text", nullable: true },
     { name: "expiresAtMs", kind: "datetime", nullable: true },
     { name: "enabled", kind: "switch" },
+    { name: "management", kind: "switch" },
     { name: "retainSecret", kind: "switch", createOnly: true },
   ]
   const [token, setToken] = useState<string | null>(null)
@@ -116,6 +117,7 @@ export function ApiKeysPage() {
           { key: "kind", cell: (row) => <MaybeCell value={row.kind} /> },
           { key: "userId", cell: (row) => <IdCell value={row.userId} /> },
           { key: "enabled", cell: (row) => <BoolCell value={row.enabled} /> },
+          { key: "management", cell: (row) => <BoolCell value={row.management} /> },
           { key: "expiresAtMs", cell: (row) => <InstantCell value={row.expiresAtMs} /> },
         ]}
         fields={fields}
