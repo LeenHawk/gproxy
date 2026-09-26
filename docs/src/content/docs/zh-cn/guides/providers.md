@@ -19,7 +19,7 @@ description: "25 个渠道、一行 Provider 装什么、凭证池及其生命�
 | --- | --- | --- |
 | `aistudio` | Google AI Studio：原生 Gemini 方法与 `/v1beta/openai` 兼容层同源 | `{"api_key"}` |
 | `antigravity` | 经 Antigravity 编辑器所用的 Code Assist 主机访问 Google 账号 | OAuth |
-| `aws_bedrock` | AWS Bedrock：SigV4 签名的 `InvokeModel`，event-stream 应答翻成 Claude SSE | AWS 密钥对，或 Bedrock API key |
+| `aws_bedrock` | AWS Bedrock：按模型选接口——Anthropic 模型走 `InvokeModel`（event-stream 翻成 Claude SSE），GPT、Grok、Qwen、DeepSeek 等走 OpenAI 兼容的 Chat Completions | AWS 密钥对，或 Bedrock API key |
 | `azure` | Azure OpenAI，以及 Azure AI Foundry 托管的 Anthropic 模型 | `{"api_key"}` |
 | `claudeapi` | Anthropic 官方 API，加上它的 OpenAI 兼容层与成本报表 | `{"api_key", "quota_api_key"}` |
 | `claudecode` | 经 Claude Code CLI 的请求使用 Claude.ai 订阅 | OAuth |

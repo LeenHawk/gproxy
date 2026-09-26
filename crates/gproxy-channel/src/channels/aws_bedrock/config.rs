@@ -26,6 +26,9 @@ pub struct BedrockConfig {
     /// Place `cache_control` where a client embeds a magic cache string in
     /// the Claude body. The strings are stripped either way.
     pub enable_claude_magic_cache: bool,
+    /// Place `prompt_cache_breakpoint` where a client embeds a magic cache
+    /// string in a Chat Completions body (non-Anthropic models).
+    pub enable_openai_magic_cache: bool,
 }
 
 impl Default for BedrockConfig {
@@ -35,6 +38,7 @@ impl Default for BedrockConfig {
             control_base_url: None,
             anthropic_version: DEFAULT_ANTHROPIC_VERSION.into(),
             enable_claude_magic_cache: false,
+            enable_openai_magic_cache: false,
         }
     }
 }

@@ -50,7 +50,7 @@ GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_1FAS5GV9R5H29T5Y2J9584K6O95M2NBVW52C9
 | 开关 | 提供它的渠道 |
 | --- | --- |
 | `enable_claude_magic_cache` | `aws_bedrock`、`azure`、`claudeapi`、`claudecode`、`custom`、`opencodego`、`opencodezen`、`openrouter` |
-| `enable_openai_magic_cache` | `azure`、`openai`、`codex`、`custom`、`opencodego`、`opencodezen`、`openrouter` |
+| `enable_openai_magic_cache` | `aws_bedrock`、`azure`、`openai`、`codex`、`custom`、`opencodego`、`opencodezen`、`openrouter` |
 
 开关是对着**目标方言**读的，不是客户端的。一个被路由到 Claude Provider 的 OpenAI 形状
 请求会先转成 Claude Messages，因此起作用的是 Claude 开关，写下的标记是 `cache_control`。

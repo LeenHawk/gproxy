@@ -131,7 +131,7 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
     let operation = request.operation;
     let upstream_model = request.target.upstream_model.clone();
 
-    let route = match convert::route(&provider, operation) {
+    let route = match convert::route_for_model(&provider, operation, upstream_model.as_deref()) {
         Ok(route) => route,
         Err(error) => {
             funnel.finish(UsageState::Failed).await;
@@ -154,7 +154,11 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
             .contains(&operation.operation)
             && provider
                 .channel
-                .native_dialects(prepare::provider_view(&provider), operation.operation)
+                .native_dialects_for_model(
+                    prepare::provider_view(&provider),
+                    operation.operation,
+                    upstream_model.as_deref(),
+                )
                 .contains(&operation.dialect));
     let inbound_headers = wire.headers.clone();
     let rewrite_context = RewriteContext {

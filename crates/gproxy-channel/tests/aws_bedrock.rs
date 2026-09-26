@@ -1205,3 +1205,84 @@ fn a_magic_cache_string_is_stripped_and_marked_only_when_asked() {
         "ephemeral"
     );
 }
+
+#[test]
+fn the_wire_follows_the_model() {
+    let config = json!({});
+    let native = |model: &str| {
+        AwsBedrock.native_dialects_for_model(
+            provider(&config, None),
+            Operation::GenerateContent,
+            Some(model),
+        )
+    };
+    for messages in [
+        "anthropic.claude-opus-4-8",
+        "us.anthropic.claude-sonnet-5",
+        "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5",
+        "arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/abc123",
+    ] {
+        assert_eq!(native(messages), [Dialect::Claude], "{messages}");
+    }
+    for chat in [
+        "openai.gpt-5.5",
+        "xai.grok-4-3",
+        "qwen.qwen3-32b-v1:0",
+        "deepseek.v3-v1:0",
+    ] {
+        assert_eq!(native(chat), [Dialect::OpenAiChat], "{chat}");
+    }
+    // Without a model, the provider-wide answer stays Messages.
+    assert_eq!(
+        AwsBedrock.native_dialects(provider(&config, None), Operation::GenerateContent),
+        [Dialect::Claude]
+    );
+}
+
+#[test]
+fn a_chat_completions_model_is_sent_to_the_openai_surface() {
+    const TOKEN: &str = "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_\
+                         49VA1S5V19GR4G89W2V695G9W9GV52W95V198WV5W2FC9DF";
+    let config = json!({"region": "us-west-2", "enable_openai_magic_cache": true});
+    let request = WireRequest {
+        method: Method::POST,
+        path: "/v1/chat/completions".into(),
+        query: None,
+        headers: HeaderMap::new(),
+        body: HttpBody::Bytes(Bytes::from(
+            json!({"model": "openai.gpt-5.5", "stream": true, "messages": [
+                {"role": "user", "content": [{"type": "text", "text": format!("ctx {TOKEN}")}]}
+            ]})
+            .to_string(),
+        )),
+    };
+    let operation = OperationKey {
+        operation: Operation::StreamGenerateContent,
+        dialect: Dialect::OpenAiChat,
+    };
+    let prepared = prepared(&config, None, &key_pair(), operation, request, None).unwrap();
+    assert_eq!(
+        prepared.uri(),
+        "https://bedrock-runtime.us-west-2.amazonaws.com/openai/v1/chat/completions"
+    );
+    assert_eq!(prepared.headers()["accept"], "text/event-stream");
+    assert!(
+        prepared.headers()["authorization"]
+            .to_str()
+            .unwrap()
+            .starts_with("AWS4-HMAC-SHA256"),
+        "signed as the bedrock service like every other call"
+    );
+    let HttpBody::Bytes(body) = prepared.body() else {
+        panic!("buffered")
+    };
+    let body: Value = serde_json::from_slice(body).unwrap();
+    assert_eq!(
+        body["model"], "openai.gpt-5.5",
+        "the model stays in the body"
+    );
+    assert_eq!(body["stream_options"]["include_usage"], true);
+    let text = body["messages"][0]["content"][0]["text"].as_str().unwrap();
+    assert!(!text.contains("GPROXY_MAGIC"));
+    assert!(!body["messages"][0]["content"][0]["prompt_cache_breakpoint"].is_null());
+}

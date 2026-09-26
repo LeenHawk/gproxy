@@ -230,6 +230,34 @@ pub trait BaseChannel: Send + Sync {
         Vec::new()
     }
 
+    /// `native_dialects` for a request naming `model`, the upstream model
+    /// name. For an upstream that accepts a different wire per model — AWS
+    /// Bedrock serves Anthropic models on InvokeModel and most others on its
+    /// OpenAI-compatible Chat Completions — so one provider can front both.
+    /// The default ignores the model. `None` is a question about the provider
+    /// as a whole (the admin view of its routing defaults).
+    fn native_dialects_for_model(
+        &self,
+        provider: ProviderView<'_>,
+        operation: Operation,
+        model: Option<&str>,
+    ) -> Vec<Dialect> {
+        let _ = model;
+        self.native_dialects(provider, operation)
+    }
+
+    /// `default_conversion_target` for a request naming `model`; see
+    /// `native_dialects_for_model`. The default ignores the model.
+    fn default_conversion_target_for_model(
+        &self,
+        provider: ProviderView<'_>,
+        source: OperationKey,
+        model: Option<&str>,
+    ) -> Option<OperationKey> {
+        let _ = model;
+        self.default_conversion_target(provider, source)
+    }
+
     /// Gateway-executed refusal fallback, only for native Claude generation.
     /// Upstreams that execute their own model fallback leave this unset.
     fn claude_fallback(&self) -> Option<ClaudeFallback> {
