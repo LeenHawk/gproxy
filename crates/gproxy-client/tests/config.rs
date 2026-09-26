@@ -98,6 +98,7 @@ fn custom_fingerprint() -> EmulationConfig {
         sigalgs_list: Some("ecdsa_secp256r1_sha256:rsa_pss_rsae_sha256".into()),
         preserve_tls13_cipher_list: Some(false),
         grease: Some(false),
+        extension_permutation: None,
         ocsp_stapling: Some(true),
         signed_cert_timestamps: Some(true),
         http2: Some(Http2Settings {
@@ -209,10 +210,30 @@ async fn custom_fingerprints_build_on_wreq() {
             headers: Some(vec![("bad header".into(), "x".into())]),
             ..Default::default()
         })),
-        ..config
+        ..config.clone()
     };
     assert!(matches!(
         pool.get(&bad_header).await.unwrap_err().as_ref(),
+        gproxy_client::Error::InvalidConfig(_)
+    ));
+    // Chrome's order, by IANA id; an id BoringSSL has no extension for is refused.
+    let permuted = |ids: Vec<u16>| ConnectionConfig {
+        emulation: Some(EmulationConfig::Custom(gproxy_client::Fingerprint {
+            extension_permutation: Some(ids),
+            ..Default::default()
+        })),
+        ..config.clone()
+    };
+    pool.get(&permuted(vec![
+        0, 23, 65281, 10, 11, 35, 16, 5, 13, 18, 51, 45, 43, 27, 17513,
+    ]))
+    .await
+    .unwrap();
+    assert!(matches!(
+        pool.get(&permuted(vec![0, 9999]))
+            .await
+            .unwrap_err()
+            .as_ref(),
         gproxy_client::Error::InvalidConfig(_)
     ));
 }

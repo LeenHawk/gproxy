@@ -72,8 +72,12 @@ impl fmt::Debug for ProxyConfig {
 /// custom [`Fingerprint`]. Serialized internally tagged by `kind` (`preset` /
 /// `custom`); the untagged preset object stored by earlier releases
 /// (`profile`, `platform`, `http2`, `headers`) still deserializes.
+///
+/// The custom variant is much larger than the preset; it is configuration,
+/// built once per pooled client, so it is not boxed.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)]
 pub enum EmulationConfig {
     /// A named wreq-util TLS/HTTP profile, including platform and header
     /// behavior. Strings use wreq-util's serde names, e.g. chrome_133 and
@@ -93,6 +97,7 @@ impl<'de> Deserialize<'de> for EmulationConfig {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         #[derive(Deserialize)]
         #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+        #[allow(clippy::large_enum_variant)]
         enum Tagged {
             Preset {
                 profile: String,
@@ -114,6 +119,7 @@ impl<'de> Deserialize<'de> for EmulationConfig {
         // preset object.
         #[derive(Deserialize)]
         #[serde(untagged)]
+        #[allow(clippy::large_enum_variant)]
         enum Wire {
             Tagged(Tagged),
             Flat(Flat),
@@ -224,6 +230,11 @@ pub struct Fingerprint {
     /// BoringSSL's fixed TLS 1.3 preference.
     pub preserve_tls13_cipher_list: Option<bool>,
     pub grease: Option<bool>,
+    /// The order the ClientHello's extensions are sent in, by IANA extension
+    /// type, for servers that tell clients apart by it. Every id must be an
+    /// extension BoringSSL knows (`btls::ssl::ExtensionType`'s constants);
+    /// None keeps BoringSSL's own order.
+    pub extension_permutation: Option<Vec<u16>>,
     /// Offer the `status_request` (OCSP stapling) extension.
     pub ocsp_stapling: Option<bool>,
     /// Offer the `signed_certificate_timestamp` extension.
@@ -326,6 +337,57 @@ impl EmulationConfig {
     }
 }
 
+/// Extension ids as BoringSSL's types. `ExtensionType::from` accepts any
+/// number, but BoringSSL only permutes extensions it implements, so anything
+/// else is refused here rather than at the first handshake.
+#[cfg(all(feature = "wreq", not(target_arch = "wasm32")))]
+fn extension_types(ids: &[u16]) -> Result<Vec<wreq::tls::ExtensionType>, Error> {
+    use wreq::tls::ExtensionType as E;
+    const KNOWN: [E; 30] = [
+        E::SERVER_NAME,
+        E::STATUS_REQUEST,
+        E::EC_POINT_FORMATS,
+        E::SIGNATURE_ALGORITHMS,
+        E::SRTP,
+        E::APPLICATION_LAYER_PROTOCOL_NEGOTIATION,
+        E::PADDING,
+        E::EXTENDED_MASTER_SECRET,
+        E::QUIC_TRANSPORT_PARAMETERS_LEGACY,
+        E::QUIC_TRANSPORT_PARAMETERS_STANDARD,
+        E::CERT_COMPRESSION,
+        E::SESSION_TICKET,
+        E::SUPPORTED_GROUPS,
+        E::PRE_SHARED_KEY,
+        E::EARLY_DATA,
+        E::SUPPORTED_VERSIONS,
+        E::COOKIE,
+        E::PSK_KEY_EXCHANGE_MODES,
+        E::CERTIFICATE_AUTHORITIES,
+        E::SIGNATURE_ALGORITHMS_CERT,
+        E::KEY_SHARE,
+        E::RENEGOTIATE,
+        E::DELEGATED_CREDENTIAL,
+        E::APPLICATION_SETTINGS,
+        E::APPLICATION_SETTINGS_OLD,
+        E::ENCRYPTED_CLIENT_HELLO,
+        E::CERTIFICATE_TIMESTAMP,
+        E::NEXT_PROTO_NEG,
+        E::CHANNEL_ID,
+        E::RECORD_SIZE_LIMIT,
+    ];
+    ids.iter()
+        .map(|id| {
+            let kind = E::from(*id);
+            KNOWN
+                .contains(&kind)
+                .then_some(kind)
+                .ok_or(Error::InvalidConfig(
+                    "unknown TLS extension in extension_permutation",
+                ))
+        })
+        .collect()
+}
+
 #[cfg(all(feature = "wreq", not(target_arch = "wasm32")))]
 impl Fingerprint {
     fn apply(&self, mut builder: wreq::ClientBuilder) -> Result<wreq::ClientBuilder, Error> {
@@ -368,6 +430,13 @@ impl Fingerprint {
         }
         if let Some(list) = &self.sigalgs_list {
             tls = tls.sigalgs_list(list.clone());
+        }
+        if let Some(ids) = self
+            .extension_permutation
+            .as_deref()
+            .filter(|ids| !ids.is_empty())
+        {
+            tls = tls.extension_permutation(extension_types(ids)?);
         }
         builder = builder.tls_options(tls.build());
 

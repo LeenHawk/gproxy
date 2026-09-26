@@ -312,8 +312,6 @@ fn fingerprints(
             profile_id.clone(),
             format!("{label} (v3 fingerprint)"),
             value,
-            &label,
-            report,
         ) {
             Ok(profile) => {
                 profiles.push(profile);
