@@ -75,16 +75,15 @@ pub async fn serve(
         .local_addr()
         .map_err(|error| StartError::io("reading the bound address", error))?;
 
-    let service = data_plane(HostState::new(app))
-        // The client address is how admission counts a rate limit. Without it
-        // every peer is unknown — and unknown is deliberately not trusted, so
-        // `x-forwarded-for` is ignored and every local process shares one
-        // bucket.
-        .into_make_service_with_connect_info::<SocketAddr>();
+    // `serve` hands each request its `ConnectInfo`: the client address is how
+    // admission counts a rate limit. Without it every peer is unknown — and
+    // unknown is deliberately not trusted, so `x-forwarded-for` is ignored and
+    // every local process shares one bucket.
+    let service = data_plane(HostState::new(app));
     tokio::spawn(async move {
-        let result = axum::serve(listener, service)
-            .with_graceful_shutdown(async move { stop.notified().await })
-            .await;
+        let result =
+            gproxy_host_axum::serve::serve(listener, service, async move { stop.notified().await })
+                .await;
         if let Err(error) = result {
             tracing::error!(%error, "the data plane stopped");
         }

@@ -48,7 +48,8 @@ curl -s http://127.0.0.1:8787/healthz
 
 ## 数据面
 
-Gproxy 不额外限制请求体大小。
+请求体在做任何事之前（包括鉴权）先受 `settings.maxRequestBodyBytes` 约束：默认 50 MiB，
+文件上传用 `maxUploadBodyBytes`，默认 512 MiB。
 
 ### 内容生成
 
@@ -286,4 +287,5 @@ POST   /portal/api/password
 - 没有目标可换时，**最后一个应答原样返回**。最后一个 Provider 的 429 就是调用方的 429，
   不会被换成别的错误。
 
-请求体缓冲一次以便重放，大小不会改变路由计划。
+请求体缓冲一次以便重放。超过 `maxRequestBodyBytes` 的流式体保持流式，计划随之裁剪为单个
+目标：大文件上传不值得为了失败转移而全部读进内存。

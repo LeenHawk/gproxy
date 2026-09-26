@@ -313,6 +313,56 @@ async fn an_upstream_that_vanishes_closes_the_client_too() {
     settled(&host).await;
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn an_oversized_frame_is_refused_with_the_code_the_rfc_reserves_for_it() {
+    let host = instance(None).await;
+    // A limit small enough to exceed without allocating anything silly.
+    settings(
+        &host,
+        gproxy_sdk::dto::SettingsPatch {
+            instance: Some(gproxy_sdk::dto::InstanceSettingsPatch {
+                max_ws_frame_bytes: Some(64),
+                ..Default::default()
+            }),
+            logging: None,
+        },
+    )
+    .await;
+
+    let upstream = host.client.accept_socket();
+    let bound = host.bind().await;
+    let mut client = dial(&bound, "/v1/realtime", Some("k-alice")).await.unwrap();
+
+    // Exactly at the limit is fine.
+    client
+        .send(Message::Binary(Bytes::from(vec![7_u8; 64])))
+        .await
+        .unwrap();
+    assert_eq!(
+        upstream.next().await,
+        Some(WsFrame::Binary(Bytes::from(vec![7_u8; 64])))
+    );
+
+    // One byte over it is not.
+    client
+        .send(Message::Binary(Bytes::from(vec![7_u8; 65])))
+        .await
+        .unwrap();
+    let Some(Message::Close(Some(frame))) = recv(&mut client).await else {
+        panic!("an oversized frame closes the socket rather than being forwarded");
+    };
+    assert_eq!(frame.code, CloseCode::Size, "1009 Message Too Big");
+    assert_eq!(
+        upstream.next().await,
+        Some(WsFrame::Close(Some(WsClose {
+            code: 1009,
+            reason: "client frame exceeds the frame limit".into()
+        }))),
+        "the upstream is closed too, rather than left paying for a dead session"
+    );
+    settled(&host).await;
+}
+
 // ------------------------------------------------------------- the leases --
 
 #[tokio::test(flavor = "multi_thread")]

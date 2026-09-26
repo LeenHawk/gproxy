@@ -235,12 +235,12 @@ pub(super) fn responses_over_gemini_facts(
     }
 }
 
-/// The gateway adds no event-count or structure-count budget.
-const MAX_STREAM_EVENTS: usize = usize::MAX;
-const MAX_STREAM_ITEMS: usize = usize::MAX;
-const MAX_STREAM_TOOLS: usize = usize::MAX;
-const MAX_STREAM_PARTS: usize = usize::MAX;
-const MAX_STREAM_CHOICES: usize = usize::MAX;
+/// Finite per-stream event budgets; the codec limits already bound bytes.
+const MAX_STREAM_EVENTS: usize = 65_536;
+const MAX_STREAM_ITEMS: usize = 256;
+const MAX_STREAM_TOOLS: usize = 256;
+const MAX_STREAM_PARTS: usize = 256;
+const MAX_STREAM_CHOICES: usize = 8;
 
 pub(super) fn stream_settings(
     limits: CodecLimits,
@@ -654,7 +654,7 @@ fn chat_includes_usage(body: &[u8]) -> bool {
 }
 
 /// Candidate fanout keeps every child journaled; this bounds the journal.
-const MAX_CANDIDATES: usize = usize::MAX;
+const MAX_CANDIDATES: usize = 8;
 
 fn fanout_options(client: Dialect) -> FanoutOptions {
     FanoutOptions {

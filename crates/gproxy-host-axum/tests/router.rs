@@ -463,3 +463,57 @@ async fn an_encoding_this_host_does_not_decode_is_refused() {
     let answer = host.send(request).await;
     assert_eq!(answer.status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
 }
+
+// ------------------------------------------------------------- body caps --
+
+#[tokio::test]
+async fn a_body_is_held_to_its_cap_and_only_an_upload_gets_the_larger_one() {
+    let host = instance().await;
+    host.handle()
+        .manage()
+        .settings()
+        .update(gproxy_sdk::dto::SettingsPatch {
+            instance: Some(gproxy_sdk::dto::InstanceSettingsPatch {
+                max_request_body_bytes: Some(1024),
+                max_upload_body_bytes: Some(4096),
+                ..Default::default()
+            }),
+            logging: None,
+        })
+        .await
+        .unwrap();
+    host.publish().await;
+    let padding = "x".repeat(2048);
+
+    let chat = post(
+        "/v1/chat/completions",
+        json!({ "model": "m1", "messages": [{ "role": "user", "content": padding }] }),
+    );
+    let answer = host.send(keyed(chat, "k-alice")).await;
+    assert_eq!(answer.status, StatusCode::PAYLOAD_TOO_LARGE);
+    // Refused before authentication: the cap is what bounds an anonymous body.
+    let chat = post(
+        "/v1/chat/completions",
+        json!({ "model": "m1", "messages": [{ "role": "user", "content": padding }] }),
+    );
+    assert_eq!(host.send(chat).await.status, StatusCode::PAYLOAD_TOO_LARGE);
+
+    // A file upload the same size is inside its own cap and goes on to be
+    // answered by whatever else it meets.
+    host.client
+        .script(vec![Reply::Http(StatusCode::OK, json!({ "id": "file-1" }))]);
+    let upload = keyed(post("/v1/files", json!({ "file": padding })), "k-alice");
+    assert_ne!(host.send(upload).await.status, StatusCode::PAYLOAD_TOO_LARGE);
+    let upload = keyed(
+        post("/v1/files", json!({ "file": "x".repeat(8192) })),
+        "k-alice",
+    );
+    assert_eq!(host.send(upload).await.status, StatusCode::PAYLOAD_TOO_LARGE);
+
+    // Sign-in is read before there is anyone to answer for it.
+    let login = post(
+        "/portal/api/login",
+        json!({ "name": "alice", "password": "x".repeat(128 * 1024) }),
+    );
+    assert_eq!(host.send(login).await.status, StatusCode::PAYLOAD_TOO_LARGE);
+}

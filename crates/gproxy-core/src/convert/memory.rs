@@ -19,9 +19,9 @@ use http::{HeaderMap, HeaderValue, StatusCode, header::CONTENT_TYPE};
 /// Output budget per trace summary.
 const SUMMARY_MAX_TOKENS: i64 = 2048;
 /// Upper bound on traces, and therefore native calls, per client request.
-const MAX_CALLS: usize = usize::MAX;
+const MAX_CALLS: usize = 64;
 /// Upper bound on items inside one trace.
-const MAX_TRACE_ITEMS: usize = usize::MAX;
+const MAX_TRACE_ITEMS: usize = 512;
 
 fn codec(error: gproxy_protocol::codec::CodecError) -> TransformError {
     TransformError::with_source(

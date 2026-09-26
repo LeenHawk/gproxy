@@ -16,10 +16,10 @@ pub struct GeminiStreamLimits {
 impl Default for GeminiStreamLimits {
     fn default() -> Self {
         Self {
-            max_events: usize::MAX,
-            max_bytes: usize::MAX,
-            max_candidates: usize::MAX,
-            max_parts: usize::MAX,
+            max_events: 100_000,
+            max_bytes: 16 * 1024 * 1024,
+            max_candidates: 128,
+            max_parts: 100_000,
         }
     }
 }

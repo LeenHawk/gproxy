@@ -2924,6 +2924,7 @@ dependencies = [
  "gproxy-seaorm",
  "gproxy-store",
  "http",
+ "hyper-util",
  "mime_guess",
  "rust-embed",
  "ruzstd",

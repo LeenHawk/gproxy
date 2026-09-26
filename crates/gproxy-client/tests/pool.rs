@@ -302,7 +302,7 @@ async fn concurrent_misses_share_a_client_and_parameter_changes_replace_it() {
             assert!(Arc::ptr_eq(&client, &task.await.unwrap()));
         }
         let changed = ConnectionConfig {
-            pool_max_idle_per_host: 7,
+            connect_timeout_ms: 5000,
             ..config
         };
         assert!(!Arc::ptr_eq(&client, &pool.get(&changed).await.unwrap()));

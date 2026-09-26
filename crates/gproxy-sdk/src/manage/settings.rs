@@ -119,7 +119,30 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> SettingsManage<'_, C> {
             if let Some(value) = instance.enable_usage {
                 row.enable_usage = Set(value);
             }
-
+            if let Some(value) = instance.request_timeout_ms {
+                row.request_timeout_ms = Set(positive(value, "requestTimeoutMs")?);
+            }
+            if let Some(value) = instance.stream_idle_timeout_ms {
+                row.stream_idle_timeout_ms = Set(positive(value, "streamIdleTimeoutMs")?);
+            }
+            if let Some(value) = instance.max_request_body_bytes {
+                row.max_request_body_bytes = Set(positive64(value, "maxRequestBodyBytes")?);
+            }
+            if let Some(value) = instance.max_upload_body_bytes {
+                row.max_upload_body_bytes = Set(positive64(value, "maxUploadBodyBytes")?);
+            }
+            if let Some(value) = instance.max_response_body_bytes {
+                row.max_response_body_bytes = Set(positive64(value, "maxResponseBodyBytes")?);
+            }
+            if let Some(value) = instance.max_stream_event_bytes {
+                row.max_stream_event_bytes = Set(positive64(value, "maxStreamEventBytes")?);
+            }
+            if let Some(value) = instance.max_ws_frame_bytes {
+                row.max_ws_frame_bytes = Set(positive64(value, "maxWsFrameBytes")?);
+            }
+            if let Some(value) = instance.max_multipart_parts {
+                row.max_multipart_parts = Set(positive(value, "maxMultipartParts")?);
+            }
             if let Some(value) = instance.enable_tokenizer_vocabs {
                 row.enable_tokenizer_vocabs = Set(value);
             }
@@ -273,4 +296,18 @@ fn array(
         Some(value) if value.is_array() => Ok(Some(value)),
         Some(_) => Err(SdkError::invalid(format!("{field} must be a JSON array"))),
     }
+}
+
+fn positive(value: u32, field: &'static str) -> SdkResult<u32> {
+    if value == 0 {
+        return Err(SdkError::invalid(format!("{field} must be positive")));
+    }
+    Ok(value)
+}
+
+fn positive64(value: i64, field: &'static str) -> SdkResult<i64> {
+    if value <= 0 {
+        return Err(SdkError::invalid(format!("{field} must be positive")));
+    }
+    Ok(value)
 }

@@ -20,7 +20,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 
 const profiles = family<ConnectionProfileDto, Partial<ConnectionProfileWrite>, Partial<ConnectionProfilePatch>>("/connection-profiles")
 const options: Record<string, string[]> = { backend: ["reqwest", "reqwest_native", "wreq"], retry: ["never", "default"] }
-const numbers = ["redirectMaxHops", "poolIdleTimeoutMs", "poolMaxIdlePerHost"] as const
+const numbers = ["redirectMaxHops", "connectTimeoutMs", "poolIdleTimeoutMs", "poolMaxIdlePerHost"] as const
 const decoders = ["gzip", "brotli", "deflate", "zstd"] as const
 
 export function ClientsPage() {
@@ -40,7 +40,7 @@ function ProfileDialog(props: Props) {
 }
 function ProfileForm({ original, presets, onSubmit, pending, error }: Props) {
   const { t } = useTranslation()
-  const initial: Record<string, string | boolean> = { name: "", backend: "reqwest", retry: "never", gzip: false, brotli: false, deflate: false, zstd: false, redirectMaxHops: "0", poolIdleTimeoutMs: "90000", poolMaxIdlePerHost: "32" }
+  const initial: Record<string, string | boolean> = { name: "", backend: "reqwest", retry: "never", gzip: false, brotli: false, deflate: false, zstd: false, redirectMaxHops: "0", connectTimeoutMs: "30000", poolIdleTimeoutMs: "90000", poolMaxIdlePerHost: "32" }
   const [values, setValues] = useState(() => Object.fromEntries(Object.entries(initial).map(([key, fallback]) => [key, original ? (original[key as keyof ConnectionProfileDto] == null ? fallback : typeof fallback === "boolean" ? Boolean(original[key as keyof ConnectionProfileDto]) : String(original[key as keyof ConnectionProfileDto])) : fallback])))
   const [identity, setIdentity] = useState(() => original?.emulation ? presets.find((p) => JSON.stringify(p.emulation) === JSON.stringify(original.emulation))?.id ?? "__custom" : "__none")
   const [custom, setCustom] = useState(JSON.stringify(original?.emulation ?? { kind: "custom", headers: [] }, null, 2))

@@ -129,7 +129,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for ConnectionPro
                 "retry",
                 &RETRIES,
             )?),
-
+            connect_timeout_ms: Set(write.connect_timeout_ms.unwrap_or(10_000)),
             pool_idle_timeout_ms: Set(write.pool_idle_timeout_ms.unwrap_or(90_000)),
             pool_max_idle_per_host: Set(write.pool_max_idle_per_host.unwrap_or(32)),
             created_at_ms: Set(crate::rt::now_ms()),
@@ -173,7 +173,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Shape<C> for ConnectionPro
         if let Some(value) = patch.retry {
             row.retry = Set(crud::enumerated(&value, "retry", &RETRIES)?);
         }
-
+        if let Some(value) = patch.connect_timeout_ms {
+            row.connect_timeout_ms = Set(value);
+        }
         if let Some(value) = patch.pool_idle_timeout_ms {
             row.pool_idle_timeout_ms = Set(value);
         }

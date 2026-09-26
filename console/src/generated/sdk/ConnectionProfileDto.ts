@@ -15,4 +15,4 @@ emulation: unknown | null, gzip: boolean, brotli: boolean, deflate: boolean, zst
 /**
  * `never` or `default`.
  */
-retry: string, poolIdleTimeoutMs: number, poolMaxIdlePerHost: number, createdAtMs: number, };
+retry: string, connectTimeoutMs: number, poolIdleTimeoutMs: number, poolMaxIdlePerHost: number, createdAtMs: number, };

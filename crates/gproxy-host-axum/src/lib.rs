@@ -105,6 +105,8 @@ pub mod policy;
 pub mod portal;
 pub mod response;
 pub mod runtime_settings;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod serve;
 pub mod session;
 pub mod update;
 // Two implementations of one module: hyper's upgrade natively, and a refusal
@@ -129,14 +131,18 @@ use gproxy_app::App;
 use gproxy_seaorm::BatchConnectionTrait;
 use http::{HeaderValue, StatusCode, header};
 
-/// The largest request body this host accepts, before any content-encoding is
-/// decoded.
+/// The largest body a management route accepts.
 ///
-/// A gateway forwards whole prompts, and a prompt with images or a long
-/// transcript in it is legitimately megabytes; the limit exists to stop an
-/// unbounded buffer, not to express a product policy. It applies to the data
-/// plane and to the management surfaces alike.
-pub const MAX_BODY_BYTES: usize = usize::MAX;
+/// Management requests are authenticated before their bodies are read, so
+/// this is a memory bound rather than a defence, and it is sized for the
+/// largest of them: a configuration import carrying a whole instance. The data
+/// plane does not use it; its caps are settings, read per request in
+/// `ingress`.
+pub const MAX_BODY_BYTES: usize = 50 * 1024 * 1024;
+
+/// The largest sign-in body. A name and a password, read before there is any
+/// caller to hold responsible for a larger one.
+pub const SIGN_IN_BODY_BYTES: usize = 64 * 1024;
 
 /// Everything a handler needs: the instance, the console bundle, and whatever
 /// the host could supply that this crate cannot decide for itself.
@@ -240,7 +246,7 @@ where
         // Applied after the routes so it covers the fallback too. A body
         // larger than this is refused before it is buffered, which is the
         // point: the limit is a memory bound, not a policy.
-        .layer(DefaultBodyLimit::disable())
+        .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             runtime_settings::cors::<C>,
@@ -446,7 +452,7 @@ pub(crate) async fn json_body<T: serde::de::DeserializeOwned>(
                 .into_response(),
         ));
     }
-    let body = axum::body::to_bytes(request.into_body(), MAX_BODY_BYTES)
+    let body = axum::body::to_bytes(request.into_body(), SIGN_IN_BODY_BYTES)
         .await
         .map_err(|_| {
             Box::new((StatusCode::PAYLOAD_TOO_LARGE, "request body too large").into_response())

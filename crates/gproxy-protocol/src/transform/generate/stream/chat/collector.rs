@@ -22,10 +22,10 @@ pub struct ChatStreamLimits {
 impl Default for ChatStreamLimits {
     fn default() -> Self {
         Self {
-            max_events: usize::MAX,
-            max_bytes: usize::MAX,
-            max_choices: usize::MAX,
-            max_tool_calls: usize::MAX,
+            max_events: 100_000,
+            max_bytes: 16 * 1024 * 1024,
+            max_choices: 128,
+            max_tool_calls: 100_000,
         }
     }
 }

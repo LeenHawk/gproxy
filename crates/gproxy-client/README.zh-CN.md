@@ -108,6 +108,7 @@ store 当前仅为 entity 草案。代理 URL 可能包含认证信息，序列�
   "zstd": true,
   "redirect_max_hops": 5,
   "retry": "default",
+  "connect_timeout_ms": 30000,
   "pool_idle_timeout_ms": 90000,
   "pool_max_idle_per_host": 32
 }
@@ -180,7 +181,7 @@ emulation，再应用明确的解压开关。
 `redirect_max_hops > 0` 按指定上限跟随重定向，超过上限报错。
 `retry = "default"` 恢复库自带的安全协议层重试（目前最多两次），不添加 HTTP 状态码
 重试规则；`never` 关闭这些重试。应用层的路由尝试次数仍是独立策略。非 2xx 保留为响应。
-只设置连接超时，不设置整条响应的总超时，避免截断长时间生成流。
+只设置连接超时（默认 30 秒），不设置整条响应的总超时，避免截断长时间生成流。
 取消、单请求截止时间及并发限制由调用方管理。
 
 验证命令：`cargo test -p gproxy-client --all-features`。本地回环测试覆盖 TCP 复用、

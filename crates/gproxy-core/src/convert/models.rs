@@ -1,5 +1,5 @@
 //! Model directory conversion. Listing collects the upstream's complete
-//! directory and maps it with per-model facts; a single lookup
+//! directory (bounded) and maps it with per-model facts; a single lookup
 //! fetches the native object and maps it. Facts a target schema requires and
 //! the source lacks (OpenAI owner/created, Gemini base model/version, Claude
 //! capabilities) come from the provider's model rows: `provider_models.metadata`
@@ -31,9 +31,9 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::collections::BTreeMap;
 
 /// Pages fetched for one directory listing.
-const MAX_LIST_CALLS: usize = usize::MAX;
+const MAX_LIST_CALLS: usize = 16;
 /// Models retained across the pages of one listing.
-const MAX_LIST_MODELS: usize = usize::MAX;
+const MAX_LIST_MODELS: usize = 4096;
 
 fn list_limits(codec: CodecLimits) -> ModelListLimits {
     ModelListLimits {

@@ -17,7 +17,7 @@ extraction and local token estimation.
 | `builder` | `Core::builder(store)`: cache and secret codec required; Store-backed observer by default, explicit override supported; channels registered into a `ChannelRegistry`; optional client pool and file storage |
 | `data` / `runtime` / `context` | Execution snapshot, atomic credential material, blocks and window keys, resolved target and request/attempt/exchange contexts, usage reports |
 | `secret` | `SecretCodec`: `AesGcmCodec` (AES-256-GCM envelope, per-credential data key, credential ID in the AAD) by default, `PlaintextCodec` as the explicit opt-out |
-| `limits` | explicit library bounds; gateway defaults impose no payload, event or time budget |
+| `limits` | `ExecutionLimits` from the Setting row, deriving every `CapabilityLimits` and `CodecLimits`; no unlimited mode |
 | `assemble` | ControlData rows into a `CoreData` snapshot: profiles to pooled clients, channel lookup, secret opening, endpoint validation, rule compilation, `QuotaModel` dimensions, custom vocabularies, live blocks |
 | `rewrite` | Rule compilation, selection by phase/operation/model/headers, Body/Header/Query application, raw-preserving per-unit stream rewriting (SSE, JSON array, NDJSON) |
 | `select` / `availability` | Credential choice inside the permitted set with strategy, affinity and blocks; failure streaks and cooldowns |

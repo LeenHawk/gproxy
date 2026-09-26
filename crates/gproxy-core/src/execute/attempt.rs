@@ -126,9 +126,9 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
     funnel.set_meter(core.usage_meter());
     reject_when_over_budget(core, &request, &funnel).await?;
     let snapshot = request.snapshot.clone();
-    let limits = snapshot.limits;
-    let provider = request.target.provider.clone();
     let operation = request.operation;
+    let limits = snapshot.limits.for_operation(operation.operation);
+    let provider = request.target.provider.clone();
     let upstream_model = request.target.upstream_model.clone();
 
     let route = match convert::route_for_model(&provider, operation, upstream_model.as_deref()) {
@@ -190,7 +190,8 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
         || remap_model
         || request.max_attempts.get() > 1
         || !request_rules.body.is_empty();
-    let (mut wire, replayable) = prepare::buffer_request(wire, want_replay).await;
+    let (mut wire, replayable) =
+        prepare::buffer_request(wire, want_replay, limits.max_request_body_bytes).await;
     if (converting || remap_model || local) && !replayable {
         funnel.finish(UsageState::Failed).await;
         return Err(CoreError::Transform(TransformError::new(

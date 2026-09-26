@@ -1,4 +1,4 @@
-//! Request-side preparation shared by every attempt: buffering of a
+//! Request-side preparation shared by every attempt: bounded buffering of a
 //! streaming body so retries can replay it, per-attempt cloning, and the
 //! provider/credential views the channel binding needs.
 
@@ -7,10 +7,13 @@ use futures_util::StreamExt;
 use gproxy_channel::channel::{CredentialView, ProviderView};
 use gproxy_protocol::{HttpBody, WireRequest, connection::Bytes};
 
-/// Buffer a streaming body for replay without downgrading large requests.
+/// A streaming body is buffered up to `max_bytes` so it can be replayed. Past
+/// the cap the consumed prefix is chained back in front of the rest and the
+/// request becomes single-attempt. Returns whether the body is replayable.
 pub(crate) async fn buffer_request(
     request: WireRequest<HttpBody>,
     want_replay: bool,
+    max_bytes: u64,
 ) -> (WireRequest<HttpBody>, bool) {
     let WireRequest {
         method,
@@ -25,11 +28,16 @@ pub(crate) async fn buffer_request(
         HttpBody::Stream(mut stream) => {
             let mut collected: Vec<Bytes> = Vec::new();
             let mut total = 0u64;
+            let mut overflow = None;
             while let Some(chunk) = stream.next().await {
                 match chunk {
                     Ok(chunk) => {
                         total += chunk.len() as u64;
                         collected.push(chunk);
+                        if total > max_bytes {
+                            overflow = Some(stream);
+                            break;
+                        }
                     }
                     Err(error) => {
                         // Replay the prefix and surface the error where the
@@ -49,11 +57,19 @@ pub(crate) async fn buffer_request(
                     }
                 }
             }
-            let mut joined = Vec::with_capacity(total as usize);
-            for chunk in collected {
-                joined.extend_from_slice(&chunk);
+            match overflow {
+                Some(rest) => {
+                    let prefix = futures_util::stream::iter(collected.into_iter().map(Ok));
+                    (HttpBody::Stream(Box::pin(prefix.chain(rest))), false)
+                }
+                None => {
+                    let mut joined = Vec::with_capacity(total as usize);
+                    for chunk in collected {
+                        joined.extend_from_slice(&chunk);
+                    }
+                    (HttpBody::Bytes(Bytes::from(joined)), true)
+                }
             }
-            (HttpBody::Bytes(Bytes::from(joined)), true)
         }
     };
     (
