@@ -38,7 +38,11 @@ pub fn start(app: &Arc<App<DatabaseConnection>>, updater: Arc<Updater>) -> Runti
                 ) {
                     tracing::error!(%error, "could not apply update settings");
                 }
-                let policy = (settings.retention_days, settings.max_database_size_mb);
+                let policy = (
+                    settings.retention_days,
+                    settings.quota_observation_retention_days,
+                    settings.max_database_size_mb,
+                );
                 if cleanup_policy != Some(policy)
                     || last_cleanup.elapsed() >= Duration::from_secs(60)
                 {
@@ -47,6 +51,7 @@ pub fn start(app: &Arc<App<DatabaseConnection>>, updater: Arc<Updater>) -> Runti
                         db,
                         policy.0,
                         policy.1,
+                        policy.2,
                         std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
                             .unwrap()
