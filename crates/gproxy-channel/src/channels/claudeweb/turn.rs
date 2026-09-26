@@ -25,7 +25,7 @@ use http::StatusCode;
 use serde_json::Value;
 
 use super::{
-    ClaudeWeb, ClaudeWebConfig, auth, bad_request, expired, id,
+    ClaudeWeb, ClaudeWebConfig, MAX_REQUEST_BODY, MAX_SERVICE_BODY, auth, bad_request, expired, id,
     now_ms,
     prepare::Requests,
     read_body, request,
@@ -141,7 +141,7 @@ pub(super) async fn start(
         auth::CHANNEL_HEADERS,
     );
     config.static_headers(&mut headers)?;
-    let body = read_body(context.request.body).await?;
+    let body = read_body(context.request.body, MAX_REQUEST_BODY).await?;
     let mut value = request::parse(&body)?;
     // claude.ai has no cache control: the magic cache strings are only
     // stripped so they never reach the prompt.
@@ -225,7 +225,7 @@ async fn new_turn(
         }
     };
     if !response.status.is_success() {
-        let body = read_body(response.body)
+        let body = read_body(response.body, MAX_SERVICE_BODY)
             .await
             .unwrap_or_default();
         discard(&*client, &requests, &conversation).await;
@@ -484,7 +484,7 @@ async fn call(
     request: http::Request<HttpBody>,
 ) -> Result<(StatusCode, Bytes), ChannelError> {
     let WireResponse { status, body, .. } = client.send(request).await?;
-    Ok((status, read_body(body).await?))
+    Ok((status, read_body(body, MAX_SERVICE_BODY).await?))
 }
 
 fn body_stream(body: HttpBody) -> ByteStream {

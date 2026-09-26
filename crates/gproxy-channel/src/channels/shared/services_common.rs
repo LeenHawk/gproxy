@@ -12,6 +12,9 @@ use http::{HeaderMap, HeaderValue, StatusCode, header};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
+/// Bodies the channel buffers itself (creation replies) are small.
+const MAX_LOCAL_BODY: usize = 4 * 1024 * 1024;
+
 /// The first declared route matching `method` and `path`, with its captured
 /// parameters. Tables list specific routes before prefix families, so the
 /// first match is the most specific one.
@@ -72,6 +75,11 @@ pub(crate) async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
             while let Some(chunk) = stream.next().await {
                 let chunk = chunk.map_err(|e| ChannelError::InvalidResponse(e.to_string()))?;
                 out.extend_from_slice(&chunk);
+                if out.len() > MAX_LOCAL_BODY {
+                    return Err(ChannelError::InvalidResponse(
+                        "service body exceeds the read limit".into(),
+                    ));
+                }
             }
             Ok(Bytes::from(out))
         }

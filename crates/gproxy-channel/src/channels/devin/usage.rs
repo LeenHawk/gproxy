@@ -33,10 +33,10 @@ use crate::channel::{
 /// Bounds for decoding this channel's own SSE; the host enforces transfer
 /// limits of its own.
 pub(super) const SSE_LIMITS: CodecLimits = CodecLimits {
-    max_buffer_bytes: u64::MAX,
-    max_value_bytes: u64::MAX,
+    max_buffer_bytes: 16 * 1024 * 1024,
+    max_value_bytes: 16 * 1024 * 1024,
     max_body_bytes: u64::MAX,
-    max_line_bytes: u64::MAX,
+    max_line_bytes: 16 * 1024 * 1024,
     max_part_bytes: 0,
     max_parts: 0,
 };

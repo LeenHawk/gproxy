@@ -30,6 +30,7 @@ const SCOPE: &str = "https://www.googleapis.com/auth/cloud-platform";
 const ASSERTION_TTL_SECONDS: u64 = 3_600;
 /// A token response without `expires_in` is treated as the documented hour.
 const DEFAULT_EXPIRES_IN_SECONDS: i64 = 3_600;
+const MAX_TOKEN_BODY: usize = 64 * 1024;
 
 /// The access token `prepare` puts in the `Authorization` header. Absent means
 /// no refresh has run yet, which is a credential the host must refresh before
@@ -242,6 +243,11 @@ async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
                 let chunk =
                     chunk.map_err(|error| ChannelError::InvalidResponse(error.to_string()))?;
                 out.extend_from_slice(&chunk);
+                if out.len() > MAX_TOKEN_BODY {
+                    return Err(ChannelError::InvalidResponse(
+                        "token response exceeds the read limit".into(),
+                    ));
+                }
             }
             Ok(Bytes::from(out))
         }

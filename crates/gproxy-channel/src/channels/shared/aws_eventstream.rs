@@ -21,6 +21,8 @@ use gproxy_protocol::connection::Bytes;
 
 const PRELUDE_LEN: usize = 12;
 const MIN_FRAME_LEN: usize = PRELUDE_LEN + 4;
+/// AWS's documented event-stream maximum message size.
+const MAX_FRAME_LEN: usize = 100 * 1024 * 1024;
 
 /// One decoded event-stream message.
 #[derive(Debug, Default)]
@@ -79,9 +81,9 @@ struct Layout {
 
 fn decode_prelude(prelude: &[u8]) -> Result<Layout, ChannelError> {
     let total_len = read_u32(&prelude[..4]) as usize;
-    if total_len < MIN_FRAME_LEN {
+    if !(MIN_FRAME_LEN..=MAX_FRAME_LEN).contains(&total_len) {
         return Err(decode(format!(
-            "frame length {total_len} is smaller than {MIN_FRAME_LEN}"
+            "frame length {total_len} is outside {MIN_FRAME_LEN}..={MAX_FRAME_LEN}"
         )));
     }
     let headers_len = read_u32(&prelude[4..8]) as usize;

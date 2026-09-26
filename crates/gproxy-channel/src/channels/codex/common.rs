@@ -7,6 +7,7 @@ use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{HttpBody, WireResponse};
 use http::{HeaderMap, Method, StatusCode};
 
+const MAX_SERVICE_BODY: usize = 1024 * 1024;
 
 pub(super) fn invalid_config(message: impl Into<String>) -> ChannelError {
     ChannelError::InvalidConfig(message.into())
@@ -24,6 +25,9 @@ async fn read_body(body: HttpBody) -> Result<Bytes, ChannelError> {
             while let Some(chunk) = stream.next().await {
                 let chunk = chunk.map_err(|e| invalid_response(e.to_string()))?;
                 out.extend_from_slice(&chunk);
+                if out.len() > MAX_SERVICE_BODY {
+                    return Err(invalid_response("service response exceeds the read limit"));
+                }
             }
             Ok(Bytes::from(out))
         }
