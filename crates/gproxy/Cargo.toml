@@ -95,7 +95,7 @@ gproxy-core = { workspace = true }
 gproxy-file = { workspace = true }
 gproxy-host-axum = { workspace = true }
 gproxy-sdk = { workspace = true }
-gproxy-seaorm = { workspace = true }
+gproxy-seaorm = { workspace = true, features = ["group-commit"] }
 gproxy-store = { workspace = true }
 # The generated first-run password, and nothing else.
 getrandom = { workspace = true }
