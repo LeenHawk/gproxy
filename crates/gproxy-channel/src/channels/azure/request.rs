@@ -10,6 +10,7 @@ use crate::channel::{
     HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView, UsageExtractor,
     forwardable,
 };
+use crate::channels::shared::cache;
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireFamily};
 use http::{HeaderName, HeaderValue};
 
@@ -57,6 +58,16 @@ impl BaseChannel for Azure {
                     ConfigKeyKind::String,
                     "Deployment name. Set it to address the deployment-scoped layout /openai/deployments/{deployment}/... instead of the version-less v1 surface.",
                 ),
+                ConfigKey::optional(
+                    "enable_claude_magic_cache",
+                    ConfigKeyKind::Bool,
+                    "Turn a client's magic cache string in a Claude-dialect body into cache_control. The strings are stripped either way.",
+                ),
+                ConfigKey::optional(
+                    "enable_openai_magic_cache",
+                    ConfigKeyKind::Bool,
+                    "Turn a client's magic cache string in an OpenAI Chat or Responses body into prompt_cache_breakpoint.",
+                ),
             ]
             .into_iter()
             .chain(crate::channel::CLAUDE_FALLBACK_KEYS)
@@ -69,9 +80,19 @@ impl BaseChannel for Azure {
     /// surface at all. A resource without Anthropic deployments simply fails
     /// upstream; which models a provider actually has is routing configuration,
     /// not something this channel can know.
-    fn default_conversion_target(&self, _provider: ProviderView<'_>, source: gproxy_protocol::OperationKey) -> Option<gproxy_protocol::OperationKey> {
-        matches!(source.operation, Operation::GenerateContent | Operation::StreamGenerateContent)
-            .then_some(gproxy_protocol::OperationKey { operation: source.operation, dialect: Dialect::OpenAi })
+    fn default_conversion_target(
+        &self,
+        _provider: ProviderView<'_>,
+        source: gproxy_protocol::OperationKey,
+    ) -> Option<gproxy_protocol::OperationKey> {
+        matches!(
+            source.operation,
+            Operation::GenerateContent | Operation::StreamGenerateContent
+        )
+        .then_some(gproxy_protocol::OperationKey {
+            operation: source.operation,
+            dialect: Dialect::OpenAi,
+        })
     }
 
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
@@ -97,8 +118,10 @@ impl BaseChannel for Azure {
         }
     }
 
-    /// The body is the vendor's own and passes through untouched, streamed or
-    /// buffered: Azure accepts the same request shapes as the vendors it hosts.
+    /// The body is the vendor's own and passes through, streamed or buffered:
+    /// Azure accepts the same request shapes as the vendors it hosts. A
+    /// buffered body only loses the magic cache strings, placed as
+    /// breakpoints when the provider asks.
     fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
         let config = AzureConfig::from_view(ctx.provider)?;
         let key = api_key(&ctx)?;
@@ -136,8 +159,19 @@ impl BaseChannel for Azure {
         if let Some(map) = builder.headers_mut() {
             *map = headers;
         }
+        let body = match ctx.request.body {
+            HttpBody::Bytes(bytes) => HttpBody::Bytes(cache::shape(
+                bytes,
+                cache::rules_for(
+                    ctx.operation.dialect,
+                    config.enable_claude_magic_cache,
+                    config.enable_openai_magic_cache,
+                ),
+            )),
+            body => body,
+        };
         builder
-            .body(ctx.request.body)
+            .body(body)
             .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
     }
 

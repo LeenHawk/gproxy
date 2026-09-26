@@ -57,8 +57,8 @@ Two provider `config` switches, one per family:
 
 | Switch | Channels that offer it |
 | --- | --- |
-| `enable_claude_magic_cache` | `claudeapi`, `claudecode`, `custom`, `opencodego`, `opencodezen`, `openrouter` |
-| `enable_openai_magic_cache` | `openai`, `codex`, `custom`, `opencodego`, `opencodezen`, `openrouter` |
+| `enable_claude_magic_cache` | `aws_bedrock`, `azure`, `claudeapi`, `claudecode`, `custom`, `opencodego`, `opencodezen`, `openrouter` |
+| `enable_openai_magic_cache` | `azure`, `openai`, `codex`, `custom`, `opencodego`, `opencodezen`, `openrouter` |
 
 The switch is read against the **target dialect**, not the client's. A request
 from an OpenAI-shaped client routed to a Claude provider is converted to Claude

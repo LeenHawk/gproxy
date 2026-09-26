@@ -1142,20 +1142,66 @@ async fn one_foundation_model_becomes_an_openai_model() {
 #[test]
 fn raw_bedrock_stream_usage_records_refusal_and_actual_model() {
     let mut headers = HeaderMap::new();
-    headers.insert("content-type", "application/vnd.amazon.eventstream".parse().unwrap());
-    let mut observer = AwsBedrock.usage_stream().unwrap().start(UsageStreamContext {
-        operation: OperationKey { operation:Operation::StreamGenerateContent,dialect:Dialect::Claude },
-        request_body: None, status:StatusCode::OK, headers:&headers,
-        transport: UsageTransport::Http { framing:None },
-    }).unwrap();
+    headers.insert(
+        "content-type",
+        "application/vnd.amazon.eventstream".parse().unwrap(),
+    );
+    let mut observer = AwsBedrock
+        .usage_stream()
+        .unwrap()
+        .start(UsageStreamContext {
+            operation: OperationKey {
+                operation: Operation::StreamGenerateContent,
+                dialect: Dialect::Claude,
+            },
+            request_body: None,
+            status: StatusCode::OK,
+            headers: &headers,
+            transport: UsageTransport::Http { framing: None },
+        })
+        .unwrap();
     let frames = [
         chunk_frame(json!({"type":"message_start","message":{"model":"claude-fable-5","usage":{"input_tokens":20,"output_tokens":0}}})),
         chunk_frame(json!({"type":"message_delta","delta":{"stop_reason":"refusal"},"usage":{"output_tokens":0}})),
         chunk_frame(json!({"type":"message_stop"})),
     ].concat();
-    for bytes in frames.chunks(3) { observer.observe(UsageFrame::HttpChunk(bytes)).unwrap(); }
+    for bytes in frames.chunks(3) {
+        observer.observe(UsageFrame::HttpChunk(bytes)).unwrap();
+    }
     let usage = observer.finish(UsageStreamEnd::Complete).unwrap().unwrap();
-    assert_eq!(usage.tokens.input_tokens,Some(20));
-    assert_eq!(usage.attempts[0].model,"claude-fable-5");
-    assert_eq!(usage.attempts[0].billable,Some(false));
+    assert_eq!(usage.tokens.input_tokens, Some(20));
+    assert_eq!(usage.attempts[0].model, "claude-fable-5");
+    assert_eq!(usage.attempts[0].billable, Some(false));
+}
+
+#[test]
+fn a_magic_cache_string_is_stripped_and_marked_only_when_asked() {
+    const TOKEN: &str = "GPROXY_MAGIC_STRING_TRIGGER_CACHING_CREATE_\
+                         49VA1S5V19GR4G89W2V695G9W9GV52W95V198WV5W2FC9DF";
+    let body = |config: Value| {
+        let mut request = messages_request("anthropic.claude-opus-4-1");
+        request.body = HttpBody::Bytes(Bytes::from(
+            json!({"model": "anthropic.claude-opus-4-1", "max_tokens": 64, "messages": [
+                {"role": "user", "content": [{"type": "text", "text": format!("ctx {TOKEN}")}]}
+            ]})
+            .to_string(),
+        ));
+        let prepared = prepared(&config, None, &key_pair(), GENERATE, request, None).unwrap();
+        let HttpBody::Bytes(body) = prepared.body() else {
+            panic!("buffered")
+        };
+        serde_json::from_slice::<Value>(body).unwrap()
+    };
+    let off = body(json!({"region": "us-east-1"}));
+    let block = &off["messages"][0]["content"][0];
+    assert!(
+        !block["text"].as_str().unwrap().contains("GPROXY_MAGIC"),
+        "stripped either way"
+    );
+    assert!(block["cache_control"].is_null());
+    let on = body(json!({"region": "us-east-1", "enable_claude_magic_cache": true}));
+    assert_eq!(
+        on["messages"][0]["content"][0]["cache_control"]["type"],
+        "ephemeral"
+    );
 }
