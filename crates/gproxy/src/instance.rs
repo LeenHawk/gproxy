@@ -282,7 +282,8 @@ pub(crate) async fn open_connection(config: &AppConfig) -> Result<Connection> {
             options
                 .min_connections(1)
                 .max_connections(1)
-                .sqlx_logging(false);
+                .sqlx_logging(false)
+                .map_sqlx_sqlite_opts(tuned);
             Ok(Database::connect(options).await?)
         }
         StoreBackendConfig::Url { dsn } => {
@@ -299,6 +300,28 @@ pub(crate) async fn open_connection(config: &AppConfig) -> Result<Connection> {
             "this build does not open libSQL; use a `postgres://`, `mysql://` or SQLite store",
         )),
     }
+}
+
+/// How the one SQLite connection is opened.
+///
+/// WAL, so a commit is an append rather than a rewrite of the rollback
+/// journal, and `synchronous = NORMAL`, which in WAL mode syncs at checkpoints
+/// rather than on every commit: a power cut can lose the last commits, never
+/// corrupt the file. Together they are the difference between a commit costing
+/// an fsync and costing a write. The rest keeps the working set in memory.
+/// Applied on every connect, so a connection the pool reopens is tuned too.
+fn tuned(
+    options: sea_orm::sqlx::sqlite::SqliteConnectOptions,
+) -> sea_orm::sqlx::sqlite::SqliteConnectOptions {
+    use sea_orm::sqlx::sqlite::{SqliteJournalMode, SqliteSynchronous};
+    options
+        .journal_mode(SqliteJournalMode::Wal)
+        .synchronous(SqliteSynchronous::Normal)
+        .busy_timeout(std::time::Duration::from_secs(5))
+        // 64 MiB of page cache (negative is KiB), 256 MiB of mapped file.
+        .pragma("cache_size", "-65536")
+        .pragma("mmap_size", "268435456")
+        .pragma("temp_store", "memory")
 }
 
 /// Shared transient state: TTL entries, rate-limit counters, concurrency
