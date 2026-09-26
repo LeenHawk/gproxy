@@ -561,9 +561,12 @@ impl OutboundClient for ObservedClient {
     }
 }
 
-impl Drop for Exchange {
-    fn drop(&mut self) {
-        // Covers a dropped send/handshake future before any response body guard.
+impl Exchange {
+    /// Settle as abandoned: the send or handshake future was dropped before
+    /// any response body guard took over, so the caller went away and there
+    /// is no status to record. Idempotent with every other way to finish.
+    pub(crate) fn abandon(&self) {
+        self.dropped.store(true, Ordering::SeqCst);
         if let Some(sink) = self.settle_sync(
             UsageStreamEnd::Interrupted,
             None,
@@ -583,5 +586,11 @@ impl Drop for Exchange {
                 });
             }
         }
+    }
+}
+
+impl Drop for Exchange {
+    fn drop(&mut self) {
+        self.abandon();
     }
 }

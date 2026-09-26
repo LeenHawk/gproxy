@@ -22,17 +22,14 @@ pub(crate) struct NativeCall {
     pub instance_id: Arc<str>,
 }
 
+/// Settles the exchange when the send future is dropped mid-flight. That is
+/// the caller going away, so it is recorded as cancelled with no status —
+/// the same as the exchange's own drop — not as an upstream failure.
 struct SendGuard(Option<Arc<Exchange>>);
 impl Drop for SendGuard {
     fn drop(&mut self) {
         if let Some(exchange) = self.0.take() {
-            exchange.finish_detached(
-                gproxy_channel::channel::UsageStreamEnd::Interrupted,
-                http::StatusCode::INTERNAL_SERVER_ERROR,
-                http::HeaderMap::new(),
-                None,
-                now_ms(),
-            );
+            exchange.abandon();
         }
     }
 }

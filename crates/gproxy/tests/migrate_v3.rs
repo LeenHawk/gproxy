@@ -328,7 +328,10 @@ async fn a_v3_deployment_becomes_a_working_v4_one() {
     let store = instance.app.gproxy().store();
     let provider = one(store.providers()).await;
     assert_eq!(provider.id, "v3-providers-1");
-    assert_eq!(provider.name, "Upstream (prod)");
+    // v3's name stays the invocation name; its label is the display name
+    // (868c8eb87 separated the two).
+    assert_eq!(provider.name, "upstream");
+    assert_eq!(provider.display_name.as_deref(), Some("Upstream (prod)"));
     assert_eq!(provider.channel, "custom");
     assert_eq!(provider.base_url.as_deref(), Some("http://127.0.0.1:1/v1"));
 
