@@ -1,19 +1,15 @@
-//! Reset ordering uses observed quota cycles, never a quota query on the request path.
-//! Cache only the latest observations, independent of the requested model/operation.
+//! Reset ordering uses observed quota readings, never a quota query on the request path.
+//! Cache only the latest readings, independent of the requested model/operation; a
+//! cold cache is rebuilt from the credentials' open cycles with observed boundaries.
 
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use gproxy_channel::channel::{
     QuotaAllowance, QuotaEntry, QuotaScope, QuotaSubject, QuotaValue, QuotaWindow,
 };
 use gproxy_protocol::Operation;
 use gproxy_seaorm::BatchConnectionTrait;
-use gproxy_store::entity::limits::credential_quota_cycle;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+use gproxy_store::entity::limits::credential_cycle::CycleBoundary;
 use serde::{Deserialize, Serialize};
 
 use crate::{Core, CoreError, CoreResult, CredentialBlocks, CredentialData, keys};
@@ -142,30 +138,21 @@ impl<C: BatchConnectionTrait> Core<C> {
             }
         }
         if !missing.is_empty() {
-            let rows = self
-                .store()
-                .credential_quota_cycles()
-                .query(
-                    credential_quota_cycle::Entity::find()
-                        .filter(credential_quota_cycle::Column::CredentialId.is_in(missing.clone()))
-                        .order_by_desc(credential_quota_cycle::Column::ObservedAtMs)
-                        .order_by_desc(credential_quota_cycle::Column::Id),
-                )
-                .await?;
-            let mut seen = HashSet::new();
+            // A cold projection is rebuilt from the open cycles, not the
+            // observation log: one indexed read per credential set, where the
+            // log would be a scan of its whole history.
+            let rows = self.store().credential_cycles().open_of(&missing).await?;
             for id in &missing {
                 observations.insert(id.clone(), Vec::new());
             }
             for row in rows {
-                let Some(id) = row.snapshot.get("id").and_then(|v| v.as_str()) else {
-                    continue;
-                };
-                // Select the newest observation BEFORE dropping expired/unknown resets:
-                // an old reset must not reappear when a newer reading omits it.
-                if !seen.insert((row.credential_id.clone(), id.to_owned())) {
+                // Only boundaries the upstream reported order by reset. A
+                // local one is a guess, and a cycle goes back to local when
+                // the upstream stops reporting its reset.
+                if row.boundary != CycleBoundary::Observed {
                     continue;
                 }
-                let Some(source_id) = row.snapshot.get("source_id").and_then(|v| v.as_str()) else {
+                let Some(source_id) = row.dimension_id else {
                     continue;
                 };
                 let scope = serde_json::from_value(row.scope).unwrap_or(QuotaScope::Unknown);
@@ -173,22 +160,13 @@ impl<C: BatchConnectionTrait> Core<C> {
                     .entry(row.credential_id)
                     .or_default()
                     .push(Observation {
-                        id: id.to_owned(),
-                        observed_at_ms: row.observed_at_ms,
-                        source_id: source_id.to_owned(),
+                        id: row.window_id,
+                        observed_at_ms: row.sample_at_ms.unwrap_or(row.starts_at_ms),
+                        source_id,
                         scope,
-                        resets_at_ms: row.resets_at_ms,
-                        kind: row
-                            .snapshot
-                            .get("kind")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or_default()
-                            .to_owned(),
-                        unlimited: row
-                            .snapshot
-                            .get("unlimited")
-                            .and_then(|v| v.as_bool())
-                            .unwrap_or(false),
+                        resets_at_ms: row.ends_at_ms,
+                        kind: "window".into(),
+                        unlimited: false,
                     });
             }
             for id in missing {
