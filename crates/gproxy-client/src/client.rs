@@ -177,7 +177,46 @@ fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest:
 }
 
 #[cfg(all(feature = "reqwest", not(target_arch = "wasm32")))]
+impl Client {
+    /// A one-off rustls reqwest client whose connections to `host` go to
+    /// `addrs` and nowhere else, whatever `host` resolves to by the time the
+    /// connection is made.
+    ///
+    /// For a caller that vetted a name's addresses before fetching it: without
+    /// the pin the client resolves the name a second time, and a name that
+    /// answers differently the second time (DNS rebinding) reaches an address
+    /// nobody vetted. Not pooled: each vetted destination is its own client.
+    /// `config.backend` is not consulted.
+    pub fn pinned(
+        config: &ConnectionConfig,
+        host: &str,
+        addrs: &[std::net::IpAddr],
+    ) -> Result<Self, Error> {
+        // Port 0: the URL's port, or its scheme's default, as reqwest documents.
+        let addrs: Vec<_> = addrs
+            .iter()
+            .map(|ip| std::net::SocketAddr::new(*ip, 0))
+            .collect();
+        reqwest_builder(config, false)?
+            .resolve_to_addrs(host, &addrs)
+            .build()
+            .map(Self::Reqwest)
+            .map_err(Error::Reqwest)
+    }
+}
+
+#[cfg(all(feature = "reqwest", not(target_arch = "wasm32")))]
 fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest::Client, Error> {
+    reqwest_builder(config, http1_only)?
+        .build()
+        .map_err(Error::Reqwest)
+}
+
+#[cfg(all(feature = "reqwest", not(target_arch = "wasm32")))]
+fn reqwest_builder(
+    config: &ConnectionConfig,
+    http1_only: bool,
+) -> Result<reqwest::ClientBuilder, Error> {
     let mut builder = reqwest::Client::builder()
         .pool_idle_timeout(Duration::from_millis(config.pool_idle_timeout_ms.into()))
         .pool_max_idle_per_host(config.pool_max_idle_per_host as usize)
@@ -205,7 +244,7 @@ fn build_reqwest(config: &ConnectionConfig, http1_only: bool) -> Result<reqwest:
             .proxy(reqwest::Proxy::all(url).map_err(Error::Reqwest)?),
     };
     portable_fingerprint!(builder, config, reqwest, false, http1_only);
-    builder.build().map_err(Error::Reqwest)
+    Ok(builder)
 }
 
 /// reqwest 0.12 as the Codex CLI builds it: native TLS, no decompression

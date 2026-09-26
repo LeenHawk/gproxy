@@ -680,6 +680,40 @@ async fn resolve_host(_: &url::Url) -> Result<Vec<std::net::IpAddr>, CapabilityE
     Ok(Vec::new())
 }
 
+/// The host name a fetch's connection must be pinned to, when there is one to
+/// pin: a name (a literal IP is its own address), vetted addresses to pin it
+/// to, and a direct connection. Through a proxy the proxy resolves the name,
+/// so there is no connection of this process's to pin.
+fn pin_target<'u>(
+    url: &'u url::Url,
+    config: &gproxy_client::ConnectionConfig,
+    vetted: &[std::net::IpAddr],
+) -> Option<&'u str> {
+    let Some(url::Host::Domain(name)) = url.host() else {
+        return None;
+    };
+    (!vetted.is_empty() && config.proxy == gproxy_client::ProxyConfig::Direct).then_some(name)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn pinned_client(
+    config: &gproxy_client::ConnectionConfig,
+    host: &str,
+    vetted: &[std::net::IpAddr],
+) -> Result<gproxy_client::Client, gproxy_client::Error> {
+    gproxy_client::Client::pinned(config, host, vetted)
+}
+
+/// wasm32 resolves nothing, so [`pin_target`] never asks for a pin here.
+#[cfg(target_arch = "wasm32")]
+fn pinned_client(
+    config: &gproxy_client::ConnectionConfig,
+    _: &str,
+    _: &[std::net::IpAddr],
+) -> Result<gproxy_client::Client, gproxy_client::Error> {
+    Err(gproxy_client::Error::BackendUnavailable(config.backend))
+}
+
 /// `Content-Type` without its parameters, the exact form adapters require.
 fn mime_of(headers: &HeaderMap) -> Option<String> {
     let value = headers.get(http::header::CONTENT_TYPE)?.to_str().ok()?;
@@ -725,11 +759,12 @@ fn filename_of(headers: &HeaderMap) -> Option<String> {
 
 impl<C: BatchConnectionTrait + Send + Sync> Resources<'_, C> {
     /// Ask the host's fetch policy about `url`, resolving its host first so
-    /// the policy sees where the connection would go.
-    async fn authorise(&self, url: &url::Url) -> Result<(), CapabilityError> {
+    /// the policy sees where the connection would go. Answers the addresses
+    /// it vetted, which the fetch then pins the connection to.
+    async fn authorise(&self, url: &url::Url) -> Result<Vec<std::net::IpAddr>, CapabilityError> {
         let resolved = resolve_host(url).await?;
         match self.core.fetch_policy().decide(url, &resolved) {
-            crate::FetchDecision::Allow => Ok(()),
+            crate::FetchDecision::Allow => Ok(resolved),
             crate::FetchDecision::Deny(reason) => Err(resource_error(
                 CapabilityErrorKind::Unsupported,
                 format!(
@@ -756,7 +791,7 @@ impl<C: BatchConnectionTrait + Send + Sync> Resources<'_, C> {
         let limit = self.codec.max_body_bytes.min(self.limits.read_bytes);
         let mut hops = 0;
         loop {
-            self.authorise(&url).await?;
+            let vetted = self.authorise(&url).await?;
             let settings = self
                 .core
                 .store()
@@ -771,15 +806,26 @@ impl<C: BatchConnectionTrait + Send + Sync> Resources<'_, C> {
             )
             .map_err(|_| invalid("invalid global proxy".into()))?
             .0;
-            let client = self
-                .core
-                .clients()
-                .get(&gproxy_client::ConnectionConfig {
-                    proxy,
-                    ..Default::default()
-                })
-                .await
-                .map_err(|e| transport(format!("outbound client unavailable: {e}")))?;
+            let config = gproxy_client::ConnectionConfig {
+                proxy,
+                ..Default::default()
+            };
+            let client = match pin_target(&url, &config, &vetted) {
+                // Connect only where the policy looked. Resolving the name
+                // again at connect time would let a name that answers
+                // differently the second time (DNS rebinding) reach an
+                // address the policy never saw.
+                Some(host) => std::sync::Arc::new(
+                    pinned_client(&config, host, &vetted)
+                        .map_err(|e| transport(format!("outbound client unavailable: {e}")))?,
+                ),
+                None => self
+                    .core
+                    .clients()
+                    .get(&config)
+                    .await
+                    .map_err(|e| transport(format!("outbound client unavailable: {e}")))?,
+            };
             let request = http::Request::builder()
                 .method(http::Method::GET)
                 .uri(url.as_str())
@@ -1289,5 +1335,63 @@ impl<C: BatchConnectionTrait + Send + Sync> Core<C> {
             return Err(crate::CoreError::File(error));
         }
         Ok(true)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gproxy_client::{ConnectionConfig, ProxyConfig};
+
+    #[test]
+    fn a_direct_fetch_of_a_name_is_pinned_to_what_the_policy_vetted() {
+        let vetted = ["93.184.216.34".parse().unwrap()];
+        let direct = ConnectionConfig::default();
+        let url = url::Url::parse("https://example.com/cat.png").unwrap();
+        assert_eq!(pin_target(&url, &direct, &vetted), Some("example.com"));
+
+        // A literal IP is its own address; there is no second lookup to race.
+        let literal = url::Url::parse("https://93.184.216.34/cat.png").unwrap();
+        assert_eq!(pin_target(&literal, &direct, &vetted), None);
+        // Through a proxy the proxy resolves the name, not this process.
+        let proxied = ConnectionConfig {
+            proxy: ProxyConfig::Explicit {
+                url: "http://proxy.internal:3128".into(),
+            },
+            ..Default::default()
+        };
+        assert_eq!(pin_target(&url, &proxied, &vetted), None);
+    }
+
+    #[tokio::test]
+    async fn a_pinned_client_connects_to_the_pin_not_to_the_name() {
+        use gproxy_client::OutboundClient;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut buffer = [0; 1024];
+            let _ = socket.read(&mut buffer).await.unwrap();
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok")
+                .await
+                .unwrap();
+        });
+        // `.invalid` never resolves (RFC 6761): a response proves the client
+        // used the pin rather than looking the name up.
+        let client = pinned_client(
+            &ConnectionConfig::default(),
+            "pinned.invalid",
+            &["127.0.0.1".parse().unwrap()],
+        )
+        .unwrap();
+        let request = http::Request::builder()
+            .uri(format!("http://pinned.invalid:{port}/"))
+            .body(HttpBody::Bytes(Bytes::new()))
+            .unwrap();
+        let response = client.send(request).await.unwrap();
+        assert_eq!(response.status, http::StatusCode::OK);
     }
 }

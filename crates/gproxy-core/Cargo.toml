@@ -47,6 +47,9 @@ default = ["bundled-vocabulary"]
 bundled-vocabulary = ["gproxy-tokenizer/bundled-deepseek"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# URL resource fetches pin the addresses the fetch policy vetted, which needs
+# the native reqwest backend's DNS overrides.
+gproxy-client = { workspace = true, features = ["reqwest"] }
 tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
