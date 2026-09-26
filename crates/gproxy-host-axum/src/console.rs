@@ -101,8 +101,8 @@ impl Console {
 
 /// The file `path` asks for, or `None` when the request is not the console's.
 ///
-/// Rejects anything with a `..` segment or a leading `/` after the prefix is
-/// stripped: the directory source joins this onto a root, and a traversal
+/// Rejects anything with a `..` segment, a leading `/` or a drive prefix after
+/// the prefix is stripped: the directory source joins this onto a root, and a traversal
 /// there would serve the instance's own files.
 fn asset_name(method: &Method, path: &str) -> Option<String> {
     if method != Method::GET && method != Method::HEAD {
@@ -121,8 +121,14 @@ fn asset_name(method: &Method, path: &str) -> Option<String> {
     if rest.is_empty() {
         return Some("index.html".to_owned());
     }
+    // `:` too: on Windows `C:/…` or `C:…` is a drive, and joining a drive
+    // path onto the root replaces the root. No console asset has one.
     (!rest.split('/').any(|segment| {
-        segment.is_empty() || segment == ".." || segment == "." || segment.contains('\\')
+        segment.is_empty()
+            || segment == ".."
+            || segment == "."
+            || segment.contains('\\')
+            || segment.contains(':')
     }))
     .then(|| rest.to_owned())
 }
@@ -198,6 +204,9 @@ mod tests {
             "/console/assets/../../etc/passwd",
             "/console/a/./b",
             "/console//etc/passwd",
+            "/console/C:/Windows/win.ini",
+            "/console/C:win.ini",
+            "/console/assets/D:/secret",
         ] {
             assert_eq!(asset_name(&Method::GET, path), None, "{path}");
         }
