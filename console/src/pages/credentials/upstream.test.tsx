@@ -5,7 +5,7 @@ import "@/i18n"
 import { UpstreamQuota } from "./upstream"
 import { credentialQuota, probeQuota, quotaResetCredits, resetUpstreamQuota } from "@/api/credentials"
 import type { CredentialProviderDto } from "@/generated/app"
-import type { QuotaSnapshotDto } from "@/generated/sdk"
+import type { CredentialCycleDto, QuotaSnapshotDto } from "@/generated/sdk"
 
 vi.mock("@/api/credentials", () => ({ credentialQuota: vi.fn(), probeQuota: vi.fn(), quotaResetCredits: vi.fn(), resetUpstreamQuota: vi.fn() }))
 const provider: CredentialProviderDto = { displayName: null, id: "p", name: "Codex", channel: "codex", enabled: true, loginModes: [], capabilities: { refresh: true, quotaQuery: true, quotaReset: true, services: true, websocket: true } }
@@ -104,15 +104,29 @@ it("renders weekly composition separately and labels Fable as a weekly quota", a
   expect(screen.queryByText("breakdown · 7-day quota")).not.toBeInTheDocument()
 })
 
-it("hides the legacy phantom breakdown window when falling back to saved observations", async () => {
+it("shows each window's cycle spend, estimate and recent cycles from saved cycles without summing windows", async () => {
   vi.mocked(probeQuota).mockRejectedValue(new Error("Offline"))
-  vi.mocked(credentialQuota).mockResolvedValue({ blocks: [], cycles: [{
-    id: "old-breakdown", credentialId: "c", scope: "all", snapshot: { id: "seven_day_breakdown", kind: "window", limit: "100", unit: "percent" },
-    observedAtMs: 1_790_330_400_000, startsAtMs: null, resetsAtMs: null,
-  }] })
-  mount("claudecode")
+  const cycle = (id: string, windowId: string, extra: Partial<CredentialCycleDto>): CredentialCycleDto => ({
+    id, credentialId: "c", windowId, dimensionId: windowId, scope: "all", startsAtMs: 1_790_300_000_000, endsAtMs: 1_790_318_000_000,
+    boundary: "observed", openedBy: "rollover", closedAtMs: null, costUsd: "0", sample: null, estimatedAllowanceUsd: null, ...extra,
+  })
+  vi.mocked(credentialQuota).mockResolvedValue({ blocks: [], cycles: [
+    cycle("open-5h", "codex_primary", { costUsd: "2.5", estimatedAllowanceUsd: "5", sample: { usedPercent: "40", used: null, limit: null, costUsd: "2", atMs: 1_790_310_000_000 } }),
+    cycle("month", "month", { costUsd: "1.25", endsAtMs: null }),
+    cycle("closed-5h", "codex_primary", { costUsd: "3.2", closedAtMs: 1_790_282_000_000, startsAtMs: 1_790_264_000_000, endsAtMs: 1_790_282_000_000, sample: { usedPercent: "90", used: null, limit: null, costUsd: "3", atMs: 1_790_281_000_000 } }),
+  ] })
+  mount()
   await screen.findByText("Offline")
-  expect(screen.queryByText(/breakdown ·|— \/ 100/)).not.toBeInTheDocument()
+  expect(await screen.findByText("$2.50")).toBeInTheDocument()
+  expect(screen.getByText("≈ $5.00")).toBeInTheDocument()
+  expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "40")
+  expect(screen.getByRole("heading", { name: "Calendar month" })).toBeInTheDocument()
+  expect(screen.getByText("$1.25")).toBeInTheDocument()
+  expect(screen.getAllByText(/only traffic through gproxy/).length).toBeGreaterThan(0)
+  expect(screen.queryByText("$3.75")).not.toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: /Recent cycles \(1\)/ }))
+  expect(await screen.findByText("$3.20")).toBeInTheDocument()
+  expect(screen.getByText("90%")).toBeInTheDocument()
 })
 
 it("shows a separate expiry for each available reset card", async () => {
