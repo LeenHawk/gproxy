@@ -523,3 +523,85 @@ async fn a_body_is_held_to_its_cap_and_only_an_upload_gets_the_larger_one() {
     );
     assert_eq!(host.send(login).await.status, StatusCode::PAYLOAD_TOO_LARGE);
 }
+
+// ------------------------------------------------------------ settlement --
+
+/// Over a real connection, as a client sees it. Hyper stops polling a body the
+/// moment it has written the bytes `content-length` declared, so a response
+/// that waited for its end-of-stream to settle was never settled as finished:
+/// the body was dropped, and the drop is what a client hanging up looks like.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_buffered_answer_over_a_socket_settles_as_completed() {
+    use gproxy_store::entity::usage::usage_record;
+    use sea_orm::EntityTrait;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let host = instance().await;
+    host.client
+        .script(vec![Reply::Http(StatusCode::OK, json!({ "ok": true }))]);
+    let bound = host.bind().await;
+    let mut socket = tokio::net::TcpStream::connect(bound.address).await.unwrap();
+    let body = json!({ "model": "test/m1" }).to_string();
+    socket
+        .write_all(
+            format!(
+                "POST /v1/messages HTTP/1.1\r\nhost: gproxy.local\r\n\
+                 authorization: Bearer k-alice\r\ncontent-type: application/json\r\n\
+                 content-length: {}\r\n\r\n{body}",
+                body.len()
+            )
+            .as_bytes(),
+        )
+        .await
+        .unwrap();
+    // Read exactly one response and keep the connection open, as a
+    // keep-alive client does.
+    let mut received = Vec::new();
+    let mut buffer = [0; 4096];
+    loop {
+        let read = socket.read(&mut buffer).await.unwrap();
+        received.extend_from_slice(&buffer[..read]);
+        let text = String::from_utf8_lossy(&received);
+        if let Some((head, rest)) = text.split_once("\r\n\r\n") {
+            let length: usize = head
+                .lines()
+                .find_map(|line| {
+                    line.to_ascii_lowercase()
+                        .strip_prefix("content-length: ")
+                        .map(|v| v.trim().parse().unwrap())
+                })
+                .expect("a buffered answer declares its length");
+            if rest.len() >= length {
+                break;
+            }
+        }
+    }
+    let text = String::from_utf8_lossy(&received).into_owned();
+    assert!(text.starts_with("HTTP/1.1 200"), "{text}");
+
+    let mut settled = Vec::new();
+    for _ in 0..200 {
+        settled = host
+            .app
+            .gproxy()
+            .store()
+            .usage_records()
+            .query(usage_record::Entity::find())
+            .await
+            .unwrap();
+        if !settled.is_empty() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    assert_eq!(settled.len(), 1, "the request is recorded");
+    let state = settled[0].metrics["state"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    assert_eq!(
+        state, "completed",
+        "an answer the client received in full is not a cancelled one"
+    );
+    drop(socket);
+}

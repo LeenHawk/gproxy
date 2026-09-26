@@ -14,10 +14,11 @@
 //! - the request's [`CancelOnDrop`], because the client can still leave.
 //!
 //! All four are moved **into** the response body. [`LeasedBody`] owns them,
-//! feeds each chunk to the capture as it passes, and on the last chunk awaits
-//! the settlement, writes the capture and releases the lease. There is nowhere
-//! else the values live, so no call site can forget one — which is the whole
-//! reason it is a stream that owns them rather than a guard somebody holds.
+//! feeds each chunk to the capture as it passes, and at the end hands them to
+//! a settlement that writes the usage and the capture and releases the lease,
+//! without making the client's last byte wait for it. There is nowhere else
+//! the values live, so no call site can forget one — which is the whole reason
+//! it is a stream that owns them rather than a guard somebody holds.
 //!
 //! # A client that leaves cancels the upstream call
 //!
@@ -188,12 +189,11 @@ where
 {
     let status = response.status;
     let headers = sanitize(response.headers);
-    let body = LeasedBody {
-        inner: Some(chunks(response.body)),
-        trailer: Some(trailer),
-        tail: None,
-        failure: None,
-    };
+    let declared = headers
+        .get(http::header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.trim().parse::<u64>().ok());
+    let body = LeasedBody::new(chunks(response.body), trailer, declared);
     build(status, headers, Body::from_stream(crate::send(body)))
 }
 
@@ -400,17 +400,117 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Trailer<C> {
 ///
 /// While `inner` is `Some` the stream has not reached its end, so the
 /// [`Trailer`] it still holds is armed: hyper dropping this value is a client
-/// that hung up mid-stream, and the drop cancels the upstream call. Once
-/// `inner` is `None` the `Trailer` has been handed to [`Trailer::finish`],
-/// which disarmed it — so a body that is dropped while its settlement is still
-/// running cancels nothing.
+/// that hung up mid-stream, and the drop cancels the upstream call.
+///
+/// # Where the end is
+///
+/// Not only where the upstream's stream ends. A buffered answer carries the
+/// `content-length` the upstream declared, and hyper stops polling a body the
+/// moment it has written that many bytes: the end-of-stream this type would
+/// otherwise wait for is never asked for, and the body is dropped instead —
+/// exactly what a client hanging up looks like. So the declared length is the
+/// end too, noticed as the last chunk passes through.
+///
+/// # What happens at the end
+///
+/// The [`Trailer`] is disarmed and its settlement — core's usage, the capture,
+/// the lease — runs on its own, so the client's last byte does not wait for the
+/// database. What remains of the upstream stream goes with it and is drained
+/// there, because core settles an exchange when that stream ends. Settlements
+/// are bounded by [`SETTLING`]: past that, the last byte waits for a place, so
+/// a database that falls behind slows its clients rather than piling up work.
 pub struct LeasedBody<C> {
     inner: Option<ChunkStream>,
     trailer: Option<Trailer<C>>,
-    tail: Option<TailFuture>,
-    /// An upstream failure, held back until the settlement has run so the
-    /// request is still recorded. Delivered as the stream's last item.
-    failure: Option<TransportError>,
+    /// `content-length`, when the upstream declared one; see above.
+    declared: Option<u64>,
+    written: u64,
+    closing: Option<Closing>,
+}
+
+/// A body that has reached its end and is waiting to hand its settlement off.
+struct Closing {
+    /// What the client is owed once the hand-off is done: the last chunk, an
+    /// upstream failure, or nothing at a plain end of stream.
+    last: Option<Result<Bytes, TransportError>>,
+    /// Native: a place among the settlements in flight. On wasm there is no
+    /// task to hand to, so this is the settlement itself, awaited inline — a
+    /// Worker's platform reads the body to its end, so it is always reached.
+    wait: TailFuture,
+    done: bool,
+}
+
+/// How many settlements may run behind responses that have already ended.
+#[cfg(not(target_arch = "wasm32"))]
+pub const SETTLING: usize = 2048;
+
+#[cfg(not(target_arch = "wasm32"))]
+fn settling() -> Arc<tokio::sync::Semaphore> {
+    static SEMAPHORE: std::sync::OnceLock<Arc<tokio::sync::Semaphore>> = std::sync::OnceLock::new();
+    SEMAPHORE
+        .get_or_init(|| Arc::new(tokio::sync::Semaphore::new(SETTLING)))
+        .clone()
+}
+
+/// Wait until every settlement already handed off has finished.
+///
+/// A response that has ended no longer holds its settlement, so shutting down
+/// when the last connection closes would lose the ones still running. A host
+/// awaits this after its connections have drained; a test awaits it before it
+/// reads what a request wrote.
+#[cfg(not(target_arch = "wasm32"))]
+pub async fn settled() {
+    let all = u32::try_from(SETTLING).unwrap_or(u32::MAX);
+    if let Ok(permits) = settling().acquire_many_owned(all).await {
+        drop(permits);
+    }
+}
+
+impl<C: BatchConnectionTrait + Send + Sync + 'static> LeasedBody<C> {
+    fn new(inner: ChunkStream, trailer: Trailer<C>, declared: Option<u64>) -> Self {
+        Self {
+            inner: Some(inner),
+            trailer: Some(trailer),
+            declared,
+            written: 0,
+            closing: None,
+        }
+    }
+
+    /// The end: take the rest of the stream and the trailer, and arrange for
+    /// them to settle, owing the client `last`.
+    fn close(&mut self, outcome: CaptureOutcome, last: Option<Result<Bytes, TransportError>>) {
+        let rest = self.inner.take();
+        let trailer = self.trailer.take();
+        let settle: TailFuture = Box::pin(async move {
+            if let Some(mut rest) = rest {
+                // Whatever the upstream still has after the declared length,
+                // usually only its end-of-stream.
+                while futures_util::StreamExt::next(&mut rest).await.is_some() {}
+            }
+            if let Some(trailer) = trailer {
+                trailer.finish(outcome).await;
+            }
+        });
+        #[cfg(not(target_arch = "wasm32"))]
+        let wait: TailFuture = Box::pin(async move {
+            let Ok(permit) = settling().acquire_owned().await else {
+                // Never closed; if it were, settling inline is still correct.
+                return settle.await;
+            };
+            tokio::spawn(async move {
+                settle.await;
+                drop(permit);
+            });
+        });
+        #[cfg(target_arch = "wasm32")]
+        let wait = settle;
+        self.closing = Some(Closing {
+            last,
+            wait,
+            done: false,
+        });
+    }
 }
 
 impl<C: BatchConnectionTrait + Send + Sync + 'static> Stream for LeasedBody<C> {
@@ -421,12 +521,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Stream for LeasedBody<C> {
         // it is moved out of the pin once rather than projected field by field.
         let this = self.get_mut();
         loop {
-            if let Some(tail) = this.tail.as_mut() {
-                ready!(tail.as_mut().poll(context));
-                this.tail = None;
-                // `Some(Err(..))` when the upstream failed mid-body, `None`
-                // when it ended cleanly. Either way the settlement has run.
-                return Poll::Ready(this.failure.take().map(Err));
+            if let Some(closing) = this.closing.as_mut() {
+                if !closing.done {
+                    ready!(closing.wait.as_mut().poll(context));
+                    closing.done = true;
+                }
+                return Poll::Ready(closing.last.take());
             }
             let Some(inner) = this.inner.as_mut() else {
                 return Poll::Ready(None);
@@ -440,22 +540,25 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Stream for LeasedBody<C> {
                     {
                         capture.record_response_chunk(&bytes);
                     }
+                    this.written += bytes.len() as u64;
+                    if this
+                        .declared
+                        .is_some_and(|declared| this.written >= declared)
+                    {
+                        this.close(CaptureOutcome::Complete, Some(Ok(bytes)));
+                        continue;
+                    }
                     return Poll::Ready(Some(Ok(bytes)));
                 }
+                // The failure is the client's last item, after the hand-off,
+                // so the request is recorded however the body ended.
                 Some(Err(error)) => {
                     this.inner = None;
-                    this.failure = Some(error);
-                    this.tail = this
-                        .trailer
-                        .take()
-                        .map(|trailer| trailer.finish(CaptureOutcome::Interrupted));
+                    this.close(CaptureOutcome::Interrupted, Some(Err(error)));
                 }
                 None => {
                     this.inner = None;
-                    this.tail = this
-                        .trailer
-                        .take()
-                        .map(|trailer| trailer.finish(CaptureOutcome::Complete));
+                    this.close(CaptureOutcome::Complete, None);
                 }
             }
         }

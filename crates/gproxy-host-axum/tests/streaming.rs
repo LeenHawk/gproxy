@@ -101,6 +101,7 @@ async fn a_streamed_response_holds_its_lease_until_the_last_byte() {
         rest.extend_from_slice(&chunk.unwrap());
     }
     assert_eq!(rest, b"event: two\n\n");
+    gproxy_host_axum::response::settled().await;
 
     // Freed. The next request is admitted.
     host.client

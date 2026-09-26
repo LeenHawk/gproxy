@@ -434,10 +434,16 @@ impl OutboundClient for ScriptClient {
             let mut headers = HeaderMap::new();
             headers.insert("content-type", HeaderValue::from_static("application/json"));
             let (status, body) = match reply {
-                Reply::Http(status, body) => (
-                    status,
-                    HttpBody::Bytes(Bytes::from(serde_json::to_vec(&body).unwrap())),
-                ),
+                Reply::Http(status, body) => {
+                    let body = Bytes::from(serde_json::to_vec(&body).unwrap());
+                    // As a real upstream sends it: a buffered answer declares
+                    // its length, and the gateway relays the header.
+                    headers.insert(
+                        "content-length",
+                        HeaderValue::from_str(&body.len().to_string()).unwrap(),
+                    );
+                    (status, HttpBody::Bytes(body))
+                }
                 Reply::Stream(status, receiver) => (
                     status,
                     HttpBody::Stream(Box::pin(futures_util::stream::unfold(
@@ -936,6 +942,9 @@ impl Host {
         let bytes = axum::body::to_bytes(response.into_body(), 16 * 1024 * 1024)
             .await
             .unwrap();
+        // A response hands its settlement off as it ends; a test reads what
+        // the request wrote, so it waits for that too.
+        gproxy_host_axum::response::settled().await;
         Answer {
             status,
             headers,
