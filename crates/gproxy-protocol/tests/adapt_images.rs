@@ -556,6 +556,23 @@ fn invalid_outputs_and_completion_are_rejected_before_publication() {
     }
 }
 #[test]
+fn zero_images_is_refused_before_send() {
+    for d in [ImageDialect::Responses, ImageDialect::Gemini] {
+        let host = Host::new(Vec::new());
+        let error = run(
+            &Resources::default(),
+            &host,
+            create(json!({"prompt":"draw","n":0})),
+            d,
+            limits(),
+            &mut ImageProgress::default(),
+        )
+        .unwrap_err();
+        assert_eq!(kind(error), TransformErrorKind::InvalidInput);
+        assert!(host.sent_json().is_empty());
+    }
+}
+#[test]
 fn n_caps_and_publication_facts_preflight_before_send() {
     for missing in [false, true] {
         let host = Host::new(vec![]);
