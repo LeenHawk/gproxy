@@ -12,6 +12,7 @@
 //! |---|---|---|
 //! | `providers` | `providers` | direct; `settings` becomes `config`, and a `base_url` inside it is lifted into v4's column |
 //! | `providers.proxy_url`, `credentials.proxy_url` | scoped `proxy` | independent proxy overrides |
+//! | `providers.tls_fingerprint`, `credentials.tls_fingerprint` | `connection_profiles` | one custom wreq profile each; see [`super::fingerprint`] |
 //! | `providers.credential_strategy` and renamed `settings` keys | `providers.config` | see [`super::provider_config`] |
 //! | `providers.settings.endpoints` | `operation_endpoints` | one row per operation and dialect the v3 name meant; see [`super::endpoints`] |
 //! | `credentials` | `credentials` | direct; `kind` is v4's `auth_kind`; the secret is opened and re-sealed |
@@ -54,17 +55,17 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use gproxy_sdk::dto::{
-    ConfigurationDataDto, ConfigurationExportDto, CredentialDto, EXPORT_FORMAT_VERSION,
-    ExportCredentialDto, ModelDto, OperationEndpointDto, PriceRateDto, PriceRuleDto, PriceTierDto,
-    ProviderDto, ProviderModelDto, ProviderRuleSetDto, QuotaDto, RouteDto, RouteMemberDto,
-    SealedSecretDto,
+    ConfigurationDataDto, ConfigurationExportDto, ConnectionProfileDto, CredentialDto,
+    EXPORT_FORMAT_VERSION, ExportCredentialDto, ModelDto, OperationEndpointDto, PriceRateDto,
+    PriceRuleDto, PriceTierDto, ProviderDto, ProviderModelDto, ProviderRuleSetDto, QuotaDto,
+    RouteDto, RouteMemberDto, SealedSecretDto,
 };
 use serde_json::Value;
 
 use super::{
     Report, channels,
     document::{self, Document},
-    endpoints, ids, provider_config, rules,
+    endpoints, fingerprint, ids, provider_config, rules,
     secret::{Bridge, Domain},
 };
 use crate::{Error, Result};
@@ -100,12 +101,14 @@ pub fn translate(
     // Every secret is opened before anything is written, so a credential
     // without one stops the import before any row is translated.
     let opened = open_secrets(data, bridge)?;
-    let providers = providers(data, timestamp, skip_unmappable, &mut report)?;
-    let credentials = credentials(data, &opened, &providers, bridge, &mut report)?;
+    let mut providers = providers(data, timestamp, skip_unmappable, &mut report)?;
+    let mut credentials = credentials(data, &opened, &providers, bridge, &mut report)?;
+    let connection_profiles =
+        fingerprints(data, &mut providers.rows, &mut credentials, &mut report);
     let (price_rules, price_tiers) = price_rules(data, &providers, &mut report);
     let (rewrite_rules, rule_sets) = rules::translate(data, &mut report);
 
-    report.count("connection_profiles", 0);
+    report.count("connection_profiles", connection_profiles.len() as u64);
     report.count("credentials", credentials.len() as u64);
     report.count("providers", providers.rows.len() as u64);
     report.count("operation_endpoints", providers.endpoints.len() as u64);
@@ -222,7 +225,7 @@ pub fn translate(
             // ephemeral key, so there is exactly one codec in the document.
             secrets: vec![gproxy_sdk::dto::CODEC_AES_GCM.to_owned()],
             data: ConfigurationDataDto {
-                connection_profiles: Vec::new(),
+                connection_profiles,
                 providers: providers.rows,
                 credentials,
                 // v3 had no shared model catalog: a model existed per provider.
@@ -287,6 +290,80 @@ fn open_secrets(data: &document::Data, bridge: &Bridge) -> Result<Opened> {
         );
     }
     Ok(Opened { by_credential })
+}
+
+/// One connection profile per v3 fingerprint, attached to the provider or
+/// credential that carried it. A fingerprint v4 cannot use is reported and
+/// the row keeps the default client.
+fn fingerprints(
+    data: &document::Data,
+    providers: &mut [ProviderDto],
+    credentials: &mut [ExportCredentialDto],
+    report: &mut Report,
+) -> Vec<ConnectionProfileDto> {
+    let mut profiles = Vec::new();
+    let mut attach = |table: &'static str, id: i64, label: String, value: &Value| {
+        let profile_id = ids::part(table, id, "fingerprint");
+        match fingerprint::profile(
+            profile_id.clone(),
+            format!("{label} (v3 fingerprint)"),
+            value,
+            &label,
+            report,
+        ) {
+            Ok(profile) => {
+                profiles.push(profile);
+                Some(profile_id)
+            }
+            Err(reason) => {
+                report.drop_row("tls_fingerprints", label, reason);
+                None
+            }
+        }
+    };
+    for row in &data.providers {
+        let Some(value) = row
+            .tls_fingerprint
+            .as_ref()
+            .filter(|value| !value.is_null())
+        else {
+            continue;
+        };
+        let v4_id = ids::id("providers", row.id);
+        let Some(target) = providers.iter_mut().find(|provider| provider.id == v4_id) else {
+            continue;
+        };
+        target.connection_profile_id = attach(
+            "providers",
+            row.id,
+            format!("provider {} ({})", row.id, row.name),
+            value,
+        );
+    }
+    for row in &data.credentials {
+        let Some(value) = row
+            .config
+            .tls_fingerprint
+            .as_ref()
+            .filter(|value| !value.is_null())
+        else {
+            continue;
+        };
+        let v4_id = ids::id("credentials", row.config.id);
+        let Some(target) = credentials
+            .iter_mut()
+            .find(|export| export.credential.id == v4_id)
+        else {
+            continue;
+        };
+        target.credential.connection_profile_id = attach(
+            "credentials",
+            row.config.id,
+            format!("credential {}", row.config.id),
+            value,
+        );
+    }
+    profiles
 }
 
 /// The translated providers.
@@ -1153,6 +1230,25 @@ mod tests {
         assert_eq!(tiers[0].multiplier.as_deref(), Some("0.5"));
         assert_eq!(tiers[1].min_prompt_tokens, 200000);
         assert_eq!(tiers[1].input_per_million.as_deref(), Some("6"));
+    }
+
+    #[test]
+    fn a_provider_fingerprint_becomes_its_connection_profile() {
+        let out = translated(json!({"providers": [
+            {"id": 4, "name": "fp", "channel": "openai", "settings": {},
+             "tls_fingerprint": {"headers": {"user-agent": "x/1"}}},
+            {"id": 5, "name": "bad", "channel": "openai", "settings": {},
+             "tls_fingerprint": {"tls": {"min_tls_version": "ssl3"}}}
+        ]}));
+        let data = &out.export.data;
+        assert_eq!(data.connection_profiles.len(), 1);
+        assert_eq!(data.connection_profiles[0].backend, "wreq");
+        assert_eq!(
+            data.providers[0].connection_profile_id.as_deref(),
+            Some(data.connection_profiles[0].id.as_str())
+        );
+        assert_eq!(data.providers[1].connection_profile_id, None);
+        assert!(out.report.dropped.iter().any(|d| d.table == "tls_fingerprints"));
     }
 
     #[test]
