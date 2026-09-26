@@ -30,6 +30,7 @@ provider form should render.
 | `claudecode` | A Claude.ai subscription through the Claude Code CLI's requests | OAuth |
 | `claudeweb` | A claude.ai browser session, rendered as Claude Messages SSE | session cookie + organization |
 | `cline` | Cline's own account at `api.cline.bot` | `{"api_key"}` or OAuth |
+| `cloudflare_ai_gateway` | Cloudflare AI Gateway over the REST API; account and gateway per credential, credit balance | `{"api_key", "account_id", "gateway_id"?}` |
 | `codex` | A ChatGPT account through the Codex backend: Responses over SSE and WebSocket, `/wham/usage` | OAuth |
 | `copilotcli` | GitHub Copilot through the `copilot` CLI | GitHub OAuth token |
 | `custom` | Any API-key endpoint speaking OpenAI, Claude or Gemini natively | `{"api_key"}` |
@@ -40,6 +41,7 @@ provider form should render.
 | `grokbuild` | An xAI account through the Grok Build CLI | OAuth |
 | `kimi` | Moonshot's platform with a key, or the Kimi Code subscription through a device login | `{"api_key"}` or OAuth |
 | `kiro` | AWS CodeWhisperer through the Kiro desktop app | OAuth |
+| `nvidia` | NVIDIA NIM: Chat Completions, models and embeddings | `{"api_key"}` |
 | `openai` | OpenAI's own platform: the full surface, Responses and Realtime over a socket | `{"api_key", "quota_api_key"}` |
 | `opencodego` | OpenCode Go: the subscription, open models, usage windows | `{"api_key"}` |
 | `opencodezen` | OpenCode Zen: pay-as-you-go from the Console balance | `{"api_key"}` or OAuth |
@@ -60,23 +62,13 @@ one only when a provider row cannot state what it needs. A vendor whose whole
 difference is an origin and a header is a `custom` provider:
 
 ```json
-{ "name": "nvidia-nim", "channel": "custom",
-  "baseUrl": "https://integrate.api.nvidia.com",
+{ "name": "example-vendor", "channel": "custom",
+  "baseUrl": "https://api.example-vendor.com",
   "config": { "dialects": ["openai_chat"] } }
 ```
 
-```json
-{ "name": "vercel-gateway", "channel": "custom",
-  "baseUrl": "https://ai-gateway.vercel.sh/v1",
-  "config": { "dialects": ["openai_chat", "openai", "claude"] } }
-```
-
-```json
-{ "name": "cf-gateway", "channel": "custom",
-  "baseUrl": "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai",
-  "config": { "dialects": ["openai_chat", "openai", "claude"],
-              "headers": { "cf-aig-gateway-id": "default" } } }
-```
+NVIDIA NIM, Vercel AI Gateway and Cloudflare AI Gateway used to be served this
+way; each has a channel now, because a row could not say everything they need.
 
 ## A Provider Row
 
