@@ -62,8 +62,12 @@ fn collect(value: &Value, ids: &mut BTreeSet<String>) {
                 .find_map(|name| object.get(*name).and_then(Value::as_str))
             {
                 Some(id) => collect(&Value::String(id.into()), ids),
+                // An object without an id is a grouping (`agentModelSorts`
+                // entries are `{displayName, groups: [{modelIds}]}`): its
+                // lists and nested objects hold ids, its own strings are
+                // labels.
                 None => {
-                    for value in object.values() {
+                    for value in object.values().filter(|value| !value.is_string()) {
                         collect(value, ids);
                     }
                 }
