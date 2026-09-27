@@ -152,14 +152,27 @@ async fn settle(app: &TestApp, outcome: CallOutcome, end: CaptureOutcome) -> Vec
 }
 
 async fn records(app: &TestApp) -> Vec<capture_record::Model> {
-    app.gproxy()
-        .store()
-        .capture_records()
-        .query(capture_record::Entity::find())
+    use gproxy_store::entity::usage::{downstream_record, upstream_record};
+    let store = app.gproxy().store();
+    let mut rows: Vec<_> = store
+        .downstream_records()
+        .query(downstream_record::Entity::find())
         .await
         .unwrap()
+        .into_iter()
+        .map(Into::into)
+        .collect();
+    rows.extend(
+        store
+            .upstream_records()
+            .query(upstream_record::Entity::find())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(capture_record::Model::from),
+    );
+    rows
 }
-
 async fn downstream(app: &TestApp) -> Vec<capture_record::Model> {
     records(app)
         .await

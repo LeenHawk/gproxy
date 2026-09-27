@@ -1,117 +1,45 @@
-//! One physical HTTP exchange, WebSocket connection, or WebSocket business turn.
-//! Both request and response live here. An upstream record belongs to at most
-//! one downstream request, or none. Usage and log persistence are independent.
-//! Historical identity IDs deliberately have no configuration foreign keys.
+//! Shared capture types and a read projection over the separate upstream/downstream tables.
 
 use sea_orm::entity::prelude::*;
 
-#[sea_orm::model]
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "capture_records")]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Model {
-    /// The first three columns form the `by_side` key: an index over
-    /// `(side, started_at_ms, id)`, which is how the log lists read one side,
-    /// newest first with the id breaking ties, so a page is a range read
-    /// instead of a sort of the whole side. Unique only because the entity
-    /// macro can express a composite index no other way (the trailing primary
-    /// key makes it so).
-    #[sea_orm(unique_key = "by_side")]
     pub side: CaptureSide,
-    #[sea_orm(indexed, unique_key = "by_side")]
     pub started_at_ms: i64,
-    #[sea_orm(primary_key, auto_increment = false, unique_key = "by_side")]
     pub id: String,
-    /// Associated downstream request, or None. No foreign key: the downstream
-    /// log may be disabled or removed independently. Downstream rows leave it unset.
-    #[sea_orm(indexed)]
     pub initiator_request_id: Option<String>,
     pub attempt_id: Option<String>,
     pub attempt_ordinal: Option<i32>,
     pub kind: CaptureKind,
-    /// WsTurn -> same-side WsConnection. HTTP/connection records leave it unset.
-    #[sea_orm(indexed)]
     pub session_id: Option<String>,
-    /// Protocol-provided lane/turn correlation, when available; not a unique key.
     pub stream_key: Option<String>,
-    #[sea_orm(indexed)]
     pub user_id: Option<String>,
-    #[sea_orm(indexed)]
     pub api_key_id: Option<String>,
-    #[sea_orm(indexed)]
     pub provider_id: Option<String>,
-    #[sea_orm(indexed)]
     pub credential_id: Option<String>,
-    /// Historical agent assignment pinned when this call/socket/turn began.
-    /// Never rewritten after a handoff; distinct from the captured WS session_id.
-    #[sea_orm(indexed)]
     pub agent_assignment_id: Option<String>,
     pub model: Option<String>,
     pub operation: Option<String>,
-
-    // HTTP request: method, URL/path, query, headers, body. WsConnection holds
-    // its handshake here; WsTurn has messages, not another HTTP request.
     pub request_method: Option<String>,
-    /// Downstream path or actual upstream URL, excluding the query below.
-    #[sea_orm(column_type = "Text")]
     pub request_url: Option<String>,
-    /// Raw query without '?', preserving order and repeated parameters.
-    #[sea_orm(column_type = "Text")]
     pub request_query: Option<String>,
-    /// JSON [name, value] string pairs, preserving repeated headers.
     pub request_headers: Option<Json>,
-    /// Buffered bytes stored directly in the database, never in FileObject.
-    /// Event-backed bodies leave this unset; empty bytes mean a captured empty body.
     pub request_body: Option<Vec<u8>>,
-    #[sea_orm(default_value = "buffered")]
     pub request_framing: BodyFraming,
-    #[sea_orm(default_value = "not_captured")]
     pub request_body_state: CaptureBodyState,
-
-    // HTTP response: status, headers, body. Only a WS handshake has an HTTP
-    // status; each subsequent WS turn must not be assigned status 101/200.
     pub response_status: Option<i32>,
     pub response_headers: Option<Json>,
     pub response_body: Option<Vec<u8>>,
-    #[sea_orm(default_value = "buffered")]
     pub response_framing: BodyFraming,
-    #[sea_orm(default_value = "not_captured")]
     pub response_body_state: CaptureBodyState,
-
     pub client_ip: Option<String>,
-    /// Upstream-native usage once per physical call/turn.
-    /// Independent billable history remains in UsageRecord.
     pub metrics: Option<Json>,
-    #[sea_orm(default_value = "in_progress")]
     pub state: CaptureState,
-    #[sea_orm(column_type = "Text")]
     pub error: Option<String>,
-    /// Channel-classified response reason, independent of capture/HTTP success.
-    #[sea_orm(indexed)]
     pub reason: Option<String>,
     pub first_response_at_ms: Option<i64>,
-    /// Exchange/turn termination, or socket closure for WsConnection.
-    /// Indexed for retention, which deletes the oldest-ended rows first.
-    #[sea_orm(indexed)]
     pub ended_at_ms: Option<i64>,
-
-    #[sea_orm(
-        self_ref,
-        relation_enum = "Session",
-        relation_reverse = "Turns",
-        from = "session_id",
-        to = "id",
-        on_delete = "SetNull"
-    )]
-    pub session: BelongsTo<Option<Entity>>,
-    #[sea_orm(self_ref, relation_enum = "Turns", relation_reverse = "Session")]
-    pub turns: HasMany<Entity>,
-    #[sea_orm(has_many, relation_enum = "Events", via_rel = "Capture")]
-    pub events: HasMany<super::capture_event::Entity>,
-    #[sea_orm(has_many, relation_enum = "TurnEvents", via_rel = "Turn")]
-    pub turn_events: HasMany<super::capture_event::Entity>,
 }
-
-impl ActiveModelBehavior for ActiveModel {}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, EnumIter, DeriveActiveEnum)]
 #[sea_orm(rs_type = "String", db_type = "String(StringLen::N(16))")]
@@ -179,4 +107,88 @@ pub enum CaptureState {
     Failed,
     #[sea_orm(string_value = "cancelled")]
     Cancelled,
+}
+
+impl From<super::upstream_record::Model> for Model {
+    fn from(row: super::upstream_record::Model) -> Self {
+        Self {
+            side: CaptureSide::Upstream,
+            started_at_ms: row.started_at_ms,
+            id: row.id,
+            initiator_request_id: row.initiator_request_id,
+            attempt_id: row.attempt_id,
+            attempt_ordinal: row.attempt_ordinal,
+            kind: row.kind,
+            session_id: row.session_id,
+            stream_key: row.stream_key,
+            user_id: row.user_id,
+            api_key_id: row.api_key_id,
+            provider_id: row.provider_id,
+            credential_id: row.credential_id,
+            agent_assignment_id: row.agent_assignment_id,
+            model: row.model,
+            operation: row.operation,
+            request_method: row.request_method,
+            request_url: row.request_url,
+            request_query: row.request_query,
+            request_headers: row.request_headers,
+            request_body: row.request_body,
+            request_framing: row.request_framing,
+            request_body_state: row.request_body_state,
+            response_status: row.response_status,
+            response_headers: row.response_headers,
+            response_body: row.response_body,
+            response_framing: row.response_framing,
+            response_body_state: row.response_body_state,
+            client_ip: row.client_ip,
+            metrics: row.metrics,
+            state: row.state,
+            error: row.error,
+            reason: row.reason,
+            first_response_at_ms: row.first_response_at_ms,
+            ended_at_ms: row.ended_at_ms,
+        }
+    }
+}
+
+impl From<super::downstream_record::Model> for Model {
+    fn from(row: super::downstream_record::Model) -> Self {
+        Self {
+            side: CaptureSide::Downstream,
+            started_at_ms: row.started_at_ms,
+            id: row.id,
+            initiator_request_id: row.initiator_request_id,
+            attempt_id: row.attempt_id,
+            attempt_ordinal: row.attempt_ordinal,
+            kind: row.kind,
+            session_id: row.session_id,
+            stream_key: row.stream_key,
+            user_id: row.user_id,
+            api_key_id: row.api_key_id,
+            provider_id: row.provider_id,
+            credential_id: row.credential_id,
+            agent_assignment_id: row.agent_assignment_id,
+            model: row.model,
+            operation: row.operation,
+            request_method: row.request_method,
+            request_url: row.request_url,
+            request_query: row.request_query,
+            request_headers: row.request_headers,
+            request_body: row.request_body,
+            request_framing: row.request_framing,
+            request_body_state: row.request_body_state,
+            response_status: row.response_status,
+            response_headers: row.response_headers,
+            response_body: row.response_body,
+            response_framing: row.response_framing,
+            response_body_state: row.response_body_state,
+            client_ip: row.client_ip,
+            metrics: row.metrics,
+            state: row.state,
+            error: row.error,
+            reason: row.reason,
+            first_response_at_ms: row.first_response_at_ms,
+            ended_at_ms: row.ended_at_ms,
+        }
+    }
 }

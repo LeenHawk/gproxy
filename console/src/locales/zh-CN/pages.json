@@ -906,7 +906,7 @@
     "records": "用量明细",
     "truncated": "内容已截断",
     "noContent": "无保留内容",
-    "initiatorRequestId": "关联下游请求",
+    "initiatorRequestId": "发起请求",
     "attemptId": "尝试 ID",
     "attemptOrdinal": "尝试序号",
     "state": "状态",

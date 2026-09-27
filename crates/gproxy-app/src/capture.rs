@@ -1,11 +1,10 @@
-//! Downstream request/response capture: the `capture_records` row for the
-//! caller's own exchange. Each upstream record independently carries its
-//! associated downstream request ID, including retries to another provider.
+//! Downstream request/response capture: the `downstream_records` row for the
+//! caller's own exchange. Independent capture links associate upstream calls with downstream requests.
 //!
 //! # Why this side is the host's
 //!
-//! Core's `StoreObserver` writes one `side = Upstream` record per physical
-//! send and the settled `usage_records` row. It deliberately writes no
+//! Core's `StoreObserver` writes one upstream record per physical
+//! send and its `usage_records` row. It deliberately writes no
 //! downstream record at all, because only a host sees the inbound HTTP
 //! exchange: `design/core-observation.md` says it outright — the host owns the
 //! downstream record, and core never fabricates one. This module is that half.
@@ -17,9 +16,9 @@
 //! | gate | `enable_upstream_log` | `enable_downstream_log` |
 //! | body gate | `enable_upstream_log_body` | `enable_downstream_log_body` |
 //! | redaction | `disable_log_redaction` | the same switch, the same field list |
-//! | id | its own, opaque | **the request id**, which is also the usage row's |
-//! | body storage | `capture_events`, streamed | the inline column, buffered |
-//! | websocket frames | `capture_events`, per frame | `capture_events`, per frame, buffered |
+//! | id | its own, opaque | **the downstream request id** |
+//! | body storage | `upstream_events`, streamed | the inline column, buffered |
+//! | websocket frames | `upstream_events`, per frame | `downstream_events`, per frame, buffered |
 //! | failure | logged, never fails the request | logged, never fails the request |
 //!
 //! # Ask before you clone
@@ -39,8 +38,8 @@
 //! retried reached two providers with two credentials, and a column that can
 //! hold one of them would have to pick; each upstream record carries its own
 //! attribution and associated downstream request ID. `metrics` stays unset too — the schema
-//! reserves it for upstream-native usage, and the caller's billed usage is the
-//! `usage_records` row.
+//! reserves it for upstream-native usage, and physical usage is stored independently in
+//! `usage_records`.
 
 use std::borrow::Cow;
 
@@ -50,7 +49,7 @@ use gproxy_store::{
     Store,
     entity::{
         config::setting,
-        usage::{capture_event as event, capture_record as record},
+        usage::{downstream_event as event, downstream_record as record},
     },
 };
 use http::{HeaderMap, StatusCode};
@@ -312,10 +311,6 @@ impl DownstreamCapture {
         let uri = &parts.uri;
         let row = record::ActiveModel {
             id: Set(request_id.to_owned()),
-            // A downstream record initiates itself. The column still carries
-            // the request id so the two sides of one request join on the same
-            // value whichever row you start from.
-            side: Set(record::CaptureSide::Downstream),
             // Promoted to `WsConnection` by `record_response_head` if the
             // handshake is accepted.
             kind: Set(record::CaptureKind::Http),
@@ -360,7 +355,7 @@ impl DownstreamCapture {
         })
     }
 
-    /// The capture id, which is the request id and the `usage_records` key.
+    /// The capture id, which is the downstream request id.
     pub fn id(&self) -> &str {
         &self.id
     }
@@ -395,7 +390,7 @@ impl DownstreamCapture {
         self.response_body.extend_from_slice(bytes);
     }
 
-    /// One websocket message, recorded as a `capture_events` row.
+    /// One websocket message, recorded as a `downstream_events` row.
     ///
     /// The schema decides the shape, not this crate: "all WS messages append
     /// to the WsConnection", and `sequence` is "host-assigned monotonic order
@@ -518,12 +513,12 @@ impl DownstreamCapture {
         ));
         row.response_body = Set(response_body);
 
-        let mut statements = vec![store.capture_records().insert_statement(row)?];
+        let mut statements = vec![store.downstream_records().insert_statement(row)?];
         // Every frame the socket carried, in observed order, after the record
-        // they belong to: `capture_events.capture_id` is
+        // they belong to: `downstream_events.capture_id` is
         // a foreign key onto the row just inserted.
         for event in events {
-            statements.push(store.capture_events().insert_statement(event)?);
+            statements.push(store.downstream_events().insert_statement(event)?);
         }
         Ok(statements)
     }

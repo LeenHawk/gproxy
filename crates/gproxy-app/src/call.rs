@@ -36,7 +36,7 @@
 //!
 //! # So does the capture
 //!
-//! [`CallOutcome::capture`] is the request's own `capture_records` row, and it
+//! [`CallOutcome::capture`] is the request's own `downstream_records` row, and it
 //! is unwritten when `call()` returns for the same reason: the response has
 //! not been sent yet. The host feeds it the chunks it writes and then settles
 //! it, which is also what writes the edges to the upstream attempts. See

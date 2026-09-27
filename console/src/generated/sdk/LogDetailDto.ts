@@ -6,22 +6,22 @@ import type { UsageRecordDto } from "./UsageRecordDto";
 /**
  * One request and everything captured under it.
  */
-export type LogDetailDto = { downstream: CaptureRecordDto, 
+export type LogDetailDto = { downstream: CaptureRecordDto,
 /**
  * Every associated upstream call, ordered by start time, attempt ordinal and ID.
  * A retry is another entry here, not another downstream record.
  */
-upstream: Array<CaptureRecordDto>, 
+upstream: Array<CaptureRecordDto>,
 /**
  * The events of the downstream record and of every upstream one,
  * ordered by capture and then by sequence.
  */
-events: Array<CaptureEventDto>, 
+events: Array<CaptureEventDto>,
 /**
  * True when the event cap cut the list short.
  */
-eventsTruncated: boolean, 
+eventsTruncated: boolean,
 /**
- * The settled usage, when this request produced any.
+ * Usage of associated physical upstream calls, retained independently of captures.
  */
-usage: UsageRecordDto | null, };
+usage: Array<UsageRecordDto>, };

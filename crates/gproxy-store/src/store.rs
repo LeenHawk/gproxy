@@ -85,7 +85,10 @@ repositories! {
     provider_rewrite_rule_sets => crate::entity::upstream::provider_rewrite_rule_set::Entity,
     rewrite_rules => crate::entity::upstream::rewrite_rule::Entity,
     rewrite_rule_sets => crate::entity::upstream::rewrite_rule_set::Entity,
-    capture_events => crate::entity::usage::capture_event::Entity,
-    capture_records => crate::entity::usage::capture_record::Entity,
+    upstream_records => crate::entity::usage::upstream_record::Entity,
+    downstream_records => crate::entity::usage::downstream_record::Entity,
+    upstream_events => crate::entity::usage::upstream_event::Entity,
+    downstream_events => crate::entity::usage::downstream_event::Entity,
+    capture_links => crate::entity::usage::capture_link::Entity,
     usage_records => crate::entity::usage::usage_record::Entity,
 }

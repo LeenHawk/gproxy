@@ -21,7 +21,7 @@ use gproxy_protocol::connection::Bytes;
 use gproxy_seaorm::FixedDecimal;
 use gproxy_store::entity::{limits::rate_limit, usage::usage_record};
 use http::StatusCode;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{EntityTrait, Set};
 use serde_json::json;
 use support::{Host, Reply, keyed, post};
 
@@ -161,12 +161,7 @@ async fn rows(host: &Host) -> Vec<usage_record::Model> {
         .gproxy()
         .store()
         .usage_records()
-        .query(
-            usage_record::Entity::find().filter(
-                usage_record::Column::Side
-                    .eq(gproxy_store::entity::usage::capture_record::CaptureSide::Downstream),
-            ),
-        )
+        .query(usage_record::Entity::find())
         .await
         .unwrap()
 }

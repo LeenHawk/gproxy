@@ -3,7 +3,11 @@
 /**
  * Totals over the records a scan covered.
  */
-export type UsageSummaryDto = { requests: number, inputTokens: number, outputTokens: number, cachedInputTokens: number,
+export type UsageSummaryDto = {
+/**
+ * Number of physical upstream calls, independent of downstream association count.
+ */
+requests: number, inputTokens: number, outputTokens: number, cachedInputTokens: number,
 /**
  * Total cache writes across all three retention periods.
  */

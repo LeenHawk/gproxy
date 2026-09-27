@@ -12,7 +12,7 @@ use gproxy_protocol::{
 use gproxy_sdk::{GATEWAY_SESSION_HEADER, SdkError};
 use gproxy_store::entity::usage::usage_record;
 use http::StatusCode;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::EntityTrait;
 use serde_json::json;
 use support::seed::{self, Handle, Reply, SeedClient, SeedObserver, WsReply};
 
@@ -77,12 +77,7 @@ async fn usage_rows(gproxy: &Handle) -> Vec<usage_record::Model> {
     gproxy
         .store()
         .usage_records()
-        .query(
-            usage_record::Entity::find().filter(
-                usage_record::Column::Side
-                    .eq(gproxy_store::entity::usage::capture_record::CaptureSide::Downstream),
-            ),
-        )
+        .query(usage_record::Entity::find())
         .await
         .unwrap()
 }
@@ -108,12 +103,20 @@ async fn a_scripted_answer_comes_back_and_is_metered() {
 
     assert_eq!(client.urls(), ["https://p1.example/v1/responses"]);
     let rows = usage_rows(&gproxy).await;
-    assert_eq!(rows.len(), 1, "one request, one usage summary");
-    assert_eq!(rows[0].request_id, "req-1");
+    assert_eq!(rows.len(), 1, "one physical call, one usage row");
+    assert!(
+        gproxy
+            .store()
+            .capture_links()
+            .get_many(&[("req-1".into(), rows[0].request_id.clone())])
+            .await
+            .unwrap()[0]
+            .is_some()
+    );
     assert_eq!(rows[0].user_id.as_deref(), Some("u1"));
     assert_eq!(
-        rows[0].model, "pair",
-        "the model the caller named, taken from the body"
+        rows[0].model, "m1",
+        "usage records the actual upstream model"
     );
 }
 
@@ -354,7 +357,7 @@ async fn an_explicit_model_overrides_the_body() {
         .await
         .unwrap();
     finish(execution).await;
-    assert_eq!(usage_rows(&gproxy).await[0].model, "test/m1");
+    assert_eq!(usage_rows(&gproxy).await[0].model, "m1");
 }
 
 #[tokio::test]

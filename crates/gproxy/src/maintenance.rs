@@ -9,12 +9,12 @@ use gproxy_store::{
         limits::{credential_block, credential_quota_cycle},
         oauth::{code, device, token},
         resource::protocol_state,
-        usage::{capture_record, usage_record},
+        usage::{capture_link, downstream_record, upstream_record, usage_record},
     },
 };
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QueryFilter,
-    QueryOrder, QuerySelect,
+    QueryOrder, QuerySelect, QueryTrait,
 };
 
 const BATCH: u64 = 256;
@@ -154,12 +154,22 @@ async fn page_counts(db: &DatabaseConnection) -> Result<(i64, i64, i64)> {
 
 async fn prune(db: &DatabaseConnection, cutoff: i64) -> Result<u64> {
     let store = Store::new(db.clone());
-    let captures: Vec<String> = capture_record::Entity::find()
+    let downstream: Vec<String> = downstream_record::Entity::find()
         .select_only()
-        .column(capture_record::Column::Id)
-        .filter(capture_record::Column::EndedAtMs.lt(cutoff))
-        .filter(capture_record::Column::State.ne(capture_record::CaptureState::InProgress))
-        .order_by_asc(capture_record::Column::EndedAtMs)
+        .column(downstream_record::Column::Id)
+        .filter(downstream_record::Column::EndedAtMs.lt(cutoff))
+        .filter(downstream_record::Column::State.ne(downstream_record::CaptureState::InProgress))
+        .order_by_asc(downstream_record::Column::EndedAtMs)
+        .limit(BATCH)
+        .into_tuple()
+        .all(db)
+        .await?;
+    let upstream: Vec<String> = upstream_record::Entity::find()
+        .select_only()
+        .column(upstream_record::Column::Id)
+        .filter(upstream_record::Column::EndedAtMs.lt(cutoff))
+        .filter(upstream_record::Column::State.ne(upstream_record::CaptureState::InProgress))
+        .order_by_asc(upstream_record::Column::EndedAtMs)
         .limit(BATCH)
         .into_tuple()
         .all(db)
@@ -175,9 +185,43 @@ async fn prune(db: &DatabaseConnection, cutoff: i64) -> Result<u64> {
         .await?;
     // Capture events have cascading foreign keys. Usage is history,
     // not the settled quota counters, billing entries or subscription windows.
-    store.capture_records().delete_many(&captures).await?;
+    store.downstream_records().delete_many(&downstream).await?;
+    store.upstream_records().delete_many(&upstream).await?;
     store.usage_records().delete_many(&usage).await?;
-    Ok((captures.len() + usage.len()) as u64)
+    // Keep an association while either capture or its upstream usage survives.
+    // Bound this sweep just like the record sweeps; a shared call remains linked.
+    let live_upstream = upstream_record::Entity::find()
+        .select_only()
+        .column(upstream_record::Column::Id)
+        .into_query();
+    let live_downstream = downstream_record::Entity::find()
+        .select_only()
+        .column(downstream_record::Column::Id)
+        .into_query();
+    let live_usage = usage_record::Entity::find()
+        .select_only()
+        .column(usage_record::Column::RequestId)
+        .into_query();
+    let links = store
+        .capture_links()
+        .query(
+            capture_link::Entity::find()
+                .filter(capture_link::Column::UpstreamId.not_in_subquery(live_upstream))
+                .filter(capture_link::Column::DownstreamId.not_in_subquery(live_downstream))
+                .filter(capture_link::Column::UpstreamId.not_in_subquery(live_usage))
+                .limit(BATCH),
+        )
+        .await?;
+    store
+        .capture_links()
+        .delete_many(
+            &links
+                .iter()
+                .map(|r| (r.downstream_id.clone(), r.upstream_id.clone()))
+                .collect::<Vec<_>>(),
+        )
+        .await?;
+    Ok((downstream.len() + upstream.len() + usage.len() + links.len()) as u64)
 }
 
 /// Quota observations older than `cutoff`, oldest first. Only the raw log:
@@ -289,16 +333,15 @@ mod tests {
             ("active", None, 100),
             ("recent", Some(200_000_000), 100),
         ] {
-            capture_record::ActiveModel {
+            downstream_record::ActiveModel {
                 id: Set(id.into()),
-                side: Set(capture_record::CaptureSide::Downstream),
-                kind: Set(capture_record::CaptureKind::Http),
+                kind: Set(downstream_record::CaptureKind::Http),
                 started_at_ms: Set(0),
                 ended_at_ms: Set(ended),
                 state: Set(if ended.is_some() {
-                    capture_record::CaptureState::Completed
+                    downstream_record::CaptureState::Completed
                 } else {
-                    capture_record::CaptureState::InProgress
+                    downstream_record::CaptureState::InProgress
                 }),
                 response_body: Set(Some(vec![1; bytes])),
                 ..Default::default()
@@ -317,14 +360,14 @@ mod tests {
             1
         );
         assert!(
-            capture_record::Entity::find_by_id("active")
+            downstream_record::Entity::find_by_id("active")
                 .one(&db)
                 .await
                 .unwrap()
                 .is_some()
         );
         assert!(
-            capture_record::Entity::find_by_id("recent")
+            downstream_record::Entity::find_by_id("recent")
                 .one(&db)
                 .await
                 .unwrap()
@@ -442,7 +485,7 @@ mod tests {
         assert!(clean(&db, None, None, Some(1), 300_000_000).await.unwrap() > 0);
         assert!(occupied_bytes(&db).await.unwrap() <= 1024 * 1024);
         assert!(
-            capture_record::Entity::find_by_id("active")
+            downstream_record::Entity::find_by_id("active")
                 .one(&db)
                 .await
                 .unwrap()

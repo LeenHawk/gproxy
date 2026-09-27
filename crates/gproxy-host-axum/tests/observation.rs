@@ -2,10 +2,10 @@
 mod support;
 use gproxy_store::entity::{
     identity::audit_event,
-    usage::{capture_record, usage_record},
+    usage::{capture_link, capture_record, downstream_record, upstream_record, usage_record},
 };
 use http::StatusCode;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{EntityTrait, Set};
 use serde_json::json;
 use support::{Host, Reply, get, keyed, post};
 
@@ -104,18 +104,32 @@ async fn upstream_cursor_and_detail_work_without_a_downstream_record() {
     host.app
         .gproxy()
         .store()
-        .capture_records()
+        .upstream_records()
         .create_many(
             ["a", "b", "c"]
                 .into_iter()
-                .map(|id| capture_record::ActiveModel {
+                .map(|id| upstream_record::ActiveModel {
                     id: Set(id.into()),
                     initiator_request_id: Set(Some("parent".into())),
-                    side: Set(capture_record::CaptureSide::Upstream),
                     kind: Set(capture_record::CaptureKind::Http),
                     provider_id: Set(Some("p1".into())),
                     started_at_ms: Set(100),
                     ..Default::default()
+                })
+                .collect(),
+        )
+        .await
+        .unwrap();
+    host.app
+        .gproxy()
+        .store()
+        .capture_links()
+        .create_many(
+            ["a", "b", "c"]
+                .into_iter()
+                .map(|id| capture_link::ActiveModel {
+                    downstream_id: Set("parent".into()),
+                    upstream_id: Set(id.into()),
                 })
                 .collect(),
         )
@@ -182,8 +196,8 @@ async fn channel_requests_and_services_are_logs_while_management_reads_are_audit
             .is_empty()
     );
     let rows = store
-        .capture_records()
-        .query(capture_record::Entity::find())
+        .downstream_records()
+        .query(downstream_record::Entity::find())
         .await
         .unwrap();
     let services: Vec<_> = rows
@@ -196,12 +210,7 @@ async fn channel_requests_and_services_are_logs_while_management_reads_are_audit
     assert_eq!(
         store
             .usage_records()
-            .query(
-                usage_record::Entity::find().filter(
-                    usage_record::Column::Side
-                        .eq(gproxy_store::entity::usage::capture_record::CaptureSide::Downstream)
-                )
-            )
+            .query(usage_record::Entity::find())
             .await
             .unwrap()
             .len(),
@@ -215,10 +224,7 @@ async fn channel_requests_and_services_are_logs_while_management_reads_are_audit
     assert_eq!(logs["items"].as_array().unwrap().len(), 2);
     let model_request = rows
         .iter()
-        .find(|r| {
-            r.side == capture_record::CaptureSide::Downstream
-                && r.operation.as_deref() != Some("service")
-        })
+        .find(|r| r.operation.as_deref() != Some("service"))
         .unwrap();
     let detail = host
         .send(keyed(
@@ -228,7 +234,7 @@ async fn channel_requests_and_services_are_logs_while_management_reads_are_audit
         .await
         .json();
     assert_eq!(detail["upstream"].as_array().unwrap().len(), 1);
-    assert_eq!(detail["usage"]["userId"], "alice");
+    assert_eq!(detail["usage"][0]["userId"], "alice");
     let filtered = host
         .send(keyed(
             get("/admin/api/logs/downstream?credentialId=c1"),

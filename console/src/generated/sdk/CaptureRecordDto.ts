@@ -4,7 +4,11 @@ import type { LogBodyDto } from "./LogBodyDto";
 /**
  * One captured exchange in full, downstream or upstream.
  */
-export type CaptureRecordDto = { id: string, initiatorRequestId: string | null, attemptId: string | null, attemptOrdinal: number | null,
+export type CaptureRecordDto = { id: string,
+/**
+ * Initiating request for provenance; actual associations are many-to-many.
+ */
+initiatorRequestId: string | null, attemptId: string | null, attemptOrdinal: number | null,
 /**
  * `downstream` or `upstream`.
  */

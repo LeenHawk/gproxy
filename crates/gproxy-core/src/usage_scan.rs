@@ -1,11 +1,9 @@
 //! Bounded, key-paged reads of structured usage records, independent of logs.
 
 use gproxy_seaorm::BatchConnectionTrait;
-use gproxy_store::entity::usage::capture_record::CaptureSide;
 use gproxy_store::{Store, StoreError, entity::usage::usage_record};
 use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
-use std::collections::BTreeMap;
 
 /// How many rows one bounded read may visit before it stops and says so.
 ///
@@ -50,7 +48,6 @@ async fn scan_inner<C: BatchConnectionTrait>(
     condition: Condition,
     order: ScanOrder,
     cap: u64,
-    include_exchanges: bool,
     mut visit: impl FnMut(&UsageRecord),
 ) -> Result<ScanOutcome, StoreError> {
     use usage_record::Column as Col;
@@ -74,16 +71,6 @@ async fn scan_inner<C: BatchConnectionTrait>(
             .query(select.order_by_asc(Col::RequestId).limit(limit))
             .await?;
         let fetched = rows.len() as u64;
-        let rows = if include_exchanges {
-            attach(store, rows).await?
-        } else {
-            rows.into_iter()
-                .map(|row| UsageRecord {
-                    row,
-                    exchanges: Vec::new(),
-                })
-                .collect()
-        };
         for row in &rows {
             if budget == 0 {
                 outcome.truncated = true;
@@ -133,54 +120,8 @@ pub fn usage_condition(from_ms: Option<i64>, to_ms: Option<i64>) -> Condition {
     condition
 }
 
-/// A downstream summary with its structured upstream usage rows.
-pub struct UsageRecord {
-    pub row: usage_record::Model,
-    pub exchanges: Vec<usage_record::Model>,
-}
-impl std::ops::Deref for UsageRecord {
-    type Target = usage_record::Model;
-    fn deref(&self) -> &Self::Target {
-        &self.row
-    }
-}
-
-/// Attach usage detail in bounded queries, never by reading capture logs.
-pub async fn attach<C: BatchConnectionTrait>(
-    store: &Store<C>,
-    rows: Vec<usage_record::Model>,
-) -> Result<Vec<UsageRecord>, StoreError> {
-    use usage_record::Column as Col;
-    let mut by_request: BTreeMap<String, Vec<usage_record::Model>> = BTreeMap::new();
-    // Stay below the lowest supported backend's parameter limit.
-    for chunk in rows.chunks(80) {
-        let exchanges = store
-            .usage_records()
-            .query(
-                usage_record::Entity::find()
-                    .filter(Col::Side.eq(CaptureSide::Upstream))
-                    .filter(
-                        Col::DownstreamRequestId.is_in(chunk.iter().map(|r| r.request_id.clone())),
-                    )
-                    .order_by_asc(Col::StartedAtMs)
-                    .order_by_asc(Col::AttemptOrdinal)
-                    .order_by_asc(Col::RequestId),
-            )
-            .await?;
-        for exchange in exchanges {
-            if let Some(id) = &exchange.downstream_request_id {
-                by_request.entry(id.clone()).or_default().push(exchange);
-            }
-        }
-    }
-    Ok(rows
-        .into_iter()
-        .map(|row| UsageRecord {
-            exchanges: by_request.remove(&row.request_id).unwrap_or_default(),
-            row,
-        })
-        .collect())
-}
+/// One physical upstream usage row.
+pub type UsageRecord = usage_record::Model;
 
 pub async fn scan<C: BatchConnectionTrait>(
     store: &Store<C>,
@@ -189,15 +130,7 @@ pub async fn scan<C: BatchConnectionTrait>(
     cap: u64,
     visit: impl FnMut(&UsageRecord),
 ) -> Result<ScanOutcome, StoreError> {
-    scan_inner(
-        store,
-        condition.add(usage_record::Column::Side.eq(CaptureSide::Downstream)),
-        order,
-        cap,
-        true,
-        visit,
-    )
-    .await
+    scan_inner(store, condition, order, cap, visit).await
 }
 
 /// USD spent by this credential's own calls. Filtering occurs in SQL before
@@ -214,12 +147,9 @@ pub async fn credential_usd_cost<C: BatchConnectionTrait>(
     let mut total = Decimal::ZERO;
     let outcome = scan_inner(
         store,
-        usage_condition(Some(from_ms), Some(to_ms))
-            .add(Col::Side.eq(CaptureSide::Upstream))
-            .add(Col::CredentialId.eq(credential_id)),
+        usage_condition(Some(from_ms), Some(to_ms)).add(Col::CredentialId.eq(credential_id)),
         ScanOrder::Oldest,
         max_rows,
-        false,
         |row| {
             if models((!row.model.is_empty()).then_some(row.model.as_str()))
                 && let Some(cost) = row.cost

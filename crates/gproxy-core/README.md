@@ -293,11 +293,12 @@ Supplying `.observer(...)` replaces the built-in persistence implementation.
 
 Each physical exchange is persisted independently, including retries and multiple
 HTTP sends inside one channel invocation. Stream chunks and WebSocket messages
-are ordered `capture_events`; response errors and interruptions keep their prior
-bytes and partial usage. A request writes one usage summary after every exchange
-has closed, even if its response body, execution future or completion waiter is
-dropped. Request attribution is explicitly supplied by the host, never inferred
-from the opaque scope. Downstream capture/link creation remains a host concern.
+are ordered `upstream_events`; response errors and interruptions keep their prior
+bytes and partial usage. Each metered physical upstream call has one usage row. The completion funnel
+awaits all exchanges before persisting usage, even if its response body, execution
+future or completion waiter is dropped. Request attribution is explicitly supplied by the host, never inferred
+from the opaque scope. Downstream capture remains a host concern; core writes call associations to
+`capture_links` alongside capture and usage.
 See [the observation contract](../../design/core-observation.md) for the switch
 matrix, storage representation and process-crash boundary.
 

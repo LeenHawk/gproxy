@@ -16,7 +16,10 @@ use gproxy_sdk::{
         UsageRecordQuery, UsageTrendQuery,
     },
 };
-use gproxy_store::entity::usage::{capture_event, capture_record, usage_record};
+use gproxy_store::entity::usage::{
+    capture_event, capture_link, capture_record, downstream_event, downstream_record,
+    upstream_event, upstream_record, usage_record,
+};
 use sea_orm::{DatabaseConnection, Set};
 use serde_json::{Value, json};
 
@@ -102,7 +105,7 @@ async fn usage(gproxy: &Handle, seed: Seed<'_>) {
                 "provider_id": provider,
                 "credential_id": format!("c-{provider}"),
                 "model": seed.model,
-                "usage": usage_json((*input, *output, 0, 0)),
+                "usage": usage_json((*input, *output, if index == 0 { seed.tokens.2 } else { 0 }, if index == 0 { seed.tokens.3 } else { 0 })),
                 "cost": money(*cost),
             }))
             .collect::<Vec<_>>()
@@ -133,8 +136,6 @@ async fn insert(gproxy: &Handle, seed: Seed<'_>, exchanges: Value) {
         api_key_id: Set(seed.api_key_id.map(str::to_owned)),
         model: Set(seed.model.into()),
         operation: Set(seed.operation.into()),
-        side: Set(capture_record::CaptureSide::Downstream),
-        downstream_request_id: Set(None),
         provider_id: Set(None),
         credential_id: Set(None),
         attempt_id: Set(None),
@@ -151,16 +152,23 @@ async fn insert(gproxy: &Handle, seed: Seed<'_>, exchanges: Value) {
         ended_at_ms: Set(Some(seed.started_at_ms + 100)),
         ..Default::default()
     };
-    let mut rows = vec![base.clone()];
+    let mut rows = if exchanges.as_array().unwrap().is_empty() {
+        vec![base.clone()]
+    } else {
+        Vec::new()
+    };
+    let mut links = Vec::new();
     for (index, exchange) in exchanges.as_array().unwrap().iter().enumerate() {
         let text = |key: &str| exchange[key].as_str().map(str::to_owned);
         let token = |key: &str| exchange["usage"]["tokens"][key].as_i64();
+        let upstream_id =
+            text("capture_id").unwrap_or_else(|| format!("{}-x{index}", seed.request_id));
+        links.push(capture_link::ActiveModel {
+            downstream_id: Set(seed.request_id.into()),
+            upstream_id: Set(upstream_id.clone()),
+        });
         rows.push(usage_record::ActiveModel {
-            request_id: Set(
-                text("capture_id").unwrap_or_else(|| format!("{}-x{index}", seed.request_id))
-            ),
-            side: Set(capture_record::CaptureSide::Upstream),
-            downstream_request_id: Set(Some(seed.request_id.into())),
+            request_id: Set(upstream_id),
             provider_id: Set(text("provider_id")),
             credential_id: Set(text("credential_id")),
             model: Set(text("model").unwrap_or_default()),
@@ -178,14 +186,20 @@ async fn insert(gproxy: &Handle, seed: Seed<'_>, exchanges: Value) {
     }
     gproxy
         .store()
+        .capture_links()
+        .insert_many(links)
+        .await
+        .unwrap();
+    gproxy
+        .store()
         .usage_records()
         .create_many(rows)
         .await
         .unwrap();
 }
 
-/// Three records: two users, two models, two providers, one request that
-/// reached no upstream at all.
+/// Four physical calls: two users, two models, two providers, and one
+/// standalone usage row without provider metadata or a retained capture.
 async fn three_records(gproxy: &Handle) {
     usage(
         gproxy,
@@ -237,19 +251,65 @@ async fn three_records(gproxy: &Handle) {
 
 /// One captured exchange. Everything the query does not filter on is left at
 /// the database's own defaults.
-async fn capture(gproxy: &Handle, row: capture_record::ActiveModel) {
-    gproxy
-        .store()
-        .capture_records()
-        .create_many(vec![row])
-        .await
-        .unwrap();
+enum CaptureSeed {
+    Up(upstream_record::ActiveModel),
+    Down(downstream_record::ActiveModel),
 }
-
-fn downstream(id: &str, started_at_ms: i64) -> capture_record::ActiveModel {
-    capture_record::ActiveModel {
+impl From<upstream_record::ActiveModel> for CaptureSeed {
+    fn from(row: upstream_record::ActiveModel) -> Self {
+        Self::Up(row)
+    }
+}
+impl From<downstream_record::ActiveModel> for CaptureSeed {
+    fn from(row: downstream_record::ActiveModel) -> Self {
+        Self::Down(row)
+    }
+}
+async fn capture(gproxy: &Handle, row: impl Into<CaptureSeed>) {
+    match row.into() {
+        CaptureSeed::Up(row) => {
+            if let Some(id) = row.initiator_request_id.clone().take().flatten() {
+                // A usage fixture may have written this association already.
+                let key = (id.clone(), row.id.clone().unwrap());
+                if gproxy
+                    .store()
+                    .capture_links()
+                    .get_many(&[key.clone()])
+                    .await
+                    .unwrap()[0]
+                    .is_none()
+                {
+                    gproxy
+                        .store()
+                        .capture_links()
+                        .create_many(vec![capture_link::ActiveModel {
+                            downstream_id: Set(key.0),
+                            upstream_id: Set(key.1),
+                        }])
+                        .await
+                        .unwrap();
+                }
+            }
+            gproxy
+                .store()
+                .upstream_records()
+                .create_many(vec![row])
+                .await
+                .unwrap();
+        }
+        CaptureSeed::Down(row) => {
+            gproxy
+                .store()
+                .downstream_records()
+                .create_many(vec![row])
+                .await
+                .unwrap();
+        }
+    }
+}
+fn downstream(id: &str, started_at_ms: i64) -> downstream_record::ActiveModel {
+    downstream_record::ActiveModel {
         id: Set(id.into()),
-        side: Set(capture_record::CaptureSide::Downstream),
         kind: Set(capture_record::CaptureKind::Http),
         started_at_ms: Set(started_at_ms),
         state: Set(capture_record::CaptureState::Completed),
@@ -258,12 +318,10 @@ fn downstream(id: &str, started_at_ms: i64) -> capture_record::ActiveModel {
         ..Default::default()
     }
 }
-
-fn upstream(id: &str, initiator: &str, started_at_ms: i64) -> capture_record::ActiveModel {
-    capture_record::ActiveModel {
+fn upstream(id: &str, initiator: &str, started_at_ms: i64) -> upstream_record::ActiveModel {
+    upstream_record::ActiveModel {
         id: Set(id.into()),
         initiator_request_id: Set(Some(initiator.into())),
-        side: Set(capture_record::CaptureSide::Upstream),
         kind: Set(capture_record::CaptureKind::Http),
         started_at_ms: Set(started_at_ms),
         state: Set(capture_record::CaptureState::Completed),
@@ -272,22 +330,37 @@ fn upstream(id: &str, initiator: &str, started_at_ms: i64) -> capture_record::Ac
         ..Default::default()
     }
 }
-
 async fn event(gproxy: &Handle, capture_id: &str, sequence: i64, payload: &[u8]) {
-    gproxy
+    macro_rules! insert_event {
+        ($entity:ident, $repo:ident) => {
+            gproxy
+                .store()
+                .$repo()
+                .create_many(vec![$entity::ActiveModel {
+                    capture_id: Set(capture_id.into()),
+                    sequence: Set(sequence),
+                    direction: Set(capture_event::CaptureDirection::Response),
+                    kind: Set(capture_event::CaptureEventKind::Bytes),
+                    payload: Set(payload.to_vec()),
+                    observed_at_ms: Set(sequence),
+                    ..Default::default()
+                }])
+                .await
+                .unwrap()
+        };
+    }
+    if gproxy
         .store()
-        .capture_events()
-        .create_many(vec![capture_event::ActiveModel {
-            capture_id: Set(capture_id.into()),
-            sequence: Set(sequence),
-            direction: Set(capture_event::CaptureDirection::Response),
-            kind: Set(capture_event::CaptureEventKind::Bytes),
-            payload: Set(payload.to_vec()),
-            observed_at_ms: Set(sequence),
-            ..Default::default()
-        }])
+        .upstream_records()
+        .get_many(&[capture_id.into()])
         .await
-        .unwrap();
+        .unwrap()[0]
+        .is_some()
+    {
+        insert_event!(upstream_event, upstream_events);
+    } else {
+        insert_event!(downstream_event, downstream_events);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -420,14 +493,14 @@ async fn a_credential_cut_counts_only_that_credentials_attempts() {
             .iter()
             .map(|item| item.request_id.as_str())
             .collect::<Vec<_>>(),
-        ["r-2", "r-1"]
+        ["r-2-x0", "r-1-x0"]
     );
     assert_eq!(records.total, 2);
     assert!(!records.truncated);
     assert_eq!(
         records.items[0].exchanges.len(),
-        2,
-        "the record, not a share"
+        1,
+        "one physical upstream call per usage row"
     );
     let second_page = usage
         .records(UsageRecordQuery {
@@ -441,7 +514,7 @@ async fn a_credential_cut_counts_only_that_credentials_attempts() {
     assert_eq!(second_page.total, 2);
     assert_eq!(second_page.offset, 1);
     assert_eq!(second_page.items.len(), 1);
-    assert_eq!(second_page.items[0].request_id, "r-1");
+    assert_eq!(second_page.items[0].request_id, "r-1-x0");
     let only_second = usage
         .records(UsageRecordQuery {
             credential_id: Some("c-p-2".into()),
@@ -451,7 +524,7 @@ async fn a_credential_cut_counts_only_that_credentials_attempts() {
         .await
         .unwrap();
     assert_eq!(only_second.total, 1);
-    assert_eq!(only_second.items[0].request_id, "r-2");
+    assert_eq!(only_second.items[0].request_id, "r-2-x1");
 }
 
 #[tokio::test]
@@ -553,7 +626,7 @@ async fn a_credentials_usd_spend_is_summed_over_its_own_attempts_in_range() {
         })
         .await
         .unwrap();
-    assert_eq!(summary.requests, 2);
+    assert_eq!(summary.requests, 4);
     assert_eq!(
         summary.currency.as_deref(),
         Some("USD"),
@@ -575,14 +648,14 @@ async fn records_page_newest_first_and_honour_every_filter() {
         })
         .await
         .unwrap();
-    assert_eq!(first.total, 3, "the count is of matches, not of the page");
+    assert_eq!(first.total, 4, "the count is of matches, not of the page");
     assert_eq!(
         first
             .items
             .iter()
             .map(|item| item.request_id.as_str())
             .collect::<Vec<_>>(),
-        ["r-3", "r-2"],
+        ["r-3", "r-2-x0"],
         "newest first"
     );
     let second = usage
@@ -593,11 +666,11 @@ async fn records_page_newest_first_and_honour_every_filter() {
         })
         .await
         .unwrap();
-    assert_eq!(second.items.len(), 1);
-    assert_eq!(second.items[0].request_id, "r-1");
+    assert_eq!(second.items.len(), 2);
+    assert_eq!(second.items[0].request_id, "r-2-x1");
 
     // The extracted fields, and the document they were extracted from.
-    let record = &second.items[0];
+    let record = &second.items[1];
     assert_eq!(record.tokens.input_tokens, Some(10));
     assert_eq!(record.tokens.reasoning_tokens, Some(3));
     assert_eq!(record.cost.as_deref(), Some("0.5"));
@@ -613,21 +686,21 @@ async fn records_page_newest_first_and_honour_every_filter() {
                 user_id: Some("u-1".into()),
                 ..Default::default()
             },
-            vec!["r-2", "r-1"],
+            vec!["r-2-x0", "r-2-x1", "r-1-x0"],
         ),
         (
             UsageRecordQuery {
                 api_key_id: Some("k-1".into()),
                 ..Default::default()
             },
-            vec!["r-3", "r-1"],
+            vec!["r-3", "r-1-x0"],
         ),
         (
             UsageRecordQuery {
                 model: Some("m-2".into()),
                 ..Default::default()
             },
-            vec!["r-2"],
+            vec!["r-2-x0", "r-2-x1"],
         ),
         (
             UsageRecordQuery {
@@ -641,7 +714,7 @@ async fn records_page_newest_first_and_honour_every_filter() {
                 request_id: Some("r-2".into()),
                 ..Default::default()
             },
-            vec!["r-2"],
+            vec!["r-2-x0", "r-2-x1"],
         ),
         // Half-open: 1000 is inside the range and 3000 is not.
         (
@@ -650,7 +723,7 @@ async fn records_page_newest_first_and_honour_every_filter() {
                 to_ms: Some(3_000),
                 ..Default::default()
             },
-            vec!["r-2", "r-1"],
+            vec!["r-2-x0", "r-2-x1", "r-1-x0"],
         ),
         (
             UsageRecordQuery {
@@ -682,7 +755,7 @@ async fn a_summary_adds_up_to_the_seeded_numbers() {
         .summary(UsageQuery::default())
         .await
         .unwrap();
-    assert_eq!(summary.requests, 3);
+    assert_eq!(summary.requests, 4);
     assert_eq!(summary.input_tokens, 10 + 100 + 1);
     assert_eq!(summary.output_tokens, 20 + 200 + 2);
     assert_eq!(summary.cached_input_tokens, 5);
@@ -690,7 +763,7 @@ async fn a_summary_adds_up_to_the_seeded_numbers() {
     assert_eq!(summary.cost, "1.75");
     assert_eq!(summary.currency.as_deref(), Some("USD"));
     assert!(!summary.truncated);
-    assert_eq!(summary.scanned, 3);
+    assert_eq!(summary.scanned, 4);
 
     // The same filters as the record list, over the same rows.
     let one_user = gproxy
@@ -731,20 +804,20 @@ async fn the_scan_cap_is_reported_rather_than_hidden() {
     assert!(capped.truncated, "the cap stopped the scan short");
     assert_eq!(capped.scanned, 2);
     assert_eq!(capped.requests, 2);
-    // Ascending scan order: the two oldest records, so 10 + 100 input.
-    assert_eq!(capped.input_tokens, 110);
+    // Ascending scan order: the two oldest records, so 10 + 40 input.
+    assert_eq!(capped.input_tokens, 50);
 
     // A cap exactly at the row count is not a truncation: the scan reads one
     // row past its budget precisely so it can tell the two apart.
     let exact = usage
         .summary(UsageQuery {
-            max_scan_rows: Some(3),
+            max_scan_rows: Some(4),
             ..Default::default()
         })
         .await
         .unwrap();
     assert!(!exact.truncated);
-    assert_eq!(exact.scanned, 3);
+    assert_eq!(exact.scanned, 4);
 }
 
 #[tokio::test]
@@ -769,7 +842,7 @@ async fn groups_cut_the_same_totals_by_column_and_by_provider() {
             .collect::<Vec<_>>(),
         [Some("u-1"), Some("u-2")]
     );
-    assert_eq!(by_user[0].summary.requests, 2);
+    assert_eq!(by_user[0].summary.requests, 3);
     assert_eq!(by_user[0].summary.input_tokens, 110);
     assert_eq!(by_user[0].summary.cost, "1.75");
     assert_eq!(by_user[1].summary.requests, 1);
@@ -1063,7 +1136,7 @@ async fn a_detail_resolves_the_upstream_attempts_and_their_events() {
     usage(
         &gproxy,
         Seed {
-            request_id: "d-1",
+            request_id: "x-1",
             started_at_ms: 1_000,
             tokens: (7, 9, 0, 0),
             cost: Some("0.25"),
@@ -1096,7 +1169,7 @@ async fn a_detail_resolves_the_upstream_attempts_and_their_events() {
     assert_eq!(detail.events[0].payload.content, "data: one\n\n");
     assert!(!detail.events_truncated);
 
-    let usage = detail.usage.expect("the request settled");
+    let usage = detail.usage.first().expect("the upstream call settled");
     assert_eq!(usage.tokens.input_tokens, Some(7));
     assert_eq!(usage.cost.as_deref(), Some("0.25"));
 
@@ -1580,17 +1653,9 @@ async fn cache_write_periods_survive_summary_groups_and_trend_while_metadata_ops
             ..Default::default()
         });
     }
-    let upstream: Vec<_> = rows
-        .iter()
-        .map(|row| usage_record::ActiveModel {
-            request_id: Set(format!("{}-up", row.request_id.clone().unwrap())),
-            downstream_request_id: Set(Some(row.request_id.clone().unwrap())),
-            side: Set(capture_record::CaptureSide::Upstream),
-            provider_id: Set(Some("p".into())),
-            ..row.clone()
-        })
-        .collect();
-    rows.extend(upstream);
+    for row in &mut rows {
+        row.provider_id = Set(Some("p".into()));
+    }
     store.usage_records().create_many(rows).await.unwrap();
     let query = gproxy.query();
     let usage = query.usage();
@@ -1654,11 +1719,7 @@ async fn media_tool_and_custom_quantities_survive_filters_groups_and_trends() {
         },
     )
     .await;
-    for (id, searches, seconds) in [
-        ("tools", "5", "1.75"),
-        ("tools-x0", "2", "0.5"),
-        ("tools-x1", "3", "1.25"),
-    ] {
+    for (id, searches, seconds) in [("tools-x0", "2", "0.5"), ("tools-x1", "3", "1.25")] {
         gproxy.store().usage_records().update_many(vec![usage_record::ActiveModel {
             request_id: Set(id.into()), web_searches: Set(Some(searches.parse().unwrap())),
             audio_seconds: Set(Some(seconds.parse().unwrap())),
@@ -1675,7 +1736,7 @@ async fn media_tool_and_custom_quantities_survive_filters_groups_and_trends() {
     let query = gproxy.query();
     let usage = query.usage();
     let all = usage.summary(UsageQuery::default()).await.unwrap();
-    assert_eq!(all.requests, 1);
+    assert_eq!(all.requests, 2);
     assert_eq!(all.quantities["web_searches"], "5");
     let share = usage.summary(filter.clone()).await.unwrap();
     assert_eq!(share.quantities["web_searches"], "2");
@@ -1699,8 +1760,8 @@ async fn media_tool_and_custom_quantities_survive_filters_groups_and_trends() {
         .unwrap();
     assert_eq!(trend[0].summary.quantities, share.quantities);
     let records = usage.records(UsageRecordQuery::default()).await.unwrap();
-    assert_eq!(records.total, 1);
-    assert_eq!(records.items[0].exchanges.len(), 2);
+    assert_eq!(records.total, 2);
+    assert_eq!(records.items[0].exchanges.len(), 1);
     assert_eq!(
         records.items[0].exchanges[0].quantities["web_searches"],
         "2"
@@ -1748,13 +1809,13 @@ async fn upstream_association_is_optional_and_independent_of_downstream_retentio
     .await;
     gproxy
         .store()
-        .capture_records()
+        .downstream_records()
         .delete_many(&["down".into()])
         .await
         .unwrap();
     let upstream = gproxy
         .store()
-        .capture_records()
+        .upstream_records()
         .get_many(&["up".into()])
         .await
         .unwrap();
@@ -1775,5 +1836,94 @@ async fn upstream_association_is_optional_and_independent_of_downstream_retentio
             .unwrap()
             .total,
         1
+    );
+}
+
+#[tokio::test]
+async fn shared_upstream_is_linked_to_each_downstream_without_duplicating_usage() {
+    let gproxy = support::sdk().await;
+    capture(&gproxy, downstream("d1", 1)).await;
+    capture(&gproxy, downstream("d2", 2)).await;
+    capture(&gproxy, downstream("d-alone", 3)).await;
+    capture(&gproxy, upstream("u1", "d1", 1)).await;
+    capture(&gproxy, upstream("u2", "d1", 2)).await;
+    let mut standalone = upstream("u-alone", "unused", 3);
+    standalone.initiator_request_id = Set(None);
+    capture(&gproxy, standalone).await;
+    gproxy
+        .store()
+        .capture_links()
+        .insert_many(vec![capture_link::ActiveModel {
+            downstream_id: Set("d2".into()),
+            upstream_id: Set("u1".into()),
+        }])
+        .await
+        .unwrap();
+    for id in ["u1", "u2", "u-alone"] {
+        usage(
+            &gproxy,
+            Seed {
+                request_id: id,
+                tokens: (7, 3, 0, 0),
+                cost: Some("0.1"),
+                ..Default::default()
+            },
+        )
+        .await;
+    }
+    let query = gproxy.query();
+    let logs = query.logs();
+    assert_eq!(logs.detail("d1").await.unwrap().upstream.len(), 2);
+    let shared = logs.detail("d2").await.unwrap();
+    assert_eq!(shared.upstream[0].id, "u1");
+    assert_eq!(shared.usage.len(), 1);
+    assert_eq!(shared.usage[0].request_id, "u1");
+    assert!(logs.detail("d-alone").await.unwrap().usage.is_empty());
+    for (id, expected) in [("d1", 2), ("d2", 1), ("u-alone", 1)] {
+        let page = query
+            .usage()
+            .records(UsageRecordQuery {
+                request_id: Some(id.into()),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(page.total, expected);
+    }
+    let summary = query.usage().summary(UsageQuery::default()).await.unwrap();
+    assert_eq!(
+        (
+            summary.requests,
+            summary.input_tokens,
+            summary.cost.as_str()
+        ),
+        (3, 21, "0.3")
+    );
+    gproxy
+        .store()
+        .downstream_records()
+        .delete_many(&["d1".into()])
+        .await
+        .unwrap();
+    gproxy
+        .store()
+        .upstream_records()
+        .delete_many(&["u1".into()])
+        .await
+        .unwrap();
+    let detail = logs.detail("d2").await.unwrap();
+    assert!(detail.upstream.is_empty());
+    assert_eq!(
+        detail.usage[0].request_id, "u1",
+        "usage lookup survives capture retention"
+    );
+    assert_eq!(
+        query
+            .usage()
+            .summary(UsageQuery::default())
+            .await
+            .unwrap()
+            .cost,
+        "0.3"
     );
 }

@@ -41,18 +41,17 @@ impl UsageTokensDto {
     }
 }
 
-/// One persisted request.
+/// One persisted physical upstream call.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UsageRecordDto {
-    /// The downstream exchange or websocket turn this usage belongs to, which
-    /// is also the id of its downstream `capture_records` row.
+    /// Physical upstream call ID. A corresponding capture log need not exist.
     pub request_id: String,
     pub user_id: Option<String>,
     pub api_key_id: Option<String>,
-    /// The name the caller asked for, falling back to the upstream model.
+    /// The upstream model that produced this usage.
     pub model: String,
     pub operation: String,
     /// The settlement state core recorded: `settled`, `failed`, … .
@@ -66,8 +65,7 @@ pub struct UsageRecordDto {
     /// The settled USD charge, read from its dedicated column.
     pub cost: Option<String>,
     pub currency: Option<String>,
-    /// One entry per upstream attempt that produced usage, which is where a
-    /// provider and a credential are named.
+    /// Detail of this physical call, retaining the existing exchange DTO shape.
     pub exchanges: Vec<UsageExchangeDto>,
     /// Dynamic dimensions and nested protocol-specific detail; fixed fields are above.
     #[cfg_attr(feature = "ts", ts(type = "unknown"))]
@@ -78,15 +76,11 @@ pub struct UsageRecordDto {
 
 impl From<gproxy_core::usage_scan::UsageRecord> for UsageRecordDto {
     fn from(record: gproxy_core::usage_scan::UsageRecord) -> Self {
-        let row = record.row;
+        let row = record;
         Self {
             tokens: UsageTokensDto::from_row(&row),
             quantities: quantities(&row),
-            exchanges: record
-                .exchanges
-                .iter()
-                .map(UsageExchangeDto::from_row)
-                .collect(),
+            exchanges: vec![UsageExchangeDto::from_row(&row)],
             currency: row.cost.map(|_| "USD".into()),
             cost: row.cost.map(|cost| cost.to_string()),
             request_id: row.request_id,
@@ -156,6 +150,7 @@ impl UsageExchangeDto {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct UsageSummaryDto {
+    /// Number of physical upstream calls, independent of downstream association count.
     pub requests: u64,
     pub input_tokens: u64,
     pub output_tokens: u64,
@@ -243,10 +238,9 @@ pub struct UsageRecordPage {
     pub truncated: bool,
 }
 
-/// Filters for bounded aggregates. Without provider/credential filters, totals
-/// use downstream summaries. With either filter, totals use only matching
-/// upstream quantities and costs, counting each downstream request once.
-/// The scan budget counts downstream requests after SQL filtering.
+/// Filters for bounded aggregates over physical upstream usage. All filters
+/// run against usage columns; requests and the scan budget count upstream calls,
+/// never downstream associations. A shared call contributes once.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
@@ -277,7 +271,7 @@ pub struct UsageQuery {
 pub enum UsageGroupBy {
     User,
     ApiKey,
-    /// The name the caller asked for, as stored on the record.
+    /// The upstream model name stored on the usage row.
     Model,
     Operation,
     /// Group structured upstream usage by provider, with each provider's own quantities and cost.

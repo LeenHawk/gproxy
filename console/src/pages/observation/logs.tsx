@@ -40,7 +40,7 @@ function LogDetail({ id, side }: { id: string; side: history.LogSide }) {
   return <QueryState isPending={result.isPending} error={result.error}>{result.data ? <div className="flex flex-col gap-4">
     {result.data.truncated ? <p role="status">{t("observation.truncated")}</p> : null}
     {result.data.records.map(record => <Exchange key={record.id} record={record} events={result.data.events.filter(event => event.captureId === record.id)} />)}
-    {result.data.usage ? <PageSection title={t("nav.usage")}><pre className="overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify(result.data.usage, null, 2)}</pre></PageSection> : null}
+    {result.data.usage?.length ? <PageSection title={t("nav.usage")}><pre className="overflow-auto whitespace-pre-wrap break-all text-xs">{JSON.stringify(result.data.usage, null, 2)}</pre></PageSection> : null}
   </div> : null}</QueryState>
 }
 function LogsPage({ side }: { side: history.LogSide }) {

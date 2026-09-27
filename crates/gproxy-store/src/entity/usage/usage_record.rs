@@ -1,6 +1,6 @@
-//! Independent downstream summaries and per-call upstream usage. No log/configuration FKs.
+//! Physical upstream usage, once per call. Attribution and cost belong here.
+//! No log/configuration FKs: usage is retained independently of capture records.
 
-use super::capture_record::CaptureSide;
 use gproxy_seaorm::FixedDecimal;
 use sea_orm::entity::prelude::*;
 
@@ -20,7 +20,7 @@ pub struct Model {
     pub user_id: Option<String>,
     #[sea_orm(indexed, unique_key = "by_user")]
     pub started_at_ms: i64,
-    /// This downstream request or upstream call ID, never a whole WS connection.
+    /// This physical upstream call ID, never a whole WS connection.
     /// A corresponding capture record need not exist.
     #[sea_orm(primary_key, auto_increment = false, unique_key = "by_user")]
     pub request_id: String,
@@ -29,12 +29,6 @@ pub struct Model {
     #[sea_orm(indexed)]
     pub model: String,
     pub operation: String,
-    /// One row per downstream request or physical upstream call, independent of logs.
-    #[sea_orm(indexed, default_value = "downstream")]
-    pub side: CaptureSide,
-    /// Upstream -> downstream usage ID; not a capture foreign key.
-    #[sea_orm(indexed)]
-    pub downstream_request_id: Option<String>,
     #[sea_orm(indexed)]
     pub provider_id: Option<String>,
     #[sea_orm(indexed)]

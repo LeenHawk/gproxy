@@ -196,9 +196,6 @@ impl<C: BatchConnectionTrait + Send + Sync> TargetCaller<'_, C> {
                 .query(
                     usage_record::Entity::find()
                         .filter(usage_record::Column::UserId.eq(user_id))
-                        .filter(usage_record::Column::Side.eq(
-                            gproxy_store::entity::usage::capture_record::CaptureSide::Downstream,
-                        ))
                         .filter(
                             usage_record::Column::Operation.is_in(
                                 gproxy_protocol::Operation::usage_operations()

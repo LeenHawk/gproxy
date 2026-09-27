@@ -70,7 +70,7 @@ one load, one request.
 | `admission` | `Caller` → `Admitted`: providers, credentials, budget owners, scope, session, rate-limit charges |
 | `call` | `DataPlaneRequest` → `CallOutcome`: admit, then run the engine with exactly what was admitted |
 | `service` | vendor CLI services: which credentials are in the target, and what role the caller has over them |
-| `capture` | the downstream `capture_records` row and its events; upstream rows carry their own downstream request ID |
+| `capture` | the `downstream_records` row and its events; `capture_links` associates upstream calls |
 | `publication` | `AppPublicationUrl`, plus the read and delete behind the host's download route |
 | `operations` | the identity write families, each one revision commit plus a peer notification |
 | `operations::scoped` | `ScopedManage`: the two sdk families whose rows carry an owner, narrowed by the caller's `AdminScope` |
@@ -440,20 +440,19 @@ not prove that no vendor request was made.
 
 ## Downstream capture
 
-`capture_records` has two sides and they have two owners. Core's `StoreObserver`
-writes the `side = Upstream` row for every physical send and the settled
-`usage_records` row; only a host sees the inbound HTTP exchange, so the
-`side = Downstream` row is this crate's. `design/core-observation.md` states
-the rule — the host owns the downstream record, and core never fabricates one — and `src/capture.rs` is that half.
+Core's `StoreObserver` writes `upstream_records` and one `usage_records` row per
+physical upstream call. The host writes `downstream_records`, because only it
+sees the inbound exchange. `capture_links` relates the sides without constraining
+cardinality or requiring either log to be retained.
 
 | | upstream (core) | downstream (here) |
 |---|---|---|
 | gate | `enable_upstream_log` | `enable_downstream_log` |
 | body gate | `enable_upstream_log_body` | `enable_downstream_log_body` |
 | redaction | `disable_log_redaction` | the same switch, the same field list |
-| id | its own, opaque | **the request id**, which is also the usage row's |
-| body storage | `capture_events`, streamed | the inline column, buffered |
-| websocket frames | `capture_events`, per frame | `capture_events`, per frame, buffered |
+| id | its own, opaque | **the downstream request id** |
+| body storage | `upstream_events`, streamed | the inline column, buffered |
+| websocket frames | `upstream_events`, per frame | `downstream_events`, per frame, buffered |
 
 All four switches are off on a new instance. A logged exchange is two more
 records written for every request, and on a single SQLite writer that is most
@@ -519,14 +518,13 @@ redacted before storage without truncating its content. A body
 that is not JSON has no key to match on and is stored as received — one more
 reason the body switch is off by default.
 
-### Direct upstream association
+### Upstream associations
 
-Each upstream record carries a nullable `initiator_request_id` naming its one
-associated downstream request. Retries create separate upstream records with the
-same downstream ID. There is no link table and no end-of-request lookup or edge
-write. Detail queries order upstream records by start time, attempt ordinal and ID.
-The association is not a foreign key: disabling or deleting a downstream log must
-not prevent an upstream record from being saved or retained.
+`capture_links` supports one-to-one, one-to-many and many-to-many associations.
+Unlinked records on either side are valid. An upstream record's optional
+`initiator_request_id` records provenance only. Detail queries follow links and
+return each associated upstream call and its usage without persisting a downstream
+summary. Usage attribution is independent of the number of associated downstreams.
 
 ### A capture failure is never a request failure
 

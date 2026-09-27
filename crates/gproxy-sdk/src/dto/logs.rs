@@ -88,7 +88,7 @@ impl LogBodyDto {
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct LogEntryDto {
-    /// Capture ID. For downstream rows this is also the request/usage ID;
+    /// Capture ID. For downstream rows this is also the request ID;
     /// upstream rows have their own physical exchange ID.
     pub request_id: String,
     /// `http`, `ws_connection` or `ws_turn`.
@@ -163,6 +163,7 @@ pub struct LogPageDto {
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct CaptureRecordDto {
     pub id: String,
+    /// Initiating request for provenance; actual associations are many-to-many.
     pub initiator_request_id: Option<String>,
     pub attempt_id: Option<String>,
     pub attempt_ordinal: Option<i32>,
@@ -240,8 +241,8 @@ pub struct LogDetailDto {
     pub events: Vec<CaptureEventDto>,
     /// True when the event cap cut the list short.
     pub events_truncated: bool,
-    /// The settled usage, when this request produced any.
-    pub usage: Option<UsageRecordDto>,
+    /// Usage of associated physical upstream calls, retained independently of captures.
+    pub usage: Vec<UsageRecordDto>,
 }
 
 /// What a request listing filters on. Timestamps bound `started_at_ms`:

@@ -22,7 +22,8 @@ v4 asks first, and with capture off nothing is allocated and no body is copied.
 
 ## Usage Records
 
-Every settled exchange writes one row. Settlement happens on **every** path
+Every metered physical upstream call writes one usage row; downstream summaries
+are not persisted. Settlement happens on **every** path
 that reaches an upstream — there is no fast path around the funnel, because a
 path around it is unmetered traffic.
 
@@ -74,7 +75,7 @@ Fixed token counts and media/tool quantities are stored in dedicated columns;
 Upstream usage rows carry their own provider, credential and cost independently
 of logs. Provider and credential filters run in SQL.
 
-Aggregates are folded in Rust over a **scan cap** — 50,000 matching downstream
+Aggregates are folded in Rust over a **scan cap** — 50,000 matching upstream usage
 records by default. `truncated` and `scanned` report whether the cap stopped the
 read, rather than presenting a partial total as complete.
 
@@ -130,7 +131,7 @@ for every physical send; only a host sees the inbound HTTP exchange, so the
 | --- | --- | --- |
 | gate | `enableUpstreamLog` | `enableDownstreamLog` |
 | body gate | `enableUpstreamLogBody` | `enableDownstreamLogBody` |
-| id | its own, opaque | **the request id**, which is also the usage row's |
+| id | its own, opaque | **the downstream request id** |
 | body storage | streamed into capture events | the inline column, buffered and capped |
 | websocket frames | one event per frame | one event per frame, buffered |
 
