@@ -13,12 +13,15 @@ cacheCreationTokens: number, cacheCreation5mTokens: number, cacheCreation30mToke
  */
 reasoningTokens: number,
 /**
+ * Totals of reported media/tool quantities; keys are billable metric names.
+ */
+quantities: { [key in string]: string },
+/**
  * A normalized decimal string, `"0"` when nothing was priced.
  */
 cost: string,
 /**
- * None when no record in the scan carried a currency, or when two
- * disagreed: summing dollars and euros into one number would be a lie.
+ * USD when any record was priced; None when none was priced.
  */
 currency: string | null,
 /**

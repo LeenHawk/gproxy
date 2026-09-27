@@ -521,11 +521,14 @@ calculates cache hit rate as hits / (uncached input + hits + all cache writes).
 
 ### Aggregation happens in Rust, over a scan cap
 
-`usage_records.metrics` is one JSON document per request — normalized token
-counts, the per-exchange breakdown behind them, the settlement state, the
-priced cost. No backend this crate supports can sum inside it, so `summary`,
-`group` and `trend` read the matching rows and fold them here, in key-ordered
-chunks rather than all at once.
+`usage_records` stores a downstream summary and one row per metered upstream call.
+Token counts (including separate 5m/30m/1h cache writes), built-in media/tool
+quantities, identities and USD cost have dedicated columns. Dynamic metrics and
+pricing dimensions stay in the extension JSON. No log table is required.
+Provider and credential filters run in SQL before pagination or the scan cap.
+`summary`, `group` and `trend` currently fold matching rows in Rust, in key-ordered
+chunks; this also includes arbitrary custom metric keys. `quantities` exposes
+media/tool and custom quantities as exact decimal strings.
 
 That is bounded. Every aggregate takes `maxScanRows`, defaulting to and clamped
 by `query::MAX_SCAN_ROWS` (50 000), and an aggregation that reached its budget
@@ -534,11 +537,8 @@ number presented as the whole truth. `trend` is bounded a second way: a zero or
 negative `bucketMs`, a backwards range, and a range that would produce more than
 `query::MAX_TREND_BUCKETS` (5 000) buckets are all refused outright.
 
-Two numbers do not come out of the document. Cost is read from the indexed
-`cost` column, written once at settlement — only the per-provider cut reads the
-priced amounts inside `metrics`, because that is the only place the breakdown
-exists. And `currency` is `None` when the scanned records disagreed about it:
-summing dollars and euros into one number would not be a total.
+Costs come from the dedicated column on each summary or upstream row.
+All prices use USD; `currency` is `None` only when nothing in the result was priced.
 
 Grouping by `provider` is therefore per-exchange rather than per-row: a request
 that failed over from one provider to another counts under both, each with that

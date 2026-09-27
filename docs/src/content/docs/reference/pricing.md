@@ -33,7 +33,7 @@ A rule fits when
 | `modelPattern` | `*` / `?` glob against the upstream model name |
 | `operation` | `null` covers every operation of the matched model |
 | `priority` | lower first; the id breaks ties |
-| `currency` | e.g. `USD`. Every price under this rule is in it |
+| `currency` | Must be `USD`; all prices and settlements use USD |
 | `enabled` | |
 
 ### No rule at all

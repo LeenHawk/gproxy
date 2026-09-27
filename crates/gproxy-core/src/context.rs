@@ -114,12 +114,11 @@ pub struct ExchangeContext {
 pub struct UsageReport {
     pub request_id: String,
     pub downstream_usage: Option<NormalizedUsage>,
-    /// Physical upstream usage is reported once per capture ID, without allocating
-    /// it repeatedly across downstream consumers. None remains unknown, not zero.
+    /// Physical upstream usage is reported once per call ID. Missing counts
+    /// remain unknown rather than measured zero.
     pub exchanges: Vec<ExchangeUsage>,
-    /// The priced cost of the request: the sum of every priced exchange in
-    /// the first priced exchange's currency. None when no exchange was
-    /// priced (no usage, or no price rule matched).
+    /// The request's USD charge. None when no exchange was priced
+    /// (no usage, or no matching price rule).
     pub cost: Option<crate::pricing::Cost>,
     pub state: UsageState,
 }

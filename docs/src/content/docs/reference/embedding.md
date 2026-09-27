@@ -168,18 +168,17 @@ the revision.
 | `quota()` | `windows`, `settlements`, `credential_cycles`, `credential_observations`, `counted_windows`, `budget_status` |
 | `logs()` | `list`, `detail(request_id)` |
 
-**Aggregation happens in Rust, over a scan cap.** The usage metrics column is
-one JSON document per request and no supported backend can sum inside it, so
-`summary`, `group` and `trend` read the matching rows and fold them in
-key-ordered chunks. Every aggregate takes a scan budget, defaulting to and
+**Aggregation happens in Rust, over a scan cap.** Fixed usage fields are dedicated
+columns, with separate downstream summaries and upstream call rows. Provider and
+credential filters run in SQL. `summary`, `group` and `trend` fold the matching
+rows and custom quantities in key-ordered chunks. Every aggregate takes a scan budget, defaulting to and
 clamped by 50,000 rows, and an aggregate that reached it comes back
 `truncated: true` with the scanned count — never a smaller number presented as
 the whole truth. A trend is bounded a second way: a zero or negative bucket, a
 backwards range, and a range producing more than 5,000 buckets are all refused.
 
-Two numbers do not come out of the document. Cost is read from the indexed
-column written once at settlement, and the currency is `None` when the scanned
-records disagreed about it, because summing dollars and euros is not a total.
+Cost is read from dedicated USD columns. `currency` is `None` when no record
+was priced. `quantities` carries media, tool and custom counters as decimal strings.
 
 **Management lists page by offset; the request log pages by cursor.** That is
 not a style choice: a management list is a bounded set a person pages through,

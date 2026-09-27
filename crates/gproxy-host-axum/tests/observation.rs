@@ -5,7 +5,7 @@ use gproxy_store::entity::{
     usage::{capture_record, usage_record},
 };
 use http::StatusCode;
-use sea_orm::{EntityTrait, Set};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::json;
 use support::{Host, Reply, get, keyed, post};
 
@@ -52,7 +52,9 @@ async fn global_usage_and_logs_are_instance_only_and_personal_usage_stays_scoped
                     api_key_id: Set(Some(format!("k-{user}"))),
                     model: Set("m1".into()),
                     operation: Set("generate_content".into()),
-                    metrics: Set(json!({"tokens":{"input_tokens":tokens},"state":"settled"})),
+                    input_tokens: Set(Some(tokens)),
+                    state: Set(Some("settled".into())),
+                    metrics: Set(json!({})),
                     started_at_ms: Set(100),
                     ended_at_ms: Set(Some(101)),
                     ..Default::default()
@@ -194,7 +196,12 @@ async fn channel_requests_and_services_are_logs_while_management_reads_are_audit
     assert_eq!(
         store
             .usage_records()
-            .query(usage_record::Entity::find())
+            .query(
+                usage_record::Entity::find().filter(
+                    usage_record::Column::Side
+                        .eq(gproxy_store::entity::usage::capture_record::CaptureSide::Downstream)
+                )
+            )
             .await
             .unwrap()
             .len(),

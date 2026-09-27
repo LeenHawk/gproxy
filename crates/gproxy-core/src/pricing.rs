@@ -211,6 +211,10 @@ impl PriceBook {
     ) -> Self {
         let mut compiled = Vec::new();
         for rule in rules.iter().filter(|r| r.enabled) {
+            if !rule.currency.eq_ignore_ascii_case("USD") {
+                tracing::warn!(rule = %rule.id, "price rule skipped: currency must be USD");
+                continue;
+            }
             let Ok(model) = crate::rewrite::glob_to_regex(&rule.model_pattern) else {
                 tracing::warn!(rule = %rule.id, "price rule skipped: invalid model_pattern");
                 continue;
@@ -292,7 +296,7 @@ impl PriceBook {
                 model_pattern: rule.model_pattern.clone(),
                 operation,
                 priority: rule.priority,
-                currency: rule.currency.clone(),
+                currency: "USD".into(),
                 model,
                 rates: rule_rates.into_iter().map(|(_, _, r)| r).collect(),
                 tiers: rule_tiers,
@@ -336,7 +340,7 @@ impl PriceBook {
             let rule = self.find(provider_id, model?, operation)?;
             return Some(Cost {
                 amount: rule.cost(usage),
-                currency: rule.currency.clone(),
+                currency: "USD".into(),
             });
         }
         let mut total: Option<Cost> = None;
@@ -356,16 +360,16 @@ impl PriceBook {
                 None => {
                     total = Some(Cost {
                         amount,
-                        currency: rule.currency.clone(),
+                        currency: "USD".into(),
                     })
                 }
             }
         }
         total.or_else(|| {
             // Every attempt was unbillable: priced, at nothing.
-            self.find(provider_id, model?, operation).map(|rule| Cost {
+            self.find(provider_id, model?, operation).map(|_| Cost {
                 amount: Decimal::ZERO,
-                currency: rule.currency.clone(),
+                currency: "USD".into(),
             })
         })
     }

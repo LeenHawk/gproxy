@@ -101,7 +101,6 @@ pub use transfer::{
     EXPORT_FORMAT_VERSION, ExportCredentialDto, ExportRequest, ImportMode, ImportReportDto,
     ImportRequest, SealedSecretDto,
 };
-pub(crate) use usage::money;
 pub use usage::{
     UsageExchangeDto, UsageGroupBy, UsageGroupDto, UsageGroupQuery, UsageQuery, UsageRecordDto,
     UsageRecordPage, UsageRecordQuery, UsageSummaryDto, UsageTokensDto, UsageTrendPointDto,

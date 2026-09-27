@@ -110,19 +110,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Observer for StoreObserver
             } else {
                 NormalizedUsage::aggregate(report.exchanges.iter().map(|e| &e.usage))
             };
-            let mut metrics = usage_json(report.downstream_usage.as_ref().unwrap_or(&aggregate));
-            metrics["state"] = json!(format!("{:?}", report.state).to_lowercase());
-            metrics["exchanges"] = serde_json::Value::Array(report.exchanges.iter().map(|e| json!({
-                "capture_id": e.capture_id, "attempt_id": e.attempt_id, "attempt_ordinal": e.attempt_ordinal, "provider_id": e.provider_id,
-                "credential_id": e.credential_id, "model": e.upstream_model,
-                "usage": usage_json(&e.usage),
-                "cost": e.cost.as_ref().map(|c| json!({"amount": c.amount.to_string(), "currency": c.currency})),
-            })).collect());
-            metrics["cost"] = report.cost.as_ref().map_or(
-                serde_json::Value::Null,
-                |c| json!({"amount": c.amount.to_string(), "currency": c.currency}),
-            );
-            let row = usage_record::ActiveModel {
+            let mut row = usage_columns(report.downstream_usage.as_ref().unwrap_or(&aggregate));
+            row = usage_record::ActiveModel {
                 request_id: Set(report.request_id.clone()),
                 user_id: Set(request.attribution.user_id.clone()),
                 api_key_id: Set(request.attribution.api_key_id.clone()),
@@ -133,15 +122,42 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Observer for StoreObserver
                     .or_else(|| request.target.upstream_model.clone())
                     .unwrap_or_default()),
                 operation: Set(request.operation.operation.id().into()),
-                metrics: Set(metrics),
+                side: Set(record::CaptureSide::Downstream),
+                state: Set(Some(format!("{:?}", report.state).to_lowercase())),
                 cost: Set(report
                     .cost
                     .as_ref()
                     .and_then(|c| FixedDecimal::rounded(c.amount).ok())),
                 started_at_ms: Set(request.started_at_ms),
                 ended_at_ms: Set(Some(now_ms())),
+                ..row
             };
-            if let Err(error) = self.store.usage_records().insert_many(vec![row]).await {
+            let mut rows = Vec::with_capacity(report.exchanges.len() + 1);
+            for exchange in &report.exchanges {
+                rows.push(usage_record::ActiveModel {
+                    request_id: Set(exchange.capture_id.clone()),
+                    side: Set(record::CaptureSide::Upstream),
+                    downstream_request_id: Set(Some(report.request_id.clone())),
+                    user_id: row.user_id.clone(),
+                    api_key_id: row.api_key_id.clone(),
+                    model: Set(exchange.upstream_model.clone().unwrap_or_default()),
+                    operation: row.operation.clone(),
+                    provider_id: Set(Some(exchange.provider_id.clone())),
+                    credential_id: Set(Some(exchange.credential_id.clone())),
+                    attempt_id: Set(Some(exchange.attempt_id.clone())),
+                    attempt_ordinal: Set(Some(i64::from(exchange.attempt_ordinal))),
+                    state: row.state.clone(),
+                    cost: Set(exchange
+                        .cost
+                        .as_ref()
+                        .and_then(|c| FixedDecimal::rounded(c.amount).ok())),
+                    started_at_ms: row.started_at_ms.clone(),
+                    ended_at_ms: row.ended_at_ms.clone(),
+                    ..usage_columns(&exchange.usage)
+                });
+            }
+            rows.push(row);
+            if let Err(error) = self.store.usage_records().insert_many(rows).await {
                 tracing::error!(request_id = %report.request_id, %error, "usage persistence failed");
             }
         })
@@ -563,4 +579,121 @@ fn usage_json(u: &NormalizedUsage) -> Value {
     "completeness": format!("{:?}", u.completeness).to_lowercase(),
     "attempts": u.attempts.iter().map(|a| json!({"model": a.model, "usage": usage_json(&a.usage), "billable": a.billable, "started_at_ms": a.started_at_ms})).collect::<Vec<_>>(),
     "responses": u.responses.iter().map(|r| json!({"id": r.id, "usage": usage_json(&r.usage)})).collect::<Vec<_>>()})
+}
+
+/// Store fixed fields as columns; avoid building the full usage JSON on the write path.
+fn usage_columns(u: &NormalizedUsage) -> usage_record::ActiveModel {
+    let mut extra = serde_json::Map::new();
+    let mut overflow_tokens = serde_json::Map::new();
+    let mut token = |name: &str, value: Option<u64>| {
+        value.and_then(|value| match i64::try_from(value) {
+            Ok(value) => Some(value),
+            Err(_) => {
+                overflow_tokens.insert(name.into(), json!(value));
+                None
+            }
+        })
+    };
+    let input_tokens = token("input_tokens", u.tokens.input_tokens);
+    let output_tokens = token("output_tokens", u.tokens.output_tokens);
+    let cached_input_tokens = token("cached_input_tokens", u.tokens.cached_input_tokens);
+    let cache_creation_5m_tokens = token(
+        "cache_creation_5m_tokens",
+        u.tokens.cache_creation_5m_tokens,
+    );
+    let cache_creation_30m_tokens = token(
+        "cache_creation_30m_tokens",
+        u.tokens.cache_creation_30m_tokens,
+    );
+    let cache_creation_1h_tokens = token(
+        "cache_creation_1h_tokens",
+        u.tokens.cache_creation_1h_tokens,
+    );
+    let reasoning_tokens = token("reasoning_tokens", u.tokens.reasoning_tokens);
+    if !overflow_tokens.is_empty() {
+        extra.insert("tokens".into(), Value::Object(overflow_tokens));
+    }
+    let mut quantities = u.metrics.clone();
+    // Never round a reported quantity. Keep unrepresentable values in extensions.
+    let mut take = |key: &str| {
+        let value = FixedDecimal::exact(*quantities.get(key)?).ok()?;
+        quantities.remove(key);
+        Some(value)
+    };
+    let image_input_tokens = take("image_input_tokens");
+    let image_output_tokens = take("image_output_tokens");
+    let image_outputs = take("image_outputs");
+    let audio_input_tokens = take("audio_input_tokens");
+    let cached_audio_input_tokens = take("cached_audio_input_tokens");
+    let audio_output_tokens = take("audio_output_tokens");
+    let audio_seconds = take("audio_seconds");
+    let audio_characters = take("audio_characters");
+    let video_input_tokens = take("video_input_tokens");
+    let video_tokens = take("video_tokens");
+    let video_seconds = take("video_seconds");
+    let video_outputs = take("video_outputs");
+    let search_units = take("search_units");
+    let web_searches = take("web_searches");
+    let web_fetches = take("web_fetches");
+    let file_searches = take("file_searches");
+    let code_interpreter_sessions = take("code_interpreter_sessions");
+    let tool_calls = take("tool_calls");
+    let requests = take("requests");
+    if !quantities.is_empty() {
+        extra.insert("metrics".into(), json!(quantities));
+    }
+    if !u.dimensions.is_empty() {
+        extra.insert("dimensions".into(), json!(u.dimensions));
+    }
+    if !u.attempts.is_empty() {
+        extra.insert("attempts".into(), json!(u.attempts.iter().map(|a| json!({"model": a.model, "usage": usage_json(&a.usage), "billable": a.billable, "started_at_ms": a.started_at_ms})).collect::<Vec<_>>()));
+    }
+    if !u.responses.is_empty() {
+        extra.insert(
+            "responses".into(),
+            json!(
+                u.responses
+                    .iter()
+                    .map(|r| json!({"id": r.id, "usage": usage_json(&r.usage)}))
+                    .collect::<Vec<_>>()
+            ),
+        );
+    }
+    usage_record::ActiveModel {
+        downstream_request_id: Set(None),
+        provider_id: Set(None),
+        credential_id: Set(None),
+        attempt_id: Set(None),
+        attempt_ordinal: Set(None),
+        input_tokens: Set(input_tokens),
+        output_tokens: Set(output_tokens),
+        cached_input_tokens: Set(cached_input_tokens),
+        cache_creation_5m_tokens: Set(cache_creation_5m_tokens),
+        cache_creation_30m_tokens: Set(cache_creation_30m_tokens),
+        cache_creation_1h_tokens: Set(cache_creation_1h_tokens),
+        reasoning_tokens: Set(reasoning_tokens),
+        image_input_tokens: Set(image_input_tokens),
+        image_output_tokens: Set(image_output_tokens),
+        image_outputs: Set(image_outputs),
+        audio_input_tokens: Set(audio_input_tokens),
+        cached_audio_input_tokens: Set(cached_audio_input_tokens),
+        audio_output_tokens: Set(audio_output_tokens),
+        audio_seconds: Set(audio_seconds),
+        audio_characters: Set(audio_characters),
+        video_input_tokens: Set(video_input_tokens),
+        video_tokens: Set(video_tokens),
+        video_seconds: Set(video_seconds),
+        video_outputs: Set(video_outputs),
+        search_units: Set(search_units),
+        web_searches: Set(web_searches),
+        web_fetches: Set(web_fetches),
+        file_searches: Set(file_searches),
+        code_interpreter_sessions: Set(code_interpreter_sessions),
+        tool_calls: Set(tool_calls),
+        requests: Set(requests),
+        completeness: Set(Some(format!("{:?}", u.completeness).to_lowercase())),
+        actual_service_tier: Set(u.actual_service_tier.clone()),
+        metrics: Set(Value::Object(extra)),
+        ..Default::default()
+    }
 }

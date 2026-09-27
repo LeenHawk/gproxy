@@ -16,7 +16,7 @@ use gproxy_store::entity::{
     usage::{capture_event as event, capture_record as capture, usage_record},
 };
 use http::StatusCode;
-use sea_orm::{EntityTrait, Set};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::json;
 use std::{sync::Arc, time::Duration};
 use support::*;
@@ -68,7 +68,10 @@ async fn usages(h: &Harness) -> Vec<usage_record::Model> {
     h.core
         .store()
         .usage_records()
-        .query(usage_record::Entity::find())
+        .query(
+            usage_record::Entity::find()
+                .filter(usage_record::Column::Side.eq(capture::CaptureSide::Downstream)),
+        )
         .await
         .unwrap()
 }
@@ -157,10 +160,23 @@ async fn retries_keep_both_bodies_and_usage_but_write_one_request_summary() {
     assert_eq!(usage.len(), 1);
     assert_eq!(usage[0].user_id.as_deref(), Some("historical-user"));
     assert_eq!(usage[0].model, "public-alias");
-    assert_eq!(usage[0].metrics["tokens"]["input_tokens"], 6);
-    assert_eq!(usage[0].metrics["tokens"]["output_tokens"], 4);
-    assert_eq!(usage[0].metrics["exchanges"].as_array().unwrap().len(), 2);
-    assert_eq!(usage[0].metrics["state"], "completed");
+    assert_eq!(usage[0].input_tokens, Some(6));
+    assert_eq!(usage[0].output_tokens, Some(4));
+    assert_eq!(
+        h.core
+            .store()
+            .usage_records()
+            .query(
+                usage_record::Entity::find()
+                    .filter(usage_record::Column::Side.eq(capture::CaptureSide::Upstream))
+            )
+            .await
+            .unwrap()
+            .len(),
+        2
+    );
+    assert!(usage[0].metrics.get("exchanges").is_none());
+    assert_eq!(usage[0].state.as_deref(), Some("completed"));
 }
 
 #[tokio::test]
@@ -204,7 +220,7 @@ async fn dropped_response_preserves_received_bytes_and_partial_usage() {
     let ev = events(&h).await;
     assert!(ev.iter().any(|e| e.payload.starts_with(b"{\"usage\"")));
     assert!(!ev.iter().any(|e| e.payload == b"never read"));
-    assert_eq!(usages(&h).await[0].metrics["state"], "cancelled");
+    assert_eq!(usages(&h).await[0].state.as_deref(), Some("cancelled"));
 }
 
 struct PendingClient(Arc<tokio::sync::Notify>);
@@ -267,8 +283,8 @@ async fn dropping_send_future_before_headers_still_finalizes_records() {
         capture::CaptureBodyState::Partial
     );
     let usage = usages(&h).await;
-    assert_eq!(usage[0].metrics["state"], "cancelled");
-    assert!(usage[0].metrics["tokens"]["input_tokens"].is_null());
+    assert_eq!(usage[0].state.as_deref(), Some("cancelled"));
+    assert!(usage[0].input_tokens.is_none());
 }
 
 #[tokio::test]
@@ -657,7 +673,7 @@ async fn transport_failure_is_retained_when_retry_succeeds() {
     assert_eq!(rows[0].response_status, None);
     assert_eq!(rows[0].metrics, None);
     assert_eq!(rows[1].state, capture::CaptureState::Completed);
-    assert_eq!(usages(&h).await[0].metrics["tokens"]["input_tokens"], 7);
+    assert_eq!(usages(&h).await[0].input_tokens, Some(7));
 }
 
 struct InterruptedBody {
@@ -785,8 +801,8 @@ async fn preparation_failure_is_failed_not_cancelled_and_creates_no_fake_exchang
     assert!(captures(&h).await.is_empty());
     let rows = usages(&h).await;
     assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].metrics["state"], "failed");
-    assert_eq!(rows[0].metrics["completeness"], "unknown");
+    assert_eq!(rows[0].state.as_deref(), Some("failed"));
+    assert_eq!(rows[0].completeness.as_deref(), Some("unknown"));
 }
 
 #[tokio::test]
@@ -842,4 +858,136 @@ async fn caller_usage_reads_persisted_user_attribution_instead_of_opaque_scope()
         let body: serde_json::Value = serde_json::from_str(&read(response.body).await).unwrap();
         assert_eq!(body["input_tokens"], expected);
     }
+}
+
+#[tokio::test]
+async fn structured_usage_preserves_cache_media_tools_and_unknowns_without_logs() {
+    use gproxy_channel::channel::{NormalizedUsage, TokenUsage, UsageCompleteness};
+    use gproxy_core::{
+        ExchangeUsage, StoreObserver, UsageReport, observe::Observer, pricing::Cost,
+    };
+    use rust_decimal::Decimal;
+    let h = persistent().await;
+    settings(&h, false, true, false, false).await;
+    let request = h.context("structured", 1, None);
+    let mut upstream = NormalizedUsage {
+        tokens: TokenUsage {
+            input_tokens: Some(11),
+            output_tokens: Some(19),
+            cached_input_tokens: Some(23),
+            cache_creation_5m_tokens: Some(29),
+            cache_creation_30m_tokens: Some(31),
+            cache_creation_1h_tokens: Some(37),
+            reasoning_tokens: Some(7),
+        },
+        completeness: UsageCompleteness::Complete,
+        actual_service_tier: Some("priority".into()),
+        ..Default::default()
+    };
+    for key in [
+        "image_input_tokens",
+        "image_output_tokens",
+        "image_outputs",
+        "audio_input_tokens",
+        "cached_audio_input_tokens",
+        "audio_output_tokens",
+        "audio_characters",
+        "video_input_tokens",
+        "video_tokens",
+        "video_outputs",
+        "search_units",
+        "web_searches",
+        "web_fetches",
+        "file_searches",
+        "code_interpreter_sessions",
+        "tool_calls",
+        "requests",
+    ] {
+        upstream.metrics.insert(key.into(), Decimal::from(3));
+    }
+    upstream
+        .metrics
+        .insert("audio_seconds".into(), "1.25".parse().unwrap());
+    // Neither uncommon precision nor a vendor-defined counter may be rounded/lost.
+    upstream
+        .metrics
+        .insert("video_seconds".into(), "0.123456789012".parse().unwrap());
+    upstream
+        .metrics
+        .insert("vendor_compute".into(), "0.000000000001".parse().unwrap());
+    upstream
+        .dimensions
+        .insert("tool_name".into(), "search".into());
+    let downstream = NormalizedUsage {
+        tokens: TokenUsage {
+            output_tokens: Some(0),
+            cached_input_tokens: Some(u64::MAX),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let observer = StoreObserver::new(h.core.store().clone());
+    observer
+        .usage(
+            &request,
+            &UsageReport {
+                request_id: request.request_id.clone(),
+                downstream_usage: Some(downstream),
+                exchanges: vec![ExchangeUsage {
+                    capture_id: "structured-up".into(),
+                    attempt_id: "attempt".into(),
+                    attempt_ordinal: 1,
+                    provider_id: "p".into(),
+                    credential_id: "c".into(),
+                    upstream_model: Some("m".into()),
+                    usage: upstream.clone(),
+                    cost: Some(Cost {
+                        amount: "0.125".parse().unwrap(),
+                        currency: "USD".into(),
+                    }),
+                }],
+                cost: Some(Cost {
+                    amount: "0.1".parse().unwrap(),
+                    currency: "USD".into(),
+                }),
+                state: UsageState::Completed,
+            },
+        )
+        .await;
+    assert!(captures(&h).await.is_empty());
+    let rows = h
+        .core
+        .store()
+        .usage_records()
+        .get_many(&["structured".into(), "structured-up".into()])
+        .await
+        .unwrap();
+    let down = rows[0].as_ref().unwrap();
+    let up = rows[1].as_ref().unwrap();
+    assert_eq!(down.input_tokens, None);
+    assert_eq!(down.output_tokens, Some(0));
+    assert_eq!(down.cached_input_tokens(), Some(u64::MAX));
+    assert_eq!(down.cost.unwrap().to_string(), "0.1");
+    assert_eq!(up.side, capture::CaptureSide::Upstream);
+    assert_eq!(up.downstream_request_id.as_deref(), Some("structured"));
+    assert_eq!(
+        (up.input_tokens, up.output_tokens, up.cached_input_tokens),
+        (Some(11), Some(19), Some(23))
+    );
+    assert_eq!(
+        (
+            up.cache_creation_5m_tokens,
+            up.cache_creation_30m_tokens,
+            up.cache_creation_1h_tokens
+        ),
+        (Some(29), Some(31), Some(37))
+    );
+    assert_eq!(up.reasoning_tokens, Some(7));
+    assert_eq!(up.audio_seconds.unwrap().to_string(), "1.25");
+    assert_eq!(up.tool_calls.unwrap().to_string(), "3");
+    assert_eq!(up.quantities(), upstream.metrics);
+    assert_eq!(up.metrics["dimensions"]["tool_name"], "search");
+    assert!(up.metrics.get("tokens").is_none());
+    assert!(up.metrics["metrics"].get("audio_seconds").is_none());
+    assert!(down.metrics.get("exchanges").is_none());
 }

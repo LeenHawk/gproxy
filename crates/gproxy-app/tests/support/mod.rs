@@ -493,7 +493,8 @@ pub async fn usage_row(handle: &Handle, request_id: &str, user_id: &str, input_t
             user_id: Set(Some(user_id.into())),
             model: Set("test/m1".into()),
             operation: Set("generate_content".into()),
-            metrics: Set(json!({"input_tokens": input_tokens})),
+            input_tokens: Set(Some(input_tokens as i64)),
+            metrics: Set(json!({})),
             started_at_ms: Set(0),
             ..Default::default()
         }])

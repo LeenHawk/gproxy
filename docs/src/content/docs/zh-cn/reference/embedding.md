@@ -143,14 +143,14 @@ let (response, usage) = execution.into_parts();
 | `quota()` | `windows`、`settlements`、`credential_cycles`、`credential_observations`、`counted_windows`、`budget_status` |
 | `logs()` | `list`、`detail(request_id)` |
 
-**聚合在 Rust 侧完成，并带扫描上限。** 用量的 metrics 列是每请求一份 JSON 文档，本产品
-支持的任何后端都无法在其内部求和，因此 `summary`、`group` 和 `trend` 读出匹配行并按键序
-分块折叠。每个聚合都有一个扫描预算，默认并被钳制为 50 000 行，而用满预算的聚合会带着
+**聚合在 Rust 侧完成，并带扫描上限。** 固定用量字段使用专有列，下游汇总与上游调用
+分行保存。供应商、凭证筛选在 SQL 中完成；`summary`、`group` 和 `trend` 对匹配行及
+自定义指标按键序分块聚合。每个聚合都有一个扫描预算，默认并被钳制为 50 000 行，而用满预算的聚合会带着
 `truncated: true` 和扫描计数回来——绝不把一个更小的数字当成全部事实。趋势还有第二重边界：
 零或负的桶宽、倒着的区间，以及会产生超过 5 000 个桶的区间，一律拒绝。
 
-有两个数不来自那份文档。费用读的是结算时写一次的那个带索引的列；而当被扫到的记录在币种
-上不一致时 currency 是 `None`，因为把美元和欧元加起来不是一个合计。
+费用读取专有列，统一为 USD；没有已计价记录时 currency 为 `None`。
+`quantities` 用十进制字符串返回媒体、工具和自定义数量。
 
 **管理列表用 offset 分页，请求日志用游标。** 这不是风格选择：管理列表是人翻的有界集合，
 而请求日志是一边被读一边在增长的追加流，offset 在它上面会重复或漏行。日志游标是两半的

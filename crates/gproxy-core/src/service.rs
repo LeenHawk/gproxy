@@ -42,7 +42,6 @@ use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::entity::{resource::resource_binding, usage::usage_record};
 use rust_decimal::{Decimal, prelude::ToPrimitive};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
-use serde_json::Value;
 use std::{collections::BTreeMap, sync::Arc};
 
 /// One vendor service call. `B` is `HttpBody` for `call_service` and `()`
@@ -165,19 +164,6 @@ fn record_of(row: resource_binding::Model) -> ResourceBindingRecord {
     }
 }
 
-/// Token counts a host wrote into `usage_records.metrics`, read leniently:
-/// `input_tokens`/`output_tokens` at the top level or under `tokens`.
-fn tokens_of(metrics: &Value) -> (u64, u64) {
-    let read = |name: &str| {
-        metrics
-            .get(name)
-            .or_else(|| metrics.pointer(&format!("/tokens/{name}")))
-            .and_then(Value::as_u64)
-            .unwrap_or(0)
-    };
-    (read("input_tokens"), read("output_tokens"))
-}
-
 impl<C: BatchConnectionTrait + Send + Sync> TargetCaller<'_, C> {
     fn binding_query(&self, kind: &str) -> sea_orm::Select<resource_binding::Entity> {
         let query = resource_binding::Entity::find()
@@ -210,6 +196,9 @@ impl<C: BatchConnectionTrait + Send + Sync> TargetCaller<'_, C> {
                 .query(
                     usage_record::Entity::find()
                         .filter(usage_record::Column::UserId.eq(user_id))
+                        .filter(usage_record::Column::Side.eq(
+                            gproxy_store::entity::usage::capture_record::CaptureSide::Downstream,
+                        ))
                         .filter(
                             usage_record::Column::Operation.is_in(
                                 gproxy_protocol::Operation::usage_operations()
@@ -225,7 +214,10 @@ impl<C: BatchConnectionTrait + Send + Sync> TargetCaller<'_, C> {
         let mut cost = Decimal::ZERO;
         let mut costed = false;
         for row in rows {
-            let (input, output) = tokens_of(&row.metrics);
+            let (input, output) = (
+                row.input_tokens().unwrap_or(0),
+                row.output_tokens().unwrap_or(0),
+            );
             usage.input_tokens = usage.input_tokens.saturating_add(input);
             usage.output_tokens = usage.output_tokens.saturating_add(output);
             if let Some(value) = row.cost {
