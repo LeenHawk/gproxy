@@ -1,5 +1,6 @@
 //! One worker command per batch, with individual SQL templates in the driver's
-//! bounded cache. Encode owned parameters once; retries clone only driver Arcs.
+//! bounded cache. Callers encode parameters before enqueueing; the drainer only
+//! moves ready commands. SQL and parameter payloads remain shared for retries.
 
 use crate::{BatchResult, BatchStatement};
 use sea_orm::{
@@ -10,69 +11,9 @@ use sea_orm::{
     },
 };
 use sea_query_sqlx::SqlxValues;
+use std::sync::Arc;
 
-/// Keep scripts and unusual parameter scopes on the existing native path.
-/// This also preserves one result boundary per BatchStatement.
-pub(super) fn compatible<'a>(groups: impl Iterator<Item = &'a [BatchStatement]>) -> bool {
-    groups.flatten().all(|step| {
-        let statement = step.statement();
-        anonymous_binds(&statement.sql) == Some(statement.values.as_ref().map_or(0, |v| v.0.len()))
-    })
-}
-
-fn anonymous_binds(sql: &str) -> Option<usize> {
-    let mut bytes = sql.bytes().peekable();
-    let mut count = 0;
-    let mut has_sql = false;
-    while let Some(byte) = bytes.next() {
-        match byte {
-            b'\'' | b'"' | b'`' => {
-                has_sql = true;
-                loop {
-                    if bytes.next()? == byte {
-                        if bytes.peek() != Some(&byte) {
-                            break;
-                        }
-                        bytes.next();
-                    }
-                }
-            }
-            b'[' => {
-                has_sql = true;
-                while bytes.next()? != b']' {}
-            }
-            b'-' if bytes.peek() == Some(&b'-') => {
-                for byte in bytes.by_ref() {
-                    if byte == b'\n' {
-                        break;
-                    }
-                }
-            }
-            b'/' if bytes.peek() == Some(&b'*') => {
-                bytes.next();
-                loop {
-                    if bytes.next()? == b'*' && bytes.peek() == Some(&b'/') {
-                        bytes.next();
-                        break;
-                    }
-                }
-            }
-            b'?' => {
-                has_sql = true;
-                if bytes.peek().is_some_and(u8::is_ascii_digit) {
-                    return None;
-                }
-                count += 1;
-            }
-            b';' | b'$' | b':' | b'@' => return None,
-            _ if !byte.is_ascii_whitespace() => has_sql = true,
-            _ => {}
-        }
-    }
-    has_sql.then_some(count)
-}
-
-fn encode(steps: Vec<BatchStatement>) -> Vec<SqliteBatchStatement> {
+pub(super) fn encode(steps: Vec<BatchStatement>) -> Vec<SqliteBatchStatement> {
     steps
         .into_iter()
         .map(|step| {
@@ -81,7 +22,7 @@ fn encode(steps: Vec<BatchStatement>) -> Vec<SqliteBatchStatement> {
                 BatchStatement::Query(query) => (query.statement, true),
             };
             SqliteBatchStatement {
-                sql: AssertSqlSafe(statement.sql).into_sql_str(),
+                sql: AssertSqlSafe(Arc::<str>::from(statement.sql)).into_sql_str(),
                 arguments: SqlxValues(
                     statement
                         .values
@@ -144,28 +85,33 @@ async fn transaction(
 /// job in order, retaining its isolation and its own result/error classification.
 pub(super) async fn run_jobs(
     pool: &SqlitePool,
-    jobs: Vec<(Vec<BatchStatement>, bool)>,
+    jobs: &mut [super::Job],
 ) -> Vec<Result<Vec<BatchResult>, DbErr>> {
-    let jobs: Vec<_> = jobs
-        .into_iter()
-        .map(|(steps, transactional)| (encode(steps), transactional))
-        .collect();
-    if jobs.len() > 1 {
-        let steps: Vec<_> = jobs
-            .iter()
-            .flat_map(|(steps, _)| steps.iter().cloned())
-            .collect();
+    let grouped = jobs.len() > 1;
+    if grouped {
+        let length = jobs.iter().map(|job| job.statements.len()).sum();
+        let mut steps = Vec::with_capacity(length);
+        for job in &mut *jobs {
+            steps.append(&mut job.statements);
+        }
         if let Ok(results) = transaction(pool, steps).await {
             let mut results = results.into_iter();
             return jobs
                 .iter()
-                .map(|(steps, _)| Ok(results.by_ref().take(steps.len()).collect()))
+                .map(|job| Ok(results.by_ref().take(job.replay.len()).collect()))
                 .collect();
         }
     }
     let mut results = Vec::with_capacity(jobs.len());
-    for (steps, transactional) in jobs {
-        results.push(if transactional {
+    for job in jobs {
+        // Only a failed group needs another argument-vector copy. Payloads and
+        // SQL text remain shared; nothing is re-encoded on the retry path.
+        let steps = if grouped {
+            job.replay.to_vec()
+        } else {
+            std::mem::take(&mut job.statements)
+        };
+        results.push(if job.transactional {
             transaction(pool, steps).await
         } else {
             match pool.acquire().await {
@@ -181,11 +127,8 @@ pub(super) async fn run_jobs(
 async fn run<'a>(
     pool: &SqlitePool,
     groups: impl Iterator<Item = &'a [BatchStatement]>,
-) -> Option<Result<Vec<Vec<BatchResult>>, DbErr>> {
+) -> Result<Vec<Vec<BatchResult>>, DbErr> {
     let groups: Vec<_> = groups.collect();
-    if !compatible(groups.iter().copied()) {
-        return None;
-    }
     let lengths: Vec<_> = groups.iter().map(|group| group.len()).collect();
     let steps = encode(
         groups
@@ -193,13 +136,13 @@ async fn run<'a>(
             .flat_map(|group| group.iter().cloned())
             .collect(),
     );
-    Some(transaction(pool, steps).await.map(|results| {
+    transaction(pool, steps).await.map(|results| {
         let mut results = results.into_iter();
         lengths
             .into_iter()
             .map(|length| results.by_ref().take(length).collect())
             .collect()
-    }))
+    })
 }
 
 #[cfg(test)]
@@ -258,10 +201,7 @@ mod tests {
                     )));
                 }
             }
-            run(pool, std::iter::once(steps.as_slice()))
-                .await
-                .unwrap()
-                .unwrap();
+            run(pool, std::iter::once(steps.as_slice())).await.unwrap();
         }
         let connection = pool.acquire().await.unwrap();
         assert_eq!(connection.cached_statements_size(), 3);
@@ -289,7 +229,6 @@ mod tests {
             [write.as_slice(), changes.as_slice(), last.as_slice()].into_iter(),
         )
         .await
-        .expect("mixed statements use the pipeline")
         .unwrap();
         assert!(matches!(&result[0][0], BatchResult::Executed(r) if r.rows_affected() == 1));
         let BatchResult::Rows(before) = &result[1][0] else {
@@ -368,7 +307,6 @@ mod tests {
             [first.as_slice(), second.as_slice()].into_iter(),
         )
         .await
-        .expect("the statements use the bound group path")
         .unwrap();
         let affected: Vec<Vec<u64>> = results
             .into_iter()
@@ -415,7 +353,6 @@ mod tests {
             std::iter::once(steps.as_slice()),
         )
         .await
-        .unwrap()
         .unwrap_err();
         assert!(
             error.to_string().contains("UNIQUE constraint failed"),
@@ -450,7 +387,6 @@ mod tests {
                 sql,
                 values,
             ))];
-            assert!(!compatible(std::iter::once(steps.as_slice())));
             db.batch(&steps).await.unwrap();
         }
         let rows = db
@@ -466,6 +402,44 @@ mod tests {
                 .collect::<Vec<_>>(),
             [7, 8, 9, 10, 11, 12]
         );
+    }
+
+    #[tokio::test]
+    async fn scripts_and_numbered_queries_keep_one_result_per_step() {
+        let db = database().await;
+        let results = db
+            .batch_owned(vec![
+                BatchStatement::Execute(Statement::from_sql_and_values(
+                    DbBackend::Sqlite,
+                    "INSERT INTO t (id) VALUES (?); INSERT INTO t (id) VALUES (?)",
+                    [41_i64.into(), 42_i64.into()],
+                )),
+                read(
+                    "SELECT ? AS value; SELECT ? AS value",
+                    [7_i64.into(), 8_i64.into()],
+                ),
+                read("SELECT ?1 AS value, ?1 AS again", [9_i64.into()]),
+                read("-- no query", []),
+            ])
+            .await
+            .unwrap();
+        assert_eq!(results.len(), 4);
+        assert!(matches!(&results[0], BatchResult::Executed(r) if r.rows_affected() == 2));
+        let BatchResult::Rows(rows) = &results[1] else {
+            panic!("script rows")
+        };
+        assert_eq!(
+            rows.iter()
+                .map(|r| r.try_get::<i64>("", "value").unwrap())
+                .collect::<Vec<_>>(),
+            [7, 8]
+        );
+        let BatchResult::Rows(rows) = &results[2] else {
+            panic!("numbered rows")
+        };
+        assert_eq!(rows[0].try_get::<i64>("", "value").unwrap(), 9);
+        assert_eq!(rows[0].try_get::<i64>("", "again").unwrap(), 9);
+        assert!(matches!(&results[3], BatchResult::Rows(rows) if rows.is_empty()));
     }
 
     #[tokio::test]

@@ -126,10 +126,14 @@ queries and write batches submitted through this trait in one ordered queue.
 Mixed reads/writes are dispatched as one worker command, with parameters bound
 independently and one result per input statement. Each individual SQL template
 reuses the driver's bounded prepared-statement cache; no scripts are concatenated.
-Owned parameters are encoded once, and retry copies share driver text/blob buffers.
+Callers encode parameters and prepare retry data before enqueueing. The drainer
+moves ready commands into a pre-sized batch rather than scanning SQL or cloning
+argument vectors. SQL text and parameter text/blob payloads are shared; normal
+completion releases the retained payloads on the caller's task.
 A lone ordinary query avoids BEGIN/COMMIT; grouped jobs share a transaction. A
-failed group rolls back before each job is retried alone. Scripts and unusual
-parameter scopes retain the ordinary native execution path.
+failed group rolls back before each job is retried alone. Scripts and numbered
+parameters keep SQLx's native per-statement binding scope, and a script still
+produces one batch result (combined execution metadata or collected rows).
 
 This uses the small `sqlx-sqlite` 0.9.0 extension in `vendor/sqlx-sqlite`, selected
 by the root Cargo patch. See its `GPROXY_PATCH.md` for the upstream source and
