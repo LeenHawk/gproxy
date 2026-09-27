@@ -121,6 +121,13 @@ native transaction and skips D1 projection construction on native drivers.
 D1/libSQL retain the projection they need to decode remote rows. Use `query_batch`
 when multiple reads must share a snapshot.
 
+With the native `group-commit` feature, `group::install(&connection)` puts SQLite
+queries and write batches submitted through this trait in one ordered queue. Mixed reads/writes execute in
+bounded, parameter-bound commands and retain one result per input statement.
+Only matching SQL shapes enter the persistent statement cache; changing mixed
+scripts do not. A lone ordinary query avoids BEGIN/COMMIT, while grouped jobs
+share a transaction. A failed group rolls back before each job is retried alone.
+
 | Method | Input | Result |
 |---|---|---|
 | `atomic_batch` | Insert/update/delete statements | An `ExecResult` per statement |

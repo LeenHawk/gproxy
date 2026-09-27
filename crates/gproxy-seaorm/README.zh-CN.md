@@ -102,6 +102,11 @@ SeaORM 的 ProxyRow 内部按键排序；使用 `into_tuple()` 或 `try_get_by_i
 事务，也不会构造它用不到的 D1 投影。D1/libSQL 仍保留远端解码所需的类型信息。
 多次读取需要共享快照时，继续使用 `query_batch`。
 
+原生 `group-commit` feature 下，`group::install(&connection)` 将本接口发起的 SQLite 查询和写入批次
+放入同一个有序队列。异构读写以有界、保留参数绑定的命令执行，并保留逐语句结果。
+只有相同 SQL 结构进入长期语句缓存，动态混合脚本不缓存。单独的普通查询不额外执行
+BEGIN/COMMIT，合组任务共享事务；合组失败先回滚，再逐任务执行，隔离各自的失败。
+
 | 方法 | 输入 | 返回 |
 |---|---|---|
 | `atomic_batch` | 批量增删改 SQL | 按输入顺序返回每条语句的 ExecResult |
