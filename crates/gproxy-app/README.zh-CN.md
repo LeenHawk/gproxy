@@ -367,6 +367,9 @@ await，只能 spawn。
 | 正文存放 | `capture_events`，流式 | 内联列，缓冲 |
 | WebSocket 帧 | `capture_events`，一帧一行 | `capture_events`，一帧一行，缓冲 |
 
+新实例上这四个开关都是关的。记一次交换，每个请求就要多写两条记录；在只有一个写连接的
+SQLite 上，这占了一个请求开销的大头，所以日志要由运维自己打开。
+
 四个开关都从请求所钉住的那个 revision 的 `settings` 行读出，与装配 `AppData` 是同一次
 读——不从 `AppConfig` 读，也不另起一套。
 

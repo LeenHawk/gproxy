@@ -96,11 +96,11 @@ pub struct Model {
     pub tokenizer_auth_token: Option<Vec<u8>>,
 
     // Logging and capture
-    #[sea_orm(default_value = true)]
+    #[sea_orm(default_value = false)]
     pub enable_downstream_log: bool,
     #[sea_orm(default_value = false)]
     pub enable_downstream_log_body: bool,
-    #[sea_orm(default_value = true)]
+    #[sea_orm(default_value = false)]
     pub enable_upstream_log: bool,
     #[sea_orm(default_value = false)]
     pub enable_upstream_log_body: bool,

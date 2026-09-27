@@ -19,6 +19,20 @@ async fn instance() -> Host {
     }
     support::provider(&handle, "p1", &["m1"]).await;
     support::credential(&handle, "c1", "p1", None, None, None).await;
+    // The logs these tests read are off until an operator turns them on.
+    handle
+        .manage()
+        .settings()
+        .update(gproxy_sdk::dto::SettingsPatch {
+            logging: Some(gproxy_sdk::dto::LoggingSettingsPatch {
+                enable_downstream_log: Some(true),
+                enable_upstream_log: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
     host.publish().await;
     host
 }
