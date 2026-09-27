@@ -34,6 +34,29 @@ impl<C> Core<C> {
             .and_then(|entry| serde_json::from_slice(&entry.value).ok())
             .unwrap_or_default())
     }
+
+    /// `read_blocks` for several credentials in one cache read. Each entry is
+    /// as fresh as a `read_blocks` issued at the same moment would be.
+    pub(crate) async fn read_blocks_many(
+        &self,
+        credentials: &[Arc<CredentialData>],
+    ) -> CoreResult<Vec<CredentialBlocks>> {
+        let keys: Vec<String> = credentials
+            .iter()
+            .map(|c| keys::credential_blocks(&c.provider_id, &c.id))
+            .collect();
+        Ok(self
+            .cache
+            .get_many(&keys)
+            .await?
+            .into_iter()
+            .map(|entry| {
+                entry
+                    .and_then(|entry| serde_json::from_slice(&entry.value).ok())
+                    .unwrap_or_default()
+            })
+            .collect())
+    }
 }
 
 impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
@@ -50,11 +73,11 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
         let provider = &request.target.provider;
         let model = request.target.upstream_model.as_deref();
         let operation: Operation = request.operation.operation;
-        let mut eligible: Vec<(Arc<CredentialData>, CredentialBlocks)> = Vec::new();
         // The first dead candidate, as it was when seen: the credential state
-        // is shared and can revive while this loop awaits, so looking it up
-        // again afterwards could find none.
+        // is shared and can revive while this awaits, so looking it up again
+        // afterwards could find none.
         let mut dead = None;
+        let mut candidates = Vec::with_capacity(request.target.credentials.len());
         for credential in &request.target.credentials {
             if excluded.contains(&credential.id)
                 || credential.provider_id != provider.entity.id
@@ -71,14 +94,15 @@ impl<C: gproxy_seaorm::BatchConnectionTrait> Core<C> {
                 });
                 continue;
             }
-            let blocks = self
-                .read_blocks(&credential.provider_id, &credential.id)
-                .await?;
-            if blocks.blocked_by(model, operation, now_ms).is_some() {
-                continue;
-            }
-            eligible.push((credential.clone(), blocks));
+            candidates.push(credential.clone());
         }
+        // Every candidate's blocks in one read rather than one per credential.
+        let blocks = self.read_blocks_many(&candidates).await?;
+        let mut eligible: Vec<(Arc<CredentialData>, CredentialBlocks)> = candidates
+            .into_iter()
+            .zip(blocks)
+            .filter(|(_, blocks)| blocks.blocked_by(model, operation, now_ms).is_none())
+            .collect();
         if eligible.is_empty() {
             return Err(dead.unwrap_or(CoreError::NoUsableCredential));
         }

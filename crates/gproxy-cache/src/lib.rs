@@ -126,6 +126,17 @@ pub trait Subscription: Send {
 #[async_trait::async_trait]
 pub trait Cache: Send + Sync {
     async fn get(&self, key: &str) -> Result<Option<Entry>>;
+    /// `get` for each key, answered in the order asked. Each key is read
+    /// atomically on its own, exactly as `get` reads it; the batch is not a
+    /// snapshot across keys. It exists so a caller that needs many keys at
+    /// once pays one lock, round trip or query instead of one per key.
+    async fn get_many(&self, keys: &[String]) -> Result<Vec<Option<Entry>>> {
+        let mut entries = Vec::with_capacity(keys.len());
+        for key in keys {
+            entries.push(self.get(key).await?);
+        }
+        Ok(entries)
+    }
     async fn put(&self, key: &str, value: Vec<u8>, ttl: Duration) -> Result<Version>;
     async fn delete(&self, key: &str) -> Result<bool>;
     /// None expects absence, including expiry. None replacement deletes.

@@ -81,6 +81,51 @@ async fn values(a: Arc<dyn Cache>, b: Arc<dyn Cache>) {
     b.increment("domains", 1, 2, TTL).await.unwrap();
     assert_eq!(a.get("domains").await.unwrap().unwrap().value, [42]);
 }
+async fn values_many(a: Arc<dyn Cache>, b: Arc<dyn Cache>) {
+    assert!(a.get_many(&[]).await.unwrap().is_empty());
+    let one = a.put("many-one", vec![1], TTL).await.unwrap();
+    a.put("many-gone", vec![2], Duration::from_millis(1))
+        .await
+        .unwrap();
+    a.put("many-three", vec![3], TTL).await.unwrap();
+    // A counter under the same name is another domain, not a value.
+    a.increment("many-counter", 1, 2, TTL).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    let keys = [
+        "many-three",
+        "many-missing",
+        "many-gone",
+        "many-one",
+        "many-counter",
+        "many-one",
+    ]
+    .map(String::from);
+    let entries = b.get_many(&keys).await.unwrap();
+    // Answered in the order asked, duplicates included, each as `get` would.
+    let values: Vec<_> = entries
+        .iter()
+        .map(|e| e.as_ref().map(|e| e.value.clone()))
+        .collect();
+    assert_eq!(
+        values,
+        [
+            Some(vec![3]),
+            None,
+            None,
+            Some(vec![1]),
+            None,
+            Some(vec![1])
+        ]
+    );
+    assert_eq!(entries[3].as_ref().unwrap().version, one);
+    for (key, entry) in keys.iter().zip(&entries) {
+        assert_eq!(&b.get(key).await.unwrap(), entry, "{key}");
+    }
+    assert!(matches!(
+        a.get_many(&["many-one".into(), String::new()]).await,
+        Err(CacheError::Invalid(_))
+    ));
+}
 async fn counters(a: Arc<dyn Cache>, b: Arc<dyn Cache>) {
     assert_eq!(
         a.increment("too-large", 2, 1, TTL).await.unwrap(),
@@ -306,6 +351,7 @@ macro_rules! test_contract {
     };
 }
 test_contract!(memory_values, redis_values, values);
+test_contract!(memory_values_many, redis_values_many, values_many);
 test_contract!(memory_counters, redis_counters, counters);
 test_contract!(memory_permits, redis_permits, permits);
 test_contract!(memory_contention, redis_contention, contention);

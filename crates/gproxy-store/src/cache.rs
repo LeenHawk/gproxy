@@ -212,6 +212,31 @@ impl<C: BatchConnectionTrait + Send + Sync> Cache for StoreCache<C> {
             .transpose()
     }
 
+    /// One read for every key, instead of a query per key.
+    async fn get_many(&self, keys: &[String]) -> Result<Vec<Option<Entry>>> {
+        for key in keys {
+            self.check_key(key)?;
+        }
+        let now = now_ms();
+        self.store
+            .cache_entries()
+            .get_many(keys)
+            .await
+            .map_err(storage)?
+            .into_iter()
+            .map(|row| {
+                row.filter(|row| row.expires_at_ms > now)
+                    .map(|row| {
+                        Ok(Entry {
+                            value: row.value,
+                            version: version_of(&row.version)?,
+                        })
+                    })
+                    .transpose()
+            })
+            .collect()
+    }
+
     async fn put(&self, key: &str, value: Vec<u8>, ttl: Duration) -> Result<Version> {
         self.check_key(key)?;
         if value.len() > self.limits.max_value_bytes {

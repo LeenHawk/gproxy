@@ -148,6 +148,20 @@ impl Cache for MemoryCache {
         state.expire_key(key, Instant::now());
         Ok(state.values.get(key).map(|v| v.value.clone()))
     }
+    async fn get_many(&self, keys: &[String]) -> Result<Vec<Option<Entry>>> {
+        for key in keys {
+            self.0.options.limits.key(key)?;
+        }
+        let now = Instant::now();
+        let mut state = self.state()?;
+        Ok(keys
+            .iter()
+            .map(|key| {
+                state.expire_key(key, now);
+                state.values.get(key.as_str()).map(|v| v.value.clone())
+            })
+            .collect())
+    }
     async fn put(&self, key: &str, value: Vec<u8>, ttl: Duration) -> Result<Version> {
         self.0.options.limits.key(key)?;
         self.0.options.limits.value(&value)?;

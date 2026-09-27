@@ -439,8 +439,7 @@ impl<C> Gproxy<C> {
         }
         let model = candidate.upstream_model.as_deref();
         let operation = request.operation.operation;
-        let mut usable = Vec::new();
-        let mut blocked = Vec::new();
+        let mut candidates = Vec::new();
         for id in &candidate.provider.credential_ids {
             if let Some(allowed) = request.allowed_credentials
                 && !allowed.contains(id)
@@ -456,17 +455,21 @@ impl<C> Gproxy<C> {
             if credential.state.load().status == CredentialStatus::Dead {
                 continue;
             }
-            if self
-                .blocks(&credential.provider_id, &credential.id)
-                .await
-                .blocked_by(model, operation, now_ms)
-                .is_some()
-            {
-                blocked.push(credential.clone());
-            } else {
-                usable.push(credential.clone());
-            }
+            candidates.push(credential.clone());
         }
+        let blocks = self.blocks(&candidates).await;
+        let (blocked, usable): (Vec<_>, Vec<_>) = candidates
+            .into_iter()
+            .zip(blocks)
+            .partition(|(_, blocks)| blocks.blocked_by(model, operation, now_ms).is_some());
+        let usable: Vec<_> = usable
+            .into_iter()
+            .map(|(credential, _)| credential)
+            .collect();
+        let blocked: Vec<_> = blocked
+            .into_iter()
+            .map(|(credential, _)| credential)
+            .collect();
         let (mut credentials, health) = if !usable.is_empty() {
             (usable, 0)
         } else if !blocked.is_empty() {
@@ -483,24 +486,32 @@ impl<C> Gproxy<C> {
     /// only costs a wasted position in the order. A cache that cannot answer
     /// is therefore treated as "nothing is blocked": refusing to route because
     /// the cache is down would turn a soft signal into an outage.
-    async fn blocks(&self, provider_id: &str, credential_id: &str) -> CredentialBlocks {
-        match self
-            .0
-            .cache
-            .get(&keys::credential_blocks(provider_id, credential_id))
-            .await
-        {
-            Ok(entry) => entry
-                .and_then(|entry| serde_json::from_slice(&entry.value).ok())
-                .unwrap_or_default(),
+    ///
+    /// All of a candidate's credentials are read in one cache call. Core reads
+    /// them again, as late as it can, rather than being handed these: a plan's
+    /// later targets are tried only after the earlier ones failed, by which
+    /// time a block this read missed may matter.
+    async fn blocks(&self, credentials: &[Arc<CredentialData>]) -> Vec<CredentialBlocks> {
+        let keys: Vec<String> = credentials
+            .iter()
+            .map(|c| keys::credential_blocks(&c.provider_id, &c.id))
+            .collect();
+        match self.0.cache.get_many(&keys).await {
+            Ok(entries) => entries
+                .into_iter()
+                .map(|entry| {
+                    entry
+                        .and_then(|entry| serde_json::from_slice(&entry.value).ok())
+                        .unwrap_or_default()
+                })
+                .collect(),
             Err(error) => {
                 tracing::warn!(
-                    %provider_id,
-                    %credential_id,
+                    count = credentials.len(),
                     %error,
-                    "credential blocks unreadable; treating the credential as unblocked"
+                    "credential blocks unreadable; treating the credentials as unblocked"
                 );
-                CredentialBlocks::default()
+                vec![CredentialBlocks::default(); credentials.len()]
             }
         }
     }

@@ -115,6 +115,42 @@ async fn values_are_versioned_expire_and_cas_atomically() {
 }
 
 #[tokio::test]
+async fn many_values_are_read_in_one_call_as_each_would_be_alone() {
+    let store = database().await;
+    let a = StoreCache::new(store.clone());
+    let b = StoreCache::new(store.clone());
+    let one = a.put("one", b"1".to_vec(), ttl(60)).await.unwrap();
+    a.put("gone", b"x".to_vec(), Duration::from_millis(1))
+        .await
+        .unwrap();
+    a.put("three", b"3".to_vec(), ttl(60)).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(5)).await;
+    let keys = ["three", "missing", "gone", "one", "one"].map(String::from);
+    let entries = b.get_many(&keys).await.unwrap();
+    let values: Vec<_> = entries
+        .iter()
+        .map(|e| e.as_ref().map(|e| e.value.clone()))
+        .collect();
+    assert_eq!(
+        values,
+        [
+            Some(b"3".to_vec()),
+            None,
+            None,
+            Some(b"1".to_vec()),
+            Some(b"1".to_vec())
+        ],
+        "in the order asked, duplicates included, expired rows absent"
+    );
+    assert_eq!(entries[3].as_ref().unwrap().version, one);
+    assert!(b.get_many(&[]).await.unwrap().is_empty());
+    assert!(matches!(
+        b.get_many(&[String::new()]).await,
+        Err(CacheError::Invalid(_))
+    ));
+}
+
+#[tokio::test]
 async fn counters_respect_limits_generations_and_expiry() {
     let store = database().await;
     let a = StoreCache::new(store.clone());
