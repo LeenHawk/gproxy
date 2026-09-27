@@ -586,7 +586,7 @@ impl DownstreamCapture {
         let rows = async {
             let rows = store
                 .connection()
-                .query_rows(query.batch_query(store.connection().get_database_backend())?)
+                .query_rows(query.batch_query_for(store.connection())?)
                 .await?;
             rows.iter()
                 .map(|row| {

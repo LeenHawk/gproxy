@@ -112,6 +112,15 @@ an empty collection.
 Workers `D1Connection`. Ordinary operations continue to use `ConnectionTrait`.
 Batch SQL can be generated with SeaORM/SeaQuery; the adapter has no business tables.
 
+Call `batch_owned` or `atomic_batch_owned` when the statements were just built and
+the caller no longer needs them. Native adapters can move their parameters into
+the execution queue instead of cloning them. The borrowed forms remain available.
+
+For one query, `query_rows(query.batch_query_for(&connection)?)` avoids an extra
+native transaction and skips D1 projection construction on native drivers.
+D1/libSQL retain the projection they need to decode remote rows. Use `query_batch`
+when multiple reads must share a snapshot.
+
 | Method | Input | Result |
 |---|---|---|
 | `atomic_batch` | Insert/update/delete statements | An `ExecResult` per statement |

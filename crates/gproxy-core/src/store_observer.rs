@@ -112,17 +112,15 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Observer for StoreObserver
             };
             let mut metrics = usage_json(report.downstream_usage.as_ref().unwrap_or(&aggregate));
             metrics["state"] = json!(format!("{:?}", report.state).to_lowercase());
-            metrics["exchanges"] = json!(report.exchanges.iter().map(|e| json!({
+            metrics["exchanges"] = serde_json::Value::Array(report.exchanges.iter().map(|e| json!({
                 "capture_id": e.capture_id, "attempt_id": e.attempt_id, "attempt_ordinal": e.attempt_ordinal, "provider_id": e.provider_id,
                 "credential_id": e.credential_id, "model": e.upstream_model,
                 "usage": usage_json(&e.usage),
                 "cost": e.cost.as_ref().map(|c| json!({"amount": c.amount.to_string(), "currency": c.currency})),
-            })).collect::<Vec<_>>());
-            metrics["cost"] = json!(
-                report
-                    .cost
-                    .as_ref()
-                    .map(|c| json!({"amount": c.amount.to_string(), "currency": c.currency}))
+            })).collect());
+            metrics["cost"] = report.cost.as_ref().map_or(
+                serde_json::Value::Null,
+                |c| json!({"amount": c.amount.to_string(), "currency": c.currency}),
             );
             let row = usage_record::ActiveModel {
                 request_id: Set(report.request_id.clone()),
@@ -362,7 +360,7 @@ async fn write_capture<C: BatchConnectionTrait + Send + Sync + 'static>(
                             .drain(..)
                             .map(|event| event::Entity::insert(event).build(backend)),
                     );
-                    match store.connection().atomic_batch(&statements).await {
+                    match store.connection().atomic_batch_owned(statements).await {
                         Ok(_) => inserted = true,
                         Err(error) => {
                             lost.store(true, Ordering::Relaxed);
@@ -433,7 +431,7 @@ async fn write_capture<C: BatchConnectionTrait + Send + Sync + 'static>(
                     .into_iter()
                     .map(|event| event::Entity::insert(event).build(backend)),
             );
-            if let Err(error) = store.connection().atomic_batch(&statements).await {
+            if let Err(error) = store.connection().atomic_batch_owned(statements).await {
                 tracing::error!(capture_id = %id, %error, "capture finalization failed");
             }
         }

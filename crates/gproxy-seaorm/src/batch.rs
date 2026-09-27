@@ -76,6 +76,21 @@ pub enum BatchResult {
 pub trait BatchConnectionTrait: ConnectionTrait {
     async fn batch(&self, statements: &[BatchStatement]) -> Result<Vec<BatchResult>, DbErr>;
 
+    /// Transfer newly built statements to an adapter that can retain them for
+    /// background execution. Borrowing adapters need no special implementation.
+    async fn batch_owned(
+        &self,
+        statements: Vec<BatchStatement>,
+    ) -> Result<Vec<BatchResult>, DbErr> {
+        self.batch(&statements).await
+    }
+
+    /// D1 and libSQL need named result types to decode remote rows. Native
+    /// drivers already carry those types and need no derived projection.
+    fn requires_query_projection(&self) -> bool {
+        true
+    }
+
     /// Read one query without requesting a snapshot shared with other queries.
     /// Native drivers can use their ordinary query path; remote adapters keep
     /// the query's projection with their batch transport.
@@ -95,12 +110,19 @@ pub trait BatchConnectionTrait: ConnectionTrait {
 
     /// Atomic insert/update/delete batches, with per-statement affected counts.
     async fn atomic_batch(&self, statements: &[Statement]) -> Result<Vec<ExecResult>, DbErr> {
+        self.atomic_batch_owned(statements.to_vec()).await
+    }
+
+    /// The owned form of `atomic_batch`, for callers that just built the SQL.
+    async fn atomic_batch_owned(
+        &self,
+        statements: Vec<Statement>,
+    ) -> Result<Vec<ExecResult>, DbErr> {
         let steps = statements
-            .iter()
-            .cloned()
+            .into_iter()
             .map(BatchStatement::Execute)
             .collect::<Vec<_>>();
-        self.batch(&steps)
+        self.batch_owned(steps)
             .await?
             .into_iter()
             .map(|result| match result {
@@ -118,7 +140,7 @@ pub trait BatchConnectionTrait: ConnectionTrait {
             .cloned()
             .map(BatchStatement::Query)
             .collect::<Vec<_>>();
-        self.batch(&steps)
+        self.batch_owned(steps)
             .await?
             .into_iter()
             .map(|result| match result {
@@ -133,6 +155,10 @@ pub trait BatchConnectionTrait: ConnectionTrait {
 
 #[async_trait::async_trait]
 impl BatchConnectionTrait for DatabaseConnection {
+    fn requires_query_projection(&self) -> bool {
+        false
+    }
+
     async fn query_rows(&self, query: BatchQuery) -> Result<Vec<QueryResult>, DbErr> {
         if query.statement.db_backend != self.get_database_backend() {
             return Err(error("query dialect does not match the connection"));
@@ -141,10 +167,17 @@ impl BatchConnectionTrait for DatabaseConnection {
     }
 
     async fn batch(&self, statements: &[BatchStatement]) -> Result<Vec<BatchResult>, DbErr> {
+        self.batch_owned(statements.to_vec()).await
+    }
+
+    async fn batch_owned(
+        &self,
+        statements: Vec<BatchStatement>,
+    ) -> Result<Vec<BatchResult>, DbErr> {
         if statements.is_empty() {
             return Ok(Vec::new());
         }
-        for step in statements {
+        for step in &statements {
             step.validate(self.get_database_backend())?;
         }
         // A batch that writes goes to the store's group-committing writer when
@@ -161,7 +194,7 @@ impl BatchConnectionTrait for DatabaseConnection {
         let transaction = self
             .begin_with_config(Some(IsolationLevel::RepeatableRead), None)
             .await?;
-        let result = run_native(&transaction, statements).await;
+        let result = run_native(&transaction, statements.into_iter()).await;
         match result {
             Ok(results) => {
                 transaction.commit().await?;
@@ -181,16 +214,16 @@ impl BatchConnectionTrait for DatabaseConnection {
 
 pub(crate) async fn run_native<C: ConnectionTrait>(
     connection: &C,
-    statements: &[BatchStatement],
+    statements: impl ExactSizeIterator<Item = BatchStatement> + Send,
 ) -> Result<Vec<BatchResult>, DbErr> {
     let mut results = Vec::with_capacity(statements.len());
     for step in statements {
         results.push(match step {
             BatchStatement::Execute(statement) => {
-                BatchResult::Executed(connection.execute_raw(statement.clone()).await?)
+                BatchResult::Executed(connection.execute_raw(statement).await?)
             }
             BatchStatement::Query(query) => {
-                BatchResult::Rows(connection.query_all_raw(query.statement.clone()).await?)
+                BatchResult::Rows(connection.query_all_raw(query.statement).await?)
             }
         });
     }

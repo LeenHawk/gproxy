@@ -38,6 +38,28 @@ mod sample {
     impl ActiveModelBehavior for ActiveModel {}
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn native_queries_decode_computed_columns_without_a_d1_projection() {
+    use crate::{BatchConnectionTrait, SelectProjection};
+    use sea_orm::{DbBackend, EntityTrait, ExprTrait, MockDatabase, QuerySelect, sea_query::Expr};
+    use std::collections::BTreeMap;
+
+    let query = sample::Entity::find()
+        .select_only()
+        .expr_as(Expr::col(sample::Column::Id).add(1), "next_id");
+    assert!(query.batch_query(DbBackend::Sqlite).is_err());
+    let db = MockDatabase::new(DbBackend::Sqlite)
+        .append_query_results([[BTreeMap::from([(
+            "next_id".to_owned(),
+            Value::Int(Some(8)),
+        )])]])
+        .into_connection();
+    let rows =
+        futures_executor::block_on(db.query_rows(query.batch_query_for(&db).unwrap())).unwrap();
+    assert_eq!(rows[0].try_get::<i32>("", "next_id").unwrap(), 8);
+}
+
 #[test]
 fn entity_metadata_decodes_types_without_business_column_names() {
     let projection = Projection::for_entity::<sample::Entity>().unwrap();
