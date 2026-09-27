@@ -208,3 +208,5 @@ strip = "symbols"
 # Preserve individual statement caches while sending one SQLite worker command per batch.
 [patch.crates-io]
 sqlx-sqlite = { path = "vendor/sqlx-sqlite" }
+# Native BoringSSL prefixing fixes macOS/Windows and cross-compiled archive layouts.
+btls-sys = { git = "https://github.com/0x676e67/btls", rev = "609f955e6de4df4a215ee9b273d327af1c0771db" }

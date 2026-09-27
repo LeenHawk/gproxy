@@ -173,6 +173,7 @@ v3 使用不同的数据模型。原生启动可以备份并迁移受支持的 v
 Rust 工作区分为可嵌入核心、渠道、成对协议转换、共享存储、应用服务和原生／Edge 宿主。
 React 控制台位于 `console/`，文档位于 `docs/`。
 管理 API 的 TypeScript 类型由 Rust 经 `cargo test` 生成，不手工维护镜像类型。
+原生构建还需要 Go 1.25.8 或更新版本，用于生成和校验 BoringSSL 符号。
 
 ```sh
 cargo run -p gproxy-host-axum
