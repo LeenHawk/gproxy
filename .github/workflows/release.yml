@@ -122,8 +122,6 @@ jobs:
       - uses: Swatinem/rust-cache@v2.9.2
         with:
           key: release-${{ matrix.target }}
-      - if: ${{ matrix.builder == 'cross' }}
-        run: cargo install cross --locked
       - if: ${{ matrix.builder == 'cargo-ndk' }}
         uses: android-actions/setup-android@v4.0.4
         with:
@@ -147,8 +145,7 @@ jobs:
                 cargo build --locked --release --bin gproxy --target "${{ matrix.target }}"
               fi
               ;;
-            cross) cross build --locked --release --bin gproxy --target "${{ matrix.target }}" ;;
-            cargo-alpine) scripts/build-riscv-musl.sh ;;
+            cargo-alpine) scripts/build-musl.sh "${{ matrix.target }}" ;;
             cargo-ndk)
               target="${{ matrix.target }}"
               bindgen="BINDGEN_EXTRA_CLANG_ARGS_${target//-/_}"
