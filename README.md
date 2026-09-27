@@ -233,7 +233,7 @@ The Rust workspace separates the embeddable core, channel implementations,
 pairwise transforms, shared persistence, application services and native/edge
 hosts. The React console is in `console/`; documentation is in `docs/`.
 Admin API TypeScript types are generated from Rust by `cargo test`.
-Native builds also require Go 1.25.8 or newer for BoringSSL symbol generation and validation.
+Native builds also require Go 1.25.8 or newer and Clang on `PATH` for BoringSSL symbol generation and validation.
 
 ```sh
 cargo run -p gproxy-host-axum
