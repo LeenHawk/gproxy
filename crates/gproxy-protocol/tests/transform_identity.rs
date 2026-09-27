@@ -724,3 +724,56 @@ fn opaque_field_binding_survives_storage_and_rejects_unbound_legacy_records() {
     record.opaque_signature.as_mut().unwrap().field = OpaqueField::ClaudeThinkingSignature;
     record.schema = 1;
 }
+
+#[test]
+fn reversible_tool_call_aliases_encode_what_a_later_turn_needs() {
+    let claude = TargetIdPolicy::new(Dialect::Claude)
+        .with_generated_prefix(IdentityRole::ToolCall, KnownIdPrefix::Tool)
+        .with_reversible_tool_calls();
+    let mut flow = IdentityFlow::new(IdNamespace::with_bytes([0xab; 16]));
+    let mut call = |source: SourceIdentity| {
+        flow.resolve_or_allocate(IdentityRole::ToolCall, source, &claude)
+            .unwrap()
+            .emitted_id
+    };
+    // Valid for Claude and not alias-shaped: forwarded as-is.
+    assert_eq!(call(source("gemini", Some("fc_1"), 0)), "fc_1");
+    // Outside Claude's alphabet: escaped, with no namespace in the alias.
+    assert_eq!(call(source("gemini", Some("a.b"), 1)), "toolu_gpe_a_2eb");
+    // A natural ID shaped like an alias is escaped too, so it cannot be
+    // mistaken for the call it would otherwise decode to.
+    assert_eq!(
+        call(source("gemini", Some("toolu_gpe_x"), 2)),
+        "toolu_gpe_toolu__gpe__x"
+    );
+    // No ID at all: marked and numbered by position within the response.
+    assert_eq!(
+        call(source("gemini", None, 3)),
+        "toolu_gpn_abababababababab_3"
+    );
+    // The same dialect on both sides is no conversion: nothing is rewritten.
+    assert_eq!(
+        call(source("claude", Some("toolu_gpe_y"), 4)),
+        "toolu_gpe_y"
+    );
+    assert_eq!(
+        flow.resolve_legacy_chat_call(SourceIdentity::new(Dialect::OpenAiChat, None, 5), &claude)
+            .unwrap()
+            .emitted_id,
+        "toolu_gpl_abababababababab_5"
+    );
+    // A repeated ID takes the next free spelling that still names it.
+    let taken: std::collections::BTreeSet<String> =
+        ["fc_2".to_owned(), "toolu_gpe_fc__2".to_owned()].into();
+    assert_eq!(
+        flow.resolve_or_allocate_avoiding(
+            IdentityRole::ToolCall,
+            source("gemini", Some("fc_2"), 6),
+            &claude,
+            &taken
+        )
+        .unwrap()
+        .emitted_id,
+        "toolu_gpe1_fc__2"
+    );
+}

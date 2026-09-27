@@ -38,8 +38,9 @@ fn run<B: StreamBridge<ClientEvent = rs::StreamEvent>>(
         }
     }
     assert_eq!(observed.len(), expected_calls * 2);
-    // The dotted native IDs were rewritten, so each alias is recorded once the
-    // stream ends; nothing is persisted before an alias is yielded.
+    // The dotted native IDs were rewritten into reversible aliases, which
+    // name the native ID themselves: only a signed call is recorded, for its
+    // native part, and nothing is persisted before an alias is yielded.
     assert!(
         !store
             .entries
@@ -49,16 +50,17 @@ fn run<B: StreamBridge<ClientEvent = rs::StreamEvent>>(
             .any(|key| key.starts_with("stream:"))
     );
     for id in &observed {
-        let record = ready(access.read(IdentityRole::ToolCall, id))
-            .unwrap()
-            .expect("an emitted alias is recorded at the end of the stream");
-        assert!(
-            record
-                .original_call_id
-                .as_deref()
-                .unwrap()
-                .starts_with("native.")
-        );
+        assert!(id.starts_with("call_gpe_native_2e"), "{id}");
+        if let Some(record) = ready(access.read(IdentityRole::ToolCall, id)).unwrap() {
+            assert!(record.opaque_signature.is_some());
+            assert!(
+                record
+                    .original_call_id
+                    .as_deref()
+                    .unwrap()
+                    .starts_with("native.")
+            );
+        }
     }
     assert_eq!(host.sent.lock().unwrap().len(), 1);
     serde_json::to_value(call.client_result().unwrap()).unwrap()
@@ -418,12 +420,14 @@ fn malformed_custom_streams_keep_following_text() {
                 if keep_valid {
                     let call = &output["output"][0];
                     assert_eq!(call["input"], "valid");
+                    // The alias names the dotted native ID; only the signed
+                    // Gemini call is recorded, for its native part.
+                    assert_eq!(call["call_id"], "call_gpe_native_2e1");
                     let record = ready(
                         access.read(IdentityRole::ToolCall, call["call_id"].as_str().unwrap()),
                     )
-                    .unwrap()
                     .unwrap();
-                    assert_eq!(record.original_call_id.as_deref(), Some("native.1"));
+                    assert_eq!(record.is_some(), backend == Dialect::Gemini);
                 }
                 assert_eq!(
                     output["output"].as_array().unwrap().len(),

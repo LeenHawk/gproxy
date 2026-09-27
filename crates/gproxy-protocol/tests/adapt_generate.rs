@@ -169,6 +169,7 @@ fn codec_limits() -> CodecLimits {
 #[derive(Default)]
 struct Store {
     entries: Mutex<std::collections::BTreeMap<String, gproxy_protocol::capability::StateEntry>>,
+    reads: Mutex<usize>,
     attempts: Mutex<usize>,
     fail_at: Option<usize>,
 }
@@ -182,7 +183,10 @@ impl gproxy_protocol::capability::StateStore for Store {
         'a,
         Result<Option<gproxy_protocol::capability::StateEntry>, CapabilityError>,
     > {
-        Box::pin(async move { Ok(self.entries.lock().unwrap().get(key).cloned()) })
+        Box::pin(async move {
+            *self.reads.lock().unwrap() += 1;
+            Ok(self.entries.lock().unwrap().get(key).cloned())
+        })
     }
     fn compare_exchange<'a>(
         &'a self,
@@ -241,6 +245,13 @@ fn state(store: &Store, dialect: Dialect) -> GenerationStateAccess<'_, Store> {
 fn gemini_tools_host() -> Host {
     let mut body = output("g");
     body["candidates"][0]["content"]["parts"] = json!([{ "functionCall":{"name":"same","args":{"a":1}} },{ "functionCall":{"name":"same","args":{"a":2}} }]);
+    Host::new(body)
+}
+/// Signed calls are what a response still records: each writes its record
+/// and its native part.
+fn signed_gemini_tools_host() -> Host {
+    let mut body = output("g");
+    body["candidates"][0]["content"]["parts"] = json!([{ "functionCall":{"name":"same","args":{"a":1}},"thoughtSignature":"c2lnbmF0dXJl" },{ "functionCall":{"name":"same","args":{"a":2}},"thoughtSignature":"c2lnbmF0dXJl" }]);
     Host::new(body)
 }
 fn chat_gemini() -> ChatViaGemini {
@@ -383,3 +394,6 @@ mod chat_form;
 
 #[path = "adapt_generate/chat_form_roles.rs"]
 mod chat_form_roles;
+
+#[path = "adapt_generate/stateless_aliases.rs"]
+mod stateless_aliases;

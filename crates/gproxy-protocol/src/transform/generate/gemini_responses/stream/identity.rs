@@ -68,8 +68,8 @@ pub(super) fn call(
         return Ok(());
     }
     let mut trial = flow.clone();
-    let mut handle = trial
-        .resolve_or_allocate(
+    let handle = trial
+        .resolve_or_allocate_avoiding(
             IdentityRole::ToolCall,
             SourceIdentity::new(
                 Dialect::OpenAi,
@@ -77,21 +77,9 @@ pub(super) fn call(
                 index as u64,
             ),
             policy,
+            reserved,
         )
         .map_err(|e| invalid(e.to_string()))?;
-    if reserved.contains(&handle.emitted_id) {
-        trial = flow.clone();
-        handle = trial
-            .resolve_or_allocate(
-                IdentityRole::ToolCall,
-                SourceIdentity::new(Dialect::OpenAi, None, index as u64),
-                policy,
-            )
-            .map_err(|e| invalid(e.to_string()))?;
-        handle = trial
-            .attach_source(&handle, original.call_id.clone())
-            .map_err(|e| invalid(e.to_string()))?;
-    }
     if reserved.contains(&handle.emitted_id) || !used.insert(handle.emitted_id.clone()) {
         return Err(invalid("projected function ID collides"));
     }

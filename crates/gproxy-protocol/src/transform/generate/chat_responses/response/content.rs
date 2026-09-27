@@ -155,15 +155,17 @@ pub(super) fn to_responses(
                 "legacy and current tool calls coexist ambiguously",
             ));
         }
-        let call_id = identity(
-            flow,
-            policy,
-            Dialect::OpenAiChat,
-            IdentityRole::ToolCall,
-            IdentityRole::ToolCall,
-            None,
-            0,
-        )?;
+        let call_id = flow
+            .resolve_legacy_chat_call(SourceIdentity::new(Dialect::OpenAiChat, None, 0), policy)
+            .map(|h| h.emitted_id)
+            .map_err(|e| {
+                TransformError::with_source(
+                    TransformErrorKind::Conflict,
+                    "response.identity",
+                    "response identity could not be bound",
+                    e,
+                )
+            })?;
         let id = identity(
             flow,
             policy,

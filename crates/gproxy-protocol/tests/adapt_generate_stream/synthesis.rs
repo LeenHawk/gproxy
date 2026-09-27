@@ -130,7 +130,8 @@ fn buffered_post_synthesis(include_usage: bool) {
     while let Some(frame) = ready(reader.next::<h::stream::ChatCompletionChunk>()).unwrap() {
         if let NativeFrame::Event { value, .. } = frame {
             saw_usage |= value.usage.flatten().is_some();
-            // The response ID is never recorded; only the aliased call is.
+            // Neither the response ID nor the call is recorded: the call's
+            // alias names the upstream ID itself.
             assert!(
                 ready(access.read(IdentityRole::Response, &value.id))
                     .unwrap()
@@ -139,13 +140,11 @@ fn buffered_post_synthesis(include_usage: bool) {
             for choice in value.choices {
                 for tool in choice.delta.tool_calls.flatten().into_iter().flatten() {
                     if let Some(id) = tool.id.flatten() {
-                        assert_eq!(
+                        assert_eq!(id, "call_gpe_tool_3asource");
+                        assert!(
                             ready(access.read(IdentityRole::ToolCall, &id))
                                 .unwrap()
-                                .unwrap()
-                                .original_call_id
-                                .as_deref(),
-                            Some("tool:source")
+                                .is_none()
                         );
                     }
                 }

@@ -1,9 +1,10 @@
 use super::{
     error::IdentityError,
+    tool_alias,
     types::{DialectId, IdNamespace, IdentityRole, KnownIdPrefix, SourceIdentity},
 };
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 /// A target-specific syntax restriction, used only when supported by the
 /// target contract. No vendor-wide character restriction is assumed by default.
@@ -24,6 +25,13 @@ pub struct TargetIdPolicy {
     pub required_prefix: Option<KnownIdPrefix>,
     pub allowed_generated_prefixes: Option<Vec<KnownIdPrefix>>,
     pub generated_prefix_overrides: Vec<(IdentityRole, KnownIdPrefix)>,
+    /// Emit a converted tool call under the reversible alias of
+    /// [`super::tool_alias`] whenever its upstream ID cannot go out as-is, so
+    /// a later turn recovers the upstream side from the alias alone. Only a
+    /// policy for IDs the client sends back sets this; IDs sent upstream are
+    /// never decoded.
+    #[serde(default)]
+    pub reversible_tool_calls: bool,
 }
 
 impl TargetIdPolicy {
@@ -36,7 +44,13 @@ impl TargetIdPolicy {
             required_prefix: None,
             allowed_generated_prefixes: None,
             generated_prefix_overrides: Vec::new(),
+            reversible_tool_calls: false,
         }
+    }
+
+    pub fn with_reversible_tool_calls(mut self) -> Self {
+        self.reversible_tool_calls = true;
+        self
     }
 
     pub fn with_generated_prefixes(
@@ -182,7 +196,7 @@ impl IdentityFlow {
     pub(crate) fn reserve_external_ids(
         &mut self,
         role: IdentityRole,
-        ids: &std::collections::BTreeSet<String>,
+        ids: &BTreeSet<String>,
         max: usize,
     ) -> Result<(), IdentityError> {
         if self.used_ids.len().saturating_add(ids.len()) > max {
@@ -237,8 +251,44 @@ impl IdentityFlow {
         &mut self,
         source_role: IdentityRole,
         role: IdentityRole,
+        source: SourceIdentity,
+        target: &TargetIdPolicy,
+    ) -> Result<IdentityHandle, IdentityError> {
+        self.resolve_inner(source_role, role, source, target, &BTreeSet::new(), false)
+    }
+
+    /// Resolve a legacy Chat `function_call`. It has no ID, and its client
+    /// alias says so, so a later turn to a Chat upstream sends it back in the
+    /// legacy form rather than as a modern call.
+    pub fn resolve_legacy_chat_call(
+        &mut self,
+        source: SourceIdentity,
+        target: &TargetIdPolicy,
+    ) -> Result<IdentityHandle, IdentityError> {
+        let role = IdentityRole::ToolCall;
+        self.resolve_inner(role, role, source, target, &BTreeSet::new(), true)
+    }
+
+    /// Like [`Self::resolve_or_allocate`], but a new identity never takes an
+    /// ID in `avoid`: one another call of the same client response owns.
+    pub fn resolve_or_allocate_avoiding(
+        &mut self,
+        role: IdentityRole,
+        source: SourceIdentity,
+        target: &TargetIdPolicy,
+        avoid: &BTreeSet<String>,
+    ) -> Result<IdentityHandle, IdentityError> {
+        self.resolve_inner(role, role, source, target, avoid, false)
+    }
+
+    fn resolve_inner(
+        &mut self,
+        source_role: IdentityRole,
+        role: IdentityRole,
         mut source: SourceIdentity,
         target: &TargetIdPolicy,
+        avoid: &BTreeSet<String>,
+        legacy: bool,
     ) -> Result<IdentityHandle, IdentityError> {
         source.source_id = source.source_id.filter(|id| !id.is_empty());
         if let Some(bound) = &self.bound_target
@@ -306,9 +356,17 @@ impl IdentityFlow {
         }
 
         let emitted_id = match (source.source_id.as_deref(), role) {
+            (_, IdentityRole::ToolCall)
+                if source_role == role
+                    && target.reversible_tool_calls
+                    && source.dialect != target.dialect =>
+            {
+                self.tool_alias(&source, target, avoid, legacy)?
+            }
             (Some(source_id), _)
                 if source_role == role
                     && target.accepts_source(source_id)
+                    && !avoid.contains(source_id)
                     && !self.used_ids.contains(&EmittedLookup {
                         role,
                         id: source_id.to_owned(),
@@ -351,6 +409,67 @@ impl IdentityFlow {
         Ok(handle_from_entry(self.namespace, role, &entry))
     }
 
+    /// A converted call goes out under its upstream ID when the client's
+    /// dialect takes it and it cannot be mistaken for an alias; otherwise
+    /// under the reversible alias that names it. No per-request namespace
+    /// enters an alias for an upstream ID, so the same ID always gets the
+    /// same alias. A repeated ID counts up until the alias is free.
+    fn tool_alias(
+        &self,
+        source: &SourceIdentity,
+        target: &TargetIdPolicy,
+        avoid: &BTreeSet<String>,
+        legacy: bool,
+    ) -> Result<String, IdentityError> {
+        let prefix = generated_prefix(IdentityRole::ToolCall, target)?;
+        let free = |id: &str| {
+            !avoid.contains(id)
+                && !self.used_ids.contains(&EmittedLookup {
+                    role: IdentityRole::ToolCall,
+                    id: id.to_owned(),
+                })
+        };
+        let Some(id) = source.source_id.as_deref() else {
+            let namespace = self.namespace.hex();
+            let alias = tool_alias::missing(
+                prefix.as_str(),
+                &namespace[..16],
+                source.logical_index,
+                legacy,
+            );
+            if !target.accepts_generated(prefix, &alias) {
+                return Err(IdentityError::InvalidIdentity(
+                    "target policy cannot accept generated identifier".into(),
+                ));
+            }
+            if !free(&alias) {
+                return Err(IdentityError::Collision(alias));
+            }
+            return Ok(alias);
+        };
+        if target.accepts_source(id)
+            && tool_alias::accepts(target.dialect, id)
+            && tool_alias::decode(id).is_none()
+            && free(id)
+        {
+            return Ok(id.to_owned());
+        }
+        // Each taken alias rules out at most one count, so this always ends.
+        let tries = self.used_ids.len() as u64 + avoid.len() as u64;
+        for repeat in 0..=tries {
+            let alias = tool_alias::upstream(prefix.as_str(), id, repeat);
+            if !target.accepts_generated(prefix, &alias) {
+                return Err(IdentityError::InvalidIdentity(
+                    "target policy cannot accept a tool call alias".into(),
+                ));
+            }
+            if free(&alias) {
+                return Ok(alias);
+            }
+        }
+        Err(IdentityError::Collision(id.to_owned()))
+    }
+
     fn allocate_generated(
         &self,
         role: IdentityRole,
@@ -358,13 +477,7 @@ impl IdentityFlow {
         logical_index: u64,
         target: &TargetIdPolicy,
     ) -> Result<String, IdentityError> {
-        let prefix = target
-            .generated_prefix_overrides
-            .iter()
-            .rev()
-            .find_map(|(r, p)| (*r == role).then_some(*p))
-            .or_else(|| role.generated_prefix())
-            .ok_or(IdentityError::NoGeneratedPrefix)?;
+        let prefix = generated_prefix(role, target)?;
         let candidate = format!(
             "{}{}_{}_{}_{:x}",
             prefix.as_str(),
@@ -568,6 +681,19 @@ fn handle_from_entry(namespace: IdNamespace, role: IdentityRole, entry: &Entry) 
         source: entry.source.clone(),
         emitted_id: entry.emitted_id.clone(),
     }
+}
+
+fn generated_prefix(
+    role: IdentityRole,
+    target: &TargetIdPolicy,
+) -> Result<KnownIdPrefix, IdentityError> {
+    target
+        .generated_prefix_overrides
+        .iter()
+        .rev()
+        .find_map(|(r, p)| (*r == role).then_some(*p))
+        .or_else(|| role.generated_prefix())
+        .ok_or(IdentityError::NoGeneratedPrefix)
 }
 
 fn dialect_key(dialect: DialectId) -> &'static str {

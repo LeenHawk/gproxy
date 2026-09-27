@@ -130,7 +130,7 @@ fn invalid_endpoint_policy_or_stream_rejects_before_post() {
 }
 
 #[test]
-fn duplicate_names_have_distinct_saved_ids_and_truncated_results_recover() {
+fn duplicate_names_get_distinct_aliases_and_nothing_is_saved() {
     let host = gemini_tools_host();
     let store = Store::default();
     let state = state(&store, Dialect::Gemini);
@@ -155,17 +155,18 @@ fn duplicate_names_have_distinct_saved_ids_and_truncated_results_recover() {
         .iter()
         .map(|v| v["id"].as_str().unwrap().into())
         .collect();
-    assert_eq!(ids.len(), 2);
-    assert_ne!(ids[0], ids[1]);
-    let replay = ready(state.recover_tools(&ids, &Default::default())).unwrap();
-    assert_eq!(replay.names[&ids[0]], "same");
-    assert_eq!(replay.names[&ids[1]], "same");
-    assert!(replay.original_call_ids.is_empty());
+    // Gemini sent neither call an ID; each alias says so and carries its
+    // position, so the two stay apart without a record.
+    assert_eq!(
+        ids,
+        ["call_gpn_0202020202020202_0", "call_gpn_0202020202020202_1"]
+    );
+    assert!(store.entries.lock().unwrap().is_empty());
 }
 
 #[test]
 fn state_failure_blocks_exposure_then_recovers_without_post() {
-    let host = gemini_tools_host();
+    let host = signed_gemini_tools_host();
     let store = Store {
         fail_at: Some(2),
         ..Default::default()
@@ -187,8 +188,8 @@ fn state_failure_blocks_exposure_then_recovers_without_post() {
     let result = ready(p.recover(codec_limits(), &state, &mut progress, gemini_facts)).unwrap();
     assert!(matches!(result, GenerationOutcome::Success { .. }));
     assert_eq!(host.sent.lock().unwrap().len(), 1);
-    // Both ID-less calls are recorded; the response itself is not.
-    assert_eq!(store.entries.lock().unwrap().len(), 2);
+    // Each signed call is recorded with its native part; the response is not.
+    assert_eq!(store.entries.lock().unwrap().len(), 4);
 }
 
 #[test]
@@ -241,7 +242,7 @@ fn complete_history_supplies_missing_names_but_ambiguous_truncation_fails() {
 }
 
 #[test]
-fn truncated_chat_tool_result_uses_saved_name_in_actual_next_request() {
+fn chat_tool_result_takes_its_name_from_history_and_a_truncated_one_is_refused() {
     let host = gemini_tools_host();
     let store = Store::default();
     let state = state(&store, Dialect::Gemini);
@@ -259,11 +260,13 @@ fn truncated_chat_tool_result_uses_saved_name_in_actual_next_request() {
         panic!("rejected")
     };
     let response = serde_json::to_value(response.body).unwrap();
-    let call_id = response["choices"][0]["message"]["tool_calls"][0]["id"]
-        .as_str()
-        .unwrap();
+    let call = response["choices"][0]["message"]["tool_calls"][0].clone();
+    let call_id = call["id"].as_str().unwrap();
     let mut next = input("h");
-    next["messages"] = json!([{"role":"tool","tool_call_id":call_id,"content":"actual result"}]);
+    next["messages"] = json!([
+        {"role":"assistant","tool_calls":[call]},
+        {"role":"tool","tool_call_id":call_id,"content":"actual result"}
+    ]);
     let mut p = ready(ChatViaGemini::prepare_with_state(
         serde_json::from_value(next).unwrap(),
         endpoint(),
@@ -274,7 +277,11 @@ fn truncated_chat_tool_result_uses_saved_name_in_actual_next_request() {
     .unwrap();
     let target = serde_json::to_value(p.target_request()).unwrap();
     assert_eq!(
-        target["contents"][0]["parts"][0]["functionResponse"]["name"],
+        target["contents"][0]["parts"][0]["functionCall"]["name"],
+        "same"
+    );
+    assert_eq!(
+        target["contents"][1]["parts"][0]["functionResponse"]["name"],
         "same"
     );
     let mut new_body = output("g");
@@ -291,10 +298,28 @@ fn truncated_chat_tool_result_uses_saved_name_in_actual_next_request() {
     ))
     .unwrap();
     assert_eq!(next_host.sent.lock().unwrap().len(), 1);
+    assert!(store.entries.lock().unwrap().is_empty());
+    // A Chat result carries no name, and nothing was saved to supply one, so
+    // a result without its call cannot become a Gemini functionResponse.
+    let mut truncated = input("h");
+    truncated["messages"] =
+        json!([{"role":"tool","tool_call_id":call_id,"content":"actual result"}]);
+    assert_eq!(
+        ready(ChatViaGemini::prepare_with_state(
+            serde_json::from_value(truncated).unwrap(),
+            endpoint(),
+            ids(Dialect::OpenAiChat, Dialect::Gemini),
+            &state,
+            &Default::default(),
+        ))
+        .unwrap_err()
+        .kind(),
+        TransformErrorKind::MissingState
+    );
 }
 
 #[test]
-fn claude_chat_policy_rewrites_collision_prone_ids_and_saves_only_the_rewritten_original() {
+fn claude_chat_policy_escapes_collision_prone_ids_and_decodes_them_back() {
     let mut body = output("c");
     body["stop_reason"] = json!("tool_use");
     body["content"] = json!([{"type":"tool_use","id":"a.b","name":"same","input":{}},{"type":"tool_use","id":"a_b","name":"same","input":{}}]);
@@ -326,30 +351,49 @@ fn claude_chat_policy_rewrites_collision_prone_ids_and_saves_only_the_rewritten_
         panic!("rejected")
     };
     let value = serde_json::to_value(response.body).unwrap();
-    let calls = value["choices"][0]["message"]["tool_calls"]
-        .as_array()
-        .unwrap();
-    let first = calls[0]["id"].as_str().unwrap();
-    let second = calls[1]["id"].as_str().unwrap();
-    assert_ne!(first, second);
-    assert_eq!(second, "a_b");
-    // Only the rewritten ID is recorded; `a_b` reached the client as Claude
-    // sent it and goes back the same way.
-    let names = [
-        (first.to_owned(), "same".to_owned()),
-        (second.to_owned(), "same".to_owned()),
-    ]
-    .into_iter()
-    .collect();
-    let replay = ready(state.recover_tools(&[first.into(), second.into()], &names)).unwrap();
-    assert_eq!(replay.original_call_ids[first], "a.b");
-    assert!(!replay.original_call_ids.contains_key(second));
-    assert_eq!(store.entries.lock().unwrap().len(), 1);
+    let calls = value["choices"][0]["message"]["tool_calls"].clone();
+    // `a_b` reaches the client as Claude sent it; `a.b` is escaped, and its
+    // escape spells `_` as `__`, so it cannot collide with `a_b`.
+    assert_eq!(calls[0]["id"], "call_gpe_a_2eb");
+    assert_eq!(calls[1]["id"], "a_b");
+    assert!(store.entries.lock().unwrap().is_empty());
+    let mut next = input("h");
+    next["messages"] = json!([
+        {"role":"assistant","tool_calls":calls},
+        {"role":"tool","tool_call_id":"call_gpe_a_2eb","content":"one"},
+        {"role":"tool","tool_call_id":"a_b","content":"two"}
+    ]);
+    let p = ready(ChatViaClaude::prepare_with_state(
+        serde_json::from_value(next).unwrap(),
+        endpoint(),
+        ids(Dialect::OpenAiChat, Dialect::Claude),
+        &state,
+    ))
+    .unwrap();
+    let target = serde_json::to_value(p.target_request()).unwrap();
+    let messages = target["messages"].as_array().unwrap();
+    let blocks = messages
+        .iter()
+        .flat_map(|m| m["content"].as_array().into_iter().flatten())
+        .collect::<Vec<_>>();
+    let uses: Vec<_> = blocks
+        .iter()
+        .filter(|b| b["type"] == "tool_use")
+        .map(|b| b["id"].clone())
+        .collect();
+    let results: Vec<_> = blocks
+        .iter()
+        .filter(|b| b["type"] == "tool_result")
+        .map(|b| b["tool_use_id"].clone())
+        .collect();
+    assert_eq!(uses, [json!("a.b"), json!("a_b")]);
+    assert_eq!(results, [json!("a.b"), json!("a_b")]);
+    assert!(store.entries.lock().unwrap().is_empty());
 }
 
 #[test]
 fn state_expiry_and_record_budget_are_enforced_before_exposure() {
-    let host = gemini_tools_host();
+    let host = signed_gemini_tools_host();
     let store = Store::default();
     let mut state = state(&store, Dialect::Gemini);
     state.max_records = 1;

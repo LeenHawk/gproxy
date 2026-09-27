@@ -152,33 +152,18 @@ pub(super) fn gemini_response<N: super::identity_facts::IdentityFacts>(
             continue;
         }
         let mut trial = flow.clone();
-        let mut handle = trial
-            .resolve_or_allocate(
-                IdentityRole::ToolCall,
-                SourceIdentity::new(source, original.call_id.clone(), index as u64),
-                policy,
-            )
-            .map_err(|e| TransformError::invalid_result("identity", e.to_string()))?;
+        let identity = SourceIdentity::new(source, original.call_id.clone(), index as u64);
+        let handle = if original.chat_form == Some(super::ChatCallForm::LegacyFunction) {
+            trial.resolve_legacy_chat_call(identity, policy)
+        } else {
+            trial.resolve_or_allocate_avoiding(IdentityRole::ToolCall, identity, policy, &reserved)
+        }
+        .map_err(|e| TransformError::invalid_result("identity", e.to_string()))?;
         if reserved.contains(&handle.emitted_id) {
-            trial = flow.clone();
-            handle = trial
-                .resolve_or_allocate(
-                    IdentityRole::ToolCall,
-                    SourceIdentity::new(source, None, index as u64),
-                    policy,
-                )
-                .map_err(|e| TransformError::invalid_result("identity", e.to_string()))?;
-            if let Some(id) = original.call_id {
-                handle = trial
-                    .attach_source(&handle, id)
-                    .map_err(|e| TransformError::invalid_result("identity", e.to_string()))?;
-            }
-            if reserved.contains(&handle.emitted_id) {
-                return Err(TransformError::invalid_result(
-                    "identity",
-                    "generated call collides with original signed ID",
-                ));
-            }
+            return Err(TransformError::invalid_result(
+                "identity",
+                "generated call collides with original signed ID",
+            ));
         }
         flow = trial;
         if !seen.insert(handle.emitted_id.clone()) {

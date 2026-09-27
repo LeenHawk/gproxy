@@ -48,15 +48,22 @@ fn local_tools_stream_as_native_items_and_replay_with_original_call_ids() {
     assert!(wire_events.contains("tool_search_call"));
     for (index, item) in response["output"].as_array().unwrap().iter().enumerate() {
         let id = item["call_id"].as_str().unwrap();
-        assert_ne!(id, format!("native.{index}"));
-        let saved = ready(access.read(IdentityRole::ToolCall, id))
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            saved.original_call_id.as_deref(),
-            Some(format!("native.{index}").as_str())
+        // The alias names the dotted native ID itself, so nothing is saved.
+        assert_eq!(id, format!("call_gpe_native_2e{index}"));
+        assert!(
+            ready(access.read(IdentityRole::ToolCall, id))
+                .unwrap()
+                .is_none()
         );
     }
+    assert!(
+        !store
+            .entries
+            .lock()
+            .unwrap()
+            .keys()
+            .any(|key| key.starts_with("generate:"))
+    );
     let next = ready(ResponsesViaChat::prepare_with_state(
         serde_json::from_value(fixtures::followup(&response)).unwrap(),
         Endpoint::new("/chat/completions").unwrap(),

@@ -57,7 +57,7 @@ impl GenerationIdentity {
             request: IdentityFlow::new(request),
             response: IdentityFlow::new(response),
             request_policy: generation_policy(upstream),
-            response_policy: generation_policy(client),
+            response_policy: generation_policy(client).with_reversible_tool_calls(),
         })
     }
 }

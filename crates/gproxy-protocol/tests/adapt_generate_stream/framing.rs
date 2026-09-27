@@ -125,11 +125,27 @@ fn actual_gemini_array_and_ndjson_outputs_recollect_to_exact_client_result() {
 #[test]
 fn final_cas_cancellation_keeps_client_result_hidden_until_durable_acknowledgment() {
     let store = Arc::new(Store::default());
-    let access = state(&store);
+    let access = all_pairs::access(&store, Dialect::Gemini);
     let feed = Feed::default();
-    prefix(&feed);
+    let gemini = |value: Value| feed.push(format!("data: {value}\n\n"));
+    gemini(
+        json!({"responseId":"gemini:source","modelVersion":"selected","candidates":[{"index":0,"content":{"role":"model","parts":[{"text":"hello"}]}}]}),
+    );
     let host = Host::stream(store.clone(), feed.clone());
-    let mut call = prepared(&store, true);
+    let mut call = ready(ChatViaGemini::prepare_stream(
+        serde_json::from_value(all_pairs::request(Dialect::OpenAiChat)).unwrap(),
+        all_pairs::target(Dialect::OpenAiChat, Dialect::Gemini),
+        ChatViaGeminiStreamFacts {
+            function_names: Default::default(),
+            response: p::gemini_chat::stream::GeminiToChatContext {
+                created: 7,
+                model: Some("selected".into()),
+            },
+        },
+        settings(),
+        &access,
+    ))
+    .unwrap();
     ready(call.start(&host, &(), &access)).unwrap();
     loop {
         if String::from_utf8_lossy(&ready(call.next(&access)).unwrap().unwrap().bytes)
@@ -138,18 +154,11 @@ fn final_cas_cancellation_keeps_client_result_hidden_until_durable_acknowledgmen
             break;
         }
     }
-    // Chat cannot carry this ID, so the call is aliased and its record is the
-    // one final write the stream has to make.
-    event(
-        &feed,
-        json!({"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"tool:source","name":"f","input":{}}}),
+    // A signed call is what a stream still has to save: its native part is
+    // the stream's final write.
+    gemini(
+        json!({"responseId":"gemini:source","modelVersion":"selected","candidates":[{"index":0,"content":{"role":"model","parts":[{"functionCall":{"id":"tool-1","name":"f","args":{"x":1}},"thoughtSignature":"c2lnbmF0dXJl"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":3,"candidatesTokenCount":2,"totalTokenCount":5,"cachedContentTokenCount":0,"thoughtsTokenCount":0,"toolUsePromptTokenCount":0}}),
     );
-    event(&feed, json!({"type":"content_block_stop","index":1}));
-    event(
-        &feed,
-        json!({"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":2,"output_tokens_details":{"thinking_tokens":0}}}),
-    );
-    event(&feed, json!({"type":"message_stop"}));
     feed.close();
     store.hang_applied.store(true, Ordering::SeqCst);
     // The tool call itself streams out with nothing persisted; only the end
@@ -183,8 +192,14 @@ fn final_cas_cancellation_keeps_client_result_hidden_until_durable_acknowledgmen
             .finish_reason
             .is_some()
     );
-    // Resuming finds the applied record identical and leaves it alone.
-    assert_eq!(*store.entries.lock().unwrap(), saved);
+    // Resuming leaves the applied record alone and writes the rest.
+    let entries = store.entries.lock().unwrap();
+    assert!(
+        saved
+            .iter()
+            .all(|(key, value)| entries.get(key) == Some(value))
+    );
+    assert!(entries.len() > saved.len());
     assert_eq!(feed.polls(), reads);
     assert!(call.client_result().is_some());
 }

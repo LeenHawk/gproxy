@@ -194,12 +194,19 @@ fn run<B: StreamBridge>(mut call: StreamInvocation<B>, store: Arc<Store>) {
             .unwrap(),
         _ => unreachable!(),
     };
-    assert_ne!(id, "tool:source");
-    let saved = ready(state.read(IdentityRole::ToolCall, id))
-        .unwrap()
-        .unwrap();
-    assert_eq!(saved.original_call_id.as_deref(), Some("tool:source"));
-    assert_eq!(saved.tool_name.as_deref(), Some("f"));
+    // The policy rejects the upstream ID, so the client gets its reversible
+    // alias, which names the ID itself: nothing is recorded for it.
+    let prefix = if B::ClientEvent::DIALECT == Dialect::Claude {
+        "toolu_"
+    } else {
+        "call_"
+    };
+    assert_eq!(id, format!("{prefix}gpe_tool_3asource"));
+    assert!(
+        ready(state.read(IdentityRole::ToolCall, id))
+            .unwrap()
+            .is_none()
+    );
     if B::ClientEvent::DIALECT == Dialect::OpenAi {
         let item_id = client["output"]
             .as_array()
@@ -221,16 +228,15 @@ fn run<B: StreamBridge>(mut call: StreamInvocation<B>, store: Arc<Store>) {
             .is_none()
         );
     }
-    // Only the rewritten call is recorded: no Response, Message or stream
+    // No identity is recorded at all: no Response, Message, call or stream
     // alias record.
-    let entries = store.entries.lock().unwrap();
-    assert!(!entries.keys().any(|key| key.starts_with("stream:")));
-    assert_eq!(
-        entries
+    assert!(
+        !store
+            .entries
+            .lock()
+            .unwrap()
             .keys()
-            .filter(|key| key.starts_with("generate:"))
-            .count(),
-        1
+            .any(|key| key.starts_with("generate:") || key.starts_with("stream:"))
     );
     assert_eq!(host.sent.lock().unwrap().len(), 1);
 }

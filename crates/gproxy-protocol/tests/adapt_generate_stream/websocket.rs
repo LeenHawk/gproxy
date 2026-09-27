@@ -560,59 +560,6 @@ fn ws_history_canceled_applied_write_recovers_without_second_post_or_duplicate_c
     assert_eq!(host.sent.lock().unwrap().len(), 1);
 }
 #[test]
-fn ws_terminal_state_write_can_resume_after_turn_wrapper_is_dropped() {
-    let store = http_host::Store::default();
-    let state = access(&store, Dialect::OpenAi);
-    let mut call = http_host::ready(
-        generation::chat_responses::ChatViaResponses::prepare_stream(
-            serde_json::from_value(all_pairs::request(Dialect::OpenAiChat)).unwrap(),
-            all_pairs::target(Dialect::OpenAiChat, Dialect::OpenAi),
-            settings(),
-            &state,
-        ),
-    )
-    .unwrap();
-    let mut batch = frames_for(ws_body());
-    let terminal = batch.pop().unwrap();
-    let host = Host::new(vec![batch]);
-    let mut session = ws_open(&host, &state);
-    let mut turn = http_host::ready(call.start_websocket(&mut session, &state)).unwrap();
-    loop {
-        let mut next = Box::pin(turn.next(&state));
-        match next.as_mut().poll(&mut Context::from_waker(Waker::noop())) {
-            Poll::Ready(Ok(Some(_))) => {}
-            Poll::Pending => break,
-            _ => panic!("unexpected prefix result"),
-        }
-    }
-    host.shared.lock().unwrap().incoming.push_back(terminal);
-    store.hang_applied.store(true, Ordering::SeqCst);
-    {
-        let mut next = Box::pin(turn.next(&state));
-        assert!(
-            next.as_mut()
-                .poll(&mut Context::from_waker(Waker::noop()))
-                .is_pending()
-        );
-        assert!(store.hung.load(Ordering::SeqCst));
-    }
-    assert!(turn.invocation().native_result().is_some());
-    assert!(turn.invocation().client_result().is_none());
-    drop(turn);
-    assert!(!session.native().is_poisoned());
-    let acknowledged = store.entries.lock().unwrap().clone();
-    while http_host::ready(call.next(&state)).unwrap().is_some() {}
-    let final_entries = store.entries.lock().unwrap();
-    for (key, entry) in acknowledged {
-        assert_eq!(
-            final_entries[&key].version, entry.version,
-            "already applied CAS repeated for {key}"
-        );
-    }
-    assert!(call.client_result().is_some());
-    assert_eq!(text_sends(&host.shared), 1);
-}
-#[test]
 fn ws_connection_rejects_invocation_from_another_state_scope() {
     let connection_store = http_host::Store::default();
     let connection_state = access(&connection_store, Dialect::OpenAi);

@@ -7,16 +7,6 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         native_payloads: Vec<(String, Vec<u8>)>,
         progress: &mut GenerationProgress<N>,
     ) -> Result<(), TransformError> {
-        self.save_records_with_chat_forms(records, native_payloads, &BTreeMap::new(), progress)
-            .await
-    }
-    pub(super) async fn save_records_with_chat_forms<N>(
-        &self,
-        records: Vec<(IdentityStateRecord, Option<super::super::ToolCallKind>)>,
-        native_payloads: Vec<(String, Vec<u8>)>,
-        chat_forms: &BTreeMap<String, super::ChatCallForm>,
-        progress: &mut GenerationProgress<N>,
-    ) -> Result<(), TransformError> {
         if records.len() > self.max_records {
             return Err(limit());
         }
@@ -39,16 +29,10 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
                     "duplicate client identity",
                 ));
             }
-            let chat_form = if record.role == IdentityRole::ToolCall {
-                chat_forms.get(id).copied()
-            } else {
-                None
-            };
             let stored = StoredIdentity {
                 schema: 1,
                 identity: record,
                 tool_kind,
-                chat_form,
             };
 
             let bytes = serde_json::to_vec(&stored)?;
