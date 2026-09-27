@@ -139,6 +139,35 @@ impl Cache for RedisCache {
             _ => Err(CacheError::Corrupt),
         }
     }
+    /// One pipelined round trip. `HMGET` reads the version and the value of
+    /// one key atomically, which is all `get`'s script does for a read.
+    async fn get_many(&self, keys: &[String]) -> Result<Vec<Option<Entry>>> {
+        if keys.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut pipe = redis::pipe();
+        for key in keys {
+            pipe.cmd("HMGET")
+                .arg(self.key("value", key)?)
+                .arg("t")
+                .arg("v");
+        }
+        let rows: Vec<(Option<Vec<u8>>, Option<Vec<u8>>)> =
+            pipe.query_async(&mut self.manager.clone()).await?;
+        if rows.len() != keys.len() {
+            return Err(CacheError::Corrupt);
+        }
+        rows.into_iter()
+            .map(|row| match row {
+                (None, _) => Ok(None),
+                (Some(token), Some(value)) => Ok(Some(Entry {
+                    value,
+                    version: version(token)?,
+                })),
+                (Some(_), None) => Err(CacheError::Corrupt),
+            })
+            .collect()
+    }
     async fn put(&self, key: &str, value: Vec<u8>, ttl: Duration) -> Result<Version> {
         self.options.limits.value(&value)?;
         let token = Version::fresh()?;
