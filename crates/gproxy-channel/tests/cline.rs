@@ -5,8 +5,7 @@
 
 use gproxy_channel::channel::{
     CredentialContext, CredentialRefresh, DevicePoll, LoginContext, NoState, OAuthDeviceCode,
-    OperationContext, PrepareContext, QuotaModel, QuotaQuery, QuotaValue, ResponseView,
-    UsageContext, UsageExtractor,
+    OperationContext, PrepareContext, QuotaModel, QuotaQuery, QuotaValue,
 };
 use gproxy_channel::channels::cline::{BALANCE_DIMENSION, Cline, PLAN_SOURCE};
 use gproxy_channel::{BaseChannel, ChannelError, LoginMode};
@@ -257,33 +256,45 @@ async fn a_refusal_is_returned_as_the_upstream_wrote_it() {
     assert_eq!(body["error"], "out of credits");
 }
 
-#[test]
-fn usage_is_read_through_the_envelope_and_through_a_bare_body_alike() {
-    let headers = HeaderMap::new();
-    let read = |body: String| {
-        Cline
-            .extract(UsageContext {
-                operation: OperationKey {
-                    operation: Operation::GenerateContent,
-                    dialect: Dialect::OpenAiChat,
-                },
-                request_body: None,
-                response: ResponseView {
-                    status: StatusCode::OK,
-                    headers: &headers,
-                    body: body.as_bytes(),
-                },
-            })
-            .unwrap()
-    };
+/// A buffered reply keeps its usage inside Cline's envelope; the channel
+/// takes the envelope off, so the reply settles with the standard Chat
+/// reading whether it came wrapped or bare.
+#[tokio::test]
+async fn a_reply_settles_through_the_envelope_and_bare_alike() {
+    let config = json!({});
+    let secret = json!({"api_key": "cl"});
     let usage = json!({"prompt_tokens": 100, "completion_tokens": 4,
                        "prompt_tokens_details": {"cached_tokens": 30}});
-    let wrapped = read(json!({"success": true, "data": {"usage": usage}}).to_string()).unwrap();
-    assert_eq!(wrapped.tokens.input_tokens, Some(70));
-    assert_eq!(wrapped.tokens.cached_input_tokens, Some(30));
-    let bare = read(json!({"usage": usage}).to_string()).unwrap();
-    assert_eq!(bare.tokens.input_tokens, Some(70));
-    assert!(read(json!({"success": true, "data": {}}).to_string()).is_none());
+    for reply in [
+        json!({"success": true, "data": {"usage": usage}}),
+        json!({"usage": usage}),
+    ] {
+        let client = Arc::new(OneShot::new(StatusCode::OK, reply.to_string()));
+        let response = Cline
+            .generate_content(operation(
+                &config,
+                &secret,
+                &Value::Null,
+                &client,
+                request("/v1/chat/completions", None),
+            ))
+            .await
+            .unwrap();
+        let HttpBody::Bytes(body) = response.body else {
+            panic!("a buffered body");
+        };
+        let settled = support::settled(
+            &Cline,
+            Operation::GenerateContent,
+            Dialect::OpenAiChat,
+            &response.headers,
+            &body,
+        )
+        .unwrap();
+        assert_eq!(settled.tokens.input_tokens, Some(70));
+        assert_eq!(settled.tokens.cached_input_tokens, Some(30));
+        assert_eq!(settled.tokens.output_tokens, Some(4));
+    }
 }
 
 #[test]

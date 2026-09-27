@@ -7,9 +7,7 @@
 use std::collections::VecDeque;
 use std::sync::Mutex;
 
-use gproxy_channel::channel::{
-    CredentialContext, CredentialView, PrepareContext, ProviderView, ResponseView, UsageContext,
-};
+use gproxy_channel::channel::{CredentialContext, CredentialView, PrepareContext, ProviderView};
 use gproxy_channel::{BaseChannel, ChannelError, OutboundClient, channels::vertex::Vertex};
 use gproxy_protocol::capability::{CapabilityError, CapabilityFuture};
 use gproxy_protocol::{
@@ -651,55 +649,6 @@ async fn a_key_that_cannot_sign_is_rejected_without_a_round_trip() {
         "{error}"
     );
     assert!(client.sent().is_empty(), "nothing was sent");
-}
-
-#[test]
-fn usage_is_read_from_each_publishers_own_block() {
-    let extractor = Vertex.usage_extractor().expect("vertex meters its calls");
-    let headers = HeaderMap::new();
-    let usage = |dialect: Dialect, body: &str| {
-        extractor
-            .extract(UsageContext {
-                operation: OperationKey {
-                    operation: Operation::GenerateContent,
-                    dialect,
-                },
-                request_body: None,
-                response: ResponseView {
-                    status: StatusCode::OK,
-                    headers: &headers,
-                    body: body.as_bytes(),
-                },
-            })
-            .unwrap()
-    };
-
-    let gemini = usage(
-        Dialect::Gemini,
-        r#"{"usageMetadata":{"promptTokenCount":50,"candidatesTokenCount":20,
-            "thoughtsTokenCount":8,"cachedContentTokenCount":10}}"#,
-    )
-    .expect("gemini usage");
-    assert_eq!(gemini.tokens.input_tokens, Some(40));
-    assert_eq!(gemini.tokens.output_tokens, Some(28));
-    assert_eq!(gemini.tokens.reasoning_tokens, Some(8));
-    assert_eq!(gemini.tokens.cached_input_tokens, Some(10));
-
-    // An accumulated Gemini SSE stream repeats a complete block; the last wins.
-    let streamed = usage(
-        Dialect::Gemini,
-        "data: {\"usageMetadata\":{\"promptTokenCount\":50,\"candidatesTokenCount\":2}}\n\n\
-         data: {\"usageMetadata\":{\"promptTokenCount\":50,\"candidatesTokenCount\":9}}\n\n",
-    )
-    .expect("streamed usage");
-    assert_eq!(streamed.tokens.output_tokens, Some(9));
-
-    let claude = usage(
-        Dialect::Claude,
-        r#"{"usage":{"input_tokens":3,"output_tokens":4}}"#,
-    )
-    .expect("claude usage");
-    assert_eq!(claude.tokens.output_tokens, Some(4));
 }
 
 #[test]

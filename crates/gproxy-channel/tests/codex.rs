@@ -8,8 +8,7 @@ use gproxy_channel::{
     channel::{
         AuthorizationRequest, CallerUsage, CallerUsageWindow, ChannelState, CredentialContext,
         CredentialView, DevicePoll, LoginContext, OperationContext, PrepareContext, ProviderView,
-        QuotaHeaderContext, QuotaScope, QuotaValue, ResponseView, ServiceContext, ServiceView,
-        UsageContext, UsageFrame, UsageStreamContext, UsageStreamEnd, UsageTransport,
+        QuotaHeaderContext, QuotaScope, QuotaValue, ServiceContext, ServiceView,
     },
     channels::codex::{CLI_VERSION, Codex, DEFAULT_CLIENT_ID, KIND_FILE, KIND_PLUGIN, KIND_TASK},
 };
@@ -19,7 +18,7 @@ use gproxy_protocol::{
         CapabilityError, CapabilityFuture, CapabilityLimits, CasResult, StateEntry, StateWrite,
         UpstreamConnection, Version,
     },
-    connection::{Bytes, StreamFraming},
+    connection::Bytes,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
@@ -736,61 +735,6 @@ async fn captured_quota_replies_keep_the_channel_contract() {
             Some(1_790_695_613_000 - 7 * 24 * 60 * 60 * 1000)
         );
     }
-}
-
-#[test]
-fn responses_usage_is_read_from_the_terminal_event_and_from_json() {
-    let mut observer = Codex
-        .usage_stream()
-        .unwrap()
-        .start(UsageStreamContext {
-            operation: OperationKey {
-                operation: Operation::StreamGenerateContent,
-                dialect: Dialect::OpenAi,
-            },
-            request_body: None,
-            status: StatusCode::OK,
-            headers: &HeaderMap::new(),
-            transport: UsageTransport::Http {
-                framing: Some(StreamFraming::Sse),
-            },
-        })
-        .unwrap();
-    observer
-        .observe(UsageFrame::HttpChunk(
-            b"event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\"hi\"}\n\nevent: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":30,\"input_tokens_details\":{\"cached_tokens\":10},\"output_tokens\":7,\"output_tokens_details\":{\"reasoning_tokens\":2}}}}\n\n",
-        ))
-        .unwrap();
-    let usage = observer.finish(UsageStreamEnd::Complete).unwrap().unwrap();
-    assert_eq!(
-        usage.tokens.input_tokens,
-        Some(20),
-        "cached tokens are excluded"
-    );
-    assert_eq!(usage.tokens.cached_input_tokens, Some(10));
-    assert_eq!(usage.tokens.output_tokens, Some(7));
-    assert_eq!(usage.tokens.reasoning_tokens, Some(2));
-
-    let body = json!({"id": "resp", "usage": {"input_tokens": 5, "output_tokens": 1}}).to_string();
-    let extracted = Codex
-        .usage_extractor()
-        .unwrap()
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::OpenAi,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &HeaderMap::new(),
-                body: body.as_bytes(),
-            },
-        })
-        .unwrap()
-        .unwrap();
-    assert_eq!(extracted.tokens.input_tokens, Some(5));
-    let _ = Arc::new(());
 }
 
 #[test]
@@ -2248,32 +2192,23 @@ async fn converted_stream_restores_native_tools_and_preserves_usage() {
         body,
     )
     .await;
-    let mut observer = Codex
-        .usage_stream()
-        .unwrap()
-        .start(UsageStreamContext {
-            operation: OperationKey {
-                operation: Operation::StreamGenerateContent,
-                dialect: Dialect::OpenAi,
-            },
-            request_body: None,
-            status: response.status,
-            headers: &response.headers,
-            transport: UsageTransport::Http {
-                framing: Some(StreamFraming::Sse),
-            },
-        })
-        .unwrap();
+    let headers = response.headers.clone();
     let HttpBody::Stream(mut stream) = response.body else {
         panic!("stream")
     };
     let mut bytes = Vec::new();
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk.unwrap();
-        observer.observe(UsageFrame::HttpChunk(&chunk)).unwrap();
-        bytes.extend_from_slice(&chunk);
+        bytes.extend_from_slice(&chunk.unwrap());
     }
-    let usage = observer.finish(UsageStreamEnd::Complete).unwrap().unwrap();
+    // The stream the client gets is what settles.
+    let usage = support::settled_stream(
+        &Codex,
+        Operation::StreamGenerateContent,
+        Dialect::OpenAi,
+        &headers,
+        &bytes,
+    )
+    .unwrap();
     assert_eq!(usage.tokens.input_tokens, Some(20));
     assert_eq!(usage.tokens.cached_input_tokens, Some(10));
     assert_eq!(usage.tokens.output_tokens, Some(7));
@@ -2713,43 +2648,6 @@ async fn realtime_multipart_read_failures_are_transport_errors_with_sources() {
     );
     assert!(std::error::Error::source(&error).is_some());
     assert!(client.sent().is_empty());
-}
-
-#[test]
-fn image_sse_usage_observer_handles_split_frames() {
-    let headers = HeaderMap::new();
-    for (operation, kind) in [
-        (Operation::CreateImage, "image_generation.completed"),
-        (Operation::EditImage, "image_edit.completed"),
-    ] {
-        let mut observer = Codex
-            .usage_stream()
-            .unwrap()
-            .start(UsageStreamContext {
-                operation: OperationKey {
-                    operation,
-                    dialect: Dialect::OpenAi,
-                },
-                request_body: None,
-                status: StatusCode::OK,
-                headers: &headers,
-                transport: UsageTransport::Http {
-                    framing: Some(StreamFraming::Sse),
-                },
-            })
-            .unwrap();
-        let value = json!({"type":kind,"generation_id":"g","quality":"high","size":"1024x1024","usage":{"input_tokens":15,"output_tokens":10,"input_tokens_details":{"image_tokens":12,"text_tokens":3}}});
-        let wire = format!("event: {kind}\ndata: {value}\n\n");
-        for chunk in wire.as_bytes().chunks(7) {
-            observer.observe(UsageFrame::HttpChunk(chunk)).unwrap();
-        }
-        let usage = observer.finish(UsageStreamEnd::Complete).unwrap().unwrap();
-        assert_eq!(usage.tokens.input_tokens, Some(15));
-        assert_eq!(usage.tokens.output_tokens, Some(10));
-        assert_eq!(usage.metrics["image_outputs"], 1.into());
-        assert_eq!(usage.metrics["image_input_tokens"], 12.into());
-        assert_eq!(usage.dimensions["quality"], "high");
-    }
 }
 
 async fn model_call(

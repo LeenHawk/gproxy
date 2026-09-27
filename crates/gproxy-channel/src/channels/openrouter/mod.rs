@@ -28,11 +28,10 @@ pub use quota::BUDGET_DIMENSION;
 pub use request::ATTRIBUTION_HEADERS;
 pub use usage::{UPSTREAM_COST_METRIC, UPSTREAM_PRICED_DIMENSION};
 
-use crate::channel::{
+use crate::channel::{UsageExtras, 
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     HOST_CONFIG_KEYS, LoginMode, PrepareContext, ProviderView, QuotaModel, QuotaQuery,
-    UsageExtractor, UsageStream,
-};
+    };
 use gproxy_protocol::{Dialect, HttpBody, Operation};
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -145,11 +144,7 @@ impl BaseChannel for OpenRouter {
         Some(self)
     }
 
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
+    fn usage_extras(&self) -> Option<&dyn UsageExtras> {
         Some(self)
     }
 }

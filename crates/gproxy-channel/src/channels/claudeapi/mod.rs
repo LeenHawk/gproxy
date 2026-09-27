@@ -34,7 +34,6 @@ mod config;
 use crate::channels::shared::claude_hygiene as hygiene;
 mod quota;
 mod request;
-mod usage;
 
 pub use config::{
     ANTHROPIC_VERSION, ClaudeapiConfig, DEFAULT_BASE_URL, FallbackMode, ID, QUOTA_DEFAULT_BASE_URL,

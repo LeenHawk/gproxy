@@ -8,7 +8,7 @@ use gproxy_channel::channel::{
     AcquiredCredential, AuthorizationCode, AuthorizationRequest, BaseChannel, ChannelError,
     CredentialContext, CredentialRefresh, CredentialView, DevicePoll, LoginContext, NoState,
     OAuthAuthorizationCode, OAuthDeviceCode, OperationContext, PrepareContext, ProviderView,
-    QuotaQuery, QuotaValue, ResponseView, UsageContext, UsageExtractor,
+    QuotaQuery, QuotaValue,
 };
 use gproxy_channel::channels::kiro::{AGENTIC_REQUEST_DIMENSION, Kiro};
 use gproxy_channel::{LoginMode, OutboundClient};
@@ -500,7 +500,22 @@ async fn the_event_stream_becomes_responses_sse() {
         .await
         .expect("a response");
     assert_eq!(response.headers["content-type"], "text/event-stream");
+    let headers = response.headers.clone();
     let text = String::from_utf8(collect(response.body).await).unwrap();
+    // The translated stream is what settles; the AWS event stream the
+    // upstream sent never reaches the reader.
+    let usage = support::settled_stream(
+        &Kiro,
+        Operation::StreamGenerateContent,
+        Dialect::OpenAi,
+        &headers,
+        text.as_bytes(),
+    )
+    .expect("usage");
+    assert_eq!(usage.tokens.input_tokens, Some(10));
+    assert_eq!(usage.tokens.cached_input_tokens, Some(30));
+    assert_eq!(usage.tokens.cache_creation_30m_tokens, Some(5));
+    assert_eq!(usage.tokens.output_tokens, Some(7));
     let events: Vec<Value> = text
         .split("\n\n")
         .filter_map(|record| record.strip_prefix("data: "))
@@ -574,24 +589,17 @@ async fn a_buffered_caller_gets_the_same_answer_as_one_responses_object() {
     assert_eq!(body["output_text"], "Hello there");
     assert_eq!(body["usage"]["output_tokens"], 7);
 
-    // The same object is what the usage extractor reads.
+    // The same object is what the reply settles with.
     let headers = HeaderMap::new();
     let encoded = body.to_string();
-    let usage = Kiro
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::OpenAi,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: encoded.as_bytes(),
-            },
-        })
-        .expect("read")
-        .expect("usage");
+    let usage = support::settled(
+        &Kiro,
+        Operation::GenerateContent,
+        Dialect::OpenAi,
+        &headers,
+        encoded.as_bytes(),
+    )
+    .expect("usage");
     assert_eq!(usage.tokens.input_tokens, Some(10));
     assert_eq!(usage.tokens.cached_input_tokens, Some(30));
     assert_eq!(usage.tokens.cache_creation_30m_tokens, Some(5));

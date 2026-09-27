@@ -6,8 +6,6 @@ mod support;
 use gproxy_channel::channel::{
     BaseChannel, ChannelError, CredentialContext, CredentialRefresh, CredentialView, DevicePoll,
     LoginContext, OAuthDeviceCode, PrepareContext, ProviderView, QuotaQuery, QuotaValue,
-    ResponseView, UsageContext, UsageExtractor, UsageFrame, UsageStream, UsageStreamContext,
-    UsageStreamEnd, UsageTransport,
 };
 use gproxy_channel::channels::grokbuild::{
     CLI_USER_AGENT, COST_TICKS_METRIC, DEFAULT_CLIENT_ID, GrokBuild, UPSTREAM_COST_METRIC,
@@ -17,7 +15,7 @@ use gproxy_channel::{LoginMode, OutboundClient};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
     capability::{CapabilityError, CapabilityFuture},
-    connection::{Bytes, StreamFraming},
+    connection::Bytes,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
@@ -443,42 +441,28 @@ fn xais_metering_unit_and_a_jobs_own_price_are_both_recorded() {
                                 "cost_in_usd_ticks": 4200}})
     .to_string();
     let headers = HeaderMap::new();
-    let usage = GrokBuild
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::OpenAi,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: body.as_bytes(),
-            },
-        })
-        .expect("read")
-        .expect("usage");
+    let usage = support::settled(
+        &GrokBuild,
+        Operation::GenerateContent,
+        Dialect::OpenAi,
+        &headers,
+        body.as_bytes(),
+    )
+    .expect("usage");
     assert_eq!(usage.tokens.input_tokens, Some(70));
     assert_eq!(usage.tokens.cached_input_tokens, Some(30));
     assert_eq!(usage.metrics[COST_TICKS_METRIC], 4200.into());
     assert_eq!(usage.metrics["image_input_tokens"], 12.into());
 
     let job = json!({"cost_usd": "0.42", "duration": 6}).to_string();
-    let usage = GrokBuild
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::RetrieveVideo,
-                dialect: Dialect::OpenAi,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: job.as_bytes(),
-            },
-        })
-        .expect("read")
-        .expect("usage");
+    let usage = support::settled(
+        &GrokBuild,
+        Operation::RetrieveVideo,
+        Dialect::OpenAi,
+        &headers,
+        job.as_bytes(),
+    )
+    .expect("usage");
     assert_eq!(usage.metrics[UPSTREAM_COST_METRIC], "0.42".parse().unwrap());
     assert_eq!(usage.dimensions[UPSTREAM_PRICED_DIMENSION], "true");
     assert_eq!(usage.metrics["video_seconds"], 6.into());
@@ -486,38 +470,19 @@ fn xais_metering_unit_and_a_jobs_own_price_are_both_recorded() {
 
 #[test]
 fn a_responses_stream_settles_on_its_completed_event() {
-    let headers = HeaderMap::new();
-    let mut observer = UsageStream::start(
-        &GrokBuild,
-        UsageStreamContext {
-            operation: OperationKey {
-                operation: Operation::StreamGenerateContent,
-                dialect: Dialect::OpenAi,
-            },
-            request_body: None,
-            status: StatusCode::OK,
-            headers: &headers,
-            transport: UsageTransport::Http {
-                framing: Some(StreamFraming::Sse),
-            },
-        },
-    )
-    .expect("an observer");
-    for chunk in [
+    let wire = concat!(
         "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hi\"}\n\n",
-        concat!(
-            "data: {\"type\":\"response.completed\",\"response\":{\"usage\":",
-            "{\"input_tokens\":9,\"output_tokens\":3,\"cost_in_usd_ticks\":7}}}\n\n"
-        ),
-    ] {
-        observer
-            .observe(UsageFrame::HttpChunk(chunk.as_bytes()))
-            .expect("observed");
-    }
-    let usage = observer
-        .finish(UsageStreamEnd::Complete)
-        .expect("finished")
-        .expect("usage");
+        "data: {\"type\":\"response.completed\",\"response\":{\"usage\":",
+        "{\"input_tokens\":9,\"output_tokens\":3,\"cost_in_usd_ticks\":7}}}\n\n"
+    );
+    let usage = support::settled_stream(
+        &GrokBuild,
+        Operation::StreamGenerateContent,
+        Dialect::OpenAi,
+        &HeaderMap::new(),
+        wire.as_bytes(),
+    )
+    .expect("usage");
     assert_eq!(usage.tokens.input_tokens, Some(9));
     assert_eq!(usage.tokens.output_tokens, Some(3));
     assert_eq!(usage.metrics[COST_TICKS_METRIC], 7.into());

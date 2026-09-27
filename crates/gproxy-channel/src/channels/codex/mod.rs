@@ -24,7 +24,6 @@ mod request;
 mod services;
 mod shape;
 mod sse;
-mod usage;
 
 pub use agent::CLI_VERSION;
 pub use config::{

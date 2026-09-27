@@ -26,7 +26,6 @@
 
 mod endpoint;
 mod request;
-mod usage;
 
 pub const ID: &str = "vertexexpress";
 

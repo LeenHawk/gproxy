@@ -3,12 +3,11 @@
 
 use super::config::VertexConfig;
 use super::endpoint::{self, model_from_path, validate_model};
-use super::usage::VertexUsage;
 use super::{ID, Vertex, auth};
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist, PrepareContext, ProviderView,
-    UsageExtractor, forwardable,
+    forwardable,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes};
 use http::{HeaderValue, header};
@@ -18,7 +17,6 @@ use serde_json::Value;
 /// the `anthropic-version` header the direct API uses.
 const VERTEX_ANTHROPIC_VERSION: &str = "vertex-2023-10-16";
 
-const USAGE: VertexUsage = VertexUsage;
 
 impl BaseChannel for Vertex {
     fn claude_fallback(&self) -> Option<crate::channel::ClaudeFallback> {
@@ -125,10 +123,6 @@ impl BaseChannel for Vertex {
 
     fn credential_refresh(&self) -> Option<&dyn CredentialRefresh> {
         Some(self)
-    }
-
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(&USAGE)
     }
 }
 

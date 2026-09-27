@@ -5,7 +5,7 @@
 
 use gproxy_channel::channel::{
     CredentialContext, CredentialRefresh, DevicePoll, LoginContext, OAuthDeviceCode,
-    PrepareContext, QuotaModel, QuotaQuery, QuotaValue, ResponseView, UsageContext, UsageExtractor,
+    PrepareContext, QuotaModel, QuotaQuery, QuotaValue,
 };
 use gproxy_channel::channels::kimi::{BALANCE_DIMENSION, Kimi, WEEKLY_DIMENSION};
 use gproxy_channel::{BaseChannel, ChannelError, LoginMode};
@@ -216,21 +216,14 @@ fn moonshots_cache_hit_is_taken_out_of_the_prompt_count() {
     }})
     .to_string();
     let headers = HeaderMap::new();
-    let usage = Kimi
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::OpenAiChat,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: body.as_bytes(),
-            },
-        })
-        .unwrap()
-        .unwrap();
+    let usage = support::settled(
+        &Kimi,
+        Operation::GenerateContent,
+        Dialect::OpenAiChat,
+        &headers,
+        body.as_bytes(),
+    )
+    .unwrap();
     assert_eq!(usage.tokens.input_tokens, Some(20));
     assert_eq!(usage.tokens.cached_input_tokens, Some(480));
 }

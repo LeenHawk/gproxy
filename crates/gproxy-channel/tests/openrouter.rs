@@ -2,15 +2,12 @@
 
 //! OpenRouter's two reasons to be a channel: it routes and it prices.
 
-use gproxy_channel::channel::{
-    PrepareContext, QuotaScope, QuotaValue, ResponseView, UsageContext, UsageExtractor, UsageFrame,
-    UsageStream, UsageStreamContext, UsageStreamEnd, UsageTransport,
-};
+use gproxy_channel::channel::{PrepareContext, QuotaScope, QuotaValue};
 use gproxy_channel::channels::openrouter::{
     OpenRouter, UPSTREAM_COST_METRIC, UPSTREAM_PRICED_DIMENSION,
 };
 use gproxy_channel::{BaseChannel, ChannelError, LoginMode};
-use gproxy_protocol::connection::{Bytes, StreamFraming};
+use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest};
 use http::{HeaderMap, HeaderValue, StatusCode};
 use serde_json::{Value, json};
@@ -182,21 +179,14 @@ fn a_reported_price_becomes_the_upstream_cost_metric() {
     }})
     .to_string();
     let headers = HeaderMap::new();
-    let usage = OpenRouter
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::OpenAiChat,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: body.as_bytes(),
-            },
-        })
-        .unwrap()
-        .unwrap();
+    let usage = support::settled(
+        &OpenRouter,
+        Operation::GenerateContent,
+        Dialect::OpenAiChat,
+        &headers,
+        body.as_bytes(),
+    )
+    .unwrap();
     assert_eq!(usage.tokens.input_tokens, Some(70));
     assert_eq!(usage.tokens.cached_input_tokens, Some(30));
     assert_eq!(
@@ -222,31 +212,22 @@ fn a_reported_price_becomes_the_upstream_cost_metric() {
 
 #[test]
 fn a_stream_settles_on_the_last_chunk_that_carries_usage() {
-    let headers = HeaderMap::new();
-    let mut observer = OpenRouter
-        .start(UsageStreamContext {
-            operation: OperationKey {
-                operation: Operation::StreamGenerateContent,
-                dialect: Dialect::OpenAiChat,
-            },
-            request_body: None,
-            status: StatusCode::OK,
-            headers: &headers,
-            transport: UsageTransport::Http {
-                framing: Some(StreamFraming::Sse),
-            },
-        })
-        .unwrap();
-    for chunk in [
+    let wire = [
         r#"data: {"choices":[{"delta":{"content":"hi"}}],"usage":null}"#,
-        r#"data: {"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":2,"cost":0.5}}"#,
+        r#"data: {"model":"openai/gpt-5","choices":[],"usage":{"prompt_tokens":10,"completion_tokens":2,"cost":0.5}}"#,
         "data: [DONE]",
-    ] {
-        observer
-            .observe(UsageFrame::HttpChunk(format!("{chunk}\n\n").as_bytes()))
-            .unwrap();
-    }
-    let usage = observer.finish(UsageStreamEnd::Complete).unwrap().unwrap();
+    ]
+    .map(|chunk| format!("{chunk}\n\n"))
+    .concat();
+    let usage = support::settled_stream(
+        &OpenRouter,
+        Operation::StreamGenerateContent,
+        Dialect::OpenAiChat,
+        &HeaderMap::new(),
+        wire.as_bytes(),
+    )
+    .unwrap();
+    assert_eq!(usage.dimensions["serving_model"], "openai/gpt-5");
     assert_eq!(usage.tokens.input_tokens, Some(10));
     assert_eq!(
         usage.metrics.get(UPSTREAM_COST_METRIC),
@@ -494,23 +475,14 @@ fn model_fallbacks_use_the_native_dialect_and_keep_client_routing() {
 #[test]
 fn fallback_usage_is_attributed_to_the_serving_model() {
     let body = json!({"model":"anthropic/claude-opus-4-8","usage":{"prompt_tokens":10,"completion_tokens":4}});
-    let usage = OpenRouter
-        .usage_extractor()
-        .unwrap()
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::OpenAiChat,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &HeaderMap::new(),
-                body: body.to_string().as_bytes(),
-            },
-        })
-        .unwrap()
-        .unwrap();
+    let usage = support::settled(
+        &OpenRouter,
+        Operation::GenerateContent,
+        Dialect::OpenAiChat,
+        &HeaderMap::new(),
+        body.to_string().as_bytes(),
+    )
+    .unwrap();
     assert_eq!(usage.attempts[0].model, "anthropic/claude-opus-4-8");
     assert_eq!(usage.attempts[0].usage.tokens.output_tokens, Some(4));
 }

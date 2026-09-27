@@ -3,12 +3,10 @@
 //! Vertex Express mode: one global origin, a Gemini-only method surface and
 //! the API key in the query. No upstream is contacted.
 
-use gproxy_channel::channel::{
-    CredentialView, PrepareContext, ProviderView, ResponseView, UsageContext,
-};
+use gproxy_channel::channel::{CredentialView, PrepareContext, ProviderView};
 use gproxy_channel::{BaseChannel, ChannelError, channels::vertexexpress::VertexExpress};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes};
-use http::{HeaderMap, HeaderValue, Method, StatusCode};
+use http::{HeaderMap, HeaderValue, Method};
 use serde_json::{Value, json};
 
 fn provider<'a>(config: &'a Value, base_url: Option<&'a str>) -> ProviderView<'a> {
@@ -264,31 +262,6 @@ fn every_declared_dialect_can_be_prepared_and_nothing_else_is_served() {
         matches!(error, ChannelError::UnsupportedOperation(_)),
         "{error}"
     );
-}
-
-#[test]
-fn usage_comes_from_geminis_own_metadata() {
-    let extractor = VertexExpress
-        .usage_extractor()
-        .expect("express meters its calls");
-    let headers = HeaderMap::new();
-    let usage = extractor
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::Gemini,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: br#"{"usageMetadata":{"promptTokenCount":12,"candidatesTokenCount":4}}"#,
-            },
-        })
-        .unwrap()
-        .expect("usage");
-    assert_eq!(usage.tokens.input_tokens, Some(12));
-    assert_eq!(usage.tokens.output_tokens, Some(4));
 }
 
 #[test]

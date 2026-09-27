@@ -6,7 +6,7 @@
 
 use gproxy_channel::channel::{
     CredentialContext, CredentialRefresh, DevicePoll, LoginContext, OAuthDeviceCode,
-    PrepareContext, QuotaQuery, QuotaScope, QuotaValue, ResponseView, UsageContext, UsageExtractor,
+    PrepareContext, QuotaQuery, QuotaScope, QuotaValue,
 };
 use gproxy_channel::channels::copilotcli::{CopilotCli, QUOTA_SOURCE};
 use gproxy_channel::{BaseChannel, ChannelError, LoginMode};
@@ -232,32 +232,6 @@ fn a_conversation_that_has_already_answered_itself_is_the_agent_asking() {
     )
     .unwrap();
     assert_eq!(prepared.headers()["x-initiator"], "agent");
-}
-
-#[test]
-fn usage_is_openais_own_shape() {
-    let headers = HeaderMap::new();
-    let usage = CopilotCli
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::OpenAiChat,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: json!({"usage": {"prompt_tokens": 90, "completion_tokens": 7,
-                                       "prompt_tokens_details": {"cached_tokens": 20}}})
-                .to_string()
-                .as_bytes(),
-            },
-        })
-        .unwrap()
-        .unwrap();
-    assert_eq!(usage.tokens.input_tokens, Some(70));
-    assert_eq!(usage.tokens.cached_input_tokens, Some(20));
-    assert_eq!(usage.tokens.output_tokens, Some(7));
 }
 
 #[tokio::test]

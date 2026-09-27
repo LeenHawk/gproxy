@@ -1,8 +1,13 @@
 //! A native call, shared by passthrough and protocol conversion. Refusal
 //! fallback stays inside the selected provider/credential and every send
-//! goes through a fresh observed exchange.
+//! goes through a fresh observed exchange. Each send is metered once, from
+//! the response the channel returns (`metering`).
 
-use super::{Exchange, Funnel, ObservedClient, prepare};
+use super::{
+    Exchange, Funnel, ObservedClient,
+    metering::{Meter, UsageGate},
+    prepare,
+};
 use crate::{AttemptContext, RewriteRuleData, api::lifecycle::now_ms};
 use gproxy_channel::{ChannelBinding, ChannelError, channel::ChannelState};
 use gproxy_protocol::{
@@ -92,6 +97,17 @@ impl NativeCall {
             self.limits,
             now_ms(),
         );
+        // Created before the send so that a send dropped mid-flight still
+        // releases the captures waiting on its reading.
+        let meter = self.funnel.policy().usage.then(|| {
+            let gate = UsageGate::new();
+            exchange.meter_through(gate.clone());
+            let request_body = match &wire.body {
+                HttpBody::Bytes(bytes) => Some(bytes.clone()),
+                HttpBody::Stream(_) => None,
+            };
+            Meter::new(self.funnel.clone(), attempt.clone(), gate, request_body)
+        });
         let mut guard = SendGuard(Some(exchange.clone()));
         let observed = ObservedClient::new(attempt.credential.client.clone(), exchange.clone());
         let endpoint = provider.operation_url_for(
@@ -114,12 +130,19 @@ impl NativeCall {
             result = crate::rt::timeout(timeout, binding.send(self.operation, wire)) =>
                 result.unwrap_or_else(|| Err(ChannelError::Host("upstream operation deadline exceeded".into()))),
         };
+        let result = match (result, meter) {
+            (Ok(response), Some(meter)) => Ok(meter.response(
+                provider.channel.clone(),
+                self.operation,
+                self.limits.read_bytes,
+                response,
+            )),
+            (result, _) => result,
+        };
         if result.is_err() {
             exchange
                 .finish(
                     gproxy_channel::channel::UsageStreamEnd::Interrupted,
-                    None,
-                    None,
                     None,
                     now_ms(),
                 )

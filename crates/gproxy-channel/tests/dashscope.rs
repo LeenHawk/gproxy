@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use gproxy_channel::channel::{PrepareContext, ResponseView, UsageContext, UsageExtractor};
+use gproxy_channel::channel::PrepareContext;
 use gproxy_channel::channels::dashscope::DashScope;
 use gproxy_channel::{BaseChannel, ChannelBinding, ChannelError, LoginMode};
 use gproxy_protocol::connection::Bytes;
@@ -157,24 +157,17 @@ async fn the_envelope_reply_is_folded_back_into_an_openai_image_reply() {
     );
     assert_eq!(reply["dashscope_usage"]["image_count"], 1);
 
-    // And that parked object is what the extractor reads.
+    // And that parked object is what the reply settles with.
     let text = bytes.to_vec();
     let headers = HeaderMap::new();
-    let usage = DashScope
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::CreateImage,
-                dialect: Dialect::OpenAi,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: &text,
-            },
-        })
-        .unwrap()
-        .unwrap();
+    let usage = support::settled(
+        &DashScope,
+        Operation::CreateImage,
+        Dialect::OpenAi,
+        &headers,
+        &text,
+    )
+    .unwrap();
     assert_eq!(usage.tokens.input_tokens, Some(9));
     assert_eq!(usage.metrics.get("image_outputs"), Some(&1.into()));
 }

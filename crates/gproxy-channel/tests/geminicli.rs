@@ -6,8 +6,7 @@ mod support;
 use gproxy_channel::channel::{
     AuthorizationCode, AuthorizationRequest, BaseChannel, ChannelError, CredentialContext,
     CredentialRefresh, CredentialView, LoginContext, NoState, OperationContext, PrepareContext,
-    ProviderView, QuotaScope, QuotaValue, ResponseView, UsageContext, UsageFrame,
-    UsageStreamContext, UsageStreamEnd, UsageTransport,
+    ProviderView, QuotaScope, QuotaValue,
 };
 use gproxy_channel::channels::geminicli::{
     CLI_USER_AGENT, DEFAULT_CLIENT_ID, DEFAULT_REDIRECT_URI, GOOG_API_CLIENT, GeminiCli,
@@ -16,7 +15,7 @@ use gproxy_channel::{ChannelDescriptor, LoginMode, OutboundClient};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
     capability::{CapabilityError, CapabilityFuture},
-    connection::{Bytes, StreamFraming},
+    connection::Bytes,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
@@ -81,6 +80,16 @@ fn raw_reply(status: StatusCode, body: impl Into<Vec<u8>>) -> WireResponse {
         headers: HeaderMap::new(),
         body: HttpBody::Bytes(Bytes::from(body.into())),
     }
+}
+
+/// An `alt=sse` stream, as the upstream labels it.
+fn sse_reply(body: &'static str) -> WireResponse {
+    let mut reply = raw_reply(StatusCode::OK, body);
+    reply.headers.insert(
+        http::header::CONTENT_TYPE,
+        HeaderValue::from_static("text/event-stream"),
+    );
+    reply
 }
 
 fn provider<'a>(config: &'a Value, base_url: Option<&'a str>) -> ProviderView<'a> {
@@ -441,7 +450,8 @@ async fn a_buffered_reply_is_unwrapped_into_the_gemini_shape() {
                 "citationMetadata": {"citations": [{"uri": "u"}]},
             }],
             "promptFeedback": {"blockReason": "BLOCKED_REASON_UNSPECIFIED"},
-            "usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 4},
+            "usageMetadata": {"promptTokenCount": 10, "cachedContentTokenCount": 4,
+                "candidatesTokenCount": 4, "thoughtsTokenCount": 1},
         }}),
     )]));
     let config = json!({});
@@ -464,7 +474,22 @@ async fn a_buffered_reply_is_unwrapped_into_the_gemini_shape() {
         })
         .await
         .expect("response");
-    let body: Value = serde_json::from_slice(&collect(response.body).await).unwrap();
+    let headers = response.headers.clone();
+    let bytes = collect(response.body).await;
+    // The envelope is off, so the reply settles with the standard reading.
+    let usage = support::settled(
+        &GeminiCli,
+        Operation::GenerateContent,
+        Dialect::Gemini,
+        &headers,
+        &bytes,
+    )
+    .expect("usage");
+    assert_eq!(usage.tokens.input_tokens, Some(6));
+    assert_eq!(usage.tokens.cached_input_tokens, Some(4));
+    assert_eq!(usage.tokens.output_tokens, Some(5));
+    assert_eq!(usage.tokens.reasoning_tokens, Some(1));
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
     assert!(body.get("response").is_none());
     assert_eq!(
         body["candidates"][0]["content"]["parts"][0]["text"],
@@ -486,7 +511,7 @@ async fn a_streamed_reply_is_unwrapped_frame_by_frame() {
         "data: {\"response\":{\"usageMetadata\":{\"promptTokenCount\":9,",
         "\"candidatesTokenCount\":3,\"thoughtsTokenCount\":2}}}\n\n",
     );
-    let client = Arc::new(ScriptClient::new(vec![raw_reply(StatusCode::OK, sse)]));
+    let client = Arc::new(ScriptClient::new(vec![sse_reply(sse)]));
     let config = json!({});
     let secret = secret();
     let metadata = Value::Null;
@@ -507,10 +532,22 @@ async fn a_streamed_reply_is_unwrapped_frame_by_frame() {
         })
         .await
         .expect("response");
+    let headers = response.headers.clone();
     let text = String::from_utf8(collect(response.body).await).unwrap();
     assert!(!text.contains("\"response\""), "{text}");
     assert!(text.contains("\"candidates\""), "{text}");
     assert!(text.contains("\"usageMetadata\""), "{text}");
+    let usage = support::settled_stream(
+        &GeminiCli,
+        Operation::StreamGenerateContent,
+        Dialect::Gemini,
+        &headers,
+        text.as_bytes(),
+    )
+    .expect("usage");
+    assert_eq!(usage.tokens.input_tokens, Some(9));
+    assert_eq!(usage.tokens.output_tokens, Some(5));
+    assert_eq!(usage.tokens.reasoning_tokens, Some(2));
 }
 
 #[tokio::test]
@@ -634,80 +671,6 @@ async fn quota_buckets_become_periodic_windows() {
 }
 
 // ------------------------------------------------------------------ usage
-
-#[test]
-fn buffered_usage_reads_the_wrapped_metadata() {
-    let body = serde_json::to_vec(&json!({"response": {"usageMetadata": {
-        "promptTokenCount": 100,
-        "cachedContentTokenCount": 40,
-        "candidatesTokenCount": 10,
-        "thoughtsTokenCount": 5,
-        "candidatesTokensDetails": [{"modality": "IMAGE", "tokenCount": 4}],
-    }}}))
-    .unwrap();
-    let headers = HeaderMap::new();
-    let usage = GeminiCli
-        .usage_extractor()
-        .expect("extractor")
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::Gemini,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: &body,
-            },
-        })
-        .expect("extraction")
-        .expect("usage");
-    // promptTokenCount includes the cache read; the normalized input does not.
-    assert_eq!(usage.tokens.input_tokens, Some(60));
-    assert_eq!(usage.tokens.cached_input_tokens, Some(40));
-    assert_eq!(usage.tokens.output_tokens, Some(15));
-    assert_eq!(usage.tokens.reasoning_tokens, Some(5));
-    assert_eq!(
-        usage.metrics.get("image_output_tokens"),
-        Some(&"4".parse().unwrap())
-    );
-}
-
-#[test]
-fn the_stream_observer_keeps_the_last_reported_counts() {
-    let headers = HeaderMap::new();
-    let mut observer = GeminiCli
-        .usage_stream()
-        .expect("stream")
-        .start(UsageStreamContext {
-            operation: OperationKey {
-                operation: Operation::StreamGenerateContent,
-                dialect: Dialect::Gemini,
-            },
-            request_body: None,
-            status: StatusCode::OK,
-            headers: &headers,
-            transport: UsageTransport::Http {
-                framing: Some(StreamFraming::Sse),
-            },
-        })
-        .expect("observer");
-    for chunk in [
-        "data: {\"response\":{\"usageMetadata\":{\"promptTokenCount\":9,\"candidatesTokenCount\":1}}}\n\n",
-        "data: {\"response\":{\"usageMetadata\":{\"promptTokenCount\":9,\"candidatesTokenCount\":7}}}\n\n",
-    ] {
-        observer
-            .observe(UsageFrame::HttpChunk(chunk.as_bytes()))
-            .expect("observed");
-    }
-    let usage = observer
-        .finish(UsageStreamEnd::Complete)
-        .expect("finished")
-        .expect("usage");
-    assert_eq!(usage.tokens.input_tokens, Some(9));
-    assert_eq!(usage.tokens.output_tokens, Some(7));
-}
 
 // ------------------------------------------------------------------ login
 

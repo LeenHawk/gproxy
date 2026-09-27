@@ -1,11 +1,10 @@
-//! Mechanics the API-key fleet shares: bounded ability calls and usage
-//! reading for the three compatible wire shapes.
+//! Mechanics the API-key fleet shares: bounded ability calls and the
+//! authentication plumbing of their HTTP requests.
 //!
 //! Every upstream in this family answers Chat Completions, Responses or
-//! Claude Messages verbatim, so the usage object is one of three known
-//! shapes and the only per-channel difference is the vendor's own extra
-//! fields. Policy stays in each channel; this module only executes what a
-//! channel asks for, through the `Enrich` hook it passes in.
+//! Claude Messages verbatim, so the host reads their usage the standard way;
+//! a vendor's own extra fields are that channel's `UsageExtras`. Policy
+//! stays in each channel; this module only executes what a channel asks for.
 
 /// Only the channels with a quota probe or a token exchange compile the
 /// ability helpers.
@@ -23,4 +22,3 @@
 ))]
 pub(crate) mod ability;
 pub(crate) mod http;
-pub(crate) mod usage;

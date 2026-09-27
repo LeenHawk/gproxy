@@ -1,15 +1,15 @@
-//! Old channel usage readers against the standard readers in
-//! `gproxy_protocol::usage`, fixture by fixture.
+//! What each channel's replies settle with, against what the channel's own
+//! usage reader used to read from them, fixture by fixture.
 //!
-//! Usage is moving out of the channels. Today each channel reads it from the
-//! upstream's raw bytes through its own `UsageExtractor` or `UsageStream`;
-//! later it will be read once, by operation and dialect, from the standard
-//! response the channel has shaped. This file is the safety net for that
-//! move. Each test feeds one existing channel fixture to both paths and
-//! asserts that they agree. Where they are meant to differ, the test applies
-//! the difference to the old reading before comparing and says why, so every
-//! change in what gets billed is written down here rather than discovered on
-//! an invoice.
+//! Usage used to be read by each channel, from the upstream's raw bytes,
+//! through a `UsageExtractor` or a `UsageStream` of its own. It is now read
+//! once, by operation and dialect (`gproxy_protocol::usage`), from the
+//! standard response the channel shapes, with the channel's `UsageExtras`
+//! adding what only its vendor reports. The old readers are gone; this file
+//! keeps what they read as fixtures. Each test settles one reply the way the
+//! host does and compares the result with the old reading, after applying to
+//! the old reading the differences that are meant — so every change in what
+//! gets billed is written down here rather than discovered on an invoice.
 //!
 //! Intended differences, each covered below:
 //!
@@ -35,120 +35,58 @@
 //!   ignored Claude's server tools, speed, tier and geo, OpenAI's audio
 //!   details and web searches, and the serving tier; the standard readers
 //!   keep them.
-//! - **Vendor extras.** OpenRouter's cost, byok flag and serving model, xAI
-//!   and Grok Build's cost ticks, stated dollars, video seconds and
-//!   non-standard web-search field, DeepSeek's `prompt_cache_hit_tokens`,
-//!   Kimi's top-level `cached_tokens`, DashScope's image counters and AI
-//!   Studio's service-tier header are not standard fields. Phase 4 moves
-//!   them to a per-channel `usage_extras` hook; here the test lists what the
-//!   standard reading is missing.
+//! - **Vendor extras keep their keys.** OpenRouter's cost, byok flag and
+//!   serving model, xAI and Grok Build's cost ticks, stated dollars, video
+//!   seconds and non-standard web-search field, DeepSeek's
+//!   `prompt_cache_hit_tokens`, Kimi's top-level `cached_tokens`, DashScope's
+//!   image counters, Devin's cache creation and served model, and AI Studio's
+//!   service-tier header are read by each channel's `UsageExtras`, under the
+//!   metric and dimension names pricing already uses. xAI's image input
+//!   tokens are standard Responses detail and come from the standard reading.
 //!
-//! Not compared, because their readings today are broken rather than
-//! different — the reader sees the upstream's bytes before the channel shapes
-//! them — and phase 4 fixes them by reading the shaped response: `kiro`
-//! (AWS event stream), `devin` (Connect framing and protobuf), `claudeweb`
-//! (claude.ai's own events, character estimates only), and the image replies
-//! of `workbuddy` and `dashscope` (the vendor envelope rather than the
+//! Channels whose old reading was broken rather than different — the reader
+//! saw the upstream's bytes before the channel shaped them — settle
+//! correctly now, and are tested against the shaped response in their own
+//! test files: `kiro` (AWS event stream), `devin` (Connect framing and
+//! protobuf), `claudeweb` (claude.ai's own events; its counts are the
+//! channel's estimates and settle marked as such), and the image replies of
+//! `workbuddy` and `dashscope` (the vendor envelope rather than the
 //! unwrapped OpenAI reply). `aws_bedrock`, `geminicli`, `antigravity` and
-//! `cline` do read correctly today by undoing their framing inside the
-//! reader; they are compared against the standard reading of the shaped
-//! response.
+//! `cline` read correctly before by undoing their framing inside the reader;
+//! here their shaped response is compared with that reading.
 
-use gproxy_channel::{
-    BaseChannel,
-    channel::{
-        NormalizedUsage, ResponseView, UsageCompleteness, UsageContext, UsageFrame,
-        UsageStreamContext, UsageStreamEnd, UsageTransport,
-    },
-};
-use gproxy_protocol::{
-    Dialect, Operation, OperationKey,
-    connection::StreamFraming,
-    usage::{self, UsageReader},
-};
-use http::{HeaderMap, StatusCode};
-use rust_decimal::Decimal;
-use serde_json::{Value, json};
+mod support;
+
+use gproxy_channel::{BaseChannel, channel::NormalizedUsage};
+use gproxy_protocol::{Dialect, Operation};
+use http::HeaderMap;
+use serde_json::{Map, Value, json};
 
 // ------------------------------------------------------------------ harness
 
-const SSE: UsageTransport = UsageTransport::Http {
-    framing: Some(StreamFraming::Sse),
-};
-
-/// What the channel's extractor reads out of a whole body today.
-fn old_whole<C: BaseChannel>(
+/// A complete reply as the host settles it.
+fn settled<C: BaseChannel>(
     channel: &C,
     operation: Operation,
     dialect: Dialect,
     body: &[u8],
 ) -> Option<NormalizedUsage> {
-    let headers = HeaderMap::new();
-    channel
-        .usage_extractor()
-        .expect("the channel meters whole bodies")
-        .extract(UsageContext {
-            operation: OperationKey { operation, dialect },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body,
-            },
-        })
-        .expect("the old reader does not fail")
+    support::settled(channel, operation, dialect, &HeaderMap::new(), body)
 }
 
-/// What the channel's stream observer reads today.
-fn old_stream<C: BaseChannel>(
+/// An SSE stream as the host settles it.
+fn settled_stream<C: BaseChannel>(
     channel: &C,
     operation: Operation,
     dialect: Dialect,
-    transport: UsageTransport,
     wire: &[u8],
 ) -> Option<NormalizedUsage> {
-    let headers = HeaderMap::new();
-    let mut observer = channel
-        .usage_stream()
-        .expect("the channel watches streams")
-        .start(UsageStreamContext {
-            operation: OperationKey { operation, dialect },
-            request_body: None,
-            status: StatusCode::OK,
-            headers: &headers,
-            transport,
-        })
-        .expect("an observer");
-    for chunk in wire.chunks(7) {
-        observer.observe(UsageFrame::HttpChunk(chunk)).unwrap();
-    }
-    observer.finish(UsageStreamEnd::Complete).unwrap()
-}
-
-fn new_whole(operation: Operation, dialect: Dialect, body: &[u8]) -> Option<NormalizedUsage> {
-    usage::whole(operation, dialect, body)
-}
-
-/// The standard stream reading, which must not depend on how the stream is
-/// chunked; every split is checked against the unsplit reading.
-fn new_stream(
-    operation: Operation,
-    dialect: Dialect,
-    transport: UsageTransport,
-    wire: &[u8],
-) -> Option<NormalizedUsage> {
-    let read = |size: usize| {
-        let mut reader = UsageReader::new(operation, dialect, transport).expect("watchable");
-        for chunk in wire.chunks(size.max(1)) {
-            reader.push(chunk);
-        }
-        reader.finish(UsageStreamEnd::Complete)
-    };
-    let whole = read(wire.len());
-    for size in [1, 3, 7, 64] {
-        assert_eq!(read(size), whole, "split {size}");
-    }
-    whole
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        http::header::CONTENT_TYPE,
+        http::HeaderValue::from_static("text/event-stream"),
+    );
+    support::settled_stream(channel, operation, dialect, &headers, wire)
 }
 
 fn sse(events: &[Value]) -> Vec<u8> {
@@ -163,24 +101,92 @@ fn body(value: &Value) -> Vec<u8> {
     value.to_string().into_bytes()
 }
 
-fn decimal(text: &str) -> Decimal {
-    text.parse().unwrap()
+/// A reading as a fixture: every reported field, and nothing that was not
+/// reported. Amounts are strings, so a decimal compares exactly.
+fn summary(usage: Option<&NormalizedUsage>) -> Value {
+    let Some(usage) = usage else {
+        return Value::Null;
+    };
+    let mut out = Map::new();
+    let t = &usage.tokens;
+    let mut tokens = Map::new();
+    for (name, value) in [
+        ("input", t.input_tokens),
+        ("output", t.output_tokens),
+        ("cached", t.cached_input_tokens),
+        ("cache_5m", t.cache_creation_5m_tokens),
+        ("cache_30m", t.cache_creation_30m_tokens),
+        ("cache_1h", t.cache_creation_1h_tokens),
+        ("reasoning", t.reasoning_tokens),
+    ] {
+        if let Some(value) = value {
+            tokens.insert(name.into(), value.into());
+        }
+    }
+    out.insert("tokens".into(), Value::Object(tokens));
+    if !usage.metrics.is_empty() {
+        out.insert(
+            "metrics".into(),
+            usage
+                .metrics
+                .iter()
+                .map(|(key, value)| (key.clone(), Value::from(value.normalize().to_string())))
+                .collect(),
+        );
+    }
+    if !usage.dimensions.is_empty() {
+        out.insert("dimensions".into(), json!(usage.dimensions));
+    }
+    if let Some(tier) = &usage.actual_service_tier {
+        out.insert("tier".into(), tier.as_str().into());
+    }
+    out.insert(
+        "completeness".into(),
+        format!("{:?}", usage.completeness).into(),
+    );
+    if !usage.attempts.is_empty() {
+        out.insert(
+            "attempts".into(),
+            usage
+                .attempts
+                .iter()
+                .map(|attempt| {
+                    json!({"model": attempt.model, "billable": attempt.billable,
+                        "output": attempt.usage.tokens.output_tokens})
+                })
+                .collect(),
+        );
+    }
+    Value::Object(out)
 }
+
+/// Compare what a reply settles with against what the old reader read,
+/// after `change` applies the intended differences to the old reading.
+#[track_caller]
+fn check(new: Option<NormalizedUsage>, mut old: Value, change: impl FnOnce(&mut Value)) {
+    change(&mut old);
+    assert_eq!(summary(new.as_ref()), old);
+}
+
+/// No intended difference.
+fn same(_: &mut Value) {}
 
 /// The standard reading marks modality metrics as subsets of the totals.
-fn flag_modalities(usage: &mut NormalizedUsage) {
-    usage
-        .dimensions
-        .insert("token_modalities_in_totals".into(), "true".into());
+fn flag_modalities(old: &mut Value) {
+    old["dimensions"]["token_modalities_in_totals"] = "true".into();
 }
 
-/// `vendor_usage` and `aws_bedrock` wrap an ordinary Claude answer in one
+/// `vendor_usage` and `aws_bedrock` wrapped an ordinary Claude answer in one
 /// attempt naming its model; the standard reading leaves the exchange's
 /// model to price it.
-fn drop_single_attempt(usage: &mut NormalizedUsage) {
-    assert_eq!(usage.attempts.len(), 1);
-    assert_eq!(usage.attempts[0].billable, Some(true));
-    usage.attempts.clear();
+fn drop_single_attempt(old: &mut Value) {
+    let attempts = old
+        .as_object_mut()
+        .unwrap()
+        .remove("attempts")
+        .expect("the old reading had an attempt");
+    assert_eq!(attempts.as_array().unwrap().len(), 1);
+    assert_eq!(attempts[0]["billable"], true);
 }
 
 // ------------------------------------------------------------- openai
@@ -196,39 +202,44 @@ mod openai {
             "prompt_tokens": 100, "completion_tokens": 20,
             "prompt_tokens_details": {"cached_tokens": 40, "cache_write_tokens": 3, "audio_tokens": 5},
             "completion_tokens_details": {"reasoning_tokens": 7}}}));
-        let mut old = old_whole(
-            &OpenAi,
-            Operation::GenerateContent,
-            Dialect::OpenAiChat,
-            &chat,
-        );
-        flag_modalities(old.as_mut().unwrap());
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::OpenAiChat, &chat),
-            old
+        check(
+            settled(
+                &OpenAi,
+                Operation::GenerateContent,
+                Dialect::OpenAiChat,
+                &chat,
+            ),
+            json!({"tokens": {"input": 57, "output": 20, "cached": 40, "cache_30m": 3,
+                "reasoning": 7}, "metrics": {"audio_input_tokens": "5"},
+                "dimensions": {"service_tier": "flex"}, "tier": "flex",
+                "completeness": "Complete"}),
+            flag_modalities,
         );
 
         let responses = body(&json!({"usage": {"input_tokens": 11, "output_tokens": 4,
             "input_tokens_details": {"cached_tokens": 2},
             "output_tokens_details": {"reasoning_tokens": 1},
             "server_tool_use": {"web_search_requests": 3}}}));
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::OpenAi, &responses),
-            old_whole(
+        check(
+            settled(
                 &OpenAi,
                 Operation::GenerateContent,
                 Dialect::OpenAi,
-                &responses
-            )
+                &responses,
+            ),
+            json!({"tokens": {"input": 9, "output": 4, "cached": 2, "reasoning": 1},
+                "metrics": {"web_searches": "3"}, "completeness": "Complete"}),
+            same,
         );
-        let empty = br#"{"id":"resp_1"}"#;
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::OpenAi, empty),
-            None
-        );
-        assert_eq!(
-            old_whole(&OpenAi, Operation::GenerateContent, Dialect::OpenAi, empty),
-            None
+        check(
+            settled(
+                &OpenAi,
+                Operation::GenerateContent,
+                Dialect::OpenAi,
+                br#"{"id":"resp_1"}"#,
+            ),
+            Value::Null,
+            same,
         );
     }
 
@@ -239,32 +250,41 @@ mod openai {
     #[test]
     fn an_image_reply_keeps_its_output_total_whole() {
         let reply = br#"{"data":[{"b64_json":"x"}],"usage":{"input_tokens":2,"output_tokens":8}}"#;
-        let mut old = old_whole(&OpenAi, Operation::CreateImage, Dialect::OpenAi, reply).unwrap();
-        assert_eq!(old.tokens.output_tokens, Some(0));
-        old.tokens.output_tokens = Some(8);
-        flag_modalities(&mut old);
-        assert_eq!(
-            new_whole(Operation::CreateImage, Dialect::OpenAi, reply),
-            Some(old)
+        check(
+            settled(&OpenAi, Operation::CreateImage, Dialect::OpenAi, reply),
+            json!({"tokens": {"input": 2, "output": 0},
+                "metrics": {"image_output_tokens": "8", "image_outputs": "1"},
+                "completeness": "Complete"}),
+            |old| {
+                old["tokens"]["output"] = 8.into();
+                flag_modalities(old);
+            },
         );
     }
 
     #[test]
     fn a_transcription_is_equal() {
-        for reply in [
-            &br#"{"text":"hi","usage":{"type":"tokens","input_tokens":14,"output_tokens":45}}"#[..],
-            br#"{"text":"hi","usage":{"type":"duration","seconds":3.5}}"#,
-        ] {
-            assert_eq!(
-                new_whole(Operation::CreateTranscription, Dialect::OpenAi, reply),
-                old_whole(
-                    &OpenAi,
-                    Operation::CreateTranscription,
-                    Dialect::OpenAi,
-                    reply
-                )
-            );
-        }
+        check(
+            settled(
+                &OpenAi,
+                Operation::CreateTranscription,
+                Dialect::OpenAi,
+                br#"{"text":"hi","usage":{"type":"tokens","input_tokens":14,"output_tokens":45}}"#,
+            ),
+            json!({"tokens": {"input": 14, "output": 45}, "completeness": "Complete"}),
+            same,
+        );
+        check(
+            settled(
+                &OpenAi,
+                Operation::CreateTranscription,
+                Dialect::OpenAi,
+                br#"{"text":"hi","usage":{"type":"duration","seconds":3.5}}"#,
+            ),
+            json!({"tokens": {}, "metrics": {"audio_seconds": "3.5"},
+                "completeness": "Complete"}),
+            same,
+        );
     }
 
     #[test]
@@ -275,20 +295,15 @@ mod openai {
             b"tokens\":4}}\n\ndata: [DONE]\n\n",
         ]
         .concat();
-        assert_eq!(
-            new_stream(
-                Operation::StreamGenerateContent,
-                Dialect::OpenAiChat,
-                SSE,
-                &chat
-            ),
-            old_stream(
+        check(
+            settled_stream(
                 &OpenAi,
                 Operation::StreamGenerateContent,
                 Dialect::OpenAiChat,
-                SSE,
-                &chat
-            )
+                &chat,
+            ),
+            json!({"tokens": {"input": 9, "output": 4}, "completeness": "Complete"}),
+            same,
         );
         let responses = [
             &b"event: response.in_progress\ndata: {\"type\":\"response.in_progress\"}\n\n"[..],
@@ -297,20 +312,17 @@ mod openai {
             b"\"input_tokens\":9,\"output_tokens\":4}}}\r\n\r\n",
         ]
         .concat();
-        assert_eq!(
-            new_stream(
-                Operation::StreamGenerateContent,
-                Dialect::OpenAi,
-                SSE,
-                &responses
-            ),
-            old_stream(
+        check(
+            settled_stream(
                 &OpenAi,
                 Operation::StreamGenerateContent,
                 Dialect::OpenAi,
-                SSE,
-                &responses
-            )
+                &responses,
+            ),
+            json!({"tokens": {"input": 9, "output": 4},
+                "dimensions": {"service_tier": "priority"}, "tier": "priority",
+                "completeness": "Complete"}),
+            same,
         );
     }
 }
@@ -330,24 +342,30 @@ mod claudeapi {
             "output_tokens_details": {"thinking_tokens": 12},
             "server_tool_use": {"web_search_requests": 2},
             "service_tier": "standard"}}));
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::Claude, &messages),
-            old_whole(
+        check(
+            settled(
                 &Claudeapi,
                 Operation::GenerateContent,
                 Dialect::Claude,
-                &messages
-            )
+                &messages,
+            ),
+            json!({"tokens": {"input": 100, "output": 50, "cached": 40, "cache_5m": 7,
+                "cache_1h": 3, "reasoning": 12}, "metrics": {"web_searches": "2"},
+                "dimensions": {"service_tier": "standard"}, "tier": "standard",
+                "completeness": "Complete"}),
+            same,
         );
         let chat = br#"{"usage":{"prompt_tokens":11,"completion_tokens":4,"prompt_tokens_details":{"cached_tokens":5}}}"#;
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::OpenAiChat, chat),
-            old_whole(
+        check(
+            settled(
                 &Claudeapi,
                 Operation::GenerateContent,
                 Dialect::OpenAiChat,
-                chat
-            )
+                chat,
+            ),
+            json!({"tokens": {"input": 6, "output": 4, "cached": 5},
+                "completeness": "Complete"}),
+            same,
         );
     }
 
@@ -359,20 +377,17 @@ mod claudeapi {
             b"data: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":19,\"service_tier\":\"priority\"}}\n\n",
         ]
         .concat();
-        assert_eq!(
-            new_stream(
-                Operation::StreamGenerateContent,
-                Dialect::Claude,
-                SSE,
-                &wire
-            ),
-            old_stream(
+        check(
+            settled_stream(
                 &Claudeapi,
                 Operation::StreamGenerateContent,
                 Dialect::Claude,
-                SSE,
-                &wire
-            )
+                &wire,
+            ),
+            json!({"tokens": {"input": 30, "output": 19, "cached": 4},
+                "dimensions": {"service_tier": "priority"}, "tier": "priority",
+                "completeness": "Complete"}),
+            same,
         );
     }
 }
@@ -394,17 +409,19 @@ mod claudecode {
             "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":12,\"cache_creation_input_tokens\":20,\"output_tokens_details\":{\"thinking_tokens\":4},\"iterations\":[{\"type\":\"fallback_message\",\"model\":\"claude-fable-5\",\"input_tokens\":25,\"output_tokens\":0},{\"type\":\"message\",\"input_tokens\":25,\"output_tokens\":12}]}}\n\n"
         )
         .as_bytes();
-        let new = new_stream(Operation::StreamGenerateContent, Dialect::Claude, SSE, wire);
-        assert_eq!(new.as_ref().unwrap().attempts.len(), 2);
-        assert_eq!(
-            new,
-            old_stream(
+        check(
+            settled_stream(
                 &Claudecode,
                 Operation::StreamGenerateContent,
                 Dialect::Claude,
-                SSE,
-                wire
-            )
+                wire,
+            ),
+            json!({"tokens": {"input": 25, "output": 12, "cached": 10, "cache_5m": 0,
+                "cache_1h": 20, "reasoning": 4}, "completeness": "Complete",
+                "attempts": [
+                    {"model": "claude-fable-5", "billable": false, "output": 0},
+                    {"model": "claude-opus-4-8", "billable": true, "output": 12}]}),
+            same,
         );
 
         let reply = body(
@@ -415,14 +432,19 @@ mod claudecode {
                 "server_tool_use": {"web_search_requests": 2, "web_fetch_requests": 1},
                 "service_tier": "standard", "speed": "fast"}}),
         );
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::Claude, &reply),
-            old_whole(
+        check(
+            settled(
                 &Claudecode,
                 Operation::GenerateContent,
                 Dialect::Claude,
-                &reply
-            )
+                &reply,
+            ),
+            json!({"tokens": {"input": 10, "output": 4, "cached": 30, "cache_5m": 2,
+                "cache_1h": 3, "reasoning": 1},
+                "metrics": {"web_fetches": "1", "web_searches": "2"},
+                "dimensions": {"service_tier": "standard", "speed": "fast"},
+                "tier": "standard", "completeness": "Complete"}),
+            same,
         );
     }
 
@@ -432,18 +454,18 @@ mod claudecode {
     #[test]
     fn a_refusal_now_becomes_an_unbillable_attempt() {
         let reply = br#"{"model":"claude-x","stop_reason":"refusal","usage":{"input_tokens":9,"output_tokens":0}}"#;
-        let old = old_whole(
-            &Claudecode,
-            Operation::GenerateContent,
-            Dialect::Claude,
-            reply,
-        )
-        .unwrap();
-        assert!(old.attempts.is_empty());
-        let new = new_whole(Operation::GenerateContent, Dialect::Claude, reply).unwrap();
-        assert_eq!(new.attempts.len(), 1);
-        assert_eq!(new.attempts[0].billable, Some(false));
-        assert_eq!(new.tokens, old.tokens);
+        check(
+            settled(
+                &Claudecode,
+                Operation::GenerateContent,
+                Dialect::Claude,
+                reply,
+            ),
+            json!({"tokens": {"input": 9, "output": 0}, "completeness": "Complete"}),
+            |old| {
+                old["attempts"] = json!([{"model": "claude-x", "billable": false, "output": 0}]);
+            },
+        );
     }
 }
 
@@ -464,179 +486,139 @@ mod aistudio {
             "toolUsePromptTokenCount": 4,
             "candidatesTokensDetails": [{"modality": "TEXT", "tokenCount": 10},
                 {"modality": "IMAGE", "tokenCount": 40}], "serviceTier": "flex"}}));
-        let mut old = old_whole(
-            &Aistudio,
-            Operation::GenerateContent,
-            Dialect::Gemini,
-            &reply,
-        )
-        .unwrap();
-        assert_eq!(old.tokens.output_tokens, Some(30));
-        old.tokens.output_tokens = Some(70);
-        flag_modalities(&mut old);
-        old.metrics
-            .insert("tool_use_prompt_tokens".into(), 4.into());
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::Gemini, &reply),
-            Some(old)
+        check(
+            settled(
+                &Aistudio,
+                Operation::GenerateContent,
+                Dialect::Gemini,
+                &reply,
+            ),
+            json!({"tokens": {"input": 70, "output": 30, "cached": 30, "reasoning": 20},
+                "metrics": {"image_output_tokens": "40"},
+                "dimensions": {"service_tier": "flex"}, "tier": "flex",
+                "completeness": "Complete"}),
+            |old| {
+                old["tokens"]["output"] = 70.into();
+                flag_modalities(old);
+                old["metrics"]["tool_use_prompt_tokens"] = "4".into();
+            },
         );
     }
 
     #[test]
     fn an_embedding_is_equal() {
         let reply = br#"{"embedding":{"values":[0.1]},"usageMetadata":{"promptTokenCount":6}}"#;
-        assert_eq!(
-            new_whole(Operation::CreateEmbedding, Dialect::Gemini, reply),
-            old_whole(
+        check(
+            settled(
                 &Aistudio,
                 Operation::CreateEmbedding,
                 Dialect::Gemini,
-                reply
-            )
+                reply,
+            ),
+            json!({"tokens": {"input": 6}, "completeness": "Complete"}),
+            same,
         );
     }
 
     /// AI Studio ignored a record without a candidate count, so a stream cut
     /// after it read nothing; the standard reading reports the prompt with
     /// the output left unknown for the estimator. A stream that ends on its
-    /// own reads the same either way.
+    /// own reads the same either way, framed as SSE or as a JSON array.
     #[test]
     fn streams_are_equal_once_settled() {
         let partial = r#"{"usageMetadata":{"promptTokenCount":100}}"#;
         let last = r#"{"usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":50,"thoughtsTokenCount":10}}"#;
-        let wire = format!("data: {partial}\n\ndata: {last}\n\n");
-        assert_eq!(
-            new_stream(
-                Operation::StreamGenerateContent,
-                Dialect::Gemini,
-                SSE,
-                wire.as_bytes()
-            ),
-            old_stream(
+        let old = json!({"tokens": {"input": 100, "output": 60, "cached": 0, "reasoning": 10},
+            "completeness": "Complete"});
+        let sse = format!("data: {partial}\n\ndata: {last}\n\n");
+        check(
+            settled_stream(
                 &Aistudio,
                 Operation::StreamGenerateContent,
                 Dialect::Gemini,
-                SSE,
-                wire.as_bytes()
-            )
-        );
-        let array = UsageTransport::Http {
-            framing: Some(StreamFraming::JsonArray),
-        };
-        let wire = format!("[{partial},{last}]");
-        assert_eq!(
-            new_stream(
-                Operation::StreamGenerateContent,
-                Dialect::Gemini,
-                array,
-                wire.as_bytes()
+                sse.as_bytes(),
             ),
-            old_stream(
+            old.clone(),
+            same,
+        );
+        // Without `alt=sse` the records arrive as one JSON array.
+        let array = format!("[{partial},{last}]");
+        check(
+            support::settled_stream(
                 &Aistudio,
                 Operation::StreamGenerateContent,
                 Dialect::Gemini,
-                array,
-                wire.as_bytes()
-            )
-        );
-
-        let cut = format!("data: {partial}\n\n");
-        assert_eq!(
-            old_stream(
-                &Aistudio,
-                Operation::StreamGenerateContent,
-                Dialect::Gemini,
-                SSE,
-                cut.as_bytes()
+                &HeaderMap::new(),
+                array.as_bytes(),
             ),
-            None
+            old,
+            same,
         );
-        let mut reader =
-            UsageReader::new(Operation::StreamGenerateContent, Dialect::Gemini, SSE).unwrap();
-        reader.push(cut.as_bytes());
-        let new = reader.finish(UsageStreamEnd::Interrupted).unwrap();
-        assert_eq!(new.tokens.input_tokens, Some(100));
-        assert_eq!(new.tokens.output_tokens, None);
-        assert_eq!(new.completeness, UsageCompleteness::Partial);
     }
 
-    /// Extra: AI Studio names the tier it served in the
-    /// `x-gemini-service-tier` header, which no body reader sees.
+    /// AI Studio names the tier it served in the `x-gemini-service-tier`
+    /// header, which no body reader sees; its extras still read it.
     #[test]
-    fn extra_the_service_tier_header_is_not_a_body_field() {
+    fn the_service_tier_header_is_an_extra() {
         let reply = br#"{"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":1}}"#;
         let mut headers = HeaderMap::new();
         headers.insert("x-gemini-service-tier", "flex".parse().unwrap());
-        let old = Aistudio
-            .usage_extractor()
-            .unwrap()
-            .extract(UsageContext {
-                operation: OperationKey {
-                    operation: Operation::GenerateContent,
-                    dialect: Dialect::Gemini,
-                },
-                request_body: None,
-                response: ResponseView {
-                    status: StatusCode::OK,
-                    headers: &headers,
-                    body: reply,
-                },
-            })
-            .unwrap()
-            .unwrap();
-        assert_eq!(old.actual_service_tier.as_deref(), Some("flex"));
-        let new = new_whole(Operation::GenerateContent, Dialect::Gemini, reply).unwrap();
-        assert_eq!(new.actual_service_tier, None);
+        check(
+            support::settled(
+                &Aistudio,
+                Operation::GenerateContent,
+                Dialect::Gemini,
+                &headers,
+                reply,
+            ),
+            json!({"tokens": {"input": 1, "output": 1, "cached": 0},
+                "dimensions": {"service_tier": "flex"}, "tier": "flex",
+                "completeness": "Complete"}),
+            same,
+        );
     }
 }
 
 // ------------------------------------------------- code assist (gemini)
 
 /// Code Assist wraps each Gemini reply under `response`, and the channel
-/// shaping takes the wrapper off; the standard reader sees the unwrapped
-/// reply. The shared Code Assist reader reported a zero reasoning count
-/// where Gemini reported none, and did not flag its media metrics.
+/// shaping takes the wrapper off, so the reply settles unwrapped (the
+/// channels' own tests run the shaping). The shared Code Assist reader
+/// reported a zero reasoning count where Gemini reported none, and did not
+/// flag its media metrics.
 #[cfg(any(feature = "geminicli", feature = "antigravity"))]
 fn code_assist_parity<C: BaseChannel>(channel: &C) {
     let inner = json!({"usageMetadata": {"promptTokenCount": 100, "cachedContentTokenCount": 40,
         "candidatesTokenCount": 10, "thoughtsTokenCount": 5,
         "candidatesTokensDetails": [{"modality": "IMAGE", "tokenCount": 4}]}});
-    let mut old = old_whole(
-        channel,
-        Operation::GenerateContent,
-        Dialect::Gemini,
-        &body(&json!({"response": inner})),
-    )
-    .unwrap();
-    flag_modalities(&mut old);
-    assert_eq!(
-        new_whole(Operation::GenerateContent, Dialect::Gemini, &body(&inner)),
-        Some(old)
+    check(
+        settled(
+            channel,
+            Operation::GenerateContent,
+            Dialect::Gemini,
+            &body(&inner),
+        ),
+        json!({"tokens": {"input": 60, "output": 15, "cached": 40, "reasoning": 5},
+            "metrics": {"image_output_tokens": "4"}, "completeness": "Complete"}),
+        flag_modalities,
     );
 
     let records = [
         json!({"usageMetadata": {"promptTokenCount": 9, "candidatesTokenCount": 1}}),
         json!({"usageMetadata": {"promptTokenCount": 9, "candidatesTokenCount": 7}}),
     ];
-    let wrapped: Vec<Value> = records.iter().map(|r| json!({"response": r})).collect();
-    let mut old = old_stream(
-        channel,
-        Operation::StreamGenerateContent,
-        Dialect::Gemini,
-        SSE,
-        &sse(&wrapped),
-    )
-    .unwrap();
-    assert_eq!(old.tokens.reasoning_tokens, Some(0));
-    old.tokens.reasoning_tokens = None;
-    assert_eq!(
-        new_stream(
+    check(
+        settled_stream(
+            channel,
             Operation::StreamGenerateContent,
             Dialect::Gemini,
-            SSE,
-            &sse(&records)
+            &sse(&records),
         ),
-        Some(old)
+        json!({"tokens": {"input": 9, "output": 7, "cached": 0, "reasoning": 0},
+            "completeness": "Complete"}),
+        |old| {
+            old["tokens"].as_object_mut().unwrap().remove("reasoning");
+        },
     );
 }
 
@@ -664,29 +646,27 @@ mod codex {
         for details in ["input_tokens_details", "input_token_details"] {
             let usage = json!({"input_tokens": 100, "output_tokens": 20,
                 details: {"cached_tokens": 40, "cache_write_tokens": 3}});
+            let old = json!({"tokens": {"input": 57, "output": 20, "cached": 40,
+                "cache_30m": 3}, "completeness": "Complete"});
             let reply = body(&json!({"usage": usage}));
-            assert_eq!(
-                new_whole(Operation::GenerateContent, Dialect::OpenAi, &reply),
-                old_whole(&Codex, Operation::GenerateContent, Dialect::OpenAi, &reply)
+            check(
+                settled(&Codex, Operation::GenerateContent, Dialect::OpenAi, &reply),
+                old.clone(),
+                same,
             );
             let wire = sse(&[
                 json!({"type": "response.output_text.delta", "delta": "hi"}),
                 json!({"type": "response.completed", "response": {"id": "r1", "usage": usage}}),
             ]);
-            assert_eq!(
-                new_stream(
-                    Operation::StreamGenerateContent,
-                    Dialect::OpenAi,
-                    SSE,
-                    &wire
-                ),
-                old_stream(
+            check(
+                settled_stream(
                     &Codex,
                     Operation::StreamGenerateContent,
                     Dialect::OpenAi,
-                    SSE,
-                    &wire
-                )
+                    &wire,
+                ),
+                old,
+                same,
             );
         }
     }
@@ -696,12 +676,10 @@ mod codex {
     fn web_searches_are_now_kept() {
         let reply = body(&json!({"usage": {"input_tokens": 5, "output_tokens": 1,
             "server_tool_use": {"web_search_requests": 2}}}));
-        let mut old =
-            old_whole(&Codex, Operation::GenerateContent, Dialect::OpenAi, &reply).unwrap();
-        old.metrics.insert("web_searches".into(), 2.into());
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::OpenAi, &reply),
-            Some(old)
+        check(
+            settled(&Codex, Operation::GenerateContent, Dialect::OpenAi, &reply),
+            json!({"tokens": {"input": 5, "output": 1}, "completeness": "Complete"}),
+            |old| old["metrics"] = json!({"web_searches": "2"}),
         );
     }
 
@@ -716,15 +694,24 @@ mod codex {
                 "input_tokens_details": {"image_tokens": 12, "text_tokens": 3},
                 "output_tokens_details": {"image_tokens": 10}}});
             let wire = format!("event: {kind}\ndata: {event}\n\n");
-            assert_eq!(
-                new_stream(operation, Dialect::OpenAi, SSE, wire.as_bytes()),
-                old_stream(&Codex, operation, Dialect::OpenAi, SSE, wire.as_bytes())
+            check(
+                settled_stream(&Codex, operation, Dialect::OpenAi, wire.as_bytes()),
+                json!({"tokens": {"input": 15, "output": 10},
+                    "metrics": {"image_input_tokens": "12", "image_output_tokens": "10",
+                        "image_outputs": "1", "text_input_tokens": "3"},
+                    "dimensions": {"quality": "high", "size": "1024x1024",
+                        "token_modalities_in_totals": "true"},
+                    "completeness": "Complete"}),
+                same,
             );
         }
     }
 
+    /// A realtime session: each `response.done` is read once by its id,
+    /// and the session is their sum.
     #[test]
     fn a_realtime_session_is_equal() {
+        use gproxy_protocol::usage::{UsageReader, UsageStreamEnd, UsageTransport};
         let done = json!({"type": "response.done", "response": {"id": "r1", "usage": {
             "input_tokens": 100, "output_tokens": 30,
             "input_token_details": {"cached_tokens": 20, "audio_tokens": 70, "text_tokens": 30,
@@ -734,21 +721,6 @@ mod codex {
         let second = json!({"type": "response.done", "response": {"id": "r2",
             "usage": {"input_tokens": 10, "output_tokens": 4}}})
         .to_string();
-        let headers = HeaderMap::new();
-        let mut observer = Codex
-            .usage_stream()
-            .unwrap()
-            .start(UsageStreamContext {
-                operation: OperationKey {
-                    operation: Operation::ConnectRealtime,
-                    dialect: Dialect::OpenAi,
-                },
-                request_body: None,
-                status: StatusCode::OK,
-                headers: &headers,
-                transport: UsageTransport::WebSocket,
-            })
-            .unwrap();
         let mut reader = UsageReader::new(
             Operation::ConnectRealtime,
             Dialect::OpenAi,
@@ -756,13 +728,18 @@ mod codex {
         )
         .unwrap();
         for text in [&done, &done, &second] {
-            let frame = gproxy_protocol::connection::WsFrame::Text(text.clone());
-            observer.observe(UsageFrame::WebSocket(&frame)).unwrap();
             reader.push_message(text);
         }
-        assert_eq!(
-            reader.finish(UsageStreamEnd::Complete),
-            observer.finish(UsageStreamEnd::Complete).unwrap()
+        let usage = reader.finish(UsageStreamEnd::Complete).unwrap();
+        assert_eq!(usage.responses.len(), 2);
+        check(
+            Some(usage),
+            json!({"tokens": {"input": 90, "output": 34, "cached": 20},
+                "metrics": {"audio_input_tokens": "70", "audio_output_tokens": "25",
+                    "cached_audio_input_tokens": "15", "cached_text_input_tokens": "5",
+                    "text_input_tokens": "30", "text_output_tokens": "5"},
+                "completeness": "Complete"}),
+            same,
         );
     }
 }
@@ -770,8 +747,9 @@ mod codex {
 // -------------------------------------------- vendor_usage passthroughs
 
 /// Azure, Vertex, Vertex Express, Custom, Vercel, NVIDIA and the Cloudflare
-/// AI Gateway read the vendor's own block through `shared::vendor_usage`,
-/// streams included — by buffering the whole stream and scanning it.
+/// AI Gateway forward the vendor's own body, which `shared::vendor_usage`
+/// read — streams included, by buffering the whole stream and scanning it.
+/// Their streams are now watched as they pass.
 #[cfg(any(
     feature = "azure",
     feature = "vertex",
@@ -784,83 +762,109 @@ mod codex {
 mod vendor_usage {
     use super::*;
 
-    fn whole<C: BaseChannel>(channel: &C, dialect: Dialect, reply: &[u8]) {
-        let old = old_whole(channel, Operation::GenerateContent, dialect, reply);
-        assert_eq!(new_whole(Operation::GenerateContent, dialect, reply), old);
-    }
-
-    /// The standard reading of a watched stream, which the old path read by
-    /// buffering the whole stream and handing it to its extractor.
-    fn streamed(dialect: Dialect, wire: &[u8]) -> NormalizedUsage {
-        new_stream(Operation::StreamGenerateContent, dialect, SSE, wire).expect("usage")
-    }
-
     const CHAT: &str = r#"{"choices":[{"message":{"content":"hi"}}],"usage":{"prompt_tokens":150,"completion_tokens":40,"prompt_tokens_details":{"cached_tokens":50},"completion_tokens_details":{"reasoning_tokens":12}}}"#;
     const RESPONSES: &str = r#"{"usage":{"input_tokens":120,"output_tokens":30,"input_tokens_details":{"cached_tokens":20},"output_tokens_details":{"reasoning_tokens":10}}}"#;
     const GEMINI: &str = r#"{"usageMetadata":{"promptTokenCount":200,"candidatesTokenCount":60,"thoughtsTokenCount":25,"cachedContentTokenCount":80,"toolUsePromptTokenCount":13}}"#;
 
-    /// OpenAI shapes and a Gemini reply that names every count agree.
-    fn plain<C: BaseChannel>(channel: &C, gemini: bool) {
-        whole(channel, Dialect::OpenAiChat, CHAT.as_bytes());
-        whole(channel, Dialect::OpenAi, RESPONSES.as_bytes());
-        if gemini {
-            whole(channel, Dialect::Gemini, GEMINI.as_bytes());
-        }
+    fn chat<C: BaseChannel>(channel: &C) {
+        check(
+            settled(
+                channel,
+                Operation::GenerateContent,
+                Dialect::OpenAiChat,
+                CHAT.as_bytes(),
+            ),
+            json!({"tokens": {"input": 100, "output": 40, "cached": 50, "reasoning": 12},
+                "completeness": "Complete"}),
+            same,
+        );
+    }
+
+    fn responses<C: BaseChannel>(channel: &C) {
+        check(
+            settled(
+                channel,
+                Operation::GenerateContent,
+                Dialect::OpenAi,
+                RESPONSES.as_bytes(),
+            ),
+            json!({"tokens": {"input": 100, "output": 30, "cached": 20, "reasoning": 10},
+                "completeness": "Complete"}),
+            same,
+        );
+    }
+
+    fn gemini<C: BaseChannel>(channel: &C) {
+        check(
+            settled(
+                channel,
+                Operation::GenerateContent,
+                Dialect::Gemini,
+                GEMINI.as_bytes(),
+            ),
+            json!({"tokens": {"input": 120, "output": 85, "cached": 80, "reasoning": 25},
+                "metrics": {"tool_use_prompt_tokens": "13"}, "completeness": "Complete"}),
+            same,
+        );
     }
 
     /// `vendor_usage` left a cache write inside the ordinary input and
     /// dropped audio details, web searches and the serving tier.
     fn fields_it_dropped<C: BaseChannel>(channel: &C) {
         let reply = br#"{"service_tier":"priority","usage":{"prompt_tokens":100,"completion_tokens":20,"prompt_tokens_details":{"cached_tokens":40,"cache_write_tokens":3,"audio_tokens":5},"server_tool_use":{"web_search_requests":2}}}"#;
-        let mut old = old_whole(
-            channel,
-            Operation::GenerateContent,
-            Dialect::OpenAiChat,
-            reply,
-        )
-        .unwrap();
-        assert_eq!(old.tokens.input_tokens, Some(60));
-        old.tokens.input_tokens = Some(57);
-        old.tokens.cache_creation_30m_tokens = Some(3);
-        old.metrics.insert("audio_input_tokens".into(), 5.into());
-        old.metrics.insert("web_searches".into(), 2.into());
-        flag_modalities(&mut old);
-        old.dimensions
-            .insert("service_tier".into(), "priority".into());
-        old.actual_service_tier = Some("priority".into());
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::OpenAiChat, reply),
-            Some(old)
+        check(
+            settled(
+                channel,
+                Operation::GenerateContent,
+                Dialect::OpenAiChat,
+                reply,
+            ),
+            json!({"tokens": {"input": 60, "output": 20, "cached": 40},
+                "completeness": "Complete"}),
+            |old| {
+                old["tokens"]["input"] = 57.into();
+                old["tokens"]["cache_30m"] = 3.into();
+                old["metrics"] = json!({"audio_input_tokens": "5", "web_searches": "2"});
+                flag_modalities(old);
+                old["dimensions"]["service_tier"] = "priority".into();
+                old["tier"] = "priority".into();
+            },
         );
     }
 
     /// A Claude reply: `vendor_usage` wrapped it in one attempt and ignored
-    /// server tools and qualifiers.
+    /// server tools and qualifiers. A refusal was an unbillable attempt
+    /// already.
     fn claude<C: BaseChannel>(channel: &C) {
         let reply = br#"{"model":"claude-x","stop_reason":"end_turn","usage":{"input_tokens":7,"output_tokens":9,"cache_read_input_tokens":4,"cache_creation":{"ephemeral_5m_input_tokens":5,"ephemeral_1h_input_tokens":6},"server_tool_use":{"web_search_requests":1,"web_fetch_requests":0},"speed":"fast"}}"#;
-        let mut old =
-            old_whole(channel, Operation::GenerateContent, Dialect::Claude, reply).unwrap();
-        drop_single_attempt(&mut old);
-        old.metrics.insert("web_searches".into(), 1.into());
-        old.dimensions.insert("speed".into(), "fast".into());
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::Claude, reply),
-            Some(old)
+        check(
+            settled(channel, Operation::GenerateContent, Dialect::Claude, reply),
+            json!({"tokens": {"input": 7, "output": 9, "cached": 4, "cache_5m": 5,
+                "cache_1h": 6}, "completeness": "Complete",
+                "attempts": [{"model": "claude-x", "billable": true, "output": 9}]}),
+            |old| {
+                drop_single_attempt(old);
+                old["metrics"] = json!({"web_searches": "1"});
+                old["dimensions"] = json!({"speed": "fast"});
+            },
         );
         let refused = br#"{"model":"claude-x","stop_reason":"refusal","usage":{"input_tokens":7,"output_tokens":0}}"#;
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::Claude, refused),
-            old_whole(
+        check(
+            settled(
                 channel,
                 Operation::GenerateContent,
                 Dialect::Claude,
-                refused
-            )
+                refused,
+            ),
+            json!({"tokens": {"input": 7, "output": 0}, "completeness": "Complete",
+                "attempts": [{"model": "claude-x", "billable": false, "output": 0}]}),
+            same,
         );
     }
 
-    /// The accumulated streams read the same as the watched ones, except
-    /// for the single attempt on an ordinary Claude answer.
+    /// The watched streams read what the accumulated ones did, except for
+    /// the single attempt on an ordinary Claude answer and Gemini's
+    /// explicit zero cache read.
     fn streams<C: BaseChannel>(channel: &C, gemini: bool) {
         let claude = concat!(
             "event: message_start\n",
@@ -870,45 +874,52 @@ mod vendor_usage {
             "event: message_delta\n",
             "data: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":5}}\n\n",
         );
-        let mut old = old_whole(
-            channel,
-            Operation::StreamGenerateContent,
-            Dialect::Claude,
-            claude.as_bytes(),
-        )
-        .unwrap();
-        drop_single_attempt(&mut old);
-        assert_eq!(streamed(Dialect::Claude, claude.as_bytes()), old);
+        check(
+            settled_stream(
+                channel,
+                Operation::StreamGenerateContent,
+                Dialect::Claude,
+                claude.as_bytes(),
+            ),
+            json!({"tokens": {"input": 11, "output": 5, "cached": 4},
+                "completeness": "Complete",
+                "attempts": [{"model": "claude-x", "billable": true, "output": 5}]}),
+            drop_single_attempt,
+        );
 
         let chat = concat!(
             "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}],\"usage\":null}\n\n",
             "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":31,\"completion_tokens\":17,\"prompt_tokens_details\":{\"cached_tokens\":9}}}\n\n",
             "data: [DONE]\n\n",
         );
-        let old = old_whole(
-            channel,
-            Operation::StreamGenerateContent,
-            Dialect::OpenAiChat,
-            chat.as_bytes(),
+        check(
+            settled_stream(
+                channel,
+                Operation::StreamGenerateContent,
+                Dialect::OpenAiChat,
+                chat.as_bytes(),
+            ),
+            json!({"tokens": {"input": 22, "output": 17, "cached": 9},
+                "completeness": "Complete"}),
+            same,
         );
-        assert_eq!(streamed(Dialect::OpenAiChat, chat.as_bytes()), old.unwrap());
 
         if gemini {
             let wire = concat!(
                 "data: {\"usageMetadata\":{\"promptTokenCount\":40,\"candidatesTokenCount\":2}}\n\n",
                 "data: {\"usageMetadata\":{\"promptTokenCount\":40,\"candidatesTokenCount\":18}}\n\n",
             );
-            let mut old = old_whole(
-                channel,
-                Operation::StreamGenerateContent,
-                Dialect::Gemini,
-                wire.as_bytes(),
-            )
-            .unwrap();
-            // Gemini leaves out a zero cache read; a settled reply states it.
-            assert_eq!(old.tokens.cached_input_tokens, None);
-            old.tokens.cached_input_tokens = Some(0);
-            assert_eq!(streamed(Dialect::Gemini, wire.as_bytes()), old);
+            check(
+                settled_stream(
+                    channel,
+                    Operation::StreamGenerateContent,
+                    Dialect::Gemini,
+                    wire.as_bytes(),
+                ),
+                json!({"tokens": {"input": 40, "output": 18}, "completeness": "Complete"}),
+                // Gemini leaves out a zero cache read; a settled reply states it.
+                |old| old["tokens"]["cached"] = 0.into(),
+            );
         }
     }
 
@@ -916,7 +927,8 @@ mod vendor_usage {
     #[test]
     fn azure_agrees_except_cache_writes_dropped_fields_and_single_attempts() {
         use gproxy_channel::channels::azure::Azure;
-        plain(&Azure, false);
+        chat(&Azure);
+        responses(&Azure);
         fields_it_dropped(&Azure);
         claude(&Azure);
         streams(&Azure, false);
@@ -926,7 +938,7 @@ mod vendor_usage {
     #[test]
     fn vertex_agrees_except_single_attempts_and_the_explicit_zero_cache() {
         use gproxy_channel::channels::vertex::Vertex;
-        whole(&Vertex, Dialect::Gemini, GEMINI.as_bytes());
+        gemini(&Vertex);
         claude(&Vertex);
         streams(&Vertex, true);
     }
@@ -935,14 +947,16 @@ mod vendor_usage {
     #[test]
     fn vertexexpress_agrees() {
         use gproxy_channel::channels::vertexexpress::VertexExpress;
-        whole(&VertexExpress, Dialect::Gemini, GEMINI.as_bytes());
+        gemini(&VertexExpress);
     }
 
     #[cfg(feature = "custom")]
     #[test]
     fn custom_agrees_except_cache_writes_dropped_fields_and_single_attempts() {
         use gproxy_channel::channels::custom::Custom;
-        plain(&Custom, true);
+        chat(&Custom);
+        responses(&Custom);
+        gemini(&Custom);
         fields_it_dropped(&Custom);
         claude(&Custom);
         streams(&Custom, true);
@@ -952,7 +966,9 @@ mod vendor_usage {
     #[test]
     fn vercel_agrees_except_cache_writes_dropped_fields_and_single_attempts() {
         use gproxy_channel::channels::vercel::Vercel;
-        plain(&Vercel, true);
+        chat(&Vercel);
+        responses(&Vercel);
+        gemini(&Vercel);
         fields_it_dropped(&Vercel);
         claude(&Vercel);
         streams(&Vercel, true);
@@ -962,7 +978,7 @@ mod vendor_usage {
     #[test]
     fn nvidia_agrees_except_cache_writes_and_dropped_fields() {
         use gproxy_channel::channels::nvidia::Nvidia;
-        whole(&Nvidia, Dialect::OpenAiChat, CHAT.as_bytes());
+        chat(&Nvidia);
         fields_it_dropped(&Nvidia);
     }
 
@@ -970,7 +986,9 @@ mod vendor_usage {
     #[test]
     fn cloudflare_ai_gateway_agrees_except_cache_writes_and_dropped_fields() {
         use gproxy_channel::channels::cloudflare_ai_gateway::CloudflareAiGateway;
-        plain(&CloudflareAiGateway, true);
+        chat(&CloudflareAiGateway);
+        responses(&CloudflareAiGateway);
+        gemini(&CloudflareAiGateway);
         fields_it_dropped(&CloudflareAiGateway);
     }
 }
@@ -979,7 +997,7 @@ mod vendor_usage {
 
 /// Copilot CLI, OpenCode, Cline, xAI, Grok Build, OpenRouter, DeepSeek, Kimi
 /// and DashScope read through `shared::compatible::usage` and a per-channel
-/// hook for their own fields.
+/// hook for their own fields; the hooks are their `UsageExtras` now.
 #[cfg(any(
     feature = "copilotcli",
     feature = "opencode",
@@ -994,42 +1012,39 @@ mod vendor_usage {
 mod compatible {
     use super::*;
 
-    fn equal<C: BaseChannel>(channel: &C, dialect: Dialect, reply: &Value) {
-        let reply = body(reply);
-        assert_eq!(
-            new_whole(Operation::GenerateContent, dialect, &reply),
-            old_whole(channel, Operation::GenerateContent, dialect, &reply)
-        );
-    }
-
     /// `compatible` left a cache write inside the ordinary input and
     /// dropped audio details, web searches and the serving tier, as
-    /// `vendor_usage` did.
+    /// `vendor_usage` did. Only the standard part is compared: a vendor's
+    /// extras may add keys of their own.
     fn fields_it_dropped<C: BaseChannel>(channel: &C) {
         let reply = br#"{"service_tier":"priority","usage":{"prompt_tokens":100,"completion_tokens":20,"prompt_tokens_details":{"cached_tokens":40,"cache_write_tokens":3,"audio_tokens":5},"server_tool_use":{"web_search_requests":2}}}"#;
-        let mut old = old_whole(
+        let new = settled(
             channel,
             Operation::GenerateContent,
             Dialect::OpenAiChat,
             reply,
-        )
-        .unwrap();
-        assert_eq!(old.tokens.input_tokens, Some(60));
-        old.tokens.input_tokens = Some(57);
-        old.tokens.cache_creation_30m_tokens = Some(3);
-        old.metrics.insert("audio_input_tokens".into(), 5.into());
-        old.metrics.insert("web_searches".into(), 2.into());
-        flag_modalities(&mut old);
-        old.dimensions
-            .insert("service_tier".into(), "priority".into());
-        old.actual_service_tier = Some("priority".into());
-        let new = new_whole(Operation::GenerateContent, Dialect::OpenAiChat, reply).unwrap();
-        // Vendor hooks may have added their own keys; compare the standard part.
-        assert_eq!(new.tokens, old.tokens);
-        for (key, value) in &new.metrics {
-            assert_eq!(old.metrics.get(key), Some(value), "{key}");
+        );
+        let mut new = summary(new.as_ref());
+        let standard = [
+            "audio_input_tokens",
+            "web_searches",
+            "service_tier",
+            "token_modalities_in_totals",
+        ];
+        for key in ["metrics", "dimensions"] {
+            if let Some(fields) = new.get_mut(key).and_then(Value::as_object_mut) {
+                fields.retain(|name, _| standard.contains(&name.as_str()));
+            }
         }
-        assert_eq!(new.actual_service_tier, old.actual_service_tier);
+        let mut old = json!({"tokens": {"input": 60, "output": 20, "cached": 40},
+            "completeness": "Complete"});
+        old["tokens"]["input"] = 57.into();
+        old["tokens"]["cache_30m"] = 3.into();
+        old["metrics"] = json!({"audio_input_tokens": "5", "web_searches": "2"});
+        flag_modalities(&mut old);
+        old["dimensions"]["service_tier"] = "priority".into();
+        old["tier"] = "priority".into();
+        assert_eq!(new, old);
     }
 
     /// Chat and Responses streams settle on the same reading.
@@ -1039,55 +1054,46 @@ mod compatible {
             json!({"choices": [], "usage": {"prompt_tokens": 10, "completion_tokens": 2,
                 "prompt_tokens_details": {"cached_tokens": 4}}}),
         ]);
-        assert_eq!(
-            new_stream(
-                Operation::StreamGenerateContent,
-                Dialect::OpenAiChat,
-                SSE,
-                &chat
-            ),
-            old_stream(
+        check(
+            settled_stream(
                 channel,
                 Operation::StreamGenerateContent,
                 Dialect::OpenAiChat,
-                SSE,
-                &chat
-            )
+                &chat,
+            ),
+            json!({"tokens": {"input": 6, "output": 2, "cached": 4},
+                "completeness": "Complete"}),
+            same,
         );
         let responses = sse(&[
             json!({"type": "response.output_text.delta", "delta": "hi"}),
             json!({"type": "response.completed", "response": {"usage":
                 {"input_tokens": 9, "output_tokens": 3}}}),
         ]);
-        assert_eq!(
-            new_stream(
-                Operation::StreamGenerateContent,
-                Dialect::OpenAi,
-                SSE,
-                &responses
-            ),
-            old_stream(
+        check(
+            settled_stream(
                 channel,
                 Operation::StreamGenerateContent,
                 Dialect::OpenAi,
-                SSE,
-                &responses
-            )
+                &responses,
+            ),
+            json!({"tokens": {"input": 9, "output": 3}, "completeness": "Complete"}),
+            same,
         );
     }
 
     /// A Claude reply: `compatible` ignored server tools and qualifiers.
     fn claude<C: BaseChannel>(channel: &C) {
         let reply = br#"{"usage":{"input_tokens":100,"output_tokens":4,"cache_read_input_tokens":40,"server_tool_use":{"web_search_requests":1},"service_tier":"standard"}}"#;
-        let mut old =
-            old_whole(channel, Operation::GenerateContent, Dialect::Claude, reply).unwrap();
-        old.metrics.insert("web_searches".into(), 1.into());
-        old.dimensions
-            .insert("service_tier".into(), "standard".into());
-        old.actual_service_tier = Some("standard".into());
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::Claude, reply),
-            Some(old)
+        check(
+            settled(channel, Operation::GenerateContent, Dialect::Claude, reply),
+            json!({"tokens": {"input": 100, "output": 4, "cached": 40},
+                "completeness": "Complete"}),
+            |old| {
+                old["metrics"] = json!({"web_searches": "1"});
+                old["dimensions"] = json!({"service_tier": "standard"});
+                old["tier"] = "standard".into();
+            },
         );
     }
 
@@ -1095,11 +1101,19 @@ mod compatible {
     #[test]
     fn copilotcli_agrees_except_cache_writes_and_dropped_fields() {
         use gproxy_channel::channels::copilotcli::CopilotCli;
-        equal(
-            &CopilotCli,
-            Dialect::OpenAiChat,
-            &json!({"usage": {"prompt_tokens": 90,
-            "completion_tokens": 7, "prompt_tokens_details": {"cached_tokens": 20}}}),
+        check(
+            settled(
+                &CopilotCli,
+                Operation::GenerateContent,
+                Dialect::OpenAiChat,
+                &body(
+                    &json!({"usage": {"prompt_tokens": 90, "completion_tokens": 7,
+                    "prompt_tokens_details": {"cached_tokens": 20}}}),
+                ),
+            ),
+            json!({"tokens": {"input": 70, "output": 7, "cached": 20},
+                "completeness": "Complete"}),
+            same,
         );
         fields_it_dropped(&CopilotCli);
         streams(&CopilotCli);
@@ -1109,17 +1123,31 @@ mod compatible {
     #[test]
     fn opencode_agrees_except_cache_writes_and_dropped_fields() {
         use gproxy_channel::channels::opencode::OpenCode;
-        equal(
-            &OpenCode::ZEN,
-            Dialect::OpenAiChat,
-            &json!({"usage": {"prompt_tokens": 100,
-            "completion_tokens": 4, "prompt_tokens_details": {"cached_tokens": 40}}}),
+        check(
+            settled(
+                &OpenCode::ZEN,
+                Operation::GenerateContent,
+                Dialect::OpenAiChat,
+                &body(
+                    &json!({"usage": {"prompt_tokens": 100, "completion_tokens": 4,
+                    "prompt_tokens_details": {"cached_tokens": 40}}}),
+                ),
+            ),
+            json!({"tokens": {"input": 60, "output": 4, "cached": 40},
+                "completeness": "Complete"}),
+            same,
         );
-        equal(
-            &OpenCode::ZEN,
-            Dialect::Claude,
-            &json!({"usage": {"input_tokens": 100,
-            "output_tokens": 4, "cache_read_input_tokens": 40}}),
+        check(
+            settled(
+                &OpenCode::ZEN,
+                Operation::GenerateContent,
+                Dialect::Claude,
+                &body(&json!({"usage": {"input_tokens": 100, "output_tokens": 4,
+                    "cache_read_input_tokens": 40}})),
+            ),
+            json!({"tokens": {"input": 100, "output": 4, "cached": 40},
+                "completeness": "Complete"}),
+            same,
         );
         fields_it_dropped(&OpenCode::ZEN);
         claude(&OpenCode::ZEN);
@@ -1134,63 +1162,54 @@ mod compatible {
         use gproxy_channel::channels::cline::Cline;
         let inner = json!({"usage": {"prompt_tokens": 100, "completion_tokens": 4,
             "prompt_tokens_details": {"cached_tokens": 30}}});
-        let old = old_whole(
-            &Cline,
-            Operation::GenerateContent,
-            Dialect::OpenAiChat,
-            &body(&json!({"success": true, "data": inner})),
-        );
-        assert_eq!(
-            new_whole(
+        check(
+            settled(
+                &Cline,
                 Operation::GenerateContent,
                 Dialect::OpenAiChat,
-                &body(&inner)
+                &body(&inner),
             ),
-            old
+            json!({"tokens": {"input": 70, "output": 4, "cached": 30},
+                "completeness": "Complete"}),
+            same,
         );
         fields_it_dropped(&Cline);
         streams(&Cline);
     }
 
-    /// Extras for phase 4: cost ticks, a stated price, video seconds and the
+    /// Extras: cost ticks, a stated price, video seconds and the
     /// non-standard `server_side_tool_usage_details` web-search count. The
-    /// image input tokens are standard Responses detail and already read.
+    /// image input tokens are standard Responses detail, now flagged as a
+    /// modality inside the input.
     fn xai_extras<C: BaseChannel>(channel: &C) {
         let reply = body(&json!({"usage": {"input_tokens": 100, "output_tokens": 5,
             "input_tokens_details": {"cached_tokens": 40, "image_tokens": 12},
             "cost_in_usd_ticks": 1234,
             "server_side_tool_usage_details": {"web_search_requests": 2}}}));
-        let mut old =
-            old_whole(channel, Operation::GenerateContent, Dialect::OpenAi, &reply).unwrap();
-        let new = new_whole(Operation::GenerateContent, Dialect::OpenAi, &reply).unwrap();
-        for extra in ["cost_in_usd_ticks", "web_searches"] {
-            assert!(old.metrics.remove(extra).is_some(), "{extra}");
-        }
-        flag_modalities(&mut old);
-        assert_eq!(new, old);
+        check(
+            settled(channel, Operation::GenerateContent, Dialect::OpenAi, &reply),
+            json!({"tokens": {"input": 60, "output": 5, "cached": 40},
+                "metrics": {"cost_in_usd_ticks": "1234", "image_input_tokens": "12",
+                    "web_searches": "2"},
+                "completeness": "Complete"}),
+            flag_modalities,
+        );
 
         let job = body(&json!({"usage": {"input_tokens": 4, "output_tokens": 0},
             "cost_usd": 0.4, "duration": 6}));
-        let mut old =
-            old_whole(channel, Operation::GenerateContent, Dialect::OpenAi, &job).unwrap();
-        assert_eq!(
-            old.metrics.remove("upstream_cost_usd"),
-            Some(decimal("0.4"))
-        );
-        assert_eq!(old.metrics.remove("video_seconds"), Some(6.into()));
-        assert_eq!(
-            old.dimensions.remove("upstream_priced").as_deref(),
-            Some("true")
-        );
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::OpenAi, &job),
-            Some(old)
+        check(
+            settled(channel, Operation::GenerateContent, Dialect::OpenAi, &job),
+            json!({"tokens": {"input": 4, "output": 0},
+                "metrics": {"upstream_cost_usd": "0.4", "video_seconds": "6"},
+                "dimensions": {"upstream_priced": "true"},
+                "completeness": "Complete"}),
+            same,
         );
     }
 
     #[cfg(feature = "xai")]
     #[test]
-    fn xai_agrees_except_cost_ticks_stated_dollars_and_video_seconds() {
+    fn xai_agrees_with_its_cost_ticks_stated_dollars_and_video_seconds() {
         use gproxy_channel::channels::xai::Xai;
         xai_extras(&Xai);
         streams(&Xai);
@@ -1198,129 +1217,152 @@ mod compatible {
 
     #[cfg(feature = "grokbuild")]
     #[test]
-    fn grokbuild_agrees_except_cost_ticks_stated_dollars_and_video_seconds() {
+    fn grokbuild_agrees_with_its_cost_ticks_stated_dollars_and_video_seconds() {
         use gproxy_channel::channels::grokbuild::GrokBuild;
         xai_extras(&GrokBuild);
         streams(&GrokBuild);
     }
 
-    /// Extras for phase 4: the charged cost and its breakdown, the byok
-    /// flag, the serving model (as a dimension and as the one attempt), and
-    /// the video input tokens OpenRouter reports in the Chat details.
+    /// Extras: the charged cost and its breakdown, the byok flag, the
+    /// serving model (as a dimension and as the one attempt), and the video
+    /// input tokens OpenRouter reports in the Chat details — in a buffered
+    /// reply and in a stream's last usage chunk alike.
     #[cfg(feature = "openrouter")]
     #[test]
-    fn openrouter_agrees_except_cost_byok_and_serving_model() {
+    fn openrouter_agrees_with_its_cost_byok_and_serving_model() {
         use gproxy_channel::channels::openrouter::OpenRouter;
-        let reply = body(&json!({"model": "anthropic/claude-opus-4-8", "usage": {
-            "prompt_tokens": 100, "completion_tokens": 20,
+        let usage = json!({"prompt_tokens": 100, "completion_tokens": 20,
             "prompt_tokens_details": {"cached_tokens": 30, "video_tokens": 6},
             "cost": 0.0125, "cost_details": {"upstream_inference_cost": 0.011},
-            "is_byok": true}}));
-        let mut old = old_whole(
-            &OpenRouter,
-            Operation::GenerateContent,
-            Dialect::OpenAiChat,
-            &reply,
-        )
-        .unwrap();
-        assert_eq!(
-            old.metrics.remove("upstream_cost_usd"),
-            Some(decimal("0.0125"))
+            "is_byok": true});
+        let old = json!({"tokens": {"input": 70, "output": 20, "cached": 30},
+            "metrics": {"upstream_cost_usd": "0.0125", "upstream_inference_cost_usd": "0.011",
+                "video_input_tokens": "6"},
+            "dimensions": {"is_byok": "true", "serving_model": "anthropic/claude-opus-4-8",
+                "upstream_priced": "true"},
+            "completeness": "Complete",
+            "attempts": [{"model": "anthropic/claude-opus-4-8", "billable": null, "output": 20}]});
+        let reply = body(&json!({"model": "anthropic/claude-opus-4-8", "usage": usage}));
+        check(
+            settled(
+                &OpenRouter,
+                Operation::GenerateContent,
+                Dialect::OpenAiChat,
+                &reply,
+            ),
+            old.clone(),
+            same,
         );
-        assert_eq!(
-            old.metrics.remove("upstream_inference_cost_usd"),
-            Some(decimal("0.011"))
-        );
-        assert_eq!(old.metrics.remove("video_input_tokens"), Some(6.into()));
-        for dimension in ["upstream_priced", "is_byok", "serving_model"] {
-            assert!(old.dimensions.remove(dimension).is_some(), "{dimension}");
-        }
-        assert_eq!(old.attempts.len(), 1);
-        assert_eq!(old.attempts[0].model, "anthropic/claude-opus-4-8");
-        old.attempts.clear();
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::OpenAiChat, &reply),
-            Some(old)
+        let wire = sse(&[
+            json!({"model": "anthropic/claude-opus-4-8", "choices": [{"delta": {"content": "hi"}}],
+                "usage": null}),
+            json!({"model": "anthropic/claude-opus-4-8", "choices": [], "usage": usage}),
+        ]);
+        check(
+            settled_stream(
+                &OpenRouter,
+                Operation::StreamGenerateContent,
+                Dialect::OpenAiChat,
+                &wire,
+            ),
+            old,
+            same,
         );
     }
 
-    /// Extra for phase 4: DeepSeek's cache hits live at
-    /// `usage.prompt_cache_hit_tokens`, so the standard reading leaves them
-    /// inside the ordinary input.
+    /// Extra: DeepSeek's cache hits live at `usage.prompt_cache_hit_tokens`,
+    /// which its extras take out of the ordinary input.
     #[cfg(feature = "deepseek")]
     #[test]
-    fn deepseek_agrees_except_its_own_cache_hit_field() {
+    fn deepseek_agrees_with_its_own_cache_hit_field() {
         use gproxy_channel::channels::deepseek::DeepSeek;
-        let reply = body(
-            &json!({"usage": {"prompt_tokens": 1000, "completion_tokens": 20,
-            "prompt_cache_hit_tokens": 960, "prompt_cache_miss_tokens": 40}}),
+        let usage = json!({"prompt_tokens": 1000, "completion_tokens": 20,
+            "prompt_cache_hit_tokens": 960, "prompt_cache_miss_tokens": 40});
+        let old = json!({"tokens": {"input": 40, "output": 20, "cached": 960},
+            "completeness": "Complete"});
+        check(
+            settled(
+                &DeepSeek,
+                Operation::GenerateContent,
+                Dialect::OpenAiChat,
+                &body(&json!({"usage": usage})),
+            ),
+            old.clone(),
+            same,
         );
-        let mut old = old_whole(
-            &DeepSeek,
-            Operation::GenerateContent,
-            Dialect::OpenAiChat,
-            &reply,
-        )
-        .unwrap();
-        assert_eq!(old.tokens.cached_input_tokens, Some(960));
-        old.tokens.input_tokens = Some(1000);
-        old.tokens.cached_input_tokens = None;
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::OpenAiChat, &reply),
-            Some(old)
+        check(
+            settled_stream(
+                &DeepSeek,
+                Operation::StreamGenerateContent,
+                Dialect::OpenAiChat,
+                &sse(&[json!({"choices": [], "usage": usage})]),
+            ),
+            old,
+            same,
         );
         fields_it_dropped(&DeepSeek);
         streams(&DeepSeek);
     }
 
-    /// Extra for phase 4: Moonshot's cache hits live at the top-level
-    /// `usage.cached_tokens`; with the standard detail present too, both
-    /// readers agree.
+    /// Extra: Moonshot's cache hits live at the top-level
+    /// `usage.cached_tokens`; with the standard detail present too, it is
+    /// not taken out twice.
     #[cfg(feature = "kimi")]
     #[test]
-    fn kimi_agrees_except_its_own_cache_hit_field() {
+    fn kimi_agrees_with_its_own_cache_hit_field() {
         use gproxy_channel::channels::kimi::Kimi;
-        let reply = body(
-            &json!({"usage": {"prompt_tokens": 500, "completion_tokens": 8,
-            "cached_tokens": 480}}),
+        check(
+            settled(
+                &Kimi,
+                Operation::GenerateContent,
+                Dialect::OpenAiChat,
+                &body(
+                    &json!({"usage": {"prompt_tokens": 500, "completion_tokens": 8,
+                    "cached_tokens": 480}}),
+                ),
+            ),
+            json!({"tokens": {"input": 20, "output": 8, "cached": 480},
+                "completeness": "Complete"}),
+            same,
         );
-        let mut old = old_whole(
-            &Kimi,
-            Operation::GenerateContent,
-            Dialect::OpenAiChat,
-            &reply,
-        )
-        .unwrap();
-        old.tokens.input_tokens = Some(500);
-        old.tokens.cached_input_tokens = None;
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::OpenAiChat, &reply),
-            Some(old)
-        );
-        equal(
-            &Kimi,
-            Dialect::OpenAiChat,
-            &json!({"usage": {"prompt_tokens": 100,
-            "completion_tokens": 3, "cached_tokens": 60,
-            "prompt_tokens_details": {"cached_tokens": 60}}}),
+        check(
+            settled(
+                &Kimi,
+                Operation::GenerateContent,
+                Dialect::OpenAiChat,
+                &body(
+                    &json!({"usage": {"prompt_tokens": 100, "completion_tokens": 3,
+                    "cached_tokens": 60, "prompt_tokens_details": {"cached_tokens": 60}}}),
+                ),
+            ),
+            json!({"tokens": {"input": 40, "output": 3, "cached": 60},
+                "completeness": "Complete"}),
+            same,
         );
         streams(&Kimi);
     }
 
-    /// DashScope's chat is plain Chat Completions. Its image reply is broken
-    /// today (the reader sees the native envelope, not the shaped reply that
-    /// parks the counters under `dashscope_usage`); against the shaped reply
-    /// the standard reading counts the images, and the input tokens and
-    /// size are an extra for phase 4.
+    /// DashScope's chat is plain Chat Completions. Its image reply was
+    /// broken (the reader saw the native envelope, not the shaped reply that
+    /// parks the counters under `dashscope_usage`); the shaped reply settles
+    /// with its extras' counts.
     #[cfg(feature = "dashscope")]
     #[test]
     fn dashscope_chat_agrees_and_its_image_counters_are_an_extra() {
         use gproxy_channel::channels::dashscope::DashScope;
-        equal(
-            &DashScope,
-            Dialect::OpenAiChat,
-            &json!({"usage": {"prompt_tokens": 90,
-            "completion_tokens": 7, "prompt_tokens_details": {"cached_tokens": 20}}}),
+        check(
+            settled(
+                &DashScope,
+                Operation::GenerateContent,
+                Dialect::OpenAiChat,
+                &body(
+                    &json!({"usage": {"prompt_tokens": 90, "completion_tokens": 7,
+                    "prompt_tokens_details": {"cached_tokens": 20}}}),
+                ),
+            ),
+            json!({"tokens": {"input": 70, "output": 7, "cached": 20},
+                "completeness": "Complete"}),
+            same,
         );
         fields_it_dropped(&DashScope);
         streams(&DashScope);
@@ -1329,23 +1371,21 @@ mod compatible {
             &json!({"request_id": "r1", "data": [{"url": "https://cdn.example/1.png"}],
             "dashscope_usage": {"image_count": 1, "input_tokens": 9}}),
         );
-        let old = old_whole(&DashScope, Operation::CreateImage, Dialect::OpenAi, &shaped).unwrap();
-        assert_eq!(old.tokens.input_tokens, Some(9));
-        let new = new_whole(Operation::CreateImage, Dialect::OpenAi, &shaped).unwrap();
-        assert_eq!(
-            new.metrics.get("image_outputs"),
-            old.metrics.get("image_outputs")
+        check(
+            settled(&DashScope, Operation::CreateImage, Dialect::OpenAi, &shaped),
+            json!({"tokens": {"input": 9}, "metrics": {"image_outputs": "1"},
+                "completeness": "Complete"}),
+            same,
         );
-        assert_eq!(new.tokens.input_tokens, None, "dashscope_usage is an extra");
     }
 }
 
 // --------------------------------------------------------------- bedrock
 
-/// Bedrock's observer translated the AWS event stream itself; after the
-/// move the standard reader watches the Messages SSE the channel already
-/// produces. Its Messages reading wrapped an ordinary answer in one
-/// attempt, and it read no server tools or qualifiers.
+/// Bedrock's observer translated the AWS event stream itself; now the
+/// Messages SSE the channel produces is what settles (the channel's own
+/// tests run the translation). Its Messages reading wrapped an ordinary
+/// answer in one attempt, and it read no qualifiers.
 #[cfg(feature = "aws_bedrock")]
 mod aws_bedrock {
     use super::*;
@@ -1354,20 +1394,21 @@ mod aws_bedrock {
     #[test]
     fn messages_agree_except_the_single_attempt_and_dropped_qualifiers() {
         let reply = br#"{"model":"claude-x","stop_reason":"end_turn","usage":{"input_tokens":7,"output_tokens":9,"cache_read_input_tokens":4,"cache_creation_input_tokens":5,"service_tier":"standard"}}"#;
-        let mut old = old_whole(
-            &AwsBedrock,
-            Operation::GenerateContent,
-            Dialect::Claude,
-            reply,
-        )
-        .unwrap();
-        drop_single_attempt(&mut old);
-        old.dimensions
-            .insert("service_tier".into(), "standard".into());
-        old.actual_service_tier = Some("standard".into());
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::Claude, reply),
-            Some(old)
+        check(
+            settled(
+                &AwsBedrock,
+                Operation::GenerateContent,
+                Dialect::Claude,
+                reply,
+            ),
+            json!({"tokens": {"input": 7, "output": 9, "cached": 4, "cache_5m": 5},
+                "completeness": "Complete",
+                "attempts": [{"model": "claude-x", "billable": true, "output": 9}]}),
+            |old| {
+                drop_single_attempt(old);
+                old["dimensions"] = json!({"service_tier": "standard"});
+                old["tier"] = "standard".into();
+            },
         );
 
         let refused = sse(&[
@@ -1377,42 +1418,41 @@ mod aws_bedrock {
                 "usage": {"output_tokens": 0}}),
             json!({"type": "message_stop"}),
         ]);
-        assert_eq!(
-            new_stream(
-                Operation::StreamGenerateContent,
-                Dialect::Claude,
-                SSE,
-                &refused
-            ),
-            old_stream(
+        check(
+            settled_stream(
                 &AwsBedrock,
                 Operation::StreamGenerateContent,
                 Dialect::Claude,
-                SSE,
-                &refused
-            )
+                &refused,
+            ),
+            json!({"tokens": {"input": 20, "output": 0}, "completeness": "Complete",
+                "attempts": [{"model": "claude-fable-5", "billable": false, "output": 0}]}),
+            same,
         );
     }
 
     #[test]
-    fn chat_agrees_except_cache_writes() {
+    fn chat_agrees() {
         let chat = br#"{"usage":{"prompt_tokens":11,"completion_tokens":4,"prompt_tokens_details":{"cached_tokens":5}}}"#;
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::OpenAiChat, chat),
-            old_whole(
+        check(
+            settled(
                 &AwsBedrock,
                 Operation::GenerateContent,
                 Dialect::OpenAiChat,
-                chat
-            )
+                chat,
+            ),
+            json!({"tokens": {"input": 6, "output": 4, "cached": 5},
+                "completeness": "Complete"}),
+            same,
         );
     }
 }
 
 // ------------------------------------------------------------- workbuddy
 
-/// WorkBuddy's chat is `openai_wire`'s reading; its image replies are
-/// broken today and fixed by phase 4.
+/// WorkBuddy's chat was `openai_wire`'s reading; its image reply was broken
+/// (the reader saw the vendor envelope) and settles from the unwrapped
+/// reply now, which its own tests shape.
 #[cfg(feature = "workbuddy")]
 mod workbuddy {
     use super::*;
@@ -1420,43 +1460,45 @@ mod workbuddy {
 
     #[test]
     fn chat_bodies_and_streams_are_equal() {
-        let reply = body(
-            &json!({"usage": {"prompt_tokens": 500, "completion_tokens": 8,
-            "prompt_tokens_details": {"cached_tokens": 480}}}),
-        );
-        assert_eq!(
-            new_whole(Operation::GenerateContent, Dialect::OpenAiChat, &reply),
-            old_whole(
+        check(
+            settled(
                 &WorkBuddy,
                 Operation::GenerateContent,
                 Dialect::OpenAiChat,
-                &reply
-            )
+                &body(
+                    &json!({"usage": {"prompt_tokens": 500, "completion_tokens": 8,
+                    "prompt_tokens_details": {"cached_tokens": 480}}}),
+                ),
+            ),
+            json!({"tokens": {"input": 20, "output": 8, "cached": 480},
+                "completeness": "Complete"}),
+            same,
         );
         let wire = b"data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\ndata: {\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":3}}\n\ndata: [DONE]\n\n";
-        assert_eq!(
-            new_stream(
-                Operation::StreamGenerateContent,
-                Dialect::OpenAiChat,
-                SSE,
-                wire
-            ),
-            old_stream(
+        check(
+            settled_stream(
                 &WorkBuddy,
                 Operation::StreamGenerateContent,
                 Dialect::OpenAiChat,
-                SSE,
-                wire
-            )
+                wire,
+            ),
+            json!({"tokens": {"input": 12, "output": 3}, "completeness": "Complete"}),
+            same,
         );
     }
 
     #[test]
     fn an_unwrapped_image_reply_counts_its_images_alike() {
-        let reply = br#"{"data":[{"b64_json":"A"},{"b64_json":"B"}]}"#;
-        assert_eq!(
-            new_whole(Operation::CreateImage, Dialect::OpenAi, reply),
-            old_whole(&WorkBuddy, Operation::CreateImage, Dialect::OpenAi, reply)
+        check(
+            settled(
+                &WorkBuddy,
+                Operation::CreateImage,
+                Dialect::OpenAi,
+                br#"{"data":[{"b64_json":"A"},{"b64_json":"B"}]}"#,
+            ),
+            json!({"tokens": {}, "metrics": {"image_outputs": "2"},
+                "completeness": "Complete"}),
+            same,
         );
     }
 }

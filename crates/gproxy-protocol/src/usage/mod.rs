@@ -110,6 +110,13 @@ pub fn whole(operation: Operation, dialect: Dialect, body: &[u8]) -> Option<Norm
     read(reader(operation, dialect)?, body)
 }
 
+/// Whether a complete response of `operation` in `dialect` has usage for
+/// [`whole`] to read. A caller that must hold a body to read it whole holds
+/// it only when this says there is something to find.
+pub fn reads(operation: Operation, dialect: Dialect) -> bool {
+    reader(operation, dialect).is_some()
+}
+
 fn read(reader: Reader, body: &[u8]) -> Option<NormalizedUsage> {
     match reader {
         Reader::Claude => claude::whole(body),
@@ -159,7 +166,8 @@ enum Watch {
 }
 
 impl Watch {
-    fn event(&mut self, name: Option<&str>, data: &str) {
+    /// Whether the event carried usage that the reading now reflects.
+    fn event(&mut self, name: Option<&str>, data: &str) -> bool {
         match self {
             Self::Claude(stream) => stream.event(name, data),
             Self::Chat(stream) => stream.event(data),
@@ -197,6 +205,16 @@ impl Watch {
 pub struct UsageReader {
     framing: Framing,
     watch: Watch,
+    /// Whether to keep the latest event that carried usage; see
+    /// [`UsageReader::keep_usage_event`].
+    keep: bool,
+    kept: Option<Kept>,
+}
+
+/// The latest event that carried usage, as it arrived.
+enum Kept {
+    Text(String),
+    Value(serde_json::Value),
 }
 
 impl UsageReader {
@@ -242,7 +260,35 @@ impl UsageReader {
             ) => Framing::Sse(SseDecoder::new(LIMITS)),
             (UsageTransport::Http { .. }, _) => return None,
         };
-        Some(Self { framing, watch })
+        Some(Self {
+            framing,
+            watch,
+            keep: false,
+            kept: None,
+        })
+    }
+
+    /// Also keep the latest event that carried usage, for
+    /// [`usage_event`](UsageReader::usage_event). A vendor may report fields
+    /// of its own beside the standard usage object, such as a price it
+    /// charged; those are not this module's to read, and whoever reads them
+    /// needs the event they arrived in. Off by default, because the kept
+    /// event is a copy: a Responses `response.completed` repeats the whole
+    /// answer.
+    pub fn keep_usage_event(&mut self) {
+        self.keep = true;
+    }
+
+    /// The latest event that carried usage, when
+    /// [`keep_usage_event`](UsageReader::keep_usage_event) asked for it: the
+    /// Claude `message_delta` (or the `message_start` before any delta), the
+    /// Chat chunk with a usage object, the Responses terminal event, the
+    /// Gemini chunk with `usageMetadata`. `None` when no event carried usage.
+    pub fn usage_event(&self) -> Option<serde_json::Value> {
+        match self.kept.as_ref()? {
+            Kept::Text(text) => serde_json::from_str(text).ok(),
+            Kept::Value(value) => Some(value.clone()),
+        }
     }
 
     /// Observe raw HTTP bytes. Chunks need not align with events.
@@ -251,8 +297,11 @@ impl UsageReader {
             Framing::Sse(decoder) => match decoder.push(chunk) {
                 Ok(frames) => {
                     for frame in frames {
-                        if let SseFrame::Event(event) = frame {
-                            self.watch.event(event.event.as_deref(), &event.data);
+                        if let SseFrame::Event(event) = frame
+                            && self.watch.event(event.event.as_deref(), &event.data)
+                            && self.keep
+                        {
+                            self.kept = Some(Kept::Text(event.data));
                         }
                     }
                 }
@@ -261,8 +310,10 @@ impl UsageReader {
             Framing::JsonArray(decoder) => match decoder.push(chunk) {
                 Ok(records) => {
                     if let Watch::Gemini(stream) = &mut self.watch {
-                        for record in &records {
-                            stream.record(record);
+                        for record in records {
+                            if stream.record(&record) && self.keep {
+                                self.kept = Some(Kept::Value(record));
+                            }
                         }
                     }
                 }
@@ -274,8 +325,8 @@ impl UsageReader {
 
     /// Observe one websocket text message, which is one complete event.
     pub fn push_message(&mut self, text: &str) {
-        if matches!(self.framing, Framing::Messages) {
-            self.watch.event(None, text);
+        if matches!(self.framing, Framing::Messages) && self.watch.event(None, text) && self.keep {
+            self.kept = Some(Kept::Text(text.to_owned()));
         }
     }
 
@@ -425,6 +476,63 @@ pub(crate) mod tests {
             )
             .is_none()
         );
+    }
+
+    /// The kept event is the last one that carried usage, whatever came
+    /// after it, and nothing is kept unless asked for.
+    #[test]
+    fn the_latest_usage_event_is_kept_on_request() {
+        let sse = UsageTransport::Http {
+            framing: Some(StreamFraming::Sse),
+        };
+        let claude = concat!(
+            "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"m\",\"usage\":{\"input_tokens\":3,\"output_tokens\":1}}}\n\n",
+            "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{},\"usage\":{\"output_tokens\":9},\"cost\":2}\n\n",
+            "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n",
+        );
+        let mut reader =
+            UsageReader::new(Operation::StreamGenerateContent, Dialect::Claude, sse).unwrap();
+        reader.push(claude.as_bytes());
+        assert!(reader.usage_event().is_none());
+        let mut reader =
+            UsageReader::new(Operation::StreamGenerateContent, Dialect::Claude, sse).unwrap();
+        reader.keep_usage_event();
+        for chunk in chunked(claude, 5) {
+            reader.push(&chunk);
+        }
+        let event = reader.usage_event().unwrap();
+        assert_eq!(event["type"], "message_delta");
+        assert_eq!(event["cost"], 2);
+
+        let chat = "data: {\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":1},\"model\":\"x\"}\n\ndata: {\"usage\":null}\n\ndata: [DONE]\n\n";
+        let mut reader =
+            UsageReader::new(Operation::StreamGenerateContent, Dialect::OpenAiChat, sse).unwrap();
+        reader.keep_usage_event();
+        reader.push(chat.as_bytes());
+        assert_eq!(reader.usage_event().unwrap()["model"], "x");
+
+        let gemini = r#"[{"candidates":[]},{"usageMetadata":{"promptTokenCount":4,"candidatesTokenCount":2},"modelVersion":"g"},{"candidates":[]}]"#;
+        let mut reader = UsageReader::new(
+            Operation::StreamGenerateContent,
+            Dialect::Gemini,
+            UsageTransport::Http { framing: None },
+        )
+        .unwrap();
+        reader.keep_usage_event();
+        reader.push(gemini.as_bytes());
+        assert_eq!(reader.usage_event().unwrap()["modelVersion"], "g");
+
+        let mut reader = UsageReader::new(
+            Operation::StreamGenerateContent,
+            Dialect::OpenAiResponsesWebSocket,
+            UsageTransport::WebSocket,
+        )
+        .unwrap();
+        reader.keep_usage_event();
+        reader.push_message(r#"{"type":"response.created","response":{"id":"r"}}"#);
+        assert!(reader.usage_event().is_none());
+        reader.push_message(r#"{"type":"response.completed","response":{"id":"r","usage":{"input_tokens":1,"output_tokens":1}}}"#);
+        assert_eq!(reader.usage_event().unwrap()["response"]["id"], "r");
     }
 
     #[test]

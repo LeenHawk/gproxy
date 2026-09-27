@@ -27,7 +27,6 @@ mod hygiene;
 mod quota;
 mod reset;
 mod services;
-mod usage;
 
 pub use services::{KIND_FILE, KIND_PLUGIN, KIND_SKILL, service_routes};
 
@@ -38,7 +37,7 @@ use crate::channel::{
     CookieLogin, CredentialRefresh, CredentialUpdate, CredentialView, HOST_CONFIG_KEYS,
     HeaderAllowlist, LoginContext, LoginMode, OAuthAuthorizationCode, OAuthCredential,
     OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaHeaders, QuotaModel,
-    QuotaQuery, QuotaReset, RefreshContext, UsageExtractor, UsageStream, forwardable,
+    QuotaQuery, QuotaReset, RefreshContext, forwardable,
 };
 use crate::channels::shared::{cache, claude_fallback};
 pub use crate::channels::shared::claude_fallback::FallbackMode;
@@ -622,7 +621,6 @@ impl BaseChannel for Claudecode {
         })
     }
 
-
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
         match operation {
             Operation::GenerateContent
@@ -672,12 +670,6 @@ impl BaseChannel for Claudecode {
         Some(self)
     }
     fn quota_headers(&self) -> Option<&dyn QuotaHeaders> {
-        Some(self)
-    }
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
         Some(self)
     }
     fn services(&self) -> Option<&dyn ChannelServices> {

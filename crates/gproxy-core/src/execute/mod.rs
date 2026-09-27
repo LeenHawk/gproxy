@@ -7,6 +7,7 @@ mod chat_usage;
 mod exchange;
 mod fallback;
 mod funnel;
+mod metering;
 mod native;
 pub(crate) mod prepare;
 mod stream;

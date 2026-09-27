@@ -23,11 +23,10 @@ mod usage;
 
 pub use config::{DEFAULT_BASE_URL, DashScopeConfig, ID};
 
-use crate::channel::{
+use crate::channel::{UsageExtras, 
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     HOST_CONFIG_KEYS, LoginMode, OperationContext, OperationFuture, PrepareContext, ProviderView,
-    UsageExtractor, UsageStream,
-};
+    };
 use crate::channels::shared::compatible::http::read_body;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireResponse};
 
@@ -131,11 +130,7 @@ impl BaseChannel for DashScope {
         Box::pin(self.image_call(Operation::EditImage, context))
     }
 
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
+    fn usage_extras(&self) -> Option<&dyn UsageExtras> {
         Some(self)
     }
 }

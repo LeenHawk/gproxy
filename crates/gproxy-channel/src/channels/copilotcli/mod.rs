@@ -29,8 +29,8 @@
 //! (`SurfaceTable` written with the `route!` macro) is replaced by
 //! `native_dialects` plus the host's protocol conversion. v3's `ChannelLogin`
 //! becomes `OAuthDeviceCode`. v3's `StreamDecoder` is gone: the backend
-//! answers Chat Completions SSE verbatim, so only `UsageStream` watches the
-//! bytes. v3's `model.rs` rewrote the body only to substitute the upstream
+//! answers Chat Completions SSE verbatim, and the host reads usage from it as
+//! it is. v3's `model.rs` rewrote the body only to substitute the upstream
 //! model name, which v4's host has already done before `prepare` is reached.
 //! v3's `ChannelTrafficPolicy` (no client request header forwarded at all)
 //! has no v4 counterpart; an operator who wants it writes
@@ -43,7 +43,6 @@ mod identity;
 mod oauth;
 mod quota;
 mod request;
-mod usage;
 
 pub use config::{
     AccountType, BUSINESS_BASE_URL, CopilotCliConfig, DEFAULT_CLIENT_ID,
@@ -56,8 +55,7 @@ pub use quota::QUOTA_SOURCE;
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, PrepareContext, ProviderView,
-    QuotaQuery, UsageExtractor, UsageStream,
-};
+    QuotaQuery, };
 use gproxy_client::{Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, TlsVersion};
 use gproxy_protocol::{Dialect, HttpBody, Operation};
 
@@ -190,14 +188,6 @@ impl BaseChannel for CopilotCli {
     }
 
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
-        Some(self)
-    }
-
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
         Some(self)
     }
 }

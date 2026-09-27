@@ -28,7 +28,6 @@
 mod config;
 mod quota;
 mod request;
-mod usage;
 
 pub use config::{DEFAULT_BASE_URL, ID, OpenAiConfig, QUOTA_DEFAULT_BASE_URL};
 pub use request::{CLIENT_HEADERS, RESPONSES_MULTI_AGENT_BETA, RESPONSES_WS_BETA};

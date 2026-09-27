@@ -161,19 +161,21 @@ pub(super) struct TranscriptionStream {
 impl TranscriptionStream {
     const DONE: &str = "transcript.text.done";
 
-    pub(super) fn event(&mut self, name: Option<&str>, data: &str) {
+    pub(super) fn event(&mut self, name: Option<&str>, data: &str) -> bool {
         if name.is_some_and(|name| name != Self::DONE) || !data.contains(Self::DONE) {
-            return;
+            return false;
         }
         let Ok(event) = serde_json::from_str::<TranscriptEvent>(data) else {
-            return;
+            return false;
         };
         if event.kind.as_deref() != Some(Self::DONE) {
-            return;
+            return false;
         }
-        if let Some(usage) = event.usage.as_ref().and_then(transcription_usage) {
-            self.usage = Some(usage);
-        }
+        let Some(usage) = event.usage.as_ref().and_then(transcription_usage) else {
+            return false;
+        };
+        self.usage = Some(usage);
+        true
     }
 
     pub(super) fn snapshot(&self) -> Option<NormalizedUsage> {

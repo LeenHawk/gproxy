@@ -4,8 +4,9 @@ English | [简体中文](README.zh-CN.md)
 
 Upstream adapters for GPROXY v4. A channel knows one upstream family: its
 URLs, how a credential is injected, which wire dialects it speaks, how its
-stream reports usage and, for account-style upstreams, how to log in, refresh
-and read quota. Everything else (routing, credential selection, failover,
+answer is shaped into the standard response of the operation (which is where
+the host reads usage) and, for account-style upstreams, how to log in,
+refresh and read quota. Everything else (routing, credential selection, failover,
 protocol conversion, settlement, capture) belongs to `gproxy-core`; nothing
 here reads the database or picks a transport.
 
@@ -56,9 +57,9 @@ credential header on each.
 
 `dashscope`, `deepseek`, `kimi`, `openrouter` and `xai` are the API-key fleet:
 vendors whose wire is one of the three compatible shapes, so they share
-`channels::shared::compatible` for bounded ability calls and for the usage
-observer, and differ only in where a method lives, which extra fields the
-usage object carries, and what an account surface reports. Each earns a
+`channels::shared::compatible` for bounded ability calls, and differ only in
+where a method lives, which extra fields the usage object carries (each
+channel's `UsageExtras`), and what an account surface reports. Each earns a
 channel by having something `custom` cannot state — see *Vendors that need no
 channel* below for the ones that do not.
 
@@ -221,8 +222,7 @@ offering a reset).
 | `quota_query` | `QuotaQuery` | Read a `QuotaSnapshot` from the upstream's usage endpoint |
 | `quota_headers` | `QuotaHeaders` | Turn response headers into `QuotaEntry`s; empty means nothing reported |
 | `quota_reset` | `QuotaReset` | Credits and a manual reset on upstreams that sell them |
-| `usage_extractor` | `UsageExtractor` | `NormalizedUsage` from a buffered response; `None` means unreported, not zero |
-| `usage_stream` | `UsageStream` | A per-response `UsageObserver` fed raw HTTP chunks or WebSocket frames; it never rewrites the delivered stream |
+| `usage_extras` | `UsageExtras` | The vendor's own usage fields (a charged price, a cache counter under its own name, the model that served), read beside the standard usage the host reads from the channel's shaped response |
 | `services` | `ChannelServices` | Vendor control-plane routes (Codex plugins, files, remote control; Claude Code files) with a `ServiceCaller` the host implements for identity, role, usage and resource bindings |
 
 `ChannelState` is cross-request memory the host scopes to one provider and
@@ -280,7 +280,7 @@ behind its own feature. The steps, using `custom` (API key) and `codex`
      request.rs    impl BaseChannel: prepare / prepare_connect / overridden operations
      oauth.rs      OAuthAuthorizationCode, OAuthDeviceCode, CookieLogin, CredentialRefresh
      quota.rs      QuotaModel, QuotaQuery, QuotaHeaders
-     usage.rs      UsageExtractor, UsageStream
+     usage.rs      UsageExtras, UsageSource
      services.rs   ChannelServices routes and handlers
    ```
 
@@ -375,9 +375,9 @@ behind its own feature. The steps, using `custom` (API key) and `codex`
 6. Add abilities as separate types and return them from the accessors.
    Keep each trait's rules: refresh returns a full replacement, never a
    merge; `QuotaModel::dimensions` reads plan facts from
-   `credential.metadata`, never the network; usage observers snapshot
-   cumulatively and `finish` receives `Complete` or `Interrupted` from the
-   host, since EOF alone does not establish complete usage;
+   `credential.metadata`, never the network; a channel reads no usage of its
+   own — it shapes its answer into the standard response, and `UsageExtras`
+   only adds what its vendor reports beside the standard usage object;
    `RefreshRejected` only for a definitive upstream refusal.
    Public facts a login discovers (plan, account id) go into
    `AcquiredCredential::metadata` or `OAuthCredential::provider_fields`, and
@@ -393,9 +393,9 @@ behind its own feature. The steps, using `custom` (API key) and `codex`
 
 8. Test beside the code in `tests/<id>.rs` behind `#![cfg(feature = "...")]`.
    Build `ProviderView` and `CredentialView` by hand, call `prepare` with a
-   fixture secret and assert the URL, injected auth and dropped headers; feed
-   captured frames to the usage observer; parse recorded quota headers and
-   usage bodies. A scripted `OutboundClient` (see `tests/capabilities.rs`)
+   fixture secret and assert the URL, injected auth and dropped headers;
+   settle a shaped reply with `support::settled` to see the usage the host
+   will read; parse recorded quota headers. A scripted `OutboundClient` (see `tests/capabilities.rs`)
    exercises multi-call overrides, and `tests/support/mod.rs` has a scripted
    `ServiceCaller`. Do not test core from here.
 

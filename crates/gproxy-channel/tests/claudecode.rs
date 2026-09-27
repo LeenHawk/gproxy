@@ -7,8 +7,7 @@ use gproxy_channel::{
     channel::{
         AuthorizationCode, AuthorizationRequest, CallerUsage, CallerUsageWindow, ChannelState,
         CredentialContext, CredentialView, LoginContext, NoState, PrepareContext, ProviderView,
-        QuotaHeaderContext, QuotaScope, QuotaValue, QuotaWindow, ResponseView, ServiceContext,
-        ServiceView, UsageContext, UsageFrame, UsageStreamContext, UsageStreamEnd, UsageTransport,
+        QuotaHeaderContext, QuotaScope, QuotaValue, QuotaWindow, ServiceContext, ServiceView,
     },
     channels::claudecode::{
         CLI_USER_AGENT, Claudecode, DEFAULT_CLIENT_ID, DEFAULT_REDIRECT_URI, KIND_FILE, KIND_SKILL,
@@ -20,7 +19,7 @@ use gproxy_protocol::{
         CapabilityError, CapabilityFuture, CapabilityLimits, CasResult, StateEntry, StateWrite,
         Version,
     },
-    connection::{Bytes, StreamFraming},
+    connection::Bytes,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
@@ -1348,21 +1347,11 @@ async fn the_fable_window_is_one_window_on_both_paths() {
     assert_eq!(header_end, query_end);
 }
 
+/// The channel forwards Messages as the upstream wrote them, so a reply
+/// settles with the standard reading: a server-side fallback becomes two
+/// attempts, the one that fell back unbillable.
 #[test]
-fn messages_usage_is_read_from_sse_and_from_json() {
-    let mut observer = Claudecode
-        .usage_stream()
-        .unwrap()
-        .start(UsageStreamContext {
-            operation: key(Operation::StreamGenerateContent),
-            request_body: None,
-            status: StatusCode::OK,
-            headers: &HeaderMap::new(),
-            transport: UsageTransport::Http {
-                framing: Some(StreamFraming::Sse),
-            },
-        })
-        .unwrap();
+fn messages_settle_from_sse_and_from_json() {
     let stream = concat!(
         "event: message_start\r\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"claude-fable-5\",\"usage\":{\"input_tokens\":25,\"output_tokens\":1,\"cache_read_input_tokens\":10,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":20}}}}\r\n\r\n",
         "event: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"fallback\",\"from\":{\"model\":\"claude-fable-5\"},\"to\":{\"model\":\"claude-opus-4-8\"}}}\n\n",
@@ -1370,11 +1359,14 @@ fn messages_usage_is_read_from_sse_and_from_json() {
         "event: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":5}}\n\n",
         "event: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":12,\"cache_creation_input_tokens\":20,\"output_tokens_details\":{\"thinking_tokens\":4},\"iterations\":[{\"type\":\"fallback_message\",\"model\":\"claude-fable-5\",\"input_tokens\":25,\"output_tokens\":0},{\"type\":\"message\",\"input_tokens\":25,\"output_tokens\":12}]}}\n\n"
     );
-    assert!(observer.snapshot().is_none(), "nothing before any event");
-    for chunk in stream.as_bytes().chunks(37) {
-        observer.observe(UsageFrame::HttpChunk(chunk)).unwrap();
-    }
-    let usage = observer.finish(UsageStreamEnd::Complete).unwrap().unwrap();
+    let usage = support::settled_stream(
+        &Claudecode,
+        Operation::StreamGenerateContent,
+        Dialect::Claude,
+        &HeaderMap::new(),
+        stream.as_bytes(),
+    )
+    .unwrap();
     assert_eq!(usage.tokens.input_tokens, Some(25));
     assert_eq!(usage.tokens.output_tokens, Some(12));
     assert_eq!(usage.tokens.cached_input_tokens, Some(10));
@@ -1407,20 +1399,14 @@ fn messages_usage_is_read_from_sse_and_from_json() {
         }
     })
     .to_string();
-    let extracted = Claudecode
-        .usage_extractor()
-        .unwrap()
-        .extract(UsageContext {
-            operation: key(Operation::GenerateContent),
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &HeaderMap::new(),
-                body: body.as_bytes(),
-            },
-        })
-        .unwrap()
-        .unwrap();
+    let extracted = support::settled(
+        &Claudecode,
+        Operation::GenerateContent,
+        Dialect::Claude,
+        &HeaderMap::new(),
+        body.as_bytes(),
+    )
+    .unwrap();
     assert_eq!(extracted.tokens.input_tokens, Some(10));
     assert_eq!(extracted.tokens.output_tokens, Some(4));
     assert_eq!(extracted.tokens.cached_input_tokens, Some(30));
@@ -1433,32 +1419,15 @@ fn messages_usage_is_read_from_sse_and_from_json() {
     assert_eq!(extracted.actual_service_tier.as_deref(), Some("standard"));
     assert!(extracted.attempts.is_empty());
 
-    let none = Claudecode
-        .usage_extractor()
-        .unwrap()
-        .extract(UsageContext {
-            operation: key(Operation::GenerateContent),
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &HeaderMap::new(),
-                body: br#"{"id":"msg"}"#,
-            },
-        })
-        .unwrap();
-    assert!(none.is_none());
     assert!(
-        Claudecode
-            .usage_stream()
-            .unwrap()
-            .start(UsageStreamContext {
-                operation: key(Operation::StreamGenerateContent),
-                request_body: None,
-                status: StatusCode::OK,
-                headers: &HeaderMap::new(),
-                transport: UsageTransport::WebSocket,
-            })
-            .is_err()
+        support::settled(
+            &Claudecode,
+            Operation::GenerateContent,
+            Dialect::Claude,
+            &HeaderMap::new(),
+            br#"{"id":"msg"}"#,
+        )
+        .is_none()
     );
 }
 

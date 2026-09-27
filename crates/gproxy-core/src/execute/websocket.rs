@@ -18,10 +18,7 @@ use crate::{
     },
 };
 use futures_util::{Sink, StreamExt};
-use gproxy_channel::{
-    ChannelBinding,
-    channel::{UsageFrame, UsageStreamContext, UsageStreamEnd, UsageTransport},
-};
+use gproxy_channel::{ChannelBinding, channel::UsageStreamEnd};
 use gproxy_protocol::{
     Dialect, WireRequest,
     capability::UpstreamConnection,
@@ -241,7 +238,7 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     finished_at_ms: finished_at,
                 });
                 exchange
-                    .finish(UsageStreamEnd::Interrupted, None, None, None, finished_at)
+                    .finish(UsageStreamEnd::Interrupted, None, finished_at)
                     .await;
                 if let Some(handle) = assignment.take() {
                     let _ = core
@@ -259,7 +256,7 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     finished_at_ms: finished_at,
                 });
                 exchange
-                    .finish(UsageStreamEnd::Interrupted, None, None, None, finished_at)
+                    .finish(UsageStreamEnd::Interrupted, None, finished_at)
                     .await;
                 if let Some(handle) = assignment.take() {
                     core.settle_assignment(&handle, failed(true, "transport"), finished_at)
@@ -320,7 +317,7 @@ async fn run_websocket_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                     core.settle_assignment(&handle, AssignmentOutcome::Activated, finished_at)
                         .await?;
                 }
-                exchange.start_ws_usage_observer(&handshake);
+                exchange.start_ws_usage();
                 exchange.make_terminal();
                 let socket =
                     observe_socket(exchange, socket, &request_rules, limits.max_ws_frame_bytes);
@@ -481,8 +478,6 @@ impl Drop for Guard {
             self.0.clone().finish_detached(
                 UsageStreamEnd::Interrupted,
                 http::StatusCode::SWITCHING_PROTOCOLS,
-                http::HeaderMap::new(),
-                None,
                 now_ms(),
             );
         }
@@ -529,8 +524,6 @@ fn observe_socket(
                         .finish(
                             UsageStreamEnd::Complete,
                             Some(StatusCode::SWITCHING_PROTOCOLS),
-                            None,
-                            None,
                             now_ms(),
                         )
                         .await;
@@ -545,8 +538,6 @@ fn observe_socket(
                         .finish(
                             UsageStreamEnd::Interrupted,
                             Some(StatusCode::SWITCHING_PROTOCOLS),
-                            None,
-                            None,
                             now_ms(),
                         )
                         .await;
@@ -562,8 +553,6 @@ fn observe_socket(
                             .finish(
                                 UsageStreamEnd::Interrupted,
                                 Some(StatusCode::SWITCHING_PROTOCOLS),
-                                None,
-                                None,
                                 now_ms(),
                             )
                             .await;
@@ -659,28 +648,25 @@ impl Exchange {
         {
             self.set_reason(reason);
         }
-        if let Some(observer) = self.usage_observer.lock().unwrap().as_mut() {
-            let _ = observer.observe(UsageFrame::WebSocket(frame));
+        if let WsFrame::Text(text) = frame
+            && let Some(reading) = self.ws_reading.lock().unwrap().as_mut()
+        {
+            reading.push_message(text);
         }
     }
 
-    pub(crate) fn start_ws_usage_observer(&self, handshake: &gproxy_protocol::WireResponse<()>) {
+    /// Read the session's usage from its text frames, the standard events of
+    /// its operation: Responses over a websocket, or an OpenAI realtime
+    /// session. The socket reaches the caller as the channel returned it, so
+    /// its frames are already the standard ones.
+    pub(crate) fn start_ws_usage(&self) {
         if !self.funnel.policy().usage {
             return;
         }
-        let Some(stream) = self.channel.usage_stream() else {
-            return;
-        };
-        let observer = stream.start(UsageStreamContext {
-            operation: self.context.operation,
-            request_body: None,
-            status: handshake.status,
-            headers: &handshake.headers,
-            transport: UsageTransport::WebSocket,
-        });
-        if let Ok(observer) = observer {
-            *self.usage_observer.lock().unwrap() = Some(observer);
-        }
+        *self.ws_reading.lock().unwrap() = Some(super::metering::Reading::websocket(
+            self.channel.clone(),
+            self.context.operation,
+        ));
     }
 }
 

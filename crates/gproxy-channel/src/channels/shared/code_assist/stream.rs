@@ -8,15 +8,25 @@
 //! `StreamDecoder`). Framing and event ordering are preserved; only the JSON
 //! nesting changes.
 
-use super::usage::SSE_LIMITS;
 use super::{invalid_response, normalize_content, unwrap_value};
 use crate::channel::ChannelError;
 use futures_util::{StreamExt, stream};
 use gproxy_protocol::HttpBody;
-use gproxy_protocol::codec::{SseDecoder, SseEncoder, SseEvent, SseFrame};
+use gproxy_protocol::codec::{CodecLimits, SseDecoder, SseEncoder, SseEvent, SseFrame};
 use gproxy_protocol::connection::{ByteStream, Bytes, TransportError};
 use serde_json::Value;
 use std::collections::VecDeque;
+
+/// Bounds for re-framing a Code Assist SSE stream; the host enforces the
+/// real transfer limits, this only keeps the decoder's buffers finite.
+const SSE_LIMITS: CodecLimits = CodecLimits {
+    max_buffer_bytes: 8 * 1024 * 1024,
+    max_value_bytes: 8 * 1024 * 1024,
+    max_body_bytes: u64::MAX,
+    max_line_bytes: 8 * 1024 * 1024,
+    max_part_bytes: 0,
+    max_parts: 0,
+};
 
 struct Codec {
     decoder: SseDecoder,

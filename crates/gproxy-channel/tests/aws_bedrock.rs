@@ -4,22 +4,21 @@
 //! the string to sign or the key derivation fails here rather than in
 //! production.
 
+mod support;
+
 use std::sync::{Arc, Mutex};
 
 use futures_util::StreamExt as _;
 use gproxy_channel::{
     BaseChannel, ChannelError, ConfigKeyKind, LoginMode, OperationContext,
-    channel::{
-        ChannelState, CredentialView, NoState, ProviderView, ResponseView, UsageContext,
-        UsageFrame, UsageStreamContext, UsageStreamEnd, UsageTransport,
-    },
+    channel::{ChannelState, CredentialView, NoState, ProviderView},
     channels::aws_bedrock::{AwsBedrock, ID, sigv4},
 };
 use gproxy_client::OutboundClient;
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
     capability::{CapabilityError, CapabilityFuture},
-    connection::{Bytes, StreamFraming},
+    connection::Bytes,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode, Uri};
 use serde_json::{Value, json};
@@ -869,6 +868,7 @@ async fn the_event_stream_becomes_claude_messages_sse() {
         "https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-opus-4-1/invoke-with-response-stream"
     );
 
+    let headers = response.headers.clone();
     let text = collect(response.body).await;
     assert!(text.starts_with("event: message_start\ndata: {"), "{text}");
     assert!(text.contains("event: content_block_delta\ndata: "));
@@ -876,23 +876,14 @@ async fn the_event_stream_becomes_claude_messages_sse() {
     assert!(text.ends_with("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"));
 
     // The translated stream is what the host meters.
-    let mut observer = AwsBedrock
-        .usage_stream()
-        .unwrap()
-        .start(UsageStreamContext {
-            operation: STREAM,
-            request_body: None,
-            status: StatusCode::OK,
-            headers: &HeaderMap::new(),
-            transport: UsageTransport::Http {
-                framing: Some(StreamFraming::Sse),
-            },
-        })
-        .unwrap();
-    observer
-        .observe(UsageFrame::HttpChunk(text.as_bytes()))
-        .unwrap();
-    let usage = observer.finish(UsageStreamEnd::Complete).unwrap().unwrap();
+    let usage = support::settled_stream(
+        &AwsBedrock,
+        STREAM.operation,
+        STREAM.dialect,
+        &headers,
+        text.as_bytes(),
+    )
+    .unwrap();
     assert_eq!(usage.tokens.input_tokens, Some(11));
     assert_eq!(usage.tokens.output_tokens, Some(7));
     assert_eq!(usage.tokens.cached_input_tokens, Some(4));
@@ -1018,43 +1009,19 @@ fn the_buffered_invoke_reply_is_already_a_messages_body() {
                 "ephemeral_1h_input_tokens": 1}}
     }))
     .unwrap();
-    let usage = AwsBedrock
-        .usage_extractor()
-        .unwrap()
-        .extract(UsageContext {
-            operation: GENERATE,
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &HeaderMap::new(),
-                body: &body,
-            },
-        })
-        .unwrap()
-        .unwrap();
+    let usage = support::settled(
+        &AwsBedrock,
+        GENERATE.operation,
+        GENERATE.dialect,
+        &HeaderMap::new(),
+        &body,
+    )
+    .unwrap();
     assert_eq!(usage.tokens.input_tokens, Some(12));
     assert_eq!(usage.tokens.output_tokens, Some(5));
     assert_eq!(usage.tokens.cached_input_tokens, Some(3));
     assert_eq!(usage.tokens.cache_creation_5m_tokens, Some(2));
     assert_eq!(usage.tokens.cache_creation_1h_tokens, Some(1));
-
-    // A rejection consumed nothing to meter.
-    assert!(
-        AwsBedrock
-            .usage_extractor()
-            .unwrap()
-            .extract(UsageContext {
-                operation: GENERATE,
-                request_body: None,
-                response: ResponseView {
-                    status: StatusCode::TOO_MANY_REQUESTS,
-                    headers: &HeaderMap::new(),
-                    body: &body,
-                },
-            })
-            .unwrap()
-            .is_none()
-    );
 }
 
 // ------------------------------------------------------------------- models
@@ -1139,36 +1106,45 @@ async fn one_foundation_model_becomes_an_openai_model() {
     assert_eq!(body["owned_by"], "Anthropic");
 }
 
-#[test]
-fn raw_bedrock_stream_usage_records_refusal_and_actual_model() {
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        "content-type",
-        "application/vnd.amazon.eventstream".parse().unwrap(),
-    );
-    let mut observer = AwsBedrock
-        .usage_stream()
-        .unwrap()
-        .start(UsageStreamContext {
-            operation: OperationKey {
-                operation: Operation::StreamGenerateContent,
-                dialect: Dialect::Claude,
-            },
-            request_body: None,
-            status: StatusCode::OK,
-            headers: &headers,
-            transport: UsageTransport::Http { framing: None },
-        })
-        .unwrap();
-    let frames = [
+/// The event stream reaches the host already translated into Messages SSE,
+/// so a refusal settles as an unbillable attempt naming the model that ran.
+#[tokio::test]
+async fn a_refused_stream_settles_as_an_unbillable_attempt() {
+    let wire = [
         chunk_frame(json!({"type":"message_start","message":{"model":"claude-fable-5","usage":{"input_tokens":20,"output_tokens":0}}})),
         chunk_frame(json!({"type":"message_delta","delta":{"stop_reason":"refusal"},"usage":{"output_tokens":0}})),
         chunk_frame(json!({"type":"message_stop"})),
-    ].concat();
-    for bytes in frames.chunks(3) {
-        observer.observe(UsageFrame::HttpChunk(bytes)).unwrap();
-    }
-    let usage = observer.finish(UsageStreamEnd::Complete).unwrap().unwrap();
+    ]
+    .concat();
+    let chunks = wire
+        .chunks(3)
+        .map(Bytes::copy_from_slice)
+        .collect::<Vec<_>>();
+    let client = ScriptClient::new(vec![bytes_reply(chunks)]);
+    let config = json!({"region": "us-east-1"});
+    let secret = key_pair();
+    let metadata = Value::Null;
+    let response = AwsBedrock
+        .stream_generate_content(operation_context(
+            provider(&config, None),
+            credential(&secret, &metadata),
+            Dialect::Claude,
+            messages_request("anthropic.claude-opus-4-1"),
+            client.clone(),
+            Arc::new(NoState::default()),
+        ))
+        .await
+        .unwrap();
+    let headers = response.headers.clone();
+    let text = collect(response.body).await;
+    let usage = support::settled_stream(
+        &AwsBedrock,
+        Operation::StreamGenerateContent,
+        Dialect::Claude,
+        &headers,
+        text.as_bytes(),
+    )
+    .unwrap();
     assert_eq!(usage.tokens.input_tokens, Some(20));
     assert_eq!(usage.attempts[0].model, "claude-fable-5");
     assert_eq!(usage.attempts[0].billable, Some(false));

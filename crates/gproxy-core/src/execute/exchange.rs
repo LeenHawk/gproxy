@@ -1,23 +1,26 @@
 //! One physical upstream exchange and the client wrapper that observes it.
-//! Capture and usage taps borrow bytes as they pass; nothing is copied unless
-//! the policy asked for it.
+//! The capture and reason taps borrow bytes as they pass; nothing is copied
+//! unless the policy asked for it. Usage is not read here: the upstream's
+//! bytes are the vendor's, and usage is read from the standard response the
+//! channel shapes out of them (`metering`). A websocket session, whose frames
+//! pass through unshaped, is the exception and is read on its exchange.
 
-use super::{Funnel, stream::observed_body};
+use super::{
+    Funnel,
+    metering::{Reading, UsageGate},
+    stream::observed_body,
+};
 use crate::{
     AttemptContext, CaptureEvent, CapturePolicy, CaptureSink, ExchangeContext, ExchangeUsage,
     RewriteRuleData, TraceEvent, UsageState, convert::response_framing, ids,
 };
 use gproxy_channel::{
     BaseChannel, OutboundClient,
-    channel::{
-        NormalizedUsage, ResponseReason, ResponseReasonObserver, ResponseView, UsageContext,
-        UsageObserver, UsageStreamContext, UsageStreamEnd, UsageTransport,
-    },
+    channel::{NormalizedUsage, ResponseReason, ResponseReasonObserver, UsageStreamEnd},
 };
 use gproxy_protocol::{
     HttpBody, OperationKey, WireResponse,
     capability::{CapabilityError, CapabilityFuture, CapabilityLimits, UpstreamConnection},
-    connection::Bytes,
 };
 use std::sync::{
     Arc, Mutex,
@@ -35,15 +38,19 @@ pub(crate) struct Exchange {
     reason_observer: Mutex<Option<Box<dyn ResponseReasonObserver>>>,
     reason: Mutex<Option<ResponseReason>>,
     sequence: AtomicU64,
-    request_body: Mutex<Option<Bytes>>,
-    pub(super) usage_observer: Mutex<Option<Box<dyn UsageObserver>>>,
+    /// The usage of a websocket session, read from its frames.
+    pub(super) ws_reading: Mutex<Option<Reading>>,
+    /// The native call this exchange serves, when that call is metered: its
+    /// reading reaches this exchange's capture through the gate.
+    gate: Mutex<Option<Arc<UsageGate>>>,
     /// Ending this exchange's body ends the request.
     terminal: AtomicBool,
     finished: AtomicBool,
     /// The caller let go of the body/socket before it ended.
     dropped: AtomicBool,
-    /// Response body bytes seen so far, for output estimation.
-    response_bytes: AtomicU64,
+    /// Response body bytes received, which tell the send that answered a
+    /// native call from the sends around it.
+    received: Arc<AtomicU64>,
     status: AtomicU16,
     claimed: AtomicBool,
     closed: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
@@ -75,12 +82,12 @@ impl Exchange {
             reason_observer: Mutex::new(None),
             reason: Mutex::new(None),
             sequence: AtomicU64::new(0),
-            request_body: Mutex::new(None),
-            usage_observer: Mutex::new(None),
+            ws_reading: Mutex::new(None),
+            gate: Mutex::new(None),
             terminal: AtomicBool::new(false),
             finished: AtomicBool::new(false),
             dropped: AtomicBool::new(false),
-            response_bytes: AtomicU64::new(0),
+            received: Arc::new(AtomicU64::new(0)),
             status: AtomicU16::new(0),
             claimed: AtomicBool::new(false),
             closed: Mutex::new(None),
@@ -89,19 +96,34 @@ impl Exchange {
 
     /// Channels may issue several real sends during one operation invocation.
     /// Reuse the first context, then give each additional call its own identity.
+    /// Every send is recorded with the call's gate, so the one that answered
+    /// can be told apart from a bootstrap or a token exchange before it.
     fn for_send(self: &Arc<Self>) -> Arc<Self> {
-        if !self.claimed.swap(true, Ordering::SeqCst) {
-            return self.clone();
+        let exchange = if self.claimed.swap(true, Ordering::SeqCst) {
+            let exchange = Self::new(
+                self.funnel.clone(),
+                self.context.attempt.clone(),
+                self.context.operation,
+                self.channel.clone(),
+                self.response_rules.clone(),
+                self.limits,
+                crate::api::lifecycle::now_ms(),
+            );
+            *exchange.gate.lock().unwrap() = self.gate.lock().unwrap().clone();
+            exchange
+        } else {
+            self.clone()
+        };
+        if let Some(gate) = exchange.gate.lock().unwrap().as_ref() {
+            gate.started(&exchange.context.capture_id, exchange.received.clone());
         }
-        Self::new(
-            self.funnel.clone(),
-            self.context.attempt.clone(),
-            self.context.operation,
-            self.channel.clone(),
-            self.response_rules.clone(),
-            self.limits,
-            crate::api::lifecycle::now_ms(),
-        )
+        exchange
+    }
+
+    /// Tie this exchange, and every send made through it, to a metered
+    /// native call.
+    pub(super) fn meter_through(&self, gate: Arc<UsageGate>) {
+        *self.gate.lock().unwrap() = Some(gate);
     }
 
     /// Mark that the caller receives this exchange's body: its end settles the request.
@@ -155,19 +177,8 @@ impl Exchange {
         if let Some(observer) = self.reason_observer.lock().unwrap().as_mut() {
             observer.observe(chunk);
         }
-        self.response_bytes
+        self.received
             .fetch_add(chunk.len() as u64, Ordering::Relaxed);
-        if let Some(observer) = self.usage_observer.lock().unwrap().as_mut() {
-            // A failing observer only loses metering; the stream is untouched.
-            let _ = observer.observe(gproxy_channel::channel::UsageFrame::HttpChunk(chunk));
-        }
-    }
-
-    /// Whether the extractor path needs the whole response body accumulated.
-    pub fn wants_accumulated_response(&self) -> bool {
-        self.funnel.policy().usage
-            && self.usage_observer.lock().unwrap().is_none()
-            && self.channel.usage_extractor().is_some()
     }
 
     fn report_usage(&self, usage: Option<NormalizedUsage>) {
@@ -194,8 +205,6 @@ impl Exchange {
         &self,
         end: UsageStreamEnd,
         status: Option<http::StatusCode>,
-        headers: Option<&http::HeaderMap>,
-        accumulated: Option<&[u8]>,
         now_ms: i64,
     ) -> Option<Option<Box<dyn CaptureSink>>> {
         if self.finished.swap(true, Ordering::SeqCst) {
@@ -224,54 +233,10 @@ impl Exchange {
         {
             sink.reason(reason);
         }
-        let observer = self.usage_observer.lock().unwrap().take();
-        let mut usage = match observer {
-            Some(observer) => observer.finish(end).ok().flatten(),
-            None => {
-                if let (Some(body), Some(status), Some(headers), Some(extractor)) =
-                    (accumulated, status, headers, self.channel.usage_extractor())
-                    && self.funnel.policy().usage
-                {
-                    let request_body = self.request_body.lock().unwrap().clone();
-                    extractor
-                        .extract(UsageContext {
-                            operation: self.context.operation,
-                            request_body: request_body.as_deref(),
-                            response: ResponseView {
-                                status,
-                                headers,
-                                body,
-                            },
-                        })
-                        .ok()
-                        .flatten()
-                } else {
-                    None
-                }
-            }
-        };
-        // What the upstream did not report is estimated locally, for answers
-        // that were served: a rejected call consumed nothing to meter.
-        if self.funnel.policy().usage
-            && status.is_some_and(|s| s.is_success())
-            && let Some(estimator) = self.context.attempt.request.snapshot.estimation.as_ref()
-        {
-            let request_body = self.request_body.lock().unwrap().clone();
-            let attempt = &self.context.attempt;
-            usage = estimator.complete(
-                self.context.operation,
-                &attempt.credential.provider_id,
-                attempt.request.target.upstream_model.as_deref(),
-                request_body.as_deref(),
-                self.response_bytes.load(Ordering::Relaxed),
-                usage,
-            );
-        }
-        if end == UsageStreamEnd::Interrupted
-            && let Some(usage) = usage.as_mut()
-        {
-            usage.completeness = gproxy_channel::channel::UsageCompleteness::Partial;
-        }
+        // Only a websocket session is read here; an HTTP exchange's usage
+        // comes from its native call's shaped response, through the gate.
+        let reading = self.ws_reading.lock().unwrap().take();
+        let usage = reading.and_then(|reading| reading.finish(end));
         if let Some(usage) = usage.as_ref()
             && let Some(sink) = self.capture.lock().unwrap().as_mut()
         {
@@ -307,6 +272,12 @@ impl Exchange {
         })
     }
 
+    /// Close capture and settle a terminal exchange. A metered call's
+    /// capture first waits for the call's reading, which may still be on its
+    /// way: the shaped response is read after the upstream's bytes end. That
+    /// wait is not awaited here, since the shaped response may be waiting on
+    /// this very exchange to finish; settlement waits for it instead, through
+    /// the exchange's `closed` signal.
     async fn close(&self, sink: Option<Box<dyn CaptureSink>>, end: UsageStreamEnd) {
         let capture_end = match end {
             UsageStreamEnd::Complete => crate::CaptureEnd::Complete,
@@ -321,9 +292,17 @@ impl Exchange {
         let closed = self.closed.lock().unwrap().take();
         let state = self.terminal_state(end);
         let funnel = self.funnel.clone();
+        let gate = self.gate.lock().unwrap().clone();
+        let capture_id = self.context.capture_id.clone();
+        let gated = gate.is_some();
         let (tx, rx) = tokio::sync::oneshot::channel();
         crate::rt::spawn(async move {
-            if let Some(sink) = sink {
+            if let Some(mut sink) = sink {
+                if let Some(gate) = gate
+                    && let Some(usage) = gate.wait(&capture_id).await
+                {
+                    sink.usage(&usage);
+                }
                 sink.finish(capture_end).await;
             }
             if let Some(closed) = closed {
@@ -334,21 +313,15 @@ impl Exchange {
             }
             let _ = tx.send(());
         });
-        let _ = rx.await;
+        if !gated {
+            let _ = rx.await;
+        }
     }
 
-    /// End of this exchange: finish usage (stream observer or extractor over
-    /// the accumulated body), close capture, and settle the request if this
-    /// exchange was terminal. Idempotent.
-    pub async fn finish(
-        &self,
-        end: UsageStreamEnd,
-        status: Option<http::StatusCode>,
-        headers: Option<&http::HeaderMap>,
-        accumulated: Option<&[u8]>,
-        now_ms: i64,
-    ) {
-        if let Some(sink) = self.settle_sync(end, status, headers, accumulated, now_ms) {
+    /// End of this exchange: finish a websocket's usage, close capture, and
+    /// settle the request if this exchange was terminal. Idempotent.
+    pub async fn finish(&self, end: UsageStreamEnd, status: Option<http::StatusCode>, now_ms: i64) {
+        if let Some(sink) = self.settle_sync(end, status, now_ms) {
             self.close(sink, end).await;
         }
     }
@@ -362,21 +335,13 @@ impl Exchange {
         self: Arc<Self>,
         end: UsageStreamEnd,
         status: http::StatusCode,
-        headers: http::HeaderMap,
-        accumulated: Option<Vec<u8>>,
         now_ms: i64,
     ) {
         if self.finished.load(Ordering::SeqCst) {
             return;
         }
         self.dropped.store(true, Ordering::SeqCst);
-        let Some(sink) = self.settle_sync(
-            end,
-            Some(status),
-            Some(&headers),
-            accumulated.as_deref(),
-            now_ms,
-        ) else {
+        let Some(sink) = self.settle_sync(end, Some(status), now_ms) else {
             return;
         };
         let this = self.clone();
@@ -386,30 +351,6 @@ impl Exchange {
         {
             // No runtime to run the funnel on; at least resolve the completion.
             self.funnel.clone().finish_detached(state);
-        }
-    }
-
-    fn start_usage_observer(&self, response: &WireResponse<HttpBody>) {
-        if !self.funnel.policy().usage {
-            return;
-        }
-        let framing = response_framing(self.context.operation, &response.headers);
-        let Some(stream) = self.channel.usage_stream() else {
-            return;
-        };
-        if framing.is_none() && !stream.accepts_unframed(&response.headers) {
-            return;
-        }
-        let request_body = self.request_body.lock().unwrap().clone();
-        let observer = stream.start(UsageStreamContext {
-            operation: self.context.operation,
-            request_body: request_body.as_deref(),
-            status: response.status,
-            headers: &response.headers,
-            transport: UsageTransport::Http { framing },
-        });
-        if let Ok(observer) = observer {
-            *self.usage_observer.lock().unwrap() = Some(observer);
         }
     }
 }
@@ -445,7 +386,6 @@ impl OutboundClient for ObservedClient {
                     if exchange.wants_full_capture() {
                         exchange.record(CaptureEvent::RequestChunk(&bytes));
                     }
-                    *exchange.request_body.lock().unwrap() = Some(bytes.clone());
                     HttpBody::Bytes(bytes)
                 }
                 HttpBody::Stream(stream) => {
@@ -473,8 +413,6 @@ impl OutboundClient for ObservedClient {
                         .finish(
                             UsageStreamEnd::Interrupted,
                             None,
-                            None,
-                            None,
                             crate::api::lifecycle::now_ms(),
                         )
                         .await;
@@ -485,11 +423,10 @@ impl OutboundClient for ObservedClient {
                 status: response.status,
                 headers: &response.headers,
             });
-            exchange.start_usage_observer(&response);
             let framing = response_framing(exchange.context.operation, &response.headers);
             let status = response.status;
             let headers = response.headers.clone();
-            let body = observed_body(exchange, response.body, framing, status, headers.clone());
+            let body = observed_body(exchange, response.body, framing, status);
             Ok(WireResponse {
                 status,
                 headers,
@@ -518,8 +455,6 @@ impl OutboundClient for ObservedClient {
                         .finish(
                             UsageStreamEnd::Interrupted,
                             None,
-                            None,
-                            None,
                             crate::api::lifecycle::now_ms(),
                         )
                         .await;
@@ -541,13 +476,7 @@ impl OutboundClient for ObservedClient {
                     });
                     let status = response.status;
                     let headers = response.headers.clone();
-                    let body = observed_body(
-                        self.exchange.clone(),
-                        response.body,
-                        None,
-                        status,
-                        headers.clone(),
-                    );
+                    let body = observed_body(self.exchange.clone(), response.body, None, status);
                     Ok(UpstreamConnection::Rejected(WireResponse {
                         status,
                         headers,
@@ -568,14 +497,19 @@ impl Exchange {
         if let Some(sink) = self.settle_sync(
             UsageStreamEnd::Interrupted,
             None,
-            None,
-            None,
             crate::api::lifecycle::now_ms(),
         ) {
             let closed = self.closed.lock().unwrap().take();
             if sink.is_some() || closed.is_some() {
+                let gate = self.gate.lock().unwrap().clone();
+                let capture_id = self.context.capture_id.clone();
                 crate::rt::spawn(async move {
-                    if let Some(sink) = sink {
+                    if let Some(mut sink) = sink {
+                        if let Some(gate) = gate
+                            && let Some(usage) = gate.wait(&capture_id).await
+                        {
+                            sink.usage(&usage);
+                        }
                         sink.finish(crate::CaptureEnd::Cancelled).await;
                     }
                     if let Some(closed) = closed {

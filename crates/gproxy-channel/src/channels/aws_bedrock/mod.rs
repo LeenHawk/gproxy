@@ -66,8 +66,8 @@
 //!   service name, so a `QuotaQuery` can be added without touching signing.
 //!
 //! v3's `SurfaceTable`/`route!` table becomes `native_dialects`, its
-//! `StreamDecoder` becomes the `stream_generate_content` override plus
-//! `UsageStream`, and it had no `ChannelLogin`: an access key is pasted, not
+//! `StreamDecoder` becomes the `stream_generate_content` override, whose
+//! Messages SSE is what the host meters, and it had no `ChannelLogin`: an access key is pasted, not
 //! granted.
 
 pub mod sigv4;
@@ -77,7 +77,6 @@ mod endpoint;
 mod models;
 mod request;
 mod stream;
-mod usage;
 
 pub use config::{BedrockConfig, DEFAULT_ANTHROPIC_VERSION, DEFAULT_REGION};
 pub use endpoint::SIGNING_SERVICE;
@@ -90,8 +89,7 @@ use http::{HeaderMap, HeaderValue, StatusCode, header};
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     CredentialView, HOST_CONFIG_KEYS, LoginMode, OperationContext, OperationFuture, PrepareContext,
-    ProviderView, UsageExtractor, UsageStream,
-};
+    ProviderView, };
 use crate::channels::shared::cache;
 use endpoint::Plane;
 
@@ -410,14 +408,6 @@ impl BaseChannel for AwsBedrock {
         max_bytes: u64,
     ) -> Option<Box<dyn crate::channel::ResponseReasonObserver>> {
         crate::channels::shared::aws_reason::observer(headers, max_bytes, true)
-    }
-
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
-        Some(self)
     }
 }
 

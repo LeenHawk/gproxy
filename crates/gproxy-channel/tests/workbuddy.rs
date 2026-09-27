@@ -7,15 +7,14 @@ use futures_util::StreamExt as _;
 use gproxy_channel::channel::{
     BaseChannel, ChannelError, CredentialContext, CredentialRefresh, CredentialView, DevicePoll,
     LoginContext, NoState, OAuthDeviceCode, OperationContext, PrepareContext, ProviderView,
-    QuotaQuery, QuotaValue, ResponseView, UsageContext, UsageExtractor, UsageFrame, UsageStream,
-    UsageStreamContext, UsageStreamEnd, UsageTransport,
+    QuotaQuery, QuotaValue,
 };
 use gproxy_channel::channels::workbuddy::{CLI_VERSION, ENTERPRISE_DIMENSION, WorkBuddy};
 use gproxy_channel::{LoginMode, OutboundClient};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
     capability::{CapabilityError, CapabilityFuture},
-    connection::{Bytes, StreamFraming},
+    connection::Bytes,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
@@ -526,8 +525,21 @@ async fn an_image_reply_is_unwrapped_and_a_failure_is_not() {
         })
         .await
         .expect("a response");
-    let body: Value = serde_json::from_slice(&collect(response.body).await).unwrap();
+    let headers = response.headers.clone();
+    let bytes = collect(response.body).await;
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(body["data"][0]["b64_json"], "QUJD");
+    // The unwrapped reply is what settles: it states no tokens, but how many
+    // images it produced is still a measurement.
+    let usage = support::settled(
+        &WorkBuddy,
+        Operation::CreateImage,
+        Dialect::OpenAi,
+        &headers,
+        &bytes,
+    )
+    .expect("usage");
+    assert_eq!(usage.metrics["image_outputs"], 1.into());
 
     let failed = ScriptClient::new(vec![reply(
         StatusCode::FORBIDDEN,
@@ -554,91 +566,6 @@ async fn an_image_reply_is_unwrapped_and_a_failure_is_not() {
     assert_eq!(response.status, StatusCode::FORBIDDEN);
     let body: Value = serde_json::from_slice(&collect(response.body).await).unwrap();
     assert_eq!(body["code"], 40003, "an upstream error reaches the client");
-}
-
-// -------------------------------------------------------------------- usage
-
-#[test]
-fn chat_usage_is_the_shared_openai_reading() {
-    let body = json!({"usage": {"prompt_tokens": 500, "completion_tokens": 8,
-                                "prompt_tokens_details": {"cached_tokens": 480}}})
-    .to_string();
-    let headers = HeaderMap::new();
-    let usage = WorkBuddy
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::OpenAiChat,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: body.as_bytes(),
-            },
-        })
-        .expect("read")
-        .expect("usage");
-    assert_eq!(usage.tokens.input_tokens, Some(20));
-    assert_eq!(usage.tokens.cached_input_tokens, Some(480));
-}
-
-#[test]
-fn an_image_reply_that_states_no_tokens_still_states_how_many_images() {
-    let body = json!({"data": [{"b64_json": "A"}, {"b64_json": "B"}]}).to_string();
-    let headers = HeaderMap::new();
-    let usage = WorkBuddy
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::CreateImage,
-                dialect: Dialect::OpenAi,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: body.as_bytes(),
-            },
-        })
-        .expect("read")
-        .expect("usage");
-    assert_eq!(usage.metrics["image_outputs"], 2.into());
-}
-
-#[test]
-fn a_chat_stream_reports_the_usage_its_last_chunk_carries() {
-    let headers = HeaderMap::new();
-    let mut observer = UsageStream::start(
-        &WorkBuddy,
-        UsageStreamContext {
-            operation: OperationKey {
-                operation: Operation::StreamGenerateContent,
-                dialect: Dialect::OpenAiChat,
-            },
-            request_body: None,
-            status: StatusCode::OK,
-            headers: &headers,
-            transport: UsageTransport::Http {
-                framing: Some(StreamFraming::Sse),
-            },
-        },
-    )
-    .expect("an observer");
-    for chunk in [
-        "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n",
-        "data: {\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":3}}\n\n",
-        "data: [DONE]\n\n",
-    ] {
-        observer
-            .observe(UsageFrame::HttpChunk(chunk.as_bytes()))
-            .expect("observed");
-    }
-    let usage = observer
-        .finish(UsageStreamEnd::Complete)
-        .expect("finished")
-        .expect("usage");
-    assert_eq!(usage.tokens.input_tokens, Some(12));
-    assert_eq!(usage.tokens.output_tokens, Some(3));
 }
 
 // -------------------------------------------------------------------- login

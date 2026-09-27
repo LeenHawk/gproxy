@@ -10,9 +10,7 @@ use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelServices,
     ChannelState, ConfigKey, ConfigKeyKind, CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist,
     LoginMode, OAuthAuthorizationCode, OAuthDeviceCode, OperationContext, OperationFuture,
-    PrepareContext, ProviderView, QuotaReset, QuotaHeaders, QuotaModel, QuotaQuery, UsageExtractor,
-    UsageStream,
-};
+    PrepareContext, ProviderView, QuotaReset, QuotaHeaders, QuotaModel, QuotaQuery, };
 use crate::channels::shared::cache;
 use crate::channels::shared::services_common::unix_now_ms;
 use gproxy_client::ConnectionConfig;
@@ -650,12 +648,6 @@ impl BaseChannel for Codex {
         Some(self)
     }
     fn quota_headers(&self) -> Option<&dyn QuotaHeaders> {
-        Some(self)
-    }
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
         Some(self)
     }
     fn services(&self) -> Option<&dyn ChannelServices> {

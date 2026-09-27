@@ -399,9 +399,6 @@ impl gproxy_channel::BaseChannel for TwoCalls {
     ) -> Vec<gproxy_protocol::Dialect> {
         self.0.native_dialects(provider, operation)
     }
-    fn usage_extractor(&self) -> Option<&dyn gproxy_channel::channel::UsageExtractor> {
-        Some(&self.0)
-    }
     fn list_models<'a>(
         &'a self,
         ctx: gproxy_channel::channel::OperationContext<'a>,
@@ -471,6 +468,113 @@ async fn channel_internal_calls_get_distinct_logs_and_buffered_return_settles() 
     );
 }
 
+/// A channel that, for one generation, logs in first, collects the answer,
+/// then cleans up after itself, and hands back the collected answer.
+struct Surrounded(TestChannel);
+impl gproxy_channel::BaseChannel for Surrounded {
+    fn id(&self) -> &'static str {
+        "test"
+    }
+    fn native_dialects(
+        &self,
+        provider: gproxy_channel::channel::ProviderView<'_>,
+        operation: gproxy_protocol::Operation,
+    ) -> Vec<gproxy_protocol::Dialect> {
+        self.0.native_dialects(provider, operation)
+    }
+    fn generate_content<'a>(
+        &'a self,
+        ctx: gproxy_channel::channel::OperationContext<'a>,
+    ) -> gproxy_channel::channel::OperationFuture<'a, WireResponse> {
+        Box::pin(async move {
+            let mut answer = String::new();
+            for path in ["/login", "/answer", "/cleanup"] {
+                let request = http::Request::builder()
+                    .uri(format!("https://up.example{path}"))
+                    .header("authorization", "Bearer ka")
+                    .body(HttpBody::Bytes(Bytes::new()))
+                    .unwrap();
+                let response = ctx.client.send(request).await?;
+                let body = read(response.body).await;
+                if path == "/answer" {
+                    answer = body;
+                }
+            }
+            Ok(WireResponse {
+                status: StatusCode::OK,
+                headers: http::HeaderMap::new(),
+                body: HttpBody::Bytes(Bytes::from(answer)),
+            })
+        })
+    }
+}
+
+/// Usage is read once, from the response the channel returned, and filed
+/// under the send that answered: neither the login before it nor the clean-up
+/// after it is metered, even when their bodies look like usage.
+#[tokio::test]
+async fn only_the_send_that_answered_is_metered() {
+    let mut h = persistent().await;
+    h.core = Core::builder(h.core.store().clone())
+        .cache(h.core.cache().clone())
+        .secret_codec(Arc::new(PlaintextCodec))
+        .channel(Arc::new(Surrounded(TestChannel::default())))
+        .unwrap()
+        .build()
+        .unwrap();
+    h.core.reload_data().await.unwrap();
+    h.script(vec![
+        json_reply(
+            StatusCode::OK,
+            json!({"usage": {"input_tokens": 100, "output_tokens": 100}}),
+        ),
+        json_reply(
+            StatusCode::OK,
+            json!({"object": "response", "output": [{"type": "message", "content": [
+                {"type": "output_text", "text": "a long enough answer to outweigh the rest"}]}],
+                "usage": {"input_tokens": 3, "output_tokens": 5}}),
+        ),
+        json_reply(StatusCode::OK, json!({"deleted": true})),
+    ]);
+    let key = gproxy_protocol::OperationKey {
+        operation: gproxy_protocol::Operation::GenerateContent,
+        dialect: gproxy_protocol::Dialect::OpenAi,
+    };
+    let execution = h
+        .core
+        .generate_content(
+            h.context_for("p", key, "surrounded", 1, None),
+            request("{}"),
+        )
+        .await
+        .unwrap();
+    let (response, completion) = execution.into_parts();
+    read(response.body).await;
+    let report = completion.await.unwrap();
+    assert_eq!(report.state, UsageState::Completed);
+    assert_eq!(report.exchanges.len(), 1, "one native call, one reading");
+    assert_eq!(report.exchanges[0].usage.tokens.input_tokens, Some(3));
+    assert_eq!(report.exchanges[0].usage.tokens.output_tokens, Some(5));
+    let rows = captures(&h).await;
+    assert_eq!(rows.len(), 3, "every send is still captured");
+    let answer = rows
+        .iter()
+        .find(|row| {
+            row.request_url
+                .as_deref()
+                .is_some_and(|url| url.ends_with("/answer"))
+        })
+        .expect("the answer's capture");
+    assert_eq!(report.exchanges[0].capture_id, answer.id);
+    assert_eq!(
+        answer.metrics.as_ref().unwrap()["tokens"]["input_tokens"],
+        3
+    );
+    for row in rows.iter().filter(|row| row.id != answer.id) {
+        assert_eq!(row.metrics, None, "{:?}", row.request_url);
+    }
+}
+
 #[tokio::test]
 async fn ready_stream_chunks_keep_order_and_boundaries_without_queue_loss() {
     let h = persistent().await;
@@ -528,7 +632,7 @@ async fn transport_failure_is_retained_when_retry_succeeds() {
     let h = persistent().await;
     h.script(vec![json_reply(
         StatusCode::OK,
-        json!({"usage": {"input_tokens": 7}}),
+        json!({"usage": {"input_tokens": 7, "output_tokens": 1}}),
     )]);
     let mut ctx = h.context("transport-retry", 2, None);
     replace_client(
@@ -565,8 +669,9 @@ impl OutboundClient for InterruptedBody {
         _: http::Request<HttpBody>,
     ) -> CapabilityFuture<'a, Result<WireResponse, CapabilityError>> {
         Box::pin(async move {
+            // The terminal event arrives, then the connection breaks.
             let first = futures_util::stream::iter([Ok(Bytes::from_static(
-                br#"{"usage":{"input_tokens":5,"output_tokens":2}}"#,
+                b"event: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"usage\":{\"input_tokens\":5,\"output_tokens\":2}}}\n\n",
             ))]);
             let body: gproxy_protocol::connection::ByteStream = if self.error {
                 let error: gproxy_protocol::connection::TransportError =
@@ -700,7 +805,7 @@ async fn caller_usage_reads_persisted_user_attribution_instead_of_opaque_scope()
     ] {
         h.script(vec![json_reply(
             StatusCode::OK,
-            json!({"usage": {"input_tokens": tokens}}),
+            json!({"usage": {"input_tokens": tokens, "output_tokens": 1}}),
         )]);
         let mut context = (*h.context(id, 1, None)).clone();
         assert_eq!(context.scope, "tenant");

@@ -21,11 +21,10 @@ pub use quota::BALANCE_DIMENSION;
 
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, NormalizedUsage, PrepareContext, ProviderView,
-    QuotaModel, QuotaQuery, UsageContext, UsageExtractor, forwardable,
+    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView,
+    QuotaModel, QuotaQuery, forwardable,
 };
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
-use crate::channels::shared::vendor_usage;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey};
 use http::{HeaderName, HeaderValue, header};
 use serde::Deserialize;
@@ -208,10 +207,6 @@ impl BaseChannel for CloudflareAiGateway {
             .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
     }
 
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-
     fn quota_model(&self) -> Option<&dyn QuotaModel> {
         Some(self)
     }
@@ -221,16 +216,3 @@ impl BaseChannel for CloudflareAiGateway {
     }
 }
 
-impl UsageExtractor for CloudflareAiGateway {
-    fn extract(&self, ctx: UsageContext<'_>) -> Result<Option<NormalizedUsage>, ChannelError> {
-        if !ctx.response.status.is_success()
-            || !matches!(
-                ctx.operation.operation,
-                Operation::GenerateContent | Operation::StreamGenerateContent
-            )
-        {
-            return Ok(None);
-        }
-        vendor_usage::from_body(ctx.operation.dialect, ctx.response.body)
-    }
-}
