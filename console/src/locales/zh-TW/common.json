@@ -1,6 +1,7 @@
 {
   "shell": {
-    "navigation": "導覽"
+    "navigation": "導覽",
+    "resizeHint": "拖曳調整寬度，按兩下恢復預設；也可使用方向鍵調整。"
   },
   "signIn": {
     "title": "登入"

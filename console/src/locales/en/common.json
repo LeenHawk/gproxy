@@ -1,6 +1,7 @@
 {
   "shell": {
-    "navigation": "Navigation"
+    "navigation": "Navigation",
+    "resizeHint": "Drag to resize; double-click to reset. Use arrow keys to adjust."
   },
   "signIn": {
     "title": "Sign in"

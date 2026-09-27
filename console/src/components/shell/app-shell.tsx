@@ -6,6 +6,7 @@
 //! instance operator sees that section and the administrative groups, in the same
 //! shell, without a second application being loaded.
 
+import { ResizableColumns } from "@/components/resizable-columns"
 import { toast } from "sonner"
 import { useEffect, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
@@ -198,8 +199,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="min-h-dvh bg-background text-foreground lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
-      <aside className="sticky top-0 hidden h-dvh border-r border-sidebar-border lg:block">
+    <ResizableColumns storageKey="gproxy.layout.navigation.v1" initialWidth={248} minWidth={192} maxWidth={400} contentMinWidth={640} label={t("shell.navigation")} handleClassName="sticky top-0 h-dvh" className="min-h-dvh bg-background text-foreground">
+      <aside className="sticky top-0 hidden h-dvh lg:block">
         <Sidebar sections={sections} route={navRoute} />
       </aside>
       <div className="min-w-0">
@@ -234,6 +235,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
-    </div>
+    </ResizableColumns>
   )
 }
