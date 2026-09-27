@@ -6,8 +6,14 @@
 //! response body. Everything estimated is marked `estimated=true` and
 //! `Partial`; reported values are never overwritten.
 //!
-//! The request body captured on an exchange is the native upstream request,
-//! so its shape is known from the exchange's [`OperationKey`]. Text is pulled
+//! Only operations that are metered in tokens are estimated (see
+//! [`estimates`]); counting tokens, listing models, files and video polling
+//! consumed nothing to estimate, and a video job or a web search is not
+//! priced in tokens.
+//!
+//! The request body is the standard request of the native call, before the
+//! channel prepared it, so its shape is known from the call's
+//! [`OperationKey`]. Text is pulled
 //! through the protocol wire types for that pair — prompts, messages, tool
 //! calls and results, tool declarations — and only from the positions that
 //! carry human-facing text: base64 media, file ids, URLs, signatures and
@@ -77,10 +83,11 @@ impl Estimator {
             .map_err(|e| e.to_string())
     }
 
-    /// Fill the token counts the upstream did not report. `operation` is the
-    /// native key of the exchange, which names the wire shape of
-    /// `request_body`; `response_bytes` is what was read of the body, whole
-    /// or streamed.
+    /// Fill the token counts the upstream did not report, for an operation
+    /// that [`estimates`]; any other operation keeps what was reported.
+    /// `operation` is the native call's key, which names the wire shape of
+    /// `request_body`; `response_bytes` is what was read of the response,
+    /// whole or streamed.
     pub(crate) fn complete(
         &self,
         operation: OperationKey,
@@ -90,6 +97,9 @@ impl Estimator {
         response_bytes: u64,
         reported: Option<NormalizedUsage>,
     ) -> Option<NormalizedUsage> {
+        if !estimates(operation.operation) {
+            return reported;
+        }
         let mut usage = reported.unwrap_or_default();
         let mut estimated = false;
         if usage.tokens.input_tokens.is_none()
@@ -122,6 +132,21 @@ impl Estimator {
             None
         }
     }
+}
+
+/// Whether a missing count of `operation` is estimated locally: the metered
+/// operations that are priced in tokens. Everything [`Operation::produces_usage`]
+/// excludes consumed nothing — counting tokens returns a count, listing
+/// models or files and polling a video read state — so an estimate there
+/// would bill a call that cost nothing. A video job and a web search are
+/// metered, but in seconds and calls, and a realtime session's frames are
+/// not counted as response bytes; a token estimate means nothing for them.
+fn estimates(operation: Operation) -> bool {
+    operation.produces_usage()
+        && !matches!(
+            operation,
+            Operation::CreateVideo | Operation::WebSearch | Operation::ConnectRealtime
+        )
 }
 
 /// The human-facing text of a request, in document order, joined by
@@ -1051,5 +1076,72 @@ mod tests {
             .unwrap();
         assert_eq!(kept, reported, "reported values are never touched");
         assert!(estimator.complete(key, "p", None, None, 0, None).is_none());
+    }
+
+    /// Operations that consumed nothing, or are not priced in tokens, keep
+    /// exactly what the upstream reported, even when a body was read.
+    #[test]
+    fn only_operations_metered_in_tokens_are_estimated() {
+        let estimator = Estimator::default();
+        let body = br#"{"input":"hello world"}"#;
+        for operation in [
+            Operation::CountTokens,
+            Operation::ListModels,
+            Operation::GetModel,
+            Operation::RetrieveFileContent,
+            Operation::RetrieveVideo,
+            Operation::DownloadVideoContent,
+            Operation::CreateVideo,
+            Operation::WebSearch,
+            Operation::ConnectRealtime,
+        ] {
+            let key = key(operation, Dialect::OpenAi);
+            assert_eq!(
+                estimator.complete(key, "p", Some("gpt-4o"), Some(body), 100, None),
+                None,
+                "{operation:?}"
+            );
+            let reported = NormalizedUsage {
+                tokens: gproxy_channel::channel::TokenUsage {
+                    input_tokens: Some(4),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+            assert_eq!(
+                estimator.complete(
+                    key,
+                    "p",
+                    Some("gpt-4o"),
+                    Some(body),
+                    100,
+                    Some(reported.clone())
+                ),
+                Some(reported),
+                "{operation:?}"
+            );
+        }
+        for operation in [
+            Operation::GenerateContent,
+            Operation::StreamGenerateContent,
+            Operation::CreateEmbedding,
+            Operation::CreateImage,
+            Operation::CreateSpeech,
+            Operation::CreateTranscription,
+        ] {
+            assert!(
+                estimator
+                    .complete(
+                        key(operation, Dialect::OpenAi),
+                        "p",
+                        None,
+                        Some(body),
+                        10,
+                        None
+                    )
+                    .is_some(),
+                "{operation:?}"
+            );
+        }
     }
 }
