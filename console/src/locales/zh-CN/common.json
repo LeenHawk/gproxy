@@ -1,6 +1,7 @@
 {
   "shell": {
-    "navigation": "导航"
+    "navigation": "导航",
+    "resizeHint": "拖动调整宽度，双击恢复默认；也可使用方向键调整。"
   },
   "signIn": {
     "title": "登录"

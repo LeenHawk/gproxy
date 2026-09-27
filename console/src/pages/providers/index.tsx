@@ -1,3 +1,4 @@
+import { ResizableColumns } from "@/components/resizable-columns"
 import { invalidateConfiguration } from "@/api/invalidation"
 import { useConsoleContext } from "@/capability/session"
 import { PROVIDERS_READ } from "@/api/configuration"
@@ -44,8 +45,8 @@ function InstanceProvidersPage({ providerId, tab }: { providerId?: string; tab: 
   } })
   const batch = useConfigBatch({ family: providers, context: JSON.stringify(request), rows: list.data?.items ?? [], onSaved: async () => { navigate("/providers") } })
   return <>
-    <div className="min-h-[calc(100dvh-9rem)] overflow-hidden rounded-xl border bg-background lg:grid lg:grid-cols-[16rem_minmax(0,1fr)]">
-      <section aria-label={t("nav.providers")} className={cn("min-w-0 flex-col lg:flex lg:max-h-[calc(100dvh-9rem)] lg:border-r", providerId ? "hidden" : "flex")}>
+    <ResizableColumns storageKey="gproxy.layout.providers.v1" initialWidth={256} minWidth={224} maxWidth={560} contentMinWidth={360} label={t("nav.providers")} className="min-h-[calc(100dvh-9rem)] overflow-hidden rounded-xl border bg-background">
+      <section aria-label={t("nav.providers")} className={cn("min-w-0 flex-col lg:flex lg:max-h-[calc(100dvh-9rem)]", providerId ? "hidden" : "flex")}>
         <div className="flex flex-col gap-3 border-b p-3">
           <div className="flex items-center justify-between gap-2"><h1 className="text-lg font-medium">{t("nav.providers")}</h1><div className="flex items-center gap-2">{batch.trigger}<Button size="icon-sm" aria-label={t("create.providers")} title={t("create.providers")} onClick={() => { create.reset(); setCreating(true) }}><Plus /></Button></div></div>
           <InputGroup><InputGroupAddon><Search /></InputGroupAddon><InputGroupInput value={search} onChange={event => setSearch(event.target.value)} aria-label={t("providers.search")} placeholder={t("providers.search")} /></InputGroup>
@@ -61,7 +62,7 @@ function InstanceProvidersPage({ providerId, tab }: { providerId?: string; tab: 
       <section className={cn("min-w-0 p-4", providerId ? "block" : "hidden lg:block")}>
         {providerId ? <><Button variant="ghost" className="mb-3 lg:hidden" onClick={() => navigate("/providers")}><ArrowLeft data-icon="inline-start" />{t("nav.providers")}</Button><ProviderDetailPage key={providerId} providerId={providerId} tab={tab} /></> : <EmptyNotice title={t("providers.select")} />}
       </section>
-    </div>
+    </ResizableColumns>
     <QueryState isPending={creating && catalog.isPending} error={creating ? catalog.error : null}><ProviderDialog open={creating} onOpenChange={setCreating} catalog={catalog.data ?? []} onSubmit={body => create.mutate(body)} pending={create.isPending} error={create.error} /></QueryState>
   </>
 }
