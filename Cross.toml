@@ -16,6 +16,11 @@ passthrough = [
     "GOMODCACHE=/target/.cache/go-mod",
 ]
 
+# The symbol generator needs Clang's JSON AST support; 0.2.5's ARM image
+# uses Ubuntu 18.04, whose default Clang is too old.
+[target.aarch64-unknown-linux-musl]
+image = "ghcr.io/cross-rs/aarch64-unknown-linux-musl:main"
+
 [target.riscv64gc-unknown-linux-gnu]
 image = "ghcr.io/cross-rs/riscv64gc-unknown-linux-gnu:main"
 
