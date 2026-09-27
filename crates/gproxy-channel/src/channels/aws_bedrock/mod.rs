@@ -171,8 +171,7 @@ impl AwsBedrock {
                     inputs.body,
                     cache::rules_for(Dialect::OpenAiChat, false, config.enable_openai_magic_cache),
                 );
-                let streaming = inputs.operation.operation == Operation::StreamGenerateContent;
-                (Plane::Runtime, url, request::chat_body(body, streaming))
+                (Plane::Runtime, url, body)
             }
             (Operation::ListModels, Dialect::OpenAi) => {
                 let url = endpoint::url(

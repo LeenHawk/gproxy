@@ -176,7 +176,10 @@ fn claude_hygiene_and_gateway_only_fallback() {
     }
     assert_eq!(body["messages"][0]["role"], "user");
     let chat = body_of_chat();
-    assert_eq!(chat["stream_options"]["include_usage"], true);
+    assert!(
+        chat.get("stream_options").is_none(),
+        "core asks a Chat stream for its usage; the channel forwards the body"
+    );
     assert_eq!(chat["messages"][0]["content"], "hello");
 }
 fn body_of_chat() -> Value {

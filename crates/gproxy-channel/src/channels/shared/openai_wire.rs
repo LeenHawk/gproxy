@@ -43,7 +43,6 @@ use gproxy_protocol::codec::{CodecLimits, SseDecoder, SseFrame};
     feature = "openai",
     feature = "workbuddy"
 ))]
-use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, Operation};
 use rust_decimal::Decimal;
 use serde_json::Value;
@@ -58,42 +57,6 @@ const SSE_LIMITS: CodecLimits = CodecLimits {
     max_part_bytes: 0,
     max_parts: 0,
 };
-
-// ------------------------------------------------------------------ request
-
-/// Ask a Chat Completions stream to end with a usage chunk
-/// (`stream_options.include_usage`). Responses streams report usage on
-/// `response.completed` without being asked, so this is Chat-only. A body that
-/// is not a JSON object, or whose `stream_options` is not an object, is left
-/// exactly as the client sent it: metering never breaks a request.
-///
-/// Only the channels that pass a Chat body through compile it; `kiro` reuses
-/// the reading below against a stream it synthesizes itself.
-#[cfg(any(
-    feature = "aistudio",
-    feature = "claudeapi",
-    feature = "openai",
-    feature = "workbuddy"
-))]
-pub(crate) fn stream_usage_opt_in(bytes: Bytes) -> Bytes {
-    let Some(mut body) = serde_json::from_slice::<Value>(&bytes)
-        .ok()
-        .filter(Value::is_object)
-    else {
-        return bytes;
-    };
-    let Some(root) = body.as_object_mut() else {
-        return bytes;
-    };
-    let options = root
-        .entry("stream_options")
-        .or_insert_with(|| Value::Object(serde_json::Map::new()));
-    let Some(options) = options.as_object_mut() else {
-        return bytes;
-    };
-    options.insert("include_usage".into(), Value::Bool(true));
-    Bytes::from(body.to_string())
-}
 
 // ------------------------------------------------------------------ reading
 

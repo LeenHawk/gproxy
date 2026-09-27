@@ -1281,7 +1281,10 @@ fn a_chat_completions_model_is_sent_to_the_openai_surface() {
         body["model"], "openai.gpt-5.5",
         "the model stays in the body"
     );
-    assert_eq!(body["stream_options"]["include_usage"], true);
+    assert!(
+        body.get("stream_options").is_none(),
+        "core asks a Chat stream for its usage; the channel forwards the body"
+    );
     let text = body["messages"][0]["content"][0]["text"].as_str().unwrap();
     assert!(!text.contains("GPROXY_MAGIC"));
     assert!(!body["messages"][0]["content"][0]["prompt_cache_breakpoint"].is_null());

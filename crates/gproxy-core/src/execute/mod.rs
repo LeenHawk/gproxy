@@ -3,6 +3,7 @@
 //! guarantee that settlement happens exactly once per request.
 
 mod attempt;
+mod chat_usage;
 mod exchange;
 mod fallback;
 mod funnel;

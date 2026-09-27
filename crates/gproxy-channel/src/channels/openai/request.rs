@@ -7,7 +7,7 @@ use crate::channel::{
     ConfigKeyKind, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView,
     QuotaHeaders, QuotaQuery, UsageExtractor, UsageStream, forwardable,
 };
-use crate::channels::shared::{cache, openai_wire};
+use crate::channels::shared::cache;
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireRequest};
 use http::{HeaderName, HeaderValue, header};
 
@@ -221,9 +221,19 @@ impl BaseChannel for OpenAi {
 
     /// Everything OpenAI serves is native OpenAI; conversations additionally
     /// have the Chat Completions and the Responses-over-WebSocket shapes.
-    fn default_conversion_target(&self, _provider: ProviderView<'_>, source: gproxy_protocol::OperationKey) -> Option<gproxy_protocol::OperationKey> {
-        matches!(source.operation, Operation::GenerateContent | Operation::StreamGenerateContent)
-            .then_some(gproxy_protocol::OperationKey { operation: source.operation, dialect: Dialect::OpenAi })
+    fn default_conversion_target(
+        &self,
+        _provider: ProviderView<'_>,
+        source: gproxy_protocol::OperationKey,
+    ) -> Option<gproxy_protocol::OperationKey> {
+        matches!(
+            source.operation,
+            Operation::GenerateContent | Operation::StreamGenerateContent
+        )
+        .then_some(gproxy_protocol::OperationKey {
+            operation: source.operation,
+            dialect: Dialect::OpenAi,
+        })
     }
 
     fn native_dialects(&self, _provider: ProviderView<'_>, operation: Operation) -> Vec<Dialect> {
@@ -257,9 +267,9 @@ impl BaseChannel for OpenAi {
         }
     }
 
-    /// A buffered conversation body is shaped for the magic cache strings and,
-    /// when it is a Chat Completions stream, asked to end with a usage chunk.
-    /// A streamed request body passes through untouched.
+    /// A buffered conversation body is shaped for the magic cache strings; a
+    /// streamed request body passes through untouched. Core has already asked
+    /// a Chat Completions stream for its closing usage chunk.
     fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
         let config = OpenAiConfig::from_view(ctx.provider)?;
         let rules = cache::rules_for(
@@ -267,18 +277,9 @@ impl BaseChannel for OpenAi {
             false,
             config.enable_openai_magic_cache,
         );
-        let chat = ctx.operation.dialect == Dialect::OpenAiChat
-            && ctx.operation.operation == Operation::StreamGenerateContent;
         let (builder, request) = self.build(ctx, false)?;
         let body = match request.body {
-            HttpBody::Bytes(bytes) => {
-                let bytes = cache::shape(bytes, rules);
-                HttpBody::Bytes(if chat {
-                    openai_wire::stream_usage_opt_in(bytes)
-                } else {
-                    bytes
-                })
-            }
+            HttpBody::Bytes(bytes) => HttpBody::Bytes(cache::shape(bytes, rules)),
             other => other,
         };
         builder

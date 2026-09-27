@@ -241,7 +241,7 @@ fn authenticates_each_surface_with_the_header_that_surface_wants() {
 }
 
 #[test]
-fn only_the_compatibility_layers_chat_stream_needs_a_usage_opt_in() {
+fn every_body_is_forwarded_as_the_client_wrote_it() {
     let secret = json!({"api_key": "k"});
     let chat = shaped(
         prepare(
@@ -259,7 +259,10 @@ fn only_the_compatibility_layers_chat_stream_needs_a_usage_opt_in() {
         )
         .unwrap(),
     );
-    assert_eq!(chat["stream_options"]["include_usage"], true);
+    assert!(
+        chat.get("stream_options").is_none(),
+        "core asks a Chat stream for its usage; the channel forwards the body"
+    );
 
     let native = shaped(
         prepare(

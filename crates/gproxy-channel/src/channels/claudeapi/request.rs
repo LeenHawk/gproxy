@@ -8,7 +8,7 @@ use crate::channel::{
     ConfigKeyKind, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView,
     QuotaHeaders, QuotaQuery, UsageExtractor, UsageStream, forwardable,
 };
-use crate::channels::shared::{cache, openai_wire};
+use crate::channels::shared::cache;
 use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireFamily, WireRequest};
 use http::{HeaderName, HeaderValue};
@@ -216,11 +216,7 @@ impl BaseChannel for Claudeapi {
                     }
                     None => bytes,
                 };
-                HttpBody::Bytes(if operation == Operation::StreamGenerateContent {
-                    openai_wire::stream_usage_opt_in(bytes)
-                } else {
-                    bytes
-                })
+                HttpBody::Bytes(bytes)
             }
             HttpBody::Bytes(bytes) if messages => match hygiene::json_object(&bytes) {
                 Some(mut value) => {

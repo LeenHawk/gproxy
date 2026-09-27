@@ -5,10 +5,10 @@
 //! it through the host's conversion to Chat, as v3's routing table did. The
 //! key is a bearer on every call.
 //!
-//! v4 served this vendor as a `custom` provider for a while. It is a channel
-//! again because a streamed Chat reply only reports usage when the request
-//! asks for it (`stream_options.include_usage`), which v3 set and a provider
-//! row cannot. v3 reported no quota for NVIDIA and neither does this.
+//! v4 served this vendor as a `custom` provider for a while and it became a
+//! channel again so a streamed Chat reply would report usage. Core now asks
+//! every Chat stream for its usage, whatever the channel. v3 reported no quota
+//! for NVIDIA and neither does this.
 
 use crate::channel::{
     BaseChannel, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind, HOST_CONFIG_KEYS,
@@ -17,7 +17,7 @@ use crate::channel::{
 };
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
 use crate::channels::shared::vendor_usage;
-use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, connection::Bytes};
+use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey};
 use http::{HeaderValue, header};
 use serde::Deserialize;
 use serde_json::Value;
@@ -163,18 +163,7 @@ impl BaseChannel for Nvidia {
                 headers
                     .entry(header::CONTENT_TYPE)
                     .or_insert_with(|| HeaderValue::from_static("application/json"));
-                HttpBody::Bytes(
-                    if ctx.operation
-                        == (OperationKey {
-                            operation: Operation::StreamGenerateContent,
-                            dialect: Dialect::OpenAiChat,
-                        })
-                    {
-                        include_usage(bytes)
-                    } else {
-                        bytes
-                    },
-                )
+                HttpBody::Bytes(bytes)
             }
             body => body,
         };
@@ -190,22 +179,6 @@ impl BaseChannel for Nvidia {
     fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
         Some(self)
     }
-}
-
-/// A streamed Chat reply carries usage only when the request asks for it.
-/// A body that is not a JSON object is forwarded as it came.
-fn include_usage(bytes: Bytes) -> Bytes {
-    let Ok(Value::Object(mut body)) = serde_json::from_slice::<Value>(&bytes) else {
-        return bytes;
-    };
-    let options = body
-        .entry("stream_options")
-        .or_insert_with(|| Value::Object(Default::default()));
-    let Some(options) = options.as_object_mut() else {
-        return bytes;
-    };
-    options.insert("include_usage".into(), Value::Bool(true));
-    Bytes::from(Value::Object(body).to_string())
 }
 
 impl UsageExtractor for Nvidia {
