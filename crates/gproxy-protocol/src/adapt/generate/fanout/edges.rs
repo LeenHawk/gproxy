@@ -19,9 +19,6 @@ pub(super) trait Edge {
     type Native: Serialize + DeserializeOwned + DeclaredFields + Clone + IdentityFacts;
     type Client: output::Client;
     type Facts;
-    fn signed_bindings(&self) -> Option<&super::super::request_ids::SignedToolBindings> {
-        None
-    }
     fn request(&self) -> &Self::Request;
     fn identities(&self) -> &GenerationIdentity;
     fn report(&self) -> &Report;
@@ -96,9 +93,6 @@ impl Edge for GeminiViaResponses {
         self.report()
     }
 
-    fn signed_bindings(&self) -> Option<&super::super::request_ids::SignedToolBindings> {
-        Some(self.signed_tool_bindings())
-    }
     fn convert(
         &mut self,
         native: Self::Native,

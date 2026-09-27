@@ -2,10 +2,7 @@ use super::all_pairs::{access, request, target};
 use super::*;
 use gproxy_protocol::{
     adapt::generate::{claude_gemini::ClaudeViaGemini, stream::ClaudeViaGeminiStreamFacts},
-    transform::{
-        generate::claude_gemini::{self as pair, stream::GeminiToClaudeContext},
-        identity::OutputItemKind,
-    },
+    transform::generate::claude_gemini::stream::GeminiToClaudeContext,
 };
 
 fn chunk(feed: &Feed, parts: Value) {
@@ -17,7 +14,7 @@ fn chunk(feed: &Feed, parts: Value) {
 /// pieces, an empty thought part with only the signature, the call, and an
 /// empty closing text part.
 #[test]
-fn streamed_thought_run_is_saved_merged_and_replays_as_one_native_part() {
+fn streamed_thought_run_is_carried_merged_and_replays_as_one_native_part() {
     let store = Arc::new(Store::default());
     let state = access(&store, Dialect::Gemini);
     let mut call = ready(ClaudeViaGemini::prepare_stream(
@@ -60,19 +57,21 @@ fn streamed_thought_run_is_saved_merged_and_replays_as_one_native_part() {
     let sse = String::from_utf8(bytes).unwrap();
     assert!(sse.contains("thinking_delta"), "{sse}");
     assert!(sse.contains("signature_delta"), "{sse}");
-    assert!(!sse.contains("native-gemini-signature"), "{sse}");
+    assert!(sse.contains("gemini:native-gemini-signature"), "{sse}");
 
     let content = serde_json::to_value(call.client_result().unwrap()).unwrap()["content"].clone();
     assert_eq!(content.as_array().unwrap().len(), 2, "{content}");
     assert_eq!(content[0]["thinking"], "Let me check.");
-    let handle = content[0]["signature"].as_str().unwrap();
-    let id = pair::thinking_handle_id(handle).unwrap();
-    let record = ready(state.read(IdentityRole::OutputItem(OutputItemKind::Reasoning), id))
-        .unwrap()
-        .unwrap();
-    assert_eq!(
-        record.opaque_signature.unwrap().value,
-        "native-gemini-signature"
+    // The run's text and its signature travel together to the client, and
+    // nothing is stored for the next turn.
+    assert_eq!(content[0]["signature"], "gemini:native-gemini-signature");
+    assert!(
+        store
+            .entries
+            .lock()
+            .unwrap()
+            .keys()
+            .all(|key| !key.starts_with("generate:"))
     );
 
     let tool = content[1]["id"].clone();
@@ -83,11 +82,12 @@ fn streamed_thought_run_is_saved_merged_and_replays_as_one_native_part() {
         {"role":"assistant","content":content},
         {"role":"user","content":[{"type":"tool_result","tool_use_id":tool,"content":"done"}]}
     ]);
+    let empty = Store::default();
     let prepared = ready(ClaudeViaGemini::prepare_with_state(
         serde_json::from_value(next).unwrap(),
         target(Dialect::Claude, Dialect::Gemini).endpoint,
         target(Dialect::Claude, Dialect::Gemini).identities,
-        &state,
+        &access(&empty, Dialect::Gemini),
         Default::default(),
     ))
     .unwrap();

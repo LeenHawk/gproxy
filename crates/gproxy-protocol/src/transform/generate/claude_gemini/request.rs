@@ -17,10 +17,6 @@ pub struct ClaudeGeminiRequestContext {
     pub media: MediaFacts,
     /// Tool IDs and names recovered from declared history/state when history is truncated.
     pub tool_names: std::collections::BTreeMap<String, String>,
-    /// Keep thinking blocks signed with a gproxy handle as marker parts
-    /// (`thoughtSignature` = the handle) for the host to restore from state.
-    /// Only a caller that restores or removes every marker may set this.
-    pub thinking_handles: bool,
 }
 
 pub fn claude_to_gemini_request(
@@ -74,7 +70,6 @@ pub fn claude_to_gemini_request(
             &mut calls,
             &mut ids,
             policy,
-            context.thinking_handles,
             &mut report,
         )?;
         if message.role == c::Role::System {

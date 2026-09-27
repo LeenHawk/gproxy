@@ -206,130 +206,6 @@ fn message_parts_gate_interleaved_text_instead_of_reordering_plain_gemini_parts(
         .join("");
     assert_eq!(joined, "firstsecond");
 }
-fn replay(id: Option<&str>) -> GeminiReplayContext {
-    let target = IdentityTarget::new("actual-model", Dialect::Gemini)
-        .unwrap()
-        .with_origin("original-origin")
-        .unwrap();
-    let mut record = IdentityStateRecord::new(IdentityRole::ToolCall, target.clone());
-    record.client_call_id = Some("call-one".into());
-    record.original_call_id = id.map(str::to_owned);
-    record.tool_name = Some("same".into());
-    record.opaque_signature = Some(
-        OpaqueSignature::new(
-            OpaqueField::GeminiPartThoughtSignature,
-            "original-signature",
-            "original-origin",
-            "actual-model",
-        )
-        .unwrap(),
-    );
-    let mut part = json!({"thoughtSignature":"original-signature","functionCall":{"name":"same","args":{"x":1}},"foreign":"extension_marker"});
-    if let Some(id) = id {
-        part["functionCall"]["id"] = json!(id);
-    }
-    GeminiReplayContext {
-        image_files: Default::default(),
-        target: Some(target),
-        parts: std::collections::BTreeMap::from([(
-            "call-one".into(),
-            RestoredGeminiPart {
-                state: record,
-                part: serde_json::from_value(part).unwrap(),
-            },
-        )]),
-    }
-}
-#[test]
-fn signed_function_preserves_original_id_or_none_and_exposes_exact_bindings() {
-    for id in [Some("original-native"), None] {
-        let body = response(
-            json!([function("fc-one", "call-one", "{\"x\":1}")]),
-            "completed",
-            None,
-        );
-        let mut stream = ResponsesToGeminiStream::new(
-            ResponsesToGeminiContext {
-                response_modalities: None,
-                image_mime: None,
-                restoration: replay(id),
-            },
-            flow(),
-            Default::default(),
-        )
-        .unwrap();
-        let mut out = Vec::new();
-        for event in r_events(body.clone()) {
-            out.extend(stream.push(event).unwrap().value);
-        }
-        if let Some(id) = id {
-            assert_eq!(
-                stream.signed_tool_bindings().source_call_id(id),
-                Some("call-one")
-            );
-        }
-        let end = stream.finish().unwrap();
-        out.extend(end.chunks);
-        let actual = collect_g(out);
-        let expected = pair::responses_to_gemini_response(body, replay(id))
-            .unwrap()
-            .value;
-        assert_eq!(normalize_g(actual.clone()), normalize_g(expected));
-        let part = &actual.candidates.as_ref().unwrap()[0]
-            .content
-            .as_ref()
-            .unwrap()
-            .parts
-            .as_ref()
-            .unwrap()[0];
-        assert_eq!(
-            part.thought_signature.as_deref(),
-            Some("original-signature")
-        );
-        assert_eq!(part.function_call.as_ref().unwrap().id.as_deref(), id);
-        assert!(
-            !serde_json::to_string(part)
-                .unwrap()
-                .contains("extension_marker")
-        );
-    }
-}
-#[test]
-fn signed_replay_rejects_modified_arguments_and_target_policy_conflict() {
-    for case in [0, 2] {
-        let ctx = replay(Some("original.native"));
-        let args = if case == 0 { "{\"x\":2}" } else { "{\"x\":1}" };
-        let policy = if case == 2 {
-            TargetIdPolicy::new(Dialect::Gemini).with_syntax(IdSyntax::AsciiIdentifier)
-        } else {
-            TargetIdPolicy::new(Dialect::Gemini)
-        };
-        let mut stream = ResponsesToGeminiStream::new_with_policy(
-            ResponsesToGeminiContext {
-                response_modalities: None,
-                image_mime: None,
-                restoration: ctx,
-            },
-            flow(),
-            policy,
-            Default::default(),
-        )
-        .unwrap();
-        let mut error = None;
-        for event in r_events(response(
-            json!([function("fc-one", "call-one", args)]),
-            "completed",
-            None,
-        )) {
-            if let Err(e) = stream.push(event) {
-                error = Some(e);
-                break;
-            }
-        }
-        assert!(error.is_some());
-        assert!(stream.finish().is_err());
-    }
-}
 #[test]
 fn responses_target_policy_rewrites_response_and_call_ids_with_source_association() {
     let mut body = response(
@@ -532,78 +408,20 @@ fn actual_citation_ranges_logprobs_and_usage_arrive_without_replaying_text() {
 }
 
 #[test]
-fn unsigned_empty_reasoning_is_omitted_but_signed_original_thinking_is_preserved() {
+fn unsigned_empty_reasoning_is_omitted_and_reasoning_never_gains_a_signature() {
     run_r(r_events(response(
         json!([{"type":"reasoning","id":"rs-source","summary":[],"content":[{"type":"reasoning_text","text":""}],"status":"completed"}]),
         "completed",
         None,
     )));
-    let target = IdentityTarget::new("actual-model", Dialect::Gemini)
-        .unwrap()
-        .with_origin("original-origin")
-        .unwrap();
-    let mut record = IdentityStateRecord::new(
-        IdentityRole::OutputItem(OutputItemKind::Reasoning),
-        target.clone(),
-    );
-    record.client_item_id = Some("rs-source".into());
-    record.opaque_signature = Some(
-        OpaqueSignature::new(
-            OpaqueField::GeminiPartThoughtSignature,
-            "original-signature",
-            "original-origin",
-            "actual-model",
-        )
-        .unwrap(),
-    );
-    let part = serde_json::from_value(
-        json!({"thought":true,"text":"actual thinking","thoughtSignature":"original-signature"}),
-    )
-    .unwrap();
-    let ctx = GeminiReplayContext {
-        image_files: Default::default(),
-        target: Some(target),
-        parts: std::collections::BTreeMap::from([(
-            "rs-source".into(),
-            RestoredGeminiPart {
-                state: record,
-                part,
-            },
-        )]),
-    };
+    // A Responses upstream's reasoning carries no Gemini signature: its
+    // text replays unsigned, whatever encrypted_content it holds.
     let body = response(
-        json!([{"type":"reasoning","id":"rs-source","summary":[{"type":"summary_text","text":"summary"}],"content":[{"type":"reasoning_text","text":"actual thinking"}],"status":"completed"}]),
+        json!([{"type":"reasoning","id":"rs-source","summary":[{"type":"summary_text","text":"summary"}],"content":[{"type":"reasoning_text","text":"actual thinking"}],"encrypted_content":"gemini:original-signature","status":"completed"}]),
         "completed",
         None,
     );
-    let mut stream = ResponsesToGeminiStream::new(
-        ResponsesToGeminiContext {
-            response_modalities: None,
-            image_mime: None,
-            restoration: ctx,
-        },
-        flow(),
-        Default::default(),
-    )
-    .unwrap();
-    let mut out = Vec::new();
-    for event in r_events(body) {
-        let reasoning_done = matches!(&event,s::StreamEvent::OutputItemDone(v) if matches!(v.item,r::ResponseOutputItem::Reasoning(_)));
-        let chunks = stream.push(event).unwrap().value;
-        if reasoning_done {
-            assert!(chunks.iter().any(|c| {
-                c.candidates
-                    .iter()
-                    .flatten()
-                    .filter_map(|c| c.content.as_ref())
-                    .flat_map(|c| c.parts.iter().flatten())
-                    .any(|p| p.thought_signature.as_deref() == Some("original-signature"))
-            }));
-        }
-        out.extend(chunks);
-    }
-    out.extend(stream.finish().unwrap().chunks);
-    let actual = collect_g(out);
+    let actual = run_r(r_events(body));
     let part = &actual.candidates.as_ref().unwrap()[0]
         .content
         .as_ref()
@@ -612,8 +430,5 @@ fn unsigned_empty_reasoning_is_omitted_but_signed_original_thinking_is_preserved
         .as_ref()
         .unwrap()[0];
     assert_eq!(part.text.as_deref(), Some("actual thinking"));
-    assert_eq!(
-        part.thought_signature.as_deref(),
-        Some("original-signature")
-    );
+    assert_eq!(part.thought_signature, None);
 }

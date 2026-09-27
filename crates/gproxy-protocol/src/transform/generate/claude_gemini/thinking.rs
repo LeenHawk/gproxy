@@ -1,45 +1,23 @@
-//! Gemini thought runs shown to Claude clients under a host-owned handle.
+//! Gemini thought runs shown to Claude clients, and the reverse on replay.
 //!
 //! A Claude `thinking` block must carry a `signature`, and a Gemini thought
-//! carries a `thoughtSignature` that only the same Gemini upstream can verify.
-//! The client never receives the native value: a signed run becomes a block
-//! signed `gproxy.thinking.v1.<id>`, and the host keeps the native part under
-//! `<id>`. Only a later request to the same origin and model gets the native
-//! part back; every other path recognises the prefix and drops the block, so a
-//! handle never reaches Anthropic or any other upstream.
+//! carries a `thoughtSignature` that only a Gemini upstream can verify. A
+//! signed run becomes one block whose signature is the native value behind the
+//! `gemini:` prefix (see `signature`); a later request to a Gemini upstream
+//! turns it back into one thought part with the run's text and signature, and
+//! every other path recognises the prefix and drops the block, so a Gemini
+//! signature never reaches Anthropic or any other upstream.
 //!
 //! A run is a sequence of text-only thought parts closed by the part that
 //! carries the signature (Code Assist streams the thought text first, then an
 //! empty thought part holding only the signature). A run that ends without a
-//! signature is an unsigned summary: it is shown with the fixed unsigned handle
-//! and dropped on replay, since Gemini reads nothing from unsigned thought text.
+//! signature is an unsigned summary: it is shown with the bare prefix and
+//! dropped on replay, since Gemini reads nothing from unsigned thought text.
+//! A signature on a function call (Gemini flash models) has no Claude field of
+//! its own, so it travels on an empty thinking block right before the
+//! `tool_use` it belongs to, behind the `gemini-next:` prefix.
 
-use crate::wire::gemini as g;
-
-/// Every handle starts with this; nothing else in a Claude request does.
-pub const THINKING_HANDLE_PREFIX: &str = "gproxy.thinking.v1.";
-const UNSIGNED: &str = "unsigned";
-
-/// True for any signature gproxy issued in place of a native one.
-pub fn is_thinking_handle(signature: &str) -> bool {
-    signature.starts_with(THINKING_HANDLE_PREFIX)
-}
-
-/// The state identity a handle names; `None` for the unsigned handle and for
-/// a signature gproxy did not issue.
-pub fn thinking_handle_id(signature: &str) -> Option<&str> {
-    signature
-        .strip_prefix(THINKING_HANDLE_PREFIX)
-        .filter(|id| !id.is_empty() && *id != UNSIGNED)
-}
-
-pub(crate) fn signed_handle(id: &str) -> String {
-    format!("{THINKING_HANDLE_PREFIX}{id}")
-}
-
-pub(crate) fn unsigned_handle() -> String {
-    format!("{THINKING_HANDLE_PREFIX}{UNSIGNED}")
-}
+use crate::{transform::generate::signature, wire::gemini as g};
 
 /// A thought part that belongs to a run: thought text, or the empty thought
 /// part carrying the run's signature. Thought media keeps its own mapping.
@@ -69,43 +47,28 @@ pub(crate) fn is_empty_text(part: &g::Part) -> bool {
         && part.code_execution_result.is_none()
 }
 
-/// The native part a signed run replays as: all of the run's text and its
-/// signature in one thought part, the only shape the upstream accepts back
-/// (`index` is the signature part's position among the candidate's parts).
-pub(crate) fn signed_run(parts: &[g::Part], index: usize) -> Option<g::Part> {
-    let closing = parts.get(index)?;
-    if !is_run_part(closing) {
-        return None;
-    }
-    let signature = closing.thought_signature.clone()?;
-    let start = parts[..index]
-        .iter()
-        .rposition(|part| {
-            (!is_run_part(part) && !is_empty_text(part)) || part.thought_signature.is_some()
-        })
-        .map_or(0, |position| position + 1);
-    let text: String = parts[start..=index]
-        .iter()
-        .filter(|part| is_run_part(part))
-        .filter_map(|part| part.text.as_deref())
-        .collect();
-    Some(
-        g::Part::builder()
-            .thought(true)
-            .text(text)
-            .thought_signature(signature)
-            .build(),
-    )
+/// The signature a `tool_use` built from `part` needs in front of it: set only
+/// for a signed function call, which is the only signed non-thought part a
+/// Claude client can replay.
+pub(crate) fn call_signature(part: &g::Part) -> Option<String> {
+    part.function_call
+        .as_ref()
+        .and(part.thought_signature.as_deref())
+        .map(signature::gemini_next)
 }
 
-/// A Claude Messages (or count tokens) body with every handle-signed
+/// A Claude Messages (or count tokens) body with every Gemini-signed
 /// `thinking` block removed, and any message the removal empties; `None`
-/// when the body holds no handle. This is for a request that reaches an
-/// Anthropic upstream as it is, without conversion: the handle means nothing
-/// there and Anthropic refuses it as an invalid signature.
-pub fn without_thinking_handles(body: &[u8]) -> Option<Vec<u8>> {
-    let needle = THINKING_HANDLE_PREFIX.as_bytes();
-    if !body.windows(needle.len()).any(|window| window == needle) {
+/// when the body holds none. This is for a request that reaches an Anthropic
+/// upstream as it is, without conversion: Anthropic refuses a signature it
+/// did not issue, which is the case after the conversation moved over from a
+/// Gemini upstream.
+pub fn without_gemini_thinking(body: &[u8]) -> Option<Vec<u8>> {
+    let needles = [signature::GEMINI, signature::GEMINI_NEXT].map(str::as_bytes);
+    if !needles
+        .iter()
+        .any(|needle| body.windows(needle.len()).any(|window| window == *needle))
+    {
         return None;
     }
     let mut value: serde_json::Value = serde_json::from_slice(body).ok()?;
@@ -124,7 +87,7 @@ pub fn without_thinking_handles(body: &[u8]) -> Option<Vec<u8>> {
                 || !block
                     .get("signature")
                     .and_then(serde_json::Value::as_str)
-                    .is_some_and(is_thinking_handle)
+                    .is_some_and(signature::is_gemini)
         });
         changed |= content.len() != before;
     }

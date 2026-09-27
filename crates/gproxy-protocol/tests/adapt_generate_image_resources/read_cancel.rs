@@ -65,7 +65,12 @@ fn canceled_partial_resource_read_resumes_body_and_derives_missing_mime() {
     .unwrap() else {
         panic!()
     };
-    let r::ResponseOutputItem::ImageGenerationCall(image) = &response.body.output[0] else {
+    let Some(r::ResponseOutputItem::ImageGenerationCall(image)) = response
+        .body
+        .output
+        .iter()
+        .find(|item| matches!(item, r::ResponseOutputItem::ImageGenerationCall(_)))
+    else {
         panic!()
     };
     assert_eq!(image.result.as_deref(), Some(PNG));
@@ -156,7 +161,7 @@ fn invalid_materialized_mime_releases_live_native_stream_immediately() {
 }
 
 #[test]
-fn signed_file_history_rejects_resource_expiry_before_identity_state_expiry() {
+fn signed_file_history_replays_from_the_client_bytes_after_the_resource_expires() {
     let store = Arc::new(Store::default());
     let mut access = state(&store, Dialect::Gemini);
     let resource_host = Resources::default();
@@ -185,43 +190,34 @@ fn signed_file_history_rejects_resource_expiry_before_identity_state_expiry() {
     .unwrap() else {
         panic!()
     };
-    let r::ResponseOutputItem::ImageGenerationCall(image) = &response.body.output[0] else {
-        panic!()
-    };
+    // The replay needs neither the resource nor any state: the client sends
+    // the bytes back, and its reasoning item carries the signature.
+    let items: Vec<r::InputItem> = response
+        .body
+        .output
+        .iter()
+        .map(|item| serde_json::from_value(serde_json::to_value(item).unwrap()).unwrap())
+        .collect();
     let mut input = rrequest();
-    input.input = Some(r::Input::Items(vec![r::InputItem::ImageGenerationCall(
-        image.clone(),
-    )]));
-    access.now = UNIX_EPOCH + Duration::from_secs(4);
-    let prepared = ready(ResponsesViaGemini::prepare_with_state(
-        input.clone(),
-        Endpoint::new("/generateContent").unwrap(),
-        ids(Dialect::OpenAi, Dialect::Gemini),
-        &access,
-        Default::default(),
-    ))
-    .unwrap();
-    assert!(
-        prepared.target_request().contents[0]
-            .parts
-            .as_ref()
-            .unwrap()[0]
-            .file_data
-            .is_some()
-    );
-    for now in [5, 10] {
+    input.input = Some(r::Input::Items(items));
+    for now in [4, 5, 10] {
         access.now = UNIX_EPOCH + Duration::from_secs(now);
-        let error = ready(ResponsesViaGemini::prepare_with_state(
+        let prepared = ready(ResponsesViaGemini::prepare_with_state(
             input.clone(),
             Endpoint::new("/generateContent").unwrap(),
             ids(Dialect::OpenAi, Dialect::Gemini),
             &access,
             Default::default(),
         ))
-        .unwrap_err();
+        .unwrap();
+        let part = &prepared.target_request().contents[0]
+            .parts
+            .as_ref()
+            .unwrap()[0];
+        assert_eq!(part.inline_data.as_ref().unwrap().data, PNG);
         assert_eq!(
-            error.kind(),
-            gproxy_protocol::transform::TransformErrorKind::MissingState
+            part.thought_signature.as_deref(),
+            Some("original-signed-file")
         );
     }
     assert_eq!(resource_host.reads.load(Ordering::SeqCst), 1);

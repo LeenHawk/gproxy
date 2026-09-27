@@ -224,7 +224,6 @@ fn all_ten_states_apply_policy_once_to_early_ids_and_final_native_output() {
         let mut s = cr::ResponsesToClaudeStream::new_with_policy(
             cr::ResponsesToClaudeContext {
                 usage: Some(initial()),
-                restoration: None,
             },
             flow(),
             Default::default(),

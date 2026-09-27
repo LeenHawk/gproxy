@@ -455,7 +455,7 @@ fn output_schema_mime_conflict_rejects_and_native_web_citation_keeps_source() {
 }
 
 #[test]
-fn thought_flag_on_a_function_preserves_the_payload_without_a_foreign_signature() {
+fn thought_flag_on_a_function_preserves_the_payload_and_carries_its_signature() {
     let mut input = g_response();
     input.candidates.as_mut().unwrap()[0].content.as_mut().unwrap().parts = Some(vec![serde_json::from_value(json!({"thought":true,"thoughtSignature":"opaque","functionCall":{"id":"actual-call","name":"run","args":{"x":1}}})).unwrap()]);
     let converted = gemini_to_claude_response(
@@ -471,37 +471,39 @@ fn thought_flag_on_a_function_preserves_the_payload_without_a_foreign_signature(
     )
     .unwrap();
     assert_eq!(converted.value.stop_reason, c::StopReason::ToolUse);
-    let c::ResponseContentBlock::ToolUse(tool) = &converted.value.content[0] else {
+    // The call's signature travels on an empty thinking block right before it.
+    let c::ResponseContentBlock::Thinking(carrier) = &converted.value.content[0] else {
+        panic!("a signed call carries its signature")
+    };
+    assert_eq!(carrier.signature, "gemini-next:opaque");
+    assert!(carrier.thinking.is_empty());
+    let c::ResponseContentBlock::ToolUse(tool) = &converted.value.content[1] else {
         panic!("thought metadata cannot erase a function payload")
     };
     assert_eq!(tool.name, "run");
     assert_eq!(tool.input["x"], 1);
-    assert!(
-        !serde_json::to_string(&converted.value)
-            .unwrap()
-            .contains("opaque")
-    );
 }
 
 #[test]
-fn a_passthrough_claude_body_loses_only_handle_signed_thinking() {
+fn a_passthrough_claude_body_loses_only_gemini_signed_thinking() {
     let body = json!({
         "model": "claude-opus-4-6", "max_tokens": 64,
         "messages": [
             {"role": "user", "content": "hi"},
             {"role": "assistant", "content": [
-                {"type": "thinking", "thinking": "gemini", "signature": "gproxy.thinking.v1.abc"},
+                {"type": "thinking", "thinking": "gemini", "signature": "gemini:abc"},
                 {"type": "thinking", "thinking": "claude", "signature": "EqQBCkYI"},
                 {"type": "text", "text": "hello"},
             ]},
             {"role": "assistant", "content": [
-                {"type": "thinking", "thinking": "x", "signature": "gproxy.thinking.v1.unsigned"},
+                {"type": "thinking", "thinking": "x", "signature": "gemini:"},
+                {"type": "thinking", "thinking": "", "signature": "gemini-next:call"},
             ]},
             {"role": "user", "content": "more"},
         ],
     });
     let stripped: serde_json::Value = serde_json::from_slice(
-        &without_thinking_handles(&serde_json::to_vec(&body).unwrap()).expect("changed"),
+        &without_gemini_thinking(&serde_json::to_vec(&body).unwrap()).expect("changed"),
     )
     .unwrap();
     assert_eq!(
@@ -517,5 +519,5 @@ fn a_passthrough_claude_body_loses_only_handle_signed_thinking() {
     );
     // Nothing to strip: the body is left alone.
     let plain = json!({"messages": [{"role": "user", "content": "hi"}]});
-    assert!(without_thinking_handles(&serde_json::to_vec(&plain).unwrap()).is_none());
+    assert!(without_gemini_thinking(&serde_json::to_vec(&plain).unwrap()).is_none());
 }

@@ -1,7 +1,6 @@
-use super::super::identity_facts::{IdentityFacts, ToolIdentity};
+use super::super::identity_facts::IdentityFacts;
 use super::*;
 use crate::{
-    Dialect,
     transform::Report,
     wire::{DeclaredFields, gemini as g, openai::chat as h},
 };
@@ -14,9 +13,6 @@ pub(in crate::adapt::generate) trait Client:
     Serialize + DeserializeOwned + Clone + DeclaredFields + IdentityFacts
 {
     fn set_calls(&mut self, ids: Vec<Option<String>>);
-    fn signed_calls(&self) -> Vec<bool> {
-        vec![false; self.tools().len()]
-    }
     fn aggregate(
         values: Vec<Self>,
         id: String,
@@ -48,16 +44,6 @@ impl Client for h::GenerateContentResponseBody {
 }
 
 impl Client for g::GenerateContentResponseBody {
-    fn signed_calls(&self) -> Vec<bool> {
-        self.candidates
-            .iter()
-            .flatten()
-            .filter_map(|c| c.content.as_ref())
-            .flat_map(|c| c.parts.iter().flatten())
-            .filter(|p| p.function_call.is_some())
-            .map(|p| p.thought_signature.is_some())
-            .collect()
-    }
     fn set_calls(&mut self, ids: Vec<Option<String>>) {
         for (call, id) in self
             .candidates
@@ -80,56 +66,16 @@ impl Client for g::GenerateContentResponseBody {
     }
 }
 
-/// Each child's tools keep their actual native association. The aggregate has
-/// its own response identity, which links no single native response.
-pub(super) struct ToolsOnly<'a, C>(pub &'a C);
-
-impl<C: IdentityFacts> IdentityFacts for ToolsOnly<'_, C> {
-    fn dialect(&self) -> Dialect {
-        self.0.dialect()
-    }
-    fn response_id(&self) -> Option<&str> {
-        None
-    }
-    fn native_model(&self) -> Option<&str> {
-        self.0.native_model()
-    }
-    fn tools(&self) -> Vec<ToolIdentity> {
-        self.0.tools()
-    }
-}
-
-pub(super) fn reserved<C: Client>(values: &[C]) -> Result<BTreeSet<String>, TransformError> {
-    let mut ids = BTreeSet::new();
-    for value in values {
-        for (signed, tool) in value.signed_calls().into_iter().zip(value.tools()) {
-            if signed
-                && let Some(id) = tool.call_id
-                && !ids.insert(id)
-            {
-                return Err(conflict(
-                    "independent children repeat an immutable signed tool ID",
-                ));
-            }
-        }
-    }
-    Ok(ids)
-}
-
 pub(super) fn normalize<N: IdentityFacts, C: Client>(
     native: &N,
     client: &mut C,
     identities: &GenerationIdentity,
     seen: &mut BTreeSet<String>,
-    reserved: &BTreeSet<String>,
     max: usize,
-    bindings: Option<&super::super::request_ids::SignedToolBindings>,
-) -> Result<IdentityFlow, TransformError> {
+) -> Result<(), TransformError> {
     let originals = native.tools();
     let emitted = client.tools();
-    let signed = client.signed_calls();
     if originals.len() != emitted.len()
-        || originals.len() != signed.len()
         || originals
             .iter()
             .zip(&emitted)
@@ -151,32 +97,13 @@ pub(super) fn normalize<N: IdentityFacts, C: Client>(
     let mut flow = IdentityFlow::new(identities.response.namespace());
     let mut index = 0u64;
     let mut calls = Vec::new();
-    for ((original, emitted), signed) in originals.into_iter().zip(emitted).zip(signed) {
-        if signed {
-            let evidence = bindings
-                .ok_or_else(|| conflict("signed client call has no verified native restoration"))?;
-            if let Some(id) = &emitted.call_id {
-                if evidence.original_call_id(id) != Some(&original.call_id)
-                    || !identities.response_policy.accepts_source(id)
-                    || !seen.insert(id.clone())
-                {
-                    return Err(conflict(
-                        "immutable signed call cannot retain its native association",
-                    ));
-                }
-                if seen.len() > max {
-                    return Err(limit());
-                }
-            }
-            calls.push(emitted.call_id);
-            continue;
-        }
+    for original in originals {
         if seen.len() >= max {
             return Err(limit());
         }
         // A candidate repeating an ID an earlier one already emitted gets
         // the counted alias for it, which still names the upstream ID.
-        let avoid: BTreeSet<String> = seen.union(reserved).cloned().collect();
+        let avoid = seen.clone();
         let handle = flow
             .resolve_or_allocate_avoiding(
                 IdentityRole::ToolCall,
@@ -195,7 +122,7 @@ pub(super) fn normalize<N: IdentityFacts, C: Client>(
         calls.push(Some(handle.emitted_id));
     }
     client.set_calls(calls);
-    Ok(flow)
+    Ok(())
 }
 
 fn sum(a: i64, b: i64) -> Result<i64, TransformError> {

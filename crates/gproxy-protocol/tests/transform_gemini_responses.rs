@@ -60,7 +60,7 @@ fn direct_request_preserves_roles_media_tools_strict_controls_and_call_results()
     }));
 }
 #[test]
-fn response_status_thoughts_functions_and_usage_are_preserved_without_fake_signatures() {
+fn response_status_thoughts_functions_and_usage_are_preserved_with_carried_signatures() {
     let input:g::GenerateContentResponseBody=serde_json::from_value(json!({"responseId":"g1","modelVersion":"actual","candidates":[{"index":0,"finishReason":"MAX_TOKENS","content":{"role":"model","parts":[{"text":"think","thought":true,"thoughtSignature":"native"},{"text":"visible"},{"functionCall":{"name":"f","args":{"x":1}}}]}}],"usageMetadata":{"promptTokenCount":3,"cachedContentTokenCount":1,"candidatesTokenCount":2,"thoughtsTokenCount":1,"totalTokenCount":6}})).unwrap();
     let output = gemini_to_responses_response(input, context(), &mut flow(), &policy())
         .unwrap()
@@ -78,7 +78,7 @@ fn response_status_thoughts_functions_and_usage_are_preserved_without_fake_signa
         3
     );
     let wire = serde_json::to_value(&output).unwrap();
-    assert!(wire["output"][0].get("encrypted_content").is_none());
+    assert_eq!(wire["output"][0]["encrypted_content"], "gemini:native");
     assert_eq!(wire["output"][2]["type"], "function_call");
     assert_eq!(wire["incomplete_details"]["reason"], "max_output_tokens");
     let back = responses_to_gemini_response(output, GeminiReplayContext::default())
@@ -132,14 +132,19 @@ fn identity_transaction_rolls_back_and_multicandidate_never_merges() {
     assert!(gemini_to_responses_response(input, context(), &mut ids, &policy()).is_err());
 }
 #[test]
-fn malformed_arguments_are_rejected_but_scoped_replay_never_accepts_foreign_ciphertext() {
+fn malformed_arguments_are_rejected_and_foreign_ciphertext_is_dropped() {
     let input: r::GenerateContentRequestBody = serde_json::from_value(
         json!({"input":[{"type":"function_call","call_id":"id","name":"f","arguments":"broken"}]}),
     )
     .unwrap();
     assert!(responses_to_gemini_request(input, "target", GeminiReplayContext::default()).is_err());
-    let input:r::GenerateContentRequestBody=serde_json::from_value(json!({"input":[{"type":"reasoning","id":"rs","summary":[],"encrypted_content":"foreign"}]})).unwrap();
-    assert!(responses_to_gemini_request(input, "target", GeminiReplayContext::default()).is_err());
+    // Ciphertext from another upstream is left out, never sent as a Gemini
+    // signature.
+    let input:r::GenerateContentRequestBody=serde_json::from_value(json!({"input":[{"type":"reasoning","id":"rs","summary":[],"encrypted_content":"foreign"},{"type":"reasoning","id":"rs2","summary":[{"type":"summary_text","text":"x"}],"encrypted_content":"claude:signature"}]})).unwrap();
+    let output = responses_to_gemini_request(input, "target", GeminiReplayContext::default())
+        .unwrap()
+        .value;
+    assert!(output.contents.is_empty());
 }
 
 #[test]
@@ -167,46 +172,15 @@ fn multimodal_tool_outputs_use_native_parts_and_scoped_reasoning_restores_exact_
             .data,
         "AQI="
     );
-    let target = IdentityTarget::new("gemini", Dialect::Gemini)
-        .unwrap()
-        .with_origin("origin")
-        .unwrap();
-    let mut state = IdentityStateRecord::new(
-        IdentityRole::OutputItem(OutputItemKind::Reasoning),
-        target.clone(),
-    );
-    state.client_item_id = Some("rs".into());
-    state.opaque_signature = Some(
-        OpaqueSignature::new(
-            gproxy_protocol::transform::identity::OpaqueField::GeminiPartThoughtSignature,
-            "sig",
-            "origin",
-            "gemini",
-        )
-        .unwrap(),
-    );
-    let part = g::Part::builder()
-        .thought(true)
-        .text("exact")
-        .thought_signature("sig")
-        .build();
-    let context = GeminiReplayContext {
-        image_files: Default::default(),
-        target: Some(target),
-        parts: std::collections::BTreeMap::from([(
-            "rs".into(),
-            RestoredGeminiPart { state, part },
-        )]),
-    };
-    let input:r::GenerateContentRequestBody=serde_json::from_value(json!({"input":[{"type":"reasoning","id":"rs","summary":[],"content":[{"type":"reasoning_text","text":"exact"}]}]})).unwrap();
-    let output = responses_to_gemini_request(input, "gemini", context)
+    // A carried Gemini signature comes back from the client's own item,
+    // with the text it covers, and needs no saved state.
+    let input:r::GenerateContentRequestBody=serde_json::from_value(json!({"input":[{"type":"reasoning","id":"rs","summary":[],"content":[{"type":"reasoning_text","text":"exact"}],"encrypted_content":"gemini:sig"}]})).unwrap();
+    let output = responses_to_gemini_request(input, "gemini", GeminiReplayContext::default())
         .unwrap()
         .value;
     assert_eq!(
-        output.contents[0].parts.as_ref().unwrap()[0]
-            .thought_signature
-            .as_deref(),
-        Some("sig")
+        serde_json::to_value(&output.contents[0].parts).unwrap(),
+        json!([{"thought":true,"text":"exact","thoughtSignature":"sig"}])
     );
 }
 

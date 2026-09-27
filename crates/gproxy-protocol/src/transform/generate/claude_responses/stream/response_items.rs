@@ -33,10 +33,9 @@ pub(super) enum Kind {
         arguments_done: bool,
         closed: bool,
     },
-    Reasoning {
-        final_item: Option<i::ReasoningItem>,
-        projected: bool,
-    },
+    /// Responses reasoning has no Claude form: a Claude thinking block needs
+    /// a signature only Anthropic issues. It is consumed without output.
+    Reasoning,
     Mcp {
         final_item: Option<i::McpCall>,
         projected: bool,
@@ -124,14 +123,7 @@ impl ResponsesToClaudeStream {
                 for _ in 0..v.summary.len() + v.content.as_ref().map_or(0, Vec::len) {
                     self.count_part()?;
                 }
-                (
-                    Some(v.id),
-                    Kind::Reasoning {
-                        final_item: None,
-                        projected: false,
-                    },
-                    0,
-                )
+                (Some(v.id), Kind::Reasoning, 0)
             }
             r::ResponseOutputItem::McpCall(v) => {
                 self.count_tool()?;
@@ -440,18 +432,6 @@ impl ResponsesToClaudeStream {
                 }
             }
             r::ResponseOutputItem::FunctionCall(v) => self.args_done(index, &v.arguments, out)?,
-            r::ResponseOutputItem::Reasoning(v) => {
-                if self.restoration.is_some() {
-                    let bytes = measure(&v, self.limits.max_pending)?;
-                    self.reserve_held(bytes)?;
-                    let item = self.items.get_mut(&index).unwrap();
-                    item.held += bytes;
-                    let Kind::Reasoning { final_item, .. } = &mut item.kind else {
-                        return Err(invalid("reasoning kind mismatch"));
-                    };
-                    *final_item = Some(v);
-                }
-            }
             r::ResponseOutputItem::McpCall(v) => {
                 let bytes = measure(&v, self.limits.max_pending)?;
                 self.reserve_held(bytes)?;

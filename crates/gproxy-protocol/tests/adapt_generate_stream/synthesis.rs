@@ -130,22 +130,11 @@ fn buffered_post_synthesis(include_usage: bool) {
     while let Some(frame) = ready(reader.next::<h::stream::ChatCompletionChunk>()).unwrap() {
         if let NativeFrame::Event { value, .. } = frame {
             saw_usage |= value.usage.flatten().is_some();
-            // Neither the response ID nor the call is recorded: the call's
-            // alias names the upstream ID itself.
-            assert!(
-                ready(access.read(IdentityRole::Response, &value.id))
-                    .unwrap()
-                    .is_none()
-            );
+            // The call's alias names the upstream ID itself.
             for choice in value.choices {
                 for tool in choice.delta.tool_calls.flatten().into_iter().flatten() {
                     if let Some(id) = tool.id.flatten() {
                         assert_eq!(id, "call_gpe_tool_3asource");
-                        assert!(
-                            ready(access.read(IdentityRole::ToolCall, &id))
-                                .unwrap()
-                                .is_none()
-                        );
                     }
                 }
             }

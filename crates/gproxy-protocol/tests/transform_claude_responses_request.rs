@@ -60,76 +60,42 @@ fn raw_input_and_file_urls_keep_native_fields() {
     );
 }
 #[test]
-fn native_reasoning_restores_only_bound_origin_model_id_signature_and_text() {
-    let source:c::GenerateContentRequestBody=serde_json::from_value(json!({"model":"claude","max_tokens":8,"messages":[{"role":"assistant","content":[{"type":"thinking","thinking":"native text","signature":"native-signature","foreign":1}]}]})).unwrap();
-    let response = claude_to_responses_request(source, "target", &mut flow(), &policy())
-        .unwrap()
-        .value;
-    let wire = serde_json::to_value(&response).unwrap();
-    assert!(wire["input"][0].get("encrypted_content").is_none());
-    let id = wire["input"][0]["id"].as_str().unwrap().to_owned();
-    fn context(id: &str) -> ClaudeRequestContext {
-        let target = IdentityTarget::new("claude", Dialect::Claude)
-            .unwrap()
-            .with_origin("origin")
-            .unwrap();
-        let mut state = IdentityStateRecord::new(
-            IdentityRole::OutputItem(OutputItemKind::Reasoning),
-            target.clone(),
-        );
-        state.client_item_id = Some(id.into());
-        state.opaque_signature = Some(
-            OpaqueSignature::new(
-                gproxy_protocol::transform::identity::OpaqueField::ClaudeThinkingSignature,
-                "native-signature",
-                "origin",
-                "claude",
-            )
-            .unwrap(),
-        );
-        let block:cc::ThinkingBlock=serde_json::from_value(json!({"type":"thinking","thinking":"native text","signature":"native-signature","foreign":1})).unwrap();
-        ClaudeRequestContext {
-            target: Some(target),
-            restored_thinking: std::collections::BTreeMap::from([(
-                id.into(),
-                RestoredClaudeThinking { state, block },
-            )]),
+fn claude_carried_reasoning_restores_thinking_and_anything_else_is_dropped() {
+    // The client carries the Claude signature in encrypted_content behind
+    // `claude:`; a later request rebuilds the block from the item alone.
+    let reasoning = |encrypted: serde_json::Value| {
+        let mut item = json!({"type":"reasoning","id":"rs_any","summary":[],"content":[{"type":"reasoning_text","text":"native text"}]});
+        if !encrypted.is_null() {
+            item["encrypted_content"] = encrypted;
         }
-    }
-    assert!(
-        responses_to_claude_request(response.clone(), "claude", ClaudeRequestContext::default())
-            .is_err()
-    );
-    let restored = responses_to_claude_request(response.clone(), "claude", context(&id))
-        .unwrap()
-        .value;
-    assert!(
-        !serde_json::to_string(&restored)
+        let request: r::GenerateContentRequestBody = serde_json::from_value(json!({
+            "model":"claude","max_output_tokens":8,
+            "input":[item,{"type":"message","role":"user","content":"next"}]
+        }))
+        .unwrap();
+        let back = responses_to_claude_request(request, "claude", ClaudeRequestContext::default())
             .unwrap()
-            .contains("foreign")
+            .value;
+        serde_json::to_value(back.messages).unwrap()
+    };
+    assert_eq!(
+        reasoning(json!("claude:native-signature"))[0]["content"],
+        json!([{"type":"thinking","thinking":"native text","signature":"native-signature"}])
     );
-    assert!(responses_to_claude_request(response.clone(), "different", context(&id)).is_err());
-    let mut wrong_field = context(&id);
-    wrong_field
-        .restored_thinking
-        .get_mut(&id)
-        .unwrap()
-        .state
-        .opaque_signature
-        .as_mut()
-        .unwrap()
-        .field = gproxy_protocol::transform::identity::OpaqueField::ClaudeRedactedThinkingData;
-    assert!(responses_to_claude_request(response.clone(), "claude", wrong_field).is_err());
-    let mut changed = wire;
-    changed["input"][0]["content"][0]["text"] = json!("modified");
-    assert!(
-        responses_to_claude_request(
-            serde_json::from_value(changed).unwrap(),
-            "claude",
-            context(&id)
-        )
-        .is_err()
-    );
+    for foreign in [
+        json!(null),
+        json!("gAAAAopenai-ciphertext"),
+        json!("gemini:gemini-signature"),
+        json!("claude:"),
+    ] {
+        let messages = reasoning(foreign.clone());
+        assert_eq!(
+            messages.as_array().unwrap().len(),
+            1,
+            "{foreign}: {messages}"
+        );
+        assert_eq!(messages[0]["role"], "user", "{foreign}");
+    }
 }
 #[test]
 fn identity_transaction_rolls_back_on_late_unrepresentable_block() {

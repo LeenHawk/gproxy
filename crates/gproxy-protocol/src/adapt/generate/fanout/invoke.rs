@@ -1,9 +1,6 @@
 use super::super::{GenerationStateAccess, transport};
 use super::*;
-use super::{
-    edges::Edge,
-    output::{Client, ToolsOnly},
-};
+use super::{edges::Edge, output::Client};
 use crate::{
     capability::{StateStore, Upstream},
     transform::{Converted, Report},
@@ -63,7 +60,6 @@ impl<A: Edge> Fanout<A> {
         }
         let mut report = Report::default();
         let mut mapped = Vec::new();
-        let mut flows = Vec::new();
         let mut natives = Vec::new();
         let mut seen = BTreeSet::new();
         for (index, child) in self.children.iter_mut().enumerate() {
@@ -77,17 +73,14 @@ impl<A: Edge> Fanout<A> {
             mapped.push(converted.value);
             natives.push(native);
         }
-        let reserved = output::reserved(&mapped)?;
         for (index, (native, client)) in natives.iter().zip(&mut mapped).enumerate() {
-            flows.push(output::normalize(
+            output::normalize(
                 native,
                 client,
                 self.children[index].identities(),
                 &mut seen,
-                &reserved,
                 state.max_records,
-                self.children[index].signed_bindings(),
-            )?);
+            )?;
         }
         if seen
             .len()
@@ -96,32 +89,8 @@ impl<A: Edge> Fanout<A> {
         {
             return Err(limit());
         }
-        // Aggregate validation and body limits run before client identity writes.
-        let value = A::Client::aggregate(mapped.clone(), self.group_id.clone(), &mut report)?;
+        let value = A::Client::aggregate(mapped, self.group_id.clone(), &mut report)?;
         encode(&value, limits)?;
-        for (index, ((native, client), flow)) in natives.iter().zip(&mapped).zip(&flows).enumerate()
-        {
-            if let Some(bindings) = self.children[index].signed_bindings() {
-                state
-                    .save_pair_with_bound_ids(
-                        native,
-                        &ToolsOnly(client),
-                        flow,
-                        bindings,
-                        &mut progress.children[index],
-                    )
-                    .await?;
-            } else {
-                state
-                    .save_pair(
-                        native,
-                        &ToolsOnly(client),
-                        flow,
-                        &mut progress.children[index],
-                    )
-                    .await?;
-            }
-        }
         Ok(Converted { value, report })
     }
 }

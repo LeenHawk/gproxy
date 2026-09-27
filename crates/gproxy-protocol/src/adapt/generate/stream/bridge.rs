@@ -1,9 +1,7 @@
 //! Sealed pair bindings over concrete native wire types; no shared content model.
 
-use super::super::{GenerationProgress, GenerationStateAccess};
-use super::event::{Collected, NativeEvent};
+use super::event::NativeEvent;
 use crate::{
-    capability::StateStore,
     transform::{
         Converted, Report, TransformError,
         generate::{
@@ -33,7 +31,6 @@ pub struct BridgeEnd<E> {
     pub chunks: Vec<E>,
     pub identities: IdentityFlow,
     pub report: Report,
-    pub signed_tool_bindings: gr::SignedToolBindings,
 }
 
 pub trait StreamBridge: sealed::Bridge + Sized {
@@ -53,21 +50,10 @@ pub trait StreamBridge: sealed::Bridge + Sized {
         ))
     }
     fn finish(self) -> Result<BridgeEnd<Self::ClientEvent>, TransformError>;
-    fn signed_tool_bindings(&self) -> Option<&gr::SignedToolBindings> {
-        None
-    }
-    fn save_final<S: StateStore>(
-        state: &GenerationStateAccess<'_, S>,
-        native: &Collected<<Self::NativeEvent as NativeEvent>::Full>,
-        client: &<Self::ClientEvent as NativeEvent>::Full,
-        flow: &IdentityFlow,
-        bindings: &gr::SignedToolBindings,
-        progress: &mut GenerationProgress<Collected<<Self::NativeEvent as NativeEvent>::Full>>,
-    ) -> impl std::future::Future<Output = Result<(), TransformError>>;
 }
 
 macro_rules! bridge {
-    ($ty:ty, $native:ty, $client:ty, $native_request:ty, $client_request:ty $(, done $done:ident)? $(, signed $signed:ident)?) => {
+    ($ty:ty, $native:ty, $client:ty, $native_request:ty, $client_request:ty $(, done $done:ident)?) => {
         impl sealed::Bridge for $ty {}
         impl StreamBridge for $ty {
             type NativeEvent = $native;
@@ -79,27 +65,10 @@ macro_rules! bridge {
             $(fn push_done(&mut self) -> Result<(), TransformError> { <$ty>::$done(self) })?
             fn finish(self) -> Result<BridgeEnd<Self::ClientEvent>, TransformError> {
                 let end = <$ty>::finish(self)?;
-                let bindings = bridge!(@bindings end $(,$signed)?);
-                Ok(BridgeEnd { chunks: end.chunks, identities: end.identities, report: end.report, signed_tool_bindings: bindings })
-            }
-            $(bridge!(@getter $ty, $signed);)?
-            async fn save_final<S: StateStore>(
-                state: &GenerationStateAccess<'_, S>, native: &Collected<<Self::NativeEvent as NativeEvent>::Full>,
-                client: &<Self::ClientEvent as NativeEvent>::Full, flow: &IdentityFlow,
-                bindings: &gr::SignedToolBindings,
-                progress: &mut GenerationProgress<Collected<<Self::NativeEvent as NativeEvent>::Full>>,
-            ) -> Result<(), TransformError> {
-                let proof = super::super::request_ids::SignedToolBindings::from_stream(bindings);
-                state.save_pair_with_bound_ids(native, client, flow, &proof, progress).await
+                Ok(BridgeEnd { chunks: end.chunks, identities: end.identities, report: end.report })
             }
         }
     };
-    (@bindings $end:ident) => { gr::SignedToolBindings::default() };
-    (@bindings $end:ident, $signed:ident) => { $end.signed_tool_bindings };
-    (@getter $ty:ty, with_getter) => {
-        fn signed_tool_bindings(&self) -> Option<&gr::SignedToolBindings> { Some(<$ty>::signed_tool_bindings(self)) }
-    };
-    (@getter $ty:ty, no_getter) => {};
 }
 bridge!(
     ch::ClaudeToChatStream,
@@ -153,5 +122,17 @@ bridge!(
     g::GenerateContentRequestBody,
     h::GenerateContentRequestBody
 );
-bridge!(gr::GeminiToResponsesStream, g::GenerateContentResponseBody, rs::StreamEvent, g::GenerateContentRequestBody, r::GenerateContentRequestBody, signed no_getter);
-bridge!(gr::ResponsesToGeminiStream, rs::StreamEvent, g::GenerateContentResponseBody, r::GenerateContentRequestBody, g::GenerateContentRequestBody, signed with_getter);
+bridge!(
+    gr::GeminiToResponsesStream,
+    g::GenerateContentResponseBody,
+    rs::StreamEvent,
+    g::GenerateContentRequestBody,
+    r::GenerateContentRequestBody
+);
+bridge!(
+    gr::ResponsesToGeminiStream,
+    rs::StreamEvent,
+    g::GenerateContentResponseBody,
+    r::GenerateContentRequestBody,
+    g::GenerateContentRequestBody
+);

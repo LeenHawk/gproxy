@@ -1,7 +1,7 @@
 use super::{
     common::{Budget, StreamEnd, StreamLimits, declared, invalid, limit, measure},
-    context::{ResponsesToGeminiContext, clean_replay, clone_replay},
-    identity::{self, SignedToolBindings},
+    context::ResponsesToGeminiContext,
+    identity,
     response_items::Item,
 };
 use crate::{
@@ -28,11 +28,7 @@ pub struct ResponsesToGeminiStream {
     pub(super) policy: TargetIdPolicy,
     pub(super) limits: StreamLimits,
     budget: Budget,
-    pub(super) restoration: super::super::GeminiReplayContext,
-    parity_restoration: super::super::GeminiReplayContext,
-    pub(super) reserved: BTreeSet<String>,
     pub(super) used: BTreeSet<String>,
-    pub(super) signed: SignedToolBindings,
     pub(super) native_calls: BTreeSet<String>,
     pub(super) model: Option<String>,
     response_id: Option<String>,
@@ -66,14 +62,6 @@ impl ResponsesToGeminiStream {
         if policy.dialect != Dialect::Gemini {
             return Err(invalid("Gemini target policy required"));
         }
-        let restoration = clean_replay(context.restoration, limits)?;
-        let reserved = restoration
-            .parts
-            .values()
-            .filter_map(|v| v.part.function_call.as_ref())
-            .filter_map(|v| v.id.clone())
-            .collect();
-        let parity_restoration = clone_replay(&restoration);
         Ok(Self {
             source: Some(ResponsesStreamCollector::new(ResponsesStreamLimits {
                 max_events: limits.max_events,
@@ -92,11 +80,7 @@ impl ResponsesToGeminiStream {
             policy,
             limits,
             budget: Budget::new(limits),
-            restoration,
-            parity_restoration,
-            reserved,
             used: Default::default(),
-            signed: Default::default(),
             native_calls: Default::default(),
             model: None,
             response_id: None,
@@ -130,14 +114,8 @@ impl ResponsesToGeminiStream {
             )
         })
     }
-    pub(crate) fn reserved_tool_ids(&self) -> &std::collections::BTreeSet<String> {
-        &self.reserved
-    }
     pub fn identities(&self) -> &IdentityFlow {
         &self.flow
-    }
-    pub fn signed_tool_bindings(&self) -> &SignedToolBindings {
-        &self.signed
     }
     pub fn push(
         &mut self,
@@ -334,7 +312,7 @@ impl ResponsesToGeminiStream {
         let only_image = [g::Modality::Image];
         let mut converted = super::super::responses_to_gemini_response_with_modalities(
             source.clone(),
-            std::mem::take(&mut self.parity_restoration),
+            Default::default(),
             self.image_only.then_some(only_image.as_slice()),
         )?;
         if self.image_progress {
@@ -375,20 +353,14 @@ impl ResponsesToGeminiStream {
             return Err(invalid("canonical function count changed"));
         }
         let mut used = BTreeSet::new();
-        let mut signed = SignedToolBindings::default();
         for ((index, call), part) in originals.into_iter().zip(projected) {
             identity::call(
                 part,
                 call,
                 index,
                 (&mut check_flow, &self.policy),
-                (&self.reserved, &mut used, &mut signed),
+                &mut used,
             )?;
-        }
-        if signed != self.signed {
-            return Err(invalid(
-                "streamed signed association differs from actual canonical result",
-            ));
         }
         measure(&converted.value, self.limits.max_bytes)?;
         let mut tail = converted.value.clone();
@@ -416,7 +388,6 @@ impl ResponsesToGeminiStream {
             chunks: out,
             identities: self.flow,
             report: converted.report,
-            signed_tool_bindings: self.signed,
         })
     }
 }

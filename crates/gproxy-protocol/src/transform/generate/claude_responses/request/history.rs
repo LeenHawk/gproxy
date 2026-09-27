@@ -9,7 +9,6 @@ fn text(value: String) -> c::ContentBlock {
 
 pub(crate) fn to_claude(
     input: Option<r::Input>,
-    mut context: super::ClaudeRequestContext,
     report: &mut Report,
 ) -> Result<(Vec<c::Message>, Vec<c::TextBlock>), TransformError> {
     let items = match input {
@@ -163,18 +162,12 @@ pub(crate) fn to_claude(
                 (r::MessageRole::Assistant, blocks)
             }
             r::InputItem::Reasoning(reasoning) => {
-                let model = context
-                    .target
-                    .as_ref()
-                    .map(|target| target.model.clone())
-                    .ok_or_else(|| TransformError::missing_metadata("reasoning target"))?;
+                let Some(block) = super::thinking(reasoning, report) else {
+                    continue;
+                };
                 (
                     r::MessageRole::Assistant,
-                    vec![c::ContentBlock::Thinking(super::restore_reasoning(
-                        reasoning,
-                        &model,
-                        &mut context,
-                    )?)],
+                    vec![c::ContentBlock::Thinking(block)],
                 )
             }
             r::InputItem::ItemReference(_) => {

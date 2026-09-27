@@ -1,9 +1,7 @@
-use super::super::ClaudeRequestContext;
 use super::{
     common::{
         Budget, StreamEnd, StreamLimits, declared, id, initial_usage, invalid, limit, measure,
     },
-    context::{clean_restoration, clone_restoration},
     response_items::Item,
     usage::claude_tier,
 };
@@ -26,7 +24,6 @@ use std::collections::BTreeMap;
 #[derive(Default)]
 pub struct ResponsesToClaudeContext {
     pub usage: Option<c::Usage>,
-    pub restoration: Option<ClaudeRequestContext>,
 }
 
 pub struct ResponsesToClaudeStream {
@@ -38,8 +35,6 @@ pub struct ResponsesToClaudeStream {
     budget: Budget,
     usage: Option<c::Usage>,
     observed_usage: Option<r::ResponseUsage>,
-    pub(super) restoration: Option<ClaudeRequestContext>,
-    parity_restoration: Option<ClaudeRequestContext>,
     pub(super) model: Option<String>,
     response_id: Option<String>,
     tier: Option<Option<c::ResponseServiceTier>>,
@@ -85,13 +80,6 @@ impl ResponsesToClaudeStream {
             .transpose()?
             .flatten();
         measure(&context.usage, limits.max_bytes)?;
-        let restoration = context
-            .restoration
-            .map(|v| clean_restoration(v, limits))
-            .map(crate::transform::optional)
-            .transpose()?
-            .flatten();
-        let parity_restoration = restoration.as_ref().map(clone_restoration);
         Ok(Self {
             source: Some(ResponsesStreamCollector::new(ResponsesStreamLimits {
                 max_events: limits.max_events,
@@ -112,8 +100,6 @@ impl ResponsesToClaudeStream {
             budget: Budget::new(limits),
             usage: context.usage,
             observed_usage: None,
-            restoration,
-            parity_restoration,
             model: None,
             response_id: None,
             tier: None,
@@ -412,20 +398,11 @@ impl ResponsesToClaudeStream {
             .finish()?
             .value;
         let part_refusal = source.output.iter().any(|item| matches!(item, r::ResponseOutputItem::Message(message) if message.content.iter().any(|part| matches!(part, crate::wire::openai::responses::input::OutputContent::Refusal(_)))));
-        let converted = if let Some(context) = self.parity_restoration.take() {
-            super::super::responses_to_claude_response_with_context(
-                source,
-                context,
-                &mut self.flow.clone(),
-                &self.policy,
-            )?
-        } else {
-            super::super::responses_to_claude_response(
-                source,
-                &mut self.flow.clone(),
-                &self.policy,
-            )?
-        };
+        let converted = super::super::responses_to_claude_response(
+            source,
+            &mut self.flow.clone(),
+            &self.policy,
+        )?;
         let mut expected = converted.value;
         if part_refusal && expected.stop_reason != c::StopReason::Refusal {
             self.report.changed("output.refusal", "refusal text is preserved; Claude has no separate per-part refusal marker alongside tool continuation or an incomplete stop");

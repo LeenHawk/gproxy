@@ -1,37 +1,19 @@
 use super::*;
 
 impl ResponsesViaGemini {
-    /// Materialize actual native fileData images, convert a separate view, then
-    /// persist original identities and signed image proofs before returning.
+    /// Materialize actual native fileData images and convert that view. An
+    /// image's signature goes to the client with its bytes, so nothing is kept.
     pub async fn convert_response_with_image_resources<S: StateStore, R: ResourceAccess>(
         &mut self,
         native: g::GenerateContentResponseBody,
         facts: GeminiReturnFacts,
-        state: &GenerationStateAccess<'_, S>,
+        _state: &GenerationStateAccess<'_, S>,
         resources: &GenerationResources<'_, R>,
         progress: &mut ImageResourceProgress<g::GenerateContentResponseBody, R::PublishedHandle>,
     ) -> Result<Converted<r::GenerateContentResponseBody>, TransformError> {
         let native = native.into_declared();
         let view = progress.reads.materialize(&native, resources).await?;
-        let converted = self.convert_response(view, facts)?;
-        state
-            .save_pair(
-                &native,
-                &converted.value,
-                &self.identities.response,
-                &mut progress.generation,
-            )
-            .await?;
-        let images: Vec<_> = progress.reads.images().cloned().collect();
-        state
-            .save_file_image_proofs(
-                &images,
-                &converted.value,
-                &self.identities.response,
-                &mut progress.proofs,
-            )
-            .await?;
-        Ok(converted)
+        self.convert_response(view, facts)
     }
     /// One buffered generation POST followed by scoped image reads. Recovery
     /// retains the native result and never repeats the generation request.

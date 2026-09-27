@@ -70,6 +70,7 @@ pub(crate) fn gemini_to_openai_request_with_calls(
             &mut ids,
             policy,
             &mut bindings,
+            None,
         )?);
     }
     for content in input.contents {
@@ -79,6 +80,7 @@ pub(crate) fn gemini_to_openai_request_with_calls(
             &mut ids,
             policy,
             &mut bindings,
+            None,
         )?);
     }
     crate::transform::instructions::chat(&mut out.messages, &out.model, &mut report);

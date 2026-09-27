@@ -31,7 +31,6 @@ pub struct StreamEnd<T> {
     pub chunks: Vec<T>,
     pub identities: IdentityFlow,
     pub report: Report,
-    pub signed_tool_bindings: super::identity::SignedToolBindings,
 }
 
 pub(super) fn invalid(message: impl Into<String>) -> TransformError {

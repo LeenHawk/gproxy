@@ -52,12 +52,6 @@ impl<T: IdentityFacts> IdentityFacts for Collected<T> {
     fn dialect(&self) -> Dialect {
         self.value.dialect()
     }
-    fn response_id(&self) -> Option<&str> {
-        self.value.response_id()
-    }
-    fn native_model(&self) -> Option<&str> {
-        self.value.native_model()
-    }
     fn tools(&self) -> Vec<ToolIdentity> {
         let mut tools = self.value.tools();
         if let Some(ids) = &self.original_tool_ids {
@@ -68,27 +62,6 @@ impl<T: IdentityFacts> IdentityFacts for Collected<T> {
             }
         }
         tools
-    }
-    fn omitted_custom_tools(&self) -> Vec<usize> {
-        self.value.omitted_custom_tools()
-    }
-    fn items(&self) -> Vec<(crate::transform::identity::IdentityRole, String)> {
-        self.value.items()
-    }
-    fn signed_claude(&self, index: u64) -> Option<crate::wire::claude::content::ThinkingBlock> {
-        self.value.signed_claude(index)
-    }
-    fn signed_gemini_reasoning(&self, index: u64) -> Option<crate::wire::gemini::Part> {
-        self.value.signed_gemini_reasoning(index)
-    }
-    fn signed_gemini_image(&self, index: u64) -> Option<crate::wire::gemini::Part> {
-        self.value.signed_gemini_image(index)
-    }
-    fn signed_gemini_tool(&self, index: usize) -> Option<crate::wire::gemini::Part> {
-        self.value.signed_gemini_tool(index)
-    }
-    fn signed_gemini_thinking(&self, index: u64) -> Option<crate::wire::gemini::Part> {
-        self.value.signed_gemini_thinking(index)
     }
 }
 

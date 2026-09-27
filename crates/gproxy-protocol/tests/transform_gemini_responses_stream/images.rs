@@ -21,19 +21,23 @@ fn inline_image_emits_one_complete_item_before_source_eof_and_preserves_order() 
         &complete.output[0],
         r::ResponseOutputItem::Message(_)
     ));
-    let r::ResponseOutputItem::ImageGenerationCall(image) = &complete.output[1] else {
+    // The image's signature travels on the reasoning item right before it.
+    let r::ResponseOutputItem::Reasoning(carrier) = &complete.output[1] else {
+        panic!()
+    };
+    assert_eq!(
+        carrier.encrypted_content,
+        Some(Some("gemini-next:actual-sig".into()))
+    );
+    let r::ResponseOutputItem::ImageGenerationCall(image) = &complete.output[2] else {
         panic!()
     };
     assert_eq!(image.result.as_deref(), Some(PNG));
     assert!(matches!(
-        &complete.output[2],
+        &complete.output[3],
         r::ResponseOutputItem::Message(_)
     ));
-    assert!(
-        !serde_json::to_string(&complete)
-            .unwrap()
-            .contains("actual-sig")
-    );
+    assert!(!serde_json::to_string(&complete).unwrap().contains("DROP"));
 }
 #[test]
 fn responses_image_done_emits_real_blob_once_before_overall_terminal() {
@@ -252,46 +256,20 @@ fn image_request_selectors_and_exact_format_controls_are_not_conflated() {
     );
 }
 #[test]
-fn signed_inline_image_history_restores_original_bytes_and_clears_extensions() {
-    fn replay() -> GeminiReplayContext {
-        let target = IdentityTarget::new("actual-model", Dialect::Gemini)
+fn carried_image_signature_goes_back_on_the_client_bytes() {
+    // The signature rides on the reasoning item before the image, and the
+    // client's own bytes rebuild the inline part.
+    let request = serde_json::from_value(json!({"model":"r","input":[
+        {"type":"reasoning","id":"rs-carrier","summary":[],"encrypted_content":"gemini-next:opaque-image"},
+        image("ig-history")
+    ]}))
+    .unwrap();
+    let restored =
+        pair::responses_to_gemini_request(request, "actual-model", GeminiReplayContext::default())
             .unwrap()
-            .with_origin("image-origin")
-            .unwrap();
-        let mut state = IdentityStateRecord::new(
-            IdentityRole::OutputItem(OutputItemKind::ImageGenerationCall),
-            target.clone(),
-        );
-        state.client_item_id = Some("ig-history".into());
-        state.opaque_signature = Some(
-            OpaqueSignature::new(
-                OpaqueField::GeminiPartThoughtSignature,
-                "opaque-image",
-                "image-origin",
-                "actual-model",
-            )
-            .unwrap(),
-        );
-        GeminiReplayContext {target:Some(target),parts:std::collections::BTreeMap::from([("ig-history".into(),RestoredGeminiPart{state,part:serde_json::from_value(json!({"inlineData":{"mimeType":"image/png","data":PNG},"thoughtSignature":"opaque-image","foreign":"DROP"})).unwrap()})]),image_files:Default::default()}
-    }
-    let request =
-        || serde_json::from_value(json!({"model":"r","input":[image("ig-history")]})).unwrap();
-    let restored = pair::responses_to_gemini_request(request(), "actual-model", replay())
-        .unwrap()
-        .value;
+            .value;
+    assert_eq!(restored.contents.len(), 1);
     let part = &restored.contents[0].parts.as_ref().unwrap()[0];
     assert_eq!(part.thought_signature.as_deref(), Some("opaque-image"));
     assert_eq!(part.inline_data.as_ref().unwrap().data, PNG);
-    assert!(!serde_json::to_string(&restored).unwrap().contains("DROP"));
-    let mut changed = replay();
-    changed
-        .parts
-        .get_mut("ig-history")
-        .unwrap()
-        .part
-        .inline_data
-        .as_mut()
-        .unwrap()
-        .data = "different-payload".into();
-    assert!(pair::responses_to_gemini_request(request(), "actual-model", changed).is_err());
 }

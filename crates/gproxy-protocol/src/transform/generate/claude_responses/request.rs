@@ -8,6 +8,7 @@ pub(crate) mod tools;
 use crate::{
     transform::{
         Converted, Report, TransformError,
+        generate::signature::Carried,
         identity::{IdentityFlow, TargetIdPolicy},
     },
     wire::{
@@ -17,16 +18,11 @@ use crate::{
     },
 };
 
-/// A native signed block and its scoped identity record recovered by the host.
-pub struct RestoredClaudeThinking {
-    pub state: crate::transform::identity::IdentityStateRecord,
-    pub block: cc::ThinkingBlock,
-}
-
+/// The Claude upstream a Responses request is prepared for, when the caller
+/// knows it; a mismatched model or a missing origin is refused.
 #[derive(Default)]
 pub struct ClaudeRequestContext {
     pub target: Option<crate::transform::identity::IdentityTarget>,
-    pub restored_thinking: std::collections::BTreeMap<String, RestoredClaudeThinking>,
 }
 
 pub fn claude_to_responses_request(
@@ -148,7 +144,7 @@ pub fn responses_to_claude_request(
         })
         .transpose()?
         .flatten();
-    let (mut messages, mut system) = history::to_claude(input.input, context, &mut report)?;
+    let (mut messages, mut system) = history::to_claude(input.input, &mut report)?;
     crate::transform::instructions::claude(&mut messages, &out.model, &mut report);
     if let Some(Some(text)) = input.instructions {
         system.insert(
@@ -169,85 +165,46 @@ pub fn responses_to_claude_request(
     Ok(Converted { value: out, report })
 }
 
-pub(super) fn restore_reasoning(
+/// The thinking block a Responses reasoning item stands for. Only an item whose
+/// `encrypted_content` carries a Claude signature (`claude:`, see `signature`)
+/// has one: Anthropic accepts thinking only with the signature it issued, and
+/// the client's text is the text that signature covers. Any other reasoning
+/// (unsigned, OpenAI ciphertext, a Gemini signature) is left out.
+pub(super) fn thinking(
     reasoning: r::ReasoningItem,
-    target_model: &str,
-    context: &mut ClaudeRequestContext,
-) -> Result<cc::ThinkingBlock, TransformError> {
-    let binding = context
-        .target
-        .as_ref()
-        .ok_or_else(|| TransformError::missing_metadata("reasoning target"))?;
-    if binding.model != target_model
-        || binding.dialect != crate::Dialect::Claude
-        || binding
-            .origin
-            .as_ref()
-            .is_none_or(|origin| origin.trim().is_empty())
-    {
-        return Err(TransformError::shape(
-            "reasoning.target",
-            "model/dialect/origin binding does not match selected Claude target",
-        ));
+    report: &mut Report,
+) -> Option<cc::ThinkingBlock> {
+    let encrypted = reasoning.encrypted_content.flatten();
+    let Some(Carried::Claude(signature)) = encrypted.as_deref().and_then(Carried::parse) else {
+        report.omitted(
+            "reasoning",
+            "Claude thinking requires a Claude signature; this reasoning carries none",
+        );
+        return None;
+    };
+    if signature.is_empty() {
+        report.omitted(
+            "reasoning",
+            "Claude thinking requires a non-empty signature",
+        );
+        return None;
     }
-
-    let restored = context
-        .restored_thinking
-        .remove(&reasoning.id)
-        .ok_or_else(|| {
-            TransformError::missing_metadata(format!(
-                "reasoning[{}] native Claude signed block",
-                reasoning.id
-            ))
-        })?;
-    use crate::transform::identity::{IdentityRole, OutputItemKind};
-    if restored.state.role != IdentityRole::OutputItem(OutputItemKind::Reasoning)
-        || restored.state.client_item_id.as_deref() != Some(reasoning.id.as_str())
-    {
-        return Err(TransformError::shape(
-            "reasoning.state",
-            "record must bind this reasoning item and field role",
-        ));
-    }
-    let original = restored.block.into_declared();
-    if restored
-        .state
-        .opaque_signature
-        .as_ref()
-        .is_none_or(|signature| {
-            signature.value != original.signature
-                || signature.field
-                    != crate::transform::identity::OpaqueField::ClaudeThinkingSignature
-        })
-        || original.signature.is_empty()
-    {
-        return Err(TransformError::shape(
-            "reasoning.signature",
-            "native block signature does not match scoped record",
-        ));
-    }
-    let presented = reasoning
-        .content
-        .map(|content| {
-            content
-                .into_iter()
-                .map(|v| v.text)
-                .collect::<Vec<_>>()
-                .join("")
-        })
-        .unwrap_or_else(|| {
+    let text = reasoning.content.map_or_else(
+        || {
             reasoning
                 .summary
                 .into_iter()
                 .map(|v| v.text)
                 .collect::<Vec<_>>()
                 .join("")
-        });
-    if presented != original.thinking || reasoning.encrypted_content.flatten().is_some() {
-        return Err(TransformError::shape(
-            "reasoning.content",
-            "modified or foreign encrypted reasoning cannot bind native Claude signature",
-        ));
-    }
-    Ok(original)
+        },
+        |content| {
+            content
+                .into_iter()
+                .map(|v| v.text)
+                .collect::<Vec<_>>()
+                .join("")
+        },
+    );
+    Some(cc::ThinkingBlock::builder(cc::ThinkingBlockType::Tag, signature.to_owned(), text).build())
 }

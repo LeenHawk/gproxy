@@ -331,13 +331,11 @@ fn repeated_gemini_text_and_thought_marked_functions_are_not_dropped() {
         serde_json::to_value(&actual.content[0]).unwrap()["text"],
         "haha"
     );
-    // The thought is shown; its native signature never is, only a handle.
+    // The thought is shown with its native signature behind the source
+    // prefix, so the client carries it back to the Gemini upstream.
     let thinking = serde_json::to_value(&actual.content[1]).unwrap();
     assert_eq!(thinking["thinking"], "private thought");
-    assert!(pair::is_thinking_handle(
-        thinking["signature"].as_str().unwrap()
-    ));
-    assert!(!serde_json::to_string(&actual).unwrap().contains("opaque"));
+    assert_eq!(thinking["signature"], "gemini:opaque");
 }
 #[test]
 fn missing_response_and_tool_ids_emit_stable_aliases_before_late_native_id() {
@@ -975,7 +973,7 @@ fn native_failures_and_each_bound_remain_terminal_without_tool_limits_blocking_t
     converter.finish().unwrap();
 }
 #[test]
-fn split_signed_and_unsigned_thought_runs_become_handle_signed_thinking_blocks() {
+fn split_signed_and_unsigned_thought_runs_carry_their_signatures() {
     let source = vec![
         gparts(json!([{"text":""},{"thought":true,"text":"plan "}])),
         gparts(json!([{"thought":true,"text":"it"},{"thought":true,"thoughtSignature":"opaque"}])),
@@ -986,13 +984,30 @@ fn split_signed_and_unsigned_thought_runs_become_handle_signed_thinking_blocks()
     let content = actual["content"].as_array().unwrap();
     assert_eq!(content.len(), 3, "{actual}");
     assert_eq!(content[0]["thinking"], "plan it");
-    let signed = content[0]["signature"].as_str().unwrap();
-    assert!(pair::thinking_handle_id(signed).is_some());
-    // A run with no signature is shown, but its handle names no state.
+    assert_eq!(content[0]["signature"], "gemini:opaque");
+    // A run with no signature is shown with the bare prefix.
     assert_eq!(content[1]["thinking"], "summary");
-    let unsigned = content[1]["signature"].as_str().unwrap();
-    assert!(pair::is_thinking_handle(unsigned));
-    assert!(pair::thinking_handle_id(unsigned).is_none());
+    assert_eq!(content[1]["signature"], "gemini:");
     assert_eq!(content[2]["text"], "done");
-    assert!(!actual.to_string().contains("opaque"));
+}
+#[test]
+fn a_signed_call_streams_its_signature_on_an_empty_thinking_block_before_it() {
+    // Gemini flash: unsigned thought text, then the signature on the call.
+    let source = vec![
+        gparts(json!([{"thought":true,"text":"plan"}])),
+        gparts(
+            json!([{"text":"note"},{"functionCall":{"name":"run","id":"a","args":{"x":1}},"thoughtSignature":"flash"}]),
+        ),
+        gend("STOP"),
+    ];
+    let actual = serde_json::to_value(g_to_c(source, gc(), fixed())).unwrap();
+    let content = actual["content"].as_array().unwrap();
+    assert_eq!(content.len(), 4, "{actual}");
+    assert_eq!(content[0]["signature"], "gemini:");
+    assert_eq!(content[1]["text"], "note");
+    assert_eq!(
+        (&content[2]["thinking"], &content[2]["signature"]),
+        (&json!(""), &json!("gemini-next:flash"))
+    );
+    assert_eq!(content[3]["type"], "tool_use");
 }

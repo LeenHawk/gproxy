@@ -23,10 +23,8 @@
 //! text fragments with the same thought flag; signatures/media/functions stay
 //! exact. Unsigned empty reasoning is omitted like the buffered pair.
 //!
-//! Restored signatures require the original model/origin/field/content binding.
-//! Signed native IDs (including absence) are immutable; unsigned IDs avoid their
-//! reservations. SignedToolBindings exposes verified fixed-ID associations for
-//! the host to persist before forwarding the corresponding part. This pure
+//! A Responses upstream's reasoning ciphertext cannot become a Gemini
+//! signature, so reasoning replays as unsigned thought text. This pure
 //! converter itself performs no state writes or upstream calls.
 //!
 //! Every failed push poisons the stream. Input/output events and bytes, pending
@@ -48,5 +46,4 @@ mod usage;
 pub use common::{StreamEnd, StreamLimits};
 pub use context::{GeminiToResponsesContext, ResponsesToGeminiContext};
 pub use gemini_to_responses::GeminiToResponsesStream;
-pub use identity::SignedToolBindings;
 pub use responses_to_gemini::ResponsesToGeminiStream;

@@ -1,6 +1,7 @@
 use crate::{
     transform::{
         Report, TransformError,
+        generate::signature::Carried,
         identity::{IdentityFlow, IdentityRole, SourceIdentity, TargetIdPolicy},
     },
     wire::{claude::content as c, gemini as g},
@@ -113,11 +114,20 @@ pub(crate) fn to_gemini(
     calls: &mut Calls,
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
-    thinking_handles: bool,
     report: &mut Report,
 ) -> Result<Vec<g::Part>, TransformError> {
     let mut out = Vec::new();
+    // A `gemini-next:` carrier's signature, waiting for the `tool_use` right
+    // after it; see `thinking`.
+    let mut next_signature: Option<String> = None;
     for block in blocks {
+        let pending = next_signature.take();
+        if pending.is_some() && !matches!(block, c::ContentBlock::ToolUse(_)) {
+            report.omitted(
+                "thinking.signature",
+                "Gemini call signature is not followed by its tool_use",
+            );
+        }
         match block {
             c::ContentBlock::Text(v) => {
                 if v.citations.is_some() || v.cache_control.is_some() {
@@ -157,11 +167,11 @@ pub(crate) fn to_gemini(
                     TransformError::shape("tool_use.input", "object arguments required")
                 })?;
                 let id = calls.call(Some(v.id), &v.name, crate::Dialect::Claude, flow, policy)?;
-                out.push(
-                    g::Part::builder()
-                        .function_call(g::FunctionCall::builder(v.name).id(id).args(args).build())
-                        .build(),
-                );
+                let mut part = g::Part::builder()
+                    .function_call(g::FunctionCall::builder(v.name).id(id).args(args).build())
+                    .build();
+                part.thought_signature = pending;
+                out.push(part);
                 if v.cache_control.is_some() {
                     report.omitted("tool_use.cache_control", "Gemini has no block cache field");
                 }
@@ -186,28 +196,29 @@ pub(crate) fn to_gemini(
                         .build(),
                 );
             }
-            // A gproxy handle stays a marker part for the host to swap for the
-            // saved native part (or drop); without host state it is dropped.
-            c::ContentBlock::Thinking(v) if super::thinking::is_thinking_handle(&v.signature) => {
-                if thinking_handles {
-                    out.push(
-                        g::Part::builder()
-                            .thought(true)
-                            .text(v.thinking)
-                            .thought_signature(v.signature)
-                            .build(),
-                    );
-                } else {
-                    report.omitted(
-                        "thinking",
-                        "gproxy thinking handle requires host state to restore the native Gemini part",
-                    );
+            // A Gemini signature goes back where it came from: on the thought
+            // part with its text, or on the call after its carrier. Unsigned
+            // Gemini thought text means nothing to the upstream.
+            c::ContentBlock::Thinking(v) => match Carried::parse(&v.signature) {
+                Some(Carried::GeminiThought(native)) if !native.is_empty() => out.push(
+                    g::Part::builder()
+                        .thought(true)
+                        .text(v.thinking)
+                        .thought_signature(native.to_owned())
+                        .build(),
+                ),
+                Some(Carried::GeminiNext(native)) if !native.is_empty() => {
+                    next_signature = Some(native.to_owned());
                 }
-            }
-            c::ContentBlock::Thinking(v) => {
-                report.omitted("thinking.signature","native Claude signature retained by host; Gemini receives only declared thinking text");
-                out.push(g::Part::builder().thought(true).text(v.thinking).build());
-            }
+                Some(_) => report.omitted(
+                    "thinking",
+                    "unsigned or foreign thinking has nothing the Gemini upstream can verify",
+                ),
+                None => {
+                    report.omitted("thinking.signature","native Claude signature cannot become a Gemini signature; Gemini receives only declared thinking text");
+                    out.push(g::Part::builder().thought(true).text(v.thinking).build());
+                }
+            },
             c::ContentBlock::RedactedThinking(_) => report.omitted(
                 "redacted_thinking",
                 "native opaque Claude reasoning has no Gemini representation",
@@ -252,7 +263,7 @@ pub(crate) fn to_claude(
         if p.thought_signature.is_some() {
             report.omitted(
                 "thought_signature",
-                "native signature requires scoped host state; cannot be used as Claude signature",
+                "a Gemini signature cannot be used as a Claude signature",
             );
         }
         if p.thought == Some(true) {

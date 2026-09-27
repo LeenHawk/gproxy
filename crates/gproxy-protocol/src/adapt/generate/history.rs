@@ -58,21 +58,33 @@ async fn facts<S: StateStore>(
     state: &GenerationStateAccess<'_, S>,
     ids: BTreeSet<String>,
     names: BTreeMap<String, String>,
-    signed_parts: &BTreeSet<String>,
 ) -> Result<GenerationToolReplay, TransformError> {
     let target = state.target.dialect;
-    let mut replay = state
-        .recover_tools_inner(
-            &ids.iter().cloned().collect::<Vec<_>>(),
-            &names,
-            target == Dialect::Gemini,
-            signed_parts,
-        )
-        .await?;
+    if ids.len() > state.max_records || names.len() > state.max_records {
+        return Err(TransformError::new(
+            TransformErrorKind::Limit,
+            "history.tool_identity",
+            "too many tool identities in history",
+        ));
+    }
+    let mut replay = GenerationToolReplay {
+        names,
+        ..Default::default()
+    };
+    // Gemini pairs a result with its call by name, and the name comes only
+    // from the client's own history.
+    if target == Dialect::Gemini
+        && ids
+            .iter()
+            .any(|id| replay.names.get(id).is_none_or(String::is_empty))
+    {
+        return Err(TransformError::new(
+            TransformErrorKind::MissingState,
+            "history.tool_name",
+            "tool result has no call in the declared history",
+        ));
+    }
     for id in ids {
-        if replay.signed.contains(&id) {
-            continue;
-        }
         match tool_alias::decode(&id) {
             Some(ToolAlias::Upstream { id: original, .. }) => {
                 if target == Dialect::OpenAiChat {
@@ -151,7 +163,7 @@ pub(super) async fn chat<S: StateStore>(
             _ => {}
         }
     }
-    let mut replay = facts(state, ids, names, &BTreeSet::new()).await?;
+    let mut replay = facts(state, ids, names).await?;
     for message in &input.messages {
         if let h::ChatMessage::Assistant(message) = message {
             for call in message.tool_calls.iter().flatten() {
@@ -214,7 +226,7 @@ pub(super) async fn claude<S: StateStore>(
             }
         }
     }
-    let replay = facts(state, ids, names, &BTreeSet::new()).await?;
+    let replay = facts(state, ids, names).await?;
     for message in &mut input.messages {
         if let cc::MessageContent::Blocks(blocks) = &mut message.content {
             for b in blocks {
@@ -242,16 +254,12 @@ pub(super) async fn gemini<S: StateStore>(
     let mut input = input.into_declared();
     let mut names = BTreeMap::new();
     let mut ids = BTreeSet::new();
-    let mut signed = BTreeSet::new();
     for p in input.contents.iter().flat_map(|c| c.parts.iter().flatten()) {
         if let Some(call) = &p.function_call
             && let Some(id) = &call.id
         {
             name(&mut names, id, &call.name)?;
             ids.insert(id.clone());
-            if p.thought_signature.is_some() {
-                signed.insert(id.clone());
-            }
         }
         if let Some(result) = &p.function_response
             && let Some(id) = &result.id
@@ -260,7 +268,7 @@ pub(super) async fn gemini<S: StateStore>(
             ids.insert(id.clone());
         }
     }
-    let replay = facts(state, ids, names, &signed).await?;
+    let replay = facts(state, ids, names).await?;
     for p in input
         .contents
         .iter_mut()
@@ -313,7 +321,7 @@ pub(super) async fn responses<S: StateStore>(
             }
         }
     }
-    let replay = facts(state, ids, names, &BTreeSet::new()).await?;
+    let replay = facts(state, ids, names).await?;
     if let Some(r::Input::Items(items)) = &mut input.input {
         for item in items {
             match item {

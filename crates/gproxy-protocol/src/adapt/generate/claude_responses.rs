@@ -106,12 +106,11 @@ impl ClaudeViaResponses {
     pub fn convert_response(
         &mut self,
         native: r::GenerateContentResponseBody,
-        facts: p::ClaudeRequestContext,
+        _facts: p::ClaudeRequestContext,
     ) -> Result<Converted<c::GenerateContentResponseBody>, TransformError> {
         let native = native.into_declared();
-        p::responses_to_claude_response_with_context(
+        p::responses_to_claude_response(
             native,
-            facts,
             &mut self.identities.response,
             &self.identities.response_policy,
         )
@@ -183,15 +182,7 @@ impl ClaudeViaResponses {
         }
         let native = transport::recover_native(progress, limits)?;
         let facts = facts(&native)?;
-        let converted = self.convert_response(native.clone(), facts)?;
-        state
-            .save_pair(
-                &native,
-                &converted.value,
-                &self.identities.response,
-                progress,
-            )
-            .await?;
+        let converted = self.convert_response(native, facts)?;
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }
@@ -266,9 +257,7 @@ impl ResponsesViaClaude {
         let mut tool_report = Report::default();
         crate::transform::generate::client_tools::Bindings::for_target(&original, Dialect::Claude)?
             .lower(&mut lowered, &mut tool_report)?;
-        let (restored, names) = super::history::responses(lowered.clone(), state).await?;
-        let _ = names;
-        let mut context = context;
+        let (restored, _) = super::history::responses(lowered, state).await?;
         if context
             .target
             .as_ref()
@@ -278,17 +267,6 @@ impl ResponsesViaClaude {
                 "signature.context",
                 "caller replay binding conflicts with selected state",
             ));
-        }
-        let recovered = state.claude_replay(&lowered).await?;
-        context.target = recovered.target;
-        for (id, piece) in recovered.restored_thinking {
-            if context.restored_thinking.contains_key(&id) {
-                return Err(TransformError::shape(
-                    "signature.context",
-                    "duplicate caller and stored native piece",
-                ));
-            }
-            context.restored_thinking.insert(id, piece);
         }
         let mut prepared = Self::prepare(restored, selected_model, endpoint, identities, context)?;
         prepared.original_request = original;
@@ -413,15 +391,7 @@ impl ResponsesViaClaude {
         }
         let native = transport::recover_native(progress, limits)?;
         let facts = facts(&native)?;
-        let converted = self.convert_response(native.clone(), facts)?;
-        state
-            .save_pair(
-                &native,
-                &converted.value,
-                &self.identities.response,
-                progress,
-            )
-            .await?;
+        let converted = self.convert_response(native, facts)?;
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }

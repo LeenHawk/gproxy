@@ -240,16 +240,14 @@ pub(crate) fn to_responses(
                         call.status = Some(r::McpCallStatus::Completed);
                     }
                 }
-                // A gproxy handle only restores for the Gemini upstream that
-                // issued it; it must not reach another provider.
+                // A signature carried from another upstream (a Gemini thought)
+                // only goes back to that upstream; this one would refuse it.
                 c::ContentBlock::Thinking(thinking)
-                    if crate::transform::generate::claude_gemini::is_thinking_handle(
-                        &thinking.signature,
-                    ) =>
+                    if crate::transform::generate::signature::is_carried(&thinking.signature) =>
                 {
                     report.omitted(
                         "thinking",
-                        "gproxy thinking handle restores only for the Gemini upstream that issued it",
+                        "a signature carried from another upstream only goes back to that upstream",
                     );
                 }
                 c::ContentBlock::Thinking(thinking) => {
@@ -276,12 +274,15 @@ pub(crate) fn to_responses(
                         )
                         .build(),
                     ]);
-                    report.omitted("thinking.signature","Claude signature must stay in host replay state, never Responses encrypted_content");
+                    report.omitted(
+                        "thinking.signature",
+                        "a Claude signature has no meaning to a Responses upstream",
+                    );
                     out.push(r::InputItem::Reasoning(item));
                 }
                 c::ContentBlock::RedactedThinking(_) => {
                     return Err(TransformError::missing_metadata(
-                        "redacted Claude reasoning needs native replay state adapter",
+                        "redacted Claude reasoning has no Responses form",
                     ));
                 }
                 c::ContentBlock::ServerToolUse(_)

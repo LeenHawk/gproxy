@@ -171,8 +171,10 @@ pub(super) fn to_responses(
                 };
                 item
             }
+            // The signature travels in encrypted_content behind the `claude:`
+            // prefix, so the client sends it back and a later turn to a
+            // Claude upstream restores the block; see `signature`.
             c::ResponseContentBlock::Thinking(block) => {
-                report.omitted("content.thinking.signature","Claude signature must stay bound to its original model and upstream; it is not Responses encrypted_content");
                 r::ResponseOutputItem::Reasoning(r::ReasoningItem {
                     type_: r::ReasoningItemType::ReasoningItem,
                     id: id(
@@ -195,7 +197,11 @@ pub(super) fn to_responses(
                     } else {
                         r::ReasoningStatus::Completed
                     }),
-                    encrypted_content: None,
+                    encrypted_content: (!block.signature.is_empty()).then(|| {
+                        Some(crate::transform::generate::signature::claude(
+                            &block.signature,
+                        ))
+                    }),
                     rest: Default::default(),
                 })
             }
@@ -250,18 +256,12 @@ pub(super) struct ClaudeContent {
     pub refusal: bool,
 }
 
-pub(super) struct Restoration<'a> {
-    pub model: &'a str,
-    pub context: Option<&'a mut super::super::request::ClaudeRequestContext>,
-}
-
 pub(super) fn to_claude(
     output: Vec<r::ResponseOutputItem>,
     completed: bool,
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
     report: &mut Report,
-    mut restoration: Restoration<'_>,
 ) -> Result<ClaudeContent, TransformError> {
     let mut result = ClaudeContent {
         blocks: Vec::new(),
@@ -402,16 +402,7 @@ pub(super) fn to_claude(
                         "nonterminal reasoning conflicts with response status",
                     ));
                 }
-                if let Some(context) = restoration.context.as_deref_mut() {
-                    let block = super::super::request::restore_reasoning(
-                        reasoning,
-                        restoration.model,
-                        context,
-                    )?;
-                    result.blocks.push(c::ResponseContentBlock::Thinking(block));
-                } else {
-                    report.omitted("output.reasoning","Claude thinking requires a valid original-origin signature; Responses reasoning and ciphertext cannot invent one");
-                }
+                report.omitted("output.reasoning","Claude thinking requires a valid original-origin signature; Responses reasoning and ciphertext cannot invent one");
             }
             r::ResponseOutputItem::McpCall(call) => {
                 if !calls.insert(call.id.clone()) {

@@ -22,11 +22,17 @@ pub fn response(names: &[String]) -> Value {
 pub fn followup(output: &Value) -> Value {
     let mut request = request(false);
     let mut items = output["output"].as_array().unwrap().clone();
+    // A reasoning item that carries a call's signature precedes that call.
+    let calls: Vec<_> = items
+        .iter()
+        .filter(|item| item.get("call_id").is_some())
+        .cloned()
+        .collect();
     items.extend([
-        json!({"type":"shell_call_output","call_id":items[0]["call_id"],"output":[{"stdout":"hello","stderr":"","outcome":{"type":"exit","exit_code":0}}]}),
-        json!({"type":"apply_patch_call_output","call_id":items[1]["call_id"],"status":"failed","output":"context mismatch"}),
-        json!({"type":"function_call_output","call_id":items[2]["call_id"],"name":"lookup","namespace":"repo","output":"README.md"}),
-        json!({"type":"tool_search_output","call_id":items[3]["call_id"],"execution":"client","tools":[{"type":"function","name":"later","parameters":{"type":"object","properties":{}},"strict":false}]}),
+        json!({"type":"shell_call_output","call_id":calls[0]["call_id"],"output":[{"stdout":"hello","stderr":"","outcome":{"type":"exit","exit_code":0}}]}),
+        json!({"type":"apply_patch_call_output","call_id":calls[1]["call_id"],"status":"failed","output":"context mismatch"}),
+        json!({"type":"function_call_output","call_id":calls[2]["call_id"],"name":"lookup","namespace":"repo","output":"README.md"}),
+        json!({"type":"tool_search_output","call_id":calls[3]["call_id"],"execution":"client","tools":[{"type":"function","name":"later","parameters":{"type":"object","properties":{}},"strict":false}]}),
     ]);
     request["input"] = Value::Array(items);
     request

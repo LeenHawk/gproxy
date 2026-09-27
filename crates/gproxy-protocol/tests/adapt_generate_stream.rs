@@ -13,7 +13,7 @@ use gproxy_protocol::{
     transform::{
         TransformErrorKind,
         generate::claude_chat::stream::ClaudeToChatContext,
-        identity::{IdNamespace, IdSyntax, IdentityRole, IdentityTarget},
+        identity::{IdNamespace, IdSyntax, IdentityTarget},
     },
     wire::openai::chat as h,
 };

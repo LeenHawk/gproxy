@@ -3,19 +3,13 @@ use gproxy_protocol::{
     transform::{
         TransformErrorKind,
         generate::{
-            claude_responses::{
-                self as pair, ClaudeRequestContext, ClaudeResponseContext, RestoredClaudeThinking,
-                stream::*,
-            },
+            claude_responses::{self as pair, ClaudeResponseContext, stream::*},
             stream::{
                 claude::ClaudeStreamCollector,
                 responses::{ResponsesStreamCollector, synthesize_responses_stream},
             },
         },
-        identity::{
-            IdNamespace, IdentityFlow, IdentityRole, IdentityStateRecord, IdentityTarget,
-            KnownIdPrefix, OpaqueField, OpaqueSignature, OutputItemKind, TargetIdPolicy,
-        },
+        identity::{IdNamespace, IdentityFlow, IdentityRole, KnownIdPrefix, TargetIdPolicy},
     },
     wire::{
         claude::{generate_content as c, stream as cs},
@@ -49,7 +43,6 @@ fn context() -> ClaudeResponseContext {
 fn rc() -> ResponsesToClaudeContext {
     ResponsesToClaudeContext {
         usage: Some(initial()),
-        ..Default::default()
     }
 }
 fn cstart() -> cs::StreamEvent {
@@ -219,7 +212,14 @@ fn claude_initial_text_thinking_and_parallel_json_are_live_and_canonical() {
         serde_json::from_str::<Value>(&call.arguments).unwrap(),
         json!({"a":1})
     );
-    assert!(!serde_json::to_string(&actual).unwrap().contains("private"));
+    // The final signature reaches the client in encrypted_content.
+    let r::ResponseOutputItem::Reasoning(thinking) = &actual.output[1] else {
+        unreachable!()
+    };
+    assert_eq!(
+        thinking.encrypted_content,
+        Some(Some("claude:private-final".into()))
+    );
 }
 #[test]
 fn empty_claude_text_and_redacted_reasoning_preserve_native_item_shape() {
@@ -524,78 +524,40 @@ fn interleaved_response_items_wait_for_unknown_earlier_parts() {
     };
     assert_eq!(value.text, "b");
 }
-fn restoration(field: OpaqueField) -> ClaudeRequestContext {
-    let target = IdentityTarget::new("actual-model", Dialect::Claude)
-        .unwrap()
-        .with_origin("provider/user")
-        .unwrap();
-    let mut state = IdentityStateRecord::new(
-        IdentityRole::OutputItem(OutputItemKind::Reasoning),
-        target.clone(),
-    );
-    state.client_item_id = Some("rs-native".into());
-    state.opaque_signature = Some(
-        OpaqueSignature::new(field, "native-signature", "provider/user", "actual-model").unwrap(),
-    );
-    ClaudeRequestContext{target:Some(target),restored_thinking:std::collections::BTreeMap::from([("rs-native".into(),RestoredClaudeThinking{state,block:serde_json::from_value(json!({"type":"thinking","thinking":"signed text","signature":"native-signature","x-extra":"DROP"})).unwrap()})])}
-}
 #[test]
-fn original_bound_reasoning_restores_native_signature_and_wrong_field_fails() {
+fn responses_reasoning_never_becomes_claude_thinking() {
+    // Anthropic accepts thinking only with a signature it issued; a Responses
+    // upstream's reasoning has none, whatever its encrypted_content holds.
     let body = response(
-        json!([{"type":"reasoning","id":"rs-native","summary":[],"content":[{"type":"reasoning_text","text":"signed text"}],"status":"completed"},message("m",json!([text("answer")]),"completed")]),
+        json!([{"type":"reasoning","id":"rs-native","summary":[],"content":[{"type":"reasoning_text","text":"signed text"}],"encrypted_content":"claude:native-signature","status":"completed"},message("m",json!([text("answer")]),"completed")]),
         "completed",
         None,
     );
-    let events = r_events(body.clone());
-    for wrong in [false, true] {
-        let field = if wrong {
-            OpaqueField::ClaudeRedactedThinkingData
-        } else {
-            OpaqueField::ClaudeThinkingSignature
-        };
-        let mut stream = ResponsesToClaudeStream::new(
-            ResponsesToClaudeContext {
-                usage: Some(initial()),
-                restoration: Some(restoration(field)),
-            },
-            flow(),
-            Default::default(),
-        )
-        .unwrap();
-        let mut output = Vec::new();
-        let mut failed = false;
-        for event in events.clone() {
-            match stream.push(event) {
-                Ok(v) => output.extend(v.value),
-                Err(_) => {
-                    failed = true;
-                    break;
-                }
-            }
-        }
-        if wrong {
-            assert!(failed);
-            assert!(stream.finish().is_err());
-        } else {
-            assert!(!failed);
-            let end = stream.finish().unwrap();
-            output.extend(end.chunks);
-            let actual = collect_c(output);
-            let expected = pair::responses_to_claude_response_with_context(
-                body.clone(),
-                restoration(field),
-                &mut end.identities.clone(),
-                &cp(),
-            )
-            .unwrap()
-            .value;
-            assert_eq!(actual, expected);
-            let c::ResponseContentBlock::Thinking(block) = &actual.content[0] else {
-                unreachable!()
-            };
-            assert_eq!(block.signature, "native-signature");
-        }
+    let mut stream = ResponsesToClaudeStream::new(
+        ResponsesToClaudeContext {
+            usage: Some(initial()),
+        },
+        flow(),
+        Default::default(),
+    )
+    .unwrap();
+    let mut output = Vec::new();
+    for event in r_events(body.clone()) {
+        output.extend(stream.push(event).unwrap().value);
     }
+    let end = stream.finish().unwrap();
+    output.extend(end.chunks);
+    let actual = collect_c(output);
+    let expected = pair::responses_to_claude_response(body, &mut end.identities.clone(), &cp())
+        .unwrap()
+        .value;
+    assert_eq!(actual, expected);
+    assert!(
+        actual
+            .content
+            .iter()
+            .all(|block| !matches!(block, c::ResponseContentBlock::Thinking(_)))
+    );
 }
 #[test]
 fn mcp_native_result_is_not_a_client_tool_or_an_untyped_text_wrapper() {

@@ -86,7 +86,7 @@ pub fn claude_to_openai(
 pub fn openai_to_claude(
     input: o::CountTokensRequestBody,
     target_model: impl Into<String>,
-    context: claude_responses::ClaudeRequestContext,
+    _context: claude_responses::ClaudeRequestContext,
 ) -> Result<Converted<c::CountTokensRequestBody>, TransformError> {
     let model = super::model(target_model)?;
     let mut input = input.into_declared();
@@ -142,8 +142,7 @@ pub fn openai_to_claude(
         .map(crate::transform::optional)
         .transpose()?
         .flatten();
-    let (messages, mut system) =
-        pair::history::to_claude(input.input.flatten(), context, &mut report)?;
+    let (messages, mut system) = pair::history::to_claude(input.input.flatten(), &mut report)?;
     out.messages = messages;
     crate::transform::instructions::claude(&mut out.messages, &out.model, &mut report);
     if let Some(Some(text)) = input.instructions {

@@ -277,108 +277,8 @@ fn review_responses_to_gemini_policy_escapes_the_actual_source_call_id() {
     assert_eq!(call_id, "call_gpe_a_2eb");
     assert!(store.entries.lock().unwrap().is_empty());
 }
-fn signed_gemini_replay(
-    id: Option<&str>,
-) -> gproxy_protocol::transform::generate::gemini_responses::GeminiReplayContext {
-    use gproxy_protocol::transform::{
-        generate::gemini_responses::{GeminiReplayContext, RestoredGeminiPart},
-        identity::{
-            IdentityRole, IdentityStateRecord, IdentityTarget, OpaqueField, OpaqueSignature,
-        },
-    };
-    let target = IdentityTarget::new("selected", Dialect::Gemini)
-        .unwrap()
-        .with_origin("original-gemini")
-        .unwrap();
-    let mut state = IdentityStateRecord::new(IdentityRole::ToolCall, target.clone());
-    state.client_call_id = Some("a.b".into());
-    state.original_call_id = id.map(str::to_owned);
-    state.tool_name = Some("lookup".into());
-    state.opaque_signature = Some(
-        OpaqueSignature::new(
-            OpaqueField::GeminiPartThoughtSignature,
-            "actual-signature",
-            "original-gemini",
-            "selected",
-        )
-        .unwrap(),
-    );
-    let mut part =
-        json!({"thoughtSignature":"actual-signature","functionCall":{"name":"lookup","args":{}}});
-    if let Some(id) = id {
-        part["functionCall"]["id"] = json!(id);
-    }
-    GeminiReplayContext {
-        image_files: Default::default(),
-        target: Some(target),
-        parts: std::collections::BTreeMap::from([(
-            "a.b".into(),
-            RestoredGeminiPart {
-                state,
-                part: serde_json::from_value(part).unwrap(),
-            },
-        )]),
-    }
-}
 #[test]
-fn review_restored_signed_gemini_id_or_absence_is_immutable_and_associated() {
-    for original_id in [Some("original_native"), None] {
-        let store = Store::default();
-        let state = state(&store, Dialect::OpenAi);
-        let host = responses_call_host();
-        let mut p = responses_gemini_strict();
-        let mut progress = GenerationProgress::default();
-        let GenerationOutcome::Success { response, .. } =
-            ready(
-                p.invoke(&host, &(), codec_limits(), &state, &mut progress, |_| {
-                    Ok(signed_gemini_replay(original_id))
-                }),
-            )
-            .unwrap()
-        else {
-            panic!("rejected")
-        };
-        let part = &response.body.candidates.as_ref().unwrap()[0]
-            .content
-            .as_ref()
-            .unwrap()
-            .parts
-            .as_ref()
-            .unwrap()[0];
-        assert_eq!(part.thought_signature.as_deref(), Some("actual-signature"));
-        assert_eq!(
-            part.function_call.as_ref().unwrap().id.as_deref(),
-            original_id
-        );
-        if let Some(id) = original_id {
-            let replay = ready(state.recover_tools(&[id.into()], &Default::default())).unwrap();
-            assert_eq!(replay.original_call_ids[id], "a.b");
-        } else {
-            // An ID-less client call has no key, and the response writes none.
-            assert!(store.entries.lock().unwrap().is_empty());
-        }
-    }
-}
-#[test]
-fn review_restored_signed_gemini_id_conflicting_with_policy_rejects() {
-    let store = Store::default();
-    let state = state(&store, Dialect::OpenAi);
-    let host = responses_call_host();
-    let mut p = responses_gemini_strict();
-    let mut progress = GenerationProgress::default();
-    let error = ready(
-        p.invoke(&host, &(), codec_limits(), &state, &mut progress, |_| {
-            Ok(signed_gemini_replay(Some("original.native")))
-        }),
-    )
-    .unwrap_err();
-    assert_eq!(error.kind(), TransformErrorKind::Unsupported);
-    assert!(store.entries.lock().unwrap().is_empty());
-    assert!(progress.raw_response.is_some());
-}
-
-#[test]
-fn review_signed_replay_cannot_hide_duplicate_actual_native_call_ids() {
+fn review_duplicate_actual_native_call_ids_are_refused() {
     let mut body = output("r");
     let call = json!({"type":"function_call","id":"fc_native","call_id":"a.b","name":"lookup","arguments":"{}","status":"completed"});
     let mut second = call.clone();
@@ -391,7 +291,7 @@ fn review_signed_replay_cannot_hide_duplicate_actual_native_call_ids() {
     let mut progress = GenerationProgress::default();
     let error = ready(
         p.invoke(&host, &(), codec_limits(), &state, &mut progress, |_| {
-            Ok(signed_gemini_replay(Some("original_native")))
+            Ok(Default::default())
         }),
     )
     .unwrap_err();

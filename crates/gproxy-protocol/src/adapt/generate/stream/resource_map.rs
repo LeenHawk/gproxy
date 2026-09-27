@@ -1,11 +1,6 @@
 //! Async resource work over the two concrete Gemini/Responses event types.
 
-use super::{
-    StreamInvocation,
-    bridge::StreamBridge,
-    event::Collected,
-    invoke::{ClientFull, NativeFull},
-};
+use super::{StreamInvocation, bridge::StreamBridge};
 use crate::{
     adapt::generate::{
         GenerationResources, GenerationStateAccess,
@@ -15,7 +10,6 @@ use crate::{
     transform::{
         TransformError,
         generate::gemini_responses::stream::{GeminiToResponsesStream, ResponsesToGeminiStream},
-        identity::IdentityFlow,
     },
     wire::{gemini as g, openai::responses::stream::StreamEvent},
 };
@@ -36,13 +30,6 @@ pub(super) trait ResourceMapping<B: StreamBridge, S: StateStore>: ResourceSend {
     fn begin_step(&mut self) -> Result<u64, TransformError>;
     fn source<'a>(&'a mut self, input: &'a B::NativeEvent) -> Work<'a, B::NativeEvent>;
     fn client<'a>(&'a mut self, input: &'a [B::ClientEvent]) -> Work<'a, Vec<B::ClientEvent>>;
-    fn save<'a>(
-        &'a mut self,
-        native: &'a Collected<NativeFull<B>>,
-        client: &'a ClientFull<B>,
-        flow: &'a IdentityFlow,
-        state: &'a GenerationStateAccess<'_, S>,
-    ) -> Work<'a, ()>;
 }
 
 pub(super) struct ReadImages<'a, 'b, R: ResourceAccess> {
@@ -78,21 +65,6 @@ where
     }
     fn client<'a>(&'a mut self, input: &'a [StreamEvent]) -> Work<'a, Vec<StreamEvent>> {
         Box::pin(async move { self.progress.committed(input.to_vec()) })
-    }
-    fn save<'a>(
-        &'a mut self,
-        _: &'a Collected<g::GenerateContentResponseBody>,
-        client: &'a ClientFull<GeminiToResponsesStream>,
-        flow: &'a IdentityFlow,
-        state: &'a GenerationStateAccess<'_, S>,
-    ) -> Work<'a, ()> {
-        Box::pin(async move {
-            let images: Vec<_> = self.progress.reads.images().cloned().collect();
-            state
-                .save_file_image_proofs(&images, client, flow, &mut self.progress.proofs)
-                .await?;
-            self.progress.committed(())
-        })
     }
 }
 
@@ -137,15 +109,6 @@ where
             };
             self.progress.committed(value)
         })
-    }
-    fn save<'a>(
-        &'a mut self,
-        _: &'a Collected<NativeFull<ResponsesToGeminiStream>>,
-        _: &'a g::GenerateContentResponseBody,
-        _: &'a IdentityFlow,
-        _: &'a GenerationStateAccess<'_, S>,
-    ) -> Work<'a, ()> {
-        Box::pin(async move { self.progress.committed(()) })
     }
 }
 
