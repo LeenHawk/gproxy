@@ -671,6 +671,55 @@ async fn unchanged_header_observations_persist_once_until_they_change_or_the_hea
     assert!(blocks_for(&h, "q1").await.is_empty());
 }
 
+/// A final answer's reading is written off the answer's path, so the answer
+/// is back before the row may be; settlement still waits for it. A reading
+/// that exhausts a window is the exception: its block is written before the
+/// answer is returned, so no other request routes to the credential meanwhile.
+#[tokio::test]
+async fn a_final_answer_settles_after_its_reading_and_returns_after_its_block() {
+    let h = harness(full(), "sticky").await;
+    seed_quota_provider(
+        &h,
+        json!({"quota": [{"id": "primary", "metric": "requests", "window_seconds": 18000, "tracking": "reported"}]}),
+    )
+    .await;
+    let answer = |quota: &'static str| {
+        (
+            StatusCode::OK,
+            vec![
+                ("content-type", "application/json"),
+                ("x-test-quota", quota),
+            ],
+            vec![gproxy_protocol::connection::Bytes::from_static(b"{}")],
+        )
+    };
+
+    h.script(vec![answer("primary=5;reset=9999999999000")]);
+    let (response, completion) = h
+        .core
+        .stream_generate_content(only(&h, "q1", "r1", 1), request("{}"))
+        .await
+        .unwrap()
+        .into_parts();
+    read(response.body).await;
+    completion.await.unwrap();
+    assert_eq!(cycle_rows(&h, "q1").await.len(), 1, "settled after the row");
+
+    h.script(vec![answer("primary=0;reset=9999999999000")]);
+    let (response, _completion) = h
+        .core
+        .stream_generate_content(only(&h, "q1", "r2", 1), request("{}"))
+        .await
+        .unwrap()
+        .into_parts();
+    assert_eq!(response.status, StatusCode::OK);
+    // Nothing of the body is read: the block is there all the same.
+    let blocks = blocks_for(&h, "q1").await;
+    assert_eq!(blocks.len(), 1);
+    assert_eq!(blocks[0].source["kind"], "quota_exhausted");
+    read(response.body).await;
+}
+
 #[tokio::test]
 async fn an_unused_window_with_a_floating_reset_persists_once() {
     let h = harness(full(), "sticky").await;

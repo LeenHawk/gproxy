@@ -50,6 +50,11 @@ impl Funnel {
     }
 
     pub fn open_exchange(&self) -> oneshot::Sender<()> {
+        self.hold_settlement()
+    }
+    /// Settlement waits until the returned sender is used or dropped. For
+    /// writes a request started that must land before its summary does.
+    pub fn hold_settlement(&self) -> oneshot::Sender<()> {
         let (tx, rx) = oneshot::channel();
         self.exchanges_closed.lock().unwrap().push(rx);
         tx
