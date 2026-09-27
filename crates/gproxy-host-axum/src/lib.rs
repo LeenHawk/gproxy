@@ -99,6 +99,7 @@ pub mod admin;
 pub mod console;
 pub mod error;
 pub mod ingress;
+mod memo;
 pub mod mount;
 pub mod oauth;
 pub mod policy;
@@ -157,6 +158,16 @@ pub struct HostState<C> {
     /// replace. `None` at the edge and in the wasm build, where the routes are
     /// then never mounted. See [`update`].
     updates: Option<Arc<dyn update::UpdateService>>,
+    derived: Arc<Derived>,
+}
+
+/// What requests read from the published snapshots in a shape of their own,
+/// kept for as long as the snapshot it came from is current.
+#[derive(Default)]
+struct Derived {
+    policy: memo::Memo<Arc<gproxy_app::AppData>, runtime_settings::PolicyLists>,
+    mounts:
+        memo::Memo<(Arc<gproxy_sdk::RoutingTable>, Arc<gproxy_core::CoreData>), mount::MountIndex>,
 }
 
 // Manual, because a derive would demand `C: Clone` for a field that is behind
@@ -168,6 +179,7 @@ impl<C> Clone for HostState<C> {
             #[cfg(not(target_arch = "wasm32"))]
             console: self.console.clone(),
             updates: self.updates.clone(),
+            derived: self.derived.clone(),
         }
     }
 }
@@ -184,6 +196,7 @@ impl<C> HostState<C> {
             #[cfg(not(target_arch = "wasm32"))]
             console,
             updates: None,
+            derived: Arc::default(),
         }
     }
 
@@ -201,6 +214,27 @@ impl<C> HostState<C> {
 
     pub fn app(&self) -> &Arc<App<C>> {
         &self.app
+    }
+
+    /// The CORS origins and trusted proxies of the current settings, parsed
+    /// once per published snapshot rather than on every request.
+    pub(crate) fn policy_lists(&self) -> Arc<runtime_settings::PolicyLists> {
+        let data = self.app.data();
+        self.derived.policy.get(&data, || {
+            runtime_settings::PolicyLists::of(&self.app, &data)
+        })
+    }
+
+    /// The mount names of these two snapshots, built once for each pair.
+    pub(crate) fn mount_index(
+        &self,
+        routing: &Arc<gproxy_sdk::RoutingTable>,
+        core: &Arc<gproxy_core::CoreData>,
+    ) -> Arc<mount::MountIndex> {
+        let key = (routing.clone(), core.clone());
+        self.derived
+            .mounts
+            .get(&key, || mount::MountIndex::build(routing, core))
     }
 
     /// The host's self-update implementation, if it supplied one. `None` is

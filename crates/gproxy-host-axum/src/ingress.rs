@@ -81,9 +81,9 @@ where
     C: BatchConnectionTrait + Send + Sync + 'static,
 {
     let peer = crate::peer_ip(&request);
-    let trusted = crate::runtime_settings::trusted_proxies(state.app());
-    let client_ip = policy::client_ip(peer, request.headers(), &trusted).to_string();
-    let scheme = policy::client_scheme(peer, request.headers(), &trusted);
+    let lists = state.policy_lists();
+    let client_ip = policy::client_ip(peer, request.headers(), &lists.trusted_proxies).to_string();
+    let scheme = policy::client_scheme(peer, request.headers(), &lists.trusted_proxies);
 
     // One load of each snapshot for the whole request, as everywhere else.
     let routing = state.app().gproxy().routing();
@@ -97,7 +97,7 @@ where
         Ok(body) => body,
         Err(response) => return *response,
     };
-    let index = MountIndex::build(&routing, &core);
+    let index = state.mount_index(&routing, &core);
     let path = parts.uri.path().to_owned();
     let (mount, remainder) = Mount::parse(&path, &index, |remainder| {
         surface::is_surface(&parts.method, remainder)
