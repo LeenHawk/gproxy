@@ -166,6 +166,7 @@ impl ResponsesViaGemini {
         )
         .await?;
         target.identities = prepared.identities().clone();
+        history.claim_response_id(&mut target.identities, crate::Dialect::Gemini)?;
         let bridge = p::GeminiToResponsesStream::new_with_policy(
             context.response,
             target.identities.response.clone(),
@@ -254,6 +255,7 @@ impl ResponsesViaGemini {
         )
         .await?;
         target.identities = prepared.identities().clone();
+        history.claim_response_id(&mut target.identities, crate::Dialect::Gemini)?;
         let bridge = p::GeminiToResponsesStream::new_with_policy(
             context.response,
             target.identities.response.clone(),

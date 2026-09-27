@@ -516,7 +516,7 @@ fn ws_history_expiry_scope_and_missing_context_fail_before_send() {
     }
 }
 #[test]
-fn ws_history_canceled_applied_write_recovers_without_second_post_or_duplicate_cas() {
+fn ws_history_canceled_applied_write_recovers_without_second_post() {
     let store = Arc::new(http_host::Store::default());
     let state = access(&store, Dialect::OpenAiChat);
     let mut call = http_host::ready(
@@ -553,10 +553,23 @@ fn ws_history_canceled_applied_write_recovers_without_second_post_or_duplicate_c
         );
     }
     assert!(call.client_result().is_none());
-    let writes = store.serial.load(Ordering::SeqCst);
+    let history = |store: &http_host::Store| {
+        store
+            .entries
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(key, _)| key.starts_with("responses-history:"))
+            .map(|(key, entry)| (key.clone(), entry.payload.clone()))
+            .collect::<Vec<_>>()
+    };
+    let landed = history(&store);
+    assert_eq!(landed.len(), 1);
+    // The retry rewrites the same snapshot under the same gateway ID: the
+    // key names this response alone, so a plain write is idempotent.
     while http_host::ready(call.next(&state)).unwrap().is_some() {}
     assert!(call.client_result().is_some());
-    assert_eq!(store.serial.load(Ordering::SeqCst), writes);
+    assert_eq!(history(&store), landed);
     assert_eq!(host.sent.lock().unwrap().len(), 1);
 }
 #[test]

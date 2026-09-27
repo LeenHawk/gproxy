@@ -137,6 +137,7 @@ impl ResponsesViaClaude {
         )
         .await?;
         target.identities = prepared.identities().clone();
+        history.claim_response_id(&mut target.identities, crate::Dialect::Claude)?;
         let bridge = p::ClaudeToResponsesStream::new_with_policy(
             context.response,
             target.identities.response.clone(),
@@ -222,6 +223,7 @@ impl ResponsesViaClaude {
         )
         .await?;
         target.identities = prepared.identities().clone();
+        history.claim_response_id(&mut target.identities, crate::Dialect::Claude)?;
         let bridge = p::ClaudeToResponsesStream::new_with_policy(
             context.response,
             target.identities.response.clone(),

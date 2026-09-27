@@ -135,6 +135,7 @@ impl ResponsesViaChat {
         )
         .await?;
         target.identities = prepared.identities().clone();
+        history.claim_response_id(&mut target.identities, crate::Dialect::OpenAiChat)?;
 
         let bridge = p::ChatToResponsesStream::new_with_policy(
             context,
@@ -220,6 +221,7 @@ impl ResponsesViaChat {
         )
         .await?;
         target.identities = prepared.identities().clone();
+        history.claim_response_id(&mut target.identities, crate::Dialect::OpenAiChat)?;
 
         let bridge = p::ChatToResponsesStream::new_with_policy(
             context,
