@@ -3012,6 +3012,7 @@ dependencies = [
  "gproxy-protocol-macros",
  "http",
  "multer",
+ "rust_decimal",
  "serde",
  "serde_json",
  "strum",

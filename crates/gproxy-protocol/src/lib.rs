@@ -10,6 +10,9 @@
 //!    identity mapping support adapters that compose these capabilities for
 //!    one or more calls without depending on a full core.
 //!
+//! Beside them, [`usage`] reads per-call metering out of an operation's
+//! standard response, because only the standard shapes are known here.
+//!
 //! What is deliberately absent:
 //!
 //! - **URL path matching.** Which URL serves an operation is an HTTP
@@ -33,6 +36,7 @@ pub mod connection;
 pub mod operation;
 pub mod spec;
 pub mod transform;
+pub mod usage;
 pub mod wire;
 
 pub use wire::{claude, gemini, openai};
