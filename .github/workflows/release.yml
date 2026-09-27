@@ -110,10 +110,12 @@ jobs:
           name: console-dist
           path: crates/gproxy-host-axum/assets/web
       - uses: actions/setup-go@v7.0.0
+        if: matrix.builder != 'cargo-alpine'
         with:
           go-version: "1.27.1"
           cache: false
       - uses: dtolnay/rust-toolchain@stable
+        if: matrix.builder != 'cargo-alpine'
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
@@ -146,6 +148,7 @@ jobs:
               fi
               ;;
             cross) cross build --locked --release --bin gproxy --target "${{ matrix.target }}" ;;
+            cargo-alpine) scripts/build-riscv-musl.sh ;;
             cargo-ndk)
               target="${{ matrix.target }}"
               bindgen="BINDGEN_EXTRA_CLANG_ARGS_${target//-/_}"
@@ -254,7 +257,7 @@ jobs:
       matrix:
         include:
           - { os: linux, target: x86_64-unknown-linux-gnu, runner: ubuntu-latest, artifact: gproxy-tauri-linux-x86_64 }
-          - { os: linux, target: aarch64-unknown-linux-gnu, runner: ubuntu-latest-arm, artifact: gproxy-tauri-linux-aarch64 }
+          - { os: linux, target: aarch64-unknown-linux-gnu, runner: ubuntu-24.04-arm, artifact: gproxy-tauri-linux-aarch64 }
           - { os: macos, target: x86_64-apple-darwin, runner: macos-latest, artifact: gproxy-tauri-macos-x86_64 }
           - { os: macos, target: aarch64-apple-darwin, runner: macos-latest, artifact: gproxy-tauri-macos-aarch64 }
           - { os: windows, target: x86_64-pc-windows-msvc, runner: windows-latest, artifact: gproxy-tauri-windows-x86_64 }
@@ -381,7 +384,7 @@ jobs:
             runtime_base: gcr.io/distroless/cc-debian13
           - variant: gnu
             arch: riscv64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04-riscv
             target: riscv64gc-unknown-linux-gnu
             suffix: ""
             runtime_base: gcr.io/distroless/cc-debian13
@@ -399,7 +402,7 @@ jobs:
             runtime_base: gcr.io/distroless/static-debian13
           - variant: musl
             arch: riscv64
-            runner: ubuntu-latest
+            runner: ubuntu-24.04-riscv
             target: riscv64gc-unknown-linux-musl
             suffix: -musl
             runtime_base: gcr.io/distroless/static-debian13

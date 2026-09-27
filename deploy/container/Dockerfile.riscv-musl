@@ -1,0 +1,9 @@
+# Native musl toolchain for the RISE RISC-V runner. Alpine's Rust package
+# supplies musl host tools, which rustup does not distribute for RISC-V.
+FROM alpine:edge
+
+RUN apk add --no-cache build-base cargo clang22 clang22-dev cmake git go \
+        linux-headers perl pkgconf \
+    && ln -s /usr/bin/clang-22 /usr/local/bin/clang
+
+WORKDIR /workspace

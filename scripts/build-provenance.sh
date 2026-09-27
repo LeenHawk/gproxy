@@ -22,7 +22,18 @@ if command -v docker >/dev/null 2>&1; then
       '{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}' "$ref" 2>/dev/null || true)"
     images="$(jq --arg ref "$ref" --arg resolved "${resolved:-unresolved}" \
       '. + [{ref: $ref, resolved: $resolved}]' <<<"$images")"
-  done < <(awk '/^FROM /  && $2 != "scratch" { print $2 }' deploy/container/Dockerfile)
+  done < <(
+    awk '/^FROM /  && $2 != "scratch" { print $2 }' deploy/container/Dockerfile
+    if [ "${BUILDER:-cargo}" = cargo-alpine ]; then
+      awk '/^FROM / { print $2 }' deploy/container/Dockerfile.riscv-musl
+    fi
+  )
+fi
+
+if [ "${BUILDER:-cargo}" = cargo-alpine ]; then
+  rustc_version="$(cat "target/${TARGET_TRIPLE:?}/release/rustc-version.txt")"
+else
+  rustc_version="$(version_of rustc --version)"
 fi
 
 jq -n \
@@ -31,7 +42,7 @@ jq -n \
   --arg tag "${GITHUB_REF_NAME:-}" \
   --arg target "${TARGET_TRIPLE:-}" \
   --arg builder "${BUILDER:-cargo}" \
-  --arg rustc "$(version_of rustc --version)" \
+  --arg rustc "$rustc_version" \
   --arg node "$(version_of node --version)" \
   --arg pnpm "$(version_of pnpm --version)" \
   --arg upx_version "$(if [ "${UPX_ENABLED:-false}" = true ]; then version_of upx --version; else echo unused; fi)" \

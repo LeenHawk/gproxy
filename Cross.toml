@@ -20,9 +20,3 @@ passthrough = [
 # uses Ubuntu 18.04, whose default Clang is too old.
 [target.aarch64-unknown-linux-musl]
 image = "ghcr.io/cross-rs/aarch64-unknown-linux-musl:main"
-
-[target.riscv64gc-unknown-linux-gnu]
-image = "ghcr.io/cross-rs/riscv64gc-unknown-linux-gnu:main"
-
-[target.riscv64gc-unknown-linux-musl]
-image = "ghcr.io/cross-rs/riscv64gc-unknown-linux-musl:main"
