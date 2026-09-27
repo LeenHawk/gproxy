@@ -1458,7 +1458,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-admin"
-version = "3.0.21"
+version = "3.0.22"
 dependencies = [
  "argon2",
  "base64 0.23.1",
@@ -1486,7 +1486,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-app"
-version = "3.0.21"
+version = "3.0.22"
 dependencies = [
  "aes-gcm",
  "arc-swap",
@@ -1526,7 +1526,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-channel-api"
-version = "3.0.21"
+version = "3.0.22"
 dependencies = [
  "bytes",
  "futures-core",
@@ -1541,7 +1541,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-channels"
-version = "3.0.21"
+version = "3.0.22"
 dependencies = [
  "base64 0.23.1",
  "bytes",
@@ -1566,7 +1566,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-core"
-version = "3.0.21"
+version = "3.0.22"
 dependencies = [
  "base64 0.23.1",
  "bytes",
@@ -1591,7 +1591,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-host-axum"
-version = "3.0.21"
+version = "3.0.22"
 dependencies = [
  "axum",
  "base64 0.23.1",
@@ -1627,7 +1627,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-host-edge"
-version = "3.0.21"
+version = "3.0.22"
 dependencies = [
  "bytes",
  "futures-util",
@@ -1645,7 +1645,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-protocol"
-version = "3.0.21"
+version = "3.0.22"
 dependencies = [
  "gproxy-protocol-macros",
  "http",
@@ -1655,7 +1655,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-protocol-macros"
-version = "3.0.21"
+version = "3.0.22"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1664,7 +1664,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-store"
-version = "3.0.21"
+version = "3.0.22"
 dependencies = [
  "base64 0.23.1",
  "bytes",
@@ -1692,7 +1692,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-tokenize"
-version = "3.0.21"
+version = "3.0.22"
 dependencies = [
  "bytes",
  "dashmap",
@@ -1707,7 +1707,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-transform"
-version = "3.0.21"
+version = "3.0.22"
 dependencies = [
  "bytes",
  "form_urlencoded",
@@ -1719,7 +1719,7 @@ dependencies = [
 
 [[package]]
 name = "gproxy-upstream"
-version = "3.0.21"
+version = "3.0.22"
 dependencies = [
  "bytes",
  "futures-util",
