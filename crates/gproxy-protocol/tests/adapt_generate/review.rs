@@ -137,7 +137,7 @@ fn review_gemini_image_metadata_cannot_hide_invalid_bytes() {
     );
 }
 #[test]
-fn review_legacy_chat_response_gets_saved_generated_gemini_identity() {
+fn review_legacy_chat_response_gets_a_stateless_legacy_gemini_alias() {
     let mut p = GeminiViaChat::prepare(
         serde_json::from_value(input("g")).unwrap(),
         "selected",
@@ -177,10 +177,8 @@ fn review_legacy_chat_response_gets_saved_generated_gemini_identity() {
         .id
         .clone()
         .unwrap();
-    let replay =
-        ready(state.recover_tools(std::slice::from_ref(&id), &Default::default())).unwrap();
-    assert_eq!(replay.names[&id], "legacy_lookup");
-    assert!(replay.original_call_ids.is_empty());
+    assert_eq!(id, "call_gpl_0202020202020202_0");
+    assert!(store.entries.lock().unwrap().is_empty());
 }
 #[test]
 fn review_recovery_binds_both_target_id_policies() {
@@ -244,7 +242,7 @@ fn responses_gemini_strict() -> GeminiViaResponses {
     .unwrap()
 }
 #[test]
-fn review_responses_to_gemini_policy_saves_actual_source_call_id() {
+fn review_responses_to_gemini_policy_escapes_the_actual_source_call_id() {
     let store = Store::default();
     let state = state(&store, Dialect::OpenAi);
     let host = responses_call_host();
@@ -276,10 +274,8 @@ fn review_responses_to_gemini_policy_saves_actual_source_call_id() {
         .as_ref()
         .unwrap();
     assert!(policy.accepts_source(call_id));
-    let replay =
-        ready(state.recover_tools(std::slice::from_ref(call_id), &Default::default())).unwrap();
-    assert_eq!(replay.original_call_ids[call_id], "a.b");
-    assert_eq!(replay.names[call_id], "lookup");
+    assert_eq!(call_id, "call_gpe_a_2eb");
+    assert!(store.entries.lock().unwrap().is_empty());
 }
 fn signed_gemini_replay(
     id: Option<&str>,

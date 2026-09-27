@@ -1,6 +1,6 @@
 use super::{
     chat_blocks::{self, Tool},
-    common::{Budget, StreamEnd, bounded, claude_finish, id},
+    common::{Budget, StreamEnd, bounded, claude_finish, id, legacy_id},
     *,
 };
 use crate::transform::generate::reasoning_details as rd;
@@ -354,21 +354,28 @@ impl ChatToClaudeStream {
             self.emit(out, chat_blocks::text_delta(index, text))?;
             self.emit(out, chat_blocks::block_stop(index))?;
         }
-        let mut calls: Vec<_> = std::mem::take(&mut self.tools).into_values().collect();
+        let mut calls: Vec<_> = std::mem::take(&mut self.tools)
+            .into_values()
+            .map(|tool| (false, tool))
+            .collect();
         if let Some(tool) = self.legacy.take() {
-            calls.push(tool);
+            calls.push((true, tool));
         }
-        for (ordinal, tool) in calls.into_iter().enumerate() {
+        for (ordinal, (legacy, tool)) in calls.into_iter().enumerate() {
             tool.object()?;
             let block = self.allocate_block()?;
-            let id = id(
-                &mut self.flow,
-                &self.policy,
-                IdentityRole::ToolCall,
-                crate::Dialect::OpenAiChat,
-                tool.id,
-                ordinal as u64,
-            )?;
+            let id = if legacy {
+                legacy_id(&mut self.flow, &self.policy, ordinal as u64)?
+            } else {
+                id(
+                    &mut self.flow,
+                    &self.policy,
+                    IdentityRole::ToolCall,
+                    crate::Dialect::OpenAiChat,
+                    tool.id,
+                    ordinal as u64,
+                )?
+            };
             let content = c::ResponseContentBlock::ToolUse(
                 c::ResponseToolUseBlock::builder(
                     c::ResponseToolUseBlockType::Tag,

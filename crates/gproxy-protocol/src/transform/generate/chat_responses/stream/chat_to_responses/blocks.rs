@@ -301,15 +301,17 @@ impl ChatToResponsesStream {
             {
                 return Err(invalid("noncontiguous tool slots or item limit"));
             }
-            let call_id = self
-                .flow
-                .resolve_or_allocate(
-                    IdentityRole::ToolCall,
-                    SourceIdentity::new(Dialect::OpenAiChat, t.source_id.clone(), ordinal as u64),
-                    &self.target_policy,
-                )
-                .map_err(|e| invalid_owned(e.to_string()))?
-                .emitted_id;
+            let source =
+                SourceIdentity::new(Dialect::OpenAiChat, t.source_id.clone(), ordinal as u64);
+            let call_id = if key == -1 {
+                self.flow
+                    .resolve_legacy_chat_call(source, &self.target_policy)
+            } else {
+                self.flow
+                    .resolve_or_allocate(IdentityRole::ToolCall, source, &self.target_policy)
+            }
+            .map_err(|e| invalid_owned(e.to_string()))?
+            .emitted_id;
             let item_id = self
                 .flow
                 .resolve_as(

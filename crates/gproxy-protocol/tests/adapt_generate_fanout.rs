@@ -330,8 +330,7 @@ fn state_fn(store: &Store, dialect: Dialect) -> GenerationStateAccess<'_, Store>
     state(store, dialect)
 }
 #[test]
-fn duplicate_native_call_ids_across_independent_children_get_exact_saved_aliases() {
-    use gproxy_protocol::transform::identity::IdentityRole;
+fn duplicate_native_call_ids_across_independent_children_get_counted_aliases() {
     let store = Store::default();
     let state = state(&store, Dialect::Claude);
     let bodies = two("c")
@@ -370,22 +369,11 @@ fn duplicate_native_call_ids_across_independent_children_get_exact_saved_aliases
     let second = out["choices"][1]["message"]["tool_calls"][0]["id"]
         .as_str()
         .unwrap();
+    // The first child forwards Claude's ID; the second repeats it and gets
+    // the counted alias, which names the same ID. Neither is recorded.
     assert_eq!(first, "same-call");
-    assert_ne!(first, second);
-    assert!(second.starts_with("call_"));
-    // The first child forwarded Claude's ID and records nothing; only the
-    // second child's alias has to be mapped back.
-    assert!(
-        ready(state.read(IdentityRole::ToolCall, first))
-            .unwrap()
-            .is_none()
-    );
-    let saved = ready(state.read(IdentityRole::ToolCall, second))
-        .unwrap()
-        .unwrap();
-    assert_eq!(saved.original_call_id.as_deref(), Some("same-call"));
-    assert_eq!(saved.tool_name.as_deref(), Some("lookup"));
-    assert_eq!(saved.response_id.as_deref(), Some("native-1"));
+    assert_eq!(second, "call_gpe_same-call");
+    assert!(store.entries.lock().unwrap().is_empty());
 }
 #[test]
 fn cancellation_and_known_rejection_never_repeat_started_calls_or_complete_partial_group() {

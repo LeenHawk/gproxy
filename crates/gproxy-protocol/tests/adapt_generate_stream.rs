@@ -227,13 +227,11 @@ fn repeated_upstream_ids_across_streams_in_one_conversation_both_succeed() {
             .collect::<Vec<_>>();
         assert_eq!(response.body.id, "msg_mock");
         assert_eq!(calls[0], "toolu_mock");
-        assert_ne!(calls[1], "toolu.mock");
-        // The forwarded IDs are never looked up or stored; the stream's one
-        // write is the alias, and the repeat finds it identical.
-        let entries = store.entries.lock().unwrap();
-        assert_eq!(entries.len(), 1);
-        assert!(entries.keys().all(|key| key.starts_with("generate:")));
-        assert_eq!(store.gets.load(Ordering::SeqCst), turn);
+        assert_eq!(calls[1], "call_gpe_toolu_2emock");
+        // Neither the forwarded ID nor the alias, which names the upstream
+        // ID itself, is looked up or stored.
+        assert!(store.entries.lock().unwrap().is_empty());
+        assert_eq!(store.gets.load(Ordering::SeqCst), 0);
     }
 }
 #[test]

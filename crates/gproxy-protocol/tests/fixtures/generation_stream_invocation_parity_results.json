@@ -22,7 +22,7 @@
                     "arguments": "{\"a\":1}",
                     "name": "same"
                   },
-                  "id": "call_02020202020202020202020202020202_g_c_0",
+                  "id": "call_gpn_0202020202020202_0",
                   "type": "function"
                 },
                 {
@@ -30,7 +30,7 @@
                     "arguments": "{\"a\":2}",
                     "name": "same"
                   },
-                  "id": "call_02020202020202020202020202020202_g_c_1",
+                  "id": "call_gpn_0202020202020202_1",
                   "type": "function"
                 }
               ]
@@ -54,7 +54,7 @@
         }
       },
       "resource_reads": 0,
-      "saved_records": 2
+      "saved_records": 0
     },
     {
       "accepted": true,

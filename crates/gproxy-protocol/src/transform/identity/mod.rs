@@ -9,6 +9,7 @@
 mod allocator;
 mod error;
 mod state;
+pub(crate) mod tool_alias;
 mod types;
 
 pub use allocator::{CallResultLink, IdSyntax, IdentityFlow, IdentityHandle, TargetIdPolicy};

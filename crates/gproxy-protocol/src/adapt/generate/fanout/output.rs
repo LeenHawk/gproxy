@@ -174,37 +174,23 @@ pub(super) fn normalize<N: IdentityFacts, C: Client>(
         if seen.len() >= max {
             return Err(limit());
         }
-        let mut source = original
-            .call_id
-            .clone()
-            .filter(|id| !seen.contains(id) && !reserved.contains(id));
-        let handle = loop {
-            if index > max as u64 {
-                return Err(limit());
-            }
-            let mut trial = flow.clone();
-            let mut handle = trial
-                .resolve_or_allocate(
-                    IdentityRole::ToolCall,
-                    SourceIdentity::new(native.dialect(), source.clone(), index),
-                    &identities.response_policy,
-                )
-                .map_err(|e| conflict(e.to_string()))?;
-            index = index.checked_add(1).ok_or_else(limit)?;
-            if seen.contains(&handle.emitted_id) || reserved.contains(&handle.emitted_id) {
-                source = None;
-                continue;
-            }
-            if handle.source_id().is_none()
-                && let Some(id) = original.call_id
-            {
-                handle = trial
-                    .attach_source(&handle, id)
-                    .map_err(|e| conflict(e.to_string()))?;
-            }
-            flow = trial;
-            break handle;
-        };
+        // A candidate repeating an ID an earlier one already emitted gets
+        // the counted alias for it, which still names the upstream ID.
+        let avoid: BTreeSet<String> = seen.union(reserved).cloned().collect();
+        let handle = flow
+            .resolve_or_allocate_avoiding(
+                IdentityRole::ToolCall,
+                SourceIdentity::new(native.dialect(), original.call_id.clone(), index),
+                &identities.response_policy,
+                &avoid,
+            )
+            .map_err(|e| conflict(e.to_string()))?;
+        index = index.checked_add(1).ok_or_else(limit)?;
+        if avoid.contains(&handle.emitted_id) {
+            return Err(conflict(
+                "candidate call alias collides with another candidate",
+            ));
+        }
         seen.insert(handle.emitted_id.clone());
         calls.push(Some(handle.emitted_id));
     }

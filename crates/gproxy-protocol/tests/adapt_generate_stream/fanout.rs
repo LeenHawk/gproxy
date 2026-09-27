@@ -168,20 +168,17 @@ where
                 .as_str()
                 .unwrap()
         };
-        // The first child forwards the upstream ID and records nothing; the
-        // second child's alias is the only one to map back.
-        let saved = ready(state.read(IdentityRole::ToolCall, id)).unwrap();
-        if index == 0 {
-            assert!(saved.is_none());
-        } else {
-            let saved = saved.unwrap();
-            assert_eq!(saved.original_call_id.as_deref(), Some("tool:source"));
-            assert_eq!(saved.tool_name.as_deref(), Some("f"));
-        }
+        // The first child forwards the upstream ID; the second repeats it and
+        // gets the counted alias, which names the same upstream ID. Neither
+        // is recorded.
+        assert!(
+            ready(state.read(IdentityRole::ToolCall, id))
+                .unwrap()
+                .is_none()
+        );
         ids.push(id);
     }
-    assert_eq!(ids[0], "tool:source");
-    assert_ne!(ids[0], ids[1]);
+    assert_eq!(ids, ["tool:source", "call_gpe_tool_3asource"]);
     assert_eq!(
         usage
             .get("total_tokens")

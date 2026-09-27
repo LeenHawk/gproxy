@@ -1,7 +1,9 @@
 //! Identity facts a later turn cannot recover from what the client sends back:
-//! an emitted alias, a call the upstream sent without an ID, or a signed piece.
-//! An ID forwarded unchanged is never recorded. Host scopes must bind principal
-//! and upstream; the explicit prefix additionally binds conversation.
+//! signed pieces with their native payloads, and the upstream ID behind a
+//! client ID a signed Gemini part fixed. Any other tool call ID is forwarded
+//! unchanged or aliased reversibly (`transform::identity::tool_alias`), so no
+//! unsigned call is recorded. Host scopes must bind principal and upstream; the
+//! explicit prefix additionally binds conversation.
 
 use super::{GenerationProgress, identity_facts::IdentityFacts};
 use crate::{
@@ -131,7 +133,6 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         }
         let mut records = Vec::new();
         let mut native_payloads = Vec::new();
-        let mut chat_forms = BTreeMap::new();
         // No Response or Message record is written: nothing reads one back,
         // and a record keyed by an upstream response ID only made an upstream
         // that repeats its IDs fail every later request in the conversation.
@@ -189,12 +190,10 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
                     "changed tool ID has no native association",
                 ));
             }
+            let bound = signed_ids.original_call_id(&client_id).is_some();
             let mut record = IdentityStateRecord::new(IdentityRole::ToolCall, self.target.clone());
             record.original_call_id = original.call_id.clone();
             record.original_item_id = original.item_id.clone();
-            if let Some(form) = original.chat_form {
-                chat_forms.insert(client_id.clone(), form);
-            }
             record.client_call_id = Some(client_id);
             record.client_item_id = client.item_id;
             record.tool_name = Some(original.name.clone());
@@ -207,11 +206,14 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
                     &mut native_payloads,
                 )?;
             }
-            // A call forwarded under the upstream's own ID has nothing to
-            // remember: the client sends that ID back and it goes upstream
-            // unchanged. Only an alias, a call the upstream sent without an
-            // ID, or a signed call still needs its native facts next turn.
-            if record.original_call_id == record.client_call_id && record.opaque_signature.is_none()
+            // An unsigned call has nothing to remember: its client ID is the
+            // upstream's own or a reversible alias that names it, and the
+            // client's history carries the name. Only a signed call still
+            // needs its native part next turn, and a call whose client ID a
+            // signed Gemini part fixed still needs the upstream ID it stands
+            // for, since that ID is no alias.
+            if record.opaque_signature.is_none()
+                && (!bound || record.original_call_id == record.client_call_id)
             {
                 continue;
             }
@@ -320,8 +322,7 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
             }
             records.push((record, None));
         }
-        self.save_records_with_chat_forms(records, native_payloads, &chat_forms, progress)
-            .await
+        self.save_records(records, native_payloads, progress).await
     }
 }
 
@@ -336,38 +337,45 @@ fn limit() -> TransformError {
 /// Records one invocation already wrote, so a resumed save skips them.
 pub(super) type SavedIdentities = BTreeMap<String, Vec<u8>>;
 
-/// Explicit identity/name facts recovered for tool results. No content or opaque
-/// payload is hidden in this record. Keys remain the exact client IDs.
+/// Identity/name facts for replaying tool calls and results. No content or
+/// opaque payload is hidden in this record. Keys remain the exact client IDs.
 #[derive(Debug, Default)]
 pub struct GenerationToolReplay {
     pub names: BTreeMap<String, String>,
     pub kinds: BTreeMap<String, super::ToolCallKind>,
-    /// Known native Chat forms, keyed by the original client alias. Unknown
-    /// provisional forms cannot be used to replay a result.
+    /// Native Chat forms of aliased calls replayed to a Chat upstream, keyed
+    /// by the client alias.
     pub chat_forms: BTreeMap<String, ChatCallForm>,
+    /// The upstream ID each alias names.
     pub original_call_ids: BTreeMap<String, String>,
-    pub original_item_ids: BTreeMap<String, String>,
+    /// Client IDs with a saved record, which decides what they stand for;
+    /// they are never decoded as aliases.
+    pub(super) signed: BTreeSet<String>,
 }
 
 impl<S: StateStore> GenerationStateAccess<'_, S> {
-    /// Declared full history supplies names first. State supplies the native
-    /// facts of an emitted alias or of a call the upstream sent without an ID.
-    /// A client ID with no record is left out of the replay, so it is
-    /// forwarded unchanged: an upstream ID the client saw as-is is never
-    /// recorded, and nothing needs translating back.
+    /// Declared full history supplies names first; saved records are looked
+    /// up for every given client ID.
     pub async fn recover_tools(
         &self,
         client_ids: &[String],
         history_names: &BTreeMap<String, String>,
     ) -> Result<GenerationToolReplay, TransformError> {
-        self.recover_tools_inner(client_ids, history_names, true)
+        let all = client_ids.iter().cloned().collect();
+        self.recover_tools_inner(client_ids, history_names, true, &all)
             .await
     }
+    /// A client alias names its upstream call itself, so only signed calls
+    /// are looked up: every call replayed to Gemini, the only upstream that
+    /// takes a signed part back, and any call whose client part carries a
+    /// signature, since its ID may be one a signed Gemini part fixed. Every
+    /// other call reads no state at all.
     pub(super) async fn recover_tools_inner(
         &self,
         client_ids: &[String],
         history_names: &BTreeMap<String, String>,
         require_names: bool,
+        signed_parts: &BTreeSet<String>,
     ) -> Result<GenerationToolReplay, TransformError> {
         if client_ids.len() > self.max_records || history_names.len() > self.max_records {
             return Err(limit());
@@ -377,57 +385,8 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
             ..Default::default()
         };
         for id in client_ids {
-            let saved = self.read_stored(IdentityRole::ToolCall, id).await?;
-            if let Some(saved) = saved {
-                let legacy = if self.target.dialect == Dialect::OpenAiChat {
-                    let form = saved
-                        .chat_form
-                        .ok_or_else(|| missing_form("native Chat call form is not yet known"))?;
-                    output.chat_forms.insert(id.clone(), form);
-                    form == ChatCallForm::LegacyFunction
-                } else {
-                    false
-                };
-                if self.target.dialect != Dialect::Gemini
-                    && !legacy
-                    && saved.identity.original_call_id.is_none()
-                {
-                    return Err(missing_form(
-                        "original native tool-call ID is unavailable; client aliases cannot replace it",
-                    ));
-                }
-                if legacy
-                    && saved
-                        .identity
-                        .tool_name
-                        .as_ref()
-                        .is_none_or(|name| name.is_empty())
-                {
-                    return Err(missing_form(
-                        "legacy Chat function requires its actual complete name",
-                    ));
-                }
-                if let Some(kind) = saved.tool_kind {
-                    output.kinds.insert(id.clone(), kind);
-                }
-                let saved = saved.identity;
-                if let Some(name) = saved.tool_name {
-                    if output.names.get(id).is_some_and(|known| known != &name) {
-                        return Err(TransformError::shape(
-                            "history.tool_name",
-                            "declared history conflicts with stored identity",
-                        ));
-                    }
-                    output.names.insert(id.clone(), name);
-                }
-                if saved.opaque_signature.is_none()
-                    && let Some(original) = saved.original_call_id
-                {
-                    output.original_call_ids.insert(id.clone(), original);
-                }
-                if let Some(original) = saved.original_item_id {
-                    output.original_item_ids.insert(id.clone(), original);
-                }
+            if self.target.dialect == Dialect::Gemini || signed_parts.contains(id) {
+                self.recover_signed(id, &mut output).await?;
             }
             if require_names && output.names.get(id).is_none_or(|name| name.is_empty()) {
                 return Err(TransformError::new(
@@ -439,6 +398,37 @@ impl<S: StateStore> GenerationStateAccess<'_, S> {
         }
         Ok(output)
     }
+    async fn recover_signed(
+        &self,
+        id: &str,
+        output: &mut GenerationToolReplay,
+    ) -> Result<(), TransformError> {
+        let Some(saved) = self.read_stored(IdentityRole::ToolCall, id).await? else {
+            return Ok(());
+        };
+        output.signed.insert(id.to_owned());
+        if let Some(kind) = saved.tool_kind {
+            output.kinds.insert(id.to_owned(), kind);
+        }
+        let saved = saved.identity;
+        if let Some(name) = saved.tool_name {
+            if output.names.get(id).is_some_and(|known| known != &name) {
+                return Err(TransformError::shape(
+                    "history.tool_name",
+                    "declared history conflicts with stored identity",
+                ));
+            }
+            output.names.insert(id.to_owned(), name);
+        }
+        // A signed native part is swapped in under the client ID later; a
+        // bound ID is replaced by the upstream ID it stands for right away.
+        if saved.opaque_signature.is_none()
+            && let Some(original) = saved.original_call_id
+        {
+            output.original_call_ids.insert(id.to_owned(), original);
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -446,13 +436,8 @@ pub(super) struct StoredIdentity {
     pub(super) schema: u16,
     pub(super) identity: IdentityStateRecord,
     pub(super) tool_kind: Option<super::ToolCallKind>,
-    // Absent is unknown for a Chat tool record, not an implicit legacy flag.
-    // It is inapplicable to other dialects and non-tool identity roles.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(super) chat_form: Option<ChatCallForm>,
 }
 
 mod chat_form;
 mod save;
 pub use chat_form::ChatCallForm;
-use chat_form::missing_form;

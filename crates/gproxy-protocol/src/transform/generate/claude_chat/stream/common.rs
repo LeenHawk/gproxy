@@ -109,6 +109,27 @@ pub(super) fn id(
         })
 }
 
+/// A legacy Chat `function_call` has no ID; its alias records that it is one.
+pub(super) fn legacy_id(
+    flow: &mut IdentityFlow,
+    policy: &TargetIdPolicy,
+    index: u64,
+) -> Result<String, TransformError> {
+    flow.resolve_legacy_chat_call(
+        SourceIdentity::new(crate::Dialect::OpenAiChat, None, index),
+        policy,
+    )
+    .map(|v| v.emitted_id)
+    .map_err(|e| {
+        TransformError::with_source(
+            TransformErrorKind::Conflict,
+            "stream.identity",
+            "identity association failed",
+            e,
+        )
+    })
+}
+
 pub(super) fn claude_policy() -> TargetIdPolicy {
     TargetIdPolicy::new(crate::Dialect::Claude)
         .with_generated_prefix(IdentityRole::Response, KnownIdPrefix::Message)

@@ -1,5 +1,5 @@
 use super::*;
-use gproxy_protocol::transform::identity::{IdSyntax, IdentityRole};
+use gproxy_protocol::transform::identity::IdSyntax;
 fn prime_legacy(store: &Store) -> String {
     let access = state(store, Dialect::OpenAiChat);
     let mut body = output("h");
@@ -38,18 +38,10 @@ fn prime_legacy(store: &Store) -> String {
         .id
         .clone()
         .unwrap();
-    let replay =
-        ready(access.recover_tools(std::slice::from_ref(&id), &Default::default())).unwrap();
-    assert_eq!(replay.chat_forms[&id], ChatCallForm::LegacyFunction);
-    assert_eq!(replay.names[&id], "lookup");
-    assert!(replay.original_call_ids.is_empty());
-    assert!(
-        ready(access.read(IdentityRole::ToolCall, &id))
-            .unwrap()
-            .unwrap()
-            .original_call_id
-            .is_none()
-    );
+    // The alias itself says the call was a legacy function_call without an
+    // ID, so nothing is saved for it.
+    assert_eq!(id, "call_gpl_0202020202020202_0");
+    assert!(store.entries.lock().unwrap().is_empty());
     assert_eq!(host.sent.lock().unwrap().len(), 1);
     id
 }
@@ -129,7 +121,7 @@ fn actual_legacy_gemini_roundtrip_restores_full_or_truncated_native_chat_form() 
     }
 }
 #[test]
-fn claude_legacy_result_restores_before_modern_id_policy_without_fabricated_history() {
+fn claude_legacy_call_restores_before_modern_id_policy_and_a_nameless_result_is_refused() {
     for full in [false, true] {
         let store = Store::default();
         let call = prime_legacy(&store);
@@ -141,13 +133,22 @@ fn claude_legacy_result_restores_before_modern_id_policy_without_fabricated_hist
         }
         messages.push(json!({"role":"user","content":[{"type":"tool_result","tool_use_id":call,"content":"actual result"}]}));
         next["messages"] = json!(messages);
-        let mut p = ready(ClaudeViaChat::prepare_with_state(
+        let prepared = ready(ClaudeViaChat::prepare_with_state(
             serde_json::from_value(next).unwrap(),
             endpoint(),
             strict_legacy_ids(Dialect::Claude),
             &access,
-        ))
-        .unwrap();
+        ));
+        if !full {
+            // A Claude result carries no name, and a legacy function message
+            // needs one: only the declaring tool_use in history supplies it.
+            assert_eq!(
+                prepared.unwrap_err().kind(),
+                TransformErrorKind::MissingState
+            );
+            continue;
+        }
+        let mut p = prepared.unwrap();
         assert_legacy_request(&serde_json::to_value(p.target_request()).unwrap(), full);
         let host = Host::new(next_body());
         ready(p.invoke(
@@ -175,13 +176,21 @@ fn responses_legacy_result_and_declared_call_use_native_legacy_fields() {
         }
         items.push(json!({"type":"function_call_output","call_id":call,"output":"actual result"}));
         next["input"] = json!(items);
-        let mut p = ready(ResponsesViaChat::prepare_with_state(
+        let prepared = ready(ResponsesViaChat::prepare_with_state(
             serde_json::from_value(next).unwrap(),
             endpoint(),
             strict_legacy_ids(Dialect::OpenAi),
             &access,
-        ))
-        .unwrap();
+        ));
+        if !full {
+            // This result names no function, and nothing is saved to name it.
+            assert_eq!(
+                prepared.unwrap_err().kind(),
+                TransformErrorKind::MissingState
+            );
+            continue;
+        }
+        let mut p = prepared.unwrap();
         assert_legacy_request(&serde_json::to_value(p.target_request()).unwrap(), full);
         let host = Host::new(next_body());
         ready(p.invoke(
@@ -204,27 +213,22 @@ fn responses_legacy_result_and_declared_call_use_native_legacy_fields() {
     }
 }
 #[test]
-fn legacy_binding_never_accepts_changed_names_or_custom_tool_shape() {
-    for custom in [false, true] {
-        let store = Store::default();
-        let call = prime_legacy(&store);
-        let access = state(&store, Dialect::OpenAiChat);
-        let mut next = input("r");
-        next["input"] = if custom {
-            json!([{"type":"custom_tool_call","call_id":call,"name":"lookup","input":"actual"}])
-        } else {
-            json!([{"type":"function_call","call_id":call,"name":"different","arguments":"{}"}])
-        };
-        assert!(
-            ready(ResponsesViaChat::prepare_with_state(
-                serde_json::from_value(next).unwrap(),
-                endpoint(),
-                ids(Dialect::OpenAi, Dialect::OpenAiChat),
-                &access
-            ))
-            .is_err()
-        );
-    }
+fn legacy_binding_never_accepts_a_custom_tool_shape() {
+    let store = Store::default();
+    let call = prime_legacy(&store);
+    let access = state(&store, Dialect::OpenAiChat);
+    let mut next = input("r");
+    next["input"] =
+        json!([{"type":"custom_tool_call","call_id":call,"name":"lookup","input":"actual"}]);
+    assert!(
+        ready(ResponsesViaChat::prepare_with_state(
+            serde_json::from_value(next).unwrap(),
+            endpoint(),
+            ids(Dialect::OpenAi, Dialect::OpenAiChat),
+            &access
+        ))
+        .is_err()
+    );
 }
 #[test]
 fn original_modern_chat_ids_restore_exactly() {
@@ -269,14 +273,30 @@ fn original_modern_chat_ids_restore_exactly() {
         .id
         .clone()
         .unwrap();
-    let replay =
-        ready(access.recover_tools(std::slice::from_ref(&call), &Default::default())).unwrap();
-    assert_eq!(replay.chat_forms[&call], ChatCallForm::Modern);
-    assert_eq!(replay.original_call_ids[&call], "native.actual");
+    assert_eq!(call, "call_gpe_native_2eactual");
+    assert!(store.entries.lock().unwrap().is_empty());
+    let mut next = input("g");
+    next["contents"] = json!([
+        {"role":"model","parts":[{"functionCall":{"id":call,"name":"lookup","args":{}}}]},
+        {"role":"user","parts":[{"functionResponse":{"id":call,"name":"lookup","response":{"actual":"result"}}}]}
+    ]);
+    let p = ready(GeminiViaChat::prepare_with_state(
+        serde_json::from_value(next).unwrap(),
+        endpoint(),
+        ids(Dialect::Gemini, Dialect::OpenAiChat),
+        &access,
+    ))
+    .unwrap();
+    let target = serde_json::to_value(p.target_request()).unwrap();
+    assert_eq!(
+        target["messages"][0]["tool_calls"][0]["id"],
+        "native.actual"
+    );
+    assert_eq!(target["messages"][1]["tool_call_id"], "native.actual");
 }
 
 #[test]
-fn actual_chat_stream_preserves_modern_missing_id_vs_legacy_and_blocks_unknown_provisional_form() {
+fn actual_chat_stream_aliases_tell_modern_missing_id_from_legacy() {
     use gproxy_protocol::{
         adapt::generate::stream::{
             StreamSettings, StreamStart, StreamTarget, event::EventLimits, reader::SourceFraming,
@@ -348,59 +368,46 @@ fn actual_chat_stream_preserves_modern_missing_id_vs_legacy_and_blocks_unknown_p
             if let Some(cs::StreamEvent::ContentBlockStart(event)) = chunk.event
                 && let c::ResponseContentBlock::ToolUse(tool) = event.content_block
             {
-                assert_eq!(
-                    ready(
-                        access.recover_tools(std::slice::from_ref(&tool.id), &Default::default())
-                    )
-                    .unwrap_err()
-                    .kind(),
-                    TransformErrorKind::MissingState
-                );
                 alias = Some(tool.id);
             }
         }
         let alias = alias.unwrap();
-        let record = ready(access.read(IdentityRole::ToolCall, &alias))
-            .unwrap()
-            .unwrap();
-        assert_eq!(record.original_call_id.as_deref(), native_id);
+        // The alias alone says what the call was: the escaped upstream ID, a
+        // modern call without one, or a legacy function_call.
+        assert_eq!(
+            alias,
+            match (legacy, native_id) {
+                (false, Some(_)) => "toolu_gpe_native_2eactual",
+                (false, None) => "toolu_gpn_0202020202020202_0",
+                (true, _) => "toolu_gpl_0202020202020202_0",
+            }
+        );
+        assert!(store.entries.lock().unwrap().is_empty());
         assert_eq!(host.sent.lock().unwrap().len(), 1);
-        let replay = ready(access.recover_tools(std::slice::from_ref(&alias), &Default::default()));
-        if !legacy && native_id.is_none() {
-            assert_eq!(replay.unwrap_err().kind(), TransformErrorKind::MissingState);
-        } else {
-            let replay = replay.unwrap();
-            assert_eq!(
-                replay.chat_forms[&alias],
-                if legacy {
-                    ChatCallForm::LegacyFunction
-                } else {
-                    ChatCallForm::Modern
-                }
-            );
-        }
         let mut next = input("c");
-        next["messages"] = json!([{"role":"user","content":[{"type":"tool_result","tool_use_id":alias,"content":"actual result"}]}]);
+        next["messages"] = json!([
+            {"role":"assistant","content":[{"type":"tool_use","id":alias,"name":"lookup","input":{"x":1}}]},
+            {"role":"user","content":[{"type":"tool_result","tool_use_id":alias,"content":"actual result"}]}
+        ]);
         let prepared = ready(ClaudeViaChat::prepare_with_state(
             serde_json::from_value(next).unwrap(),
             endpoint(),
             ids(Dialect::Claude, Dialect::OpenAiChat),
             &access,
-        ));
-        if !legacy && native_id.is_none() {
-            assert_eq!(
-                prepared.unwrap_err().kind(),
-                TransformErrorKind::MissingState
-            );
+        ))
+        .unwrap();
+        let value = serde_json::to_value(prepared.target_request()).unwrap();
+        if legacy {
+            assert_legacy_request(&value, true);
         } else {
-            let value = serde_json::to_value(prepared.unwrap().target_request()).unwrap();
-            if legacy {
-                assert_legacy_request(&value, false);
-            } else {
-                assert_eq!(value["messages"][0]["role"], "tool");
-                assert_eq!(value["messages"][0]["tool_call_id"], native_id.unwrap());
-            }
+            // A modern call goes back under its upstream ID, or under the
+            // alias when the upstream sent none.
+            let id = native_id.unwrap_or(&alias);
+            assert_eq!(value["messages"][0]["tool_calls"][0]["id"], id);
+            assert_eq!(value["messages"][1]["role"], "tool");
+            assert_eq!(value["messages"][1]["tool_call_id"], id);
         }
+        assert!(store.entries.lock().unwrap().is_empty());
         assert_eq!(host.sent.lock().unwrap().len(), 1);
     }
 }

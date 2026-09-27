@@ -113,7 +113,7 @@ impl FanoutOptions {
             request: IdentityFlow::new(namespace(0)),
             response: IdentityFlow::new(namespace(1)),
             request_policy: super::transport::generation_policy(upstream),
-            response_policy: self.response_policy.clone(),
+            response_policy: self.response_policy.clone().with_reversible_tool_calls(),
         }
     }
 }

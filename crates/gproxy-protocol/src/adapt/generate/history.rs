@@ -1,11 +1,15 @@
-//! Rebuild declared histories with exact saved aliases; source extensions are
-//! removed before either traversal or storage. Tool names come from history first.
+//! Rebuild declared histories for the upstream: a client alias is decoded back
+//! to the upstream call it names, and tool names come from the history itself.
+//! Source extensions are removed before either traversal or storage.
 
-use super::{GenerationStateAccess, GenerationToolReplay};
+use super::{ChatCallForm, GenerationStateAccess, GenerationToolReplay};
 use crate::{
     Dialect,
     capability::StateStore,
-    transform::TransformError,
+    transform::{
+        TransformError, TransformErrorKind,
+        identity::tool_alias::{self, ToolAlias},
+    },
     wire::{
         DeclaredFields,
         claude::{content as cc, generate_content as c},
@@ -36,9 +40,9 @@ pub(super) fn merge_names(
     Ok(())
 }
 
-/// Swap a client alias for the upstream ID it stands for. An ID with no saved
-/// record is forwarded unchanged: it is the upstream's own ID, since only
-/// aliases and calls the upstream sent without one are recorded.
+/// Swap a client alias for the upstream ID it stands for. Any other ID is
+/// forwarded unchanged: it is the upstream's own ID, or an alias for a call the
+/// upstream sent without one, which this upstream takes as an opaque ID.
 fn restore(id: &mut String, replay: &GenerationToolReplay) {
     // Keep client identities until Chat legacy/modern form selection. An
     // actual native modern ID may collide with another client's legacy alias.
@@ -54,15 +58,42 @@ async fn facts<S: StateStore>(
     state: &GenerationStateAccess<'_, S>,
     ids: BTreeSet<String>,
     names: BTreeMap<String, String>,
+    signed_parts: &BTreeSet<String>,
 ) -> Result<GenerationToolReplay, TransformError> {
+    let target = state.target.dialect;
     let mut replay = state
         .recover_tools_inner(
-            &ids.into_iter().collect::<Vec<_>>(),
+            &ids.iter().cloned().collect::<Vec<_>>(),
             &names,
-            state.target.dialect == Dialect::Gemini,
+            target == Dialect::Gemini,
+            signed_parts,
         )
         .await?;
-    if state.target.dialect != Dialect::OpenAiChat {
+    for id in ids {
+        if replay.signed.contains(&id) {
+            continue;
+        }
+        match tool_alias::decode(&id) {
+            Some(ToolAlias::Upstream { id: original, .. }) => {
+                if target == Dialect::OpenAiChat {
+                    replay.chat_forms.insert(id.clone(), ChatCallForm::Modern);
+                }
+                replay.original_call_ids.insert(id, original);
+            }
+            Some(ToolAlias::Missing { legacy: true, .. }) if target == Dialect::OpenAiChat => {
+                if replay.names.get(&id).is_none_or(String::is_empty) {
+                    return Err(TransformError::new(
+                        TransformErrorKind::MissingState,
+                        "history.native_call",
+                        "legacy Chat function requires its actual complete name",
+                    ));
+                }
+                replay.chat_forms.insert(id, ChatCallForm::LegacyFunction);
+            }
+            _ => {}
+        }
+    }
+    if target != Dialect::OpenAiChat {
         for (client, original) in &replay.original_call_ids {
             if let Some(value) = replay.names.get(client).cloned() {
                 name(&mut replay.names, original, &value)?;
@@ -120,7 +151,7 @@ pub(super) async fn chat<S: StateStore>(
             _ => {}
         }
     }
-    let mut replay = facts(state, ids, names).await?;
+    let mut replay = facts(state, ids, names, &BTreeSet::new()).await?;
     for message in &input.messages {
         if let h::ChatMessage::Assistant(message) = message {
             for call in message.tool_calls.iter().flatten() {
@@ -183,7 +214,7 @@ pub(super) async fn claude<S: StateStore>(
             }
         }
     }
-    let replay = facts(state, ids, names).await?;
+    let replay = facts(state, ids, names, &BTreeSet::new()).await?;
     for message in &mut input.messages {
         if let cc::MessageContent::Blocks(blocks) = &mut message.content {
             for b in blocks {
@@ -211,12 +242,16 @@ pub(super) async fn gemini<S: StateStore>(
     let mut input = input.into_declared();
     let mut names = BTreeMap::new();
     let mut ids = BTreeSet::new();
+    let mut signed = BTreeSet::new();
     for p in input.contents.iter().flat_map(|c| c.parts.iter().flatten()) {
         if let Some(call) = &p.function_call
             && let Some(id) = &call.id
         {
             name(&mut names, id, &call.name)?;
             ids.insert(id.clone());
+            if p.thought_signature.is_some() {
+                signed.insert(id.clone());
+            }
         }
         if let Some(result) = &p.function_response
             && let Some(id) = &result.id
@@ -225,7 +260,7 @@ pub(super) async fn gemini<S: StateStore>(
             ids.insert(id.clone());
         }
     }
-    let replay = facts(state, ids, names).await?;
+    let replay = facts(state, ids, names, &signed).await?;
     for p in input
         .contents
         .iter_mut()
@@ -278,26 +313,16 @@ pub(super) async fn responses<S: StateStore>(
             }
         }
     }
-    let replay = facts(state, ids, names).await?;
+    let replay = facts(state, ids, names, &BTreeSet::new()).await?;
     if let Some(r::Input::Items(items)) = &mut input.input {
         for item in items {
             match item {
                 r::InputItem::FunctionCall(b) => {
                     kind(&replay, &b.call_id, super::ToolCallKind::Function)?;
-                    b.id = replay
-                        .original_item_ids
-                        .get(&b.call_id)
-                        .cloned()
-                        .or_else(|| b.id.clone());
                     restore(&mut b.call_id, &replay);
                 }
                 r::InputItem::CustomToolCall(b) => {
                     kind(&replay, &b.call_id, super::ToolCallKind::Custom)?;
-                    b.id = replay
-                        .original_item_ids
-                        .get(&b.call_id)
-                        .cloned()
-                        .or_else(|| b.id.clone());
                     restore(&mut b.call_id, &replay);
                 }
                 r::InputItem::FunctionCallOutput(b) => {
