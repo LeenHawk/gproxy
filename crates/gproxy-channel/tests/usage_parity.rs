@@ -1,3 +1,30 @@
+#![cfg(any(
+    feature = "aistudio",
+    feature = "antigravity",
+    feature = "aws_bedrock",
+    feature = "azure",
+    feature = "claudeapi",
+    feature = "claudecode",
+    feature = "cline",
+    feature = "cloudflare_ai_gateway",
+    feature = "codex",
+    feature = "copilotcli",
+    feature = "custom",
+    feature = "dashscope",
+    feature = "deepseek",
+    feature = "geminicli",
+    feature = "grokbuild",
+    feature = "kimi",
+    feature = "nvidia",
+    feature = "openai",
+    feature = "opencode",
+    feature = "openrouter",
+    feature = "vercel",
+    feature = "vertex",
+    feature = "vertexexpress",
+    feature = "workbuddy",
+    feature = "xai",
+))]
 //! What each channel's replies settle with, against what the channel's own
 //! usage reader used to read from them, fixture by fixture.
 //!
