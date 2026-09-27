@@ -8,6 +8,7 @@ use gproxy_store::{
         identity::user_session,
         limits::{credential_block, credential_quota_cycle},
         oauth::{code, device, token},
+        resource::protocol_state,
         usage::{capture_record, usage_record},
     },
 };
@@ -232,7 +233,25 @@ async fn prune_expired(db: &DatabaseConnection, now: i64) -> Result<u64> {
         ids_before::<device::Entity>(db, device::Column::Id, device::Column::ExpiresAtMs, spent)
             .await?;
     store.oauth_devices().delete_many(&devices).await?;
-    Ok((blocks.len() + sessions.len() + codes.len() + tokens.len() + devices.len()) as u64)
+    // Protocol state (Responses continuation history, video jobs) is read as
+    // absent once expired, but nothing else would ever remove the row: a key
+    // is only written again by the conversation or job that owns it. A row
+    // with no expiry never expires.
+    let states: Vec<(String, String)> = protocol_state::Entity::find()
+        .select_only()
+        .column(protocol_state::Column::Scope)
+        .column(protocol_state::Column::Key)
+        .filter(protocol_state::Column::ExpiresAtMs.lt(now))
+        .order_by_asc(protocol_state::Column::ExpiresAtMs)
+        .limit(BATCH)
+        .into_tuple()
+        .all(db)
+        .await?;
+    store.protocol_states().delete_many(&states).await?;
+    Ok(
+        (blocks.len() + sessions.len() + codes.len() + tokens.len() + devices.len() + states.len())
+            as u64,
+    )
 }
 
 /// Up to `BATCH` ids of rows whose `at` is before `cutoff`, oldest first.
@@ -491,5 +510,37 @@ mod tests {
         );
         // None keeps every observation.
         assert_eq!(clean(&db, None, None, None, now * 2).await.unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn expired_protocol_state_is_pruned_and_unexpiring_state_kept() {
+        let db = fixture().await;
+        let now = 1_000_000;
+        for (key, expires) in [
+            ("gone", Some(now - 1)),
+            ("live", Some(now + 1)),
+            ("forever", None),
+        ] {
+            protocol_state::ActiveModel {
+                scope: Set("s".into()),
+                key: Set(key.into()),
+                version: Set(vec![1]),
+                payload: Set(vec![]),
+                expires_at_ms: Set(expires),
+            }
+            .insert(&db)
+            .await
+            .unwrap();
+        }
+        assert_eq!(clean(&db, None, None, None, now).await.unwrap(), 1);
+        let mut left: Vec<String> = protocol_state::Entity::find()
+            .all(&db)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.key)
+            .collect();
+        left.sort();
+        assert_eq!(left, ["forever", "live"]);
     }
 }
