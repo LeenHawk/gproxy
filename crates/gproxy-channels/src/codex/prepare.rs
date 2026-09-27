@@ -62,6 +62,24 @@ pub(super) fn request(ctx: PrepareCtx<'_>) -> Result<PreparedRequest, ChannelErr
     }
     let body = openai_cache(&ctx)?;
     let body = super::shape::request(ctx.key.operation(), ctx.headers, &body, ctx.upstream_model)?;
+    if matches!(
+        ctx.key.operation(),
+        Operation::GenerateContent | Operation::StreamGenerateContent
+    ) {
+        // Match the Codex CLI routing hint using the final model and tier,
+        // after variants and rewrites, instead of forwarding a stale hint.
+        let value: Value = serde_json::from_slice(&body)
+            .map_err(|error| ChannelError::Prepare(format!("Responses request JSON: {error}")))?;
+        let hint = match value.get("service_tier").and_then(Value::as_str) {
+            Some(tier) => format!("model={};tier={tier}", ctx.upstream_model),
+            None => format!("model={}", ctx.upstream_model),
+        };
+        headers.insert(
+            "x-codex-routing-hint",
+            HeaderValue::from_str(&hint)
+                .map_err(|error| ChannelError::Prepare(format!("Codex routing hint: {error}")))?,
+        );
+    }
     let mut request = http::Request::builder()
         .method(ctx.method)
         .uri(strip_userinfo(uri)?)

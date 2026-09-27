@@ -118,6 +118,77 @@ fn prepare_applies_codex_endpoint_headers_profile_and_typed_shape() {
 }
 
 #[test]
+fn response_routing_hint_tracks_final_model_and_tier() {
+    for websocket in [false, true] {
+        for (tier, expected) in [
+            (Some("priority"), Some("priority")),
+            (Some("fast"), Some("priority")),
+            (Some("flex"), Some("flex")),
+            (Some("default"), Some("default")),
+            (Some("ultrafast"), Some("ultrafast")),
+            (None, None),
+        ] {
+            for stale_hint in [None, Some("model=client-alias;tier=standard")] {
+                let mut headers = HeaderMap::new();
+                if let Some(hint) = stale_hint {
+                    headers.insert("x-codex-routing-hint", hint.parse().unwrap());
+                }
+                let mut value =
+                    json!({"model":"client-alias", "input":"hello", "future_request":42});
+                if let Some(tier) = tier {
+                    value["service_tier"] = json!(tier);
+                }
+                if websocket {
+                    value["type"] = json!("response.create");
+                    value["generate"] = json!(false);
+                    value["client_metadata"] = json!({"test":"kept"});
+                }
+                let body = Bytes::from(value.to_string());
+                let prepared = CodexChannel
+                    .prepare(PrepareCtx {
+                        session_id: None,
+                        key: OperationKey::content(
+                            Operation::StreamGenerateContent,
+                            if websocket {
+                                ContentGenerationKind::OpenAiResponsesWebSocket
+                            } else {
+                                ContentGenerationKind::OpenAiResponses
+                            },
+                        ),
+                        stream: true,
+                        method: &Method::POST,
+                        path: "/v1/responses",
+                        query: None,
+                        headers: &headers,
+                        body: &body,
+                        upstream_model: "gpt-5.4",
+                        provider_settings: &json!({}),
+                        secret: &json!({"access_token":"token"}),
+                    })
+                    .unwrap();
+                let shaped: Value = serde_json::from_slice(prepared.request.body()).unwrap();
+                assert_eq!(
+                    shaped["model"], "gpt-5.4",
+                    "websocket={websocket}, tier={tier:?}, body={shaped}"
+                );
+                assert_eq!(shaped.get("service_tier").and_then(Value::as_str), expected);
+                let hint = expected.map_or_else(
+                    || "model=gpt-5.4".to_string(),
+                    |tier| format!("model=gpt-5.4;tier={tier}"),
+                );
+                assert_eq!(prepared.request.headers()["x-codex-routing-hint"], hint);
+                assert_eq!(shaped["future_request"], 42);
+                if websocket {
+                    assert_eq!(shaped["generate"], false);
+                    assert_eq!(shaped["client_metadata"]["test"], "kept");
+                }
+                assert_eq!(prepared.websocket, websocket);
+            }
+        }
+    }
+}
+
+#[test]
 fn model_catalog_shapes_to_public_openai_models() {
     let body = Bytes::from_static(
         br#"{"models":[{"slug":"gpt-5.4-codex","context_window":272000,"max_context_window":872000,"supported_reasoning_levels":["high"],"future_model":7}],"future_catalog_field":true}"#,

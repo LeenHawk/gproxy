@@ -1,6 +1,6 @@
 use bytes::Bytes;
 use gproxy_channel_api::ChannelError;
-use gproxy_protocol::openai::common::OpenAiModelId;
+use gproxy_protocol::openai::common::{OpenAiModelId, ServiceTier};
 use gproxy_protocol::openai::generate_content::responses::{
     ResponseCreateRequest, ResponseCreateWebSocketRequest, ResponseEasyInputContent,
     ResponseEasyInputMessageItem, ResponseEasyInputMessageRole, ResponseInput,
@@ -10,6 +10,10 @@ use gproxy_protocol::openai::generate_content::responses::{
 
 pub(super) fn request(body: &Bytes, model: &str) -> Result<Bytes, ChannelError> {
     if let Ok(mut websocket) = serde_json::from_slice::<ResponseCreateWebSocketRequest>(body) {
+        // Both flattened structs capture response fields. The inner request
+        // already preserves extensions; discard the outer duplicate fields so
+        // serialization cannot overwrite normalized model/tier values.
+        websocket.rest.clear();
         websocket.response = normalize(websocket.response, model)?;
         return serde_json::to_vec(&websocket)
             .map(Bytes::from)
@@ -28,6 +32,9 @@ fn normalize(
     model: &str,
 ) -> Result<ResponseCreateRequest, ChannelError> {
     request.model = Some(OpenAiModelId::from(model));
+    if request.service_tier == Some(ServiceTier::Fast) {
+        request.service_tier = Some(ServiceTier::Priority);
+    }
     request.stream = Some(true);
     request.store = Some(false);
     request.max_output_tokens = None;
