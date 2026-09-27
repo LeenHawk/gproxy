@@ -1,3 +1,6 @@
+[build]
+pre-build = "scripts/install-cross-go.sh"
+
 [target.riscv64gc-unknown-linux-gnu]
 image = "ghcr.io/cross-rs/riscv64gc-unknown-linux-gnu:main"
 
