@@ -47,7 +47,7 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
 use gproxy_core::{UsageCompletion, UsageReport};
-use gproxy_seaorm::BatchConnectionTrait;
+use gproxy_seaorm::{BatchConnectionTrait, SelectProjection};
 use gproxy_store::{
     Store,
     entity::{
@@ -56,7 +56,7 @@ use gproxy_store::{
     },
 };
 use http::{HeaderMap, StatusCode};
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set};
 use serde_json::{Value, json};
 
 use crate::{Admitted, AppError, Caller, DataPlaneRequest, now_ms};
@@ -579,17 +579,33 @@ impl DownstreamCapture {
     ) {
         use record::Column;
         let query = record::Entity::find()
+            .select_only()
+            .columns([Column::Id, Column::StartedAtMs, Column::AttemptOrdinal])
             .filter(Column::InitiatorRequestId.eq(self.id.as_str()))
             .filter(Column::Side.eq(record::CaptureSide::Upstream));
-        match store.capture_records().query(query).await {
+        let rows = async {
+            let rows = store
+                .connection()
+                .query_rows(query.batch_query(store.connection().get_database_backend())?)
+                .await?;
+            rows.iter()
+                .map(|row| {
+                    Ok((
+                        row.try_get::<String>("", "id")?,
+                        row.try_get::<i64>("", "started_at_ms")?,
+                        row.try_get::<Option<i32>>("", "attempt_ordinal")?,
+                    ))
+                })
+                .collect::<Result<Vec<_>, sea_orm::DbErr>>()
+        }
+        .await;
+        match rows {
             Ok(rows) => {
-                for row in rows {
+                for (id, started_at_ms, attempt_ordinal) in rows {
                     // Overwrites what the report knew, because this carries
                     // the row's real start time and the report carries none.
-                    self.links.insert(
-                        row.id,
-                        (row.started_at_ms, row.attempt_ordinal.unwrap_or_default()),
-                    );
+                    self.links
+                        .insert(id, (started_at_ms, attempt_ordinal.unwrap_or_default()));
                 }
             }
             Err(error) => tracing::warn!(

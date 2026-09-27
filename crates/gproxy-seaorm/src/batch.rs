@@ -76,6 +76,17 @@ pub enum BatchResult {
 pub trait BatchConnectionTrait: ConnectionTrait {
     async fn batch(&self, statements: &[BatchStatement]) -> Result<Vec<BatchResult>, DbErr>;
 
+    /// Read one query without requesting a snapshot shared with other queries.
+    /// Native drivers can use their ordinary query path; remote adapters keep
+    /// the query's projection with their batch transport.
+    async fn query_rows(&self, query: BatchQuery) -> Result<Vec<QueryResult>, DbErr> {
+        self.query_batch(&[query])
+            .await?
+            .into_iter()
+            .next()
+            .ok_or_else(|| error("batch returned no query result"))
+    }
+
     /// Backend-specific known parameter cap per SQL statement; None means the
     /// caller must consult its driver/configuration, not that it is unlimited.
     fn max_bind_parameters(&self) -> Option<usize> {
@@ -122,6 +133,13 @@ pub trait BatchConnectionTrait: ConnectionTrait {
 
 #[async_trait::async_trait]
 impl BatchConnectionTrait for DatabaseConnection {
+    async fn query_rows(&self, query: BatchQuery) -> Result<Vec<QueryResult>, DbErr> {
+        if query.statement.db_backend != self.get_database_backend() {
+            return Err(error("query dialect does not match the connection"));
+        }
+        self.query_all_raw(query.statement).await
+    }
+
     async fn batch(&self, statements: &[BatchStatement]) -> Result<Vec<BatchResult>, DbErr> {
         if statements.is_empty() {
             return Ok(Vec::new());
