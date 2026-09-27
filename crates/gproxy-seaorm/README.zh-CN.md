@@ -95,6 +95,13 @@ SeaORM 的 ProxyRow 内部按键排序；使用 `into_tuple()` 或 `try_get_by_i
 `D1Connection`。普通操作继续使用 `ConnectionTrait`；批量 SQL 由 SeaORM／SeaQuery
 构造，本库不包含业务表名和业务事务规则。
 
+刚构造好且不再需要保留的语句，可以交给 `batch_owned` 或 `atomic_batch_owned`。
+原生适配器能够把参数直接移入执行队列，避免再次克隆；原来的借用接口仍然可用。
+
+单次查询使用 `query_rows(query.batch_query_for(&connection)?)`，原生驱动不会额外开启
+事务，也不会构造它用不到的 D1 投影。D1/libSQL 仍保留远端解码所需的类型信息。
+多次读取需要共享快照时，继续使用 `query_batch`。
+
 | 方法 | 输入 | 返回 |
 |---|---|---|
 | `atomic_batch` | 批量增删改 SQL | 按输入顺序返回每条语句的 ExecResult |

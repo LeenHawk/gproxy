@@ -52,6 +52,20 @@ fn ready<F: std::future::Future>(future: F) -> F::Output {
 }
 
 #[test]
+fn remote_queries_still_require_types_for_computed_columns() {
+    use crate::SelectProjection;
+    use sea_orm::{EntityTrait, ExprTrait, QuerySelect, sea_query::Expr};
+
+    let script = Arc::new(Script::default());
+    let db = connect(&script);
+    let query = super::sample::Entity::find()
+        .select_only()
+        .expr_as(Expr::col(super::sample::Column::Id).add(1), "next_id");
+    assert!(query.batch_query_for(&db).is_err());
+    assert!(script.sent.lock().unwrap().is_empty());
+}
+
+#[test]
 fn execute_posts_the_pipeline_with_typed_arguments_and_decodes_the_result() {
     let script = Arc::new(Script::default());
     script.replies.lock().unwrap().push_back((

@@ -83,7 +83,7 @@ where
     pub async fn query_many(&self, queries: Vec<Select<E>>) -> Result<Vec<Vec<E::Model>>> {
         let prepared = queries
             .iter()
-            .map(|q| q.batch_query(self.db.get_database_backend()))
+            .map(|q| q.batch_query_for(self.db))
             .collect::<std::result::Result<Vec<_>, _>>()?;
         self.db
             .query_batch(&prepared)
@@ -98,7 +98,7 @@ where
     }
     pub async fn query(&self, query: Select<E>) -> Result<Vec<E::Model>> {
         self.db
-            .query_rows(query.batch_query(self.db.get_database_backend())?)
+            .query_rows(query.batch_query_for(self.db)?)
             .await?
             .iter()
             .map(|row| E::Model::from_query_result(row, "").map_err(Into::into))
@@ -199,7 +199,7 @@ where
         if statements.is_empty() {
             return Ok(());
         }
-        self.db.atomic_batch(&statements).await?;
+        self.db.atomic_batch_owned(statements).await?;
         Ok(())
     }
 
@@ -215,12 +215,12 @@ where
             .collect::<Result<Vec<_>>>()?;
         for id in keys {
             batch.push(BatchStatement::Query(
-                E::find_by_id(id).batch_query(self.db.get_database_backend())?,
+                E::find_by_id(id).batch_query_for(self.db)?,
             ));
         }
         let writes = batch.len() / 2;
         self.db
-            .batch(&batch)
+            .batch_owned(batch)
             .await?
             .into_iter()
             .skip(writes)
@@ -248,11 +248,11 @@ where
         let writes = batch.len();
         for id in keys {
             batch.push(BatchStatement::Query(
-                E::find_by_id(id).batch_query(self.db.get_database_backend())?,
+                E::find_by_id(id).batch_query_for(self.db)?,
             ));
         }
         self.db
-            .batch(&batch)
+            .batch_owned(batch)
             .await?
             .into_iter()
             .skip(writes)
@@ -266,7 +266,7 @@ where
             .collect::<Vec<_>>();
         Ok(self
             .db
-            .atomic_batch(&statements)
+            .atomic_batch_owned(statements)
             .await?
             .into_iter()
             .map(|r| r.rows_affected())
@@ -285,7 +285,7 @@ where
             .collect::<Vec<_>>();
         Ok(self
             .db
-            .atomic_batch(&statements)
+            .atomic_batch_owned(statements)
             .await?
             .iter()
             .map(|r| r.rows_affected())
@@ -301,7 +301,7 @@ where
             .collect::<Vec<_>>();
         Ok(self
             .db
-            .atomic_batch(&statements)
+            .atomic_batch_owned(statements)
             .await?
             .iter()
             .map(|r| r.rows_affected())
@@ -344,10 +344,7 @@ where
                     .order_by((E::default(), key.into_column()), sea_orm::Order::Asc);
             }
         }
-        let page = query
-            .limit(limit)
-            .offset(offset)
-            .batch_query(self.db.get_database_backend())?;
+        let page = query.limit(limit).offset(offset).batch_query_for(self.db)?;
         let mut sets = self.db.query_batch(&[count, page]).await?.into_iter();
         let count = sets.next().ok_or(StoreError::UnexpectedResult)?;
         let total: i64 = count

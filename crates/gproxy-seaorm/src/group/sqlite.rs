@@ -272,13 +272,18 @@ mod tests {
     #[tokio::test]
     async fn a_failed_bound_group_rolls_back_before_the_next_batch() {
         let db = database().await;
-        let steps = [1_i64, 1].map(|id| {
-            BatchStatement::Execute(Statement::from_sql_and_values(
-                DbBackend::Sqlite,
-                "INSERT OR ROLLBACK INTO t (id) VALUES (?)",
-                [id.into()],
-            ))
-        });
+        // Fail after several worker commands, so rollback must cover earlier
+        // chunks too, not just the command which saw the duplicate.
+        let steps = (1_i64..=65)
+            .chain(std::iter::once(1))
+            .map(|id| {
+                BatchStatement::Execute(Statement::from_sql_and_values(
+                    DbBackend::Sqlite,
+                    "INSERT OR ROLLBACK INTO t (id) VALUES (?)",
+                    [id.into()],
+                ))
+            })
+            .collect::<Vec<_>>();
         let error = run(
             db.get_sqlite_connection_pool(),
             std::iter::once(steps.as_slice()),

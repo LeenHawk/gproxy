@@ -108,17 +108,14 @@ pub(crate) fn queue(db: &DatabaseConnection) -> Option<Arc<Queue>> {
 pub(crate) async fn submit(
     db: &DatabaseConnection,
     queue: Arc<Queue>,
-    statements: &[BatchStatement],
+    statements: Vec<BatchStatement>,
 ) -> Result<Vec<BatchResult>, DbErr> {
     let (reply, answer) = oneshot::channel();
     queue
         .jobs
         .lock()
         .unwrap_or_else(|poison| poison.into_inner())
-        .push_back(Job {
-            statements: statements.to_vec(),
-            reply,
-        });
+        .push_back(Job { statements, reply });
     if !queue.draining.swap(true, Ordering::AcqRel) {
         // A task, not this future: a caller that gives up waiting must not
         // strand the batches queued behind its own.
@@ -178,7 +175,7 @@ async fn run_group(db: &DatabaseConnection, jobs: Vec<Job>) {
         }
     }
     for job in jobs {
-        let outcome = alone(db, &job.statements).await;
+        let outcome = alone(db, job.statements).await;
         let _ = job.reply.send(outcome);
     }
 }
@@ -204,7 +201,7 @@ async fn together(db: &DatabaseConnection, jobs: &[Job]) -> Result<Vec<Vec<Batch
     let transaction = transaction(db).await?;
     let mut results = Vec::with_capacity(jobs.len());
     for job in jobs {
-        match crate::batch::run_native(&transaction, &job.statements).await {
+        match crate::batch::run_native(&transaction, job.statements.iter().cloned()).await {
             Ok(result) => results.push(result),
             Err(cause) => {
                 let _ = transaction.rollback().await;
@@ -219,15 +216,18 @@ async fn together(db: &DatabaseConnection, jobs: &[Job]) -> Result<Vec<Vec<Batch
 /// One job in its own transaction, as `batch` runs it without a writer.
 async fn alone(
     db: &DatabaseConnection,
-    statements: &[BatchStatement],
+    statements: Vec<BatchStatement>,
 ) -> Result<Vec<BatchResult>, DbErr> {
-    if let Some(result) =
-        sqlite::run(db.get_sqlite_connection_pool(), std::iter::once(statements)).await
+    if let Some(result) = sqlite::run(
+        db.get_sqlite_connection_pool(),
+        std::iter::once(statements.as_slice()),
+    )
+    .await
     {
         return result.map(|mut groups| groups.remove(0));
     }
     let transaction = transaction(db).await?;
-    match crate::batch::run_native(&transaction, statements).await {
+    match crate::batch::run_native(&transaction, statements.into_iter()).await {
         Ok(results) => {
             transaction.commit().await?;
             Ok(results)

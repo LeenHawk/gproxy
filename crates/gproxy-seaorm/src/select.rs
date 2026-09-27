@@ -7,7 +7,7 @@ use sea_orm::{
     sea_query::{Expr, SelectExpr, SelectStatement},
 };
 
-use crate::{BatchQuery, D1Type, Projection, error};
+use crate::{BatchConnectionTrait, BatchQuery, D1Type, Projection, error};
 
 /// Derive named D1 projections from ordinary SeaORM entity/relation selects.
 ///
@@ -22,6 +22,23 @@ pub trait SelectProjection: QueryTrait<QueryStatement = SelectStatement> {
     fn batch_query(&self, backend: DbBackend) -> Result<BatchQuery, DbErr> {
         let projection = self.projection()?;
         Ok(BatchQuery::new(self.build(backend), projection))
+    }
+
+    /// Build the same SQL, deriving D1 result types only when the connection
+    /// needs them. Native row decoding does not use this extra metadata.
+    fn batch_query_for<C: BatchConnectionTrait + ?Sized>(
+        &self,
+        connection: &C,
+    ) -> Result<BatchQuery, DbErr>
+    where
+        Self: Sized,
+    {
+        let backend = connection.get_database_backend();
+        if connection.requires_query_projection() {
+            self.batch_query(backend)
+        } else {
+            Ok(BatchQuery::new(self.build(backend), Projection::new()))
+        }
     }
 }
 
