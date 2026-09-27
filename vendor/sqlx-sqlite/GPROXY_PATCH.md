@@ -16,9 +16,13 @@ Changes from upstream:
 - Three upstream Rustdoc trailing-space lines in `deserialize.rs` are normalized.
 
 GProxy's adapter owns atomicity, ordered job retries, and cancellation semantics.
-It moves SeaQuery values into driver arguments once. An optimistic group retains
-cheap Arc-backed argument copies for retry, without re-encoding JSON or copying
-string/blob payloads. Scripts and non-anonymous binds keep the existing path.
+The caller moves SeaQuery values into driver arguments once, before enqueueing,
+and prepares the trial copy there. SQL text uses Arc<str>; argument strings and
+BLOBs share driver buffers. The drainer moves ready commands into its batch and
+retains shared originals only for rollback/retry. It releases its reference before
+waking the caller so normal payload cleanup runs outside the serial writer.
+Scripts and numbered parameters use the same command: each input SQL retains
+its own native binding scope, without concatenation or a separate lexical scan.
 
 The root `[patch.crates-io]` pins this source. When updating SQLx, rebase these
 changes and run the `gproxy-seaorm` group-commit tests (cache reuse, binding,

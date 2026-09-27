@@ -29,8 +29,8 @@ use std::{
 };
 
 use sea_orm::{
-    AccessMode, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, IsolationLevel,
-    TransactionTrait, sqlx::sqlite::SqlitePool,
+    ConnectionTrait, DatabaseConnection, DbBackend, DbErr,
+    sqlx::sqlite::{SqliteBatchStatement, SqlitePool},
 };
 use tokio::sync::oneshot;
 
@@ -44,10 +44,26 @@ pub const MAX_GROUP: usize = 256;
 type Reply = oneshot::Sender<Result<Vec<BatchResult>, DbErr>>;
 
 struct Job {
-    statements: Vec<BatchStatement>,
+    /// Encoded before enqueueing; moved into the worker command without cloning.
+    statements: Vec<SqliteBatchStatement>,
+    /// Keep originals for the rare rollback/retry path. The caller also retains
+    /// this allocation so normal completion frees payloads outside the drainer.
+    replay: Arc<[SqliteBatchStatement]>,
     /// Ordinary queries need a transaction only when combined with other jobs.
     transactional: bool,
     reply: Reply,
+}
+
+impl Job {
+    fn new(statements: Vec<BatchStatement>, transactional: bool, reply: Reply) -> Self {
+        let replay: Arc<[SqliteBatchStatement]> = sqlite::encode(statements).into();
+        Self {
+            statements: replay.to_vec(),
+            replay,
+            transactional,
+            reply,
+        }
+    }
 }
 
 /// One pool's queue, and whether a writer is draining it.
@@ -114,23 +130,23 @@ pub(crate) async fn submit(
     transactional: bool,
 ) -> Result<Vec<BatchResult>, DbErr> {
     let (reply, answer) = oneshot::channel();
+    let job = Job::new(statements, transactional, reply);
+    let retained = job.replay.clone();
     queue
         .jobs
         .lock()
         .unwrap_or_else(|poison| poison.into_inner())
-        .push_back(Job {
-            statements,
-            transactional,
-            reply,
-        });
+        .push_back(job);
     if !queue.draining.swap(true, Ordering::AcqRel) {
         // A task, not this future: a caller that gives up waiting must not
         // strand the batches queued behind its own.
         tokio::spawn(drain(db.clone(), queue));
     }
-    answer
+    let result = answer
         .await
-        .map_err(|_| DbErr::Custom("the store's writer dropped a batch".into()))?
+        .map_err(|_| DbErr::Custom("the store's writer dropped a batch".into()))?;
+    drop(retained);
+    result
 }
 
 /// Run groups until the queue is empty, then stand down.
@@ -171,79 +187,13 @@ async fn drain(db: DatabaseConnection, queue: Arc<Queue>) {
 /// and every job runs again in a transaction of its own, so each hears exactly
 /// the outcome it would have had alone.
 async fn run_group(db: &DatabaseConnection, mut jobs: Vec<Job>) {
-    if sqlite::compatible(jobs.iter().map(|job| job.statements.as_slice())) {
-        let batches = jobs
-            .iter_mut()
-            .map(|job| (std::mem::take(&mut job.statements), job.transactional))
-            .collect();
-        let results = sqlite::run_jobs(db.get_sqlite_connection_pool(), batches).await;
-        for (job, result) in jobs.into_iter().zip(results) {
-            let _ = job.reply.send(result);
-        }
-        return;
-    }
-    if jobs.len() > 1 {
-        // On failure nothing of the group was committed; each runs on its own
-        // below.
-        if let Ok(results) = together(db, &jobs).await {
-            for (job, result) in jobs.into_iter().zip(results) {
-                let _ = job.reply.send(Ok(result));
-            }
-            return;
-        }
-    }
-    for job in jobs {
-        // A lone ordinary query needs no explicit BEGIN/COMMIT. It still
-        // waits its turn in the same queue as earlier writes.
-        let outcome = if job.transactional {
-            alone(db, job.statements).await
-        } else {
-            crate::batch::run_native(db, job.statements.into_iter()).await
-        };
-        let _ = job.reply.send(outcome);
-    }
-}
-
-async fn transaction(db: &DatabaseConnection) -> Result<sea_orm::DatabaseTransaction, DbErr> {
-    db.begin_with_config(
-        Some(IsolationLevel::RepeatableRead),
-        Some(AccessMode::ReadWrite),
-    )
-    .await
-}
-
-/// Every job in one transaction; any failure rolls all of them back.
-async fn together(db: &DatabaseConnection, jobs: &[Job]) -> Result<Vec<Vec<BatchResult>>, DbErr> {
-    let transaction = transaction(db).await?;
-    let mut results = Vec::with_capacity(jobs.len());
-    for job in jobs {
-        match crate::batch::run_native(&transaction, job.statements.iter().cloned()).await {
-            Ok(result) => results.push(result),
-            Err(cause) => {
-                let _ = transaction.rollback().await;
-                return Err(cause);
-            }
-        }
-    }
-    transaction.commit().await?;
-    Ok(results)
-}
-
-/// One job in its own transaction, as `batch` runs it without a writer.
-async fn alone(
-    db: &DatabaseConnection,
-    statements: Vec<BatchStatement>,
-) -> Result<Vec<BatchResult>, DbErr> {
-    let transaction = transaction(db).await?;
-    match crate::batch::run_native(&transaction, statements.into_iter()).await {
-        Ok(results) => {
-            transaction.commit().await?;
-            Ok(results)
-        }
-        Err(cause) => {
-            let _ = transaction.rollback().await;
-            Err(cause)
-        }
+    let results = sqlite::run_jobs(db.get_sqlite_connection_pool(), &mut jobs).await;
+    for (job, result) in jobs.into_iter().zip(results) {
+        let Job { replay, reply, .. } = job;
+        // Release the drainer's payload reference before waking the caller,
+        // so the normal final drop happens on that caller's task.
+        drop(replay);
+        let _ = reply.send(result);
     }
 }
 
@@ -289,11 +239,7 @@ mod tests {
             .map(|(statements, transactional)| {
                 let (reply, receiver) = oneshot::channel();
                 replies.push(receiver);
-                Job {
-                    statements,
-                    transactional,
-                    reply,
-                }
+                Job::new(statements, transactional, reply)
             })
             .collect();
         run_group(&db, jobs).await;
