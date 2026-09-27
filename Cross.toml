@@ -1,6 +1,13 @@
 [build]
 pre-build = "scripts/install-cross-go.sh"
 
+[build.env]
+# cross runs as the invoking UID; its default home may not be writable.
+passthrough = [
+    "GOCACHE=/target/.cache/go-build",
+    "GOMODCACHE=/target/.cache/go-mod",
+]
+
 [target.riscv64gc-unknown-linux-gnu]
 image = "ghcr.io/cross-rs/riscv64gc-unknown-linux-gnu:main"
 
