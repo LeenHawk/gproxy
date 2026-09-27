@@ -5,8 +5,16 @@ import type { UsageTokensDto } from "./UsageTokensDto";
  * One upstream attempt inside a request: which provider and credential
  * served it, and what it cost on its own.
  */
-export type UsageExchangeDto = { captureId: string | null, attemptId: string | null, attemptOrdinal: number | null, providerId: string | null, credentialId: string | null, 
+export type UsageExchangeDto = { captureId: string | null, completeness: string | null, actualServiceTier: string | null,
+/**
+ * Dynamic dimensions and nested protocol-specific usage detail.
+ */
+metrics: unknown, attemptId: string | null, attemptOrdinal: number | null, providerId: string | null, credentialId: string | null,
 /**
  * The upstream model name, which need not be the requested one.
  */
-model: string | null, tokens: UsageTokensDto, cost: string | null, currency: string | null, };
+model: string | null, tokens: UsageTokensDto,
+/**
+ * Reported media/tool quantities, as exact decimal strings. Missing is unknown.
+ */
+quantities: { [key in string]: string }, cost: string | null, currency: string | null, };

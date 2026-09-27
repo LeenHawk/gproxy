@@ -52,7 +52,7 @@ use gproxy_protocol::connection::{Bytes, WsFrame};
 use gproxy_seaorm::FixedDecimal;
 use gproxy_store::entity::{limits::rate_limit, usage::usage_record};
 use http::StatusCode;
-use sea_orm::{EntityTrait, Set};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
 use serde_json::json;
 use support::{Bound, Host, Probe, Reply, keyed, post};
 use tokio::{
@@ -347,7 +347,12 @@ async fn settled(host: &Host) -> usage_record::Model {
             .gproxy()
             .store()
             .usage_records()
-            .query(usage_record::Entity::find())
+            .query(
+                usage_record::Entity::find().filter(
+                    usage_record::Column::Side
+                        .eq(gproxy_store::entity::usage::capture_record::CaptureSide::Downstream),
+                ),
+            )
             .await
             .unwrap();
         if !rows.is_empty() {
@@ -362,11 +367,7 @@ async fn settled(host: &Host) -> usage_record::Model {
 /// How core settled it. The state is a string inside `metrics`, which is where
 /// the store observer puts it.
 fn state(row: &usage_record::Model) -> String {
-    row.metrics
-        .get("state")
-        .and_then(|state| state.as_str())
-        .unwrap_or("<none>")
-        .to_owned()
+    row.state.as_deref().unwrap_or("<none>").to_owned()
 }
 
 /// The lease is back. With one slot configured, the only proof is that another

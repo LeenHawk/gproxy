@@ -12,7 +12,7 @@ use gproxy_protocol::{
 use gproxy_sdk::{GATEWAY_SESSION_HEADER, SdkError};
 use gproxy_store::entity::usage::usage_record;
 use http::StatusCode;
-use sea_orm::EntityTrait;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::json;
 use support::seed::{self, Handle, Reply, SeedClient, SeedObserver, WsReply};
 
@@ -77,7 +77,12 @@ async fn usage_rows(gproxy: &Handle) -> Vec<usage_record::Model> {
     gproxy
         .store()
         .usage_records()
-        .query(usage_record::Entity::find())
+        .query(
+            usage_record::Entity::find().filter(
+                usage_record::Column::Side
+                    .eq(gproxy_store::entity::usage::capture_record::CaptureSide::Downstream),
+            ),
+        )
         .await
         .unwrap()
 }

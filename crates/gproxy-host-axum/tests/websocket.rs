@@ -704,7 +704,12 @@ async fn usage_rows(host: &Host) -> Vec<usage_record::Model> {
         .gproxy()
         .store()
         .usage_records()
-        .query(usage_record::Entity::find())
+        .query(
+            usage_record::Entity::find().filter(
+                usage_record::Column::Side
+                    .eq(gproxy_store::entity::usage::capture_record::CaptureSide::Downstream),
+            ),
+        )
         .await
         .unwrap()
 }

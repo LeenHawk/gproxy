@@ -47,14 +47,11 @@ impl<'a, C> Pricing<'a, C> {
     }
 }
 
-/// ISO 4217 is three letters. A rule's rates are all denominated in it, so a
-/// malformed code would silently make every cost incomparable.
-fn currency(value: &str) -> SdkResult<String> {
+/// All prices and settled amounts use USD. Normalize accepted spelling once.
+pub(super) fn currency(value: &str) -> SdkResult<String> {
     let value = crud::text(value, "currency")?.to_ascii_uppercase();
-    if value.len() != 3 || !value.chars().all(|c| c.is_ascii_alphabetic()) {
-        return Err(SdkError::invalid(
-            "currency must be a three-letter ISO 4217 code",
-        ));
+    if value != "USD" {
+        return Err(SdkError::invalid("currency must be USD"));
     }
     Ok(value)
 }

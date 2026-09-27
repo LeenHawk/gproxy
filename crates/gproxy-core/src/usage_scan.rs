@@ -1,24 +1,11 @@
-//! Bounded reads over `usage_records`, shared by core and the SDK's query side.
-//!
-//! `usage_records.metrics` is the JSON document [`StoreObserver`] writes, and
-//! the per-attempt breakdown inside it (`exchanges[]`) is the only place a
-//! provider, a credential or an upstream model is named. No backend can sum
-//! inside that document, so anything cut by credential reads rows and folds
-//! them in Rust. Every such read is key-paged and capped here, once, so the
-//! engine and the SDK agree on what "bounded" means and on when a read says it
-//! stopped early.
-//!
-//! Usage rows exist only while `observation.usage` (or settlement) is on for
-//! the request's snapshot: a stretch of traffic served with it off left no
-//! row, and nothing here can reconstruct what it cost.
-//!
-//! [`StoreObserver`]: crate::StoreObserver
+//! Bounded, key-paged reads of structured usage records, independent of logs.
 
 use gproxy_seaorm::BatchConnectionTrait;
+use gproxy_store::entity::usage::capture_record::CaptureSide;
 use gproxy_store::{Store, StoreError, entity::usage::usage_record};
 use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, Condition, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
-use serde_json::Value;
+use std::collections::BTreeMap;
 
 /// How many rows one bounded read may visit before it stops and says so.
 ///
@@ -58,12 +45,13 @@ pub struct ScanOutcome {
 /// Paging is by key, not by offset: an offset would re-read everything it
 /// skipped on every chunk, and would repeat or drop rows if a request settled
 /// while the scan ran.
-pub async fn scan<C: BatchConnectionTrait>(
+async fn scan_inner<C: BatchConnectionTrait>(
     store: &Store<C>,
     condition: Condition,
     order: ScanOrder,
     cap: u64,
-    mut visit: impl FnMut(&usage_record::Model),
+    include_exchanges: bool,
+    mut visit: impl FnMut(&UsageRecord),
 ) -> Result<ScanOutcome, StoreError> {
     use usage_record::Column as Col;
     let repository = store.usage_records();
@@ -86,6 +74,16 @@ pub async fn scan<C: BatchConnectionTrait>(
             .query(select.order_by_asc(Col::RequestId).limit(limit))
             .await?;
         let fetched = rows.len() as u64;
+        let rows = if include_exchanges {
+            attach(store, rows).await?
+        } else {
+            rows.into_iter()
+                .map(|row| UsageRecord {
+                    row,
+                    exchanges: Vec::new(),
+                })
+                .collect()
+        };
         for row in &rows {
             if budget == 0 {
                 outcome.truncated = true;
@@ -135,43 +133,75 @@ pub fn usage_condition(from_ms: Option<i64>, to_ms: Option<i64>) -> Condition {
     condition
 }
 
-/// The per-attempt entries of one record's `metrics`, empty when nothing
-/// reached an upstream.
-pub fn exchanges(metrics: &Value) -> &[Value] {
-    metrics
-        .get("exchanges")
-        .and_then(Value::as_array)
-        .map(Vec::as_slice)
-        .unwrap_or_default()
+/// A downstream summary with its structured upstream usage rows.
+pub struct UsageRecord {
+    pub row: usage_record::Model,
+    pub exchanges: Vec<usage_record::Model>,
+}
+impl std::ops::Deref for UsageRecord {
+    type Target = usage_record::Model;
+    fn deref(&self) -> &Self::Target {
+        &self.row
+    }
 }
 
-/// A string field of one exchange entry.
-pub fn exchange_text<'a>(exchange: &'a Value, field: &str) -> Option<&'a str> {
-    exchange.get(field).and_then(Value::as_str)
+/// Attach usage detail in bounded queries, never by reading capture logs.
+pub async fn attach<C: BatchConnectionTrait>(
+    store: &Store<C>,
+    rows: Vec<usage_record::Model>,
+) -> Result<Vec<UsageRecord>, StoreError> {
+    use usage_record::Column as Col;
+    let mut by_request: BTreeMap<String, Vec<usage_record::Model>> = BTreeMap::new();
+    // Stay below the lowest supported backend's parameter limit.
+    for chunk in rows.chunks(80) {
+        let exchanges = store
+            .usage_records()
+            .query(
+                usage_record::Entity::find()
+                    .filter(Col::Side.eq(CaptureSide::Upstream))
+                    .filter(
+                        Col::DownstreamRequestId.is_in(chunk.iter().map(|r| r.request_id.clone())),
+                    )
+                    .order_by_asc(Col::StartedAtMs)
+                    .order_by_asc(Col::AttemptOrdinal)
+                    .order_by_asc(Col::RequestId),
+            )
+            .await?;
+        for exchange in exchanges {
+            if let Some(id) = &exchange.downstream_request_id {
+                by_request.entry(id.clone()).or_default().push(exchange);
+            }
+        }
+    }
+    Ok(rows
+        .into_iter()
+        .map(|row| UsageRecord {
+            exchanges: by_request.remove(&row.request_id).unwrap_or_default(),
+            row,
+        })
+        .collect())
 }
 
-/// USD spent by one credential on requests that started in
-/// `[from_ms, to_ms)`, and whether the read was cut short.
-///
-/// Only the credential's own attempts count: a request that failed over from
-/// another credential contributes just the exchange this credential served,
-/// priced on its own, never the request's settled total. `models` narrows
-/// further by the upstream model the attempt ran against — pass `|_| true` to
-/// count everything, or `|model| model.is_some_and(|m| scope.matches(m))` for
-/// a [`QuotaScope`], which then leaves out an attempt whose model was not
-/// recorded. A cost priced in another currency is skipped rather than
-/// converted, because a quota measured in dollars cannot be charged in euros.
-///
-/// The bound is on rows read, not rows kept: every usage record in the range
-/// is visited to find this credential's attempts, so a busy deployment can
-/// hit `max_rows` (clamped to [`MAX_SCAN_ROWS`]) over a short range. `true`
-/// in the second position means the sum covers only the oldest `max_rows`
-/// records of the range, and is therefore a lower bound.
-///
-/// Rows exist only where `observation.usage` was on — see the module note —
-/// so this is what was recorded, which may be less than what was spent.
-///
-/// [`QuotaScope`]: gproxy_channel::channel::QuotaScope
+pub async fn scan<C: BatchConnectionTrait>(
+    store: &Store<C>,
+    condition: Condition,
+    order: ScanOrder,
+    cap: u64,
+    visit: impl FnMut(&UsageRecord),
+) -> Result<ScanOutcome, StoreError> {
+    scan_inner(
+        store,
+        condition.add(usage_record::Column::Side.eq(CaptureSide::Downstream)),
+        order,
+        cap,
+        true,
+        visit,
+    )
+    .await
+}
+
+/// USD spent by this credential's own calls. Filtering occurs in SQL before
+/// the bounded scan, so unrelated traffic cannot consume the scan budget.
 pub async fn credential_usd_cost<C: BatchConnectionTrait>(
     store: &Store<C>,
     credential_id: &str,
@@ -180,37 +210,24 @@ pub async fn credential_usd_cost<C: BatchConnectionTrait>(
     models: impl Fn(Option<&str>) -> bool,
     max_rows: u64,
 ) -> Result<(Decimal, bool), StoreError> {
+    use usage_record::Column as Col;
     let mut total = Decimal::ZERO;
-    let outcome = scan(
+    let outcome = scan_inner(
         store,
-        usage_condition(Some(from_ms), Some(to_ms)),
+        usage_condition(Some(from_ms), Some(to_ms))
+            .add(Col::Side.eq(CaptureSide::Upstream))
+            .add(Col::CredentialId.eq(credential_id)),
         ScanOrder::Oldest,
         max_rows,
+        false,
         |row| {
-            for exchange in exchanges(&row.metrics) {
-                if exchange_text(exchange, "credential_id") != Some(credential_id)
-                    || !models(exchange_text(exchange, "model"))
-                {
-                    continue;
-                }
-                if let Some(amount) = usd_amount(exchange.get("cost")) {
-                    total += amount;
+            if models((!row.model.is_empty()).then_some(row.model.as_str())) {
+                if let Some(cost) = row.cost {
+                    total += cost.decimal();
                 }
             }
         },
     )
     .await?;
     Ok((total, outcome.truncated))
-}
-
-/// `{"amount": "…", "currency": "USD"}` as the observer writes a priced cost,
-/// or None for any other currency, an unpriced attempt or an unreadable
-/// amount.
-fn usd_amount(cost: Option<&Value>) -> Option<Decimal> {
-    let cost = cost?;
-    let currency = exchange_text(cost, "currency")?;
-    if !currency.eq_ignore_ascii_case("USD") {
-        return None;
-    }
-    Decimal::from_str_exact(exchange_text(cost, "amount")?).ok()
 }

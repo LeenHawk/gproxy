@@ -263,7 +263,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Logs<'_, C> {
             .await?
             .into_iter()
             .next()
-            .flatten()
+            .flatten();
+        let usage = gproxy_core::usage_scan::attach(store, usage.into_iter().collect())
+            .await?
+            .into_iter()
+            .next()
             .map(UsageRecordDto::from);
 
         Ok(LogDetailDto {

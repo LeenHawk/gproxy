@@ -83,7 +83,7 @@ async fn a_caller_with_no_permission_is_403_and_costs_no_upstream_call() {
 #[tokio::test]
 async fn a_permitted_call_reaches_the_upstream_and_writes_a_usage_row() {
     use gproxy_store::entity::usage::usage_record;
-    use sea_orm::EntityTrait;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
     let host = instance().await;
     host.client
@@ -106,7 +106,12 @@ async fn a_permitted_call_reaches_the_upstream_and_writes_a_usage_row() {
         .gproxy()
         .store()
         .usage_records()
-        .query(usage_record::Entity::find())
+        .query(
+            usage_record::Entity::find().filter(
+                usage_record::Column::Side
+                    .eq(gproxy_store::entity::usage::capture_record::CaptureSide::Downstream),
+            ),
+        )
         .await
         .unwrap();
     assert_eq!(rows.len(), 1, "one request, one usage summary");
@@ -533,7 +538,7 @@ async fn a_body_is_held_to_its_cap_and_only_an_upload_gets_the_larger_one() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_buffered_answer_over_a_socket_settles_as_completed() {
     use gproxy_store::entity::usage::usage_record;
-    use sea_orm::EntityTrait;
+    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     let host = instance().await;
@@ -586,7 +591,12 @@ async fn a_buffered_answer_over_a_socket_settles_as_completed() {
             .gproxy()
             .store()
             .usage_records()
-            .query(usage_record::Entity::find())
+            .query(
+                usage_record::Entity::find().filter(
+                    usage_record::Column::Side
+                        .eq(gproxy_store::entity::usage::capture_record::CaptureSide::Downstream),
+                ),
+            )
             .await
             .unwrap();
         if !settled.is_empty() {
@@ -595,10 +605,7 @@ async fn a_buffered_answer_over_a_socket_settles_as_completed() {
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
     assert_eq!(settled.len(), 1, "the request is recorded");
-    let state = settled[0].metrics["state"]
-        .as_str()
-        .unwrap_or_default()
-        .to_owned();
+    let state = settled[0].state.as_deref().unwrap_or_default().to_owned();
     assert_eq!(
         state, "completed",
         "an answer the client received in full is not a cancelled one"

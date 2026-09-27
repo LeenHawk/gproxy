@@ -68,14 +68,15 @@ curl -s 'http://127.0.0.1:8787/portal/api/usage?groupBy=provider' -H "Authorizat
  "groups":[…],"trend":[]}
 ```
 
-`currency` is `null` when the scanned records disagreed about it. Summing
-dollars and euros into one number would not be a total.
+`currency` is `USD` when any record was priced, otherwise `null`.
+Fixed token counts and media/tool quantities are stored in dedicated columns;
+`quantities` returns media/tool and custom counters as exact decimal strings.
+Upstream usage rows carry their own provider, credential and cost independently
+of logs. Provider and credential filters run in SQL.
 
-`truncated` and `scanned` are the honest half of the same answer. The metrics
-document is one JSON blob per request and no supported backend can sum inside
-it, so aggregates are folded in Rust over a **scan cap** — 50,000 rows by
-default. An aggregate that reached its budget says so rather than presenting a
-smaller number as the whole truth.
+Aggregates are folded in Rust over a **scan cap** — 50,000 matching downstream
+records by default. `truncated` and `scanned` report whether the cap stopped the
+read, rather than presenting a partial total as complete.
 
 :::caution[The operator's read side is not on HTTP yet]
 `gproxy-sdk` has a full query side — usage records, summaries, groups, trends,

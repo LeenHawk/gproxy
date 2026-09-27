@@ -268,6 +268,32 @@ async fn every_family_round_trips() {
         .await
         .unwrap();
     assert_eq!(price_rule.currency, "USD");
+    assert!(
+        manage
+            .pricing()
+            .rules()
+            .create(PriceRuleWrite {
+                model_pattern: "*".into(),
+                currency: "EUR".into(),
+                ..Default::default()
+            })
+            .await
+            .is_err()
+    );
+    assert!(
+        manage
+            .pricing()
+            .rules()
+            .update(
+                &price_rule.id,
+                gproxy_sdk::dto::PriceRulePatch {
+                    currency: Some("EUR".into()),
+                    ..Default::default()
+                }
+            )
+            .await
+            .is_err()
+    );
     let rate = manage
         .pricing()
         .rates()

@@ -11,7 +11,7 @@ use gproxy_app::{AppConfig, AppError, AppPublicationUrl, DataPlaneRequest, Reque
 use gproxy_core::PublicationUrl;
 use gproxy_store::entity::{identity::membership_role::MembershipRole, usage::usage_record};
 use http::StatusCode;
-use sea_orm::EntityTrait;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::json;
 use support::Reply;
 
@@ -61,7 +61,12 @@ async fn usage_rows(
     app.gproxy()
         .store()
         .usage_records()
-        .query(usage_record::Entity::find())
+        .query(
+            usage_record::Entity::find().filter(
+                usage_record::Column::Side
+                    .eq(gproxy_store::entity::usage::capture_record::CaptureSide::Downstream),
+            ),
+        )
         .await
         .unwrap()
 }

@@ -29,7 +29,7 @@ v4 每样只有一个。
 | `modelPattern` | 对上游模型名的 `*` / `?` glob |
 | `operation` | `null` 覆盖该模型的每个操作 |
 | `priority` | 越小越先；id 破平 |
-| `currency` | 例如 `USD`。这条规则下的每个价格都用它 |
+| `currency` | 固定为 `USD`，所有价格和结算金额统一使用美元 |
 | `enabled` | |
 
 ### 一条规则都没有

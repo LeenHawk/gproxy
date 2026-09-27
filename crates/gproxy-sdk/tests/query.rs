@@ -127,24 +127,59 @@ fn attempt(credential: &str, model: &str, cost: Option<(&str, &str)>) -> Value {
 
 /// A record with the given `exchanges[]` document, verbatim.
 async fn insert(gproxy: &Handle, seed: Seed<'_>, exchanges: Value) {
-    let mut metrics = usage_json(seed.tokens);
-    metrics["state"] = json!("settled");
-    metrics["cost"] = money(seed.cost);
-    metrics["exchanges"] = exchanges;
+    let base = usage_record::ActiveModel {
+        request_id: Set(seed.request_id.into()),
+        user_id: Set(seed.user_id.map(str::to_owned)),
+        api_key_id: Set(seed.api_key_id.map(str::to_owned)),
+        model: Set(seed.model.into()),
+        operation: Set(seed.operation.into()),
+        side: Set(capture_record::CaptureSide::Downstream),
+        downstream_request_id: Set(None),
+        provider_id: Set(None),
+        credential_id: Set(None),
+        attempt_id: Set(None),
+        attempt_ordinal: Set(None),
+        input_tokens: Set(Some(seed.tokens.0 as i64)),
+        output_tokens: Set(Some(seed.tokens.1 as i64)),
+        cached_input_tokens: Set(Some(seed.tokens.2 as i64)),
+        reasoning_tokens: Set(Some(seed.tokens.3 as i64)),
+        state: Set(Some("settled".into())),
+        completeness: Set(Some("complete".into())),
+        metrics: Set(json!({})),
+        cost: Set(seed.cost.map(|c| c.parse().unwrap())),
+        started_at_ms: Set(seed.started_at_ms),
+        ended_at_ms: Set(Some(seed.started_at_ms + 100)),
+        ..Default::default()
+    };
+    let mut rows = vec![base.clone()];
+    for (index, exchange) in exchanges.as_array().unwrap().iter().enumerate() {
+        let text = |key: &str| exchange[key].as_str().map(str::to_owned);
+        let token = |key: &str| exchange["usage"]["tokens"][key].as_i64();
+        rows.push(usage_record::ActiveModel {
+            request_id: Set(
+                text("capture_id").unwrap_or_else(|| format!("{}-x{index}", seed.request_id))
+            ),
+            side: Set(capture_record::CaptureSide::Upstream),
+            downstream_request_id: Set(Some(seed.request_id.into())),
+            provider_id: Set(text("provider_id")),
+            credential_id: Set(text("credential_id")),
+            model: Set(text("model").unwrap_or_default()),
+            attempt_id: Set(text("attempt_id")),
+            attempt_ordinal: Set(exchange["attempt_ordinal"].as_i64()),
+            input_tokens: Set(token("input_tokens")),
+            output_tokens: Set(token("output_tokens")),
+            cached_input_tokens: Set(token("cached_input_tokens")),
+            reasoning_tokens: Set(token("reasoning_tokens")),
+            cost: Set(exchange["cost"]["amount"]
+                .as_str()
+                .map(|s| s.parse().unwrap())),
+            ..base.clone()
+        });
+    }
     gproxy
         .store()
         .usage_records()
-        .create_many(vec![usage_record::ActiveModel {
-            request_id: Set(seed.request_id.into()),
-            user_id: Set(seed.user_id.map(str::to_owned)),
-            api_key_id: Set(seed.api_key_id.map(str::to_owned)),
-            model: Set(seed.model.into()),
-            operation: Set(seed.operation.into()),
-            metrics: Set(metrics),
-            cost: Set(seed.cost.map(|cost| cost.parse().unwrap())),
-            started_at_ms: Set(seed.started_at_ms),
-            ended_at_ms: Set(Some(seed.started_at_ms + 100)),
-        }])
+        .create_many(rows)
         .await
         .unwrap();
 }
@@ -291,7 +326,7 @@ async fn a_credential_cut_counts_only_that_credentials_attempts() {
     assert_eq!(first.output_tokens, 20 + 80);
     assert_eq!(first.cost, "0.75");
     assert_eq!(first.currency.as_deref(), Some("USD"));
-    assert_eq!(first.scanned, 3, "every row in range is read to find them");
+    assert_eq!(first.scanned, 2, "SQL filters out unrelated requests");
     let second = usage.summary(for_credential("c-p-2")).await.unwrap();
     assert_eq!(second.requests, 1);
     assert_eq!(second.input_tokens, 60);
@@ -462,7 +497,7 @@ async fn a_credentials_usd_spend_is_summed_over_its_own_attempts_in_range() {
             2_000,
             json!([
                 attempt("c-x", "gpt-5", Some(("0.25", "USD"))),
-                attempt("c-x", "claude-opus-4", Some(("9", "EUR"))),
+                attempt("c-x", "claude-opus-4", None),
                 attempt("c-x", "claude-sonnet-4", None),
             ]),
         ),
@@ -511,7 +546,7 @@ async fn a_credentials_usd_spend_is_summed_over_its_own_attempts_in_range() {
         .await
         .unwrap();
     assert_eq!(capped, (dec("1.5"), true));
-    let exact = credential_usd_cost(store, "c-x", 1_000, 3_000, |_| true, 2)
+    let exact = credential_usd_cost(store, "c-x", 1_000, 3_000, |_| true, 4)
         .await
         .unwrap();
     assert_eq!(
@@ -534,8 +569,9 @@ async fn a_credentials_usd_spend_is_summed_over_its_own_attempts_in_range() {
         .unwrap();
     assert_eq!(summary.requests, 2);
     assert_eq!(
-        summary.currency, None,
-        "USD and EUR attempts do not make one total"
+        summary.currency.as_deref(),
+        Some("USD"),
+        "priced usage is always USD"
     );
 }
 
@@ -583,7 +619,7 @@ async fn records_page_newest_first_and_honour_every_filter() {
     assert_eq!(record.state.as_deref(), Some("settled"));
     assert_eq!(record.exchanges.len(), 1);
     assert_eq!(record.exchanges[0].provider_id.as_deref(), Some("p-1"));
-    assert!(record.metrics.get("exchanges").is_some());
+    assert!(record.metrics.get("exchanges").is_none());
 
     for (query, expected) in [
         (
@@ -1535,8 +1571,6 @@ async fn log_details_return_full_large_text_binary_and_event_payloads() {
 async fn cache_write_periods_survive_summary_groups_and_trend_while_metadata_ops_are_excluded() {
     let gproxy = support::sdk().await;
     let store = gproxy.store();
-    let tokens = json!({"input_tokens":10,"output_tokens":20,"cached_input_tokens":50,
-        "cache_creation_5m_tokens":11,"cache_creation_30m_tokens":22,"cache_creation_1h_tokens":33});
     let mut rows = Vec::new();
     for (id, op) in [
         ("infer-a", "generate_content"),
@@ -1548,12 +1582,32 @@ async fn cache_write_periods_survive_summary_groups_and_trend_while_metadata_ops
         ("conversation", "create_conversation"),
     ] {
         rows.push(usage_record::ActiveModel {
-            request_id: Set(id.into()), user_id: Set(Some("u".into())), model: Set("m".into()),
-            operation: Set(op.into()), started_at_ms: Set(100),
-            metrics: Set(json!({"tokens": tokens, "exchanges":[{"provider_id":"p","usage":{"tokens":tokens}}]})),
+            request_id: Set(id.into()),
+            user_id: Set(Some("u".into())),
+            model: Set("m".into()),
+            operation: Set(op.into()),
+            started_at_ms: Set(100),
+            input_tokens: Set(Some(10)),
+            output_tokens: Set(Some(20)),
+            cached_input_tokens: Set(Some(50)),
+            cache_creation_5m_tokens: Set(Some(11)),
+            cache_creation_30m_tokens: Set(Some(22)),
+            cache_creation_1h_tokens: Set(Some(33)),
+            metrics: Set(json!({})),
             ..Default::default()
         });
     }
+    let upstream: Vec<_> = rows
+        .iter()
+        .map(|row| usage_record::ActiveModel {
+            request_id: Set(format!("{}-up", row.request_id.clone().unwrap())),
+            downstream_request_id: Set(Some(row.request_id.clone().unwrap())),
+            side: Set(capture_record::CaptureSide::Upstream),
+            provider_id: Set(Some("p".into())),
+            ..row.clone()
+        })
+        .collect();
+    rows.extend(upstream);
     store.usage_records().create_many(rows).await.unwrap();
     let query = gproxy.query();
     let usage = query.usage();
@@ -1602,4 +1656,70 @@ async fn cache_write_periods_survive_summary_groups_and_trend_while_metadata_ops
         .await
         .unwrap();
     assert_eq!(excluded.requests, 0);
+}
+
+#[tokio::test]
+async fn media_tool_and_custom_quantities_survive_filters_groups_and_trends() {
+    let gproxy = support::sdk().await;
+    usage(
+        &gproxy,
+        Seed {
+            request_id: "tools",
+            started_at_ms: 100,
+            exchanges: &[("p-1", 1, 2, Some("0.1")), ("p-2", 3, 4, Some("0.2"))],
+            ..Default::default()
+        },
+    )
+    .await;
+    for (id, searches, seconds) in [
+        ("tools", "5", "1.75"),
+        ("tools-x0", "2", "0.5"),
+        ("tools-x1", "3", "1.25"),
+    ] {
+        gproxy.store().usage_records().update_many(vec![usage_record::ActiveModel {
+            request_id: Set(id.into()), web_searches: Set(Some(searches.parse().unwrap())),
+            audio_seconds: Set(Some(seconds.parse().unwrap())),
+            metrics: Set(json!({"metrics":{"vendor_units":"0.000000000001"},"dimensions":{"tool_name":"web"}})),
+            ..Default::default()
+        }]).await.unwrap();
+    }
+    let filter = UsageQuery {
+        provider_id: Some("p-1".into()),
+        from_ms: Some(0),
+        to_ms: Some(200),
+        ..Default::default()
+    };
+    let query = gproxy.query();
+    let usage = query.usage();
+    let all = usage.summary(UsageQuery::default()).await.unwrap();
+    assert_eq!(all.requests, 1);
+    assert_eq!(all.quantities["web_searches"], "5");
+    let share = usage.summary(filter.clone()).await.unwrap();
+    assert_eq!(share.quantities["web_searches"], "2");
+    assert_eq!(share.quantities["audio_seconds"], "0.5");
+    assert_eq!(share.quantities["vendor_units"], "0.000000000001");
+    let groups = usage
+        .group(UsageGroupQuery {
+            filter: filter.clone(),
+            group_by: UsageGroupBy::Provider,
+        })
+        .await
+        .unwrap();
+    assert_eq!(groups.len(), 1);
+    assert_eq!(groups[0].summary.quantities, share.quantities);
+    let trend = usage
+        .trend(UsageTrendQuery {
+            filter,
+            bucket_ms: 200,
+        })
+        .await
+        .unwrap();
+    assert_eq!(trend[0].summary.quantities, share.quantities);
+    let records = usage.records(UsageRecordQuery::default()).await.unwrap();
+    assert_eq!(records.total, 1);
+    assert_eq!(records.items[0].exchanges.len(), 2);
+    assert_eq!(
+        records.items[0].exchanges[0].quantities["web_searches"],
+        "2"
+    );
 }

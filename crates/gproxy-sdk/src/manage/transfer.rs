@@ -475,6 +475,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Transfer<'_, C> {
             );
         }
         for row in &data.price_rules {
+            super::pricing::currency(&row.currency)?;
             known.require(
                 &known.providers,
                 row.provider_id.as_deref(),
@@ -1171,7 +1172,7 @@ mod rows {
             model_pattern: Set(dto.model_pattern.clone()),
             operation: Set(dto.operation.clone()),
             priority: Set(dto.priority),
-            currency: Set(dto.currency.clone()),
+            currency: Set("USD".into()),
             enabled: Set(dto.enabled),
         }
     }

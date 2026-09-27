@@ -2,15 +2,6 @@
 import type { UsageRecordDto } from "./UsageRecordDto";
 
 /**
- * One page of records.
- *
- * The fields of [`Page`](crate::dto::Page), plus what an attempt filter
- * costs: with `providerId` or `credentialId` set the page is cut from a scan
- * of at most `query::MAX_SCAN_ROWS` records, newest first, and `total` counts
- * the matches among those. `truncated` says the scan stopped with older
- * records unread, so `total` is a lower bound and a page past it is empty
- * rather than proof that nothing older matches; narrow the time range to
- * reach them. Without an attempt filter the page is a plain database page and
- * `truncated` is always false.
+ * One exact database page; provider and credential filters are SQL predicates.
  */
 export type UsageRecordPage = { items: Array<UsageRecordDto>, total: number, offset: number, limit: number, truncated: boolean, };

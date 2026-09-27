@@ -1393,10 +1393,10 @@ mod tests {
                 request_id: Set(id.into()),
                 model: Set(model.into()),
                 operation: Set("generate_content".into()),
-                metrics: Set(json!({"exchanges": [{
-                    "credential_id": "c", "model": model,
-                    "cost": {"amount": cost, "currency": "USD"},
-                }]})),
+                side: Set(gproxy_store::entity::usage::capture_record::CaptureSide::Upstream),
+                credential_id: Set(Some("c".into())),
+                cost: Set(Some(cost.parse().unwrap())),
+                metrics: Set(json!({})),
                 started_at_ms: Set(at),
                 ..Default::default()
             }])

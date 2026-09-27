@@ -22,7 +22,11 @@ state: string | null,
 /**
  * `complete`, `partial` or `unknown`.
  */
-completeness: string | null, tokens: UsageTokensDto,
+completeness: string | null, actualServiceTier: string | null, tokens: UsageTokensDto,
+/**
+ * Reported media/tool quantities, as exact decimal strings. Missing is unknown.
+ */
+quantities: { [key in string]: string },
 /**
  * The settled charge, from the indexed column rather than the document.
  */
@@ -33,6 +37,6 @@ cost: string | null, currency: string | null,
  */
 exchanges: Array<UsageExchangeDto>,
 /**
- * The whole document, so nothing above is a lossy summary of it.
+ * Dynamic dimensions and nested protocol-specific detail; fixed fields are above.
  */
 metrics: unknown, startedAtMs: number, endedAtMs: number | null, };
