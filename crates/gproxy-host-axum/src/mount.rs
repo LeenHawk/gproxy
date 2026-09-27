@@ -87,10 +87,10 @@ impl Mount {
 
 /// The names that can appear as a mount, as of one snapshot.
 ///
-/// Built per request from the two published snapshots — the routing table for
-/// exposed names, the engine's `CoreData` for providers — and thrown away
-/// with it, so a mount that stops existing stops being a mount at the next
-/// revision rather than at the next restart.
+/// Built from the two published snapshots — the routing table for exposed
+/// names, the engine's `CoreData` for providers — once per pair, and replaced
+/// when either is, so a mount that stops existing stops being a mount at the
+/// next revision rather than at the next restart.
 #[derive(Debug, Default)]
 pub struct MountIndex {
     namespaces: BTreeSet<String>,

@@ -150,18 +150,38 @@ impl PermissionSet {
         model: Option<&str>,
         operation: Operation,
     ) -> Decision {
-        let operation: &'static str = operation.into();
-        for rule in &self.rules {
-            if !rule.applies(subject, provider_id, model, operation) {
-                continue;
-            }
-            return if rule.allow {
-                Decision::Allow
-            } else {
-                Decision::Deny(format!("denied by permission rule `{}`", rule.id))
-            };
+        match self.deciding(subject, provider_id, model, operation) {
+            Some(rule) if rule.allow => Decision::Allow,
+            Some(rule) => Decision::Deny(format!("denied by permission rule `{}`", rule.id)),
+            None => Decision::Deny("no permission grants this".into()),
         }
-        Decision::Deny("no permission grants this".into())
+    }
+
+    /// Whether `decide` would allow, without building the reason a refusal
+    /// carries. For callers that ask once per provider and only keep a yes.
+    pub fn allows(
+        &self,
+        subject: &Subject<'_>,
+        provider_id: &str,
+        model: Option<&str>,
+        operation: Operation,
+    ) -> bool {
+        self.deciding(subject, provider_id, model, operation)
+            .is_some_and(|rule| rule.allow)
+    }
+
+    /// The first applicable rule in evaluation order, if any.
+    fn deciding(
+        &self,
+        subject: &Subject<'_>,
+        provider_id: &str,
+        model: Option<&str>,
+        operation: Operation,
+    ) -> Option<&Rule> {
+        let operation: &'static str = operation.into();
+        self.rules
+            .iter()
+            .find(|rule| rule.applies(subject, provider_id, model, operation))
     }
 
     /// The providers of `all_providers` this subject may use for the request,
@@ -180,10 +200,7 @@ impl PermissionSet {
     {
         all_providers
             .into_iter()
-            .filter(|provider| {
-                self.decide(subject, provider.as_ref(), model, operation)
-                    .is_allowed()
-            })
+            .filter(|provider| self.allows(subject, provider.as_ref(), model, operation))
             .map(|provider| provider.as_ref().to_string())
             .collect()
     }

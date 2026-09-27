@@ -1,21 +1,42 @@
 //! Request policy comes from the same live snapshot as admission.
 use crate::HostState;
 use axum::{extract::State, response::Response};
-use gproxy_app::App;
+use gproxy_app::{App, AppData};
 
 pub fn cors_origins<C>(app: &App<C>) -> Vec<String> {
-    app.data()
-        .settings
+    cors_origins_of(app, &app.data())
+}
+pub fn trusted_proxies<C>(app: &App<C>) -> Vec<String> {
+    trusted_proxies_of(app, &app.data())
+}
+fn cors_origins_of<C>(app: &App<C>, data: &AppData) -> Vec<String> {
+    data.settings
         .as_ref()
         .map(|s| strings(&s.cors_origins))
         .unwrap_or_else(|| app.config().cors_origins.clone())
 }
-pub fn trusted_proxies<C>(app: &App<C>) -> Vec<String> {
-    app.data()
-        .settings
+fn trusted_proxies_of<C>(app: &App<C>, data: &AppData) -> Vec<String> {
+    data.settings
         .as_ref()
         .map(|s| strings(&s.trusted_proxies))
         .unwrap_or_else(|| app.config().trusted_proxies.clone())
+}
+
+/// Both lists as of one snapshot. Every request reads them, from the
+/// settings row's JSON; [`HostState::policy_lists`] keeps them parsed for as
+/// long as that snapshot is current.
+pub(crate) struct PolicyLists {
+    pub cors_origins: Vec<String>,
+    pub trusted_proxies: Vec<String>,
+}
+
+impl PolicyLists {
+    pub(crate) fn of<C>(app: &App<C>, data: &AppData) -> Self {
+        Self {
+            cors_origins: cors_origins_of(app, data),
+            trusted_proxies: trusted_proxies_of(app, data),
+        }
+    }
 }
 /// The settings row's always-`Secure` switch; off when there is no row yet.
 pub fn always_secure_cookie<C>(app: &App<C>) -> bool {
@@ -52,8 +73,8 @@ where
     C: gproxy_seaorm::BatchConnectionTrait + Send + Sync + 'static,
 {
     crate::send(async move {
-        let origins = cors_origins(state.app());
-        let origin = crate::policy::allowed_origin(request.headers(), &origins);
+        let lists = state.policy_lists();
+        let origin = crate::policy::allowed_origin(request.headers(), &lists.cors_origins);
         if crate::policy::is_preflight(request.method(), request.headers()) {
             use axum::response::IntoResponse;
             return crate::policy::apply_preflight_cors(
