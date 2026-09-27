@@ -29,6 +29,7 @@ probe-out/
 .codex-review-*.md
 
 # local development instructions and design notes
+/design/
 /AGENTS.md
 /CLAUDE.md
 /archive/
