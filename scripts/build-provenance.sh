@@ -25,7 +25,7 @@ if command -v docker >/dev/null 2>&1; then
   done < <(
     awk '/^FROM /  && $2 != "scratch" { print $2 }' deploy/container/Dockerfile
     if [ "${BUILDER:-cargo}" = cargo-alpine ]; then
-      awk '/^FROM / { print $2 }' deploy/container/Dockerfile.riscv-musl
+      awk '/^FROM / { print $2 }' deploy/container/Dockerfile.musl
     fi
   )
 fi
