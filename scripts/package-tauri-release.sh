@@ -28,12 +28,17 @@ case "$TARGET_OS" in
       -OutputDir dist/release
     ;;
   android)
+    source "$root/scripts/android/sdk.sh"
+    ndk="$(android_ndk_root)"
+    ranlib=("$ndk"/toolchains/llvm/prebuilt/*/bin/llvm-ranlib)
+    test "${#ranlib[@]}" -eq 1 && test -x "${ranlib[0]}"
+    # OpenSSL's cc-rs lookup otherwise falls back to the removed GNU ranlib.
+    export "RANLIB_${TARGET_TRIPLE//-/_}=${ranlib[0]}"
     arch="${TARGET_TRIPLE%%-*}"
     bindgen="BINDGEN_EXTRA_CLANG_ARGS_${TARGET_TRIPLE//-/_}"
     export "$bindgen=--target=${TARGET_TRIPLE}28"
     pnpm exec tauri android build --ci --apk --target "$arch" --config "$config" -- --locked
     cd "$root"
-    source scripts/android/sdk.sh
     sdk="$(android_sdk_root)"
     apk_dir=crates/gproxy-host-tauri/gen/android/app/build/outputs/apk
     mapfile -t files < <(find "$apk_dir" -name '*-release-unsigned.apk')

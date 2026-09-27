@@ -274,7 +274,7 @@ async fn capture(gproxy: &Handle, row: impl Into<CaptureSeed>) {
                 if gproxy
                     .store()
                     .capture_links()
-                    .get_many(&[key.clone()])
+                    .get_many(std::slice::from_ref(&key))
                     .await
                     .unwrap()[0]
                     .is_none()

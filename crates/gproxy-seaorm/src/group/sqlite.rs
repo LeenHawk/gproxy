@@ -23,12 +23,11 @@ pub(super) fn encode(steps: Vec<BatchStatement>) -> Vec<SqliteBatchStatement> {
             };
             SqliteBatchStatement {
                 sql: AssertSqlSafe(Arc::<str>::from(statement.sql)).into_sql_str(),
-                arguments: SqlxValues(
+                arguments: <SqlxValues as IntoArguments<sqlx::Sqlite>>::into_arguments(SqlxValues(
                     statement
                         .values
                         .unwrap_or(sea_orm::sea_query::Values(Vec::new())),
-                )
-                .into_arguments(),
+                )),
                 collect_rows,
             }
         })
