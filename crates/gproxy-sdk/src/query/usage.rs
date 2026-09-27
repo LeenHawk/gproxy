@@ -230,11 +230,9 @@ fn cap(requested: Option<u64>) -> u64 {
     requested.unwrap_or(MAX_SCAN_ROWS).clamp(1, MAX_SCAN_ROWS)
 }
 
-/// The filters both the list and the aggregates understand. Every column
-/// filter is an exact match on an indexed column; there is no substring
-/// search here, because a usage table is not browsed by name. The attempt
-/// filters in `cut` are exact too, but are applied to each row after it is
-/// read.
+/// Exact SQL filters shared by lists and aggregates. Matching upstream calls
+/// select the downstream rows before pagination; `cut` also selects each row's
+/// contribution when folding upstream quantities.
 struct Filters<'a> {
     from_ms: Option<i64>,
     to_ms: Option<i64>,
@@ -306,9 +304,7 @@ impl Filters<'_> {
     }
 }
 
-/// The filters that name an upstream attempt rather than a record: they are
-/// matched against each entry of `metrics.exchanges[]`. See [`UsageQuery`] for
-/// the counting rule they impose.
+/// Filters on structured upstream usage. See [`UsageQuery`] for the counting rule.
 #[derive(Clone, Copy)]
 struct AttemptCut<'a> {
     provider_id: Option<&'a str>,
@@ -382,8 +378,8 @@ fn key_of(row: &UsageRecord, group_by: UsageGroupBy) -> Option<String> {
 /// A record's contribution to a per-attempt cut: by provider or by
 /// credential, whichever `key` reads.
 ///
-/// The breakdown lives inside `metrics`, one entry per upstream attempt that
-/// produced usage, so a request that failed over from one provider to another
+/// The breakdown is a set of upstream rows, one per call that produced usage.
+/// A request that failed over from one provider to another
 /// contributes to both — each with that attempt's own tokens and price, never
 /// with the request's totals counted twice. `requests` counts the record once
 /// per distinct key, not once per attempt. A record with no breakdown at all
@@ -498,7 +494,7 @@ impl Totals {
         add(&mut self.reasoning_tokens, tokens.reasoning_tokens);
     }
 
-    /// A priced amount from the document rather than from the column. An
+    /// A priced amount formatted from an upstream cost column. An
     /// amount that will not parse is dropped: an unreadable price must not
     /// silently become zero in a total that looks exact.
     fn add_cost(&mut self, amount: Option<&str>) {

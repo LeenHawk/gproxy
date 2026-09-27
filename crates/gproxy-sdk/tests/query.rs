@@ -477,8 +477,7 @@ async fn a_credentials_usd_spend_is_summed_over_its_own_attempts_in_range() {
                 attempt("c-x", "claude-sonnet-4", Some(("1.5", "USD"))),
             ]),
         ),
-        // A euro price is skipped, not converted; an unpriced attempt adds
-        // nothing.
+        // Unpriced attempts add no cost, while remaining part of the history.
         (
             "b",
             2_000,

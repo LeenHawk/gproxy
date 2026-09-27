@@ -28,7 +28,7 @@ completeness: string | null, actualServiceTier: string | null, tokens: UsageToke
  */
 quantities: { [key in string]: string },
 /**
- * The settled charge, from the indexed column rather than the document.
+ * The settled USD charge, read from its dedicated column.
  */
 cost: string | null, currency: string | null,
 /**

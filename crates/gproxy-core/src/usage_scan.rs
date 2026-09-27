@@ -221,10 +221,10 @@ pub async fn credential_usd_cost<C: BatchConnectionTrait>(
         max_rows,
         false,
         |row| {
-            if models((!row.model.is_empty()).then_some(row.model.as_str())) {
-                if let Some(cost) = row.cost {
-                    total += cost.decimal();
-                }
+            if models((!row.model.is_empty()).then_some(row.model.as_str()))
+                && let Some(cost) = row.cost
+            {
+                total += cost.decimal();
             }
         },
     )

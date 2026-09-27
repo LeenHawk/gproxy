@@ -1,49 +1,25 @@
-//! Pipeline reads and writes to SQLite's worker. Combining only COMMITs still
-//! leaves a scheduler round trip between every pair of SQL statements; SQLite's
-//! executor can run a bounded set of prepared statements consecutively.
-//!
-//! Values remain parameters. Only single statements with an exact set of
-//! anonymous binds can be joined. Numbered binds and scripts keep the ordinary
-//! execution path, with their original semantics.
+//! One worker command per batch, with individual SQL templates in the driver's
+//! bounded cache. Encode owned parameters once; retries clone only driver Arcs.
 
-use futures_util::TryStreamExt;
+use crate::{BatchResult, BatchStatement};
 use sea_orm::{
     DbErr, RuntimeErr,
-    sea_query::Values,
-    sqlx::{self, AssertSqlSafe, Either, Executor, SqliteConnection, sqlite::SqlitePool},
+    sqlx::{
+        self, AssertSqlSafe, IntoArguments, SqlSafeStr, SqliteConnection,
+        sqlite::{SqliteBatchStatement, SqlitePool},
+    },
 };
 use sea_query_sqlx::SqlxValues;
 
-use crate::{BatchResult, BatchStatement};
-
-struct Prepared<'a> {
-    steps: Vec<&'a BatchStatement>,
-    lengths: Vec<usize>,
+/// Keep scripts and unusual parameter scopes on the existing native path.
+/// This also preserves one result boundary per BatchStatement.
+pub(super) fn compatible<'a>(groups: impl Iterator<Item = &'a [BatchStatement]>) -> bool {
+    groups.flatten().all(|step| {
+        let statement = step.statement();
+        anonymous_binds(&statement.sql) == Some(statement.values.as_ref().map_or(0, |v| v.0.len()))
+    })
 }
 
-fn prepare<'a>(groups: impl Iterator<Item = &'a [BatchStatement]>) -> Option<Prepared<'a>> {
-    let mut batch = Prepared {
-        steps: Vec::new(),
-        lengths: Vec::new(),
-    };
-    for group in groups {
-        batch.lengths.push(group.len());
-        for step in group {
-            let statement = step.statement();
-            if anonymous_binds(&statement.sql)?
-                != statement.values.as_ref().map_or(0, |values| values.0.len())
-            {
-                return None;
-            }
-            batch.steps.push(step);
-        }
-    }
-    Some(batch)
-}
-
-/// Count anonymous binds without interpreting literals, identifiers or comments
-/// as SQL. Return None for a script or non-anonymous parameters: appending such
-/// a statement would change its argument indices or its result boundaries.
 fn anonymous_binds(sql: &str) -> Option<usize> {
     let mut bytes = sql.bytes().peekable();
     let mut count = 0;
@@ -96,103 +72,134 @@ fn anonymous_binds(sql: &str) -> Option<usize> {
     has_sql.then_some(count)
 }
 
+fn encode(steps: Vec<BatchStatement>) -> Vec<SqliteBatchStatement> {
+    steps
+        .into_iter()
+        .map(|step| {
+            let (statement, collect_rows) = match step {
+                BatchStatement::Execute(statement) => (statement, false),
+                BatchStatement::Query(query) => (query.statement, true),
+            };
+            SqliteBatchStatement {
+                sql: AssertSqlSafe(statement.sql).into_sql_str(),
+                arguments: SqlxValues(
+                    statement
+                        .values
+                        .unwrap_or(sea_orm::sea_query::Values(Vec::new())),
+                )
+                .into_arguments(),
+                collect_rows,
+            }
+        })
+        .collect()
+}
+
 fn error(error: sqlx::Error) -> DbErr {
     DbErr::Exec(RuntimeErr::SqlxError(error.into()))
 }
 
-pub(super) async fn run<'a>(
-    pool: &SqlitePool,
-    groups: impl Iterator<Item = &'a [BatchStatement]>,
-) -> Option<Result<Vec<Vec<BatchResult>>, DbErr>> {
-    let batch = prepare(groups)?;
-    Some(execute(pool, batch).await)
+async fn execute(
+    connection: &mut SqliteConnection,
+    steps: Vec<SqliteBatchStatement>,
+) -> Result<Vec<BatchResult>, DbErr> {
+    let queries: Vec<_> = steps.iter().map(|step| step.collect_rows).collect();
+    let results = connection.execute_batch(steps).await.map_err(|failure| {
+        if queries.get(failure.index).copied().unwrap_or(false) {
+            DbErr::Query(RuntimeErr::SqlxError(failure.error.into()))
+        } else {
+            error(failure.error)
+        }
+    })?;
+    Ok(results
+        .into_iter()
+        .zip(queries)
+        .map(|(result, query)| {
+            if query {
+                BatchResult::Rows(result.rows.into_iter().map(Into::into).collect())
+            } else {
+                BatchResult::Executed(result.result.into())
+            }
+        })
+        .collect())
 }
 
-async fn execute(pool: &SqlitePool, batch: Prepared<'_>) -> Result<Vec<Vec<BatchResult>>, DbErr> {
+async fn transaction(
+    pool: &SqlitePool,
+    steps: Vec<SqliteBatchStatement>,
+) -> Result<Vec<BatchResult>, DbErr> {
     let mut transaction = pool.begin().await.map_err(error)?;
-    match statements(&mut transaction, batch).await {
+    match execute(&mut transaction, steps).await {
         Ok(results) => {
             transaction.commit().await.map_err(error)?;
             Ok(results)
         }
         Err(cause) => {
-            // OR ROLLBACK may already have ended the transaction. Preserve
-            // the statement error, as the ordinary batch path does.
             let _ = transaction.rollback().await;
             Err(cause)
         }
     }
 }
 
-async fn statements(
-    connection: &mut SqliteConnection,
-    batch: Prepared<'_>,
-) -> Result<Vec<Vec<BatchResult>>, DbErr> {
-    // Keep cached scripts bounded. Matching statements have only six reusable
-    // sizes; heterogeneous scripts execute without entering the persistent
-    // cache, so changing request interleavings cannot fill it with duplicates.
-    const MAX_CHUNK: usize = 32;
-    let mut results = Vec::with_capacity(batch.steps.len());
-    let mut offset = 0;
-    while offset < batch.steps.len() {
-        let length = 1_usize << (batch.steps.len() - offset).min(MAX_CHUNK).ilog2();
-        let chunk = &batch.steps[offset..offset + length];
-        let first = chunk[0].statement();
-        let cacheable = chunk.iter().all(|step| step.statement().sql == first.sql);
-        let mut sql = String::new();
-        let mut values = Vec::new();
-        for step in chunk {
-            let statement = step.statement();
-            sql.push_str(&statement.sql);
-            // End a trailing line comment before adding the separator.
-            sql.push_str("\n;\n");
-            if let Some(args) = &statement.values {
-                values.extend_from_slice(&args.0);
-            }
-        }
-        let query =
-            sqlx::query_with(AssertSqlSafe(sql), SqlxValues(Values(values))).persistent(cacheable);
-        let mut stream = (&mut *connection).fetch_many(query);
-        let mut done = 0;
-        let mut rows = Vec::new();
-        while let Some(result) = stream.try_next().await.map_err(|cause| {
-            if matches!(chunk.get(done).copied(), Some(BatchStatement::Query(_))) {
-                DbErr::Query(RuntimeErr::SqlxError(cause.into()))
-            } else {
-                error(cause)
-            }
-        })? {
-            let step = chunk.get(done).copied().ok_or_else(|| {
-                DbErr::Custom("SQLite group returned an extra statement result".into())
-            })?;
-            match result {
-                Either::Right(row) => {
-                    // Execute deliberately discards RETURNING rows; Query keeps
-                    // every row until this statement's completion marker.
-                    if matches!(step, BatchStatement::Query(_)) {
-                        rows.push(row.into());
-                    }
-                }
-                Either::Left(result) => {
-                    results.push(match step {
-                        BatchStatement::Execute(_) => BatchResult::Executed(result.into()),
-                        BatchStatement::Query(_) => BatchResult::Rows(std::mem::take(&mut rows)),
-                    });
-                    done += 1;
-                }
-            }
-        }
-        if done != chunk.len() {
-            return Err(DbErr::Custom("SQLite group result count changed".into()));
-        }
-        offset += length;
-    }
-    let mut results = results.into_iter();
-    Ok(batch
-        .lengths
+/// Execute the whole group optimistically. On failure roll back and retry each
+/// job in order, retaining its isolation and its own result/error classification.
+pub(super) async fn run_jobs(
+    pool: &SqlitePool,
+    jobs: Vec<(Vec<BatchStatement>, bool)>,
+) -> Vec<Result<Vec<BatchResult>, DbErr>> {
+    let jobs: Vec<_> = jobs
         .into_iter()
-        .map(|length| results.by_ref().take(length).collect())
-        .collect())
+        .map(|(steps, transactional)| (encode(steps), transactional))
+        .collect();
+    if jobs.len() > 1 {
+        let steps: Vec<_> = jobs
+            .iter()
+            .flat_map(|(steps, _)| steps.iter().cloned())
+            .collect();
+        if let Ok(results) = transaction(pool, steps).await {
+            let mut results = results.into_iter();
+            return jobs
+                .iter()
+                .map(|(steps, _)| Ok(results.by_ref().take(steps.len()).collect()))
+                .collect();
+        }
+    }
+    let mut results = Vec::with_capacity(jobs.len());
+    for (steps, transactional) in jobs {
+        results.push(if transactional {
+            transaction(pool, steps).await
+        } else {
+            match pool.acquire().await {
+                Ok(mut connection) => execute(&mut connection, steps).await,
+                Err(cause) => Err(error(cause)),
+            }
+        });
+    }
+    results
+}
+
+#[cfg(test)]
+async fn run<'a>(
+    pool: &SqlitePool,
+    groups: impl Iterator<Item = &'a [BatchStatement]>,
+) -> Option<Result<Vec<Vec<BatchResult>>, DbErr>> {
+    let groups: Vec<_> = groups.collect();
+    if !compatible(groups.iter().copied()) {
+        return None;
+    }
+    let lengths: Vec<_> = groups.iter().map(|group| group.len()).collect();
+    let steps = encode(
+        groups
+            .into_iter()
+            .flat_map(|group| group.iter().cloned())
+            .collect(),
+    );
+    Some(transaction(pool, steps).await.map(|results| {
+        let mut results = results.into_iter();
+        lengths
+            .into_iter()
+            .map(|length| results.by_ref().take(length).collect())
+            .collect()
+    }))
 }
 
 #[cfg(test)]
@@ -217,6 +224,47 @@ mod tests {
             Statement::from_sql_and_values(DbBackend::Sqlite, sql, values),
             Projection::new(),
         ))
+    }
+
+    #[tokio::test]
+    async fn mixed_batches_reuse_only_the_individual_sql_templates() {
+        use sea_orm::sqlx::Connection;
+        let db = database().await;
+        let pool = db.get_sqlite_connection_pool();
+        {
+            let mut connection = pool.acquire().await.unwrap();
+            connection.clear_cached_statements().await.unwrap();
+        }
+        // Vary both ordering and batch length. The cache must not contain
+        // concatenated combinations, nor be bypassed for heterogeneous work.
+        for length in 1..=40 {
+            let mut steps = Vec::new();
+            for id in 0..length {
+                steps.push(BatchStatement::Execute(Statement::from_sql_and_values(
+                    DbBackend::Sqlite,
+                    "INSERT OR IGNORE INTO t (id) VALUES (?)",
+                    [i64::from(id).into()],
+                )));
+                if id % 2 == 0 {
+                    steps.push(read(
+                        "SELECT id FROM t WHERE id = ?",
+                        [i64::from(id).into()],
+                    ));
+                } else {
+                    steps.push(BatchStatement::Execute(Statement::from_sql_and_values(
+                        DbBackend::Sqlite,
+                        "UPDATE t SET text = ? WHERE id = ?",
+                        ["kept".into(), i64::from(id).into()],
+                    )));
+                }
+            }
+            run(pool, std::iter::once(steps.as_slice()))
+                .await
+                .unwrap()
+                .unwrap();
+        }
+        let connection = pool.acquire().await.unwrap();
+        assert_eq!(connection.cached_statements_size(), 3);
     }
 
     #[tokio::test]
@@ -351,8 +399,7 @@ mod tests {
     #[tokio::test]
     async fn a_failed_bound_group_rolls_back_before_the_next_batch() {
         let db = database().await;
-        // Fail after several worker commands, so rollback must cover earlier
-        // chunks too, not just the command which saw the duplicate.
+        // A failure late in a large batch must roll back every earlier write.
         let steps = (1_i64..=65)
             .chain(std::iter::once(1))
             .map(|id| {
@@ -403,7 +450,7 @@ mod tests {
                 sql,
                 values,
             ))];
-            assert!(prepare(std::iter::once(steps.as_slice())).is_none());
+            assert!(!compatible(std::iter::once(steps.as_slice())));
             db.batch(&steps).await.unwrap();
         }
         let rows = db

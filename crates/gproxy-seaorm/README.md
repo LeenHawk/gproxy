@@ -122,11 +122,18 @@ D1/libSQL retain the projection they need to decode remote rows. Use `query_batc
 when multiple reads must share a snapshot.
 
 With the native `group-commit` feature, `group::install(&connection)` puts SQLite
-queries and write batches submitted through this trait in one ordered queue. Mixed reads/writes execute in
-bounded, parameter-bound commands and retain one result per input statement.
-Only matching SQL shapes enter the persistent statement cache; changing mixed
-scripts do not. A lone ordinary query avoids BEGIN/COMMIT, while grouped jobs
-share a transaction. A failed group rolls back before each job is retried alone.
+queries and write batches submitted through this trait in one ordered queue.
+Mixed reads/writes are dispatched as one worker command, with parameters bound
+independently and one result per input statement. Each individual SQL template
+reuses the driver's bounded prepared-statement cache; no scripts are concatenated.
+Owned parameters are encoded once, and retry copies share driver text/blob buffers.
+A lone ordinary query avoids BEGIN/COMMIT; grouped jobs share a transaction. A
+failed group rolls back before each job is retried alone. Scripts and unusual
+parameter scopes retain the ordinary native execution path.
+
+This uses the small `sqlx-sqlite` 0.9.0 extension in `vendor/sqlx-sqlite`, selected
+by the root Cargo patch. See its `GPROXY_PATCH.md` for the upstream source and
+patch boundaries. Other database drivers are unchanged.
 
 | Method | Input | Result |
 |---|---|---|

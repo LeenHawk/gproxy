@@ -63,7 +63,7 @@ pub struct UsageRecordDto {
     pub tokens: UsageTokensDto,
     /// Reported media/tool quantities, as exact decimal strings. Missing is unknown.
     pub quantities: std::collections::BTreeMap<String, String>,
-    /// The settled charge, from the indexed column rather than the document.
+    /// The settled USD charge, read from its dedicated column.
     pub cost: Option<String>,
     pub currency: Option<String>,
     /// One entry per upstream attempt that produced usage, which is where a
