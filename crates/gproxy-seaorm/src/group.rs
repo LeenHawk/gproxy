@@ -6,7 +6,7 @@
 //! one behind the others, and the store settles at the rate it can open and
 //! commit transactions rather than the rate it can write rows.
 //!
-//! [`install`] makes a SQLite connection's write batches queue. A writer —
+//! [`install`] makes a SQLite connection's reads and write batches queue. A writer —
 //! started by the first batch that finds none running, gone once the queue is
 //! empty — runs as many as are waiting — up to
 //! [`MAX_GROUP`] — inside one transaction. If one of them fails, the group is
@@ -45,6 +45,8 @@ type Reply = oneshot::Sender<Result<Vec<BatchResult>, DbErr>>;
 
 struct Job {
     statements: Vec<BatchStatement>,
+    /// Ordinary queries need a transaction only when combined with other jobs.
+    transactional: bool,
     reply: Reply,
 }
 
@@ -109,13 +111,18 @@ pub(crate) async fn submit(
     db: &DatabaseConnection,
     queue: Arc<Queue>,
     statements: Vec<BatchStatement>,
+    transactional: bool,
 ) -> Result<Vec<BatchResult>, DbErr> {
     let (reply, answer) = oneshot::channel();
     queue
         .jobs
         .lock()
         .unwrap_or_else(|poison| poison.into_inner())
-        .push_back(Job { statements, reply });
+        .push_back(Job {
+            statements,
+            transactional,
+            reply,
+        });
     if !queue.draining.swap(true, Ordering::AcqRel) {
         // A task, not this future: a caller that gives up waiting must not
         // strand the batches queued behind its own.
@@ -175,7 +182,13 @@ async fn run_group(db: &DatabaseConnection, jobs: Vec<Job>) {
         }
     }
     for job in jobs {
-        let outcome = alone(db, job.statements).await;
+        // A lone ordinary query needs no explicit BEGIN/COMMIT. It still
+        // waits its turn in the same queue as earlier writes.
+        let outcome = if job.transactional {
+            alone(db, job.statements).await
+        } else {
+            crate::batch::run_native(db, job.statements.into_iter()).await
+        };
         let _ = job.reply.send(outcome);
     }
 }
@@ -251,6 +264,61 @@ mod tests {
             "INSERT INTO t (id) VALUES (?)",
             [id.into()],
         ))
+    }
+
+    #[tokio::test]
+    async fn a_failed_query_does_not_lose_neighbouring_writes_or_row_sets() {
+        use crate::{BatchQuery, Projection};
+
+        let mut options = ConnectOptions::new("sqlite::memory:");
+        options.max_connections(1).sqlx_logging(false);
+        let db = Database::connect(options).await.unwrap();
+        db.execute_unprepared("CREATE TABLE t (id INTEGER PRIMARY KEY)")
+            .await
+            .unwrap();
+        let query = |sql: &str| {
+            BatchStatement::Query(BatchQuery::new(
+                Statement::from_string(DbBackend::Sqlite, sql),
+                Projection::new(),
+            ))
+        };
+        let steps = [
+            (vec![insert(1)], true),
+            (vec![query("SELECT id FROM missing")], false),
+            (vec![insert(2)], true),
+            (vec![query("SELECT id FROM t ORDER BY id")], false),
+        ];
+        let mut replies = Vec::new();
+        let jobs = steps
+            .into_iter()
+            .map(|(statements, transactional)| {
+                let (reply, receiver) = oneshot::channel();
+                replies.push(receiver);
+                Job {
+                    statements,
+                    transactional,
+                    reply,
+                }
+            })
+            .collect();
+        run_group(&db, jobs).await;
+        let mut replies = replies.into_iter();
+        assert!(replies.next().unwrap().await.unwrap().is_ok());
+        assert!(matches!(
+            replies.next().unwrap().await.unwrap(),
+            Err(DbErr::Query(_))
+        ));
+        assert!(replies.next().unwrap().await.unwrap().is_ok());
+        let results = replies.next().unwrap().await.unwrap().unwrap();
+        let BatchResult::Rows(rows) = &results[0] else {
+            panic!("query rows")
+        };
+        assert_eq!(
+            rows.iter()
+                .map(|row| row.try_get::<i64>("", "id").unwrap())
+                .collect::<Vec<_>>(),
+            [1, 2]
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]

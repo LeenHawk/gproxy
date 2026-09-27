@@ -163,6 +163,16 @@ impl BatchConnectionTrait for DatabaseConnection {
         if query.statement.db_backend != self.get_database_backend() {
             return Err(error("query dialect does not match the connection"));
         }
+        #[cfg(all(feature = "group-commit", not(target_arch = "wasm32")))]
+        if let Some(queue) = crate::group::queue(self) {
+            let result =
+                crate::group::submit(self, queue, vec![BatchStatement::Query(query)], false)
+                    .await?;
+            return match result.into_iter().next() {
+                Some(BatchResult::Rows(rows)) => Ok(rows),
+                _ => Err(error("SQLite query returned no row set")),
+            };
+        }
         self.query_all_raw(query.statement).await
     }
 
@@ -180,16 +190,11 @@ impl BatchConnectionTrait for DatabaseConnection {
         for step in &statements {
             step.validate(self.get_database_backend())?;
         }
-        // A batch that writes goes to the store's group-committing writer when
-        // it has one; a read-only batch has nothing to commit and does not
-        // queue behind the writes.
+        // Reads share the queue with writes so they do not each acquire the
+        // SQLite pool and dispatch a separate worker command under load.
         #[cfg(all(feature = "group-commit", not(target_arch = "wasm32")))]
-        if statements
-            .iter()
-            .any(|step| matches!(step, BatchStatement::Execute(_)))
-            && let Some(queue) = crate::group::queue(self)
-        {
-            return crate::group::submit(self, queue, statements).await;
+        if let Some(queue) = crate::group::queue(self) {
+            return crate::group::submit(self, queue, statements, true).await;
         }
         let transaction = self
             .begin_with_config(Some(IsolationLevel::RepeatableRead), None)
