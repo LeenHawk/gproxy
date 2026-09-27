@@ -158,6 +158,8 @@ serde-wasm-bindgen = "0.6"
 syn = { version = "3", features = ["full", "visit-mut"] }
 tauri = { version = "2" }
 tauri-build = { version = "2" }
+tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = "2"
 serde_urlencoded = "0.7"
 sha2 = "0.11"
 strum = { version = "0.28", features = ["derive"] }
@@ -186,6 +188,7 @@ wasm-bindgen-futures = "0.4"
 wasm-streams = "0.7"
 web-sys = "0.3"
 web-time = "1"
+windows = "0.62"
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_Packaging_Appx"] }
 worker = { version = "0.8", default-features = false }
 wreq = { version = "0.16", features = ["stream", "ws", "gzip", "brotli", "zstd", "deflate", "socks"] }
