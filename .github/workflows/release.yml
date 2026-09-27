@@ -255,10 +255,10 @@ jobs:
         include:
           - { os: linux, target: x86_64-unknown-linux-gnu, runner: ubuntu-latest, artifact: gproxy-tauri-linux-x86_64 }
           - { os: linux, target: aarch64-unknown-linux-gnu, runner: ubuntu-24.04-arm, artifact: gproxy-tauri-linux-aarch64 }
-          - { os: macos, target: x86_64-apple-darwin, runner: macos-latest, artifact: gproxy-tauri-macos-x86_64 }
+          - { os: macos, target: x86_64-apple-darwin, runner: macos-26-intel, artifact: gproxy-tauri-macos-x86_64 }
           - { os: macos, target: aarch64-apple-darwin, runner: macos-latest, artifact: gproxy-tauri-macos-aarch64 }
           - { os: windows, target: x86_64-pc-windows-msvc, runner: windows-latest, artifact: gproxy-tauri-windows-x86_64 }
-          - { os: windows, target: aarch64-pc-windows-msvc, runner: windows-latest, artifact: gproxy-tauri-windows-aarch64 }
+          - { os: windows, target: aarch64-pc-windows-msvc, runner: windows-11-arm, artifact: gproxy-tauri-windows-aarch64 }
           - { os: android, target: aarch64-linux-android, runner: ubuntu-latest, artifact: gproxy-tauri-android-aarch64 }
           - { os: android, target: x86_64-linux-android, runner: ubuntu-latest, artifact: gproxy-tauri-android-x86_64 }
     steps:

@@ -8,7 +8,8 @@ if ($version -notmatch '^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.
 }
 $numericVersion = (@(1, 2, 3) | ForEach-Object { [uint16]$Matches[$_] }) -join ','
 $sdkBin = Join-Path ${env:ProgramFiles(x86)} "Windows Kits/10/bin"
-$compiler = Get-ChildItem "$sdkBin/*/x64/rc.exe" |
+$resourceArch = if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'arm64' } else { 'x64' }
+$compiler = Get-ChildItem "$sdkBin/*/$resourceArch/rc.exe" |
     Sort-Object { [version]$_.Directory.Parent.Name } -Descending |
     Select-Object -First 1
 if (-not $compiler) { throw "Windows SDK resource compiler was not found" }

@@ -27,7 +27,10 @@ case "$version:$(uname -s):$(uname -m)" in
     extension=tar.xz
     executable=upx
     ;;
-  5.2.1:MINGW*:x86_64 | 5.2.1:MSYS*:x86_64)
+  5.2.1:MINGW*:x86_64 | 5.2.1:MSYS*:x86_64 | \
+  5.2.1:MINGW*:aarch64 | 5.2.1:MSYS*:aarch64 | \
+  5.2.1:MINGW*:arm64 | 5.2.1:MSYS*:arm64)
+    # Windows ARM64 can run the official x64 packer; compilation stays native.
     platform=win64
     checksum=eabc6792a347d45e945be7748423e7868fd01b0d2bcaa2f4b1031fd71ff69bda
     extension=zip
