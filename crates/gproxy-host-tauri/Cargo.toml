@@ -93,11 +93,11 @@ libc = { workspace = true }
 
 [target.'cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))'.dependencies]
 tauri = { workspace = true, features = ["tray-icon"] }
-tauri-plugin-dialog = "2"
-tauri-plugin-single-instance = "2"
+tauri-plugin-dialog = { workspace = true }
+tauri-plugin-single-instance = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-windows = { version = "0.61.3", features = ["ApplicationModel", "Win32_Storage_Packaging_Appx", "Win32_System_WinRT"] }
+windows = { workspace = true, features = ["ApplicationModel", "Win32_Storage_Packaging_Appx", "Win32_System_WinRT"] }
 
 [dev-dependencies]
 # `test` gives Tauri's `MockRuntime`, which is what lets `tests/assembly.rs`
