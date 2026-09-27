@@ -7,18 +7,17 @@ use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
     channel::{
         ChannelState, CredentialContext, CredentialView, LoginContext, OperationContext,
-        ProviderView, QuotaScope, QuotaValue, ResponseView, UsageContext, UsageFrame,
-        UsageStreamContext, UsageStreamEnd, UsageTransport,
+        ProviderView, QuotaScope, QuotaValue,
     },
     channels::claudeweb::{ClaudeWeb, SessionState, continuation_key},
 };
 use gproxy_protocol::{
-    Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
+    Dialect, HttpBody, Operation, WireRequest, WireResponse,
     capability::{
         CapabilityError, CapabilityErrorKind, CapabilityFuture, CapabilityLimits, CasResult,
         StateEntry, StateWrite, Version,
     },
-    connection::{Bytes, StreamFraming},
+    connection::Bytes,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
@@ -1033,57 +1032,71 @@ async fn usage_windows_and_scoped_limits_become_quota_entries() {
     assert!(matches!(error, ChannelError::InvalidResponse(_)), "{error}");
 }
 
-#[test]
-fn usage_is_read_from_the_translated_output() {
+/// claude.ai reports no token counts; the translated Messages output carries
+/// the channel's character estimates, and the reply settles with them marked
+/// as estimates, on both paths.
+#[tokio::test]
+async fn a_turn_settles_with_estimated_counts() {
+    let config = json!({});
+    let secret = secret();
+    let metadata = json!({});
     let channel = ClaudeWeb::new();
-    let mut observer = channel
-        .usage_stream()
-        .unwrap()
-        .start(UsageStreamContext {
-            operation: OperationKey {
-                operation: Operation::StreamGenerateContent,
-                dialect: Dialect::Claude,
-            },
-            request_body: None,
-            status: StatusCode::OK,
-            headers: &HeaderMap::new(),
-            transport: UsageTransport::Http {
-                framing: Some(StreamFraming::Sse),
-            },
-        })
-        .unwrap();
-    observer
-        .observe(UsageFrame::HttpChunk(
-            b"event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":30,\"output_tokens\":0}}}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":7}}\n\n",
-        ))
-        .unwrap();
-    let usage = observer.finish(UsageStreamEnd::Complete).unwrap().unwrap();
-    assert_eq!(usage.tokens.input_tokens, Some(30));
-    assert_eq!(usage.tokens.output_tokens, Some(7));
-    assert_eq!(
-        usage.completeness,
-        gproxy_channel::channel::UsageCompleteness::Partial
-    );
-    let body = json!({"id": "msg", "usage": {"input_tokens": 5, "output_tokens": 1}}).to_string();
-    let extracted = channel
-        .usage_extractor()
-        .unwrap()
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::Claude,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &HeaderMap::new(),
-                body: body.as_bytes(),
-            },
-        })
-        .unwrap()
-        .unwrap();
-    assert_eq!(extracted.tokens.input_tokens, Some(5));
-    assert_eq!(extracted.tokens.output_tokens, Some(1));
+    let request = json!({"model": "claude-sonnet-4-6",
+        "messages": [{"role": "user", "content": "Say hello to everyone here"}]});
+    for streamed in [true, false] {
+        let client = ScriptClient::new(vec![
+            reply(StatusCode::CREATED, json!({})),
+            reply(StatusCode::OK, json!({})),
+            sse(StatusCode::OK, TEXT_STREAM),
+            reply(StatusCode::NO_CONTENT, json!({})),
+        ]);
+        let context = context(
+            provider(&config, None),
+            credential(&secret, &metadata),
+            client.clone(),
+            MemoryState::new(),
+            HeaderMap::new(),
+            request.clone(),
+        );
+        let (operation, response) = if streamed {
+            (
+                Operation::StreamGenerateContent,
+                channel.stream_generate_content(context).await.unwrap(),
+            )
+        } else {
+            (
+                Operation::GenerateContent,
+                channel.generate_content(context).await.unwrap(),
+            )
+        };
+        let headers = response.headers.clone();
+        let body = drain(response).await;
+        let usage = if streamed {
+            support::settled_stream(
+                &channel,
+                operation,
+                Dialect::Claude,
+                &headers,
+                body.as_bytes(),
+            )
+        } else {
+            support::settled(
+                &channel,
+                operation,
+                Dialect::Claude,
+                &headers,
+                body.as_bytes(),
+            )
+        }
+        .expect("the estimates are read");
+        assert!(usage.tokens.input_tokens.is_some_and(|tokens| tokens > 0));
+        assert!(usage.tokens.output_tokens.is_some_and(|tokens| tokens > 0));
+        assert_eq!(
+            usage.completeness,
+            gproxy_channel::channel::UsageCompleteness::Partial
+        );
+        assert_eq!(usage.dimensions["estimated"], "true");
+    }
 }
 
 #[tokio::test]

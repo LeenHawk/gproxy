@@ -56,11 +56,10 @@ pub use config::{
 pub use quota::{TOP_UP_URL, USAGE_DIMENSION};
 pub use usage::{COST_TICKS_METRIC, UPSTREAM_COST_METRIC, UPSTREAM_PRICED_DIMENSION};
 
-use crate::channel::{
+use crate::channel::{UsageExtras, 
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey,
     ConfigKeyKind, CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode,
-    OAuthDeviceCode, PrepareContext, ProviderView, QuotaQuery, UsageExtractor, UsageStream,
-    forwardable,
+    OAuthDeviceCode, PrepareContext, ProviderView, QuotaQuery, forwardable,
 };
 use crate::channels::shared::compatible::http::strip_query_auth;
 use config::base_url;
@@ -391,10 +390,7 @@ impl BaseChannel for GrokBuild {
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
     }
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
+    fn usage_extras(&self) -> Option<&dyn UsageExtras> {
         Some(self)
     }
 }

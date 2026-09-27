@@ -19,11 +19,10 @@ mod usage;
 pub use config::{DEFAULT_BASE_URL, DeepSeekConfig, ID};
 pub use quota::BALANCE_DIMENSION;
 
-use crate::channel::{
+use crate::channel::{UsageExtras, 
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     HOST_CONFIG_KEYS, LoginMode, PrepareContext, ProviderView, QuotaModel, QuotaQuery,
-    UsageExtractor, UsageStream,
-};
+    };
 use gproxy_protocol::{Dialect, HttpBody, Operation};
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -83,11 +82,7 @@ impl BaseChannel for DeepSeek {
         Some(self)
     }
 
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
+    fn usage_extras(&self) -> Option<&dyn UsageExtras> {
         Some(self)
     }
 }

@@ -12,11 +12,9 @@
 
 use crate::channel::{
     BaseChannel, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind, HOST_CONFIG_KEYS,
-    HeaderAllowlist, LoginMode, NormalizedUsage, PrepareContext, ProviderView, UsageContext,
-    UsageExtractor, forwardable,
+    HeaderAllowlist, LoginMode, PrepareContext, ProviderView, forwardable,
 };
 use crate::channels::shared::compatible::http::{insert_configured, strip_query_auth};
-use crate::channels::shared::vendor_usage;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey};
 use http::{HeaderValue, header};
 use serde::Deserialize;
@@ -175,24 +173,5 @@ impl BaseChannel for Nvidia {
             .body(body)
             .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
     }
-
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
 }
 
-impl UsageExtractor for Nvidia {
-    fn extract(&self, ctx: UsageContext<'_>) -> Result<Option<NormalizedUsage>, ChannelError> {
-        if !ctx.response.status.is_success()
-            || !matches!(
-                ctx.operation.operation,
-                Operation::GenerateContent
-                    | Operation::StreamGenerateContent
-                    | Operation::CreateEmbedding
-            )
-        {
-            return Ok(None);
-        }
-        vendor_usage::from_body(ctx.operation.dialect, ctx.response.body)
-    }
-}

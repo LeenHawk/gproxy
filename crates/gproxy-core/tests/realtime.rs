@@ -152,22 +152,13 @@ async fn failed_sideband_never_falls_back_to_another_credential() {
     assert!(sent[1].contains("auth=Bearer ka"));
 }
 
-fn response_usage(ids: &[(&str, u64)]) -> gproxy_channel::channel::NormalizedUsage {
-    use gproxy_channel::channel::{NormalizedUsage, ResponseUsage};
-    let responses: Vec<_> = ids
-        .iter()
-        .map(|(id, tokens)| {
-            let mut usage = NormalizedUsage::default();
-            usage.tokens.input_tokens = Some(*tokens);
-            ResponseUsage {
-                id: (*id).into(),
-                usage: Box::new(usage),
-            }
-        })
-        .collect();
-    let mut total = NormalizedUsage::aggregate(responses.iter().map(|r| r.usage.as_ref()));
-    total.responses = responses;
-    total
+/// A realtime `response.done` event reporting `tokens` of input.
+fn done(id: &str, tokens: u64) -> WsFrame {
+    WsFrame::Text(
+        serde_json::json!({"type": "response.done", "response": {"id": id,
+            "usage": {"input_tokens": tokens, "output_tokens": 0}}})
+        .to_string(),
+    )
 }
 async fn metered_join(h: &Harness, id: &str) -> gproxy_core::UsageReport {
     let context = h.context_for("p", key(Operation::ConnectRealtime), id, 1, None);
@@ -189,14 +180,9 @@ async fn replay_and_concurrent_connections_settle_each_response_once() {
     let h = harness(full(), "round_robin").await;
     create(&h).await;
     h.script_ws(vec![
-        WsReply::Connected(vec![]),
-        WsReply::Connected(vec![]),
-        WsReply::Connected(vec![]),
-    ]);
-    h.channel.response_usages.lock().unwrap().extend([
-        response_usage(&[("r1", 100)]),
-        response_usage(&[("r1", 100), ("r2", 20)]),
-        response_usage(&[("r1", 100), ("r2", 20)]),
+        WsReply::Connected(vec![done("r1", 100)]),
+        WsReply::Connected(vec![done("r1", 100), done("r2", 20)]),
+        WsReply::Connected(vec![done("r1", 100), done("r2", 20)]),
     ]);
     let (a, b) = tokio::join!(metered_join(&h, "a"), metered_join(&h, "b"));
     let tokens: u64 = a

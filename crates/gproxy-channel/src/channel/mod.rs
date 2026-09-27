@@ -43,9 +43,8 @@ pub use service::{
 };
 pub use state::{ChannelState, NoState};
 pub use usage::{
-    NormalizedUsage, ResponseUsage, ResponseView, TokenUsage, UsageAttempt, UsageCompleteness,
-    UsageContext, UsageExtractor, UsageFrame, UsageObserver, UsageStream, UsageStreamContext,
-    UsageStreamEnd, UsageTransport,
+    NormalizedUsage, ResponseUsage, TokenUsage, UsageAttempt, UsageCompleteness, UsageExtras,
+    UsageSource, UsageStreamEnd, UsageTransport, usage_object, with_extras,
 };
 
 pub use reason::{ResponseReason, ResponseReasonObserver, standard_reason_observer};
@@ -604,11 +603,10 @@ pub trait BaseChannel: Send + Sync {
         reason::websocket_reason(frame)
     }
 
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        None
-    }
-
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
+    /// The vendor's own usage fields, read beside the standard usage the
+    /// host reads from this channel's shaped response. Most channels have
+    /// none: their shaping already produces the standard usage object.
+    fn usage_extras(&self) -> Option<&dyn UsageExtras> {
         None
     }
 

@@ -37,11 +37,10 @@ pub use config::{
 };
 pub use quota::{BALANCE_DIMENSION, WEEKLY_DIMENSION};
 
-use crate::channel::{
+use crate::channel::{UsageExtras, 
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, PrepareContext, ProviderView,
-    QuotaModel, QuotaQuery, UsageExtractor, UsageStream,
-};
+    QuotaModel, QuotaQuery, };
 use gproxy_protocol::{Dialect, HttpBody, Operation};
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -147,11 +146,7 @@ impl BaseChannel for Kimi {
         Some(self)
     }
 
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
+    fn usage_extras(&self) -> Option<&dyn UsageExtras> {
         Some(self)
     }
 }

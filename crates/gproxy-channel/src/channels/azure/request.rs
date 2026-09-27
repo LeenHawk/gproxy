@@ -3,12 +3,10 @@
 //! nothing here needs more than one exchange.
 
 use super::config::AzureConfig;
-use super::usage::AzureUsage;
 use super::{Azure, ID, endpoint};
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView, UsageExtractor,
-    forwardable,
+    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView, forwardable,
 };
 use crate::channels::shared::cache;
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireFamily};
@@ -17,7 +15,6 @@ use http::{HeaderName, HeaderValue};
 /// Azure's Anthropic surface expects the same version header as Anthropic's.
 const DEFAULT_ANTHROPIC_VERSION: &str = "2023-06-01";
 
-const USAGE: AzureUsage = AzureUsage;
 
 impl BaseChannel for Azure {
     fn claude_fallback(&self) -> Option<crate::channel::ClaudeFallback> {
@@ -173,10 +170,6 @@ impl BaseChannel for Azure {
         builder
             .body(body)
             .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
-    }
-
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(&USAGE)
     }
 }
 

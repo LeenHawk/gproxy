@@ -1,7 +1,8 @@
 //! The response body handed back from an exchange: one pass over the upstream
-//! bytes that feeds capture, usage observation, optional rewriting and the
+//! bytes that feeds capture, the reason observer, optional rewriting and the
 //! caller, enforcing the read cap, idle timeout and cancellation. Dropping it
-//! early still finishes the exchange (and the request, if terminal).
+//! early still finishes the exchange (and the request, if terminal). Usage is
+//! read later, from the response the channel shapes out of these bytes.
 
 use super::Exchange;
 use crate::{
@@ -21,22 +22,14 @@ struct Guard {
     exchange: Arc<Exchange>,
     finished: bool,
     status: http::StatusCode,
-    headers: http::HeaderMap,
-    /// Whole response so far, when the channel's extractor needs it.
-    accumulated: Option<Vec<u8>>,
 }
 
 impl Drop for Guard {
     fn drop(&mut self) {
         if !self.finished {
-            // A conversion may let go of a native body right after its terminal
-            // event; what was read is still the usage evidence.
-            let accumulated = self.accumulated.take();
             self.exchange.clone().finish_detached(
                 UsageStreamEnd::Interrupted,
                 self.status,
-                std::mem::take(&mut self.headers),
-                accumulated,
                 now_ms(),
             );
         }
@@ -69,7 +62,6 @@ pub(crate) fn observed_body(
     body: HttpBody,
     framing: Option<StreamFraming>,
     status: http::StatusCode,
-    headers: http::HeaderMap,
 ) -> ByteStream {
     let inner: ByteStream = match body {
         HttpBody::Bytes(bytes) => Box::pin(futures_util::stream::iter([Ok(bytes)])),
@@ -87,15 +79,12 @@ pub(crate) fn observed_body(
             None => Rewrite::Whole(Vec::new()),
         }
     };
-    let accumulated = exchange.wants_accumulated_response().then(Vec::new);
     let state = State {
         inner: Some(inner),
         guard: Guard {
             exchange,
             finished: false,
             status,
-            headers,
-            accumulated,
         },
         rewrite,
         read: 0,
@@ -175,9 +164,6 @@ async fn step(mut state: State) -> Option<(Result<Bytes, TransportError>, State)
                     exchange.record(CaptureEvent::ResponseChunk(&chunk));
                 }
                 exchange.observe_chunk(&chunk);
-                if let Some(buffer) = state.guard.accumulated.as_mut() {
-                    buffer.extend_from_slice(&chunk);
-                }
                 match &mut state.rewrite {
                     Rewrite::None => return Some((Ok(chunk), state)),
                     Rewrite::Stream(rewriter) => match rewriter.push(&chunk) {
@@ -206,17 +192,10 @@ async fn end(mut state: State, how: UsageStreamEnd) -> State {
     state.inner = None;
     if !state.guard.finished {
         state.guard.finished = true;
-        let accumulated = state.guard.accumulated.take();
         state
             .guard
             .exchange
-            .finish(
-                how,
-                Some(state.guard.status),
-                Some(&state.guard.headers),
-                accumulated.as_deref(),
-                now_ms(),
-            )
+            .finish(how, Some(state.guard.status), now_ms())
             .await;
     }
     state

@@ -35,7 +35,6 @@ mod oauth;
 mod quota;
 mod request;
 mod response;
-mod usage;
 
 pub use auth::CLIENT_HEADERS;
 pub use config::{
@@ -47,9 +46,7 @@ pub use quota::{BALANCE_DIMENSION, PLAN_SOURCE};
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, OperationContext,
-    OperationFuture, PrepareContext, ProviderView, QuotaModel, QuotaQuery, UsageExtractor,
-    UsageStream,
-};
+    OperationFuture, PrepareContext, ProviderView, QuotaModel, QuotaQuery, };
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireResponse};
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -144,14 +141,6 @@ impl BaseChannel for Cline {
     }
 
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
-        Some(self)
-    }
-
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
         Some(self)
     }
 }

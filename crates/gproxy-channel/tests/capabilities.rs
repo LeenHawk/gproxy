@@ -9,7 +9,7 @@ use futures_util::{StreamExt, stream};
 use gproxy_channel::channel::*;
 use gproxy_channel::{BaseChannel, ChannelError, OutboundClient};
 use gproxy_protocol::capability::{CapabilityError, CapabilityFuture};
-use gproxy_protocol::connection::{Bytes, StreamFraming, WsFrame};
+use gproxy_protocol::connection::Bytes;
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse};
 use http::{HeaderMap, Method, StatusCode};
 use rust_decimal::Decimal;
@@ -154,10 +154,7 @@ impl BaseChannel for Demo {
     fn quota_headers(&self) -> Option<&dyn QuotaHeaders> {
         Some(self)
     }
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
+    fn usage_extras(&self) -> Option<&dyn UsageExtras> {
         Some(self)
     }
     fn services(&self) -> Option<&dyn ChannelServices> {
@@ -175,8 +172,7 @@ fn existing_channels_need_no_optional_implementations() {
     assert!(channel.quota_query().is_none());
     assert!(channel.quota_reset().is_none());
     assert!(channel.quota_headers().is_none());
-    assert!(channel.usage_extractor().is_none());
-    assert!(channel.usage_stream().is_none());
+    assert!(channel.usage_extras().is_none());
     assert!(channel.services().is_none());
 }
 
@@ -528,175 +524,81 @@ async fn quota_query_reset_and_response_observation_are_independent() {
     );
 }
 
-#[derive(Default)]
-struct Observer {
-    pending: Vec<u8>,
-    latest: Option<NormalizedUsage>,
-}
-impl Observer {
-    fn record(&mut self, bytes: &[u8]) -> Result<(), ChannelError> {
-        let record: Value = serde_json::from_slice(bytes)
-            .map_err(|e| ChannelError::InvalidResponse(e.to_string()))?;
-        let usage = self.latest.get_or_insert_with(NormalizedUsage::default);
-        if let Some(value) = record["output_tokens"].as_u64() {
-            usage.tokens.output_tokens = Some(value);
+/// A vendor that states the price it charged beside the usage object.
+impl UsageExtras for Demo {
+    fn read(&self, source: UsageSource<'_>, usage: &mut NormalizedUsage) {
+        if let Some(cost) = usage_object(source.root)
+            .and_then(|usage| usage.get("cost"))
+            .and_then(Value::as_u64)
+        {
+            usage
+                .metrics
+                .insert("upstream_cost_usd".into(), cost.into());
         }
-        if let Some(value) = record["cached_input_tokens"].as_u64() {
-            usage.tokens.cached_input_tokens = Some(value);
-        }
-        if let Some(tier) = record["service_tier"].as_str() {
+        if let Some(tier) = source
+            .headers
+            .get("x-tier")
+            .and_then(|value| value.to_str().ok())
+        {
             usage.actual_service_tier = Some(tier.into());
         }
-        usage.completeness = if record["done"] == true {
-            UsageCompleteness::Complete
-        } else {
-            UsageCompleteness::Partial
-        };
-        Ok(())
-    }
-}
-impl UsageObserver for Observer {
-    fn observe(&mut self, frame: UsageFrame<'_>) -> Result<(), ChannelError> {
-        match frame {
-            UsageFrame::HttpChunk(chunk) => {
-                self.pending.extend_from_slice(chunk);
-                while let Some(pos) = self.pending.iter().position(|byte| *byte == b'\n') {
-                    let record: Vec<_> = self.pending.drain(..=pos).collect();
-                    self.record(&record)?;
-                }
-            }
-            UsageFrame::WebSocket(WsFrame::Text(text)) => self.record(text.as_bytes())?,
-            UsageFrame::WebSocket(_) => {}
-        }
-        Ok(())
-    }
-    fn snapshot(&self) -> Option<NormalizedUsage> {
-        self.latest.clone()
-    }
-    fn finish(
-        mut self: Box<Self>,
-        end: UsageStreamEnd,
-    ) -> Result<Option<NormalizedUsage>, ChannelError> {
-        if end == UsageStreamEnd::Complete && !self.pending.is_empty() {
-            let tail = std::mem::take(&mut self.pending);
-            self.record(&tail)?;
-        }
-        if end == UsageStreamEnd::Interrupted
-            && let Some(usage) = self.latest.as_mut()
-        {
-            usage.completeness = UsageCompleteness::Partial;
-        }
-        Ok(self.latest)
-    }
-}
-impl UsageExtractor for Demo {
-    fn extract(&self, ctx: UsageContext<'_>) -> Result<Option<NormalizedUsage>, ChannelError> {
-        if ctx.response.body.is_empty() {
-            return Ok(None);
-        }
-        let mut observer = Observer::default();
-        observer.record(ctx.response.body)?;
-        Ok(observer.latest)
-    }
-}
-impl UsageStream for Demo {
-    fn start(&self, _: UsageStreamContext<'_>) -> Result<Box<dyn UsageObserver>, ChannelError> {
-        Ok(Box::<Observer>::default())
     }
 }
 #[test]
-fn metering_keeps_unknown_zero_partial_and_cumulative_usage_distinct() {
+fn extras_add_to_the_standard_reading_and_never_invent_one() {
     let base: &dyn BaseChannel = &Demo;
-    let headers = HeaderMap::new();
-    let mut observer = base
-        .usage_stream()
-        .unwrap()
-        .start(UsageStreamContext {
-            operation: KEY,
-            request_body: None,
-            status: StatusCode::OK,
-            headers: &headers,
-            transport: UsageTransport::Http {
-                framing: Some(StreamFraming::NdJson),
+    let mut headers = HeaderMap::new();
+    let settle = |headers: &HeaderMap, root: &Value, standard: Option<NormalizedUsage>| {
+        with_extras(
+            base.usage_extras(),
+            UsageSource {
+                operation: KEY,
+                headers,
+                root,
             },
-        })
-        .unwrap();
-    assert!(observer.snapshot().is_none());
-    observer
-        .observe(UsageFrame::HttpChunk(b"{\"output_tokens\":"))
-        .unwrap();
-    assert!(observer.snapshot().is_none());
-    observer
-        .observe(UsageFrame::HttpChunk(b"0}\n{\"output_tokens\":3}\n"))
-        .unwrap();
-    assert_eq!(observer.snapshot().unwrap().tokens.output_tokens, Some(3));
-    observer
-        .observe(UsageFrame::HttpChunk(
-            b"{\"output_tokens\":5,\"cached_input_tokens\":0,\"service_tier\":\"priority\"}\n",
-        ))
-        .unwrap();
-    let usage = observer
-        .finish(UsageStreamEnd::Interrupted)
-        .unwrap()
-        .unwrap();
-    assert_eq!(usage.tokens.output_tokens, Some(5));
-    assert_eq!(usage.tokens.cached_input_tokens, Some(0));
-    assert_eq!(usage.tokens.input_tokens, None);
-    assert_eq!(usage.actual_service_tier.as_deref(), Some("priority"));
-    assert_eq!(usage.completeness, UsageCompleteness::Partial);
-    let mut ws = base
-        .usage_stream()
-        .unwrap()
-        .start(UsageStreamContext {
-            operation: KEY,
-            request_body: None,
-            status: StatusCode::SWITCHING_PROTOCOLS,
-            headers: &headers,
-            transport: UsageTransport::WebSocket,
-        })
-        .unwrap();
-    ws.observe(UsageFrame::WebSocket(&WsFrame::Text(
-        "{\"output_tokens\":2,\"done\":true}".into(),
-    )))
+            standard,
+        )
+    };
+    let mut standard = NormalizedUsage::default();
+    standard.tokens.output_tokens = Some(0);
+    standard.completeness = UsageCompleteness::Complete;
+
+    // Nothing the extras recognize: the standard reading, explicit zero kept.
+    let plain = settle(&headers, &json!({"usage": {}}), Some(standard.clone())).unwrap();
+    assert_eq!(plain, standard);
+    // No standard usage and nothing of the vendor's: still no reading.
+    assert!(settle(&headers, &Value::Null, None).is_none());
+
+    // The vendor's own fields, from the usage object and the headers.
+    headers.insert("x-tier", "priority".parse().unwrap());
+    let priced = settle(
+        &headers,
+        &json!({"response": {"usage": {"cost": 3}}}),
+        Some(standard.clone()),
+    )
     .unwrap();
+    assert_eq!(priced.tokens.output_tokens, Some(0));
+    assert_eq!(priced.metrics["upstream_cost_usd"], Decimal::from(3));
+    assert_eq!(priced.actual_service_tier.as_deref(), Some("priority"));
+
+    // A reply with no standard usage keeps what the vendor alone reported.
+    let alone = settle(&HeaderMap::new(), &json!({"usage": {"cost": 1}}), None).unwrap();
+    assert_eq!(alone.metrics["upstream_cost_usd"], Decimal::from(1));
+    assert_eq!(alone.tokens.output_tokens, None);
+
+    // A channel without extras settles with the standard reading as is.
+    assert!(Bare.usage_extras().is_none());
     assert_eq!(
-        ws.finish(UsageStreamEnd::Complete)
-            .unwrap()
-            .unwrap()
-            .completeness,
-        UsageCompleteness::Complete
-    );
-    let extract = base.usage_extractor().unwrap();
-    assert!(
-        extract
-            .extract(UsageContext {
+        with_extras(
+            Bare.usage_extras(),
+            UsageSource {
                 operation: KEY,
-                request_body: None,
-                response: ResponseView {
-                    status: StatusCode::OK,
-                    headers: &headers,
-                    body: b""
-                }
-            })
-            .unwrap()
-            .is_none()
-    );
-    assert_eq!(
-        extract
-            .extract(UsageContext {
-                operation: KEY,
-                request_body: None,
-                response: ResponseView {
-                    status: StatusCode::OK,
-                    headers: &headers,
-                    body: b"{\"output_tokens\":0,\"done\":true}"
-                }
-            })
-            .unwrap()
-            .unwrap()
-            .tokens
-            .output_tokens,
-        Some(0)
+                headers: &headers,
+                root: &json!({"usage": {"cost": 1}}),
+            },
+            None,
+        ),
+        None
     );
 }
 

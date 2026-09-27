@@ -6,8 +6,7 @@ mod support;
 use gproxy_channel::channel::{
     AuthorizationCode, AuthorizationRequest, BaseChannel, ChannelError, CredentialContext,
     CredentialRefresh, CredentialView, LoginContext, NoState, OperationContext, PrepareContext,
-    ProviderView, QuotaEntry, QuotaScope, QuotaValue, QuotaWindow, ResponseView, UsageContext,
-    UsageFrame, UsageStreamContext, UsageStreamEnd, UsageTransport,
+    ProviderView, QuotaEntry, QuotaScope, QuotaValue, QuotaWindow,
 };
 use gproxy_channel::channels::antigravity::{
     Antigravity, CLI_USER_AGENT, DEFAULT_CLIENT_ID, DEFAULT_REDIRECT_URI,
@@ -16,7 +15,7 @@ use gproxy_channel::{ChannelDescriptor, LoginMode, OutboundClient};
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
     capability::{CapabilityError, CapabilityFuture},
-    connection::{Bytes, StreamFraming},
+    connection::Bytes,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use serde_json::{Value, json};
@@ -81,6 +80,16 @@ fn raw_reply(status: StatusCode, body: impl Into<Vec<u8>>) -> WireResponse {
         headers: HeaderMap::new(),
         body: HttpBody::Bytes(Bytes::from(body.into())),
     }
+}
+
+/// An `alt=sse` stream, as the upstream labels it.
+fn sse_reply(body: &'static str) -> WireResponse {
+    let mut reply = raw_reply(StatusCode::OK, body);
+    reply.headers.insert(
+        http::header::CONTENT_TYPE,
+        HeaderValue::from_static("text/event-stream"),
+    );
+    reply
 }
 
 fn provider<'a>(config: &'a Value, base_url: Option<&'a str>) -> ProviderView<'a> {
@@ -1051,65 +1060,83 @@ async fn captured_catalogues_stand_in_for_a_missing_summary() {
 
 // ------------------------------------------------------------------ usage
 
-#[test]
-fn buffered_usage_reads_the_wrapped_metadata() {
-    let body = serde_json::to_vec(&json!({"response": {"usageMetadata": {
-        "promptTokenCount": 50,
-        "candidatesTokenCount": 8,
-        "thoughtsTokenCount": 2,
-    }}}))
-    .unwrap();
-    let headers = HeaderMap::new();
-    let usage = Antigravity
-        .usage_extractor()
-        .expect("extractor")
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::Gemini,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: &body,
-            },
-        })
-        .expect("extraction")
-        .expect("usage");
+/// The reply as the channel hands it on, for `upstream` answered to a
+/// buffered or a streamed Gemini call.
+async fn shaped(stream: bool, upstream: WireResponse) -> (http::HeaderMap, Vec<u8>) {
+    let client = Arc::new(ScriptClient::new(vec![upstream]));
+    let config = json!({});
+    let secret = secret();
+    let metadata = Value::Null;
+    let (path, operation) = if stream {
+        ("/v1beta/models/gemini-3-pro:streamGenerateContent", true)
+    } else {
+        ("/v1beta/models/gemini-3-pro:generateContent", false)
+    };
+    let context = OperationContext {
+        provider: provider(&config, None),
+        credential: credential(&secret, &metadata),
+        dialect: Dialect::Gemini,
+        request: request(HeaderMap::new(), path, json!({"contents": []})),
+        client,
+        state: Arc::new(NoState::default()),
+        instance_id: Arc::from("i"),
+        endpoint_override: None,
+    };
+    let response = if operation {
+        Antigravity.stream_generate_content(context).await
+    } else {
+        Antigravity.generate_content(context).await
+    }
+    .expect("response");
+    (response.headers, collect(response.body).await)
+}
+
+/// The Code Assist envelope is taken off by the channel's shaping, so the
+/// reply settles with the standard Gemini reading of what the client gets.
+#[tokio::test]
+async fn a_buffered_reply_settles_with_the_unwrapped_metadata() {
+    let (headers, body) = shaped(
+        false,
+        reply(
+            StatusCode::OK,
+            json!({"response": {"usageMetadata": {
+                "promptTokenCount": 50,
+                "candidatesTokenCount": 8,
+                "thoughtsTokenCount": 2,
+            }}}),
+        ),
+    )
+    .await;
+    let usage = support::settled(
+        &Antigravity,
+        Operation::GenerateContent,
+        Dialect::Gemini,
+        &headers,
+        &body,
+    )
+    .expect("usage");
     assert_eq!(usage.tokens.input_tokens, Some(50));
     assert_eq!(usage.tokens.output_tokens, Some(10));
     assert_eq!(usage.tokens.reasoning_tokens, Some(2));
 }
 
-#[test]
-fn the_stream_observer_reads_the_wrapped_metadata() {
-    let headers = HeaderMap::new();
-    let mut observer = Antigravity
-        .usage_stream()
-        .expect("stream")
-        .start(UsageStreamContext {
-            operation: OperationKey {
-                operation: Operation::StreamGenerateContent,
-                dialect: Dialect::Gemini,
-            },
-            request_body: None,
-            status: StatusCode::OK,
-            headers: &headers,
-            transport: UsageTransport::Http {
-                framing: Some(StreamFraming::Sse),
-            },
-        })
-        .expect("observer");
-    observer
-        .observe(UsageFrame::HttpChunk(
-            b"data: {\"response\":{\"usageMetadata\":{\"promptTokenCount\":4,\"candidatesTokenCount\":6}}}\n\n",
-        ))
-        .expect("observed");
-    let usage = observer
-        .finish(UsageStreamEnd::Complete)
-        .expect("finished")
-        .expect("usage");
+#[tokio::test]
+async fn a_streamed_reply_settles_with_the_unwrapped_metadata() {
+    let (headers, body) = shaped(
+        true,
+        sse_reply(
+            "data: {\"response\":{\"usageMetadata\":{\"promptTokenCount\":4,\"candidatesTokenCount\":6}}}\n\n",
+        ),
+    )
+    .await;
+    let usage = support::settled_stream(
+        &Antigravity,
+        Operation::StreamGenerateContent,
+        Dialect::Gemini,
+        &headers,
+        &body,
+    )
+    .expect("usage");
     assert_eq!(usage.tokens.input_tokens, Some(4));
     assert_eq!(usage.tokens.output_tokens, Some(6));
 }

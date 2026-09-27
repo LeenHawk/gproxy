@@ -6,15 +6,13 @@ mod quota;
 use crate::channel::{
     BaseChannel, CLAUDE_FALLBACK_KEYS, ChannelCapabilities, ChannelDescriptor, ChannelError,
     ClaudeFallback, ConfigKey, ConfigKeyKind, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode,
-    NormalizedUsage, PrepareContext, ProviderView, QuotaModel, QuotaQuery, UsageContext,
-    UsageExtractor, forwardable,
+    PrepareContext, ProviderView, QuotaModel, QuotaQuery, forwardable,
 };
 use crate::channels::shared::{
     cache,
     claude_fallback::FallbackMode,
     claude_hygiene,
     compatible::http::{insert_configured, strip_query_auth},
-    vendor_usage,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, connection::Bytes};
 use http::{HeaderName, HeaderValue, header};
@@ -243,29 +241,11 @@ impl BaseChannel for Vercel {
             .body(body)
             .map_err(|e| ChannelError::InvalidConfig(e.to_string()))
     }
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
     fn quota_model(&self) -> Option<&dyn QuotaModel> {
         Some(self)
     }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         Some(self)
-    }
-}
-impl UsageExtractor for Vercel {
-    fn extract(&self, ctx: UsageContext<'_>) -> Result<Option<NormalizedUsage>, ChannelError> {
-        if !ctx.response.status.is_success()
-            || !matches!(
-                ctx.operation.operation,
-                Operation::GenerateContent
-                    | Operation::StreamGenerateContent
-                    | Operation::CreateEmbedding
-            )
-        {
-            return Ok(None);
-        }
-        vendor_usage::from_body(ctx.operation.dialect, ctx.response.body)
     }
 }
 fn encode_segment(value: &str) -> String {

@@ -2,11 +2,11 @@
 mod support;
 use gproxy_channel::{
     BaseChannel, ChannelError,
-    channel::{CredentialContext, PrepareContext, QuotaValue, ResponseView, UsageContext},
+    channel::{CredentialContext, PrepareContext, QuotaValue},
     channels::vercel::{BALANCE_DIMENSION, DEFAULT_BASE_URL, Vercel},
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, connection::Bytes};
-use http::{HeaderMap, StatusCode};
+use http::StatusCode;
 use serde_json::{Value, json};
 use support::{OneShot, credential, provider, request};
 
@@ -191,38 +191,6 @@ fn body_of_chat() -> Value {
         None,
         None,
     ))
-}
-
-#[test]
-fn counts_vendor_usage_and_zero_output_refusals() {
-    let usage = Vercel.usage_extractor().unwrap().extract(UsageContext {
-        operation:OperationKey { operation:Operation::GenerateContent,dialect:Dialect::Claude },
-        request_body:None,
-        response:ResponseView { status:StatusCode::OK,headers:&HeaderMap::new(),
-            body:br#"{"model":"anthropic/claude-fable-5","stop_reason":"refusal","usage":{"input_tokens":7,"output_tokens":0}}"# },
-    }).unwrap().unwrap();
-    assert_eq!(usage.tokens.input_tokens, Some(7));
-    assert_eq!(usage.attempts[0].billable, Some(false));
-    let streamed = b"event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"anthropic/claude-opus-4-8\",\"usage\":{\"input_tokens\":7,\"output_tokens\":0}}}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":3}}\n\n";
-    let usage = Vercel
-        .usage_extractor()
-        .unwrap()
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::StreamGenerateContent,
-                dialect: Dialect::Claude,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &HeaderMap::new(),
-                body: streamed,
-            },
-        })
-        .unwrap()
-        .unwrap();
-    assert_eq!(usage.tokens.output_tokens, Some(3));
-    assert_eq!(usage.attempts[0].model, "anthropic/claude-opus-4-8");
 }
 
 #[tokio::test]

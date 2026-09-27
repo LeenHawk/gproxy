@@ -1,21 +1,14 @@
-//! What the upstream reports about a turn, and how the channel meters it.
+//! What the upstream reports about a turn, as the standard usage object.
 //!
 //! CodeWhisperer reports counts as `tokenUsage` inside the stream's
 //! `metadataEvent`, under AWS's own names and with the input either given
 //! whole or split into uncached, cache-read and cache-write parts (v3
 //! `kiro/usage.rs`). The translator writes those counts into the
-//! `response.completed` event it synthesizes, as a Responses `usage` object —
-//! so metering itself is the ordinary OpenAI reading, done by
-//! `shared::openai_wire` against the stream the client is actually handed.
-//! There is no fourth usage reader here: the only Kiro-specific step is the
-//! rename below, which belongs to response shaping.
+//! `response.completed` event it synthesizes, as a Responses `usage` object,
+//! so the host meters the stream the client is actually handed with the
+//! ordinary Responses reading. The rename below is response shaping; the
+//! channel reads no usage of its own.
 
-use super::Kiro;
-use crate::channel::{
-    ChannelError, NormalizedUsage, UsageContext, UsageExtractor, UsageObserver, UsageStream,
-    UsageStreamContext,
-};
-use crate::channels::shared::openai_wire;
 use serde_json::{Map, Value};
 
 /// `tokenUsage` as a Responses `usage` object, or `None` when the event
@@ -80,8 +73,8 @@ pub(super) fn response_usage(value: &Value) -> Option<Value> {
         details.insert("cached_tokens".into(), Value::from(cached));
     }
     if let Some(written) = written.filter(|value| *value > 0) {
-        // `openai_wire` reads a compatible vendor's cache write from this
-        // name and records it as cache creation, not as ordinary input.
+        // The standard Responses reading takes a cache write under this name
+        // out of the ordinary input and records it as cache creation.
         details.insert("cache_write_tokens".into(), Value::from(written));
     }
     if !details.is_empty() {
@@ -100,21 +93,6 @@ fn number(value: &Value, names: &[&str]) -> Option<u64> {
             .or_else(|| value.as_i64().and_then(|value| u64::try_from(value).ok()))
             .or_else(|| value.as_str().and_then(|value| value.parse().ok()))
     })
-}
-
-impl UsageExtractor for Kiro {
-    fn extract(&self, context: UsageContext<'_>) -> Result<Option<NormalizedUsage>, ChannelError> {
-        Ok(openai_wire::extract(&context))
-    }
-}
-
-impl UsageStream for Kiro {
-    fn start(
-        &self,
-        context: UsageStreamContext<'_>,
-    ) -> Result<Box<dyn UsageObserver>, ChannelError> {
-        openai_wire::observer(context.operation.operation, context.operation.dialect)
-    }
 }
 
 #[cfg(test)]
@@ -150,13 +128,19 @@ mod tests {
     }
 
     #[test]
-    fn the_shared_openai_reading_takes_the_cache_write_out_of_the_input() {
+    fn the_standard_reading_takes_the_cache_write_out_of_the_input() {
         let usage = response_usage(&json!({
             "uncachedInputTokens": 10, "cacheReadInputTokens": 30,
             "cacheWriteInputTokens": 5, "outputTokens": 7,
         }))
         .unwrap();
-        let normalized = openai_wire::from_usage(&usage).unwrap();
+        let body = json!({"object": "response", "usage": usage}).to_string();
+        let normalized = gproxy_protocol::usage::whole(
+            gproxy_protocol::Operation::GenerateContent,
+            gproxy_protocol::Dialect::OpenAi,
+            body.as_bytes(),
+        )
+        .unwrap();
         assert_eq!(normalized.tokens.input_tokens, Some(10));
         assert_eq!(normalized.tokens.cached_input_tokens, Some(30));
         assert_eq!(normalized.tokens.cache_creation_30m_tokens, Some(5));

@@ -4,10 +4,10 @@
 //! configuration errors an operator sees. No upstream is contacted: every
 //! assertion is about the request this channel builds.
 
-use gproxy_channel::channel::{CredentialView, PrepareContext, ProviderView, UsageContext};
-use gproxy_channel::{BaseChannel, ChannelError, channel::ResponseView, channels::azure::Azure};
+use gproxy_channel::channel::{CredentialView, PrepareContext, ProviderView};
+use gproxy_channel::{BaseChannel, ChannelError, channels::azure::Azure};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes};
-use http::{HeaderMap, HeaderValue, Method, StatusCode};
+use http::{HeaderMap, HeaderValue, Method};
 use serde_json::{Value, json};
 
 fn provider<'a>(config: &'a Value, base_url: Option<&'a str>) -> ProviderView<'a> {
@@ -371,83 +371,6 @@ fn every_declared_dialect_can_be_prepared() {
             .native_dialects(view, Operation::CreateSpeech)
             .is_empty()
     );
-}
-
-#[test]
-fn usage_is_read_from_the_hosted_vendors_own_block() {
-    let extractor = Azure.usage_extractor().expect("azure meters its calls");
-    let usage = |dialect: Dialect, body: &str| {
-        let headers = HeaderMap::new();
-        extractor
-            .extract(UsageContext {
-                operation: OperationKey {
-                    operation: Operation::GenerateContent,
-                    dialect,
-                },
-                request_body: None,
-                response: ResponseView {
-                    status: StatusCode::OK,
-                    headers: &headers,
-                    body: body.as_bytes(),
-                },
-            })
-            .unwrap()
-    };
-
-    let responses = usage(
-        Dialect::OpenAi,
-        r#"{"usage":{"input_tokens":120,"output_tokens":30,
-            "input_tokens_details":{"cached_tokens":20},
-            "output_tokens_details":{"reasoning_tokens":10}}}"#,
-    )
-    .expect("responses usage");
-    assert_eq!(responses.tokens.input_tokens, Some(100));
-    assert_eq!(responses.tokens.cached_input_tokens, Some(20));
-    assert_eq!(responses.tokens.reasoning_tokens, Some(10));
-
-    let claude = usage(
-        Dialect::Claude,
-        r#"{"usage":{"input_tokens":7,"output_tokens":9,
-            "cache_read_input_tokens":4,"cache_creation_input_tokens":5}}"#,
-    )
-    .expect("claude usage");
-    // Claude's input already excludes cache reads, so nothing is subtracted.
-    assert_eq!(claude.tokens.input_tokens, Some(7));
-    assert_eq!(claude.tokens.cached_input_tokens, Some(4));
-    assert_eq!(claude.tokens.cache_creation_5m_tokens, Some(5));
-
-    // A streamed answer arrives as accumulated SSE, and Claude splits its
-    // counts across two events.
-    let streamed = usage(
-        Dialect::Claude,
-        "event: message_start\n\
-         data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":11}}}\n\
-         \n\
-         event: message_delta\n\
-         data: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":5}}\n\
-         \n",
-    )
-    .expect("streamed usage");
-    assert_eq!(streamed.tokens.input_tokens, Some(11));
-    assert_eq!(streamed.tokens.output_tokens, Some(5));
-
-    // A rejected answer is not metered.
-    let headers = HeaderMap::new();
-    let rejected = extractor
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::OpenAi,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::TOO_MANY_REQUESTS,
-                headers: &headers,
-                body: br#"{"usage":{"input_tokens":1}}"#,
-            },
-        })
-        .unwrap();
-    assert!(rejected.is_none());
 }
 
 #[test]

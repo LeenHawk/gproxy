@@ -6,15 +6,14 @@ use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
     channel::{
         CredentialContext, CredentialView, PrepareContext, ProviderView, QuotaHeaderContext,
-        QuotaValue, ResponseView, UsageContext, UsageFrame, UsageStreamContext, UsageStreamEnd,
-        UsageTransport,
+        QuotaValue,
     },
     channels::claudeapi::Claudeapi,
 };
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
     capability::{CapabilityError, CapabilityFuture, UpstreamConnection},
-    connection::{Bytes, StreamFraming},
+    connection::Bytes,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use rust_decimal::Decimal;
@@ -510,121 +509,6 @@ fn the_compatibility_layer_keeps_the_stream_options_it_came_with() {
         buffered.get("stream_options").is_none(),
         "nothing is added to a buffered body"
     );
-}
-
-// -------------------------------------------------------------------- usage
-
-#[test]
-fn reads_usage_from_a_buffered_reply_and_from_a_messages_stream() {
-    let extractor = Claudeapi.usage_extractor().expect("declared");
-    let body = json!({
-        "model": "claude-fable-5",
-        "usage": {
-            "input_tokens": 100,
-            "output_tokens": 50,
-            "cache_read_input_tokens": 40,
-            "cache_creation": {"ephemeral_5m_input_tokens": 7, "ephemeral_1h_input_tokens": 3},
-            "output_tokens_details": {"thinking_tokens": 12},
-            "server_tool_use": {"web_search_requests": 2},
-            "service_tier": "standard"
-        }
-    })
-    .to_string();
-    let headers = HeaderMap::new();
-    let usage = extractor
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::Claude,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: body.as_bytes(),
-            },
-        })
-        .unwrap()
-        .expect("reported");
-    assert_eq!(usage.tokens.input_tokens, Some(100));
-    assert_eq!(usage.tokens.output_tokens, Some(50));
-    assert_eq!(usage.tokens.cached_input_tokens, Some(40));
-    assert_eq!(usage.tokens.cache_creation_5m_tokens, Some(7));
-    assert_eq!(usage.tokens.cache_creation_1h_tokens, Some(3));
-    assert_eq!(usage.tokens.reasoning_tokens, Some(12));
-    assert_eq!(usage.metrics["web_searches"], Decimal::from(2));
-    assert_eq!(usage.actual_service_tier.as_deref(), Some("standard"));
-
-    assert!(
-        extractor
-            .extract(UsageContext {
-                operation: OperationKey {
-                    operation: Operation::GenerateContent,
-                    dialect: Dialect::Claude,
-                },
-                request_body: None,
-                response: ResponseView {
-                    status: StatusCode::OK,
-                    headers: &headers,
-                    body: br#"{"model":"m"}"#,
-                },
-            })
-            .unwrap()
-            .is_none(),
-        "a reply without usage reports none, not zero"
-    );
-
-    // The compatibility layer's own shape, on the same channel.
-    let chat = extractor
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::OpenAiChat,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: br#"{"usage":{"prompt_tokens":11,"completion_tokens":4,"prompt_tokens_details":{"cached_tokens":5}}}"#,
-            },
-        })
-        .unwrap()
-        .expect("reported");
-    assert_eq!(chat.tokens.input_tokens, Some(6), "11 less the cached 5");
-    assert_eq!(chat.tokens.cached_input_tokens, Some(5));
-
-    let stream = Claudeapi.usage_stream().expect("declared");
-    let mut observer = stream
-        .start(UsageStreamContext {
-            operation: OperationKey {
-                operation: Operation::StreamGenerateContent,
-                dialect: Dialect::Claude,
-            },
-            request_body: None,
-            status: StatusCode::OK,
-            headers: &headers,
-            transport: UsageTransport::Http {
-                framing: Some(StreamFraming::Sse),
-            },
-        })
-        .unwrap();
-    // Split mid-record: the observer owns its own framing.
-    for chunk in [
-        b"event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"usage\":{\"in".as_slice(),
-        b"put_tokens\":30,\"cache_read_input_tokens\":4,\"output_tokens\":1}}}\n\n".as_slice(),
-        b"data: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":19,\"service_tier\":\"priority\"}}\n\n".as_slice(),
-    ] {
-        observer.observe(UsageFrame::HttpChunk(chunk)).unwrap();
-    }
-    let streamed = observer.finish(UsageStreamEnd::Complete).unwrap().unwrap();
-    assert_eq!(streamed.tokens.input_tokens, Some(30));
-    assert_eq!(
-        streamed.tokens.output_tokens,
-        Some(19),
-        "the delta restates the output side"
-    );
-    assert_eq!(streamed.tokens.cached_input_tokens, Some(4));
-    assert_eq!(streamed.actual_service_tier.as_deref(), Some("priority"));
 }
 
 // -------------------------------------------------------------------- quota

@@ -6,15 +6,14 @@ use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
     channel::{
         CredentialContext, CredentialView, PrepareContext, ProviderView, QuotaHeaderContext,
-        QuotaValue, ResponseView, UsageContext, UsageFrame, UsageStreamContext, UsageStreamEnd,
-        UsageTransport,
+        QuotaValue,
     },
     channels::openai::{OpenAi, RESPONSES_MULTI_AGENT_BETA, RESPONSES_WS_BETA},
 };
 use gproxy_protocol::{
     Dialect, HttpBody, Operation, OperationKey, WireRequest, WireResponse,
     capability::{CapabilityError, CapabilityFuture, UpstreamConnection},
-    connection::{Bytes, StreamFraming},
+    connection::Bytes,
 };
 use http::{HeaderMap, HeaderValue, Method, StatusCode};
 use rust_decimal::Decimal;
@@ -391,165 +390,6 @@ fn opens_the_two_socket_surfaces_and_refuses_the_rest() {
         ),
         Err(ChannelError::WrongTransport(_))
     ));
-}
-
-// -------------------------------------------------------------------- usage
-
-fn usage_of(dialect: Dialect, operation: Operation, body: &str) -> Option<Value> {
-    let headers = HeaderMap::new();
-    let usage = OpenAi
-        .usage_extractor()
-        .expect("declared")
-        .extract(UsageContext {
-            operation: OperationKey { operation, dialect },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: body.as_bytes(),
-            },
-        })
-        .unwrap()?;
-    Some(json!({
-        "input": usage.tokens.input_tokens,
-        "output": usage.tokens.output_tokens,
-        "cached": usage.tokens.cached_input_tokens,
-        "cache_write": usage.tokens.cache_creation_30m_tokens,
-        "reasoning": usage.tokens.reasoning_tokens,
-        "metrics": usage.metrics.keys().collect::<Vec<_>>(),
-        "tier": usage.actual_service_tier,
-    }))
-}
-
-#[test]
-fn reads_both_usage_shapes_and_their_qualifiers() {
-    let chat = usage_of(
-        Dialect::OpenAiChat,
-        Operation::GenerateContent,
-        r#"{"service_tier":"flex","usage":{"prompt_tokens":100,"completion_tokens":20,
-            "prompt_tokens_details":{"cached_tokens":40,"cache_write_tokens":3,"audio_tokens":5},
-            "completion_tokens_details":{"reasoning_tokens":7}}}"#,
-    )
-    .expect("reported");
-    assert_eq!(
-        chat["input"], 57,
-        "the reported prompt total counts the cache read and the cache write"
-    );
-    assert_eq!(chat["output"], 20);
-    assert_eq!(chat["cached"], 40);
-    assert_eq!(chat["cache_write"], 3);
-    assert_eq!(chat["reasoning"], 7);
-    assert_eq!(chat["metrics"], json!(["audio_input_tokens"]));
-    assert_eq!(chat["tier"], "flex");
-
-    let responses = usage_of(
-        Dialect::OpenAi,
-        Operation::GenerateContent,
-        r#"{"usage":{"input_tokens":11,"output_tokens":4,
-            "input_tokens_details":{"cached_tokens":2},
-            "output_tokens_details":{"reasoning_tokens":1},
-            "server_tool_use":{"web_search_requests":3}}}"#,
-    )
-    .expect("reported");
-    assert_eq!(
-        responses["input"], 9,
-        "the cache read leaves the ordinary input"
-    );
-    assert_eq!(responses["metrics"], json!(["web_searches"]));
-
-    let image = usage_of(
-        Dialect::OpenAi,
-        Operation::CreateImage,
-        r#"{"data":[{"b64_json":"x"}],"usage":{"input_tokens":2,"output_tokens":8}}"#,
-    )
-    .expect("reported");
-    assert_eq!(
-        image["output"], 0,
-        "produced image tokens leave the text output"
-    );
-    assert_eq!(
-        image["metrics"],
-        json!(["image_output_tokens", "image_outputs"])
-    );
-
-    assert!(
-        usage_of(
-            Dialect::OpenAi,
-            Operation::GenerateContent,
-            r#"{"id":"resp_1"}"#
-        )
-        .is_none(),
-        "a reply without usage reports none, not zero"
-    );
-}
-
-#[test]
-fn watches_a_chat_and_a_responses_stream_across_chunk_boundaries() {
-    let headers = HeaderMap::new();
-    let stream = OpenAi.usage_stream().expect("declared");
-    let observe = |dialect, chunks: &[&[u8]]| {
-        let mut observer = stream
-            .start(UsageStreamContext {
-                operation: OperationKey {
-                    operation: Operation::StreamGenerateContent,
-                    dialect,
-                },
-                request_body: None,
-                status: StatusCode::OK,
-                headers: &headers,
-                transport: UsageTransport::Http {
-                    framing: Some(StreamFraming::Sse),
-                },
-            })
-            .unwrap();
-        for chunk in chunks {
-            observer.observe(UsageFrame::HttpChunk(chunk)).unwrap();
-        }
-        observer.finish(UsageStreamEnd::Complete).unwrap()
-    };
-
-    let chat = observe(
-        Dialect::OpenAiChat,
-        &[
-            b"data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n",
-            b"data: {\"usage\":{\"prompt_tokens\":9,\"completion_",
-            b"tokens\":4}}\n\ndata: [DONE]\n\n",
-        ],
-    )
-    .expect("the closing chunk reports usage");
-    assert_eq!(chat.tokens.input_tokens, Some(9));
-    assert_eq!(chat.tokens.output_tokens, Some(4));
-
-    let responses = observe(
-        Dialect::OpenAi,
-        &[
-            b"event: response.in_progress\ndata: {\"type\":\"response.in_progress\"}\n\n",
-            b"event: response.com",
-            b"pleted\r\ndata: {\"type\":\"response.completed\",\"response\":{\"service_tier\":\"priority\",\"usage\":{",
-            b"\"input_tokens\":9,\"output_tokens\":4}}}\r\n\r\n",
-        ],
-    )
-    .expect("the completion carries usage");
-    assert_eq!(responses.tokens.input_tokens, Some(9));
-    assert_eq!(responses.actual_service_tier.as_deref(), Some("priority"));
-
-    assert!(
-        stream
-            .start(UsageStreamContext {
-                operation: OperationKey {
-                    operation: Operation::DeleteFile,
-                    dialect: Dialect::OpenAi,
-                },
-                request_body: None,
-                status: StatusCode::OK,
-                headers: &headers,
-                transport: UsageTransport::Http {
-                    framing: Some(StreamFraming::Sse),
-                },
-            })
-            .is_err(),
-        "an operation with nothing to watch for says so"
-    );
 }
 
 // -------------------------------------------------------------------- quota

@@ -5,7 +5,7 @@ use super::{DEFAULT_BASE_URL, ID, OpenAi, OpenAiConfig};
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey,
     ConfigKeyKind, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView,
-    QuotaHeaders, QuotaQuery, UsageExtractor, UsageStream, forwardable,
+    QuotaHeaders, QuotaQuery, forwardable,
 };
 use crate::channels::shared::cache;
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireRequest};
@@ -304,12 +304,6 @@ impl BaseChannel for OpenAi {
         Some(self)
     }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
-        Some(self)
-    }
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
         Some(self)
     }
 }

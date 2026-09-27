@@ -19,7 +19,6 @@
 pub(crate) mod google;
 pub(crate) mod quota;
 pub(crate) mod stream;
-pub(crate) mod usage;
 
 use crate::OutboundClient;
 use crate::channel::ChannelError;

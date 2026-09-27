@@ -38,7 +38,6 @@ mod auth;
 mod config;
 mod endpoint;
 mod request;
-mod usage;
 
 pub use config::VertexConfig;
 

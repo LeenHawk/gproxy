@@ -27,7 +27,7 @@
 //! `native_dialects` plus the host's protocol conversion. v3's `ChannelLogin`
 //! becomes `OAuthDeviceCode`. v3's `StreamDecoder` is gone: every surface
 //! answers its own dialect verbatim, so nothing is decoded on the way out and
-//! only `UsageStream` watches the bytes. v3's `ChannelTrafficPolicy`
+//! the host reads usage from the reply as it is. v3's `ChannelTrafficPolicy`
 //! (`x-opencode-session` in, OpenAI's response headers out) becomes the
 //! declared `SESSION_HEADERS`; v4 forwards every client header but the fixed
 //! drops, and an operator who wants v3's narrower set writes
@@ -40,7 +40,6 @@ mod config;
 mod oauth;
 mod quota;
 mod request;
-mod usage;
 
 pub use config::{
     DEFAULT_CLIENT_ID, DEFAULT_CONSOLE_BASE_URL, GO_BASE_URL, GO_ID, OpenCodeConfig, Tier,
@@ -52,8 +51,7 @@ pub use request::SESSION_HEADERS;
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OAuthDeviceCode, PrepareContext, ProviderView,
-    QuotaQuery, UsageExtractor, UsageStream,
-};
+    QuotaQuery, };
 use gproxy_protocol::{Dialect, HttpBody, Operation};
 
 /// One OpenCode product; register [`OpenCode::ZEN`] and [`OpenCode::GO`].
@@ -162,13 +160,5 @@ impl BaseChannel for OpenCode {
 
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
         (!self.is_zen()).then_some(self as &dyn QuotaQuery)
-    }
-
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
-        Some(self)
     }
 }

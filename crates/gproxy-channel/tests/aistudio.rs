@@ -1,18 +1,14 @@
 #![cfg(feature = "aistudio")]
 
+mod support;
+
 use gproxy_channel::{
     BaseChannel, ChannelError,
-    channel::{
-        CredentialView, PrepareContext, ProviderView, ResponseView, UsageContext, UsageFrame,
-        UsageStreamContext, UsageStreamEnd, UsageTransport,
-    },
+    channel::{CredentialView, PrepareContext, ProviderView},
     channels::aistudio::Aistudio,
 };
-use gproxy_protocol::{
-    Dialect, HttpBody, Operation, OperationKey, WireRequest,
-    connection::{Bytes, StreamFraming},
-};
-use http::{HeaderMap, HeaderValue, Method, StatusCode};
+use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes};
+use http::{HeaderMap, HeaderValue, Method};
 use rust_decimal::Decimal;
 use serde_json::{Value, json};
 
@@ -305,26 +301,20 @@ const METADATA: &str = r#"{
     }
 }"#;
 
+/// The reading is the standard Gemini one; the tier the header names is
+/// AI Studio's own addition, and only qualifies a reply that reported usage.
 #[test]
-fn splits_the_produced_modalities_out_of_the_candidate_count() {
-    let extractor = Aistudio.usage_extractor().expect("declared");
+fn a_native_reply_settles_with_the_tier_its_header_names() {
     let mut headers = HeaderMap::new();
     headers.insert("x-gemini-service-tier", "flex".parse().unwrap());
-    let usage = extractor
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::Gemini,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: METADATA.as_bytes(),
-            },
-        })
-        .unwrap()
-        .expect("reported");
+    let usage = support::settled(
+        &Aistudio,
+        Operation::GenerateContent,
+        Dialect::Gemini,
+        &headers,
+        METADATA.as_bytes(),
+    )
+    .expect("reported");
     assert_eq!(
         usage.tokens.input_tokens,
         Some(60),
@@ -332,151 +322,47 @@ fn splits_the_produced_modalities_out_of_the_candidate_count() {
     );
     assert_eq!(
         usage.tokens.output_tokens,
-        Some(40),
-        "50 candidates less 15 image and 5 audio, plus 10 thinking"
+        Some(60),
+        "50 candidates plus 10 thinking; the media inside stay in the total"
     );
     assert_eq!(usage.tokens.cached_input_tokens, Some(40));
     assert_eq!(usage.tokens.reasoning_tokens, Some(10));
     assert_eq!(usage.metrics["image_output_tokens"], Decimal::from(15));
     assert_eq!(usage.metrics["audio_output_tokens"], Decimal::from(5));
     assert_eq!(usage.actual_service_tier.as_deref(), Some("flex"));
-
-    let empty = HeaderMap::new();
-    let embedding = extractor
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::CreateEmbedding,
-                dialect: Dialect::Gemini,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &empty,
-                body: br#"{"embedding":{"values":[1.0]},"usageMetadata":{"promptTokenCount":8}}"#,
-            },
-        })
-        .unwrap()
-        .expect("reported");
-    assert_eq!(embedding.tokens.input_tokens, Some(8));
-    assert_eq!(embedding.tokens.output_tokens, None);
+    assert_eq!(usage.dimensions["service_tier"], "flex");
 
     assert!(
-        extractor
-            .extract(UsageContext {
-                operation: OperationKey {
-                    operation: Operation::GenerateContent,
-                    dialect: Dialect::Gemini,
-                },
-                request_body: None,
-                response: ResponseView {
-                    status: StatusCode::OK,
-                    headers: &empty,
-                    body: br#"{"candidates":[]}"#,
-                },
-            })
-            .unwrap()
-            .is_none(),
-        "a reply without usageMetadata reports none, not zero"
-    );
-
-    // The compatibility layer's own shape, on the same channel.
-    let chat = extractor
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::OpenAiChat,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &empty,
-                body: br#"{"usage":{"prompt_tokens":7,"completion_tokens":2}}"#,
-            },
-        })
-        .unwrap()
-        .expect("reported");
-    assert_eq!(chat.tokens.input_tokens, Some(7));
-}
-
-#[test]
-fn watches_both_stream_framings_and_takes_the_last_complete_reading() {
-    let headers = HeaderMap::new();
-    let stream = Aistudio.usage_stream().expect("declared");
-    let observe = |dialect, framing, chunks: &[&[u8]]| {
-        let mut observer = stream
-            .start(UsageStreamContext {
-                operation: OperationKey {
-                    operation: Operation::StreamGenerateContent,
-                    dialect,
-                },
-                request_body: None,
-                status: StatusCode::OK,
-                headers: &headers,
-                transport: UsageTransport::Http { framing },
-            })
-            .unwrap();
-        for chunk in chunks {
-            observer.observe(UsageFrame::HttpChunk(chunk)).unwrap();
-        }
-        observer.finish(UsageStreamEnd::Complete).unwrap()
-    };
-
-    // An early record carries a prompt-only reading, which is not a result.
-    let partial = br#"{"usageMetadata":{"promptTokenCount":100}}"#;
-    let final_record = br#"{"usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":50,"thoughtsTokenCount":10}}"#;
-
-    let sse = observe(
-        Dialect::Gemini,
-        Some(StreamFraming::Sse),
-        &[b"data: ", partial, b"\n\ndata: ", final_record, b"\n\n"],
-    )
-    .expect("the last complete record wins");
-    assert_eq!(
-        sse.tokens.input_tokens,
-        Some(100),
-        "nothing was cached here"
-    );
-    assert_eq!(sse.tokens.output_tokens, Some(60));
-
-    let array = observe(
-        Dialect::Gemini,
-        Some(StreamFraming::JsonArray),
-        &[b"[", partial, b",", final_record, b"]"],
-    )
-    .expect("without alt=sse the records arrive as one array");
-    assert_eq!(array.tokens.output_tokens, Some(60));
-
-    assert!(
-        observe(
+        support::settled(
+            &Aistudio,
+            Operation::GenerateContent,
             Dialect::Gemini,
-            Some(StreamFraming::Sse),
-            &[b"data: ", partial, b"\n\n"]
+            &headers,
+            br#"{"candidates":[]}"#,
         )
         .is_none(),
-        "a prompt-only reading would understate the call"
+        "a reply without usageMetadata reports none, not a bare tier"
     );
 
-    let chat = observe(
-        Dialect::OpenAiChat,
-        Some(StreamFraming::Sse),
-        &[b"data: {\"usage\":{\"prompt_tokens\":9,\"completion_tokens\":4}}\n\n"],
+    let streamed = support::settled_stream(
+        &Aistudio,
+        Operation::StreamGenerateContent,
+        Dialect::Gemini,
+        &headers,
+        format!("[{METADATA}]").as_bytes(),
     )
-    .expect("the compatibility layer reports OpenAI's shape");
-    assert_eq!(chat.tokens.input_tokens, Some(9));
+    .expect("reported");
+    assert_eq!(streamed.actual_service_tier.as_deref(), Some("flex"));
 
-    assert!(
-        stream
-            .start(UsageStreamContext {
-                operation: OperationKey {
-                    operation: Operation::StreamGenerateContent,
-                    dialect: Dialect::Gemini,
-                },
-                request_body: None,
-                status: StatusCode::OK,
-                headers: &headers,
-                transport: UsageTransport::WebSocket,
-            })
-            .is_err(),
-        "AI Studio serves no socket here"
-    );
+    // The compatibility layer's own shape carries no tier header meaning.
+    let chat = support::settled(
+        &Aistudio,
+        Operation::GenerateContent,
+        Dialect::OpenAiChat,
+        &headers,
+        br#"{"usage":{"prompt_tokens":7,"completion_tokens":2}}"#,
+    )
+    .expect("reported");
+    assert_eq!(chat.tokens.input_tokens, Some(7));
+    assert_eq!(chat.actual_service_tier, None);
 }

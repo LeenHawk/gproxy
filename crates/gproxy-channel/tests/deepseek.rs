@@ -3,9 +3,7 @@
 //! DeepSeek puts three compatible surfaces on one origin at three different
 //! paths, and names its cache hits its own way.
 
-use gproxy_channel::channel::{
-    PrepareContext, QuotaValue, ResponseView, UsageContext, UsageExtractor,
-};
+use gproxy_channel::channel::{PrepareContext, QuotaValue};
 use gproxy_channel::channels::deepseek::{BALANCE_DIMENSION, DeepSeek};
 use gproxy_channel::{BaseChannel, ChannelError, LoginMode};
 use gproxy_protocol::{Dialect, HttpBody, Operation, OperationKey, WireRequest};
@@ -117,21 +115,14 @@ fn a_cache_hit_is_taken_out_of_the_prompt_count() {
     }})
     .to_string();
     let headers = HeaderMap::new();
-    let usage = DeepSeek
-        .extract(UsageContext {
-            operation: OperationKey {
-                operation: Operation::GenerateContent,
-                dialect: Dialect::OpenAiChat,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: body.as_bytes(),
-            },
-        })
-        .unwrap()
-        .unwrap();
+    let usage = support::settled(
+        &DeepSeek,
+        Operation::GenerateContent,
+        Dialect::OpenAiChat,
+        &headers,
+        body.as_bytes(),
+    )
+    .unwrap();
     assert_eq!(
         usage.tokens.input_tokens,
         Some(40),

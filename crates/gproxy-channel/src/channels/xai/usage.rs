@@ -1,12 +1,10 @@
-//! Tokens, the cost ticks xAI meters with, and a video job's own price.
+//! What xAI reports beside the standard usage: the cost ticks it meters
+//! with, a web-search count under a name of its own, and a video job's own
+//! price.
 
 use super::Xai;
-use crate::channel::{
-    ChannelError, NormalizedUsage, UsageContext, UsageExtractor, UsageObserver, UsageStream,
-    UsageStreamContext,
-};
+use crate::channel::{NormalizedUsage, UsageExtras, UsageSource, usage_object};
 use crate::channels::shared::compatible::ability::decimal;
-use crate::channels::shared::compatible::usage::{self, u64_at};
 use serde_json::Value;
 
 /// xAI's own metering unit. It is not a currency: an operator prices it with
@@ -17,16 +15,9 @@ pub const UPSTREAM_COST_METRIC: &str = "upstream_cost_usd";
 /// Set when the upstream priced the exchange itself.
 pub const UPSTREAM_PRICED_DIMENSION: &str = "upstream_priced";
 
-fn enrich(root: &Value, value: &Value, into: &mut NormalizedUsage) {
-    if let Some(ticks) = value.get("cost_in_usd_ticks").and_then(decimal) {
-        into.metrics.insert(COST_TICKS_METRIC.into(), ticks);
-    }
-    if let Some(tokens) = u64_at(value, "/input_tokens_details/image_tokens") {
-        into.metrics
-            .insert("image_input_tokens".into(), tokens.into());
-    }
-    if let Some(searches) = u64_at(value, "/server_side_tool_usage_details/web_search_requests") {
-        into.metrics.insert("web_searches".into(), searches.into());
+fn enrich(root: &Value, into: &mut NormalizedUsage) {
+    if let Some(value) = usage_object(root) {
+        usage_fields(value, into);
     }
     // A video job answers with its own price at the response root; only that
     // field is read, because a bare `cost` elsewhere has no stated unit.
@@ -45,28 +36,23 @@ fn enrich(root: &Value, value: &Value, into: &mut NormalizedUsage) {
     }
 }
 
-impl UsageExtractor for Xai {
-    fn extract(&self, ctx: UsageContext<'_>) -> Result<Option<NormalizedUsage>, ChannelError> {
-        if !ctx.response.status.is_success() {
-            return Ok(None);
-        }
-        Ok(usage::from_body(
-            ctx.operation.dialect,
-            ctx.response.body,
-            enrich,
-        ))
+/// The usage object's own fields: the cost ticks and the web searches
+/// counted under a name of xAI's own. The image input tokens beside them are
+/// standard Responses detail, already read by the standard reading.
+fn usage_fields(value: &Value, into: &mut NormalizedUsage) {
+    if let Some(ticks) = value.get("cost_in_usd_ticks").and_then(decimal) {
+        into.metrics.insert(COST_TICKS_METRIC.into(), ticks);
+    }
+    if let Some(searches) = value
+        .pointer("/server_side_tool_usage_details/web_search_requests")
+        .and_then(Value::as_u64)
+    {
+        into.metrics.insert("web_searches".into(), searches.into());
     }
 }
 
-impl UsageStream for Xai {
-    fn start(
-        &self,
-        context: UsageStreamContext<'_>,
-    ) -> Result<Box<dyn UsageObserver>, ChannelError> {
-        Ok(usage::observer(
-            context.operation.dialect,
-            context.transport,
-            enrich,
-        ))
+impl UsageExtras for Xai {
+    fn read(&self, source: UsageSource<'_>, usage: &mut NormalizedUsage) {
+        enrich(source.root, usage);
     }
 }

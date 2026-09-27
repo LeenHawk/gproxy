@@ -5,7 +5,7 @@
 
 use gproxy_channel::channel::{
     CredentialContext, CredentialRefresh, DevicePoll, LoginContext, OAuthDeviceCode,
-    PrepareContext, QuotaValue, ResponseView, UsageContext, UsageExtractor,
+    PrepareContext, QuotaValue,
 };
 use gproxy_channel::channels::opencode::{GO_SOURCE, OpenCode};
 use gproxy_channel::{BaseChannel, ChannelError, LoginMode, OutboundClient};
@@ -304,46 +304,6 @@ fn the_magic_cache_string_is_stripped_and_only_marked_when_the_provider_asks() {
     assert_eq!(
         on["messages"][0]["content"][0]["cache_control"]["ttl"],
         "5m"
-    );
-}
-
-#[test]
-fn usage_is_read_from_whichever_shape_the_surface_answered_in() {
-    let headers = HeaderMap::new();
-    let read = |dialect, body: String| {
-        OpenCode::ZEN
-            .extract(UsageContext {
-                operation: OperationKey {
-                    operation: Operation::GenerateContent,
-                    dialect,
-                },
-                request_body: None,
-                response: ResponseView {
-                    status: StatusCode::OK,
-                    headers: &headers,
-                    body: body.as_bytes(),
-                },
-            })
-            .unwrap()
-            .unwrap()
-    };
-    let chat = read(
-        Dialect::OpenAiChat,
-        json!({"usage": {"prompt_tokens": 100, "completion_tokens": 4,
-                         "prompt_tokens_details": {"cached_tokens": 40}}})
-        .to_string(),
-    );
-    assert_eq!(chat.tokens.input_tokens, Some(60));
-    let claude = read(
-        Dialect::Claude,
-        json!({"usage": {"input_tokens": 100, "output_tokens": 4,
-                         "cache_read_input_tokens": 40}})
-        .to_string(),
-    );
-    assert_eq!(
-        claude.tokens.input_tokens,
-        Some(100),
-        "Claude already excludes its cache counters"
     );
 }
 

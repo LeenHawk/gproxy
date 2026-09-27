@@ -6,10 +6,10 @@ use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
     channel::{
         ChannelServices, CredentialContext, CredentialRefresh, CredentialUpdate, CredentialView,
-        NormalizedUsage, OperationContext, OperationFuture, PrepareContext, ProviderView,
-        QuotaAllowance, QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaMetric,
-        QuotaModel, QuotaQuery, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
-        QuotaWindow, RefreshContext, ServiceContext, UsageContext, UsageExtractor,
+        OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaAllowance,
+        QuotaDimension, QuotaEntry, QuotaHeaderContext, QuotaHeaders, QuotaMetric, QuotaModel,
+        QuotaQuery, QuotaScope, QuotaSnapshot, QuotaSubject, QuotaTracking, QuotaValue,
+        QuotaWindow, RefreshContext, ServiceContext,
     },
 };
 use gproxy_core::{
@@ -164,7 +164,6 @@ pub struct TestChannel {
     pub expose_services: AtomicBool,
     /// Credential ids the service calls ran with, in order.
     pub service_calls: Mutex<Vec<String>>,
-    pub response_usages: Mutex<VecDeque<NormalizedUsage>>,
 }
 impl BaseChannel for TestChannel {
     fn id(&self) -> &'static str {
@@ -315,44 +314,6 @@ impl BaseChannel for TestChannel {
         builder
             .body(())
             .map_err(|_| ChannelError::InvalidCredential)
-    }
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-    fn usage_stream(&self) -> Option<&dyn gproxy_channel::channel::UsageStream> {
-        Some(self)
-    }
-}
-impl gproxy_channel::channel::UsageStream for TestChannel {
-    fn start(
-        &self,
-        _: gproxy_channel::channel::UsageStreamContext<'_>,
-    ) -> Result<Box<dyn gproxy_channel::channel::UsageObserver>, ChannelError> {
-        struct FixedUsage(Option<NormalizedUsage>);
-        impl gproxy_channel::channel::UsageObserver for FixedUsage {
-            fn observe(
-                &mut self,
-                _: gproxy_channel::channel::UsageFrame<'_>,
-            ) -> Result<(), ChannelError> {
-                Ok(())
-            }
-            fn snapshot(&self) -> Option<NormalizedUsage> {
-                self.0.clone()
-            }
-            fn finish(
-                self: Box<Self>,
-                _: gproxy_channel::channel::UsageStreamEnd,
-            ) -> Result<Option<NormalizedUsage>, ChannelError> {
-                Ok(self.0)
-            }
-        }
-        let usage = self
-            .response_usages
-            .lock()
-            .unwrap()
-            .pop_front()
-            .ok_or(ChannelError::UnsupportedService)?;
-        Ok(Box::new(FixedUsage(Some(usage))))
     }
 }
 /// Dimensions come from credential metadata:
@@ -565,38 +526,6 @@ impl CredentialRefresh for TestChannel {
                 RefreshReply::Failed => Err(ChannelError::InvalidResponse("upstream down".into())),
             }
         })
-    }
-}
-impl UsageExtractor for TestChannel {
-    /// JSON bodies read `usage` directly; SSE bodies (Claude events) take
-    /// input tokens from `message_start` and output tokens from the last
-    /// `usage` seen.
-    fn extract(&self, ctx: UsageContext<'_>) -> Result<Option<NormalizedUsage>, ChannelError> {
-        let values: Vec<serde_json::Value> = match serde_json::from_slice(ctx.response.body) {
-            Ok(value) => vec![value],
-            Err(_) => std::str::from_utf8(ctx.response.body)
-                .unwrap_or_default()
-                .lines()
-                .filter_map(|line| line.strip_prefix("data: "))
-                .filter_map(|data| serde_json::from_str(data).ok())
-                .collect(),
-        };
-        let mut usage = NormalizedUsage::default();
-        let mut seen = false;
-        for value in &values {
-            for candidate in [&value["usage"], &value["message"]["usage"]] {
-                if candidate.is_object() {
-                    seen = true;
-                    if let Some(input) = candidate["input_tokens"].as_u64() {
-                        usage.tokens.input_tokens = Some(input);
-                    }
-                    if let Some(output) = candidate["output_tokens"].as_u64() {
-                        usage.tokens.output_tokens = Some(output);
-                    }
-                }
-            }
-        }
-        Ok(seen.then_some(usage))
     }
 }
 

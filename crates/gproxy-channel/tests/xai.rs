@@ -4,8 +4,7 @@
 //! metering unit and its billing on another host entirely.
 
 use gproxy_channel::channel::{
-    CredentialContext, PrepareContext, QuotaModel, QuotaQuery, QuotaValue, ResponseView,
-    UsageContext, UsageExtractor,
+    CredentialContext, PrepareContext, QuotaModel, QuotaQuery, QuotaValue,
 };
 use gproxy_channel::channels::xai::{
     COST_TICKS_METRIC, POSTPAID_DIMENSION, PREPAID_DIMENSION, UPSTREAM_COST_METRIC,
@@ -134,19 +133,13 @@ fn the_grok_conversation_header_survives_a_narrow_allow_list() {
 fn usage_of(body: Value) -> gproxy_channel::channel::NormalizedUsage {
     let text = body.to_string();
     let headers = HeaderMap::new();
-    Xai.extract(UsageContext {
-        operation: OperationKey {
-            operation: Operation::GenerateContent,
-            dialect: Dialect::OpenAi,
-        },
-        request_body: None,
-        response: ResponseView {
-            status: StatusCode::OK,
-            headers: &headers,
-            body: text.as_bytes(),
-        },
-    })
-    .unwrap()
+    support::settled(
+        &Xai,
+        Operation::GenerateContent,
+        Dialect::OpenAi,
+        &headers,
+        text.as_bytes(),
+    )
     .unwrap()
 }
 

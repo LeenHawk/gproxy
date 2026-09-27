@@ -132,33 +132,32 @@ pub(super) struct Stream {
 impl Stream {
     /// One SSE record. Most carry only content, so a record that does not
     /// mention usage is not parsed.
-    pub(super) fn event(&mut self, data: &str) {
+    pub(super) fn event(&mut self, data: &str) -> bool {
         if !data.contains("usageMetadata") && !data.contains("usage_metadata") {
-            return;
+            return false;
         }
         let Ok(reply) = serde_json::from_str::<Reply>(data) else {
-            return;
+            return false;
         };
-        if let Some(metadata) = reply.usage {
-            self.keep(metadata);
-        }
+        reply.usage.is_some_and(|metadata| self.keep(metadata))
     }
 
-    fn keep(&mut self, metadata: Value) {
-        if from_metadata(&metadata, true).is_some() {
-            self.metadata = Some(metadata);
+    /// Whether the metadata carried a reading and was kept.
+    fn keep(&mut self, metadata: Value) -> bool {
+        if from_metadata(&metadata, true).is_none() {
+            return false;
         }
+        self.metadata = Some(metadata);
+        true
     }
 
     /// One element of a JSON-array stream, which its decoder has already
     /// parsed whole.
-    pub(super) fn record(&mut self, record: &Value) {
+    pub(super) fn record(&mut self, record: &Value) -> bool {
         let metadata = record
             .get("usageMetadata")
             .or_else(|| record.get("usage_metadata"));
-        if let Some(metadata) = metadata {
-            self.keep(metadata.clone());
-        }
+        metadata.is_some_and(|metadata| self.keep(metadata.clone()))
     }
 
     /// The reading so far; `settled` once the stream ended on its own.

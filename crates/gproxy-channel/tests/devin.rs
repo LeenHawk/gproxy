@@ -10,15 +10,14 @@ use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
     channel::{
         ChannelState, CredentialContext, CredentialView, LoginMode, NoState, OperationContext,
-        ProviderView, QuotaScope, QuotaSubject, QuotaValue, ResponseView, UsageContext, UsageFrame,
-        UsageStreamContext, UsageStreamEnd, UsageTransport,
+        ProviderView, QuotaScope, QuotaSubject, QuotaValue,
     },
     channels::devin::{self, Devin},
 };
 use gproxy_protocol::{
     Dialect, HttpBody, WireRequest, WireResponse,
     capability::{CapabilityError, CapabilityFuture},
-    connection::{Bytes, StreamFraming},
+    connection::Bytes,
 };
 use http::{HeaderMap, Method, StatusCode};
 use rust_decimal::Decimal;
@@ -982,24 +981,14 @@ async fn the_model_that_actually_served_the_turn_travels_as_usage() {
         "claude-opus-4-8-medium"
     );
 
-    let headers = HeaderMap::new();
-    let usage = Devin
-        .usage_extractor()
-        .unwrap()
-        .extract(UsageContext {
-            operation: gproxy_protocol::OperationKey {
-                operation: gproxy_protocol::Operation::GenerateContent,
-                dialect: Dialect::OpenAiChat,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: body.as_bytes(),
-            },
-        })
-        .unwrap()
-        .expect("the completion reports usage");
+    let usage = support::settled(
+        &Devin,
+        gproxy_protocol::Operation::GenerateContent,
+        Dialect::OpenAiChat,
+        &HeaderMap::new(),
+        body.as_bytes(),
+    )
+    .expect("the completion reports usage");
     assert_eq!(
         usage
             .dimensions
@@ -1313,24 +1302,14 @@ async fn a_buffered_turn_collects_into_one_completion_with_usage() {
     );
     assert_eq!(completion["choices"][0]["finish_reason"], "stop");
 
-    let headers = HeaderMap::new();
-    let usage = Devin
-        .usage_extractor()
-        .unwrap()
-        .extract(UsageContext {
-            operation: gproxy_protocol::OperationKey {
-                operation: gproxy_protocol::Operation::GenerateContent,
-                dialect: Dialect::OpenAiChat,
-            },
-            request_body: None,
-            response: ResponseView {
-                status: StatusCode::OK,
-                headers: &headers,
-                body: body.as_bytes(),
-            },
-        })
-        .unwrap()
-        .expect("the completion reports usage");
+    let usage = support::settled(
+        &Devin,
+        gproxy_protocol::Operation::GenerateContent,
+        Dialect::OpenAiChat,
+        &HeaderMap::new(),
+        body.as_bytes(),
+    )
+    .expect("the completion reports usage");
     assert_eq!(
         usage.tokens.input_tokens,
         Some(40),
@@ -1341,7 +1320,7 @@ async fn a_buffered_turn_collects_into_one_completion_with_usage() {
 }
 
 #[tokio::test]
-async fn the_usage_observer_reads_the_terminal_chunk() {
+async fn a_stream_settles_on_its_terminal_chunk() {
     let config = json!({});
     let secret = secret();
     let metadata = json!({});
@@ -1361,60 +1340,17 @@ async fn the_usage_observer_reads_the_terminal_chunk() {
         .unwrap();
     let sse = drain(response).await;
 
-    let headers = HeaderMap::new();
-    let mut observer = Devin
-        .usage_stream()
-        .unwrap()
-        .start(UsageStreamContext {
-            operation: gproxy_protocol::OperationKey {
-                operation: gproxy_protocol::Operation::StreamGenerateContent,
-                dialect: Dialect::OpenAiChat,
-            },
-            request_body: None,
-            status: StatusCode::OK,
-            headers: &headers,
-            transport: UsageTransport::Http {
-                framing: Some(StreamFraming::Sse),
-            },
-        })
-        .unwrap();
-    for chunk in sse.as_bytes().chunks(17) {
-        observer.observe(UsageFrame::HttpChunk(chunk)).unwrap();
-    }
-    let usage = observer
-        .finish(UsageStreamEnd::Complete)
-        .unwrap()
-        .expect("the stream reported usage");
+    let usage = support::settled_stream(
+        &Devin,
+        gproxy_protocol::Operation::StreamGenerateContent,
+        Dialect::OpenAiChat,
+        &HeaderMap::new(),
+        sse.as_bytes(),
+    )
+    .expect("the stream reported usage");
     assert_eq!(usage.tokens.input_tokens, Some(40));
     assert_eq!(usage.tokens.cached_input_tokens, Some(3));
     assert_eq!(usage.tokens.output_tokens, Some(7));
-}
-
-#[tokio::test]
-async fn a_stream_that_reported_nothing_has_unknown_usage_rather_than_zero() {
-    let headers = HeaderMap::new();
-    let mut observer = Devin
-        .usage_stream()
-        .unwrap()
-        .start(UsageStreamContext {
-            operation: gproxy_protocol::OperationKey {
-                operation: gproxy_protocol::Operation::StreamGenerateContent,
-                dialect: Dialect::OpenAiChat,
-            },
-            request_body: None,
-            status: StatusCode::OK,
-            headers: &headers,
-            transport: UsageTransport::Http {
-                framing: Some(StreamFraming::Sse),
-            },
-        })
-        .unwrap();
-    observer
-        .observe(UsageFrame::HttpChunk(
-            b"data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n",
-        ))
-        .unwrap();
-    assert!(observer.finish(UsageStreamEnd::Complete).unwrap().is_none());
 }
 
 // ── Quota ──────────────────────────────────────────────────────────────────

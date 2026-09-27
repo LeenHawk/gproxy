@@ -3,8 +3,8 @@
 [English](README.md) | 简体中文
 
 GPROXY v4 的上游适配层。一个渠道只认识一个上游家族：它的 URL、凭证如何注入、
-原生接受哪些 wire dialect、流里怎样报告用量，以及账号类上游如何登录、刷新和读取
-额度。其余一切（选路、凭证选择、失败转移、协议转换、结算、捕获）都属于
+原生接受哪些 wire dialect、怎样把回答整形成该操作的标准响应（宿主就从这里读用量），
+以及账号类上游如何登录、刷新和读取额度。其余一切（选路、凭证选择、失败转移、协议转换、结算、捕获）都属于
 `gproxy-core`；这里不读数据库，也不选择传输。
 
 本 crate 依赖 `gproxy-protocol` 取操作与 wire 类型，依赖 `gproxy-client` 只为
@@ -47,8 +47,9 @@ operation 而不是客户端 path 决定，OpenAI 的 Responses 与 Realtime 要
 AI Studio 在同一个 origin 上放了两套面、各要各的凭证头。
 
 `dashscope`、`deepseek`、`kimi`、`openrouter`、`xai` 是 API-key 舰队：它们的 wire
-就是那三种兼容形状之一，因此共用 `channels::shared::compatible` 做有界的能力调用
-和用量观察，彼此的差别只在方法落在哪里、usage 对象多带了哪些字段、账号面报什么。
+就是那三种兼容形状之一，因此共用 `channels::shared::compatible` 做有界的能力调用，
+彼此的差别只在方法落在哪里、usage 对象多带了哪些字段（各渠道的 `UsageExtras`）、
+账号面报什么。
 每一个都因为"`custom` 表达不了的东西"才成为渠道——表达得了的那些见下文
 《不需要渠道的厂商》。
 
@@ -199,8 +200,7 @@ body 里没有选路对象、响应里也没有价格：没有任何东西要渠
 | `quota_query` | `QuotaQuery` | 从上游用量端点读 `QuotaSnapshot` |
 | `quota_headers` | `QuotaHeaders` | 把响应头变成 `QuotaEntry`；空表示没有报告 |
 | `quota_reset` | `QuotaReset` | 在售卖额度的上游上查看 credits 并手动重置 |
-| `usage_extractor` | `UsageExtractor` | 从缓冲后的响应提取 `NormalizedUsage`；`None` 表示未报告，不是零 |
-| `usage_stream` | `UsageStream` | 每个响应一个 `UsageObserver`，喂入原始 HTTP chunk 或 WebSocket 帧；从不改写交付的流 |
+| `usage_extras` | `UsageExtras` | 厂商自己的用量字段（上游报的价格、自有名字的缓存计数、实际服务的模型），在宿主从渠道整形后的标准响应里读出标准用量之后补充 |
 | `services` | `ChannelServices` | 厂商控制面路由（Codex 插件、文件、远程控制；Claude Code 文件），`ServiceCaller` 由宿主实现，提供身份、角色、用量与资源绑定 |
 
 `ChannelState` 是宿主按 provider 与 credential 划定范围的跨请求记忆（要恢复的网页
@@ -248,7 +248,7 @@ body 里没有选路对象、响应里也没有价格：没有任何东西要渠
      request.rs    impl BaseChannel：prepare / prepare_connect / 覆写的操作
      oauth.rs      OAuthAuthorizationCode、OAuthDeviceCode、CookieLogin、CredentialRefresh
      quota.rs      QuotaModel、QuotaQuery、QuotaHeaders
-     usage.rs      UsageExtractor、UsageStream
+     usage.rs      UsageExtras、UsageSource
      services.rs   ChannelServices 路由与处理
    ```
 
@@ -332,8 +332,8 @@ body 里没有选路对象、响应里也没有价格：没有任何东西要渠
 
 6. 把能力做成独立类型，从访问器返回。遵守各 trait 的规则：refresh 返回完整替换而
    不是合并；`QuotaModel::dimensions` 从 `credential.metadata` 读套餐事实而不走网络；
-   用量观察者做累计快照，`finish` 由宿主传入 `Complete` 或 `Interrupted`，因为
-   EOF 本身不能证明用量完整；`RefreshRejected` 只用于上游的明确拒绝。登录发现的公开
+   渠道自己不读用量——它把回答整形成标准响应，`UsageExtras` 只补充厂商在标准 usage
+   对象之外报的字段；`RefreshRejected` 只用于上游的明确拒绝。登录发现的公开
    事实（套餐、账号 id）放进 `AcquiredCredential::metadata` 或
    `OAuthCredential::provider_fields`，由宿主写到凭证行上；刷新还需要的 secret
    （某次登录自己注册的 client secret）放进 `OAuthCredential::provider_secrets`，
@@ -344,7 +344,7 @@ body 里没有选路对象、响应里也没有价格：没有任何东西要渠
 
 8. 测试放在 `tests/<id>.rs`，加 `#![cfg(feature = "...")]`。手工构造 `ProviderView`
    与 `CredentialView`，用夹具 secret 调 `prepare`，断言 URL、注入的鉴权和被丢弃的
-   头；把捕获的帧喂给用量观察者；解析录下来的额度头与用量 body。脚本化的
+   头；用 `support::settled` 结算整形后的回答，看宿主将读到的用量；解析录下来的额度头。脚本化的
    `OutboundClient`（见 `tests/capabilities.rs`）用来测多次调用的覆写，
    `tests/support/mod.rs` 里有脚本化的 `ServiceCaller`。不要在这里测 core。
 

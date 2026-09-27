@@ -1,10 +1,10 @@
 //! URL layout, credential injection and header filtering for AI Studio.
 
 use super::{Aistudio, AistudioConfig, DEFAULT_BASE_URL, ID, OPENAI_PREFIX};
-use crate::channel::{
+use crate::channel::{UsageExtras, 
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey,
     ConfigKeyKind, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView,
-    UsageExtractor, UsageStream, forwardable,
+    forwardable,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireFamily, WireRequest};
 use http::{HeaderName, HeaderValue, header};
@@ -210,11 +210,7 @@ impl BaseChannel for Aistudio {
             .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
     }
 
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
+    fn usage_extras(&self) -> Option<&dyn UsageExtras> {
         Some(self)
     }
 }

@@ -2,16 +2,13 @@
 //! serves, and how one request is built. Every operation uses the default
 //! HTTP flow; the body is Gemini's own and passes through untouched.
 
-use super::usage::VertexExpressUsage;
 use super::{ID, VertexExpress, endpoint};
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
-    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView, UsageExtractor,
-    forwardable,
+    HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView, forwardable,
 };
 use gproxy_protocol::{Dialect, HttpBody, Operation};
 
-const USAGE: VertexExpressUsage = VertexExpressUsage;
 
 impl BaseChannel for VertexExpress {
     fn id(&self) -> &'static str {
@@ -73,9 +70,5 @@ impl BaseChannel for VertexExpress {
         builder
             .body(ctx.request.body)
             .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
-    }
-
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(&USAGE)
     }
 }

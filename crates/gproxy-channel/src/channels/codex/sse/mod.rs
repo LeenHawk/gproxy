@@ -5,16 +5,26 @@ mod lifecycle;
 mod tests;
 mod tools;
 
-use super::usage::SSE_LIMITS;
 use crate::{channel::ChannelError, channels::codex::shape::tools::Aliases};
 use event::{Event, invalid};
 use futures_util::{StreamExt, stream};
 use gproxy_protocol::{
     HttpBody,
-    codec::{SseDecoder, SseEncoder, SseEvent, SseFrame},
+    codec::{CodecLimits, SseDecoder, SseEncoder, SseEvent, SseFrame},
     connection::{ByteStream, Bytes, TransportError},
 };
 use std::collections::VecDeque;
+
+/// Bounds for re-framing a Responses SSE stream; the host enforces the real
+/// transfer limits, this only keeps the codec's buffers finite.
+const SSE_LIMITS: CodecLimits = CodecLimits {
+    max_buffer_bytes: 4 * 1024 * 1024,
+    max_value_bytes: 4 * 1024 * 1024,
+    max_body_bytes: u64::MAX,
+    max_line_bytes: 4 * 1024 * 1024,
+    max_part_bytes: 0,
+    max_parts: 0,
+};
 
 struct Codec {
     decoder: SseDecoder,

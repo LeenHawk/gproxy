@@ -62,7 +62,7 @@ use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey,
     ConfigKeyKind, CredentialRefresh, CredentialView, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode,
     OAuthAuthorizationCode, OAuthDeviceCode, OperationContext, OperationFuture, PrepareContext,
-    ProviderView, QuotaQuery, UsageExtractor, UsageStream, forwardable,
+    ProviderView, QuotaQuery, forwardable,
 };
 use futures_util::StreamExt as _;
 use gproxy_client::{Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, TlsVersion};
@@ -781,13 +781,6 @@ impl BaseChannel for Kiro {
         max_bytes: u64,
     ) -> Option<Box<dyn crate::channel::ResponseReasonObserver>> {
         crate::channels::shared::aws_reason::observer(headers, max_bytes, false)
-    }
-
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
-        Some(self)
     }
 }
 

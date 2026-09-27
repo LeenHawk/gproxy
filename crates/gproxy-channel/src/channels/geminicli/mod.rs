@@ -29,13 +29,12 @@
 mod models;
 mod oauth;
 mod quota;
-mod usage;
 
 use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey,
     ConfigKeyKind, CredentialRefresh, CredentialView, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode,
     OAuthAuthorizationCode, OperationContext, OperationFuture, PrepareContext, ProviderView,
-    QuotaQuery, UsageExtractor, UsageStream, forwardable,
+    QuotaQuery, forwardable,
 };
 use crate::channels::shared::code_assist;
 use gproxy_client::{Alpn, Backend, ConnectionConfig, EmulationConfig, Fingerprint, TlsVersion};
@@ -503,12 +502,6 @@ impl BaseChannel for GeminiCli {
         Some(self)
     }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
-        Some(self)
-    }
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
         Some(self)
     }
 }

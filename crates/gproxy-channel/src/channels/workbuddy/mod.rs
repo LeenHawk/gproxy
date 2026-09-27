@@ -45,7 +45,6 @@ mod images;
 mod models;
 mod oauth;
 mod quota;
-mod usage;
 
 pub use config::{CLI_VERSION, DEFAULT_BASE_URL, ID, WorkBuddyConfig};
 pub use quota::ENTERPRISE_DIMENSION;
@@ -55,7 +54,7 @@ use crate::channel::{
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ChannelHeaders, ConfigKey,
     ConfigKeyKind, CredentialRefresh, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode,
     OAuthDeviceCode, OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaQuery,
-    UsageExtractor, UsageStream, forwardable,
+    forwardable,
 };
 use config::base_url;
 use futures_util::StreamExt as _;
@@ -409,12 +408,6 @@ impl BaseChannel for WorkBuddy {
         Some(self)
     }
     fn quota_query(&self) -> Option<&dyn QuotaQuery> {
-        Some(self)
-    }
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
         Some(self)
     }
 }

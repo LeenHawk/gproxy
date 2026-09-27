@@ -1,21 +1,16 @@
-//! Per-call metering.
+//! What the chat proxy reports beside the standard usage.
 //!
-//! The chat proxy answers OpenAI Chat Completions and Responses verbatim and
-//! meters them the way xAI does, so the reading is
-//! `shared::compatible::usage`'s with a hook for xAI's own fields: the
-//! `cost_in_usd_ticks` unit, the image and web-search breakdowns, and a media
-//! job's stated dollars. v3 delegated to the `xai` channel for exactly this;
-//! v4 keeps the *policy* — which fields to read and what to call them — in
-//! each channel, because a shared module only executes what a channel asks
-//! for, so the hook is stated here rather than borrowed from `xai`.
+//! The proxy answers OpenAI Chat Completions and Responses verbatim, which
+//! the host reads the standard way, and meters them the way xAI does: the
+//! `cost_in_usd_ticks` unit, a web-search count under a name of its own, and
+//! a media job's stated dollars. v3 delegated to the `xai` channel for
+//! exactly this; v4 keeps the *policy* — which fields to read and what to
+//! call them — in each channel, so the hook is stated here rather than
+//! borrowed from `xai`.
 
 use super::GrokBuild;
-use crate::channel::{
-    ChannelError, NormalizedUsage, UsageContext, UsageExtractor, UsageObserver, UsageStream,
-    UsageStreamContext,
-};
+use crate::channel::{NormalizedUsage, UsageExtras, UsageSource, usage_object};
 use crate::channels::shared::compatible::ability::decimal;
-use crate::channels::shared::compatible::usage::{self, u64_at};
 use serde_json::Value;
 
 /// xAI's own metering unit. It is not a currency: an operator prices it with
@@ -26,16 +21,9 @@ pub const UPSTREAM_COST_METRIC: &str = "upstream_cost_usd";
 /// Set when the upstream priced the exchange itself.
 pub const UPSTREAM_PRICED_DIMENSION: &str = "upstream_priced";
 
-fn enrich(root: &Value, value: &Value, into: &mut NormalizedUsage) {
-    if let Some(ticks) = value.get("cost_in_usd_ticks").and_then(decimal) {
-        into.metrics.insert(COST_TICKS_METRIC.into(), ticks);
-    }
-    if let Some(tokens) = u64_at(value, "/input_tokens_details/image_tokens") {
-        into.metrics
-            .insert("image_input_tokens".into(), tokens.into());
-    }
-    if let Some(searches) = u64_at(value, "/server_side_tool_usage_details/web_search_requests") {
-        into.metrics.insert("web_searches".into(), searches.into());
+fn enrich(root: &Value, into: &mut NormalizedUsage) {
+    if let Some(value) = usage_object(root) {
+        usage_fields(value, into);
     }
     // Only the field that names its unit is read; a bare `cost` elsewhere
     // states no currency.
@@ -54,28 +42,23 @@ fn enrich(root: &Value, value: &Value, into: &mut NormalizedUsage) {
     }
 }
 
-impl UsageExtractor for GrokBuild {
-    fn extract(&self, context: UsageContext<'_>) -> Result<Option<NormalizedUsage>, ChannelError> {
-        if !context.response.status.is_success() {
-            return Ok(None);
-        }
-        Ok(usage::from_body(
-            context.operation.dialect,
-            context.response.body,
-            enrich,
-        ))
+/// The usage object's own fields: the cost ticks and the web searches
+/// counted under a name of xAI's own. The image input tokens beside them are
+/// standard Responses detail, already read by the standard reading.
+fn usage_fields(value: &Value, into: &mut NormalizedUsage) {
+    if let Some(ticks) = value.get("cost_in_usd_ticks").and_then(decimal) {
+        into.metrics.insert(COST_TICKS_METRIC.into(), ticks);
+    }
+    if let Some(searches) = value
+        .pointer("/server_side_tool_usage_details/web_search_requests")
+        .and_then(Value::as_u64)
+    {
+        into.metrics.insert("web_searches".into(), searches.into());
     }
 }
 
-impl UsageStream for GrokBuild {
-    fn start(
-        &self,
-        context: UsageStreamContext<'_>,
-    ) -> Result<Box<dyn UsageObserver>, ChannelError> {
-        Ok(usage::observer(
-            context.operation.dialect,
-            context.transport,
-            enrich,
-        ))
+impl UsageExtras for GrokBuild {
+    fn read(&self, source: UsageSource<'_>, usage: &mut NormalizedUsage) {
+        enrich(source.root, usage);
     }
 }

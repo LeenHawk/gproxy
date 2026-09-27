@@ -48,11 +48,10 @@ use gproxy_protocol::{
 use http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use serde::Deserialize;
 
-use crate::channel::{
+use crate::channel::{UsageExtras, 
     BaseChannel, ChannelCapabilities, ChannelDescriptor, ChannelError, ConfigKey, ConfigKeyKind,
     CookieLogin, CredentialRefresh, HOST_CONFIG_KEYS, LoginMode, OperationContext, OperationFuture,
-    ProviderView, QuotaModel, QuotaQuery, UsageExtractor, UsageStream,
-};
+    ProviderView, QuotaModel, QuotaQuery, };
 use gproxy_client::{ConnectionConfig};
 
 pub const ID: &str = "claudeweb";
@@ -193,8 +192,6 @@ fn local_response(content_type: &'static str, body: Bytes) -> WireResponse<HttpB
 pub fn default_connection() -> ConnectionConfig {
     super::shared::browser_connection()
 }
-
-
 
 impl BaseChannel for ClaudeWeb {
     fn id(&self) -> &'static str {
@@ -346,10 +343,7 @@ impl BaseChannel for ClaudeWeb {
     fn quota_model(&self) -> Option<&dyn QuotaModel> {
         Some(self)
     }
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Some(self)
-    }
-    fn usage_stream(&self) -> Option<&dyn UsageStream> {
+    fn usage_extras(&self) -> Option<&dyn UsageExtras> {
         Some(self)
     }
 }

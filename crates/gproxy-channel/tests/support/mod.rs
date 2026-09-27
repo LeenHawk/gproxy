@@ -315,3 +315,62 @@ pub fn assert_quota_contract(
         }
     }
 }
+
+/// What the host settles a complete reply with, once the channel has
+/// returned it: the standard reading of the operation, then the channel's
+/// extras over the body.
+pub fn settled(
+    channel: &dyn gproxy_channel::BaseChannel,
+    operation: gproxy_protocol::Operation,
+    dialect: gproxy_protocol::Dialect,
+    headers: &http::HeaderMap,
+    body: &[u8],
+) -> Option<gproxy_channel::channel::NormalizedUsage> {
+    let root = serde_json::from_slice(body).unwrap_or(serde_json::Value::Null);
+    gproxy_channel::channel::with_extras(
+        channel.usage_extras(),
+        gproxy_channel::channel::UsageSource {
+            operation: gproxy_protocol::OperationKey { operation, dialect },
+            headers,
+            root: &root,
+        },
+        gproxy_protocol::usage::whole(operation, dialect, body),
+    )
+}
+
+/// What the host settles a stream with, once the channel has returned it
+/// and the stream ended on its own: the standard reading of the operation,
+/// then the channel's extras over the last event that carried usage.
+pub fn settled_stream(
+    channel: &dyn gproxy_channel::BaseChannel,
+    operation: gproxy_protocol::Operation,
+    dialect: gproxy_protocol::Dialect,
+    headers: &http::HeaderMap,
+    wire: &[u8],
+) -> Option<gproxy_channel::channel::NormalizedUsage> {
+    use gproxy_protocol::connection::StreamFraming;
+    use gproxy_protocol::usage::{UsageReader, UsageStreamEnd, UsageTransport};
+    // Framed as the response declares; otherwise the way the dialect
+    // streams by default, as the host reads it.
+    let framing = headers
+        .get(http::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| value.starts_with("text/event-stream"))
+        .map(|_| StreamFraming::Sse);
+    let mut reader = UsageReader::new(operation, dialect, UsageTransport::Http { framing })
+        .expect("a watchable stream");
+    reader.keep_usage_event();
+    for chunk in wire.chunks(7) {
+        reader.push(chunk);
+    }
+    let root = reader.usage_event().unwrap_or(serde_json::Value::Null);
+    gproxy_channel::channel::with_extras(
+        channel.usage_extras(),
+        gproxy_channel::channel::UsageSource {
+            operation: gproxy_protocol::OperationKey { operation, dialect },
+            headers,
+            root: &root,
+        },
+        reader.finish(UsageStreamEnd::Complete),
+    )
+}

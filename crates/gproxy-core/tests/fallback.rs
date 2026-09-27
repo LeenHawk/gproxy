@@ -3,7 +3,7 @@ mod support;
 use futures_util::StreamExt;
 use gproxy_channel::{
     BaseChannel, ChannelError, OutboundClient,
-    channel::{ClaudeFallback, PrepareContext, ProviderView, UsageExtractor},
+    channel::{ClaudeFallback, PrepareContext, ProviderView},
     channels::azure::Azure,
 };
 use gproxy_core::{ProviderData, RequestContext};
@@ -69,9 +69,6 @@ impl BaseChannel for ClaudeOnly {
     }
     fn claude_fallback(&self) -> Option<ClaudeFallback> {
         Azure.claude_fallback()
-    }
-    fn usage_extractor(&self) -> Option<&dyn UsageExtractor> {
-        Azure.usage_extractor()
     }
 }
 fn context(

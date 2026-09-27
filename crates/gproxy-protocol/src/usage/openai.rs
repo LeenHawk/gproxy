@@ -161,17 +161,17 @@ pub(super) struct ChatStream {
 }
 
 impl ChatStream {
-    pub(super) fn event(&mut self, data: &str) {
+    pub(super) fn event(&mut self, data: &str) -> bool {
         // Every other chunk is content; `"usage":null` fails the parse below
         // soon enough, but most chunks do not name usage at all.
         if !data.contains("\"usage\"") {
-            return;
+            return false;
         }
         let Ok(reply) = serde_json::from_str::<Reply>(data) else {
-            return;
+            return false;
         };
         let Some(usage) = reply.usage.as_ref().and_then(from_usage) else {
-            return;
+            return false;
         };
         let mut usage = usage;
         common::service_tier(
@@ -179,6 +179,7 @@ impl ChatStream {
             reply.service_tier.as_ref().and_then(common::label),
         );
         self.usage = Some(usage);
+        true
     }
 
     pub(super) fn snapshot(&self) -> Option<NormalizedUsage> {
@@ -262,11 +263,11 @@ impl ResponsesStream {
             || (self.mode == Mode::Image && IMAGE_DONE.contains(&kind))
     }
 
-    pub(super) fn event(&mut self, name: Option<&str>, data: &str) {
+    pub(super) fn event(&mut self, name: Option<&str>, data: &str) -> bool {
         // SSE names the event; a websocket frame only says it in `type`, so
         // the data must mention one of the watched events to be parsed.
         if name.is_some_and(|name| !self.watches(name)) {
-            return;
+            return false;
         }
         let mentioned = TERMINAL
             .iter()
@@ -274,27 +275,27 @@ impl ResponsesStream {
             .chain(&[CREATED])
             .any(|kind| data.contains(kind) && self.watches(kind));
         if !mentioned {
-            return;
+            return false;
         }
         let Ok(mut event) = serde_json::from_str::<Event>(data) else {
-            return;
+            return false;
         };
         let Some(kind) = event.kind.take().filter(|kind| self.watches(kind)) else {
-            return;
+            return false;
         };
         let kind = kind.as_str();
         if kind == CREATED {
             if let Some(id) = event.response.and_then(|response| response.id) {
                 self.active.insert(id);
             }
-            return;
+            return false;
         }
         let image = IMAGE_DONE.contains(&kind);
         let (id, usage, tier) = if image {
             (event.generation_id.clone(), event.usage.clone(), None)
         } else {
             let Some(response) = event.response.take() else {
-                return;
+                return false;
             };
             (response.id, response.usage, response.service_tier)
         };
@@ -311,7 +312,7 @@ impl ResponsesStream {
             {
                 self.active.insert(id);
             }
-            return;
+            return false;
         };
         common::service_tier(&mut reading, tier.as_ref().and_then(common::label));
         if image {
@@ -328,12 +329,12 @@ impl ResponsesStream {
         }
         if self.mode != Mode::Realtime {
             self.usage = Some(reading);
-            return;
+            return true;
         }
         // Native response ids make repeated terminal events replacements,
         // not additional charges. Never invent an id for billable usage.
         let Some(id) = id else {
-            return;
+            return false;
         };
         self.active.remove(&id);
         self.responses.insert(id, reading);
@@ -347,6 +348,7 @@ impl ResponsesStream {
             })
             .collect();
         self.usage = Some(total);
+        true
     }
 
     pub(super) fn snapshot(&self) -> Option<NormalizedUsage> {

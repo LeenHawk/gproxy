@@ -193,7 +193,7 @@ pub(super) struct Stream {
 }
 
 impl Stream {
-    pub(super) fn event(&mut self, name: Option<&str>, data: &str) {
+    pub(super) fn event(&mut self, name: Option<&str>, data: &str) -> bool {
         // The SSE event name is the cheapest filter, and a substring check on
         // the data the next: only an event that can bear usage is parsed.
         // Of the content blocks, only a fallback names a model.
@@ -202,43 +202,47 @@ impl Stream {
             .iter()
             .any(|needle| data.contains(needle));
         if !named || !bearing {
-            return;
+            return false;
         }
         let Ok(event) = serde_json::from_str::<Event>(data) else {
-            return;
+            return false;
         };
         match event.kind.as_deref() {
             Some("message_start") if self.start.is_none() => {
                 let Some(message) = event.message else {
-                    return;
+                    return false;
                 };
                 if let Some(model) = message.model {
                     self.model = model;
                 }
                 if let Some(Value::Object(usage)) = message.usage {
                     self.start = Some(usage);
+                    return true;
                 }
+                false
             }
             Some("content_block_start") => {
                 let Some(block) = event.content_block else {
-                    return;
+                    return false;
                 };
                 if block.kind.as_deref() == Some("fallback")
                     && let Some(model) = block.to.and_then(|to| to.model)
                 {
                     self.model = model;
                 }
+                false
             }
             Some("message_delta") => {
                 let Some(Value::Object(usage)) = event.usage else {
-                    return;
+                    return false;
                 };
                 if let Some(reason) = event.delta.and_then(|delta| delta.stop_reason) {
                     self.refused = reason == "refusal";
                 }
                 self.delta.get_or_insert_with(Map::new).extend(usage);
+                true
             }
-            _ => {}
+            _ => false,
         }
     }
 
