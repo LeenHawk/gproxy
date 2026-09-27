@@ -11,7 +11,17 @@ use sea_orm::entity::prelude::*;
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "capture_records")]
 pub struct Model {
-    #[sea_orm(primary_key, auto_increment = false)]
+    /// The first three columns form the `by_side` key: an index over
+    /// `(side, started_at_ms, id)`, which is how the log lists read one side,
+    /// newest first with the id breaking ties, so a page is a range read
+    /// instead of a sort of the whole side. Unique only because the entity
+    /// macro can express a composite index no other way (the trailing primary
+    /// key makes it so).
+    #[sea_orm(unique_key = "by_side")]
+    pub side: CaptureSide,
+    #[sea_orm(indexed, unique_key = "by_side")]
+    pub started_at_ms: i64,
+    #[sea_orm(primary_key, auto_increment = false, unique_key = "by_side")]
     pub id: String,
     /// Initiating request/attempt, retained even when downstream logging is off.
     /// Provenance only: sharing is represented by CaptureLink, not these fields.
@@ -19,7 +29,6 @@ pub struct Model {
     pub initiator_request_id: Option<String>,
     pub attempt_id: Option<String>,
     pub attempt_ordinal: Option<i32>,
-    pub side: CaptureSide,
     pub kind: CaptureKind,
     /// WsTurn -> same-side WsConnection. HTTP/connection records leave it unset.
     #[sea_orm(indexed)]
@@ -81,8 +90,6 @@ pub struct Model {
     /// Channel-classified response reason, independent of capture/HTTP success.
     #[sea_orm(indexed)]
     pub reason: Option<String>,
-    #[sea_orm(indexed)]
-    pub started_at_ms: i64,
     pub first_response_at_ms: Option<i64>,
     /// Exchange/turn termination, or socket closure for WsConnection.
     /// Indexed for retention, which deletes the oldest-ended rows first.
