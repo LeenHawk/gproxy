@@ -29,6 +29,12 @@ export function UsageSummary({ summary }: { summary: UsageSummaryDto }) {
             <dd className="mt-1 text-lg font-medium tabular-nums">{value}</dd>
           </div>
         ))}
+        {Object.entries(summary.quantities).map(([key, value]) => (
+          <div key={`quantity-${key}`} className="rounded-lg border border-border p-3">
+            <dt className="text-xs text-muted-foreground">{t(`modelUI.metrics.${key}`, { defaultValue: key })}</dt>
+            <dd className="mt-1 break-all text-lg font-medium tabular-nums">{value}{key.endsWith("_seconds") ? ` ${t("modelUI.units.second")}` : ""}</dd>
+          </div>
+        ))}
       </dl>
       <p className="text-xs text-muted-foreground">{t("usage.cacheHitRateHelp")}</p>
       {summary.truncated ? (
