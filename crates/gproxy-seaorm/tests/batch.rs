@@ -45,6 +45,36 @@ async fn values(db: &DatabaseConnection) -> Vec<i64> {
 }
 
 #[tokio::test]
+async fn a_single_query_uses_the_native_query_path_on_each_backend() {
+    use sea_orm::{MockDatabase, Transaction, Value};
+    use std::collections::BTreeMap;
+
+    for backend in [DbBackend::Sqlite, DbBackend::Postgres, DbBackend::MySql] {
+        let row = BTreeMap::from([("value".to_owned(), Value::Int(Some(7)))]);
+        let db = MockDatabase::new(backend)
+            .append_query_results([vec![row]])
+            .into_connection();
+        let rows = db
+            .query_rows(BatchQuery::new(
+                Statement::from_string(backend, "SELECT 7 AS value"),
+                Projection::new()
+                    .column("value", D1Type::I32, false)
+                    .unwrap(),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(rows[0].try_get::<i32>("", "value").unwrap(), 7);
+        assert_eq!(
+            db.into_transaction_log(),
+            [Transaction::one(Statement::from_string(
+                backend,
+                "SELECT 7 AS value"
+            ))]
+        );
+    }
+}
+
+#[tokio::test]
 async fn bulk_crud_returns_results_in_input_order() {
     let db = database().await;
     let result = db

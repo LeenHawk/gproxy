@@ -97,11 +97,12 @@ where
             .collect()
     }
     pub async fn query(&self, query: Select<E>) -> Result<Vec<E::Model>> {
-        self.query_many(vec![query])
+        self.db
+            .query_rows(query.batch_query(self.db.get_database_backend())?)
             .await?
-            .into_iter()
-            .next()
-            .ok_or(StoreError::UnexpectedResult)
+            .iter()
+            .map(|row| E::Model::from_query_result(row, "").map_err(Into::into))
+            .collect()
     }
     /// Preserve input order, missing entries and duplicate requested IDs. Split
     /// IN-equivalent predicates at the connection's parameter cap, inside one batch.
