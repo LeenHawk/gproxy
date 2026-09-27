@@ -43,9 +43,9 @@ jobs:
       MS_STORE_IDENTITY_PUBLISHER: ${{ vars.MS_STORE_IDENTITY_PUBLISHER }}
       VERSION: ${{ inputs.version }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/checkout@v7.0.1
       - name: Validate source release
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        uses: actions/github-script@v9.0.0
         env:
           SOURCE_RUN_ID: ${{ inputs.run_id || github.run_id }}
         with:
@@ -66,7 +66,7 @@ jobs:
           foreach ($name in @('MS_STORE_PRODUCT_ID', 'MS_STORE_TENANT_ID', 'MS_STORE_SELLER_ID', 'MS_STORE_CLIENT_ID', 'MS_STORE_CLIENT_SECRET', 'MS_STORE_IDENTITY_NAME', 'MS_STORE_IDENTITY_PUBLISHER')) {
             if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) { throw "Missing $name" }
           }
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      - uses: actions/download-artifact@v8.0.1
         with:
           pattern: microsoft-store-unsigned-gproxy-tauri-windows-*
           path: dist/store
@@ -77,7 +77,7 @@ jobs:
         shell: pwsh
         run: scripts/bundle-windows-msix.ps1 -Version $env:VERSION
       - name: Set up Microsoft Store CLI
-        uses: microsoft/microsoft-store-apppublisher@cc9910a8d59f2eb55cbb83df0a3800cf3b5300e0 # v1.4
+        uses: microsoft/microsoft-store-apppublisher@v1.4
         with:
           version: v0.4.2
       - name: Authenticate with Partner Center
