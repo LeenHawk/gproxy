@@ -571,11 +571,12 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
         };
 
         let status = answer.status();
+        let refreshable = provider.channel.credential_refresh().is_some();
+        let classified = classify(status, refreshable, refreshed.contains(&credential.id));
 
         // Every answer's headers may carry account quota; exhaustion recorded
-
-        // here replaces the generic rate-limit block below.
-
+        // here replaces the generic rate-limit block below. A final answer is
+        // not retried, so its observation need not land before it goes out.
         let quota_blocks = core
             .observe_answer_headers(
                 &credential,
@@ -584,11 +585,11 @@ async fn run_http_inner<C: BatchConnectionTrait + Send + Sync + 'static>(
                 status,
                 answer.headers(),
                 finished_at,
+                matches!(classified, Classified::Final).then_some(&*funnel),
             )
             .await
             .unwrap_or_default();
-        let refreshable = provider.channel.credential_refresh().is_some();
-        match classify(status, refreshable, refreshed.contains(&credential.id)) {
+        match classified {
             Classified::Final => {
                 let outcome = AttemptOutcome::Succeeded { status };
                 funnel.trace(TraceEvent::AttemptFinished {

@@ -12,7 +12,7 @@
 
 use crate::{
     BlockSource, Core, CoreError, CoreResult, CredentialBlock, CredentialData, RequestContext,
-    UsageReport, api::lifecycle::now_ms, credential_limit::counted_units, ids,
+    UsageReport, api::lifecycle::now_ms, credential_limit::counted_units, execute::Funnel, ids,
 };
 use gproxy_cache::Cache;
 use gproxy_channel::{
@@ -32,7 +32,13 @@ use gproxy_store::{
 };
 use rust_decimal::Decimal;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
-use std::{borrow::Cow, sync::Arc};
+use std::{
+    borrow::Cow,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
 use time::{Duration as TimeDuration, OffsetDateTime};
 
 pub(crate) mod cycles;
@@ -257,145 +263,190 @@ fn exhaustion_blocks(
     }
 }
 
-impl<C: BatchConnectionTrait> Core<C> {
-    /// Persist the entries that changed as observation rows, move the
-    /// credential's cycles by every reading (persisted or not), and block on
-    /// the exhausted ones that match a Reported dimension. Returns the
-    /// blocks written.
-    pub(crate) async fn observe_quota(
-        &self,
-        credential: &CredentialData,
-        entries: &[QuotaEntry],
-        now_ms: i64,
-    ) -> CoreResult<Vec<CredentialBlock>> {
-        if entries.is_empty() {
-            return Ok(Vec::new());
-        }
-        let latest = self.persisted_quota_observations(&credential.id).await?;
-        let data = self.snapshot();
-        let model = quota_model(&data, credential);
-        let subject = cycles::CycleSubject::of(credential);
-        let mut readings = Vec::with_capacity(entries.len());
-        let mut facts = Vec::new();
-        for entry in entries {
-            let reading = dedupe::Persisted::new(&credential.quota, entry, now_ms);
-            // An exhausted entry always gets its row: its blocks name it.
-            let exhausted = exhausted(&entry.value);
-            let write = exhausted
-                || !latest
-                    .iter()
-                    .find(|p| p.id() == entry.id)
-                    .is_some_and(|p| !p.needs_write(&reading));
-            let dimension = classify(model, credential, entry);
-            // Only declared billing windows keep cycles; rate limits and
-            // breakdowns are not periods anything is spent in.
-            let fact = dimension
-                .as_deref()
-                .filter(|d| subject.dimensions.iter().any(|s| s.id == d.id))
-                .filter(|_| {
-                    !matches!(
-                        entry.value,
-                        QuotaValue::RateLimit(_) | QuotaValue::Breakdown(_)
-                    )
-                })
-                .map(|d| {
-                    let scope = match &d.scope {
-                        QuotaScope::Unknown => entry.model_scope.clone(),
-                        scope => scope.clone(),
-                    };
-                    facts.push(cycles::Facts::new(
-                        &entry.id,
-                        d,
-                        scope,
-                        allowance(&entry.value),
-                        write,
-                        now_ms,
-                    ));
-                    facts.len() - 1
-                });
-            readings.push((entry, reading, exhausted, write, dimension, fact));
-        }
-        // Cycle bookkeeping never stands in the way of the observation log or
-        // of a block: a failure here costs the link, not the reading.
-        let links = match (cycles::Cycles {
-            store: self.store(),
-            cache: self.cache(),
-        })
+/// Persist the entries that changed as observation rows, move the
+/// credential's cycles by every reading (persisted or not), and block on the
+/// exhausted ones that match a Reported dimension. Returns the blocks
+/// written. It takes its dependencies rather than `Core` so an answer's
+/// observation can finish after the request no longer holds the engine.
+async fn record_observation<C: BatchConnectionTrait>(
+    store: &Store<C>,
+    cache: &Arc<dyn Cache>,
+    data: &crate::CoreData,
+    credential: &CredentialData,
+    entries: &[QuotaEntry],
+    now_ms: i64,
+) -> CoreResult<Vec<CredentialBlock>> {
+    if entries.is_empty() {
+        return Ok(Vec::new());
+    }
+    let latest = dedupe::persisted_quota_observations(cache.as_ref(), &credential.id).await?;
+    let model = quota_model(data, credential);
+    let subject = cycles::CycleSubject::of(credential);
+    let mut readings = Vec::with_capacity(entries.len());
+    let mut facts = Vec::new();
+    for entry in entries {
+        let reading = dedupe::Persisted::new(&credential.quota, entry, now_ms);
+        // An exhausted entry always gets its row: its blocks name it.
+        let exhausted = exhausted(&entry.value);
+        let write = exhausted
+            || !latest
+                .iter()
+                .find(|p| p.id() == entry.id)
+                .is_some_and(|p| !p.needs_write(&reading));
+        let dimension = classify(model, credential, entry);
+        // Only declared billing windows keep cycles; rate limits and
+        // breakdowns are not periods anything is spent in.
+        let fact = dimension
+            .as_deref()
+            .filter(|d| subject.dimensions.iter().any(|s| s.id == d.id))
+            .filter(|_| {
+                !matches!(
+                    entry.value,
+                    QuotaValue::RateLimit(_) | QuotaValue::Breakdown(_)
+                )
+            })
+            .map(|d| {
+                let scope = match &d.scope {
+                    QuotaScope::Unknown => entry.model_scope.clone(),
+                    scope => scope.clone(),
+                };
+                facts.push(cycles::Facts::new(
+                    &entry.id,
+                    d,
+                    scope,
+                    allowance(&entry.value),
+                    write,
+                    now_ms,
+                ));
+                facts.len() - 1
+            });
+        readings.push((entry, reading, exhausted, write, dimension, fact));
+    }
+    // Cycle bookkeeping never stands in the way of the observation log or
+    // of a block: a failure here costs the link, not the reading.
+    let links = match (cycles::Cycles { store, cache })
         .observe(&credential.id, &facts, now_ms)
         .await
+    {
+        Ok(links) => links,
+        Err(error) => {
+            tracing::warn!(credential_id = %credential.id, %error, "quota cycles were not updated");
+            Vec::new()
+        }
+    };
+    let mut rows = Vec::with_capacity(entries.len());
+    let mut written = Vec::with_capacity(entries.len());
+    let mut blocks = Vec::new();
+    for (entry, reading, exhausted, write, dimension, fact) in readings {
+        if !write {
+            continue;
+        }
+        let cycle_id = ids::random_id();
+        let period = allowance(&entry.value);
+        let link = fact
+            .and_then(|index| links.get(index))
+            .and_then(Option::as_ref);
+        rows.push(credential_quota_cycle::ActiveModel {
+            id: Set(cycle_id.clone()),
+            credential_id: Set(credential.id.clone()),
+            scope: Set(serde_json::to_value(&entry.model_scope)
+                .map_err(|e| CoreError::Rewrite(e.to_string()))?),
+            snapshot: Set(snapshot_json(entry)),
+            observed_at_ms: Set(now_ms),
+            starts_at_ms: Set(period.and_then(|a| a.period_start_ms)),
+            resets_at_ms: Set(period.and_then(|a| a.period_end_ms)),
+            credential_cycle_id: Set(link.map(|l| l.cycle_id.clone())),
+            cycle_cost_usd: Set(link.map(|l| l.cost_usd)),
+        });
+        written.push(reading);
+        if let Some(dimension) =
+            dimension.filter(|d| d.tracking == QuotaTracking::Reported && d.blocking)
+            && exhausted
         {
-            Ok(links) => links,
-            Err(error) => {
-                tracing::warn!(credential_id = %credential.id, %error, "quota cycles were not updated");
-                Vec::new()
-            }
-        };
-        let mut rows = Vec::with_capacity(entries.len());
-        let mut written = Vec::with_capacity(entries.len());
-        let mut blocks = Vec::new();
-        for (entry, reading, exhausted, write, dimension, fact) in readings {
-            if !write {
-                continue;
-            }
-            let cycle_id = ids::random_id();
-            let period = allowance(&entry.value);
-            let link = fact
-                .and_then(|index| links.get(index))
-                .and_then(Option::as_ref);
-            rows.push(credential_quota_cycle::ActiveModel {
-                id: Set(cycle_id.clone()),
-                credential_id: Set(credential.id.clone()),
-                scope: Set(serde_json::to_value(&entry.model_scope)
-                    .map_err(|e| CoreError::Rewrite(e.to_string()))?),
-                snapshot: Set(snapshot_json(entry)),
-                observed_at_ms: Set(now_ms),
-                starts_at_ms: Set(period.and_then(|a| a.period_start_ms)),
-                resets_at_ms: Set(period.and_then(|a| a.period_end_ms)),
-                credential_cycle_id: Set(link.map(|l| l.cycle_id.clone())),
-                cycle_cost_usd: Set(link.map(|l| l.cost_usd)),
-            });
-            written.push(reading);
-            if let Some(dimension) =
-                dimension.filter(|d| d.tracking == QuotaTracking::Reported && d.blocking)
-                && exhausted
-            {
-                blocks.extend(exhaustion_blocks(&dimension, entry, &cycle_id, now_ms));
-            }
+            blocks.extend(exhaustion_blocks(&dimension, entry, &cycle_id, now_ms));
         }
-        if !rows.is_empty() {
-            self.store()
-                .credential_quota_cycles()
-                .insert_many(rows)
-                .await?;
-            self.record_quota_observations(&credential.id, written, now_ms)
-                .await?;
-        }
-        // Skipped readings still refresh the reset projection: it tracks the
-        // latest reading, not the latest row.
-        self.update_reset_observations(&credential.id, entries, now_ms)
-            .await?;
-        for block in &blocks {
-            self.record_block(
-                &credential.provider_id,
-                &credential.id,
-                block.clone(),
-                now_ms,
-            )
-            .await?;
-        }
-        Ok(blocks)
     }
+    if !rows.is_empty() {
+        store.credential_quota_cycles().insert_many(rows).await?;
+        dedupe::record_quota_observations(cache.as_ref(), &credential.id, written, now_ms).await?;
+    }
+    // Skipped readings still refresh the reset projection: it tracks the
+    // latest reading, not the latest row.
+    crate::select_reset::update_reset_observations(cache.as_ref(), &credential.id, entries, now_ms)
+        .await?;
+    for block in &blocks {
+        crate::availability::persist_block(
+            store,
+            cache,
+            &credential.provider_id,
+            &credential.id,
+            block.clone(),
+            now_ms,
+        )
+        .await?;
+    }
+    Ok(blocks)
+}
 
+/// Whether observing `entries` blocks the credential: an exhausted entry on a
+/// Reported, blocking dimension. This is the condition under which
+/// `record_observation` returns blocks, decided from the entries alone.
+fn blocks_on(data: &crate::CoreData, credential: &CredentialData, entries: &[QuotaEntry]) -> bool {
+    let model = quota_model(data, credential);
+    entries.iter().any(|entry| {
+        exhausted(&entry.value)
+            && classify(model, credential, entry)
+                .is_some_and(|d| d.tracking == QuotaTracking::Reported && d.blocking)
+    })
+}
+
+/// Answer observations written in the background at once, per engine. Past
+/// this the writer is not keeping up, and another reading is dropped rather
+/// than queued: the next answer reports the same windows again.
+const DETACHED_OBSERVATIONS: usize = 64;
+
+/// One slot of `DETACHED_OBSERVATIONS`, given back when the write ends.
+struct ObservationSlot(Arc<AtomicUsize>);
+
+impl ObservationSlot {
+    fn take(in_flight: &Arc<AtomicUsize>) -> Option<Self> {
+        in_flight
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |n| {
+                (n < DETACHED_OBSERVATIONS).then_some(n + 1)
+            })
+            .ok()
+            .map(|_| Self(in_flight.clone()))
+    }
+}
+
+impl Drop for ObservationSlot {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+impl<C: BatchConnectionTrait + Send + Sync + 'static> Core<C> {
     /// Hand one upstream answer's headers to the channel; returns the blocks
     /// written when the observation reported exhaustion.
+    ///
+    /// With `detach`, the answer is final: nothing in this request reads what
+    /// the observation writes, so the rows, cycles and projections are
+    /// written in the background and the answer goes out without waiting for
+    /// them. The request's settlement still waits for that write, so its
+    /// usage never lands before the reading it followed. An observation that
+    /// blocks the credential is always written in place, block included,
+    /// because other requests must stop routing to it now, not once a
+    /// background write gets to it.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) async fn observe_answer_headers(
         &self,
-        credential: &CredentialData,
+        credential: &Arc<CredentialData>,
         operation: OperationKey,
         upstream_model: Option<&str>,
         status: http::StatusCode,
         headers: &http::HeaderMap,
         now_ms: i64,
+        detach: Option<&Funnel>,
     ) -> CoreResult<Vec<CredentialBlock>> {
         let snapshot = self.snapshot();
         let Some(provider) = snapshot.providers.get(&credential.provider_id) else {
@@ -412,7 +463,56 @@ impl<C: BatchConnectionTrait> Core<C> {
                 headers,
             })
             .map_err(CoreError::Channel)?;
-        self.observe_quota(credential, &entries, now_ms).await
+        if entries.is_empty() {
+            return Ok(Vec::new());
+        }
+        let Some(funnel) = detach.filter(|_| !blocks_on(&snapshot, credential, &entries)) else {
+            return self.observe_quota(credential, &entries, now_ms).await;
+        };
+        let Some(slot) = ObservationSlot::take(&self.detached_observations) else {
+            tracing::warn!(
+                credential_id = %credential.id,
+                "quota observation dropped: too many are still being written"
+            );
+            return Ok(Vec::new());
+        };
+        let store = self.store().clone();
+        let cache = self.cache().clone();
+        let credential = credential.clone();
+        let written = funnel.hold_settlement();
+        let spawned = crate::rt::spawn(async move {
+            if let Err(error) =
+                record_observation(&store, &cache, &snapshot, &credential, &entries, now_ms).await
+            {
+                tracing::warn!(credential_id = %credential.id, %error, "quota observation not written");
+            }
+            drop(slot);
+            let _ = written.send(());
+        });
+        if !spawned {
+            tracing::warn!("quota observation dropped: no runtime to write it on");
+        }
+        Ok(Vec::new())
+    }
+}
+
+impl<C: BatchConnectionTrait> Core<C> {
+    /// `record_observation` against this engine's store, cache and snapshot.
+    pub(crate) async fn observe_quota(
+        &self,
+        credential: &CredentialData,
+        entries: &[QuotaEntry],
+        now_ms: i64,
+    ) -> CoreResult<Vec<CredentialBlock>> {
+        record_observation(
+            self.store(),
+            self.cache(),
+            &self.snapshot(),
+            credential,
+            entries,
+            now_ms,
+        )
+        .await
     }
 
     /// Charge one request against every Counted request dimension covering

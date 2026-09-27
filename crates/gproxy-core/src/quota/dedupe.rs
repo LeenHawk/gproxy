@@ -11,10 +11,9 @@
 //! means the next observation is written.
 
 use super::{allowance, snapshot_json};
-use crate::{Core, CoreError, CoreResult, keys};
-use gproxy_cache::{CasOutcome, Replacement};
+use crate::{CoreError, CoreResult, keys};
+use gproxy_cache::{Cache, CasOutcome, Replacement};
 use gproxy_channel::channel::{QuotaAllowance, QuotaDimension, QuotaEntry, QuotaWindow};
-use gproxy_seaorm::BatchConnectionTrait;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
@@ -124,66 +123,63 @@ pub(super) fn idle_window(a: &QuotaAllowance, window_ms: Option<i64>, now_ms: i6
     })
 }
 
-impl<C: BatchConnectionTrait> Core<C> {
-    /// The latest persisted readings of a credential; empty on a cold or
-    /// unreadable projection, which makes every entry a write.
-    pub(super) async fn persisted_quota_observations(
-        &self,
-        credential_id: &str,
-    ) -> CoreResult<Vec<Persisted>> {
-        let key = keys::credential_quota_observations(credential_id);
-        Ok(self
-            .cache()
-            .get(&key)
-            .await?
-            .and_then(|entry| serde_json::from_slice(&entry.value).ok())
-            .unwrap_or_default())
-    }
+/// The latest persisted readings of a credential; empty on a cold or
+/// unreadable projection, which makes every entry a write.
+pub(super) async fn persisted_quota_observations(
+    cache: &dyn Cache,
+    credential_id: &str,
+) -> CoreResult<Vec<Persisted>> {
+    let key = keys::credential_quota_observations(credential_id);
+    Ok(cache
+        .get(&key)
+        .await?
+        .and_then(|entry| serde_json::from_slice(&entry.value).ok())
+        .unwrap_or_default())
+}
 
-    /// Merge the readings just persisted into the projection. CAS keeps a
-    /// concurrent answer's other windows; readings past the heartbeat are
-    /// dropped because they could no longer suppress a write.
-    pub(super) async fn record_quota_observations(
-        &self,
-        credential_id: &str,
-        written: Vec<Persisted>,
-        now_ms: i64,
-    ) -> CoreResult<()> {
-        let key = keys::credential_quota_observations(credential_id);
-        for _ in 0..3 {
-            let cached = self.cache().get(&key).await?;
-            let mut rows: Vec<Persisted> = cached
-                .as_ref()
-                .and_then(|entry| serde_json::from_slice(&entry.value).ok())
-                .unwrap_or_default();
-            for next in &written {
-                if rows
-                    .iter()
-                    .any(|r| r.id == next.id && r.observed_at_ms > next.observed_at_ms)
-                {
-                    continue;
-                }
-                rows.retain(|r| r.id != next.id);
-                rows.push(next.clone());
+/// Merge the readings just persisted into the projection. CAS keeps a
+/// concurrent answer's other windows; readings past the heartbeat are
+/// dropped because they could no longer suppress a write.
+pub(super) async fn record_quota_observations(
+    cache: &dyn Cache,
+    credential_id: &str,
+    written: Vec<Persisted>,
+    now_ms: i64,
+) -> CoreResult<()> {
+    let key = keys::credential_quota_observations(credential_id);
+    for _ in 0..3 {
+        let cached = cache.get(&key).await?;
+        let mut rows: Vec<Persisted> = cached
+            .as_ref()
+            .and_then(|entry| serde_json::from_slice(&entry.value).ok())
+            .unwrap_or_default();
+        for next in &written {
+            if rows
+                .iter()
+                .any(|r| r.id == next.id && r.observed_at_ms > next.observed_at_ms)
+            {
+                continue;
             }
-            rows.retain(|r| now_ms.saturating_sub(r.observed_at_ms) < HEARTBEAT_MS);
-            let replacement = Replacement {
-                value: serde_json::to_vec(&rows).map_err(|e| CoreError::Rewrite(e.to_string()))?,
-                ttl: Duration::from_millis(HEARTBEAT_MS as u64),
-            };
-            if matches!(
-                self.cache()
-                    .compare_exchange(&key, cached.map(|c| c.version), Some(replacement))
-                    .await?,
-                CasOutcome::Applied(_)
-            ) {
-                return Ok(());
-            }
+            rows.retain(|r| r.id != next.id);
+            rows.push(next.clone());
         }
-        // A contended projection is dropped; the next readings are written.
-        self.cache().delete(&key).await?;
-        Ok(())
+        rows.retain(|r| now_ms.saturating_sub(r.observed_at_ms) < HEARTBEAT_MS);
+        let replacement = Replacement {
+            value: serde_json::to_vec(&rows).map_err(|e| CoreError::Rewrite(e.to_string()))?,
+            ttl: Duration::from_millis(HEARTBEAT_MS as u64),
+        };
+        if matches!(
+            cache
+                .compare_exchange(&key, cached.map(|c| c.version), Some(replacement))
+                .await?,
+            CasOutcome::Applied(_)
+        ) {
+            return Ok(());
+        }
     }
+    // A contended projection is dropped; the next readings are written.
+    cache.delete(&key).await?;
+    Ok(())
 }
 
 #[cfg(test)]

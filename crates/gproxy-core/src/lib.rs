@@ -84,6 +84,8 @@ pub struct Core<C> {
     fetch_policy: Arc<dyn FetchPolicy>,
     instance_id: Arc<str>,
     data: ArcSwap<CoreData>,
+    /// Answer quota observations being written in the background.
+    detached_observations: Arc<std::sync::atomic::AtomicUsize>,
 }
 impl<C> Core<C> {
     pub fn builder(store: Arc<Store<C>>) -> CoreBuilder<C> {

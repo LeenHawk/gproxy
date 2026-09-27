@@ -137,6 +137,7 @@ impl<C> CoreBuilder<C> {
                 .instance_id
                 .unwrap_or_else(|| Arc::from(crate::ids::random_id())),
             data: ArcSwap::from(self.data.unwrap_or_default()),
+            detached_observations: Arc::default(),
         })
     }
 }

@@ -49,70 +49,69 @@ impl Observation {
     }
 }
 
-impl<C: BatchConnectionTrait> Core<C> {
-    /// Refresh an existing projection after observations are persisted. CAS
-    /// merges concurrent responses without losing a different quota window.
-    pub(crate) async fn update_reset_observations(
-        &self,
-        credential_id: &str,
-        entries: &[QuotaEntry],
-        now_ms: i64,
-    ) -> CoreResult<()> {
-        let key = keys::credential_reset_observations(credential_id);
-        for _ in 0..3 {
-            let Some(cached) = self.cache.get(&key).await? else {
-                return Ok(());
-            };
-            let Ok(mut rows) = serde_json::from_slice::<Vec<Observation>>(&cached.value) else {
-                self.cache.delete(&key).await?;
-                return Ok(());
-            };
-            for entry in entries {
-                if rows
-                    .iter()
-                    .any(|r| r.id == entry.id && r.observed_at_ms > now_ms)
-                {
-                    continue;
-                }
-                rows.retain(|r| r.id != entry.id);
-                let (kind, allowance) = match &entry.value {
-                    QuotaValue::Window(a) => ("window", Some(a)),
-                    QuotaValue::Budget(a) => ("budget", Some(a)),
-                    QuotaValue::RateLimit(a) => ("rate_limit", Some(a)),
-                    QuotaValue::Balance(_) => ("balance", None),
-                    QuotaValue::Breakdown(_) => ("breakdown", None),
-                };
-                rows.push(Observation {
-                    id: entry.id.clone(),
-                    observed_at_ms: now_ms,
-                    source_id: entry.source_id.clone(),
-                    scope: entry.model_scope.clone(),
-                    resets_at_ms: allowance.and_then(|a| a.period_end_ms),
-                    kind: kind.into(),
-                    unlimited: allowance.is_some_and(|a| a.unlimited == Some(true)),
-                });
+/// Refresh an existing projection after observations are persisted. CAS
+/// merges concurrent responses without losing a different quota window.
+pub(crate) async fn update_reset_observations(
+    cache: &dyn gproxy_cache::Cache,
+    credential_id: &str,
+    entries: &[QuotaEntry],
+    now_ms: i64,
+) -> CoreResult<()> {
+    let key = keys::credential_reset_observations(credential_id);
+    for _ in 0..3 {
+        let Some(cached) = cache.get(&key).await? else {
+            return Ok(());
+        };
+        let Ok(mut rows) = serde_json::from_slice::<Vec<Observation>>(&cached.value) else {
+            cache.delete(&key).await?;
+            return Ok(());
+        };
+        for entry in entries {
+            if rows
+                .iter()
+                .any(|r| r.id == entry.id && r.observed_at_ms > now_ms)
+            {
+                continue;
             }
-            let outcome = self
-                .cache
-                .compare_exchange(
-                    &key,
-                    Some(cached.version),
-                    Some(gproxy_cache::Replacement {
-                        value: serde_json::to_vec(&rows)
-                            .map_err(|e| CoreError::Rewrite(e.to_string()))?,
-                        ttl: Duration::from_secs(30),
-                    }),
-                )
-                .await?;
-            if matches!(outcome, gproxy_cache::CasOutcome::Applied(_)) {
-                return Ok(());
-            }
+            rows.retain(|r| r.id != entry.id);
+            let (kind, allowance) = match &entry.value {
+                QuotaValue::Window(a) => ("window", Some(a)),
+                QuotaValue::Budget(a) => ("budget", Some(a)),
+                QuotaValue::RateLimit(a) => ("rate_limit", Some(a)),
+                QuotaValue::Balance(_) => ("balance", None),
+                QuotaValue::Breakdown(_) => ("breakdown", None),
+            };
+            rows.push(Observation {
+                id: entry.id.clone(),
+                observed_at_ms: now_ms,
+                source_id: entry.source_id.clone(),
+                scope: entry.model_scope.clone(),
+                resets_at_ms: allowance.and_then(|a| a.period_end_ms),
+                kind: kind.into(),
+                unlimited: allowance.is_some_and(|a| a.unlimited == Some(true)),
+            });
         }
-        // Contended projections are rebuilt from the durable observations.
-        self.cache.delete(&key).await?;
-        Ok(())
+        let outcome = cache
+            .compare_exchange(
+                &key,
+                Some(cached.version),
+                Some(gproxy_cache::Replacement {
+                    value: serde_json::to_vec(&rows)
+                        .map_err(|e| CoreError::Rewrite(e.to_string()))?,
+                    ttl: Duration::from_secs(30),
+                }),
+            )
+            .await?;
+        if matches!(outcome, gproxy_cache::CasOutcome::Applied(_)) {
+            return Ok(());
+        }
     }
+    // Contended projections are rebuilt from the durable observations.
+    cache.delete(&key).await?;
+    Ok(())
+}
 
+impl<C: BatchConnectionTrait> Core<C> {
     pub(crate) async fn credential_reset_times(
         &self,
         eligible: &[(Arc<CredentialData>, CredentialBlocks)],
