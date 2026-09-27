@@ -521,7 +521,8 @@ calculates cache hit rate as hits / (uncached input + hits + all cache writes).
 
 ### Aggregation happens in Rust, over a scan cap
 
-`usage_records` stores a downstream summary and one row per metered upstream call.
+`usage_records` stores one row per metered physical upstream call, without a
+downstream summary row. Shared callers reference the call through capture links.
 Token counts (including separate 5m/30m/1h cache writes), built-in media/tool
 quantities, identities and USD cost have dedicated columns. Dynamic metrics and
 pricing dimensions stay in the extension JSON. No log table is required.
@@ -537,14 +538,13 @@ number presented as the whole truth. `trend` is bounded a second way: a zero or
 negative `bucketMs`, a backwards range, and a range that would produce more than
 `query::MAX_TREND_BUCKETS` (5 000) buckets are all refused outright.
 
-Costs come from the dedicated column on each summary or upstream row.
+Costs come from the dedicated column on each upstream usage row.
 All prices use USD; `currency` is `None` only when nothing in the result was priced.
 
-Grouping by `provider` is therefore per-exchange rather than per-row: a request
-that failed over from one provider to another counts under both, each with that
-attempt's own tokens and price, and `requests` counts the record once per
-distinct provider. A record that reached no upstream at all lands under the
-empty key, so the groups still sum to the summary.
+Grouping by `provider` or `credential` uses the corresponding usage columns.
+Every matching physical call contributes once, including when several downstream
+requests link to it. `requests` counts physical upstream calls; retries count
+separately. A row with missing provider metadata lands under the empty key.
 
 A token count on one record is `Option<u64>` — an upstream that did not report
 a field did not measure zero — while every total is a plain `u64`, because a
@@ -559,11 +559,11 @@ millisecond: a timestamp-only cursor either repeats that pair forever or skips
 past it. `nextCursor` is `null` at the end of the list, and that is a fact —
 the query reads one row past the page rather than guessing from a full one.
 
-Only `side = downstream` rows are listed. An upstream attempt is not a request;
-it is something a request did, and `detail(request_id)` returns it, resolved
-through each upstream record's nullable `initiator_request_id`. Retries have
-separate upstream rows. An upstream call belongs to at most one downstream request,
-and remains readable when that downstream log was disabled or removed.
+The downstream list reads `downstream_records`; the upstream list reads
+`upstream_records`. `detail(request_id)` follows `capture_links` to resolve every
+associated upstream call and returns its usage rows as a list. Shared upstream
+calls have one physical record and one usage row regardless of link count.
+Either side remains readable without the other side's log.
 
 Stored bodies and individual event payloads are returned in full. The event
 list is limited to `query::MAX_DETAIL_EVENTS` (2 000), with `eventsTruncated`

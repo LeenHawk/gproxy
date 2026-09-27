@@ -73,8 +73,8 @@
 //!
 //! # What is captured
 //!
-//! One `capture_records` row per socket, promoted to `WsConnection` by the
-//! `101`, plus one `capture_events` row per message in the order it crossed.
+//! One `downstream_records` row per socket, promoted to `WsConnection` by the
+//! `101`, plus one `downstream_events` row per message in the order it crossed.
 //! `turn_id` is always unset and no `WsTurn` record is written; the reason is
 //! [`DownstreamCapture::record_frame`]'s, and it is that a business turn is a
 //! dialect's notion while this host forwards realtime frames opaquely.
@@ -354,7 +354,7 @@ where
     let mut response = upgrade.0.on_upgrade(move |downstream| {
         Pump {
             downstream,
-            incoming: upstream.incoming,
+            incoming: upstream.incoming.fuse(),
             outgoing: upstream.outgoing,
             limit: max_frame_bytes,
             trailer,
@@ -384,7 +384,7 @@ enum Step {
 /// Both halves of one session and everything it holds open.
 struct Pump<C> {
     downstream: ClientSocket,
-    incoming: WsReceiver,
+    incoming: futures_util::stream::Fuse<WsReceiver>,
     outgoing: WsSender,
     limit: u64,
     /// Owns model usage/leases for model traffic, capture only for services.

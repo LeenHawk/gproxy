@@ -19,7 +19,7 @@
 //!
 //! 1. **The upstream was not read any further.** A counter in the scripted
 //!    upstream; the tokens nobody will read are the money.
-//! 2. **The usage row is honest.** `metrics.state` is `cancelled`, not
+//! 2. **The physical capture is honest.** Its state is `cancelled`, not
 //!    `completed` — core decides that by reading the token, which is why a token
 //!    fired after a *finished* response would be just as wrong.
 //! 3. **The concurrency lease came back.** Asserted the way P9 and P10 assert
@@ -50,9 +50,9 @@ use std::{sync::Arc, time::Duration};
 use futures_util::SinkExt as _;
 use gproxy_protocol::connection::{Bytes, WsFrame};
 use gproxy_seaorm::FixedDecimal;
-use gproxy_store::entity::{limits::rate_limit, usage::usage_record};
+use gproxy_store::entity::{limits::rate_limit, usage::upstream_record as capture_record};
 use http::StatusCode;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ActiveEnum, EntityTrait, Set};
 use serde_json::json;
 use support::{Bound, Host, Probe, Reply, keyed, post};
 use tokio::{
@@ -88,6 +88,18 @@ async fn instance() -> Host {
             model_pattern: Set(Some("*".into())),
             enabled: Set(true),
         }])
+        .await
+        .unwrap();
+    handle
+        .manage()
+        .settings()
+        .update(gproxy_sdk::dto::SettingsPatch {
+            logging: Some(gproxy_sdk::dto::LoggingSettingsPatch {
+                enable_upstream_log: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
         .await
         .unwrap();
     host.publish().await;
@@ -337,26 +349,21 @@ type Socket =
 
 // ------------------------------------------------------------- assertions --
 
-/// The one usage row, once the settlement has run. It happens in a task of its
+/// The physical capture, once the exchange has closed. It happens in a task of its
 /// own — the body's tail, or the pump's — so there is nothing to await from here
 /// but the row it writes.
-async fn settled(host: &Host) -> usage_record::Model {
+async fn settled(host: &Host) -> capture_record::Model {
     for _ in 0..150 {
         let mut rows = host
             .app
             .gproxy()
             .store()
-            .usage_records()
-            .query(
-                usage_record::Entity::find().filter(
-                    usage_record::Column::Side
-                        .eq(gproxy_store::entity::usage::capture_record::CaptureSide::Downstream),
-                ),
-            )
+            .upstream_records()
+            .query(capture_record::Entity::find())
             .await
             .unwrap();
-        if !rows.is_empty() {
-            assert_eq!(rows.len(), 1, "one request is one usage row");
+        if rows.first().is_some_and(|row| row.ended_at_ms.is_some()) {
+            assert_eq!(rows.len(), 1, "one physical call is one capture row");
             return rows.remove(0);
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
@@ -364,10 +371,9 @@ async fn settled(host: &Host) -> usage_record::Model {
     panic!("the request was never settled");
 }
 
-/// How core settled it. The state is a string inside `metrics`, which is where
-/// the store observer puts it.
-fn state(row: &usage_record::Model) -> String {
-    row.state.as_deref().unwrap_or("<none>").to_owned()
+/// How core closed the physical exchange, including calls with no usage.
+fn state(row: &capture_record::Model) -> String {
+    row.state.to_value()
 }
 
 /// The lease is back. With one slot configured, the only proof is that another

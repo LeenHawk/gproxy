@@ -25,7 +25,7 @@ use gproxy_protocol::connection::{Bytes, WsClose, WsFrame};
 use gproxy_seaorm::FixedDecimal;
 use gproxy_store::entity::{
     limits::rate_limit,
-    usage::{capture_event, capture_record, usage_record},
+    usage::{downstream_event as capture_event, downstream_record as capture_record, usage_record},
 };
 use http::StatusCode;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
@@ -206,8 +206,8 @@ async fn a_refused_upstream_handshake_arrives_as_the_upstreams_own_response() {
         "the vendor's own code survives; a 502 would have thrown it away"
     );
 
-    // A refusal is still a request: it settles and is metered.
-    assert_eq!(usage_rows(&host).await.len(), 1);
+    // A refused handshake without metered usage remains a log, not a fabricated usage row.
+    assert!(usage_rows(&host).await.is_empty());
 }
 
 // -------------------------------------------------------------- round trip --
@@ -632,7 +632,6 @@ async fn a_vendor_service_socket_upgrades_under_a_credential_view() {
     assert!(usage_rows(&host).await.is_empty());
     let captured = records(&host).await;
     assert_eq!(captured.len(), 1);
-    assert_eq!(captured[0].side, capture_record::CaptureSide::Downstream);
     assert_eq!(captured[0].operation.as_deref(), Some("service"));
 }
 
@@ -688,10 +687,14 @@ async fn settings(host: &Host, patch: gproxy_sdk::dto::SettingsPatch) {
 }
 
 /// Wait for the settlement the socket's end runs. It happens in the pump's own
-/// task, so there is nothing to await from here but the row it writes.
+/// task; downstream capture is written after completion, including unmetered sockets.
 async fn settled(host: &Host) {
     for _ in 0..100 {
-        if !usage_rows(host).await.is_empty() {
+        if records(host)
+            .await
+            .iter()
+            .any(|row| row.ended_at_ms.is_some())
+        {
             return;
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
@@ -704,12 +707,7 @@ async fn usage_rows(host: &Host) -> Vec<usage_record::Model> {
         .gproxy()
         .store()
         .usage_records()
-        .query(
-            usage_record::Entity::find().filter(
-                usage_record::Column::Side
-                    .eq(gproxy_store::entity::usage::capture_record::CaptureSide::Downstream),
-            ),
-        )
+        .query(usage_record::Entity::find())
         .await
         .unwrap()
 }
@@ -718,11 +716,8 @@ async fn records(host: &Host) -> Vec<capture_record::Model> {
     host.app
         .gproxy()
         .store()
-        .capture_records()
-        .query(
-            capture_record::Entity::find()
-                .filter(capture_record::Column::Side.eq(capture_record::CaptureSide::Downstream)),
-        )
+        .downstream_records()
+        .query(capture_record::Entity::find())
         .await
         .unwrap()
 }
@@ -737,7 +732,7 @@ async fn events(host: &Host, capture_id: &str) -> Vec<capture_event::Model> {
     host.app
         .gproxy()
         .store()
-        .capture_events()
+        .downstream_events()
         .query(
             capture_event::Entity::find()
                 .filter(capture_event::Column::CaptureId.eq(capture_id))

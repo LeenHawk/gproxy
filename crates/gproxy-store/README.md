@@ -158,7 +158,7 @@ with one entity per file:
 | `oauth` | Client, Grant, Code, Token, Device |
 | `limits` | RateLimit, Quota, QuotaWindow, QuotaSettlement, CredentialQuotaCycle, CredentialBlock |
 | `pricing` | PriceRule, PriceRate, PriceTier |
-| `usage` | UsageRecord, CaptureRecord, CaptureEvent |
+| `usage` | UsageRecord, UpstreamRecord, DownstreamRecord, CaptureLink, UpstreamEvent, DownstreamEvent |
 | `resource` | FileObject, AgentSession, AgentAssignment, ResourceBinding, ProtocolState |
 | `config` | Setting, ConnectionProfile |
 
@@ -332,17 +332,24 @@ settlement. Adding a metric does not imply every upstream reports its quantity.
 
 ## Downstream/upstream exchanges and streaming
 
-`UpstreamCall` is merged into [`CaptureRecord`](src/entity/usage/capture_record.rs).
-One row holds a physical exchange on one side, including call metadata and both
-request and response. `side` distinguishes downstream from upstream. Optional
-`initiator_request_id`, `attempt_id` and `attempt_ordinal` preserve the initiating
-request and retry even without downstream capture. An upstream row associates
-with at most one downstream request, or none; the association has no foreign key.
+The three main tables are `upstream_records`, `downstream_records` and
+`usage_records`. A physical upstream call has one usage row, keyed by its call ID;
+there is no persisted downstream usage summary. Attribution and cost are stored
+on usage independently of capture logging.
+
+`capture_links(downstream_id, upstream_id)` represents many-to-many associations.
+Either side can exist without a link. The composite primary key prevents duplicate
+edges, and the reverse index supports upstream lookups. Links have no capture
+foreign keys because logging and retention are independent. `initiator_request_id`
+is provenance only and never determines the associated callers.
 
 | Entity | Responsibility |
 |---|---|
-| CaptureRecord | HTTP exchange, WS connection or WS business turn, with request and response together |
-| CaptureEvent | Ordered stream chunks or WS messages, including direction and observation time |
+| UpstreamRecord | Physical upstream HTTP exchange, WS connection or business turn |
+| DownstreamRecord | Inbound HTTP exchange, WS connection or business turn |
+| UsageRecord | One physical upstream call's quantities, attribution and USD cost |
+| CaptureLink | Independent many-to-many association between the two sides |
+| UpstreamEvent / DownstreamEvent | Ordered chunks/messages with foreign keys to their own side |
 
 HTTP request elements are method, URL/path, raw query, headers and body; response
 elements are status, headers and body. The query is stored separately and headers
@@ -358,10 +365,11 @@ completion, failure or cancellation independently of HTTP status. Body events ne
 not be stored when body logging is disabled. Logging redaction applies to URLs,
 queries, headers and bodies.
 
-Each actual retry has its own upstream record. Its nullable `initiator_request_id`
-names the associated downstream request. Deleting a log does not delete the log
-on the other side or independent usage history. Downstream errors without an
-upstream call and upstream calls without a retained downstream log are valid.
+Each actual retry has its own upstream record and usage. Sharing an upstream
+record between callers adds links, not copies of the record or its usage.
+Deleting a capture cascades only to its side's events; it cannot remove the other
+side's captures or usage. Links survive while either capture or the upstream
+usage is retained.
 
 WS uses `WsConnection` for handshake/lifetime and `WsTurn` for each business turn,
 linked to the same-side connection by `session_id`. Only the handshake carries
@@ -372,19 +380,14 @@ and unassigned messages leave it unset. Store each message once; the primary key
 application messages, not TCP packets or WS fragments. Leave messages at connection
 scope when protocol evidence is insufficient to assign a turn.
 
-Direct request IDs associate upstream calls with downstream HTTP exchanges or WS
+Capture links associate upstream calls with downstream HTTP exchanges or WS
 turns. Connection reuse does not imply reuse of a business invocation. Writers enforce directions,
 same-side turn/session binding and event ordering; these are not automatically
 validated by the entity definitions.
 
-UsageRecord.request_id identifies the downstream HTTP exchange or WS turn, with
-independent log retention. Native upstream metrics belong to the physical exchange
-and must not be summed again for each edge. Downstream cost allocation is an
-explicit settlement policy; edges imply neither equal splitting nor repeated full
-charges.
-
-Batch persistence is available. Capture integration, WS turn identification,
-shared-call settlement and log query APIs are not implemented here.
+UsageRecord.request_id identifies the physical upstream call, independently of
+whether its capture is enabled or retained. Downstream detail queries resolve
+linked upstream usage rows through `capture_links`, without duplicating consumption.
 
 ## OAuth
 

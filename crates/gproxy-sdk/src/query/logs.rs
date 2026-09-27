@@ -1,31 +1,4 @@
-//! Captured requests: the downstream list, and one request in full.
-//!
-//! The list is cursor-paged. A request log is an append-only stream whose head
-//! keeps moving while a person reads it, and an offset page over that either
-//! repeats rows or drops them as new ones arrive. The cursor is the
-//! `(started_at_ms, id)` of the last row returned — both halves, because two
-//! requests can start in the same millisecond and a timestamp-only cursor
-//! would then loop on them forever or skip past them.
-//!
-//! A detail is a tree: the downstream record, the upstream attempts reached
-//! through their associated downstream request ID, and their stream events. Bodies are
-//! returned in full. Events are limited by [`MAX_DETAIL_EVENTS`], with the
-//! event-list cut reported separately on the answer.
-//!
-//! Nothing here redacts. Core's observer applied the deployment's logging
-//! redaction policy as it wrote these rows, so a host must not assume a second
-//! pass happens on read — if a secret is in the database, it is because the
-//! policy allowed it there.
-
-use std::{collections::BTreeSet, sync::Arc};
-
-use gproxy_seaorm::BatchConnectionTrait;
-use gproxy_store::entity::usage::{capture_event, capture_record};
-use sea_orm::{
-    ActiveEnum, ColumnTrait, Condition, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
-    QueryTrait,
-};
-
+//! Reads over separate upstream/downstream captures and their many-to-many links.
 use super::{MAX_DETAIL_EVENTS, filter};
 use crate::{
     SdkError, SdkResult,
@@ -35,79 +8,77 @@ use crate::{
     },
     handle::Inner,
 };
+use gproxy_seaorm::BatchConnectionTrait;
+use gproxy_store::entity::usage::{
+    capture_event, capture_link, capture_record, downstream_event, downstream_record,
+    upstream_event, upstream_record, usage_record,
+};
+use sea_orm::{
+    ActiveEnum, ColumnTrait, Condition, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+    QueryTrait,
+};
+use std::sync::Arc;
 
 pub struct Logs<'a, C> {
     inner: &'a Arc<Inner<C>>,
 }
-
 impl<'a, C> Logs<'a, C> {
     pub(crate) fn new(inner: &'a Arc<Inner<C>>) -> Self {
         Self { inner }
     }
 }
 
-impl<C: BatchConnectionTrait + Send + Sync + 'static> Logs<'_, C> {
-    /// One page of downstream requests, newest first.
-    ///
-    /// Only `side = downstream` rows are listed: an upstream attempt is not a
-    /// request, it is something a request did, and it is reached through
-    /// [`detail`](Self::detail). Hand `next_cursor` and `next_cursor_id` back
-    /// unchanged for the next page; a `cursor` without its `cursor_id` still
-    /// works but may repeat the rows of its own millisecond.
-    pub async fn list(&self, query: LogQuery) -> SdkResult<LogPageDto> {
-        self.list_side(query, capture_record::CaptureSide::Downstream)
-            .await
-    }
-
-    /// Physical upstream exchanges, including attempts without a retained downstream row.
-    pub async fn upstream(&self, query: LogQuery) -> SdkResult<LogPageDto> {
-        self.list_side(query, capture_record::CaptureSide::Upstream)
-            .await
-    }
-
-    async fn list_side(
-        &self,
-        query: LogQuery,
-        side: capture_record::CaptureSide,
-    ) -> SdkResult<LogPageDto> {
-        use capture_record::Column as C;
-        let mut condition = Condition::all().add(C::Side.eq(side));
-        if let Some(from_ms) = query.from_ms {
-            condition = condition.add(C::StartedAtMs.gte(from_ms));
+// Identical paging over two physical tables. No UNION or side predicate on the hot read.
+macro_rules! list_records {
+    ($self:ident, $query:ident, $record:ident, $repository:ident, $upstream:expr) => {{
+        use $record::Column as C;
+        let query = $query;
+        let mut condition = Condition::all();
+        if let Some(from) = query.from_ms {
+            condition = condition.add(C::StartedAtMs.gte(from));
         }
-        if let Some(to_ms) = query.to_ms {
-            condition = condition.add(C::StartedAtMs.lt(to_ms));
+        if let Some(to) = query.to_ms {
+            condition = condition.add(C::StartedAtMs.lt(to));
         }
-        if let Some(user_id) = filter(&query.user_id) {
-            condition = condition.add(C::UserId.eq(user_id));
+        if let Some(id) = filter(&query.user_id) {
+            condition = condition.add(C::UserId.eq(id));
         }
-        if let Some(api_key_id) = filter(&query.api_key_id) {
-            condition = condition.add(C::ApiKeyId.eq(api_key_id));
+        if let Some(id) = filter(&query.api_key_id) {
+            condition = condition.add(C::ApiKeyId.eq(id));
         }
         let mut upstream_filter = Condition::all();
-        let provider = filter(&query.provider_id);
-        let credential = filter(&query.credential_id);
-        if let Some(provider_id) = provider {
-            upstream_filter = upstream_filter.add(C::ProviderId.eq(provider_id));
+        if let Some(id) = filter(&query.provider_id) {
+            upstream_filter = upstream_filter.add(upstream_record::Column::ProviderId.eq(id));
         }
-        if let Some(credential_id) = credential {
-            upstream_filter = upstream_filter.add(C::CredentialId.eq(credential_id));
+        if let Some(id) = filter(&query.credential_id) {
+            upstream_filter = upstream_filter.add(upstream_record::Column::CredentialId.eq(id));
         }
-        if provider.is_some() || credential.is_some() {
-            if side == capture_record::CaptureSide::Downstream {
-                let downstream_ids = capture_record::Entity::find()
+        if filter(&query.provider_id).is_some() || filter(&query.credential_id).is_some() {
+            if $upstream {
+                condition = condition.add(upstream_filter);
+            } else {
+                let upstream_ids = upstream_record::Entity::find()
                     .select_only()
-                    .column(C::InitiatorRequestId)
-                    .filter(C::Side.eq(capture_record::CaptureSide::Upstream))
-                    .filter(upstream_filter.clone())
+                    .column(upstream_record::Column::Id)
+                    .filter(upstream_filter)
                     .into_query();
+                let downstream_ids = capture_link::Entity::find()
+                    .select_only()
+                    .column(capture_link::Column::DownstreamId)
+                    .filter(capture_link::Column::UpstreamId.in_subquery(upstream_ids))
+                    .into_query();
+                let mut direct = Condition::all();
+                if let Some(id) = filter(&query.provider_id) {
+                    direct = direct.add(C::ProviderId.eq(id));
+                }
+                if let Some(id) = filter(&query.credential_id) {
+                    direct = direct.add(C::CredentialId.eq(id));
+                }
                 condition = condition.add(
                     Condition::any()
-                        .add(upstream_filter)
+                        .add(direct)
                         .add(C::Id.in_subquery(downstream_ids)),
                 );
-            } else {
-                condition = condition.add(upstream_filter);
             }
         }
         if let Some(model) = filter(&query.model) {
@@ -122,35 +93,35 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Logs<'_, C> {
         if let Some(status) = query.status {
             condition = condition.add(C::ResponseStatus.eq(status));
         }
-        // A downstream record's id is the request id, so there is nothing to
-        // look up in `initiator_request_id` here.
-        if let Some(request_id) = filter(&query.request_id) {
-            condition = condition.add(
-                Condition::any()
-                    .add(C::Id.eq(request_id))
-                    .add(C::InitiatorRequestId.eq(request_id)),
-            );
+        if let Some(id) = filter(&query.request_id) {
+            let mut matching = Condition::any().add(C::Id.eq(id));
+            if $upstream {
+                let ids = capture_link::Entity::find()
+                    .select_only()
+                    .column(capture_link::Column::UpstreamId)
+                    .filter(capture_link::Column::DownstreamId.eq(id))
+                    .into_query();
+                matching = matching.add(C::Id.in_subquery(ids));
+            }
+            condition = condition.add(matching);
         }
         if let Some(cursor) = query.cursor {
             condition = condition.add(match filter(&query.cursor_id) {
-                Some(cursor_id) => Condition::any().add(C::StartedAtMs.lt(cursor)).add(
+                Some(id) => Condition::any().add(C::StartedAtMs.lt(cursor)).add(
                     Condition::all()
                         .add(C::StartedAtMs.eq(cursor))
-                        .add(C::Id.lt(cursor_id)),
+                        .add(C::Id.lt(id)),
                 ),
                 None => Condition::all().add(C::StartedAtMs.lt(cursor)),
             });
         }
-
         let limit = query.limit.unwrap_or(50).clamp(1, 500);
-        // One row past the page, so "there is more" is a fact rather than a
-        // guess from a full page.
-        let mut rows = self
+        let mut rows = $self
             .inner
             .store
-            .capture_records()
+            .$repository()
             .query(
-                capture_record::Entity::find()
+                $record::Entity::find()
                     .filter(condition)
                     .order_by_desc(C::StartedAtMs)
                     .order_by_desc(C::Id)
@@ -164,102 +135,146 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Logs<'_, C> {
             .flatten()
             .map(|row| (row.started_at_ms, row.id.clone()));
         Ok(LogPageDto {
-            items: rows.into_iter().map(LogEntryDto::from).collect(),
-            next_cursor: next.as_ref().map(|(started_at_ms, _)| *started_at_ms),
+            items: rows
+                .into_iter()
+                .map(capture_record::Model::from)
+                .map(LogEntryDto::from)
+                .collect(),
+            next_cursor: next.as_ref().map(|(time, _)| *time),
             next_cursor_id: next.map(|(_, id)| id),
         })
-    }
+    }};
+}
 
-    /// One physical exchange and its events, regardless of downstream retention.
+impl<C: BatchConnectionTrait + Send + Sync + 'static> Logs<'_, C> {
+    pub async fn list(&self, query: LogQuery) -> SdkResult<LogPageDto> {
+        list_records!(self, query, downstream_record, downstream_records, false)
+    }
+    pub async fn upstream(&self, query: LogQuery) -> SdkResult<LogPageDto> {
+        list_records!(self, query, upstream_record, upstream_records, true)
+    }
     pub async fn capture(&self, capture_id: &str) -> SdkResult<CaptureDetailDto> {
         let store = &self.inner.store;
-        let row = store
-            .capture_records()
-            .get_many(&[capture_id.to_owned()])
-            .await?
-            .into_iter()
-            .next()
-            .flatten()
-            .ok_or_else(|| SdkError::not_found("capture record", capture_id))?;
-        let mut events = store
-            .capture_events()
-            .query(
-                capture_event::Entity::find()
-                    .filter(capture_event::Column::CaptureId.eq(capture_id))
-                    .order_by_asc(capture_event::Column::Sequence)
-                    .limit(MAX_DETAIL_EVENTS + 1),
-            )
-            .await?;
+        let ids = [capture_id.to_owned()];
+        let (row, events): (capture_record::Model, Vec<capture_event::Model>) = if let Some(row) =
+            store
+                .upstream_records()
+                .get_many(&ids)
+                .await?
+                .into_iter()
+                .next()
+                .flatten()
+        {
+            let events = store
+                .upstream_events()
+                .query(
+                    upstream_event::Entity::find()
+                        .filter(upstream_event::Column::CaptureId.eq(capture_id))
+                        .order_by_asc(upstream_event::Column::Sequence)
+                        .limit(MAX_DETAIL_EVENTS + 1),
+                )
+                .await?;
+            (row.into(), events.into_iter().map(Into::into).collect())
+        } else {
+            let row = store
+                .downstream_records()
+                .get_many(&ids)
+                .await?
+                .into_iter()
+                .next()
+                .flatten()
+                .ok_or_else(|| SdkError::not_found("capture record", capture_id))?;
+            let events = store
+                .downstream_events()
+                .query(
+                    downstream_event::Entity::find()
+                        .filter(downstream_event::Column::CaptureId.eq(capture_id))
+                        .order_by_asc(downstream_event::Column::Sequence)
+                        .limit(MAX_DETAIL_EVENTS + 1),
+                )
+                .await?;
+            (row.into(), events.into_iter().map(Into::into).collect())
+        };
         let events_truncated = events.len() as u64 > MAX_DETAIL_EVENTS;
-        events.truncate(MAX_DETAIL_EVENTS as usize);
         Ok(CaptureDetailDto {
             record: record(row),
-            events: events.into_iter().map(event).collect(),
+            events: events
+                .into_iter()
+                .take(MAX_DETAIL_EVENTS as usize)
+                .map(event)
+                .collect(),
             events_truncated,
         })
     }
-
-    /// One request and everything captured under it: the downstream record,
-    /// every upstream attempt linked to it, their stream events, and the
-    /// settled usage row when there is one.
     pub async fn detail(&self, request_id: &str) -> SdkResult<LogDetailDto> {
         let store = &self.inner.store;
         let downstream = store
-            .capture_records()
+            .downstream_records()
             .get_many(&[request_id.to_owned()])
             .await?
             .into_iter()
             .next()
             .flatten()
-            .filter(|row| row.side == capture_record::CaptureSide::Downstream)
-            .ok_or_else(|| SdkError::not_found("capture record", request_id))?;
-
+            .ok_or_else(|| SdkError::not_found("downstream record", request_id))?;
+        let ids = capture_link::Entity::find()
+            .select_only()
+            .column(capture_link::Column::UpstreamId)
+            .filter(capture_link::Column::DownstreamId.eq(request_id))
+            .into_query();
         let upstream = store
-            .capture_records()
+            .upstream_records()
             .query(
-                capture_record::Entity::find()
-                    .filter(capture_record::Column::Side.eq(capture_record::CaptureSide::Upstream))
-                    .filter(capture_record::Column::InitiatorRequestId.eq(request_id))
-                    .order_by_asc(capture_record::Column::StartedAtMs)
-                    .order_by_asc(capture_record::Column::AttemptOrdinal)
-                    .order_by_asc(capture_record::Column::Id),
+                upstream_record::Entity::find()
+                    .filter(upstream_record::Column::Id.in_subquery(ids.clone()))
+                    .order_by_asc(upstream_record::Column::StartedAtMs)
+                    .order_by_asc(upstream_record::Column::AttemptOrdinal)
+                    .order_by_asc(upstream_record::Column::Id),
             )
             .await?;
-
-        let capture_ids: Vec<String> = std::iter::once(downstream.id.clone())
-            .chain(upstream.iter().map(|row| row.id.clone()))
-            .collect::<BTreeSet<_>>()
-            .into_iter()
-            .collect();
-        let mut events = store
-            .capture_events()
+        let mut events: Vec<capture_event::Model> = store
+            .downstream_events()
             .query(
-                capture_event::Entity::find()
-                    .filter(capture_event::Column::CaptureId.is_in(capture_ids))
-                    .order_by_asc(capture_event::Column::CaptureId)
-                    .order_by_asc(capture_event::Column::Sequence)
+                downstream_event::Entity::find()
+                    .filter(downstream_event::Column::CaptureId.eq(request_id))
+                    .order_by_asc(downstream_event::Column::Sequence)
                     .limit(MAX_DETAIL_EVENTS + 1),
             )
-            .await?;
+            .await?
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        events.extend(
+            store
+                .upstream_events()
+                .query(
+                    upstream_event::Entity::find()
+                        .filter(upstream_event::Column::CaptureId.in_subquery(ids.clone()))
+                        .order_by_asc(upstream_event::Column::CaptureId)
+                        .order_by_asc(upstream_event::Column::Sequence)
+                        .limit(MAX_DETAIL_EVENTS + 1),
+                )
+                .await?
+                .into_iter()
+                .map(capture_event::Model::from),
+        );
+        events.sort_by(|a, b| (&a.capture_id, a.sequence).cmp(&(&b.capture_id, b.sequence)));
         let events_truncated = events.len() as u64 > MAX_DETAIL_EVENTS;
         events.truncate(MAX_DETAIL_EVENTS as usize);
-
         let usage = store
             .usage_records()
-            .get_many(&[request_id.to_owned()])
+            .query(
+                usage_record::Entity::find()
+                    .filter(usage_record::Column::RequestId.in_subquery(ids))
+                    .order_by_asc(usage_record::Column::StartedAtMs)
+                    .order_by_asc(usage_record::Column::RequestId),
+            )
             .await?
             .into_iter()
-            .next()
-            .flatten();
-        let usage = gproxy_core::usage_scan::attach(store, usage.into_iter().collect())
-            .await?
-            .into_iter()
-            .next()
-            .map(UsageRecordDto::from);
-
+            .map(UsageRecordDto::from)
+            .collect();
         Ok(LogDetailDto {
-            downstream: record(downstream),
-            upstream: upstream.into_iter().map(record).collect(),
+            downstream: record(downstream.into()),
+            upstream: upstream.into_iter().map(|row| record(row.into())).collect(),
             events: events.into_iter().map(event).collect(),
             events_truncated,
             usage,

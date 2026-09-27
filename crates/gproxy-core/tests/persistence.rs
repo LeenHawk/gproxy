@@ -13,10 +13,10 @@ use gproxy_protocol::{
 };
 use gproxy_store::entity::{
     config::setting,
-    usage::{capture_event as event, capture_record as capture, usage_record},
+    usage::{upstream_event as event, upstream_record as capture, usage_record},
 };
 use http::StatusCode;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{EntityTrait, Set};
 use serde_json::json;
 use std::{sync::Arc, time::Duration};
 use support::*;
@@ -59,7 +59,7 @@ async fn settings(h: &Harness, settlement: bool, usage: bool, log: bool, body: b
 async fn captures(h: &Harness) -> Vec<capture::Model> {
     h.core
         .store()
-        .capture_records()
+        .upstream_records()
         .query(capture::Entity::find())
         .await
         .unwrap()
@@ -68,17 +68,14 @@ async fn usages(h: &Harness) -> Vec<usage_record::Model> {
     h.core
         .store()
         .usage_records()
-        .query(
-            usage_record::Entity::find()
-                .filter(usage_record::Column::Side.eq(capture::CaptureSide::Downstream)),
-        )
+        .query(usage_record::Entity::find())
         .await
         .unwrap()
 }
 async fn events(h: &Harness) -> Vec<event::Model> {
     h.core
         .store()
-        .capture_events()
+        .upstream_events()
         .query(event::Entity::find())
         .await
         .unwrap()
@@ -95,7 +92,7 @@ async fn run(h: &Harness, id: &str, attempts: u32) -> gproxy_core::UsageReport {
 }
 
 #[tokio::test]
-async fn retries_keep_both_bodies_and_usage_but_write_one_request_summary() {
+async fn retries_keep_both_bodies_and_one_usage_per_upstream_call() {
     let h = persistent().await;
     h.script(vec![
         json_reply(
@@ -157,23 +154,34 @@ async fn retries_keep_both_bodies_and_usage_but_write_one_request_summary() {
         );
     }
     let usage = usages(&h).await;
-    assert_eq!(usage.len(), 1);
-    assert_eq!(usage[0].user_id.as_deref(), Some("historical-user"));
-    assert_eq!(usage[0].model, "public-alias");
-    assert_eq!(usage[0].input_tokens, Some(6));
-    assert_eq!(usage[0].output_tokens, Some(4));
+    assert_eq!(usage.len(), 2);
+    assert!(
+        usage
+            .iter()
+            .all(|row| row.user_id.as_deref() == Some("historical-user"))
+    );
     assert_eq!(
+        usage.iter().filter_map(|row| row.input_tokens).sum::<i64>(),
+        6
+    );
+    assert_eq!(
+        usage
+            .iter()
+            .filter_map(|row| row.output_tokens)
+            .sum::<i64>(),
+        4
+    );
+    for row in &rows {
+        assert!(usage.iter().any(|u| u.request_id == row.id));
+    }
+    assert!(
         h.core
             .store()
             .usage_records()
-            .query(
-                usage_record::Entity::find()
-                    .filter(usage_record::Column::Side.eq(capture::CaptureSide::Upstream))
-            )
+            .get_many(&["retry".into()])
             .await
-            .unwrap()
-            .len(),
-        2
+            .unwrap()[0]
+            .is_none()
     );
     assert!(usage[0].metrics.get("exchanges").is_none());
     assert_eq!(usage[0].state.as_deref(), Some("completed"));
@@ -262,11 +270,10 @@ async fn dropping_send_future_before_headers_still_finalizes_records() {
     drop(call);
     tokio::time::timeout(Duration::from_secs(3), async {
         loop {
-            if usages(&h).await.len() == 1
-                && captures(&h)
-                    .await
-                    .first()
-                    .is_some_and(|r| r.ended_at_ms.is_some())
+            if captures(&h)
+                .await
+                .first()
+                .is_some_and(|r| r.ended_at_ms.is_some())
             {
                 break;
             }
@@ -282,9 +289,10 @@ async fn dropping_send_future_before_headers_still_finalizes_records() {
         rows[0].response_body_state,
         capture::CaptureBodyState::Partial
     );
-    let usage = usages(&h).await;
-    assert_eq!(usage[0].state.as_deref(), Some("cancelled"));
-    assert!(usage[0].input_tokens.is_none());
+    assert!(
+        usages(&h).await.is_empty(),
+        "no upstream usage was observed before headers"
+    );
 }
 
 #[tokio::test]
@@ -398,7 +406,10 @@ async fn websocket_frames_and_handshake_are_persisted_without_double_usage() {
             .iter()
             .any(|e| e.kind == event::CaptureEventKind::WsText && e.payload == b"hello")
     );
-    assert_eq!(usages(&h).await.len(), 1);
+    assert!(
+        usages(&h).await.is_empty(),
+        "handshake and unmetered frames do not fabricate usage"
+    );
 }
 
 /// A channel that consumes two physical responses and returns a buffered local
@@ -799,10 +810,10 @@ async fn preparation_failure_is_failed_not_cancelled_and_creates_no_fake_exchang
         .unwrap();
     assert!(matches!(error, gproxy_core::CoreError::Rewrite(_)));
     assert!(captures(&h).await.is_empty());
-    let rows = usages(&h).await;
-    assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].state.as_deref(), Some("failed"));
-    assert_eq!(rows[0].completeness.as_deref(), Some("unknown"));
+    assert!(
+        usages(&h).await.is_empty(),
+        "preparation failed before any physical upstream usage"
+    );
 }
 
 #[tokio::test]
@@ -962,14 +973,21 @@ async fn structured_usage_preserves_cache_media_tools_and_unknowns_without_logs(
         .get_many(&["structured".into(), "structured-up".into()])
         .await
         .unwrap();
-    let down = rows[0].as_ref().unwrap();
+    assert!(
+        rows[0].is_none(),
+        "no downstream usage summary is persisted"
+    );
     let up = rows[1].as_ref().unwrap();
-    assert_eq!(down.input_tokens, None);
-    assert_eq!(down.output_tokens, Some(0));
-    assert_eq!(down.cached_input_tokens(), Some(u64::MAX));
-    assert_eq!(down.cost.unwrap().to_string(), "0.1");
-    assert_eq!(up.side, capture::CaptureSide::Upstream);
-    assert_eq!(up.downstream_request_id.as_deref(), Some("structured"));
+    assert_eq!(up.cost.unwrap().to_string(), "0.125");
+    assert!(
+        h.core
+            .store()
+            .capture_links()
+            .get_many(&[("structured".into(), "structured-up".into())])
+            .await
+            .unwrap()[0]
+            .is_some()
+    );
     assert_eq!(
         (up.input_tokens, up.output_tokens, up.cached_input_tokens),
         (Some(11), Some(19), Some(23))
@@ -989,5 +1007,5 @@ async fn structured_usage_preserves_cache_media_tools_and_unknowns_without_logs(
     assert_eq!(up.metrics["dimensions"]["tool_name"], "search");
     assert!(up.metrics.get("tokens").is_none());
     assert!(up.metrics["metrics"].get("audio_seconds").is_none());
-    assert!(down.metrics.get("exchanges").is_none());
+    assert!(up.metrics.get("exchanges").is_none());
 }

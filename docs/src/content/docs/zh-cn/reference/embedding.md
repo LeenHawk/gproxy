@@ -143,8 +143,7 @@ let (response, usage) = execution.into_parts();
 | `quota()` | `windows`、`settlements`、`credential_cycles`、`credential_observations`、`counted_windows`、`budget_status` |
 | `logs()` | `list`、`detail(request_id)` |
 
-**聚合在 Rust 侧完成，并带扫描上限。** 固定用量字段使用专有列，下游汇总与上游调用
-分行保存。供应商、凭证筛选在 SQL 中完成；`summary`、`group` 和 `trend` 对匹配行及
+**聚合在 Rust 侧完成，并带扫描上限。** 固定用量字段使用专有列，每个物理上游调用只保存一条用量，不保存下游汇总行。供应商、凭证筛选在 SQL 中完成；`summary`、`group` 和 `trend` 对匹配行及
 自定义指标按键序分块聚合。每个聚合都有一个扫描预算，默认并被钳制为 50 000 行，而用满预算的聚合会带着
 `truncated: true` 和扫描计数回来——绝不把一个更小的数字当成全部事实。趋势还有第二重边界：
 零或负的桶宽、倒着的区间，以及会产生超过 5 000 个桶的区间，一律拒绝。

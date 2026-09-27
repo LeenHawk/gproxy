@@ -1,4 +1,4 @@
-//! Store-backed upstream capture and per-request usage. One writer per exchange
+//! Store-backed upstream capture and per-call usage. One writer per exchange
 //! preserves event order, flushes on finish, and closes interrupted on sender drop.
 use crate::{
     CaptureEnd, CaptureEvent, CapturePolicy, CaptureSink, ExchangeContext, ObservationPolicy,
@@ -9,7 +9,9 @@ use gproxy_protocol::{capability::CapabilityFuture, connection::WsFrame};
 use gproxy_seaorm::{BatchConnectionTrait, FixedDecimal};
 use gproxy_store::{
     Store,
-    entity::usage::{capture_event as event, capture_record as record, usage_record},
+    entity::usage::{
+        capture_link, upstream_event as event, upstream_record as record, usage_record,
+    },
 };
 use sea_orm::{EntityTrait, QueryTrait, Set};
 use serde_json::{Value, json};
@@ -51,7 +53,6 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Observer for StoreObserver
             initiator_request_id: Set(Some(request.request_id.clone())),
             attempt_id: Set(Some(attempt.attempt_id.clone())),
             attempt_ordinal: Set(Some(attempt.ordinal as i32)),
-            side: Set(record::CaptureSide::Upstream),
             kind: Set(record::CaptureKind::Http),
             user_id: reported(request.attribution.user_id.clone()),
             api_key_id: reported(request.attribution.api_key_id.clone()),
@@ -83,8 +84,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Observer for StoreObserver
         let store = self.store.clone();
         let worker_lost = lost.clone();
         let cancellation = request.cancellation.clone();
+        let link = request.request_id.clone();
         crate::rt::spawn(async move {
-            write_capture(store, row, rx, worker_lost, full, cancellation).await;
+            write_capture(store, row, rx, worker_lost, full, cancellation, link).await;
         });
         Box::new(StoreCapture {
             id: exchange.capture_id.clone(),
@@ -105,69 +107,38 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Observer for StoreObserver
             {
                 return;
             }
-            let aggregate;
-            let usage = if let Some(usage) = &report.downstream_usage {
-                usage
-            } else {
-                aggregate = if report.exchanges.is_empty() {
-                    NormalizedUsage::default()
-                } else {
-                    NormalizedUsage::aggregate(report.exchanges.iter().map(|e| &e.usage))
-                };
-                &aggregate
-            };
-            let mut row = usage_columns(usage);
-            row = usage_record::ActiveModel {
-                request_id: Set(report.request_id.clone()),
-                user_id: reported(request.attribution.user_id.clone()),
-                api_key_id: reported(request.attribution.api_key_id.clone()),
-                model: Set(request
-                    .attribution
-                    .model
-                    .clone()
-                    .or_else(|| request.target.upstream_model.clone())
-                    .unwrap_or_default()),
-                operation: Set(request.operation.operation.id().into()),
-                side: Set(record::CaptureSide::Downstream),
-                state: Set(Some(format!("{:?}", report.state).to_lowercase())),
-                cost: reported(
-                    report
-                        .cost
-                        .as_ref()
-                        .and_then(|c| FixedDecimal::rounded(c.amount).ok()),
-                ),
-                started_at_ms: Set(request.started_at_ms),
-                ended_at_ms: Set(Some(now_ms())),
-                ..row
-            };
-            let mut rows = Vec::with_capacity(report.exchanges.len() + 1);
+            let backend = self.store.connection().get_database_backend();
+            let mut statements = Vec::with_capacity(report.exchanges.len() * 2);
             for exchange in &report.exchanges {
-                rows.push(usage_record::ActiveModel {
+                let row = usage_record::ActiveModel {
                     request_id: Set(exchange.capture_id.clone()),
-                    side: Set(record::CaptureSide::Upstream),
-                    downstream_request_id: Set(Some(report.request_id.clone())),
-                    user_id: row.user_id.clone(),
-                    api_key_id: row.api_key_id.clone(),
+                    user_id: reported(request.attribution.user_id.clone()),
+                    api_key_id: reported(request.attribution.api_key_id.clone()),
                     model: Set(exchange.upstream_model.clone().unwrap_or_default()),
-                    operation: row.operation.clone(),
+                    operation: Set(request.operation.operation.id().into()),
                     provider_id: Set(Some(exchange.provider_id.clone())),
                     credential_id: Set(Some(exchange.credential_id.clone())),
                     attempt_id: Set(Some(exchange.attempt_id.clone())),
                     attempt_ordinal: Set(Some(i64::from(exchange.attempt_ordinal))),
-                    state: row.state.clone(),
+                    state: Set(Some(format!("{:?}", report.state).to_lowercase())),
                     cost: reported(
                         exchange
                             .cost
                             .as_ref()
                             .and_then(|c| FixedDecimal::rounded(c.amount).ok()),
                     ),
-                    started_at_ms: row.started_at_ms.clone(),
-                    ended_at_ms: row.ended_at_ms.clone(),
+                    started_at_ms: Set(request.started_at_ms),
+                    ended_at_ms: Set(Some(now_ms())),
                     ..usage_columns(&exchange.usage)
-                });
+                };
+                statements.push(usage_record::Entity::insert(row).build(backend));
+                statements.push(link_statement(
+                    backend,
+                    &report.request_id,
+                    &exchange.capture_id,
+                ));
             }
-            rows.push(row);
-            if let Err(error) = self.store.usage_records().insert_many(rows).await {
+            if let Err(error) = self.store.connection().atomic_batch_owned(statements).await {
                 tracing::error!(request_id = %report.request_id, %error, "usage persistence failed");
             }
         })
@@ -350,6 +321,7 @@ async fn write_capture<C: BatchConnectionTrait + Send + Sync + 'static>(
     lost: Arc<AtomicBool>,
     full: bool,
     cancellation: tokio_util::sync::CancellationToken,
+    link: String,
 ) {
     let id = row.id.clone().unwrap();
     let mut inserted = false;
@@ -370,7 +342,7 @@ async fn write_capture<C: BatchConnectionTrait + Send + Sync + 'static>(
                 if events.len() >= EVENT_BATCH {
                     let mut statements = Vec::with_capacity(events.len() + 1);
                     if !inserted {
-                        match store.capture_records().insert_statement(row.clone()) {
+                        match store.upstream_records().insert_statement(row.clone()) {
                             Ok(statement) => statements.push(statement),
                             Err(error) => {
                                 lost.store(true, Ordering::Relaxed);
@@ -381,6 +353,9 @@ async fn write_capture<C: BatchConnectionTrait + Send + Sync + 'static>(
                         }
                     }
                     let backend = store.connection().get_database_backend();
+                    if !inserted {
+                        statements.push(link_statement(backend, &link, &id));
+                    }
                     statements.extend(
                         events
                             .drain(..)
@@ -441,17 +416,20 @@ async fn write_capture<C: BatchConnectionTrait + Send + Sync + 'static>(
     let backend = store.connection().get_database_backend();
     let head = if inserted {
         store
-            .capture_records()
+            .upstream_records()
             .update_statement(row)
             .map(|statement| statement.into_iter().collect())
     } else {
         store
-            .capture_records()
+            .upstream_records()
             .insert_statement(row)
             .map(|statement| vec![statement])
     };
     match head {
         Ok(mut statements) => {
+            if !inserted {
+                statements.push(link_statement(backend, &link, &id));
+            }
             statements.extend(
                 events
                     .into_iter()
@@ -713,4 +691,24 @@ where
         Some(value) => Set(Some(value)),
         None => sea_orm::ActiveValue::NotSet,
     }
+}
+
+fn link_statement(
+    backend: sea_orm::DbBackend,
+    downstream_id: &str,
+    upstream_id: &str,
+) -> sea_orm::Statement {
+    capture_link::Entity::insert(capture_link::ActiveModel {
+        downstream_id: Set(downstream_id.to_owned()),
+        upstream_id: Set(upstream_id.to_owned()),
+    })
+    .on_conflict(
+        sea_orm::sea_query::OnConflict::columns([
+            capture_link::Column::DownstreamId,
+            capture_link::Column::UpstreamId,
+        ])
+        .do_nothing()
+        .to_owned(),
+    )
+    .build(backend)
 }

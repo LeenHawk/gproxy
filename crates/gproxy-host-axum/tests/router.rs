@@ -83,7 +83,7 @@ async fn a_caller_with_no_permission_is_403_and_costs_no_upstream_call() {
 #[tokio::test]
 async fn a_permitted_call_reaches_the_upstream_and_writes_a_usage_row() {
     use gproxy_store::entity::usage::usage_record;
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    use sea_orm::EntityTrait;
 
     let host = instance().await;
     host.client
@@ -106,18 +106,13 @@ async fn a_permitted_call_reaches_the_upstream_and_writes_a_usage_row() {
         .gproxy()
         .store()
         .usage_records()
-        .query(
-            usage_record::Entity::find().filter(
-                usage_record::Column::Side
-                    .eq(gproxy_store::entity::usage::capture_record::CaptureSide::Downstream),
-            ),
-        )
+        .query(usage_record::Entity::find())
         .await
         .unwrap();
-    assert_eq!(rows.len(), 1, "one request, one usage summary");
+    assert_eq!(rows.len(), 1, "one physical call, one usage row");
     assert_eq!(rows[0].user_id.as_deref(), Some("alice"));
     assert_eq!(rows[0].api_key_id.as_deref(), Some("k-alice"));
-    assert_eq!(rows[0].model, "test/m1");
+    assert_eq!(rows[0].model, "m1");
 }
 
 #[tokio::test]
@@ -538,7 +533,7 @@ async fn a_body_is_held_to_its_cap_and_only_an_upload_gets_the_larger_one() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_buffered_answer_over_a_socket_settles_as_completed() {
     use gproxy_store::entity::usage::usage_record;
-    use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+    use sea_orm::EntityTrait;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     let host = instance().await;
@@ -591,12 +586,7 @@ async fn a_buffered_answer_over_a_socket_settles_as_completed() {
             .gproxy()
             .store()
             .usage_records()
-            .query(
-                usage_record::Entity::find().filter(
-                    usage_record::Column::Side
-                        .eq(gproxy_store::entity::usage::capture_record::CaptureSide::Downstream),
-                ),
-            )
+            .query(usage_record::Entity::find())
             .await
             .unwrap();
         if !settled.is_empty() {

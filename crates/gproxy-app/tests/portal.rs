@@ -28,7 +28,7 @@ use gproxy_sdk::dto::{
 use gproxy_store::entity::{
     identity::{api_key, membership_role::MembershipRole},
     oauth,
-    usage::capture_record,
+    usage::downstream_record as capture_record,
 };
 use sea_orm::{DatabaseConnection, Set};
 use serde_json::{Value, json};
@@ -928,10 +928,9 @@ async fn seed_capture(
 ) {
     app.gproxy()
         .store()
-        .capture_records()
+        .downstream_records()
         .create_many(vec![capture_record::ActiveModel {
             id: Set(id.into()),
-            side: Set(capture_record::CaptureSide::Downstream),
             kind: Set(capture_record::CaptureKind::Http),
             user_id: Set(Some(user_id.into())),
             api_key_id: Set(api_key_id.map(Into::into)),

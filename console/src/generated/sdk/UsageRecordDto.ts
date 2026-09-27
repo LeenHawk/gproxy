@@ -3,16 +3,15 @@ import type { UsageExchangeDto } from "./UsageExchangeDto";
 import type { UsageTokensDto } from "./UsageTokensDto";
 
 /**
- * One persisted request.
+ * One persisted physical upstream call.
  */
 export type UsageRecordDto = {
 /**
- * The downstream exchange or websocket turn this usage belongs to, which
- * is also the id of its downstream `capture_records` row.
+ * Physical upstream call ID. A corresponding capture log need not exist.
  */
 requestId: string, userId: string | null, apiKeyId: string | null,
 /**
- * The name the caller asked for, falling back to the upstream model.
+ * The upstream model that produced this usage.
  */
 model: string, operation: string,
 /**
@@ -32,8 +31,7 @@ quantities: { [key in string]: string },
  */
 cost: string | null, currency: string | null,
 /**
- * One entry per upstream attempt that produced usage, which is where a
- * provider and a credential are named.
+ * Detail of this physical call, retaining the existing exchange DTO shape.
  */
 exchanges: Array<UsageExchangeDto>,
 /**

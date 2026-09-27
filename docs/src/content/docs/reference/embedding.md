@@ -169,7 +169,7 @@ the revision.
 | `logs()` | `list`, `detail(request_id)` |
 
 **Aggregation happens in Rust, over a scan cap.** Fixed usage fields are dedicated
-columns, with separate downstream summaries and upstream call rows. Provider and
+columns, with one row per physical upstream call and no downstream summary rows. Provider and
 credential filters run in SQL. `summary`, `group` and `trend` fold the matching
 rows and custom quantities in key-ordered chunks. Every aggregate takes a scan budget, defaulting to and
 clamped by 50,000 rows, and an aggregate that reached it comes back

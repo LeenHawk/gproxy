@@ -3,16 +3,16 @@
 /**
  * One downstream request or physical upstream exchange, as a list row.
  */
-export type LogEntryDto = { 
+export type LogEntryDto = {
 /**
- * Capture ID. For downstream rows this is also the request/usage ID;
+ * Capture ID. For downstream rows this is also the request ID;
  * upstream rows have their own physical exchange ID.
  */
-requestId: string, 
+requestId: string,
 /**
  * `http`, `ws_connection` or `ws_turn`.
  */
-kind: string, sessionId: string | null, userId: string | null, apiKeyId: string | null, providerId: string | null, credentialId: string | null, model: string | null, operation: string | null, requestMethod: string | null, requestUrl: string | null, responseStatus: number | null, 
+kind: string, sessionId: string | null, userId: string | null, apiKeyId: string | null, providerId: string | null, credentialId: string | null, model: string | null, operation: string | null, requestMethod: string | null, requestUrl: string | null, responseStatus: number | null,
 /**
  * `in_progress`, `completed`, `failed` or `cancelled`. Capture
  * completeness, not the upstream's verdict.

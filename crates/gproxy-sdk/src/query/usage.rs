@@ -1,13 +1,10 @@
 //! Usage lists and bounded aggregates over structured usage records.
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 use gproxy_core::usage_scan::{self, ScanOrder, ScanOutcome, UsageRecord};
 use gproxy_seaorm::BatchConnectionTrait;
-use gproxy_store::entity::usage::usage_record;
+use gproxy_store::entity::usage::{capture_link, usage_record};
 use rust_decimal::Decimal;
 use sea_orm::{
     ColumnTrait, Condition, EntityTrait, QueryFilter, QueryOrder, QuerySelect, QueryTrait,
@@ -17,9 +14,8 @@ use super::{MAX_SCAN_ROWS, MAX_TREND_BUCKETS, bounds, filter};
 use crate::{
     SdkError, SdkResult,
     dto::{
-        UsageExchangeDto, UsageGroupBy, UsageGroupDto, UsageGroupQuery, UsageQuery, UsageRecordDto,
-        UsageRecordPage, UsageRecordQuery, UsageSummaryDto, UsageTokensDto, UsageTrendPointDto,
-        UsageTrendQuery,
+        UsageGroupBy, UsageGroupDto, UsageGroupQuery, UsageQuery, UsageRecordDto, UsageRecordPage,
+        UsageRecordQuery, UsageSummaryDto, UsageTokensDto, UsageTrendPointDto, UsageTrendQuery,
     },
     handle::Inner,
 };
@@ -68,11 +64,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Usage<'_, C> {
                 limit,
             )
             .await?;
-        let items = usage_scan::attach(&self.inner.store, page.items)
-            .await?
-            .into_iter()
-            .map(UsageRecordDto::from)
-            .collect();
+        let items = page.items.into_iter().map(UsageRecordDto::from).collect();
         Ok(UsageRecordPage {
             items,
             total: page.total,
@@ -88,8 +80,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Usage<'_, C> {
         let mut totals = Totals::default();
         let scan = self
             .scan(&filters, cap(query.max_scan_rows), |row| {
-                let share = filters.cut.share(row);
-                totals.add_share(row, &share);
+                totals.add(row);
             })
             .await?;
         Ok(totals.summary(&scan))
@@ -103,31 +94,9 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Usage<'_, C> {
         let mut groups: BTreeMap<Option<String>, Totals> = BTreeMap::new();
         let group_by = query.group_by;
         let scan = self
-            .scan(
-                &filters,
-                cap(query.filter.max_scan_rows),
-                |row| match group_by {
-                    UsageGroupBy::Provider => {
-                        group_by_attempt(&mut groups, row, filters.cut, |exchange| {
-                            exchange.provider_id.as_deref()
-                        })
-                    }
-                    UsageGroupBy::Credential => {
-                        group_by_attempt(&mut groups, row, filters.cut, |exchange| {
-                            exchange.credential_id.as_deref()
-                        })
-                    }
-                    _ => {
-                        let share = filters.cut.share(row);
-                        if share.matches() {
-                            groups
-                                .entry(key_of(row, group_by))
-                                .or_default()
-                                .add_share(row, &share);
-                        }
-                    }
-                },
-            )
+            .scan(&filters, cap(query.filter.max_scan_rows), |row| {
+                groups.entry(key_of(row, group_by)).or_default().add(row);
+            })
             .await?;
 
         let mut entries: Vec<(Option<String>, Totals)> = groups.into_iter().collect();
@@ -186,8 +155,7 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Usage<'_, C> {
                 if let Ok(index) = usize::try_from(index)
                     && let Some(bucket) = buckets.get_mut(index)
                 {
-                    let share = filters.cut.share(row);
-                    bucket.add_share(row, &share);
+                    bucket.add(row);
                 }
             })
             .await?;
@@ -281,24 +249,22 @@ impl Filters<'_> {
             condition = condition.add(C::Operation.eq(operation));
         }
         if let Some(request_id) = self.request_id {
-            condition = condition.add(C::RequestId.eq(request_id));
-        }
-        condition = condition
-            .add(C::Side.eq(gproxy_store::entity::usage::capture_record::CaptureSide::Downstream));
-        if !self.cut.is_open() {
-            let mut upstream = usage_record::Entity::find()
+            let ids = capture_link::Entity::find()
                 .select_only()
-                .column(C::DownstreamRequestId)
-                .filter(
-                    C::Side.eq(gproxy_store::entity::usage::capture_record::CaptureSide::Upstream),
-                );
-            if let Some(id) = self.cut.provider_id {
-                upstream = upstream.filter(C::ProviderId.eq(id));
-            }
-            if let Some(id) = self.cut.credential_id {
-                upstream = upstream.filter(C::CredentialId.eq(id));
-            }
-            condition = condition.add(C::RequestId.in_subquery(upstream.into_query()));
+                .column(capture_link::Column::UpstreamId)
+                .filter(capture_link::Column::DownstreamId.eq(request_id))
+                .into_query();
+            condition = condition.add(
+                Condition::any()
+                    .add(C::RequestId.eq(request_id))
+                    .add(C::RequestId.in_subquery(ids)),
+            );
+        }
+        if let Some(id) = self.cut.provider_id {
+            condition = condition.add(C::ProviderId.eq(id));
+        }
+        if let Some(id) = self.cut.credential_id {
+            condition = condition.add(C::CredentialId.eq(id));
         }
         condition
     }
@@ -311,56 +277,6 @@ struct AttemptCut<'a> {
     credential_id: Option<&'a str>,
 }
 
-impl AttemptCut<'_> {
-    /// No attempt filter: every record counts whole.
-    fn is_open(&self) -> bool {
-        self.provider_id.is_none() && self.credential_id.is_none()
-    }
-
-    fn admits(&self, exchange: &UsageExchangeDto) -> bool {
-        let is = |wanted: Option<&str>, actual: &Option<String>| {
-            wanted.is_none_or(|wanted| actual.as_deref() == Some(wanted))
-        };
-        is(self.provider_id, &exchange.provider_id)
-            && is(self.credential_id, &exchange.credential_id)
-    }
-
-    /// What one record contributes under this cut.
-    fn share(&self, row: &UsageRecord) -> Share {
-        if self.is_open() {
-            return Share::Whole;
-        }
-        Share::Attempts(
-            attempts(row)
-                .filter(|exchange| self.admits(exchange))
-                .collect(),
-        )
-    }
-}
-
-/// A record's contribution to a total.
-enum Share {
-    /// The whole record: its settled cost and top-level tokens.
-    Whole,
-    /// Only these attempts, each with its own tokens and price. Empty means
-    /// the record does not match.
-    Attempts(Vec<UsageExchangeDto>),
-}
-
-impl Share {
-    fn matches(&self) -> bool {
-        match self {
-            Self::Whole => true,
-            Self::Attempts(attempts) => !attempts.is_empty(),
-        }
-    }
-}
-
-/// Every attempt one record names, in the order they ran.
-fn attempts(row: &UsageRecord) -> impl Iterator<Item = UsageExchangeDto> + '_ {
-    row.exchanges.iter().map(UsageExchangeDto::from_row)
-}
-
 /// The grouping column's value on one record. None means the record carried
 /// none, which is a group of its own rather than a reason to drop the record.
 fn key_of(row: &UsageRecord, group_by: UsageGroupBy) -> Option<String> {
@@ -370,47 +286,8 @@ fn key_of(row: &UsageRecord, group_by: UsageGroupBy) -> Option<String> {
 
         UsageGroupBy::Model => Some(row.model.clone()),
         UsageGroupBy::Operation => Some(row.operation.clone()),
-        // Handled by `group_by_attempt`: neither is a column.
-        UsageGroupBy::Provider | UsageGroupBy::Credential => None,
-    }
-}
-
-/// A record's contribution to a per-attempt cut: by provider or by
-/// credential, whichever `key` reads.
-///
-/// The breakdown is a set of upstream rows, one per call that produced usage.
-/// A request that failed over from one provider to another
-/// contributes to both — each with that attempt's own tokens and price, never
-/// with the request's totals counted twice. `requests` counts the record once
-/// per distinct key, not once per attempt. A record with no breakdown at all
-/// (nothing reached an upstream) lands under the `None` key with its own
-/// totals, because dropping it would make the groups stop summing to the
-/// summary — unless an attempt filter is set, in which case such a record
-/// matched nothing and the summary left it out as well.
-fn group_by_attempt(
-    groups: &mut BTreeMap<Option<String>, Totals>,
-    row: &UsageRecord,
-    cut: AttemptCut<'_>,
-    key: fn(&UsageExchangeDto) -> Option<&str>,
-) {
-    let mut attempts = attempts(row).peekable();
-    if attempts.peek().is_none() {
-        if cut.is_open() {
-            groups.entry(None).or_default().add(row);
-        }
-        return;
-    }
-    let mut seen: BTreeSet<Option<String>> = BTreeSet::new();
-    for exchange in attempts.filter(|exchange| cut.admits(exchange)) {
-        let key = key(&exchange).map(str::to_owned);
-        let first = seen.insert(key.clone());
-        let totals = groups.entry(key).or_default();
-        if first {
-            totals.requests += 1;
-        }
-        totals.add_tokens(&exchange.tokens);
-        totals.add_quantities(&exchange.quantities);
-        totals.add_cost(exchange.cost.as_deref());
+        UsageGroupBy::Provider => row.provider_id.clone(),
+        UsageGroupBy::Credential => row.credential_id.clone(),
     }
 }
 
@@ -431,24 +308,6 @@ struct Totals {
 }
 
 impl Totals {
-    /// One record under an attempt cut: the whole of it, or one request with
-    /// only the matching attempts' tokens and prices. A record that matched
-    /// nothing adds nothing, not even a request.
-    fn add_share(&mut self, row: &UsageRecord, share: &Share) {
-        match share {
-            Share::Whole => self.add(row),
-            Share::Attempts(attempts) if attempts.is_empty() => {}
-            Share::Attempts(attempts) => {
-                self.requests += 1;
-                for exchange in attempts {
-                    self.add_tokens(&exchange.tokens);
-                    self.add_quantities(&exchange.quantities);
-                    self.add_cost(exchange.cost.as_deref());
-                }
-            }
-        }
-    }
-
     /// One whole record: its tokens, its settled cost and one request.
     fn add(&mut self, row: &UsageRecord) {
         self.requests += 1;
@@ -461,15 +320,6 @@ impl Totals {
             self.cost += cost.decimal();
         }
         self.priced |= row.cost.is_some();
-    }
-
-    fn add_quantities(&mut self, quantities: &BTreeMap<String, String>) {
-        for (key, value) in quantities {
-            if let Ok(value) = Decimal::from_str_exact(value) {
-                let sum = self.quantities.entry(key.clone()).or_default();
-                *sum = sum.saturating_add(value);
-            }
-        }
     }
 
     fn add_tokens(&mut self, tokens: &UsageTokensDto) {
@@ -492,16 +342,6 @@ impl Totals {
             tokens.cache_creation_1h_tokens,
         );
         add(&mut self.reasoning_tokens, tokens.reasoning_tokens);
-    }
-
-    /// A priced amount formatted from an upstream cost column. An
-    /// amount that will not parse is dropped: an unreadable price must not
-    /// silently become zero in a total that looks exact.
-    fn add_cost(&mut self, amount: Option<&str>) {
-        if let Some(amount) = amount.and_then(|amount| Decimal::from_str_exact(amount).ok()) {
-            self.cost += amount;
-            self.priced = true;
-        }
     }
 
     fn summary(self, scan: &ScanOutcome) -> UsageSummaryDto {
