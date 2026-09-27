@@ -6,7 +6,6 @@ version.workspace = true
 edition.workspace = true
 license = "MIT"
 repository.workspace = true
-rust-version = "1.91"
 
 [features]
 default = []
