@@ -1,9 +1,18 @@
 //! Scoped Responses continuation snapshots contain only declared native history.
+//!
+//! A snapshot is keyed by the response ID the gateway itself gave the client,
+//! never by the upstream's: many OpenAI-compatible upstreams repeat one ID for
+//! every response, and a key shared by two conversations would hand one of them
+//! the other's history.
 
-use super::super::GenerationStateAccess;
+use super::super::{GenerationIdentity, GenerationStateAccess};
 use crate::{
-    capability::{CasResult, StateStore, StateWrite, Version},
-    transform::TransformError,
+    Dialect,
+    capability::{CasResult, StateStore, StateWrite},
+    transform::{
+        TransformError,
+        identity::{IdentityRole, SourceIdentity},
+    },
     wire::{DeclaredFields, openai::responses as r},
 };
 use serde::{Deserialize, Serialize};
@@ -19,9 +28,6 @@ struct Snapshot {
 pub(super) struct History {
     input: Vec<r::input::InputItem>,
     enabled: bool,
-    pending: Option<(String, Vec<u8>)>,
-    saved: Option<Version>,
-    failed: bool,
     cache: Option<ResponsesHistoryCache>,
 }
 
@@ -196,6 +202,36 @@ fn output_item(
 }
 
 impl History {
+    /// Gives the client response a gateway-generated ID when this history
+    /// will be stored, so the snapshot key belongs to this response alone.
+    /// The ID is allocated before the bridge sees the upstream's, at the
+    /// position the bridge resolves the response under (`source`, index 0);
+    /// the upstream ID then only attaches to it and never reaches the client.
+    /// The allocator builds the ID from the invocation's random response
+    /// namespace, e.g. `resp_<32 hex>_h_r_0`.
+    ///
+    /// The upstream ID is not kept anywhere: a Chat, Claude or Gemini upstream
+    /// holds no state a later turn could name, and the next turn is rebuilt
+    /// from this snapshot. A `store=false` request stores nothing, so its
+    /// response keeps the upstream's ID as it did before.
+    pub fn claim_response_id(
+        &self,
+        identities: &mut GenerationIdentity,
+        source: Dialect,
+    ) -> Result<(), TransformError> {
+        if !self.enabled {
+            return Ok(());
+        }
+        identities
+            .response
+            .resolve_or_allocate(
+                IdentityRole::Response,
+                SourceIdentity::new(source, None, 0),
+                &identities.response_policy,
+            )
+            .map_err(|error| super::invalid(error.to_string()))?;
+        Ok(())
+    }
     pub fn bind<S: StateStore>(
         &self,
         binding: &super::binding::StateBinding,
@@ -277,9 +313,6 @@ impl History {
             Self {
                 input,
                 enabled: request.store.flatten() != Some(false),
-                pending: None,
-                saved: None,
-                failed: false,
                 cache: cache.cloned(),
             },
             expanded,
@@ -291,11 +324,6 @@ impl History {
         state: &GenerationStateAccess<'_, S>,
         limits: crate::codec::CodecLimits,
     ) -> Result<(), TransformError> {
-        if self.failed {
-            return Err(super::conflict(
-                "Responses history write previously conflicted",
-            ));
-        }
         if !self.enabled && self.cache.is_none() {
             return Ok(());
         }
@@ -326,57 +354,52 @@ impl History {
         if payload.len() as u64 > state.store.limits().write_bytes {
             return Err(super::limit("Responses history write budget exceeded"));
         }
-        let key = key(state, &response.id);
-        if let Some((known_key, bytes)) = &self.pending {
-            if *known_key != key || *bytes != payload {
-                return Err(super::conflict("pending Responses history changed"));
-            }
-            let entry = state.store.get(state.scope, &key).await?.ok_or_else(|| {
-                super::missing("unacknowledged Responses history write has no durable result")
-            })?;
-            if entry.payload.len() as u64 > state.store.limits().read_bytes {
-                return Err(super::limit("Responses history recovery read exceeded"));
-            }
-            if entry.payload.as_ref() != payload
-                || entry.expires_at != Some(state.expires_at)
-                || self.saved.as_ref().is_some_and(|v| *v != entry.version)
-            {
-                return Err(super::conflict("Responses history write changed"));
-            }
-            self.saved = Some(entry.version);
-            if let Some(cache) = &self.cache {
-                cache.save(snapshot, state, payload.len())?;
-            }
-            return Ok(());
-        }
-        self.pending = Some((key.clone(), payload.clone()));
         let size = payload.len();
+        write(state, &key(state, &response.id), payload).await?;
+        if let Some(cache) = &self.cache {
+            cache.save(snapshot, state, size)?;
+        }
+        Ok(())
+    }
+}
+
+/// Writes a snapshot under its key, replacing whatever is there. The key names
+/// a response ID this gateway generated for one response alone, so an existing
+/// entry can only be this same snapshot, left by an earlier attempt whose
+/// acknowledgement was lost; overwriting it keeps the retry idempotent.
+async fn write<S: StateStore>(
+    state: &GenerationStateAccess<'_, S>,
+    key: &str,
+    payload: Vec<u8>,
+) -> Result<(), TransformError> {
+    let replacement = || {
+        Some(StateWrite {
+            payload: payload.clone().into(),
+            expires_at: Some(state.expires_at),
+        })
+    };
+    let mut expected = None;
+    // The first try assumes the key is absent, which it is unless a retry
+    // follows a write that landed. The second replaces that entry; a third
+    // outcome means another writer holds a gateway-generated ID, which is a
+    // host bug worth surfacing rather than looping on.
+    for _ in 0..2 {
         match state
             .store
-            .compare_exchange(
-                state.scope,
-                &key,
-                None,
-                Some(StateWrite {
-                    payload: payload.into(),
-                    expires_at: Some(state.expires_at),
-                }),
-            )
+            .compare_exchange(state.scope, key, expected, replacement())
             .await?
         {
-            CasResult::Applied(Some(version)) => {
-                self.saved = Some(version);
-                if let Some(cache) = &self.cache {
-                    cache.save(snapshot, state, size)?;
-                }
-                Ok(())
-            }
-            _ => {
-                self.failed = true;
-                Err(super::conflict(
-                    "Responses history response ID already exists",
-                ))
+            CasResult::Applied(_) => return Ok(()),
+            CasResult::Conflict => {
+                expected = state
+                    .store
+                    .get(state.scope, key)
+                    .await?
+                    .map(|entry| entry.version);
             }
         }
     }
+    Err(super::conflict(
+        "Responses history is being written by another invocation",
+    ))
 }

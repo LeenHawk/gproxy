@@ -307,3 +307,6 @@ mod client_tools;
 
 #[path = "adapt_generate_stream/client_tools_backends.rs"]
 mod client_tools_backends;
+
+#[path = "adapt_generate_stream/responses_history.rs"]
+mod responses_history;
