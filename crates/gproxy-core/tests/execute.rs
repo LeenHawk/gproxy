@@ -1126,3 +1126,124 @@ async fn a_channel_keeps_state_across_requests_scoped_to_its_credential() {
         .expect("the channel's key lives under its credential scope");
     assert_eq!(row.payload, b"2", "two turns counted through CAS");
 }
+
+/// A Chat stream reports usage only when asked, so core asks on every native
+/// send and hides the extra chunk from a client that did not ask itself. In
+/// both cases the exchange has already read the chunk, so settlement has it.
+#[tokio::test]
+async fn a_passthrough_chat_stream_is_asked_for_usage_and_the_chunk_hidden_unless_wanted() {
+    const CONTENT: &str = "data: {\"id\":\"c\",\"object\":\"chat.completion.chunk\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"},\"finish_reason\":\"stop\"}],\"usage\":null}\n\n";
+    const USAGE: &str = "data: {\"id\":\"c\",\"object\":\"chat.completion.chunk\",\"choices\":[],\"usage\":{\"prompt_tokens\":4,\"completion_tokens\":2,\"input_tokens\":4,\"output_tokens\":2}}\n\n";
+    const DONE: &str = "data: [DONE]\n\n";
+    let h = harness(full(), "round_robin").await;
+    seed_provider(&h, "chat", "https://chat.example", "openai_chat").await;
+    for (id, body, client_asked) in [
+        (
+            "r1",
+            "{\"model\":\"m\",\"stream\":true,\"messages\":[]}",
+            false,
+        ),
+        (
+            "r2",
+            "{\"model\":\"m\",\"stream\":true,\"stream_options\":{\"include_usage\":true},\"messages\":[]}",
+            true,
+        ),
+    ] {
+        // The usage chunk arrives split across reads to exercise the filter's
+        // boundary handling end to end.
+        let (usage_head, usage_tail) = USAGE.split_at(30);
+        h.script(vec![(
+            StatusCode::OK,
+            vec![("content-type", "text/event-stream")],
+            vec![
+                Bytes::from_static(CONTENT.as_bytes()),
+                Bytes::from_static(usage_head.as_bytes()),
+                Bytes::from_static(usage_tail.as_bytes()),
+                Bytes::from_static(DONE.as_bytes()),
+            ],
+        )]);
+        let ctx = h.context_for(
+            "chat",
+            OperationKey {
+                operation: Operation::StreamGenerateContent,
+                dialect: Dialect::OpenAiChat,
+            },
+            id,
+            1,
+            None,
+        );
+        let execution = h
+            .core
+            .stream_generate_content(ctx, chat_stream_request(body))
+            .await
+            .unwrap();
+        let (response, completion) = execution.into_parts();
+        let text = read(response.body).await;
+        if client_asked {
+            assert_eq!(text, format!("{CONTENT}{USAGE}{DONE}"), "kept for {id}");
+        } else {
+            assert_eq!(text, format!("{CONTENT}{DONE}"), "stripped for {id}");
+        }
+
+        let report = completion.await.unwrap();
+        assert_eq!(report.state, UsageState::Completed);
+        assert_eq!(report.exchanges.len(), 1);
+        assert_eq!(
+            report.exchanges[0].usage.tokens.input_tokens,
+            Some(4),
+            "settlement read the usage chunk for {id}"
+        );
+        assert_eq!(report.exchanges[0].usage.tokens.output_tokens, Some(2));
+
+        let seen = h.client.seen.lines();
+        let line = seen.last().unwrap();
+        let sent = line.split_once(" body=").unwrap().1;
+        let sent: serde_json::Value = serde_json::from_str(sent).unwrap();
+        assert_eq!(
+            sent["stream_options"]["include_usage"], true,
+            "the channel received the opt-in for {id}: {line}"
+        );
+    }
+}
+
+/// Metering never breaks a request: a Chat stream body core cannot read is
+/// sent exactly as the client wrote it, and its response is left whole.
+#[tokio::test]
+async fn a_chat_stream_body_that_is_not_a_json_object_passes_untouched() {
+    const USAGE: &str = "data: {\"choices\":[],\"usage\":{\"input_tokens\":1}}\n\n";
+    let h = harness(full(), "round_robin").await;
+    seed_provider(&h, "chat", "https://chat.example", "openai_chat").await;
+    for (id, body) in [
+        ("r1", "not json"),
+        ("r2", "{\"model\":\"gpt-x\",\"stream_options\":\"on\"}"),
+    ] {
+        h.script(vec![(
+            StatusCode::OK,
+            vec![("content-type", "text/event-stream")],
+            vec![Bytes::from_static(USAGE.as_bytes())],
+        )]);
+        let ctx = h.context_for(
+            "chat",
+            OperationKey {
+                operation: Operation::StreamGenerateContent,
+                dialect: Dialect::OpenAiChat,
+            },
+            id,
+            1,
+            None,
+        );
+        let execution = h
+            .core
+            .stream_generate_content(ctx, chat_stream_request(body))
+            .await
+            .unwrap();
+        let (response, completion) = execution.into_parts();
+        assert_eq!(read(response.body).await, USAGE, "nothing was injected");
+        completion.await.unwrap();
+        let seen = h.client.seen.lines();
+        assert!(
+            seen.last().unwrap().ends_with(&format!(" body={body}")),
+            "{seen:?}"
+        );
+    }
+}

@@ -462,7 +462,7 @@ fn installs_the_configured_server_side_fallback_only_where_it_means_something() 
 }
 
 #[test]
-fn the_compatibility_layer_asks_its_stream_for_a_usage_chunk() {
+fn the_compatibility_layer_keeps_the_stream_options_it_came_with() {
     let secret = json!({"api_key": "k"});
     let streamed = shaped(
         prepare(
@@ -480,8 +480,11 @@ fn the_compatibility_layer_asks_its_stream_for_a_usage_chunk() {
         )
         .unwrap(),
     );
-    assert_eq!(streamed["stream_options"]["include_usage"], true);
-    assert_eq!(streamed["stream_options"]["other"], 1, "kept");
+    assert_eq!(
+        streamed["stream_options"],
+        json!({"other": 1}),
+        "core asks a Chat stream for its usage; the channel forwards the body"
+    );
     assert_eq!(
         streamed["messages"][0]["role"], "user",
         "the prefill rule is the model's, not the surface's"
@@ -505,7 +508,7 @@ fn the_compatibility_layer_asks_its_stream_for_a_usage_chunk() {
     );
     assert!(
         buffered.get("stream_options").is_none(),
-        "only a stream needs the opt-in"
+        "nothing is added to a buffered body"
     );
 }
 

@@ -57,7 +57,6 @@ use crate::channel::{
     OAuthDeviceCode, OperationContext, OperationFuture, PrepareContext, ProviderView, QuotaQuery,
     UsageExtractor, UsageStream, forwardable,
 };
-use crate::channels::shared::openai_wire;
 use config::base_url;
 use futures_util::StreamExt as _;
 use gproxy_protocol::connection::Bytes;
@@ -233,11 +232,6 @@ impl WorkBuddy {
         let body = match (operation, body) {
             (Operation::CreateImage | Operation::EditImage, HttpBody::Bytes(bytes)) => {
                 HttpBody::Bytes(images::request(&bytes, operation == Operation::EditImage)?)
-            }
-            (Operation::StreamGenerateContent, HttpBody::Bytes(bytes))
-                if ctx.operation.dialect == Dialect::OpenAiChat =>
-            {
-                HttpBody::Bytes(openai_wire::stream_usage_opt_in(bytes))
             }
             (_, other) => other,
         };

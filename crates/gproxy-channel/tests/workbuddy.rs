@@ -353,7 +353,7 @@ fn the_operator_states_what_the_plugin_claims_to_be() {
 }
 
 #[test]
-fn a_stream_is_asked_to_end_with_its_usage_chunk() {
+fn a_stream_body_is_forwarded_without_a_usage_opt_in() {
     let prepared = prepare(
         &json!({}),
         None,
@@ -368,9 +368,9 @@ fn a_stream_is_asked_to_end_with_its_usage_chunk() {
         ),
     )
     .expect("prepared");
-    assert_eq!(
-        body_json(&prepared)["stream_options"]["include_usage"],
-        true
+    assert!(
+        body_json(&prepared).get("stream_options").is_none(),
+        "core asks a Chat stream for its usage; the channel forwards the body"
     );
 }
 

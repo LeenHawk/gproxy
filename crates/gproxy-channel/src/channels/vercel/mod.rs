@@ -227,16 +227,6 @@ impl BaseChannel for Vercel {
                                 &[],
                             );
                         }
-                    } else if ctx.operation.dialect == Dialect::OpenAiChat
-                        && ctx.operation.operation == Operation::StreamGenerateContent
-                        && let Some(options) = value
-                            .as_object_mut()
-                            .unwrap()
-                            .entry("stream_options")
-                            .or_insert_with(|| serde_json::json!({}))
-                            .as_object_mut()
-                    {
-                        options.insert("include_usage".into(), Value::Bool(true));
                     }
                     HttpBody::Bytes(Bytes::from(value.to_string()))
                 } else {

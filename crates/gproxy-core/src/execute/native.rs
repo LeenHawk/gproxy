@@ -35,11 +35,21 @@ impl Drop for SendGuard {
 }
 
 impl NativeCall {
+    /// Every native send, passthrough or the upstream leg of a conversion,
+    /// asks a Chat stream for its usage here, before any channel prepares the
+    /// body, so no channel has to remember to. The chunk is hidden again from
+    /// a client that did not ask for it, after the exchange has observed it.
     pub async fn send(
         self,
-        wire: WireRequest<HttpBody>,
+        mut wire: WireRequest<HttpBody>,
     ) -> Result<WireResponse<HttpBody>, ChannelError> {
-        super::fallback::run(self, wire).await
+        let injected = super::chat_usage::opt_in(self.operation, &mut wire);
+        let response = super::fallback::run(self, wire).await?;
+        Ok(if injected {
+            super::chat_usage::strip(response)
+        } else {
+            response
+        })
     }
 
     pub async fn send_once(

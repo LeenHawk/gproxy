@@ -6,7 +6,6 @@ use crate::channel::{
     ConfigKeyKind, HOST_CONFIG_KEYS, HeaderAllowlist, LoginMode, PrepareContext, ProviderView,
     UsageExtractor, UsageStream, forwardable,
 };
-use crate::channels::shared::openai_wire;
 use gproxy_protocol::{Dialect, HttpBody, Operation, WireFamily, WireRequest};
 use http::{HeaderName, HeaderValue, header};
 
@@ -202,21 +201,12 @@ impl BaseChannel for Aistudio {
         }
     }
 
-    /// A buffered Chat Completions body asks for the closing usage chunk the
-    /// compatibility layer only sends when told to; everything else, and any
-    /// streamed request body, is forwarded as the client wrote it.
+    /// Every body is forwarded as it came. Core has already asked a Chat
+    /// Completions stream for its closing usage chunk.
     fn prepare(&self, ctx: PrepareContext<'_>) -> Result<http::Request<HttpBody>, ChannelError> {
-        let chat = ctx.operation.dialect == Dialect::OpenAiChat
-            && ctx.operation.operation == Operation::StreamGenerateContent;
         let (builder, request) = self.build(ctx)?;
-        let body = match request.body {
-            HttpBody::Bytes(bytes) if chat => {
-                HttpBody::Bytes(openai_wire::stream_usage_opt_in(bytes))
-            }
-            other => other,
-        };
         builder
-            .body(body)
+            .body(request.body)
             .map_err(|error| ChannelError::InvalidConfig(error.to_string()))
     }
 

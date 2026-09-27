@@ -279,7 +279,7 @@ fn forwards_the_native_path_and_replaces_the_credential() {
 }
 
 #[test]
-fn a_chat_stream_is_asked_to_end_with_a_usage_chunk() {
+fn a_chat_stream_keeps_the_stream_options_it_came_with() {
     let secret = json!({"api_key": "k"});
     let streamed = shaped(
         prepare(
@@ -297,8 +297,11 @@ fn a_chat_stream_is_asked_to_end_with_a_usage_chunk() {
         )
         .unwrap(),
     );
-    assert_eq!(streamed["stream_options"]["include_usage"], true);
-    assert_eq!(streamed["stream_options"]["other"], 1);
+    assert_eq!(
+        streamed["stream_options"],
+        json!({"other": 1}),
+        "core asks a Chat stream for its usage; the channel forwards the body"
+    );
 
     let buffered = shaped(
         prepare(
