@@ -39,28 +39,17 @@ fn run<B: StreamBridge<ClientEvent = rs::StreamEvent>>(
     }
     assert_eq!(observed.len(), expected_calls * 2);
     // The dotted native IDs were rewritten into reversible aliases, which
-    // name the native ID themselves: only a signed call is recorded, for its
-    // native part, and nothing is persisted before an alias is yielded.
+    // name the native ID themselves, so nothing is persisted for a call.
     assert!(
-        !store
+        store
             .entries
             .lock()
             .unwrap()
             .keys()
-            .any(|key| key.starts_with("stream:"))
+            .all(|key| !key.starts_with("stream:") && !key.starts_with("generate:"))
     );
     for id in &observed {
         assert!(id.starts_with("call_gpe_native_2e"), "{id}");
-        if let Some(record) = ready(access.read(IdentityRole::ToolCall, id)).unwrap() {
-            assert!(record.opaque_signature.is_some());
-            assert!(
-                record
-                    .original_call_id
-                    .as_deref()
-                    .unwrap()
-                    .starts_with("native.")
-            );
-        }
     }
     assert_eq!(host.sent.lock().unwrap().len(), 1);
     serde_json::to_value(call.client_result().unwrap()).unwrap()
@@ -114,7 +103,8 @@ fn claude_client_tools_stream_persist_and_resume_from_previous_response() {
     let mut followup = fixtures::followup(&output);
     followup["stream"] = json!(true);
     followup["previous_response_id"] = output["id"].clone();
-    followup["input"].as_array_mut().unwrap().drain(..4);
+    let answered = output["output"].as_array().unwrap().len();
+    followup["input"].as_array_mut().unwrap().drain(..answered);
     let mut target = all_pairs::target(Dialect::OpenAi, Dialect::Claude);
     target.identities = GenerationIdentity::new(
         IdNamespace([101; 16]),
@@ -141,7 +131,7 @@ fn claude_client_tools_stream_persist_and_resume_from_previous_response() {
 }
 
 #[test]
-fn gemini_client_tools_preserve_signed_parts_and_resume_discovery_history() {
+fn gemini_client_tools_carry_signed_parts_and_resume_discovery_history() {
     let store = Arc::new(Store::default());
     let access = all_pairs::access(&store, Dialect::Gemini);
     let call = ready(ResponsesViaGemini::prepare_stream(
@@ -205,27 +195,37 @@ fn gemini_client_tools_preserve_signed_parts_and_resume_discovery_history() {
             .clone()
     );
     let mut tampered = followup.clone();
-    tampered["input"][0]["action"]["commands"] = json!(["changed"]);
-    assert!(
-        ready(ResponsesViaGemini::prepare_with_state(
-            serde_json::from_value(tampered).unwrap(),
-            Endpoint::new("/generate").unwrap(),
-            GenerationIdentity::new(
-                IdNamespace([105; 16]),
-                IdNamespace([106; 16]),
-                Dialect::OpenAi,
-                Dialect::Gemini
-            )
-            .unwrap(),
-            &access,
-            Default::default(),
-        ))
-        .is_err()
-    );
+    let shell = tampered["input"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|item| item["type"] == "shell_call")
+        .unwrap();
+    tampered["input"][shell]["action"]["commands"] = json!(["changed"]);
+    // The call is rebuilt from what the client sends, with its carried
+    // signature: a changed call goes to the upstream, which decides.
+    let tampered = ready(ResponsesViaGemini::prepare_with_state(
+        serde_json::from_value(tampered).unwrap(),
+        Endpoint::new("/generate").unwrap(),
+        GenerationIdentity::new(
+            IdNamespace([105; 16]),
+            IdNamespace([106; 16]),
+            Dialect::OpenAi,
+            Dialect::Gemini,
+        )
+        .unwrap(),
+        &access,
+        Default::default(),
+    ))
+    .unwrap();
+    let tampered = serde_json::to_value(tampered.target_request()).unwrap();
+    assert!(tampered.to_string().contains("changed"));
+    assert!(tampered.to_string().contains("c2lnbmF0dXJl"));
     let mut followup = followup;
     followup["stream"] = json!(true);
     followup["previous_response_id"] = output["id"].clone();
-    followup["input"].as_array_mut().unwrap().drain(..4);
+    let answered = output["output"].as_array().unwrap().len();
+    followup["input"].as_array_mut().unwrap().drain(..answered);
     let mut target = all_pairs::target(Dialect::OpenAi, Dialect::Gemini);
     target.identities = GenerationIdentity::new(
         IdNamespace([107; 16]),
@@ -417,27 +417,25 @@ fn malformed_custom_streams_keep_following_text() {
                     .collect();
                     run(call, events, backend, &store, expected_calls)
                 };
+                // A signed Gemini call carries its signature on a reasoning
+                // item right before it; the omitted call carries none.
+                let carriers = usize::from(backend == Dialect::Gemini) * expected_calls;
                 if keep_valid {
-                    let call = &output["output"][0];
+                    let call = &output["output"][carriers];
                     assert_eq!(call["input"], "valid");
-                    // The alias names the dotted native ID; only the signed
-                    // Gemini call is recorded, for its native part.
+                    // The alias names the dotted native ID.
                     assert_eq!(call["call_id"], "call_gpe_native_2e1");
-                    let record = ready(
-                        access.read(IdentityRole::ToolCall, call["call_id"].as_str().unwrap()),
-                    )
-                    .unwrap();
-                    assert_eq!(record.is_some(), backend == Dialect::Gemini);
+                    if carriers > 0 {
+                        assert_eq!(
+                            output["output"][0]["encrypted_content"],
+                            "gemini-next:dmFsaWQ="
+                        );
+                    }
                 }
-                assert_eq!(
-                    output["output"].as_array().unwrap().len(),
-                    1 + expected_calls
-                );
-                assert_eq!(output["output"][expected_calls]["type"], "message");
-                assert_eq!(
-                    output["output"][expected_calls]["content"][0]["text"],
-                    "kept"
-                );
+                let last = carriers + expected_calls;
+                assert_eq!(output["output"].as_array().unwrap().len(), 1 + last);
+                assert_eq!(output["output"][last]["type"], "message");
+                assert_eq!(output["output"][last]["content"][0]["text"], "kept");
             }
         }
     }

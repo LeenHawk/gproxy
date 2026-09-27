@@ -45,15 +45,6 @@ impl GeminiViaResponses {
                 )
                 .await?;
         }
-        state
-            .save_pair_with_bound_ids(
-                &native,
-                &converted.value,
-                &self.identities.response,
-                self.signed_tool_bindings(),
-                &mut progress.generation,
-            )
-            .await?;
         Ok(converted)
     }
     #[allow(clippy::too_many_arguments)]

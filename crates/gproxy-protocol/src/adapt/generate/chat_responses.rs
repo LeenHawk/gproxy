@@ -194,15 +194,7 @@ impl ChatViaResponses {
         }
         let native = transport::recover_native(progress, limits)?;
         facts(&native)?;
-        let converted = self.convert_response(native.clone(), ())?;
-        state
-            .save_pair(
-                &native,
-                &converted.value,
-                &self.identities.response,
-                progress,
-            )
-            .await?;
+        let converted = self.convert_response(native, ())?;
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }
@@ -412,15 +404,7 @@ impl ResponsesViaChat {
         }
         let native = transport::recover_native(progress, limits)?;
         let facts = facts(&native)?;
-        let converted = self.convert_response(native.clone(), facts)?;
-        state
-            .save_pair(
-                &native,
-                &converted.value,
-                &self.identities.response,
-                progress,
-            )
-            .await?;
+        let converted = self.convert_response(native, facts)?;
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }

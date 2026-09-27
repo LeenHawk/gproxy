@@ -41,66 +41,6 @@ pub(super) fn to_gemini(
         .build())
 }
 
-pub(super) fn restore(
-    value: r::ImageGenerationCall,
-    context: &mut super::identity::GeminiReplayContext,
-    max_bytes: u64,
-) -> Result<g::Part, TransformError> {
-    let decoded = to_gemini(&value, max_bytes)?;
-    if let Some(proof) = context.image_files.remove(&value.id) {
-        let part = (super::identity::RestoredGeminiPart {
-            state: proof.state,
-            part: proof.part,
-        })
-        .part
-        .into_declared();
-        if part.file_data.is_none()
-            || part.inline_data.is_some()
-            || part.thought == Some(true)
-            || part.text.is_some()
-            || part.function_call.is_some()
-            || part.function_response.is_some()
-        {
-            return Err(TransformError::shape(
-                "image.replay",
-                "signed file image must restore the exact original fileData part",
-            ));
-        }
-
-        if decoded.inline_data.as_ref() != Some(&proof.materialized.clone().into_declared()) {
-            return Err(TransformError::shape(
-                "image.replay",
-                "returned image differs from scoped materialization proof",
-            ));
-        }
-        if part
-            .file_data
-            .as_ref()
-            .and_then(|v| v.mime_type.as_deref())
-            .is_some_and(|v| v != proof.materialized.mime_type)
-        {
-            return Err(TransformError::shape(
-                "image.replay",
-                "original image MIME differs from scoped bytes",
-            ));
-        }
-        return Ok(part);
-    }
-    if !context.parts.contains_key(&value.id) {
-        return Ok(decoded);
-    }
-    let native = context.parts.remove(&value.id).expect("known image replay");
-    let part = (native).part.into_declared();
-
-    if part.inline_data != decoded.inline_data {
-        return Err(TransformError::shape(
-            "image.replay",
-            "modified image cannot reuse the original Gemini signature",
-        ));
-    }
-    Ok(part)
-}
-
 pub(super) fn requested_format(
     blob: &g::Blob,
     request: &crate::wire::openai::responses::GenerateContentRequestBody,

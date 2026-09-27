@@ -15,7 +15,5 @@ mod usage;
 pub use media::MediaFacts;
 pub use request::{ClaudeGeminiRequestContext, claude_to_gemini_request, gemini_to_claude_request};
 pub use response::{claude_to_gemini_response, gemini_to_claude_response};
-pub use thinking::{
-    THINKING_HANDLE_PREFIX, is_thinking_handle, thinking_handle_id, without_thinking_handles,
-};
+pub use thinking::without_gemini_thinking;
 pub use usage::ClaudeGeminiUsageFacts;

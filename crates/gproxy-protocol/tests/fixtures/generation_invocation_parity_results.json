@@ -396,7 +396,7 @@
     },
     {
       "accepted": false,
-      "error": "history.tool_name: tool result has neither declared history nor a scoped saved name",
+      "error": "history.tool_name: tool result has no call in the declared history",
       "name": "truncated_tool_result"
     },
     {

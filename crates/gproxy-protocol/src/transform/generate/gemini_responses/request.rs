@@ -71,7 +71,7 @@ pub fn gemini_to_responses_request(
 pub fn responses_to_gemini_request(
     input: r::GenerateContentRequestBody,
     target_model: impl Into<String>,
-    mut context: super::identity::GeminiReplayContext,
+    _context: super::identity::GeminiReplayContext,
 ) -> Result<Converted<g::GenerateContentRequestBody>, TransformError> {
     let model = target_model.into();
 
@@ -96,8 +96,7 @@ pub fn responses_to_gemini_request(
         false
     };
     out.tool_config = super::tools::choice_to_gemini(input.tool_choice, strict)?;
-    let (contents, mut system) =
-        super::history::to_gemini(input.input, &model, &mut context, &mut report)?;
+    let (contents, mut system) = super::history::to_gemini(input.input, &model, &mut report)?;
     out.contents = contents;
     if let Some(Some(text)) = input.instructions {
         system.insert(0, g::Part::builder().text(text).build());

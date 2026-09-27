@@ -76,13 +76,6 @@ impl ChatViaGemini {
             identities,
             &merged_names,
         )?;
-        state
-            .restore_gemini_tool_parts(
-                &mut prepared.target_request,
-                &prepared.identities.request,
-                &prepared.identities.request_policy,
-            )
-            .await?;
         prepared.original_request = original;
         Ok(prepared)
     }
@@ -203,15 +196,7 @@ impl ChatViaGemini {
         }
         let native = transport::recover_native(progress, limits)?;
         let facts = facts(&native)?;
-        let converted = self.convert_response(native.clone(), facts)?;
-        state
-            .save_pair(
-                &native,
-                &converted.value,
-                &self.identities.response,
-                progress,
-            )
-            .await?;
+        let converted = self.convert_response(native, facts)?;
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }
@@ -394,15 +379,7 @@ impl GeminiViaChat {
         }
         let native = transport::recover_native(progress, limits)?;
         facts(&native)?;
-        let converted = self.convert_response(native.clone(), ())?;
-        state
-            .save_pair(
-                &native,
-                &converted.value,
-                &self.identities.response,
-                progress,
-            )
-            .await?;
+        let converted = self.convert_response(native, ())?;
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }

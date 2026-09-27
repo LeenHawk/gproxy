@@ -51,7 +51,10 @@ fn claude_text_thinking_tools_preserve_formal_data_and_identity_roles() {
         panic!()
     };
     assert_eq!(thinking.content.as_ref().unwrap()[0].text, "reason");
-    assert!(thinking.encrypted_content.is_none());
+    assert_eq!(
+        thinking.encrypted_content,
+        Some(Some("claude:CLAUDE-ONLY".into()))
+    );
     let mut emitted = Vec::new();
     for item in &value.output[2..] {
         let r::ResponseOutputItem::FunctionCall(call) = item else {
@@ -75,7 +78,6 @@ fn claude_text_thinking_tools_preserve_formal_data_and_identity_roles() {
         (9, 5, 14)
     );
     assert!(usage.input_tokens_details.rest.is_empty());
-    assert!(!converted.report.diagnostics.is_empty());
 }
 #[test]
 fn max_tokens_and_refusal_do_not_turn_into_normal_end_turn() {
@@ -306,54 +308,38 @@ fn mcp_native_execution_maps_call_and_success_or_failure_result_both_ways() {
 }
 
 #[test]
-fn native_thinking_restoration_preserves_content_and_clears_extensions() {
-    use gproxy_protocol::transform::identity::{
-        IdentityRole, IdentityStateRecord, IdentityTarget, OpaqueSignature, OutputItemKind,
-    };
-    fn native_context() -> ClaudeRequestContext {
-        let target = IdentityTarget::new("actual-model", Dialect::Claude)
-            .unwrap()
-            .with_origin("original-upstream")
-            .unwrap();
-        let mut state = IdentityStateRecord::new(
-            IdentityRole::OutputItem(OutputItemKind::Reasoning),
-            target.clone(),
-        );
-        state.client_item_id = Some("rs-1".into());
-        state.opaque_signature = Some(
-            OpaqueSignature::new(
-                gproxy_protocol::transform::identity::OpaqueField::ClaudeThinkingSignature,
-                "native-signature",
-                "original-upstream",
-                "actual-model",
-            )
-            .unwrap(),
-        );
-        ClaudeRequestContext{target:Some(target),restored_thinking:std::collections::BTreeMap::from([("rs-1".into(),RestoredClaudeThinking{state,block:serde_json::from_value(json!({"type":"thinking","thinking":"original thought","signature":"native-signature","foreign":true})).unwrap()})])}
-    }
-    let output = json!([{"type":"reasoning","id":"rs-1","summary":[],"content":[{"type":"reasoning_text","text":"original thought","foreign":true}],"status":"completed"}]);
-    let result = responses_to_claude_response_with_context(
-        response(output.clone(), "completed"),
-        native_context(),
+fn claude_thinking_carries_its_signature_in_encrypted_content() {
+    let source = claude(
+        json!([
+            {"type":"thinking","thinking":"original thought","signature":"native-signature"},
+            {"type":"text","text":"answer"}
+        ]),
+        "end_turn",
+    );
+    let mapped = claude_to_responses_response(
+        source,
+        context(),
         &mut flow(),
-        &TargetIdPolicy::new(Dialect::Claude),
+        &TargetIdPolicy::new(Dialect::OpenAi),
     )
     .unwrap()
     .value;
-    let c::ResponseContentBlock::Thinking(block) = &result.content[0] else {
+    let r::ResponseOutputItem::Reasoning(item) = &mapped.output[0] else {
         panic!()
     };
-    assert_eq!(block.signature, "native-signature");
-    assert!(block.rest.is_empty());
-    let mut modified = output.clone();
-    modified[0]["content"][0]["text"] = json!("tampered");
+    assert_eq!(
+        item.encrypted_content,
+        Some(Some("claude:native-signature".into()))
+    );
+    assert_eq!(item.content.as_ref().unwrap()[0].text, "original thought");
+    // The response direction never turns Responses reasoning into thinking.
+    let back =
+        responses_to_claude_response(mapped, &mut flow(), &TargetIdPolicy::new(Dialect::Claude))
+            .unwrap()
+            .value;
     assert!(
-        responses_to_claude_response_with_context(
-            response(modified, "completed"),
-            native_context(),
-            &mut flow(),
-            &TargetIdPolicy::new(Dialect::Claude)
-        )
-        .is_err()
+        back.content
+            .iter()
+            .all(|block| !matches!(block, c::ResponseContentBlock::Thinking(_)))
     );
 }

@@ -10,6 +10,7 @@ use crate::transform::generate::stream::{
 use crate::{
     transform::{
         Converted, Report, TransformError, TransformErrorKind,
+        generate::signature,
         identity::{IdentityFlow, TargetIdPolicy},
     },
     wire::{
@@ -52,8 +53,6 @@ pub struct GeminiToClaudeStream {
     text_block: Option<i64>,
     /// The open thinking block, closed by its run's signature part.
     thinking_block: Option<i64>,
-    /// Position of the next candidate part, as the collected body numbers it.
-    part_index: usize,
     tools: usize,
     calls: super::super::history::Calls,
 }
@@ -125,7 +124,6 @@ impl GeminiToClaudeStream {
             next_block: 0,
             text_block: None,
             thinking_block: None,
-            part_index: 0,
             tools: 0,
             calls: Default::default(),
         })
@@ -270,15 +268,14 @@ impl GeminiToClaudeStream {
         Ok(index)
     }
     fn part(&mut self, part: g::Part, out: &mut Vec<s::StreamEvent>) -> Result<(), TransformError> {
-        let position = self.part_index;
-        self.part_index += 1;
         if super::super::thinking::is_empty_text(&part) {
             return Ok(());
         }
         if super::super::thinking::is_run_part(&part) {
-            return self.thought(part, position, out);
+            return self.thought(part, out);
         }
         self.close_thinking(out)?;
+        let carried = super::super::thinking::call_signature(&part);
         if let Some(text) = part.text.filter(|_| part.thought != Some(true)) {
             // Gemini chunks extend the current text; they are not separate
             // Claude messages. In particular, a trailing empty chunk must not
@@ -315,6 +312,12 @@ impl GeminiToClaudeStream {
             self.close_text(out)?;
             if self.tools >= self.limits.max_tools {
                 return Err(limit());
+            }
+            if let Some(carried) = carried {
+                // The call's own signature travels on an empty thinking block
+                // right before it; see `thinking`.
+                self.open_thinking(out)?;
+                self.end_thinking(carried, out)?;
             }
             self.tools += 1;
             let id = self.calls.call(
@@ -359,31 +362,14 @@ impl GeminiToClaudeStream {
         Ok(())
     }
     /// Thought text streams as thinking deltas; the run's signature part
-    /// sends the handle and closes the block.
+    /// sends its carried signature and closes the block.
     fn thought(
         &mut self,
         part: g::Part,
-        position: usize,
         out: &mut Vec<s::StreamEvent>,
     ) -> Result<(), TransformError> {
         self.close_text(out)?;
-        let index = if let Some(index) = self.thinking_block {
-            index
-        } else {
-            let index = self.allocate_block()?;
-            let block = c::ResponseContentBlock::Thinking(
-                ThinkingBlock::builder(ThinkingBlockType::Tag, String::new(), String::new())
-                    .build(),
-            );
-            self.emit(
-                out,
-                s::StreamEvent::ContentBlockStart(
-                    s::ContentBlockStartEvent::builder(index, block).build(),
-                ),
-            )?;
-            self.thinking_block = Some(index);
-            index
-        };
+        let index = self.open_thinking(out)?;
         if let Some(text) = part.text.filter(|text| !text.is_empty()) {
             self.emit(
                 out,
@@ -396,17 +382,33 @@ impl GeminiToClaudeStream {
                 ),
             )?;
         }
-        if part.thought_signature.is_some() {
-            let handle =
-                super::super::response::thinking_handle(&mut self.flow, &self.policy, position)?;
-            self.end_thinking(handle, out)?;
+        if let Some(native) = part.thought_signature.as_deref() {
+            self.end_thinking(signature::gemini_thought(Some(native)), out)?;
         }
         Ok(())
+    }
+    /// The open thinking block, started empty when none is open.
+    fn open_thinking(&mut self, out: &mut Vec<s::StreamEvent>) -> Result<i64, TransformError> {
+        if let Some(index) = self.thinking_block {
+            return Ok(index);
+        }
+        let index = self.allocate_block()?;
+        let block = c::ResponseContentBlock::Thinking(
+            ThinkingBlock::builder(ThinkingBlockType::Tag, String::new(), String::new()).build(),
+        );
+        self.emit(
+            out,
+            s::StreamEvent::ContentBlockStart(
+                s::ContentBlockStartEvent::builder(index, block).build(),
+            ),
+        )?;
+        self.thinking_block = Some(index);
+        Ok(index)
     }
     /// A run that ends without a signature is an unsigned summary.
     fn close_thinking(&mut self, out: &mut Vec<s::StreamEvent>) -> Result<(), TransformError> {
         if self.thinking_block.is_some() {
-            self.end_thinking(super::super::thinking::unsigned_handle(), out)?;
+            self.end_thinking(signature::gemini_thought(None), out)?;
         }
         Ok(())
     }

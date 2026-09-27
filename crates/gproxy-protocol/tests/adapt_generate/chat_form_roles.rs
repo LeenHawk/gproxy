@@ -1,8 +1,5 @@
 use super::*;
-use gproxy_protocol::{
-    transform::identity::{IdentityRole, OutputItemKind},
-    wire::openai::responses as r,
-};
+use gproxy_protocol::wire::openai::responses as r;
 /// Every ID here reaches the client as the upstream sent it, or names an
 /// unsigned output item nothing reads back, so the response writes no
 /// identity state at all: no Response, Message, output item or call record.
@@ -15,28 +12,12 @@ fn check_roles(
     };
     let mut saw_call = false;
     for item in response.body.output {
-        let (role, id) = match item {
-            r::ResponseOutputItem::FunctionCall(v) => {
-                assert_eq!(v.call_id, "actual-call");
-                saw_call = true;
-                (
-                    IdentityRole::OutputItem(OutputItemKind::FunctionCall),
-                    v.id.unwrap(),
-                )
-            }
-            r::ResponseOutputItem::Message(v) => {
-                (IdentityRole::OutputItem(OutputItemKind::Message), v.id)
-            }
-            _ => continue,
-        };
-        assert!(ready(access.read(role, &id)).unwrap().is_none());
+        if let r::ResponseOutputItem::FunctionCall(v) = item {
+            assert_eq!(v.call_id, "actual-call");
+            saw_call = true;
+        }
     }
     assert!(saw_call);
-    assert!(
-        ready(access.read(IdentityRole::ToolCall, "actual-call"))
-            .unwrap()
-            .is_none()
-    );
     assert!(access.store.entries.lock().unwrap().is_empty());
 }
 #[test]

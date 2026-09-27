@@ -1,4 +1,4 @@
-use super::super::{ClaudeRequestContext, ClaudeResponseContext, RestoredClaudeThinking};
+use super::super::ClaudeResponseContext;
 use super::common::{StreamLimits, declared, invalid, measure};
 use crate::{
     transform::{Report, TransformError},
@@ -171,69 +171,4 @@ pub(super) fn annotations(
         return Err(invalid("citation binding has no matching source citation"));
     }
     Ok(output)
-}
-
-pub(super) fn clean_restoration(
-    context: ClaudeRequestContext,
-    limits: StreamLimits,
-) -> Result<ClaudeRequestContext, TransformError> {
-    if context.restored_thinking.len() > limits.max_items {
-        return Err(super::common::limit());
-    }
-    let context = ClaudeRequestContext {
-        target: context.target,
-        restored_thinking: context
-            .restored_thinking
-            .into_iter()
-            .map(|(id, v)| {
-                (
-                    id,
-                    RestoredClaudeThinking {
-                        state: v.state,
-                        block: declared(v.block),
-                    },
-                )
-            })
-            .collect(),
-    };
-    if context.target.is_none() && context.restored_thinking.is_empty() {
-        return Ok(context);
-    }
-    let target = context
-        .target
-        .as_ref()
-        .ok_or_else(|| TransformError::missing_metadata("thinking target binding"))?;
-    if target.dialect != crate::Dialect::Claude
-        || target.model.trim().is_empty()
-        || target.origin.as_ref().is_none_or(|v| v.trim().is_empty())
-    {
-        return Err(invalid("invalid signed-thinking origin/model binding"));
-    }
-    let mut bytes = measure(target, limits.max_bytes)?;
-    for (id, value) in &context.restored_thinking {
-        bytes += measure(
-            &(id, &value.state, &value.block),
-            limits.max_bytes.saturating_sub(bytes),
-        )?;
-    }
-    Ok(context)
-}
-
-pub(super) fn clone_restoration(context: &ClaudeRequestContext) -> ClaudeRequestContext {
-    ClaudeRequestContext {
-        target: context.target.clone(),
-        restored_thinking: context
-            .restored_thinking
-            .iter()
-            .map(|(key, value)| {
-                (
-                    key.clone(),
-                    RestoredClaudeThinking {
-                        state: value.state.clone(),
-                        block: value.block.clone(),
-                    },
-                )
-            })
-            .collect(),
-    }
 }

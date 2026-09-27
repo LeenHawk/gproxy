@@ -23,6 +23,7 @@ pub struct GeminiToChatStream {
     budget: Budget,
     limits: StreamLimits,
     calls: super::super::content::Calls,
+    signatures: super::super::content::Signatures,
     tool_indexes: BTreeMap<i64, i64>,
     context: GeminiToChatContext,
     response_id: Option<String>,
@@ -77,6 +78,7 @@ impl GeminiToChatStream {
             budget: Budget::new(limits),
             limits,
             calls: Default::default(),
+            signatures: Default::default(),
             tool_indexes: BTreeMap::new(),
             model: context.model.clone(),
             context,
@@ -201,6 +203,7 @@ impl GeminiToChatStream {
                 &mut self.flow,
                 &policy,
                 &mut self.calls,
+                Some(&mut self.signatures),
             )?;
             for message in messages {
                 let c::ChatMessage::Assistant(message) = message else {
@@ -210,6 +213,10 @@ impl GeminiToChatStream {
                 };
                 let mut delta = s::Delta::builder().role(s::DeltaRole::Assistant).build();
                 let mut has_content = false;
+                if let Some(details) = message.reasoning_details.clone().flatten() {
+                    delta.reasoning_details = Some(Some(details));
+                    has_content = true;
+                }
                 if let Some(text) = c::visible_reasoning(
                     &message.reasoning_content,
                     &message.reasoning,

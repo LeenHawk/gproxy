@@ -43,7 +43,7 @@ pub(crate) fn to_responses(
                 if part.thought_signature.is_some() {
                     report.omitted(
                         "thought_signature",
-                        "Gemini signature retained only in scoped native replay state",
+                        "a Gemini signature has no meaning to a Responses upstream",
                     );
                 }
                 continue;
@@ -70,14 +70,14 @@ pub(crate) fn to_responses(
                 out.push(r::InputItem::Reasoning(item));
                 report.omitted(
                     "thought_signature",
-                    "Gemini signature must remain scoped in host replay state",
+                    "a Gemini signature has no meaning to a Responses upstream",
                 );
                 continue;
             }
             if part.thought_signature.is_some() {
                 report.omitted(
                     "thought_signature",
-                    "Gemini signature must remain scoped in host replay state",
+                    "a Gemini signature has no meaning to a Responses upstream",
                 );
             }
             if let Some(text) = part.text {

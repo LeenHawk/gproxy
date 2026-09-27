@@ -84,7 +84,7 @@ pub fn gemini_to_openai(
 pub fn openai_to_gemini(
     input: o::CountTokensRequestBody,
     target_model: impl Into<String>,
-    mut context: pair::GeminiReplayContext,
+    _context: pair::GeminiReplayContext,
 ) -> Result<Converted<g::CountTokensRequestBody>, TransformError> {
     let model = super::model(target_model)?;
     let mut input = input.into_declared();
@@ -128,7 +128,7 @@ pub fn openai_to_gemini(
     };
     let choice = pair::tools::choice_to_gemini(image_choice, strict)?;
     let (contents, mut system) =
-        pair::history::to_gemini(input.input.flatten(), &model, &mut context, &mut report)?;
+        pair::history::to_gemini(input.input.flatten(), &model, &mut report)?;
     if let Some(Some(text)) = input.instructions {
         system.insert(0, g::Part::builder().text(text).build());
     }

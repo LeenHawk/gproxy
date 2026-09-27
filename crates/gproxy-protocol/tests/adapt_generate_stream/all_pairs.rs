@@ -203,31 +203,13 @@ fn run<B: StreamBridge>(mut call: StreamInvocation<B>, store: Arc<Store>) {
     };
     assert_eq!(id, format!("{prefix}gpe_tool_3asource"));
     assert!(
-        ready(state.read(IdentityRole::ToolCall, id))
+        store
+            .entries
+            .lock()
             .unwrap()
-            .is_none()
+            .keys()
+            .all(|key| !key.starts_with("generate:"))
     );
-    if B::ClientEvent::DIALECT == Dialect::OpenAi {
-        let item_id = client["output"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|v| v["type"] == "function_call")
-            .unwrap()["id"]
-            .as_str()
-            .unwrap();
-        // An unsigned output item is never read back, so it has no record.
-        assert!(
-            ready(state.read(
-                IdentityRole::OutputItem(
-                    gproxy_protocol::transform::identity::OutputItemKind::FunctionCall,
-                ),
-                item_id,
-            ))
-            .unwrap()
-            .is_none()
-        );
-    }
     // No identity is recorded at all: no Response, Message, call or stream
     // alias record.
     assert!(
@@ -374,7 +356,6 @@ case!(
     Dialect::OpenAi,
     p::claude_responses::stream::ResponsesToClaudeContext {
         usage: Some(initial()),
-        restoration: None
     }
 );
 case!(

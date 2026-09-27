@@ -32,9 +32,8 @@ impl ResponsesToGeminiStream {
                             .model
                             .as_deref()
                             .ok_or_else(|| invalid("missing native model"))?;
-                        let part = super::super::images::restore(
-                            (**value).clone(),
-                            &mut self.restoration,
+                        let part = super::super::images::to_gemini(
+                            value,
                             self.limits.max_bytes as u64,
                         )?;
                         if self.jpeg_only {
@@ -66,46 +65,17 @@ impl ResponsesToGeminiStream {
                     parts,
                     next,
                     has_content,
-                    signed,
                     final_item,
                     projected,
                 } => {
-                    if *signed || !*has_content {
+                    if !*has_content {
                         if let Some(reasoning) = final_item.take() {
-                            let part = if *signed {
-                                let _model = self
-                                    .model
-                                    .as_deref()
-                                    .ok_or_else(|| invalid("missing native model"))?;
-                                let part = super::super::identity::reasoning(
-                                    reasoning,
-                                    &mut self.restoration,
+                            let text = super::super::identity::reasoning_text(&reasoning);
+                            if !text.is_empty() {
+                                self.emit_part(
+                                    g::Part::builder().thought(true).text(text).build(),
+                                    out,
                                 )?;
-                                if part.function_call.is_some() {
-                                    return Err(invalid(
-                                        "signed reasoning also contains a function",
-                                    ));
-                                }
-                                Some(part)
-                            } else {
-                                let text = reasoning
-                                    .content
-                                    .map(|v| {
-                                        v.into_iter().map(|p| p.text).collect::<Vec<_>>().join("")
-                                    })
-                                    .unwrap_or_else(|| {
-                                        reasoning
-                                            .summary
-                                            .into_iter()
-                                            .map(|p| p.text)
-                                            .collect::<Vec<_>>()
-                                            .join("")
-                                    });
-                                (!text.is_empty())
-                                    .then(|| g::Part::builder().thought(true).text(text).build())
-                            };
-                            if let Some(part) = part {
-                                self.emit_part(part, out)?;
                             }
                             self.release(item.held);
                             item.held = 0;
@@ -127,16 +97,13 @@ impl ResponsesToGeminiStream {
                             .model
                             .as_deref()
                             .ok_or_else(|| invalid("missing native model"))?;
-                        let mut part = super::super::identity::function(
-                            (**value).clone(),
-                            &mut self.restoration,
-                        )?;
+                        let mut part = super::super::identity::function((**value).clone())?;
                         identity::call(
                             &mut part,
                             value,
                             self.cursor,
                             (&mut self.flow, &self.policy),
-                            (&self.reserved, &mut self.used, &mut self.signed),
+                            &mut self.used,
                         )?;
                         self.emit_part(part, out)?;
                         self.release(item.held);
@@ -171,8 +138,8 @@ impl ResponsesToGeminiStream {
                 let text = std::mem::take(&mut part.pending);
                 let bytes = text.len();
                 // The buffered pair omits unsigned empty reasoning. Empty
-                // message text remains a real native part; signed thinking is
-                // projected atomically through its original native record.
+                // message text remains a real native part; reasoning without
+                // content is projected from its summary at completion.
                 if !thought || !text.is_empty() {
                     let mut value = g::Part::builder().text(text).build();
                     if thought {

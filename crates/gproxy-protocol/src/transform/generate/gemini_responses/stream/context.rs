@@ -1,4 +1,4 @@
-use super::super::{GeminiReplayContext, GeminiResponseContext, RestoredGeminiPart};
+use super::super::GeminiResponseContext;
 use super::common::{StreamLimits, invalid, limit, measure};
 use crate::{transform::TransformError, wire::DeclaredFields};
 
@@ -12,7 +12,6 @@ pub struct GeminiToResponsesContext {
 
 #[derive(Default)]
 pub struct ResponsesToGeminiContext {
-    pub restoration: GeminiReplayContext,
     pub response_modalities: Option<Vec<crate::wire::gemini::Modality>>,
     pub image_mime: Option<crate::wire::gemini::ImageMimeType>,
 }
@@ -63,92 +62,5 @@ pub(super) fn clone_response(c: &GeminiResponseContext) -> GeminiResponseContext
         usage: c.usage,
         created_at: c.created_at,
         effective_prompt_cache_options: c.effective_prompt_cache_options.clone(),
-    }
-}
-
-pub(super) fn clean_replay(
-    mut c: GeminiReplayContext,
-    limits: StreamLimits,
-) -> Result<GeminiReplayContext, TransformError> {
-    if c.parts.len().saturating_add(c.image_files.len()) > limits.max_items {
-        return Err(limit());
-    }
-    let mut size = measure(&c.target, limits.max_bytes)?;
-    for (key, piece) in &mut c.parts {
-        piece.part = std::mem::replace(
-            &mut piece.part,
-            crate::wire::gemini::Part::builder().build(),
-        )
-        .into_declared();
-        size = size.checked_add(key.len()).ok_or_else(limit)?;
-        size = size
-            .checked_add(measure(
-                &piece.state,
-                limits.max_bytes.saturating_sub(size),
-            )?)
-            .ok_or_else(limit)?;
-        size = size
-            .checked_add(measure(&piece.part, limits.max_bytes.saturating_sub(size))?)
-            .ok_or_else(limit)?;
-        if size > limits.max_bytes {
-            return Err(limit());
-        }
-    }
-    for (key, proof) in &mut c.image_files {
-        proof.part = proof.part.clone().into_declared();
-        proof.materialized = proof.materialized.clone().into_declared();
-        size = size.checked_add(key.len()).ok_or_else(limit)?;
-        size = size
-            .checked_add(measure(
-                &proof.state,
-                limits.max_bytes.saturating_sub(size),
-            )?)
-            .ok_or_else(limit)?;
-        size = size
-            .checked_add(measure(&proof.part, limits.max_bytes.saturating_sub(size))?)
-            .ok_or_else(limit)?;
-        size = size
-            .checked_add(measure(
-                &proof.materialized,
-                limits.max_bytes.saturating_sub(size),
-            )?)
-            .ok_or_else(limit)?;
-        if size > limits.max_bytes {
-            return Err(limit());
-        }
-    }
-    Ok(c)
-}
-
-pub(super) fn clone_replay(c: &GeminiReplayContext) -> GeminiReplayContext {
-    GeminiReplayContext {
-        target: c.target.clone(),
-        image_files: c
-            .image_files
-            .iter()
-            .map(|(key, proof)| {
-                (
-                    key.clone(),
-                    super::super::RestoredGeminiImage {
-                        state: proof.state.clone(),
-                        part: proof.part.clone(),
-                        materialized: proof.materialized.clone(),
-                    },
-                )
-            })
-            .collect(),
-        parts: c
-            .parts
-            .iter()
-            .map(|(id, v)| {
-                (
-                    id.clone(),
-                    RestoredGeminiPart {
-                        state: v.state.clone(),
-                        part: v.part.clone(),
-                    },
-                )
-            })
-            .collect(),
     }
 }

@@ -2,7 +2,7 @@ use super::*;
 use crate::{capability::ResourceAccess, transform::identity::IdNamespace};
 
 /// Resource progress for a single incremental invocation. Native events remain
-/// in the invocation while these operations await; receipts and proofs survive
+/// in the invocation while these operations await; receipts survive
 /// cancellation of an individual `next_with_image_resources` future.
 pub struct ImageStreamProgress<H> {
     namespace: Option<IdNamespace>,
@@ -13,7 +13,6 @@ pub struct ImageStreamProgress<H> {
     source: BTreeMap<u64, GeminiImageReads>,
     client: BTreeMap<u64, GeminiImagePublications<H>>,
     pub(crate) reads: GeminiImageReads,
-    pub(crate) proofs: GenerationProgress<()>,
 }
 
 impl<H> Default for ImageStreamProgress<H> {
@@ -27,7 +26,6 @@ impl<H> Default for ImageStreamProgress<H> {
             source: BTreeMap::new(),
             client: BTreeMap::new(),
             reads: Default::default(),
-            proofs: Default::default(),
         }
     }
 }

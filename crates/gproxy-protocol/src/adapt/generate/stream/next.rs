@@ -171,31 +171,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
                 self.finishing_source = false;
             }
             if self.eof && !self.final_saved {
-                B::save_final(
-                    state,
-                    self.native_final
-                        .as_ref()
-                        .ok_or_else(|| super::invalid("missing collected native response"))?,
-                    self.client_final
-                        .as_ref()
-                        .ok_or_else(|| super::invalid("missing collected client response"))?,
-                    &self.flow,
-                    &self.signed,
-                    &mut self.final_progress,
-                )
-                .await?;
-                if let Some(mapper) = mapping.as_deref_mut() {
-                    self.resource_revision = mapper.begin_step()?;
-                    mapper
-                        .save(
-                            self.native_final.as_ref().expect("native final"),
-                            self.client_final.as_ref().expect("client final"),
-                            &self.flow,
-                            state,
-                        )
-                        .await?;
-                    self.resource_revision = mapper.revision();
-                }
                 if let Some(history) = &mut self.history {
                     let response = B::ClientEvent::responses_history(
                         self.client_final.as_ref().expect("final response checked"),
@@ -307,9 +282,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
             .ok_or_else(|| super::invalid("pair stream consumed"))?;
         let converted = bridge.push(event)?;
         self.flow = bridge.identities().clone();
-        if let Some(proof) = bridge.signed_tool_bindings() {
-            self.signed = proof.clone();
-        }
         self.append_report(converted.report)?;
         self.pending_converted = Some(converted.value);
         Ok(())
@@ -386,7 +358,6 @@ impl<B: StreamBridge> StreamInvocation<B> {
             .ok_or_else(|| super::invalid("pair stream consumed"))?
             .finish()?;
         self.flow = end.identities;
-        self.signed = end.signed_tool_bindings;
         self.append_report(end.report)?;
         self.queued.extend(std::mem::take(&mut self.held));
         self.pending_converted = Some(end.chunks);

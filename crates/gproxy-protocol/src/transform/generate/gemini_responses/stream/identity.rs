@@ -7,21 +7,7 @@ use crate::{
     },
     wire::{gemini as g, openai::responses::input as r},
 };
-use std::collections::{BTreeMap, BTreeSet};
-
-/// Exact associations for fixed IDs in validated native signed replay. They are
-/// available before yielding the corresponding Gemini part to the host.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct SignedToolBindings(BTreeMap<String, String>);
-
-impl SignedToolBindings {
-    pub fn source_call_id(&self, emitted_id: &str) -> Option<&str> {
-        self.0.get(emitted_id).map(String::as_str)
-    }
-    pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
-        self.0.iter().map(|(a, b)| (a.as_str(), b.as_str()))
-    }
-}
+use std::collections::BTreeSet;
 
 pub(super) fn response_id(
     flow: &mut IdentityFlow,
@@ -43,33 +29,15 @@ pub(super) fn call(
     original: &r::FunctionCall,
     index: i64,
     allocator: (&mut IdentityFlow, &TargetIdPolicy),
-    bindings: (
-        &BTreeSet<String>,
-        &mut BTreeSet<String>,
-        &mut SignedToolBindings,
-    ),
+    used: &mut BTreeSet<String>,
 ) -> Result<(), TransformError> {
     let (flow, policy) = allocator;
-    let (reserved, used, signed) = bindings;
     let target = part
         .function_call
         .as_mut()
         .ok_or_else(|| invalid("missing projected function"))?;
-    if part.thought_signature.is_some() {
-        if let Some(id) = &target.id {
-            if !policy.accepts_source(id) || !used.insert(id.clone()) {
-                return Err(TransformError::unsupported(
-                    "signature.function.id",
-                    "original signed ID violates policy or collides",
-                ));
-            }
-            signed.0.insert(id.clone(), original.call_id.clone());
-        }
-        return Ok(());
-    }
-    let mut trial = flow.clone();
-    let handle = trial
-        .resolve_or_allocate_avoiding(
+    let handle = flow
+        .resolve_or_allocate(
             IdentityRole::ToolCall,
             SourceIdentity::new(
                 Dialect::OpenAi,
@@ -77,14 +45,12 @@ pub(super) fn call(
                 index as u64,
             ),
             policy,
-            reserved,
         )
         .map_err(|e| invalid(e.to_string()))?;
-    if reserved.contains(&handle.emitted_id) || !used.insert(handle.emitted_id.clone()) {
+    if !used.insert(handle.emitted_id.clone()) {
         return Err(invalid("projected function ID collides"));
     }
     target.id = Some(handle.emitted_id);
-    *flow = trial;
     Ok(())
 }
 

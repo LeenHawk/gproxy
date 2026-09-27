@@ -1,4 +1,4 @@
-use super::super::{Endpoint, GenerationIdentity, GenerationProgress, GenerationStateAccess};
+use super::super::{Endpoint, GenerationIdentity, GenerationStateAccess};
 use super::{
     binding::StateBinding,
     bridge::StreamBridge,
@@ -90,9 +90,7 @@ pub struct StreamInvocation<B: StreamBridge> {
     pub(super) last_native_event: Option<B::NativeEvent>,
     pub(super) native_final: Option<Collected<NativeFull<B>>>,
     pub(super) client_final: Option<ClientFull<B>>,
-    pub(super) final_progress: GenerationProgress<Collected<NativeFull<B>>>,
     pub(super) final_saved: bool,
-    pub(super) signed: crate::transform::generate::gemini_responses::stream::SignedToolBindings,
     pub(super) report: Report,
     pub(super) emit_usage: bool,
     pub(super) metadata: Option<WireResponse<()>>,
@@ -157,9 +155,7 @@ impl<B: StreamBridge> StreamInvocation<B> {
             last_native_event: None,
             native_final: None,
             client_final: None,
-            final_progress: Default::default(),
             final_saved: false,
-            signed: Default::default(),
             report,
             emit_usage: true,
             metadata: None,

@@ -139,35 +139,7 @@ impl ResponsesToClaudeStream {
                     }
                     true
                 }
-                Kind::Reasoning {
-                    final_item,
-                    projected,
-                } => {
-                    if self.restoration.is_none() {
-                        *projected = true;
-                        true
-                    } else if item.done {
-                        if !*projected {
-                            let reasoning = final_item
-                                .take()
-                                .ok_or_else(|| invalid("missing completed reasoning"))?;
-                            self.held_bytes -= item.held;
-                            item.held = 0;
-                            let block = super::super::request::restore_reasoning(
-                                reasoning,
-                                self.model
-                                    .as_deref()
-                                    .ok_or_else(|| invalid("missing model"))?,
-                                self.restoration.as_mut().unwrap(),
-                            )?;
-                            self.complete_block(out, c::ResponseContentBlock::Thinking(block))?;
-                            *projected = true;
-                        }
-                        true
-                    } else {
-                        false
-                    }
-                }
+                Kind::Reasoning => true,
                 Kind::Mcp {
                     final_item,
                     projected,

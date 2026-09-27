@@ -165,34 +165,6 @@ fn duplicate_names_get_distinct_aliases_and_nothing_is_saved() {
 }
 
 #[test]
-fn state_failure_blocks_exposure_then_recovers_without_post() {
-    let host = signed_gemini_tools_host();
-    let store = Store {
-        fail_at: Some(2),
-        ..Default::default()
-    };
-    let state = state(&store, Dialect::Gemini);
-    let mut p = chat_gemini();
-    let mut progress = GenerationProgress::default();
-    let error = ready(p.invoke(
-        &host,
-        &(),
-        codec_limits(),
-        &state,
-        &mut progress,
-        gemini_facts,
-    ))
-    .unwrap_err();
-    assert_eq!(error.kind(), TransformErrorKind::Host);
-    assert_eq!(store.entries.lock().unwrap().len(), 1);
-    let result = ready(p.recover(codec_limits(), &state, &mut progress, gemini_facts)).unwrap();
-    assert!(matches!(result, GenerationOutcome::Success { .. }));
-    assert_eq!(host.sent.lock().unwrap().len(), 1);
-    // Each signed call is recorded with its native part; the response is not.
-    assert_eq!(store.entries.lock().unwrap().len(), 4);
-}
-
-#[test]
 fn recovery_rejects_changed_scope_request_or_exposed_response() {
     let host = Host::new(output("c"));
     let store = Store::default();
@@ -226,19 +198,33 @@ fn recovery_rejects_changed_scope_request_or_exposed_response() {
 fn complete_history_supplies_missing_names_but_ambiguous_truncation_fails() {
     let store = Store::default();
     let state = state(&store, Dialect::Gemini);
-    let ids = vec!["exact_client_id".into()];
+    let prepare = |messages: serde_json::Value| {
+        let mut next = input("c");
+        next["messages"] = messages;
+        ready(ClaudeViaGemini::prepare_with_state(
+            serde_json::from_value(next).unwrap(),
+            endpoint(),
+            ids(Dialect::Claude, Dialect::Gemini),
+            &state,
+            Default::default(),
+        ))
+    };
+    let result = json!({"role":"user","content":[{"type":"tool_result","tool_use_id":"exact_client_id","content":"done"}]});
     assert_eq!(
-        ready(state.recover_tools(&ids, &Default::default()))
-            .unwrap_err()
-            .kind(),
+        prepare(json!([result.clone()])).unwrap_err().kind(),
         TransformErrorKind::MissingState
     );
-    let replay = ready(state.recover_tools(
-        &ids,
-        &std::collections::BTreeMap::from([("exact_client_id".into(), "lookup".into())]),
-    ))
+    let prepared = prepare(json!([
+        {"role":"assistant","content":[{"type":"tool_use","id":"exact_client_id","name":"lookup","input":{}}]},
+        result
+    ]))
     .unwrap();
-    assert_eq!(replay.names["exact_client_id"], "lookup");
+    let target = serde_json::to_value(prepared.target_request()).unwrap();
+    assert_eq!(
+        target["contents"][1]["parts"][0]["functionResponse"]["name"],
+        "lookup"
+    );
+    assert!(store.entries.lock().unwrap().is_empty());
 }
 
 #[test]
@@ -392,29 +378,24 @@ fn claude_chat_policy_escapes_collision_prone_ids_and_decodes_them_back() {
 }
 
 #[test]
-fn state_expiry_and_record_budget_are_enforced_before_exposure() {
+fn state_expiry_is_enforced_before_exposure() {
     let host = signed_gemini_tools_host();
     let store = Store::default();
     let mut state = state(&store, Dialect::Gemini);
-    state.max_records = 1;
     let mut p = chat_gemini();
     let mut progress = GenerationProgress::default();
-    let error = ready(p.invoke(
-        &host,
-        &(),
-        codec_limits(),
-        &state,
-        &mut progress,
-        gemini_facts,
-    ))
+    let error = ready(
+        p.invoke(&host, &(), codec_limits(), &state, &mut progress, |_| {
+            Err(TransformError::missing_metadata("clock"))
+        }),
+    )
     .unwrap_err();
-    assert_eq!(error.kind(), TransformErrorKind::Limit);
-    assert!(store.entries.lock().unwrap().is_empty());
+    assert_eq!(error.kind(), TransformErrorKind::MissingMetadata);
     assert!(progress.native_response.is_some());
-    state.max_records = 64;
     state.now = state.expires_at;
     let error = ready(p.recover(codec_limits(), &state, &mut progress, gemini_facts)).unwrap_err();
     assert_eq!(error.kind(), TransformErrorKind::InvalidInput);
+    assert!(store.entries.lock().unwrap().is_empty());
 }
 
 /// The non-stream path hit the same collision: a repeated upstream response

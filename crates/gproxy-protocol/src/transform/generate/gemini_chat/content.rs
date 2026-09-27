@@ -1,6 +1,7 @@
 use crate::{
     transform::{
         Report, TransformError,
+        generate::reasoning_details as rd,
         identity::{IdentityFlow, IdentityRole, SourceIdentity, TargetIdPolicy},
     },
     wire::{gemini as g, openai::chat as c},
@@ -151,12 +152,32 @@ impl Calls {
     }
 }
 
+/// Gemini signatures a Chat client carries in `reasoning_details` (see
+/// `reasoning_details::GEMINI`). A thought run can span stream chunks, so its
+/// text is kept here until the part with its signature arrives.
+#[derive(Default)]
+pub(super) struct Signatures {
+    run: String,
+    index: i64,
+}
+
+impl Signatures {
+    fn next_index(&mut self) -> i64 {
+        let index = self.index;
+        self.index += 1;
+        index
+    }
+}
+
+/// `signatures` is set for a response the client will send back, and unset
+/// for a request history, whose signatures the Chat upstream cannot use.
 pub(super) fn gemini_content_to_chat(
     content: g::Content,
     report: &mut Report,
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
     bindings: &mut Calls,
+    mut signatures: Option<&mut Signatures>,
 ) -> Result<Vec<c::ChatMessage>, TransformError> {
     let role = content.role.as_deref().unwrap_or("user");
     if !matches!(role, "user" | "model" | "system") {
@@ -169,8 +190,40 @@ pub(super) fn gemini_content_to_chat(
     let mut assistant = Vec::new();
     let mut reasoning = String::new();
     let mut call_messages: Vec<c::AssistantMessage> = Vec::new();
+    let mut details = Vec::new();
     let mut result = Vec::new();
     for mut part in content.parts.unwrap_or_default() {
+        let run_part = crate::transform::generate::claude_gemini::thinking::is_run_part(&part);
+        let mut call_signature = None;
+        let signature = part.thought_signature.take();
+        match signatures.as_deref_mut().filter(|_| role == "model") {
+            Some(carried) if run_part => {
+                carried.run.push_str(part.text.as_deref().unwrap_or(""));
+                if let Some(signature) = signature {
+                    let text = std::mem::take(&mut carried.run);
+                    let index = carried.next_index();
+                    details.push(rd::gemini_thought(text, signature, index));
+                }
+            }
+            Some(carried) => {
+                if !crate::transform::generate::claude_gemini::thinking::is_empty_text(&part) {
+                    carried.run.clear();
+                }
+                if part.function_call.is_some() {
+                    call_signature = signature;
+                } else if signature.is_some() {
+                    report.omitted(
+                        "parts.thought_signature",
+                        "a Gemini signature outside a thought or function call has no Chat field",
+                    );
+                }
+            }
+            None if signature.is_some() => report.omitted(
+                "parts.thought_signature",
+                "a Gemini signature has no meaning to a Chat upstream",
+            ),
+            None => {}
+        }
         if part.thought == Some(true) {
             if role == "model" {
                 if let Some(text) = part.text.take() {
@@ -180,12 +233,6 @@ pub(super) fn gemini_content_to_chat(
                 report.omitted("parts.thought", "reasoning requires assistant role");
                 part.text = None;
             }
-        }
-        if part.thought_signature.is_some() {
-            report.omitted(
-                "parts.thought_signature",
-                "signature replay belongs to host identity state",
-            );
         }
         if let Some(text) = part.text {
             if role == "model" {
@@ -245,6 +292,12 @@ pub(super) fn gemini_content_to_chat(
                 call_messages.push(message);
             } else {
                 let id = bindings.call(&call.name, call.id, flow, policy)?;
+                if let (Some(signature), Some(signatures)) =
+                    (call_signature.take(), signatures.as_deref_mut())
+                {
+                    let index = signatures.next_index();
+                    details.push(rd::gemini_call(id.clone(), signature, index));
+                }
                 if call_messages
                     .last()
                     .is_none_or(|v| v.function_call.is_some())
@@ -307,6 +360,9 @@ pub(super) fn gemini_content_to_chat(
         if !reasoning.is_empty() {
             call_messages[0].reasoning_content = Some(Some(reasoning));
         }
+        if !details.is_empty() {
+            call_messages[0].reasoning_details = Some(Some(details));
+        }
         if !assistant.is_empty() {
             call_messages[0].content = Some(Some(c::AssistantContent::Parts(assistant)));
         }
@@ -362,11 +418,50 @@ pub(super) fn assistant(
     report: &mut Report,
 ) -> Result<Vec<g::Part>, TransformError> {
     let mut parts = Vec::new();
-    if let Some(text) = c::visible_reasoning(
-        &message.reasoning_content,
-        &message.reasoning,
-        &message.reasoning_details,
-    ) {
+    // Gemini signatures come back in the details this gateway gave the
+    // client: a signed thought replays as its text with its signature, and a
+    // call signature goes on the call it names. With a signed thought the
+    // plain reasoning text is the same thought again, so it is left out.
+    let gemini: Vec<_> = message
+        .reasoning_details
+        .iter()
+        .flatten()
+        .flatten()
+        .filter(|d| d.format.as_deref() == Some(rd::GEMINI))
+        .collect();
+    let mut call_signatures = std::collections::BTreeMap::new();
+    let mut signed_thought = false;
+    for detail in gemini {
+        match detail.type_ {
+            c::ReasoningDetailKind::Text => {
+                if let Some(signature) =
+                    detail.signature.clone().flatten().filter(|v| !v.is_empty())
+                {
+                    signed_thought = true;
+                    parts.push(
+                        g::Part::builder()
+                            .thought(true)
+                            .text(detail.text.clone().flatten().unwrap_or_default())
+                            .thought_signature(signature)
+                            .build(),
+                    );
+                }
+            }
+            c::ReasoningDetailKind::Encrypted => {
+                if let (Some(id), Some(data)) = (detail.id.clone().flatten(), detail.data.clone()) {
+                    call_signatures.insert(id, data);
+                }
+            }
+            c::ReasoningDetailKind::Summary => {}
+        }
+    }
+    if !signed_thought
+        && let Some(text) = c::visible_reasoning(
+            &message.reasoning_content,
+            &message.reasoning,
+            &message.reasoning_details,
+        )
+    {
         parts.push(g::Part::builder().text(text).thought(true).build());
     }
     if message.audio.as_ref().and_then(Option::as_ref).is_some() {
@@ -435,16 +530,16 @@ pub(super) fn assistant(
                             format!("object JSON required: {e}"),
                         )
                     })?;
-                parts.push(
-                    g::Part::builder()
-                        .function_call(
-                            g::FunctionCall::builder(call.function.name.clone())
-                                .id(call.id.clone())
-                                .args(args)
-                                .build(),
-                        )
-                        .build(),
-                );
+                let mut part = g::Part::builder()
+                    .function_call(
+                        g::FunctionCall::builder(call.function.name.clone())
+                            .id(call.id.clone())
+                            .args(args)
+                            .build(),
+                    )
+                    .build();
+                part.thought_signature = call_signatures.remove(&call.id);
+                parts.push(part);
             }
             c::MessageToolCall::Custom(_) => {
                 continue;

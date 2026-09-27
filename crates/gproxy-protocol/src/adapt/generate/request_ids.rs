@@ -30,12 +30,6 @@ pub(super) fn gemini_request(
     {
         if let Some(call) = &mut part.function_call {
             if let Some(id) = &mut call.id {
-                if part.thought_signature.is_some() && !policy.accepts_source(id) {
-                    return Err(TransformError::unsupported(
-                        "signature.function.id",
-                        "original signed ID does not satisfy selected policy",
-                    ));
-                }
                 let mapped =
                     allocate(&mut flow, policy, source, IdentityRole::ToolCall, id, index)?;
                 aliases.insert(id.clone(), mapped.clone());
@@ -59,34 +53,13 @@ pub(super) fn gemini_request(
     Ok(())
 }
 
-/// Evidence produced only after a direct pure converter validates native replay.
-#[derive(Debug, Default, Clone)]
-pub(super) struct SignedToolBindings(BTreeMap<String, Option<String>>);
-
-impl SignedToolBindings {
-    pub(super) fn from_stream(
-        proof: &crate::transform::generate::gemini_responses::stream::SignedToolBindings,
-    ) -> Self {
-        Self(
-            proof
-                .iter()
-                .map(|(client, native)| (client.to_owned(), Some(native.to_owned())))
-                .collect(),
-        )
-    }
-
-    pub(super) fn original_call_id(&self, client_id: &str) -> Option<&Option<String>> {
-        self.0.get(client_id)
-    }
-}
-
-/// The pure converter has already validated any restored signed native part.
-/// These exact IDs cannot be rewritten; retain their explicit native association.
+/// Give each converted call the client ID the response policy allocates for
+/// the upstream call at the same position.
 pub(super) fn gemini_response<N: super::identity_facts::IdentityFacts>(
     value: &mut g::GenerateContentResponseBody,
     identities: &mut GenerationIdentity,
     native: &N,
-) -> Result<SignedToolBindings, TransformError> {
+) -> Result<(), TransformError> {
     let mut flow = identities.response.clone();
     let policy = &identities.response_policy;
     let source = native.dialect();
@@ -117,19 +90,6 @@ pub(super) fn gemini_response<N: super::identity_facts::IdentityFacts>(
             "converted/native tool count differs",
         ));
     }
-    let mut signed_ids = SignedToolBindings::default();
-    let mut reserved = std::collections::BTreeSet::new();
-    for part in &parts {
-        if part.thought_signature.is_some()
-            && let Some(id) = &part.function_call.as_ref().expect("filtered").id
-            && (!policy.accepts_source(id) || !reserved.insert(id.clone()))
-        {
-            return Err(TransformError::unsupported(
-                "signature.function.id",
-                "original signed ID violates selected policy or collides",
-            ));
-        }
-    }
     let mut seen = std::collections::BTreeSet::new();
     for (index, (part, original)) in parts.into_iter().zip(original).enumerate() {
         let call = part.function_call.as_mut().expect("filtered function");
@@ -139,41 +99,23 @@ pub(super) fn gemini_response<N: super::identity_facts::IdentityFacts>(
                 "converted/native tool name differs",
             ));
         }
-        if part.thought_signature.is_some() {
-            if let Some(id) = &call.id {
-                if !policy.accepts_source(id) || !seen.insert(id.clone()) {
-                    return Err(TransformError::unsupported(
-                        "signature.function.id",
-                        "original signed ID violates selected policy or collides",
-                    ));
-                }
-                signed_ids.0.insert(id.clone(), original.call_id);
-            }
-            continue;
-        }
         let mut trial = flow.clone();
         let identity = SourceIdentity::new(source, original.call_id.clone(), index as u64);
         let handle = if original.chat_form == Some(super::ChatCallForm::LegacyFunction) {
             trial.resolve_legacy_chat_call(identity, policy)
         } else {
-            trial.resolve_or_allocate_avoiding(IdentityRole::ToolCall, identity, policy, &reserved)
+            trial.resolve_or_allocate(IdentityRole::ToolCall, identity, policy)
         }
         .map_err(|e| TransformError::invalid_result("identity", e.to_string()))?;
-        if reserved.contains(&handle.emitted_id) {
-            return Err(TransformError::invalid_result(
-                "identity",
-                "generated call collides with original signed ID",
-            ));
-        }
         flow = trial;
         if !seen.insert(handle.emitted_id.clone()) {
             return Err(TransformError::invalid_result(
                 "identity",
-                "unsigned call collides with original signed ID",
+                "converted call IDs collide",
             ));
         }
         call.id = Some(handle.emitted_id);
     }
     identities.response = flow;
-    Ok(signed_ids)
+    Ok(())
 }

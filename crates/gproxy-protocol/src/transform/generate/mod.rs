@@ -13,4 +13,5 @@ pub mod gemini_schema;
 pub(crate) mod openai_controls;
 
 pub(crate) mod reasoning_details;
+pub mod signature;
 pub mod stream;

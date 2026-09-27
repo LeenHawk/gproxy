@@ -112,9 +112,9 @@ impl GeminiImageReads {
                     return Err(conflict("native image Part changed"));
                 }
                 part.file_data = None;
+                // The signature stays: the client carries it back with these
+                // bytes, which replay inline in place of the fileData URI.
                 part.inline_data = Some(image.materialized.clone());
-                // The original fileData signature never authenticates this inline view.
-                part.thought_signature = None;
             }
         }
         codec::encode_json(&output, resources.limits).map_err(codec_error)?;

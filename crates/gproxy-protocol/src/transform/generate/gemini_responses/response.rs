@@ -3,6 +3,7 @@ pub use super::usage::GeminiUsageFacts;
 use crate::{
     transform::{
         Converted, Report, TransformError,
+        generate::signature,
         identity::{IdentityFlow, IdentityRole, OutputItemKind, TargetIdPolicy},
     },
     wire::{
@@ -99,12 +100,24 @@ pub fn gemini_to_responses_response(
         .into_iter()
         .enumerate()
     {
-        if part.thought_signature.is_some() {
+        // A call's or an image's signature travels on an empty reasoning item
+        // right before it; see `signature`.
+        let carried = next_signature(&part);
+        if carried.is_none() && part.thought_signature.is_some() && part.thought != Some(true) {
             report.omitted(
                 "thought_signature",
-                "signature retained only in host scoped native replay state",
+                "native Gemini signature outside a thought, call or image has no Responses field",
             );
         }
+        let status = if incomplete {
+            i::ReasoningStatus::Incomplete
+        } else {
+            i::ReasoningStatus::Completed
+        };
+        let thought_signature = part
+            .thought_signature
+            .as_deref()
+            .filter(|_| part.thought == Some(true));
         if let Some(blob) = &part.inline_data {
             let id = super::identity::id(
                 &mut ids,
@@ -116,10 +129,13 @@ pub fn gemini_to_responses_response(
             )?;
             super::images::requested_format(blob, &context.request)?;
             let item = super::images::to_responses(blob.clone(), id, blob.data.len() as u64)?;
+            if let Some(carried) = carried {
+                output.push(carrier(&mut ids, policy, index as u64, carried, status)?);
+            }
             output.push(r::ResponseOutputItem::ImageGenerationCall(item));
             continue;
         }
-        if let Some(text) = part.text {
+        if let Some(text) = thought_text(&part) {
             if part.thought == Some(true) {
                 let id = super::identity::id(
                     &mut ids,
@@ -135,6 +151,8 @@ pub fn gemini_to_responses_response(
                 item.content = Some(vec![
                     i::ReasoningContent::builder(i::ReasoningTextType::ReasoningText, text).build(),
                 ]);
+                item.encrypted_content =
+                    thought_signature.map(|native| Some(signature::gemini_thought(Some(native))));
                 item.status = Some(if incomplete {
                     i::ReasoningStatus::Incomplete
                 } else {
@@ -211,6 +229,9 @@ pub fn gemini_to_responses_response(
                 i::ItemStatus::Completed
             });
             if let Some(item) = crate::transform::optional(bindings.restore(item))? {
+                if let Some(carried) = carried {
+                    output.push(carrier(&mut ids, policy, index as u64, carried, status)?);
+                }
                 output.push(item);
             } else {
                 report.omitted("custom_tool.input", "tool call has no raw string input");
@@ -254,6 +275,53 @@ pub fn gemini_to_responses_response(
     Ok(Converted { value: out, report })
 }
 
+/// The empty reasoning item that carries the signature of the call or image
+/// right after it. Its ID is allocated after the item's own, as the stream
+/// allocates it.
+pub(super) fn carrier(
+    ids: &mut IdentityFlow,
+    policy: &TargetIdPolicy,
+    index: u64,
+    carried: String,
+    status: i::ReasoningStatus,
+) -> Result<r::ResponseOutputItem, TransformError> {
+    let id = super::identity::id(
+        ids,
+        policy,
+        IdentityRole::Message,
+        IdentityRole::OutputItem(OutputItemKind::Reasoning),
+        None,
+        index,
+    )?;
+    let mut item =
+        i::ReasoningItem::builder(i::ReasoningItemType::ReasoningItem, id, Vec::new()).build();
+    item.encrypted_content = Some(Some(carried));
+    item.status = Some(status);
+    Ok(r::ResponseOutputItem::Reasoning(item))
+}
+
+/// The carried signature of a signed call or image part, which has no field
+/// of its own in Responses; see `signature`.
+pub(super) fn next_signature(part: &g::Part) -> Option<String> {
+    (part.function_call.is_some() || part.inline_data.is_some())
+        .then_some(part.thought_signature.as_deref())
+        .flatten()
+        .map(signature::gemini_next)
+}
+
+/// The text a part shows. A thought part that only carries its run's
+/// signature (Code Assist sends the text first) still becomes a reasoning
+/// item, with no text, so the signature reaches the client.
+pub(super) fn thought_text(part: &g::Part) -> Option<String> {
+    part.text.clone().or_else(|| {
+        (part.thought == Some(true)
+            && part.thought_signature.is_some()
+            && part.function_call.is_none()
+            && part.inline_data.is_none())
+        .then(String::new)
+    })
+}
+
 pub fn responses_to_gemini_response(
     input: r::GenerateContentResponseBody,
     context: super::identity::GeminiReplayContext,
@@ -263,7 +331,7 @@ pub fn responses_to_gemini_response(
 
 pub fn responses_to_gemini_response_with_modalities(
     input: r::GenerateContentResponseBody,
-    mut context: super::identity::GeminiReplayContext,
+    _context: super::identity::GeminiReplayContext,
     modalities: Option<&[g::Modality]>,
 ) -> Result<Converted<g::GenerateContentResponseBody>, TransformError> {
     let input = input.into_declared();
@@ -375,32 +443,18 @@ pub fn responses_to_gemini_response_with_modalities(
                         "nonterminal call",
                     ));
                 }
-                parts.push(super::identity::function(call, &mut context)?);
+                parts.push(super::identity::function(call)?);
             }
             r::ResponseOutputItem::Reasoning(reasoning) => {
-                if context.parts.contains_key(&reasoning.id) {
-                    parts.push(super::identity::reasoning(reasoning, &mut context)?);
-                } else {
-                    if reasoning.encrypted_content.flatten().is_some() {
-                        report.omitted(
-                            "reasoning.encrypted_content",
-                            "Responses ciphertext cannot be reinterpreted as Gemini signature",
-                        );
-                    }
-                    let text = reasoning
-                        .content
-                        .map(|v| v.into_iter().map(|v| v.text).collect::<Vec<_>>().join(""))
-                        .unwrap_or_else(|| {
-                            reasoning
-                                .summary
-                                .into_iter()
-                                .map(|v| v.text)
-                                .collect::<Vec<_>>()
-                                .join("")
-                        });
-                    if !text.is_empty() {
-                        parts.push(g::Part::builder().thought(true).text(text).build());
-                    }
+                if reasoning.encrypted_content.clone().flatten().is_some() {
+                    report.omitted(
+                        "reasoning.encrypted_content",
+                        "Responses ciphertext cannot be reinterpreted as Gemini signature",
+                    );
+                }
+                let text = super::identity::reasoning_text(&reasoning);
+                if !text.is_empty() {
+                    parts.push(g::Part::builder().thought(true).text(text).build());
                 }
             }
             r::ResponseOutputItem::ImageGenerationCall(image) => {
@@ -409,7 +463,7 @@ pub fn responses_to_gemini_response_with_modalities(
                     continue;
                 }
                 let max = image.result.as_ref().map_or(0, |v| v.len() as u64);
-                parts.push(super::images::restore(image, &mut context, max)?);
+                parts.push(super::images::to_gemini(&image, max)?);
             }
             r::ResponseOutputItem::FunctionCallOutput(_)
             | r::ResponseOutputItem::FileSearchCall(_)

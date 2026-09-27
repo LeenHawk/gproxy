@@ -50,11 +50,6 @@ fn local_tools_stream_as_native_items_and_replay_with_original_call_ids() {
         let id = item["call_id"].as_str().unwrap();
         // The alias names the dotted native ID itself, so nothing is saved.
         assert_eq!(id, format!("call_gpe_native_2e{index}"));
-        assert!(
-            ready(access.read(IdentityRole::ToolCall, id))
-                .unwrap()
-                .is_none()
-        );
     }
     assert!(
         !store

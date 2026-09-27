@@ -28,7 +28,6 @@ pub(super) enum Kind {
         parts: BTreeMap<i64, Part>,
         next: i64,
         has_content: bool,
-        signed: bool,
         final_item: Option<i::ReasoningItem>,
         projected: bool,
     },
@@ -103,7 +102,6 @@ impl ResponsesToGeminiStream {
                 (Some(v.id), Kind::Message { parts, next: 0 }, bytes)
             }
             r::ResponseOutputItem::Reasoning(v) => {
-                let signed = self.restoration.parts.contains_key(&v.id);
                 let has_content = v.content.is_some();
                 let mut parts = BTreeMap::new();
                 let mut bytes = 0usize;
@@ -129,7 +127,6 @@ impl ResponsesToGeminiStream {
                         parts,
                         next: 0,
                         has_content,
-                        signed,
                         final_item: None,
                         projected: false,
                     },
@@ -422,7 +419,6 @@ impl ResponsesToGeminiStream {
                 Kind::Reasoning {
                     parts,
                     has_content,
-                    signed,
                     final_item,
                     ..
                 },
@@ -431,7 +427,7 @@ impl ResponsesToGeminiStream {
                 for part in parts.values_mut() {
                     part.done = true;
                 }
-                if *signed || !*has_content {
+                if !*has_content {
                     self.release(item.held);
                     parts.clear();
                     item.held = measure(&v, self.limits.max_pending)?;

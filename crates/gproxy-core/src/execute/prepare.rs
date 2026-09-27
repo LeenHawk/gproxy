@@ -6,8 +6,11 @@ use crate::{CredentialData, CredentialVersion, ProviderData};
 use futures_util::StreamExt;
 use gproxy_channel::channel::{CredentialView, ProviderView};
 use gproxy_protocol::{
-    Dialect, HttpBody, Operation, OperationKey, WireRequest, connection::Bytes,
-    transform::generate::claude_gemini::without_thinking_handles,
+    Dialect, HttpBody, Operation, OperationKey, WireRequest,
+    connection::Bytes,
+    transform::generate::{
+        claude_gemini::without_gemini_thinking, signature::without_carried_reasoning,
+    },
 };
 
 /// A streaming body is buffered up to `max_bytes` so it can be replayed. Past
@@ -101,23 +104,29 @@ pub(crate) fn clone_request(request: &WireRequest<HttpBody>) -> Option<WireReque
     }
 }
 
-/// A Claude request sent to its upstream as it is must not carry the
-/// thinking blocks gproxy signed with its own handle (a Gemini upstream's
-/// thinking shown to this client earlier): Anthropic cannot verify them, so
-/// they are dropped. A converted request is handled by the conversion.
+/// A request sent to its upstream as it is must not carry a signature another
+/// upstream issued, which gproxy handed to this client in the protocol's own
+/// reasoning field while a converted route served it: a Gemini signature in a
+/// Claude thinking block, or a Claude or Gemini signature in a Responses
+/// reasoning item. The upstream cannot verify it and refuses the request, so
+/// that reasoning is dropped. A converted request is handled by the
+/// conversion.
 pub(crate) fn drop_thinking_handles(operation: OperationKey, request: &mut WireRequest<HttpBody>) {
-    if operation.dialect != Dialect::Claude
-        || !matches!(
-            operation.operation,
-            Operation::GenerateContent | Operation::StreamGenerateContent | Operation::CountTokens
-        )
-    {
+    if !matches!(
+        operation.operation,
+        Operation::GenerateContent | Operation::StreamGenerateContent | Operation::CountTokens
+    ) {
         return;
     }
+    let strip: fn(&[u8]) -> Option<Vec<u8>> = match operation.dialect {
+        Dialect::Claude => without_gemini_thinking,
+        Dialect::OpenAi => without_carried_reasoning,
+        _ => return,
+    };
     let HttpBody::Bytes(bytes) = &request.body else {
         return;
     };
-    if let Some(body) = without_thinking_handles(bytes) {
+    if let Some(body) = strip(bytes) {
         request.headers.remove(http::header::CONTENT_LENGTH);
         request.body = HttpBody::Bytes(Bytes::from(body));
     }

@@ -121,12 +121,6 @@ where
             .as_str()
             .unwrap();
         assert_eq!(response_id, call.response_id());
-        // The aggregate ID is the gateway's own and nothing reads it back.
-        assert!(
-            ready(state.read(IdentityRole::Response, response_id))
-                .unwrap()
-                .is_none()
-        );
         assert!(value.get("usage").is_none_or(Value::is_null));
         assert!(value.get("usageMetadata").is_none());
         chunks.push(value.clone());
@@ -169,13 +163,7 @@ where
                 .unwrap()
         };
         // The first child forwards the upstream ID; the second repeats it and
-        // gets the counted alias, which names the same upstream ID. Neither
-        // is recorded.
-        assert!(
-            ready(state.read(IdentityRole::ToolCall, id))
-                .unwrap()
-                .is_none()
-        );
+        // gets the counted alias, which names the same upstream ID.
         ids.push(id);
     }
     assert_eq!(ids, ["tool:source", "call_gpe_tool_3asource"]);
@@ -326,124 +314,6 @@ fn later_child_failure_keeps_first_receipt_without_false_success() {
     assert!(ready(call.next(&host, &(), &state)).is_err());
     assert_eq!(host.host.sent.lock().unwrap().len(), 2);
 }
-fn signed_context(id: &str) -> gr::ResponsesToGeminiContext {
-    use gproxy_protocol::transform::{
-        generate::gemini_responses::{GeminiReplayContext, RestoredGeminiPart},
-        identity::{IdentityStateRecord, OpaqueField, OpaqueSignature},
-    };
-    let target = IdentityTarget::new("selected", Dialect::Gemini)
-        .unwrap()
-        .with_origin("original-gemini")
-        .unwrap();
-    let mut record = IdentityStateRecord::new(IdentityRole::ToolCall, target.clone());
-    record.client_call_id = Some("tool:source".into());
-    record.original_call_id = Some(id.into());
-    record.tool_name = Some("f".into());
-    record.opaque_signature = Some(
-        OpaqueSignature::new(
-            OpaqueField::GeminiPartThoughtSignature,
-            "original-signature",
-            "original-gemini",
-            "selected",
-        )
-        .unwrap(),
-    );
-    gr::ResponsesToGeminiContext{restoration:GeminiReplayContext{target:Some(target),parts:std::collections::BTreeMap::from([("tool:source".into(),RestoredGeminiPart{state:record,part:serde_json::from_value(json!({"functionCall":{"id":id,"name":"f","args":{"x":1}},"thoughtSignature":"original-signature"})).unwrap()})]),image_files:Default::default()},..Default::default()}
-}
-#[test]
-fn future_signed_id_is_reserved_before_first_unsigned_child_exposure() {
-    let store = Arc::new(Store::default());
-    let state = access(&store, Dialect::OpenAi);
-    let mut call = ready(GeminiViaResponsesFanout::prepare_stream(
-        serde_json::from_value(request(Dialect::Gemini)).unwrap(),
-        target(Dialect::Gemini, Dialect::OpenAi),
-        {
-            let mut contexts = vec![Default::default(), signed_context("tool:source")].into_iter();
-            move |_| contexts.next().unwrap()
-        },
-        settings(),
-        &state,
-    ))
-    .unwrap();
-    let feeds = (0..2)
-        .map(|_| {
-            let f = Feed::default();
-            all_pairs::source(&f, Dialect::OpenAi);
-            f.close();
-            f
-        })
-        .collect();
-    let host = MultiHost::new(store.clone(), feeds);
-    let result = ready(call.collect(&host, &(), &state)).unwrap().value;
-    let mut found = Vec::new();
-    for candidate in result.candidates.unwrap() {
-        let part = candidate
-            .content
-            .unwrap()
-            .parts
-            .unwrap()
-            .into_iter()
-            .find(|p| p.function_call.is_some())
-            .unwrap();
-        found.push((part.function_call.unwrap().id, part.thought_signature));
-    }
-    assert_ne!(found[0].0.as_deref(), Some("tool:source"));
-    assert!(found[0].1.is_none());
-    assert_eq!(
-        found[1],
-        (
-            Some("tool:source".into()),
-            Some("original-signature".into())
-        )
-    );
-}
-#[test]
-fn duplicate_actual_signed_ids_stop_before_second_exposure() {
-    let store = Arc::new(Store::default());
-    let state = access(&store, Dialect::OpenAi);
-    let mut call = ready(GeminiViaResponsesFanout::prepare_stream(
-        serde_json::from_value(request(Dialect::Gemini)).unwrap(),
-        target(Dialect::Gemini, Dialect::OpenAi),
-        {
-            let mut contexts = vec![signed_context("fixed"), signed_context("fixed")].into_iter();
-            move |_| contexts.next().unwrap()
-        },
-        settings(),
-        &state,
-    ))
-    .unwrap();
-    let feeds = (0..2)
-        .map(|_| {
-            let f = Feed::default();
-            all_pairs::source(&f, Dialect::OpenAi);
-            f.close();
-            f
-        })
-        .collect();
-    let host = MultiHost::new(store.clone(), feeds);
-    let mut exposed = 0;
-    loop {
-        match ready(call.next(&host, &(), &state)) {
-            Ok(Some(chunk)) => {
-                if let Some(event) = chunk.event {
-                    exposed += event.tool_declarations(true).len();
-                }
-            }
-            Err(error) => {
-                assert_eq!(
-                    error.kind(),
-                    gproxy_protocol::transform::TransformErrorKind::InvalidResult
-                );
-                break;
-            }
-            Ok(None) => panic!("signed collision must fail"),
-        }
-    }
-    assert_eq!(exposed, 1);
-    assert!(call.client_result().is_none());
-    assert_eq!(host.host.sent.lock().unwrap().len(), 2);
-}
-
 #[test]
 fn chat_usage_opt_out_suppresses_wire_usage_but_retains_measured_aggregate() {
     fn run<

@@ -127,7 +127,7 @@ fn host<N: serde::Serialize>(store: Arc<Store>, native: &N) -> Host {
     host
 }
 #[test]
-fn signed_file_output_uses_actual_read_and_replays_the_original_file_part() {
+fn signed_file_output_carries_its_signature_and_replays_the_client_bytes() {
     let store = Arc::new(Store::default());
     let state = state(&store, Dialect::Gemini);
     let resource_host = Resources::default();
@@ -155,38 +155,54 @@ fn signed_file_output_uses_actual_read_and_replays_the_original_file_part() {
     .unwrap() else {
         panic!()
     };
-    let r::ResponseOutputItem::ImageGenerationCall(image) = &response.body.output[0] else {
+    // The signature travels on the reasoning item before the image, and
+    // the image carries the bytes the gateway read.
+    let r::ResponseOutputItem::Reasoning(carrier) = &response.body.output[0] else {
+        panic!()
+    };
+    assert_eq!(
+        carrier.encrypted_content,
+        Some(Some("gemini-next:original-signed-file".into()))
+    );
+    let r::ResponseOutputItem::ImageGenerationCall(image) = &response.body.output[1] else {
         panic!()
     };
     assert_eq!(image.result.as_deref(), Some(PNG));
     assert_eq!(resource_host.reads.load(Ordering::SeqCst), 1);
+    assert!(
+        store
+            .entries
+            .lock()
+            .unwrap()
+            .keys()
+            .all(|key| !key.starts_with("generate:"))
+    );
     let mut input = rrequest();
-    input.input = Some(r::Input::Items(vec![r::InputItem::ImageGenerationCall(
-        image.clone(),
-    )]));
+    input.input = Some(r::Input::Items(vec![
+        r::InputItem::Reasoning(carrier.clone()),
+        r::InputItem::ImageGenerationCall(image.clone()),
+    ]));
+    let empty = Store::default();
     let prepared = ready(ResponsesViaGemini::prepare_with_state(
         input.clone(),
         Endpoint::new("/generateContent").unwrap(),
         ids(Dialect::OpenAi, Dialect::Gemini),
-        &state,
+        &self::state(&empty, Dialect::Gemini),
         Default::default(),
     ))
     .unwrap();
+    // The client's bytes replay inline, with the carried signature, in place
+    // of the fileData URI the client never saw.
     let restored = &prepared.target_request().contents[0]
         .parts
         .as_ref()
         .unwrap()[0];
     assert_eq!(
-        restored,
-        &native.candidates.as_ref().unwrap()[0]
-            .content
-            .as_ref()
-            .unwrap()
-            .parts
-            .as_ref()
-            .unwrap()[0]
+        restored.thought_signature.as_deref(),
+        Some("original-signed-file")
     );
-    assert!(restored.inline_data.is_none());
+    assert_eq!(restored.inline_data.as_ref().unwrap().data, PNG);
+    assert!(restored.file_data.is_none());
     ready(
         call.recover_with_image_resources(limits(), &state, &resources, &mut progress, |_| {
             Ok(facts())
@@ -295,7 +311,7 @@ fn uri_publication_cancellation_queries_receipt_and_never_repeats_post_or_publis
     assert_eq!(progress.publications.receipts().len(), receipts + 1);
 }
 #[test]
-fn file_image_stream_exposes_validated_bytes_before_eof_and_saves_original_proof() {
+fn file_image_stream_exposes_validated_bytes_before_eof_and_saves_nothing() {
     let store = Arc::new(Store::default());
     let state = state(&store, Dialect::Gemini);
     let resource_host = Resources::default();
@@ -369,13 +385,14 @@ fn file_image_stream_exposes_validated_bytes_before_eof_and_saves_original_proof
         ready(call.next_with_image_resources(&state, &resources, &mut progress)).unwrap()
     {
         if matches!(chunk.event, Some(r::stream::StreamEvent::Completed(_))) {
+            // The signature went to the client; nothing is kept for it.
             assert!(
                 store
                     .entries
                     .lock()
                     .unwrap()
                     .keys()
-                    .any(|key| key.ends_with(":gemini-image-file"))
+                    .all(|key| !key.starts_with("generate:"))
             );
         }
     }

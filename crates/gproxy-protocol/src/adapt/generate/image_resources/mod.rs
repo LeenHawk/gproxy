@@ -1,9 +1,9 @@
 //! Explicit image reads and publication with caller-owned cancellation progress.
-//! The original signed Gemini Part is retained separately from its mapped bytes.
+//! The native Gemini response is kept apart from the view its images are read or
+//! published into; an image signature travels with the view to the client.
 
 mod publish;
 mod read;
-mod state;
 mod stream;
 mod thread;
 use super::GenerationProgress;
@@ -89,13 +89,12 @@ impl<H> GeminiImagePublications<H> {
     }
 }
 
-/// Generation, resource, and proof writes have independent retained progress.
+/// Generation and resource work have independent retained progress.
 /// Re-enter through `recover_with_image_resources`, never repeat an uncertain POST.
 pub struct ImageResourceProgress<N, H> {
     pub generation: GenerationProgress<N>,
     pub reads: GeminiImageReads,
     pub publications: GeminiImagePublications<H>,
-    pub(super) proofs: GenerationProgress<()>,
 }
 
 impl<N, H> Default for ImageResourceProgress<N, H> {
@@ -104,7 +103,6 @@ impl<N, H> Default for ImageResourceProgress<N, H> {
             generation: Default::default(),
             reads: Default::default(),
             publications: Default::default(),
-            proofs: Default::default(),
         }
     }
 }

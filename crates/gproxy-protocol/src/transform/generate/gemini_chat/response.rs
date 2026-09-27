@@ -73,17 +73,20 @@ pub fn gemini_to_openai_response(
         if content.role.is_none() {
             content.role = Some("model".into());
         }
+        let mut signatures = super::content::Signatures::default();
         let mapped = super::content::gemini_content_to_chat(
             content,
             &mut report,
             &mut ids,
             policy,
             &mut bindings,
+            Some(&mut signatures),
         )?;
         let mut text = String::new();
         let mut has_text = false;
         let mut reasoning = String::new();
         let mut tool_calls = Vec::new();
+        let mut details = Vec::new();
         for message in mapped {
             match message {
                 c::ChatMessage::Assistant(message) => {
@@ -119,6 +122,7 @@ pub fn gemini_to_openai_response(
                         }
                     }
                     tool_calls.extend(message.tool_calls.unwrap_or_default());
+                    details.extend(message.reasoning_details.flatten().into_iter().flatten());
                 }
                 c::ChatMessage::User(_)
                 | c::ChatMessage::System(_)
@@ -198,6 +202,9 @@ pub fn gemini_to_openai_response(
             message.reasoning_content = Some(Some(reasoning));
         }
         message.tool_calls = (!tool_calls.is_empty()).then_some(tool_calls);
+        if !details.is_empty() {
+            message.reasoning_details = Some(Some(details));
+        }
         let logs = candidate
             .logprobs_result
             .map(|logs| super::logs::to_chat(logs, &mut report))

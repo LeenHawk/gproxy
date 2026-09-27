@@ -247,8 +247,7 @@ fn gemini_tools_host() -> Host {
     body["candidates"][0]["content"]["parts"] = json!([{ "functionCall":{"name":"same","args":{"a":1}} },{ "functionCall":{"name":"same","args":{"a":2}} }]);
     Host::new(body)
 }
-/// Signed calls are what a response still records: each writes its record
-/// and its native part.
+/// Signed calls, whose signatures the client carries back itself.
 fn signed_gemini_tools_host() -> Host {
     let mut body = output("g");
     body["candidates"][0]["content"]["parts"] = json!([{ "functionCall":{"name":"same","args":{"a":1}},"thoughtSignature":"c2lnbmF0dXJl" },{ "functionCall":{"name":"same","args":{"a":2}},"thoughtSignature":"c2lnbmF0dXJl" }]);
@@ -375,9 +374,6 @@ mod state;
 
 #[path = "adapt_generate/signed.rs"]
 mod signed;
-
-#[path = "adapt_generate/gemini_thinking.rs"]
-mod gemini_thinking;
 
 #[path = "adapt_generate/orphan.rs"]
 mod orphan;

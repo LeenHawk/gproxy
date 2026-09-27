@@ -19,7 +19,6 @@ pub struct GeminiViaResponses {
     endpoint: Endpoint,
     identities: GenerationIdentity,
     report: Report,
-    signed_ids: super::request_ids::SignedToolBindings,
 }
 
 impl GeminiViaResponses {
@@ -48,7 +47,6 @@ impl GeminiViaResponses {
             endpoint,
             identities,
             report: converted.report,
-            signed_ids: Default::default(),
         })
     }
     /// Restore exact tool aliases and names from declared history/scoped state before mapping.
@@ -106,9 +104,6 @@ impl GeminiViaResponses {
     }
     pub fn report(&self) -> &Report {
         &self.report
-    }
-    pub(super) fn signed_tool_bindings(&self) -> &super::request_ids::SignedToolBindings {
-        &self.signed_ids
     }
     pub fn selected_model(&self) -> &str {
         &self.selected_model
@@ -174,11 +169,7 @@ impl GeminiViaResponses {
                 }
             }
         }
-        self.signed_ids = super::request_ids::gemini_response(
-            &mut converted.value,
-            &mut self.identities,
-            &native,
-        )?;
+        super::request_ids::gemini_response(&mut converted.value, &mut self.identities, &native)?;
         Ok(converted)
     }
     /// Performs one POST. The factual supplement is obtained from the actual decoded response.
@@ -248,16 +239,7 @@ impl GeminiViaResponses {
         }
         let native = transport::recover_native(progress, limits)?;
         let facts = facts(&native)?;
-        let converted = self.convert_response(native.clone(), facts)?;
-        state
-            .save_pair_with_bound_ids(
-                &native,
-                &converted.value,
-                &self.identities.response,
-                self.signed_tool_bindings(),
-                progress,
-            )
-            .await?;
+        let converted = self.convert_response(native, facts)?;
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }
@@ -328,9 +310,7 @@ impl ResponsesViaGemini {
         let mut tool_report = Report::default();
         crate::transform::generate::client_tools::Bindings::for_target(&original, Dialect::Gemini)?
             .lower(&mut lowered, &mut tool_report)?;
-        let (restored, names) = super::history::responses(lowered.clone(), state).await?;
-        let _ = names;
-        let mut context = context;
+        let (restored, _) = super::history::responses(lowered, state).await?;
         if context
             .target
             .as_ref()
@@ -340,25 +320,6 @@ impl ResponsesViaGemini {
                 "signature.context",
                 "caller replay binding conflicts with selected state",
             ));
-        }
-        let recovered = state.gemini_replay(&lowered).await?;
-        context.target = recovered.target;
-        for (id, piece) in recovered.parts {
-            if context.parts.contains_key(&id) {
-                return Err(TransformError::shape(
-                    "signature.context",
-                    "duplicate caller and stored native piece",
-                ));
-            }
-            context.parts.insert(id, piece);
-        }
-        for (id, image) in recovered.image_files {
-            if context.parts.contains_key(&id) || context.image_files.insert(id, image).is_some() {
-                return Err(TransformError::shape(
-                    "signature.context",
-                    "duplicate caller and stored image proof",
-                ));
-            }
         }
         let mut prepared = Self::prepare(restored, selected_model, endpoint, identities, context)?;
         prepared.original_request = original;
@@ -483,15 +444,7 @@ impl ResponsesViaGemini {
         }
         let native = transport::recover_native(progress, limits)?;
         let facts = facts(&native)?;
-        let converted = self.convert_response(native.clone(), facts)?;
-        state
-            .save_pair(
-                &native,
-                &converted.value,
-                &self.identities.response,
-                progress,
-            )
-            .await?;
+        let converted = self.convert_response(native, facts)?;
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }

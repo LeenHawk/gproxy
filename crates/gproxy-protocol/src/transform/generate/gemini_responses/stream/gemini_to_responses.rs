@@ -296,7 +296,6 @@ impl GeminiToResponsesStream {
             chunks: out,
             identities: self.flow,
             report,
-            signed_tool_bindings: Default::default(),
         })
     }
 }

@@ -2,7 +2,8 @@ use super::usage::ClaudeGeminiUsageFacts;
 use crate::{
     transform::{
         Converted, Report, TransformError,
-        identity::{IdentityFlow, IdentityRole, OutputItemKind, SourceIdentity, TargetIdPolicy},
+        generate::signature,
+        identity::{IdentityFlow, IdentityRole, SourceIdentity, TargetIdPolicy},
     },
     wire::{DeclaredFields, claude::generate_content as c, gemini as g},
 };
@@ -59,7 +60,7 @@ pub fn claude_to_gemini_response(
             c::ResponseContentBlock::Thinking(v) => {
                 report.omitted(
                     "content.signature",
-                    "native Claude signature requires scoped host state and cannot become a Gemini signature",
+                    "a Claude signature cannot become a Gemini signature",
                 );
                 parts.push(g::Part::builder().text(v.thinking).thought(true).build());
             }
@@ -223,13 +224,7 @@ pub fn gemini_to_claude_response(
     let mut content = Vec::new();
     // Thought text collected until its run closes; see `thinking`.
     let mut run: Option<String> = None;
-    for (index, p) in candidate
-        .content
-        .and_then(|v| v.parts)
-        .unwrap_or_default()
-        .into_iter()
-        .enumerate()
-    {
+    for p in candidate.content.and_then(|v| v.parts).unwrap_or_default() {
         if super::thinking::is_empty_text(&p) {
             continue;
         }
@@ -238,19 +233,22 @@ pub fn gemini_to_claude_response(
             if let Some(part) = &p.text {
                 text.push_str(part);
             }
-            if p.thought_signature.is_some() {
-                let handle = thinking_handle(&mut ids, policy, index)?;
-                content.push(thinking_block(run.take().unwrap_or_default(), handle));
+            if let Some(native) = &p.thought_signature {
+                content.push(thinking_block(
+                    run.take().unwrap_or_default(),
+                    signature::gemini_thought(Some(native)),
+                ));
             }
             continue;
         }
         if let Some(text) = run.take() {
-            content.push(thinking_block(text, super::thinking::unsigned_handle()));
+            content.push(thinking_block(text, signature::gemini_thought(None)));
         }
-        if p.thought_signature.is_some() {
+        let carried = super::thinking::call_signature(&p);
+        if p.thought_signature.is_some() && carried.is_none() {
             report.omitted(
                 "thought_signature",
-                "native Gemini signature outside a thought run has no Claude field",
+                "native Gemini signature outside a thought run or function call has no Claude field",
             );
         }
         if p.part_metadata.is_some() {
@@ -272,6 +270,11 @@ pub fn gemini_to_claude_response(
             }
         }
         if let Some(call) = p.function_call {
+            // The call's own signature travels on an empty thinking block
+            // right before it; see `thinking`.
+            if let Some(carried) = carried {
+                content.push(thinking_block(String::new(), carried));
+            }
             let id = calls.call(
                 call.id,
                 &call.name,
@@ -291,7 +294,7 @@ pub fn gemini_to_claude_response(
         }
     }
     if let Some(text) = run.take() {
-        content.push(thinking_block(text, super::thinking::unsigned_handle()));
+        content.push(thinking_block(text, signature::gemini_thought(None)));
     }
     if stop == c::StopReason::EndTurn
         && content
@@ -368,25 +371,7 @@ fn id(
     .map_err(|e| TransformError::shape("identity", e.to_string()))
 }
 
-/// The handle for the signed run closing at `index`: a reasoning identity at
-/// the signature part's position, so a stream and its collected body agree.
-pub(crate) fn thinking_handle(
-    flow: &mut IdentityFlow,
-    policy: &TargetIdPolicy,
-    index: usize,
-) -> Result<String, TransformError> {
-    let id = flow
-        .resolve_or_allocate(
-            IdentityRole::OutputItem(OutputItemKind::Reasoning),
-            SourceIdentity::new(crate::Dialect::Gemini, None, index as u64),
-            policy,
-        )
-        .map_err(|e| TransformError::shape("identity", e.to_string()))?
-        .emitted_id;
-    Ok(super::thinking::signed_handle(&id))
-}
-
-fn thinking_block(thinking: String, signature: String) -> c::ResponseContentBlock {
+pub(crate) fn thinking_block(thinking: String, signature: String) -> c::ResponseContentBlock {
     c::ResponseContentBlock::Thinking(
         crate::wire::claude::content::ThinkingBlock::builder(
             crate::wire::claude::content::ThinkingBlockType::Tag,

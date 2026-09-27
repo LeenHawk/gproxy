@@ -25,6 +25,7 @@ impl GeminiToResponsesStream {
         let logical = self.part_index as u64;
         self.part_index += 1;
 
+        let carried = super::super::response::next_signature(&part).is_some();
         if let Some(blob) = &part.inline_data {
             super::super::images::requested_format(blob, &self.context.response.request)?;
             let id = super::super::identity::id(
@@ -40,6 +41,9 @@ impl GeminiToResponsesStream {
             let mut added = complete.clone();
             added.result = None;
             added.status = i::ImageGenerationStatus::InProgress;
+            if carried {
+                self.carrier(logical, out)?;
+            }
             let index = self.add_output(r::ResponseOutputItem::ImageGenerationCall(added), out)?;
             self.target.item_done(
                 &mut self.budget,
@@ -49,7 +53,7 @@ impl GeminiToResponsesStream {
             )?;
             return Ok(());
         }
-        if let Some(text) = part.text {
+        if let Some(text) = super::super::response::thought_text(&part) {
             let reasoning = part.thought == Some(true);
             let kind = if reasoning {
                 OutputItemKind::Reasoning
@@ -141,6 +145,9 @@ impl GeminiToResponsesStream {
                     ),
                 )?;
                 if let Some(item) = item {
+                    if carried {
+                        self.carrier(logical, out)?;
+                    }
                     self.add_output(item, out)?;
                 }
                 return Ok(());
@@ -156,10 +163,38 @@ impl GeminiToResponsesStream {
                 .status(i::ItemStatus::InProgress)
                 .build(),
             )?;
+            if carried {
+                self.carrier(logical, out)?;
+            }
             let index = self.add_output(item, out)?;
             self.target
                 .arguments(&mut self.budget, out, index, item_id, arguments, false)?;
         }
+        Ok(())
+    }
+    /// The empty reasoning item the collected body places before a signed
+    /// call or image; its signature arrives with the item's completion.
+    fn carrier(
+        &mut self,
+        logical: u64,
+        out: &mut Vec<s::StreamEvent>,
+    ) -> Result<(), TransformError> {
+        let id = super::super::identity::id(
+            &mut self.flow,
+            &self.policy,
+            IdentityRole::Message,
+            IdentityRole::OutputItem(OutputItemKind::Reasoning),
+            None,
+            logical,
+        )?;
+        self.add_output(
+            r::ResponseOutputItem::Reasoning(
+                i::ReasoningItem::builder(i::ReasoningItemType::ReasoningItem, id, Vec::new())
+                    .status(i::ReasoningStatus::InProgress)
+                    .build(),
+            ),
+            out,
+        )?;
         Ok(())
     }
     fn add_output(

@@ -15,7 +15,6 @@ pub mod image_resources;
 mod legacy_chat;
 mod request_ids;
 mod resources;
-mod signed;
 mod state;
 pub mod stream;
 mod transport;

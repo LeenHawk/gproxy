@@ -214,6 +214,8 @@ impl ResponseEvents {
                     })
                 })?;
             }
+            // An item that only carries a signature has no text to finish.
+            r::ResponseOutputItem::Reasoning(v) if v.content.is_none() => {}
             r::ResponseOutputItem::Reasoning(v) => {
                 let part = v
                     .content

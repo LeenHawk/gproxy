@@ -40,7 +40,6 @@ where
     settings: StreamSettings,
     index: usize,
     seeded: bool,
-    fixed: BTreeSet<String>,
     seen: BTreeMap<String, usize>,
     response_ids: BTreeSet<String>,
     completed: Vec<ClientFull<B>>,
@@ -81,19 +80,8 @@ where
         {
             return Err(limit("fanout count exceeds event/state budget"));
         }
-        let mut fixed = BTreeSet::new();
         for child in &children {
             child.binding.check(state)?;
-            fixed.extend(
-                child
-                    .bridge
-                    .as_ref()
-                    .ok_or_else(|| invalid("child bridge consumed"))?
-                    .fixed_ids(),
-            );
-        }
-        if fixed.len() > state.max_records {
-            return Err(limit("fanout fixed IDs exceed state budget"));
         }
         let collector = B::ClientEvent::collector(
             IdentityFlow::new(options.namespace),
@@ -113,7 +101,6 @@ where
             settings,
             index: 0,
             seeded: false,
-            fixed,
             seen: Default::default(),
             response_ids,
             completed: Vec::new(),

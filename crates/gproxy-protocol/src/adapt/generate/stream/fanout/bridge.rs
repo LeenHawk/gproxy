@@ -16,9 +16,6 @@ pub trait FanoutBridge: StreamBridge + sealed::Edge {
         ids: &BTreeSet<String>,
         max: usize,
     ) -> Result<(), TransformError>;
-    fn fixed_ids(&self) -> BTreeSet<String> {
-        BTreeSet::new()
-    }
 }
 
 macro_rules! edge {
@@ -49,8 +46,5 @@ impl FanoutBridge for gr::ResponsesToGeminiStream {
         max: usize,
     ) -> Result<(), TransformError> {
         self.reserve_external_ids(role, ids, max)
-    }
-    fn fixed_ids(&self) -> BTreeSet<String> {
-        self.reserved_tool_ids().clone()
     }
 }

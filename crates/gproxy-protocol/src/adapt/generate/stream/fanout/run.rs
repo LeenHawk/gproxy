@@ -75,13 +75,8 @@ where
     ) -> Result<Option<StreamChunk<B::ClientEvent>>, TransformError> {
         while self.index < self.children.len() {
             if !self.seeded {
-                let mut reserved = self.fixed.clone();
-                reserved.extend(self.seen.keys().cloned());
-                let reserved_budget = self
-                    .fixed
-                    .len()
-                    .checked_add(state.max_records)
-                    .ok_or_else(|| limit("fanout reserved identity budget overflow"))?;
+                let reserved: BTreeSet<String> = self.seen.keys().cloned().collect();
+                let reserved_budget = state.max_records;
                 let child = &mut self.children[self.index];
                 child
                     .bridge

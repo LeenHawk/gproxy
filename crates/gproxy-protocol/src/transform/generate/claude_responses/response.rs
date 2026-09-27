@@ -121,23 +121,11 @@ pub fn responses_to_claude_response(
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
 ) -> Result<Converted<c::GenerateContentResponseBody>, TransformError> {
-    convert_to_claude(input, None, flow, policy)
-}
-
-/// Restore signed Claude thinking only when the caller supplies its validated
-/// original-origin state and native block. The context is consumed on use.
-pub fn responses_to_claude_response_with_context(
-    input: r::GenerateContentResponseBody,
-    context: super::request::ClaudeRequestContext,
-    flow: &mut IdentityFlow,
-    policy: &TargetIdPolicy,
-) -> Result<Converted<c::GenerateContentResponseBody>, TransformError> {
-    convert_to_claude(input, Some(context), flow, policy)
+    convert_to_claude(input, flow, policy)
 }
 
 fn convert_to_claude(
     input: r::GenerateContentResponseBody,
-    mut context: Option<super::request::ClaudeRequestContext>,
     flow: &mut IdentityFlow,
     policy: &TargetIdPolicy,
 ) -> Result<Converted<c::GenerateContentResponseBody>, TransformError> {
@@ -196,17 +184,7 @@ fn convert_to_claude(
     };
     let mut ids = flow.clone();
     let mut report = Report::default();
-    let content = content::to_claude(
-        input.output,
-        completed,
-        &mut ids,
-        policy,
-        &mut report,
-        content::Restoration {
-            model: &input.model,
-            context: context.as_mut(),
-        },
-    )?;
+    let content = content::to_claude(input.output, completed, &mut ids, policy, &mut report)?;
     let id = content::id(
         &mut ids,
         policy,

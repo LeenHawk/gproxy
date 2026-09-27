@@ -13,6 +13,10 @@ use crate::{
 
 pub(crate) const OPENAI: &str = "openai-responses-v1";
 pub(crate) const CLAUDE: &str = "anthropic-claude-v1";
+/// Gemini signatures, as OpenRouter tags them: a `reasoning.text` detail with
+/// the `signature` of the thought it holds, or a `reasoning.encrypted` detail
+/// whose `data` is the signature of the tool call its `id` names.
+pub(crate) const GEMINI: &str = "google-gemini-v1";
 
 fn detail(kind: Kind, format: &str, index: i64, id: Option<String>) -> Detail {
     Detail {
@@ -39,7 +43,11 @@ pub(crate) fn from_responses(item: &r::ReasoningItem, index: i64) -> Vec<Detail>
         d.text = Some(Some(part.text.clone()));
         out.push(d);
     }
-    if let Some(Some(data)) = &item.encrypted_content {
+    // A signature gproxy carried from Claude or Gemini is not OpenAI
+    // ciphertext; no OpenAI-format consumer could decrypt it.
+    if let Some(Some(data)) = &item.encrypted_content
+        && !super::signature::is_carried(data)
+    {
         let mut d = detail(Kind::Encrypted, OPENAI, index, Some(item.id.clone()));
         d.data = Some(data.clone());
         out.push(d);
@@ -53,6 +61,19 @@ pub(crate) fn from_thinking(block: &c::ThinkingBlock, index: i64) -> Detail {
     let mut d = detail(Kind::Text, CLAUDE, index, None);
     d.text = Some(Some(block.thinking.clone()));
     d.signature = Some(Some(block.signature.clone()));
+    d
+}
+/// A signed Gemini thought: its whole text and its signature.
+pub(crate) fn gemini_thought(text: String, signature: String, index: i64) -> Detail {
+    let mut d = detail(Kind::Text, GEMINI, index, None);
+    d.text = Some(Some(text));
+    d.signature = Some(Some(signature));
+    d
+}
+/// A signed Gemini function call's signature, for the tool call `id`.
+pub(crate) fn gemini_call(id: String, signature: String, index: i64) -> Detail {
+    let mut d = detail(Kind::Encrypted, GEMINI, index, Some(id));
+    d.data = Some(signature);
     d
 }
 pub(crate) fn from_redacted(block: &c::RedactedThinkingBlock, index: i64) -> Detail {

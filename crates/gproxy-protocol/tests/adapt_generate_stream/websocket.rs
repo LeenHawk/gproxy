@@ -100,7 +100,7 @@ fn ws_responses_to_claude_actual_incremental_host() {
     let store = http_host::Store::default();
     let state = access(&store, Dialect::OpenAi);
     let context = gproxy_protocol::transform::generate::claude_responses::stream::ResponsesToClaudeContext {
-        usage: Some(serde_json::from_value(json!({"input_tokens":3,"output_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens_details":{"thinking_tokens":0}})).unwrap()), ..Default::default()
+        usage: Some(serde_json::from_value(json!({"input_tokens":3,"output_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens_details":{"thinking_tokens":0}})).unwrap())
     };
     let call = http_host::ready(
         generation::claude_responses::ClaudeViaResponses::prepare_stream(

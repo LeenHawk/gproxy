@@ -68,18 +68,7 @@ impl ClaudeViaGemini {
         let (restored, names) = super::history::claude(original.clone(), state).await?;
         let mut context = context;
         super::history::merge_names(&mut context.tool_names, names.names)?;
-        context.thinking_handles = true;
         let mut prepared = Self::prepare(restored, selected_model, endpoint, identities, context)?;
-        state
-            .restore_gemini_tool_parts(
-                &mut prepared.target_request,
-                &prepared.identities.request,
-                &prepared.identities.request_policy,
-            )
-            .await?;
-        state
-            .restore_gemini_thinking(&mut prepared.target_request)
-            .await?;
         prepared.original_request = original;
         Ok(prepared)
     }
@@ -199,15 +188,7 @@ impl ClaudeViaGemini {
         }
         let native = transport::recover_native(progress, limits)?;
         let facts = facts(&native)?;
-        let converted = self.convert_response(native.clone(), facts)?;
-        state
-            .save_pair(
-                &native,
-                &converted.value,
-                &self.identities.response,
-                progress,
-            )
-            .await?;
+        let converted = self.convert_response(native, facts)?;
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }
@@ -403,15 +384,7 @@ impl GeminiViaClaude {
         }
         let native = transport::recover_native(progress, limits)?;
         let facts = facts(&native)?;
-        let converted = self.convert_response(native.clone(), facts)?;
-        state
-            .save_pair(
-                &native,
-                &converted.value,
-                &self.identities.response,
-                progress,
-            )
-            .await?;
+        let converted = self.convert_response(native, facts)?;
         transport::finish(progress, converted, self.report.clone(), limits)
     }
 }
