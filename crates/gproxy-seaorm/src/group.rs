@@ -36,6 +36,8 @@ use tokio::sync::oneshot;
 
 use crate::{BatchResult, BatchStatement};
 
+mod sqlite;
+
 /// The most batches one transaction carries.
 pub const MAX_GROUP: usize = 256;
 
@@ -191,6 +193,14 @@ async fn transaction(db: &DatabaseConnection) -> Result<sea_orm::DatabaseTransac
 
 /// Every job in one transaction; any failure rolls all of them back.
 async fn together(db: &DatabaseConnection, jobs: &[Job]) -> Result<Vec<Vec<BatchResult>>, DbErr> {
+    if let Some(result) = sqlite::run(
+        db.get_sqlite_connection_pool(),
+        jobs.iter().map(|job| job.statements.as_slice()),
+    )
+    .await
+    {
+        return result;
+    }
     let transaction = transaction(db).await?;
     let mut results = Vec::with_capacity(jobs.len());
     for job in jobs {
@@ -211,6 +221,11 @@ async fn alone(
     db: &DatabaseConnection,
     statements: &[BatchStatement],
 ) -> Result<Vec<BatchResult>, DbErr> {
+    if let Some(result) =
+        sqlite::run(db.get_sqlite_connection_pool(), std::iter::once(statements)).await
+    {
+        return result.map(|mut groups| groups.remove(0));
+    }
     let transaction = transaction(db).await?;
     match crate::batch::run_native(&transaction, statements).await {
         Ok(results) => {

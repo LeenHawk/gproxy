@@ -148,6 +148,7 @@ semver = "1"
 self-replace = "1"
 rust-embed = { version = "8", features = ["include-exclude"] }
 sea-query = { version = "1", default-features = false, features = ["backend-mysql", "backend-postgres", "backend-sqlite", "derive"] }
+sea-query-sqlx = { version = "0.9", default-features = false }
 sea-schema = { version = "0.18", default-features = false }
 sea-orm = { version = "2", default-features = false, features = ["macros", "with-json"] }
 sea-orm-migration = { version = "2", default-features = false, features = ["with-time"] }

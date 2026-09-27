@@ -17,7 +17,7 @@ default = []
 libsql = ["dep:base64"]
 # Native SQLite: a writer task that commits queued batches together, one
 # transaction per group; see `group`. Enabled by the native binary.
-group-commit = ["sea-orm/sqlx-sqlite", "sea-orm/runtime-tokio", "dep:tokio"]
+group-commit = ["sea-orm/sqlx-sqlite", "sea-orm/runtime-tokio", "dep:tokio", "dep:futures-util", "dep:sea-query-sqlx"]
 
 [dependencies]
 async-trait = { workspace = true }
@@ -38,6 +38,8 @@ wasm-bindgen-futures = { workspace = true }
 time = { workspace = true, features = ["wasm-bindgen"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+futures-util = { workspace = true, optional = true }
+sea-query-sqlx = { workspace = true, optional = true, features = ["sqlx-sqlite"] }
 tokio = { workspace = true, optional = true, features = ["sync", "rt"] }
 # mock acknowledges recorded D1 planning DDL; schema-sync uses native discovery.
 sea-orm = { workspace = true, features = ["mock", "schema-sync"] }
