@@ -170,7 +170,18 @@ async fn drain(db: DatabaseConnection, queue: Arc<Queue>) {
 /// failing batch is rare. When one does fail, the whole group is rolled back
 /// and every job runs again in a transaction of its own, so each hears exactly
 /// the outcome it would have had alone.
-async fn run_group(db: &DatabaseConnection, jobs: Vec<Job>) {
+async fn run_group(db: &DatabaseConnection, mut jobs: Vec<Job>) {
+    if sqlite::compatible(jobs.iter().map(|job| job.statements.as_slice())) {
+        let batches = jobs
+            .iter_mut()
+            .map(|job| (std::mem::take(&mut job.statements), job.transactional))
+            .collect();
+        let results = sqlite::run_jobs(db.get_sqlite_connection_pool(), batches).await;
+        for (job, result) in jobs.into_iter().zip(results) {
+            let _ = job.reply.send(result);
+        }
+        return;
+    }
     if jobs.len() > 1 {
         // On failure nothing of the group was committed; each runs on its own
         // below.
@@ -203,14 +214,6 @@ async fn transaction(db: &DatabaseConnection) -> Result<sea_orm::DatabaseTransac
 
 /// Every job in one transaction; any failure rolls all of them back.
 async fn together(db: &DatabaseConnection, jobs: &[Job]) -> Result<Vec<Vec<BatchResult>>, DbErr> {
-    if let Some(result) = sqlite::run(
-        db.get_sqlite_connection_pool(),
-        jobs.iter().map(|job| job.statements.as_slice()),
-    )
-    .await
-    {
-        return result;
-    }
     let transaction = transaction(db).await?;
     let mut results = Vec::with_capacity(jobs.len());
     for job in jobs {
@@ -231,14 +234,6 @@ async fn alone(
     db: &DatabaseConnection,
     statements: Vec<BatchStatement>,
 ) -> Result<Vec<BatchResult>, DbErr> {
-    if let Some(result) = sqlite::run(
-        db.get_sqlite_connection_pool(),
-        std::iter::once(statements.as_slice()),
-    )
-    .await
-    {
-        return result.map(|mut groups| groups.remove(0));
-    }
     let transaction = transaction(db).await?;
     match crate::batch::run_native(&transaction, statements.into_iter()).await {
         Ok(results) => {

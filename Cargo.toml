@@ -1,5 +1,6 @@
 [workspace]
 resolver = "3"
+exclude = ["vendor/sqlx-sqlite"]
 members = [
     "crates/gproxy-protocol",
     "crates/gproxy-protocol-macros",
@@ -203,3 +204,7 @@ lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = "symbols"
+
+# Preserve individual statement caches while sending one SQLite worker command per batch.
+[patch.crates-io]
+sqlx-sqlite = { path = "vendor/sqlx-sqlite" }

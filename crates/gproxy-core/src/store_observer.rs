@@ -53,8 +53,8 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Observer for StoreObserver
             attempt_ordinal: Set(Some(attempt.ordinal as i32)),
             side: Set(record::CaptureSide::Upstream),
             kind: Set(record::CaptureKind::Http),
-            user_id: Set(request.attribution.user_id.clone()),
-            api_key_id: Set(request.attribution.api_key_id.clone()),
+            user_id: reported(request.attribution.user_id.clone()),
+            api_key_id: reported(request.attribution.api_key_id.clone()),
             provider_id: Set(Some(attempt.credential.provider_id.clone())),
             credential_id: Set(Some(attempt.credential.id.clone())),
             agent_assignment_id: Set(attempt
@@ -105,16 +105,22 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Observer for StoreObserver
             {
                 return;
             }
-            let aggregate = if report.exchanges.is_empty() {
-                NormalizedUsage::default()
+            let aggregate;
+            let usage = if let Some(usage) = &report.downstream_usage {
+                usage
             } else {
-                NormalizedUsage::aggregate(report.exchanges.iter().map(|e| &e.usage))
+                aggregate = if report.exchanges.is_empty() {
+                    NormalizedUsage::default()
+                } else {
+                    NormalizedUsage::aggregate(report.exchanges.iter().map(|e| &e.usage))
+                };
+                &aggregate
             };
-            let mut row = usage_columns(report.downstream_usage.as_ref().unwrap_or(&aggregate));
+            let mut row = usage_columns(usage);
             row = usage_record::ActiveModel {
                 request_id: Set(report.request_id.clone()),
-                user_id: Set(request.attribution.user_id.clone()),
-                api_key_id: Set(request.attribution.api_key_id.clone()),
+                user_id: reported(request.attribution.user_id.clone()),
+                api_key_id: reported(request.attribution.api_key_id.clone()),
                 model: Set(request
                     .attribution
                     .model
@@ -124,10 +130,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Observer for StoreObserver
                 operation: Set(request.operation.operation.id().into()),
                 side: Set(record::CaptureSide::Downstream),
                 state: Set(Some(format!("{:?}", report.state).to_lowercase())),
-                cost: Set(report
-                    .cost
-                    .as_ref()
-                    .and_then(|c| FixedDecimal::rounded(c.amount).ok())),
+                cost: reported(
+                    report
+                        .cost
+                        .as_ref()
+                        .and_then(|c| FixedDecimal::rounded(c.amount).ok()),
+                ),
                 started_at_ms: Set(request.started_at_ms),
                 ended_at_ms: Set(Some(now_ms())),
                 ..row
@@ -147,10 +155,12 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Observer for StoreObserver
                     attempt_id: Set(Some(exchange.attempt_id.clone())),
                     attempt_ordinal: Set(Some(i64::from(exchange.attempt_ordinal))),
                     state: row.state.clone(),
-                    cost: Set(exchange
-                        .cost
-                        .as_ref()
-                        .and_then(|c| FixedDecimal::rounded(c.amount).ok())),
+                    cost: reported(
+                        exchange
+                            .cost
+                            .as_ref()
+                            .and_then(|c| FixedDecimal::rounded(c.amount).ok()),
+                    ),
                     started_at_ms: row.started_at_ms.clone(),
                     ended_at_ms: row.ended_at_ms.clone(),
                     ..usage_columns(&exchange.usage)
@@ -660,40 +670,47 @@ fn usage_columns(u: &NormalizedUsage) -> usage_record::ActiveModel {
         );
     }
     usage_record::ActiveModel {
-        downstream_request_id: Set(None),
-        provider_id: Set(None),
-        credential_id: Set(None),
-        attempt_id: Set(None),
-        attempt_ordinal: Set(None),
-        input_tokens: Set(input_tokens),
-        output_tokens: Set(output_tokens),
-        cached_input_tokens: Set(cached_input_tokens),
-        cache_creation_5m_tokens: Set(cache_creation_5m_tokens),
-        cache_creation_30m_tokens: Set(cache_creation_30m_tokens),
-        cache_creation_1h_tokens: Set(cache_creation_1h_tokens),
-        reasoning_tokens: Set(reasoning_tokens),
-        image_input_tokens: Set(image_input_tokens),
-        image_output_tokens: Set(image_output_tokens),
-        image_outputs: Set(image_outputs),
-        audio_input_tokens: Set(audio_input_tokens),
-        cached_audio_input_tokens: Set(cached_audio_input_tokens),
-        audio_output_tokens: Set(audio_output_tokens),
-        audio_seconds: Set(audio_seconds),
-        audio_characters: Set(audio_characters),
-        video_input_tokens: Set(video_input_tokens),
-        video_tokens: Set(video_tokens),
-        video_seconds: Set(video_seconds),
-        video_outputs: Set(video_outputs),
-        search_units: Set(search_units),
-        web_searches: Set(web_searches),
-        web_fetches: Set(web_fetches),
-        file_searches: Set(file_searches),
-        code_interpreter_sessions: Set(code_interpreter_sessions),
-        tool_calls: Set(tool_calls),
-        requests: Set(requests),
+        input_tokens: reported(input_tokens),
+        output_tokens: reported(output_tokens),
+        cached_input_tokens: reported(cached_input_tokens),
+        cache_creation_5m_tokens: reported(cache_creation_5m_tokens),
+        cache_creation_30m_tokens: reported(cache_creation_30m_tokens),
+        cache_creation_1h_tokens: reported(cache_creation_1h_tokens),
+        reasoning_tokens: reported(reasoning_tokens),
+        image_input_tokens: reported(image_input_tokens),
+        image_output_tokens: reported(image_output_tokens),
+        image_outputs: reported(image_outputs),
+        audio_input_tokens: reported(audio_input_tokens),
+        cached_audio_input_tokens: reported(cached_audio_input_tokens),
+        audio_output_tokens: reported(audio_output_tokens),
+        audio_seconds: reported(audio_seconds),
+        audio_characters: reported(audio_characters),
+        video_input_tokens: reported(video_input_tokens),
+        video_tokens: reported(video_tokens),
+        video_seconds: reported(video_seconds),
+        video_outputs: reported(video_outputs),
+        search_units: reported(search_units),
+        web_searches: reported(web_searches),
+        web_fetches: reported(web_fetches),
+        file_searches: reported(file_searches),
+        code_interpreter_sessions: reported(code_interpreter_sessions),
+        tool_calls: reported(tool_calls),
+        requests: reported(requests),
         completeness: Set(Some(format!("{:?}", u.completeness).to_lowercase())),
-        actual_service_tier: Set(u.actual_service_tier.clone()),
+        actual_service_tier: reported(u.actual_service_tier.clone()),
         metrics: Set(Value::Object(extra)),
         ..Default::default()
+    }
+}
+
+/// Nullable quantity/identity columns default to NULL. Omit unreported fields
+/// from INSERT instead of constructing and binding dozens of NULL parameters.
+fn reported<T>(value: Option<T>) -> sea_orm::ActiveValue<Option<T>>
+where
+    Option<T>: Into<sea_orm::Value>,
+{
+    match value {
+        Some(value) => Set(Some(value)),
+        None => sea_orm::ActiveValue::NotSet,
     }
 }

@@ -1,0 +1,26 @@
+# GProxy SQLite batch extension
+
+Source: crates.io `sqlx-sqlite` 0.9.0, retaining its MIT / Apache-2.0 licenses.
+Upstream crate checksum: `488e99c397a62007e4229aec669a179816339afc6d2620ca6fa420dbee2e982c`.
+Only this driver is patched; `sqlx-core`, SeaORM, and other drivers are unchanged.
+
+Changes from upstream:
+
+- `src/connection/batch.rs`: `SqliteConnection::execute_batch` sends independently
+  bound statements to the existing worker, buffers one result per input, and
+  reports the first failing index. Each SQL template uses the existing bounded
+  statement cache. No implicit transaction or retry is added in the driver.
+- `src/connection/worker.rs`: one new command and its oneshot reply; the existing
+  execution iterator and cache counters are reused.
+- `src/connection/mod.rs` and `src/lib.rs`: module and public type exports.
+- Three upstream Rustdoc trailing-space lines in `deserialize.rs` are normalized.
+
+GProxy's adapter owns atomicity, ordered job retries, and cancellation semantics.
+It moves SeaQuery values into driver arguments once. An optimistic group retains
+cheap Arc-backed argument copies for retry, without re-encoding JSON or copying
+string/blob payloads. Scripts and non-anonymous binds keep the existing path.
+
+The root `[patch.crates-io]` pins this source. When updating SQLx, rebase these
+changes and run the `gproxy-seaorm` group-commit tests (cache reuse, binding,
+query results, rollback, isolation, and cancellation). The vendored package is
+excluded from workspace membership to retain upstream package metadata.
