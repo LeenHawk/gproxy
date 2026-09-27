@@ -76,7 +76,6 @@ fn register_entities<R: gproxy_seaorm::EntityRegistry>(registry: R) -> R {
         .register(entity::pricing::price_tier::Entity)
         .register(entity::usage::usage_record::Entity)
         .register(entity::usage::capture_record::Entity)
-        .register(entity::usage::capture_link::Entity)
         .register(entity::usage::capture_event::Entity)
         .register(entity::resource::file_object::Entity)
         .register(entity::resource::agent_session::Entity)

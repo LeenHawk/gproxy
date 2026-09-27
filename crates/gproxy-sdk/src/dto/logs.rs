@@ -232,7 +232,7 @@ pub struct CaptureEventDto {
 #[cfg_attr(feature = "ts", ts(rename_all = "camelCase"))]
 pub struct LogDetailDto {
     pub downstream: CaptureRecordDto,
-    /// Every upstream attempt reached through `capture_links`, in link order.
+    /// Every associated upstream call, ordered by start time, attempt ordinal and ID.
     /// A retry is another entry here, not another downstream record.
     pub upstream: Vec<CaptureRecordDto>,
     /// The events of the downstream record and of every upstream one,

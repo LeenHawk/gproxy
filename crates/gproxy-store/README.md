@@ -158,7 +158,7 @@ with one entity per file:
 | `oauth` | Client, Grant, Code, Token, Device |
 | `limits` | RateLimit, Quota, QuotaWindow, QuotaSettlement, CredentialQuotaCycle, CredentialBlock |
 | `pricing` | PriceRule, PriceRate, PriceTier |
-| `usage` | UsageRecord, CaptureRecord, CaptureLink, CaptureEvent |
+| `usage` | UsageRecord, CaptureRecord, CaptureEvent |
 | `resource` | FileObject, AgentSession, AgentAssignment, ResourceBinding, ProtocolState |
 | `config` | Setting, ConnectionProfile |
 
@@ -336,13 +336,12 @@ settlement. Adding a metric does not imply every upstream reports its quantity.
 One row holds a physical exchange on one side, including call metadata and both
 request and response. `side` distinguishes downstream from upstream. Optional
 `initiator_request_id`, `attempt_id` and `attempt_ordinal` preserve the initiating
-request and retry even without downstream capture; they are provenance, not
-exclusive ownership of a shared upstream exchange.
+request and retry even without downstream capture. An upstream row associates
+with at most one downstream request, or none; the association has no foreign key.
 
 | Entity | Responsibility |
 |---|---|
 | CaptureRecord | HTTP exchange, WS connection or WS business turn, with request and response together |
-| CaptureLink | Many-to-many downstream/upstream edges, with order local to each downstream |
 | CaptureEvent | Ordered stream chunks or WS messages, including direction and observation time |
 
 HTTP request elements are method, URL/path, raw query, headers and body; response
@@ -359,12 +358,10 @@ completion, failure or cancellation independently of HTTP status. Body events ne
 not be stored when body logging is disabled. Logging redaction applies to URLs,
 queries, headers and bodies.
 
-Edges support D1-U1 (one-to-one), D1-U1/D1-U2 (fanout/retry), D1-U1/D2-U1
-(sharing), or any many-to-many combination. Each actual retry has its own upstream
-record; shared upstream payload/usage is stored once. No single common request ID
-is forced on upstream records. An edge's sequence is local to its downstream.
-Deleting an endpoint removes its edges, not the opposite endpoint. A downstream
-error without any upstream call is independently representable.
+Each actual retry has its own upstream record. Its nullable `initiator_request_id`
+names the associated downstream request. Deleting a log does not delete the log
+on the other side or independent usage history. Downstream errors without an
+upstream call and upstream calls without a retained downstream log are valid.
 
 WS uses `WsConnection` for handshake/lifetime and `WsTurn` for each business turn,
 linked to the same-side connection by `session_id`. Only the handshake carries
@@ -375,9 +372,8 @@ and unassigned messages leave it unset. Store each message once; the primary key
 application messages, not TCP packets or WS fragments. Leave messages at connection
 scope when protocol evidence is insufficient to assign a turn.
 
-Edges connect HTTP exchanges/WS turns, allowing HTTP-to-WS and WS-to-HTTP as well
-as aggregation/fanout across any number of connections. Connection reuse does not
-imply reuse of a business invocation. Writers must enforce endpoint directions,
+Direct request IDs associate upstream calls with downstream HTTP exchanges or WS
+turns. Connection reuse does not imply reuse of a business invocation. Writers enforce directions,
 same-side turn/session binding and event ordering; these are not automatically
 validated by the entity definitions.
 

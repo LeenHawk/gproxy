@@ -8,7 +8,7 @@
 //! would then loop on them forever or skip past them.
 //!
 //! A detail is a tree: the downstream record, the upstream attempts reached
-//! through `capture_links`, and the stream events of all of them. Bodies are
+//! through their associated downstream request ID, and their stream events. Bodies are
 //! returned in full. Events are limited by [`MAX_DETAIL_EVENTS`], with the
 //! event-list cut reported separately on the answer.
 //!
@@ -20,7 +20,7 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use gproxy_seaorm::BatchConnectionTrait;
-use gproxy_store::entity::usage::{capture_event, capture_link, capture_record};
+use gproxy_store::entity::usage::{capture_event, capture_record};
 use sea_orm::{
     ActiveEnum, ColumnTrait, Condition, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
     QueryTrait,
@@ -95,16 +95,11 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Logs<'_, C> {
         }
         if provider.is_some() || credential.is_some() {
             if side == capture_record::CaptureSide::Downstream {
-                let upstream_ids = capture_record::Entity::find()
+                let downstream_ids = capture_record::Entity::find()
                     .select_only()
-                    .column(C::Id)
+                    .column(C::InitiatorRequestId)
                     .filter(C::Side.eq(capture_record::CaptureSide::Upstream))
                     .filter(upstream_filter.clone())
-                    .into_query();
-                let downstream_ids = capture_link::Entity::find()
-                    .select_only()
-                    .column(capture_link::Column::DownstreamId)
-                    .filter(capture_link::Column::UpstreamId.in_subquery(upstream_ids))
                     .into_query();
                 condition = condition.add(
                     Condition::any()
@@ -219,25 +214,17 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> Logs<'_, C> {
             .filter(|row| row.side == capture_record::CaptureSide::Downstream)
             .ok_or_else(|| SdkError::not_found("capture record", request_id))?;
 
-        // Links, not `initiator_request_id`: a link is the causal edge, and it
-        // is what represents an upstream call shared by two downstream ones.
-        let links = store
-            .capture_links()
+        let upstream = store
+            .capture_records()
             .query(
-                capture_link::Entity::find()
-                    .filter(capture_link::Column::DownstreamId.eq(request_id))
-                    .order_by_asc(capture_link::Column::Sequence)
-                    .order_by_asc(capture_link::Column::UpstreamId),
+                capture_record::Entity::find()
+                    .filter(capture_record::Column::Side.eq(capture_record::CaptureSide::Upstream))
+                    .filter(capture_record::Column::InitiatorRequestId.eq(request_id))
+                    .order_by_asc(capture_record::Column::StartedAtMs)
+                    .order_by_asc(capture_record::Column::AttemptOrdinal)
+                    .order_by_asc(capture_record::Column::Id),
             )
             .await?;
-        let upstream_ids: Vec<String> = links.into_iter().map(|link| link.upstream_id).collect();
-        let upstream: Vec<capture_record::Model> = store
-            .capture_records()
-            .get_many(&upstream_ids)
-            .await?
-            .into_iter()
-            .flatten()
-            .collect();
 
         let capture_ids: Vec<String> = std::iter::once(downstream.id.clone())
             .chain(upstream.iter().map(|row| row.id.clone()))

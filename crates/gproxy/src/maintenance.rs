@@ -173,7 +173,7 @@ async fn prune(db: &DatabaseConnection, cutoff: i64) -> Result<u64> {
         .into_tuple()
         .all(db)
         .await?;
-    // Capture events and links have cascading foreign keys. Usage is history,
+    // Capture events have cascading foreign keys. Usage is history,
     // not the settled quota counters, billing entries or subscription windows.
     store.capture_records().delete_many(&captures).await?;
     store.usage_records().delete_many(&usage).await?;

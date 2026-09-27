@@ -1,6 +1,6 @@
 #![cfg(not(target_arch = "wasm32"))]
 //! The downstream half of the request log: the row this crate writes, and the
-//! edges from it to the upstream attempts the engine wrote.
+//! direct associations from upstream attempts to their downstream request.
 //!
 //! Every assertion here is about a switch being read *before* work is done, so
 //! "nothing was captured" is a row count and a byte search rather than an
@@ -12,12 +12,8 @@ use gproxy_app::{
     App, CallOutcome, Caller, CallerKind, DataPlaneRequest,
     capture::{CaptureDirection, CaptureOutcome, CapturedFrame, DownstreamCapture},
 };
-use gproxy_channel::channel::NormalizedUsage;
-use gproxy_core::{ExchangeUsage, UsageAttribution, UsageReport, UsageState};
-use gproxy_store::entity::{
-    config::setting,
-    usage::{capture_link, capture_record},
-};
+use gproxy_core::UsageAttribution;
+use gproxy_store::entity::{config::setting, usage::capture_record};
 use http::StatusCode;
 use sea_orm::{DatabaseConnection, EntityTrait, Set};
 use serde_json::{Value, json};
@@ -128,7 +124,7 @@ fn call_body() -> Value {
 }
 
 /// Drain the response into the capture and settle it, which is what writes the
-/// record and its edges. Answers the response bytes.
+/// record and its events. Answers the response bytes.
 async fn settle(app: &TestApp, outcome: CallOutcome, end: CaptureOutcome) -> Vec<u8> {
     let CallOutcome {
         execution,
@@ -179,15 +175,21 @@ async fn only_downstream(app: &TestApp) -> capture_record::Model {
     rows.pop().unwrap()
 }
 
-async fn links(app: &TestApp) -> Vec<capture_link::Model> {
-    let mut rows = app
-        .gproxy()
-        .store()
-        .capture_links()
-        .query(capture_link::Entity::find())
+async fn associated(app: &TestApp) -> Vec<capture_record::Model> {
+    let mut rows: Vec<_> = records(app)
         .await
-        .unwrap();
-    rows.sort_by(|a, b| (a.sequence, &a.upstream_id).cmp(&(b.sequence, &b.upstream_id)));
+        .into_iter()
+        .filter(|r| {
+            r.side == capture_record::CaptureSide::Upstream && r.initiator_request_id.is_some()
+        })
+        .collect();
+    rows.sort_by(|a, b| {
+        (a.started_at_ms, a.attempt_ordinal, &a.id).cmp(&(
+            b.started_at_ms,
+            b.attempt_ordinal,
+            &b.id,
+        ))
+    });
     rows
 }
 
@@ -231,7 +233,11 @@ async fn the_switch_being_off_means_no_capture_at_all() {
     settle(&app, outcome, CaptureOutcome::Complete).await;
 
     assert!(downstream(&app).await.is_empty(), "no downstream record");
-    assert!(links(&app).await.is_empty(), "and therefore no edges");
+    assert_eq!(
+        associated(&app).await[0].initiator_request_id.as_deref(),
+        Some("req-off"),
+        "association survives disabled downstream logging"
+    );
     assert!(
         !sentinel_stored(&app).await,
         "the body reached no row on either side"
@@ -452,11 +458,10 @@ async fn a_settled_call_is_linked_to_the_upstream_it_reached() {
     assert_eq!(upstream.len(), 1);
     assert_eq!(upstream[0].provider_id.as_deref(), Some("p1"));
 
-    let links = links(&app).await;
-    assert_eq!(links.len(), 1, "one exchange, one edge");
-    assert_eq!(links[0].downstream_id, "req-1");
-    assert_eq!(links[0].upstream_id, upstream[0].id);
-    assert_eq!(links[0].sequence, 0, "the first thing this request did");
+    let links = associated(&app).await;
+    assert_eq!(links.len(), 1, "one exchange, one associated record");
+    assert_eq!(links[0].initiator_request_id.as_deref(), Some("req-1"));
+    assert_eq!(links[0].id, upstream[0].id);
 }
 
 #[tokio::test]
@@ -485,18 +490,25 @@ async fn a_retried_call_is_linked_to_every_provider_it_tried() {
         .collect();
     assert_eq!(upstream.len(), 2);
 
-    let links = links(&app).await;
+    let links = associated(&app).await;
     assert_eq!(
         links.len(),
         2,
         "the abandoned attempt is part of what this request did"
     );
-    assert!(links.iter().all(|link| link.downstream_id == "req-1"));
-    let mut linked: Vec<&str> = links.iter().map(|link| link.upstream_id.as_str()).collect();
+    assert!(
+        links
+            .iter()
+            .all(|link| link.initiator_request_id.as_deref() == Some("req-1"))
+    );
+    let mut linked: Vec<&str> = links.iter().map(|link| link.id.as_str()).collect();
     linked.sort_unstable();
     let mut written: Vec<&str> = upstream.iter().map(|row| row.id.as_str()).collect();
     written.sort_unstable();
-    assert_eq!(linked, written, "every upstream record has its edge");
+    assert_eq!(
+        linked, written,
+        "every upstream record retains its downstream ID"
+    );
 
     // The engine restarts its attempt counter at the next provider, so the
     // sequence cannot be the upstream's own ordinal and still order a retry.
@@ -507,24 +519,14 @@ async fn a_retried_call_is_linked_to_every_provider_it_tried() {
             .collect::<Vec<_>>(),
         [1, 1]
     );
-    let sequence_of = |provider: &str| {
-        let id = &upstream
+    let started = |provider: &str| {
+        upstream
             .iter()
             .find(|row| row.provider_id.as_deref() == Some(provider))
-            .expect("an upstream record for the provider")
-            .id;
-        links
-            .iter()
-            .find(|link| &link.upstream_id == id)
-            .expect("an edge for that record")
-            .sequence
+            .unwrap()
+            .started_at_ms
     };
-    assert_eq!(sequence_of("p1"), 0, "the provider that refused is first");
-    assert!(
-        sequence_of("p1") <= sequence_of("p2"),
-        "the retry comes after it, or shares its place when both attempts \
-         began inside the same millisecond"
-    );
+    assert!(started("p1") <= started("p2"));
 }
 
 // ------------------------------------------------------------- endings --
@@ -609,7 +611,7 @@ async fn a_call_that_never_reached_an_upstream_still_leaves_a_record() {
     assert_eq!(row.state, capture_record::CaptureState::Failed);
     assert!(row.error.is_some(), "the engine's reason is kept");
     assert_eq!(row.response_status, None, "nothing was answered");
-    assert!(links(&app).await.is_empty());
+    assert!(associated(&app).await.is_empty());
 }
 
 // --------------------------------------------------- persistence failures --
@@ -645,48 +647,16 @@ fn handmade(app: &TestApp, id: &str) -> DownstreamCapture {
     DownstreamCapture::open(&switches, &request(id, call_body()), &caller, &admitted).unwrap()
 }
 
-fn report(request_id: &str, upstream_ids: &[&str]) -> UsageReport {
-    UsageReport {
-        request_id: request_id.into(),
-        downstream_usage: None,
-        exchanges: upstream_ids
-            .iter()
-            .enumerate()
-            .map(|(ordinal, id)| ExchangeUsage {
-                capture_id: (*id).to_owned(),
-                attempt_id: format!("a-{ordinal}"),
-                attempt_ordinal: ordinal as u32,
-                provider_id: "p1".into(),
-                credential_id: "c-shared".into(),
-                upstream_model: Some("m1".into()),
-                usage: NormalizedUsage::default(),
-                cost: None,
-            })
-            .collect(),
-        cost: None,
-        state: UsageState::Completed,
-    }
-}
-
 #[tokio::test]
-async fn an_edge_to_a_record_that_was_never_written_does_not_cost_the_log_line() {
+async fn a_downstream_log_does_not_require_an_upstream_record() {
     let (app, _client) = one_provider().await;
-    let mut capture = handmade(&app, "req-1");
-    // Core writes no upstream record when `enable_upstream_log` is off, and
-    // its own write can fail; either way the foreign key would take the whole
-    // batch down, and the request's log line is the half worth keeping.
-    capture.link_exchanges(&report("req-1", &["never-written"]));
-    let id = capture
+    let id = handmade(&app, "req-1")
         .finish(app.gproxy().store(), CaptureOutcome::Complete)
         .await
         .unwrap();
-
     assert_eq!(id, "req-1");
     assert_eq!(only_downstream(&app).await.id, "req-1");
-    assert!(
-        links(&app).await.is_empty(),
-        "the dangling edge was dropped"
-    );
+    assert!(associated(&app).await.is_empty());
 }
 
 #[tokio::test]

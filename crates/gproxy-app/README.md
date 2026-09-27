@@ -70,7 +70,7 @@ one load, one request.
 | `admission` | `Caller` → `Admitted`: providers, credentials, budget owners, scope, session, rate-limit charges |
 | `call` | `DataPlaneRequest` → `CallOutcome`: admit, then run the engine with exactly what was admitted |
 | `service` | vendor CLI services: which credentials are in the target, and what role the caller has over them |
-| `capture` | the downstream `capture_records` row and the `capture_links` edges to the upstream attempts core recorded |
+| `capture` | the downstream `capture_records` row and its events; upstream rows carry their own downstream request ID |
 | `publication` | `AppPublicationUrl`, plus the read and delete behind the host's download route |
 | `operations` | the identity write families, each one revision commit plus a peer notification |
 | `operations::scoped` | `ScopedManage`: the two sdk families whose rows carry an owner, narrowed by the caller's `AdminScope` |
@@ -444,8 +444,7 @@ not prove that no vendor request was made.
 writes the `side = Upstream` row for every physical send and the settled
 `usage_records` row; only a host sees the inbound HTTP exchange, so the
 `side = Downstream` row is this crate's. `design/core-observation.md` states
-the rule — the host owns the downstream record, the edges are built once it
-exists, and core never fabricates one — and `src/capture.rs` is that half.
+the rule — the host owns the downstream record, and core never fabricates one — and `src/capture.rs` is that half.
 
 | | upstream (core) | downstream (here) |
 |---|---|---|
@@ -475,8 +474,7 @@ capture.settle(store, CaptureOutcome::Complete, usage).await;
 ```
 
 `settle` awaits the `UsageCompletion`, which is what makes core settle; a host
-that wants the `UsageReport` for itself awaits it, calls `link_exchanges` and
-then `finish`.
+that wants the `UsageReport` for itself awaits it and then calls `finish`.
 
 ### A socket is one record and a list of frames
 
@@ -521,43 +519,22 @@ redacted before storage without truncating its content. A body
 that is not JSON has no key to match on and is stored as received — one more
 reason the body switch is off by default.
 
-### The edges
+### Direct upstream association
 
-`capture_links` is where "this request reached those upstreams" lives, and a
-retried request has one row per attempt. Two sources are merged, because
-neither is complete on its own:
-
-- `UsageReport::exchanges`, which names what core could **meter**. A `503` that
-  was retried elsewhere carries no usage, so it is not in the report at all;
-- the `capture_records` whose `initiator_request_id` is this request — the
-  column the schema keeps so a retry stays traceable. It misses an upstream
-  record a *continuation* reached, which carries another request's initiator
-  and is only named by the report.
-
-`sequence` is a dense rank over `(started_at_ms, attempt_ordinal)`, not the
-upstream's own ordinal: a failover restarts the engine's attempt counter at the
-next provider, so two attempts of one request can both be ordinal 1. Two
-attempts that began in the same millisecond share a number, which is what the
-column means by "parallel calls may share an ordinal; break ties by
-upstream_id".
-
-Nothing is written until the exchange ends: the record and all of its edges go
-in one batch. With `enable_upstream_log` off no edge is written at all — there
-is no upstream row to point at, and the foreign key would take the record down
-with it.
+Each upstream record carries a nullable `initiator_request_id` naming its one
+associated downstream request. Retries create separate upstream records with the
+same downstream ID. There is no link table and no end-of-request lookup or edge
+write. Detail queries order upstream records by start time, attempt ordinal and ID.
+The association is not a foreign key: disabling or deleting a downstream log must
+not prevent an upstream record from being saved or retained.
 
 ### A capture failure is never a request failure
 
-The same rule core follows. `finish` logs at `error` and returns; the request
-has already been answered by then and an `Err` must not become a response.
-`App::call` discards it on its own error path. If the batch fails because an
-edge pointed at a record that was never written, the record alone is retried:
-losing the request's log line over a missing edge is the worse of the two.
-
-`provider_id`, `credential_id` and `metrics` stay unset on a
-downstream row. A retried request reached two providers with two credentials
-and a single column would have to pick one; the edges answer that without
-picking, and billed usage is the `usage_records` row.
+`finish` writes the downstream record and its events in one transaction, logs any
+failure and returns it. The request has already been answered; the persistence
+error must not replace its response. `provider_id`, `credential_id` and `metrics`
+stay unset on the downstream log. Each upstream row carries its own attribution;
+independent usage rows carry the downstream billed summary and upstream quantities.
 
 ## Publication links
 

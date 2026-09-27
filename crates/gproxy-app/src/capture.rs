@@ -1,7 +1,6 @@
 //! Downstream request/response capture: the `capture_records` row for the
-//! caller's own exchange, and the `capture_links` rows that tie it to the
-//! upstream attempts the engine recorded — including the ones a retry moved
-//! to another provider.
+//! caller's own exchange. Each upstream record independently carries its
+//! associated downstream request ID, including retries to another provider.
 //!
 //! # Why this side is the host's
 //!
@@ -9,8 +8,7 @@
 //! send and the settled `usage_records` row. It deliberately writes no
 //! downstream record at all, because only a host sees the inbound HTTP
 //! exchange: `design/core-observation.md` says it outright — the host owns the
-//! downstream record, the edges are built once it exists, and core never
-//! fabricates one. This module is that half.
+//! downstream record, and core never fabricates one. This module is that half.
 //!
 //! The two halves agree by construction rather than by convention:
 //!
@@ -39,24 +37,24 @@
 //!
 //! `provider_id` and `credential_id` stay unset. A request that was
 //! retried reached two providers with two credentials, and a column that can
-//! hold one of them would have to pick; the edges in `capture_links` answer
-//! that question without picking. `metrics` stays unset too — the schema
+//! hold one of them would have to pick; each upstream record carries its own
+//! attribution and associated downstream request ID. `metrics` stays unset too — the schema
 //! reserves it for upstream-native usage, and the caller's billed usage is the
 //! `usage_records` row.
 
-use std::{borrow::Cow, collections::BTreeMap};
+use std::borrow::Cow;
 
-use gproxy_core::{UsageCompletion, UsageReport};
-use gproxy_seaorm::{BatchConnectionTrait, SelectProjection};
+use gproxy_core::UsageCompletion;
+use gproxy_seaorm::BatchConnectionTrait;
 use gproxy_store::{
     Store,
     entity::{
         config::setting,
-        usage::{capture_event as event, capture_link, capture_record as record},
+        usage::{capture_event as event, capture_record as record},
     },
 };
 use http::{HeaderMap, StatusCode};
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect, Set};
+use sea_orm::Set;
 use serde_json::{Value, json};
 
 use crate::{Admitted, AppError, Caller, DataPlaneRequest, now_ms};
@@ -198,24 +196,21 @@ impl CapturedFrame<'_> {
 ///     sink.send(chunk).await?;
 /// }
 /// if let Some(capture) = capture {
-///     // Awaits settlement, learns the upstream exchanges, writes the record
-///     // and its edges in one batch.
+///     // Awaits settlement and writes the record and events in one batch.
 ///     let _ = capture.settle(app.gproxy().store(), CaptureOutcome::Complete, usage).await;
 /// }
 /// drop(admitted);
 /// ```
 ///
 /// A host that needs the `UsageReport` itself awaits the `UsageCompletion`,
-/// hands the report to [`DownstreamCapture::link_exchanges`] and then calls
-/// [`DownstreamCapture::finish`]; [`DownstreamCapture::settle`] is the same
-/// two steps for a host that does not.
+/// then calls [`DownstreamCapture::finish`]. [`DownstreamCapture::settle`]
+/// awaits it for a host that does not need the report itself.
 ///
 /// # Nothing is written until it ends
 ///
 /// Unlike core's observer, which creates an `in_progress` row and then
 /// streams into it, this buffers and writes once. A downstream exchange is one
-/// row plus its edges, and the edges are only knowable at the end, so a second
-/// round trip would buy nothing but a placeholder. The cost is that a process
+/// row plus events, so a second round trip would only create a placeholder. The cost is that a process
 /// killed mid-stream leaves no downstream row for that request — the upstream
 /// records and their `initiator_request_id` still show it happened.
 pub struct DownstreamCapture {
@@ -232,13 +227,6 @@ pub struct DownstreamCapture {
     /// both directions. Empty for an HTTP exchange, which uses the inline
     /// body columns instead.
     events: Vec<event::ActiveModel>,
-    /// upstream capture id → the `(started_at_ms, attempt_ordinal)` it is
-    /// ordered by. A map rather than a list because `(downstream_id,
-    /// upstream_id)` is the primary key of an edge: a report handed over twice
-    /// must not become a duplicate-key batch. `i64::MAX` stands for an
-    /// upstream record that was named but not read, which sorts it last rather
-    /// than letting it claim a position it cannot prove.
-    links: BTreeMap<String, (i64, i32)>,
 }
 
 impl std::fmt::Debug for DownstreamCapture {
@@ -248,7 +236,6 @@ impl std::fmt::Debug for DownstreamCapture {
             .field("id", &self.id)
             .field("status", &self.status)
             .field("response_bytes", &self.response_body.len())
-            .field("links", &self.links.len())
             .finish_non_exhaustive()
     }
 }
@@ -328,7 +315,6 @@ impl DownstreamCapture {
             // A downstream record initiates itself. The column still carries
             // the request id so the two sides of one request join on the same
             // value whichever row you start from.
-            initiator_request_id: Set(Some(request_id.to_owned())),
             side: Set(record::CaptureSide::Downstream),
             // Promoted to `WsConnection` by `record_response_head` if the
             // handshake is accepted.
@@ -371,7 +357,6 @@ impl DownstreamCapture {
             response_body: Vec::new(),
             status: None,
             events: Vec::new(),
-            links: BTreeMap::new(),
         })
     }
 
@@ -452,188 +437,53 @@ impl DownstreamCapture {
         });
     }
 
-    /// Attach one edge per upstream exchange the settled report names.
-    ///
-    /// This is the causality `capture_links` exists for: a request that was
-    /// retried onto a second provider reached two upstreams and gets two
-    /// edges.
-    ///
-    /// **A report is not the whole list.** `UsageReport::exchanges` is what
-    /// core could *meter*, and an attempt whose answer carried no usage — the
-    /// 503 that was retried elsewhere, most of all — contributes an upstream
-    /// record and no exchange. [`DownstreamCapture::finish`] therefore also
-    /// reads the records core stamped with this request id and adds what the
-    /// report missed; a report still earns its place because an upstream
-    /// record a *continuation* reached carries another request's initiator and
-    /// only the report knows this request reached it.
-    ///
-    /// Does nothing when `enable_upstream_log` is off — core wrote no upstream
-    /// records then, and an edge to a row that does not exist is a foreign key
-    /// violation that would take the downstream record down with it.
-    /// Idempotent: handing the same report over twice attaches the same edges.
-    pub fn link_exchanges(&mut self, report: &UsageReport) {
-        if !self.switches.upstream_log {
-            return;
-        }
-        for exchange in &report.exchanges {
-            self.links.entry(exchange.capture_id.clone()).or_insert((
-                i64::MAX,
-                i32::try_from(exchange.attempt_ordinal).unwrap_or(i32::MAX),
-            ));
-        }
-    }
-
-    /// Await settlement, attach the edges it names and write everything.
-    ///
-    /// The one call for a host that does not need the `UsageReport` itself.
-    /// **It must still be awaited**: the `UsageCompletion` is what makes core
-    /// settle the request and write its usage row, so dropping it unread
-    /// leaves both halves unrecorded. A completion that fails is logged and
-    /// the record is still written, without edges.
+    /// Await usage settlement before persisting the downstream log and events.
     pub async fn settle<C: BatchConnectionTrait + Send + Sync>(
-        mut self,
+        self,
         store: &Store<C>,
         outcome: CaptureOutcome,
         usage: UsageCompletion,
     ) -> Result<String, AppError> {
-        match usage.await {
-            Ok(report) => self.link_exchanges(&report),
-            Err(error) => tracing::warn!(
-                capture_id = %self.id,
-                %error,
-                "settlement failed; the downstream record is written without its upstream edges"
-            ),
+        if let Err(error) = usage.await {
+            tracing::warn!(capture_id = %self.id, %error, "settlement failed; recording downstream exchange");
         }
         self.finish(store, outcome).await
     }
 
-    /// Write the record and its edges, in one batch, and answer the capture
-    /// id.
-    ///
-    /// Completes the edge set first: the attempts core recorded under this
-    /// request id, which is the half a usage report cannot name. Await the
-    /// `UsageCompletion` (or use [`DownstreamCapture::settle`], which does)
-    /// before calling this — an attempt that has not settled yet has not
-    /// finished being written either.
-    ///
-    /// **The request has already been answered by the time this runs, and an
-    /// `Err` must never become a response.** A persistence failure is the
-    /// operator's problem, not the caller's — the same rule core's observer
-    /// follows — so this logs at `error` before returning; the result is there
-    /// for a host that wants to count failures, and
-    /// [`App::call`](crate::App::call) discards it on its own error path.
+    /// Write the downstream record and its events atomically. Upstream records
+    /// already carry their downstream request ID; no lookup or edge write is needed.
+    /// Persistence failures are logged and must not replace the caller's response.
     pub async fn finish<C: BatchConnectionTrait + Send + Sync>(
-        mut self,
+        self,
         store: &Store<C>,
         outcome: CaptureOutcome,
     ) -> Result<String, AppError> {
-        if self.switches.upstream_log {
-            self.link_recorded_attempts(store).await;
-        }
         let id = self.id.clone();
-        let links = self.links.len();
-        // The record and its events, which is the prefix of the batch that
-        // depends on nothing outside itself.
-        let own = 1 + self.events.len();
         let statements = self.into_statements(store, outcome)?;
-        if let Err(error) = store.connection().atomic_batch(&statements).await {
-            tracing::error!(capture_id = %id, links, %error, "downstream capture write failed");
-            if links == 0 {
-                return Err(AppError::Store(error.into()));
-            }
-            // An edge names an upstream record core was supposed to have
-            // written. If it did not — its own write failed, or the switch
-            // moved mid-request — the foreign key takes the whole batch with
-            // it, and losing the request's own log line over a missing edge is
-            // the worse outcome of the two. The events go in either way: their
-            // only foreign key is onto the record in front of them.
-            store
-                .connection()
-                .atomic_batch(&statements[..own])
-                .await
-                .map_err(|error| {
-                    tracing::error!(capture_id = %id, %error, "downstream capture retry failed");
-                    AppError::Store(error.into())
-                })?;
-            tracing::warn!(capture_id = %id, links, "downstream capture written without its edges");
-        }
+        store
+            .connection()
+            .atomic_batch_owned(statements)
+            .await
+            .map_err(|error| {
+                tracing::error!(capture_id = %id, %error, "downstream capture write failed");
+                AppError::Store(error.into())
+            })?;
         Ok(id)
     }
 
-    /// Add an edge for every upstream record core stamped with this request
-    /// id.
-    ///
-    /// `initiator_request_id` is the column the schema keeps "so a retry can
-    /// be traced even with downstream logging off", and it is the only
-    /// complete account of what this request physically did: an attempt that
-    /// answered `503` was a real send with a real record, and no usage to put
-    /// in a report. It does not replace the report — the column names an
-    /// initiator, not an owner, and a shared upstream record initiated
-    /// elsewhere is reached only through the report — so the two are merged.
-    ///
-    /// A failed read costs edges, not the record: it is logged and the write
-    /// goes ahead with what the report knew.
-    async fn link_recorded_attempts<C: BatchConnectionTrait + Send + Sync>(
-        &mut self,
-        store: &Store<C>,
-    ) {
-        use record::Column;
-        let query = record::Entity::find()
-            .select_only()
-            .columns([Column::Id, Column::StartedAtMs, Column::AttemptOrdinal])
-            .filter(Column::InitiatorRequestId.eq(self.id.as_str()))
-            .filter(Column::Side.eq(record::CaptureSide::Upstream));
-        let rows = async {
-            let rows = store
-                .connection()
-                .query_rows(query.batch_query_for(store.connection())?)
-                .await?;
-            rows.iter()
-                .map(|row| {
-                    Ok((
-                        row.try_get::<String>("", "id")?,
-                        row.try_get::<i64>("", "started_at_ms")?,
-                        row.try_get::<Option<i32>>("", "attempt_ordinal")?,
-                    ))
-                })
-                .collect::<Result<Vec<_>, sea_orm::DbErr>>()
-        }
-        .await;
-        match rows {
-            Ok(rows) => {
-                for (id, started_at_ms, attempt_ordinal) in rows {
-                    // Overwrites what the report knew, because this carries
-                    // the row's real start time and the report carries none.
-                    self.links
-                        .insert(id, (started_at_ms, attempt_ordinal.unwrap_or_default()));
-                }
-            }
-            Err(error) => tracing::warn!(
-                capture_id = %self.id,
-                %error,
-                "upstream attempts could not be read; the edges may be incomplete"
-            ),
-        }
-    }
-
-    /// The record insert first, then its events, then one insert per edge: a
-    /// foreign key is checked as the statement runs, so the row an event or an
-    /// edge points at has to be there already.
-    /// [`DownstreamCapture::finish`] relies on that order when it retries with
-    /// the first statement alone.
+    /// Insert the record before its events, whose foreign key references it.
     fn into_statements<C: BatchConnectionTrait>(
         self,
         store: &Store<C>,
         outcome: CaptureOutcome,
     ) -> Result<Vec<sea_orm::Statement>, AppError> {
         let Self {
-            id,
+            id: _,
             switches,
             mut row,
             response_body,
             status,
             events,
-            links,
         } = self;
 
         let (state, error) = match &outcome {
@@ -670,42 +520,10 @@ impl DownstreamCapture {
 
         let mut statements = vec![store.capture_records().insert_statement(row)?];
         // Every frame the socket carried, in observed order, after the record
-        // they belong to and before the edges: `capture_events.capture_id` is
+        // they belong to: `capture_events.capture_id` is
         // a foreign key onto the row just inserted.
         for event in events {
             statements.push(store.capture_events().insert_statement(event)?);
-        }
-        // `sequence` is the position in this request, not the upstream's own
-        // `attempt_ordinal`: a failover restarts the engine's attempt counter
-        // at the next provider, so two attempts of one request can both be
-        // ordinal 1 and the column would stop ordering anything.
-        //
-        // The rank is dense and `(started_at_ms, attempt_ordinal)` is all it
-        // has to go on, so two attempts that began in the same millisecond
-        // share a number rather than being given an order nothing measured —
-        // which is what the column means by "parallel calls may share an
-        // ordinal; break ties by upstream_id for display".
-        let mut edges: Vec<(i64, i32, String)> = links
-            .into_iter()
-            .map(|(upstream_id, (started_at_ms, ordinal))| (started_at_ms, ordinal, upstream_id))
-            .collect();
-        edges.sort_unstable();
-        let mut sequence = -1;
-        let mut previous = None;
-        for (started_at_ms, ordinal, upstream_id) in edges {
-            if previous != Some((started_at_ms, ordinal)) {
-                previous = Some((started_at_ms, ordinal));
-                sequence += 1;
-            }
-            statements.push(
-                store
-                    .capture_links()
-                    .insert_statement(capture_link::ActiveModel {
-                        downstream_id: Set(id.clone()),
-                        upstream_id: Set(upstream_id),
-                        sequence: Set(sequence),
-                    })?,
-            );
         }
         Ok(statements)
     }

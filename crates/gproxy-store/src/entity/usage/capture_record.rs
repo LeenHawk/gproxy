@@ -1,8 +1,6 @@
 //! One physical HTTP exchange, WebSocket connection, or WebSocket business turn.
-//! Both request and response live here. Downstream/upstream edges are separate:
-//! a shared upstream record must not be copied for each downstream consumer.
-//! Downstream Http/WsTurn IDs are the request_id used by UsageRecord. Upstream
-//! records have independent IDs and obtain their callers through CaptureLink.
+//! Both request and response live here. An upstream record belongs to at most
+//! one downstream request, or none. Usage and log persistence are independent.
 //! Historical identity IDs deliberately have no configuration foreign keys.
 
 use sea_orm::entity::prelude::*;
@@ -23,8 +21,8 @@ pub struct Model {
     pub started_at_ms: i64,
     #[sea_orm(primary_key, auto_increment = false, unique_key = "by_side")]
     pub id: String,
-    /// Initiating request/attempt, retained even when downstream logging is off.
-    /// Provenance only: sharing is represented by CaptureLink, not these fields.
+    /// Associated downstream request, or None. No foreign key: the downstream
+    /// log may be disabled or removed independently. Downstream rows leave it unset.
     #[sea_orm(indexed)]
     pub initiator_request_id: Option<String>,
     pub attempt_id: Option<String>,
@@ -80,8 +78,8 @@ pub struct Model {
     pub response_body_state: CaptureBodyState,
 
     pub client_ip: Option<String>,
-    /// Upstream-native usage once per physical call/turn. Not per event or edge.
-    /// Downstream billed usage remains in UsageRecord; edges imply no allocation.
+    /// Upstream-native usage once per physical call/turn.
+    /// Independent billable history remains in UsageRecord.
     pub metrics: Option<Json>,
     #[sea_orm(default_value = "in_progress")]
     pub state: CaptureState,
@@ -111,10 +109,6 @@ pub struct Model {
     pub events: HasMany<super::capture_event::Entity>,
     #[sea_orm(has_many, relation_enum = "TurnEvents", via_rel = "Turn")]
     pub turn_events: HasMany<super::capture_event::Entity>,
-    #[sea_orm(has_many, relation_enum = "UpstreamLinks", via_rel = "Downstream")]
-    pub upstream_links: HasMany<super::capture_link::Entity>,
-    #[sea_orm(has_many, relation_enum = "DownstreamLinks", via_rel = "Upstream")]
-    pub downstream_links: HasMany<super::capture_link::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

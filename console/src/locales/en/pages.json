@@ -906,7 +906,7 @@
     "records": "Usage records",
     "truncated": "Content truncated",
     "noContent": "No retained content",
-    "initiatorRequestId": "Initiating request",
+    "initiatorRequestId": "Downstream request",
     "attemptId": "Attempt ID",
     "attemptOrdinal": "Attempt number",
     "state": "State",

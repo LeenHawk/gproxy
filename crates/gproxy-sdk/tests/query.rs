@@ -16,7 +16,7 @@ use gproxy_sdk::{
         UsageRecordQuery, UsageTrendQuery,
     },
 };
-use gproxy_store::entity::usage::{capture_event, capture_link, capture_record, usage_record};
+use gproxy_store::entity::usage::{capture_event, capture_record, usage_record};
 use sea_orm::{DatabaseConnection, Set};
 use serde_json::{Value, json};
 
@@ -271,19 +271,6 @@ fn upstream(id: &str, initiator: &str, started_at_ms: i64) -> capture_record::Ac
         response_body_state: Set(capture_record::CaptureBodyState::NotCaptured),
         ..Default::default()
     }
-}
-
-async fn link(gproxy: &Handle, downstream_id: &str, upstream_id: &str, sequence: i32) {
-    gproxy
-        .store()
-        .capture_links()
-        .create_many(vec![capture_link::ActiveModel {
-            downstream_id: Set(downstream_id.into()),
-            upstream_id: Set(upstream_id.into()),
-            sequence: Set(sequence),
-        }])
-        .await
-        .unwrap();
 }
 
 async fn event(gproxy: &Handle, capture_id: &str, sequence: i64, payload: &[u8]) {
@@ -1068,9 +1055,6 @@ async fn a_detail_resolves_the_upstream_attempts_and_their_events() {
     second.response_body_state = Set(capture_record::CaptureBodyState::Complete);
     capture(&gproxy, second).await;
 
-    // Deliberately linked out of id order, to prove the link sequence wins.
-    link(&gproxy, "d-1", "x-2", 0).await;
-    link(&gproxy, "d-1", "x-1", 1).await;
     event(&gproxy, "x-1", 1, b"data: one\n\n").await;
     event(&gproxy, "x-1", 2, b"data: two\n\n").await;
     // An event on a record this request did not reach.
@@ -1098,8 +1082,8 @@ async fn a_detail_resolves_the_upstream_attempts_and_their_events() {
             .iter()
             .map(|row| row.id.as_str())
             .collect::<Vec<_>>(),
-        ["x-2", "x-1"],
-        "link order, not id order"
+        ["x-1", "x-2"],
+        "upstream start time order"
     );
     assert_eq!(
         detail
@@ -1721,5 +1705,76 @@ async fn media_tool_and_custom_quantities_survive_filters_groups_and_trends() {
     assert_eq!(
         records.items[0].exchanges[0].quantities["web_searches"],
         "2"
+    );
+}
+
+#[tokio::test]
+async fn upstream_association_is_optional_and_independent_of_downstream_retention() {
+    let gproxy = support::sdk().await;
+    let mut linked = upstream("up", "down", 110);
+    linked.provider_id = Set(Some("provider".into()));
+    capture(&gproxy, linked).await;
+    let mut independent = upstream("independent", "", 120);
+    independent.initiator_request_id = Set(None);
+    capture(&gproxy, independent).await;
+    let query = gproxy.query();
+    let logs = query.logs();
+    assert_eq!(
+        logs.upstream(LogQuery::default())
+            .await
+            .unwrap()
+            .items
+            .len(),
+        2
+    );
+    capture(&gproxy, downstream("down", 100)).await;
+    assert_eq!(logs.detail("down").await.unwrap().upstream[0].id, "up");
+    assert_eq!(logs.detail("down").await.unwrap().upstream.len(), 1);
+    let filtered = logs
+        .list(LogQuery {
+            provider_id: Some("provider".into()),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+    assert_eq!(filtered.items.len(), 1);
+    assert_eq!(filtered.items[0].request_id, "down");
+    usage(
+        &gproxy,
+        Seed {
+            request_id: "down",
+            ..Default::default()
+        },
+    )
+    .await;
+    gproxy
+        .store()
+        .capture_records()
+        .delete_many(&["down".into()])
+        .await
+        .unwrap();
+    let upstream = gproxy
+        .store()
+        .capture_records()
+        .get_many(&["up".into()])
+        .await
+        .unwrap();
+    assert_eq!(
+        upstream[0]
+            .as_ref()
+            .unwrap()
+            .initiator_request_id
+            .as_deref(),
+        Some("down")
+    );
+    assert_eq!(
+        gproxy
+            .query()
+            .usage()
+            .records(UsageRecordQuery::default())
+            .await
+            .unwrap()
+            .total,
+        1
     );
 }

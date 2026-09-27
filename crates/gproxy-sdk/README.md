@@ -561,9 +561,9 @@ the query reads one row past the page rather than guessing from a full one.
 
 Only `side = downstream` rows are listed. An upstream attempt is not a request;
 it is something a request did, and `detail(request_id)` returns it, resolved
-through `capture_links` rather than through the provenance columns, so a
-retried request shows every attempt and an upstream call shared by two
-downstream ones is not duplicated.
+through each upstream record's nullable `initiator_request_id`. Retries have
+separate upstream rows. An upstream call belongs to at most one downstream request,
+and remains readable when that downstream log was disabled or removed.
 
 Stored bodies and individual event payloads are returned in full. The event
 list is limited to `query::MAX_DETAIL_EVENTS` (2 000), with `eventsTruncated`

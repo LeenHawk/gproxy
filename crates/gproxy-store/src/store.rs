@@ -86,7 +86,6 @@ repositories! {
     rewrite_rules => crate::entity::upstream::rewrite_rule::Entity,
     rewrite_rule_sets => crate::entity::upstream::rewrite_rule_set::Entity,
     capture_events => crate::entity::usage::capture_event::Entity,
-    capture_links => crate::entity::usage::capture_link::Entity,
     capture_records => crate::entity::usage::capture_record::Entity,
     usage_records => crate::entity::usage::usage_record::Entity,
 }

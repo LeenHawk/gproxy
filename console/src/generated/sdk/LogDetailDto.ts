@@ -8,7 +8,7 @@ import type { UsageRecordDto } from "./UsageRecordDto";
  */
 export type LogDetailDto = { downstream: CaptureRecordDto, 
 /**
- * Every upstream attempt reached through `capture_links`, in link order.
+ * Every associated upstream call, ordered by start time, attempt ordinal and ID.
  * A retry is another entry here, not another downstream record.
  */
 upstream: Array<CaptureRecordDto>, 
