@@ -456,6 +456,10 @@ exists, and core never fabricates one — and `src/capture.rs` is that half.
 | body storage | `capture_events`, streamed | the inline column, buffered |
 | websocket frames | `capture_events`, per frame | `capture_events`, per frame, buffered |
 
+All four switches are off on a new instance. A logged exchange is two more
+records written for every request, and on a single SQLite writer that is most
+of what a request costs, so logging is something an operator turns on.
+
 All four switches are read off the `settings` row of the revision the request
 pinned, at the same load that assembles `AppData` — not from `AppConfig`, and
 not from a second copy of the settings.

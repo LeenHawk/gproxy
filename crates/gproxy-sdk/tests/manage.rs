@@ -844,14 +844,17 @@ async fn reset_routing_defaults_touches_one_provider() {
 #[tokio::test]
 async fn a_settings_write_reaches_the_active_snapshot() {
     let (gproxy, _, _) = support::sdk_parts().await;
-    assert!(gproxy.core().snapshot().observation.upstream_log);
+    assert!(
+        !gproxy.core().snapshot().observation.upstream_log,
+        "exchange logging is off until an operator turns it on"
+    );
 
     let settings = gproxy
         .manage()
         .settings()
         .update(SettingsPatch {
             logging: Some(LoggingSettingsPatch {
-                enable_upstream_log: Some(false),
+                enable_upstream_log: Some(true),
                 disable_log_redaction: Some(true),
                 ..Default::default()
             }),
@@ -859,11 +862,11 @@ async fn a_settings_write_reaches_the_active_snapshot() {
         })
         .await
         .unwrap();
-    assert!(!settings.logging.enable_upstream_log);
+    assert!(settings.logging.enable_upstream_log);
 
     let snapshot = gproxy.core().snapshot();
     assert!(
-        !snapshot.observation.upstream_log,
+        snapshot.observation.upstream_log,
         "the reload that follows a settings write is what makes it take effect"
     );
     assert!(!snapshot.observation.redact);

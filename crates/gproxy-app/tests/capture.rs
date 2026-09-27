@@ -34,8 +34,8 @@ fn oversized() -> String {
 }
 
 /// One provider `p1` serving `m1`, one shared credential, `alice` holding a
-/// key that may reach it. Logging is left at the schema's defaults: the
-/// exchange is recorded, the bodies are not.
+/// key that may reach it. Both exchange logs are switched on, since the
+/// schema leaves them off; the bodies stay at the default, not recorded.
 async fn one_provider() -> (TestApp, std::sync::Arc<support::ScriptClient>) {
     let (app, client) = support::app().await;
     let handle = app.gproxy().clone();
@@ -44,6 +44,7 @@ async fn one_provider() -> (TestApp, std::sync::Arc<support::ScriptClient>) {
     support::allow(&handle, "p-alice", "alice", None).await;
     support::provider(&handle, "p1", &["m1"]).await;
     support::credential(&handle, "c-shared", "p1", None, None, None).await;
+    log_exchanges(&app).await;
     support::publish(&app).await;
     (app, client)
 }
@@ -60,8 +61,24 @@ async fn two_providers() -> (TestApp, std::sync::Arc<support::ScriptClient>) {
     support::provider(&handle, "p2", &["m1"]).await;
     support::credential(&handle, "c-1", "p1", None, None, None).await;
     support::credential(&handle, "c-2", "p2", None, None, None).await;
+    log_exchanges(&app).await;
     support::publish(&app).await;
     (app, client)
+}
+
+/// Record both halves of every exchange, which an instance does not do until
+/// it is asked to.
+async fn log_exchanges(app: &TestApp) {
+    app.gproxy()
+        .store()
+        .settings()
+        .update(setting::ActiveModel {
+            enable_downstream_log: Set(true),
+            enable_upstream_log: Set(true),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
 }
 
 /// Move the logging switches and republish both snapshots, the way a

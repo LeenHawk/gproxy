@@ -64,7 +64,20 @@ async fn instance(concurrency: Option<i64>) -> Host {
             .await
             .unwrap();
     }
-    host.publish().await;
+    // Sockets are what these tests record, and an instance logs nothing
+    // until it is asked to.
+    settings(
+        &host,
+        gproxy_sdk::dto::SettingsPatch {
+            logging: Some(gproxy_sdk::dto::LoggingSettingsPatch {
+                enable_downstream_log: Some(true),
+                enable_upstream_log: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        },
+    )
+    .await;
     host
 }
 

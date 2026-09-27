@@ -95,14 +95,15 @@ pub struct ObservationSwitches {
 }
 
 impl Default for ObservationSwitches {
-    /// The schema's own defaults: log the exchange, not the bodies, and
-    /// redact. Identical to `ObservationSettings::default()`, so an instance
+    /// The schema's own defaults: log nothing until an operator asks for it,
+    /// and redact what is logged. Each logged exchange is two more records
+    /// written per request, a cost a gateway should not pay unasked. Identical to `ObservationSettings::default()`, so an instance
     /// with no settings row behaves the same on both sides.
     fn default() -> Self {
         Self {
-            downstream_log: true,
+            downstream_log: false,
             downstream_log_body: false,
-            upstream_log: true,
+            upstream_log: false,
             redact: true,
         }
     }
@@ -831,7 +832,7 @@ mod tests {
     fn the_switches_mirror_the_settings_row_and_its_defaults() {
         let switches = ObservationSwitches::from_settings(None);
         assert_eq!(switches, ObservationSwitches::default());
-        assert!(switches.downstream_log && switches.redact);
+        assert!(!switches.downstream_log && !switches.upstream_log && switches.redact);
         assert!(
             !switches.downstream_log_body,
             "bodies are opt-in on both sides"

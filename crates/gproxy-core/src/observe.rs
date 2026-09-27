@@ -173,7 +173,7 @@ impl Default for ObservationSettings {
         Self {
             settlement: true,
             usage: true,
-            upstream_log: true,
+            upstream_log: false,
             upstream_log_body: false,
             redact: true,
             trace: true,
