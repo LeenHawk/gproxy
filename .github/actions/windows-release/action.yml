@@ -49,7 +49,7 @@ runs:
     - name: Upload unsigned packages for SignPath
       if: ${{ inputs.sign == 'true' }}
       id: unsigned
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      uses: actions/upload-artifact@v7.0.1
       with:
         name: unsigned-${{ inputs.artifact }}
         path: dist/release/${{ inputs.artifact }}.zip
@@ -57,7 +57,7 @@ runs:
         retention-days: 7
     - name: Sign and download Windows packages
       if: ${{ inputs.sign == 'true' }}
-      uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627 # v2
+      uses: signpath/github-action-submit-signing-request@v2
       with:
         api-token: ${{ inputs.api-token }}
         organization-id: ${{ inputs.organization-id }}

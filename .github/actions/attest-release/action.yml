@@ -8,7 +8,7 @@ runs:
   using: composite
   steps:
     - name: Attest build provenance
-      uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+      uses: actions/attest@v4.2.2
       with:
         subject-path: |
           dist/release/${{ inputs.artifact }}*.zip
@@ -18,7 +18,7 @@ runs:
           dist/release/${{ inputs.artifact }}*.dmg
           dist/release/${{ inputs.artifact }}*.msix
     - name: Attest resolved build environment
-      uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+      uses: actions/attest@v4.2.2
       with:
         subject-path: |
           dist/release/${{ inputs.artifact }}*.zip
