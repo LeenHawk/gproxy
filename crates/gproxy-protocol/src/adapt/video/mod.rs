@@ -31,7 +31,9 @@ pub use native::{
 pub use recovery::recover_created_result;
 pub use resources::publish_video_output;
 pub use reverse::*;
-pub use state::{VideoBinding, VideoJobState, VideoOriginalRequest, VideoProgress};
+pub use state::{
+    VIDEO_STATE_TTL, VideoBinding, VideoJobState, VideoOriginalRequest, VideoProgress,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub struct VideoLimits {

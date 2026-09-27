@@ -2,6 +2,8 @@
 //! Sora shape) against a Gemini upstream that generates video through Veo
 //! `predictLongRunning`. Job state lives in `ProtocolState`; `adapt::video`
 //! reserves it before the create call and never repeats an uncertain create.
+//! It expires `adapt::VIDEO_STATE_TTL` (a week) after its latest write, so a
+//! job unpolled that long is gone and its retrieve or download finds nothing.
 //!
 //! Deliberate boundaries:
 //! * Create is JSON only. The multipart form with an `input_reference` part

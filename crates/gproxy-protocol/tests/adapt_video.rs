@@ -1526,3 +1526,32 @@ fn composed_create_model_path_is_checked_before_reserving_or_sending() {
     assert!(store.entry.lock().unwrap().is_none());
     assert!(!progress.reserved);
 }
+/// Job state used to be written without an expiry and so was kept forever.
+/// Every write now sets one a week out, and a poll pushes it out again.
+#[test]
+fn job_state_expires_a_week_after_its_latest_write() {
+    let week = video::VIDEO_STATE_TTL;
+    assert_eq!(week, Duration::from_secs(7 * 24 * 60 * 60));
+    let expiry = |store: &Store| {
+        store
+            .entry
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .expires_at
+            .expect("job state carries an expiry")
+    };
+    let host = host(vec![
+        json!({"name":"operations/a","done":false}),
+        json!({"name":"operations/a","done":false}),
+    ]);
+    let store = store();
+    let before = std::time::SystemTime::now();
+    create(&host, &store, &mut VideoProgress::default()).unwrap();
+    let created = expiry(&store);
+    assert!(created >= before + week);
+    assert!(created <= std::time::SystemTime::now() + week);
+    query(&host, &store, "/v1beta/operations/a", binding("client")).unwrap();
+    assert!(expiry(&store) >= created);
+}

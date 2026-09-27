@@ -149,6 +149,7 @@ pub(super) async fn save<S: StateStore>(
         &state.binding.key(),
         state,
         progress.version.clone(),
+        super::super::state::state_expiry(Some(state.expires_at)),
         limits,
     )
     .await?;

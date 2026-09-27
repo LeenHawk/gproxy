@@ -4,6 +4,7 @@ use crate::{
     transform::TransformErrorKind,
 };
 use serde::{Deserialize, Serialize};
+use std::time::{Duration, SystemTime};
 
 /// Stable host facts. `origin` must identify the selected target in the host's
 /// state scope. The host supplies its API prefix; it is never inferred from IDs.
@@ -106,6 +107,22 @@ pub(super) fn public_url(value: &str) -> Result<(), TransformError> {
     Ok(())
 }
 
+/// How long a video job's state outlives its latest write. Every write (the
+/// reservation, the create reply, each poll) pushes the expiry out again, so
+/// the window counts from the last time the client touched the job. Veo takes
+/// minutes to finish a job and keeps a generated video for two days; seven
+/// days covers a slow poller and a content download well after that, while no
+/// longer keeping every job the gateway has ever created.
+pub const VIDEO_STATE_TTL: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+
+/// A state row expires [`VIDEO_STATE_TTL`] after this write, or at `floor`
+/// when that is later: a reverse job keeps its state until its own
+/// publications expire, since a load before then must still find it.
+pub(super) fn state_expiry(floor: Option<SystemTime>) -> SystemTime {
+    let ttl = SystemTime::now() + VIDEO_STATE_TTL;
+    floor.map_or(ttl, |floor| floor.max(ttl))
+}
+
 pub(super) async fn save<S: StateStore>(
     store: &S,
     scope: &S::Scope,
@@ -113,7 +130,16 @@ pub(super) async fn save<S: StateStore>(
     expected: Option<Version>,
     limits: VideoLimits,
 ) -> Result<Version, TransformError> {
-    save_payload(store, scope, &state.binding.key(), state, expected, limits).await
+    save_payload(
+        store,
+        scope,
+        &state.binding.key(),
+        state,
+        expected,
+        state_expiry(None),
+        limits,
+    )
+    .await
 }
 
 pub(super) async fn save_payload<S: StateStore, T: Serialize>(
@@ -122,6 +148,7 @@ pub(super) async fn save_payload<S: StateStore, T: Serialize>(
     key: &str,
     state: &T,
     expected: Option<Version>,
+    expires_at: SystemTime,
     limits: VideoLimits,
 ) -> Result<Version, TransformError> {
     let mut codec = limits.codec;
@@ -138,7 +165,7 @@ pub(super) async fn save_payload<S: StateStore, T: Serialize>(
             expected,
             Some(StateWrite {
                 payload,
-                expires_at: None,
+                expires_at: Some(expires_at),
             }),
         )
         .await?
