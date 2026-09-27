@@ -510,6 +510,16 @@ impl Fingerprint {
 impl ConnectionConfig {
     /// The portable part of a custom fingerprint. Explicit request headers
     /// retain precedence, just as they do with wreq's default headers.
+    ///
+    /// Only the reqwest and fetch backends read it; wreq takes the whole
+    /// fingerprint, headers included, through its own emulation above.
+    #[cfg(any(
+        all(
+            any(feature = "reqwest", feature = "reqwest-native"),
+            not(target_arch = "wasm32")
+        ),
+        all(target_arch = "wasm32", feature = "fetch")
+    ))]
     pub(crate) fn default_headers(&self) -> Result<http::HeaderMap, Error> {
         let mut headers = http::HeaderMap::new();
         if let Some(EmulationConfig::Custom(fingerprint)) = &self.emulation {
