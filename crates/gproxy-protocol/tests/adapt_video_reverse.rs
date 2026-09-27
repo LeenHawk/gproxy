@@ -1165,3 +1165,40 @@ fn terminal_optional_metadata_refresh_keeps_published_content_and_diagnostics() 
     assert_eq!(resources.reads.lock().unwrap().len(), 1);
     assert_eq!(resources.published.lock().unwrap().len(), 1);
 }
+/// Reverse job state expires a week after its latest write, or with its own
+/// publications when those outlive the week, since a load before then must
+/// still find it.
+#[test]
+fn reverse_state_expires_no_earlier_than_its_publications() {
+    let week = video::VIDEO_STATE_TTL;
+    for (publications, far) in [(expiry(), false), (SystemTime::now() + week * 2, true)] {
+        let host = host(vec![native("video_0", "queued")]);
+        let resources = Resources::default();
+        let store = store();
+        let before = SystemTime::now();
+        create(
+            &host,
+            &resources,
+            &store,
+            input(1, 1),
+            ReverseVideoKind::Native,
+            publications,
+            &mut ReverseVideoProgress::default(),
+        )
+        .unwrap();
+        let written = store
+            .entry
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .expires_at
+            .expect("reverse state carries an expiry");
+        if far {
+            assert_eq!(written, publications);
+        } else {
+            assert!(written >= before + week);
+            assert!(written <= SystemTime::now() + week);
+        }
+    }
+}
