@@ -1,10 +1,13 @@
 //! Retain configuration and settled balances; prune completed request history
-//! and, on its own clock, the upstream quota observation log.
+//! and, on its own clock, the upstream quota observation log; drop rows whose
+//! expiry has passed.
 use crate::Result;
 use gproxy_store::{
     Store,
     entity::{
-        limits::credential_quota_cycle,
+        identity::user_session,
+        limits::{credential_block, credential_quota_cycle},
+        oauth::{code, device, token},
         usage::{capture_record, usage_record},
     },
 };
@@ -15,6 +18,15 @@ use sea_orm::{
 
 const BATCH: u64 = 256;
 
+/// How long an OAuth code, token or device row outlives its expiry. Presenting
+/// a code or refresh token that was already consumed is how a leaked one is
+/// detected, and it revokes the whole grant; that only works while the row is
+/// there to say it was consumed. Once deleted, the same replay is merely an
+/// unknown credential. Expired rows are refused either way, so the week is
+/// spent only on noticing a replay, and bounds what a table of spent codes and
+/// rotated tokens can grow to.
+const OAUTH_REPLAY_WINDOW_MS: i64 = 7 * 86_400_000;
+
 pub async fn clean(
     db: &DatabaseConnection,
     days: Option<u32>,
@@ -22,6 +34,21 @@ pub async fn clean(
     max_mb: Option<i64>,
     now: i64,
 ) -> Result<u64> {
+    let mut expired = 0;
+    loop {
+        let count = prune_expired(db, now).await?;
+        expired += count;
+        if count == 0 {
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    if expired > 0 {
+        tracing::info!(
+            removed = expired,
+            "expired blocks, sessions and oauth rows removed"
+        );
+    }
     let mut removed = 0;
     let mut reclaim = false;
     if let Some(days) = observation_days {
@@ -78,7 +105,7 @@ pub async fn clean(
     if removed > 0 {
         tracing::info!(removed, "request history cleanup completed");
     }
-    Ok(removed)
+    Ok(removed + expired)
 }
 
 async fn physical_bytes(db: &DatabaseConnection) -> Result<i64> {
@@ -172,6 +199,60 @@ async fn prune_observations(db: &DatabaseConnection, cutoff: i64) -> Result<u64>
     Ok(ids.len() as u64)
 }
 
+/// One batch of each kind of row that is past its expiry. A credential block
+/// no longer blocks anything once `until_ms` has passed and a session no
+/// longer signs anyone in; OAuth rows wait out `OAUTH_REPLAY_WINDOW_MS` first.
+async fn prune_expired(db: &DatabaseConnection, now: i64) -> Result<u64> {
+    let store = Store::new(db.clone());
+    let spent = now.saturating_sub(OAUTH_REPLAY_WINDOW_MS);
+    let blocks = ids_before::<credential_block::Entity>(
+        db,
+        credential_block::Column::Id,
+        credential_block::Column::UntilMs,
+        now,
+    )
+    .await?;
+    store.credential_blocks().delete_many(&blocks).await?;
+    let sessions = ids_before::<user_session::Entity>(
+        db,
+        user_session::Column::Id,
+        user_session::Column::ExpiresAtMs,
+        now,
+    )
+    .await?;
+    store.user_sessions().delete_many(&sessions).await?;
+    let codes =
+        ids_before::<code::Entity>(db, code::Column::Id, code::Column::ExpiresAtMs, spent).await?;
+    store.oauth_codes().delete_many(&codes).await?;
+    let tokens =
+        ids_before::<token::Entity>(db, token::Column::Id, token::Column::ExpiresAtMs, spent)
+            .await?;
+    store.oauth_tokens().delete_many(&tokens).await?;
+    let devices =
+        ids_before::<device::Entity>(db, device::Column::Id, device::Column::ExpiresAtMs, spent)
+            .await?;
+    store.oauth_devices().delete_many(&devices).await?;
+    Ok((blocks.len() + sessions.len() + codes.len() + tokens.len() + devices.len()) as u64)
+}
+
+/// Up to `BATCH` ids of rows whose `at` is before `cutoff`, oldest first.
+async fn ids_before<E: EntityTrait>(
+    db: &DatabaseConnection,
+    id: E::Column,
+    at: E::Column,
+    cutoff: i64,
+) -> Result<Vec<String>> {
+    Ok(E::find()
+        .select_only()
+        .column(id)
+        .filter(at.lt(cutoff))
+        .order_by_asc(at)
+        .limit(BATCH)
+        .into_tuple()
+        .all(db)
+        .await?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -232,6 +313,109 @@ mod tests {
         );
         assert!(Store::new(db).settings().get().await.unwrap().is_some());
     }
+    #[tokio::test]
+    async fn expired_sessions_go_now_and_spent_oauth_tokens_after_the_replay_window() {
+        use gproxy_store::entity::{
+            identity::{api_key, user},
+            oauth::{client, grant},
+        };
+        let db = fixture().await;
+        let day = 86_400_000;
+        let now = 100 * day;
+        user::ActiveModel {
+            id: Set("u".into()),
+            name: Set("u".into()),
+            role: Set("user".into()),
+            created_at_ms: Set(0),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+        for (id, expires) in [("gone", now - 1), ("live", now + day)] {
+            user_session::ActiveModel {
+                id: Set(id.into()),
+                user_id: Set("u".into()),
+                token_hash: Set(id.into()),
+                created_at_ms: Set(0),
+                expires_at_ms: Set(expires),
+            }
+            .insert(&db)
+            .await
+            .unwrap();
+        }
+        api_key::ActiveModel {
+            id: Set("k".into()),
+            user_id: Set("u".into()),
+            name: Set("k".into()),
+            key_hash: Set("k".into()),
+            prefix: Set("k".into()),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+        client::ActiveModel {
+            id: Set("c".into()),
+            name: Set("c".into()),
+            redirect_uris: Set(serde_json::json!([])),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+        grant::ActiveModel {
+            id: Set("g".into()),
+            user_id: Set("u".into()),
+            api_key_id: Set("k".into()),
+            client_id: Set("c".into()),
+            scopes: Set(serde_json::json!([])),
+            subject: Set("u".into()),
+            created_at_ms: Set(0),
+            ..Default::default()
+        }
+        .insert(&db)
+        .await
+        .unwrap();
+        for (id, expires) in [("spent", now - 8 * day), ("replayable", now - day)] {
+            token::ActiveModel {
+                id: Set(id.into()),
+                token_hash: Set(id.as_bytes().to_vec()),
+                grant_id: Set("g".into()),
+                kind: Set(token::TokenKind::Refresh),
+                created_at_ms: Set(0),
+                expires_at_ms: Set(expires),
+                consumed_at_ms: Set(Some(0)),
+                ..Default::default()
+            }
+            .insert(&db)
+            .await
+            .unwrap();
+        }
+        // Retention is off: expiry is not history and is pruned regardless.
+        assert_eq!(clean(&db, None, None, None, now).await.unwrap(), 2);
+        let sessions: Vec<String> = user_session::Entity::find()
+            .all(&db)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.id)
+            .collect();
+        assert_eq!(sessions, ["live"]);
+        let tokens: Vec<String> = token::Entity::find()
+            .all(&db)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.id)
+            .collect();
+        assert_eq!(
+            tokens,
+            ["replayable"],
+            "a consumed token is kept a week past expiry, so its replay still revokes"
+        );
+    }
+
     #[tokio::test]
     async fn sqlite_budget_reclaims_completed_history() {
         let db = fixture().await;
