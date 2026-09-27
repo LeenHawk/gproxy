@@ -152,6 +152,14 @@ pub fn database_path(data_dir: &Path) -> PathBuf {
     data_dir.join(DATABASE_FILE)
 }
 
+/// SQLite paths may be relative to the instance directory or absolute.
+pub fn database_file(data_dir: &Path, store: &StoreBackendConfig) -> Option<PathBuf> {
+    match store {
+        StoreBackendConfig::Sqlite { path } => Some(data_dir.join(path)),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -232,13 +240,5 @@ mod tests {
         std::fs::write(data.path().join(CONFIG_FILE), "port = \"seventy\"\n").unwrap();
         let error = settings(data.path(), key(data.path())).unwrap_err();
         assert!(error.to_string().contains(CONFIG_FILE), "{error}");
-    }
-}
-
-/// SQLite paths may be relative to the instance directory or absolute.
-pub fn database_file(data_dir: &Path, store: &StoreBackendConfig) -> Option<PathBuf> {
-    match store {
-        StoreBackendConfig::Sqlite { path } => Some(data_dir.join(path)),
-        _ => None,
     }
 }
