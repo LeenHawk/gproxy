@@ -452,6 +452,7 @@
     "current": "Running version",
     "unsupported": "This host does not support self-update",
     "channel": "Update channel",
+    "channelHelp": "Save to use this channel for future update checks. Unsaved changes apply only to checks and installations on this page.",
     "schedule": "Check every {{seconds}} seconds",
     "noSchedule": "Scheduled checks disabled",
     "autoInstall": "Automatic installation enabled",

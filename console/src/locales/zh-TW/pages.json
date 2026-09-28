@@ -452,6 +452,7 @@
     "current": "目前版本",
     "unsupported": "目前宿主不支援線上更新",
     "channel": "更新通道",
+    "channelHelp": "儲存後，後續更新檢查將使用此通道。未儲存的選擇僅用於本頁的檢查和安裝。",
     "schedule": "每 {{seconds}} 秒檢查一次",
     "noSchedule": "自動檢查已關閉",
     "autoInstall": "自動安裝已開啟",

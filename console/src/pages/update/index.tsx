@@ -1,38 +1,60 @@
 import { useState } from "react"
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
 import { ApiError } from "@/api/client"
 import { applyUpdate, checkUpdate, rollbackUpdate, updateSchedule } from "@/api/update"
-import { INFO_KEY, instanceInfo, SETTINGS_KEY, readSettings } from "@/api/settings"
+import { INFO_KEY, instanceInfo, SETTINGS_KEY, readSettings, saveSettings } from "@/api/settings"
 import { Page, PageHeader, PageSection } from "@/components/page"
 import { ConfirmButton } from "@/components/confirm"
 import { EmptyNotice, ErrorNotice, QueryState } from "@/components/state"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Field, FieldLabel } from "@/components/ui/field"
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Link } from "@/lib/router"
 import { formatInstant } from "@/lib/format"
 
 export function UpdatePage() {
   const { t, i18n } = useTranslation()
+  const client = useQueryClient()
   const [selected, setSelected] = useState<string | null>(null)
   const info = useQuery({ queryKey: INFO_KEY, queryFn: instanceInfo })
   const settings = useQuery({ queryKey: SETTINGS_KEY, queryFn: readSettings })
   const schedule = useQuery({ queryKey: ["update"], queryFn: updateSchedule, retry: false })
   const channel = selected ?? settings.data?.instance.updateChannel ?? "release"
   const checked = useMutation({ mutationFn: checkUpdate })
+  const saved = useMutation({
+    mutationFn: (updateChannel: string) => saveSettings({ instance: { updateChannel } }),
+    onSuccess: (value) => {
+      client.setQueryData(SETTINGS_KEY, value)
+      setSelected(null)
+      void client.invalidateQueries({ queryKey: ["update"] })
+      toast.success(t("toast.saved"))
+    },
+  })
   const installed = useMutation({ mutationFn: (kind: "apply" | "rollback") => kind === "apply" ? applyUpdate(channel) : rollbackUpdate() })
   const report = checked.data?.channel === channel ? checked.data : schedule.data?.last_check?.channel === channel ? schedule.data.last_check : null
   const unsupported = schedule.error instanceof ApiError && schedule.error.status === 404
-  const busy = checked.isPending || installed.isPending
+  const busy = checked.isPending || installed.isPending || saved.isPending
   const notesUrl = report?.notes_url && /^https?:\/\//.test(report.notes_url) ? report.notes_url : null
   return <Page>
     <PageHeader title={t("nav.update")} actions={<Link to="/settings" className="text-sm underline">{t("nav.settings")}</Link>} />
     <QueryState isPending={info.isPending} error={info.error}><p>{t("update.current")} <Badge variant="outline">{info.data?.version}</Badge> <code title={info.data?.hash}>{info.data?.hash.slice(0, 12)}</code></p></QueryState>
     {unsupported ? <EmptyNotice title={t("update.unsupported")} /> : <QueryState isPending={schedule.isPending} error={schedule.error}>
       {settings.error ? <ErrorNotice error={settings.error} /> : null}
-      <Field className="max-w-xs"><FieldLabel htmlFor="update-channel">{t("update.channel")}</FieldLabel><Select value={channel} disabled={busy} onValueChange={(v) => { setSelected(v); checked.reset() }}><SelectTrigger id="update-channel"><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{["dev", "beta", "release"].map((v) => <SelectItem value={v} key={v}>{t(`settingsOption.${v}`)}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
+      <Field className="max-w-sm">
+        <FieldLabel htmlFor="update-channel">{t("update.channel")}</FieldLabel>
+        <div className="flex items-center gap-2">
+          <Select value={channel} disabled={busy || !settings.data} onValueChange={(v) => { setSelected(v); checked.reset(); installed.reset(); saved.reset() }}>
+            <SelectTrigger id="update-channel" aria-describedby="update-channel-description" className="flex-1"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectGroup>{["dev", "beta", "release"].map((v) => <SelectItem value={v} key={v}>{t(`settingsOption.${v}`)}</SelectItem>)}</SelectGroup></SelectContent>
+          </Select>
+          <Button disabled={busy || !settings.data || selected === null || channel === settings.data.instance.updateChannel} onClick={() => saved.mutate(channel)}>{t("actions.save")}</Button>
+        </div>
+        <FieldDescription id="update-channel-description">{t("update.channelHelp")}</FieldDescription>
+      </Field>
+      {saved.error ? <ErrorNotice error={saved.error} /> : null}
       <p>{schedule.data?.interval_secs ? t("update.schedule", { seconds: schedule.data.interval_secs }) : t("update.noSchedule")} · {t(schedule.data?.automatic ? "update.autoInstall" : "update.manualInstall")}</p>
       <div className="flex flex-wrap items-center gap-2">
         <Button disabled={busy} onClick={() => checked.mutate(channel)}>{checked.isPending ? t("update.checking") : t("update.check")}</Button>
