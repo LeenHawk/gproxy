@@ -4,7 +4,10 @@
   "version": "4.0.0",
   "identifier": "dev.gproxy.desktop",
   "build": {
-    "frontendDist": "ui"
+    "frontendDist": "ui",
+    "windows": {
+      "staticVCRuntime": true
+    }
   },
   "app": {
     "windows": [
