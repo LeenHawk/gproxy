@@ -96,10 +96,17 @@ toolchains:
   script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
     - docker buildx create --use
-    - docker buildx build --push --file ".gitlab/Dockerfile.$FLAVOR" --tag "$CI_REGISTRY_IMAGE/build-$FLAVOR:$CI_COMMIT_SHA" --cache-from "type=registry,ref=$CI_REGISTRY_IMAGE/build-$FLAVOR:buildcache" --cache-to "type=registry,ref=$CI_REGISTRY_IMAGE/build-$FLAVOR:buildcache,mode=max" .
+    - |
+      dockerfile="$FLAVOR"
+      architecture=amd64
+      if [ "$FLAVOR" = linux-arm64 ]; then
+        dockerfile=linux
+        architecture=arm64
+      fi
+      docker buildx build --push --file ".gitlab/Dockerfile.$dockerfile" --build-arg "TARGET_ARCH=$architecture" --tag "$CI_REGISTRY_IMAGE/build-$FLAVOR:$CI_COMMIT_SHA" --cache-from "type=registry,ref=$CI_REGISTRY_IMAGE/build-$FLAVOR:buildcache" --cache-to "type=registry,ref=$CI_REGISTRY_IMAGE/build-$FLAVOR:buildcache,mode=max" .
   parallel:
     matrix:
-      - FLAVOR: [linux, desktop, android]
+      - FLAVOR: [linux, linux-arm64, desktop, android]
 
 .cross-package:
   extends: .release-rules
@@ -139,7 +146,23 @@ linux:
           - FLAVOR: [linux]
   parallel:
     matrix:
-      - TARGET_TRIPLE: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]
+      - TARGET_TRIPLE: [x86_64-unknown-linux-gnu]
+        PACKAGE_MODE: [cli, application]
+
+linux-arm64:
+  extends: linux
+  variables:
+    TOOLCHAIN: linux-arm64
+  needs:
+    - console
+    - job: toolchains
+      artifacts: false
+      parallel:
+        matrix:
+          - FLAVOR: [linux-arm64]
+  parallel:
+    matrix:
+      - TARGET_TRIPLE: [aarch64-unknown-linux-gnu]
         PACKAGE_MODE: [cli, application]
 
 linux-musl:
@@ -232,6 +255,7 @@ publish:
     - job: docs
       artifacts: false
     - linux
+    - linux-arm64
     - linux-musl
     - desktop
     - android

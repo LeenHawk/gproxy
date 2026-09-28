@@ -25,8 +25,8 @@ Android Application identity is `dev.gproxy.desktop`; the server wrapper is
 `<triple>-tauri-apk` and `<triple>-apk`. CLI archives use bare triples.
 The desktop host does not acquire CLI-style executable replacement.
 
-All Rust release compilation runs on 16-core AMD64 Linux runners. Three
-registry-cached images provide GNU/musl cross tools and GTK multiarch libraries,
+All Rust release compilation runs on 16-core AMD64 Linux runners. Four
+registry-cached images provide GNU/musl cross tools and separate GTK development libraries for each Linux architecture,
 Windows/macOS SDKs, and Android's NDK. CLI and Application use separate jobs and
 caches. Linux ARM64 uses GCC and QEMU checks; musl and macOS use cargo-zigbuild;
 Windows uses cargo-xwin; Android uses cargo-ndk/Tauri's Android build.
