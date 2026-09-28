@@ -37,7 +37,7 @@ if ($target -eq 'aarch64-pc-windows-msvc') {
     if (-not (Test-Path "$env:RUNNER_TEMP/gproxy-windows-arm64-upx/build/Release/upx.exe")) {
         & scripts/install-windows-arm64-upx.ps1
     }
-} elseif ($Mode -eq 'cli') {
+} else {
     Run-Checked bash @('--login', 'scripts/install-upx.sh')
 }
 foreach ($directory in Get-Content $env:GITHUB_PATH) { $env:PATH = "$directory;$env:PATH" }

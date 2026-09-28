@@ -29,6 +29,12 @@ Linux uses matching native runners. macOS uses Apple SDKs/codesign and runs
 the Intel CLI through Rosetta on an Apple Silicon runner. Windows uses MSVC
 on a Windows runner; its ARM64 build cannot be execution-tested on the AMD64
 host. Android uses the NDK and the existing separate APK packaging paths.
+Windows CLI and Application builds run in separate jobs with separate caches
+and time limits, so a first Application build does not consume the CLI job's
+remaining time budget. Each job checks host and target MSVC linking through
+Git Bash before compiling the release. GitLab's hosted Windows runners impose
+a two-hour limit; these jobs use ThinLTO, eight codegen units and two build
+workers while retaining size optimization and UPX packaging.
 
 ## Publishing
 
