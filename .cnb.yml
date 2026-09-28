@@ -1,0 +1,49 @@
+# CNB runs Linux jobs natively. Windows/macOS require organization runners.
+"**":
+  push: &checks
+    - name: CI
+      runner:
+        tags: cnb:arch:amd64
+        cpus: 16
+      docker:
+        build: .cnb/Dockerfile
+        volumes:
+          - /usr/local/cargo/registry:copy-on-write
+          - /usr/local/cargo/git:copy-on-write
+          - /root/.local/share/pnpm/store:copy-on-write
+          - target:copy-on-write
+      env:
+        CARGO_PROFILE_DEV_DEBUG: "0"
+        CARGO_PROFILE_TEST_DEBUG: "0"
+        GPROXY_BUILD_HASH: $CNB_COMMIT
+      stages:
+        - name: Console checks and bundle
+          script: |
+            pnpm --dir console install --frozen-lockfile
+            pnpm --dir console lint
+            pnpm --dir console test
+            pnpm --dir console build
+        - name: Rust formatting
+          script: cargo fmt --all --check
+        - name: Backend lint and tests
+          script: |
+            cargo clippy --locked --all-targets -- -D warnings
+            cargo test --locked
+        - name: Desktop lint and tests
+          script: |
+            cargo clippy --locked -p gproxy-host-tauri --all-targets -- -D warnings
+            cargo test --locked -p gproxy-host-tauri
+        - name: WASM compatibility
+          script: |
+            cargo check --locked --target wasm32-unknown-unknown -p gproxy-protocol -p gproxy-store -p gproxy-seaorm -p gproxy-client -p gproxy-cache -p gproxy-channel -p gproxy-core -p gproxy-file -p gproxy-tokenizer -p gproxy-sdk -p gproxy-app -p gproxy-host-axum -p gproxy-host-edge
+            cargo check --locked --target wasm32-unknown-unknown -p gproxy-sdk --features libsql
+            cargo check --locked --target wasm32-unknown-unknown -p gproxy-cache --all-features
+            cargo check --locked --target wasm32-unknown-unknown -p gproxy-file --no-default-features --features s3
+            cargo check --locked --target wasm32-unknown-unknown -p gproxy-channel --all-features --lib
+        - name: Documentation
+          script: |
+            pnpm --dir docs install --frozen-lockfile
+            pnpm --dir docs check
+            pnpm --dir docs build
+  pull_request: *checks
+  api_trigger_ci: *checks
