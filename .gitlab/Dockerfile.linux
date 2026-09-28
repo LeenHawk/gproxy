@@ -8,6 +8,8 @@ ENV PATH="/opt/cross/bin:/usr/local/go/bin:${PATH}"
 ARG TARGET_ARCH=amd64
 RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && npm install -g pnpm@9.15.9 \
+    && printf 'path-exclude=/usr/share/man/*\n' > /etc/dpkg/dpkg.cfg.d/99-no-manpages \
+    && rm -rf /usr/share/man \
     && dpkg --add-architecture arm64 \
     && apt-get update \
     && apt-get install -y --no-install-recommends clang lld llvm libclang-dev \
