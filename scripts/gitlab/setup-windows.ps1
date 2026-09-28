@@ -30,6 +30,11 @@ $llvmDirectories = @("$env:ProgramW6432\LLVM\bin", "${env:ProgramFiles(x86)}\LLV
 $env:LIBCLANG_PATH = $llvmDirectories | Where-Object { Test-Path "$_\libclang.dll" } | Select-Object -First 1
 if (-not $env:LIBCLANG_PATH) { throw 'LLVM installed without libclang.dll' }
 $env:PATH = "$env:LIBCLANG_PATH;$env:PATH"
+if (-not (Get-Command nasm -ErrorAction SilentlyContinue)) {
+    Run-Checked choco @('install', 'nasm', '-y', '--no-progress')
+    $env:PATH = "${env:ProgramW6432}\NASM;${env:ProgramFiles(x86)}\NASM;$env:PATH"
+}
+Run-Checked nasm @('-v')
 $env:PATH = "${env:ProgramW6432}\PowerShell\7;$env:PATH"
 Write-Host "Installing Node $env:NODE_VERSION and Go $env:GO_VERSION"
 $nodeArchive = "node-v$env:NODE_VERSION-win-x64.zip"
@@ -37,9 +42,9 @@ Invoke-WebRequest "https://nodejs.org/dist/v$env:NODE_VERSION/$nodeArchive" -Out
 Invoke-WebRequest "https://nodejs.org/dist/v$env:NODE_VERSION/SHASUMS256.txt" -OutFile "$toolsDir/node-shasums" -UseBasicParsing
 $expected = ((Get-Content "$toolsDir/node-shasums" | Where-Object { $_ -match "\s+$([regex]::Escape($nodeArchive))$" }) -split '\s+')[0]
 if ((Get-FileHash "$toolsDir/$nodeArchive" -Algorithm SHA256).Hash.ToLower() -ne $expected) { throw 'Node checksum mismatch' }
-Expand-Archive "$toolsDir/$nodeArchive" $toolsDir -Force
+Run-Checked tar @('-xf', "$toolsDir/$nodeArchive", '-C', $toolsDir)
 Invoke-WebRequest "https://go.dev/dl/go$env:GO_VERSION.windows-amd64.zip" -OutFile "$toolsDir/go.zip" -UseBasicParsing
-Expand-Archive "$toolsDir/go.zip" $toolsDir -Force
+Run-Checked tar @('-xf', "$toolsDir/go.zip", '-C', $toolsDir)
 $env:GOROOT = "$toolsDir\go"
 $env:PATH = "$toolsDir\node-v$env:NODE_VERSION-win-x64;$toolsDir\go\bin;$env:CARGO_HOME\bin;$env:USERPROFILE\.cargo\bin;$env:PATH"
 Run-Checked npm @('install', '-g', 'pnpm@9.15.9')
