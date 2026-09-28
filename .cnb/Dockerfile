@@ -1,5 +1,6 @@
 FROM node:24-trixie AS node
 FROM golang:1.27.1-trixie AS go
+FROM docker:28-cli AS docker
 FROM rust:1-trixie
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
@@ -15,3 +16,5 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && rm -rf /var/lib/apt/lists/* \
     && rustup component add clippy rustfmt \
     && rustup target add wasm32-unknown-unknown
+COPY --from=docker /usr/local/bin/docker /usr/local/bin/docker
+COPY --from=docker /usr/local/libexec/docker/cli-plugins/docker-buildx /usr/local/libexec/docker/cli-plugins/docker-buildx

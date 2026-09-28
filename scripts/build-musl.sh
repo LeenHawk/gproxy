@@ -20,6 +20,7 @@ docker run --rm --platform "$platform" \
   --env GPROXY_BUILD_VERSION --env GPROXY_BUILD_CHANNEL \
   --env GPROXY_BUILD_HASH --env GPROXY_UPDATE_PUBKEY \
   --env GPROXY_INSTALLATION_KIND \
+  --env GPROXY_BUILD_UPDATE_SOURCE \
   "$image" sh -eu -c '
     # Alpine ships standard libraries under its own native target triple.
     native_target="$(rustc -vV | sed -n "s/^host: //p")"

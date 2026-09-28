@@ -1,10 +1,17 @@
-# CNB runs Linux jobs natively. Windows/macOS require organization runners.
+include:
+  - .cnb/release.yml
+
+# Linux checks run natively; release cross-builds are defined separately.
 "**":
   push: &checks
     - name: CI
+      lock:
+        key: ci-$CNB_BRANCH
+        expires: 7200
+        cancel-in-progress: true
       runner:
         tags: cnb:arch:amd64
-        cpus: 16
+        cpus: 32
       docker:
         build: .cnb/Dockerfile
         volumes:
@@ -26,14 +33,17 @@
         - name: Rust formatting
           script: cargo fmt --all --check
         - name: Backend lint and tests
+          timeout: 90m
           script: |
             cargo clippy --locked --all-targets -- -D warnings
             cargo test --locked
         - name: Desktop lint and tests
+          timeout: 90m
           script: |
             cargo clippy --locked -p gproxy-host-tauri --all-targets -- -D warnings
             cargo test --locked -p gproxy-host-tauri
         - name: WASM compatibility
+          timeout: 90m
           script: |
             cargo check --locked --target wasm32-unknown-unknown -p gproxy-protocol -p gproxy-store -p gproxy-seaorm -p gproxy-client -p gproxy-cache -p gproxy-channel -p gproxy-core -p gproxy-file -p gproxy-tokenizer -p gproxy-sdk -p gproxy-app -p gproxy-host-axum -p gproxy-host-edge
             cargo check --locked --target wasm32-unknown-unknown -p gproxy-sdk --features libsql
@@ -47,3 +57,7 @@
             pnpm --dir docs build
   pull_request: *checks
   api_trigger_ci: *checks
+  api_trigger_release: *checks
+
+"v*":
+  tag_push: *checks
