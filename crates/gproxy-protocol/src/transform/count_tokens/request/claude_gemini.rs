@@ -34,7 +34,7 @@ pub fn claude_to_gemini(
     for (id, name) in context.tool_names {
         calls.seed(id, name)?;
     }
-    let config = to_gemini_config(&input)?;
+    let config = to_gemini_config(&input, &mut report)?;
     let (tools, choice) = pair::tools::to_gemini(input.tools, input.tool_choice, &mut report)?;
     let mut system = Vec::new();
     if let Some(prompt) = input.system {
@@ -165,6 +165,7 @@ pub fn gemini_to_claude(
 
 fn to_gemini_config(
     input: &c::CountTokensRequestBody,
+    report: &mut Report,
 ) -> Result<Option<g::GenerationConfig>, TransformError> {
     let mut out = g::GenerationConfig::builder().build();
     let mut present = false;
@@ -172,6 +173,13 @@ fn to_gemini_config(
     if let Some(thinking) = &input.thinking {
         let mut config = g::ThinkingConfig::builder().build();
         match thinking {
+            c::ThinkingConfig::BetweenTools => {
+                config.thinking_budget = Some(0);
+                report.changed(
+                    "thinking.type",
+                    "between_tools mapped to zero thinking budget; Gemini has no between-tool progress mode",
+                );
+            }
             c::ThinkingConfig::Disabled(_) => config.thinking_budget = Some(0),
             c::ThinkingConfig::Enabled(v) => {
                 config.thinking_budget = Some(v.budget_tokens);
@@ -181,7 +189,9 @@ fn to_gemini_config(
         out.thinking_config = Some(config);
         present = true;
     }
-    if let Some(effort) = input.output_config.as_ref().and_then(|v| v.effort) {
+    if !matches!(input.thinking, Some(c::ThinkingConfig::BetweenTools))
+        && let Some(effort) = input.output_config.as_ref().and_then(|v| v.effort)
+    {
         let level = match effort {
             c::Effort::Low => Some(g::ThinkingLevel::Low),
             c::Effort::Medium => Some(g::ThinkingLevel::Medium),

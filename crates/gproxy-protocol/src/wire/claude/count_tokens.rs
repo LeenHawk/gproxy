@@ -363,6 +363,9 @@ pub enum ThinkingConfig {
     Disabled(ThinkingDisabled),
     #[serde(rename = "adaptive")]
     Adaptive(ThinkingAdaptive),
+    #[serde(rename = "between_tools")]
+    /// No up-front thinking; progress updates between tool calls (Sonnet 5.5).
+    BetweenTools,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, gproxy_protocol_macros::WireBuilder)]
 #[serde(rename_all = "snake_case")]

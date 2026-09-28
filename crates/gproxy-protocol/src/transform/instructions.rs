@@ -38,6 +38,7 @@ pub(crate) fn claude(messages: &mut [c::Message], model: &str, report: &mut Repo
     // Sonnet 5 does not support this feature. Unknown models must not inherit it
     // simply because they are absent from an old-model denylist.
     let supported = [
+        "claude-sonnet-5-5",
         "claude-opus-4-8",
         "claude-opus-5",
         "claude-fable-5",

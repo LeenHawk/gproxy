@@ -88,6 +88,13 @@ pub fn claude_to_openai(
         })
         .map(Some);
     match input.thinking.as_ref() {
+        Some(cc::ThinkingConfig::BetweenTools) => {
+            reasoning_effort = Some(Some(chat::ReasoningEffort::None));
+            report.changed(
+                "thinking.type",
+                "between_tools mapped to no reasoning; target has no between-tool progress mode",
+            );
+        }
         Some(cc::ThinkingConfig::Disabled(_)) => {
             reasoning_effort = Some(Some(chat::ReasoningEffort::None));
         }
