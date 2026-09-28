@@ -8,7 +8,7 @@ pull mirroring; neither this trigger nor publishing uses GitHub Actions.
 The `dev` branch builds the rolling `nightly` release. Matching `v4.*` version
 tags build beta/stable releases. Release jobs require a protected ref and do
 not run for external pull requests. Publication waits for all checks and all
-ten targets in `scripts/release-targets.json`. Edge/Cloudflare is not published.
+ten targets in `scripts/release-targets.json`, plus Edge/Cloudflare.
 
 Each target builds **CLI / server** and **Application** separately:
 
@@ -25,13 +25,25 @@ Android Application identity is `dev.gproxy.desktop`; the server wrapper is
 `<triple>-tauri-apk` and `<triple>-apk`. CLI archives use bare triples.
 The desktop host does not acquire CLI-style executable replacement.
 
+Edge publishes `gproxy-edge.wasm` and the deployable
+`gproxy-edge-cloudflare.zip` bundle, with checksums and provenance.
+Native verification runs Clippy and tests once each over the whole workspace,
+including Tauri, so both commands share the same enabled feature set. The
+WASM compatibility and feature checks run in a parallel job. Both reuse the
+prepared Linux toolchain image instead of installing tools on every run.
+Release refs use their commit's image; other refs use the last prepared image
+for the pinned Rust version. Native and WASM checks have separate target
+directories and lockfile-keyed caches. Native caches omit test executables and
+incremental compilation directories; dependency libraries and build-script
+outputs remain cached, using fast ZIP extraction and compression.
+
 All Rust release compilation runs on 16-core AMD64 Linux runners. Four
 registry-cached images provide GNU/musl cross tools and separate GTK development libraries for each Linux architecture,
 Windows/macOS SDKs, and Android's NDK. CLI and Application use separate jobs and
 caches. Linux ARM64 uses GCC and QEMU checks; musl and macOS use cargo-zigbuild;
 Windows uses cargo-xwin; Android uses cargo-ndk/Tauri's Android build.
 
-ZIP is reserved for CLI binary distributions. Applications are DEB, MSIX, DMG
+Native ZIP packages are CLI binary distributions. Applications are DEB, MSIX, DMG
 and APK. Windows SDK and macOS hdiutil jobs only seal already-cross-built
 executables into MSIX/DMG; they do not compile Rust. macOS CLI signatures and
 both CPU architectures are checked on the macOS packaging host, using Rosetta

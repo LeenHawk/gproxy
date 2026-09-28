@@ -167,7 +167,7 @@ class Cnb:
 def verify_packages():
     directory = Path("dist/release")
     matrix = json.loads(Path("scripts/release-targets.json").read_text())["include"]
-    expected = []
+    expected = ["gproxy-edge.wasm", "gproxy-edge-cloudflare.zip", "gproxy-edge.provenance.json"]
     extensions = {"linux": ".deb", "macos": ".dmg", "windows": ".msix", "android": ".apk"}
     for row in matrix:
         cli = row["artifact"]
@@ -191,7 +191,7 @@ def verify_packages():
                 actual = hashlib.file_digest(stream, "sha256").hexdigest()
             if actual != expected_hash:
                 raise ValueError(f"Release checksum mismatch: {name}")
-    print("Complete CLI and Application artifact sets verified")
+    print("Complete CLI, Application and Edge artifact sets verified")
 
 
 def main():
