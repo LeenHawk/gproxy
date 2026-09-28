@@ -79,7 +79,7 @@ fn sparse_stream_repairs_tool_lifecycle_before_exact_terminal() {
 fn aliases_are_request_local_and_restore_replay_ids() {
     let (_, aliases) = shape::request(&Bytes::from(json!({"tools":[{"type":"shell"}],"input":[
         {"type":"shell_call","id":"shell_old","call_id":"call_old","action":{"commands":["pwd"]}}
-    ]}).to_string())).unwrap();
+    ]}).to_string()), &http::HeaderMap::new()).unwrap();
     let mapped = aliases.ids.keys().next().unwrap().clone();
     let call = json!({"type":"function_call","id":mapped,"call_id":"call_new","name":"shell_command","arguments":"{\"command\":\"pwd\",\"workdir\":\"/repo\"}"});
     let input = vec![
