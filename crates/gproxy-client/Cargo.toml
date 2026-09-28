@@ -25,7 +25,6 @@ reqwest-native = [
     "dep:reqwest_native",
     "dep:openssl-sys",
     "reqwest",
-    "wreq?/prefix-symbols",
 ]
 # wasm32: the JS host's global `fetch` through web-sys, with streaming bodies
 # in both directions. Works wherever a JS runtime exposes fetch: Cloudflare
@@ -68,6 +67,9 @@ reqwest_native = { workspace = true, optional = true }
 # a binary with wreq's BoringSSL (see the `reqwest-native` feature).
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
 openssl-sys = { workspace = true, optional = true, features = ["vendored"] }
+# Only these platforms link OpenSSL alongside BoringSSL. Windows and macOS
+# use platform TLS and do not need BoringSSL symbol prefixing.
+wreq = { workspace = true, optional = true, features = ["prefix-symbols"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 futures-util = { workspace = true, features = ["sink"] }
