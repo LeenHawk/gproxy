@@ -8,7 +8,7 @@ pull mirroring; neither this trigger nor publishing uses GitHub Actions.
 The `dev` branch builds the rolling `nightly` release. Matching `v4.*` version
 tags build beta/stable releases. Release jobs require a protected ref and do
 not run for external pull requests. Publication waits for all checks and all
-ten targets in `scripts/release-targets.json`, plus Edge/Cloudflare.
+ten targets in `scripts/release-targets.json`. Edge/Cloudflare is not published.
 
 Each target builds **CLI / server** and **Application** separately:
 
@@ -16,7 +16,7 @@ Each target builds **CLI / server** and **Application** separately:
 | --- | --- | --- |
 | Linux GNU x86_64 / ARM64 | `gproxy-linux-*.zip` | `gproxy-tauri-linux-*.deb` |
 | Linux musl x86_64 / ARM64 | `gproxy-linux-*-musl.zip` | None |
-| Windows x86_64 / ARM64 | `gproxy-windows-*.zip` (`gproxy.exe`) | `gproxy-tauri-windows-*.msix` / `.exe` (`gproxy-desktop.exe`) |
+| Windows x86_64 / ARM64 | `gproxy-windows-*.zip` (`gproxy.exe`) | `gproxy-tauri-windows-*.msix` (`gproxy-desktop.exe`) |
 | macOS x86_64 / ARM64 | `gproxy-macos-*.zip` (`gproxy`) | `gproxy-tauri-macos-*.dmg` (Tauri application) |
 | Android x86_64 / ARM64 | `gproxy-android-*.zip` and legacy server-wrapper APK | `gproxy-tauri-android-*.apk` |
 
@@ -25,18 +25,23 @@ Android Application identity is `dev.gproxy.desktop`; the server wrapper is
 `<triple>-tauri-apk` and `<triple>-apk`. CLI archives use bare triples.
 The desktop host does not acquire CLI-style executable replacement.
 
-Linux uses matching native runners. macOS uses Apple SDKs/codesign and runs
-the Intel CLI through Rosetta on an Apple Silicon runner. Android uses the
-NDK and the existing separate APK packaging paths.
+All Rust release compilation runs on 16-core AMD64 Linux runners. Three
+registry-cached images provide GNU/musl cross tools and GTK multiarch libraries,
+Windows/macOS SDKs, and Android's NDK. CLI and Application use separate jobs and
+caches. Linux ARM64 uses GCC and QEMU checks; musl and macOS use cargo-zigbuild;
+Windows uses cargo-xwin; Android uses cargo-ndk/Tauri's Android build.
 
-Windows CLI and Application compile independently on 16-core Linux runners
-with cargo-xwin. The toolchain image is built once per pipeline with a registry
-layer cache. Builds use ThinLTO and size optimization; ARM64 uses the fixed UPX
-entry stub with fast NRV2E compression. The x64 CLI runs under Wine before and
-after compression. ARM64 execution and desktop GUI behavior are not exercised.
-Applications produce NSIS installers on Linux. A Windows runner only packages
-the already-built executables into MSIX, with no Rust compilation or toolchain
-installation. Both installer formats share the same executable and provenance.
+ZIP is reserved for CLI binary distributions. Applications are DEB, MSIX, DMG
+and APK. Windows SDK and macOS hdiutil jobs only seal already-cross-built
+executables into MSIX/DMG; they do not compile Rust. macOS CLI signatures and
+both CPU architectures are checked on the macOS packaging host, using Rosetta
+for x86_64. App bundles are ad-hoc signed, not notarized.
+
+UPX runs for supported Linux, Windows and Android binaries. Linux CLI binaries
+run before and after compression (QEMU for ARM64); Windows x64 CLI uses Wine.
+Windows ARM64 retains the patched UPX entry stub with fast NRV2E compression.
+macOS Mach-O is left uncompressed. Windows ARM64 execution and desktop GUI
+behavior are not exercised by these packaging checks.
 
 CNB's automatic build entry point is disabled; it remains a source, release
 and container mirror. The retained `.cnb/` scripts are a fallback, not the

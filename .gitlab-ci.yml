@@ -81,69 +81,7 @@ backend:
       when: never
     - if: '$CI_COMMIT_REF_PROTECTED == "true" && ($CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_TAG =~ /^v4\./)'
 
-.unix-package:
-  extends: .release-rules
-  stage: build
-  needs: [console]
-  timeout: 3h
-  cache:
-    key: "cargo-$TARGET_TRIPLE"
-    when: always
-    paths: [.cargo/registry/, .cargo/git/, target/]
-  before_script:
-    - source scripts/gitlab/setup-unix.sh
-  script:
-    - bash scripts/gitlab/package-unix.sh cli
-    - bash scripts/gitlab/package-unix.sh application
-  artifacts:
-    name: "$CI_JOB_NAME_SLUG-$CI_COMMIT_SHORT_SHA"
-    expire_in: 3 days
-    paths: [dist/release/, dist/container/]
-
-linux:
-  extends: .unix-package
-  image: rust:1.98-trixie
-  tags: [$RUNNER_TAG]
-  services:
-    - name: docker:28-dind
-      alias: docker
-  variables:
-    TARGET_OS: linux
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
-  parallel:
-    matrix:
-      - TARGET_TRIPLE: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl]
-        RUNNER_TAG: saas-linux-xlarge-amd64
-      - TARGET_TRIPLE: [aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl]
-        RUNNER_TAG: saas-linux-large-arm64
-
-macos:
-  extends: .unix-package
-  image: macos-26-xcode-26
-  tags: [saas-macos-large-m2pro]
-  variables:
-    TARGET_OS: macos
-    CARGO_BUILD_JOBS: "2"
-    APPLE_SIGNING_IDENTITY: "-"
-  parallel:
-    matrix:
-      - TARGET_TRIPLE: [x86_64-apple-darwin, aarch64-apple-darwin]
-
-android:
-  extends: .unix-package
-  image: rust:1.98-trixie
-  tags: [saas-linux-xlarge-amd64]
-  variables:
-    TARGET_OS: android
-  environment:
-    name: release/android
-    action: prepare
-  parallel:
-    matrix:
-      - TARGET_TRIPLE: [x86_64-linux-android, aarch64-linux-android]
-
-windows-toolchain:
+toolchains:
   extends: .release-rules
   stage: build
   image: docker:28-cli
@@ -158,45 +96,101 @@ windows-toolchain:
   script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
     - docker buildx create --use
-    - docker buildx build --push --file .gitlab/Dockerfile.windows --tag "$CI_REGISTRY_IMAGE/windows-cross:$CI_COMMIT_SHA" --cache-from "type=registry,ref=$CI_REGISTRY_IMAGE/windows-cross:buildcache" --cache-to "type=registry,ref=$CI_REGISTRY_IMAGE/windows-cross:buildcache,mode=max" .
+    - docker buildx build --push --file ".gitlab/Dockerfile.$FLAVOR" --tag "$CI_REGISTRY_IMAGE/build-$FLAVOR:$CI_COMMIT_SHA" --cache-from "type=registry,ref=$CI_REGISTRY_IMAGE/build-$FLAVOR:buildcache" --cache-to "type=registry,ref=$CI_REGISTRY_IMAGE/build-$FLAVOR:buildcache,mode=max" .
+  parallel:
+    matrix:
+      - FLAVOR: [linux, desktop, android]
 
-windows:
+.cross-package:
   extends: .release-rules
   stage: build
-  image: "$CI_REGISTRY_IMAGE/windows-cross:$CI_COMMIT_SHA"
+  image: "$CI_REGISTRY_IMAGE/build-$TOOLCHAIN:$CI_COMMIT_SHA"
   tags: [saas-linux-xlarge-amd64]
-  needs:
-    - console
-    - job: windows-toolchain
-      artifacts: false
   timeout: 3h
   variables:
     CARGO_BUILD_JOBS: "12"
     CARGO_PROFILE_RELEASE_LTO: thin
     CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "8"
     XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
+    GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
     FF_USE_FASTZIP: "true"
     CACHE_COMPRESSION_LEVEL: fastest
   cache:
-    key: "windows-cross-$TARGET_TRIPLE-$PACKAGE_MODE"
+    key: "cross-$TARGET_TRIPLE-$PACKAGE_MODE"
     when: always
-    paths: [.cargo/registry/, .cargo/git/, target/, .cache/]
+    paths: [.cargo/registry/, .cargo/git/, target/, .cache/, .gradle/]
   script:
-    - bash scripts/gitlab/package-windows-cross.sh "$PACKAGE_MODE"
+    - bash scripts/gitlab/package-cross.sh "$PACKAGE_MODE"
   artifacts:
     name: "$CI_JOB_NAME_SLUG-$CI_COMMIT_SHORT_SHA"
     expire_in: 3 days
-    paths: [dist/release/, dist/windows/]
+    paths: [dist/release/, dist/container/, dist/windows/, dist/macos/]
+
+linux:
+  extends: .cross-package
+  variables:
+    TOOLCHAIN: linux
+  needs:
+    - console
+    - job: toolchains
+      artifacts: false
+      parallel:
+        matrix:
+          - FLAVOR: [linux]
   parallel:
     matrix:
-      - TARGET_TRIPLE: [x86_64-pc-windows-msvc, aarch64-pc-windows-msvc]
+      - TARGET_TRIPLE: [x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu]
+        PACKAGE_MODE: [cli, application]
+
+linux-musl:
+  extends: linux
+  variables:
+    TOOLCHAIN: linux
+    PACKAGE_MODE: cli
+  parallel:
+    matrix:
+      - TARGET_TRIPLE: [x86_64-unknown-linux-musl, aarch64-unknown-linux-musl]
+
+desktop:
+  extends: .cross-package
+  variables:
+    TOOLCHAIN: desktop
+  needs:
+    - console
+    - job: toolchains
+      artifacts: false
+      parallel:
+        matrix:
+          - FLAVOR: [desktop]
+  parallel:
+    matrix:
+      - TARGET_TRIPLE: [x86_64-pc-windows-msvc, aarch64-pc-windows-msvc, x86_64-apple-darwin, aarch64-apple-darwin]
+        PACKAGE_MODE: [cli, application]
+
+android:
+  extends: .cross-package
+  variables:
+    TOOLCHAIN: android
+  needs:
+    - console
+    - job: toolchains
+      artifacts: false
+      parallel:
+        matrix:
+          - FLAVOR: [android]
+  environment:
+    name: release/android
+    action: prepare
+  parallel:
+    matrix:
+      - TARGET_TRIPLE: [x86_64-linux-android, aarch64-linux-android]
         PACKAGE_MODE: [cli, application]
 
 windows-msix:
   extends: .release-rules
   stage: package
   tags: [saas-windows-medium-amd64]
-  needs: [windows]
+  needs: [desktop]
   timeout: 30m
   script:
     - '& ./scripts/gitlab/package-msix.ps1'
@@ -204,25 +198,18 @@ windows-msix:
     expire_in: 3 days
     paths: [dist/msix/]
 
-edge:
+macos-dmg:
   extends: .release-rules
-  stage: build
-  image: rust:1.98-trixie
-  tags: [saas-linux-xlarge-amd64]
-  needs: [console]
-  timeout: 3h
-  cache:
-    key: cargo-edge
-    when: always
-    paths: [.cargo/registry/, .cargo/git/, target/]
-  before_script:
-    - source scripts/gitlab/setup-unix.sh
+  stage: package
+  image: macos-26-xcode-26
+  tags: [saas-macos-large-m2pro]
+  needs: [desktop]
+  timeout: 30m
   script:
-    - bash scripts/gitlab/package-unix.sh edge
+    - python3 scripts/gitlab/package-dmg.py
   artifacts:
-    name: "$CI_JOB_NAME_SLUG-$CI_COMMIT_SHORT_SHA"
     expire_in: 3 days
-    paths: [dist/release/]
+    paths: [dist/dmg/]
 
 publish:
   extends: .release-rules
@@ -245,11 +232,11 @@ publish:
     - job: docs
       artifacts: false
     - linux
-    - macos
-    - windows
-    - windows-msix
+    - linux-musl
+    - desktop
     - android
-    - edge
+    - windows-msix
+    - macos-dmg
   before_script:
     - apk add --no-cache bash python3 jq openssl git
   script:
