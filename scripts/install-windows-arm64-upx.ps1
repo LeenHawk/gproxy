@@ -13,7 +13,8 @@ Invoke-Checked git @('-C', $source, 'remote', 'add', 'origin', 'https://github.c
 Invoke-Checked git @('-C', $source, 'fetch', '--depth', '1', 'origin', $revision)
 Invoke-Checked git @('-C', $source, 'checkout', '--detach', 'FETCH_HEAD')
 Invoke-Checked git @('-C', $source, 'submodule', 'update', '--init', '--recursive', '--depth', '1')
-Invoke-Checked cmake @('-S', $source, '-B', "$source/build", '-A', 'ARM64', '-DUPX_CONFIG_DISABLE_WERROR=ON')
+$hostArchitecture = if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'ARM64' } else { 'x64' }
+Invoke-Checked cmake @('-S', $source, '-B', "$source/build", '-A', $hostArchitecture, '-DUPX_CONFIG_DISABLE_WERROR=ON')
 Invoke-Checked cmake @('--build', "$source/build", '--config', 'Release', '--target', 'upx', '--parallel', '4')
 "$source/build/Release" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 Invoke-Checked "$source/build/Release/upx.exe" @('--version')
