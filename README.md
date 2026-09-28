@@ -84,7 +84,7 @@ docker run -d --name gproxy --restart unless-stopped \
 
 The release image runs as UID/GID **65532:65532** and stores data at
 **/app/data**. A named volume preserves it; bind mounts must be writable by
-that user. Images cover amd64, arm64 and riscv64, with a `-musl` variant.
+that user. Images cover amd64 and arm64, with a `-musl` variant.
 Use `:staging` only when you want rolling development builds.
 
 ### Edge

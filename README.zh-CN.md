@@ -60,7 +60,7 @@ docker run -d --name gproxy --restart unless-stopped \
 ```
 
 发布镜像使用 **65532:65532** 用户运行，数据目录是 **/app/data**。命名卷可保留数据；
-绑定宿主机目录时需给该用户写权限。镜像覆盖 amd64、arm64、riscv64，并提供
+绑定宿主机目录时需给该用户写权限。镜像覆盖 amd64、arm64，并提供
 `-musl` 变体。只有需要滚动开发版本时才使用 `:staging`。
 
 ### Edge
