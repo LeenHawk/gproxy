@@ -1,4 +1,5 @@
 $ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 function Run-Checked {
     param([string]$Command, [string[]]$Arguments)
     & $Command @Arguments
@@ -14,7 +15,12 @@ $env:PATH = "C:\Program Files\PowerShell\7;C:\Program Files\LLVM\bin;$env:PATH"
 if (-not (Get-Command clang -ErrorAction SilentlyContinue)) {
     Run-Checked choco @('install', 'llvm', '-y', '--no-progress')
 }
-$env:LIBCLANG_PATH = 'C:\Program Files\LLVM\bin'
+$llvmDirectories = @("$env:ProgramW6432\LLVM\bin", "${env:ProgramFiles(x86)}\LLVM\bin")
+$env:LIBCLANG_PATH = $llvmDirectories | Where-Object { Test-Path "$_\libclang.dll" } | Select-Object -First 1
+if (-not $env:LIBCLANG_PATH) { throw 'LLVM installed without libclang.dll' }
+$env:PATH = "$env:LIBCLANG_PATH;$env:PATH"
+$env:PATH = "${env:ProgramW6432}\PowerShell\7;$env:PATH"
+Write-Host "Installing Node $env:NODE_VERSION and Go $env:GO_VERSION"
 $nodeArchive = "node-v$env:NODE_VERSION-win-x64.zip"
 Invoke-WebRequest "https://nodejs.org/dist/v$env:NODE_VERSION/$nodeArchive" -OutFile "$toolsDir/$nodeArchive" -UseBasicParsing
 Invoke-WebRequest "https://nodejs.org/dist/v$env:NODE_VERSION/SHASUMS256.txt" -OutFile "$toolsDir/node-shasums" -UseBasicParsing

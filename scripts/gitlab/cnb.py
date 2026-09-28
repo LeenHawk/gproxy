@@ -67,4 +67,3 @@ class Cnb:
                 "prerelease": prerelease, "make_latest": "false",
             })
         return release
-
