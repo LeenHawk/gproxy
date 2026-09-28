@@ -929,6 +929,115 @@ async fn a_failed_automatic_import_leaves_v3_in_place_for_the_next_start() {
     instance.app.gproxy().shutdown();
 }
 
+#[tokio::test]
+async fn startup_imports_usage_in_batches_without_resettling_or_duplicate_request_loss() {
+    use sea_orm::{ConnectionTrait, Database};
+    let directory = tempfile::tempdir().unwrap();
+    v3_database(directory.path()).await;
+    let db = Database::connect(format!(
+        "sqlite://{}",
+        directory.path().join("gproxy.db").display()
+    ))
+    .await
+    .unwrap();
+    db.execute_unprepared("CREATE TABLE usage_rows (id INTEGER PRIMARY KEY, request_id TEXT, at INTEGER, upstream_started_at_ms INTEGER, latency_ms INTEGER, provider_id INTEGER, credential_id INTEGER, user_id INTEGER, user_key_id INTEGER, organization_id INTEGER, team_id INTEGER, upstream_model TEXT, operation TEXT, input_tokens INTEGER, output_tokens INTEGER, cached_input_tokens INTEGER, metrics_json TEXT, dimensions_json TEXT, cost TEXT, usage_source TEXT, ended TEXT)").await.unwrap();
+    // Cross a page boundary. Legacy request IDs need not be unique: each ledger
+    // row must survive even when several upstream calls shared one request.
+    db.execute_unprepared(
+        r#"WITH RECURSIVE ids(id) AS (VALUES(1) UNION ALL SELECT id+1 FROM ids WHERE id<258)
+        INSERT INTO usage_rows SELECT id, 'same-request', 1700000001, NULL, 250, 1, 1, 1, 1, 8, 9,
+        'model', 'stream_generate_content', 12, 5, 3,
+        '{"reasoning_tokens":"2.0","audio_seconds":"1.5","custom":"0.00000000001"}',
+        '{"service_tier":"priority"}', '0.1234567895', 'upstream', 'complete' FROM ids"#,
+    )
+    .await
+    .unwrap();
+    db.execute_unprepared("UPDATE usage_rows SET upstream_started_at_ms=1700000000000, usage_source='estimated', ended='interrupted', operation=NULL WHERE id=258").await.unwrap();
+    db.close().await.unwrap();
+    let mut settings = settings(directory.path(), AdminOptions::default());
+    settings.config.master_key.key = gproxy_app::config::MasterKey::Hex(source_key());
+    let first = open(&settings).await;
+    let rows = all(first.app.gproxy().store().usage_records()).await;
+    assert_eq!(rows.len(), 258);
+    let row = rows
+        .iter()
+        .find(|r| r.request_id == "v3-usage_rows-1")
+        .unwrap();
+    assert_eq!(row.user_id.as_deref(), Some("v3-users-1"));
+    assert_eq!(row.api_key_id.as_deref(), Some("v3-user_keys-1"));
+    assert_eq!(row.provider_id.as_deref(), Some("v3-providers-1"));
+    assert_eq!(row.started_at_ms, 1700000000750);
+    assert_eq!(row.ended_at_ms, Some(1700000001000));
+    assert_eq!(row.input_tokens, Some(12));
+    assert_eq!(row.output_tokens, Some(5));
+    assert_eq!(row.cached_input_tokens, Some(3));
+    assert_eq!(row.reasoning_tokens, Some(2));
+    assert_eq!(row.audio_seconds.unwrap().to_string(), "1.5");
+    assert_eq!(row.cost.unwrap().to_string(), "0.12345679");
+    assert_eq!(row.state.as_deref(), Some("completed"));
+    assert_eq!(row.completeness.as_deref(), Some("complete"));
+    assert_eq!(row.actual_service_tier.as_deref(), Some("priority"));
+    assert_eq!(row.metrics["metrics"]["custom"], "0.00000000001");
+    assert_eq!(row.metrics["v3"]["cost"], "0.1234567895");
+    assert_eq!(row.metrics["v3"]["request_id"], "same-request");
+    let partial = rows
+        .iter()
+        .find(|r| r.request_id == "v3-usage_rows-258")
+        .unwrap();
+    assert_eq!(partial.started_at_ms, 1700000000000);
+    assert_eq!(partial.ended_at_ms, Some(1700000000250));
+    assert_eq!(partial.completeness.as_deref(), Some("unknown"));
+    assert_eq!(partial.state.as_deref(), Some("failed"));
+    assert_eq!(partial.metrics["v3"]["usage_source"], "estimated");
+    assert_eq!(partial.operation, "unknown");
+    assert!(
+        all(first.app.gproxy().store().quota_settlements())
+            .await
+            .is_empty()
+    );
+    first.app.gproxy().shutdown();
+    drop(first);
+    let second = open(&settings).await;
+    assert_eq!(
+        all(second.app.gproxy().store().usage_records()).await.len(),
+        258
+    );
+    // Simulate a process dying after usage batches commit but before the import
+    // completion marker: replay must retain one row per legacy ledger ID.
+    second
+        .app
+        .gproxy()
+        .store()
+        .connection()
+        .execute_unprepared("DELETE FROM audit_events WHERE action='migration.v3.import'")
+        .await
+        .unwrap();
+    let backup = std::fs::read_dir(directory.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| path.extension().is_some_and(|ext| ext == "bak"))
+        .unwrap();
+    gproxy::v3::import(
+        &second.app,
+        &backup,
+        Some(&source_key()),
+        &AdminOptions::default(),
+        false,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        all(second.app.gproxy().store().usage_records()).await.len(),
+        258
+    );
+    assert!(
+        all(second.app.gproxy().store().quota_settlements())
+            .await
+            .is_empty()
+    );
+    second.app.gproxy().shutdown();
+}
+
 /// What only v3's database carries, and what this migration used to leave
 /// behind: instance settings, the issuer's clients, the tokenizer's token and
 /// vocabularies, a grouped permission, an operator's routing rule and a

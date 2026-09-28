@@ -31,11 +31,9 @@
 //!
 //! # What is read, and what is deliberately not
 //!
-//! Every configuration and identity table, and none of the history. In
-//! production the history is most of the database — 200767
-//! `credential_quota_observations`, 91242 `request_logs`, 88255 `wire_logs`,
-//! 83093 `usage_rows` — and none of it is configuration. See the deployment
-//! page for the full list of what an operator loses.
+//! This reader loads configuration and identity. Usage is streamed separately
+//! by `usage` so large histories do not have to fit in memory. Captures,
+//! request logs, sessions and quota observations remain in the v3 backup.
 //!
 //! # The shapes that are not the export's
 //!
@@ -129,7 +127,7 @@ fn source_key(data: &document::Data) -> document::SourceKey {
 /// [`source_key`].
 const MASTER_KEY_FINGERPRINT: &str = "master_key_fingerprint";
 
-async fn open(path: &Path) -> Result<DatabaseConnection> {
+pub(super) async fn open(path: &Path) -> Result<DatabaseConnection> {
     // `mode=ro`: the driver refuses a write, rather than this module promising
     // not to attempt one.
     let url = format!("sqlite://{}?mode=ro", path.to_string_lossy());

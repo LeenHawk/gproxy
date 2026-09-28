@@ -35,7 +35,8 @@ can also invalidate refresh tokens, independently of database migration.
 | Users, passwords, API keys, organizations and teams | Password hashes and API key digests are preserved. |
 | Prices and budgets | Translated to v4's units. Values beyond 9 decimal places use the store's nearest-even rounding and are reported. |
 | Permissions, rate limits and rewrites | Supported forms migrate; changes and unmappable forms are reported. |
-| Usage, captures, request logs, sessions and audit history | Retained in the v3 backup, not copied into v4's live tables. Existing browser sessions need a fresh login. |
+| Usage history (SQLite import) | Imported in bounded batches with original token counts, attribution and settled costs; no repricing or quota settlement. Extra v3 fields remain in `metrics.v3`. |
+| Captures, request logs, sessions and audit history | Retained in the v3 backup. Existing browser sessions need a fresh login. |
 
 Providers with no translatable channel/configuration are left behind together with
 their dependent rows, with an explicit report. This does not ignore database I/O

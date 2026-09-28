@@ -53,9 +53,9 @@
 //!
 //! # What is not migrated
 //!
-//! Usage records, captures, logs, sessions, login sessions, quota windows,
-//! credential health and the audit trail: history, not configuration. Copying
-//! them would fabricate a past this instance never had. Beyond those, the v3
+//! Captures, logs, sessions, quota windows, credential health and audit history
+//! stay in the backup. SQLite usage history is imported without re-settlement.
+//! Beyond those, the v3
 //! tables with no v4 form are reported row by row by [`report::Report`].
 
 pub mod aliases;
@@ -76,6 +76,7 @@ pub mod settings;
 pub mod source;
 pub mod tokenizer;
 pub(crate) mod upgrade;
+mod usage;
 
 pub use report::Report;
 
@@ -190,6 +191,9 @@ where
     // The identity half: `gproxy-app`'s own families, one row at a time.
     report.absorb(identity::write(app, &document, &bridge, &translated.dropped_providers).await?);
     admin_password(app, &document, admin, &mut report).await?;
+    if marker.is_some() {
+        usage::import(app, input, &mut report).await?;
+    }
     if let Some(marker) = marker {
         mark_imported(app, &marker).await?;
     }
