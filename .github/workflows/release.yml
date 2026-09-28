@@ -188,9 +188,11 @@ jobs:
             cargo-alpine) scripts/build-musl.sh "${{ matrix.target }}" ;;
             cargo-ndk)
               target="${{ matrix.target }}"
-              bindgen="BINDGEN_EXTRA_CLANG_ARGS_${target//-/_}"
-              export "$bindgen=--target=${target}28"
-              cargo ndk --platform 28 -t "${{ matrix.ndk_target }}" \
+              sysroot="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
+              # cargo-ndk 4.1.2 overwrites the underscored variable without
+              # the API level. Bindgen reads this exact-target form first.
+              env "BINDGEN_EXTRA_CLANG_ARGS_${target}=--target=${target}28 --sysroot=$sysroot -I$sysroot/usr/include/$target" \
+                cargo ndk --platform 28 -t "${{ matrix.ndk_target }}" \
                 build --locked --release --bin gproxy
               ;;
           esac
