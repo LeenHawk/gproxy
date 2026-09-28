@@ -213,7 +213,12 @@ windows-msix:
   extends: .release-rules
   stage: package
   tags: [saas-windows-medium-amd64]
-  needs: [desktop]
+  needs:
+    - job: desktop
+      parallel:
+        matrix:
+          - TARGET_TRIPLE: [x86_64-pc-windows-msvc, aarch64-pc-windows-msvc]
+            PACKAGE_MODE: [cli, application]
   timeout: 30m
   script:
     - '& ./scripts/gitlab/package-msix.ps1'
@@ -226,7 +231,12 @@ macos-dmg:
   stage: package
   image: macos-26-xcode-26
   tags: [saas-macos-large-m2pro]
-  needs: [desktop]
+  needs:
+    - job: desktop
+      parallel:
+        matrix:
+          - TARGET_TRIPLE: [x86_64-apple-darwin, aarch64-apple-darwin]
+            PACKAGE_MODE: [cli, application]
   timeout: 30m
   script:
     - python3 scripts/gitlab/package-dmg.py
