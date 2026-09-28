@@ -59,6 +59,7 @@ backend:
   timeout: 3h
   cache:
     key: rust-checks
+    when: always
     paths: [.cargo/registry/, .cargo/git/, target/]
   before_script:
     - source scripts/gitlab/setup-unix.sh
@@ -87,6 +88,7 @@ backend:
   timeout: 3h
   cache:
     key: "cargo-$TARGET_TRIPLE"
+    when: always
     paths: [.cargo/registry/, .cargo/git/, target/]
   before_script:
     - source scripts/gitlab/setup-unix.sh
@@ -153,6 +155,7 @@ windows:
     CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
   cache:
     key: "cargo-$TARGET_TRIPLE"
+    when: always
     paths: [.cargo/registry/, .cargo/git/, target/]
   before_script:
     - '& ./scripts/gitlab/setup-windows.ps1'
@@ -176,6 +179,7 @@ edge:
   timeout: 3h
   cache:
     key: cargo-edge
+    when: always
     paths: [.cargo/registry/, .cargo/git/, target/]
   before_script:
     - source scripts/gitlab/setup-unix.sh
