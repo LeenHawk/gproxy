@@ -94,11 +94,12 @@ const BILLING_PREFIX: &str = "x-anthropic-billing-header:";
 /// `metadata.user_id` JSON the backend correlates it with (v3 `cch.rs`;
 /// captured in `samples/claude-code-2.1.252/messages-oauth-wire.json`).
 ///
-/// The block is rebuilt in the CLI's own order (2.1.280):
+/// The block is rebuilt in the CLI's own order (2.1.284):
 /// `cc_version` (ours, with the computed suffix), `cc_entrypoint` (the
 /// client's, default `cli`), `cch=00000`, then the optional fragments the
 /// client sent when they pass the CLI's own validation: `cc_workload`,
-/// `cc_is_subagent=true`, `cc_prev_req`, `cc_prompt_id`, `cc_turn_origin`. Unknown keys and
+/// `cc_is_subagent=true`, `cc_prev_req`, `cc_prompt_id`, `cc_turn_origin`,
+/// then the paired `cc_prompt_index` / `cc_turn_index`. Unknown keys and
 /// invalid values are dropped; they would only fingerprint the proxy. Two
 /// fragments the CLI always sends on the OAuth path are synthesized when the
 /// client left them out: `cc_prev_req` from `prev_req`, the `request-id` of
@@ -194,6 +195,15 @@ pub(super) fn inject_billing(
     if let Some(origin) = field("cc_turn_origin").filter(|value| is_turn_origin(value)) {
         text.push_str(&format!(" cc_turn_origin={origin};"));
     }
+    // CLI 2.1.284 emits both indices or neither. These are client session
+    // counters: prompt advances only for human input, turn for every new
+    // triggering input (not tool round-trips). Preserve, never infer them.
+    if let Some(prompt) = field("cc_prompt_index").and_then(|value| billing_index(value, 0))
+        && let Some(turn) = field("cc_turn_index").and_then(|value| billing_index(value, 1))
+        && prompt <= turn
+    {
+        text.push_str(&format!(" cc_prompt_index={prompt}; cc_turn_index={turn};"));
+    }
 
     let billing = json!({"type": "text", "text": text});
     match existing {
@@ -211,6 +221,17 @@ fn billing_fields(text: &str) -> Vec<(&str, &str)> {
         .map(|(key, value)| (key.trim(), value.trim()))
         .filter(|(key, value)| !key.is_empty() && !value.is_empty())
         .collect()
+}
+
+/// The CLI serializes integer counters in decimal, bounded by 10 million.
+fn billing_index(value: &str, minimum: u32) -> Option<u32> {
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    value
+        .parse::<u32>()
+        .ok()
+        .filter(|value| (minimum..=10_000_000).contains(value))
 }
 
 /// `[A-Za-z0-9_-]+`, the CLI's charset for entrypoints and workloads.
