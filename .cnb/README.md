@@ -73,3 +73,8 @@ existing pull mirror keeps source refs synchronized without executing builds.
 Windows cross-builds retain `+crt-static` and disable Tauri's conflicting CRT
 linker overrides. Desktop builds omit the Android-only DLL. macOS code and
 resource hashes are checked independently; ad-hoc signatures are not notarization.
+
+Windows ARM64 uses fast NRV2E compression with the pinned UPX loader fix,
+followed by `upx --test`. The UPX tool itself is kept in the CNB cache volume.
+Exhaustive `--best` compression is single-threaded and can consume more time
+than compilation while all allocated runner cores remain billable.
