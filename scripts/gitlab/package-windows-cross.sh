@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source scripts/gitlab/env.sh
+export RUSTFLAGS='-C target-feature=+crt-static'
+export WINEDEBUG=-all
+export WINEPREFIX="$RUNNER_TEMP/wine"
+mkdir -p dist/release
+if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then
+  export PATH="/opt/upx-arm64/bin:$PATH"
+else
+  scripts/install-upx.sh
+  release_tool_paths
+fi
+
+pack_executable() {
+  if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then
+    upx --fast --nrv2e "$1"
+  else
+    upx --best --lzma "$1"
+  fi
+  upx --test "$1"
+}
+
+case "${1:?cli|application}" in
+  cli)
+    version_numbers="${GPROXY_BUILD_VERSION%%-*}"
+    sed -e "s/__VERSION__/$GPROXY_BUILD_VERSION/g" -e "s/__NUMERIC_VERSION__/${version_numbers//./,},0/g" \
+      scripts/installers/windows/gproxy.rc.in > "$RUNNER_TEMP/gproxy.rc"
+    llvm-rc /fo "$RUNNER_TEMP/gproxy.res" "$RUNNER_TEMP/gproxy.rc"
+    cargo xwin rustc --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE" -- -C "link-arg=$RUNNER_TEMP/gproxy.res"
+    export BUILDER=cargo-xwin
+    binary="target/$TARGET_TRIPLE/release/gproxy.exe"
+    if [ "$TARGET_TRIPLE" = x86_64-pc-windows-msvc ]; then
+      wine "$binary" --version
+      wine "$binary" --help >/dev/null
+    fi
+    pack_executable "$binary"
+    if [ "$TARGET_TRIPLE" = x86_64-pc-windows-msvc ]; then
+      wine "$binary" --version
+      wine "$binary" --help >/dev/null
+    fi
+    work="$(mktemp -d)"
+    trap 'rm -rf "$work"' EXIT
+    cp "$binary" README.md LICENSE "$work/"
+    (cd "$work" && zip -9 -qr "$OLDPWD/dist/release/$ARTIFACT_NAME.zip" .)
+    ;;
+  application)
+    export ARTIFACT_NAME="$APPLICATION_ARTIFACT" BUILDER=tauri-xwin
+    pnpm --dir crates/gproxy-host-tauri install --frozen-lockfile
+    # cargo-xwin supplies the static CRT flags. Avoid Tauri supplying a second
+    # conflicting set, and omit the Android-only DLL from this desktop build.
+    config="$(jq -cn --arg version "$GPROXY_BUILD_VERSION" '{version:$version,bundle:{active:true},build:{windows:{staticVCRuntime:false}}}')"
+    (
+      cd crates/gproxy-host-tauri
+      backup="$(mktemp)"
+      cp Cargo.toml "$backup"
+      trap 'cp "$backup" Cargo.toml; rm -f "$backup"' EXIT
+      sed -i 's/crate-type = \["lib", "cdylib"\]/crate-type = ["lib"]/' Cargo.toml
+      pnpm exec tauri build --ci --runner cargo-xwin --target "$TARGET_TRIPLE" --no-bundle --config "$config" -- --locked
+    )
+    binary="target/$TARGET_TRIPLE/release/gproxy-desktop.exe"
+    pack_executable "$binary"
+    (cd crates/gproxy-host-tauri && pnpm exec tauri bundle --target "$TARGET_TRIPLE" --bundles nsis --config "$config" --no-binary-patching)
+    files=("target/$TARGET_TRIPLE/release/bundle/nsis/"*.exe)
+    test "${#files[@]}" -eq 1 && test -f "${files[0]}"
+    cp "${files[0]}" "dist/release/$ARTIFACT_NAME.exe"
+    mkdir -p "dist/windows/$TARGET_TRIPLE"
+    cp "$binary" "dist/windows/$TARGET_TRIPLE/"
+    loader="target/$TARGET_TRIPLE/release/WebView2Loader.dll"
+    if [ -f "$loader" ]; then cp "$loader" "dist/windows/$TARGET_TRIPLE/"; fi
+    ;;
+  *) exit 2 ;;
+esac
+(cd dist/release && for file in "$ARTIFACT_NAME".*; do sha256sum "$file" > "$file.sha256"; done)
+scripts/build-provenance.sh
