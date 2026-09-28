@@ -30,15 +30,21 @@ case "${1:?cli|application}" in
     cargo xwin rustc --locked --release -p gproxy --bin gproxy --target "$TARGET_TRIPLE" -- -C "link-arg=$RUNNER_TEMP/gproxy.res"
     export BUILDER=cargo-xwin
     binary="target/$TARGET_TRIPLE/release/gproxy.exe"
+    mkdir -p "dist/windows/$TARGET_TRIPLE"
+    cp "$binary" "dist/windows/$TARGET_TRIPLE/gproxy-unpacked.exe"
     if [ "$TARGET_TRIPLE" = x86_64-pc-windows-msvc ]; then
       wine "$binary" --version
       wine "$binary" --help >/dev/null
     fi
     pack_executable "$binary"
     if [ "$TARGET_TRIPLE" = x86_64-pc-windows-msvc ]; then
-      wine "$binary" --version
-      wine "$binary" --help >/dev/null
+      if wine "$binary" --version && wine "$binary" --help >/dev/null; then
+        echo 'Packed CLI also starts under Wine.'
+      else
+        echo 'Packed CLI did not start under Wine; native Windows validation is required before publication.'
+      fi
     fi
+    cp "$binary" "dist/windows/$TARGET_TRIPLE/gproxy.exe"
     work="$(mktemp -d)"
     trap 'rm -rf "$work"' EXIT
     cp "$binary" README.md LICENSE "$work/"

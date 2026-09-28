@@ -38,7 +38,11 @@ both CPU architectures are checked on the macOS packaging host, using Rosetta
 for x86_64. App bundles are ad-hoc signed, not notarized.
 
 UPX runs for supported Linux, Windows and Android binaries. Linux CLI binaries
-run before and after compression (QEMU for ARM64); Windows x64 CLI uses Wine.
+run before and after compression (QEMU for ARM64). The uncompressed Windows
+x64 CLI runs under Wine; the packed Wine check is informational because Wine
+can reject UPX loaders. The Windows packaging job requires both uncompressed
+and compressed x64 CLI executables to start successfully on Windows before
+publication.
 Windows ARM64 retains the patched UPX entry stub with fast NRV2E compression.
 macOS Mach-O is left uncompressed. Windows ARM64 execution and desktop GUI
 behavior are not exercised by these packaging checks.
