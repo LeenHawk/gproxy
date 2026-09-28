@@ -53,16 +53,21 @@ Run-Checked rustup @('toolchain', 'install', $env:RUST_VERSION, '--profile', 'mi
 Run-Checked rustup @('default', $env:RUST_VERSION)
 $env:RUSTUP_TOOLCHAIN = $env:RUST_VERSION
 Run-Checked rustup @('target', 'add', $env:TARGET_TRIPLE)
+$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+$vs = & $vswhere -latest -products '*' -property installationPath
+if (-not $vs) { throw 'Visual Studio Build Tools not found' }
+$targetArch = 'x64'
 if ($env:TARGET_TRIPLE -eq 'aarch64-pc-windows-msvc') {
-    $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    $targetArch = 'arm64'
     $armTools = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.ARM64 -property installationPath
     if (-not $armTools) {
-        $vs = & $vswhere -latest -products '*' -property installationPath
-        if (-not $vs) { throw 'Visual Studio Build Tools not found' }
-        & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe" modify --installPath $vs --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --quiet --wait --norestart
-        if ($LASTEXITCODE -notin @(0, 3010)) { throw "Installing ARM64 tools failed: $LASTEXITCODE" }
+        $installer = Start-Process -FilePath "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\setup.exe" -ArgumentList "modify --installPath `"$vs`" --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --quiet --norestart" -Wait -PassThru
+        if ($installer.ExitCode -notin @(0, 3010)) { throw "Installing ARM64 tools failed: $($installer.ExitCode)" }
     }
 }
+Import-Module "$vs\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
+Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments "-arch=$targetArch -host_arch=x64"
+Get-Command cl.exe -ErrorAction Stop | Select-Object -ExpandProperty Source
 Run-Checked go @('version')
 Run-Checked rustc @('--version')
 Run-Checked node @('--version')
