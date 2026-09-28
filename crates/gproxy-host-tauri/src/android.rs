@@ -403,8 +403,21 @@ pub extern "system" fn Java_dev_gproxy_desktop_GproxyNative_nativeUpdate(
         static DOWNLOAD: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
         let result = (|| -> Result<bool, String> {
             let dir = data_dir().map_err(|error| error.to_string())?;
-            let updater = gproxy::update::Updater::new(&dir, Default::default())
-                .map_err(|error| error.to_string())?;
+            let mut options = gproxy::update::UpdateOptions::default();
+            if let Some(settings) =
+                engine::started().and_then(|desktop| desktop.app().data().settings.clone())
+            {
+                if let Some(source) = settings.update_source.as_deref() {
+                    options.source =
+                        gproxy::update::Source::parse(source).map_err(|error| error.to_string())?;
+                }
+                if let Some(channel) = settings.update_channel.as_deref() {
+                    options.channel = gproxy::update::Channel::parse(channel)
+                        .map_err(|error| error.to_string())?;
+                }
+            }
+            let updater =
+                gproxy::update::Updater::new(&dir, options).map_err(|error| error.to_string())?;
             engine::runtime()
                 .map_err(|error| error.to_string())?
                 .block_on(async {
