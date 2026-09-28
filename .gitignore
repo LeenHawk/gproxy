@@ -10,6 +10,8 @@ __pycache__/
 .*
 !.gitignore
 !.github/
+!.cnb.yml
+!.cnb/
 !.gitlab-ci.yml
 !.gitlab/
 
