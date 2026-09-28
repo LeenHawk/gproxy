@@ -43,6 +43,13 @@ pub(super) fn to_gemini(
     config.stop_sequences = input.stop_sequences.clone();
     let effort = input.output_config.as_ref().and_then(|v| v.effort);
     config.thinking_config = match &input.thinking {
+        Some(cc::ThinkingConfig::BetweenTools) => {
+            report.changed(
+                "thinking.type",
+                "between_tools mapped to zero thinking budget; Gemini has no between-tool progress mode",
+            );
+            Some(g::ThinkingConfig::builder().thinking_budget(0).build())
+        }
         Some(cc::ThinkingConfig::Disabled(_)) => {
             Some(g::ThinkingConfig::builder().thinking_budget(0).build())
         }

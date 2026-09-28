@@ -59,6 +59,13 @@ pub(super) fn to_responses(
             cc::Effort::Max => i::ReasoningEffort::Max,
         });
     match &input.thinking {
+        Some(cc::ThinkingConfig::BetweenTools) => {
+            effort = Some(i::ReasoningEffort::None);
+            report.changed(
+                "thinking.type",
+                "between_tools mapped to no reasoning; target has no between-tool progress mode",
+            );
+        }
         Some(cc::ThinkingConfig::Disabled(_)) => {
             effort = Some(i::ReasoningEffort::None);
         }

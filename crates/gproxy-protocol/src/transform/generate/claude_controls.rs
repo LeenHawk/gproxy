@@ -145,7 +145,8 @@ fn project_blocks(
     });
 }
 
-/// These newer models reject disabled/manual thinking and forced tool choice.
+/// Newer models reject manual thinking and forced tool choice. Sonnet 5.5
+/// replaces disabled thinking with between-tools thinking.
 /// Apply only to cross-protocol output; native Claude requests stay untouched.
 pub(crate) fn target(
     model: &str,
@@ -154,13 +155,22 @@ pub(crate) fn target(
     report: &mut Report,
 ) {
     let model = model.to_ascii_lowercase();
-    if !["claude-opus-5-5", "claude-fable-5-1", "claude-mythos-5-1"]
-        .iter()
-        .any(|name| crate::transform::instructions::family(&model, name))
+    let sonnet = crate::transform::instructions::family(&model, "claude-sonnet-5-5");
+    if !sonnet
+        && !["claude-opus-5-5", "claude-fable-5-1", "claude-mythos-5-1"]
+            .iter()
+            .any(|name| crate::transform::instructions::family(&model, name))
     {
         return;
     }
     match thinking.take() {
+        Some(cc::ThinkingConfig::Disabled(_)) if sonnet => {
+            *thinking = Some(cc::ThinkingConfig::BetweenTools);
+            report.changed(
+                "thinking.type",
+                "Sonnet 5.5 uses between_tools for its lowest thinking setting",
+            );
+        }
         Some(cc::ThinkingConfig::Disabled(_)) => {
             report.omitted("thinking", "target model always uses adaptive thinking");
         }

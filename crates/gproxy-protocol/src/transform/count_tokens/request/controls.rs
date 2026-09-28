@@ -41,6 +41,13 @@ pub(super) fn claude_to_openai(
             c::Effort::Max => o::ReasoningEffort::Max,
         });
     match &input.thinking {
+        Some(c::ThinkingConfig::BetweenTools) => {
+            effort = Some(o::ReasoningEffort::None);
+            report.changed(
+                "thinking.type",
+                "between_tools mapped to no reasoning; target has no between-tool progress mode",
+            );
+        }
         Some(c::ThinkingConfig::Disabled(_)) => {
             effort = Some(o::ReasoningEffort::None);
         }
