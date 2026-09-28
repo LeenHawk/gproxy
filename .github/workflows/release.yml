@@ -126,6 +126,16 @@ jobs:
         uses: android-actions/setup-android@v4.0.4
       - if: ${{ matrix.builder == 'cargo-ndk' }}
         run: cargo install cargo-ndk --locked
+      - name: Configure native Windows ARM64 dependencies
+        if: matrix.target == 'aarch64-pc-windows-msvc'
+        shell: bash
+        run: echo "CMAKE_TOOLCHAIN_FILE_aarch64_pc_windows_msvc=$(cygpath -m "$GITHUB_WORKSPACE/scripts/cmake/windows-arm64.cmake")" >> "$GITHUB_ENV"
+      - name: Provide Clang command on RISE
+        if: matrix.target == 'riscv64gc-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang libclang-dev
+          clang --version
       - name: Build
         env:
           RUSTFLAGS: ${{ matrix.os == 'windows' && '-C target-feature=+crt-static' || '' }}
@@ -311,6 +321,10 @@ jobs:
           sdkmanager 'platforms;android-36' 'build-tools;36.1.0' 'ndk;30.0.15729638'
           echo "NDK_HOME=$ANDROID_HOME/ndk/30.0.15729638" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/30.0.15729638" >> "$GITHUB_ENV"
+      - name: Configure native Windows ARM64 dependencies
+        if: matrix.target == 'aarch64-pc-windows-msvc'
+        shell: bash
+        run: echo "CMAKE_TOOLCHAIN_FILE_aarch64_pc_windows_msvc=$(cygpath -m "$GITHUB_WORKSPACE/scripts/cmake/windows-arm64.cmake")" >> "$GITHUB_ENV"
       - name: Build application installer
         env:
           TARGET_TRIPLE: ${{ matrix.target }}

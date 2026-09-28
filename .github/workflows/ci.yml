@@ -202,6 +202,10 @@ jobs:
         id: version
         shell: bash
         run: echo "version=$(scripts/release-metadata.sh version)" >> "$GITHUB_OUTPUT"
+      - name: Configure native Windows ARM64 dependencies
+        if: matrix.target == 'aarch64-pc-windows-msvc'
+        shell: bash
+        run: echo "CMAKE_TOOLCHAIN_FILE_aarch64_pc_windows_msvc=$(cygpath -m "$GITHUB_WORKSPACE/scripts/cmake/windows-arm64.cmake")" >> "$GITHUB_ENV"
       - name: Build Windows executable
         shell: pwsh
         env:
