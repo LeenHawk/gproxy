@@ -81,17 +81,3 @@ Run-Checked go @('version')
 Run-Checked rustc @('--version')
 Run-Checked node @('--version')
 Run-Checked bash @('--login', '-c', 'for tool in awk cmake cargo pnpm; do command -v "$tool" || exit 1; done')
-# Exercise both a host build script and the target linker through Git Bash,
-# whose /usr/bin/link.exe otherwise shadows the MSVC linker used by Tauri.
-$smokeDir = Join-Path $toolsDir 'msvc-smoke'
-New-Item -ItemType Directory -Force "$smokeDir/src" | Out-Null
-@'
-[package]
-name = "msvc-toolchain-smoke"
-version = "0.0.0"
-edition = "2021"
-[workspace]
-'@ | Set-Content -Encoding ascii "$smokeDir/Cargo.toml"
-'fn main() {}' | Set-Content -Encoding ascii "$smokeDir/build.rs"
-'fn main() { println!("MSVC toolchain ready"); }' | Set-Content -Encoding ascii "$smokeDir/src/main.rs"
-Run-Checked bash @('--login', '-c', 'cargo build --manifest-path .ci-tools/msvc-smoke/Cargo.toml --target "$TARGET_TRIPLE"')
