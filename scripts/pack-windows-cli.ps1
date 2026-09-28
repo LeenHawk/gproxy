@@ -14,7 +14,8 @@ function Test-Executable {
 }
 
 if (-not (Test-Executable)) { throw 'Uncompressed Windows executable failed its smoke check' }
-& upx --best --lzma $binary
+$packArguments = if ($Target -eq 'aarch64-pc-windows-msvc') { @('--best', '--nrv2e') } else { @('--best', '--lzma') }
+& upx @packArguments $binary
 if ($LASTEXITCODE -ne 0) { throw 'UPX compression failed' }
 & upx --test $binary
 if ($LASTEXITCODE -ne 0) { throw 'UPX integrity check failed' }
