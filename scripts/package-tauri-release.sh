@@ -15,13 +15,24 @@ case "$TARGET_OS" in
   linux | macos)
     bundle=deb
     [ "$TARGET_OS" != macos ] || bundle=dmg
-    pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --bundles "$bundle" --config "$config" -- --locked
+    if [ "$TARGET_OS" = linux ]; then
+      pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --no-bundle --config "$config" -- --locked
+      binary="$root/target/$TARGET_TRIPLE/release/gproxy-desktop"
+      upx --best --lzma "$binary"
+      upx --test "$binary"
+      pnpm exec tauri bundle --target "$TARGET_TRIPLE" --bundles "$bundle" --config "$config" --no-binary-patching
+    else
+      pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --bundles "$bundle" --config "$config" -- --locked
+    fi
     files=("$root/target/$TARGET_TRIPLE/release/bundle/$bundle/"*."$bundle")
     test "${#files[@]}" -eq 1 && test -f "${files[0]}"
     cp "${files[0]}" "$output/$ARTIFACT_NAME.$bundle"
     ;;
   windows)
     pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --no-bundle --config "$config" -- --locked
+    binary="$root/target/$TARGET_TRIPLE/release/gproxy-desktop.exe"
+    upx --best --lzma "$binary"
+    upx --test "$binary"
     cd "$root"
     pwsh -NoProfile -File scripts/package-windows-msix.ps1 \
       -Target "$TARGET_TRIPLE" -Artifact "$ARTIFACT_NAME" -Version "$GPROXY_BUILD_VERSION" \
@@ -51,9 +62,10 @@ case "$TARGET_OS" in
     : "${ANDROID_SIGNING_KEY_ALIAS:?}"
     work="$(mktemp -d)"
     trap 'rm -rf "$work"' EXIT
+    python3 scripts/pack-android-application.py "${files[0]}" "$work/packed.apk"
     printf '%s' "$ANDROID_SIGNING_KEYSTORE_B64" | base64 -d > "$work/key.jks"
     chmod 600 "$work/key.jks"
-    "$(android_build_tool "$sdk" zipalign)" -f -p 4 "${files[0]}" "$work/aligned.apk"
+    "$(android_build_tool "$sdk" zipalign)" -f -P 16 4 "$work/packed.apk" "$work/aligned.apk"
     signer_args=(--ks "$work/key.jks" --ks-pass env:ANDROID_SIGNING_KEYSTORE_PASSWORD --ks-key-alias "$ANDROID_SIGNING_KEY_ALIAS" --v4-signing-enabled false)
     if [ -n "${ANDROID_SIGNING_KEY_PASSWORD:-}" ]; then signer_args+=(--key-pass env:ANDROID_SIGNING_KEY_PASSWORD); fi
     signer="$(android_build_tool "$sdk" apksigner)"
