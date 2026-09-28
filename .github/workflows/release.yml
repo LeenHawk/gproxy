@@ -78,7 +78,7 @@ jobs:
           retention-days: 1
 
   native:
-    name: Native ${{ matrix.target }}
+    name: Packages (${{ matrix.target }})
     needs: [prepare, console]
     runs-on: ${{ matrix.runner }}
     # The signing and publishing secrets live in the `release` environment,
@@ -108,7 +108,47 @@ jobs:
       - uses: actions/download-artifact@v8.0.1
         with:
           name: console-dist
-          path: crates/gproxy-host-axum/assets/web
+          path: console/dist
+      - name: Prepare server assets
+        run: cp -R console/dist/. crates/gproxy-host-axum/assets/web/
+      - uses: pnpm/action-setup@v6.1.0
+        if: matrix.application_artifact
+        with:
+          package_json_file: console/package.json
+      - uses: actions/setup-node@v7.0.0
+        if: matrix.application_artifact
+        with:
+          node-version: 'lts/*'
+          cache: pnpm
+          cache-dependency-path: crates/gproxy-host-tauri/pnpm-lock.yaml
+      - name: Prepare application assets and CLI
+        if: matrix.application_artifact
+        run: |
+          node console/scripts/sync-to-embed.mjs
+          pnpm --dir crates/gproxy-host-tauri install --frozen-lockfile
+      - name: Install Linux desktop dependencies
+        if: matrix.application_artifact && matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libdbus-1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - name: Set up Java
+        if: matrix.os == 'android'
+        uses: actions/setup-java@v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+          cache-dependency-path: |
+            crates/gproxy-host-tauri/gen/android/**/*.gradle*
+            crates/gproxy-host-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties
+      - if: matrix.os == 'android'
+        uses: android-actions/setup-android@v4.0.4
+      - name: Install Android toolchain
+        if: matrix.os == 'android'
+        run: |
+          sdkmanager 'platforms;android-36' 'build-tools;36.1.0' 'ndk;30.0.15729638'
+          echo "NDK_HOME=$ANDROID_HOME/ndk/30.0.15729638" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/30.0.15729638" >> "$GITHUB_ENV"
       - uses: actions/setup-go@v7.0.0
         if: matrix.builder != 'cargo-alpine'
         with:
@@ -121,9 +161,7 @@ jobs:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2.9.2
         with:
-          key: release-${{ matrix.target }}
-      - if: ${{ matrix.builder == 'cargo-ndk' }}
-        uses: android-actions/setup-android@v4.0.4
+          shared-key: packages-${{ matrix.target }}
       - if: ${{ matrix.builder == 'cargo-ndk' }}
         run: cargo install cargo-ndk --locked
       - name: Configure native Windows ARM64 dependencies
@@ -250,99 +288,15 @@ jobs:
             dist/release/${{ matrix.artifact }}.apk.sha256
           retention-days: 1
 
-  application:
-    name: Application ${{ matrix.target }}
-    needs: [prepare, console]
-    runs-on: ${{ matrix.runner }}
-    environment: release
-    permissions:
-      contents: read
-      id-token: write
-      attestations: write
-    defaults:
-      run:
-        shell: bash
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { os: linux, target: x86_64-unknown-linux-gnu, runner: ubuntu-latest, artifact: gproxy-tauri-linux-x86_64 }
-          - { os: linux, target: aarch64-unknown-linux-gnu, runner: ubuntu-24.04-arm, artifact: gproxy-tauri-linux-aarch64 }
-          - { os: macos, target: x86_64-apple-darwin, runner: macos-26-intel, artifact: gproxy-tauri-macos-x86_64 }
-          - { os: macos, target: aarch64-apple-darwin, runner: macos-latest, artifact: gproxy-tauri-macos-aarch64 }
-          - { os: windows, target: x86_64-pc-windows-msvc, runner: windows-latest, artifact: gproxy-tauri-windows-x86_64 }
-          - { os: windows, target: aarch64-pc-windows-msvc, runner: windows-11-arm, artifact: gproxy-tauri-windows-aarch64 }
-          - { os: android, target: aarch64-linux-android, runner: ubuntu-latest, artifact: gproxy-tauri-android-aarch64 }
-          - { os: android, target: x86_64-linux-android, runner: ubuntu-latest, artifact: gproxy-tauri-android-x86_64 }
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/download-artifact@v8.0.1
-        with:
-          name: console-dist
-          path: console/dist
-      - uses: pnpm/action-setup@v6.1.0
-        with:
-          package_json_file: console/package.json
-      - uses: actions/setup-node@v7.0.0
-        with:
-          node-version: 'lts/*'
-          cache: pnpm
-          cache-dependency-path: crates/gproxy-host-tauri/pnpm-lock.yaml
-      - name: Prepare application assets and CLI
-        run: |
-          node console/scripts/sync-to-embed.mjs
-          pnpm --dir crates/gproxy-host-tauri install --frozen-lockfile
-      - name: Install Linux desktop dependencies
-        if: matrix.os == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libdbus-1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
-      - uses: actions/setup-go@v7.0.0
-        with:
-          go-version: "1.27.1"
-          cache: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          targets: ${{ matrix.target }}
-      - uses: Swatinem/rust-cache@v2.9.2
-        with:
-          key: application-${{ matrix.target }}
-      - name: Set up Java
-        if: matrix.os == 'android'
-        uses: actions/setup-java@v6.0.1
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: gradle
-          cache-dependency-path: |
-            crates/gproxy-host-tauri/gen/android/**/*.gradle*
-            crates/gproxy-host-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties
-      - if: matrix.os == 'android'
-        uses: android-actions/setup-android@v4.0.4
-      - name: Install Android toolchain
-        if: matrix.os == 'android'
-        run: |
-          sdkmanager 'platforms;android-36' 'build-tools;36.1.0' 'ndk;30.0.15729638'
-          echo "NDK_HOME=$ANDROID_HOME/ndk/30.0.15729638" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/30.0.15729638" >> "$GITHUB_ENV"
-      - name: Configure native Windows ARM64 dependencies
-        if: matrix.target == 'aarch64-pc-windows-msvc'
-        shell: bash
-        run: echo "CMAKE_TOOLCHAIN_FILE_aarch64_pc_windows_msvc=$(cygpath -m "$GITHUB_WORKSPACE/scripts/cmake/windows-arm64.cmake")" >> "$GITHUB_ENV"
-      - name: Install application UPX
-        if: matrix.os == 'linux' || matrix.os == 'windows'
-        env:
-          UPX_VERSION: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && '4.2.4' || '5.2.1' }}
-        run: scripts/install-upx.sh
       - name: Install Android shared-library UPX fix
         if: matrix.os == 'android'
         run: scripts/install-android-upx.sh
       - name: Build application installer
+        if: matrix.application_artifact
         env:
           TARGET_TRIPLE: ${{ matrix.target }}
           TARGET_OS: ${{ matrix.os }}
-          ARTIFACT_NAME: ${{ matrix.artifact }}
+          ARTIFACT_NAME: ${{ matrix.application_artifact }}
           GPROXY_BUILD_VERSION: ${{ needs.prepare.outputs.version }}
           GPROXY_BUILD_CHANNEL: ${{ needs.prepare.outputs.channel }}
           GPROXY_BUILD_HASH: ${{ github.sha }}
@@ -363,25 +317,28 @@ jobs:
         if: matrix.os == 'windows' && needs.prepare.outputs.channel == 'release'
         uses: actions/upload-artifact@v7.0.1
         with:
-          name: microsoft-store-unsigned-${{ matrix.artifact }}
-          path: dist/release/${{ matrix.artifact }}.msix
+          name: microsoft-store-unsigned-${{ matrix.application_artifact }}
+          path: dist/release/${{ matrix.application_artifact }}.msix
           if-no-files-found: error
           retention-days: 30
-      - name: Record build provenance
+      - name: Record application build provenance
+        if: matrix.application_artifact
         env:
-          ARTIFACT_NAME: ${{ matrix.artifact }}
+          ARTIFACT_NAME: ${{ matrix.application_artifact }}
           GPROXY_VERSION: ${{ needs.prepare.outputs.version }}
           TARGET_TRIPLE: ${{ matrix.target }}
           BUILDER: tauri
           UPX_ENABLED: ${{ matrix.os != 'macos' }}
         run: scripts/build-provenance.sh
       - uses: ./.github/actions/attest-release
+        if: matrix.application_artifact
         with:
-          artifact: ${{ matrix.artifact }}
+          artifact: ${{ matrix.application_artifact }}
       - uses: actions/upload-artifact@v7.0.1
+        if: matrix.application_artifact
         with:
           name: application-${{ matrix.target }}
-          path: dist/release/${{ matrix.artifact }}.*
+          path: dist/release/${{ matrix.application_artifact }}.*
           if-no-files-found: error
           retention-days: 1
 
@@ -471,7 +428,7 @@ jobs:
 
   manifest:
     name: Signed update manifest
-    needs: [prepare, native, application]
+    needs: [prepare, native]
     runs-on: ubuntu-latest
     environment: release
     steps:

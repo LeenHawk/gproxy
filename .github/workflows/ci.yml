@@ -14,15 +14,32 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend (fmt · clippy · test · wasm)
+    name: Rust (backend · desktop · wasm)
     needs: console
     runs-on: ubuntu-latest
+    env:
+      # Tests and Clippy retain assertions; omit bulky debugger symbols from
+      # their shared build cache. Release profiles are unaffected.
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/download-artifact@v8.0.1
         with:
           name: console-dist
           path: crates/gproxy-host-axum/assets/web
+      # The window's copy, laid out as `console/scripts/sync-to-embed.mjs`
+      # lays it out: the bundle under `ui/console/`, its page at `ui/`.
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: console-dist
+          path: crates/gproxy-host-tauri/ui/console
+      - run: cp crates/gproxy-host-tauri/ui/console/index.html crates/gproxy-host-tauri/ui/index.html
+      - name: Install desktop toolkit headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libdbus-1-dev libayatana-appindicator3-dev
       - uses: actions/setup-go@v7.0.0
         with:
           go-version: "1.27.1"
@@ -34,15 +51,15 @@ jobs:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2.9.2
         with:
+          key: linux-checks
           cache-targets: true
       - run: cargo fmt --all --check
-      # No `--workspace` on the next two, on purpose. They build the root
-      # manifest's `default-members`, which is every crate except the desktop
-      # shell; the comment there explains why the shell is excluded, and the
-      # `desktop` job below is the other half of that same decision. Between
-      # the two jobs every member is still linted and tested.
+      # Check both the default members and the desktop shell with one target
+      # directory and dependency cache, preserving their separate feature sets.
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
+      - run: cargo clippy -p gproxy-host-tauri --all-targets -- -D warnings
+      - run: cargo test -p gproxy-host-tauri
       # This step used to be `cargo check --workspace --target
       # wasm32-unknown-unknown`, and it could never have passed. The workspace
       # now holds the CLI and the desktop shell, and both reach tokio's `net`
@@ -72,53 +89,6 @@ jobs:
           cargo check --target wasm32-unknown-unknown -p gproxy-cache --all-features
           cargo check --target wasm32-unknown-unknown -p gproxy-file --no-default-features --features s3
           cargo check --target wasm32-unknown-unknown -p gproxy-channel --all-features --lib
-
-  # The other half of the root manifest's `default-members` decision. wry,
-  # webkit2gtk and gtk are ~180 transitive crates that say nothing about the
-  # engine, and a runner cannot build them at all without these headers — so
-  # the shell is checked here instead of taxing every backend run with an apt
-  # install and a cold build of all of it.
-  #
-  # `tao` links D-Bus; the system tray also needs AppIndicator headers.
-  # The tests themselves need no D-Bus session, no keychain and no display —
-  # `tests/assembly.rs` drives `Desktop::start` against a temp directory with
-  # the in-memory `SecretStore`, and `tests/table.rs` drives Tauri's
-  # `MockRuntime`. This runner needs the headers to compile, not to run.
-  desktop:
-    name: Desktop shell (clippy · test)
-    needs: console
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: actions/download-artifact@v8.0.1
-        with:
-          name: console-dist
-          path: crates/gproxy-host-axum/assets/web
-      # The window's copy, laid out as `console/scripts/sync-to-embed.mjs`
-      # lays it out: the bundle under `ui/console/`, its page at `ui/`.
-      - uses: actions/download-artifact@v8.0.1
-        with:
-          name: console-dist
-          path: crates/gproxy-host-tauri/ui/console
-      - run: cp crates/gproxy-host-tauri/ui/console/index.html crates/gproxy-host-tauri/ui/index.html
-      - name: Install desktop toolkit headers
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libdbus-1-dev libayatana-appindicator3-dev
-      - uses: actions/setup-go@v7.0.0
-        with:
-          go-version: "1.27.1"
-          cache: false
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          components: clippy
-      - uses: Swatinem/rust-cache@v2.9.2
-        with:
-          key: desktop-shell
-      - run: cargo clippy -p gproxy-host-tauri --all-targets -- -D warnings
-      - run: cargo test -p gproxy-host-tauri
 
   console:
     name: Console (typecheck · test · build · i18n)
@@ -154,6 +124,9 @@ jobs:
           retention-days: 1
 
   windows:
+    # dev and version-tag pushes already build and validate both Windows
+    # packages in Release. PRs and other branches keep this independent check.
+    if: github.event_name != 'push' || (github.ref != 'refs/heads/dev' && !startsWith(github.ref, 'refs/tags/v'))
     name: Windows packages (${{ matrix.target }})
     needs: console
     runs-on: ${{ matrix.runner }}
@@ -197,7 +170,7 @@ jobs:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2.9.2
         with:
-          key: windows-packages-${{ matrix.target }}
+          shared-key: packages-${{ matrix.target }}
       - name: Release version
         id: version
         shell: bash
