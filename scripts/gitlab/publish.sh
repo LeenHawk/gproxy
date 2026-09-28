@@ -11,6 +11,7 @@ if [ "$GPROXY_BUILD_CHANNEL" = dev ]; then
   fi
 fi
 cp dist/msix/* dist/release/
+cp dist/dmg/* dist/release/
 VERIFY_ONLY=true python3 scripts/gitlab/publish.py
 export TAG="$RELEASE_TAG" CHANNEL="$GPROXY_BUILD_CHANNEL" VERSION="$GPROXY_BUILD_VERSION"
 export ASSETS_DIR=dist/release ASSET_PREFIX=

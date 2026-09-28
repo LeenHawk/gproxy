@@ -43,6 +43,7 @@ case "${1:?cli|application}" in
     trap 'rm -rf "$work"' EXIT
     cp "$binary" README.md LICENSE "$work/"
     (cd "$work" && zip -9 -qr "$OLDPWD/dist/release/$ARTIFACT_NAME.zip" .)
+    (cd dist/release && sha256sum "$ARTIFACT_NAME.zip" > "$ARTIFACT_NAME.zip.sha256")
     ;;
   application)
     export ARTIFACT_NAME="$APPLICATION_ARTIFACT" BUILDER=tauri-xwin
@@ -60,10 +61,6 @@ case "${1:?cli|application}" in
     )
     binary="target/$TARGET_TRIPLE/release/gproxy-desktop.exe"
     pack_executable "$binary"
-    (cd crates/gproxy-host-tauri && pnpm exec tauri bundle --target "$TARGET_TRIPLE" --bundles nsis --config "$config" --no-binary-patching)
-    files=("target/$TARGET_TRIPLE/release/bundle/nsis/"*.exe)
-    test "${#files[@]}" -eq 1 && test -f "${files[0]}"
-    cp "${files[0]}" "dist/release/$ARTIFACT_NAME.exe"
     mkdir -p "dist/windows/$TARGET_TRIPLE"
     cp "$binary" "dist/windows/$TARGET_TRIPLE/"
     loader="target/$TARGET_TRIPLE/release/WebView2Loader.dll"
@@ -71,5 +68,4 @@ case "${1:?cli|application}" in
     ;;
   *) exit 2 ;;
 esac
-(cd dist/release && for file in "$ARTIFACT_NAME".*; do sha256sum "$file" > "$file.sha256"; done)
 scripts/build-provenance.sh
