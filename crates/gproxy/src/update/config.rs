@@ -125,17 +125,7 @@ impl Channel {
     /// its rolling channel under a tag literally named `dev`, and v4 uses
     /// `nightly` for it — the tag `dev` is now a *branch*.
     pub fn default_manifest_url(self) -> String {
-        match self {
-            Self::Dev => {
-                "https://github.com/LeenHawk/gproxy/releases/download/nightly/manifest.json".into()
-            }
-            Self::Beta => {
-                "https://github.com/LeenHawk/gproxy/releases/download/beta/manifest.json".into()
-            }
-            Self::Release => {
-                "https://github.com/LeenHawk/gproxy/releases/latest/download/manifest.json".into()
-            }
-        }
+        Source::Github.manifest_url(self)
     }
 }
 
@@ -145,6 +135,64 @@ impl Default for Channel {
         // without being told to. A build that named something unparseable
         // reads `release` rather than failing to start.
         Self::parse(BUILD_CHANNEL).unwrap_or(Self::Release)
+    }
+}
+
+/// Where a channel's signed releases are hosted. The signing identity is the
+/// same for both sources; choosing a host never changes signature verification.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Source {
+    Github,
+    Cnb,
+}
+
+impl Source {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Github => "github",
+            Self::Cnb => "cnb",
+        }
+    }
+
+    pub fn parse(value: &str) -> Result<Self, UpdateError> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "github" => Ok(Self::Github),
+            "cnb" => Ok(Self::Cnb),
+            other => Err(UpdateError::Configuration(format!(
+                "`{other}` is not an update source; expected `github` or `cnb`"
+            ))),
+        }
+    }
+
+    pub fn manifest_url(self, channel: Channel) -> String {
+        match (self, channel) {
+            (Self::Github, Channel::Release) => {
+                "https://github.com/LeenHawk/gproxy/releases/latest/download/manifest.json".into()
+            }
+            (Self::Github, channel) => format!(
+                "https://github.com/LeenHawk/gproxy/releases/download/{}/manifest.json",
+                if channel == Channel::Dev {
+                    "nightly"
+                } else {
+                    "beta"
+                },
+            ),
+            (Self::Cnb, channel) => format!(
+                "https://cnb.cool/LeenHawk/gproxy/-/releases/download/{}/manifest.json",
+                match channel {
+                    Channel::Dev => "nightly",
+                    Channel::Beta => "beta",
+                    Channel::Release => "release",
+                },
+            ),
+        }
+    }
+}
+
+impl Default for Source {
+    fn default() -> Self {
+        Self::parse(option_env!("GPROXY_BUILD_UPDATE_SOURCE").unwrap_or("github"))
+            .unwrap_or(Self::Github)
     }
 }
 
@@ -193,8 +241,10 @@ impl Restart {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UpdateOptions {
     pub channel: Channel,
+    pub source: Source,
     /// The signed manifest to read. `None` means
-    /// [`Channel::default_manifest_url`].
+    /// the selected [`Source::manifest_url`]. An explicit URL takes precedence
+    /// over both source and channel defaults.
     pub manifest_url: Option<String>,
     pub restart: Restart,
     /// Seconds between scheduled checks while `serve` runs. `None` switches
@@ -214,6 +264,7 @@ impl Default for UpdateOptions {
     fn default() -> Self {
         Self {
             channel: Channel::default(),
+            source: Source::default(),
             manifest_url: None,
             restart: Restart::default(),
             interval_secs: Some(DEFAULT_INTERVAL_SECS),
@@ -229,10 +280,10 @@ pub const DEFAULT_INTERVAL_SECS: u64 = 6 * 60 * 60;
 
 impl UpdateOptions {
     /// The manifest URL in force for `channel`.
-    pub fn manifest_url(&self, channel: Channel) -> String {
+    pub fn manifest_url(&self, channel: Channel, source: Source) -> String {
         self.manifest_url
             .clone()
-            .unwrap_or_else(|| channel.default_manifest_url())
+            .unwrap_or_else(|| source.manifest_url(channel))
     }
 
     /// Layer the parsed command line into update options.
@@ -252,6 +303,10 @@ impl UpdateOptions {
         if let Some(value) = text(&options.update_channel) {
             resolved.channel = Channel::parse(&value)
                 .map_err(|error| Error::config(source(crate::cli::UPDATE_CHANNEL), error))?;
+        }
+        if let Some(value) = text(&options.update_source) {
+            resolved.source = Source::parse(&value)
+                .map_err(|error| Error::config(source(crate::cli::UPDATE_SOURCE), error))?;
         }
         resolved.manifest_url = text(&options.update_manifest_url);
         if let Some(value) = text(&options.update_restart) {
@@ -458,6 +513,7 @@ mod tests {
             options,
             UpdateOptions {
                 channel: Channel::Dev,
+                source: Source::default(),
                 manifest_url: Some("https://mirror.example/manifest.json".into()),
                 restart: Restart::Supervisor,
                 interval_secs: Some(900),
@@ -497,7 +553,7 @@ mod tests {
         let options = UpdateOptions::default();
         let urls: Vec<String> = [Channel::Release, Channel::Beta, Channel::Dev]
             .into_iter()
-            .map(|channel| options.manifest_url(channel))
+            .map(|channel| options.manifest_url(channel, Source::Github))
             .collect();
         assert_eq!(urls.len(), 3);
         assert!(urls[0].contains("/latest/download/"), "{}", urls[0]);
@@ -513,8 +569,42 @@ mod tests {
             ..UpdateOptions::default()
         };
         assert_eq!(
-            named.manifest_url(Channel::Dev),
+            named.manifest_url(Channel::Dev, Source::Cnb),
             "http://127.0.0.1:9/manifest.json"
+        );
+    }
+
+    #[test]
+    fn sources_resolve_independent_channels_and_cli_rejects_unknown_hosts() {
+        for channel in [Channel::Dev, Channel::Beta, Channel::Release] {
+            let github = Source::Github.manifest_url(channel);
+            let cnb = Source::Cnb.manifest_url(channel);
+            assert!(github.starts_with("https://github.com/LeenHawk/gproxy/"));
+            assert!(cnb.starts_with("https://cnb.cool/LeenHawk/gproxy/-/releases/download/"));
+            assert!(cnb.ends_with(&format!(
+                "{}/manifest.json",
+                match channel {
+                    Channel::Dev => "nightly",
+                    Channel::Beta => "beta",
+                    Channel::Release => "release",
+                }
+            )));
+        }
+        let options = UpdateOptions::from_cli(&crate::cli::Options {
+            update_source: Some("cnb".into()),
+            ..Default::default()
+        })
+        .unwrap();
+        assert_eq!(options.source, Source::Cnb);
+        let error = UpdateOptions::from_cli(&crate::cli::Options {
+            update_source: Some("untrusted".into()),
+            ..Default::default()
+        })
+        .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .starts_with("--update-source / GPROXY_UPDATE_SOURCE")
         );
     }
 

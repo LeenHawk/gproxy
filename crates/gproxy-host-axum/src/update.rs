@@ -88,10 +88,18 @@ pub trait UpdateService: Send + Sync {
 
     /// Check now. Downloads and verifies the manifest; downloads no artifact
     /// and changes nothing on disk.
-    fn check(&self, channel: Option<String>) -> UpdateFuture<'_, UpdateReport>;
+    fn check(
+        &self,
+        channel: Option<String>,
+        source: Option<String>,
+    ) -> UpdateFuture<'_, UpdateReport>;
 
     /// Download, verify and install. The explicit act.
-    fn apply(&self, channel: Option<String>) -> UpdateFuture<'_, AppliedUpdate>;
+    fn apply(
+        &self,
+        channel: Option<String>,
+        source: Option<String>,
+    ) -> UpdateFuture<'_, AppliedUpdate>;
 
     /// Put the executable this one replaced back where it was.
     fn rollback(&self) -> UpdateFuture<'_, AppliedUpdate>;
@@ -113,6 +121,8 @@ pub struct UpdateSchedule {
     /// **Off unless an operator turned it on**, and reported either way so a
     /// console can say which.
     pub automatic: bool,
+    pub channel: String,
+    pub source: String,
 }
 
 /// One check's answer.
@@ -125,6 +135,7 @@ pub struct UpdateReport {
     /// Whether `latest` is actually newer than `current`.
     pub available: bool,
     pub channel: String,
+    pub source: String,
     /// The artifact key the manifest was searched for, e.g.
     /// `x86_64-unknown-linux-gnu`.
     pub target: String,
@@ -253,6 +264,7 @@ impl IntoResponse for UpdateFailure {
 #[derive(Debug, Default, Deserialize)]
 pub struct ChannelQuery {
     pub channel: Option<String>,
+    pub source: Option<String>,
 }
 
 /// The four routes, to be merged into `/admin/api`.
@@ -301,7 +313,7 @@ where
             Ok(service) => service,
             Err(response) => return *response,
         };
-        match service.check(query.channel).await {
+        match service.check(query.channel, query.source).await {
             Ok(report) => crate::error::ok_json(&report),
             Err(failure) => failure.into_response(),
         }
@@ -322,7 +334,7 @@ where
             Ok(service) => service,
             Err(response) => return *response,
         };
-        match service.apply(query.channel).await {
+        match service.apply(query.channel, query.source).await {
             Ok(applied) => crate::error::ok_json(&applied),
             Err(failure) => failure.into_response(),
         }

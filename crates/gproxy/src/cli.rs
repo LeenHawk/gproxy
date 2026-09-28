@@ -55,6 +55,7 @@ pub const ADMIN_PASSWORD: &str = "GPROXY_ADMIN_PASSWORD";
 pub const BOOTSTRAP_ADMIN_API_KEY: &str = "GPROXY_BOOTSTRAP_ADMIN_API_KEY";
 pub const IMPORT_SOURCE_MASTER_KEY: &str = "GPROXY_IMPORT_SOURCE_MASTER_KEY";
 pub const AUTOSTART: &str = "GPROXY_AUTOSTART";
+pub const UPDATE_SOURCE: &str = "GPROXY_UPDATE_SOURCE";
 pub const UPDATE_CHANNEL: &str = "GPROXY_UPDATE_CHANNEL";
 pub const UPDATE_MANIFEST_URL: &str = "GPROXY_UPDATE_MANIFEST_URL";
 pub const UPDATE_RESTART: &str = "GPROXY_UPDATE_RESTART";
@@ -238,8 +239,12 @@ pub struct Options {
     #[arg(long, global = true, env = UPDATE_CHANNEL, value_name = "CHANNEL")]
     pub update_channel: Option<String>,
 
+    /// Release host: `github` or `cnb`. [default: the build's release host]
+    #[arg(long, global = true, env = UPDATE_SOURCE, value_name = "SOURCE")]
+    pub update_source: Option<String>,
+
     /// The signed update manifest to read, for a private mirror or an
-    /// air-gapped release host. [default: the channel's own URL on GitHub]
+    /// air-gapped release host. [default: the selected source and channel's URL]
     ///
     /// This does **not** weaken the signature: a manifest from anywhere is
     /// still verified against the ed25519 key compiled into this binary.

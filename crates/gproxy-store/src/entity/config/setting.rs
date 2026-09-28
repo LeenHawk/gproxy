@@ -135,6 +135,7 @@ pub struct Model {
     pub max_database_size_mb: Option<i64>,
     /// None follows the application's build channel.
     pub update_channel: Option<String>,
+    pub update_source: Option<String>,
     #[sea_orm(default_value = true)]
     pub enable_auto_update_check: bool,
 

@@ -286,6 +286,7 @@
     "tokenizerAuthToken": "詞表下載權杖",
     "retentionDays": "請求歷史保留天數",
     "maxDatabaseSizeMb": "SQLite 資料庫大小上限（MiB）",
+    "updateSource": "更新來源",
     "updateChannel": "更新管道",
     "enableAutoUpdateCheck": "自動檢查更新",
     "portalRecentRequestsEnabled": "使用者可檢視最近請求",
@@ -321,6 +322,8 @@
     "cleanupScope": "清理僅刪除已結束的請求歷史和封包擷取，不影響設定與已結算額度。留空不啟用對應策略；大小填 0 表示不限制。"
   },
   "settingsOption": {
+    "github": "GitHub",
+    "cnb": "CNB",
     "off": "關閉",
     "error": "錯誤",
     "warn": "警告",
@@ -449,10 +452,11 @@
     }
   },
   "update": {
+    "source": "更新來源",
     "current": "目前版本",
     "unsupported": "目前宿主不支援線上更新",
     "channel": "更新通道",
-    "channelHelp": "儲存後，後續更新檢查將使用此通道。未儲存的選擇僅用於本頁的檢查和安裝。",
+    "channelHelp": "儲存後，後續更新檢查將使用此更新來源與通道。未儲存的選擇僅用於本頁的檢查和安裝。",
     "schedule": "每 {{seconds}} 秒檢查一次",
     "noSchedule": "自動檢查已關閉",
     "autoInstall": "自動安裝已開啟",

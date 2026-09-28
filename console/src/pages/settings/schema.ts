@@ -82,6 +82,7 @@ export const groups = [
     fields: [
       instance("retentionDays", "number", { nullable: true, min: 1 }),
       instance("maxDatabaseSizeMb", "number", { nullable: true, min: 0 }),
+      instance("updateSource", "choice", { nullable: true, options: ["github", "cnb"] }),
       instance("updateChannel", "choice", { nullable: true, options: ["dev", "beta", "release"] }),
       instance("enableAutoUpdateCheck", "switch"),
     ],

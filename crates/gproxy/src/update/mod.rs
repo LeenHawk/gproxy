@@ -71,8 +71,8 @@ use std::{
 use gproxy_host_axum::{AppliedUpdate, UpdateFailure, UpdateReport, UpdateSchedule, UpdateService};
 
 pub use config::{
-    BUILD_CHANNEL, BUILD_HASH, BUILD_VERSION, Channel, DEFAULT_INTERVAL_SECS, Restart, UpdateError,
-    UpdateOptions,
+    BUILD_CHANNEL, BUILD_HASH, BUILD_VERSION, Channel, DEFAULT_INTERVAL_SECS, Restart, Source,
+    UpdateError, UpdateOptions,
 };
 pub use version::DATA_VERSION;
 
@@ -119,7 +119,7 @@ pub struct Updater {
     /// source — see that module for why the trust root is not configurable.
     signing_key: Option<String>,
     options: UpdateOptions,
-    runtime: Mutex<Option<(Channel, bool)>>,
+    runtime: Mutex<Option<(Channel, Source, bool)>>,
     recorded: Mutex<Recorded>,
     /// The scheduled check, aborted when this value is dropped. The task holds
     /// a `Weak` back, so the two do not keep each other alive.
@@ -229,16 +229,25 @@ impl Updater {
         })
     }
 
-    pub fn configure(self: &Arc<Self>, channel: Option<&str>, enabled: bool) -> Outcome<()> {
+    pub fn configure(
+        self: &Arc<Self>,
+        channel: Option<&str>,
+        source: Option<&str>,
+        enabled: bool,
+    ) -> Outcome<()> {
         let channel = channel
             .map(Channel::parse)
             .transpose()?
             .unwrap_or(self.options.channel);
+        let source = source
+            .map(Source::parse)
+            .transpose()?
+            .unwrap_or(self.options.source);
         let mut runtime = self.runtime.lock().unwrap();
-        if *runtime == Some((channel, enabled)) {
+        if *runtime == Some((channel, source, enabled)) {
             return Ok(());
         }
-        *runtime = Some((channel, enabled));
+        *runtime = Some((channel, source, enabled));
         drop(runtime);
         if let Some(task) = self.task.lock().unwrap().take() {
             task.abort();
@@ -249,8 +258,8 @@ impl Updater {
 
     fn interval(&self) -> Option<u64> {
         match *self.runtime.lock().unwrap() {
-            Some((_, true)) => Some(self.options.interval_secs.unwrap_or(DEFAULT_INTERVAL_SECS)),
-            Some((_, false)) => None,
+            Some((_, _, true)) => Some(self.options.interval_secs.unwrap_or(DEFAULT_INTERVAL_SECS)),
+            Some((_, _, false)) => None,
             None => self.options.interval_secs,
         }
     }
@@ -311,8 +320,9 @@ impl Updater {
     /// install only if the operator asked for that.
     async fn scheduled_check(self: &Arc<Self>) {
         let channel = self.channel(None).expect("configured channel");
-        let report = match self.fetch_manifest(channel).await {
-            Ok(manifest) => self.report(channel, &manifest).await,
+        let source = self.source(None).expect("configured source");
+        let report = match self.fetch_manifest(channel, source).await {
+            Ok(manifest) => self.report(channel, source, &manifest).await,
             Err(error) => Err(error),
         };
         match report {
@@ -333,7 +343,7 @@ impl Updater {
                      the console. Nothing has been downloaded."
                 );
                 if self.options.automatic {
-                    match self.apply_now(None, true).await {
+                    match self.apply_now(None, None, true).await {
                         Ok(applied) => tracing::warn!(
                             version = applied.version.as_deref().unwrap_or("?"),
                             restart = %applied.restart,
@@ -352,10 +362,15 @@ impl Updater {
 
     /// Check now: fetch the manifest, verify it, and describe what it offers.
     /// Downloads no artifact and writes nothing.
-    pub async fn check_now(&self, requested: Option<&str>) -> Outcome<UpdateReport> {
+    pub async fn check_now(
+        &self,
+        requested: Option<&str>,
+        requested_source: Option<&str>,
+    ) -> Outcome<UpdateReport> {
         let channel = self.channel(requested)?;
-        let manifest = self.fetch_manifest(channel).await?;
-        self.report(channel, &manifest).await
+        let source = self.source(requested_source)?;
+        let manifest = self.fetch_manifest(channel, source).await?;
+        self.report(channel, source, &manifest).await
     }
 
     /// Install. The explicit act.
@@ -367,10 +382,12 @@ impl Updater {
     pub async fn apply_now(
         &self,
         requested: Option<&str>,
+        requested_source: Option<&str>,
         restart_after: bool,
     ) -> Outcome<AppliedUpdate> {
         let channel = self.channel(requested)?;
-        let manifest = self.fetch_manifest(channel).await?;
+        let source = self.source(requested_source)?;
+        let manifest = self.fetch_manifest(channel, source).await?;
         self.install(channel, &manifest, restart_after).await
     }
 
@@ -379,7 +396,8 @@ impl Updater {
     /// server and have a different Android application id.
     pub async fn stage_apk(&self) -> Outcome<Option<PathBuf>> {
         let channel = self.channel(None).expect("configured channel");
-        let manifest = self.fetch_manifest(channel).await?;
+        let source = self.source(None).expect("configured source");
+        let manifest = self.fetch_manifest(channel, source).await?;
         version::compatible(manifest.min_compatible_data_version, DATA_VERSION)?;
         let target = format!("{}-tauri-apk", version::target());
         let artifact = manifest.artifact(&target)?;
@@ -432,7 +450,18 @@ impl Updater {
                 .runtime
                 .lock()
                 .unwrap()
-                .map_or(self.options.channel, |(channel, _)| channel)),
+                .map_or(self.options.channel, |(channel, _, _)| channel)),
+        }
+    }
+
+    fn source(&self, requested: Option<&str>) -> Outcome<Source> {
+        match requested {
+            Some(value) => Source::parse(value),
+            None => Ok(self
+                .runtime
+                .lock()
+                .unwrap()
+                .map_or(self.options.source, |(_, source, _)| source)),
         }
     }
 
@@ -458,8 +487,12 @@ impl Updater {
     /// document is the one for `release`. Without the check, a `beta` manifest
     /// placed at the `release` URL would be a validly signed instruction to
     /// install a release candidate.
-    async fn fetch_manifest(&self, channel: Channel) -> Outcome<manifest::Manifest> {
-        let url = self.options.manifest_url(channel);
+    async fn fetch_manifest(
+        &self,
+        channel: Channel,
+        source: Source,
+    ) -> Outcome<manifest::Manifest> {
+        let url = self.options.manifest_url(channel, source);
         let manifest = download::manifest(&self.client, &url, self.signing_key.as_deref()).await?;
         if manifest.channel != channel.as_str() {
             return Err(UpdateError::WrongChannel {
@@ -473,6 +506,7 @@ impl Updater {
     async fn report(
         &self,
         channel: Channel,
+        source: Source,
         manifest: &manifest::Manifest,
     ) -> Outcome<UpdateReport> {
         let target = version::target();
@@ -494,6 +528,7 @@ impl Updater {
             latest: manifest.version.clone(),
             available,
             channel: channel.as_str().to_owned(),
+            source: source.as_str().to_owned(),
             target,
             notes_url: manifest.notes_url.clone(),
             notes,
@@ -577,15 +612,26 @@ impl UpdateService for Updater {
             last_error: recorded.last_error.clone(),
             interval_secs: self.interval(),
             automatic: self.options.automatic,
+            channel: self
+                .channel(None)
+                .expect("configured channel")
+                .as_str()
+                .into(),
+            source: self
+                .source(None)
+                .expect("configured source")
+                .as_str()
+                .into(),
         }
     }
 
     fn check(
         &self,
         channel: Option<String>,
+        source: Option<String>,
     ) -> gproxy_host_axum::update::UpdateFuture<'_, UpdateReport> {
         Box::pin(async move {
-            let result = self.check_now(channel.as_deref()).await;
+            let result = self.check_now(channel.as_deref(), source.as_deref()).await;
             // A manual check is the freshest thing the console has, so it
             // replaces what the schedule recorded rather than sitting beside
             // it.
@@ -600,9 +646,10 @@ impl UpdateService for Updater {
     fn apply(
         &self,
         channel: Option<String>,
+        source: Option<String>,
     ) -> gproxy_host_axum::update::UpdateFuture<'_, AppliedUpdate> {
         Box::pin(async move {
-            self.apply_now(channel.as_deref(), true)
+            self.apply_now(channel.as_deref(), source.as_deref(), true)
                 .await
                 .map_err(UpdateFailure::from)
         })
@@ -631,8 +678,9 @@ pub async fn run(
 ) -> Result<()> {
     let updater = Updater::for_settings(settings, options)?;
     let selected = updater.channel(channel.as_deref())?;
-    let manifest = updater.fetch_manifest(selected).await?;
-    let report = updater.report(selected, &manifest).await?;
+    let source = updater.source(None)?;
+    let manifest = updater.fetch_manifest(selected, source).await?;
+    let report = updater.report(selected, source, &manifest).await?;
     print_report(&report);
 
     if check {
@@ -664,6 +712,7 @@ pub async fn run(
 /// which is the same data as JSON.
 fn print_report(report: &UpdateReport) {
     println!("GPROXY {}", report.current);
+    println!("  source:   {}", report.source);
     println!("  channel:  {}", report.channel);
     println!("  target:   {}", report.target);
     println!(
@@ -776,6 +825,7 @@ mod tests {
             latest: "4.1.0".into(),
             available: true,
             channel: "release".into(),
+            source: "github".into(),
             target: "x86_64-unknown-linux-gnu".into(),
             notes_url: None,
             notes: None,
@@ -804,6 +854,7 @@ mod tests {
             latest: "4.0.0".into(),
             available: false,
             channel: "release".into(),
+            source: "github".into(),
             target: "t".into(),
             notes_url: None,
             notes: None,
@@ -903,8 +954,8 @@ mod tests {
     fn the_service_futures_are_send() {
         fn assert_send<T: Send>(_: T) {}
         let updater = updater(UpdateOptions::default());
-        assert_send(updater.check(None));
-        assert_send(updater.apply(None));
+        assert_send(updater.check(None, None));
+        assert_send(updater.apply(None, None));
         assert_send(updater.rollback());
         fn assert_sync<T: Send + Sync>(_: &T) {}
         assert_sync(&*updater);
@@ -918,13 +969,20 @@ mod runtime_tests {
     async fn settings_can_stop_and_restart_scheduled_checks() {
         let dir = tempfile::tempdir().unwrap();
         let updater = Updater::new(dir.path(), UpdateOptions::default()).unwrap();
-        updater.configure(Some("beta"), false).unwrap();
+        updater.configure(Some("beta"), Some("cnb"), false).unwrap();
         assert_eq!(updater.channel(None).unwrap(), Channel::Beta);
+        assert_eq!(updater.source(None).unwrap(), Source::Cnb);
+        assert_eq!(updater.source(Some("github")).unwrap(), Source::Github);
+        assert!(updater.source(Some("other")).is_err());
+        assert_eq!(updater.recorded().source, "cnb");
         assert!(updater.interval().is_none());
-        updater.configure(Some("dev"), true).unwrap();
+        updater
+            .configure(Some("dev"), Some("github"), true)
+            .unwrap();
         assert_eq!(updater.channel(None).unwrap(), Channel::Dev);
+        assert_eq!(updater.source(None).unwrap(), Source::Github);
         assert!(updater.task.lock().unwrap().is_some());
-        updater.configure(None, false).unwrap();
+        updater.configure(None, None, false).unwrap();
         assert!(updater.task.lock().unwrap().is_none());
     }
 }
