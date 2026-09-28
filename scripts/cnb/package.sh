@@ -17,10 +17,11 @@ install_upx() {
   if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then
     # Same upstream entry-stub fix as the native Windows release job, built
     # for the Linux host. The compressed output is still Windows ARM64.
-    local source_dir="$RUNNER_TEMP/windows-arm64-upx"
+    local source_dir="${XDG_CACHE_HOME:-$HOME/.cache}/gproxy/windows-arm64-upx-b888ad87"
+    mkdir -p "$(dirname "$source_dir")"
     if [ ! -x "$source_dir/build/upx" ]; then
       git init "$source_dir"
-      git -C "$source_dir" remote add origin https://github.com/upx/upx.git
+      git -C "$source_dir" config remote.origin.url https://github.com/upx/upx.git
       git -C "$source_dir" fetch --depth 1 origin b888ad87f5d7d8d890777b03d71f09d01a8eb902
       git -C "$source_dir" checkout --detach FETCH_HEAD
       git -C "$source_dir" submodule update --init --recursive --depth 1
@@ -92,7 +93,9 @@ case "${1:?prepare|cli|application|upload|edge}" in
     [ "$TARGET_OS" != windows ] || binary="$binary.exe"
     install_upx
     if [ "$UPX_ENABLED" = true ]; then
-      if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then upx --best --nrv2e "$binary"
+      # NRV2E's exhaustive search is a serial bottleneck on ARM64 PE files.
+      # Fast mode retains the fixed ARM64 loader and compression checks.
+      if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then upx --fast --nrv2e "$binary"
       else upx --best --lzma "$binary"; fi
       upx --test "$binary"
     fi
@@ -140,7 +143,7 @@ case "${1:?prepare|cli|application|upload|edge}" in
         )
         if [ "$TARGET_OS" = windows ]; then
           binary="target/$TARGET_TRIPLE/release/gproxy-desktop.exe"
-          if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then upx --best --nrv2e "$binary"
+          if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then upx --fast --nrv2e "$binary"
           else upx --best --lzma "$binary"; fi
           upx --test "$binary"
           (cd crates/gproxy-host-tauri && pnpm exec tauri bundle --target "$TARGET_TRIPLE" --bundles nsis --config "$config" --no-binary-patching)
