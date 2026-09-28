@@ -6,7 +6,7 @@ workflow:
     - if: '$CI_COMMIT_TAG =~ /^v4\./'
     - if: '$CI_COMMIT_BRANCH'
 
-stages: [console, verify, build, package, publish]
+stages: [prepare, verify, build, package, publish]
 
 variables:
   GIT_DEPTH: "0"
@@ -23,7 +23,7 @@ default:
   interruptible: true
 
 console:
-  stage: console
+  stage: prepare
   image: node:24-trixie
   tags: [saas-linux-medium-amd64]
   script:
@@ -51,24 +51,56 @@ docs:
     - pnpm --dir docs check
     - pnpm --dir docs build
 
-backend:
+.verify-base:
   stage: verify
-  image: rust:1.98-trixie
+  image: "$VERIFY_IMAGE"
   tags: [saas-linux-xlarge-amd64]
-  needs: [console]
   timeout: 3h
+  variables:
+    VERIFY_IMAGE: "$CI_REGISTRY_IMAGE/build-linux:verify-$RUST_VERSION"
+    CARGO_INCREMENTAL: "0"
+    FF_USE_FASTZIP: "true"
+    CACHE_COMPRESSION_LEVEL: fastest
+  rules:
+    - if: '$CI_PIPELINE_SOURCE != "external_pull_request_event" && $CI_COMMIT_REF_PROTECTED == "true" && ($CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_TAG =~ /^v4\./)'
+      variables:
+        VERIFY_IMAGE: "$CI_REGISTRY_IMAGE/build-linux:$CI_COMMIT_SHA"
+    - when: on_success
+
+backend:
+  extends: .verify-base
+  variables:
+    CARGO_TARGET_DIR: "$CI_PROJECT_DIR/target/verify-native"
   cache:
-    key: rust-checks
+    key:
+      prefix: "verify-native-$RUST_VERSION"
+      files: [Cargo.lock]
     when: always
-    paths: [.cargo/registry/, .cargo/git/, target/]
-  before_script:
-    - source scripts/gitlab/setup-unix.sh
+    paths:
+      - .cargo/registry/
+      - .cargo/git/
+      - target/verify-native/debug/.fingerprint/
+      - target/verify-native/debug/build/
+      - target/verify-native/debug/deps/*.rlib
+      - target/verify-native/debug/deps/*.rmeta
+      - target/verify-native/debug/deps/*.so
+      - target/verify-native/debug/deps/*.d
   script:
     - cargo fmt --all --check
-    - cargo clippy --locked --all-targets -- -D warnings
-    - cargo test --locked
-    - cargo clippy --locked -p gproxy-host-tauri --all-targets -- -D warnings
-    - cargo test --locked -p gproxy-host-tauri
+    - cargo clippy --locked --workspace --all-targets -- -D warnings
+    - cargo test --locked --workspace
+
+wasm-verify:
+  extends: .verify-base
+  variables:
+    CARGO_TARGET_DIR: "$CI_PROJECT_DIR/target/verify-wasm"
+  cache:
+    key:
+      prefix: "verify-wasm-$RUST_VERSION"
+      files: [Cargo.lock]
+    when: always
+    paths: [.cargo/registry/, .cargo/git/, target/verify-wasm/]
+  script:
     - cargo check --locked --target wasm32-unknown-unknown -p gproxy-protocol -p gproxy-store -p gproxy-seaorm -p gproxy-client -p gproxy-cache -p gproxy-channel -p gproxy-core -p gproxy-file -p gproxy-tokenizer -p gproxy-sdk -p gproxy-app -p gproxy-host-axum -p gproxy-host-edge
     - cargo check --locked --target wasm32-unknown-unknown -p gproxy-sdk --features libsql
     - cargo check --locked --target wasm32-unknown-unknown -p gproxy-cache --all-features
@@ -83,7 +115,7 @@ backend:
 
 toolchains:
   extends: .release-rules
-  stage: build
+  stage: prepare
   image: docker:28-cli
   tags: [saas-linux-xlarge-amd64]
   needs: []
@@ -103,7 +135,7 @@ toolchains:
         dockerfile=linux
         architecture=arm64
       fi
-      docker buildx build --push --file ".gitlab/Dockerfile.$dockerfile" --build-arg "TARGET_ARCH=$architecture" --tag "$CI_REGISTRY_IMAGE/build-$FLAVOR:$CI_COMMIT_SHA" --cache-from "type=registry,ref=$CI_REGISTRY_IMAGE/build-$FLAVOR:buildcache" --cache-to "type=registry,ref=$CI_REGISTRY_IMAGE/build-$FLAVOR:buildcache,mode=max" .
+      docker buildx build --push --file ".gitlab/Dockerfile.$dockerfile" --build-arg "TARGET_ARCH=$architecture" --tag "$CI_REGISTRY_IMAGE/build-$FLAVOR:$CI_COMMIT_SHA" --tag "$CI_REGISTRY_IMAGE/build-$FLAVOR:verify-$RUST_VERSION" --cache-from "type=registry,ref=$CI_REGISTRY_IMAGE/build-$FLAVOR:buildcache" --cache-to "type=registry,ref=$CI_REGISTRY_IMAGE/build-$FLAVOR:buildcache,mode=max" .
   parallel:
     matrix:
       - FLAVOR: [linux, linux-arm64, desktop, android]
@@ -209,6 +241,31 @@ android:
       - TARGET_TRIPLE: [x86_64-linux-android, aarch64-linux-android]
         PACKAGE_MODE: [cli, application]
 
+edge:
+  extends: .release-rules
+  stage: build
+  image: "$CI_REGISTRY_IMAGE/build-linux:$CI_COMMIT_SHA"
+  tags: [saas-linux-xlarge-amd64]
+  needs:
+    - console
+    - job: toolchains
+      artifacts: false
+      parallel:
+        matrix:
+          - FLAVOR: [linux]
+  timeout: 3h
+  cache:
+    key: cargo-edge
+    when: always
+    paths: [.cargo/registry/, .cargo/git/, target/]
+  before_script:
+    - export PATH="$CARGO_HOME/bin:$PATH"
+  script:
+    - bash scripts/gitlab/package-unix.sh edge
+  artifacts:
+    expire_in: 3 days
+    paths: [dist/release/]
+
 windows-msix:
   extends: .release-rules
   stage: package
@@ -262,6 +319,8 @@ publish:
   needs:
     - job: backend
       artifacts: false
+    - job: wasm-verify
+      artifacts: false
     - job: docs
       artifacts: false
     - linux
@@ -269,6 +328,7 @@ publish:
     - linux-musl
     - desktop
     - android
+    - edge
     - windows-msix
     - macos-dmg
   before_script:
