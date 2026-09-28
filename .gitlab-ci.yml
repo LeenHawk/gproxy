@@ -1,7 +1,256 @@
-# Builds run on CNB. GitLab remains a source and release mirror.
 workflow:
+  auto_cancel:
+    on_new_commit: interruptible
   rules:
-    - when: never
+    - if: '$CI_PIPELINE_SOURCE == "external_pull_request_event"'
+    - if: '$CI_COMMIT_TAG =~ /^v4\./'
+    - if: '$CI_COMMIT_BRANCH'
 
-cnb:
-  script: echo "CI runs at https://cnb.cool/LeenHawk/gproxy/-/build"
+stages: [console, verify, build, package, publish]
+
+variables:
+  GIT_DEPTH: "0"
+  NODE_VERSION: "24.21.0"
+  GO_VERSION: "1.27.1"
+  RUST_VERSION: "1.98.0"
+  GPROXY_BUILD_UPDATE_SOURCE: github
+  GITHUB_REPOSITORY: LeenHawk/gproxy
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+  CARGO_HOME: "$CI_PROJECT_DIR/.cargo"
+
+default:
+  interruptible: true
+
+console:
+  stage: console
+  image: node:24-trixie
+  tags: [saas-linux-medium-amd64]
+  script:
+    - npm install -g pnpm@9.15.9
+    - pnpm --dir console install --frozen-lockfile
+    - pnpm --dir console lint
+    - pnpm --dir console test
+    - GPROXY_BUILD_HASH="$CI_COMMIT_SHA" pnpm --dir console build
+  artifacts:
+    name: "$CI_JOB_NAME_SLUG-$CI_COMMIT_SHORT_SHA"
+    expire_in: 3 days
+    paths:
+      - console/dist/
+      - crates/gproxy-host-axum/assets/web/
+      - crates/gproxy-host-tauri/ui/
+
+docs:
+  stage: verify
+  image: node:24-trixie
+  tags: [saas-linux-medium-amd64]
+  needs: []
+  script:
+    - npm install -g pnpm@9.15.9
+    - pnpm --dir docs install --frozen-lockfile
+    - pnpm --dir docs check
+    - pnpm --dir docs build
+
+backend:
+  stage: verify
+  image: rust:1.98-trixie
+  tags: [saas-linux-xlarge-amd64]
+  needs: [console]
+  timeout: 3h
+  cache:
+    key: rust-checks
+    when: always
+    paths: [.cargo/registry/, .cargo/git/, target/]
+  before_script:
+    - source scripts/gitlab/setup-unix.sh
+  script:
+    - cargo fmt --all --check
+    - cargo clippy --locked --all-targets -- -D warnings
+    - cargo test --locked
+    - cargo clippy --locked -p gproxy-host-tauri --all-targets -- -D warnings
+    - cargo test --locked -p gproxy-host-tauri
+    - cargo check --locked --target wasm32-unknown-unknown -p gproxy-protocol -p gproxy-store -p gproxy-seaorm -p gproxy-client -p gproxy-cache -p gproxy-channel -p gproxy-core -p gproxy-file -p gproxy-tokenizer -p gproxy-sdk -p gproxy-app -p gproxy-host-axum -p gproxy-host-edge
+    - cargo check --locked --target wasm32-unknown-unknown -p gproxy-sdk --features libsql
+    - cargo check --locked --target wasm32-unknown-unknown -p gproxy-cache --all-features
+    - cargo check --locked --target wasm32-unknown-unknown -p gproxy-file --no-default-features --features s3
+    - cargo check --locked --target wasm32-unknown-unknown -p gproxy-channel --all-features --lib
+
+.release-rules:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "external_pull_request_event"'
+      when: never
+    - if: '$CI_COMMIT_REF_PROTECTED == "true" && ($CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_TAG =~ /^v4\./)'
+
+.unix-package:
+  extends: .release-rules
+  stage: build
+  needs: [console]
+  timeout: 3h
+  cache:
+    key: "cargo-$TARGET_TRIPLE"
+    when: always
+    paths: [.cargo/registry/, .cargo/git/, target/]
+  before_script:
+    - source scripts/gitlab/setup-unix.sh
+  script:
+    - bash scripts/gitlab/package-unix.sh cli
+    - bash scripts/gitlab/package-unix.sh application
+  artifacts:
+    name: "$CI_JOB_NAME_SLUG-$CI_COMMIT_SHORT_SHA"
+    expire_in: 3 days
+    paths: [dist/release/, dist/container/]
+
+linux:
+  extends: .unix-package
+  image: rust:1.98-trixie
+  tags: [$RUNNER_TAG]
+  services:
+    - name: docker:28-dind
+      alias: docker
+  variables:
+    TARGET_OS: linux
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  parallel:
+    matrix:
+      - TARGET_TRIPLE: [x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl]
+        RUNNER_TAG: saas-linux-xlarge-amd64
+      - TARGET_TRIPLE: [aarch64-unknown-linux-gnu, aarch64-unknown-linux-musl]
+        RUNNER_TAG: saas-linux-large-arm64
+
+macos:
+  extends: .unix-package
+  image: macos-26-xcode-26
+  tags: [saas-macos-large-m2pro]
+  variables:
+    TARGET_OS: macos
+    CARGO_BUILD_JOBS: "2"
+    APPLE_SIGNING_IDENTITY: "-"
+  parallel:
+    matrix:
+      - TARGET_TRIPLE: [x86_64-apple-darwin, aarch64-apple-darwin]
+
+android:
+  extends: .unix-package
+  image: rust:1.98-trixie
+  tags: [saas-linux-xlarge-amd64]
+  variables:
+    TARGET_OS: android
+  environment:
+    name: release/android
+    action: prepare
+  parallel:
+    matrix:
+      - TARGET_TRIPLE: [x86_64-linux-android, aarch64-linux-android]
+
+windows-toolchain:
+  extends: .release-rules
+  stage: build
+  image: docker:28-cli
+  tags: [saas-linux-xlarge-amd64]
+  needs: []
+  services:
+    - name: docker:28-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login "$CI_REGISTRY" -u "$CI_REGISTRY_USER" --password-stdin
+    - docker buildx create --use
+    - docker buildx build --push --file .gitlab/Dockerfile.windows --tag "$CI_REGISTRY_IMAGE/windows-cross:$CI_COMMIT_SHA" --cache-from "type=registry,ref=$CI_REGISTRY_IMAGE/windows-cross:buildcache" --cache-to "type=registry,ref=$CI_REGISTRY_IMAGE/windows-cross:buildcache,mode=max" .
+
+windows:
+  extends: .release-rules
+  stage: build
+  image: "$CI_REGISTRY_IMAGE/windows-cross:$CI_COMMIT_SHA"
+  tags: [saas-linux-xlarge-amd64]
+  needs:
+    - console
+    - job: windows-toolchain
+      artifacts: false
+  timeout: 3h
+  variables:
+    CARGO_BUILD_JOBS: "12"
+    CARGO_PROFILE_RELEASE_LTO: thin
+    CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "8"
+    XDG_CACHE_HOME: "$CI_PROJECT_DIR/.cache"
+    FF_USE_FASTZIP: "true"
+    CACHE_COMPRESSION_LEVEL: fastest
+  cache:
+    key: "windows-cross-$TARGET_TRIPLE-$PACKAGE_MODE"
+    when: always
+    paths: [.cargo/registry/, .cargo/git/, target/, .cache/]
+  script:
+    - bash scripts/gitlab/package-windows-cross.sh "$PACKAGE_MODE"
+  artifacts:
+    name: "$CI_JOB_NAME_SLUG-$CI_COMMIT_SHORT_SHA"
+    expire_in: 3 days
+    paths: [dist/release/, dist/windows/]
+  parallel:
+    matrix:
+      - TARGET_TRIPLE: [x86_64-pc-windows-msvc, aarch64-pc-windows-msvc]
+        PACKAGE_MODE: [cli, application]
+
+windows-msix:
+  extends: .release-rules
+  stage: package
+  tags: [saas-windows-medium-amd64]
+  needs: [windows]
+  timeout: 30m
+  script:
+    - '& ./scripts/gitlab/package-msix.ps1'
+  artifacts:
+    expire_in: 3 days
+    paths: [dist/msix/]
+
+edge:
+  extends: .release-rules
+  stage: build
+  image: rust:1.98-trixie
+  tags: [saas-linux-xlarge-amd64]
+  needs: [console]
+  timeout: 3h
+  cache:
+    key: cargo-edge
+    when: always
+    paths: [.cargo/registry/, .cargo/git/, target/]
+  before_script:
+    - source scripts/gitlab/setup-unix.sh
+  script:
+    - bash scripts/gitlab/package-unix.sh edge
+  artifacts:
+    name: "$CI_JOB_NAME_SLUG-$CI_COMMIT_SHORT_SHA"
+    expire_in: 3 days
+    paths: [dist/release/]
+
+publish:
+  extends: .release-rules
+  stage: publish
+  image: docker:28-cli
+  tags: [saas-linux-large-amd64]
+  interruptible: false
+  resource_group: gproxy-release
+  services:
+    - name: docker:28-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  environment:
+    name: release/publish
+  needs:
+    - job: backend
+      artifacts: false
+    - job: docs
+      artifacts: false
+    - linux
+    - macos
+    - windows
+    - windows-msix
+    - android
+    - edge
+  before_script:
+    - apk add --no-cache bash python3 jq openssl git
+  script:
+    - bash scripts/gitlab/publish.sh

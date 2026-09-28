@@ -1,3 +1,5 @@
+> Builds currently run in GitLab CI. The CNB automatic entry point is disabled; these files are retained as a fallback.
+
 # CNB CI and releases
 
 The `dev` branch publishes the rolling `nightly` release. A matching `v4.*`

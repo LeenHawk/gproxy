@@ -183,6 +183,8 @@ def verify_packages():
         if app := row.get("application_artifact"):
             expected += [app + extensions[row["os"]],
                          app + ".provenance.json"]
+            if row["os"] == "windows" and os.environ.get("GITLAB_CI"):
+                expected.append(app + ".exe")
     for name in expected:
         path = directory / name
         if not path.is_file():
