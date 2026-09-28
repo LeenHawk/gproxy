@@ -184,8 +184,14 @@ jobs:
         env:
           UPX_VERSION: ${{ matrix.upx_version }}
         run: scripts/install-upx.sh
+      - name: Pack and run Windows executable
+        if: ${{ matrix.upx && matrix.os == 'windows' }}
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: scripts/pack-windows-cli.ps1 -Target $env:TARGET
       - name: Compress and verify executable
-        if: ${{ matrix.upx }}
+        if: ${{ matrix.upx && matrix.os != 'windows' }}
         run: |
           binary="target/${{ matrix.target }}/release/gproxy${{ matrix.os == 'windows' && '.exe' || '' }}"
           upx_args=(--best --lzma)
@@ -195,8 +201,18 @@ jobs:
           esac
           upx "${upx_args[@]}" "$binary"
           upx --test "$binary"
+      - name: Smoke check Windows executable
+        if: ${{ matrix.run_check && matrix.os == 'windows' }}
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          & "target/$env:TARGET/release/gproxy.exe" --version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "target/$env:TARGET/release/gproxy.exe" --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Smoke check release executable
-        if: ${{ matrix.run_check }}
+        if: ${{ matrix.run_check && matrix.os != 'windows' }}
         run: |
           binary="target/${{ matrix.target }}/release/gproxy${{ matrix.os == 'windows' && '.exe' || '' }}"
           "$binary" --version
