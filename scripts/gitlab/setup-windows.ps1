@@ -8,6 +8,17 @@ function Run-Checked {
 $toolsDir = Join-Path $env:CI_PROJECT_DIR '.ci-tools'
 New-Item -ItemType Directory -Force $toolsDir | Out-Null
 Run-Checked git @('config', '--global', 'core.longpaths', 'true')
+$gitRoot = Split-Path (Split-Path (Get-Command git).Source -Parent) -Parent
+$bashDirectories = @("$gitRoot\bin", "${env:ProgramW6432}\Git\bin", "${env:ProgramFiles(x86)}\Git\bin")
+$bashDirectory = $bashDirectories | Where-Object { Test-Path "$_\bash.exe" } | Select-Object -First 1
+if (-not $bashDirectory) {
+    Run-Checked choco @('install', 'git.install', '-y', '--no-progress')
+    $bashDirectory = $bashDirectories | Where-Object { Test-Path "$_\bash.exe" } | Select-Object -First 1
+}
+if (-not $bashDirectory) { throw 'Git for Windows Bash was not installed' }
+$env:PATH = "$bashDirectory;$env:PATH"
+$env:CHERE_INVOKING = '1'
+Run-Checked bash @('--login', '-c', 'command -v awk && test -f scripts/release-metadata.sh')
 if (-not (Get-Command pwsh -ErrorAction SilentlyContinue)) {
     Run-Checked choco @('install', 'powershell-core', '-y', '--no-progress')
 }
@@ -55,3 +66,4 @@ if ($env:TARGET_TRIPLE -eq 'aarch64-pc-windows-msvc') {
 Run-Checked go @('version')
 Run-Checked rustc @('--version')
 Run-Checked node @('--version')
+Run-Checked bash @('--login', '-c', 'for tool in awk cmake cargo pnpm; do command -v "$tool" || exit 1; done')

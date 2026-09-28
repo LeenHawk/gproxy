@@ -13,7 +13,7 @@ $env:ARTIFACT_NAME = $row.artifact
 $env:BUILDER = 'cargo'
 $env:UPX_ENABLED = 'true'
 $env:RUSTFLAGS = '-C target-feature=+crt-static'
-$env:GPROXY_BUILD_VERSION = (& bash scripts/release-metadata.sh version).Trim()
+$env:GPROXY_BUILD_VERSION = (& bash --login scripts/release-metadata.sh version).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Could not read version' }
 $env:GPROXY_BUILD_HASH = $env:CI_COMMIT_SHA
 $env:GPROXY_BUILD_CHANNEL = 'dev'
@@ -23,7 +23,7 @@ $env:GPROXY_INSTALLATION_KIND = 'standalone'
 $env:GITHUB_SHA = $env:CI_COMMIT_SHA
 $env:GITHUB_REF_NAME = 'nightly'
 if ($env:CI_COMMIT_TAG) {
-    Run-Checked bash @('scripts/release-metadata.sh', 'verify-tag', $env:CI_COMMIT_TAG)
+    Run-Checked bash @('--login', 'scripts/release-metadata.sh', 'verify-tag', $env:CI_COMMIT_TAG)
     $env:GITHUB_REF_NAME = $env:CI_COMMIT_TAG
     $env:GPROXY_BUILD_CHANNEL = if ($env:GPROXY_BUILD_VERSION.Contains('-')) { 'beta' } else { 'release' }
 }
@@ -38,7 +38,7 @@ if ($target -eq 'aarch64-pc-windows-msvc') {
         & scripts/install-windows-arm64-upx.ps1
     }
 } elseif ($Mode -eq 'cli') {
-    Run-Checked bash @('scripts/install-upx.sh')
+    Run-Checked bash @('--login', 'scripts/install-upx.sh')
 }
 foreach ($directory in Get-Content $env:GITHUB_PATH) { $env:PATH = "$directory;$env:PATH" }
 
@@ -57,6 +57,6 @@ if ($Mode -eq 'cli') {
     $env:BUILDER = 'tauri'
     Write-Host "Building Application: $env:ARTIFACT_NAME"
     Run-Checked pnpm @('--dir', 'crates/gproxy-host-tauri', 'install', '--frozen-lockfile')
-    Run-Checked bash @('scripts/package-tauri-release.sh')
+    Run-Checked bash @('--login', 'scripts/package-tauri-release.sh')
 }
-Run-Checked bash @('scripts/build-provenance.sh')
+Run-Checked bash @('--login', 'scripts/build-provenance.sh')
