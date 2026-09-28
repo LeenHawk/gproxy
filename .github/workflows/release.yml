@@ -132,12 +132,6 @@ jobs:
         if: matrix.target == 'aarch64-pc-windows-msvc'
         shell: bash
         run: echo "CMAKE_TOOLCHAIN_FILE_aarch64_pc_windows_msvc=$(cygpath -m "$GITHUB_WORKSPACE/scripts/cmake/windows-arm64.cmake")" >> "$GITHUB_ENV"
-      - name: Provide Clang command on RISE
-        if: matrix.target == 'riscv64gc-unknown-linux-gnu'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang libclang-dev
-          clang --version
       - name: Build
         env:
           RUSTFLAGS: ${{ matrix.os == 'windows' && '-C target-feature=+crt-static' || '' }}
@@ -194,12 +188,7 @@ jobs:
         if: ${{ matrix.upx && matrix.os != 'windows' }}
         run: |
           binary="target/${{ matrix.target }}/release/gproxy${{ matrix.os == 'windows' && '.exe' || '' }}"
-          upx_args=(--best --lzma)
-          case "${{ matrix.target }}" in
-            # UPX 5.2.1's AUIPC filter rejects these RISC-V executables.
-            riscv64gc-unknown-linux-*) upx_args+=(--no-filter) ;;
-          esac
-          upx "${upx_args[@]}" "$binary"
+          upx --best --lzma "$binary"
           upx --test "$binary"
       - name: Smoke check Windows executable
         if: ${{ matrix.run_check && matrix.os == 'windows' }}
@@ -418,12 +407,6 @@ jobs:
             target: aarch64-unknown-linux-gnu
             suffix: ""
             runtime_base: gcr.io/distroless/cc-debian13
-          - variant: gnu
-            arch: riscv64
-            runner: ubuntu-24.04-riscv
-            target: riscv64gc-unknown-linux-gnu
-            suffix: ""
-            runtime_base: gcr.io/distroless/cc-debian13
           - variant: musl
             arch: amd64
             runner: ubuntu-latest
@@ -434,12 +417,6 @@ jobs:
             arch: arm64
             runner: ubuntu-24.04-arm
             target: aarch64-unknown-linux-musl
-            suffix: -musl
-            runtime_base: gcr.io/distroless/static-debian13
-          - variant: musl
-            arch: riscv64
-            runner: ubuntu-24.04-riscv
-            target: riscv64gc-unknown-linux-musl
             suffix: -musl
             runtime_base: gcr.io/distroless/static-debian13
     steps:
@@ -490,9 +467,9 @@ jobs:
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
           tag="$image:$RELEASE_TAG"
           docker buildx imagetools create -t "$tag" \
-            "$tag-amd64" "$tag-arm64" "$tag-riscv64"
+            "$tag-amd64" "$tag-arm64"
           docker buildx imagetools create -t "$tag-musl" \
-            "$tag-amd64-musl" "$tag-arm64-musl" "$tag-riscv64-musl"
+            "$tag-amd64-musl" "$tag-arm64-musl"
 
   manifest:
     name: Signed update manifest
