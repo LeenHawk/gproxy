@@ -168,6 +168,9 @@ def verify_packages():
     directory = Path("dist/release")
     matrix = json.loads(Path("scripts/release-targets.json").read_text())["include"]
     expected = ["gproxy-edge.wasm", "gproxy-edge-cloudflare.zip", "gproxy-edge.provenance.json"]
+    extensions = {"linux": ".deb", "macos": ".dmg", "windows": ".msix", "android": ".apk"}
+    if os.environ.get("CNB_BUILD_ID"):
+        extensions.update(macos=".app.zip", windows=".exe")
     for row in matrix:
         cli = row["artifact"]
         expected += [cli + ".zip", cli + ".provenance.json"]
@@ -178,7 +181,7 @@ def verify_packages():
         if row["os"] == "android":
             expected.append(cli + ".apk")
         if app := row.get("application_artifact"):
-            expected += [app + {"linux": ".deb", "macos": ".dmg", "windows": ".msix", "android": ".apk"}[row["os"]],
+            expected += [app + extensions[row["os"]],
                          app + ".provenance.json"]
     for name in expected:
         path = directory / name
@@ -205,7 +208,8 @@ def main():
         return
     hosts[2].sync()
     notes = Path(f"docs/release-notes/v{os.environ['GPROXY_BUILD_VERSION']}.md").read_text()
-    notes += f"\n\nBuilt once by [GitLab CI]({os.environ['CI_PIPELINE_URL']}). CLI (`gproxy-*`) and Application (`gproxy-tauri-*`) packages are separate.\n"
+    builder = "CNB CI" if os.environ.get("CNB_BUILD_ID") else "GitLab CI"
+    notes += f"\n\nBuilt once by [{builder}]({os.environ['CI_PIPELINE_URL']}). CLI (`gproxy-*`) and Application (`gproxy-tauri-*`) packages are separate.\n"
     assets = sorted(path for path in Path("dist/release").iterdir() if path.is_file())
     # Each host gets the same package bytes and a manifest signed for its URLs.
     for host in hosts:

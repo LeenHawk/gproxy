@@ -1,0 +1,61 @@
+dev:
+  push: &release
+    - name: Release
+      lock:
+        key: release-$CNB_BRANCH
+        expires: 7200
+        cancel-in-progress: true
+      runner:
+        tags: cnb:arch:amd64
+        cpus: 4
+      docker:
+        build: .cnb/Dockerfile
+      services:
+        - docker
+      env:
+        RELEASE_RUN_ID: $CNB_BUILD_ID
+        GPROXY_BUILD_HASH: $CNB_COMMIT
+      stages:
+        - name: Verify signing identity
+          imports:
+            - https://cnb.cool/LeenHawk/gproxy-secrets/-/blob/main/release.json
+          script: node scripts/cnb/check-signing.mjs
+        - name: Build shared Console assets
+          script: |
+            pnpm --dir console install --frozen-lockfile
+            pnpm --dir console build
+            tar -czf "$RELEASE_RUN_ID-console.tar.gz" -C console/dist .
+            python3 scripts/cnb/api.py upload "$RELEASE_RUN_ID-console.tar.gz"
+            mkdir -p dist
+            python3 scripts/cnb/matrix.py > dist/cnb-packages.yml
+        - name: Build all CLI and Application targets
+          timeout: 2h
+          type: cnb:apply
+          options:
+            configFrom: dist/cnb-packages.yml
+            event: api_trigger_release
+            sync: true
+        - name: Collect CLI and Application packages
+          script: |
+            python3 scripts/cnb/api.py collect
+            source scripts/cnb/env.sh
+            VERIFY_ONLY=true python3 scripts/gitlab/publish.py
+        - name: Require successful CI
+          timeout: 2h
+          script: python3 scripts/cnb/api.py wait-ci
+        - name: Sign update manifest
+          imports:
+            - https://cnb.cool/LeenHawk/gproxy-secrets/-/blob/main/release.json
+          script: bash scripts/cnb/sign-manifest.sh
+        - name: Publish containers and release
+          lock:
+            key: gproxy-release-publication
+            wait: true
+          imports:
+            - https://cnb.cool/LeenHawk/gproxy-secrets/-/blob/main/release.json
+          script: bash scripts/cnb/publish.sh
+  api_trigger_release: *release
+
+"v4.*":
+  tag_push: *release
+  api_trigger_release: *release
