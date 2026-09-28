@@ -221,7 +221,7 @@ pub(super) fn to_claude(
                         cc::ThinkingDisabled::builder().build(),
                     ))
                 }
-                i::ReasoningEffort::Minimal => {
+                i::ReasoningEffort::Minimal | i::ReasoningEffort::Numeric(_) => {
                     report.omitted("reasoning.effort", "Claude has no matching effort");
                 }
                 i::ReasoningEffort::Low
@@ -235,8 +235,10 @@ pub(super) fn to_claude(
                         i::ReasoningEffort::High => cc::Effort::High,
                         i::ReasoningEffort::Xhigh => cc::Effort::Xhigh,
                         i::ReasoningEffort::Max => cc::Effort::Max,
-                        // The enclosing arm excluded None and Minimal.
-                        i::ReasoningEffort::None | i::ReasoningEffort::Minimal => unreachable!(),
+                        // The enclosing arm includes only named Claude effort levels.
+                        i::ReasoningEffort::None
+                        | i::ReasoningEffort::Minimal
+                        | i::ReasoningEffort::Numeric(_) => unreachable!(),
                     };
                     out.output_config = Some(cc::OutputConfig::builder().effort(effort).build());
                     out.thinking = Some(cc::ThinkingConfig::Adaptive(

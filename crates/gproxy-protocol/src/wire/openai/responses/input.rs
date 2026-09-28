@@ -2337,6 +2337,9 @@ pub enum ReasoningEffort {
     High,
     Xhigh,
     Max,
+    /// Codex custom effort is serialized as an unsigned JSON integer.
+    #[serde(untagged)]
+    Numeric(u64),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -6,8 +6,11 @@ pub(super) mod tools;
 use crate::channel::ChannelError;
 use gproxy_protocol::connection::Bytes;
 
-pub(super) fn request(body: &Bytes) -> Result<(Bytes, tools::Aliases), ChannelError> {
-    responses::request(body)
+pub(super) fn request(
+    body: &Bytes,
+    headers: &http::HeaderMap,
+) -> Result<(Bytes, tools::Aliases), ChannelError> {
+    responses::request(body, headers)
 }
 
 fn invalid(error: impl std::fmt::Display) -> ChannelError {

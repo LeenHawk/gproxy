@@ -2,7 +2,10 @@ use super::{invalid, tools};
 use crate::channel::ChannelError;
 use gproxy_protocol::{connection::Bytes, wire::openai::responses::*};
 
-pub(super) fn request(body: &Bytes) -> Result<(Bytes, tools::Aliases), ChannelError> {
+pub(super) fn request(
+    body: &Bytes,
+    headers: &http::HeaderMap,
+) -> Result<(Bytes, tools::Aliases), ChannelError> {
     let mut request: GenerateContentRequestBody = serde_json::from_slice(body).map_err(invalid)?;
     request.stream = Some(Some(true));
     request.store = Some(Some(false));
@@ -15,6 +18,13 @@ pub(super) fn request(body: &Bytes) -> Result<(Bytes, tools::Aliases), ChannelEr
     request.safety_identifier = None;
     request.user = None;
     request.truncation = None;
+    // The CLI's Guardian reviewer uses backend defaults, not generation tiers.
+    if headers
+        .get("x-codex-guardian")
+        .is_some_and(|v| v == "reviewer")
+    {
+        request.service_tier = None;
+    }
     if let Some(Input::Text(text)) = request
         .input
         .take_if(|input| matches!(input, Input::Text(_)))
