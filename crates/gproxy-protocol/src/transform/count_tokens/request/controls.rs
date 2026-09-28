@@ -107,7 +107,7 @@ pub(super) fn openai_to_claude(
                     c::ThinkingDisabled::builder().build(),
                 ))
             }
-            o::ReasoningEffort::Minimal => {
+            o::ReasoningEffort::Minimal | o::ReasoningEffort::Numeric(_) => {
                 report.omitted("effort", "target has no matching effort");
             }
             o::ReasoningEffort::Low
@@ -121,8 +121,10 @@ pub(super) fn openai_to_claude(
                     o::ReasoningEffort::High => c::Effort::High,
                     o::ReasoningEffort::Xhigh => c::Effort::Xhigh,
                     o::ReasoningEffort::Max => c::Effort::Max,
-                    // The enclosing arm excluded None and Minimal.
-                    o::ReasoningEffort::None | o::ReasoningEffort::Minimal => unreachable!(),
+                    // The enclosing arm includes only named Claude effort levels.
+                    o::ReasoningEffort::None
+                    | o::ReasoningEffort::Minimal
+                    | o::ReasoningEffort::Numeric(_) => unreachable!(),
                 };
                 out.thinking = Some(c::ThinkingConfig::Adaptive(
                     c::ThinkingAdaptive::builder().build(),
@@ -257,12 +259,16 @@ pub(super) fn openai_to_gemini(
             o::ReasoningEffort::Low => thinking.thinking_level = Some(g::ThinkingLevel::Low),
             o::ReasoningEffort::Medium => thinking.thinking_level = Some(g::ThinkingLevel::Medium),
             o::ReasoningEffort::High => thinking.thinking_level = Some(g::ThinkingLevel::High),
-            o::ReasoningEffort::Xhigh | o::ReasoningEffort::Max => {
+            o::ReasoningEffort::Xhigh
+            | o::ReasoningEffort::Max
+            | o::ReasoningEffort::Numeric(_) => {
                 report.omitted("reasoning.effort", "target has no matching effort");
             }
         }
-        config.thinking_config = Some(thinking);
-        present = true;
+        if thinking.thinking_budget.is_some() || thinking.thinking_level.is_some() {
+            config.thinking_config = Some(thinking);
+            present = true;
+        }
     }
     if let Some(text) = input.text.as_ref().and_then(Option::as_ref) {
         if text.verbosity.flatten().is_some() {

@@ -232,11 +232,15 @@ pub(super) fn to_gemini(
                     thinking.thinking_level = Some(g::ThinkingLevel::Medium)
                 }
                 i::ReasoningEffort::High => thinking.thinking_level = Some(g::ThinkingLevel::High),
-                i::ReasoningEffort::Xhigh | i::ReasoningEffort::Max => {
+                i::ReasoningEffort::Xhigh
+                | i::ReasoningEffort::Max
+                | i::ReasoningEffort::Numeric(_) => {
                     report.omitted("reasoning.effort", "Gemini has no matching effort");
                 }
             }
-            config.thinking_config = Some(thinking);
+            if thinking.thinking_budget.is_some() || thinking.thinking_level.is_some() {
+                config.thinking_config = Some(thinking);
+            }
         }
     }
     if let Some(text) = &input.text {

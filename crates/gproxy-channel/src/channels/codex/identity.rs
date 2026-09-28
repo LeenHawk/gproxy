@@ -325,6 +325,9 @@ fn ascii(text: &str) -> String {
 /// Add the identity headers a client did not send itself. Client-supplied
 /// values always win: a header present in `headers` is left alone.
 pub(super) fn apply(headers: &mut HeaderMap, identity: &Identity) {
+    let guardian_reviewer = headers
+        .get("x-codex-guardian")
+        .is_some_and(|v| v == "reviewer");
     let mut put = |name: &'static str, value: &str| {
         let name = HeaderName::from_static(name);
         if headers.contains_key(&name) {
@@ -346,7 +349,7 @@ pub(super) fn apply(headers: &mut HeaderMap, identity: &Identity) {
         put("x-codex-turn-metadata", &metadata);
     }
     if identity.kind.is_some() {
-        if let Some(hint) = &identity.routing_hint {
+        if !guardian_reviewer && let Some(hint) = &identity.routing_hint {
             put("x-codex-routing-hint", hint);
         }
         if let Some(state) = &identity.turn_state {

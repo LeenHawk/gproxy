@@ -243,17 +243,24 @@ pub(super) fn to_chat(
         {
             report.omitted("reasoning", "field has no target representation");
         }
-        out.reasoning_effort = config.effort.map(|v| {
-            v.map(|v| match v {
-                i::ReasoningEffort::None => c::ReasoningEffort::None,
-                i::ReasoningEffort::Minimal => c::ReasoningEffort::Minimal,
-                i::ReasoningEffort::Low => c::ReasoningEffort::Low,
-                i::ReasoningEffort::Medium => c::ReasoningEffort::Medium,
-                i::ReasoningEffort::High => c::ReasoningEffort::High,
-                i::ReasoningEffort::Xhigh => c::ReasoningEffort::XHigh,
-                i::ReasoningEffort::Max => c::ReasoningEffort::Max,
-            })
-        });
+        out.reasoning_effort = match config.effort.flatten() {
+            Some(i::ReasoningEffort::Numeric(_)) => {
+                report.omitted("reasoning.effort", "Chat has no numeric effort control");
+                None
+            }
+            _ => config.effort.map(|v| {
+                v.map(|v| match v {
+                    i::ReasoningEffort::None => c::ReasoningEffort::None,
+                    i::ReasoningEffort::Minimal => c::ReasoningEffort::Minimal,
+                    i::ReasoningEffort::Low => c::ReasoningEffort::Low,
+                    i::ReasoningEffort::Medium => c::ReasoningEffort::Medium,
+                    i::ReasoningEffort::High => c::ReasoningEffort::High,
+                    i::ReasoningEffort::Xhigh => c::ReasoningEffort::XHigh,
+                    i::ReasoningEffort::Max => c::ReasoningEffort::Max,
+                    i::ReasoningEffort::Numeric(_) => unreachable!(),
+                })
+            }),
+        };
     }
     if let Some(text) = &input.text {
         out.verbosity = text.verbosity.map(|v| {

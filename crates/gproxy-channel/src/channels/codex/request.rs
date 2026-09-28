@@ -367,7 +367,10 @@ impl Codex {
             HttpBody::Bytes(bytes) if responses => {
                 let bytes = cache::shape(bytes, rules);
                 HttpBody::Bytes(if shape {
-                    let (bytes, mapping) = shape::request(&bytes)?;
+                    let headers = builder
+                        .headers_ref()
+                        .ok_or_else(|| invalid_config("invalid request URI or headers"))?;
+                    let (bytes, mapping) = shape::request(&bytes, headers)?;
                     aliases = Some(mapping);
                     bytes
                 } else {
