@@ -30,9 +30,12 @@ case "$TARGET_OS" in
     ;;
   windows)
     pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --no-bundle --config "$config" -- --locked
-    binary="$root/target/$TARGET_TRIPLE/release/gproxy-desktop.exe"
-    upx --best --lzma "$binary"
-    upx --test "$binary"
+    # UPX 5.2.1's ARM64 Windows output crashes at startup (0xC0000005).
+    if [ "$TARGET_TRIPLE" != aarch64-pc-windows-msvc ]; then
+      binary="$root/target/$TARGET_TRIPLE/release/gproxy-desktop.exe"
+      upx --best --lzma "$binary"
+      upx --test "$binary"
+    fi
     cd "$root"
     pwsh -NoProfile -File scripts/package-windows-msix.ps1 \
       -Target "$TARGET_TRIPLE" -Artifact "$ARTIFACT_NAME" -Version "$GPROXY_BUILD_VERSION" \
