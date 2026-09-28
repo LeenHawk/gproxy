@@ -11,6 +11,8 @@ notes_url="${NOTES_URL:-}"
 version="${VERSION:-${TAG#v}}"
 channel="${CHANNEL:-release}"
 prefix="${ASSET_PREFIX:-}"
+asset_base_url="${ASSET_BASE_URL:-https://github.com/$REPO/releases/download/$TAG}"
+asset_base_url="${asset_base_url%/}"
 
 case "$channel" in
   release | beta)
@@ -53,7 +55,7 @@ while IFS=$'\t' read -r target artifact os; do
   fi
   sha="$(awk '{print $1}' "$sidecar")"
   size="$(stat -c%s "$package")"
-  url="https://github.com/$REPO/releases/download/$TAG/$prefix$artifact.zip"
+  url="$asset_base_url/$prefix$artifact.zip"
   printf '%s|%s|%s|%s\n' "$target" "$url" "$sha" "$size" >> "$payload"
   artifacts="$(jq -c --arg t "$target" --arg u "$url" --arg s "$sha" --argjson z "$size" \
     '. + [{target_triple:$t,url:$u,sha256:$s,size:$z}]' <<<"$artifacts")"
@@ -68,7 +70,7 @@ while IFS=$'\t' read -r target artifact os; do
     apk_sha="$(awk '{print $1}' "$apk_sidecar")"
     apk_size="$(stat -c%s "$apk")"
     apk_target="$target-apk"
-    apk_url="https://github.com/$REPO/releases/download/$TAG/$prefix$artifact.apk"
+    apk_url="$asset_base_url/$prefix$artifact.apk"
     printf '%s|%s|%s|%s\n' "$apk_target" "$apk_url" "$apk_sha" "$apk_size" >> "$payload"
     artifacts="$(jq -c --arg t "$apk_target" --arg u "$apk_url" --arg s "$apk_sha" \
       --argjson z "$apk_size" '. + [{target_triple:$t,url:$u,sha256:$s,size:$z}]' \
@@ -83,7 +85,7 @@ while IFS=$'\t' read -r target artifact os; do
       app_sha="$(awk '{print $1}' "$app_apk.sha256")"
       app_size="$(stat -c%s "$app_apk")"
       app_target="$target-tauri-apk"
-      app_url="https://github.com/$REPO/releases/download/$TAG/$prefix$app_artifact.apk"
+      app_url="$asset_base_url/$prefix$app_artifact.apk"
       printf '%s|%s|%s|%s\n' "$app_target" "$app_url" "$app_sha" "$app_size" >> "$payload"
       artifacts="$(jq -c --arg t "$app_target" --arg u "$app_url" --arg s "$app_sha" \
         --argjson z "$app_size" '. + [{target_triple:$t,url:$u,sha256:$s,size:$z}]' \

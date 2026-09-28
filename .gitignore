@@ -10,6 +10,8 @@ __pycache__/
 .*
 !.gitignore
 !.github/
+!.cnb.yml
+!.cnb/
 
 # local reference library (v2 snapshot lives at samples/gproxy-v2)
 samples/
