@@ -190,11 +190,15 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: scripts/build-windows-release.ps1 -Target $env:TARGET
       - name: Install release packer
-        if: ${{ matrix.upx }}
+        if: ${{ matrix.upx && matrix.target != 'aarch64-pc-windows-msvc' }}
         shell: bash
         env:
           UPX_VERSION: ${{ matrix.upx_version }}
         run: scripts/install-upx.sh
+      - name: Install UPX with ARM64 entry-stub fix
+        if: matrix.upx && matrix.target == 'aarch64-pc-windows-msvc'
+        shell: pwsh
+        run: scripts/install-windows-arm64-upx.ps1
       - name: Pack and verify Windows executable
         if: ${{ matrix.upx }}
         shell: pwsh
@@ -228,7 +232,11 @@ jobs:
         run: |
           config="$(jq -cn --arg version "$GPROXY_BUILD_VERSION" '{version:$version}')"
           pnpm --dir crates/gproxy-host-tauri exec tauri build --ci --target "$TARGET" --no-bundle --config "$config" -- --locked
-          upx --best --lzma "target/$TARGET/release/gproxy-desktop.exe"
+          if [ "$TARGET" = aarch64-pc-windows-msvc ]; then
+            upx --best --nrv2e "target/$TARGET/release/gproxy-desktop.exe"
+          else
+            upx --best --lzma "target/$TARGET/release/gproxy-desktop.exe"
+          fi
           upx --test "target/$TARGET/release/gproxy-desktop.exe"
       - name: Validate application Store packaging
         if: ${{ !contains(steps.version.outputs.version, '-') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
