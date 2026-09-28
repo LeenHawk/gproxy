@@ -44,6 +44,7 @@ fn settings() -> setting::Model {
         quota_observation_retention_days: Some(90),
         max_database_size_mb: None,
         update_channel: None,
+        update_source: None,
         enable_auto_update_check: true,
         portal_recent_requests_enabled: true,
     }

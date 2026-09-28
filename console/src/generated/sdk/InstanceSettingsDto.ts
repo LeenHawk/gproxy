@@ -19,4 +19,4 @@ hasTokenizerAuthToken: boolean, retentionDays: number | null,
  * Cycles are never pruned. Absent in an older export, which reads as
  * the 90-day default.
  */
-quotaObservationRetentionDays: number | null, maxDatabaseSizeMb: number | null, updateChannel: string | null, enableAutoUpdateCheck: boolean, portalRecentRequestsEnabled: boolean, };
+quotaObservationRetentionDays: number | null, maxDatabaseSizeMb: number | null, updateChannel: string | null, updateSource: string | null, enableAutoUpdateCheck: boolean, portalRecentRequestsEnabled: boolean, };

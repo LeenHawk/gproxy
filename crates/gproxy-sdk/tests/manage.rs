@@ -932,6 +932,56 @@ async fn a_settings_write_reaches_the_active_snapshot() {
 }
 
 #[tokio::test]
+async fn update_source_is_persisted_validated_and_can_follow_the_build_default() {
+    let (gproxy, _, _) = support::sdk_parts().await;
+    for source in [Some("cnb"), Some("github"), None] {
+        let settings = gproxy
+            .manage()
+            .settings()
+            .update(SettingsPatch {
+                instance: Some(gproxy_sdk::dto::InstanceSettingsPatch {
+                    update_source: Some(source.map(str::to_owned)),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(settings.instance.update_source.as_deref(), source);
+        let stored = gproxy.manage().settings().get().await.unwrap();
+        assert_eq!(stored.instance.update_source.as_deref(), source);
+    }
+    let error = gproxy
+        .manage()
+        .settings()
+        .update(SettingsPatch {
+            instance: Some(gproxy_sdk::dto::InstanceSettingsPatch {
+                update_source: Some(Some("other".into())),
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("updateSource must be github or cnb")
+    );
+    assert!(
+        gproxy
+            .manage()
+            .settings()
+            .get()
+            .await
+            .unwrap()
+            .instance
+            .update_source
+            .is_none()
+    );
+}
+
+#[tokio::test]
 async fn a_batch_is_one_commit_over_mixed_steps() {
     let (gproxy, _, _) = support::sdk_parts().await;
     let manage = gproxy.manage();

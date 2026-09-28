@@ -209,6 +209,16 @@ impl<C: BatchConnectionTrait + Send + Sync + 'static> SettingsManage<'_, C> {
                 }
                 row.update_channel = Set(value);
             }
+            if let Some(value) = instance.update_source {
+                let value = crud::optional_text(value);
+                if value
+                    .as_deref()
+                    .is_some_and(|v| !matches!(v, "github" | "cnb"))
+                {
+                    return Err(SdkError::invalid("updateSource must be github or cnb"));
+                }
+                row.update_source = Set(value);
+            }
             if let Some(value) = instance.enable_auto_update_check {
                 row.enable_auto_update_check = Set(value);
             }

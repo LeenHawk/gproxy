@@ -34,6 +34,7 @@ pub fn start(app: &Arc<App<DatabaseConnection>>, updater: Arc<Updater>) -> Runti
                 }
                 if let Err(error) = updater.configure(
                     settings.update_channel.as_deref(),
+                    settings.update_source.as_deref(),
                     settings.enable_auto_update_check,
                 ) {
                     tracing::error!(%error, "could not apply update settings");

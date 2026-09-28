@@ -190,6 +190,7 @@ impl Release {
     fn default_updater(&self) -> Arc<Updater> {
         self.updater(UpdateOptions {
             channel: Channel::Release,
+            source: super::Source::Github,
             restart: Restart::None,
             interval_secs: None,
             automatic: false,
@@ -223,7 +224,7 @@ async fn a_check_reports_the_running_version_the_offer_and_the_notes() {
     let release = Release::publish(Broken::default()).await;
     let report = release
         .default_updater()
-        .check_now(None)
+        .check_now(None, None)
         .await
         .expect("the check succeeds");
 
@@ -258,7 +259,7 @@ async fn a_check_records_itself_where_the_console_reads_it() {
     let updater = release.default_updater();
     assert!(updater.recorded().last_check.is_none());
 
-    updater.check(None).await.expect("the check succeeds");
+    updater.check(None, None).await.expect("the check succeeds");
 
     let schedule = updater.recorded();
     assert_eq!(schedule.last_check.expect("recorded").latest, "999.0.0");
@@ -278,7 +279,10 @@ async fn an_offer_that_is_not_newer_is_not_an_update() {
     .await;
     let updater = release.default_updater();
 
-    let report = updater.check_now(None).await.expect("the check succeeds");
+    let report = updater
+        .check_now(None, None)
+        .await
+        .expect("the check succeeds");
     assert!(
         !report.available,
         "{} is not newer than itself",
@@ -286,7 +290,7 @@ async fn an_offer_that_is_not_newer_is_not_an_update() {
     );
 
     // And applying it writes nothing rather than reinstalling the same bytes.
-    let applied = updater.apply_now(None, false).await.expect("apply");
+    let applied = updater.apply_now(None, None, false).await.expect("apply");
     assert!(!applied.changed);
     assert_eq!(applied.version.as_deref(), Some(BUILD_VERSION));
     assert_eq!(release.downloads(), 0);
@@ -305,9 +309,9 @@ async fn a_manifest_signed_by_another_key_is_refused_before_anything_else() {
     .await;
     let updater = release.default_updater();
 
-    let error = updater.check_now(None).await.unwrap_err();
+    let error = updater.check_now(None, None).await.unwrap_err();
     assert!(matches!(error, UpdateError::Signature), "{error}");
-    let error = updater.apply_now(None, false).await.unwrap_err();
+    let error = updater.apply_now(None, None, false).await.unwrap_err();
     assert!(matches!(error, UpdateError::Signature), "{error}");
 
     assert_eq!(release.downloads(), 0);
@@ -326,6 +330,7 @@ async fn a_build_with_no_signing_key_refuses_every_manifest() {
         None,
         UpdateOptions {
             channel: Channel::Release,
+            source: super::Source::Github,
             restart: Restart::None,
             interval_secs: None,
             automatic: false,
@@ -333,7 +338,7 @@ async fn a_build_with_no_signing_key_refuses_every_manifest() {
         },
     );
 
-    let error = updater.check_now(None).await.unwrap_err();
+    let error = updater.check_now(None, None).await.unwrap_err();
     assert!(matches!(error, UpdateError::NoSigningKey), "{error}");
     assert_eq!(release.downloads(), 0);
     assert_eq!(release.on_disk(), OLD_BINARY);
@@ -349,7 +354,11 @@ async fn a_manifest_for_another_channel_is_refused_even_though_it_is_signed() {
     })
     .await;
 
-    let error = release.default_updater().check_now(None).await.unwrap_err();
+    let error = release
+        .default_updater()
+        .check_now(None, None)
+        .await
+        .unwrap_err();
     assert!(
         matches!(
             &error,
@@ -373,7 +382,7 @@ async fn a_release_that_needs_newer_data_is_refused_before_the_download() {
 
     let error = release
         .default_updater()
-        .apply_now(None, false)
+        .apply_now(None, None, false)
         .await
         .unwrap_err();
     assert!(
@@ -404,14 +413,14 @@ async fn an_artifact_whose_hash_is_wrong_is_refused_and_nothing_is_written() {
     // and the bytes it lies about have not been fetched yet.
     let report = release
         .default_updater()
-        .check_now(None)
+        .check_now(None, None)
         .await
         .expect("the manifest is valid");
     assert!(report.available);
 
     let error = release
         .default_updater()
-        .apply_now(None, false)
+        .apply_now(None, None, false)
         .await
         .unwrap_err();
     assert!(matches!(error, UpdateError::Integrity), "{error}");
@@ -438,7 +447,11 @@ async fn a_release_with_no_build_for_this_platform_says_so_on_the_check() {
     })
     .await;
 
-    let error = release.default_updater().check_now(None).await.unwrap_err();
+    let error = release
+        .default_updater()
+        .check_now(None, None)
+        .await
+        .unwrap_err();
     assert!(
         matches!(&error, UpdateError::Artifact(target) if *target == version::target()),
         "{error}"
@@ -454,7 +467,7 @@ async fn a_verified_update_is_installed_backed_up_and_can_be_rolled_back() {
     let updater = release.default_updater();
 
     let applied = updater
-        .apply_now(None, false)
+        .apply_now(None, None, false)
         .await
         .expect("the update installs");
     assert!(applied.changed);
@@ -477,7 +490,7 @@ async fn a_verified_update_is_installed_backed_up_and_can_be_rolled_back() {
     );
 
     // A check now sees a way back.
-    let report = updater.check_now(None).await.expect("check");
+    let report = updater.check_now(None, None).await.expect("check");
     assert!(report.rollback_available);
 
     let rolled = updater.rollback_now(false).await.expect("rollback");
@@ -521,12 +534,13 @@ async fn the_restart_a_report_promises_is_the_one_configured() {
         let release = Release::publish(Broken::default()).await;
         let updater = release.updater(UpdateOptions {
             channel: Channel::Release,
+            source: super::Source::Github,
             restart: mode,
             interval_secs: None,
             automatic: false,
             manifest_url: None,
         });
-        let report = updater.check_now(None).await.expect("check");
+        let report = updater.check_now(None, None).await.expect("check");
         assert_eq!(report.restart, expected, "{mode:?}");
     }
 }
@@ -540,7 +554,7 @@ async fn asking_for_a_restart_in_the_none_mode_does_nothing_at_all() {
     // assertion.
     let applied = release
         .default_updater()
-        .apply_now(None, true)
+        .apply_now(None, None, true)
         .await
         .expect("the update installs");
     assert!(applied.changed);
