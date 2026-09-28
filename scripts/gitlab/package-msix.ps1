@@ -2,6 +2,16 @@ $ErrorActionPreference = 'Stop'
 $rows = (Get-Content scripts/release-targets.json -Raw | ConvertFrom-Json).include | Where-Object { $_.os -eq 'windows' }
 foreach ($row in $rows) {
     $target = $row.target
+    $cliMetadata = Get-Content "dist/release/$($row.artifact).provenance.json" -Raw | ConvertFrom-Json
+    if ($cliMetadata.commit -ne $env:CI_COMMIT_SHA) { throw "Wrong CLI source commit for $target" }
+    if ($target -eq 'x86_64-pc-windows-msvc') {
+        foreach ($name in @('gproxy-unpacked.exe', 'gproxy.exe')) {
+            foreach ($argument in @('--version', '--help')) {
+                & "./dist/windows/$target/$name" $argument
+                if ($LASTEXITCODE -ne 0) { throw "$name failed with $argument on Windows: $LASTEXITCODE" }
+            }
+        }
+    }
     $destination = "target/$target/release"
     New-Item -ItemType Directory -Force $destination | Out-Null
     Copy-Item "dist/windows/$target/*" $destination
