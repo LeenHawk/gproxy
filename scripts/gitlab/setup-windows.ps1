@@ -73,7 +73,25 @@ if ($env:TARGET_TRIPLE -eq 'aarch64-pc-windows-msvc') {
 Import-Module "$vs\Common7\Tools\Microsoft.VisualStudio.DevShell.dll"
 Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments "-arch=$targetArch -host_arch=x64"
 Get-Command cl.exe -ErrorAction Stop | Select-Object -ExpandProperty Source
+$env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER = Join-Path $env:VCToolsInstallDir 'bin\Hostx64\x64\link.exe'
+if ($targetArch -eq 'arm64') {
+    $env:CARGO_TARGET_AARCH64_PC_WINDOWS_MSVC_LINKER = Join-Path $env:VCToolsInstallDir 'bin\Hostx64\arm64\link.exe'
+}
 Run-Checked go @('version')
 Run-Checked rustc @('--version')
 Run-Checked node @('--version')
 Run-Checked bash @('--login', '-c', 'for tool in awk cmake cargo pnpm; do command -v "$tool" || exit 1; done')
+# Exercise both a host build script and the target linker through Git Bash,
+# whose /usr/bin/link.exe otherwise shadows the MSVC linker used by Tauri.
+$smokeDir = Join-Path $toolsDir 'msvc-smoke'
+New-Item -ItemType Directory -Force "$smokeDir/src" | Out-Null
+@'
+[package]
+name = "msvc-toolchain-smoke"
+version = "0.0.0"
+edition = "2021"
+[workspace]
+'@ | Set-Content -Encoding ascii "$smokeDir/Cargo.toml"
+'fn main() {}' | Set-Content -Encoding ascii "$smokeDir/build.rs"
+'fn main() { println!("MSVC toolchain ready"); }' | Set-Content -Encoding ascii "$smokeDir/src/main.rs"
+Run-Checked bash @('--login', '-c', 'cargo build --manifest-path .ci-tools/msvc-smoke/Cargo.toml --target "$TARGET_TRIPLE"')
