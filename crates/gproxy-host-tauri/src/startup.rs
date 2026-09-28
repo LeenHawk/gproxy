@@ -143,9 +143,9 @@ fn packaged(enabled: bool) -> Result<(), String> {
     };
     unsafe { RoInitialize(RO_INIT_MULTITHREADED) }.map_err(|error| error.to_string())?;
     let result = (|| -> windows::core::Result<()> {
-        let task = StartupTask::GetAsync(&"GproxyStartup".into())?.get()?;
+        let task = StartupTask::GetAsync(&"GproxyStartup".into())?.join()?;
         if enabled {
-            let state = task.RequestEnableAsync()?.get()?;
+            let state = task.RequestEnableAsync()?.join()?;
             if state != StartupTaskState::Enabled && state != StartupTaskState::EnabledByPolicy {
                 return Err(windows::core::Error::new(
                     windows::core::HRESULT(0x80070005_u32 as i32),

@@ -30,6 +30,9 @@ case "$TARGET_OS" in
   android)
     source "$root/scripts/android/sdk.sh"
     ndk="$(android_ndk_root)"
+    export ANDROID_NDK_HOME="$ndk"
+    export GPROXY_ANDROID_ABI="$(android_abi "$TARGET_TRIPLE")"
+    export "CMAKE_TOOLCHAIN_FILE_${TARGET_TRIPLE//-/_}=$root/scripts/cmake/android.cmake"
     ranlib=("$ndk"/toolchains/llvm/prebuilt/*/bin/llvm-ranlib)
     test "${#ranlib[@]}" -eq 1 && test -x "${ranlib[0]}"
     # OpenSSL's cc-rs lookup otherwise falls back to the removed GNU ranlib.

@@ -17,7 +17,7 @@ docker run --rm --platform "$platform" \
   --env CARGO_HOME=/workspace/target/.cache/cargo-musl \
   --env GOCACHE=/workspace/target/.cache/go-build \
   --env GOMODCACHE=/workspace/target/.cache/go-mod \
-  --env 'RUSTFLAGS=-C target-feature=+crt-static -C link-self-contained=no' \
+  --env 'RUSTFLAGS=-C target-feature=+crt-static' \
   --env GPROXY_BUILD_VERSION --env GPROXY_BUILD_CHANNEL \
   --env GPROXY_BUILD_HASH --env GPROXY_UPDATE_PUBKEY \
   --env GPROXY_INSTALLATION_KIND \
