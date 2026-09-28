@@ -29,7 +29,21 @@ case "$TARGET_OS" in
     cp "${files[0]}" "$output/$ARTIFACT_NAME.$bundle"
     ;;
   windows)
-    pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --no-bundle --config "$config" -- --locked
+    (
+      # Android needs the cdylib entry point; the desktop executable only uses
+      # the Rust library. Avoid linking an unused DLL before linking the EXE.
+      manifest_backup="$(mktemp)"
+      cp Cargo.toml "$manifest_backup"
+      trap 'cp "$manifest_backup" Cargo.toml; rm -f "$manifest_backup"' EXIT
+      node -e '
+        const fs = require("node:fs");
+        const text = fs.readFileSync("Cargo.toml", "utf8");
+        const types = "crate-type = [\"lib\", \"cdylib\"]";
+        if (!text.includes(types)) throw new Error("Unexpected Tauri library crate types");
+        fs.writeFileSync("Cargo.toml", text.replace(types, "crate-type = [\"lib\"]"));
+      '
+      pnpm exec tauri build --ci --target "$TARGET_TRIPLE" --no-bundle --config "$config" -- --locked
+    )
     binary="$root/target/$TARGET_TRIPLE/release/gproxy-desktop.exe"
     if [ "$TARGET_TRIPLE" = aarch64-pc-windows-msvc ]; then
       upx --best --nrv2e "$binary"

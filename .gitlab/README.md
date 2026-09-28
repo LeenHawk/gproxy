@@ -35,6 +35,10 @@ remaining time budget. Each job checks host and target MSVC linking through
 Git Bash before compiling the release. GitLab's hosted Windows runners impose
 a two-hour limit; these jobs use ThinLTO, eight codegen units and two build
 workers while retaining size optimization and UPX packaging.
+Windows Application packaging temporarily omits the Android-only `cdylib`
+crate type and restores the manifest after building, avoiding an unused DLL
+link before the desktop EXE. Windows caches use fast ZIP compression to leave
+time for artifact uploads within the hosted runner limit.
 
 ## Publishing
 
