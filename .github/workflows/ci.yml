@@ -224,13 +224,10 @@ jobs:
         run: scripts/install-upx.sh
       - name: Pack and verify Windows executable
         if: ${{ matrix.upx }}
-        shell: bash
+        shell: pwsh
         env:
           TARGET: ${{ matrix.target }}
-        run: |
-          binary="target/$TARGET/release/gproxy.exe"
-          upx --best --lzma "$binary"
-          upx --test "$binary"
+        run: scripts/pack-windows-cli.ps1 -Target $env:TARGET
       - name: Smoke check Windows executable
         if: ${{ matrix.run_check }}
         shell: pwsh
