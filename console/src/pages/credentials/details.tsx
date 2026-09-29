@@ -53,7 +53,7 @@ export function CredentialDetails({ credential, provider, initialTab = "basic", 
   // The revealed secret seeds the form's own secret field rather than a
   // second box: seeded as the original, it only lands in the patch if edited.
   const original = secret === null ? current : { ...current, secret }
-  return <ManagementDialog className="sm:max-w-3xl" title={`${current.label ?? id} · ${provider.displayName ?? provider.name}`} titleAside={<Badge variant="outline">{t(`values.${current.status}`)}</Badge>} onClose={onClose} busy={busy}>
+  return <ManagementDialog className="sm:max-w-3xl" title={`${current.label ?? id} · ${provider.displayName ?? provider.name}`} titleAside={<Badge variant={current.status === "dead" ? "destructive" : "success"}>{t(`values.${current.status}`)}</Badge>} onClose={onClose} busy={busy}>
     {action.error ? <ErrorNotice error={action.error} /> : null}
     <QueryState isPending={row.isPending} error={row.error}>
       <Tabs value={tab} onValueChange={value => setTab(value as typeof tab)}><TabsList variant="line" className="max-w-full"><TabsTrigger value="basic" disabled={busy}>{t("limits.basic")}</TabsTrigger><TabsTrigger value="limits" disabled={busy}>{t("limits.local")}</TabsTrigger><TabsTrigger value="upstream" disabled={busy}>{t("limits.upstream")}</TabsTrigger></TabsList>
@@ -64,7 +64,7 @@ export function CredentialDetails({ credential, provider, initialTab = "basic", 
           {revealError ? <ErrorNotice error={revealError} /> : null}
         </div>} key={JSON.stringify(original)} inline open original={original} providerId={provider.id} onOpenChange={() => {}} onSubmit={body => save.mutate(body)} pending={busy} error={save.error} />
           <section className="mt-4 flex flex-col gap-3 border-t pt-4" aria-label={t("fields.status")}>
-            <div className="flex flex-wrap items-center gap-2"><span>{t("fields.status")}</span><Badge variant="outline">{t(`values.${current.status}`)}</Badge>
+            <div className="flex flex-wrap items-center gap-2"><span>{t("fields.status")}</span><Badge variant={current.status === "dead" ? "destructive" : "success"}>{t(`values.${current.status}`)}</Badge>
               <Button variant="outline" size="sm" disabled={busy} onClick={() => { setStatus(current.status); setReason(""); setEditingStatus(true); action.reset() }}>{t("limits.changeStatus")}</Button>
               <ConfirmButton variant="outline" disabled={busy} title={t("management.healthResetConfirm")} confirmLabel={t("management.healthReset")} onConfirm={() => action.mutate("health")}>{t("management.healthReset")}</ConfirmButton>
             </div>

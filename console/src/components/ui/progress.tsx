@@ -8,8 +8,9 @@ import { cn } from "@/lib/utils"
 function Progress({
   className,
   value,
+  tone = "default",
   ...props
-}: React.ComponentProps<typeof ProgressPrimitive.Root>) {
+}: React.ComponentProps<typeof ProgressPrimitive.Root> & { tone?: "default" | "success" | "warning" | "destructive" }) {
   const determinate = value != null
   return (
     <ProgressPrimitive.Root
@@ -23,7 +24,7 @@ function Progress({
     >
       <ProgressPrimitive.Indicator
         data-slot="progress-indicator"
-        className={cn("size-full flex-1 bg-primary transition-all", !determinate && "animate-pulse")}
+        className={cn("size-full flex-1 transition-all", { default: "bg-primary", success: "bg-state-healthy", warning: "bg-state-warning", destructive: "bg-destructive" }[tone], !determinate && "animate-pulse")}
         style={determinate ? { transform: `translateX(-${100 - value}%)` } : undefined}
       />
     </ProgressPrimitive.Root>
